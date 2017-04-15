@@ -1,0 +1,68 @@
+// cWaveformWidget.h
+#pragma once
+#include "cWidget.h"
+
+class cWaveWidget : public cWidget {
+public:
+  //{{{
+  cWaveWidget (uint8_t* wave, int& curFrame, int& loadedFrame, int& maxFrame, bool& changed, float width, float height) :
+      cWidget (COL_BLUE, width, height),
+      mWave(wave), mCurFrame(curFrame), mLoadedFrame(loadedFrame), mMaxFrame(maxFrame), mChanged(changed) {
+
+    mChanged = false;
+    mSrc = (uint8_t*)bigMalloc (mHeight, "waveSrc");
+    memset (mSrc, 0xC0, mHeight);
+    }
+  //}}}
+  //{{{
+  virtual ~cWaveWidget() {
+    bigFree (mSrc);
+    }
+  //}}}
+
+  //{{{
+  virtual void render (iDraw* draw) {
+    render (draw, mColour, mColourAfter, mCurFrame - mWidth, getMaxValue()*2, 0, mWidth);
+    }
+  //}}}
+
+protected:
+  int getMaxValue() { return *mWave; }
+  int getCentreY() { return mY + (mHeight/2); }
+
+  //{{{
+  void render (iDraw* draw, uint32_t colour, uint32_t colourAfter, int frame, int scale, int x, int lastX) {
+
+    if (frame < x) { // not enough front frames
+      x = -frame;
+      frame = 0;
+      }
+    if (x + mLoadedFrame - frame < lastX) // not enough back frames
+      lastX = x + mLoadedFrame - frame;
+
+    // draw frames
+    auto wave = mWave + 1 + (frame * 2);
+    auto centreY = getCentreY();
+    for (; x < lastX; x++, frame++) {
+      auto valueL = (*wave++ * mHeight) / scale;
+      auto valueR = (*wave++ * mHeight) / scale;
+      if (frame == mCurFrame) {
+        draw->rectClipped (COL_WHITE, mX+x, centreY - valueL, 1, valueL + valueR);
+        colour = colourAfter;
+        }
+      else
+        draw->rectClipped (colour, mX+x, centreY - valueL, 1, valueL + valueR);
+        //draw->stampClipped (colour, mSrc, mX+x, centreY - valueL, 1, valueL + valueR);
+      }
+    }
+  //}}}
+
+  uint8_t* mWave;
+  int& mCurFrame;
+  int& mLoadedFrame;
+  int& mMaxFrame;
+  bool& mChanged;
+
+  uint32_t mColourAfter = COL_GREY;
+  uint8_t* mSrc;
+  };
