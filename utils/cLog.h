@@ -9,12 +9,12 @@ public:
   cLog() {}
   virtual ~cLog() {}
 
-  static bool Init (const char* path, enum eLogCode logLevel);
-  static void Close();
+  static bool init (std::string path, enum eLogCode logLevel);
+  static void close();
 
-  static enum eLogCode GetLogLevel();
-  static void SetLogLevel (enum eLogCode logLevel);
+  static enum eLogCode getLogLevel();
+  static void setLogLevel (enum eLogCode logLevel);
 
-  static void Log (enum eLogCode logCode, const char *format, ... );
+  static void log (enum eLogCode logCode, const char *format, ... );
   //static void Log (enum eLogCode logCode, const char* format, ... ) __attribute__((format(printf,2,3)));
   };

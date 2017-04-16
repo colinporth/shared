@@ -79,7 +79,7 @@ public:
   //{{{
   void load (cHttp& http, uint16_t chan) {
 
-    cLog::Log (LOGINFO1, "cSchedule::load");
+    cLog::log (LOGINFO1, "cSchedule::load");
 
     // get schedule json
     switch (chan) {
@@ -97,7 +97,7 @@ public:
     auto parseError = schedule.Parse ((const char*)http.getContent(), http.getContentSize()).HasParseError();
     http.freeContent();
     if (parseError) {
-      cLog::Log (LOGERROR, "cSchedule::load error %d", schedule.GetParseError());
+      cLog::log(LOGERROR, "cSchedule::load error %d", schedule.GetParseError());
       return;
       }
 
@@ -113,7 +113,7 @@ public:
       mSchedule.push_back (item);
       }
 
-    cLog::Log (LOGINFO1, "cSchedule::load done size:%d %s %s",
+    cLog::log (LOGINFO1, "cSchedule::load done size:%d %s %s",
                          http.getContentSize(), http.getLastHost().c_str(), http.getLastPath().c_str());
     list();
     }
@@ -145,7 +145,7 @@ private:
   void list() {
 
     for (auto item : mSchedule)
-      cLog::Log (LOGINFO2, "start:%s dur:%s %s",
+      cLog::log (LOGINFO2, "start:%s dur:%s %s",
                  getTimeStrFromSecs (item->mStart).c_str(),
                  getTimeStrFromSecs (item->mDuration).c_str(),
                  item->mTitle.c_str());
@@ -338,25 +338,25 @@ public:
 
     uint16_t chunk;
     if (!findSeqNumChunk (seqNum, 0, chunk)) {
-      cLog::Log (LOGINFO, "loadAtPlayFrame loading seqNum:%d at playFrame:%d", seqNum, getPlayFrame());
+      cLog::log (LOGINFO, "loadAtPlayFrame loading seqNum:%d at playFrame:%d", seqNum, getPlayFrame());
       ok &= mChunks[chunk].load (http, mDecoder, mHost, getTsPath (seqNum), seqNum, mBitrate);
-      cLog::Log (LOGINFO, "loaded seqNum:%d", seqNum);
+      cLog::log (LOGINFO, "loaded seqNum:%d", seqNum);
       }
     if (mChanChanged)
       return true;
 
     if (!findSeqNumChunk (seqNum, 1, chunk)) {
-      cLog::Log (LOGINFO, "loadAtPlayFrame loading seqNum:%d at playFrame:%d", seqNum+1, getPlayFrame());
+      cLog::log (LOGINFO, "loadAtPlayFrame loading seqNum:%d at playFrame:%d", seqNum+1, getPlayFrame());
       ok &= mChunks[chunk].load (http, mDecoder, mHost, getTsPath (seqNum+1), seqNum+1, mBitrate);
-      cLog::Log (LOGINFO, "loaded seqNum:%d", seqNum+1);
+      cLog::log (LOGINFO, "loaded seqNum:%d", seqNum+1);
       }
     if (mChanChanged)
       return true;
 
     if (!findSeqNumChunk (seqNum, -1, chunk)) {
-      cLog::Log (LOGINFO, "loadAtPlayFrame loading seqNum:%d at playFrame:%d", seqNum-1, getPlayFrame());
+      cLog::log (LOGINFO, "loadAtPlayFrame loading seqNum:%d at playFrame:%d", seqNum-1, getPlayFrame());
       ok &= mChunks[chunk].load (http, mDecoder, mHost, getTsPath (seqNum-1), seqNum-1, mBitrate);
-      cLog::Log (LOGINFO, "loaded seqNum:%d", seqNum-1);
+      cLog::log (LOGINFO, "loaded seqNum:%d", seqNum-1);
       }
     return ok;
     }
@@ -371,7 +371,7 @@ public:
         mContent = nullptr;
       else {
         http.get ("ichef.bbci.co.uk", "images/ic/160x90/" + imagePid + ".jpg");
-        cLog::Log (LOGINFO1, "loadPicAtPlayFrame imagePid:%s size:%d", imagePid.c_str(), http.getContentSize());
+        cLog::log (LOGINFO1, "loadPicAtPlayFrame imagePid:%s size:%d", imagePid.c_str(), http.getContentSize());
         if (http.getContent()) {
           new cJpegPic (3, http.getContent());
           auto temp = (uint8_t*)bigMalloc (http.getContentSize(), "cHls::jpegPic");
@@ -379,7 +379,7 @@ public:
           mContentSize = http.getContentSize();
           mContent = temp;
           http.freeContent();
-          cLog::Log (LOGINFO1, "- loaded imagePid:%s size:%d", imagePid.c_str(), http.getContentSize());
+          cLog::log (LOGINFO1, "- loaded imagePid:%s size:%d", imagePid.c_str(), http.getContentSize());
           }
         else
           mContent = nullptr;

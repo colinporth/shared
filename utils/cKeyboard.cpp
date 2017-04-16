@@ -61,7 +61,7 @@ void cKeyboard::run() {
     if (chnum > 1)
       ch[0] = ch[chnum - 1] | (ch[chnum - 2] << 8);
     if (chnum > 0)
-      cLog::Log (LOGINFO, "cKeyboard char 0x%x %c ", ch[0], ch[0]);
+      cLog::log (LOGINFO, "cKeyboard char 0x%x %c ", ch[0], ch[0]);
 
     if (m_keymap[ch[0]] != 0)
       m_action = m_keymap[ch[0]];
