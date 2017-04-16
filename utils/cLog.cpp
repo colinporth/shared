@@ -166,16 +166,10 @@ void cLog::log (enum eLogCode logCode, const char* format, ... ) {
     va_list va;
     va_start (va, format);
 
-    #ifdef _WIN32
-      int size = _vscprintf (format, va);
-      std::string logStr (++size, 0);
-      vsnprintf_s ((char*)logStr.data(), size, _TRUNCATE, format, va);
-    #else
-      size_t size = std::snprintf (nullptr, 0, format, va) + 1; // Extra space for '\0'
-      std::unique_ptr<char[]> buf (new char[size]);
-      std::vsnprintf (buf.get(), size, format, va);
-      std::string logStr (buf.get(), buf.get() + size - 1); // We don't want the '\0' inside
-    #endif
+    size_t size = std::vsnprintf (nullptr, 0, format, va) + 1; // Extra space for '\0'
+    std::unique_ptr<char[]> buf (new char[size]);
+    std::vsnprintf (buf.get(), size, format, va);
+    std::string logStr (buf.get(), buf.get() + size - 1); // We don't want the '\0' inside
 
     va_end (va);
     //}}}
