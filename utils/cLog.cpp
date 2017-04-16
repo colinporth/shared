@@ -76,7 +76,7 @@ const char levelColours[][12] = { "\033[38;5;117m",   // debug  bluewhite
                                    };
 
 const char* prefixFormat =        "%02.2d:%02.2d:%02.2d.%06d%s ";
-const char* postfix =             "\033[m";
+const char* postfix =             "\033[m\n";
 //}}}
 const int kBst = 1;
 
@@ -203,6 +203,7 @@ void cLog::log (enum eLogCode logCode, const char* format, ... ) {
         sprintf (buffer, prefixFormat, time.wHour, time.wMinute, time.wSecond, usec, levelNames[mRepeatLogCode]);
         fputs (buffer, mFile);
         fputs (prev, mFile);
+        fputc ('\n', mFile);
         }
 
       mRepeatCount = 0;
@@ -211,9 +212,6 @@ void cLog::log (enum eLogCode logCode, const char* format, ... ) {
 
     mRepeatLogCode = logCode;
     mRepeatStr = logStr;
-    if (logStr.empty())
-      return;
-    logStr += "\n";
 
     // write log line
     char buffer[40];
@@ -227,6 +225,7 @@ void cLog::log (enum eLogCode logCode, const char* format, ... ) {
       sprintf (buffer, prefixFormat, time.wHour, time.wMinute, time.wSecond, usec, levelNames[logCode]);
       fputs (buffer, mFile);
       fputs (logStr.c_str(), mFile);
+      fputc ('\n', mFile);
       fflush (mFile);
       }
     }
