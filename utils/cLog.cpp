@@ -82,6 +82,7 @@ const int kBst = 1;
 
 enum eLogCode mLogLevel = LOGNONE;
 FILE* mFile = NULL;
+std::mutex mLogMutex;
 
 std::string mRepeatStr;
 int mRepeatCount = 0;
@@ -90,8 +91,6 @@ int mRepeatLogCode = -1;
 #ifdef _WIN32
   HANDLE hStdOut = 0;
 #endif
-
-std::mutex mLogMutex;
 
 //{{{
 bool cLog::init (std::string path, enum eLogCode logLevel) {
@@ -163,7 +162,7 @@ void cLog::log (enum eLogCode logCode, const char* format, ... ) {
     time.wSecond = now.tv_sec % 60;
     int usec = now.tv_usec;
     //}}}
-    //{{{  get logStr
+    //{{{  form logStr
     va_list va;
     va_start (va, format);
 
@@ -175,7 +174,7 @@ void cLog::log (enum eLogCode logCode, const char* format, ... ) {
       size_t size = std::snprintf (nullptr, 0, format, va) + 1; // Extra space for '\0'
       std::unique_ptr<char[]> buf (new char[size]);
       std::vsnprintf (buf.get(), size, format, va);
-      std::string logStr = std::string (buf.get(), buf.get() + size - 1); // We don't want the '\0' inside
+      std::string logStr (buf.get(), buf.get() + size - 1); // We don't want the '\0' inside
     #endif
 
     va_end (va);

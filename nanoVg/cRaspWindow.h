@@ -48,28 +48,28 @@ public:
 
     // get EGL display
     mEglDisplay = eglGetDisplay (EGL_DEFAULT_DISPLAY);
-    cLog::Log (LOGINFO, "eglGetDisplay display:%p", mEglDisplay);
+    cLog::log (LOGINFO, "eglGetDisplay display:%p", mEglDisplay);
 
     // init EGL display
     auto result = eglInitialize (mEglDisplay, NULL, NULL);
-    cLog::Log (LOGINFO, "eglInitialize display:%d", result);
+    cLog::log (LOGINFO, "eglInitialize display:%d", result);
 
     // get EGLconfig frameBuffer, BRCM extension gets closest match
     EGLConfig config;
     EGLint numConfig;
     eglSaneChooseConfigBRCM (mEglDisplay, kConfigAttributeList, &config, 1, &numConfig);
-    cLog::Log (LOGINFO, "eglSaneChooseConfigBRCM numConfig:%d", numConfig);
+    cLog::log (LOGINFO, "eglSaneChooseConfigBRCM numConfig:%d", numConfig);
 
     result = eglBindAPI (EGL_OPENGL_ES_API);
-    cLog::Log (LOGINFO, "eglBindAPI:%d", result);
+    cLog::log (LOGINFO, "eglBindAPI:%d", result);
 
     // create EGL rendering context
     mEglContext = eglCreateContext (mEglDisplay, config, EGL_NO_CONTEXT, kContextAttributeList);
-    cLog::Log (LOGINFO, "eglCreateContext context:%p", mEglContext);
+    cLog::log (LOGINFO, "eglCreateContext context:%p", mEglContext);
 
     // create EGL window surface
     graphics_get_display_size (0, &mScreenWidth, &mScreenHeight);
-    cLog::Log (LOGINFO, "graphics_get_display_size %d:%d", mScreenWidth, mScreenHeight);
+    cLog::log (LOGINFO, "graphics_get_display_size %d:%d", mScreenWidth, mScreenHeight);
 
     mScreenWidth = int(mScreenWidth * scale);
     mScreenHeight = int(mScreenHeight * scale);
@@ -91,21 +91,21 @@ public:
     vc_dispmanx_update_submit_sync (dispmanxUpdate);
 
     mEglSurface = eglCreateWindowSurface (mEglDisplay, config, &mNativeWindow, NULL);
-    cLog::Log (LOGINFO, "eglCreateWindowSurface surface:%p", mEglSurface);
+    cLog::log (LOGINFO, "eglCreateWindowSurface surface:%p", mEglSurface);
 
     // connect the context to the surface
     result = eglMakeCurrent (mEglDisplay, mEglSurface, mEglSurface, mEglContext);
-    cLog::Log (LOGINFO, "eglMakeCurrent %d", result);
+    cLog::log (LOGINFO, "eglMakeCurrent %d", result);
 
     // set
     setVsync (true);
 
     cVgGL::initialise();
-    cLog::Log (LOGINFO, "cRaspWindow");
+    cLog::log (LOGINFO, "cRaspWindow");
 
     createFontMem ("sans", (unsigned char*)freeSansBold, sizeof(freeSansBold), 0);
     fontFace ("sans");
-    cLog::Log (LOGINFO, "create freeSansBold");
+    cLog::log (LOGINFO, "create freeSansBold");
 
     glViewport (0, 0, mScreenWidth, mScreenHeight);
     glClearColor (0, 0, 0, 1.0f);
@@ -215,7 +215,7 @@ protected:
       pollKeyboard();
       }
 
-    cLog::Log (LOGNOTICE, "run escaped");
+    cLog::log (LOGNOTICE, "run escaped");
     }
   //}}}
 

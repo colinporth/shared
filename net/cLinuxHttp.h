@@ -39,18 +39,18 @@ protected:
 
       mSocket = socket (AF_INET, SOCK_STREAM, 0);
       if (mSocket >= 0)
-        cLog::Log (LOGINFO, "connectToHost - successfully opened socket");
+        cLog::log (LOGINFO, "connectToHost - successfully opened socket");
       else
-        cLog::Log (LOGINFO, "connectToHost - error opening socket");
+        cLog::log (LOGINFO, "connectToHost - error opening socket");
 
       struct hostent* server = gethostbyname (host.c_str());
       if (server == NULL)
-        cLog::Log (LOGINFO, "connectToHost - gethostbyname() failed");
+        cLog::log (LOGINFO, "connectToHost - gethostbyname() failed");
       else {
-        cLog::Log (LOGINFO, "connectToHost - %s ", server->h_name);
+        cLog::log (LOGINFO, "connectToHost - %s ", server->h_name);
         unsigned int j = 0;
         while (server->h_addr_list[j] != NULL) {
-          cLog::Log (LOGINFO, "- %s", inet_ntoa(*(struct in_addr*)(server->h_addr_list[j])));
+          cLog::log (LOGINFO, "- %s", inet_ntoa(*(struct in_addr*)(server->h_addr_list[j])));
           j++;
           }
         }
@@ -63,9 +63,9 @@ protected:
       int port = 80;
       serveraddr.sin_port = htons (port);
       if (connect (mSocket, (struct sockaddr *) &serveraddr, sizeof(serveraddr)) >= 0)
-        cLog::Log (LOGINFO, "connectToHost - connected socket:%d", mSocket);
+        cLog::log (LOGINFO, "connectToHost - connected socket:%d", mSocket);
       else
-        cLog::Log (LOGINFO, "connectToHost - Error Connecting");
+        cLog::log (LOGINFO, "connectToHost - Error Connecting");
 
       mLastHost = host;
       }
