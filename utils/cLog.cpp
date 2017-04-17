@@ -19,7 +19,9 @@
     ularge.HighPart = file_time.dwHighDateTime;
 
     tp->tv_sec = (long) ((ularge.QuadPart - 116444736000000000ULL) / 10000000L);
-    tp->tv_usec = (long) (system_time.wMilliseconds * 1000);
+
+    // actually millisecs
+    tp->tv_usec = (long) system_time.wMilliseconds;
     }
   //}}}
 #else
@@ -76,7 +78,12 @@ const char levelColours[][12] = { "\033[38;5;117m",   // debug  bluewhite
                                   "\033[38;5;196m",   // error  light red
                                    };
 
-const char* prefixFormat =        "%02.2d:%02.2d:%02.2d.%06d%s ";
+#ifdef _WIN32
+  const char* prefixFormat =        "%02.2d:%02.2d:%02.2d.%03d%s ";
+#else
+  const char* prefixFormat =        "%02.2d:%02.2d:%02.2d.%06d%s ";
+#endif
+
 const char* postfix =             "\033[m\n";
 //}}}
 
@@ -160,7 +167,7 @@ void cLog::log (enum eLogCode logCode, std::string logStr) {
     time.wHour = kBst + (now.tv_sec/3600) % 24;
     time.wMinute = (now.tv_sec/60) % 60;
     time.wSecond = now.tv_sec % 60;
-    int usec = now.tv_usec;
+    int subSec = now.tv_usec;
     //}}}
 
     // repeated log line ?
@@ -171,7 +178,7 @@ void cLog::log (enum eLogCode logCode, std::string logStr) {
     else if (mRepeatCount) {
       //{{{  write repeated log line
       char buffer[40];
-      sprintf (buffer, prefixFormat, time.wHour, time.wMinute, time.wSecond, usec, levelColours[logCode]);
+      sprintf (buffer, prefixFormat, time.wHour, time.wMinute, time.wSecond, subSec, levelColours[logCode]);
       fputs (buffer, stdout);
 
       char prev[40];
@@ -181,7 +188,7 @@ void cLog::log (enum eLogCode logCode, std::string logStr) {
 
       if (mFile) {
         char buffer[40];
-        sprintf (buffer, prefixFormat, time.wHour, time.wMinute, time.wSecond, usec, levelNames[mRepeatLogCode]);
+        sprintf (buffer, prefixFormat, time.wHour, time.wMinute, time.wSecond, subSec, levelNames[mRepeatLogCode]);
         fputs (buffer, mFile);
         fputs (prev, mFile);
         fputc ('\n', mFile);
@@ -196,14 +203,14 @@ void cLog::log (enum eLogCode logCode, std::string logStr) {
 
     // write log line
     char buffer[40];
-    sprintf (buffer, prefixFormat, time.wHour, time.wMinute, time.wSecond, usec, levelColours[logCode]);
+    sprintf (buffer, prefixFormat, time.wHour, time.wMinute, time.wSecond, subSec, levelColours[logCode]);
     fputs (buffer, stdout);
     fputs (logStr.c_str(), stdout);
     fputs (postfix, stdout);
 
     if (mFile) {
       char buffer[40];
-      sprintf (buffer, prefixFormat, time.wHour, time.wMinute, time.wSecond, usec, levelNames[logCode]);
+      sprintf (buffer, prefixFormat, time.wHour, time.wMinute, time.wSecond, subSec, levelNames[logCode]);
       fputs (buffer, mFile);
       fputs (logStr.c_str(), mFile);
       fputc ('\n', mFile);
