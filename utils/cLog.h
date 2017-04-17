@@ -6,8 +6,7 @@ enum eLogCode { LOGNONE, LOGNOTICE, LOGINFO, LOGINFO1, LOGINFO2, LOGINFO3, LOGDE
 
 class cLog {
 public:
-  cLog() {}
-  virtual ~cLog() {}
+  ~cLog() { close(); }
 
   static bool init (std::string path, enum eLogCode logLevel);
   static void close();
@@ -16,5 +15,4 @@ public:
   static void setLogLevel (enum eLogCode logLevel);
 
   static void log (enum eLogCode logCode, const char *format, ... );
-  //static void Log (enum eLogCode logCode, const char* format, ... ) __attribute__((format(printf,2,3)));
   };

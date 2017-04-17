@@ -54,6 +54,7 @@
 
 #include "cLog.h"
 //}}}
+const int kBst = 1;
 //{{{  const
 const char levelNames[][6] =    { " deb ",
                                   " info",
@@ -78,7 +79,6 @@ const char levelColours[][12] = { "\033[38;5;117m",   // debug  bluewhite
 const char* prefixFormat =        "%02.2d:%02.2d:%02.2d.%06d%s ";
 const char* postfix =             "\033[m\n";
 //}}}
-const int kBst = 1;
 
 enum eLogCode mLogLevel = LOGNONE;
 FILE* mFile = NULL;
@@ -152,7 +152,7 @@ void cLog::log (enum eLogCode logCode, const char* format, ... ) {
   std::lock_guard<std::mutex> lockGuard (mLogMutex);
 
   if (logCode <= mLogLevel || (logCode >= LOGWARNING)) {
-    //{{{  get usec time
+    //{{{  get time
     struct timeval now;
     gettimeofday (&now, NULL);
     SYSTEMTIME time;
@@ -163,26 +163,31 @@ void cLog::log (enum eLogCode logCode, const char* format, ... ) {
     int usec = now.tv_usec;
     //}}}
     //{{{  form logStr
-    va_list va;
-    va_start (va, format);
+    va_list args;
+    va_start (args, format);
 
-    size_t size = std::vsnprintf (nullptr, 0, format, va) + 1; // Extra space for '\0'
+    // get size of str
+    size_t size = std::vsnprintf (nullptr, 0, format, args) + 1; // Extra space for '\0'
+
+    // allocate buffer
     std::unique_ptr<char[]> buf (new char[size]);
-    std::vsnprintf (buf.get(), size, format, va);
-    std::string logStr (buf.get(), buf.get() + size - 1); // We don't want the '\0' inside
 
-    va_end (va);
+    // form buffer
+    std::vsnprintf (buf.get(), size, format, args);
+
+    // make str
+    std::string logStr (buf.get(), buf.get() + size-1); // don't want the '\0' inside
+
+    va_end (args);
     //}}}
 
-    // check for repeat
+    // repeated log line ?
     if ((logCode == mRepeatLogCode) && (logStr == mRepeatStr)) {
-      //{{{  log repeat and return
       mRepeatCount++;
       return;
       }
-      //}}}
     else if (mRepeatCount) {
-      //{{{  write repeated log line repeated
+      //{{{  write repeated log line
       char buffer[40];
       sprintf (buffer, prefixFormat, time.wHour, time.wMinute, time.wSecond, usec, levelColours[logCode]);
       fputs (buffer, stdout);
