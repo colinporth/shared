@@ -34,7 +34,7 @@ static const uint32_t kDefaultChan = 4;
 static const uint32_t kDefaultBitrate = 128000;
 static const float kDefaultVolume = 0.8f;
 //}}}
-const bool kBST = true;
+const int kBstSecs = 3600;
 
 // utils
 //{{{
@@ -121,9 +121,8 @@ public:
 
   //{{{
   cScheduleItem* findItem (uint32_t secs) {
-    if (kBST)
-      secs += 3600;
 
+    secs += kBstSecs;
     for (auto item : mSchedule)
       if ((secs >= item->mStart) && (secs < item->mStart + item->mDuration))
         return item;
@@ -145,10 +144,9 @@ private:
   void list() {
 
     for (auto item : mSchedule)
-      cLog::log (LOGINFO2, "start:%s dur:%s %s",
-                 getTimeStrFromSecs (item->mStart).c_str(),
-                 getTimeStrFromSecs (item->mDuration).c_str(),
-                 item->mTitle.c_str());
+      cLog::log (LOGINFO2, getTimeStrFromSecs (item->mStart) + " " +
+                           getTimeStrFromSecs (item->mDuration) + " " +
+                           item->mTitle);
     }
   //}}}
 
@@ -338,7 +336,8 @@ public:
 
     uint16_t chunk;
     if (!findSeqNumChunk (seqNum, 0, chunk)) {
-      cLog::log (LOGINFO, "loadAtPlayFrame loading seqNum:%d at playFrame:%d", seqNum, getPlayFrame());
+      cLog::log (LOGINFO, "loadAtPlayFrame loading seqNum:%d at playFrame:" +
+                          std::to_string (seqNum) + " " + getTimeStrFromSecs (getPlaySec()+kBstSecs));
       ok &= mChunks[chunk].load (http, mDecoder, mHost, getTsPath (seqNum), seqNum, mBitrate);
       cLog::log (LOGINFO, "loaded seqNum:%d", seqNum);
       }
@@ -346,7 +345,8 @@ public:
       return true;
 
     if (!findSeqNumChunk (seqNum, 1, chunk)) {
-      cLog::log (LOGINFO, "loadAtPlayFrame loading seqNum:%d at playFrame:%d", seqNum+1, getPlayFrame());
+      cLog::log (LOGINFO, "loadAtPlayFrame loading seqNum:%d at playFrame:" +
+                           std::to_string (seqNum+1) + " " + getTimeStrFromSecs (getPlaySec()+kBstSecs));
       ok &= mChunks[chunk].load (http, mDecoder, mHost, getTsPath (seqNum+1), seqNum+1, mBitrate);
       cLog::log (LOGINFO, "loaded seqNum:%d", seqNum+1);
       }
@@ -354,7 +354,8 @@ public:
       return true;
 
     if (!findSeqNumChunk (seqNum, -1, chunk)) {
-      cLog::log (LOGINFO, "loadAtPlayFrame loading seqNum:%d at playFrame:%d", seqNum-1, getPlayFrame());
+      cLog::log (LOGINFO, "loadAtPlayFrame loading seqNum:%d at playFrame:" +
+                           std::to_string (seqNum-1) + " " + getTimeStrFromSecs (getPlaySec()+kBstSecs));
       ok &= mChunks[chunk].load (http, mDecoder, mHost, getTsPath (seqNum-1), seqNum-1, mBitrate);
       cLog::log (LOGINFO, "loaded seqNum:%d", seqNum-1);
       }
@@ -892,7 +893,7 @@ public:
       context->fontSize ((float)getBigFontHeight());
       context->textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_TOP);
       context->fillColor (kWhite);
-      context->text (midx-60.0f+3.0f, y+1.0f, getTimeStrFromSecs (mHls->getPlaySec() + (kBST ? 3600 : 0)));
+      context->text (midx-60.0f+3.0f, y+1.0f, getTimeStrFromSecs (mHls->getPlaySec() + kBstSecs));
 
       float midy = (float)mY + (mHeight/2);
       uint16_t scale = 0x10000 / mHeight;

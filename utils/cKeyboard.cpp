@@ -1,4 +1,4 @@
-// cKeyboard.cpp
+// cKeyboard.cpp - crude linux keyboard handler
 //{{{  includes
 #include "cKeyboard.h"
 

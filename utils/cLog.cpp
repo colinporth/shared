@@ -147,7 +147,7 @@ void cLog::setLogLevel (enum eLogCode logLevel) {
 //}}}
 
 //{{{
-void cLog::log (enum eLogCode logCode, const char* format, ... ) {
+void cLog::log (enum eLogCode logCode, std::string logStr) {
 
   std::lock_guard<std::mutex> lockGuard (mLogMutex);
 
@@ -161,24 +161,6 @@ void cLog::log (enum eLogCode logCode, const char* format, ... ) {
     time.wMinute = (now.tv_sec/60) % 60;
     time.wSecond = now.tv_sec % 60;
     int usec = now.tv_usec;
-    //}}}
-    //{{{  form logStr
-    va_list args;
-    va_start (args, format);
-
-    // get size of str
-    size_t size = std::vsnprintf (nullptr, 0, format, args) + 1; // Extra space for '\0'
-
-    // allocate buffer
-    std::unique_ptr<char[]> buf (new char[size]);
-
-    // form buffer
-    std::vsnprintf (buf.get(), size, format, args);
-
-    // make str
-    std::string logStr (buf.get(), buf.get() + size-1); // don't want the '\0' inside
-
-    va_end (args);
     //}}}
 
     // repeated log line ?
@@ -228,5 +210,26 @@ void cLog::log (enum eLogCode logCode, const char* format, ... ) {
       fflush (mFile);
       }
     }
+  }
+//}}}
+//{{{
+void cLog::log (enum eLogCode logCode, const char* format, ... ) {
+
+  // form logStr
+  va_list args;
+  va_start (args, format);
+
+  // get size of str
+  size_t size = std::vsnprintf (nullptr, 0, format, args) + 1; // Extra space for '\0'
+
+  // allocate buffer
+  std::unique_ptr<char[]> buf (new char[size]);
+
+  // form buffer
+  std::vsnprintf (buf.get(), size, format, args);
+
+  va_end (args);
+
+  log (logCode, std::string (buf.get(), buf.get() + size-1));
   }
 //}}}

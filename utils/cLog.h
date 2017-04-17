@@ -14,5 +14,6 @@ public:
   static enum eLogCode getLogLevel();
   static void setLogLevel (enum eLogCode logLevel);
 
+  static void log (enum eLogCode logCode, std::string logStr);
   static void log (enum eLogCode logCode, const char *format, ... );
   };
