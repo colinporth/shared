@@ -83,6 +83,41 @@ protected:
     auto curFrameX = mMaxFrame > 0 ? (mCurFrame * mWidth) / mMaxFrame : 0;
     auto centreY = getCentreY();
     auto scale = getMaxValue() * 2;
+
+  #ifdef USE_NANOVG
+    //{{{  draw wave
+    auto context = draw->getContext();
+
+    context->beginPath();
+    context->fillColor (nvgRGB32 (colour));
+
+    for (auto x = firstX; x <= lastX; x++) {
+      if (x == curFrameX) {
+        auto wave = mWave + 1 + (mCurFrame * 2);
+        auto valueL = (*wave++ * mHeight) / scale;
+        auto valueR = (*wave++ * mHeight) / scale;
+
+        context->triangleFill();
+
+        context->beginPath();
+        context->rect (mX+x, centreY - valueL-2.0f, 1.0f, valueL + valueR + 4.0f);
+        context->fillColor (nvgRGB32 (COL_YELLOW));
+        context->triangleFill();
+
+        context->beginPath();
+        }
+      else {
+        auto valueL = *summedWavePtr++;
+        auto valueR = *summedWavePtr++;
+        context->rect (mX+x, centreY - valueL-2.0f, 1.0f, valueL + valueR + 4.0f);
+        }
+      }
+
+    context->fillColor (nvgRGB32 (mColourAfter));
+    context->triangleFill();
+    //}}}
+  #else
+    //{{{  draw wave
     for (auto x = firstX; x <= lastX; x++) {
       if (x == curFrameX) {
         auto wave = mWave + 1 + (mCurFrame * 2);
@@ -95,9 +130,10 @@ protected:
         auto valueL = *summedWavePtr++;
         auto valueR = *summedWavePtr++;
         draw->rectClipped (colour, mX+x, centreY - valueL-2, 1, valueL + valueR + 4);
-        //draw->stampClipped (colour, mSrc, mX+x, centreY - valueL, 1, valueL + valueR);
         }
       }
+    //}}}
+  #endif
     }
   //}}}
 

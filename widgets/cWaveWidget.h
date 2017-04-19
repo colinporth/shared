@@ -43,6 +43,36 @@ protected:
     // draw frames
     auto wave = mWave + 1 + (frame * 2);
     auto centreY = getCentreY();
+
+  #ifdef USE_NANOVG
+    //{{{  draw wave
+    auto context = draw->getContext();
+
+    context->fillColor (nvgRGB32 (colour));
+    context->beginPath();
+
+    for (; x < lastX; x++, frame++) {
+      auto valueL = (*wave++ * mHeight) / scale;
+      auto valueR = (*wave++ * mHeight) / scale;
+      if (frame == mCurFrame) {
+        context->triangleFill();
+
+        context->beginPath();
+        context->rect (mX+x, centreY - valueL, 1.0f, valueL + valueR);
+        context->fillColor (nvgRGB32 (COL_WHITE));
+        context->triangleFill();
+
+        context->beginPath();
+        }
+      else
+        context->rect (mX+x, centreY - valueL, 1.0f, valueL + valueR);
+      }
+
+    context->fillColor (nvgRGB32 (colourAfter));
+    context->triangleFill();
+    //}}}
+  #else
+    //{{{  draw wave
     for (; x < lastX; x++, frame++) {
       auto valueL = (*wave++ * mHeight) / scale;
       auto valueR = (*wave++ * mHeight) / scale;
@@ -52,8 +82,9 @@ protected:
         }
       else
         draw->rectClipped (colour, mX+x, centreY - valueL, 1, valueL + valueR);
-        //draw->stampClipped (colour, mSrc, mX+x, centreY - valueL, 1, valueL + valueR);
       }
+    //}}}
+  #endif
     }
   //}}}
 
