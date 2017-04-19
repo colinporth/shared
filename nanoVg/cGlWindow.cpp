@@ -234,9 +234,8 @@ void cGlWindow::initialise (std::string title, int width, int height, unsigned c
   }
 //}}}
 //{{{
-void cGlWindow::run() {
+void cGlWindow::run () {
 
-  glClearColor (0, 0, 0, 1.0f);
   while (!glfwWindowShouldClose (mWindow)) {
     mGpuGraph->start();
     mCpuGraph->start ((float)glfwGetTime());
