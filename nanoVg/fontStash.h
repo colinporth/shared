@@ -136,7 +136,6 @@ int fonsTTgetGlyphIndex (FONSttFontImpl* font, int codepoint) {
 //{{{
 int fonsTTbuildGlyphBitmap (FONSttFontImpl* font, int glyph, float size, float scale,
                             int *advance, int *lsb, int *x0, int *y0, int *x1, int *y1) {
-
   FONS_NOTUSED(size);
   stbtt_GetGlyphHMetrics(&font->font, glyph, advance, lsb);
   stbtt_GetGlyphBitmapBox(&font->font, glyph, scale, scale, x0, y0, x1, y1);
@@ -411,8 +410,30 @@ void fonsClearState (FONScontext* stash) {
   state->align = FONS_ALIGN_LEFT | FONS_ALIGN_BASELINE;
   }
 //}}}
+//{{{
+void fons_flush (FONScontext* stash) {
+// Flush texture
 
-// font atlas
+  if (stash->dirtyRect[0] < stash->dirtyRect[2] && stash->dirtyRect[1] < stash->dirtyRect[3]) {
+    if (stash->params.renderUpdate != NULL)
+      stash->params.renderUpdate (stash->params.userPtr, stash->dirtyRect, stash->texData);
+    // Reset dirty rect
+    stash->dirtyRect[0] = stash->params.width;
+    stash->dirtyRect[1] = stash->params.height;
+    stash->dirtyRect[2] = 0;
+    stash->dirtyRect[3] = 0;
+    }
+
+  // Flush triangles
+  if (stash->nverts > 0) {
+    if (stash->params.renderDraw != NULL)
+      stash->params.renderDraw (stash->params.userPtr, stash->verts, stash->tcoords, stash->colors, stash->nverts);
+    stash->nverts = 0;
+    }
+  }
+//}}}
+
+//{{{  font atlas
 //{{{
 // Atlas based on Skyline Bin Packer by Jukka Jylänki
 void fons_deleteAtlas (FONSatlas* atlas) {
@@ -461,6 +482,7 @@ error:
   return NULL;
   }
 //}}}
+
 //{{{
 int fons_atlasInsertNode (FONSatlas* atlas, int idx, int x, int y, int w) {
 
@@ -494,6 +516,7 @@ void fons_atlasRemoveNode (FONSatlas* atlas, int idx) {
   atlas->nnodes--;
   }
 //}}}
+
 //{{{
 void fons_atlasExpand (FONSatlas* atlas, int w, int h) {
 
@@ -633,6 +656,7 @@ void fons_addWhiteRect (FONScontext* stash, int w, int h) {
   stash->dirtyRect[3] = fons_maxi(stash->dirtyRect[3], gy+h);
   }
 //}}}
+
 //{{{
 FONSglyph* fons_allocGlyph (FONSfont* font) {
 
@@ -645,6 +669,122 @@ FONSglyph* fons_allocGlyph (FONSfont* font) {
   font->nglyphs++;
   return &font->glyphs[font->nglyphs-1];
   }
+//}}}
+
+//{{{
+void fonsGetAtlasSize (FONScontext* stash, int* width, int* height) {
+
+  if (stash == NULL)
+    return;
+  *width = stash->params.width;
+  *height = stash->params.height;
+  }
+//}}}
+//{{{
+int fonsExpandAtlas (FONScontext* stash, int width, int height) {
+
+  int i, maxy = 0;
+  unsigned char* data = NULL;
+  if (stash == NULL) return 0;
+
+  width = fons_maxi(width, stash->params.width);
+  height = fons_maxi(height, stash->params.height);
+
+  if (width == stash->params.width && height == stash->params.height)
+    return 1;
+
+  // Flush pending glyphs.
+  fons_flush(stash);
+
+  // Create new texture
+  if (stash->params.renderResize != NULL) {
+    if (stash->params.renderResize(stash->params.userPtr, width, height) == 0)
+      return 0;
+  }
+  // Copy old texture data over.
+  data = (unsigned char*)malloc(width * height);
+  if (data == NULL)
+    return 0;
+  for (i = 0; i < stash->params.height; i++) {
+    unsigned char* dst = &data[i*width];
+    unsigned char* src = &stash->texData[i*stash->params.width];
+    memcpy(dst, src, stash->params.width);
+    if (width > stash->params.width)
+      memset(dst+stash->params.width, 0, width - stash->params.width);
+    }
+  if (height > stash->params.height)
+    memset(&data[stash->params.height * width], 0, (height - stash->params.height) * width);
+
+  free(stash->texData);
+  stash->texData = data;
+
+  // Increase atlas size
+  fons_atlasExpand(stash->atlas, width, height);
+
+  // Add existing data as dirty.
+  for (i = 0; i < stash->atlas->nnodes; i++)
+    maxy = fons_maxi(maxy, stash->atlas->nodes[i].y);
+  stash->dirtyRect[0] = 0;
+  stash->dirtyRect[1] = 0;
+  stash->dirtyRect[2] = stash->params.width;
+  stash->dirtyRect[3] = maxy;
+
+  stash->params.width = width;
+  stash->params.height = height;
+  stash->itw = 1.0f/stash->params.width;
+  stash->ith = 1.0f/stash->params.height;
+  return 1;
+  }
+//}}}
+//{{{
+int fonsResetAtlas (FONScontext* stash, int width, int height) {
+
+  int i, j;
+  if (stash == NULL)
+    return 0;
+
+  // Flush pending glyphs.
+  fons_flush(stash);
+
+  // Create new texture
+  if (stash->params.renderResize != NULL) {
+    if (stash->params.renderResize (stash->params.userPtr, width, height) == 0)
+      return 0;
+    }
+
+  // Reset atlas
+  fons_atlasReset(stash->atlas, width, height);
+
+  // Clear texture data.
+  stash->texData = (unsigned char*)realloc(stash->texData, width * height);
+  if (stash->texData == NULL) return 0;
+  memset(stash->texData, 0, width * height);
+
+  // Reset dirty rect
+  stash->dirtyRect[0] = width;
+  stash->dirtyRect[1] = height;
+  stash->dirtyRect[2] = 0;
+  stash->dirtyRect[3] = 0;
+
+  // Reset cached glyphs
+  for (i = 0; i < stash->nfonts; i++) {
+    FONSfont* font = stash->fonts[i];
+    font->nglyphs = 0;
+    for (j = 0; j < FONS_HASH_LUT_SIZE; j++)
+      font->lut[j] = -1;
+    }
+
+  stash->params.width = width;
+  stash->params.height = height;
+  stash->itw = 1.0f/stash->params.width;
+  stash->ith = 1.0f/stash->params.height;
+
+  // Add white rect at 0,0 for debug drawing.
+  fons_addWhiteRect(stash, 2,2);
+
+  return 1;
+  }
+//}}}
 //}}}
 
 //{{{
@@ -742,6 +882,7 @@ int fonsAddFallbackFont (FONScontext* stash, int base, int fallback) {
   }
 //}}}
 
+// external interface
 //{{{
 int fonsAddFontMem (FONScontext* stash, const char* name, unsigned char* data, int dataSize, int freeData) {
 
@@ -925,9 +1066,9 @@ FONSglyph* fons_getGlyph (FONScontext* stash, FONSfont* font, unsigned int codep
   }
 //}}}
 //{{{
- void fons_getQuad (FONScontext* stash, FONSfont* font,
-                           int prevGlyphIndex, FONSglyph* glyph,
-                           float scale, float spacing, float* x, float* y, FONSquad* q) {
+void fons_getQuad (FONScontext* stash, FONSfont* font,
+                   int prevGlyphIndex, FONSglyph* glyph,
+                   float scale, float spacing, float* x, float* y, FONSquad* q) {
 
   float rx,ry,xoff,yoff,x0,y0,x1,y1;
 
@@ -976,28 +1117,6 @@ FONSglyph* fons_getGlyph (FONScontext* stash, FONSfont* font, unsigned int codep
     }
 
   *x += (int)(glyph->xadv / 10.0f + 0.5f);
-  }
-//}}}
-//{{{
-void fons_flush (FONScontext* stash) {
-
-  // Flush texture
-  if (stash->dirtyRect[0] < stash->dirtyRect[2] && stash->dirtyRect[1] < stash->dirtyRect[3]) {
-    if (stash->params.renderUpdate != NULL)
-      stash->params.renderUpdate (stash->params.userPtr, stash->dirtyRect, stash->texData);
-    // Reset dirty rect
-    stash->dirtyRect[0] = stash->params.width;
-    stash->dirtyRect[1] = stash->params.height;
-    stash->dirtyRect[2] = 0;
-    stash->dirtyRect[3] = 0;
-    }
-
-  // Flush triangles
-  if (stash->nverts > 0) {
-    if (stash->params.renderDraw != NULL)
-      stash->params.renderDraw (stash->params.userPtr, stash->verts, stash->tcoords, stash->colors, stash->nverts);
-    stash->nverts = 0;
-    }
   }
 //}}}
 //{{{
@@ -1282,43 +1401,43 @@ void fonsDrawDebug (FONScontext* stash, float x, float y) {
   float v = h == 0 ? 0 : (1.0f / h);
 
   if (stash->nverts+6+6 > FONS_VERTEX_COUNT)
-    fons_flush(stash);
+    fons_flush (stash);
 
   // Draw background
-  fons_vertex(stash, x+0, y+0, u, v, 0x0fffffff);
-  fons_vertex(stash, x+w, y+h, u, v, 0x0fffffff);
-  fons_vertex(stash, x+w, y+0, u, v, 0x0fffffff);
+  fons_vertex (stash, x+0, y+0, u, v, 0x0fffffff);
+  fons_vertex (stash, x+w, y+h, u, v, 0x0fffffff);
+  fons_vertex (stash, x+w, y+0, u, v, 0x0fffffff);
 
-  fons_vertex(stash, x+0, y+0, u, v, 0x0fffffff);
-  fons_vertex(stash, x+0, y+h, u, v, 0x0fffffff);
-  fons_vertex(stash, x+w, y+h, u, v, 0x0fffffff);
+  fons_vertex (stash, x+0, y+0, u, v, 0x0fffffff);
+  fons_vertex (stash, x+0, y+h, u, v, 0x0fffffff);
+  fons_vertex (stash, x+w, y+h, u, v, 0x0fffffff);
 
   // Draw texture
-  fons_vertex(stash, x+0, y+0, 0, 0, 0xffffffff);
-  fons_vertex(stash, x+w, y+h, 1, 1, 0xffffffff);
-  fons_vertex(stash, x+w, y+0, 1, 0, 0xffffffff);
+  fons_vertex (stash, x+0, y+0, 0, 0, 0xffffffff);
+  fons_vertex (stash, x+w, y+h, 1, 1, 0xffffffff);
+  fons_vertex (stash, x+w, y+0, 1, 0, 0xffffffff);
 
-  fons_vertex(stash, x+0, y+0, 0, 0, 0xffffffff);
-  fons_vertex(stash, x+0, y+h, 0, 1, 0xffffffff);
-  fons_vertex(stash, x+w, y+h, 1, 1, 0xffffffff);
+  fons_vertex (stash, x+0, y+0, 0, 0, 0xffffffff);
+  fons_vertex (stash, x+0, y+h, 0, 1, 0xffffffff);
+  fons_vertex (stash, x+w, y+h, 1, 1, 0xffffffff);
 
   // Drawbug draw atlas
   for (i = 0; i < stash->atlas->nnodes; i++) {
     FONSatlasNode* n = &stash->atlas->nodes[i];
 
     if (stash->nverts+6 > FONS_VERTEX_COUNT)
-      fons_flush(stash);
+      fons_flush (stash);
 
-    fons_vertex(stash, x+n->x+0, y+n->y+0, u, v, 0xc00000ff);
-    fons_vertex(stash, x+n->x+n->width, y+n->y+1, u, v, 0xc00000ff);
-    fons_vertex(stash, x+n->x+n->width, y+n->y+0, u, v, 0xc00000ff);
+    fons_vertex (stash, x+n->x+0, y+n->y+0, u, v, 0xc00000ff);
+    fons_vertex (stash, x+n->x+n->width, y+n->y+1, u, v, 0xc00000ff);
+    fons_vertex (stash, x+n->x+n->width, y+n->y+0, u, v, 0xc00000ff);
 
-    fons_vertex(stash, x+n->x+0, y+n->y+0, u, v, 0xc00000ff);
-    fons_vertex(stash, x+n->x+0, y+n->y+1, u, v, 0xc00000ff);
-    fons_vertex(stash, x+n->x+n->width, y+n->y+1, u, v, 0xc00000ff);
+    fons_vertex (stash, x+n->x+0, y+n->y+0, u, v, 0xc00000ff);
+    fons_vertex (stash, x+n->x+0, y+n->y+1, u, v, 0xc00000ff);
+    fons_vertex (stash, x+n->x+n->width, y+n->y+1, u, v, 0xc00000ff);
     }
 
-  fons_flush(stash);
+  fons_flush (stash);
   }
 //}}}
 //{{{
@@ -1350,7 +1469,8 @@ void fonsLineBounds (FONScontext* stash, float y, float* miny, float* maxy) {
   auto state = fons_getState(stash);
   short isize;
 
-  if (stash == NULL) return;
+  if (stash == NULL) 
+    return;
   if (state->font < 0 || state->font >= stash->nfonts)
     return;
 
@@ -1411,120 +1531,5 @@ void fonsSetErrorCallback (FONScontext* stash, void (*callback)(void* uptr, int 
 
   stash->handleError = callback;
   stash->errorUptr = uptr;
-  }
-//}}}
-
-//{{{
-void fonsGetAtlasSize (FONScontext* stash, int* width, int* height) {
-
-  if (stash == NULL)
-    return;
-  *width = stash->params.width;
-  *height = stash->params.height;
-  }
-//}}}
-//{{{
-int fonsExpandAtlas (FONScontext* stash, int width, int height) {
-
-  int i, maxy = 0;
-  unsigned char* data = NULL;
-  if (stash == NULL) return 0;
-
-  width = fons_maxi(width, stash->params.width);
-  height = fons_maxi(height, stash->params.height);
-
-  if (width == stash->params.width && height == stash->params.height)
-    return 1;
-
-  // Flush pending glyphs.
-  fons_flush(stash);
-
-  // Create new texture
-  if (stash->params.renderResize != NULL) {
-    if (stash->params.renderResize(stash->params.userPtr, width, height) == 0)
-      return 0;
-  }
-  // Copy old texture data over.
-  data = (unsigned char*)malloc(width * height);
-  if (data == NULL)
-    return 0;
-  for (i = 0; i < stash->params.height; i++) {
-    unsigned char* dst = &data[i*width];
-    unsigned char* src = &stash->texData[i*stash->params.width];
-    memcpy(dst, src, stash->params.width);
-    if (width > stash->params.width)
-      memset(dst+stash->params.width, 0, width - stash->params.width);
-    }
-  if (height > stash->params.height)
-    memset(&data[stash->params.height * width], 0, (height - stash->params.height) * width);
-
-  free(stash->texData);
-  stash->texData = data;
-
-  // Increase atlas size
-  fons_atlasExpand(stash->atlas, width, height);
-
-  // Add existing data as dirty.
-  for (i = 0; i < stash->atlas->nnodes; i++)
-    maxy = fons_maxi(maxy, stash->atlas->nodes[i].y);
-  stash->dirtyRect[0] = 0;
-  stash->dirtyRect[1] = 0;
-  stash->dirtyRect[2] = stash->params.width;
-  stash->dirtyRect[3] = maxy;
-
-  stash->params.width = width;
-  stash->params.height = height;
-  stash->itw = 1.0f/stash->params.width;
-  stash->ith = 1.0f/stash->params.height;
-  return 1;
-  }
-//}}}
-//{{{
-int fonsResetAtlas (FONScontext* stash, int width, int height) {
-
-  int i, j;
-  if (stash == NULL)
-    return 0;
-
-  // Flush pending glyphs.
-  fons_flush(stash);
-
-  // Create new texture
-  if (stash->params.renderResize != NULL) {
-    if (stash->params.renderResize (stash->params.userPtr, width, height) == 0)
-      return 0;
-    }
-
-  // Reset atlas
-  fons_atlasReset(stash->atlas, width, height);
-
-  // Clear texture data.
-  stash->texData = (unsigned char*)realloc(stash->texData, width * height);
-  if (stash->texData == NULL) return 0;
-  memset(stash->texData, 0, width * height);
-
-  // Reset dirty rect
-  stash->dirtyRect[0] = width;
-  stash->dirtyRect[1] = height;
-  stash->dirtyRect[2] = 0;
-  stash->dirtyRect[3] = 0;
-
-  // Reset cached glyphs
-  for (i = 0; i < stash->nfonts; i++) {
-    FONSfont* font = stash->fonts[i];
-    font->nglyphs = 0;
-    for (j = 0; j < FONS_HASH_LUT_SIZE; j++)
-      font->lut[j] = -1;
-    }
-
-  stash->params.width = width;
-  stash->params.height = height;
-  stash->itw = 1.0f/stash->params.width;
-  stash->ith = 1.0f/stash->params.height;
-
-  // Add white rect at 0,0 for debug drawing.
-  fons_addWhiteRect(stash, 2,2);
-
-  return 1;
   }
 //}}}

@@ -57,7 +57,7 @@ protected:
 
   static cGlWindow* mGlWindow;
 
-  std::vector<std::string> getFiles (std::string fileName);
+  std::vector<std::string> getFiles (std::string fileName, std::string match);
 
   GLFWwindow* mWindow = nullptr;
 

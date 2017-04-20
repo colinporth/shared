@@ -97,7 +97,7 @@ cGlWindow::~cGlWindow() {
 //}}}
 
 //{{{
-std::vector<std::string> cGlWindow::getFiles (std::string fileName) {
+std::vector<std::string> cGlWindow::getFiles (std::string fileName, std::string match) {
 
   std::vector<std::string> fileNames;
 
@@ -110,7 +110,7 @@ std::vector<std::string> cGlWindow::getFiles (std::string fileName) {
         fileName = fullName;
       }
     if (GetFileAttributesA (fileName.c_str()) & FILE_ATTRIBUTE_DIRECTORY)
-      fileNames = listDirectory (std::string(), fileName, "*.cpp;*.h;*.c");
+      fileNames = listDirectory (std::string(), fileName, (char*)(match.c_str()));
     else if (!fileName.empty())
     #endif
 
