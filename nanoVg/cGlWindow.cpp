@@ -150,8 +150,9 @@ int cGlWindow::drawText (uint32_t colour, uint16_t fontHeight, std::string str, 
   textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_TOP);
   fillColor (nvgRGBA ((colour & 0xFF0000) >> 16, (colour & 0xFF00) >> 8, colour & 0xFF,255));
   text ((float)x+3, (float)y+1, str);
-  //return (int)metrics.width;
-  return 0;
+
+  // get width
+  return (int)textBounds ((float)x+3, (float)y+1, str, nullptr);
   }
 //}}}
 //{{{
