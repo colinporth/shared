@@ -91,7 +91,7 @@ protected:
     context->beginPath();
     context->fillColor (nvgRGB32 (colour));
 
-    for (auto x = firstX; x <= lastX; x++) {
+    for (auto x = firstX; x < lastX; x++) {
       if (x == curFrameX) {
         auto wave = mWave + 1 + (mCurFrame * 2);
         auto valueL = (*wave++ * mHeight) / scale;

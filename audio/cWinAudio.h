@@ -69,7 +69,7 @@ public:
       return;
       }
 
-    hr = mxAudio2->CreateMasteringVoice (&mxAudio2MasteringVoice, 2, 48000);
+    hr = mxAudio2->CreateMasteringVoice (&mxAudio2MasteringVoice, 2, sampleFreq);
     if (hr != S_OK) {
       printf ("CreateMasteringVoice failed\n");
       return;
