@@ -181,7 +181,7 @@ void cLog::log (enum eLogCode logCode, std::string logStr) {
       sprintf (buffer, prefixFormat, time.wHour, time.wMinute, time.wSecond, subSec, levelColours[logCode]);
       fputs (buffer, stdout);
 
-      char prev[40];
+      char prev[256];
       sprintf (prev, "Previous line repeats %d times", mRepeatCount);
       fputs (prev, stdout);
       fputs (postfix, stdout);
