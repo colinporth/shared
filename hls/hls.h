@@ -97,7 +97,7 @@ public:
     auto parseError = schedule.Parse ((const char*)http.getContent(), http.getContentSize()).HasParseError();
     http.freeContent();
     if (parseError) {
-      cLog::log(LOGERROR, "cSchedule::load error %d", schedule.GetParseError());
+      cLog::log (LOGERROR, "cSchedule::load error");
       return;
       }
 
@@ -631,7 +631,7 @@ private:
     mChan = chan;
     mBitrate = bitrate;
 
-    mHost = http.getRedirectable ("as-hls-uk-live.bbcfmt.vo.llnwd.net", getM3u8path());
+    mHost = http.getRedirectable ("as-hls-uk-live.akamaized.net", getM3u8path());
 
     // find #EXT-X-MEDIA-SEQUENCE in .m3u8, point to seqNum string, extract seqNum from playListBuf
     auto extSeq = strstr ((char*)http.getContent(), "#EXT-X-MEDIA-SEQUENCE:") + strlen ("#EXT-X-MEDIA-SEQUENCE:");
