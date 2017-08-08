@@ -974,7 +974,7 @@ public:
               //  start next audPES
               if (!pidInfoIt->second.mBuffer) {
                 // first audPES, allocate buffer
-                pidInfoIt->second.mBufSize = 5000;
+                pidInfoIt->second.mBufSize = 10000;
                 pidInfoIt->second.mBuffer= (uint8_t*)malloc (pidInfoIt->second.mBufSize);
                 }
 
