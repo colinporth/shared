@@ -1246,11 +1246,10 @@ private:
                   *((uint8_t*)(ptr + DESCR_SERVICE_LEN + CastServiceDescr(ptr)->provider_name_length)));
 
                 // insert new cService, get serviceIt iterator
-                //auto pair =
-                mServiceMap.insert (tServiceMap::value_type (sid, cService (sid, tsid, onid, serviceType, nameStr)));
-                //auto serviceIt = pair.first;
-                //printf ("SDT new cService tsid:%d sid:%d %s name<%s>\n",
-                //          tsid, sid, serviceIt->second.getTypeStr(), name);
+                auto pair = mServiceMap.insert (tServiceMap::value_type (sid, cService (sid, tsid, onid, serviceType, nameStr)));
+                auto serviceIt = pair.first;
+                printf ("SDT new cService tsid:%d sid:%d %s name<%s>\n",
+                        tsid, sid, serviceIt->second.getTypeStr().c_str(), nameStr.c_str());
                 }
               }
 
@@ -1304,7 +1303,7 @@ private:
 
     auto serviceIt = mServiceMap.find (sid);
     if (serviceIt != mServiceMap.end()) {
-      // service declared by SMT
+      //{{{  service declared by SMT
       serviceIt->second.setProgramPid (pid);
 
       // point programPid to service by sid
@@ -1363,6 +1362,14 @@ private:
         streamLength -= loopLength + PMT_INFO_LEN;
         ptr += loopLength;
         }
+      }
+      //}}}
+    else if (pid == 32) {
+      // simple tsFile with no SDT, pid 32 used by a single program tsFile, allocate service with sid
+      printf ("parsePMT pid:32 - fake service for simple single program file sid:%d\n", sid);
+
+      // insert new cService
+      mServiceMap.insert (tServiceMap::value_type (sid, cService (sid, 0, 0, kServiceTypeTV, "tsFile")));
       }
     }
   //}}}
