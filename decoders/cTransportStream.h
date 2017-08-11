@@ -1369,7 +1369,7 @@ private:
       printf ("parsePMT pid:32 - fake service for simple single program file sid:%d\n", sid);
 
       // insert new cService
-      mServiceMap.insert (tServiceMap::value_type (sid, cService (sid, 0, 0, kServiceTypeTV, "tsFile")));
+      mServiceMap.insert (tServiceMap::value_type (sid, cService (sid, 0, 0, kServiceTypeTV, "file")));
       }
     }
   //}}}
