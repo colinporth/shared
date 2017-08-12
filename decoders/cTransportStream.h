@@ -600,6 +600,9 @@ static unsigned long crcTable[256] = {
   0xbcb4666d, 0xb8757bda, 0xb5365d03, 0xb1f740b4};
 //}}}
 //}}}
+#define kVidPesBufSize 600000
+#define kAudPesBufSize  10000
+#define kMaxSectionSize  4096
 
 //{{{
 class cPidInfo {
@@ -809,7 +812,6 @@ private:
   tEpgItemMap mEpgItemMap;
   };
 //}}}
-
 typedef std::map<int,cPidInfo> tPidInfoMap;  // pid inserts <pid,cPidInfo> into mPidInfoMap
 typedef std::map<int,int>      tProgramMap;  // PAT inserts <pid,sid>'s    into mProgramMap
 typedef std::map<int,cService> tServiceMap;  // SDT inserts <sid,cService> into mServiceMap
@@ -6751,7 +6753,7 @@ public:
                 else {
                   // section straddles packets, start buffering
                   if (!pidInfoIt->second.mBuffer) {
-                    pidInfoIt->second.mBufSize = 4096; // guess at biggest section size
+                    pidInfoIt->second.mBufSize = kMaxSectionSize;
                     pidInfoIt->second.mBuffer = (uint8_t*)malloc(pidInfoIt->second.mBufSize);
                     }
                   memcpy (pidInfoIt->second.mBuffer, tsPtr + pointerField + 1, 183 - pointerField);
@@ -6788,8 +6790,8 @@ public:
               //  start next audPES
               if (!pidInfoIt->second.mBuffer) {
                 // first audPES, allocate buffer
-                pidInfoIt->second.mBufSize = 10000;
-                pidInfoIt->second.mBuffer= (uint8_t*)malloc (pidInfoIt->second.mBufSize);
+                pidInfoIt->second.mBufSize = kAudPesBufSize;
+                pidInfoIt->second.mBuffer = (uint8_t*)malloc (pidInfoIt->second.mBufSize);
                 }
 
               pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer;
@@ -6808,8 +6810,8 @@ public:
               //  start next vidPES
               if (!pidInfoIt->second.mBuffer) {
                 // first vidPES, allocate buffer
-                pidInfoIt->second.mBufSize = 600000;
-                pidInfoIt->second.mBuffer= (uint8_t*)malloc (pidInfoIt->second.mBufSize);
+                pidInfoIt->second.mBufSize = kVidPesBufSize;
+                pidInfoIt->second.mBuffer = (uint8_t*)malloc (pidInfoIt->second.mBufSize);
                 }
 
               pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer;
@@ -6970,7 +6972,7 @@ private:
   //}}}
   //{{{
   void parsePat (uint8_t* buf) {
-  // PAT declares programPid,sid to mPogramMap, recognieses programPid PMT to declare service streams
+  // PAT declares programPid,sid to mProgramMap, recogneses programPid PMT to declare service streams
 
     auto Pat = (pat_t*)buf;
     auto sectionLength = HILO(Pat->section_length) + 3;
