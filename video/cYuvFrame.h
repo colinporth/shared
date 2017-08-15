@@ -188,6 +188,7 @@ public:
 
   // vars
   uint64_t mPts = 0;
+
   int mWidth = 0;
   int mHeight = 0;
   int mLen = 0;
