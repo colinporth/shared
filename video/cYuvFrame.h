@@ -4,9 +4,11 @@
 class cYuvFrame  {
 public:
   //{{{
-  void set (uint64_t pts, uint8_t** yuv, int* strides, int width, int height, int len, int pictType) {
+  void set (uint64_t pts, uint64_t pesPts, uint64_t pesDts,
+            uint8_t** yuv, int* strides, int width, int height, int len, int pictType) {
 
     mPts = 0;
+
     mWidth = width;
     mHeight = height;
     mLen = len;
@@ -23,6 +25,8 @@ public:
     memcpy (mVbuf, yuv[2], (height/2) * mUVStride);
 
     mPts = pts;
+    mPesPts = pesPts;
+    mPesDts = pesDts;
     }
   //}}}
   //{{{
@@ -188,6 +192,8 @@ public:
 
   // vars
   uint64_t mPts = 0;
+  uint64_t mPesPts = 0;
+  uint64_t mPesDts = 0;
 
   int mWidth = 0;
   int mHeight = 0;
