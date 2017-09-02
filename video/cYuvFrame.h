@@ -4,9 +4,12 @@
 class cYuvFrame  {
 public:
   //{{{
-  void set (uint64_t pts, uint64_t pesPts, uint64_t pesDts,
-            uint8_t** yuv, int* strides, int width, int height, int len, int pictType) {
+  void set (uint64_t pts, 
+            uint64_t pesPts, uint64_t pesDts,
+            uint8_t** yuv, int* strides, int width, int height, int len, 
+            int pictType) {
 
+    // invalidate
     mPts = 0;
 
     mWidth = width;
@@ -17,6 +20,7 @@ public:
     mYStride = strides[0];
     mUVStride = strides[1];
 
+    // copy
     mYbuf = (uint8_t*)_aligned_realloc (mYbuf, height * mYStride, 128);
     memcpy (mYbuf, yuv[0], height * mYStride);
     mUbuf = (uint8_t*)_aligned_realloc (mUbuf, (height/2) * mUVStride, 128);
@@ -24,9 +28,11 @@ public:
     mVbuf = (uint8_t*)_aligned_realloc (mVbuf, (height/2) * mUVStride, 128);
     memcpy (mVbuf, yuv[2], (height/2) * mUVStride);
 
-    mPts = pts;
     mPesPts = pesPts;
     mPesDts = pesDts;
+
+    // flag valid pts
+    mPts = pts;
     }
   //}}}
   //{{{
