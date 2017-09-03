@@ -4,13 +4,14 @@
 class cYuvFrame  {
 public:
   //{{{
-  void set (uint64_t pts, 
+  void set (uint64_t pts, bool ok,
             uint64_t pesPts, uint64_t pesDts,
-            uint8_t** yuv, int* strides, int width, int height, int len, 
+            uint8_t** yuv, int* strides, int width, int height, int len,
             int pictType) {
 
     // invalidate
     mPts = 0;
+    mOk = ok;
 
     mWidth = width;
     mHeight = height;
@@ -197,6 +198,7 @@ public:
   //}}}
 
   // vars
+  bool mOk = false;
   uint64_t mPts = 0;
   uint64_t mPesPts = 0;
   uint64_t mPesDts = 0;
