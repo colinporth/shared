@@ -192,6 +192,7 @@ public:
   //{{{
   void invalidate() {
 
+    mOk = false;
     mPts = 0;
     mLen = 0;
     }

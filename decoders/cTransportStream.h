@@ -6805,7 +6805,7 @@ public:
             else if (payStart && !(*tsPtr) && !(*(tsPtr+1)) && (*(tsPtr+2) == 1) && (*(tsPtr+3) == 0xe0)) {
               //{{{  start video pes
               if (pidInfoIt->second.mBufPtr)
-                skipped = decodeVidPes (&pidInfoIt->second, skipped);
+                decodeVidPes (&pidInfoIt->second, skipped);
 
               //  start next vidPES
               if (!pidInfoIt->second.mBuffer) {
@@ -6870,7 +6870,7 @@ public:
 protected:
   virtual void pidPacket (int pid, uint8_t* ptr) {}
   virtual void decodeAudPes (cPidInfo* pidInfo) {}
-  virtual bool decodeVidPes(cPidInfo* pidInfo, bool skipped) { return skipped;  }
+  virtual void decodeVidPes(cPidInfo* pidInfo, bool skipped) {}
   virtual void startProgram (int vpid, int apid, std::string name, std::string startTime) {}
 
   tServiceMap mServiceMap;
