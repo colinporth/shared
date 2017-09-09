@@ -31,7 +31,7 @@ public:
 
   bool getMouseDown() { return mMouseDown; }
 
-  ID3D11Device1* getD3d11Device() { return mD3dDevice1.Get(); }
+  ID3D11Device* getD3d11Device() { return mD3device.Get(); }
   IDWriteFactory* getDwriteFactory() { return mDWriteFactory; }
 
   void changed() { mChanged = true; }
@@ -101,6 +101,7 @@ private:
   IDWriteFactory* mDWriteFactory = nullptr;
   //}}}
   //{{{  deviceResources
+  ComPtr<ID3D11Device> mD3device;
   ComPtr<ID3D11Device1> mD3dDevice1;
   ComPtr<ID3D11DeviceContext1> mD3dContext1;
   ComPtr<IDXGIDevice> mDxgiDevice;

@@ -300,7 +300,6 @@ void cD2dWindow::createDeviceResources() {
     D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0,
     D3D_FEATURE_LEVEL_9_3, D3D_FEATURE_LEVEL_9_2, D3D_FEATURE_LEVEL_9_1 };
 
-  ComPtr<ID3D11Device> mD3device;
   ComPtr<ID3D11DeviceContext> mD3context;
   D3D11CreateDevice (nullptr,                   // specify null to use the default adapter
                      D3D_DRIVER_TYPE_HARDWARE,
