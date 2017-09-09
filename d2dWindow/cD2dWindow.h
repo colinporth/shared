@@ -14,6 +14,7 @@ public:
   D2D1_SIZE_F getClientF() { return clientF; }
 
   ID2D1DeviceContext* getDeviceContext() { return mDeviceContext.Get(); }
+
   IDWriteTextFormat* getTextFormat() { return textFormat; }
   IDWriteTextFormat* getTextFormatSize (int fontSize);
   ID2D1SolidColorBrush* getBlueBrush() { return blueBrush; }
@@ -30,6 +31,7 @@ public:
 
   bool getMouseDown() { return mMouseDown; }
 
+  ID3D11Device1* getD3d11Device() { return mD3dDevice1.Get(); }
   IDWriteFactory* getDwriteFactory() { return mDWriteFactory; }
 
   void changed() { mChanged = true; }
