@@ -309,7 +309,7 @@ void cD2dWindow::createDeviceResources() {
                      ARRAYSIZE(featureLevels),  // number of possible feature levels
                      D3D11_SDK_VERSION,
                      &mD3device,                // returns the Direct3D device created
-                     nullptr,//&m_featureLevel, // returns feature level of device created
+                     nullptr,//&mFeatureLevel,  // returns feature level of device created
                      &mD3context);              // returns the device immediate context
 
   mD3device.As (&mD3dDevice1);
