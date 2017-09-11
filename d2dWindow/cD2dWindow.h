@@ -45,6 +45,13 @@ public:
   // public static var
   static cD2dWindow* mD2dWindow;
 
+  ComPtr<ID3D11Device> mD3device;
+  ComPtr<ID3D11Device1> mD3dDevice1;
+  ComPtr<ID3D11DeviceContext1> mD3dContext1;
+  ComPtr<IDXGIDevice> mDxgiDevice;
+  ComPtr<IDXGISurface> mDxgiBackBuffer;
+  ComPtr<ID3D11Texture2D> mBackBuffer;
+
 protected:
   virtual bool onKey(int key) { return false; }
   virtual void onMouseWheel (int delta) {}
@@ -99,12 +106,6 @@ private:
   //{{{  deviceIndependentResources
   ComPtr<ID2D1Factory1> mD2D1Factory;
   IDWriteFactory* mDWriteFactory = nullptr;
-  //}}}
-  //{{{  deviceResources
-  ComPtr<ID3D11Device> mD3device;
-  ComPtr<ID3D11Device1> mD3dDevice1;
-  ComPtr<ID3D11DeviceContext1> mD3dContext1;
-  ComPtr<IDXGIDevice> mDxgiDevice;
   //}}}
   //{{{  sizedResources
   D2D1_SIZE_U client;
