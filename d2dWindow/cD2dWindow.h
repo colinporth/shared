@@ -126,4 +126,7 @@ private:
   ID2D1SolidColorBrush* yellowBrush = nullptr;
   //}}}
   std::thread mRenderThread;
+
+  IDXGIAdapter* gAdapter1;
+  ComPtr<ID3D11DeviceContext> mD3context;
   };
