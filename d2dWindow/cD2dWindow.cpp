@@ -380,21 +380,19 @@ void cD2dWindow::createSizedResources() {
     mDxgiDevice1->SetMaximumFrameLatency(1);
     }
 
-  // get DXGIbackbuffer surface pointer from swapchain
-  ComPtr<IDXGISurface> dxgiBackBuffer;
-  mSwapChain->GetBuffer (0, IID_PPV_ARGS (&dxgiBackBuffer));
-
-  ComPtr<ID3D11Texture2D> backBuffer;
-  mSwapChain->GetBuffer (0, IID_PPV_ARGS (&backBuffer));
-
   //  get D2DtargetBitmap from DXGIbackbuffer, set as mD2dContext D2DrenderTarget.
   D2D1_BITMAP_PROPERTIES1 d2d1_bitmapProperties;
   d2d1_bitmapProperties.pixelFormat.format = DXGI_FORMAT_B8G8R8A8_UNORM;
   d2d1_bitmapProperties.pixelFormat.alphaMode = D2D1_ALPHA_MODE_IGNORE;
   d2d1_bitmapProperties.bitmapOptions = D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW;
   d2d1_bitmapProperties.colorContext = NULL;
-  mD2D1Factory->GetDesktopDpi (&d2d1_bitmapProperties.dpiX, &d2d1_bitmapProperties.dpiY );
+  mD2D1Factory->GetDesktopDpi (&d2d1_bitmapProperties.dpiX, &d2d1_bitmapProperties.dpiY);
 
+  // get DXGIbackbuffer surface pointer from swapchain
+  ComPtr<IDXGISurface> dxgiBackBuffer;
+  mSwapChain->GetBuffer (0, IID_PPV_ARGS (&dxgiBackBuffer));
+  //ComPtr<ID3D11Texture2D> backBuffer;
+  //mSwapChain->GetBuffer (0, IID_PPV_ARGS (&backBuffer));
   mDeviceContext->CreateBitmapFromDxgiSurface (dxgiBackBuffer.Get(), &d2d1_bitmapProperties, &mD2dTargetBitmap);
 
   // set Direct2D render target.
