@@ -33,6 +33,7 @@ using namespace D2D1;
 //}}}
 
 #include "../video/cYuvFrame.h"
+#include "../video/cRgbaFrame.h"
 
 // static var init
 cD2dWindow* cD2dWindow::mD2dWindow = NULL;
@@ -122,6 +123,34 @@ ID2D1Bitmap* cD2dWindow::makeBitmap (cYuvFrame* yuvFrame, ID2D1Bitmap*& bitmap, 
       auto bgraBuf = yuvFrame->bgra();
       bitmap->CopyFromMemory (&RectU (0, 0, yuvFrame->mWidth, yuvFrame->mHeight), bgraBuf, yuvFrame->mWidth * 4);
       _aligned_free (bgraBuf);
+      }
+    }
+  else if (bitmap) {
+    bitmap->Release();
+    bitmap = nullptr;
+    }
+
+  return bitmap;
+  }
+//}}}
+//{{{
+ID2D1Bitmap* cD2dWindow::makeBitmap (cRgbaFrame* rgbaFrame, ID2D1Bitmap*& bitmap, uint64_t& bitmapPts) {
+
+  if (rgbaFrame) {
+    if (rgbaFrame->mPts != bitmapPts) {
+      bitmapPts = rgbaFrame->mPts;
+      if (bitmap)  {
+        auto pixelSize = bitmap->GetPixelSize();
+        if ((pixelSize.width != rgbaFrame->mWidth) || (pixelSize.height != rgbaFrame->mHeight)) {
+          bitmap->Release();
+          bitmap = nullptr;
+          }
+        }
+      if (!bitmap) // create bitmap
+        mDeviceContext->CreateBitmap (SizeU(rgbaFrame->mWidth, rgbaFrame->mHeight), getBitmapProperties(), &bitmap);
+
+      auto bgraBuf = rgbaFrame->bgra();
+      bitmap->CopyFromMemory (&RectU (0, 0, rgbaFrame->mWidth, rgbaFrame->mHeight), bgraBuf, rgbaFrame->mStride);
       }
     }
   else if (bitmap) {
