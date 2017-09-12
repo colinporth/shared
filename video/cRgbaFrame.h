@@ -18,7 +18,7 @@ public:
     mStride = stride;
 
     // copy rgba to mRgbaBuf
-    mRgbaBuf = (uint8_t*)realloc (mRgbaBuf, height * mStride);
+    mRgbaBuf = (uint8_t*)_aligned_realloc (mRgbaBuf, height * mStride, 128);
     memcpy (mRgbaBuf, rgba, height * mStride);
 
     // flag valid pts

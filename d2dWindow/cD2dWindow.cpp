@@ -147,10 +147,10 @@ ID2D1Bitmap* cD2dWindow::makeBitmap (cRgbaFrame* rgbaFrame, ID2D1Bitmap*& bitmap
           }
         }
       if (!bitmap) // create bitmap
-        mDeviceContext->CreateBitmap (SizeU(rgbaFrame->mWidth, rgbaFrame->mHeight), getBitmapProperties(), &bitmap);
-
-      auto bgraBuf = rgbaFrame->bgra();
-      bitmap->CopyFromMemory (&RectU (0, 0, rgbaFrame->mWidth, rgbaFrame->mHeight), bgraBuf, rgbaFrame->mStride);
+        mDeviceContext->CreateBitmap (SizeU(rgbaFrame->mWidth, rgbaFrame->mHeight), 
+                                      getBitmapProperties(), &bitmap);
+      bitmap->CopyFromMemory (&RectU (0, 0, rgbaFrame->mWidth, rgbaFrame->mHeight), 
+                              rgbaFrame->bgra(), rgbaFrame->mStride);
       }
     }
   else if (bitmap) {
