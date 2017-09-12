@@ -300,13 +300,6 @@ void cD2dWindow::createDeviceResources() {
     D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0,
     D3D_FEATURE_LEVEL_9_3, D3D_FEATURE_LEVEL_9_2, D3D_FEATURE_LEVEL_9_1 };
 
-  //IDXGIAdapter* gAdapter;
-  //ComPtr<IDXGIFactory2> dXGIFactory;
-  //CreateDXGIFactory (__uuidof(IDXGIFactory2), (void**)(&dXGIFactory));
-  //dXGIFactory->EnumAdapters (0, &gAdapter);
-  //if (!gAdapter)
-    //printf ("adpter failed\n");
-
   ComPtr<ID3D11DeviceContext> mD3context;
   D3D11CreateDevice (nullptr,                   // specify null to use the default adapter
                      D3D_DRIVER_TYPE_HARDWARE,
@@ -318,13 +311,6 @@ void cD2dWindow::createDeviceResources() {
                      &mD3device,                // returns the Direct3D device created
                      nullptr,//&mFeatureLevel,  // returns feature level of device created
                      &mD3context);              // returns the device immediate context
-
-  // turn on multithreading for the DX11 context
-  //ComQIPtr<ID3D10Multithread> mt(mD3context);
-  //if (mt)
-  //  mt->SetMultithreadProtected (true);
-  //else
-  //  return MFX_ERR_DEVICE_FAILED;
 
   mD3device.As (&mD3dDevice1);
   mD3context.As (&mD3dContext1);
@@ -395,8 +381,11 @@ void cD2dWindow::createSizedResources() {
     }
 
   // get DXGIbackbuffer surface pointer from swapchain
-  mSwapChain->GetBuffer (0, IID_PPV_ARGS (&mDxgiBackBuffer));
-  mSwapChain->GetBuffer (0, IID_PPV_ARGS (&mBackBuffer));
+  ComPtr<IDXGISurface> dxgiBackBuffer;
+  mSwapChain->GetBuffer (0, IID_PPV_ARGS (&dxgiBackBuffer));
+
+  ComPtr<ID3D11Texture2D> backBuffer;
+  mSwapChain->GetBuffer (0, IID_PPV_ARGS (&backBuffer));
 
   //  get D2DtargetBitmap from DXGIbackbuffer, set as mD2dContext D2DrenderTarget.
   D2D1_BITMAP_PROPERTIES1 d2d1_bitmapProperties;
@@ -406,7 +395,7 @@ void cD2dWindow::createSizedResources() {
   d2d1_bitmapProperties.colorContext = NULL;
   mD2D1Factory->GetDesktopDpi (&d2d1_bitmapProperties.dpiX, &d2d1_bitmapProperties.dpiY );
 
-  mDeviceContext->CreateBitmapFromDxgiSurface (mDxgiBackBuffer.Get(), &d2d1_bitmapProperties, &mD2dTargetBitmap);
+  mDeviceContext->CreateBitmapFromDxgiSurface (dxgiBackBuffer.Get(), &d2d1_bitmapProperties, &mD2dTargetBitmap);
 
   // set Direct2D render target.
   mDeviceContext->SetTarget (mD2dTargetBitmap.Get());
