@@ -36,6 +36,7 @@ using namespace D2D1;
 
 // static var init
 cD2dWindow* cD2dWindow::mD2dWindow = NULL;
+
 int mFontSize = 0;
 //{{{
 LRESULT CALLBACK WndProc (HWND hWnd, unsigned int msg, WPARAM wparam, LPARAM lparam) {
@@ -300,24 +301,23 @@ void cD2dWindow::createDeviceResources() {
     D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0,
     D3D_FEATURE_LEVEL_9_3, D3D_FEATURE_LEVEL_9_2, D3D_FEATURE_LEVEL_9_1 };
 
-  //IDXGIAdapter* gAdapter;
-  //ComPtr<IDXGIFactory2> dXGIFactory;
-  //CreateDXGIFactory (__uuidof(IDXGIFactory2), (void**)(&dXGIFactory));
-  //dXGIFactory->EnumAdapters (0, &gAdapter);
-  //if (!gAdapter)
-    //printf ("adpter failed\n");
+  ComPtr<IDXGIFactory2> dXGIFactory;
+  CreateDXGIFactory (__uuidof(IDXGIFactory2), (void**)(&dXGIFactory));
+  dXGIFactory->EnumAdapters (0, &gAdapter1);
+  if (!gAdapter1)
+    printf ("adpter failed\n");
 
-  ComPtr<ID3D11DeviceContext> mD3context;
-  D3D11CreateDevice (nullptr,                   // specify null to use the default adapter
-                     D3D_DRIVER_TYPE_HARDWARE,
-                     0,
-                     creationFlags,             // optionally set debug and Direct2D compatibility flags
-                     featureLevels,             // list of feature levels this app can support
-                     ARRAYSIZE(featureLevels),  // number of possible feature levels
-                     D3D11_SDK_VERSION,
-                     &mD3device,                // returns the Direct3D device created
-                     nullptr,//&mFeatureLevel,  // returns feature level of device created
-                     &mD3context);              // returns the device immediate context
+  D3D_FEATURE_LEVEL featureLevelsOut;
+  auto hres = D3D11CreateDevice (gAdapter1,                   // specify null to use the default adapter
+	                             D3D_DRIVER_TYPE_UNKNOWN,
+                                 0,
+                                 creationFlags,             // optionally set debug and Direct2D compatibility flags
+                                 featureLevels,             // list of feature levels this app can support
+	                             sizeof(featureLevels) / sizeof(featureLevels[0]),  // number of possible feature levels
+                                 D3D11_SDK_VERSION,
+                                 &mD3device,                // returns the Direct3D device created
+	                             &featureLevelsOut,         // returns feature level of device created
+                                 &mD3context);              // returns the device immediate context
 
   // turn on multithreading for the DX11 context
   //ComQIPtr<ID3D10Multithread> mt(mD3context);
