@@ -1,7 +1,7 @@
-// cYuvFrame.h
+// cVidFrame.h
 #pragma once
 
-class cYuvFrame  {
+class cVidFrame  {
 public:
   //{{{
   uint32_t* getBgra() {

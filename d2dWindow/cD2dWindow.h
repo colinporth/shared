@@ -1,8 +1,7 @@
 // cD2dWindow.h
 #pragma once
 
-class cYuvFrame;
-class cRgbaFrame;
+class cVidFrame;
 
 class cD2dWindow {
 public:
@@ -38,8 +37,7 @@ public:
   void changed() { mChanged = true; }
   void setChangeRate (int changeRate) { mChangeRate = changeRate; }
 
-  ID2D1Bitmap* makeBitmap (cYuvFrame* yuvFrame, ID2D1Bitmap*& bitmap, uint64_t& bitmapPts);
-  ID2D1Bitmap* makeBitmap (cRgbaFrame* rgbaFrame, ID2D1Bitmap*& bitmap, uint64_t& bitmapPts);
+  ID2D1Bitmap* makeBitmap (cVidFrame* yuvFrame, ID2D1Bitmap*& bitmap, uint64_t& bitmapPts);
 
   LRESULT wndProc (HWND hWnd, unsigned int msg, WPARAM wparam, LPARAM lparam);
   void messagePump();

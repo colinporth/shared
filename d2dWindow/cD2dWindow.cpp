@@ -32,7 +32,7 @@ using namespace D2D1;
 using namespace D2D1;
 //}}}
 
-#include "../video/cYuvFrame.h"
+#include "../video/cVidFrame.h"
 
 // static var init
 cD2dWindow* cD2dWindow::mD2dWindow = NULL;
@@ -104,23 +104,23 @@ IDWriteTextFormat* cD2dWindow::getTextFormatSize (int fontSize) {
   }
 //}}}
 //{{{
-ID2D1Bitmap* cD2dWindow::makeBitmap (cYuvFrame* yuvFrame, ID2D1Bitmap*& bitmap, uint64_t& bitmapPts) {
+ID2D1Bitmap* cD2dWindow::makeBitmap (cVidFrame* vidFrame, ID2D1Bitmap*& bitmap, uint64_t& bitmapPts) {
 
-  if (yuvFrame) {
-    if (yuvFrame->mPts != bitmapPts) {
-      bitmapPts = yuvFrame->mPts;
+  if (vidFrame) {
+    if (vidFrame->mPts != bitmapPts) {
+      bitmapPts = vidFrame->mPts;
       if (bitmap)  {
         auto pixelSize = bitmap->GetPixelSize();
-        if ((pixelSize.width != yuvFrame->mWidth) || (pixelSize.height != yuvFrame->mHeight)) {
+        if ((pixelSize.width != vidFrame->mWidth) || (pixelSize.height != vidFrame->mHeight)) {
           bitmap->Release();
           bitmap = nullptr;
           }
         }
       if (!bitmap) // create bitmap
-        mDeviceContext->CreateBitmap (SizeU(yuvFrame->mWidth, yuvFrame->mHeight), getBitmapProperties(), &bitmap);
+        mDeviceContext->CreateBitmap (SizeU(vidFrame->mWidth, vidFrame->mHeight), getBitmapProperties(), &bitmap);
 
-      auto bgraBuf = yuvFrame->getBgra();
-      bitmap->CopyFromMemory (&RectU (0, 0, yuvFrame->mWidth, yuvFrame->mHeight), bgraBuf, yuvFrame->mWidth * 4);
+      auto bgraBuf = vidFrame->getBgra();
+      bitmap->CopyFromMemory (&RectU (0, 0, vidFrame->mWidth, vidFrame->mHeight), bgraBuf, vidFrame->mWidth * 4);
       _aligned_free (bgraBuf);
       }
     }
