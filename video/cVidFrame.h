@@ -7,13 +7,14 @@ public:
   uint32_t* getBgra() {
 
     if (mNv12) {
+      // unpack NV12 to planar uv
       mUbuf = (uint8_t*)_aligned_realloc (mUbuf, (mHeight /2) * mUVStride, 128);
       mVbuf = (uint8_t*)_aligned_realloc (mVbuf, (mHeight /2) * mUVStride, 128);
 
       auto uv = mYbuf + (mHeight * mYStride);
       auto u = mUbuf;
       auto v = mVbuf;
-      for (auto i = 0; i < mHeight /2 * mUVStride; i++) {
+      for (auto i = 0; i < mHeight/2 * mUVStride; i++) {
         *u++ = *uv++;
         *v++ = *uv++;
         }
