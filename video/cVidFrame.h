@@ -19,7 +19,7 @@ public:
         }
       }
 
-    auto argb = (uint32_t*)_mm_malloc (mWidth * 4 * mHeight, 128);
+    mBgra = (uint32_t*)_aligned_realloc (mBgra, mWidth * 4 * mHeight, 128);
     auto argbStride = mWidth;
 
     __m128i y0r0, y0r1, u0, v0;
@@ -54,8 +54,8 @@ public:
       srcu64 = (__m64 *)(mUbuf + mUVStride*(y/2));
       srcv64 = (__m64 *)(mVbuf + mUVStride*(y/2));
 
-      dstrgb128r0 = (__m128i *)(argb + argbStride*y);
-      dstrgb128r1 = (__m128i *)(argb + argbStride*y + argbStride);
+      dstrgb128r0 = (__m128i *)(mBgra + argbStride*y);
+      dstrgb128r1 = (__m128i *)(mBgra + argbStride*y + argbStride);
 
       for (x = 0; x < mWidth; x += 16) {
         u0 = _mm_loadl_epi64 ((__m128i *)srcu64 ); srcu64++;
@@ -145,7 +145,7 @@ public:
         }
       }
 
-    return argb;
+    return mBgra;
     }
   //}}}
 
@@ -218,6 +218,9 @@ public:
 
     _aligned_free (mVbuf);
     mVbuf = nullptr;
+
+    _aligned_free (mBgra);
+    mBgra = nullptr;
     }
   //}}}
   //{{{
@@ -243,4 +246,6 @@ public:
   uint8_t* mYbuf = nullptr;
   uint8_t* mUbuf = nullptr;
   uint8_t* mVbuf = nullptr;
+
+  uint32_t* mBgra = nullptr;
   };

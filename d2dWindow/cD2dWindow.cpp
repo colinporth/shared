@@ -118,10 +118,8 @@ ID2D1Bitmap* cD2dWindow::makeBitmap (cVidFrame* vidFrame, ID2D1Bitmap*& bitmap, 
         }
       if (!bitmap) // create bitmap
         mDeviceContext->CreateBitmap (SizeU(vidFrame->mWidth, vidFrame->mHeight), getBitmapProperties(), &bitmap);
-
-      auto bgraBuf = vidFrame->getBgra();
-      bitmap->CopyFromMemory (&RectU (0, 0, vidFrame->mWidth, vidFrame->mHeight), bgraBuf, vidFrame->mWidth * 4);
-      _aligned_free (bgraBuf);
+      bitmap->CopyFromMemory (
+        &RectU (0, 0, vidFrame->mWidth, vidFrame->mHeight), vidFrame->getBgra(), vidFrame->mWidth * 4);
       }
     }
   else if (bitmap) {
