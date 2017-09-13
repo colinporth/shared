@@ -4,35 +4,20 @@
 class cYuvFrame  {
 public:
   //{{{
-  void set (uint64_t pts, bool ok, 
-            uint8_t** yuv, int* strides, int width, int height, int len, int info) {
+  uint32_t* getBgra() {
 
-    // invalidate
-    mPts = 0;
-    mOk = ok;
+    if (mNv12) {
+      mUbuf = (uint8_t*)_aligned_realloc (mUbuf, (mHeight /2) * mUVStride, 128);
+      mVbuf = (uint8_t*)_aligned_realloc (mVbuf, (mHeight /2) * mUVStride, 128);
 
-    mWidth = width;
-    mHeight = height;
-    mLen = len;
-    mInfo = info;
-
-    mYStride = strides[0];
-    mUVStride = strides[1];
-
-    // copy
-    mYbuf = (uint8_t*)_aligned_realloc (mYbuf, height * mYStride, 128);
-    memcpy (mYbuf, yuv[0], height * mYStride);
-    mUbuf = (uint8_t*)_aligned_realloc (mUbuf, (height/2) * mUVStride, 128);
-    memcpy (mUbuf, yuv[1], (height/2) * mUVStride);
-    mVbuf = (uint8_t*)_aligned_realloc (mVbuf, (height/2) * mUVStride, 128);
-    memcpy (mVbuf, yuv[2], (height/2) * mUVStride);
-
-    // flag valid pts
-    mPts = pts;
-    }
-  //}}}
-  //{{{
-  uint32_t* bgra() {
+      auto uv = mYbuf + (mHeight * mYStride);
+      auto u = mUbuf;
+      auto v = mVbuf;
+      for (auto i = 0; i < mHeight /2 * mUVStride; i++) {
+        *u++ = *uv++;
+        *v++ = *uv++;
+        }
+      }
 
     auto argb = (uint32_t*)_mm_malloc (mWidth * 4 * mHeight, 128);
     auto argbStride = mWidth;
@@ -163,6 +148,57 @@ public:
     return argb;
     }
   //}}}
+
+  //{{{
+  void setYuv (uint64_t pts, uint8_t** yuv, int* strides, int width, int height, int len, int info) {
+
+    // invalidate
+    mPts = 0;
+    mNv12 = false;
+
+    mWidth = width;
+    mHeight = height;
+    mLen = len;
+    mInfo = info;
+
+    mYStride = strides[0];
+    mUVStride = strides[1];
+
+    // copy
+    mYbuf = (uint8_t*)_aligned_realloc (mYbuf, height * mYStride, 128);
+    memcpy (mYbuf, yuv[0], height * mYStride);
+    mUbuf = (uint8_t*)_aligned_realloc (mUbuf, (height/2) * mUVStride, 128);
+    memcpy (mUbuf, yuv[1], (height/2) * mUVStride);
+    mVbuf = (uint8_t*)_aligned_realloc (mVbuf, (height/2) * mUVStride, 128);
+    memcpy (mVbuf, yuv[2], (height/2) * mUVStride);
+
+    // flag valid pts
+    mPts = pts;
+    }
+  //}}}
+  //{{{
+  void setNv12 (uint64_t pts, uint8_t* nv12, int stride, int width, int height, int len, int info) {
+
+    // invalidate
+    mPts = 0;
+    mNv12 = true;
+    mWidth = width;
+    mHeight = height;
+    mLen = len;
+    mInfo = info;
+
+    mYStride = stride;
+    mUVStride = stride/2;
+
+    // copy
+    mYbuf = (uint8_t*)_aligned_realloc (mYbuf, height * mYStride * 3 / 2, 128);
+    memcpy (mYbuf, nv12, height * mYStride * 3 / 2);
+
+    // flag valid pts
+    mPts = pts;
+    }
+  //}}}
+
   //{{{
   void freeResources() {
 
@@ -187,15 +223,14 @@ public:
   //{{{
   void invalidate() {
 
-    mOk = false;
     mPts = 0;
     mLen = 0;
     }
   //}}}
 
   // vars
-  bool mOk = false;
   uint64_t mPts = 0;
+  bool mNv12 = false;
 
   int mWidth = 0;
   int mHeight = 0;
