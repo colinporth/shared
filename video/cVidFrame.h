@@ -8,8 +8,8 @@ public:
 
     if (mNv12) {
       // unpack NV12 to planar uv
-      mUbuf = (uint8_t*)_aligned_realloc (mUbuf, (mHeight /2) * mUVStride, 128);
-      mVbuf = (uint8_t*)_aligned_realloc (mVbuf, (mHeight /2) * mUVStride, 128);
+      mUbuf = (uint8_t*)_aligned_realloc (mUbuf, (mHeight/2) * mUVStride, 128);
+      mVbuf = (uint8_t*)_aligned_realloc (mVbuf, (mHeight/2) * mUVStride, 128);
 
       auto uv = mYbuf + (mHeight * mYStride);
       auto u = mUbuf;
@@ -191,7 +191,7 @@ public:
     mYStride = stride;
     mUVStride = stride/2;
 
-    // copy
+    // copy all of Nv12 to y buf
     mYbuf = (uint8_t*)_aligned_realloc (mYbuf, height * mYStride * 3 / 2, 128);
     memcpy (mYbuf, nv12, height * mYStride * 3 / 2);
 
@@ -200,6 +200,13 @@ public:
     }
   //}}}
 
+  //{{{
+  void invalidate() {
+
+    mPts = 0;
+    mLen = 0;
+    }
+  //}}}
   //{{{
   void freeResources() {
 
@@ -222,13 +229,6 @@ public:
 
     _aligned_free (mBgra);
     mBgra = nullptr;
-    }
-  //}}}
-  //{{{
-  void invalidate() {
-
-    mPts = 0;
-    mLen = 0;
     }
   //}}}
 
