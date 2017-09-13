@@ -91,10 +91,6 @@ enum eLogCode mLogLevel = LOGNONE;
 FILE* mFile = NULL;
 std::mutex mLogMutex;
 
-std::string mRepeatStr;
-int mRepeatCount = 0;
-int mRepeatLogCode = -1;
-
 #ifdef _WIN32
   HANDLE hStdOut = 0;
 #endif
@@ -134,8 +130,6 @@ void cLog::close() {
     fclose (mFile);
     mFile = NULL;
     }
-
-  mRepeatStr.clear();
   }
 //}}}
 
@@ -169,37 +163,6 @@ void cLog::log (enum eLogCode logCode, std::string logStr) {
     time.wSecond = now.tv_sec % 60;
     int subSec = now.tv_usec;
     //}}}
-
-    // repeated log line ?
-    if ((logCode == mRepeatLogCode) && (logStr == mRepeatStr)) {
-      mRepeatCount++;
-      return;
-      }
-    else if (mRepeatCount) {
-      //{{{  write repeated log line
-      char buffer[40];
-      sprintf (buffer, prefixFormat, time.wHour, time.wMinute, time.wSecond, subSec, levelColours[logCode]);
-      fputs (buffer, stdout);
-
-      char prev[256];
-      sprintf (prev, "Previous line repeats %d times", mRepeatCount);
-      fputs (prev, stdout);
-      fputs (postfix, stdout);
-
-      if (mFile) {
-        char buffer[40];
-        sprintf (buffer, prefixFormat, time.wHour, time.wMinute, time.wSecond, subSec, levelNames[mRepeatLogCode]);
-        fputs (buffer, mFile);
-        fputs (prev, mFile);
-        fputc ('\n', mFile);
-        }
-
-      mRepeatCount = 0;
-      }
-      //}}}
-
-    mRepeatLogCode = logCode;
-    mRepeatStr = logStr;
 
     // write log line
     char buffer[40];
