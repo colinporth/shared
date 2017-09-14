@@ -76,7 +76,12 @@ std::string getTimeStrFromPts (uint64_t pts) {
   uint32_t secs = pts % 60;
   pts /= 60;
   uint32_t mins = pts % 60;
+  pts /= 60;
+  uint32_t hours = pts % 60;
 
-  return dec (mins) + ':' + dec(secs, 2, '0') + ':' + dec(hs, 2, '0');
+  if (hours)
+    return dec (hours) + ':' + dec (mins, 2, '0') + ':' + dec(secs, 2, '0') + ':' + dec(hs, 2, '0');
+  else 
+    return dec (mins) + ':' + dec(secs, 2, '0') + ':' + dec(hs, 2, '0');
   }
 //}}}

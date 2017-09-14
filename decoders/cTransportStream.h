@@ -6645,7 +6645,7 @@ public:
   int getDiscontinuity() { return mDiscontinuity; }
 
   //{{{
-  void demux (uint8_t* tsPtr, uint8_t* tsEnd, bool skipped) {
+  void demux (uint8_t* tsPtr, uint8_t* tsEnd, bool skipped, int audPid, int vidPid, uint64_t basePts) {
 
     if (skipped)
       //{{{  reset pid continuity, buffers
@@ -6784,8 +6784,8 @@ public:
           else {
             if (payStart && !(*tsPtr) && !(*(tsPtr+1)) && (*(tsPtr+2) == 1) && (*(tsPtr+3) == 0xc0)) {
               //{{{  start audio pes
-              if (pidInfoIt->second.mBufPtr)
-                decodeAudPes (&pidInfoIt->second);
+              if (pid == audPid && pidInfoIt->second.mBufPtr)
+                decodeAudPes (&pidInfoIt->second, basePts);
 
               //  start next audPES
               if (!pidInfoIt->second.mBuffer) {
@@ -6804,8 +6804,8 @@ public:
               //}}}
             else if (payStart && !(*tsPtr) && !(*(tsPtr+1)) && (*(tsPtr+2) == 1) && (*(tsPtr+3) == 0xe0)) {
               //{{{  start video pes
-              if (pidInfoIt->second.mBufPtr)
-                decodeVidPes (&pidInfoIt->second, skipped);
+              if (pid == vidPid && pidInfoIt->second.mBufPtr)
+                decodeVidPes (&pidInfoIt->second, basePts, skipped);
 
               //  start next vidPES
               if (!pidInfoIt->second.mBuffer) {
@@ -6869,8 +6869,8 @@ public:
 
 protected:
   virtual void pidPacket (int pid, uint8_t* ptr) {}
-  virtual void decodeAudPes (cPidInfo* pidInfo) {}
-  virtual void decodeVidPes(cPidInfo* pidInfo, bool skipped) {}
+  virtual void decodeAudPes (cPidInfo* pidInfo, uint64_t basePts) {}
+  virtual void decodeVidPes(cPidInfo* pidInfo, uint64_t basePts, bool skipped) {}
   virtual void startProgram (int vpid, int apid, std::string name, std::string startTime) {}
 
   tServiceMap mServiceMap;
