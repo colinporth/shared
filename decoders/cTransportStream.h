@@ -653,6 +653,8 @@ public:
   uint8_t* mBuffer = nullptr;
   uint8_t* mBufPtr = nullptr;
 
+  int64_t mStreamPos = -1;
+
   std::string mInfo;
   };
 //}}}
@@ -6645,13 +6647,14 @@ public:
   int getDiscontinuity() { return mDiscontinuity; }
 
   //{{{
-  void demux (uint8_t* tsPtr, uint8_t* tsEnd, bool skipped, int audPid, int vidPid, uint64_t basePts) {
+  void demux (uint8_t* tsPtr, uint8_t* tsEnd, int64_t streamPos, bool skipped, int audPid, int vidPid, uint64_t basePts) {
 
     if (skipped)
       //{{{  reset pid continuity, buffers
       for (auto pidInfo : mPidInfoMap) {
         pidInfo.second.mContinuity = -1;
         pidInfo.second.mBufPtr = nullptr;
+        pidInfo.second.mStreamPos = -1;
         }
       //}}}
 
@@ -6783,18 +6786,19 @@ public:
             //}}}
           else {
             if (payStart && !(*tsPtr) && !(*(tsPtr+1)) && (*(tsPtr+2) == 1) && (*(tsPtr+3) == 0xc0)) {
-              //{{{  start audio pes
+              //{{{  start new audio pes, decode last pes
               if (pid == audPid && pidInfoIt->second.mBufPtr)
                 decodeAudPes (&pidInfoIt->second, basePts);
 
               //  start next audPES
               if (!pidInfoIt->second.mBuffer) {
-                // first audPES, allocate buffer
+                // allocate audPES buffer
                 pidInfoIt->second.mBufSize = kAudPesBufSize;
                 pidInfoIt->second.mBuffer = (uint8_t*)malloc (pidInfoIt->second.mBufSize);
                 }
 
               pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer;
+              pidInfoIt->second.mStreamPos = streamPos;
               parseTimeStamps (tsPtr, pidInfoIt->second.mPts, pidInfoIt->second.mDts);
 
               int pesHeaderBytes = 9 + *(tsPtr+8);
@@ -6803,18 +6807,19 @@ public:
               }
               //}}}
             else if (payStart && !(*tsPtr) && !(*(tsPtr+1)) && (*(tsPtr+2) == 1) && (*(tsPtr+3) == 0xe0)) {
-              //{{{  start video pes
+              //{{{  start new video pes, decode last pes
               if (pid == vidPid && pidInfoIt->second.mBufPtr)
                 decodeVidPes (&pidInfoIt->second, basePts, skipped);
 
               //  start next vidPES
               if (!pidInfoIt->second.mBuffer) {
-                // first vidPES, allocate buffer
+                // allocate vidPESbuffer
                 pidInfoIt->second.mBufSize = kVidPesBufSize;
                 pidInfoIt->second.mBuffer = (uint8_t*)malloc (pidInfoIt->second.mBufSize);
                 }
 
               pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer;
+              pidInfoIt->second.mStreamPos = streamPos;
               parseTimeStamps (tsPtr, pidInfoIt->second.mPts, pidInfoIt->second.mDts);
 
               int pesHeaderBytes = 9 + *(tsPtr+8);
@@ -6835,6 +6840,7 @@ public:
             }
 
           tsPtr += tsFrameBytesLeft;
+          streamPos += 188;
           mPackets++;
           }
         }
