@@ -6787,44 +6787,48 @@ public:
           else {
             if (payStart && !(*tsPtr) && !(*(tsPtr+1)) && (*(tsPtr+2) == 1) && (*(tsPtr+3) == 0xc0)) {
               //{{{  start new audio pes, decode last pes
-              if (pid == audPid && pidInfoIt->second.mBufPtr)
-                decodeAudPes (&pidInfoIt->second, basePts);
+              if (pid == audPid) {
+                if (pidInfoIt->second.mBufPtr)
+                  audDecodePes (&pidInfoIt->second, basePts);
 
-              //  start next audPES
-              if (!pidInfoIt->second.mBuffer) {
-                // allocate audPES buffer
-                pidInfoIt->second.mBufSize = kAudPesBufSize;
-                pidInfoIt->second.mBuffer = (uint8_t*)malloc (pidInfoIt->second.mBufSize);
+                //  start next audPES
+                if (!pidInfoIt->second.mBuffer) {
+                  // allocate audPES buffer
+                  pidInfoIt->second.mBufSize = kAudPesBufSize;
+                  pidInfoIt->second.mBuffer = (uint8_t*)malloc (pidInfoIt->second.mBufSize);
+                  }
+
+                pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer;
+                pidInfoIt->second.mStreamPos = streamPos;
+                parseTimeStamps (tsPtr, pidInfoIt->second.mPts, pidInfoIt->second.mDts);
+
+                int pesHeaderBytes = 9 + *(tsPtr+8);
+                tsPtr += pesHeaderBytes;
+                tsFrameBytesLeft -= pesHeaderBytes;
                 }
-
-              pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer;
-              pidInfoIt->second.mStreamPos = streamPos;
-              parseTimeStamps (tsPtr, pidInfoIt->second.mPts, pidInfoIt->second.mDts);
-
-              int pesHeaderBytes = 9 + *(tsPtr+8);
-              tsPtr += pesHeaderBytes;
-              tsFrameBytesLeft -= pesHeaderBytes;
               }
               //}}}
             else if (payStart && !(*tsPtr) && !(*(tsPtr+1)) && (*(tsPtr+2) == 1) && (*(tsPtr+3) == 0xe0)) {
               //{{{  start new video pes, decode last pes
-              if (pid == vidPid && pidInfoIt->second.mBufPtr)
-                decodeVidPes (&pidInfoIt->second, basePts, skipped);
+              if (pid == vidPid) {
+                if (pidInfoIt->second.mBufPtr)
+                  vidDecodePes (&pidInfoIt->second, basePts, skipped);
 
-              //  start next vidPES
-              if (!pidInfoIt->second.mBuffer) {
-                // allocate vidPESbuffer
-                pidInfoIt->second.mBufSize = kVidPesBufSize;
-                pidInfoIt->second.mBuffer = (uint8_t*)malloc (pidInfoIt->second.mBufSize);
+                //  start next vidPES
+                if (!pidInfoIt->second.mBuffer) {
+                  // allocate vidPESbuffer
+                  pidInfoIt->second.mBufSize = kVidPesBufSize;
+                  pidInfoIt->second.mBuffer = (uint8_t*)malloc (pidInfoIt->second.mBufSize);
+                  }
+
+                pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer;
+                pidInfoIt->second.mStreamPos = streamPos;
+                parseTimeStamps (tsPtr, pidInfoIt->second.mPts, pidInfoIt->second.mDts);
+
+                int pesHeaderBytes = 9 + *(tsPtr+8);
+                tsPtr += pesHeaderBytes;
+                tsFrameBytesLeft -= pesHeaderBytes;
                 }
-
-              pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer;
-              pidInfoIt->second.mStreamPos = streamPos;
-              parseTimeStamps (tsPtr, pidInfoIt->second.mPts, pidInfoIt->second.mDts);
-
-              int pesHeaderBytes = 9 + *(tsPtr+8);
-              tsPtr += pesHeaderBytes;
-              tsFrameBytesLeft -= pesHeaderBytes;
               }
               //}}}
             if (pidInfoIt->second.mBufPtr) {
@@ -6875,8 +6879,8 @@ public:
 
 protected:
   virtual void pidPacket (int pid, uint8_t* ptr) {}
-  virtual void decodeAudPes (cPidInfo* pidInfo, uint64_t basePts) {}
-  virtual void decodeVidPes(cPidInfo* pidInfo, uint64_t basePts, bool skipped) {}
+  virtual void audDecodePes (cPidInfo* pidInfo, uint64_t basePts) {}
+  virtual void vidDecodePes (cPidInfo* pidInfo, uint64_t basePts, bool skipped) {}
   virtual void startProgram (int vpid, int apid, std::string name, std::string startTime) {}
 
   tServiceMap mServiceMap;
