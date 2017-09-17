@@ -1,8 +1,10 @@
 #pragma once
 #include <stdio.h>
 #include <string>
+#include <time.h>
 
 enum eLogCode { LOGNONE, LOGNOTICE, LOGINFO, LOGINFO1, LOGINFO2, LOGINFO3, LOGDEBUG, LOGWARNING, LOGERROR } ;
+const int kBst = 1;
 
 class cLog {
 public:
@@ -17,5 +19,5 @@ public:
   static void log (enum eLogCode logCode, std::string logStr);
   static void log (enum eLogCode logCode, const char *format, ... );
 
-  static std::string getLine (int n);
+  static std::string getLine (int n, eLogCode& logCode, struct timeval& time);
   };

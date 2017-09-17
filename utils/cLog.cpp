@@ -57,16 +57,15 @@
 
 #include "cLog.h"
 //}}}
-const int kBst = 1;
 //{{{  const
-const char levelNames[][6] =    { " deb ",
-                                  " info",
-                                  " inf1",
-                                  " inf2",
-                                  " inf3",
-                                  " note",
-                                  " warn",
-                                  " Err ",
+const char levelNames[][7] =    { " Debug",
+                                  " Info ",
+                                  " Info1",
+                                  " Info2",
+                                  " Info3",
+                                  " Note ",
+                                  " Warn ",
+                                  " Error",
                                   };
 
 const char levelColours[][12] = { "\033[38;5;117m",   // debug  bluewhite
@@ -92,7 +91,17 @@ enum eLogCode mLogLevel = LOGNONE;
 FILE* mFile = NULL;
 std::mutex mLogMutex;
 
-std::deque<std::string> mLines;
+class cLine {
+public:
+  cLine (eLogCode logCode, struct timeval time, std::string str) :
+    mLogCode(logCode), mTime(time), mStr(str) {}
+
+   eLogCode  mLogCode;
+  struct timeval mTime;
+  std::string mStr;
+  };
+
+std::deque<cLine> mLines;
 
 #ifdef _WIN32
   HANDLE hStdOut = 0;
@@ -159,8 +168,8 @@ void cLog::log (enum eLogCode logCode, std::string logStr) {
     //{{{  get time
     struct timeval now;
     gettimeofday (&now, NULL);
-    SYSTEMTIME time;
 
+    SYSTEMTIME time;
     time.wHour = kBst + (now.tv_sec/3600) % 24;
     time.wMinute = (now.tv_sec/60) % 60;
     time.wSecond = now.tv_sec % 60;
@@ -182,8 +191,7 @@ void cLog::log (enum eLogCode logCode, std::string logStr) {
       fflush (mFile);
       }
 
-    sprintf (buffer, prefixFormat, time.wHour, time.wMinute, time.wSecond, subSec, levelNames[logCode]);
-    mLines.push_front (std::string (buffer) + logStr);
+    mLines.push_front (cLine (logCode, now, logStr));
     }
   }
 //}}}
@@ -209,9 +217,14 @@ void cLog::log (enum eLogCode logCode, const char* format, ... ) {
   }
 //}}}
 
-std::string cLog::getLine (int n) {
-  if (n < mLines.size())
-    return mLines [n];
+std::string cLog::getLine (int n, eLogCode& logCode, struct timeval& time) {
+  if (n < mLines.size()) {
+    logCode = mLines[n].mLogCode;
+    time = mLines[n].mTime;
+    return mLines[n].mStr;
+    }
+
+  logCode = LOGNONE;
   return std::string();
   }
 
