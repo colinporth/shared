@@ -48,7 +48,7 @@
 
 #include <string>
 #include <mutex>
-#include <vector>
+#include <deque>
 
 #define remove_utf8   remove
 #define rename_utf8   rename
@@ -92,7 +92,7 @@ enum eLogCode mLogLevel = LOGNONE;
 FILE* mFile = NULL;
 std::mutex mLogMutex;
 
-std::vector<std::string> mLines;
+std::deque<std::string> mLines;
 
 #ifdef _WIN32
   HANDLE hStdOut = 0;
@@ -183,7 +183,7 @@ void cLog::log (enum eLogCode logCode, std::string logStr) {
       }
 
     sprintf (buffer, prefixFormat, time.wHour, time.wMinute, time.wSecond, subSec, levelNames[logCode]);
-    mLines.push_back (std::string (buffer) + logStr);
+    mLines.push_front (std::string (buffer) + logStr);
     }
   }
 //}}}
@@ -211,7 +211,7 @@ void cLog::log (enum eLogCode logCode, const char* format, ... ) {
 
 std::string cLog::getLine (int n) {
   if (n < mLines.size())
-    return mLines [mLines.size() - n - 1];
+    return mLines [n];
   return std::string();
   }
 
