@@ -6860,7 +6860,7 @@ public:
       // mpeg2
       while (pesPtr + 6 < pesEnd) {
         // look for pictureHeader 00000100
-        if (!pesPtr[0] && !pesPtr[1] && (pesPtr[2] == 0x01) && !pesPtr[3]) 
+        if (!pesPtr[0] && !pesPtr[1] && (pesPtr[2] == 0x01) && !pesPtr[3])
           // extract frameType I,B,P
           switch ((pesPtr[5] >> 3) & 0x03) {
             case 1: return 'I';
@@ -7215,13 +7215,9 @@ private:
         }
       }
       //}}}
-    else if (pid == 32) {
-      // simple tsFile with no SDT, pid 32 used by a single program tsFile, allocate service with sid
-      printf ("parsePMT pid:32 - fake service for simple single program file sid:%d\n", sid);
-
-      // insert new cService
+    else if (pid == 32) 
+      // simple tsFile with no SDT, pid 32 used to allocate service with sid
       mServiceMap.insert (tServiceMap::value_type (sid, cService (sid, 0, 0, kServiceTypeTV, "file")));
-      }
     }
   //}}}
   //{{{
