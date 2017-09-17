@@ -151,7 +151,7 @@ public:
   //}}}
 
   //{{{
-  void set (uint64_t pts, uint64_t ptsWidth, int pesLen, int info) {
+  void setPes (uint64_t pts, uint64_t ptsWidth, int pesLen, char frameType) {
 
     mLoaded = false;
 
@@ -159,19 +159,11 @@ public:
     mPtsEnd = pts + ptsWidth;
 
     mPesLen = pesLen;
-    mInfo = info;
+    mFrameType = frameType;
     }
   //}}}
   //{{{
-  void setYuv (uint64_t pts, uint64_t ptsWidth, uint8_t** yuv, int* strides, int width, int height, int pesLen, int info) {
-
-    mLoaded = false;
-
-    mPtsEnd = pts + ptsWidth;
-    mPts = pts;
-
-    mPesLen = pesLen;
-    mInfo = info;
+  void setYuv (uint8_t** yuv, int* strides, int width, int height) {
 
     mWidth = width;
     mHeight = height;
@@ -192,15 +184,7 @@ public:
     }
   //}}}
   //{{{
-  void setNv12 (uint64_t pts, uint64_t ptsWidth, uint8_t* nv12, int stride, int width, int height, int pesLen, int info) {
-
-    mLoaded = false;
-
-    mPtsEnd = pts + ptsWidth;
-    mPts = pts;
-
-    mPesLen = pesLen;
-    mInfo = info;
+  void setNv12 (uint8_t* nv12, int stride, int width, int height) {
 
     mWidth = width;
     mHeight = height;
@@ -223,16 +207,20 @@ public:
     mLoaded = false;
     mPts = 0;
     mPesLen = 0;
+    mFrameType = '?';
     }
   //}}}
   //{{{
   void freeResources() {
 
     mLoaded  = false;
+
     mPts = 0;
+    mPesLen = 0;
+    mFrameType = '?';
+
     mWidth = 0;
     mHeight = 0;
-    mPesLen = 0;
 
     mYStride = 0;
     mUVStride = 0;
@@ -259,7 +247,7 @@ public:
   uint64_t mPtsEnd = 0;
 
   int mPesLen = 0;
-  int mInfo = 0;
+  char mFrameType = 0;
 
   int mWidth = 0;
   int mHeight = 0;

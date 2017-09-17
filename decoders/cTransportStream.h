@@ -6854,23 +6854,26 @@ public:
     }
   //}}}
   //{{{
-  int getFrameType (uint8_t* pesPtr, uint8_t* pesEnd, int streamType, int& sequenceNumber) {
-
-    sequenceNumber = 0;
+  char getFrameType (uint8_t* pesPtr, uint8_t* pesEnd, int streamType) {
+  // parse pes for frametype
     if (streamType == 2) {
-      // mpeg2 - find picture header, extract frame type
+      // mpeg2
       while (pesPtr + 6 < pesEnd) {
-        if (pesPtr[0] == 0 && pesPtr[1] == 0 && pesPtr[2] == 0x01 && pesPtr[3] == 0) {
-          sequenceNumber = (pesPtr[4] << 2) + (pesPtr[5] >> 6);
-          return (pesPtr[5] & 0x38) >> 3;
-          break;
-          }
+        // look for pictureHeader 00000100
+        if (!pesPtr[0] && !pesPtr[1] && (pesPtr[2] == 0x01) && !pesPtr[3]) 
+          // extract frameType I,B,P
+          switch ((pesPtr[5] >> 3) & 0x03) {
+            case 1: return 'I';
+            case 2: return 'P';
+            case 3: return 'B';
+            default: return '?';
+            }
         pesPtr++;
         }
-      return 0;
+      return '?';
       }
     else // streamType == 27)
-      return 1;
+      return 'I';
     }
   //}}}
 
