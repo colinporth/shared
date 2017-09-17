@@ -48,6 +48,7 @@
 
 #include <string>
 #include <mutex>
+#include <vector>
 
 #define remove_utf8   remove
 #define rename_utf8   rename
@@ -90,6 +91,8 @@ const char* postfix =             "\033[m\n";
 enum eLogCode mLogLevel = LOGNONE;
 FILE* mFile = NULL;
 std::mutex mLogMutex;
+
+std::vector<std::string> mLines;
 
 #ifdef _WIN32
   HANDLE hStdOut = 0;
@@ -172,13 +175,15 @@ void cLog::log (enum eLogCode logCode, std::string logStr) {
     fputs (postfix, stdout);
 
     if (mFile) {
-      char buffer[40];
       sprintf (buffer, prefixFormat, time.wHour, time.wMinute, time.wSecond, subSec, levelNames[logCode]);
       fputs (buffer, mFile);
       fputs (logStr.c_str(), mFile);
       fputc ('\n', mFile);
       fflush (mFile);
       }
+
+    sprintf (buffer, prefixFormat, time.wHour, time.wMinute, time.wSecond, subSec, levelNames[logCode]);
+    mLines.push_back (std::string (buffer) + logStr);
     }
   }
 //}}}
@@ -203,3 +208,10 @@ void cLog::log (enum eLogCode logCode, const char* format, ... ) {
   log (logCode, std::string (buf.get(), buf.get() + size-1));
   }
 //}}}
+
+std::string cLog::getLine (int n) {
+  if (n < mLines.size())
+    return mLines [mLines.size() - n - 1];
+  return std::string();
+  }
+
