@@ -12,9 +12,10 @@ public:
   //}}}
 
   //{{{
-  void set (uint64_t pts, uint64_t pesPts, int channels, int sampleRate, int numSamples) {
+  void set (uint64_t pts, uint64_t ptsWidth, uint64_t pesPts, int channels, int sampleRate, int numSamples) {
 
-    mPts = pts;
+    mPts = 0;
+    mPtsEnd = 0;
     mPesPts = pesPts;
 
     mChannels = channels;
@@ -36,6 +37,9 @@ public:
       mSamples = (int16_t*)malloc (mNumSampleBytes);
       }
   #endif
+
+    mPtsEnd = pts + ptsWidth;
+    mPts = pts;
     }
   //}}}
   //{{{
@@ -59,6 +63,7 @@ public:
   //}}}
 
   uint64_t mPts = 0;
+  uint64_t mPtsEnd = 0;
   uint64_t mPesPts = 0;
 
   int mChannels = 0;

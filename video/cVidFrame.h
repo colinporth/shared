@@ -151,17 +151,32 @@ public:
   //}}}
 
   //{{{
-  void setYuv (uint64_t pts, uint8_t** yuv, int* strides, int width, int height, int len, int info) {
+  void set (uint64_t pts, uint64_t ptsWidth, int pesLen, int info) {
 
-    // invalidate
-    mPts = 0;
-    mNv12 = false;
+    mLoaded = false;
+
+    mPts = pts;
+    mPtsEnd = pts + ptsWidth;
+
+    mPesLen = pesLen;
+    mInfo = info;
+    }
+  //}}}
+  //{{{
+  void setYuv (uint64_t pts, uint64_t ptsWidth, uint8_t** yuv, int* strides, int width, int height, int pesLen, int info) {
+
+    mLoaded = false;
+
+    mPtsEnd = pts + ptsWidth;
+    mPts = pts;
+
+    mPesLen = pesLen;
+    mInfo = info;
 
     mWidth = width;
     mHeight = height;
-    mLen = len;
-    mInfo = info;
 
+    mNv12 = false;
     mYStride = strides[0];
     mUVStride = strides[1];
 
@@ -173,21 +188,24 @@ public:
     mVbuf = (uint8_t*)_aligned_realloc (mVbuf, (height/2) * mUVStride, 128);
     memcpy (mVbuf, yuv[2], (height/2) * mUVStride);
 
-    // flag valid pts
-    mPts = pts;
+    mLoaded = true;
     }
   //}}}
   //{{{
-  void setNv12 (uint64_t pts, uint8_t* nv12, int stride, int width, int height, int len, int info) {
+  void setNv12 (uint64_t pts, uint64_t ptsWidth, uint8_t* nv12, int stride, int width, int height, int pesLen, int info) {
 
-    // invalidate
-    mPts = 0;
-    mNv12 = true;
-    mWidth = width;
-    mHeight = height;
-    mLen = len;
+    mLoaded = false;
+
+    mPtsEnd = pts + ptsWidth;
+    mPts = pts;
+
+    mPesLen = pesLen;
     mInfo = info;
 
+    mWidth = width;
+    mHeight = height;
+
+    mNv12 = true;
     mYStride = stride;
     mUVStride = stride/2;
 
@@ -195,25 +213,26 @@ public:
     mYbuf = (uint8_t*)_aligned_realloc (mYbuf, height * mYStride * 3 / 2, 128);
     memcpy (mYbuf, nv12, height * mYStride * 3 / 2);
 
-    // flag valid pts
-    mPts = pts;
+    mLoaded = true;
     }
   //}}}
 
   //{{{
   void invalidate() {
 
+    mLoaded = false;
     mPts = 0;
-    mLen = 0;
+    mPesLen = 0;
     }
   //}}}
   //{{{
   void freeResources() {
 
+    mLoaded  = false;
     mPts = 0;
     mWidth = 0;
     mHeight = 0;
-    mLen = 0;
+    mPesLen = 0;
 
     mYStride = 0;
     mUVStride = 0;
@@ -233,13 +252,17 @@ public:
   //}}}
 
   // vars
-  uint64_t mPts = 0;
   bool mNv12 = false;
+  bool mLoaded = false;
+
+  uint64_t mPts = 0;
+  uint64_t mPtsEnd = 0;
+
+  int mPesLen = 0;
+  int mInfo = 0;
 
   int mWidth = 0;
   int mHeight = 0;
-  int mLen = 0;
-  int mInfo = 0;
 
   int mYStride = 0;
   int mUVStride= 0;

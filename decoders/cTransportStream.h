@@ -6811,8 +6811,10 @@ public:
             else if (payStart && !(*tsPtr) && !(*(tsPtr+1)) && (*(tsPtr+2) == 1) && (*(tsPtr+3) == 0xe0)) {
               //{{{  start new video pes, decode last pes
               if (pid == vidPid) {
-                if (pidInfoIt->second.mBufPtr)
+                if (pidInfoIt->second.mBufPtr) {
                   vidDecodePes (&pidInfoIt->second, basePts, skipped);
+                  skipped = false;
+                  }
 
                 //  start next vidPES
                 if (!pidInfoIt->second.mBuffer) {
@@ -6849,6 +6851,26 @@ public:
           }
         }
       }
+    }
+  //}}}
+  //{{{
+  int getFrameType (uint8_t* pesPtr, uint8_t* pesEnd, int streamType, int& sequenceNumber) {
+
+    sequenceNumber = 0;
+    if (streamType == 2) {
+      // mpeg2 - find picture header, extract frame type
+      while (pesPtr + 6 < pesEnd) {
+        if (pesPtr[0] == 0 && pesPtr[1] == 0 && pesPtr[2] == 0x01 && pesPtr[3] == 0) {
+          sequenceNumber = (pesPtr[4] << 2) + (pesPtr[5] >> 6);
+          return (pesPtr[5] & 0x38) >> 3;
+          break;
+          }
+        pesPtr++;
+        }
+      return 0;
+      }
+    else // streamType == 27)
+      return 1;
     }
   //}}}
 
