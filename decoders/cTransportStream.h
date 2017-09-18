@@ -604,6 +604,377 @@ static unsigned long crcTable[256] = {
 #define kAudPesBufSize  10000
 #define kMaxSectionSize  4096
 
+typedef enum BitstreamErr_t { BITSTREAM_TOO_MANY_BITS, BITSTREAM_PAST_END, } BitstreamErr_t;
+//{{{
+uint32_t findNextStartCode (uint8_t* buf, uint32_t bufLen) {
+
+  // skip past start code
+  uint32_t offset = 0;
+  if (buf[0] == 0 && buf[1] == 0 && buf[2] == 0 && buf[3] == 1) {
+    buf += 4;
+    offset = 4;
+    }
+  else if (buf[0] == 0 && buf[1] == 0 && buf[2] == 1) {
+    buf += 3;
+    offset = 3;
+    }
+
+  // find next start code
+  uint32_t val = 0xffffffff;
+  while (offset++ < bufLen - 3) {
+    val = (val << 8) | *buf++;
+    if (val == 0x0000001)
+      return offset - 4;
+    if ((val & 0x00ffffff) == 0x0000001)
+      return offset - 3;
+    }
+
+  return bufLen;
+  }
+//}}}
+//{{{
+uint32_t remove03 (uint8_t* buf, uint32_t len) {
+
+  uint32_t nal_len = 0;
+
+  while (nal_len + 2 < len) {
+    if (buf[0] == 0 && buf[1] == 0 && buf[2] == 3) {
+      buf += 2;
+      nal_len += 2;
+      len--;
+      //printf ("*********** remove_03 ****** %d left\n", len - nal_len);
+      memmove (buf, buf + 1, len - nal_len);
+      }
+    else {
+      buf++;
+      nal_len++;
+      }
+    }
+
+  return len;
+  }
+//}}}
+//{{{
+class cBitstream {
+ public:
+  cBitstream() { m_verbose = 0;};
+  //{{{
+  cBitstream (const uint8_t* buffer, uint32_t bit_len) {
+    m_verbose = 0;
+    init(buffer, bit_len);
+  };
+  //}}}
+  ~cBitstream() {};
+
+  //{{{
+  void init (const uint8_t* buffer, uint32_t bit_len) {
+    m_chDecBuffer = buffer;
+    m_chDecBufferSize = bit_len;
+    m_bBookmarkOn = 0;
+    m_uNumOfBitsInBuffer = 0;
+
+  };
+  //}}}
+
+  //{{{
+  uint32_t GetBits (uint32_t numBits) {
+    uint32_t retData;
+
+    static const uint32_t msk[33] = {
+      0x00000000, 0x00000001, 0x00000003, 0x00000007,
+      0x0000000f, 0x0000001f, 0x0000003f, 0x0000007f,
+      0x000000ff, 0x000001ff, 0x000003ff, 0x000007ff,
+      0x00000fff, 0x00001fff, 0x00003fff, 0x00007fff,
+      0x0000ffff, 0x0001ffff, 0x0003ffff, 0x0007ffff,
+      0x000fffff, 0x001fffff, 0x003fffff, 0x007fffff,
+      0x00ffffff, 0x01ffffff, 0x03ffffff, 0x07ffffff,
+      0x0fffffff, 0x1fffffff, 0x3fffffff, 0x7fffffff,
+      0xffffffff
+      };
+
+    if (numBits > 32) {
+      throw BITSTREAM_TOO_MANY_BITS;
+      }
+
+    if (numBits == 0) {
+      return 0;
+      }
+
+    if (m_uNumOfBitsInBuffer >= numBits) {  // don't need to read from FILE
+      m_uNumOfBitsInBuffer -= numBits;
+      retData = m_chDecData >> m_uNumOfBitsInBuffer;
+      // wmay - this gets done below...retData &= msk[numBits];
+    } else {
+      uint32_t nbits;
+      nbits = numBits - m_uNumOfBitsInBuffer;
+      if (nbits == 32)
+  retData = 0;
+      else
+  retData = m_chDecData << nbits;
+      switch ((nbits - 1) / 8) {
+      case 3:
+  nbits -= 8;
+  if (m_chDecBufferSize < 8) throw BITSTREAM_PAST_END;
+  retData |= *m_chDecBuffer++ << nbits;
+  m_chDecBufferSize -= 8;
+  // fall through
+      case 2:
+  nbits -= 8;
+  if (m_chDecBufferSize < 8) throw BITSTREAM_PAST_END;
+  retData |= *m_chDecBuffer++ << nbits;
+  m_chDecBufferSize -= 8;
+      case 1:
+  nbits -= 8;
+  if (m_chDecBufferSize < 8) throw BITSTREAM_PAST_END;
+  retData |= *m_chDecBuffer++ << nbits;
+  m_chDecBufferSize -= 8;
+      case 0:
+  break;
+      }
+      if (m_chDecBufferSize < nbits) {
+  throw BITSTREAM_PAST_END;
+      }
+      m_chDecData = *m_chDecBuffer++;
+      m_uNumOfBitsInBuffer = min(8, m_chDecBufferSize) - nbits;
+      m_chDecBufferSize -= min(8, m_chDecBufferSize);
+      retData |= (m_chDecData >> m_uNumOfBitsInBuffer) & msk[nbits];
+    }
+    if (m_verbose)
+      printf("bits %d value %x\n", numBits, retData&msk[numBits]);
+    return (retData & msk[numBits]);
+  };
+  //}}}
+  //{{{
+  uint32_t PeekBits (uint32_t bits) {
+
+    uint32_t ret;
+    bookmark(1);
+    ret = GetBits(bits);
+    bookmark(0);
+    return ret;
+    }
+  //}}}
+
+  //{{{
+  int getbits (uint32_t bits, uint32_t* retvalue) {
+
+    try {
+      *retvalue = GetBits(bits);
+      } catch (...) {
+      return -1;
+      }
+
+    return 0;
+    }
+  //}}}
+  //{{{
+  int peekbits (uint32_t bits, uint32_t* retvalue) {
+    int ret;
+    bookmark(1);
+    ret = getbits(bits, retvalue);
+    bookmark(0);
+    return (ret);
+  }
+  //}}}
+
+  //{{{
+  uint32_t getUe() {
+
+    uint32_t bits, read;
+    int bits_left;
+    uint8_t coded;
+    bool done = false;
+    bits = 0;
+
+    // we want to read 8 bits at a time - if we don't have 8 bits,
+    // read what's left, and shift.  The exp_golomb_bits calc remains the
+    // same.
+    while (done == false) {
+      bits_left = bits_remain();
+      if (bits_left < 8) {
+        read = PeekBits(bits_left) << (8 - bits_left);
+        done = true;
+      } else {
+        read = PeekBits(8);
+        if (read == 0) {
+    GetBits(8);
+    bits += 8;
+        } else {
+    done = true;
+        }
+      }
+    }
+    coded = exp_golomb_bits[read];
+    GetBits(coded);
+    bits += coded;
+
+    //  printf("ue - bits %d\n", bits);
+    return GetBits(bits + 1) - 1;
+  }
+  //}}}
+  //{{{
+  int32_t getSe() {
+
+    uint32_t ret;
+    ret = getUe();
+    if ((ret & 0x1) == 0) {
+      ret >>= 1;
+      int32_t temp = 0 - ret;
+      return temp;
+      }
+
+    return (ret + 1) >> 1;
+    }
+  //}}}
+  //{{{
+  void check_0s (int count) {
+
+    uint32_t val;
+    val = GetBits (count);
+    if (val != 0)
+      printf ("field error - %d bits should be 0 is %x\n", count, val);
+    }
+  //}}}
+
+  //{{{
+  void bookmark (int bSet) {
+    if (m_verbose) {
+      printf("bookmark\n");
+    }
+    if (bSet) {
+      m_uNumOfBitsInBuffer_bookmark = m_uNumOfBitsInBuffer;
+      m_chDecBuffer_bookmark = m_chDecBuffer;
+      m_chDecBufferSize_bookmark = m_chDecBufferSize;
+      m_bBookmarkOn = 1;
+      m_chDecData_bookmark = m_chDecData;
+    } else {
+      m_uNumOfBitsInBuffer = m_uNumOfBitsInBuffer_bookmark;
+      m_chDecBuffer = m_chDecBuffer_bookmark;
+      m_chDecBufferSize = m_chDecBufferSize_bookmark;
+      m_chDecData = m_chDecData_bookmark;
+      m_bBookmarkOn = 0;
+    }
+  };
+  //}}}
+  //{{{
+  int bits_remain() {
+    return m_chDecBufferSize + m_uNumOfBitsInBuffer;
+  };
+  //}}}
+  //{{{
+  int byte_align() {
+    int temp = 0;
+    if (m_uNumOfBitsInBuffer != 0) {
+      temp = GetBits(m_uNumOfBitsInBuffer);
+    } else {
+      // if we are byte aligned, check for 0x7f value - this will indicate
+      // we need to skip those bits
+      uint8_t readval;
+      readval = PeekBits(8);
+      if (readval == 0x7f) {
+  readval = GetBits(8);
+      }
+    }
+    return (temp);
+  };
+  //}}}
+  void set_verbose (int verbose) { m_verbose = verbose; };
+
+ private:
+  uint32_t m_uNumOfBitsInBuffer;
+  const uint8_t *m_chDecBuffer;
+  uint8_t m_chDecData, m_chDecData_bookmark;
+  uint32_t m_chDecBufferSize;
+  int m_bBookmarkOn;
+  uint32_t m_uNumOfBitsInBuffer_bookmark;
+  const uint8_t *m_chDecBuffer_bookmark;
+  uint32_t m_chDecBufferSize_bookmark;
+  int m_verbose;
+
+  //{{{
+  const uint8_t exp_golomb_bits[256] = {
+  8, 7, 6, 6, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 3,
+  3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2,
+  2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+  2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1,
+  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+  1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0,
+  };
+  //}}}
+ };
+//}}}
+//{{{
+char parseSlice (cBitstream* bs) {
+
+  bs->getUe();
+  uint32_t temp = bs->getUe();
+  //printf ("type:%u\n", temp);
+
+  switch (temp) {
+    case 5: return 'P';
+    case 6: return 'B';
+    case 7: return 'I';
+    default: return '?';
+    }
+
+  return '?';
+  }
+//}}}
+//{{{
+uint8_t parseNAL (cBitstream* bs, int nal_length, char& frameType) {
+
+  uint8_t type = 0;
+
+  if (bs->GetBits (24) == 0)
+    bs->GetBits (8);
+
+  bs->check_0s (1);
+  bs->GetBits (2);
+  type = bs->GetBits (5);
+  //printf ("%d len:%d\n", type, nal_length);
+
+  frameType = '?';
+  switch (type) {
+    case 1:
+    case 5:
+      frameType = parseSlice (bs);
+      break;
+
+    case 6:
+      //printf ("SEI\n");
+      break;
+
+    case 7:
+      //printf ("SPS\n");
+      break;
+
+    case 8:
+      //printf ("PPS\n");
+      break;
+
+    case 9:
+      //printf ("AUD primary_pic_type: %u\n", bs->GetBits(3));
+      break;
+
+    case 0x0d:
+      //printf ("SEQEXT\n");
+      break;
+    }
+
+  return type;
+  }
+//}}}
+
 //{{{
 class cPidInfo {
 public:
@@ -6872,8 +7243,27 @@ public:
         }
       return '?';
       }
-    else // streamType == 27)
+
+    else if (streamType == 27) {
+
+      //printf ("H264 VPES len:%d --------------------- \n", int(pesEnd-pesPtr));
+      while (pesPtr < pesEnd) {
+        auto ret = findNextStartCode (pesPtr, int(pesEnd-pesPtr));
+        if (ret > 3) {
+          auto nal_len = remove03 (pesPtr, ret);
+          cBitstream bitstream (pesPtr, nal_len * 8);
+          char frameType = '?';
+          uint8_t type = parseNAL (&bitstream, nal_len, frameType);
+          if (type == 1 || type == 5)
+            return frameType;
+          }
+        pesPtr += ret;
+        }
+
       return 'I';
+      }
+
+    return '?';
     }
   //}}}
 
@@ -7215,7 +7605,7 @@ private:
         }
       }
       //}}}
-    else if (pid == 32) 
+    else if (pid == 32)
       // simple tsFile with no SDT, pid 32 used to allocate service with sid
       mServiceMap.insert (tServiceMap::value_type (sid, cService (sid, 0, 0, kServiceTypeTV, "file")));
     }
