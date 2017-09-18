@@ -88,19 +88,22 @@ const char* postfix =             "\033[m\n";
 //}}}
 
 enum eLogCode mLogLevel = LOGNONE;
+
+bool gBuffer = false;
 FILE* mFile = NULL;
 std::mutex mLogMutex;
 
+//{{{
 class cLine {
 public:
-  cLine (eLogCode logCode, struct timeval time, std::string str) :
-    mLogCode(logCode), mTime(time), mStr(str) {}
+  cLine (eLogCode logCode, uint64_t usTime, std::string str) :
+    mLogCode(logCode), mUsTime(usTime), mStr(str) {}
 
-   eLogCode  mLogCode;
-  struct timeval mTime;
+  eLogCode mLogCode;
+  uint64_t mUsTime;
   std::string mStr;
   };
-
+//}}}
 std::deque<cLine> mLines;
 
 #ifdef _WIN32
@@ -108,7 +111,7 @@ std::deque<cLine> mLines;
 #endif
 
 //{{{
-bool cLog::init (std::string path, enum eLogCode logLevel) {
+bool cLog::init (std::string path, enum eLogCode logLevel, bool buffer) {
 
   #ifdef _WIN32
     hStdOut = GetStdHandle (STD_OUTPUT_HANDLE);
@@ -116,6 +119,7 @@ bool cLog::init (std::string path, enum eLogCode logLevel) {
     SetConsoleMode (hStdOut, consoleMode);
   #endif
 
+  gBuffer = buffer;
   mLogLevel = logLevel;
   if (mLogLevel > LOGNONE) {
     if (!path.empty() && !mFile) {
@@ -165,33 +169,34 @@ void cLog::log (enum eLogCode logCode, std::string logStr) {
   std::lock_guard<std::mutex> lockGuard (mLogMutex);
 
   if (logCode <= mLogLevel || (logCode >= LOGWARNING)) {
-    //{{{  get time
+    //  get time
     struct timeval now;
     gettimeofday (&now, NULL);
 
-    SYSTEMTIME time;
-    time.wHour = kBst + (now.tv_sec/3600) % 24;
-    time.wMinute = (now.tv_sec/60) % 60;
-    time.wSecond = now.tv_sec % 60;
-    int subSec = now.tv_usec;
-    //}}}
+    if (gBuffer)
+      mLines.push_front (cLine (logCode, now.tv_sec * 1000 + now.tv_usec, logStr));
 
-    // write log line
-    char buffer[40];
-    sprintf (buffer, prefixFormat, time.wHour, time.wMinute, time.wSecond, subSec, levelColours[logCode]);
-    fputs (buffer, stdout);
-    fputs (logStr.c_str(), stdout);
-    fputs (postfix, stdout);
+    else {
+      auto hour = kBst + (now.tv_sec/3600) % 24;
+      auto minute = (now.tv_sec/60) % 60;
+      auto second = now.tv_sec % 60;
+      auto subSec = now.tv_usec;
 
-    if (mFile) {
-      sprintf (buffer, prefixFormat, time.wHour, time.wMinute, time.wSecond, subSec, levelNames[logCode]);
-      fputs (buffer, mFile);
-      fputs (logStr.c_str(), mFile);
-      fputc ('\n', mFile);
-      fflush (mFile);
+      // write log line
+      char buffer[40];
+      sprintf (buffer, prefixFormat, hour, minute, second, subSec, levelColours[logCode]);
+      fputs (buffer, stdout);
+      fputs (logStr.c_str(), stdout);
+      fputs (postfix, stdout);
+
+      if (mFile) {
+        sprintf (buffer, prefixFormat, hour, minute, second, subSec, levelNames[logCode]);
+        fputs (buffer, mFile);
+        fputs (logStr.c_str(), mFile);
+        fputc ('\n', mFile);
+        fflush (mFile);
+        }
       }
-
-    mLines.push_front (cLine (logCode, now, logStr));
     }
   }
 //}}}
@@ -217,14 +222,17 @@ void cLog::log (enum eLogCode logCode, const char* format, ... ) {
   }
 //}}}
 
-std::string cLog::getLine (int n, eLogCode& logCode, struct timeval& time) {
+//{{{
+std::string cLog::getLine (int n, eLogCode& logCode, uint64_t& usTime) {
+
   if (n < mLines.size()) {
     logCode = mLines[n].mLogCode;
-    time = mLines[n].mTime;
+    usTime = mLines[n].mUsTime;
     return mLines[n].mStr;
     }
 
   logCode = LOGNONE;
+  usTime = 0;
   return std::string();
   }
-
+//}}}

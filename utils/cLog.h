@@ -10,7 +10,7 @@ class cLog {
 public:
   ~cLog() { close(); }
 
-  static bool init (std::string path, enum eLogCode logLevel);
+  static bool init (std::string path, enum eLogCode logLevel, bool buffer);
   static void close();
 
   static enum eLogCode getLogLevel();
@@ -19,5 +19,5 @@ public:
   static void log (enum eLogCode logCode, std::string logStr);
   static void log (enum eLogCode logCode, const char *format, ... );
 
-  static std::string getLine (int n, eLogCode& logCode, struct timeval& time);
+  static std::string getLine (int n, eLogCode& logCode, uint64_t& usTime);
   };
