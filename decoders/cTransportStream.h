@@ -7250,10 +7250,9 @@ public:
       while (pesPtr < pesEnd) {
         auto ret = findNextStartCode (pesPtr, int(pesEnd-pesPtr));
         if (ret > 3) {
-          auto nal_len = remove03 (pesPtr, ret);
-          cBitstream bitstream (pesPtr, nal_len * 8);
+          cBitstream bitstream (pesPtr, ret * 8);
           char frameType = '?';
-          uint8_t type = parseNAL (&bitstream, nal_len, frameType);
+          uint8_t type = parseNAL (&bitstream, ret, frameType);
           if (type == 1 || type == 5)
             return frameType;
           }
