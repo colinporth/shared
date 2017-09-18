@@ -96,11 +96,11 @@ std::mutex mLogMutex;
 //{{{
 class cLine {
 public:
-  cLine (eLogCode logCode, uint32_t usTime, std::string str) :
-    mLogCode(logCode), mUsTime(usTime), mStr(str) {}
+  cLine (eLogCode logCode, uint32_t msTime, std::string str) :
+    mLogCode(logCode), mMsTime(msTime), mStr(str) {}
 
   eLogCode mLogCode;
-  uint32_t mUsTime;
+  uint32_t mMsTime;
   std::string mStr;
   };
 //}}}
@@ -174,9 +174,9 @@ void cLog::log (enum eLogCode logCode, std::string logStr) {
     gettimeofday (&now, NULL);
 
     if (gBuffer) {
-      uint32_t usTime = (now.tv_sec * 1000) + now.tv_usec;
-      mLines.push_front (cLine (logCode, usTime, logStr));
-      }
+    uint32_t msTime = ((now.tv_sec % (24 * 60 *60)) * 1000) + now.tv_usec;
+    mLines.push_front (cLine (logCode, msTime, logStr));
+    }
     else {
       auto hour = kBst + (now.tv_sec/3600) % 24;
       auto minute = (now.tv_sec/60) % 60;
@@ -230,7 +230,7 @@ std::string cLog::getLine (int n, eLogCode& logCode, uint32_t& usTime) {
 
   if (n < mLines.size()) {
     logCode = mLines[n].mLogCode;
-    usTime = mLines[n].mUsTime;
+    usTime = mLines[n].mMsTime;
     return mLines[n].mStr;
     }
 
