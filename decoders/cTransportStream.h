@@ -763,7 +763,7 @@ public:
   int byte_align() {
 
     int temp = 0;
-    if (mNumOfBitsInBuffer != 0) 
+    if (mNumOfBitsInBuffer != 0)
       temp = getBits (mNumOfBitsInBuffer);
     else {
       // if we are byte aligned, check for 0x7f value - this will indicate
@@ -7041,7 +7041,9 @@ public:
               //{{{  start new video pes, decode last pes
               if (pid == vidPid) {
                 if (pidInfoIt->second.mBufPtr) {
-                  vidDecodePes (&pidInfoIt->second, basePts, skipped);
+                  char frameType =
+                    parseFrameType (pidInfoIt->second.mBuffer, pidInfoIt->second.mBufPtr, pidInfoIt->second.mStreamType);
+                  vidDecodePes (&pidInfoIt->second, basePts, frameType, skipped);
                   skipped = false;
                   }
 
@@ -7082,95 +7084,6 @@ public:
       }
     }
   //}}}
-  //{{{
-  char getFrameType (uint8_t* pesPtr, uint8_t* pesEnd, int streamType) {
-
-    if (streamType == 2) {
-      //{{{  mpeg2 minimal parser
-      while (pesPtr + 6 < pesEnd) {
-        // look for pictureHeader 00000100
-        if (!pesPtr[0] && !pesPtr[1] && (pesPtr[2] == 0x01) && !pesPtr[3])
-          // extract frameType I,B,P
-          switch ((pesPtr[5] >> 3) & 0x03) {
-            case 1: return 'I';
-            case 2: return 'P';
-            case 3: return 'B';
-            default: return '?';
-            }
-        pesPtr++;
-        }
-      }
-      //}}}
-    else if (streamType == 27) {
-      // h264 minimal parser
-      while (pesPtr < pesEnd) {
-        //printf ("VPES\n");
-        //{{{  skip past start code, find next start code
-        auto buf = pesPtr;
-        auto bufLen = uint32_t (pesEnd - pesPtr);
-
-        uint32_t startOffset = 0;
-        if (!buf[0] && !buf[1]) {
-          if (!buf[2] && buf[3] == 1) {
-            buf += 4;
-            startOffset = 4;
-            }
-          else if (buf[2] == 1) {
-            buf += 3;
-            startOffset = 3;
-            }
-          }
-
-        // find next start code
-        auto offset = startOffset;
-        uint32_t nalLen;
-        uint32_t val = 0xffffffff;
-        while (offset++ < bufLen - 3) {
-          val = (val << 8) | *buf++;
-          if (val == 0x0000001) {
-            nalLen = offset - 4;
-            break;
-            }
-          if ((val & 0x00ffffff) == 0x0000001) {
-            nalLen = offset - 3;
-            break;
-            }
-
-          nalLen = bufLen;
-          }
-        //}}}
-
-        if (nalLen > 3) {
-          // parse NAL bitStream
-          cBitstream bitstream (buf, (nalLen - startOffset) * 8);
-          bitstream.check_0s (1);
-          bitstream.getBits (2);
-          switch (bitstream.getBits (5)) {
-            case 1:
-            case 5:
-              //printf ("SLICE\n");
-              bitstream.getUe();
-              switch (bitstream.getUe()) {
-                case 5: return 'P';
-                case 6: return 'B';
-                case 7: return 'I';
-                default:return '?';
-                }
-              break;
-            //case 6: //printf ("SEI\n"); break;
-            //case 7: //printf ("SPS\n"); break;
-            //case 8: //printf ("PPS\n"); break;
-            //case 9: //printf ("AUD\n"); break;
-            //case 0x0d: //printf ("SEQEXT\n"); break;
-            }
-          }
-        pesPtr += nalLen;
-        }
-      }
-
-    return '?';
-    }
-  //}}}
 
   //{{{
   void printPids() {
@@ -7200,7 +7113,7 @@ public:
 protected:
   virtual void pidPacket (int pid, uint8_t* ptr) {}
   virtual void audDecodePes (cPidInfo* pidInfo, uint64_t basePts) {}
-  virtual void vidDecodePes (cPidInfo* pidInfo, uint64_t basePts, bool skipped) {}
+  virtual void vidDecodePes (cPidInfo* pidInfo, uint64_t basePts, char frameType,  bool skipped) {}
   virtual void startProgram (int vpid, int apid, std::string name, std::string startTime) {}
 
   tServiceMap mServiceMap;
@@ -7831,6 +7744,97 @@ private:
       DescrLength += GetDescrLength (ptr);
       ptr += GetDescrLength (ptr);
       }
+    }
+  //}}}
+
+  //{{{
+  char parseFrameType (uint8_t* pesPtr, uint8_t* pesEnd, int streamType) {
+  // return frameType of video pes
+
+    if (streamType == 2) {
+      //{{{  mpeg2 minimal parser
+      while (pesPtr + 6 < pesEnd) {
+        // look for pictureHeader 00000100
+        if (!pesPtr[0] && !pesPtr[1] && (pesPtr[2] == 0x01) && !pesPtr[3])
+          // extract frameType I,B,P
+          switch ((pesPtr[5] >> 3) & 0x03) {
+            case 1: return 'I';
+            case 2: return 'P';
+            case 3: return 'B';
+            default: return '?';
+            }
+        pesPtr++;
+        }
+      }
+      //}}}
+    else if (streamType == 27) {
+      // h264 minimal parser
+      while (pesPtr < pesEnd) {
+        //printf ("VPES\n");
+        //{{{  skip past start code, find next start code
+        auto buf = pesPtr;
+        auto bufLen = uint32_t (pesEnd - pesPtr);
+
+        uint32_t startOffset = 0;
+        if (!buf[0] && !buf[1]) {
+          if (!buf[2] && buf[3] == 1) {
+            buf += 4;
+            startOffset = 4;
+            }
+          else if (buf[2] == 1) {
+            buf += 3;
+            startOffset = 3;
+            }
+          }
+
+        // find next start code
+        auto offset = startOffset;
+        uint32_t nalLen;
+        uint32_t val = 0xffffffff;
+        while (offset++ < bufLen - 3) {
+          val = (val << 8) | *buf++;
+          if (val == 0x0000001) {
+            nalLen = offset - 4;
+            break;
+            }
+          if ((val & 0x00ffffff) == 0x0000001) {
+            nalLen = offset - 3;
+            break;
+            }
+
+          nalLen = bufLen;
+          }
+        //}}}
+
+        if (nalLen > 3) {
+          // parse NAL bitStream
+          cBitstream bitstream (buf, (nalLen - startOffset) * 8);
+          bitstream.check_0s (1);
+          bitstream.getBits (2);
+          switch (bitstream.getBits (5)) {
+            case 1:
+            case 5:
+              //printf ("SLICE\n");
+              bitstream.getUe();
+              switch (bitstream.getUe()) {
+                case 5: return 'P';
+                case 6: return 'B';
+                case 7: return 'I';
+                default:return '?';
+                }
+              break;
+            //case 6: //printf ("SEI\n"); break;
+            //case 7: //printf ("SPS\n"); break;
+            //case 8: //printf ("PPS\n"); break;
+            //case 9: //printf ("AUD\n"); break;
+            //case 0x0d: //printf ("SEQEXT\n"); break;
+            }
+          }
+        pesPtr += nalLen;
+        }
+      }
+
+    return '?';
     }
   //}}}
 
