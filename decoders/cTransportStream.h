@@ -645,7 +645,16 @@ class cBitstream {
   ~cBitstream() {};
 
   //{{{
-  uint32_t GetBits (uint32_t numBits) {
+  uint32_t peekBits (uint32_t bits) {
+
+    bookmark (1);
+    uint32_t ret = getBits(bits);
+    bookmark (0);
+    return ret;
+    }
+  //}}}
+  //{{{
+  uint32_t getBits (uint32_t numBits) {
 
     //{{{
     static const uint32_t msk[33] = {
@@ -700,9 +709,8 @@ class cBitstream {
         case 0:
           break;
         }
-      if (m_chDecBufferSize < nbits) {
+      if (m_chDecBufferSize < nbits)
         return 0;
-        }
 
       m_chDecData = *m_chDecBuffer++;
       m_uNumOfBitsInBuffer = min(8, m_chDecBufferSize) - nbits;
@@ -712,16 +720,6 @@ class cBitstream {
 
     return (retData & msk[numBits]);
     };
-  //}}}
-  //{{{
-  uint32_t PeekBits (uint32_t bits) {
-
-    uint32_t ret;
-    bookmark(1);
-    ret = GetBits(bits);
-    bookmark(0);
-    return ret;
-    }
   //}}}
 
   //{{{
@@ -738,13 +736,13 @@ class cBitstream {
     while (done == false) {
       bits_left = bits_remain();
       if (bits_left < 8) {
-        read = PeekBits(bits_left) << (8 - bits_left);
+        read = peekBits(bits_left) << (8 - bits_left);
         done = true;
         }
       else {
-        read = PeekBits(8);
+        read = peekBits(8);
         if (read == 0) {
-          GetBits(8);
+          getBits(8);
           bits += 8;
           }
         else {
@@ -753,10 +751,10 @@ class cBitstream {
         }
       }
     coded = exp_golomb_bits[read];
-    GetBits (coded);
+    getBits (coded);
     bits += coded;
 
-    return GetBits (bits + 1) - 1;
+    return getBits (bits + 1) - 1;
     }
   //}}}
   //{{{
@@ -773,33 +771,15 @@ class cBitstream {
     return (ret + 1) >> 1;
     }
   //}}}
+
   //{{{
   void check_0s (int count) {
 
     uint32_t val;
-    val = GetBits (count);
+    val = getBits (count);
     if (val != 0)
       printf ("field error - %d bits should be 0 is %x\n", count, val);
     }
-  //}}}
-
-  //{{{
-  void bookmark (int bSet) {
-
-    if (bSet) {
-      m_uNumOfBitsInBuffer_bookmark = m_uNumOfBitsInBuffer;
-      m_chDecBuffer_bookmark = m_chDecBuffer;
-      m_chDecBufferSize_bookmark = m_chDecBufferSize;
-      m_bBookmarkOn = 1;
-      m_chDecData_bookmark = m_chDecData;
-    } else {
-      m_uNumOfBitsInBuffer = m_uNumOfBitsInBuffer_bookmark;
-      m_chDecBuffer = m_chDecBuffer_bookmark;
-      m_chDecBufferSize = m_chDecBufferSize_bookmark;
-      m_chDecData = m_chDecData_bookmark;
-      m_bBookmarkOn = 0;
-    }
-  };
   //}}}
   //{{{
   int bits_remain() {
@@ -812,15 +792,15 @@ class cBitstream {
 
     int temp = 0;
     if (m_uNumOfBitsInBuffer != 0) {
-      temp = GetBits(m_uNumOfBitsInBuffer);
+      temp = getBits(m_uNumOfBitsInBuffer);
       }
     else {
       // if we are byte aligned, check for 0x7f value - this will indicate
       // we need to skip those bits
       uint8_t readval;
-      readval = PeekBits(8);
+      readval = peekBits(8);
       if (readval == 0x7f) {
-        readval = GetBits(8);
+        readval = getBits(8);
         }
       }
 
@@ -850,6 +830,25 @@ class cBitstream {
   };
   //}}}
 
+  //{{{
+  void bookmark (int bSet) {
+
+    if (bSet) {
+      m_uNumOfBitsInBuffer_bookmark = m_uNumOfBitsInBuffer;
+      m_chDecBuffer_bookmark = m_chDecBuffer;
+      m_chDecBufferSize_bookmark = m_chDecBufferSize;
+      m_bBookmarkOn = 1;
+      m_chDecData_bookmark = m_chDecData;
+    } else {
+      m_uNumOfBitsInBuffer = m_uNumOfBitsInBuffer_bookmark;
+      m_chDecBuffer = m_chDecBuffer_bookmark;
+      m_chDecBufferSize = m_chDecBufferSize_bookmark;
+      m_chDecData = m_chDecData_bookmark;
+      m_bBookmarkOn = 0;
+    }
+  };
+  //}}}
+
   uint32_t m_uNumOfBitsInBuffer;
   const uint8_t *m_chDecBuffer;
   uint8_t m_chDecData, m_chDecData_bookmark;
@@ -859,39 +858,6 @@ class cBitstream {
   const uint8_t *m_chDecBuffer_bookmark;
   uint32_t m_chDecBufferSize_bookmark;
   };
-//}}}
-//{{{
-uint8_t parseNAL (cBitstream* bs, char& frameType) {
-
-  frameType = '?';
-
-  if (bs->GetBits (24) == 0)
-    bs->GetBits (8);
-  bs->check_0s (1);
-  bs->GetBits (2);
-
-  uint8_t type = bs->GetBits (5);
-  switch (type) {
-    case 1:
-    case 5:
-      bs->getUe();
-      switch (bs->getUe()) {
-        case 5: frameType = 'P'; break;
-        case 6: frameType = 'B'; break;
-        case 7: frameType = 'I'; break;
-        default: frameType = '?'; break;
-        }
-      break;
-
-    //case 6: //printf ("SEI\n"); break;
-    //case 7: //printf ("SPS\n"); break;
-    //case 8: //printf ("PPS\n"); break;
-    //case 9: //printf ("AUD primary_pic_type: %u\n", bs->GetBits(3)); break;
-    //case 0x0d: //printf ("SEQEXT\n"); break;
-    }
-
-  return type;
-  }
 //}}}
 
 //{{{
@@ -7147,7 +7113,7 @@ public:
   char getFrameType (uint8_t* pesPtr, uint8_t* pesEnd, int streamType) {
 
     if (streamType == 2) {
-      // mpeg2
+      //{{{  mpeg2
       while (pesPtr + 6 < pesEnd) {
         // look for pictureHeader 00000100
         if (!pesPtr[0] && !pesPtr[1] && (pesPtr[2] == 0x01) && !pesPtr[3])
@@ -7161,19 +7127,39 @@ public:
         pesPtr++;
         }
       }
-
+      //}}}
     else if (streamType == 27) {
       // h264
       while (pesPtr < pesEnd) {
-        auto ret = findNextStartCode (pesPtr, int(pesEnd-pesPtr));
-        if (ret > 3) {
-          cBitstream bitstream (pesPtr, ret * 8);
-          char frameType;
-          uint8_t type = parseNAL (&bitstream, frameType);
-          if (type == 1 || type == 5)
-            return frameType;
+        auto nalLen = findNextStartCode (pesPtr, int(pesEnd-pesPtr));
+        if (nalLen > 3) {
+          cBitstream bitstream (pesPtr, nalLen * 8);
+          if (bitstream.getBits (24) == 0)
+            bitstream.getBits (8);
+          bitstream.check_0s (1);
+          bitstream.getBits (2);
+
+          uint8_t type = bitstream.getBits (5);
+          switch (type) {
+            case 1:
+            case 5:
+              //printf ("SLICE\n");
+              bitstream.getUe();
+              switch (bitstream.getUe()) {
+                case 5: return 'P';
+                case 6: return 'B';
+                case 7: return 'I';
+                default:return '?';
+                }
+              break;
+            //case 6: //printf ("SEI\n"); break;
+            //case 7: //printf ("SPS\n"); break;
+            //case 8: //printf ("PPS\n"); break;
+            //case 9: //printf ("AUD\n"); break;
+            //case 0x0d: //printf ("SEQEXT\n"); break;
+            }
           }
-        pesPtr += ret;
+        pesPtr += nalLen;
         }
       }
 
