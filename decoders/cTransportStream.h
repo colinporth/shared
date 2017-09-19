@@ -606,13 +606,13 @@ static unsigned long crcTable[256] = {
 
 //{{{
 class cBitstream {
- public:
+public:
   //{{{
   cBitstream (const uint8_t* buffer, uint32_t bit_len) {
-    m_chDecBuffer = buffer;
-    m_chDecBufferSize = bit_len;
-    m_bBookmarkOn = 0;
-    m_uNumOfBitsInBuffer = 0;
+    mDecBuffer = buffer;
+    mDecBufferSize = bit_len;
+    mNumOfBitsInBuffer = 0;
+    mBookmarkOn = false;
     };
   //}}}
   ~cBitstream() {};
@@ -620,9 +620,9 @@ class cBitstream {
   //{{{
   uint32_t peekBits (uint32_t bits) {
 
-    bookmark (1);
-    uint32_t ret = getBits(bits);
-    bookmark (0);
+    bookmark (true);
+    uint32_t ret = getBits (bits);
+    bookmark (false);
     return ret;
     }
   //}}}
@@ -647,48 +647,49 @@ class cBitstream {
       return 0;
 
     uint32_t retData;
-    if (m_uNumOfBitsInBuffer >= numBits) {  // don't need to read from FILE
-      m_uNumOfBitsInBuffer -= numBits;
-      retData = m_chDecData >> m_uNumOfBitsInBuffer;
+    if (mNumOfBitsInBuffer >= numBits) {  // don't need to read from FILE
+      mNumOfBitsInBuffer -= numBits;
+      retData = mDecData >> mNumOfBitsInBuffer;
       // wmay - this gets done below...retData &= msk[numBits];
       }
     else {
       uint32_t nbits;
-      nbits = numBits - m_uNumOfBitsInBuffer;
+      nbits = numBits - mNumOfBitsInBuffer;
       if (nbits == 32)
         retData = 0;
       else
-        retData = m_chDecData << nbits;
+        retData = mDecData << nbits;
+
       switch ((nbits - 1) / 8) {
         case 3:
           nbits -= 8;
-          if (m_chDecBufferSize < 8)
+          if (mDecBufferSize < 8)
             return 0;
-          retData |= *m_chDecBuffer++ << nbits;
-          m_chDecBufferSize -= 8;
+          retData |= *mDecBuffer++ << nbits;
+          mDecBufferSize -= 8;
           // fall through
         case 2:
           nbits -= 8;
-          if (m_chDecBufferSize < 8)
+          if (mDecBufferSize < 8)
             return 0;
-          retData |= *m_chDecBuffer++ << nbits;
-          m_chDecBufferSize -= 8;
+          retData |= *mDecBuffer++ << nbits;
+          mDecBufferSize -= 8;
         case 1:
           nbits -= 8;
-          if (m_chDecBufferSize < 8)
+          if (mDecBufferSize < 8)
             return 0;
-          retData |= *m_chDecBuffer++ << nbits;
-          m_chDecBufferSize -= 8;
+          retData |= *mDecBuffer++ << nbits;
+          mDecBufferSize -= 8;
         case 0:
           break;
         }
-      if (m_chDecBufferSize < nbits)
+      if (mDecBufferSize < nbits)
         return 0;
 
-      m_chDecData = *m_chDecBuffer++;
-      m_uNumOfBitsInBuffer = min(8, m_chDecBufferSize) - nbits;
-      m_chDecBufferSize -= min(8, m_chDecBufferSize);
-      retData |= (m_chDecData >> m_uNumOfBitsInBuffer) & msk[nbits];
+      mDecData = *mDecBuffer++;
+      mNumOfBitsInBuffer = min(8, mDecBufferSize) - nbits;
+      mDecBufferSize -= min(8, mDecBufferSize);
+      retData |= (mDecData >> mNumOfBitsInBuffer) & msk[nbits];
       }
 
     return (retData & msk[numBits]);
@@ -698,32 +699,32 @@ class cBitstream {
   //{{{
   uint32_t getUe() {
 
-    uint32_t bits, read;
+    uint32_t bits;
+    uint32_t read;
     int bits_left;
-    uint8_t coded;
     bool done = false;
     bits = 0;
 
     // we want to read 8 bits at a time - if we don't have 8 bits,
     // read what's left, and shift.  The exp_golomb_bits calc remains the same.
-    while (done == false) {
+    while (!done) {
       bits_left = bits_remain();
       if (bits_left < 8) {
-        read = peekBits(bits_left) << (8 - bits_left);
+        read = peekBits (bits_left) << (8 - bits_left);
         done = true;
         }
       else {
-        read = peekBits(8);
+        read = peekBits (8);
         if (read == 0) {
-          getBits(8);
+          getBits (8);
           bits += 8;
           }
-        else {
+        else
          done = true;
-          }
         }
       }
-    coded = exp_golomb_bits[read];
+
+    uint8_t coded = exp_golomb_bits[read];
     getBits (coded);
     bits += coded;
 
@@ -748,91 +749,90 @@ class cBitstream {
   //{{{
   void check_0s (int count) {
 
-    uint32_t val;
-    val = getBits (count);
+    uint32_t val = getBits (count);
     if (val != 0)
       printf ("field error - %d bits should be 0 is %x\n", count, val);
     }
   //}}}
   //{{{
   int bits_remain() {
-
-    return m_chDecBufferSize + m_uNumOfBitsInBuffer;
+    return mDecBufferSize + mNumOfBitsInBuffer;
     };
   //}}}
   //{{{
   int byte_align() {
 
     int temp = 0;
-    if (m_uNumOfBitsInBuffer != 0) {
-      temp = getBits(m_uNumOfBitsInBuffer);
-      }
+    if (mNumOfBitsInBuffer != 0) 
+      temp = getBits (mNumOfBitsInBuffer);
     else {
       // if we are byte aligned, check for 0x7f value - this will indicate
       // we need to skip those bits
-      uint8_t readval;
-      readval = peekBits(8);
-      if (readval == 0x7f) {
-        readval = getBits(8);
-        }
+      uint8_t readval = peekBits (8);
+      if (readval == 0x7f)
+        readval = getBits (8);
       }
 
     return temp;
     };
   //}}}
 
- private:
+private:
   //{{{
   const uint8_t exp_golomb_bits[256] = {
-  8, 7, 6, 6, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 3,
-  3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2,
-  2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-  2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1,
-  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-  1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0,
-  };
+    8, 7, 6, 6, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 3,
+    3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2,
+    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0,
+    };
   //}}}
 
   //{{{
-  void bookmark (int bSet) {
+  void bookmark (bool on) {
 
-    if (bSet) {
-      m_uNumOfBitsInBuffer_bookmark = m_uNumOfBitsInBuffer;
-      m_chDecBuffer_bookmark = m_chDecBuffer;
-      m_chDecBufferSize_bookmark = m_chDecBufferSize;
-      m_bBookmarkOn = 1;
-      m_chDecData_bookmark = m_chDecData;
-    } else {
-      m_uNumOfBitsInBuffer = m_uNumOfBitsInBuffer_bookmark;
-      m_chDecBuffer = m_chDecBuffer_bookmark;
-      m_chDecBufferSize = m_chDecBufferSize_bookmark;
-      m_chDecData = m_chDecData_bookmark;
-      m_bBookmarkOn = 0;
-    }
-  };
+    if (on) {
+      mNumOfBitsInBuffer_bookmark = mNumOfBitsInBuffer;
+      mDecBuffer_bookmark = mDecBuffer;
+      mDecBufferSize_bookmark = mDecBufferSize;
+      mBookmarkOn = 1;
+      mDecData_bookmark = mDecData;
+      }
+
+    else {
+      mNumOfBitsInBuffer = mNumOfBitsInBuffer_bookmark;
+      mDecBuffer = mDecBuffer_bookmark;
+      mDecBufferSize = mDecBufferSize_bookmark;
+      mDecData = mDecData_bookmark;
+      mBookmarkOn = 0;
+      }
+
+    };
   //}}}
 
-  uint32_t m_uNumOfBitsInBuffer;
-  const uint8_t *m_chDecBuffer;
-  uint8_t m_chDecData, m_chDecData_bookmark;
-  uint32_t m_chDecBufferSize;
-  int m_bBookmarkOn;
-  uint32_t m_uNumOfBitsInBuffer_bookmark;
-  const uint8_t *m_chDecBuffer_bookmark;
-  uint32_t m_chDecBufferSize_bookmark;
+  uint32_t mNumOfBitsInBuffer;
+  const uint8_t* mDecBuffer;
+  uint8_t mDecData;
+  uint8_t mDecData_bookmark;
+  uint32_t mDecBufferSize;
+
+  bool mBookmarkOn;
+  uint32_t mNumOfBitsInBuffer_bookmark;
+  const uint8_t* mDecBuffer_bookmark;
+  uint32_t mDecBufferSize_bookmark;
   };
 //}}}
-
 //{{{
 class cPidInfo {
 public:
@@ -7104,24 +7104,26 @@ public:
     else if (streamType == 27) {
       // h264 minimal parser
       while (pesPtr < pesEnd) {
+        //printf ("VPES\n");
+        //{{{  skip past start code, find next start code
         auto buf = pesPtr;
-        auto bufLen = uint32_t (pesEnd-pesPtr);
-        //{{{  skip past start code
-        uint32_t offset = 0;
+        auto bufLen = uint32_t (pesEnd - pesPtr);
+
+        uint32_t startOffset = 0;
         if (!buf[0] && !buf[1]) {
           if (!buf[2] && buf[3] == 1) {
             buf += 4;
-            offset = 4;
+            startOffset = 4;
             }
           else if (buf[2] == 1) {
             buf += 3;
-            offset = 3;
+            startOffset = 3;
             }
           }
-        //}}}
-        //{{{  find next start code
-        uint32_t nalLen;
 
+        // find next start code
+        auto offset = startOffset;
+        uint32_t nalLen;
         uint32_t val = 0xffffffff;
         while (offset++ < bufLen - 3) {
           val = (val << 8) | *buf++;
@@ -7140,14 +7142,10 @@ public:
 
         if (nalLen > 3) {
           // parse NAL bitStream
-          cBitstream bitstream (pesPtr, nalLen * 8);
-          if (bitstream.getBits (24) == 0)
-            bitstream.getBits (8);
+          cBitstream bitstream (buf, (nalLen - startOffset) * 8);
           bitstream.check_0s (1);
           bitstream.getBits (2);
-
-          uint8_t type = bitstream.getBits (5);
-          switch (type) {
+          switch (bitstream.getBits (5)) {
             case 1:
             case 5:
               //printf ("SLICE\n");
@@ -7170,7 +7168,6 @@ public:
         }
       }
 
-    // NAL slice not found
     return '?';
     }
   //}}}
