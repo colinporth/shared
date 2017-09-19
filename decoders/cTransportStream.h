@@ -605,33 +605,6 @@ static unsigned long crcTable[256] = {
 #define kMaxSectionSize  4096
 
 //{{{
-uint32_t findNextStartCode (uint8_t* buf, uint32_t bufLen) {
-
-  // skip past start code
-  uint32_t offset = 0;
-  if (!buf[0] && !buf[1] && !buf[2] && buf[3] == 1) {
-    buf += 4;
-    offset = 4;
-    }
-  else if (!buf[0] && !buf[1] && buf[2] == 1) {
-    buf += 3;
-    offset = 3;
-    }
-
-  // find next start code
-  uint32_t val = 0xffffffff;
-  while (offset++ < bufLen - 3) {
-    val = (val << 8) | *buf++;
-    if (val == 0x0000001)
-      return offset - 4;
-    if ((val & 0x00ffffff) == 0x0000001)
-      return offset - 3;
-    }
-
-  return bufLen;
-  }
-//}}}
-//{{{
 class cBitstream {
  public:
   //{{{
@@ -7113,7 +7086,7 @@ public:
   char getFrameType (uint8_t* pesPtr, uint8_t* pesEnd, int streamType) {
 
     if (streamType == 2) {
-      //{{{  mpeg2
+      //{{{  mpeg2 minimal parser
       while (pesPtr + 6 < pesEnd) {
         // look for pictureHeader 00000100
         if (!pesPtr[0] && !pesPtr[1] && (pesPtr[2] == 0x01) && !pesPtr[3])
@@ -7129,10 +7102,44 @@ public:
       }
       //}}}
     else if (streamType == 27) {
-      // h264
+      // h264 minimal parser
       while (pesPtr < pesEnd) {
-        auto nalLen = findNextStartCode (pesPtr, int(pesEnd-pesPtr));
+        auto buf = pesPtr;
+        auto bufLen = uint32_t (pesEnd-pesPtr);
+        //{{{  skip past start code
+        uint32_t offset = 0;
+        if (!buf[0] && !buf[1]) {
+          if (!buf[2] && buf[3] == 1) {
+            buf += 4;
+            offset = 4;
+            }
+          else if (buf[2] == 1) {
+            buf += 3;
+            offset = 3;
+            }
+          }
+        //}}}
+        //{{{  find next start code
+        uint32_t nalLen;
+
+        uint32_t val = 0xffffffff;
+        while (offset++ < bufLen - 3) {
+          val = (val << 8) | *buf++;
+          if (val == 0x0000001) {
+            nalLen = offset - 4;
+            break;
+            }
+          if ((val & 0x00ffffff) == 0x0000001) {
+            nalLen = offset - 3;
+            break;
+            }
+
+          nalLen = bufLen;
+          }
+        //}}}
+
         if (nalLen > 3) {
+          // parse NAL bitStream
           cBitstream bitstream (pesPtr, nalLen * 8);
           if (bitstream.getBits (24) == 0)
             bitstream.getBits (8);
@@ -7163,6 +7170,7 @@ public:
         }
       }
 
+    // NAL slice not found
     return '?';
     }
   //}}}
