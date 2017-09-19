@@ -753,10 +753,10 @@ class cBitstream {
         }
       }
     coded = exp_golomb_bits[read];
-    GetBits(coded);
+    GetBits (coded);
     bits += coded;
 
-    return GetBits(bits + 1) - 1;
+    return GetBits (bits + 1) - 1;
     }
   //}}}
   //{{{
