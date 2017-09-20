@@ -6876,7 +6876,7 @@ public:
   int getDiscontinuity() { return mDiscontinuity; }
 
   //{{{
-  void demux (uint8_t* tsPtr, uint8_t* tsEnd, int64_t streamPos, bool skipped, int audPid, int vidPid, uint64_t basePts) {
+  int64_t demux (uint8_t* tsPtr, uint8_t* tsEnd, int64_t streamPos, bool skipped, int audPid, int vidPid, uint64_t basePts) {
 
     if (skipped)
       //{{{  reset pid continuity, buffers
@@ -6889,7 +6889,8 @@ public:
 
     // while full packet
     int lostSync = 0;
-    while (tsPtr+188 <= tsEnd) {
+    bool decoded = false;
+    while (!decoded && (tsPtr+188 <= tsEnd)) {
       if (*tsPtr++ != 0x47)
         lostSync++;
       else {
@@ -7018,7 +7019,7 @@ public:
               //{{{  start new audio pes, decode last pes
               if (pid == audPid) {
                 if (pidInfoIt->second.mBufPtr)
-                  audDecodePes (&pidInfoIt->second, basePts);
+                  decoded = audDecodePes (&pidInfoIt->second, basePts);
 
                 //  start next audPES
                 if (!pidInfoIt->second.mBuffer) {
@@ -7043,7 +7044,7 @@ public:
                 if (pidInfoIt->second.mBufPtr) {
                   char frameType =
                     parseFrameType (pidInfoIt->second.mBuffer, pidInfoIt->second.mBufPtr, pidInfoIt->second.mStreamType);
-                  vidDecodePes (&pidInfoIt->second, basePts, frameType, skipped);
+                  decoded = vidDecodePes (&pidInfoIt->second, basePts, frameType, skipped);
                   skipped = false;
                   }
 
@@ -7082,6 +7083,7 @@ public:
           }
         }
       }
+    return streamPos;
     }
   //}}}
 
@@ -7112,8 +7114,8 @@ public:
 
 protected:
   virtual void pidPacket (int pid, uint8_t* ptr) {}
-  virtual void audDecodePes (cPidInfo* pidInfo, uint64_t basePts) {}
-  virtual void vidDecodePes (cPidInfo* pidInfo, uint64_t basePts, char frameType,  bool skipped) {}
+  virtual bool audDecodePes (cPidInfo* pidInfo, uint64_t basePts) { return false; }
+  virtual bool vidDecodePes (cPidInfo* pidInfo, uint64_t basePts, char frameType,  bool skipped) { return false; }
   virtual void startProgram (int vpid, int apid, std::string name, std::string startTime) {}
 
   tServiceMap mServiceMap;
