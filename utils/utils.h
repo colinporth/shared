@@ -70,6 +70,7 @@ template <typename T> std::string dec (T value, uint16_t width = 0, char fill = 
 //{{{
 std::string getPtsStr (uint64_t pts) {
 
+  //uint32_t frac = pts % 900;
   pts /= 900;
   uint32_t hs = pts % 100;
   pts /= 100;
@@ -83,5 +84,6 @@ std::string getPtsStr (uint64_t pts) {
     return dec (hours) + ':' + dec (mins, 2, '0') + ':' + dec(secs, 2, '0') + ':' + dec(hs, 2, '0');
   else
     return dec (mins) + ':' + dec(secs, 2, '0') + ':' + dec(hs, 2, '0');
+    //return dec (mins) + ':' + dec(secs, 2, '0') + ':' + dec(hs, 2, '0') + "." + dec(frac,3,'0');
   }
 //}}}
