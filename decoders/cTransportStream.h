@@ -7767,11 +7767,12 @@ private:
         }
       }
       //}}}
+
     else if (streamType == 27) {
       // h264 minimal parser
       while (pesPtr < pesEnd) {
         //printf ("VPES\n");
-        //{{{  skip past start code, find next start code
+        //{{{  skip past startcode, find next startcode
         auto buf = pesPtr;
         auto bufLen = uint32_t (pesEnd - pesPtr);
 
