@@ -6876,14 +6876,20 @@ public:
   int getDiscontinuity() { return mDiscontinuity; }
 
   //{{{
-  int64_t demux (uint8_t* tsPtr, uint8_t* tsEnd, int64_t streamPos, bool skipped, int audPid, int vidPid, uint64_t basePts) {
+  int64_t demux (uint8_t* tsBase, int64_t streamPos, int64_t streamSize, bool skipped,
+                 int audPid, int vidPid, uint64_t basePts) {
+  // demux stream at streamPos, return at end or first decode producing new frame
+  // return streamPos at next packet
+
+    uint8_t* tsPtr = tsBase + streamPos;
+    uint8_t* tsEnd = tsBase + streamSize;
 
     if (skipped)
       //{{{  reset pid continuity, buffers
       for (auto pidInfo : mPidInfoMap) {
-        pidInfo.second.mContinuity = -1;
         pidInfo.second.mBufPtr = nullptr;
         pidInfo.second.mStreamPos = -1;
+        pidInfo.second.mContinuity = -1;
         }
       //}}}
 
@@ -6897,6 +6903,7 @@ public:
         if (lostSync) {
           //{{{  lostSync warning
           printf ("%d demux ****** resynced bytes:%d ******\n", mPackets, lostSync);
+          streamPos += lostSync;
           lostSync = 0;
           }
           //}}}

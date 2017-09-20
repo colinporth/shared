@@ -58,24 +58,22 @@
 #include "cLog.h"
 //}}}
 //{{{  const
-const char levelNames[][7] =    { " Debug",
+const char levelNames[][7] =    { " Note ",
+                                  " Warn ",
+                                  " Error",
                                   " Info ",
                                   " Info1",
                                   " Info2",
                                   " Info3",
-                                  " Note ",
-                                  " Warn ",
-                                  " Error",
                                   };
 
-const char levelColours[][12] = { "\033[38;5;117m",   // debug  bluewhite
+const char levelColours[][12] = { "\033[38;5;208m",   // note   orange
+                                  "\033[38;5;207m",   // warn   mauve
+                                  "\033[38;5;196m",   // error  light red
                                   "\033[38;5;220m",   // info   yellow
                                   "\033[38;5;112m",   // info1  green
                                   "\033[38;5;144m",   // info2  nnn
                                   "\033[38;5;147m",   // info3  bluish
-                                  "\033[38;5;208m",   // note   orange
-                                  "\033[38;5;207m",   // warn   mauve
-                                  "\033[38;5;196m",   // error  light red
                                    };
 
 #ifdef _WIN32
@@ -87,7 +85,7 @@ const char levelColours[][12] = { "\033[38;5;117m",   // debug  bluewhite
 const char* postfix =             "\033[m\n";
 //}}}
 
-enum eLogCode mLogLevel = LOGNONE;
+enum eLogCode mLogLevel = LOGNOTICE;
 
 bool gBuffer = false;
 FILE* mFile = NULL;
@@ -121,7 +119,7 @@ bool cLog::init (std::string path, enum eLogCode logLevel, bool buffer) {
 
   gBuffer = buffer;
   mLogLevel = logLevel;
-  if (mLogLevel > LOGNONE) {
+  if (mLogLevel > LOGNOTICE) {
     if (!path.empty() && !mFile) {
       std::string strLogFile = path + "/omxPlayer.log";
       std::string strLogFileOld = path + "/omxPlayer.old.log";
@@ -157,8 +155,7 @@ enum eLogCode cLog::getLogLevel() {
 //{{{
 void cLog::setLogLevel (enum eLogCode logLevel) {
 
-  if (logLevel > LOGNONE)
-    cLog::log (LOGNOTICE, "Log level changed to %d", logLevel);
+  cLog::log (LOGNOTICE, "Log level changed to %d", logLevel);
   mLogLevel = logLevel;
   }
 //}}}
@@ -168,7 +165,7 @@ void cLog::log (enum eLogCode logCode, std::string logStr) {
 
   std::lock_guard<std::mutex> lockGuard (mLogMutex);
 
-  if (logCode <= mLogLevel || (logCode >= LOGWARNING)) {
+  if (logCode <= mLogLevel) {
     //  get time
     struct timeval now;
     gettimeofday (&now, NULL);
@@ -224,18 +221,20 @@ void cLog::log (enum eLogCode logCode, const char* format, ... ) {
 //}}}
 
 //{{{
-std::string cLog::getLine (int n, eLogCode& logCode, uint32_t& usTime) {
+bool cLog::getLine (int n, std::string& str, eLogCode& logCode, uint32_t& usTime) {
 
   std::lock_guard<std::mutex> lockGuard (mLogMutex);
 
   if (n < mLines.size()) {
+    str = mLines[n].mStr;
     logCode = mLines[n].mLogCode;
     usTime = mLines[n].mMsTime;
-    return mLines[n].mStr;
+    return true;
     }
 
-  logCode = LOGNONE;
+  str = "none";
+  logCode = LOGNOTICE;
   usTime = 0;
-  return std::string();
+  return false;
   }
 //}}}
