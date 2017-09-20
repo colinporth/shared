@@ -68,7 +68,7 @@ template <typename T> std::string dec (T value, uint16_t width = 0, char fill = 
 //}}}
 
 //{{{
-std::string getTimeStrFromPts (uint64_t pts) {
+std::string getPtsStr (uint64_t pts) {
 
   pts /= 900;
   uint32_t hs = pts % 100;
@@ -81,7 +81,7 @@ std::string getTimeStrFromPts (uint64_t pts) {
 
   if (hours)
     return dec (hours) + ':' + dec (mins, 2, '0') + ':' + dec(secs, 2, '0') + ':' + dec(hs, 2, '0');
-  else 
+  else
     return dec (mins) + ':' + dec(secs, 2, '0') + ':' + dec(hs, 2, '0');
   }
 //}}}
