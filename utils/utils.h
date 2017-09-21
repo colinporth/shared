@@ -50,6 +50,7 @@
   #define debug(str)             cLcd::get()->info (str)
 #endif
 
+// string utils
 //{{{
 template <typename T> std::string hex (T value, uint16_t width = 0) {
 
@@ -70,20 +71,42 @@ template <typename T> std::string dec (T value, uint16_t width = 0, char fill = 
 //{{{
 std::string getPtsStr (uint64_t pts) {
 
-  //uint32_t frac = pts % 900;
   pts /= 900;
   uint32_t hs = pts % 100;
+
   pts /= 100;
   uint32_t secs = pts % 60;
+
   pts /= 60;
   uint32_t mins = pts % 60;
+
   pts /= 60;
   uint32_t hours = pts % 60;
 
-  if (hours)
-    return dec (hours) + ':' + dec (mins, 2, '0') + ':' + dec(secs, 2, '0') + ':' + dec(hs, 2, '0');
-  else
-    return dec (mins) + ':' + dec(secs, 2, '0') + ':' + dec(hs, 2, '0');
-    //return dec (mins) + ':' + dec(secs, 2, '0') + ':' + dec(hs, 2, '0') + "." + dec(frac,3,'0');
+  std::string str (hours ? (dec (hours) + ':' + dec (mins, 2, '0')) : dec (mins));
+
+  return str + ':' + dec(secs, 2, '0') + ':' + dec(hs, 2, '0');
+  }
+//}}}
+//{{{
+std::string getPtsStrDeb (uint64_t pts) {
+
+  uint32_t frac = pts % 900;
+
+  pts /= 900;
+  uint32_t hs = pts % 100;
+
+  pts /= 100;
+  uint32_t secs = pts % 60;
+
+  pts /= 60;
+  uint32_t mins = pts % 60;
+
+  pts /= 60;
+  uint32_t hours = pts % 60;
+
+  std::string str (hours ? (dec (hours) + 'h' + dec (mins, 2, '0') + 'm') : mins ? (dec (mins) + 'm') : "");
+
+  return str + dec (secs, 2, '0') + 's' + dec (hs, 2, '0') + "." + dec (frac,3,'0');
   }
 //}}}
