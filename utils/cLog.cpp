@@ -57,6 +57,7 @@
 
 #include "cLog.h"
 //}}}
+const int kMaxBuffer = 100;
 //{{{  const
 const char levelNames[][7] =    { " Note ",
                                   " Warn ",
@@ -118,6 +119,7 @@ bool cLog::init (std::string path, enum eLogCode logLevel, bool buffer) {
   #endif
 
   gBuffer = buffer;
+
   mLogLevel = logLevel;
   if (mLogLevel > LOGNOTICE) {
     if (!path.empty() && !mFile) {
@@ -171,9 +173,11 @@ void cLog::log (enum eLogCode logCode, std::string logStr) {
     gettimeofday (&now, NULL);
 
     if (gBuffer) {
-    uint32_t msTime = ((now.tv_sec % (24 * 60 *60)) * 1000) + now.tv_usec;
-    mLines.push_front (cLine (logCode, msTime, logStr));
-    }
+      uint32_t msTime = ((now.tv_sec % (24 * 60 *60)) * 1000) + now.tv_usec;
+      mLines.push_front (cLine (logCode, msTime, logStr));
+      if (mLines.size() > kMaxBuffer)
+        mLines.pop_back();
+      }
     else {
       auto hour = kBst + (now.tv_sec/3600) % 24;
       auto minute = (now.tv_sec/60) % 60;
