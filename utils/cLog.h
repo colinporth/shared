@@ -8,6 +8,18 @@ const int kBst = 1;
 
 class cLog {
 public:
+  //{{{
+  class cLine {
+  public:
+    cLine (eLogCode logCode, uint32_t msTime, std::string str) :
+      mLogCode(logCode), mMsTime(msTime), mStr(str) {}
+
+    eLogCode mLogCode;
+    uint32_t mMsTime;
+    std::string mStr;
+    };
+  //}}}
+
   ~cLog() { close(); }
 
   static bool init (std::string path, enum eLogCode logLevel, bool buffer);
@@ -19,5 +31,5 @@ public:
   static void log (enum eLogCode logCode, std::string logStr);
   static void log (enum eLogCode logCode, const char *format, ... );
 
-  static bool getLine (int n, std::string& str, eLogCode& logCode, uint32_t& usTime);
+  static cLine* getLine (int n);
   };

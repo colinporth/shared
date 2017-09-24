@@ -60,8 +60,8 @@
 const int kMaxBuffer = 100;
 //{{{  const
 const char levelNames[][6] =    { "Note ",
-                                  "Warn ",
                                   "Error",
+                                  "Warn ",
                                   "Info ",
                                   "Info1",
                                   "Info2",
@@ -69,8 +69,8 @@ const char levelNames[][6] =    { "Note ",
                                   };
 
 const char levelColours[][12] = { "\033[38;5;208m",   // note   orange
-                                  "\033[38;5;207m",   // warn   mauve
                                   "\033[38;5;196m",   // error  light red
+                                  "\033[38;5;207m",   // warn   mauve
                                   "\033[38;5;220m",   // info   yellow
                                   "\033[38;5;112m",   // info1  green
                                   "\033[38;5;144m",   // info2  nnn
@@ -86,24 +86,13 @@ const char levelColours[][12] = { "\033[38;5;208m",   // note   orange
 const char* postfix =             "\033[m\n";
 //}}}
 
-enum eLogCode mLogLevel = LOGNOTICE;
+enum eLogCode mLogLevel = LOGERROR;
 
 bool gBuffer = false;
 FILE* mFile = NULL;
 std::mutex mLogMutex;
 
-//{{{
-class cLine {
-public:
-  cLine (eLogCode logCode, uint32_t msTime, std::string str) :
-    mLogCode(logCode), mMsTime(msTime), mStr(str) {}
-
-  eLogCode mLogCode;
-  uint32_t mMsTime;
-  std::string mStr;
-  };
-//}}}
-std::deque<cLine> mLines;
+std::deque<cLog::cLine> mLines;
 
 #ifdef _WIN32
   HANDLE hStdOut = 0;
@@ -231,20 +220,9 @@ void cLog::log (enum eLogCode logCode, const char* format, ... ) {
 //}}}
 
 //{{{
-bool cLog::getLine (int n, std::string& str, eLogCode& logCode, uint32_t& usTime) {
+cLog::cLine* cLog::getLine (int n) {
 
   std::lock_guard<std::mutex> lockGuard (mLogMutex);
-
-  if (n < mLines.size()) {
-    str = mLines[n].mStr;
-    logCode = mLines[n].mLogCode;
-    usTime = mLines[n].mMsTime;
-    return true;
-    }
-
-  str = "none";
-  logCode = LOGNOTICE;
-  usTime = 0;
-  return false;
+  return n < mLines.size() ? &mLines[n] : nullptr;
   }
 //}}}
