@@ -57,7 +57,7 @@
 
 #include "cLog.h"
 //}}}
-const int kMaxBuffer = 100;
+const int kMaxBuffer = 10000;
 //{{{  const
 const char levelNames[][6] =    { "Note ",
                                   "Error",
@@ -149,11 +149,12 @@ void cLog::setLogLevel (enum eLogCode logLevel) {
   // limit
   logLevel = min (logLevel, LOGINFO3);
   logLevel = max (logLevel, LOGNOTICE);
+  mLogLevel = logLevel;
 
-  if (logLevel != mLogLevel) {
-    cLog::log (LOGNOTICE, "Log level changed to %s", levelNames[logLevel]);
-    mLogLevel = logLevel;
-    }
+  //if (logLevel != mLogLevel) {
+  //  cLog::log (LOGNOTICE, "Log level changed to %s", levelNames[logLevel]);
+  //  mLogLevel = logLevel;
+  //  }
   }
 //}}}
 
@@ -162,37 +163,36 @@ void cLog::log (enum eLogCode logCode, std::string logStr) {
 
   std::lock_guard<std::mutex> lockGuard (mLogMutex);
 
-  if (logCode <= mLogLevel) {
-    //  get time
-    struct timeval now;
-    gettimeofday (&now, NULL);
+  //  get time
+  struct timeval now;
+  gettimeofday (&now, NULL);
 
-    if (gBuffer) {
-      uint32_t msTime = ((now.tv_sec % (24 * 60 *60)) * 1000) + now.tv_usec;
-      mLines.push_front (cLine (logCode, msTime, logStr));
-      if (mLines.size() > kMaxBuffer)
-        mLines.pop_back();
-      }
-    else {
-      auto hour = kBst + (now.tv_sec/3600) % 24;
-      auto minute = (now.tv_sec/60) % 60;
-      auto second = now.tv_sec % 60;
-      auto subSec = now.tv_usec;
+  if (gBuffer) {
+    uint32_t msTime = ((now.tv_sec % (24 * 60 *60)) * 1000) + now.tv_usec;
+    mLines.push_front (cLine (logCode, msTime, logStr));
+    if (mLines.size() > kMaxBuffer)
+      mLines.pop_back();
+    }
 
-      // write log line
-      char buffer[40];
-      sprintf (buffer, prefixFormat, hour, minute, second, subSec, levelColours[logCode]);
-      fputs (buffer, stdout);
-      fputs (logStr.c_str(), stdout);
-      fputs (postfix, stdout);
+  else if (logCode <= mLogLevel) {
+    auto hour = kBst + (now.tv_sec/3600) % 24;
+    auto minute = (now.tv_sec/60) % 60;
+    auto second = now.tv_sec % 60;
+    auto subSec = now.tv_usec;
 
-      if (mFile) {
-        sprintf (buffer, prefixFormat, hour, minute, second, subSec, levelNames[logCode]);
-        fputs (buffer, mFile);
-        fputs (logStr.c_str(), mFile);
-        fputc ('\n', mFile);
-        fflush (mFile);
-        }
+    // write log line
+    char buffer[40];
+    sprintf (buffer, prefixFormat, hour, minute, second, subSec, levelColours[logCode]);
+    fputs (buffer, stdout);
+    fputs (logStr.c_str(), stdout);
+    fputs (postfix, stdout);
+
+    if (mFile) {
+      sprintf (buffer, prefixFormat, hour, minute, second, subSec, levelNames[logCode]);
+      fputs (buffer, mFile);
+      fputs (logStr.c_str(), mFile);
+      fputc ('\n', mFile);
+      fflush (mFile);
       }
     }
   }
