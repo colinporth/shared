@@ -59,13 +59,13 @@
 //}}}
 const int kMaxBuffer = 100;
 //{{{  const
-const char levelNames[][7] =    { " Note ",
-                                  " Warn ",
-                                  " Error",
-                                  " Info ",
-                                  " Info1",
-                                  " Info2",
-                                  " Info3",
+const char levelNames[][6] =    { "Note ",
+                                  "Warn ",
+                                  "Error",
+                                  "Info ",
+                                  "Info1",
+                                  "Info2",
+                                  "Info3",
                                   };
 
 const char levelColours[][12] = { "\033[38;5;208m",   // note   orange
@@ -78,9 +78,9 @@ const char levelColours[][12] = { "\033[38;5;208m",   // note   orange
                                    };
 
 #ifdef _WIN32
-  const char* prefixFormat =        "%02.2d:%02.2d:%02.2d.%03d%s ";
+  const char* prefixFormat =        "%02.2d:%02.2d:%02.2d.%03d %s";
 #else
-  const char* prefixFormat =        "%02.2d:%02.2d:%02.2d.%06d%s ";
+  const char* prefixFormat =        "%02.2d:%02.2d:%02.2d.%06d %s";
 #endif
 
 const char* postfix =             "\033[m\n";
@@ -157,8 +157,14 @@ enum eLogCode cLog::getLogLevel() {
 //{{{
 void cLog::setLogLevel (enum eLogCode logLevel) {
 
-  cLog::log (LOGNOTICE, "Log level changed to %d", logLevel);
-  mLogLevel = logLevel;
+  // limit
+  logLevel = min (logLevel, LOGINFO3);
+  logLevel = max (logLevel, LOGNOTICE);
+
+  if (logLevel != mLogLevel) {
+    cLog::log (LOGNOTICE, "Log level changed to %s", levelNames[logLevel]);
+    mLogLevel = logLevel;
+    }
   }
 //}}}
 
