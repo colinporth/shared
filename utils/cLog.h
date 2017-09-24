@@ -29,7 +29,7 @@ public:
   static void setLogLevel (enum eLogLevel logLevel);
 
   static void log (enum eLogLevel logLevel, std::string logStr);
-  static void log (enum eLogLevel logLevel, const char *format, ... );
+  static void log (enum eLogLevel logLevel, const char* format, ... );
 
   static cLine* getLine (int n);
   };
