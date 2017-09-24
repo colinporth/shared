@@ -86,7 +86,7 @@ const char levelColours[][12] = { "\033[38;5;208m",   // note   orange
 const char* postfix =             "\033[m\n";
 //}}}
 
-enum eLogCode mLogLevel = LOGERROR;
+enum eLogLevel mLogLevel = LOGERROR;
 
 bool gBuffer = false;
 FILE* mFile = NULL;
@@ -99,7 +99,7 @@ std::deque<cLog::cLine> mLines;
 #endif
 
 //{{{
-bool cLog::init (std::string path, enum eLogCode logLevel, bool buffer) {
+bool cLog::init (std::string path, enum eLogLevel logLevel, bool buffer) {
 
   #ifdef _WIN32
     hStdOut = GetStdHandle (STD_OUTPUT_HANDLE);
@@ -139,27 +139,21 @@ void cLog::close() {
 //}}}
 
 //{{{
-enum eLogCode cLog::getLogLevel() {
+enum eLogLevel cLog::getLogLevel() {
   return mLogLevel;
   }
 //}}}
 //{{{
-void cLog::setLogLevel (enum eLogCode logLevel) {
+void cLog::setLogLevel (enum eLogLevel logLevel) {
 
-  // limit
   logLevel = min (logLevel, LOGINFO3);
   logLevel = max (logLevel, LOGNOTICE);
   mLogLevel = logLevel;
-
-  //if (logLevel != mLogLevel) {
-  //  cLog::log (LOGNOTICE, "Log level changed to %s", levelNames[logLevel]);
-  //  mLogLevel = logLevel;
-  //  }
   }
 //}}}
 
 //{{{
-void cLog::log (enum eLogCode logCode, std::string logStr) {
+void cLog::log (enum eLogLevel logLevel, std::string logStr) {
 
   //  get time
   struct timeval now;
@@ -169,12 +163,12 @@ void cLog::log (enum eLogCode logCode, std::string logStr) {
 
   if (gBuffer) {
     uint32_t timeMs = ((now.tv_sec % (24 * 60 * 60)) * 1000) + now.tv_usec;
-    mLines.push_front (cLine (logCode, timeMs, logStr));
+    mLines.push_front (cLine (logLevel, timeMs, logStr));
     if (mLines.size() > kMaxBuffer)
       mLines.pop_back();
     }
 
-  else if (logCode <= mLogLevel) {
+  else if (logLevel <= mLogLevel) {
     auto hour = kBst + (now.tv_sec/3600) % 24;
     auto minute = (now.tv_sec/60) % 60;
     auto second = now.tv_sec % 60;
@@ -182,13 +176,13 @@ void cLog::log (enum eLogCode logCode, std::string logStr) {
 
     // write log line
     char buffer[40];
-    sprintf (buffer, prefixFormat, hour, minute, second, subSec, levelColours[logCode]);
+    sprintf (buffer, prefixFormat, hour, minute, second, subSec, levelColours[logLevel]);
     fputs (buffer, stdout);
     fputs (logStr.c_str(), stdout);
     fputs (postfix, stdout);
 
     if (mFile) {
-      sprintf (buffer, prefixFormat, hour, minute, second, subSec, levelNames[logCode]);
+      sprintf (buffer, prefixFormat, hour, minute, second, subSec, levelNames[logLevel]);
       fputs (buffer, mFile);
       fputs (logStr.c_str(), mFile);
       fputc ('\n', mFile);
@@ -198,7 +192,7 @@ void cLog::log (enum eLogCode logCode, std::string logStr) {
   }
 //}}}
 //{{{
-void cLog::log (enum eLogCode logCode, const char* format, ... ) {
+void cLog::log (enum eLogLevel logLevel, const char* format, ... ) {
 
   // form logStr
   va_list args;
@@ -215,7 +209,7 @@ void cLog::log (enum eLogCode logCode, const char* format, ... ) {
 
   va_end (args);
 
-  log (logCode, std::string (buf.get(), buf.get() + size-1));
+  log (logLevel, std::string (buf.get(), buf.get() + size-1));
   }
 //}}}
 

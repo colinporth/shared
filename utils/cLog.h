@@ -3,7 +3,7 @@
 #include <string>
 #include <time.h>
 
-enum eLogCode { LOGNOTICE, LOGERROR, LOGWARNING, LOGINFO, LOGINFO1, LOGINFO2, LOGINFO3 } ;
+enum eLogLevel { LOGNOTICE, LOGERROR, LOGWARNING, LOGINFO, LOGINFO1, LOGINFO2, LOGINFO3, LOGMAX } ;
 const int kBst = 1;
 
 class cLog {
@@ -11,10 +11,10 @@ public:
   //{{{
   class cLine {
   public:
-    cLine (eLogCode logCode, uint32_t timeMs, std::string str) : 
-      mLogCode(logCode), mTimeMs(timeMs), mStr(str) {}
+    cLine (eLogLevel logLevel, uint32_t timeMs, std::string str) :
+      mLogLevel(logLevel), mTimeMs(timeMs), mStr(str) {}
 
-    eLogCode mLogCode;
+    eLogLevel mLogLevel;
     uint32_t mTimeMs;
     std::string mStr;
     };
@@ -22,14 +22,14 @@ public:
 
   ~cLog() { close(); }
 
-  static bool init (std::string path, enum eLogCode logLevel, bool buffer);
+  static bool init (std::string path, enum eLogLevel logLevel, bool buffer);
   static void close();
 
-  static enum eLogCode getLogLevel();
-  static void setLogLevel (enum eLogCode logLevel);
+  static enum eLogLevel getLogLevel();
+  static void setLogLevel (enum eLogLevel logLevel);
 
-  static void log (enum eLogCode logCode, std::string logStr);
-  static void log (enum eLogCode logCode, const char *format, ... );
+  static void log (enum eLogLevel logLevel, std::string logStr);
+  static void log (enum eLogLevel logLevel, const char *format, ... );
 
   static cLine* getLine (int n);
   };
