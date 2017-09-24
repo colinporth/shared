@@ -161,15 +161,15 @@ void cLog::setLogLevel (enum eLogCode logLevel) {
 //{{{
 void cLog::log (enum eLogCode logCode, std::string logStr) {
 
-  std::lock_guard<std::mutex> lockGuard (mLogMutex);
-
   //  get time
   struct timeval now;
   gettimeofday (&now, NULL);
 
+  std::lock_guard<std::mutex> lockGuard (mLogMutex);
+
   if (gBuffer) {
-    uint32_t msTime = ((now.tv_sec % (24 * 60 *60)) * 1000) + now.tv_usec;
-    mLines.push_front (cLine (logCode, msTime, logStr));
+    uint32_t timeMs = ((now.tv_sec % (24 * 60 * 60)) * 1000) + now.tv_usec;
+    mLines.push_front (cLine (logCode, timeMs, logStr));
     if (mLines.size() > kMaxBuffer)
       mLines.pop_back();
     }

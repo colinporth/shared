@@ -11,11 +11,11 @@ public:
   //{{{
   class cLine {
   public:
-    cLine (eLogCode logCode, uint32_t msTime, std::string str) :
-      mLogCode(logCode), mMsTime(msTime), mStr(str) {}
+    cLine (eLogCode logCode, uint32_t timeMs, std::string str) : 
+      mLogCode(logCode), mTimeMs(timeMs), mStr(str) {}
 
     eLogCode mLogCode;
-    uint32_t mMsTime;
+    uint32_t mTimeMs;
     std::string mStr;
     };
   //}}}
