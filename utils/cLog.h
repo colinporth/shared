@@ -3,7 +3,7 @@
 #include <string>
 #include <time.h>
 
-enum eLogLevel { LOGNOTICE, LOGERROR, LOGWARNING, LOGINFO, LOGINFO1, LOGINFO2, LOGINFO3, LOGMAX } ;
+enum eLogLevel { LOGTITLE, LOGNOTICE, LOGERROR, LOGWARNING, LOGINFO, LOGINFO1, LOGINFO2, LOGINFO3, LOGMAX } ;
 const int kBst = 1;
 
 class cLog {
@@ -11,6 +11,7 @@ public:
   //{{{
   class cLine {
   public:
+    cLine() {}
     cLine (eLogLevel logLevel, uint32_t timeMs, std::string str) :
       mLogLevel(logLevel), mTimeMs(timeMs), mStr(str) {}
 
@@ -31,5 +32,5 @@ public:
   static void log (enum eLogLevel logLevel, std::string logStr);
   static void log (enum eLogLevel logLevel, const char* format, ... );
 
-  static cLine* getLine (int n);
+  static bool getLine (cLine& line, int lineNum);
   };

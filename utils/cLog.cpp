@@ -59,7 +59,8 @@
 //}}}
 const int kMaxBuffer = 10000;
 //{{{  const
-const char levelNames[][6] =    { "Note ",
+const char levelNames[][6] =    { "Title",
+                                  "Note ",
                                   "Error",
                                   "Warn ",
                                   "Info ",
@@ -69,6 +70,7 @@ const char levelNames[][6] =    { "Note ",
                                   };
 
 const char levelColours[][12] = { "\033[38;5;208m",   // note   orange
+                                  "\033[38;5;208m",   // title  orange
                                   "\033[38;5;196m",   // error  light red
                                   "\033[38;5;207m",   // warn   mauve
                                   "\033[38;5;220m",   // info   yellow
@@ -88,11 +90,11 @@ const char* postfix =             "\033[m\n";
 
 enum eLogLevel mLogLevel = LOGERROR;
 
-bool gBuffer = false;
-FILE* mFile = NULL;
+bool mBuffer = false;
 std::mutex mLogMutex;
-
 std::deque<cLog::cLine> mLines;
+
+FILE* mFile = NULL;
 
 #ifdef _WIN32
   HANDLE hStdOut = 0;
@@ -107,7 +109,7 @@ bool cLog::init (std::string path, enum eLogLevel logLevel, bool buffer) {
     SetConsoleMode (hStdOut, consoleMode);
   #endif
 
-  gBuffer = buffer;
+  mBuffer = buffer;
 
   mLogLevel = logLevel;
   if (mLogLevel > LOGNOTICE) {
@@ -146,8 +148,8 @@ enum eLogLevel cLog::getLogLevel() {
 //{{{
 void cLog::setLogLevel (enum eLogLevel logLevel) {
 
-  logLevel = min (logLevel, LOGINFO3);
-  logLevel = max (logLevel, LOGNOTICE);
+  logLevel = min (logLevel, eLogLevel(LOGMAX-1));
+  logLevel = max (logLevel, LOGTITLE);
   mLogLevel = logLevel;
   }
 //}}}
@@ -161,7 +163,7 @@ void cLog::log (enum eLogLevel logLevel, std::string logStr) {
 
   std::lock_guard<std::mutex> lockGuard (mLogMutex);
 
-  if (gBuffer) {
+  if (mBuffer) {
     uint32_t timeMs = ((now.tv_sec % (24 * 60 * 60)) * 1000) + now.tv_usec;
     mLines.push_front (cLine (logLevel, timeMs, logStr));
     if (mLines.size() > kMaxBuffer)
@@ -214,9 +216,18 @@ void cLog::log (enum eLogLevel logLevel, const char* format, ... ) {
 //}}}
 
 //{{{
-cLog::cLine* cLog::getLine (int n) {
+bool cLog::getLine (cLine& line, int lineNum) {
 
   std::lock_guard<std::mutex> lockGuard (mLogMutex);
-  return n < mLines.size() ? &mLines[n] : nullptr;
+
+  int matchingLineNum = 0;
+  for (int lineIndex = 0; lineIndex < mLines.size(); lineIndex++)
+    if (mLines[lineIndex].mLogLevel <= mLogLevel)
+      if (matchingLineNum++ == lineNum) {
+        line = mLines[lineIndex];
+        return true;
+        }
+
+  return false;
   }
 //}}}
