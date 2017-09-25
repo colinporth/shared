@@ -147,7 +147,7 @@ enum eLogLevel cLog::getLogLevel() {
 void cLog::setLogLevel (enum eLogLevel logLevel) {
 
   logLevel = min (logLevel, eLogLevel(LOGMAX-1));
-  logLevel = max (logLevel, LOGTITLE);
+  logLevel = max (logLevel, LOGNOTICE);
   mLogLevel = logLevel;
   }
 //}}}
