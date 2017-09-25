@@ -62,7 +62,6 @@ const int kMaxBuffer = 10000;
 const char levelNames[][6] =    { "Title",
                                   "Note ",
                                   "Error",
-                                  "Warn ",
                                   "Info ",
                                   "Info1",
                                   "Info2",
@@ -72,7 +71,6 @@ const char levelNames[][6] =    { "Title",
 const char levelColours[][12] = { "\033[38;5;208m",   // note   orange
                                   "\033[38;5;208m",   // title  orange
                                   "\033[38;5;196m",   // error  light red
-                                  "\033[38;5;207m",   // warn   mauve
                                   "\033[38;5;220m",   // info   yellow
                                   "\033[38;5;112m",   // info1  green
                                   "\033[38;5;144m",   // info2  nnn

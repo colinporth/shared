@@ -3,7 +3,7 @@
 #include <string>
 #include <time.h>
 
-enum eLogLevel { LOGTITLE, LOGNOTICE, LOGERROR, LOGWARNING, LOGINFO, LOGINFO1, LOGINFO2, LOGINFO3, LOGMAX } ;
+enum eLogLevel { LOGTITLE, LOGNOTICE, LOGERROR, LOGINFO, LOGINFO1, LOGINFO2, LOGINFO3, LOGMAX } ;
 const int kBst = 1;
 
 class cLog {
