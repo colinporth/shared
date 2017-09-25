@@ -69,21 +69,6 @@ template <typename T> std::string dec (T value, uint16_t width = 0, char fill = 
 //}}}
 
 //{{{
-std::string getMsTimeStr (int bst, uint32_t msTime) {
-
-  // convert msTime to str
-  int subSec = msTime % 1000;
-  msTime /= 1000;
-  int second = msTime % 60;
-  msTime /= 60;
-  int minute = msTime  % 60;
-  msTime /= 60;
-  int hour = bst + msTime;
-
-  return dec(hour,2,'0') + "."  + dec(minute,2, '0') + "." + dec(second,2, '0') + "." + dec(subSec,3, '0');
-  }
-//}}}
-//{{{
 std::string getPtsStr (uint64_t pts) {
 
   pts /= 900;
@@ -123,5 +108,20 @@ std::string getPtsStrDeb (uint64_t pts) {
   std::string str (hours ? (dec (hours) + 'h' + dec (mins, 2, '0') + 'm') : mins ? (dec (mins) + 'm') : "");
 
   return str + dec (secs, 2, '0') + 's' + dec (hs, 2, '0') + "." + dec (frac,3,'0');
+  }
+//}}}
+//{{{
+std::string getMsTimeStr (int bst, uint32_t msTime) {
+
+  // convert msTime to str
+  int subSec = msTime % 1000;
+  msTime /= 1000;
+  int second = msTime % 60;
+  msTime /= 60;
+  int minute = msTime  % 60;
+  msTime /= 60;
+  int hour = bst + msTime;
+
+  return dec(hour,2,'0') + "."  + dec(minute,2, '0') + "." + dec(second,2, '0') + "." + dec(subSec,3, '0');
   }
 //}}}
