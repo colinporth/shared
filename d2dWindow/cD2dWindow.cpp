@@ -46,7 +46,7 @@ LRESULT CALLBACK WndProc (HWND hWnd, unsigned int msg, WPARAM wparam, LPARAM lpa
 
 // public
 //{{{
-void cD2dWindow::initialise (wchar_t* windowTitle, int width, int height) {
+void cD2dWindow::initialise (wchar_t* windowTitle, int width, int height, bool fullScreen) {
 // windowTitle is wchar_t* rather than wstring
 
   mD2dWindow = this;
@@ -74,6 +74,8 @@ void cD2dWindow::initialise (wchar_t* windowTitle, int width, int height) {
 
   if (mHWND) {
     //SetWindowLong (hWnd, GWL_STYLE, 0);
+    if (fullScreen)
+      toggleFullScreen();
     ShowWindow (mHWND, SW_SHOWDEFAULT);
     UpdateWindow (mHWND);
 
