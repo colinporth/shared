@@ -34,8 +34,11 @@ public:
   ID3D11Device* getD3d11Device() { return mD3device.Get(); }
   IDWriteFactory* getDwriteFactory() { return mDWriteFactory; }
 
-  void changed() { mChanged = true; }
+  bool getFullScreen() { return mFullScreen; }
+  void toggleFullScreen();
+
   void setChangeRate (int changeRate) { mChangeRate = changeRate; }
+  void changed() { mChanged = true; }
 
   ID2D1Bitmap* makeBitmap (cVidFrame* yuvFrame, ID2D1Bitmap*& bitmap, uint64_t& bitmapPts);
 
@@ -124,5 +127,11 @@ private:
   ID2D1SolidColorBrush* whiteBrush = nullptr;
   ID2D1SolidColorBrush* yellowBrush = nullptr;
   //}}}
+  //{{{  fullScreen
+  bool mFullScreen = false;
+  RECT mScreenRect;
+  DWORD mScreenStyle;
+  //}}}
+
   std::thread mRenderThread;
   };

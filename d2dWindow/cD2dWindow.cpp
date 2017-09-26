@@ -103,6 +103,43 @@ IDWriteTextFormat* cD2dWindow::getTextFormatSize (int fontSize) {
   return textFormatSize;
   }
 //}}}
+
+//{{{
+void cD2dWindow::toggleFullScreen() {
+
+  mFullScreen = !mFullScreen;
+
+  if (mFullScreen) {
+    MONITORINFOEX monitorInfo;
+    monitorInfo.cbSize = sizeof(monitorInfo);
+
+    HMONITOR hMonitor = MonitorFromWindow (mHWND, MONITOR_DEFAULTTONEAREST);
+    GetMonitorInfo (hMonitor, &monitorInfo);
+
+    WINDOWINFO wndInfo;
+    wndInfo.cbSize = sizeof(WINDOWINFO);
+    GetWindowInfo (mHWND, &wndInfo);
+
+    mScreenRect = wndInfo.rcWindow;
+    mScreenStyle = wndInfo.dwStyle;
+
+    SetWindowLong (mHWND, GWL_STYLE, WS_POPUP);
+    SetWindowPos (mHWND, HWND_NOTOPMOST,
+                  monitorInfo.rcMonitor.left , monitorInfo.rcMonitor.top,
+                  abs(monitorInfo.rcMonitor.left - monitorInfo.rcMonitor.right),
+                  abs(monitorInfo.rcMonitor.top - monitorInfo.rcMonitor.bottom),
+                  SWP_SHOWWINDOW);
+    }
+  else {
+    AdjustWindowRectEx (&mScreenRect, 0, 0, 0);
+    SetWindowLong (mHWND, GWL_STYLE, mScreenStyle);
+    SetWindowPos (mHWND, HWND_NOTOPMOST,
+                  mScreenRect.left , mScreenRect.top ,
+                  abs(mScreenRect.right - mScreenRect.left), abs(mScreenRect.bottom - mScreenRect.top),
+                  SWP_SHOWWINDOW);
+    }
+  }
+//}}}
 //{{{
 ID2D1Bitmap* cD2dWindow::makeBitmap (cVidFrame* vidFrame, ID2D1Bitmap*& bitmap, uint64_t& bitmapPts) {
 
