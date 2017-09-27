@@ -318,7 +318,7 @@ LRESULT cD2dWindow::wndProc (HWND hWnd, unsigned int msg, WPARAM wparam, LPARAM 
 void cD2dWindow::messagePump() {
 
   MSG msg;
-  while (GetMessage (&msg, NULL, 0, 0)) {
+  while (!mExit && GetMessage (&msg, NULL, 0, 0)) {
     TranslateMessage (&msg);
     DispatchMessage (&msg);
     }

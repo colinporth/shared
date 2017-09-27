@@ -36,6 +36,7 @@ public:
 
   bool getFullScreen() { return mFullScreen; }
   void toggleFullScreen();
+  void setExit() { mExit = true; }
 
   void setChangeRate (int changeRate) { mChangeRate = changeRate; }
   void changed() { mChanged = true; }
@@ -96,6 +97,7 @@ private:
   void onRender();
 
   // private vars
+  bool mExit = false;
   bool mChanged = false;
   int mChangeRate = 0;
   bool mMouseTracking= false;
