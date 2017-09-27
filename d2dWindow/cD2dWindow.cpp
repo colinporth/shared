@@ -46,7 +46,7 @@ LRESULT CALLBACK WndProc (HWND hWnd, unsigned int msg, WPARAM wparam, LPARAM lpa
 
 // public
 //{{{
-void cD2dWindow::initialise (char* windowTitle, int width, int height, bool fullScreen) {
+void cD2dWindow::initialise (const char* windowTitle, int width, int height, bool fullScreen) {
 // windowTitle is wchar_t* rather than wstring
 
   mD2dWindow = this;
