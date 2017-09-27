@@ -48,7 +48,6 @@ public:
 
   // public static var
   static cD2dWindow* mD2dWindow;
-  HWND mHWND = 0;
 
 protected:
   virtual bool onKey(int key) { return false; }
@@ -98,6 +97,7 @@ private:
   void onRender();
 
   // private vars
+  HWND mHWND = 0;
   bool mExit = false;
   bool mChanged = false;
   int mChangeRate = 0;
