@@ -76,7 +76,6 @@ protected:
   bool mRightDown = false;
 
   bool mMouseMoved = false;
-  bool mDownConsumed = false;
 
   int mDownMousex = 0;
   int mDownMousey = 0;

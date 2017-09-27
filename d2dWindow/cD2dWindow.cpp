@@ -223,7 +223,6 @@ LRESULT cD2dWindow::wndProc (HWND hWnd, unsigned int msg, WPARAM wparam, LPARAM 
       mLastMousex = mDownMousex;
       mLastMousey = mDownMousey;
 
-      mDownConsumed = false;
       onMouseDown (mRightDown, mDownMousex, mDownMousey);
 
       return 0;
@@ -244,7 +243,6 @@ LRESULT cD2dWindow::wndProc (HWND hWnd, unsigned int msg, WPARAM wparam, LPARAM 
       if (mMouseDown)
         ReleaseCapture();
       mMouseDown = false;
-      mDownConsumed = false;
 
       return 0;
       }
