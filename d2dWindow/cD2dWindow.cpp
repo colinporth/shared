@@ -485,6 +485,8 @@ void cD2dWindow::onResize() {
       mDeviceContext->SetTarget (nullptr);
       mD2dTargetBitmap = nullptr;
       createSizedResources();
+
+      onResize (mDeviceContext.Get());
       }
     }
   }

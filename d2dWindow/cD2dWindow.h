@@ -58,6 +58,7 @@ protected:
   virtual void onMouseMove (bool right, int x, int y, int xInc, int yInc) {}
   virtual void onMouseUp (bool right, bool mouseMoved, int x, int y) {}
   virtual void onDraw (ID2D1DeviceContext* dc) = 0;
+  virtual void onResize (ID2D1DeviceContext* dc) {}
   //{{{
   int keyInc() {
   // control+shift = 1hour
