@@ -8,7 +8,7 @@ public:
   cD2dWindow() {}
   virtual ~cD2dWindow() {}
 
-  void initialise (wchar_t* title, int width, int height, bool fullScreen = false);
+  void initialise (char* title, int width, int height, bool fullScreen = false);
 
   // gets
   D2D1_SIZE_F getClientF() { return clientF; }

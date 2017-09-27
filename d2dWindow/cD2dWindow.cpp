@@ -46,7 +46,7 @@ LRESULT CALLBACK WndProc (HWND hWnd, unsigned int msg, WPARAM wparam, LPARAM lpa
 
 // public
 //{{{
-void cD2dWindow::initialise (wchar_t* windowTitle, int width, int height, bool fullScreen) {
+void cD2dWindow::initialise (char* windowTitle, int width, int height, bool fullScreen) {
 // windowTitle is wchar_t* rather than wstring
 
   mD2dWindow = this;
@@ -60,12 +60,12 @@ void cD2dWindow::initialise (wchar_t* windowTitle, int width, int height, bool f
                           LoadCursor (0,IDC_ARROW),
                           NULL,
                           0,
-                          L"windowClass",
+                          "windowClass",
                           LoadIcon (0,IDI_APPLICATION) };
 
   if (RegisterClassEx (&wndclass))
     mHWND = CreateWindowEx (0,
-                            L"windowClass",
+                            "windowClass",
                             windowTitle,
                             WS_OVERLAPPEDWINDOW,
                             20, 20, width+4, height+32,
