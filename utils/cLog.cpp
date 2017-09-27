@@ -99,7 +99,7 @@ FILE* mFile = NULL;
 #endif
 
 //{{{
-bool cLog::init (std::string path, enum eLogLevel logLevel, bool buffer) {
+bool cLog::init (enum eLogLevel logLevel, bool buffer, std::string path) {
 
   #ifdef _WIN32
     hStdOut = GetStdHandle (STD_OUTPUT_HANDLE);

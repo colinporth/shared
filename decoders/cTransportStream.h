@@ -7125,10 +7125,10 @@ protected:
   virtual bool vidDecodePes (cPidInfo* pidInfo, uint64_t basePts, char frameType,  bool skipped) { return false; }
   virtual void startProgram (int vpid, int apid, std::string name, std::string startTime) {}
 
-  tServiceMap mServiceMap;
-  tPidInfoMap mPidInfoMap;
   std::string mTimeStr;
   std::string mNetworkNameStr;
+  tServiceMap mServiceMap;
+  tPidInfoMap mPidInfoMap;
 
 private:
   //{{{
