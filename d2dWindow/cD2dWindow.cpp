@@ -23,6 +23,7 @@ using namespace Microsoft::WRL;
 using namespace D2D1;
 
 #include "cD2dWindow.h"
+#include "../utils/cLog.h"
 
 #pragma comment(lib,"d3d11")
 #pragma comment(lib,"d2d1.lib")
@@ -301,15 +302,26 @@ LRESULT cD2dWindow::wndProc (HWND hWnd, unsigned int msg, WPARAM wparam, LPARAM 
       }
     //}}}
 
-    //case WM_PAINT:
-    //  ValidateRect (hWnd, NULL);
-    //  return 0;
-    //case WM_DISPLAYCHANGE:
-    //  return 0;
+    //{{{
+    case WM_SYSCOMMAND:
+      switch (wparam) {
+        case SC_MAXIMIZE:
+          cLog::log (LOGNOTICE, "SC_MAXIMIZE");
+          toggleFullScreen();
+          break;
 
-    default:
-      return DefWindowProc (hWnd, msg, wparam, lparam);
+        case SC_SCREENSAVE: 
+          cLog::log (LOGNOTICE, "SC_SCREENSAVE");
+          return 0;
+
+        case SC_MONITORPOWER: 
+          cLog::log (LOGNOTICE, "SC_MONITORPOWER");
+          return 0;
+        }
+    //}}}
     }
+
+  return DefWindowProc (hWnd, msg, wparam, lparam);
   }
 //}}}
 //{{{
