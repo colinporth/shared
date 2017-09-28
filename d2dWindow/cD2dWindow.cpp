@@ -47,7 +47,7 @@ LRESULT CALLBACK WndProc (HWND hWnd, unsigned int msg, WPARAM wparam, LPARAM lpa
 
 // public
 //{{{
-void cD2dWindow::initialise (const char* windowTitle, int width, int height, bool fullScreen) {
+void cD2dWindow::initialise (std::string title, int width, int height, bool fullScreen) {
 // windowTitle is wchar_t* rather than wstring
 
   mD2dWindow = this;
@@ -67,7 +67,7 @@ void cD2dWindow::initialise (const char* windowTitle, int width, int height, boo
   if (RegisterClassEx (&wndclass))
     mHWND = CreateWindowEx (0,
                             "windowClass",
-                            windowTitle,
+                            title.data(),
                             WS_OVERLAPPEDWINDOW,
                             20, 20, width+4, height+32,
                             0, 0,
@@ -310,11 +310,11 @@ LRESULT cD2dWindow::wndProc (HWND hWnd, unsigned int msg, WPARAM wparam, LPARAM 
           toggleFullScreen();
           break;
 
-        case SC_SCREENSAVE: 
+        case SC_SCREENSAVE:
           cLog::log (LOGNOTICE, "SC_SCREENSAVE");
           return 0;
 
-        case SC_MONITORPOWER: 
+        case SC_MONITORPOWER:
           cLog::log (LOGNOTICE, "SC_MONITORPOWER");
           return 0;
         }
