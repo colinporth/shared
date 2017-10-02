@@ -9,7 +9,7 @@
 
 #include "iAudio.h"
 //}}}
-#define NUM_BUFFERS 8
+#define NUM_BUFFERS 6
 
 //{{{
 class cAudio2VoiceCallback : public IXAudio2VoiceCallback {
@@ -33,8 +33,8 @@ class cWinAudio : public iAudio {
 public:
   //{{{
   cWinAudio() {
-    mSilence = (int16_t*)malloc (2048*4);
-    memset (mSilence, 0, 2048*4);
+    mSilence = (int16_t*)malloc (1024*2*6);
+    memset (mSilence, 0, 1024*2*6);
     }
   //}}}
   //{{{
@@ -74,6 +74,20 @@ public:
       printf ("CreateMasteringVoice failed\n");
       return;
       }
+
+    DWORD dwChannelMask;
+    hr = mxAudio2MasteringVoice->GetChannelMask (&dwChannelMask);
+
+    XAUDIO2_VOICE_DETAILS details;
+    mxAudio2MasteringVoice->GetVoiceDetails (&details);
+    auto masterChannelMask = dwChannelMask;
+    auto masterChannels = details.InputChannels;
+    auto masterRate = details.InputSampleRate;
+    cLog::log (LOGINFO, "audOpen mask:" + hex(masterChannelMask) +
+                         " ch:" + hex(masterChannels) +
+                         " rate:" + dec(masterRate));
+
+    mChannels = channels;
 
     WAVEFORMATEX waveformatex;
     memset ((void*)&waveformatex, 0, sizeof (WAVEFORMATEX));
@@ -138,8 +152,7 @@ public:
   //}}}
   //{{{
   void audSilence() {
-
-    audPlay (mSilence, 4096, 1.0f);
+    audPlay (mSilence, mChannels * 1024*2, 1.0f);
     }
   //}}}
   //{{{
@@ -153,14 +166,15 @@ public:
   float mVolume = 0.8f;
 
 private:
-  int16_t* mSilence;
+  int mChannels = 0;
+  int16_t* mSilence = nullptr;
 
   IXAudio2* mxAudio2;
   IXAudio2MasteringVoice* mxAudio2MasteringVoice;
   IXAudio2SourceVoice* mxAudio2SourceVoice;
 
   int mBufferIndex = 0;
-  BYTE* mBuffers [NUM_BUFFERS] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
+  BYTE* mBuffers [NUM_BUFFERS] = { NULL, NULL, NULL, NULL, NULL, NULL };
 
   cAudio2VoiceCallback mAudio2VoiceCallback;
   };
