@@ -67,7 +67,14 @@ template <typename T> std::string dec (T value, uint16_t width = 0, char fill = 
   return os.str();
   }
 //}}}
+//{{{
+template <typename T> std::string decFrac (T value, int width = 0, int precision = 0, char fill = ' ') {
 
+  std::ostringstream os;
+  os << std::setfill (fill) << std::setw (width) << setprecision (precision) << value;
+  return os.str();
+  }
+//}}}
 //{{{
 std::string getPtsStr (uint64_t pts) {
 
