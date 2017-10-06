@@ -24,7 +24,7 @@
   static double performanceFrequency = 0.0;
   static __int64 performanceCounterStart = 0;
   //{{{
-  double startTimer() {
+  inline double startTimer() {
     LARGE_INTEGER largeInteger;
     QueryPerformanceFrequency (&largeInteger);
     performanceFrequency = double (largeInteger.QuadPart);
@@ -34,7 +34,7 @@
     }
   //}}}
   //{{{
-  double getTimer() {
+  inline double getTimer() {
     LARGE_INTEGER largeInteger;
     QueryPerformanceCounter (&largeInteger);
     return double (largeInteger.QuadPart - performanceCounterStart) / performanceFrequency;
@@ -75,8 +75,9 @@ template <typename T> std::string decFrac (T value, int width = 0, int precision
   return os.str();
   }
 //}}}
+
 //{{{
-std::string getPtsStr (uint64_t pts) {
+inline std::string getPtsStr (uint64_t pts) {
 
   pts /= 900;
   uint32_t hs = pts % 100;
@@ -96,7 +97,7 @@ std::string getPtsStr (uint64_t pts) {
   }
 //}}}
 //{{{
-std::string getPtsStrDeb (uint64_t pts) {
+inline std::string getPtsStrDeb (uint64_t pts) {
 
   uint32_t frac = pts % 900;
 
@@ -118,7 +119,7 @@ std::string getPtsStrDeb (uint64_t pts) {
   }
 //}}}
 //{{{
-std::string getMsTimeStr (int bst, uint32_t msTime) {
+inline std::string getMsTimeStr (int bst, uint32_t msTime) {
 
   // convert msTime to str
   int subSec = msTime % 1000;
