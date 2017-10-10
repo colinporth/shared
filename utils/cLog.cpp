@@ -56,6 +56,8 @@
 #define stat64_utf8   stat64
 
 #include "cLog.h"
+
+using namespace std;
 //}}}
 const int kMaxBuffer = 10000;
 //{{{  const
@@ -88,10 +90,10 @@ const char* postfix =             "\033[m\n";
 
 enum eLogLevel mLogLevel = LOGERROR;
 
-bool mBuffer = false;
-std::mutex mLogMutex;
-std::deque<cLog::cLine> mLines;
+mutex mLinesMutex;
+deque<cLog::cLine> mLines;
 
+bool mBuffer = false;
 FILE* mFile = NULL;
 
 #ifdef _WIN32
@@ -99,7 +101,7 @@ FILE* mFile = NULL;
 #endif
 
 //{{{
-bool cLog::init (enum eLogLevel logLevel, bool buffer, std::string path) {
+bool cLog::init (enum eLogLevel logLevel, bool buffer, string path) {
 
   #ifdef _WIN32
     hStdOut = GetStdHandle (STD_OUTPUT_HANDLE);
@@ -112,8 +114,8 @@ bool cLog::init (enum eLogLevel logLevel, bool buffer, std::string path) {
   mLogLevel = logLevel;
   if (mLogLevel > LOGNOTICE) {
     if (!path.empty() && !mFile) {
-      std::string strLogFile = path + "/omxPlayer.log";
-      std::string strLogFileOld = path + "/omxPlayer.old.log";
+      string strLogFile = path + "/omxPlayer.log";
+      string strLogFileOld = path + "/omxPlayer.old.log";
 
       struct stat info;
       if (stat (strLogFileOld.c_str(), &info) == 0 && remove (strLogFileOld.c_str()) != 0)
@@ -153,13 +155,13 @@ void cLog::setLogLevel (enum eLogLevel logLevel) {
 //}}}
 
 //{{{
-void cLog::log (enum eLogLevel logLevel, std::string logStr) {
+void cLog::log (enum eLogLevel logLevel, string logStr) {
 
   //  get time
   struct timeval now;
   gettimeofday (&now, NULL);
 
-  std::lock_guard<std::mutex> lockGuard (mLogMutex);
+  lock_guard<mutex> lockGuard (mLinesMutex);
 
   if (mBuffer) {
     uint32_t timeMs = ((now.tv_sec % (24 * 60 * 60)) * 1000) + now.tv_usec;
@@ -199,24 +201,24 @@ void cLog::log (enum eLogLevel logLevel, const char* format, ... ) {
   va_start (args, format);
 
   // get size of str
-  size_t size = std::vsnprintf (nullptr, 0, format, args) + 1; // Extra space for '\0'
+  size_t size = vsnprintf (nullptr, 0, format, args) + 1; // Extra space for '\0'
 
   // allocate buffer
-  std::unique_ptr<char[]> buf (new char[size]);
+  unique_ptr<char[]> buf (new char[size]);
 
   // form buffer
-  std::vsnprintf (buf.get(), size, format, args);
+  vsnprintf (buf.get(), size, format, args);
 
   va_end (args);
 
-  log (logLevel, std::string (buf.get(), buf.get() + size-1));
+  log (logLevel, string (buf.get(), buf.get() + size-1));
   }
 //}}}
 
 //{{{
 bool cLog::getLine (cLine& line, int lineNum) {
 
-  std::lock_guard<std::mutex> lockGuard (mLogMutex);
+  lock_guard<mutex> lockGuard (mLinesMutex);
 
   int matchingLineNum = 0;
   for (int lineIndex = 0; lineIndex < mLines.size(); lineIndex++)
