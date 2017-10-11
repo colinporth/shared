@@ -66,7 +66,7 @@ public:
     glGetIntegerv (GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &align);
   #endif
 
-    glFinish();
+    //glFinish();
 
     cVg::initialise();
     }
