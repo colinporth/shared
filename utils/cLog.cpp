@@ -62,9 +62,9 @@ using namespace std;
 const int kMaxBuffer = 10000;
 //{{{  const
 const char levelNames[][6] =    { "Title",
-                                  " Note ",
-                                  "Error",
-                                  " Info ",
+                                  "Note-",
+                                  "Err--",
+                                  "Info-",
                                   "Info1",
                                   "Info2",
                                   "Info3",
