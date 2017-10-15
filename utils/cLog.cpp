@@ -62,9 +62,9 @@ using namespace std;
 const int kMaxBuffer = 10000;
 //{{{  const
 const char levelNames[][6] =    { "Title",
-                                  "Note ",
+                                  " Note ",
                                   "Error",
-                                  "Info ",
+                                  " Info ",
                                   "Info1",
                                   "Info2",
                                   "Info3",
@@ -114,8 +114,8 @@ bool cLog::init (enum eLogLevel logLevel, bool buffer, string path) {
   mLogLevel = logLevel;
   if (mLogLevel > LOGNOTICE) {
     if (!path.empty() && !mFile) {
-      string strLogFile = path + "/omxPlayer.log";
-      string strLogFileOld = path + "/omxPlayer.old.log";
+      string strLogFile = path + "/log.txt";
+      string strLogFileOld = path + "/log.old.txt";
 
       struct stat info;
       if (stat (strLogFileOld.c_str(), &info) == 0 && remove (strLogFileOld.c_str()) != 0)
@@ -182,14 +182,21 @@ void cLog::log (enum eLogLevel logLevel, string logStr) {
     fputs (buffer, stdout);
     fputs (logStr.c_str(), stdout);
     fputs (postfix, stdout);
+    }
 
-    if (mFile) {
-      sprintf (buffer, prefixFormat, hour, minute, second, subSec, levelNames[logLevel]);
-      fputs (buffer, mFile);
-      fputs (logStr.c_str(), mFile);
-      fputc ('\n', mFile);
-      fflush (mFile);
-      }
+  if (mFile) {
+    auto hour = kBst + (now.tv_sec / 3600) % 24;
+    auto minute = (now.tv_sec / 60) % 60;
+    auto second = now.tv_sec % 60;
+    auto subSec = now.tv_usec;
+
+    char buffer[40];
+    sprintf (buffer, prefixFormat, hour, minute, second, subSec, levelNames[logLevel]);
+    fputs (buffer, mFile);
+    fputc (' ', mFile);
+    fputs (logStr.c_str(), mFile);
+    fputc ('\n', mFile);
+    fflush (mFile);
     }
   }
 //}}}
