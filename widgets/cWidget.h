@@ -10,11 +10,6 @@ public:
 		static uint16_t getSmallFontHeight() { return 16; }
 		static uint16_t getFontHeight()      { return 18; }
 		static uint16_t getBigFontHeight()   { return 40; }
-	#elif _WIN32
-		static uint16_t getBoxHeight()       { return 19; }
-		static uint16_t getSmallFontHeight() { return 12; }
-		static uint16_t getFontHeight()      { return 16; }
-		static uint16_t getBigFontHeight()   { return 32; }
 	#elif STM32F769I_DISCO
 		static uint16_t getBoxHeight()       { return 30; }
 		static uint16_t getSmallFontHeight() { return 20; }

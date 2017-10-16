@@ -58,14 +58,14 @@ protected:
         context->triangleFill();
 
         context->beginPath();
-        context->rect (mX+x, centreY - valueL, 1.0f, valueL + valueR);
+        context->rect (float(mX+x), float(centreY - valueL), 1.0f, float(valueL + valueR));
         context->fillColor (nvgRGB32 (COL_WHITE));
         context->triangleFill();
 
         context->beginPath();
         }
       else
-        context->rect (mX+x, centreY - valueL, 1.0f, valueL + valueR);
+        context->rect (float(mX+x), float(centreY - valueL), 1.0f, float(valueL + valueR));
       }
 
     context->fillColor (nvgRGB32 (colourAfter));

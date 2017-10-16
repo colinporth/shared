@@ -100,7 +100,7 @@ protected:
         context->triangleFill();
 
         context->beginPath();
-        context->rect (mX+x, centreY - valueL-2.0f, 1.0f, valueL + valueR + 4.0f);
+        context->rect (float(mX+x), float(centreY - valueL)-2.0f, 1.0f, float(valueL + valueR) + 4.0f);
         context->fillColor (nvgRGB32 (COL_YELLOW));
         context->triangleFill();
 
@@ -109,7 +109,7 @@ protected:
       else {
         auto valueL = *summedWavePtr++;
         auto valueR = *summedWavePtr++;
-        context->rect (mX+x, centreY - valueL-2.0f, 1.0f, valueL + valueR + 4.0f);
+        context->rect (float(mX+x), float(centreY - valueL)-2.0f, 1.0f, float(valueL + valueR) + 4.0f);
         }
       }
 

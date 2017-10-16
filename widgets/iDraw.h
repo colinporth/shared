@@ -272,8 +272,5 @@ public:
 
   #ifdef USE_NANOVG
     virtual cVg* getContext() = 0;
-  #elif _WIN32
-    virtual ID2D1Bitmap* allocBitmap (uint16_t width, uint16_t height) = 0;
-    virtual void copy (ID2D1Bitmap* bitMap, int16_t x, int16_t y, uint16_t width, uint16_t height) = 0;
   #endif
   };

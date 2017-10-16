@@ -30,11 +30,6 @@ public:
 
     #ifdef USE_NANOVG
       mUpdateTexture = true;
-    #elif _WIN32
-      if (mBitmap) {
-        mBitmap->Release();
-        mBitmap = nullptr;
-        }
     #else
       bigFree (mSizedRgb888);
       mSizedRgb888 = nullptr;
@@ -91,36 +86,6 @@ public:
         context->fillPaint (imgPaint);
         context->fill();
         }
-      //}}}
-    #elif _WIN32
-      //{{{  WIN32 render using bitmap
-      if (mPic) {
-        if (!mBitmap) {
-          mBitmap = draw->allocBitmap (mPicWidth, mPicHeight);
-          if (mPicComponents == 3) {
-            // convert RGB888 to RGBA8888
-            auto temp = (uint8_t*)bigMalloc(mPicWidth*mPicHeight*4, "picWidgetTemp");
-            auto src = mPic;
-            auto dst = temp;
-            for (auto y = 0; y < mPicHeight; y++) {
-              for (auto x = 0; x < mPicWidth; x++) {
-                *dst++ = *src++;
-                *dst++ = *src++;
-                *dst++ = *src++;
-                *dst++ = 0;
-                }
-              }
-            mBitmap->CopyFromMemory (&RectU (0, 0, mPicWidth, mPicHeight), temp, mPicWidth*4);
-            bigFree (temp);
-            }
-          else
-            mBitmap->CopyFromMemory (&RectU (0, 0, mPicWidth, mPicHeight), mPic, mPicWidth*4);
-          }
-        }
-      if (mBitmap)
-        draw->copy (mBitmap,
-                    mScale >= 1.0 ? mX : mX + (mWidth - width)/2, mScale >= 1.0 ? mY : mY + (mHeight - height)/2,
-                    width, height);
       //}}}
     #else
       //{{{  STM32 render
@@ -184,8 +149,6 @@ private:
   int mImage = -1;
   bool mUpdateTexture = false;
   float mAngle = 0;
-#elif _WIN32
-  ID2D1Bitmap* mBitmap = nullptr;
 #else
   uint8_t* mSizedRgb888 = nullptr;
   uint16_t mSizedWidth = 0;
