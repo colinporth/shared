@@ -1,34 +1,32 @@
 // hls.h
 #pragma once
 //{{{  includes
-#include "../rapidjson/document.h"
-#include "../teensyAac/cAacDecoder.h"
-#include "../widgets/cDecodePicWidget.h"
-
 #include "../utils/utils.h"
 #include "../utils/cLog.h"
+
+#include "../teensyAac/cAacDecoder.h"
 //}}}
 //{{{  static const
-static const int kMaxZoom = 4;
-static const float kNormalZoom = 1;
-static const int kExtTimeOffset = 17;
-static const int kPeakDecimate = 4;
+const int kMaxZoom = 4;
+const float kNormalZoom = 1;
+const int kExtTimeOffset = 17;
+const int kPeakDecimate = 4;
 
-static const uint16_t kFramesPerChunk = 300;
-static const uint16_t kSamplesPerFrame = 1024;
-static const uint16_t kSamplesPerSec = 48000;
-static const float kSamplesPerSecF   = kSamplesPerSec;
-static const double kSamplesPerSecD  = kSamplesPerSec;
+const uint16_t kFramesPerChunk = 300;
+const uint16_t kSamplesPerFrame = 1024;
+const uint16_t kSamplesPerSec = 48000;
+const float kSamplesPerSecF   = kSamplesPerSec;
+const double kSamplesPerSecD  = kSamplesPerSec;
 
-static const uint32_t kDefaultChan = 4;
-//static const uint32_t kDefaultBitrate = 48000;
-//static const uint32_t kDefaultBitrate = 96000;
-static const uint32_t kDefaultBitrate = 128000;
-static const float kDefaultVolume = 0.8f;
-//}}}
+const uint32_t kDefaultChan = 4;
+//const uint32_t kDefaultBitrate = 48000;
+//const uint32_t kDefaultBitrate = 96000;
+const uint32_t kDefaultBitrate = 128000;
+const float kDefaultVolume = 0.8f;
+
 const int kBstSecs = 3600;
+//}}}
 
-// utils
 //{{{
 static uint32_t getTimeInSecsFromDateTime (const char* dateTime) {
 
@@ -49,103 +47,6 @@ static std::string getTimeStrFromSecs (uint32_t secsSinceMidnight) {
   }
 //}}}
 
-//{{{
-class cScheduleItem {
-public:
-  void* operator new (size_t size) { return smallMalloc (size, "cScheduleItem"); }
-  void operator delete (void *ptr) { smallFree (ptr); }
-
-  uint32_t mStart;
-  uint32_t mDuration;
-  std::string mTitle;
-  std::string mSynopsis;
-  std::string mImagePid;
-  };
-//}}}
-//{{{
-class cSchedule {
-public:
-  void* operator new (size_t size) { return smallMalloc (size, "cSchedule"); }
-  void operator delete (void *ptr) { smallFree (ptr); }
-
-  //{{{
-  void load (cHttp& http, uint16_t chan) {
-
-    cLog::log (LOGINFO1, "cSchedule::load");
-
-    // get schedule json
-    switch (chan) {
-      case 1: http.get ("www.bbc.co.uk", "radio1/programmes/schedules/england/today.json"); break;
-      case 2: http.get ("www.bbc.co.uk", "radio2/programmes/schedules/today.json"); break;
-      case 3: http.get ("www.bbc.co.uk", "radio3/programmes/schedules/today.json"); break;
-      case 4: http.get ("www.bbc.co.uk", "radio4/programmes/schedules/fm/today.json"); break;
-      case 5: http.get ("www.bbc.co.uk", "5live/programmes/schedules/today.json"); break;
-      case 6: http.get ("www.bbc.co.uk", "6music/programmes/schedules/today.json"); break;
-      default:;
-      }
-
-    // parse it
-    rapidjson::Document schedule;
-    auto parseError = schedule.Parse ((const char*)http.getContent(), http.getContentSize()).HasParseError();
-    http.freeContent();
-    if (parseError) {
-      cLog::log (LOGERROR, "cSchedule::load error");
-      return;
-      }
-
-    for (auto& element : schedule["schedule"]["day"]["broadcasts"].GetArray()) {
-      auto item = new cScheduleItem();
-      auto broadcast = element.GetObject();
-      item->mStart    = getTimeInSecsFromDateTime (broadcast["start"].GetString());
-      item->mDuration = broadcast["duration"].GetInt();
-      if (broadcast["programme"]["display_titles"]["title"].IsString())
-        item->mTitle    = broadcast["programme"]["display_titles"]["title"].GetString();
-      item->mSynopsis = broadcast["programme"]["short_synopsis"].GetString();
-      item->mImagePid = broadcast["programme"]["image"]["pid"].GetString();
-      mSchedule.push_back (item);
-      }
-
-    cLog::log (LOGINFO1, "cSchedule::load done size:%d %s %s",
-                         http.getContentSize(), http.getLastHost().c_str(), http.getLastPath().c_str());
-    list();
-    }
-  //}}}
-
-  //{{{
-  cScheduleItem* findItem (uint32_t secs) {
-
-    secs += kBstSecs;
-    for (auto item : mSchedule)
-      if ((secs >= item->mStart) && (secs < item->mStart + item->mDuration))
-        return item;
-    return nullptr;
-    }
-  //}}}
-  //{{{
-  void clear() {
-    for (auto item : mSchedule) {
-      delete (item);
-      item = nullptr;
-      }
-    mSchedule.clear();
-    }
-  //}}}
-
-private:
-  //{{{
-  void list() {
-
-    for (auto item : mSchedule)
-      cLog::log (LOGINFO2, getTimeStrFromSecs (item->mStart) + " " +
-                           getTimeStrFromSecs (item->mDuration) + " " +
-                           item->mTitle);
-    }
-  //}}}
-
-  std::vector<cScheduleItem*> mSchedule;
-  };
-//}}}
-//{{{
 class cHls {
 public:
   //{{{
@@ -162,18 +63,12 @@ public:
   void operator delete (void *ptr) { bigFree (ptr); }
 
   //{{{
-  cScheduleItem* findItem (uint32_t sec) {
-    return mSchedule.findItem (sec);
-    }
-  //}}}
-  //{{{
   void getChunkLoad (uint16_t chunk, bool& loaded, bool& loading, int& offset) {
     loaded = mChunks[chunk].getLoaded();
     loading = mChunks[chunk].getLoading();
     offset = getSeqNumOffset (mChunks[chunk].getSeqNum());
     }
   //}}}
-
   //{{{
   uint8_t* getPeakSamples (double sample, uint32_t& numSamples, float zoom, uint16_t scale) {
 
@@ -236,7 +131,6 @@ public:
     return src;
     }
   //}}}
-
   //{{{
   double getPlaySample() {
     return mPlaySample;
@@ -301,9 +195,9 @@ public:
   void setChan (cHttp& http, int chan, int bitrate) {
 
     clearChunks();
-    mSchedule.clear();
+    //mSchedule.clear();
     loadChan (http, chan, bitrate);
-    mSchedule.load (http, chan);
+    //mSchedule.load (http, chan);
 
     mPlaying = true;
     mScrubbing = false;
@@ -355,34 +249,39 @@ public:
     }
   //}}}
   //{{{
-  void loadPicAtPlayFrame (cHttp& http) {
+  //cScheduleItem* findItem (uint32_t sec) {
+    //return mSchedule.findItem (sec);
+    //}
+  //}}}
+  //{{{
+  //void loadPicAtPlayFrame (cHttp& http) {
 
-    auto item = findItem (getPlaySec());
-    auto imagePid = item ? item->mImagePid : "";
-    if (imagePid != mImagePid) {
-      if (imagePid.empty())
-        mContent = nullptr;
-      else {
-        http.get ("ichef.bbci.co.uk", "images/ic/160x90/" + imagePid + ".jpg");
-        cLog::log (LOGINFO1, "loadPicAtPlayFrame imagePid:%s size:%d", imagePid.c_str(), http.getContentSize());
-        if (http.getContent()) {
-          new cJpegPic (3, http.getContent());
-          auto temp = (uint8_t*)bigMalloc (http.getContentSize(), "cHls::jpegPic");
-          memcpy (temp, http.getContent(), http.getContentSize());
-          mContentSize = http.getContentSize();
-          mContent = temp;
-          http.freeContent();
-          cLog::log (LOGINFO1, "- loaded imagePid:%s size:%d", imagePid.c_str(), http.getContentSize());
-          }
-        else
-          mContent = nullptr;
-        }
-      mImagePid = imagePid;
-      }
-    }
+    //auto item = findItem (getPlaySec());
+    //auto imagePid = item ? item->mImagePid : "";
+    //if (imagePid != mImagePid) {
+      //if (imagePid.empty())
+        //mContent = nullptr;
+      //else {
+        //http.get ("ichef.bbci.co.uk", "images/ic/160x90/" + imagePid + ".jpg");
+        //cLog::log (LOGINFO1, "loadPicAtPlayFrame imagePid:%s size:%d", imagePid.c_str(), http.getContentSize());
+        //if (http.getContent()) {
+          //new cJpegPic (3, http.getContent());
+          //auto temp = (uint8_t*)bigMalloc (http.getContentSize(), "cHls::jpegPic");
+          //memcpy (temp, http.getContent(), http.getContentSize());
+          //mContentSize = http.getContentSize();
+          //mContent = temp;
+          //http.freeContent();
+          //cLog::log (LOGINFO1, "- loaded imagePid:%s size:%d", imagePid.c_str(), http.getContentSize());
+          //}
+        //else
+          //mContent = nullptr;
+        //}
+      //mImagePid = imagePid;
+      //}
+    //}
   //}}}
 
-  // vars
+  //{{{  vars
   bool mChanChanged = true;
   int mHlsChan = kDefaultChan;
   int mHlsBitrate = kDefaultBitrate;
@@ -396,6 +295,7 @@ public:
   std::string mImagePid;
   uint8_t* mContent = nullptr;
   int mContentSize = 0;
+  //}}}
 
 private:
   //{{{
@@ -708,7 +608,6 @@ private:
   bool mPlaying = true;
   bool mScrubbing = false;
 
-  cSchedule mSchedule;
+  //cSchedule mSchedule;
   //}}}
   };
-//}}}

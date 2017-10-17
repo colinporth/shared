@@ -86,11 +86,11 @@ public:
   virtual ~cHlsTextWidget() {}
 
   virtual void render (iDraw* draw) {
-    auto item = mHls->findItem (mHls->getPlaySec());
-    if (item)
-      draw->drawText (COL_WHITE, getFontHeight(), item->mTitle + " - " + item->mSynopsis, mX, mY+1, mWidth-1, mHeight-1);
-    else
-      draw->drawText (COL_WHITE, getFontHeight(), "no schedule", mX, mY+1, mWidth-1, mHeight-1);
+    //auto item = mHls->findItem (mHls->getPlaySec());
+    //if (item)
+    //  draw->drawText (COL_WHITE, getFontHeight(), item->mTitle + " - " + item->mSynopsis, mX, mY+1, mWidth-1, mHeight-1);
+    //else
+    //  draw->drawText (COL_WHITE, getFontHeight(), "no schedule", mX, mY+1, mWidth-1, mHeight-1);
     }
 
 private:
