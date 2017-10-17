@@ -46,6 +46,8 @@
   //}}}
 #endif
 
+#include "cLog.h"
+
 #include <string>
 #include <mutex>
 #include <deque>
@@ -54,8 +56,6 @@
 #define rename_utf8   rename
 #define fopen64_utf8  fopen
 #define stat64_utf8   stat64
-
-#include "cLog.h"
 
 using namespace std;
 //}}}
