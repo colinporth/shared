@@ -157,7 +157,7 @@ protected:
               //{{{  header key char
               mScratch [mKeyStrLen] = tolower (*data);
               if (mKeyStrLen >= kMaxScratch)
-                debug ("mScratch header key overflow " + dec (mKeyStrLen) + " > " + dec (kMaxScratch));
+                cLog::log (LOGERROR, "mScratch header key overflow " + dec (mKeyStrLen) + " > " + dec (kMaxScratch));
               else
                 mKeyStrLen++;
               break;
@@ -166,7 +166,7 @@ protected:
               //{{{  header value char
               mScratch [mKeyStrLen + mValueStrLen] = *data;
               if (mKeyStrLen + mValueStrLen >= kMaxScratch)
-                debug ("mScratch header value overflow " + dec(mKeyStrLen + mValueStrLen) + " > " + dec (kMaxScratch));
+                cLog::log(LOGERROR, "mScratch header value overflow " + dec(mKeyStrLen + mValueStrLen) + " > " + dec (kMaxScratch));
               else
                 mValueStrLen++;
               break;

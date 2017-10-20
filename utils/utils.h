@@ -10,16 +10,14 @@
   #define bigFree               free
   #define smallMalloc(size,tag) malloc (size)
   #define smallFree             free
-  #define debug(str)            std::cout << str << std::endl
 
 #elif _WIN32
   void* debugMalloc (size_t size, const char* tag, uint8_t heap);
   void debugFree (void* ptr);
-  #define bigMalloc(size,tag)   debugMalloc (size, tag, 0)
-  #define bigFree               debugFree
-  #define smallMalloc(size,tag) debugMalloc (size, tag, 1)
-  #define smallFree             debugFree
-  #define debug(str)            std::cout << str << std::endl
+  #define bigMalloc(size,tag)   malloc (size)
+  #define bigFree               free
+  #define smallMalloc(size,tag) malloc (size)
+  #define smallFree             free
 
 #elif STM32
   #include "cLcd.h"
@@ -32,7 +30,7 @@
 
 // string utils
 //{{{
-template <typename T> std::string hex (T value, uint16_t width = 0) {
+template <typename T> std::string hex (T value, int width = 0) {
 
   std::ostringstream os;
   os << std::hex << std::setfill ('0') << std::setw (width) << value;
@@ -40,23 +38,21 @@ template <typename T> std::string hex (T value, uint16_t width = 0) {
   }
 //}}}
 //{{{
-template <typename T> std::string dec (T value, uint16_t width = 0, char fill = ' ') {
+template <typename T> std::string dec (T value, int width = 0, char fill = ' ') {
 
   std::ostringstream os;
   os << std::setfill (fill) << std::setw (width) << value;
   return os.str();
   }
 //}}}
-#ifdef _WIN32
 //{{{
-template <typename T> std::string decFrac (T value, uint16_t width, uint16_t precision, char fill) {
+inline std::string decFrac (float value, int width, int precision, char fill) {
 
   std::ostringstream os;
   os << std::setfill (fill) << std::setw (width) << setprecision (precision) << value;
   return os.str();
   }
 //}}}
-#endif
 
 //{{{
 inline std::string getPtsStr (uint64_t pts) {
