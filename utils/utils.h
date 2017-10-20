@@ -48,7 +48,7 @@ template <typename T> std::string dec (T value, uint16_t width = 0, char fill = 
   }
 //}}}
 //{{{
-template <typename T> std::string decFrac (T value, int width, int precision, char fill) {
+template <typename T> std::string decFrac (T value, uint16_t width, uint16_t precision, char fill) {
 
   std::ostringstream os;
   os << std::setfill (fill) << std::setw (width) << setprecision (precision) << value;
