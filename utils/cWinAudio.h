@@ -65,13 +65,13 @@ public:
     // create the XAudio2 engine.
     HRESULT hr = XAudio2Create (&mxAudio2);
     if (hr != S_OK) {
-      printf ("XAudio2Create failed\n");
+      cLog::log (LOGERROR, "cWinAudio - XAudio2Create failed");
       return;
       }
 
     hr = mxAudio2->CreateMasteringVoice (&mxAudio2MasteringVoice, channels, sampleFreq);
     if (hr != S_OK) {
-      printf ("CreateMasteringVoice failed\n");
+      cLog::log (LOGERROR, "cWinAudio - CreateMasteringVoice failed");
       return;
       }
 
@@ -83,7 +83,7 @@ public:
     auto masterChannelMask = dwChannelMask;
     auto masterChannels = details.InputChannels;
     auto masterRate = details.InputSampleRate;
-    cLog::log (LOGINFO, "audOpen mask:" + hex(masterChannelMask) +
+    cLog::log (LOGINFO, "cWinAudio - audOpen mask:" + hex(masterChannelMask) +
                          " ch:" + hex(masterChannels) +
                          " rate:" + dec(masterRate));
 
@@ -101,7 +101,7 @@ public:
     hr = mxAudio2->CreateSourceVoice (&mxAudio2SourceVoice, &waveformatex,
                                       0, XAUDIO2_DEFAULT_FREQ_RATIO, &mAudio2VoiceCallback, nullptr, nullptr);
     if (hr != S_OK) {
-      printf ("CreateSourceVoice failed\n");
+      cLog::log (LOGERROR, "CreateSourceVoice failed");
       return;
       }
 
@@ -132,7 +132,7 @@ public:
     xAudio2_buffer.pAudioData = mBuffers[mBufferIndex];
     HRESULT hr = mxAudio2SourceVoice->SubmitSourceBuffer (&xAudio2_buffer);
     if (hr != S_OK) {
-      printf ("XAudio2 - SubmitSourceBufferCreate failed\n");
+      cLog::log (LOGERROR, "XAudio2 - SubmitSourceBufferCreate failed");
       return;
       }
 
