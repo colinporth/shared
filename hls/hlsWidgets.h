@@ -16,34 +16,34 @@ static const int kScrubFrames = 3;
 //}}}
 
 //{{{
-class cHlsPicWidget : public cDecodePicWidget {
-public:
-  cHlsPicWidget(cHls* hls, float width, float height)
-    : cDecodePicWidget(width, height, -1, mMyValue, mMyChanged), mHls(hls) {}
-  virtual ~cHlsPicWidget() {}
+//class cHlsPicWidget : public cDecodePicWidget {
+//public:
+  //cHlsPicWidget(cHls* hls, float width, float height)
+    //: cDecodePicWidget(width, height, -1, mMyValue, mMyChanged), mHls(hls) {}
+  //virtual ~cHlsPicWidget() {}
 
-  virtual void pressed (int16_t x, int16_t y, bool controlled) {
-    cDecodePicWidget::pressed (x, y, controlled);
-    mHls->togglePlaying();
-    }
+  //virtual void pressed (int16_t x, int16_t y, bool controlled) {
+    //cDecodePicWidget::pressed (x, y, controlled);
+    //mHls->togglePlaying();
+    //}
 
-  virtual void render (iDraw* draw) {
-    setOn (!mHls->getPlaying());
+  //virtual void render (iDraw* draw) {
+    //setOn (!mHls->getPlaying());
 
-    if (mHls->mContent) {
-      setPic (mHls->mContent, mHls->mContentSize);
-      bigFree (mHls->mContent);
-      mHls->mContent = nullptr;
-      }
+    //if (mHls->mContent) {
+      //setPic (mHls->mContent, mHls->mContentSize);
+      //bigFree (mHls->mContent);
+      //mHls->mContent = nullptr;
+      //}
 
-    cDecodePicWidget::render (draw);
-    }
+    //cDecodePicWidget::render (draw);
+    //}
 
-private:
-  cHls* mHls;
-  bool mMyChanged;
-  int mMyValue;
-  };
+//private:
+  //cHls* mHls;
+  //bool mMyChanged;
+  //int mMyValue;
+  //};
 //}}}
 //{{{
 class cHlsDotsBox : public cWidget {
@@ -306,7 +306,7 @@ void hlsMenu (cRootContainer* root, cHls* hls) {
   root->add (new cDecodePicWidget (r5x80, sizeof(r5x80), 3, 3, 5, hls->mHlsChan,  hls->mChanChanged));
   root->add (new cDecodePicWidget (r6x80, sizeof(r6x80), 3, 3, 6, hls->mHlsChan,  hls->mChanChanged));
 
-  root->add (new cHlsPicWidget (hls, 16/3.0f, 3));
+  //root->add (new cHlsPicWidget (hls, 16/3.0f, 3));
   root->add (new cHlsDotsBox (hls, 1, 3));
   root->addAt (new cHlsPeakWidget (hls, 0, -4), 0, 4);
   root->addAt (new cHlsTextWidget (hls, 0, 3), 0, 3);
