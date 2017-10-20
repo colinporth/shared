@@ -339,7 +339,7 @@ public:
   int getThumbBytes() { return mThumbBytes; }
   //}}}
   //{{{
-  bool readHeader() {                                     691
+  bool readHeader() {
 
     mPoolPtr = mPoolBuffer;
     mPoolBytesLeft = kPoolBufferSize;
@@ -689,18 +689,18 @@ private:
         case TAG_EXPOSURETIME:
           mExifInfo.mExifExposure = getExifSignedRational (valuePtr, intelEndian, numerator, denominator); break;
         case TAG_MAKE:
-          if (mExifInfo.mExifMake.empty()) 
-            mExifInfo.mExifMake = (char*)valuePtr; 
+          if (mExifInfo.mExifMake.empty())
+            mExifInfo.mExifMake = (char*)valuePtr;
           break;
         case TAG_MODEL:
-          if (mExifInfo.mExifModel.empty()) 
-            mExifInfo.mExifModel = (char*)valuePtr; 
+          if (mExifInfo.mExifModel.empty())
+            mExifInfo.mExifModel = (char*)valuePtr;
           break;
         case TAG_DATETIME:
         case TAG_DATETIME_ORIGINAL:
         case TAG_DATETIME_DIGITIZED:
-          if (mExifInfo.mExifTimeString.empty()) 
-            mExifInfo.mExifTimeString = getExifTime (valuePtr, &mExifInfo.mExifTm); 
+          if (mExifInfo.mExifTimeString.empty())
+            mExifInfo.mExifTimeString = getExifTime (valuePtr, &mExifInfo.mExifTm);
           break;
         case TAG_THUMBNAIL_OFFSET:
           mThumbOffset = offset; break;
