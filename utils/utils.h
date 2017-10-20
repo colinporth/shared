@@ -47,6 +47,8 @@ template <typename T> std::string dec (T value, uint16_t width = 0, char fill = 
   return os.str();
   }
 //}}}
+
+#ifdef _WIN32
 //{{{
 template <typename T> std::string decFrac (T value, uint16_t width, uint16_t precision, char fill) {
 
@@ -55,7 +57,7 @@ template <typename T> std::string decFrac (T value, uint16_t width, uint16_t pre
   return os.str();
   }
 //}}}
-
+#endif
 //{{{
 inline std::string getPtsStr (uint64_t pts) {
 
