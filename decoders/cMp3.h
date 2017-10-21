@@ -975,16 +975,20 @@ public:
   int getFrameBodySize() { return mFrameBodySize; }
 
   //{{{
-  int findId3tag (uint8_t* buffer, int bufferBytes) {
+  int findId3tag (uint8_t* buffer, int bufferLen, uint8_t*& jpegBuffer, int& jpegLen) {
   // check for ID3 tag
+
+    jpegBuffer = nullptr;
+    jpegLen = 0;
 
     auto ptr = buffer;
     auto tag = ((*ptr)<<24) | (*(ptr+1)<<16) | (*(ptr+2)<<8) | *(ptr+3);
 
     if (tag == 0x49443303)  {
-     // got ID3 tag
+      // got ID3 tag
       auto tagSize = (*(ptr+6)<<21) | (*(ptr+7)<<14) | (*(ptr+8)<<7) | *(ptr+9);
-      //printf ("%c%c%c ver:%d %02x flags:%02x tagSize:%d\n", *ptr, *(ptr+1), *(ptr+2), *(ptr+3), *(ptr+4), *(ptr+5), tagSize);
+      cLog::log (LOGINFO, "%c%c%c ver:%d %02x flags:%02x tagSize:%d",
+                           *ptr, *(ptr+1), *(ptr+2), *(ptr+3), *(ptr+4), *(ptr+5), tagSize);
       ptr += 10;
 
       while (ptr < buffer + tagSize) {
@@ -992,22 +996,22 @@ public:
         auto frameSize = (*(ptr+4)<<24) | (*(ptr+5)<<16) | (*(ptr+6)<<8) | (*(ptr+7));
         if (!frameSize)
           break;
-        //auto frameFlags1 = *(ptr+8);
-        //auto frameFlags2 = *(ptr+9);
 
-        //printf ("%c%c%c%c - %02x %02x - frameSize:%d - ", *ptr, *(ptr+1), *(ptr+2), *(ptr+3), frameFlags1, frameFlags2, frameSize);
+        auto frameFlags1 = *(ptr+8);
+        auto frameFlags2 = *(ptr+9);
+        cLog::log (LOGINFO, "tag %c%c%c%c - %02x %02x - frameSize:%d",
+                            *ptr, *(ptr+1), *(ptr+2), *(ptr+3), frameFlags1, frameFlags2, frameSize);
         //for (auto i = 0; i < (tag == 0x41504943 ? 11 : frameSize); i++)
         //  printf ("%c", *(ptr+10+i));
         //printf ("\n");
-
         //for (auto i = 0; i < (frameSize < 32 ? frameSize : 32); i++)
         //  printf ("%02x ", *(ptr+10+i));
         //printf ("\n");
 
         if (tag == 0x41504943) {
-          //auto jpegImage = new cJpegImage();
-          //if (jpegImage->loadBuffer (dc, bitmapProperties, 1, ptr + 10 + 14, frameSize - 14))
-          //  mBitmap = jpegImage->getFullBitmap();
+          cLog::log (LOGINFO, "jpeg");
+          jpegBuffer =  ptr + 10 + 14;
+          jpegLen = frameSize - 14;
           }
         ptr += frameSize + 10;
         }
@@ -1023,19 +1027,19 @@ public:
     }
   //}}}
   //{{{
-  int findNextHeader (uint8_t* buffer, int bufferBytes) {
+  int findNextHeader (uint8_t* buffer, int bufferLen) {
   // find next header in buffer
   // return bytesUsed including header
-  // - 0 if no header found in bufferBytes of buffer
+  // - 0 if no header found in bufferLen of buffer
 
     mFrameBodySize = 0;
 
     int bytesUsed = 0;
     uint32_t header = 0;
 
-    while (bufferBytes) {
+    while (bufferLen) {
       bytesUsed++;
-      bufferBytes--;
+      bufferLen--;
       header = (header << 8) | *buffer++;
       if (isMp3Header (header)) {
         decodeMp3Header (header);
@@ -1097,18 +1101,18 @@ public:
     }
   //}}}
   //{{{
-  int decodeNextFrame (uint8_t* buffer, int bufferBytes, uint8_t* waveform, int16_t* samples) {
+  int decodeNextFrame (uint8_t* buffer, int bufferLen, uint8_t* waveform, int16_t* samples) {
   // find next valid frame header, decode header, decode body
   // - return buffer bytesUsed
   //   - 0 if complete frame not found
   // - powerValues if not nullptr
   // - samples if not nullptr
 
-    int bytesUsed = findNextHeader (buffer, bufferBytes);
+    int bytesUsed = findNextHeader (buffer, bufferLen);
     if (bytesUsed) {
       buffer += bytesUsed;
-      bufferBytes -= bytesUsed;
-      if (mFrameBodySize && (bufferBytes >= mFrameBodySize)) {
+      bufferLen -= bytesUsed;
+      if (mFrameBodySize && (bufferLen >= mFrameBodySize)) {
         decodeFrameBody (buffer, waveform, samples);
         return bytesUsed + mFrameBodySize;
         }
