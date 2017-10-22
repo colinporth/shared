@@ -1,4 +1,4 @@
-// jpegHeader.h
+// jpegHeader.h - portable jpeg header
 #pragma once
 
 //{{{

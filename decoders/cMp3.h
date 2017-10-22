@@ -1,4 +1,4 @@
-// cMp3.h - hacked minimp3 - audio book mp3s broken -  mono ?
+// cMp3.h - portable hacked minimp3 - audio book mp3s broken -  mono ?
 #pragma once
 //{{{  includes
 #include <stdio.h>
@@ -148,7 +148,7 @@ typedef struct _huff_table {
 typedef struct _vlc {
   int bits;
   int16_t (*table)[2]; ///< code, bits
-  int table_size, table_allocated;
+  int tableSize, table_allocated;
   } vlc_t;
 //}}}
 //{{{  const tables
@@ -703,7 +703,7 @@ static const uint8_t mp3_quad_bits[2][16] = {
 //}}}
 
 //{{{
-static const uint8_t band_size_long[9][22] = {
+static const uint8_t bandSize_long[9][22] = {
   { 4, 4, 4, 4, 4, 4, 6, 6, 8, 8, 10, 12, 16, 20, 24, 28, 34, 42, 50, 54, 76, 158, }, /* 44100 */
   { 4, 4, 4, 4, 4, 4, 6, 6, 6, 8, 10, 12, 16, 18, 22, 28, 34, 40, 46, 54, 54, 192, }, /* 48000 */
   { 4, 4, 4, 4, 4, 4, 6, 6, 8, 10, 12, 16, 20, 24, 30, 38, 46, 56, 68, 84, 102, 26, }, /* 32000 */
@@ -716,7 +716,7 @@ static const uint8_t band_size_long[9][22] = {
   };
 //}}}
 //{{{
-static const uint8_t band_size_short[9][13] = {
+static const uint8_t bandSize_short[9][13] = {
   { 4, 4, 4, 4, 6, 8, 10, 12, 14, 18, 22, 30, 56, },  /* 44100 */
   { 4, 4, 4, 4, 6, 6, 10, 12, 14, 16, 20, 26, 66, },  /* 48000 */
   { 4, 4, 4, 4, 6, 8, 12, 16, 20, 26, 34, 42, 12, },  /* 32000 */
@@ -920,7 +920,7 @@ public:
         auto k = 0;
         for (auto j = 0; j < 22; j++) {
           band_index_long[i][j] = k;
-          k += band_size_long[i][j];
+          k += bandSize_long[i][j];
           }
         band_index_long[i][22] = k;
         }
@@ -975,13 +975,13 @@ public:
   int getFrameBodySize() { return mFrameBodySize; }
 
   //{{{
-  int findId3tag (uint8_t* buffer, int bufferLen, uint8_t*& jpegBuffer, int& jpegLen) {
+  int findId3tag (uint8_t* buf, int bufLen, uint8_t*& jpegBuf, int& jpegLen) {
   // check for ID3 tag
 
-    jpegBuffer = nullptr;
+    jpegBuf = nullptr;
     jpegLen = 0;
 
-    auto ptr = buffer;
+    auto ptr = buf;
     auto tag = ((*ptr)<<24) | (*(ptr+1)<<16) | (*(ptr+2)<<8) | *(ptr+3);
 
     if (tag == 0x49443303)  {
@@ -991,7 +991,7 @@ public:
                            *ptr, *(ptr+1), *(ptr+2), *(ptr+3), *(ptr+4), *(ptr+5), tagSize);
       ptr += 10;
 
-      while (ptr < buffer + tagSize) {
+      while (ptr < buf + tagSize) {
         auto tag = ((*ptr)<<24) | (*(ptr+1)<<16) | (*(ptr+2)<<8) | *(ptr+3);
         auto frameSize = (*(ptr+4)<<24) | (*(ptr+5)<<16) | (*(ptr+6)<<8) | (*(ptr+7));
         if (!frameSize)
@@ -1010,7 +1010,7 @@ public:
 
         if (tag == 0x41504943) {
           cLog::log (LOGINFO, "jpeg");
-          jpegBuffer =  ptr + 10 + 14;
+          jpegBuf =  ptr + 10 + 14;
           jpegLen = frameSize - 14;
           }
         ptr += frameSize + 10;
@@ -1027,20 +1027,20 @@ public:
     }
   //}}}
   //{{{
-  int findNextHeader (uint8_t* buffer, int bufferLen) {
-  // find next header in buffer
+  int findNextHeader (uint8_t* buf, int bufLen) {
+  // find next header in buf
   // return bytesUsed including header
-  // - 0 if no header found in bufferLen of buffer
+  // - 0 if no header found in bufLen of buf
 
     mFrameBodySize = 0;
 
     int bytesUsed = 0;
     uint32_t header = 0;
 
-    while (bufferLen) {
+    while (bufLen) {
       bytesUsed++;
-      bufferLen--;
-      header = (header << 8) | *buffer++;
+      bufLen--;
+      header = (header << 8) | *buf++;
       if (isMp3Header (header)) {
         decodeMp3Header (header);
         return bytesUsed;
@@ -1051,11 +1051,11 @@ public:
     }
   //}}}
   //{{{
-  int decodeFrameBody (uint8_t* frameBodyBuffer, uint8_t* waveform, int16_t* outSamples) {
+  int decodeFrameBody (uint8_t* frameBodyBuf, uint8_t* waveform, int16_t* outSamples) {
   // decode frameBody, use after decodeHeader
 
     // init getBits to after 4 byte header
-    init_get_bits (&mBitstream, frameBodyBuffer, mFrameBodySize * 8);
+    init_get_bits (&mBitstream, frameBodyBuf, mFrameBodySize * 8);
     if (mErrorProtection)
       get_bits (&mBitstream, 16);
 
@@ -1063,13 +1063,13 @@ public:
     auto numFrames = decodeLayer3 (&subBandSamples[0][0][0]);
 
     // what does this do ???
-    mLastBufSize = 0;
-    if (mInBitstream.buffer) {
+    mLastBufLen = 0;
+    if (mInBitstream.buf) {
       align_get_bits (&mBitstream);
       auto i = (mBitstream.size_in_bits - get_bits_count (&mBitstream)) >> 3;
       if ((i >= 0) && (i <= 512)){
-        memmove (mLastBuf, mBitstream.buffer + (get_bits_count (&mBitstream) >> 3), i);
-        mLastBufSize = i;
+        memmove (mLastBuf, mBitstream.buf + (get_bits_count (&mBitstream) >> 3), i);
+        mLastBufLen = i;
         }
       mBitstream = mInBitstream;
       }
@@ -1081,14 +1081,14 @@ public:
       if (i > 512)
         i = 512;
       }
-    memcpy (mLastBuf + mLastBufSize, mBitstream.buffer + mFrameBodySize - i, i);
-    mLastBufSize += i;
+    memcpy (mLastBuf + mLastBufLen, mBitstream.buf + mFrameBodySize - i, i);
+    mLastBufLen += i;
 
     if (waveform)
       calcWaveform (&subBandSamples[0][0][0], waveform);
 
     if (outSamples) {
-      // synthFilter subBandsamples to outSamples, using synthBuffer
+      // synthFilter subBandsamples to outSamples, using synthBuf
       for (auto channel = 0; channel < mNumChannels; channel++) {
         auto outSamplesPtr = outSamples + channel;
         for (auto frame = 0; frame < numFrames; frame++) {
@@ -1101,19 +1101,19 @@ public:
     }
   //}}}
   //{{{
-  int decodeNextFrame (uint8_t* buffer, int bufferLen, uint8_t* waveform, int16_t* samples) {
+  int decodeNextFrame (uint8_t* buf, int bufLen, uint8_t* waveform, int16_t* samples) {
   // find next valid frame header, decode header, decode body
-  // - return buffer bytesUsed
+  // - return buf bytesUsed
   //   - 0 if complete frame not found
   // - powerValues if not nullptr
   // - samples if not nullptr
 
-    int bytesUsed = findNextHeader (buffer, bufferLen);
+    int bytesUsed = findNextHeader (buf, bufLen);
     if (bytesUsed) {
-      buffer += bytesUsed;
-      bufferLen -= bytesUsed;
-      if (mFrameBodySize && (bufferLen >= mFrameBodySize)) {
-        decodeFrameBody (buffer, waveform, samples);
+      buf += bytesUsed;
+      bufLen -= bytesUsed;
+      if (mFrameBodySize && (bufLen >= mFrameBodySize)) {
+        decodeFrameBody (buf, waveform, samples);
         return bytesUsed + mFrameBodySize;
         }
       }
@@ -1139,19 +1139,19 @@ private:
     }
   //}}}
   //{{{
-  int buildVlcTable (vlc_t* vlc, int table_nb_bits, int nb_codes, const void* bits, int bits_wrap, int bits_size,
-                     const void *codes, int codes_wrap, int codes_size, uint32_t code_prefix, int n_prefix) {
+  int buildVlcTable (vlc_t* vlc, int table_nb_bits, int nb_codes, const void* bits, int bits_wrap, int bitsSize,
+                     const void *codes, int codes_wrap, int codesSize, uint32_t code_prefix, int n_prefix) {
 
-    auto table_size = 1 << table_nb_bits;
-    auto table_index = vlc->table_size;
-    vlc->table_size += table_size;
-    if (vlc->table_size > vlc->table_allocated) {
+    auto tableSize = 1 << table_nb_bits;
+    auto table_index = vlc->tableSize;
+    vlc->tableSize += tableSize;
+    if (vlc->tableSize > vlc->table_allocated) {
       vlc->table_allocated += (1 << vlc->bits);
       vlc->table = (int16_t(*)[2])realloc (vlc->table, sizeof(int16_t) * 2 * vlc->table_allocated);
       }
 
     int16_t (*table)[2] = &vlc->table[table_index];
-    for (auto i = 0; i < table_size; i++) {
+    for (auto i = 0; i < tableSize; i++) {
       table[i][1] = 0; //bits
       table[i][0] = -1; //codes
       }
@@ -1159,15 +1159,15 @@ private:
     uint32_t code;
     for (auto i = 0; i < nb_codes; i++) {
       int n;
-      GET_DATA(n, bits, i, bits_wrap, bits_size);
-      GET_DATA(code, codes, i, codes_wrap, codes_size);
+      GET_DATA(n, bits, i, bits_wrap, bitsSize);
+      GET_DATA(code, codes, i, codes_wrap, codesSize);
       if (n <= 0)
         continue;
       n -= n_prefix;
       uint32_t code_prefix2 = code >> n;
       if (n > 0 && code_prefix2 == code_prefix) {
         if (n <= table_nb_bits) {
-          int j = (code << (table_nb_bits - n)) & (table_size - 1);
+          int j = (code << (table_nb_bits - n)) & (tableSize - 1);
           int nb = 1 << (table_nb_bits - n);
           for (auto k = 0; k < nb; k++) {
             if (table[j][1] /*bits*/ != 0)
@@ -1188,7 +1188,7 @@ private:
         }
       }
 
-    for (auto i = 0; i < table_size; i++) {
+    for (auto i = 0; i < tableSize; i++) {
       int n = table[i][1]; //bits
       if (n < 0) {
         n = -n;
@@ -1196,7 +1196,7 @@ private:
           n = table_nb_bits;
           table[i][1] = -n; //bits
           }
-        int index = buildVlcTable (vlc, n, nb_codes, bits, bits_wrap, bits_size, codes, codes_wrap, codes_size,
+        int index = buildVlcTable (vlc, n, nb_codes, bits, bits_wrap, bitsSize, codes, codes_wrap, codesSize,
                                    (code_prefix << table_nb_bits) | i, n_prefix + table_nb_bits);
         if (index < 0)
           return -1;
@@ -1211,8 +1211,8 @@ private:
 
   //{{{  typedef bitstream
   typedef struct {
-    const uint8_t* buffer;
-    const uint8_t* buffer_end;
+    const uint8_t* buf;
+    const uint8_t* buf_end;
     int index;
     int size_in_bits;
     } bitstream_t;
@@ -1233,7 +1233,7 @@ private:
   //}}}
   //{{{
   #define UPDATE_CACHE(name, gb)\
-          name##_cache= unaligned32_be(&((gb)->buffer[name##_index>>3])) << (name##_index&0x07); \
+          name##_cache= unaligned32_be(&((gb)->buf[name##_index>>3])) << (name##_index&0x07); \
   //}}}
 
   //{{{
@@ -1317,17 +1317,17 @@ private:
   //}}}
 
   //{{{
-  void init_get_bits (bitstream_t *s, const uint8_t *buffer, int bit_size) {
+  void init_get_bits (bitstream_t *s, const uint8_t *buf, int bitSize) {
 
-    auto buffer_size = (bit_size + 7) >> 3;
-    if (buffer_size < 0 || bit_size < 0) {
-      buffer_size = bit_size = 0;
-      buffer = NULL;
+    auto bufLen = (bitSize + 7) >> 3;
+    if (bufLen < 0 || bitSize < 0) {
+      bufLen = bitSize = 0;
+      buf = NULL;
       }
 
-    s->buffer = buffer;
-    s->size_in_bits = bit_size;
-    s->buffer_end = buffer + buffer_size;
+    s->buf = buf;
+    s->size_in_bits = bitSize;
+    s->buf_end = buf + bufLen;
     s->index = 0;
     }
   //}}}
@@ -1357,7 +1357,7 @@ private:
   unsigned int get_bits1 (bitstream_t *s){
 
     auto index = s->index;
-    auto result= s->buffer[ index>>3 ];
+    auto result= s->buf[ index>>3 ];
     result<<= (index&0x07);
     result>>= 8 - 1;
     index++;
@@ -1748,11 +1748,11 @@ private:
     }
   //}}}
   //{{{
-  void switchBuffer (int& pos, int& end_pos, int& end_pos2) {
+  void switchBuf (int& pos, int& end_pos, int& end_pos2) {
 
-    if (mInBitstream.buffer && pos >= mBitstream.size_in_bits) {
+    if (mInBitstream.buf && pos >= mBitstream.size_in_bits) {
       mBitstream = mInBitstream;
-      mInBitstream.buffer = NULL;
+      mInBitstream.buf = NULL;
       skip_bits_long (&mBitstream, pos - end_pos);
 
       end_pos2 = end_pos = end_pos2 + get_bits_count (&mBitstream) - pos;
@@ -1812,7 +1812,7 @@ private:
     uint8_t scalefac_scale;
     uint8_t count1table_select;
 
-    int region_size[3];
+    int regionSize[3];
     int preflag;
 
     int short_start, long_end;
@@ -1848,7 +1848,7 @@ private:
         if (i != 11)
           k -= 3;
 
-        int len = band_size_short[mSampleRateIndex][i];
+        int len = bandSize_short[mSampleRateIndex][i];
         for (int l = 2; l >= 0; l--) {
           tab0 -= len;
           tab1 -= len;
@@ -1891,7 +1891,7 @@ private:
       auto non_zero_found = non_zero_found_short[0] | non_zero_found_short[1] | non_zero_found_short[2];
 
       for (auto i = granule1->long_end - 1; i >= 0; i--) {
-        auto len = band_size_long[mSampleRateIndex][i];
+        auto len = bandSize_long[mSampleRateIndex][i];
         tab0 -= len;
         tab1 -= len;
 
@@ -1957,7 +1957,7 @@ private:
     auto gain = granule->global_gain - 210;
     auto shift = granule->scalefac_scale + 1;
     //{{{  calc exponents
-    auto bstab = band_size_long[mSampleRateIndex];
+    auto bstab = bandSize_long[mSampleRateIndex];
     auto pretab = mp3_pretab[granule->preflag];
     for (auto i = 0; i < granule->long_end; i++) {
       auto v0 = gain - ((granule->scale_factors[i] + pretab[i]) << shift) + 400;
@@ -1967,7 +1967,7 @@ private:
       }
 
     if (granule->short_start < 13) {
-      bstab = band_size_short[mSampleRateIndex];
+      bstab = bandSize_short[mSampleRateIndex];
       int gains[3];
       gains[0] = gain - (granule->subblock_gain[0] << 3);
       gains[1] = gain - (granule->subblock_gain[1] << 3);
@@ -1993,7 +1993,7 @@ private:
     //{{{  get low frequencies (called big values)
     int s_index = 0;
     for (auto i = 0; i < 3; i++) {
-      auto j = granule->region_size[i];
+      auto j = granule->regionSize[i];
       if (j == 0)
         continue;
 
@@ -2013,7 +2013,7 @@ private:
         auto pos = get_bits_count (&mBitstream);
 
         if (pos >= end_pos){
-          switchBuffer (pos, end_pos, end_pos2);
+          switchBuf (pos, end_pos, end_pos2);
           if (pos >= end_pos)
             break;
           }
@@ -2083,7 +2083,7 @@ private:
           skip_bits_long (&mBitstream, last_pos - pos);
           break;
           }
-        switchBuffer (pos, end_pos, end_pos2);
+        switchBuf (pos, end_pos, end_pos2);
         if (pos >= end_pos)
           break;
         }
@@ -2116,7 +2116,7 @@ private:
     skip_bits_long (&mBitstream, bits_left);
 
     auto i = get_bits_count (&mBitstream);
-    switchBuffer (i, end_pos, end_pos2);
+    switchBuf (i, end_pos, end_pos2);
 
     return 0;
     }
@@ -2139,7 +2139,7 @@ private:
 
     int32_t tmp[576];
     for (auto i = granule->short_start; i < 13; i++) {
-      auto len = band_size_short[mSampleRateIndex][i];
+      auto len = bandSize_short[mSampleRateIndex][i];
       auto ptr1 = ptr;
       auto dst = tmp;
       for (auto j = len; j > 0; j--) {
@@ -2222,7 +2222,7 @@ private:
     auto mdctBufPtr = mdctBuf;
     ptr = granule->sb_hybrid;
     for (auto j = 0; j < mdct_long_end; j++) {
-      // apply window & overlap with previous buffer
+      // apply window & overlap with previous buf
       auto out_ptr = subBandSamples + j;
 
       // select window
@@ -2325,15 +2325,15 @@ private:
             granule->subblock_gain[i] = get_bits (&mBitstream, 3);
           //{{{  compute huffman coded region sizes
           if (granule->block_type == 2)
-            granule->region_size[0] = (36 / 2);
+            granule->regionSize[0] = (36 / 2);
           else if (mSampleRateIndex <= 2)
-            granule->region_size[0] = (36 / 2);
+            granule->regionSize[0] = (36 / 2);
           else if (mSampleRateIndex != 8)
-            granule->region_size[0] = (54 / 2);
+            granule->regionSize[0] = (54 / 2);
           else
-            granule->region_size[0] = (108 / 2);
+            granule->regionSize[0] = (108 / 2);
 
-          granule->region_size[1] = (576 / 2);
+          granule->regionSize[1] = (576 / 2);
           //}}}
           }
         else {
@@ -2344,27 +2344,27 @@ private:
           //{{{  compute huffman coded region sizes
           auto region_address1 = get_bits (&mBitstream, 4);
           auto region_address2 = get_bits (&mBitstream, 3);
-          granule->region_size[0] = band_index_long[mSampleRateIndex][region_address1 + 1] >> 1;
+          granule->regionSize[0] = band_index_long[mSampleRateIndex][region_address1 + 1] >> 1;
 
           // should not overflow
           auto l = region_address1 + region_address2 + 2;
           if (l > 22)
             l = 22;
 
-          granule->region_size[1] = band_index_long[mSampleRateIndex][l] >> 1;
+          granule->regionSize[1] = band_index_long[mSampleRateIndex][l] >> 1;
           //}}}
           }
 
         //{{{  convert region offsets to region sizes and truncate size to big_values
-        granule->region_size[2] = (576 / 2);
+        granule->regionSize[2] = (576 / 2);
 
         auto j = 0;
         for (auto i = 0; i < 3; i++) {
-          auto k = granule->region_size[i];
+          auto k = granule->regionSize[i];
           if (granule->big_values < k)
             k = granule->big_values;
 
-          granule->region_size[i] = k - j;
+          granule->regionSize[i] = k - j;
           j = k;
           }
         //}}}
@@ -2402,11 +2402,11 @@ private:
     //        mGranules[0][0].global_gain, mGranules[0][1].global_gain, mGranules[1][0].global_gain, mGranules[1][1].global_gain);
 
     // get bits from the main_data_begin offset
-    if (mainDataBegin > mLastBufSize)
-      mLastBufSize = mainDataBegin;
-    memcpy (mLastBuf + mLastBufSize, mBitstream.buffer + (get_bits_count (&mBitstream) >> 3), 24);
+    if (mainDataBegin > mLastBufLen)
+      mLastBufLen = mainDataBegin;
+    memcpy (mLastBuf + mLastBufLen, mBitstream.buf + (get_bits_count (&mBitstream) >> 3), 24);
     mInBitstream = mBitstream;
-    init_get_bits (&mBitstream, mLastBuf + mLastBufSize - mainDataBegin, mainDataBegin * 8);
+    init_get_bits (&mBitstream, mLastBuf + mLastBufLen - mainDataBegin, mainDataBegin * 8);
 
     for (auto granuleIndex = 0; granuleIndex < numGranules; granuleIndex++) {
       for (auto channel = 0; channel < mNumChannels; channel++) {
@@ -2606,7 +2606,7 @@ private:
   bitstream_t mBitstream;
   bitstream_t mInBitstream;
 
-  int mLastBufSize = 0;
+  int mLastBufLen = 0;
   uint8_t mLastBuf[2*512 + 24];
 
   int mFrameBodySize = 0;

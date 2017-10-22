@@ -1,4 +1,4 @@
-// cJpeg.h - based on tiny jpeg decoder, jhead
+// cJpeg.h - portable jpeg decoder - based on tiny jpeg decoder, jhead
 #pragma once
 #include "iPic.h"
 //{{{  static const
