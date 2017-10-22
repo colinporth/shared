@@ -49,7 +49,7 @@ template <typename T> std::string dec (T value, int width = 0, char fill = ' ') 
 inline std::string decFrac (float value, int width, int precision, char fill) {
 
   std::ostringstream os;
-  os << std::setfill (fill) << std::setw (width) << setprecision (precision) << value;
+  os << std::setfill (fill) << std::setw (width) << std::setprecision (precision) << value;
   return os.str();
   }
 //}}}
