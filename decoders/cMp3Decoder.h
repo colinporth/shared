@@ -9,6 +9,7 @@
 #ifndef PI
   #define PI 3.141592654f
 #endif
+
 #define FRAC_BITS   15
 #define WFRAC_BITS  14
 
@@ -795,10 +796,10 @@ static int32_t csa_table[8][4];
 static float csa_table_float[8][4];
 //}}}
 
-class cMp3 {
+class cMp3Decoder {
 public:
   //{{{
-  cMp3() {
+  cMp3Decoder() {
 
     memset (&mBitstream, 0, sizeof(bitstream_t));
     memset (&mInBitstream, 0, sizeof(bitstream_t));
@@ -973,13 +974,16 @@ public:
   int getSampleRate() { return mSampleRate; }
   int getNumChannels() { return mNumChannels; }
   int getFrameBodySize() { return mFrameBodySize; }
+  //{{{
+  uint8_t* getJpeg (int& jpegLen) {
+    jpegLen = mJpegLen;
+    return mJpegBuf;
+    }
+  //}}}
 
   //{{{
-  int findId3tag (uint8_t* buf, int bufLen, uint8_t*& jpegBuf, int& jpegLen) {
+  int findId3tag (uint8_t* buf, int bufLen) {
   // check for ID3 tag
-
-    jpegBuf = nullptr;
-    jpegLen = 0;
 
     auto ptr = buf;
     auto tag = ((*ptr)<<24) | (*(ptr+1)<<16) | (*(ptr+2)<<8) | *(ptr+3);
@@ -1010,20 +1014,15 @@ public:
 
         if (tag == 0x41504943) {
           cLog::log (LOGINFO, "jpeg");
-          jpegBuf =  ptr + 10 + 14;
-          jpegLen = frameSize - 14;
+          mJpegBuf =  ptr + 10 + 14;
+          mJpegLen = frameSize - 14;
           }
         ptr += frameSize + 10;
         }
       return tagSize + 10;
       }
-    else {
-      // print start of file
-      //for (auto i = 0; i < 32; i++)
-      //  printf ("%02x ", *(ptr+i));
-      //printf ("\n");
+    else
       return 0;
-      }
     }
   //}}}
   //{{{
@@ -1105,8 +1104,8 @@ public:
   // find next valid frame header, decode header, decode body
   // - return buf bytesUsed
   //   - 0 if complete frame not found
-  // - powerValues if not nullptr
-  // - samples if not nullptr
+  // - return waveform if not nullptr
+  // - return samples if not nullptr
 
     int bytesUsed = findNextHeader (buf, bufLen);
     if (bytesUsed) {
@@ -1117,6 +1116,7 @@ public:
         return bytesUsed + mFrameBodySize;
         }
       }
+
     return 0;
     }
   //}}}
@@ -2624,5 +2624,8 @@ private:
 
   int32_t mMdctBuf[2][32 * 18];
   int16_t mSynthBuf[2][512 * 2];
+
+  uint8_t* mJpegBuf = nullptr;
+  int mJpegLen = 0;
   //}}}
   };
