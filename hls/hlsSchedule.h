@@ -9,12 +9,21 @@
 //}}}
 
 //{{{
+static string getTimeStrFromSecs (time_t secsSinceMidnight) {
+
+  return dec(secsSinceMidnight / (60*60)) + ':' +
+         dec((secsSinceMidnight / 60) % 60, 2, '0') + ':' +
+         dec(secsSinceMidnight % 60, 2, '0');
+  }
+//}}}
+
+//{{{
 class cScheduleItem {
 public:
   void* operator new (size_t size) { return smallMalloc (size, "cScheduleItem"); }
   void operator delete (void *ptr) { smallFree (ptr); }
 
-  uint32_t mStart;
+  time_t mStart;
   uint32_t mDuration;
   std::string mTitle;
   std::string mSynopsis;
@@ -55,7 +64,7 @@ public:
     for (auto& element : schedule["schedule"]["day"]["broadcasts"].GetArray()) {
       auto item = new cScheduleItem();
       auto broadcast = element.GetObject();
-      item->mStart    = getTimeInSecsFromDateTime (broadcast["start"].GetString());
+      item->mStart    = getTime (broadcast["start"].GetString());
       item->mDuration = broadcast["duration"].GetInt();
       if (broadcast["programme"]["display_titles"]["title"].IsString())
         item->mTitle    = broadcast["programme"]["display_titles"]["title"].GetString();
