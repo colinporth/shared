@@ -168,24 +168,29 @@ public:
     return uint32_t (mPlaySample / kSamplesPerSec);
     }
   //}}}
-  //{{{  incPlay
+
+  //{{{
+  void setPlaySample (double sample) {
+    mPlaySample = sample;
+    mPlayTime = mBaseTime + uint32_t (mPlaySample / kSamplesPerSec) + kBstSecs;
+    }
+  //}}}
   //{{{
   void incPlaySample (double samples) {
-    mPlaySample += samples;
+    setPlaySample (mPlaySample + samples);
     }
   //}}}
   //{{{
   void incPlayFrame (int incFrames) {
-    mPlaySample += incFrames * kSamplesPerFrame;
+    setPlaySample (mPlaySample + (incFrames * kSamplesPerFrame));
     }
   //}}}
   //{{{
   void incPlaySec (int secs) {
-    mPlaySample += secs * kSamplesPerSec;
+    setPlaySample (mPlaySample + (secs * kSamplesPerSec));
     }
   //}}}
-  //}}}
-  //{{{  playing
+
   //{{{
   bool getPlaying() {
     return mPlaying;
@@ -201,6 +206,7 @@ public:
     mPlaying = !mPlaying;
     }
   //}}}
+
   //{{{
   bool getScrubbing() {
     return mScrubbing;
@@ -210,7 +216,6 @@ public:
   void setScrubbing (bool scrubbing) {
     mScrubbing = scrubbing;
     }
-  //}}}
   //}}}
 
   //{{{
@@ -315,6 +320,7 @@ public:
   float mVolume = kDefaultVolume;
 
   time_t mBaseTime;
+  time_t mPlayTime;
 
   string mImagePid;
   uint8_t* mContent = nullptr;
@@ -560,8 +566,8 @@ private:
     auto extDateTime = strstr (extSeqEnd + 1, "#EXT-X-PROGRAM-DATE-TIME:") +
                        strlen ("#EXT-X-PROGRAM-DATE-TIME:");
     mBaseFrame = ((getTimeInSecsFromDateTime (extDateTime) - kExtTimeOffset) * kSamplesPerSec) / kSamplesPerFrame;
-    auto str = string(extDateTime, size_t(19));
 
+    auto str = string(extDateTime, size_t(19));
     mBaseTime = getTimeFromDateTime (str);
     cLog::log (LOGNOTICE, str);
 
