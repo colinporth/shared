@@ -86,7 +86,7 @@ public:
   virtual ~cHlsTextWidget() {}
 
   virtual void render (iDraw* draw) {
-    //auto item = mHls->findItem (mHls->getPlaySec());
+    //auto item = mHls->findItem (mHls->getPlayTzSec());
     //if (item)
     //  draw->drawText (COL_WHITE, getFontHeight(), item->mTitle + " - " + item->mSynopsis, mX, mY+1, mWidth-1, mHeight-1);
     //else
@@ -189,7 +189,7 @@ public:
       context->fontSize ((float)getBigFontHeight());
       context->textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_TOP);
       context->fillColor (kWhite);
-      context->text (midx-60.0f+3.0f, y+1.0f, getTimeStrFromSecs (mHls->getPlaySec() + kBstSecs));
+      context->text (midx-60.0f+3.0f, y+1.0f, getTimeStrFromSecs (mHls->getPlayTzSec()));
 
       float midy = (float)mY + (mHeight/2);
       uint16_t midWidth = midx + int(mHls->getScrubbing() ? kScrubFrames*mZoom : mZoom);
@@ -239,7 +239,7 @@ public:
         }
 
       y = mY + mHeight - getBigFontHeight();
-      draw->drawText (COL_LIGHTGREY, getBigFontHeight(), getTimeStrFromSecs (mHls->getPlaySec() + (kBST ? 3600 : 0)),
+      draw->drawText (COL_LIGHTGREY, getBigFontHeight(), getTimeStrFromSecs (mHls->getPlayTzSec())),
                   midx - 60, y, mWidth/2, getBigFontHeight());
 
       uint16_t midWidth = midx + int(mHls->getScrubbing() ? kScrubFrames*mZoom : mZoom);

@@ -73,7 +73,6 @@ public:
   //{{{
   cScheduleItem* findItem (uint32_t secs) {
 
-    secs += kBstSecs;
     for (auto item : mSchedule)
       if ((secs >= item->mStart) && (secs < item->mStart + item->mDuration))
         return item;

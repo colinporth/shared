@@ -23,22 +23,10 @@ const uint32_t kDefaultChan = 4;
 //const uint32_t kDefaultBitrate = 96000;
 const uint32_t kDefaultBitrate = 128000;
 const float kDefaultVolume = 0.8f;
-
-const int kBstSecs = 3600;
 //}}}
 
 //{{{
-static string getTimeStrFromSecs (uint32_t secsSinceMidnight) {
-
-  uint32_t hours = (secsSinceMidnight / (60*60));
-  uint32_t mins = (secsSinceMidnight / 60) % 60;
-  uint32_t secs = secsSinceMidnight % 60;
-
-  return dec (hours) + ':' + dec(mins, 2, '0') + ':' + dec(secs, 2, '0');
-  }
-//}}}
-//{{{
-static time_t getTimeFromDateTime (string dateTime) {
+static time_t getTime (string str) {
 
   // Check for format: YYYY:MM:DD HH:MM:SS format.
   // Date and time normally separated by a space, but also seen a ':' there, so
@@ -47,24 +35,24 @@ static time_t getTimeFromDateTime (string dateTime) {
   tm baseTm;
   baseTm.tm_wday = -1;
   baseTm.tm_sec = 0;
-  int a = sscanf (dateTime.c_str(), "%d%*c%d%*c%d%*c%d:%d:%d",
+  int a = sscanf (str.c_str(), "%d%*c%d%*c%d%*c%d:%d:%d",
                   &baseTm.tm_year, &baseTm.tm_mon, &baseTm.tm_mday,
                   &baseTm.tm_hour, &baseTm.tm_min, &baseTm.tm_sec);
 
-  baseTm.tm_isdst = -1;
   baseTm.tm_mon -= 1;     // Adjust for unix zero-based months
   baseTm.tm_year -= 1900; // Adjust for year starting at 1900
+  baseTm.tm_isdst = 1;
 
   // find day of week, make time_t
   return mktime (&baseTm);
   }
 //}}}
 //{{{
-static uint32_t getTimeInSecsFromDateTime (const char* dateTime) {
+static uint32_t getTimeSecs (string str) {
 
-  uint16_t hour = ((dateTime[11] - '0') * 10) + (dateTime[12] - '0');
-  uint16_t min =  ((dateTime[14] - '0') * 10) + (dateTime[15] - '0');
-  uint16_t sec =  ((dateTime[17] - '0') * 10) + (dateTime[18] - '0');
+  uint16_t hour = ((str[11] - '0') * 10) + (str[12] - '0');
+  uint16_t min =  ((str[14] - '0') * 10) + (str[15] - '0');
+  uint16_t sec =  ((str[17] - '0') * 10) + (str[18] - '0');
   return (hour * 60 * 60) + (min * 60) + sec;
   }
 //}}}
@@ -72,7 +60,7 @@ static uint32_t getTimeInSecsFromDateTime (const char* dateTime) {
 class cHls {
 public:
   //{{{
-  cHls (int chan) : mHlsChan (chan) {
+  cHls (int chan, bool bst) : mHlsChan (chan), mTzSecs(bst ? 3600 : 0) {
     mDecoder = new cAacDecoder();
     }
   //}}}
@@ -153,6 +141,7 @@ public:
     return src;
     }
   //}}}
+
   //{{{
   double getPlaySample() {
     return mPlaySample;
@@ -164,15 +153,30 @@ public:
     }
   //}}}
   //{{{
-  uint32_t getPlaySec() {
-    return uint32_t (mPlaySample / kSamplesPerSec);
+  uint32_t getPlayTzSec() {
+    return uint32_t (mPlaySample / kSamplesPerSec) + mTzSecs;
+    }
+  //}}}
+  //{{{
+  string getPlayTimeTzStr () {
+
+    uint32_t secsSinceMidnight = getPlayTzSec();
+
+    return dec(secsSinceMidnight / (60*60)) + ':' +
+           dec((secsSinceMidnight / 60) % 60, 2, '0') + ':' +
+           dec(secsSinceMidnight % 60, 2, '0');
+    }
+  //}}}
+  //{{{
+  void setTzSecs (int secs) {
+    mTzSecs = secs;
     }
   //}}}
 
   //{{{
   void setPlaySample (double sample) {
     mPlaySample = sample;
-    mPlayTime = uint32_t (mPlaySample / kSamplesPerSec) + kBstSecs;
+    mPlayTime = uint32_t (mPlaySample / kSamplesPerSec) + mTzSecs;
     }
   //}}}
   //{{{
@@ -250,7 +254,7 @@ public:
     uint16_t chunk;
     if (!findSeqNumChunk (seqNum, 0, chunk)) {
       cLog::log (LOGINFO, "loadAtPlayFrame seqNum " +
-                          to_string (seqNum) + " at " + getTimeStrFromSecs (getPlaySec()+kBstSecs));
+                          to_string (seqNum) + " at " + getPlayTimeTzStr());
       ok &= mChunks[chunk].load (http, mDecoder, mHost, getTsPath (seqNum), seqNum, mBitrate);
       cLog::log (LOGINFO, "loaded seqNum:%d", seqNum);
       }
@@ -259,7 +263,7 @@ public:
 
     if (!findSeqNumChunk (seqNum, 1, chunk)) {
       cLog::log (LOGINFO, "loadAtPlayFrame seqNum " +
-                           to_string (seqNum+1) + " at " + getTimeStrFromSecs (getPlaySec()+kBstSecs));
+                           to_string (seqNum+1) + " at " + getPlayTimeTzStr());
       ok &= mChunks[chunk].load (http, mDecoder, mHost, getTsPath (seqNum+1), seqNum+1, mBitrate);
       cLog::log (LOGINFO, "loaded seqNum:%d", seqNum+1);
       }
@@ -268,7 +272,7 @@ public:
 
     if (!findSeqNumChunk (seqNum, -1, chunk)) {
       cLog::log (LOGINFO, "loadAtPlayFrame seqNum " +
-                           to_string (seqNum-1) + " at " + getTimeStrFromSecs (getPlaySec()+kBstSecs));
+                           to_string (seqNum-1) + " at " + getPlayTimeTzStr());
       ok &= mChunks[chunk].load (http, mDecoder, mHost, getTsPath (seqNum-1), seqNum-1, mBitrate);
       cLog::log (LOGINFO, "loaded seqNum:%d", seqNum-1);
       }
@@ -283,7 +287,7 @@ public:
   //{{{
   //void loadPicAtPlayFrame (cHttp& http) {
 
-    //auto item = findItem (getPlaySec());
+    //auto item = findItem (getPlayTzSec());
     //auto imagePid = item ? item->mImagePid : "";
     //if (imagePid != mImagePid) {
       //if (imagePid.empty())
@@ -562,14 +566,15 @@ private:
     *extSeqEnd = '\0';
     mBaseSeqNum = atoi (extSeq) + 3;
 
-    // point to #EXT-X-PROGRAM-DATE-TIME dateTime str
-    auto extDateTime = strstr (extSeqEnd + 1, "#EXT-X-PROGRAM-DATE-TIME:") +
-                       strlen ("#EXT-X-PROGRAM-DATE-TIME:");
-    mBaseFrame = ((getTimeInSecsFromDateTime (extDateTime) - kExtTimeOffset) * kSamplesPerSec) / kSamplesPerFrame;
+    // point to #EXT-X-PROGRAM-DATE-TIME dateTime str, parse it time_t and seconds
+    auto extDateTimePtr =
+      strstr (extSeqEnd + 1, "#EXT-X-PROGRAM-DATE-TIME:") + strlen ("#EXT-X-PROGRAM-DATE-TIME:");
+    auto extDateTimeString = string(extDateTimePtr, size_t(28));
+    cLog::log (LOGNOTICE, "extDateTime " + extDateTimeString);
 
-    auto str = string(extDateTime, size_t(19));
-    mBaseTime = getTimeFromDateTime (str) + kBstSecs;
-    cLog::log (LOGNOTICE, str);
+    // z means zero offset from UTC
+    mBaseTime = getTime (extDateTimeString) + mTzSecs;
+    mBaseFrame = ((getTimeSecs (extDateTimeString) - kExtTimeOffset) * kSamplesPerSec) / kSamplesPerFrame;
 
     http.freeContent();
 
@@ -636,6 +641,7 @@ private:
 
   cAacDecoder* mDecoder = 0;
 
+  int mTzSecs;
   string mDateTime;
   uint32_t mBaseFrame = 0;
   uint32_t mBaseSeqNum = 0;
