@@ -172,7 +172,7 @@ public:
   //{{{
   void setPlaySample (double sample) {
     mPlaySample = sample;
-    mPlayTime = mBaseTime + uint32_t (mPlaySample / kSamplesPerSec) + kBstSecs;
+    mPlayTime = uint32_t (mPlaySample / kSamplesPerSec) + kBstSecs;
     }
   //}}}
   //{{{
@@ -568,7 +568,7 @@ private:
     mBaseFrame = ((getTimeInSecsFromDateTime (extDateTime) - kExtTimeOffset) * kSamplesPerSec) / kSamplesPerFrame;
 
     auto str = string(extDateTime, size_t(19));
-    mBaseTime = getTimeFromDateTime (str);
+    mBaseTime = getTimeFromDateTime (str) + kBstSecs;
     cLog::log (LOGNOTICE, str);
 
     http.freeContent();
