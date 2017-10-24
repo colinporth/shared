@@ -28,22 +28,42 @@ const int kBstSecs = 3600;
 //}}}
 
 //{{{
-static uint32_t getTimeInSecsFromDateTime (const char* dateTime) {
-
-  uint16_t hour = ((dateTime[11] - '0') * 10) + (dateTime[12] - '0');
-  uint16_t min =  ((dateTime[14] - '0') * 10) + (dateTime[15] - '0');
-  uint16_t sec =  ((dateTime[17] - '0') * 10) + (dateTime[18] - '0');
-  return (hour * 60 * 60) + (min * 60) + sec;
-  }
-//}}}
-//{{{
-static std::string getTimeStrFromSecs (uint32_t secsSinceMidnight) {
+static string getTimeStrFromSecs (uint32_t secsSinceMidnight) {
 
   uint32_t hours = (secsSinceMidnight / (60*60));
   uint32_t mins = (secsSinceMidnight / 60) % 60;
   uint32_t secs = secsSinceMidnight % 60;
 
   return dec (hours) + ':' + dec(mins, 2, '0') + ':' + dec(secs, 2, '0');
+  }
+//}}}
+//{{{
+static time_t getTmFromDateTime (string dateTime, tm* tmPtr) {
+
+  // Check for format: YYYY:MM:DD HH:MM:SS format.
+  // Date and time normally separated by a space, but also seen a ':' there, so
+  // skip the middle space with '%*c' so it can be any character.
+  tmPtr->tm_wday = -1;
+  tmPtr->tm_sec = 0;
+  int a = sscanf (dateTime.c_str(), "%d%*c%d%*c%d%*c%d:%d:%d",
+                  &tmPtr->tm_year, &tmPtr->tm_mon, &tmPtr->tm_mday,
+                  &tmPtr->tm_hour, &tmPtr->tm_min, &tmPtr->tm_sec);
+
+  tmPtr->tm_isdst = -1;
+  tmPtr->tm_mon -= 1;     // Adjust for unix zero-based months
+  tmPtr->tm_year -= 1900; // Adjust for year starting at 1900
+
+  // find day of week, make time_t
+  return mktime (tmPtr);
+  }
+//}}}
+//{{{
+static uint32_t getTimeInSecsFromDateTime (const char* dateTime) {
+
+  uint16_t hour = ((dateTime[11] - '0') * 10) + (dateTime[12] - '0');
+  uint16_t min =  ((dateTime[14] - '0') * 10) + (dateTime[15] - '0');
+  uint16_t sec =  ((dateTime[17] - '0') * 10) + (dateTime[18] - '0');
+  return (hour * 60 * 60) + (min * 60) + sec;
   }
 //}}}
 
@@ -223,7 +243,7 @@ public:
     uint16_t chunk;
     if (!findSeqNumChunk (seqNum, 0, chunk)) {
       cLog::log (LOGINFO, "loadAtPlayFrame seqNum " +
-                          std::to_string (seqNum) + " at " + getTimeStrFromSecs (getPlaySec()+kBstSecs));
+                          to_string (seqNum) + " at " + getTimeStrFromSecs (getPlaySec()+kBstSecs));
       ok &= mChunks[chunk].load (http, mDecoder, mHost, getTsPath (seqNum), seqNum, mBitrate);
       cLog::log (LOGINFO, "loaded seqNum:%d", seqNum);
       }
@@ -232,7 +252,7 @@ public:
 
     if (!findSeqNumChunk (seqNum, 1, chunk)) {
       cLog::log (LOGINFO, "loadAtPlayFrame seqNum " +
-                           std::to_string (seqNum+1) + " at " + getTimeStrFromSecs (getPlaySec()+kBstSecs));
+                           to_string (seqNum+1) + " at " + getTimeStrFromSecs (getPlaySec()+kBstSecs));
       ok &= mChunks[chunk].load (http, mDecoder, mHost, getTsPath (seqNum+1), seqNum+1, mBitrate);
       cLog::log (LOGINFO, "loaded seqNum:%d", seqNum+1);
       }
@@ -241,7 +261,7 @@ public:
 
     if (!findSeqNumChunk (seqNum, -1, chunk)) {
       cLog::log (LOGINFO, "loadAtPlayFrame seqNum " +
-                           std::to_string (seqNum-1) + " at " + getTimeStrFromSecs (getPlaySec()+kBstSecs));
+                           to_string (seqNum-1) + " at " + getTimeStrFromSecs (getPlaySec()+kBstSecs));
       ok &= mChunks[chunk].load (http, mDecoder, mHost, getTsPath (seqNum-1), seqNum-1, mBitrate);
       cLog::log (LOGINFO, "loaded seqNum:%d", seqNum-1);
       }
@@ -292,7 +312,9 @@ public:
   bool mVolumeChanged = true;
   float mVolume = kDefaultVolume;
 
-  std::string mImagePid;
+  time_t mBaseTime;
+
+  string mImagePid;
   uint8_t* mContent = nullptr;
   int mContentSize = 0;
   //}}}
@@ -386,7 +408,7 @@ private:
     //}}}
 
     //{{{
-    bool load (cHttp& http, cAacDecoder* decoder, std::string host, std::string path, uint32_t seqNum, uint32_t bitrate) {
+    bool load (cHttp& http, cAacDecoder* decoder, string host, string path, uint32_t seqNum, uint32_t bitrate) {
 
       auto ok = true;
       mLoading = true;
@@ -477,7 +499,7 @@ private:
   //}}}
 
   //{{{
-  std::string getPathRoot() {
+  string getPathRoot() {
 
     const int kPool [] = { 0, 7, 7, 7, 6, 6, 6 };
 
@@ -490,12 +512,12 @@ private:
     }
   //}}}
   //{{{
-  std::string getM3u8path() {
+  string getM3u8path() {
     return getPathRoot() + ".norewind.m3u8";
     }
   //}}}
   //{{{
-  std::string getTsPath (uint32_t seqNum) {
+  string getTsPath (uint32_t seqNum) {
     return getPathRoot() + '-' + dec(seqNum) + ".ts";
     }
   //}}}
@@ -533,8 +555,14 @@ private:
     mBaseSeqNum = atoi (extSeq) + 3;
 
     // point to #EXT-X-PROGRAM-DATE-TIME dateTime str
-    auto extDateTime = strstr (extSeqEnd + 1, "#EXT-X-PROGRAM-DATE-TIME:") + strlen ("#EXT-X-PROGRAM-DATE-TIME:");
+    auto extDateTime = strstr (extSeqEnd + 1, "#EXT-X-PROGRAM-DATE-TIME:") +
+                       strlen ("#EXT-X-PROGRAM-DATE-TIME:");
     mBaseFrame = ((getTimeInSecsFromDateTime (extDateTime) - kExtTimeOffset) * kSamplesPerSec) / kSamplesPerFrame;
+    auto str = string(extDateTime, size_t(19));
+    
+    tm baseTm;
+    mBaseTime = getTmFromDateTime (str, &baseTm);
+    cLog::log (LOGNOTICE, str);
 
     http.freeContent();
 
@@ -593,7 +621,7 @@ private:
   //}}}
 
   //{{{  private vars
-  std::string mHost;
+  string mHost;
   cChunk mChunks[3];
 
   uint16_t mChan = 0;
@@ -601,7 +629,7 @@ private:
 
   cAacDecoder* mDecoder = 0;
 
-  std::string mDateTime;
+  string mDateTime;
   uint32_t mBaseFrame = 0;
   uint32_t mBaseSeqNum = 0;
 
