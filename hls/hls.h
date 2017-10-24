@@ -38,23 +38,25 @@ static string getTimeStrFromSecs (uint32_t secsSinceMidnight) {
   }
 //}}}
 //{{{
-static time_t getTmFromDateTime (string dateTime, tm* tmPtr) {
+static time_t getTimeFromDateTime (string dateTime) {
 
   // Check for format: YYYY:MM:DD HH:MM:SS format.
   // Date and time normally separated by a space, but also seen a ':' there, so
   // skip the middle space with '%*c' so it can be any character.
-  tmPtr->tm_wday = -1;
-  tmPtr->tm_sec = 0;
-  int a = sscanf (dateTime.c_str(), "%d%*c%d%*c%d%*c%d:%d:%d",
-                  &tmPtr->tm_year, &tmPtr->tm_mon, &tmPtr->tm_mday,
-                  &tmPtr->tm_hour, &tmPtr->tm_min, &tmPtr->tm_sec);
 
-  tmPtr->tm_isdst = -1;
-  tmPtr->tm_mon -= 1;     // Adjust for unix zero-based months
-  tmPtr->tm_year -= 1900; // Adjust for year starting at 1900
+  tm baseTm;
+  baseTm.tm_wday = -1;
+  baseTm.tm_sec = 0;
+  int a = sscanf (dateTime.c_str(), "%d%*c%d%*c%d%*c%d:%d:%d",
+                  &baseTm.tm_year, &baseTm.tm_mon, &baseTm.tm_mday,
+                  &baseTm.tm_hour, &baseTm.tm_min, &baseTm.tm_sec);
+
+  baseTm.tm_isdst = -1;
+  baseTm.tm_mon -= 1;     // Adjust for unix zero-based months
+  baseTm.tm_year -= 1900; // Adjust for year starting at 1900
 
   // find day of week, make time_t
-  return mktime (tmPtr);
+  return mktime (&baseTm);
   }
 //}}}
 //{{{
@@ -559,9 +561,8 @@ private:
                        strlen ("#EXT-X-PROGRAM-DATE-TIME:");
     mBaseFrame = ((getTimeInSecsFromDateTime (extDateTime) - kExtTimeOffset) * kSamplesPerSec) / kSamplesPerFrame;
     auto str = string(extDateTime, size_t(19));
-    
-    tm baseTm;
-    mBaseTime = getTmFromDateTime (str, &baseTm);
+
+    mBaseTime = getTimeFromDateTime (str);
     cLog::log (LOGNOTICE, str);
 
     http.freeContent();
