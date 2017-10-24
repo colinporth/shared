@@ -70,7 +70,7 @@ public:
     }
   //}}}
   //{{{
-  uint8_t* getPeakSamples (double sample, uint32_t& numSamples, float zoom, uint16_t scale) {
+  uint8_t* getPeakSamples (double sample, uint32_t& numSamples, float zoom) {
 
     if (zoom > kMaxZoom)
       zoom = kMaxZoom;
@@ -83,7 +83,7 @@ public:
     uint32_t subFrameSamples;
 
     return findFrame (sample, seqNum, chunk, chunkFrame, subFrameSamples) ?
-      mChunks[chunk].getPeakSamples (chunkFrame, subFrameSamples, numSamples, zoom, scale) : nullptr;
+      mChunks[chunk].getPeakSamples (chunkFrame, subFrameSamples, numSamples, zoom) : nullptr;
     }
   //}}}
   //{{{
@@ -323,7 +323,7 @@ private:
     uint16_t getFramesLoaded() { return mSrcFramesLoaded; }
 
     //{{{
-    uint8_t* getPeakSamples (uint16_t chunkFrame, uint32_t subFrameSamples, uint32_t& numSamples, float zoom, uint16_t scale) {
+    uint8_t* getPeakSamples (uint16_t chunkFrame, uint32_t subFrameSamples, uint32_t& numSamples, float zoom) {
 
       if (zoom != mZoom)
         mSrcPeakFrames = 0;
@@ -343,7 +343,7 @@ private:
           if (endSample > maxSample)
             endSample = maxSample;
 
-          // find highest peak, +ve only get abs but not worth it
+          // find highest peak, +ve only, could abs but not worth it
           int16_t valueL = 0;
           int16_t valueR = 0;
           while (mSample < endSample) {
@@ -355,8 +355,9 @@ private:
             mSample += kPeakDecimate*2 + 1;
             }
 
-          *mPeakSample++ = uint8_t(valueL / scale);
-          *mPeakSample++ = uint8_t(valueR / scale);
+          // scale to uint8_t
+          *mPeakSample++ = valueL >> 8;
+          *mPeakSample++ = valueR >> 8;
           mNumPeakSamples++;
           }
 

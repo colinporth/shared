@@ -192,7 +192,6 @@ public:
       context->text (midx-60.0f+3.0f, y+1.0f, getTimeStrFromSecs (mHls->getPlaySec() + kBstSecs));
 
       float midy = (float)mY + (mHeight/2);
-      uint16_t scale = 0x10000 / mHeight;
       uint16_t midWidth = midx + int(mHls->getScrubbing() ? kScrubFrames*mZoom : mZoom);
 
       context->beginPath();
@@ -200,7 +199,7 @@ public:
       uint32_t numSamples = 0;
       for (float x = mX; x < mX+mWidth; x++) {
         if (!numSamples) {
-          samples = mHls->getPeakSamples (sample, numSamples, mZoom, scale);
+          samples = mHls->getPeakSamples (sample, numSamples, mZoom);
           if (samples)
             sample += numSamples * samplesPerPixF;
           }
@@ -217,8 +216,8 @@ public:
             context->beginPath();
             }
 
-          auto left = *samples++;
-          auto right = *samples++;
+          auto left = (*samples++ * mHeight) / 0x100;
+          auto right = (*samples++ * mHeight) / 0x100;
           context->rect (x, midy - left, 1, (float)(left+right));
           numSamples--;
           }
@@ -243,7 +242,6 @@ public:
       draw->drawText (COL_LIGHTGREY, getBigFontHeight(), getTimeStrFromSecs (mHls->getPlaySec() + (kBST ? 3600 : 0)),
                   midx - 60, y, mWidth/2, getBigFontHeight());
 
-      uint16_t scale = 0x10000 / mHeight;
       uint16_t midWidth = midx + int(mHls->getScrubbing() ? kScrubFrames*mZoom : mZoom);
 
       uint16_t midy = mY + (mHeight/2);
@@ -253,7 +251,7 @@ public:
       uint32_t numSamples = 0;
       for (auto x = mX; x < mX+mWidth; x++) {
         if (!numSamples) {
-          samples = mHls->getPeakSamples (sample, numSamples, mZoom, scale);
+          samples = mHls->getPeakSamples (sample, numSamples, mZoom);
           if (samples)
             sample += numSamples * samplesPerPixF;
           }
@@ -262,8 +260,8 @@ public:
             colour = COL_DARKGREEN;
           else if (x == midWidth)
             colour = COL_DARKERGREY;
-          auto left = *samples++;
-          draw->drawRect (colour, x, midy - left, 1, left + *samples++);
+          auto left = (*samples++ * mHeight) / 0x100;
+          draw->drawRect (colour, x, midy - left, 1, left + (*samples++ * mHeight) / 0x100);
           numSamples--;
           }
         else
