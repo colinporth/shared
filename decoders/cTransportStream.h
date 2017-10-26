@@ -687,8 +687,8 @@ public:
         return 0;
 
       mDecData = *mDecBuffer++;
-      mNumOfBitsInBuffer = min(8, mDecBufferSize) - nbits;
-      mDecBufferSize -= min(8, mDecBufferSize);
+      mNumOfBitsInBuffer = min(8u, mDecBufferSize) - nbits;
+      mDecBufferSize -= min(8u, mDecBufferSize);
       retData |= (mDecData >> mNumOfBitsInBuffer) & msk[nbits];
       }
 

@@ -2,6 +2,8 @@
 //{{{  includes
 #ifdef _WIN32
   #define _CRT_SECURE_NO_WARNINGS
+  #define NOMINMAX
+
   #include "windows.h"
   //{{{
   void gettimeofday (struct timeval* tp, struct timezone* tzp) {
@@ -48,6 +50,7 @@
 
 #include "cLog.h"
 
+#include <algorithm>
 #include <string>
 #include <mutex>
 #include <deque>
@@ -148,8 +151,8 @@ enum eLogLevel cLog::getLogLevel() {
 //{{{
 void cLog::setLogLevel (enum eLogLevel logLevel) {
 
-  logLevel = min (logLevel, eLogLevel(LOGMAX-1));
-  logLevel = max (logLevel, LOGNOTICE);
+  logLevel = std::min (logLevel, eLogLevel(LOGMAX-1));
+  logLevel = std::max (logLevel, LOGNOTICE);
   mLogLevel = logLevel;
   }
 //}}}

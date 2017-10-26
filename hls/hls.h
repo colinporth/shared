@@ -7,10 +7,9 @@
 #include "../teensyAac/cAacDecoder.h"
 //}}}
 //{{{  static const
-const int kMaxZoom = 4;
-const float kNormalZoom = 1;
-const int kExtTimeOffset = 17;
-const int kPeakDecimate = 4;
+const uint32_t kDefaultChan = 4;
+const string kSrc = "as-hls-uk-live.akamaized.net";
+const int kBaseTimeCorrectionSecs = 17;
 
 const uint16_t kFramesPerChunk = 300;
 const uint16_t kSamplesPerFrame = 1024;
@@ -18,49 +17,46 @@ const uint16_t kSamplesPerSec = 48000;
 const float kSamplesPerSecF   = kSamplesPerSec;
 const double kSamplesPerSecD  = kSamplesPerSec;
 
-const uint32_t kDefaultChan = 4;
 //const uint32_t kDefaultBitrate = 48000;
 //const uint32_t kDefaultBitrate = 96000;
 const uint32_t kDefaultBitrate = 128000;
 const float kDefaultVolume = 0.8f;
+
+const int kMaxZoom = 4;
+const float kNormalZoom = 1;
+const int kPeakDecimate = 4;
 //}}}
 
 //{{{
-static time_t getTime (string str) {
-
-  // Check for format: YYYY:MM:DD HH:MM:SS format.
-  // Date and time normally separated by a space, but also seen a ':' there, so
-  // skip the middle space with '%*c' so it can be any character.
+static time_t getTimeFromIso (string str, uint32_t& secsSinceMidnight) {
+//parse ISO time format from string
+// Check for format: YYYY:MM:DD HH:MM:SS format.
+// Date and time normally separated by a space, but also seen a ':' or 'T' there, so
+// skip the middle space with '%*c' so it can be any character.
+// trailing timezone Z, or +-num ignored for now
 
   tm baseTm;
   baseTm.tm_wday = -1;
-  baseTm.tm_sec = 0;
   int a = sscanf (str.c_str(), "%d%*c%d%*c%d%*c%d:%d:%d",
                   &baseTm.tm_year, &baseTm.tm_mon, &baseTm.tm_mday,
                   &baseTm.tm_hour, &baseTm.tm_min, &baseTm.tm_sec);
+  secsSinceMidnight = (baseTm.tm_hour * 60 * 60) + (baseTm.tm_min * 60) + baseTm.tm_sec;
 
+  // make time_t, fill in
+  // - tm_wday dayOfWeek
+  // - tm_yday dayOfYear
+  // - tm_isd stBST
   baseTm.tm_mon -= 1;     // Adjust for unix zero-based months
   baseTm.tm_year -= 1900; // Adjust for year starting at 1900
-  baseTm.tm_isdst = 1;
-
-  // find day of week, make time_t
+  baseTm.tm_isdst = -1;   // look for BST
   return mktime (&baseTm);
-  }
-//}}}
-//{{{
-static uint32_t getTimeSecs (string str) {
-
-  uint16_t hour = ((str[11] - '0') * 10) + (str[12] - '0');
-  uint16_t min =  ((str[14] - '0') * 10) + (str[15] - '0');
-  uint16_t sec =  ((str[17] - '0') * 10) + (str[18] - '0');
-  return (hour * 60 * 60) + (min * 60) + sec;
   }
 //}}}
 
 class cHls {
 public:
   //{{{
-  cHls (int chan, bool bst) : mHlsChan (chan), mTzSecs(bst ? 3600 : 0) {
+  cHls (int chan, int daylightSecs) : mHlsChan (chan), mDaylightSecs(daylightSecs) {
     mDecoder = new cAacDecoder();
     }
   //}}}
@@ -154,7 +150,7 @@ public:
   //}}}
   //{{{
   uint32_t getPlayTzSec() {
-    return uint32_t (mPlaySample / kSamplesPerSec) + mTzSecs;
+    return uint32_t (mPlaySample / kSamplesPerSec) + mDaylightSecs;
     }
   //}}}
   //{{{
@@ -167,16 +163,11 @@ public:
            dec(secsSinceMidnight % 60, 2, '0');
     }
   //}}}
-  //{{{
-  void setTzSecs (int secs) {
-    mTzSecs = secs;
-    }
-  //}}}
 
   //{{{
   void setPlaySample (double sample) {
     mPlaySample = sample;
-    mPlayTime = uint32_t (mPlaySample / kSamplesPerSec) + mTzSecs;
+    mPlayTime = uint32_t (mPlaySample / kSamplesPerSec) + mDaylightSecs;
     }
   //}}}
   //{{{
@@ -558,7 +549,7 @@ private:
     mChan = chan;
     mBitrate = bitrate;
 
-    mHost = http.getRedirectable ("as-hls-uk-live.akamaized.net", getM3u8path());
+    mHost = http.getRedirectable (kSrc, getM3u8path());
 
     // find #EXT-X-MEDIA-SEQUENCE in .m3u8, point to seqNum string, extract seqNum from playListBuf
     auto extSeq = strstr ((char*)http.getContent(), "#EXT-X-MEDIA-SEQUENCE:") + strlen ("#EXT-X-MEDIA-SEQUENCE:");
@@ -567,14 +558,16 @@ private:
     mBaseSeqNum = atoi (extSeq) + 3;
 
     // point to #EXT-X-PROGRAM-DATE-TIME dateTime str, parse it time_t and seconds
-    auto extDateTimePtr =
+    auto extDateTimeLine =
       strstr (extSeqEnd + 1, "#EXT-X-PROGRAM-DATE-TIME:") + strlen ("#EXT-X-PROGRAM-DATE-TIME:");
-    auto extDateTimeString = string(extDateTimePtr, size_t(28));
-    cLog::log (LOGNOTICE, "extDateTime " + extDateTimeString);
+    auto endOfLine =  strstr (extDateTimeLine + 1, "\n");
+    auto extDateTimeString = string(extDateTimeLine, size_t(endOfLine - extDateTimeLine));
+    cLog::log (LOGNOTICE, "extDateTime - " + extDateTimeString);
 
     // z means zero offset from UTC
-    mBaseTime = getTime (extDateTimeString) + mTzSecs;
-    mBaseFrame = ((getTimeSecs (extDateTimeString) - kExtTimeOffset) * kSamplesPerSec) / kSamplesPerFrame;
+    uint32_t secsSinceMidnight = 0;
+    mBaseTime = getTimeFromIso (extDateTimeString, secsSinceMidnight) + mDaylightSecs;
+    mBaseFrame = ((secsSinceMidnight - kBaseTimeCorrectionSecs) * kSamplesPerSec) / kSamplesPerFrame;
 
     http.freeContent();
 
@@ -641,7 +634,7 @@ private:
 
   cAacDecoder* mDecoder = 0;
 
-  int mTzSecs;
+  int mDaylightSecs;
   string mDateTime;
   uint32_t mBaseFrame = 0;
   uint32_t mBaseSeqNum = 0;
