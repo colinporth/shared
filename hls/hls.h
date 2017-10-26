@@ -14,6 +14,10 @@ const int kBaseTimeCorrectionSecs = 17;
 const uint16_t kFramesPerChunk = 300;
 const uint16_t kSamplesPerFrame = 1024;
 const uint16_t kSamplesPerSec = 48000;
+
+const float kFramesPerSecond = 48000.0f / 1024.f;
+const float kSecondsPerFrame = 1024.0f/ 48000.0f;
+
 const float kSamplesPerSecF   = kSamplesPerSec;
 const double kSamplesPerSecD  = kSamplesPerSec;
 
@@ -25,32 +29,6 @@ const float kDefaultVolume = 0.8f;
 const int kMaxZoom = 4;
 const float kNormalZoom = 1;
 const int kPeakDecimate = 4;
-//}}}
-
-//{{{
-static time_t getTimeFromIso (string str, uint32_t& secsSinceMidnight) {
-//parse ISO time format from string
-// Check for format: YYYY:MM:DD HH:MM:SS format.
-// Date and time normally separated by a space, but also seen a ':' or 'T' there, so
-// skip the middle space with '%*c' so it can be any character.
-// trailing timezone Z, or +-num ignored for now
-
-  tm baseTm;
-  baseTm.tm_wday = -1;
-  int a = sscanf (str.c_str(), "%d%*c%d%*c%d%*c%d:%d:%d",
-                  &baseTm.tm_year, &baseTm.tm_mon, &baseTm.tm_mday,
-                  &baseTm.tm_hour, &baseTm.tm_min, &baseTm.tm_sec);
-  secsSinceMidnight = (baseTm.tm_hour * 60 * 60) + (baseTm.tm_min * 60) + baseTm.tm_sec;
-
-  // make time_t, fill in
-  // - tm_wday dayOfWeek
-  // - tm_yday dayOfYear
-  // - tm_isd stBST
-  baseTm.tm_mon -= 1;     // Adjust for unix zero-based months
-  baseTm.tm_year -= 1900; // Adjust for year starting at 1900
-  baseTm.tm_isdst = -1;   // look for BST
-  return mktime (&baseTm);
-  }
 //}}}
 
 class cHls {
@@ -166,8 +144,11 @@ public:
 
   //{{{
   void setPlaySample (double sample) {
+
     mPlaySample = sample;
-    mPlayTime = uint32_t (mPlaySample / kSamplesPerSec) + mDaylightSecs;
+
+    // convert to timePoint
+    mPlayTimePoint = floor<date::days>(mBaseTimePoint) + chrono::seconds (int(mPlaySample / kSamplesPerSec));
     }
   //}}}
   //{{{
@@ -315,7 +296,8 @@ public:
   float mVolume = kDefaultVolume;
 
   time_t mBaseTime;
-  time_t mPlayTime;
+  chrono::time_point<chrono::system_clock> mBaseTimePoint;
+  chrono::time_point<chrono::system_clock> mPlayTimePoint;
 
   string mImagePid;
   uint8_t* mContent = nullptr;
@@ -564,10 +546,13 @@ private:
     auto extDateTimeString = string(extDateTimeLine, size_t(endOfLine - extDateTimeLine));
     cLog::log (LOGNOTICE, "extDateTime - " + extDateTimeString);
 
-    // z means zero offset from UTC
-    uint32_t secsSinceMidnight = 0;
-    mBaseTime = getTimeFromIso (extDateTimeString, secsSinceMidnight) + mDaylightSecs;
-    mBaseFrame = ((secsSinceMidnight - kBaseTimeCorrectionSecs) * kSamplesPerSec) / kSamplesPerFrame;
+    // parse ISO time format from string
+    istringstream inputStream (extDateTimeString);
+    inputStream >> date::parse ("%FT%T", mBaseTimePoint);
+
+    auto datePoint = floor<date::days>(mBaseTimePoint);
+    auto secsSinceMidnight = chrono::duration_cast<chrono::seconds>(mBaseTimePoint - datePoint);
+    mBaseFrame = uint32_t((uint32_t(secsSinceMidnight.count()) - kBaseTimeCorrectionSecs) * kFramesPerSecond);
 
     http.freeContent();
 
