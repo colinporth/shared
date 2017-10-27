@@ -3,6 +3,7 @@
 //{{{  includes
 #include "../utils/utils.h"
 #include "../utils/cLog.h"
+#include "../utils/date.h"
 
 #include "../teensyAac/cAacDecoder.h"
 //}}}
@@ -148,7 +149,7 @@ public:
     mPlaySample = sample;
 
     // convert to timePoint
-    mPlayTimePoint = floor<date::days>(mBaseTimePoint) + chrono::seconds (int(mPlaySample / kSamplesPerSec));
+    mPlayTimePoint = floor<date::days>(mBaseTimePoint) + chrono::milliseconds (int(mPlaySample * 1000/ kSamplesPerSec));
     }
   //}}}
   //{{{
