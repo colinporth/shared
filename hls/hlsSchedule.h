@@ -64,7 +64,7 @@ public:
     for (auto& element : schedule["schedule"]["day"]["broadcasts"].GetArray()) {
       auto item = new cScheduleItem();
       auto broadcast = element.GetObject();
-      item->mStart    = getTime (broadcast["start"].GetString());
+      //item->mStart    = getTime (broadcast["start"].GetString());
       item->mDuration = broadcast["duration"].GetInt();
       if (broadcast["programme"]["display_titles"]["title"].IsString())
         item->mTitle    = broadcast["programme"]["display_titles"]["title"].GetString();
