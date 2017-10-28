@@ -23,7 +23,7 @@ public:
 
   ~cLog() { close(); }
 
-  static bool init (enum eLogLevel logLevel, bool buffer = false, std::string path = "");
+  static bool init (std::string title, enum eLogLevel logLevel, bool buffer = false, std::string path = "");
   static void close();
 
   static enum eLogLevel getLogLevel();

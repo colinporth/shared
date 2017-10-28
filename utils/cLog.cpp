@@ -104,7 +104,7 @@ FILE* mFile = NULL;
 #endif
 
 //{{{
-bool cLog::init (enum eLogLevel logLevel, bool buffer, string path) {
+bool cLog::init (string title, enum eLogLevel logLevel, bool buffer, string path) {
 
   #ifdef _WIN32
     hStdOut = GetStdHandle (STD_OUTPUT_HANDLE);
@@ -129,6 +129,8 @@ bool cLog::init (enum eLogLevel logLevel, bool buffer, string path) {
       mFile = fopen (strLogFile.c_str(), "wb");
       }
     }
+
+  log (LOGTITLE, title);
 
   return mFile != NULL;
   }
