@@ -157,9 +157,9 @@ void cLog::log (enum eLogLevel logLevel, string logStr) {
   if (mFile) {
     auto datePoint = floor<date::days>(timePoint);
     auto timeOfDay = date::make_time (chrono::duration_cast<chrono::microseconds>(timePoint - datePoint));
-    auto h = timeOfDay.hours().count() + (timeOfDay.minutes().count() / 60.0f);
-    auto m = timeOfDay.minutes().count() + (timeOfDay.seconds().count() / 60.0f);
-    auto s = timeOfDay.seconds().count() + (timeOfDay.subseconds().count() / 1000.0f);
+    auto h = timeOfDay.hours().count();
+    auto m = timeOfDay.minutes().count();
+    auto s = timeOfDay.seconds().count();
     auto subSec = timeOfDay.subseconds().count();
 
     char buffer[40];
