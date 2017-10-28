@@ -1,53 +1,11 @@
 // cLog.cpp - simple logging
 //{{{  includes
-#ifdef _WIN32
-  #define _CRT_SECURE_NO_WARNINGS
-  #define NOMINMAX
+#define _CRT_SECURE_NO_WARNINGS
+#define NOMINMAX
 
-  #include "windows.h"
-  //{{{
-  void gettimeofday (struct timeval* tp, struct timezone* tzp) {
-  // timezone information is stored outside the kernel so tzp isn't used anymore.
-  // Note: this function is not for Win32 high precision timing purpose. See * elapsed_time().
+#include "windows.h"
 
-    SYSTEMTIME system_time;
-    GetSystemTime (&system_time);
-
-    FILETIME file_time;
-    SystemTimeToFileTime (&system_time, &file_time);
-
-    ULARGE_INTEGER ularge;
-    ularge.LowPart = file_time.dwLowDateTime;
-    ularge.HighPart = file_time.dwHighDateTime;
-
-    tp->tv_sec = (long) ((ularge.QuadPart - 116444736000000000ULL) / 10000000L);
-
-    // actually millisecs
-    tp->tv_usec = (long) system_time.wMilliseconds;
-    }
-  //}}}
-#else
-  #include <stdint.h>
-  #include <string.h>
-  #include <time.h>
-  #include <cstdarg>
-  #include <memory>
-  #include <sys/stat.h>
-  #include <sys/time.h>
-  //{{{
-  typedef struct _SYSTEMTIME {
-    unsigned short wYear;
-    unsigned short wMonth;
-    unsigned short wDayOfWeek;
-    unsigned short wDay;
-    unsigned short wHour;
-    unsigned short wMinute;
-    unsigned short wSecond;
-    unsigned short wMilliseconds;
-    } SYSTEMTIME;
-  //}}}
-#endif
-
+#include "date.h"
 #include "cLog.h"
 
 #include <algorithm>
@@ -62,7 +20,6 @@
 
 using namespace std;
 //}}}
-const int kMaxBuffer = 10000;
 //{{{  const
 const char levelNames[][6] =    { "Title",
                                   "Note-",
@@ -90,6 +47,7 @@ const char levelColours[][12] = { "\033[38;5;208m",   // note   orange
 
 const char* postfix =             "\033[m\n";
 //}}}
+const int kMaxBuffer = 10000;
 
 enum eLogLevel mLogLevel = LOGERROR;
 
@@ -97,6 +55,7 @@ mutex mLinesMutex;
 deque<cLog::cLine> mLines;
 
 bool mBuffer = false;
+int mDaylightOffset = 0;
 FILE* mFile = NULL;
 
 #ifdef _WIN32
@@ -160,43 +119,51 @@ void cLog::setLogLevel (enum eLogLevel logLevel) {
 //}}}
 
 //{{{
+void cLog::setDaylightOffset (int daylightOffset) {
+  mDaylightOffset = daylightOffset;
+  }
+//}}}
+
+//{{{
 void cLog::log (enum eLogLevel logLevel, string logStr) {
 
   //  get time
-  struct timeval now;
-  gettimeofday (&now, NULL);
+  auto timePoint = chrono::system_clock::now() + chrono::seconds (3600);
 
   lock_guard<mutex> lockGuard (mLinesMutex);
 
   if (mBuffer) {
-    uint32_t timeMs = ((now.tv_sec % (24 * 60 * 60)) * 1000) + now.tv_usec;
-    mLines.push_front (cLine (logLevel, timeMs, logStr));
+    mLines.push_front (cLine (logLevel, timePoint, logStr));
     if (mLines.size() > kMaxBuffer)
       mLines.pop_back();
     }
 
   else if (logLevel <= mLogLevel) {
-    auto hour = kBst + (now.tv_sec/3600) % 24;
-    auto minute = (now.tv_sec/60) % 60;
-    auto second = now.tv_sec % 60;
-    auto subSec = now.tv_usec;
+    auto datePoint = floor<date::days>(timePoint);
+    auto timeOfDay = date::make_time (chrono::duration_cast<chrono::microseconds>(timePoint - datePoint));
+    auto h = timeOfDay.hours().count();
+    auto m = timeOfDay.minutes().count();
+    auto s = timeOfDay.seconds().count();
+    auto subSec = timeOfDay.subseconds().count();
 
     // write log line
     char buffer[40];
-    sprintf (buffer, prefixFormat, hour, minute, second, subSec, levelColours[logLevel]);
+    sprintf (buffer, prefixFormat, h, m, s, subSec, levelColours[logLevel]);
     fputs (buffer, stdout);
     fputs (logStr.c_str(), stdout);
     fputs (postfix, stdout);
     }
 
   if (mFile) {
-    auto hour = kBst + (now.tv_sec / 3600) % 24;
-    auto minute = (now.tv_sec / 60) % 60;
-    auto second = now.tv_sec % 60;
-    auto subSec = now.tv_usec;
+    auto datePoint = floor<date::days>(timePoint);
+    auto timeOfDay = date::make_time (chrono::duration_cast<chrono::microseconds>(timePoint - datePoint));
+    auto h = timeOfDay.hours().count() + (timeOfDay.minutes().count() / 60.0f);
+    auto m = timeOfDay.minutes().count() + (timeOfDay.seconds().count() / 60.0f);
+    auto s = timeOfDay.seconds().count() + (timeOfDay.subseconds().count() / 1000.0f);
+    auto subSec = timeOfDay.subseconds().count();
 
     char buffer[40];
-    sprintf (buffer, prefixFormat, hour, minute, second, subSec, levelNames[logLevel]);
+    sprintf (buffer, prefixFormat, h, m, s, subSec, levelNames[logLevel]);
     fputs (buffer, mFile);
     fputc (' ', mFile);
     fputs (logStr.c_str(), mFile);

@@ -1,7 +1,6 @@
 #pragma once
-#include <stdio.h>
 #include <string>
-#include <time.h>
+#include <chrono>
 
 enum eLogLevel { LOGTITLE, LOGNOTICE, LOGERROR, LOGINFO, LOGINFO1, LOGINFO2, LOGINFO3, LOGMAX };
 const int kBst = 1;
@@ -12,11 +11,11 @@ public:
   class cLine {
   public:
     cLine() {}
-    cLine (eLogLevel logLevel, uint32_t timeMs, std::string str) :
-      mLogLevel(logLevel), mTimeMs(timeMs), mStr(str) {}
+    cLine (eLogLevel logLevel, std::chrono::time_point<std::chrono::system_clock> timePoint, std::string str) :
+      mLogLevel(logLevel), mTimePoint(timePoint), mStr(str) {}
 
     eLogLevel mLogLevel;
-    uint32_t mTimeMs;
+    std::chrono::time_point<std::chrono::system_clock> mTimePoint;
     std::string mStr;
     };
   //}}}
@@ -24,6 +23,7 @@ public:
   ~cLog() { close(); }
 
   static bool init (std::string title, enum eLogLevel logLevel, bool buffer = false, std::string path = "");
+  static void setDaylightOffset (int offset);
   static void close();
 
   static enum eLogLevel getLogLevel();
