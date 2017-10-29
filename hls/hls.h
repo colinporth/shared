@@ -92,19 +92,19 @@ public:
   float getPlaySpeedSamples (double sample, uint32_t& seqNum, uint32_t& numSamples, int16_t* dstSamples, float speed) {
   // resample playSample at speed into dstSamples returing samples consumed
 
-    float src = 0.0f;
+    float src = 0.f;
     auto srcSample = getPlaySamples (sample, seqNum, numSamples);
 
-    if (srcSample && (speed > 0) && (speed <= 2.0f)) {
+    if (srcSample && (speed > 0) && (speed <= 2.f)) {
       for (int i = 0; i < 1024; i++) {
         float subSrc = src - trunc(src);
-        float invSubSrc = 1.0f - subSrc;
+        float invSubSrc = 1.f - subSrc;
         *dstSamples++ = int16_t(((*(srcSample + int(src)*2) * invSubSrc) + (*(srcSample + int(src+1)*2) * subSrc)) / 2);
         *dstSamples++ = int16_t(((*(srcSample + int(src)*2 + 1) * invSubSrc) + (*(srcSample + int(src+1)*2+1) * subSrc)) / 2);
         src += speed;
         }
       }
-    else if (srcSample && (speed < 0) && (speed > -2.0f)) {
+    else if (srcSample && (speed < 0) && (speed > -2.f)) {
       // reverse
       srcSample += 2048;
       for (int i = 0; i < 1024; i++) {
