@@ -38,7 +38,7 @@ class cHls {
 public:
   //{{{
   cHls (int chan, int bitrate, int daylightSecs) :
-      mHlsChan (chan), mHlsBitrate(bitrate), mDaylightSecs(daylightSecs) {
+      mChan (chan), mBitrate(bitrate), mDaylightSecs(daylightSecs) {
     mDecoder = new cAacDecoder();
     }
   //}}}
@@ -190,10 +190,12 @@ public:
   //}}}
 
   //{{{
-  void setChan (cHttp& http, int chan, int bitrate) {
+  void setChan (cHttp& http, int chan) {
 
     clearChunks();
-    loadChan (http, chan, bitrate);
+
+    mChan = chan;
+    loadChan (http);
 
     mPlaying = true;
     mScrubbing = false;
@@ -242,16 +244,14 @@ public:
   //}}}
 
   //{{{  vars
-  bool mChanChanged = true;
-  int mHlsChan = kDefaultChan;
-  int mHlsBitrate = kDefaultBitrate;
-
-  time_t mBaseTime;
   chrono::time_point<chrono::system_clock> mBaseTimePoint;
   chrono::time_point<chrono::system_clock> mPlayTimePoint;
 
-  bool mVolumeChanged = true;
+  int mChan = kDefaultChan;
+  bool mChanChanged = true;
+
   float mVolume = kDefaultVolume;
+  bool mVolumeChanged = true;
   //}}}
 
 private:
@@ -416,6 +416,8 @@ private:
 
     // vars
     uint32_t mSeqNum = 0;
+    chrono::time_point<chrono::system_clock> mTimePoint;
+
     uint16_t mSrcFramesLoaded = 0;
     bool mLoaded = false;
     bool mLoading = false;
@@ -529,13 +531,11 @@ private:
     }
   //}}}
   //{{{
-  void loadChan (cHttp& http, int chan, int bitrate) {
+  void loadChan (cHttp& http) {
 
     const string kSrc = "as-hls-uk-live.akamaized.net";
     const int kBaseTimeSecsOffset = 17;
 
-    mChan = chan;
-    mBitrate = bitrate;
     mHost = http.getRedirectable (kSrc, getM3u8path());
 
     // point to #EXT-X-MEDIA-SEQUENCE: sequence num str
@@ -566,12 +566,10 @@ private:
     }
   //}}}
 
+int mBitrate = kDefaultBitrate;
   //{{{  vars
   string mHost;
   cChunk mChunks[kMaxChunks];
-
-  uint16_t mChan = 0;
-  uint32_t mBitrate = kDefaultBitrate;
 
   cAacDecoder* mDecoder = 0;
 
