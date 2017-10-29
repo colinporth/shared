@@ -201,12 +201,6 @@ public:
     mChanChanged = false;
     }
   //}}}
-  //{{{
-  void clearChunks() {
-    for (auto chunk = 0; chunk < kMaxChunks; chunk++)
-      mChunks[chunk].clear();
-    }
-  //}}}
 
   //{{{
   bool loadAtPlayFrame (cHttp& http) {
@@ -261,9 +255,6 @@ public:
   //}}}
 
 private:
-  const int kBaseTimeSecsOffset = 17;
-  const string kSrc = "as-hls-uk-live.akamaized.net";
-
   //{{{
   class cChunk {
   public:
@@ -439,6 +430,12 @@ private:
     uint16_t mSrcPeakFrames = 0;
     };
   //}}}
+  //{{{
+  void clearChunks() {
+    for (auto chunk = 0; chunk < kMaxChunks; chunk++)
+      mChunks[chunk].clear();
+    }
+  //}}}
 
   //{{{
   string getPathRoot() {
@@ -533,7 +530,9 @@ private:
   //}}}
   //{{{
   void loadChan (cHttp& http, int chan, int bitrate) {
-  // load chan
+
+    const string kSrc = "as-hls-uk-live.akamaized.net";
+    const int kBaseTimeSecsOffset = 17;
 
     mChan = chan;
     mBitrate = bitrate;
