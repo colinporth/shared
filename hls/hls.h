@@ -245,6 +245,7 @@ public:
 
   //{{{  vars
   chrono::time_point<chrono::system_clock> mBaseTimePoint;
+  chrono::time_point<chrono::system_clock> mBaseDatePoint;
   chrono::time_point<chrono::system_clock> mPlayTimePoint;
 
   int mChan = kDefaultChan;
@@ -260,8 +261,9 @@ private:
   public:
     //{{{
     cChunk() {
-      mSamples = (int16_t*)bigMalloc ((kFramesPerChunk+1) * 1024 * 2 * 2, "chunkSamples");     // 300 frames * 1024 samples * 2 chans * 2 bytes
+      mSamples = (int16_t*)bigMalloc ((kFramesPerChunk+1) * 1024 * 2 * 2, "chunkSamples"); // 300 frames * 1024 samples * 2 chans * 2 bytes
       memset (mSamples, 0, (kFramesPerChunk+1) * 1024 * 2 * 2);
+
       mPeakSamples = (uint8_t*)bigMalloc (kMaxZoom * kFramesPerChunk * 2, "chunkPeak"); // 300 frames of L,R uint8_t peak
       memset (mPeakSamples, 0, kMaxZoom * kFramesPerChunk * 2);
       }
@@ -527,7 +529,7 @@ private:
     mPlaySample = sample;
 
     // convert mPlaySample to wall clock time
-    mPlayTimePoint = floor<date::days>(mBaseTimePoint) + chrono::milliseconds (int(mPlaySample * 1000/ kSamplesPerSec));
+    mPlayTimePoint = mBaseDatePoint + chrono::milliseconds (int(mPlaySample * 1000 / kSamplesPerSec));
     }
   //}}}
   //{{{
@@ -556,8 +558,8 @@ private:
     istringstream inputStream (extDateTimeString);
     inputStream >> date::parse ("%FT%T", mBaseTimePoint);
 
-    const auto datePoint = floor<date::days>(mBaseTimePoint);
-    const auto secsSinceMidnight = chrono::duration_cast<chrono::seconds>(mBaseTimePoint - datePoint);
+    mBaseDatePoint = floor<date::days>(mBaseTimePoint);
+    const auto secsSinceMidnight = chrono::duration_cast<chrono::seconds>(mBaseTimePoint - mBaseDatePoint);
     mBaseFrame = uint32_t((uint32_t(secsSinceMidnight.count()) - kBaseTimeSecsOffset) * kFramesPerSecond);
 
     http.freeContent();
