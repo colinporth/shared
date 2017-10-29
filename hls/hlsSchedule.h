@@ -112,3 +112,44 @@ private:
   std::vector<cScheduleItem*> mSchedule;
   };
 //}}}
+
+//string mImagePid;
+//uint8_t* mContent = nullptr;
+//int mContentSize = 0;
+//bool mPicChanged = false;
+//int mPicValue = 0;
+//cSchedule mSchedule;
+//mSchedule.clear();
+//mSchedule.load (http, chan);
+//{{{
+//cScheduleItem* findItem (uint32_t sec) {
+  //return mSchedule.findItem (sec);
+  //}
+//}}}
+//{{{
+//void loadPicAtPlayFrame (cHttp& http) {
+
+  //auto item = findItem (getPlayTzSec());
+  //auto imagePid = item ? item->mImagePid : "";
+  //if (imagePid != mImagePid) {
+    //if (imagePid.empty())
+      //mContent = nullptr;
+    //else {
+      //http.get ("ichef.bbci.co.uk", "images/ic/160x90/" + imagePid + ".jpg");
+      //cLog::log (LOGINFO1, "loadPicAtPlayFrame imagePid:%s size:%d", imagePid.c_str(), http.getContentSize());
+      //if (http.getContent()) {
+        //new cJpegPic (3, http.getContent());
+        //auto temp = (uint8_t*)bigMalloc (http.getContentSize(), "cHls::jpegPic");
+        //memcpy (temp, http.getContent(), http.getContentSize());
+        //mContentSize = http.getContentSize();
+        //mContent = temp;
+        //http.freeContent();
+        //cLog::log (LOGINFO1, "- loaded imagePid:%s size:%d", imagePid.c_str(), http.getContentSize());
+        //}
+      //else
+        //mContent = nullptr;
+      //}
+    //mImagePid = imagePid;
+    //}
+  //}
+//}}}

@@ -7,35 +7,38 @@
 
 #include "../teensyAac/cAacDecoder.h"
 //}}}
-//{{{  static const
+//{{{  const
+const float kDefaultVolume = 0.8f;
 const uint32_t kDefaultChan = 4;
-const string kSrc = "as-hls-uk-live.akamaized.net";
-const int kBaseTimeCorrectionSecs = 17;
+const uint32_t kDefaultBitrate = 128000;
+
+const int kPool [] = { 0, 7, 7, 7, 6, 6, 6 };
+
+const char* kPathNames[] = { "none", "bbc_radio_one",    "bbc_radio_two",       "bbc_radio_three",
+                                     "bbc_radio_fourfm", "bbc_radio_five_live", "bbc_6music" };
 
 const uint16_t kFramesPerChunk = 300;
 const uint16_t kSamplesPerFrame = 1024;
 const uint16_t kSamplesPerSec = 48000;
 
-const float kFramesPerSecond = 48000.0f / 1024.f;
-const float kSecondsPerFrame = 1024.0f/ 48000.0f;
-
-const float kSamplesPerSecF   = kSamplesPerSec;
-const double kSamplesPerSecD  = kSamplesPerSec;
-
-//const uint32_t kDefaultBitrate = 48000;
-//const uint32_t kDefaultBitrate = 96000;
-const uint32_t kDefaultBitrate = 128000;
-const float kDefaultVolume = 0.8f;
+const float kSamplesPerSecF = kSamplesPerSec;
+const double kSamplesPerSecD = kSamplesPerSec;
+const float kFramesPerSecond = kSamplesPerSecF / kSamplesPerFrame;
+const float kSecondsPerFrame = kSamplesPerFrame / kSamplesPerSecF;
 
 const int kMaxZoom = 4;
 const float kNormalZoom = 1;
 const int kPeakDecimate = 4;
+
+const int kMaxChunkRange = 1;
+const int kMaxChunks = 1 + (2*kMaxChunkRange);
 //}}}
 
 class cHls {
 public:
   //{{{
-  cHls (int chan, int daylightSecs) : mHlsChan (chan), mDaylightSecs(daylightSecs) {
+  cHls (int chan, int bitrate, int daylightSecs) :
+      mHlsChan (chan), mHlsBitrate(bitrate), mDaylightSecs(daylightSecs) {
     mDecoder = new cAacDecoder();
     }
   //}}}
@@ -48,7 +51,7 @@ public:
   void operator delete (void *ptr) { bigFree (ptr); }
 
   //{{{
-  void getChunkLoad (uint16_t chunk, bool& loaded, bool& loading, int& offset) {
+  void getChunkLoad (int chunk, bool& loaded, bool& loading, int& offset) {
     loaded = mChunks[chunk].getLoaded();
     loading = mChunks[chunk].getLoading();
     offset = getSeqNumOffset (mChunks[chunk].getSeqNum());
@@ -63,8 +66,8 @@ public:
     numSamples = 0;
 
     uint32_t seqNum;
-    uint16_t chunk;
-    uint16_t chunkFrame;
+    int chunk;
+    int chunkFrame;
     uint32_t subFrameSamples;
 
     return findFrame (sample, seqNum, chunk, chunkFrame, subFrameSamples) ?
@@ -76,8 +79,8 @@ public:
 
     numSamples = 0;
 
-    uint16_t chunk;
-    uint16_t chunkFrame;
+    int chunk;
+    int chunkFrame;
     uint32_t subFrameSamples;
 
     return findFrame (sample, seqNum, chunk, chunkFrame, subFrameSamples) ?
@@ -135,36 +138,11 @@ public:
   //{{{
   string getPlayTimeTzStr () {
 
-    uint32_t secsSinceMidnight = getPlayTzSec();
+    auto secsSinceMidnight = getPlayTzSec();
 
     return dec(secsSinceMidnight / (60*60)) + ':' +
            dec((secsSinceMidnight / 60) % 60, 2, '0') + ':' +
            dec(secsSinceMidnight % 60, 2, '0');
-    }
-  //}}}
-
-  //{{{
-  void setPlaySample (double sample) {
-
-    mPlaySample = sample;
-
-    // convert to timePoint
-    mPlayTimePoint = floor<date::days>(mBaseTimePoint) + chrono::milliseconds (int(mPlaySample * 1000/ kSamplesPerSec));
-    }
-  //}}}
-  //{{{
-  void incPlaySample (double samples) {
-    setPlaySample (mPlaySample + samples);
-    }
-  //}}}
-  //{{{
-  void incPlayFrame (int incFrames) {
-    setPlaySample (mPlaySample + (incFrames * kSamplesPerFrame));
-    }
-  //}}}
-  //{{{
-  void incPlaySec (int secs) {
-    setPlaySample (mPlaySample + (secs * kSamplesPerSec));
     }
   //}}}
 
@@ -196,12 +174,26 @@ public:
   //}}}
 
   //{{{
+  void incPlaySample (double samples) {
+    setPlaySample (mPlaySample + samples);
+    }
+  //}}}
+  //{{{
+  void incPlayFrame (int incFrames) {
+    setPlaySample (mPlaySample + (incFrames * kSamplesPerFrame));
+    }
+  //}}}
+  //{{{
+  void incPlaySec (int secs) {
+    setPlaySample (mPlaySample + (secs * kSamplesPerSec));
+    }
+  //}}}
+
+  //{{{
   void setChan (cHttp& http, int chan, int bitrate) {
 
     clearChunks();
-    //mSchedule.clear();
     loadChan (http, chan, bitrate);
-    //mSchedule.load (http, chan);
 
     mPlaying = true;
     mScrubbing = false;
@@ -211,8 +203,8 @@ public:
   //}}}
   //{{{
   void clearChunks() {
-    for (auto i = 0; i < 3; i++)
-      mChunks[i].clear();
+    for (auto chunk = 0; chunk < kMaxChunks; chunk++)
+      mChunks[chunk].clear();
     }
   //}}}
 
@@ -222,67 +214,37 @@ public:
 
     bool ok = true;
 
-    uint32_t seqNum = getSeqNumFromFrame (getPlayFrame());
+    auto seqNum = getSeqNumFromFrame (getPlayFrame());
 
-    uint16_t chunk;
+    int chunk;
     if (!findSeqNumChunk (seqNum, 0, chunk)) {
-      cLog::log (LOGINFO, "loadAtPlayFrame seqNum " +
-                          to_string (seqNum) + " at " + getPlayTimeTzStr());
+      cLog::log (LOGINFO, "loading " + dec(seqNum) + " at " + getPlayTimeTzStr());
       ok &= mChunks[chunk].load (http, mDecoder, mHost, getTsPath (seqNum), seqNum, mBitrate);
-      cLog::log (LOGINFO, "loaded seqNum:%d", seqNum);
+      cLog::log (LOGINFO, "loaded");
       }
     if (mChanChanged)
       return true;
 
-    if (!findSeqNumChunk (seqNum, 1, chunk)) {
-      cLog::log (LOGINFO, "loadAtPlayFrame seqNum " +
-                           to_string (seqNum+1) + " at " + getPlayTimeTzStr());
-      ok &= mChunks[chunk].load (http, mDecoder, mHost, getTsPath (seqNum+1), seqNum+1, mBitrate);
-      cLog::log (LOGINFO, "loaded seqNum:%d", seqNum+1);
-      }
-    if (mChanChanged)
-      return true;
+    for (auto range = 1; range <= kMaxChunkRange; range++) {
+      if (!findSeqNumChunk (seqNum, range, chunk)) {
+        cLog::log (LOGINFO, "loading " + dec(seqNum+range) + " at " + getPlayTimeTzStr());
+        ok &= mChunks[chunk].load (http, mDecoder, mHost, getTsPath (seqNum+range), seqNum+range, mBitrate);
+        cLog::log (LOGINFO, "loaded");
+        }
+      if (mChanChanged)
+        return true;
 
-    if (!findSeqNumChunk (seqNum, -1, chunk)) {
-      cLog::log (LOGINFO, "loadAtPlayFrame seqNum " +
-                           to_string (seqNum-1) + " at " + getPlayTimeTzStr());
-      ok &= mChunks[chunk].load (http, mDecoder, mHost, getTsPath (seqNum-1), seqNum-1, mBitrate);
-      cLog::log (LOGINFO, "loaded seqNum:%d", seqNum-1);
+      if (!findSeqNumChunk (seqNum, -range, chunk)) {
+        cLog::log (LOGINFO, "loading " + dec(seqNum-range) + " at " + getPlayTimeTzStr());
+        ok &= mChunks[chunk].load (http, mDecoder, mHost, getTsPath (seqNum-range), seqNum-range, mBitrate);
+        cLog::log (LOGINFO, "loaded");
+        }
+      if (mChanChanged)
+        return true;
       }
+
     return ok;
     }
-  //}}}
-  //{{{
-  //cScheduleItem* findItem (uint32_t sec) {
-    //return mSchedule.findItem (sec);
-    //}
-  //}}}
-  //{{{
-  //void loadPicAtPlayFrame (cHttp& http) {
-
-    //auto item = findItem (getPlayTzSec());
-    //auto imagePid = item ? item->mImagePid : "";
-    //if (imagePid != mImagePid) {
-      //if (imagePid.empty())
-        //mContent = nullptr;
-      //else {
-        //http.get ("ichef.bbci.co.uk", "images/ic/160x90/" + imagePid + ".jpg");
-        //cLog::log (LOGINFO1, "loadPicAtPlayFrame imagePid:%s size:%d", imagePid.c_str(), http.getContentSize());
-        //if (http.getContent()) {
-          //new cJpegPic (3, http.getContent());
-          //auto temp = (uint8_t*)bigMalloc (http.getContentSize(), "cHls::jpegPic");
-          //memcpy (temp, http.getContent(), http.getContentSize());
-          //mContentSize = http.getContentSize();
-          //mContent = temp;
-          //http.freeContent();
-          //cLog::log (LOGINFO1, "- loaded imagePid:%s size:%d", imagePid.c_str(), http.getContentSize());
-          //}
-        //else
-          //mContent = nullptr;
-        //}
-      //mImagePid = imagePid;
-      //}
-    //}
   //}}}
 
   //{{{  vars
@@ -290,22 +252,18 @@ public:
   int mHlsChan = kDefaultChan;
   int mHlsBitrate = kDefaultBitrate;
 
-  bool mPicChanged = false;
-  int mPicValue = 0;
-
-  bool mVolumeChanged = true;
-  float mVolume = kDefaultVolume;
-
   time_t mBaseTime;
   chrono::time_point<chrono::system_clock> mBaseTimePoint;
   chrono::time_point<chrono::system_clock> mPlayTimePoint;
 
-  string mImagePid;
-  uint8_t* mContent = nullptr;
-  int mContentSize = 0;
+  bool mVolumeChanged = true;
+  float mVolume = kDefaultVolume;
   //}}}
 
 private:
+  const int kBaseTimeSecsOffset = 17;
+  const string kSrc = "as-hls-uk-live.akamaized.net";
+
   //{{{
   class cChunk {
   public:
@@ -324,7 +282,6 @@ private:
       }
     //}}}
 
-    // gets
     bool getLoaded() { return mLoaded; }
     bool getLoading() { return mLoading; }
     uint32_t getSeqNum() { return mSeqNum; }
@@ -388,18 +345,20 @@ private:
     //{{{
     void clear() {
       mSeqNum = 0;
-      mSrcFramesLoaded = 0;
       mLoaded = false;
+      mLoading = false;
+      mSrcFramesLoaded = 0;
       }
     //}}}
-
     //{{{
     bool load (cHttp& http, cAacDecoder* decoder, string host, string path, uint32_t seqNum, uint32_t bitrate) {
 
       auto ok = true;
+
+      mLoaded = false;
       mLoading = true;
-      mSrcFramesLoaded = 0;
       mSrcPeakFrames = 0;
+      mSrcFramesLoaded = 0;
       mSeqNum = seqNum;
 
       auto response = http.get (host, path);
@@ -416,10 +375,6 @@ private:
         int bytesLeft = (int)(srcEnd-srcPtr);
         while (decode_res >= 0 && srcPtr < srcEnd) {
           decode_res = decoder->AACDecode (&srcPtr, &bytesLeft, samples);
-          //AACFrameInfo aacFrameInfo;
-          //AACGetLastFrameInfo (decoder, &aacFrameInfo);
-          //printf ("aacdecode %d %d %d %d %x\n",
-          //        decode_res, bytesLeft, aacFrameInfo.outputSamps, mSrcFramesLoaded, srcPtr);
           if (decode_res >= 0) {
             samples += kSamplesPerFrame * framesPerAacFrame * 2;
             mSrcFramesLoaded += framesPerAacFrame;
@@ -441,29 +396,30 @@ private:
 
   private:
     //{{{
-    uint8_t* packTsBuffer (uint8_t* ptr, uint8_t* endPtr) {
-    // pack transportStream to aac frames in same buffer
+    uint8_t* packTsBuffer (uint8_t* buf, uint8_t* bufEnd) {
+    // pack transportStream buf to aacFrames back into same buf
+    // return new end, shorter than bufEnd
 
-      auto toPtr = ptr;
-      while ((ptr < endPtr) && (*ptr++ == 0x47)) {
-        auto payStart = *ptr & 0x40;
-        auto pid = ((*ptr & 0x1F) << 8) | *(ptr+1);
-        auto headerBytes = (*(ptr+2) & 0x20) ? (4 + *(ptr+3)) : 3;
-        ptr += headerBytes;
+      auto packedBufEnd = buf;
+      while ((buf < bufEnd) && (*buf++ == 0x47)) {
+        auto payStart = *buf & 0x40;
+        auto pid = ((*buf & 0x1F) << 8) | *(buf+1);
+        auto headerBytes = (*(buf+2) & 0x20) ? (4 + *(buf+3)) : 3;
+        buf += headerBytes;
         auto tsFrameBytesLeft = 187 - headerBytes;
         if (pid == 34) {
-          if (payStart && !(*ptr) && !(*(ptr+1)) && (*(ptr+2) == 1) && (*(ptr+3) == 0xC0)) {
-            int pesHeaderBytes = 9 + *(ptr+8);
-            ptr += pesHeaderBytes;
+          if (payStart && !(*buf) && !(*(buf+1)) && (*(buf+2) == 1) && (*(buf+3) == 0xC0)) {
+            int pesHeaderBytes = 9 + *(buf+8);
+            buf += pesHeaderBytes;
             tsFrameBytesLeft -= pesHeaderBytes;
             }
-          memcpy (toPtr, ptr, tsFrameBytesLeft);
-          toPtr += tsFrameBytesLeft;
+          memcpy (packedBufEnd, buf, tsFrameBytesLeft);
+          packedBufEnd += tsFrameBytesLeft;
           }
-        ptr += tsFrameBytesLeft;
+        buf += tsFrameBytesLeft;
         }
 
-      return toPtr;
+      return packedBufEnd;
       }
     //}}}
 
@@ -487,13 +443,9 @@ private:
   //{{{
   string getPathRoot() {
 
-    const int kPool [] = { 0, 7, 7, 7, 6, 6, 6 };
-
-    const char* kPathNames[] = {
-      "none", "bbc_radio_one", "bbc_radio_two", "bbc_radio_three", "bbc_radio_fourfm", "bbc_radio_five_live", "bbc_6music" };
-
     // "pool_x/live/chanPathName/chanPathName.isml/chanPathName-audio=bitrate"
-    return "pool_" + dec(kPool[mChan]) + "/live/" + kPathNames[mChan] + '/' + kPathNames[mChan] +
+    return "pool_" + dec(kPool[mChan]) +
+           "/live/" + kPathNames[mChan] + '/' + kPathNames[mChan] +
            ".isml/" + kPathNames[mChan] + "-audio=" + dec(mBitrate);
     }
   //}}}
@@ -510,7 +462,7 @@ private:
 
   //{{{
   int getSeqNumOffset (uint32_t seqNum) {
-    uint32_t frame = uint32_t (getPlaySample()/ kSamplesPerFrame);
+    auto frame = uint32_t (getPlaySample() / kSamplesPerFrame);
     return seqNum - getSeqNumFromFrame (frame);
     }
   //}}}
@@ -527,82 +479,40 @@ private:
   //}}}
 
   //{{{
-  void loadChan (cHttp& http, int chan, int bitrate) {
-
-    mChan = chan;
-    mBitrate = bitrate;
-
-    mHost = http.getRedirectable (kSrc, getM3u8path());
-
-    // find #EXT-X-MEDIA-SEQUENCE in .m3u8, point to seqNum string, extract seqNum from playListBuf
-    auto extSeq = strstr ((char*)http.getContent(), "#EXT-X-MEDIA-SEQUENCE:") + strlen ("#EXT-X-MEDIA-SEQUENCE:");
-    auto extSeqEnd = strchr (extSeq, '\n');
-    *extSeqEnd = '\0';
-    mBaseSeqNum = atoi (extSeq) + 3;
-
-    // point to #EXT-X-PROGRAM-DATE-TIME dateTime str, parse it time_t and seconds
-    auto extDateTimeLine =
-      strstr (extSeqEnd + 1, "#EXT-X-PROGRAM-DATE-TIME:") + strlen ("#EXT-X-PROGRAM-DATE-TIME:");
-    auto endOfLine =  strstr (extDateTimeLine + 1, "\n");
-    auto extDateTimeString = string(extDateTimeLine, size_t(endOfLine - extDateTimeLine));
-    cLog::log (LOGNOTICE, "extDateTime - " + extDateTimeString);
-
-    // parse ISO time format from string
-    istringstream inputStream (extDateTimeString);
-    inputStream >> date::parse ("%FT%T", mBaseTimePoint);
-
-    auto datePoint = floor<date::days>(mBaseTimePoint);
-    auto secsSinceMidnight = chrono::duration_cast<chrono::seconds>(mBaseTimePoint - datePoint);
-    mBaseFrame = uint32_t((uint32_t(secsSinceMidnight.count()) - kBaseTimeCorrectionSecs) * kFramesPerSecond);
-
-    http.freeContent();
-
-    mPlaySample = double(mBaseFrame * kSamplesPerFrame);
-    }
-  //}}}
-
-  //{{{
-  bool findSeqNumChunk (uint32_t seqNum, int16_t offset, uint16_t& chunk) {
-  // return true if match found
-  // - if not, chunk = best reuse
-  // - reuse same seqNum chunk if diff bitrate ?
+  bool findSeqNumChunk (uint32_t seqNum, int seqNumOffset, int& chunk) {
+  // return true if seqNum+seqNumOffset chunk loaded
+  // - else return first stale chunk outside seqNum +- range
 
     // look for matching chunk
-    chunk = 0;
-    while (chunk < 3) {
-      if (seqNum + offset == mChunks[chunk].getSeqNum())
+    for (chunk = 0; chunk < kMaxChunks; chunk++)
+      if (seqNum + seqNumOffset == mChunks[chunk].getSeqNum())
         return true;
-      chunk++;
-      }
 
     // look for stale chunk
-    chunk = 0;
-    while (chunk < 3) {
-      if ((mChunks[chunk].getSeqNum() < seqNum-1) || (mChunks[chunk].getSeqNum() > seqNum+1))
+    for (chunk = 0; chunk < kMaxChunks; chunk++)
+      if ((mChunks[chunk].getSeqNum() < seqNum - kMaxChunkRange) ||
+          (mChunks[chunk].getSeqNum() > seqNum + kMaxChunkRange))
         return false;
-      chunk++;
-      }
 
     chunk = 0;
     return false;
     }
   //}}}
   //{{{
-  bool findFrame (double sample, uint32_t& seqNum, uint16_t& chunk, uint16_t& chunkFrame, uint32_t& subFrameSamples) {
+  bool findFrame (double sample, uint32_t& seqNum, int& chunk, int& chunkFrame, uint32_t& subFrameSamples) {
   // return true, seqNum, chunk and chunkFrame of loadedChunk from frame
   // - return false if not found
 
-    uint32_t frame = uint32_t(sample / kSamplesPerFrame);
+    auto frame = uint32_t(sample / kSamplesPerFrame);
     subFrameSamples = uint32_t(fmod (sample, kSamplesPerFrame));
 
     seqNum = getSeqNumFromFrame (frame);
-    for (chunk = 0; chunk < 3; chunk++) {
+    for (chunk = 0; chunk < kMaxChunks; chunk++)
       if (mChunks[chunk].getSeqNum() && (seqNum == mChunks[chunk].getSeqNum())) {
         int r = (frame - mBaseFrame) % kFramesPerChunk;
         chunkFrame = r < 0 ? r + kFramesPerChunk : r;
         return true;
         }
-      }
 
     seqNum = 0;
     chunk = 0;
@@ -611,9 +521,55 @@ private:
     }
   //}}}
 
-  //{{{  private vars
+  //{{{
+  void setPlaySample (double sample) {
+  // update mPlaySample and wall clock time
+
+    mPlaySample = sample;
+
+    // convert mPlaySample to wall clock time
+    mPlayTimePoint = floor<date::days>(mBaseTimePoint) + chrono::milliseconds (int(mPlaySample * 1000/ kSamplesPerSec));
+    }
+  //}}}
+  //{{{
+  void loadChan (cHttp& http, int chan, int bitrate) {
+  // load chan
+
+    mChan = chan;
+    mBitrate = bitrate;
+    mHost = http.getRedirectable (kSrc, getM3u8path());
+
+    // point to #EXT-X-MEDIA-SEQUENCE: sequence num str
+    const auto kExtSeq = "#EXT-X-MEDIA-SEQUENCE:";
+    const auto extSeq = strstr ((char*)http.getContent(), kExtSeq) + strlen (kExtSeq);
+    const auto extSeqEnd = strchr (extSeq, '\n');
+    *extSeqEnd = '\0';
+    mBaseSeqNum = atoi (extSeq) + 3;
+
+    // point to #EXT-X-PROGRAM-DATE-TIME dateTime str
+    const auto kExtDateTime = "#EXT-X-PROGRAM-DATE-TIME:";
+    const auto extDateTime = strstr (extSeqEnd + 1, kExtDateTime) + strlen (kExtDateTime);
+    const auto extDateTimeEnd =  strstr (extDateTime + 1, "\n");
+    const auto extDateTimeString = string(extDateTime, size_t(extDateTimeEnd - extDateTime));
+    cLog::log (LOGNOTICE, kExtDateTime + extDateTimeString);
+
+    // parse ISO time format from string
+    istringstream inputStream (extDateTimeString);
+    inputStream >> date::parse ("%FT%T", mBaseTimePoint);
+
+    const auto datePoint = floor<date::days>(mBaseTimePoint);
+    const auto secsSinceMidnight = chrono::duration_cast<chrono::seconds>(mBaseTimePoint - datePoint);
+    mBaseFrame = uint32_t((uint32_t(secsSinceMidnight.count()) - kBaseTimeSecsOffset) * kFramesPerSecond);
+
+    http.freeContent();
+
+    mPlaySample = double(mBaseFrame * kSamplesPerFrame);
+    }
+  //}}}
+
+  //{{{  vars
   string mHost;
-  cChunk mChunks[3];
+  cChunk mChunks[kMaxChunks];
 
   uint16_t mChan = 0;
   uint32_t mBitrate = kDefaultBitrate;
@@ -628,7 +584,5 @@ private:
   double mPlaySample = 0;
   bool mPlaying = true;
   bool mScrubbing = false;
-
-  //cSchedule mSchedule;
   //}}}
   };
