@@ -36,6 +36,7 @@ const int kMaxChunks = 1 + (2*kMaxChunkRange);
 
 class cHls {
 public:
+  enum ePlaying { ePause, eScrub, ePlay };
   //{{{
   cHls (int chan, int bitrate, int daylightSecs) :
       mChan (chan), mBitrate(bitrate), mDaylightSecs(daylightSecs) {
@@ -147,29 +148,32 @@ public:
   //}}}
 
   //{{{
-  bool getPlaying() {
+  ePlaying getPlaying() {
     return mPlaying;
     }
   //}}}
   //{{{
-  void setPlaying (bool playing) {
-    mPlaying = playing;
+  void setPlay() {
+    mPlaying = ePlay;
     }
   //}}}
   //{{{
-  void togglePlaying() {
-    mPlaying = !mPlaying;
-    }
-  //}}}
-
-  //{{{
-  bool getScrubbing() {
-    return mScrubbing;
+  void setScrub() {
+    mPlaying = eScrub;
     }
   //}}}
   //{{{
-  void setScrubbing (bool scrubbing) {
-    mScrubbing = scrubbing;
+  void setPause() {
+    mPlaying = ePause;
+    }
+  //}}}
+  //{{{
+  void togglePlay() {
+    switch (mPlaying) {
+      case ePause: mPlaying = ePlay; break;
+      case eScrub: mPlaying = ePlay; break;
+      case ePlay:  mPlaying = ePause; break;
+      }
     }
   //}}}
 
@@ -196,14 +200,11 @@ public:
 
     mChan = chan;
     loadChan (http);
-
-    mPlaying = true;
-    mScrubbing = false;
-
     mChanChanged = false;
+
+    mPlaying = ePlay;
     }
   //}}}
-
   //{{{
   bool loadAtPlayFrame (cHttp& http) {
   // load around playFrame, return false if any load failed, no point retrying too soon
@@ -568,20 +569,20 @@ private:
     }
   //}}}
 
-int mBitrate = kDefaultBitrate;
   //{{{  vars
   string mHost;
   cChunk mChunks[kMaxChunks];
 
   cAacDecoder* mDecoder = 0;
+  int mBitrate = kDefaultBitrate;
 
-  int mDaylightSecs;
+  int mDaylightSecs = 0;
   string mDateTime;
   uint32_t mBaseFrame = 0;
   uint32_t mBaseSeqNum = 0;
 
   double mPlaySample = 0;
-  bool mPlaying = true;
+  ePlaying mPlaying = ePlay;
   bool mScrubbing = false;
   //}}}
   };

@@ -110,7 +110,7 @@ public:
     mMove = 0;
     mPressInc = x - (mWidth/2);
 
-    mHls->setScrubbing (true);
+    mHls->setScrub();
 
     setZoomAnim (1.0f + ((mWidth/2) - abs(x - (mWidth/2))) / (mWidth/6), 4);
     }
@@ -132,9 +132,9 @@ public:
     if (mMove < getBoxHeight()/2) {
       mAnimation = mPressInc;
       mHls->incPlaySample (mPressInc * kSamplesPerFrame / kNormalZoom);
-      mHls->setPlaying (true);
+      mHls->setPlay();
       }
-    mHls->setScrubbing (false);
+    mHls->setPause();
 
     setZoomAnim (kNormalZoom, 3);
     }
@@ -191,7 +191,7 @@ public:
       context->text (midx-60.0f+3.0f, y+1.0f, getTimeStrFromSecs (mHls->getPlayTzSec()));
 
       float midy = (float)mY + (mHeight/2);
-      uint16_t midWidth = midx + int(mHls->getScrubbing() ? kScrubFrames*mZoom : mZoom);
+      uint16_t midWidth = midx + int(mHls->getPlaying() == cHls::eScrub ? kScrubFrames*mZoom : mZoom);
 
       context->beginPath();
       uint8_t* samples = nullptr;
