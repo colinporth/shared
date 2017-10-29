@@ -179,8 +179,8 @@ public:
     }
   //}}}
   //{{{
-  void incPlayFrame (int incFrames) {
-    setPlaySample (mPlaySample + (incFrames * kSamplesPerFrame));
+  void incPlayFrame() {
+    setPlaySample (mPlaySample + kSamplesPerFrame);
     }
   //}}}
   //{{{
