@@ -55,7 +55,7 @@ mutex mLinesMutex;
 deque<cLog::cLine> mLines;
 
 bool mBuffer = false;
-int mDaylightOffset = 0;
+int mDaylightSecs = 0;
 FILE* mFile = NULL;
 
 #ifdef _WIN32
@@ -69,6 +69,10 @@ bool cLog::init (string title, enum eLogLevel logLevel, bool buffer, string path
     hStdOut = GetStdHandle (STD_OUTPUT_HANDLE);
     DWORD consoleMode = ENABLE_VIRTUAL_TERMINAL_PROCESSING | ENABLE_PROCESSED_OUTPUT | ENABLE_WRAP_AT_EOL_OUTPUT;
     SetConsoleMode (hStdOut, consoleMode);
+
+    TIME_ZONE_INFORMATION timeZoneInfo;
+    if (GetTimeZoneInformation (&timeZoneInfo) == TIME_ZONE_ID_DAYLIGHT)
+      mDaylightSecs = -timeZoneInfo.DaylightBias * 60;
   #endif
 
   mBuffer = buffer;
@@ -118,17 +122,12 @@ void cLog::setLogLevel (enum eLogLevel logLevel) {
   }
 //}}}
 
-//{{{
-void cLog::setDaylightOffset (int daylightOffset) {
-  mDaylightOffset = daylightOffset;
-  }
-//}}}
 
 //{{{
 void cLog::log (enum eLogLevel logLevel, string logStr) {
 
   //  get time
-  auto timePoint = chrono::system_clock::now() + chrono::seconds (3600);
+  auto timePoint = chrono::system_clock::now() + chrono::seconds (mDaylightSecs);
 
   lock_guard<mutex> lockGuard (mLinesMutex);
 
