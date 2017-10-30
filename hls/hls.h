@@ -136,16 +136,6 @@ public:
     return uint32_t (mPlaySample / kSamplesPerSec) + mDaylightSecs;
     }
   //}}}
-  //{{{
-  string getPlayTimeTzStr () {
-
-    auto secsSinceMidnight = getPlayTzSec();
-
-    return dec(secsSinceMidnight / (60*60)) + ':' +
-           dec((secsSinceMidnight / 60) % 60, 2, '0') + ':' +
-           dec(secsSinceMidnight % 60, 2, '0');
-    }
-  //}}}
 
   //{{{
   ePlaying getPlaying() {
@@ -215,7 +205,7 @@ public:
 
     int chunk;
     if (!findSeqNumChunk (seqNum, 0, chunk)) {
-      cLog::log (LOGINFO, "loading " + dec(seqNum) + " at " + getPlayTimeTzStr());
+      cLog::log (LOGINFO, "loading " + dec(seqNum) + " at " + getTimeStr (getPlayTzSec()));
       ok &= mChunks[chunk].load (http, mDecoder, mHost, getTsPath (seqNum), seqNum, mBitrate);
       cLog::log (LOGINFO, "loaded");
       }
@@ -224,7 +214,7 @@ public:
 
     for (auto range = 1; range <= kMaxChunkRange; range++) {
       if (!findSeqNumChunk (seqNum, range, chunk)) {
-        cLog::log (LOGINFO, "loading " + dec(seqNum+range) + " at " + getPlayTimeTzStr());
+        cLog::log (LOGINFO, "loading " + dec(seqNum+range) + " at " + getTimeStr(getPlayTzSec()));
         ok &= mChunks[chunk].load (http, mDecoder, mHost, getTsPath (seqNum+range), seqNum+range, mBitrate);
         cLog::log (LOGINFO, "loaded");
         }
@@ -232,7 +222,7 @@ public:
         return true;
 
       if (!findSeqNumChunk (seqNum, -range, chunk)) {
-        cLog::log (LOGINFO, "loading " + dec(seqNum-range) + " at " + getPlayTimeTzStr());
+        cLog::log (LOGINFO, "loading " + dec(seqNum-range) + " at " + getTimeStr(getPlayTzSec()));
         ok &= mChunks[chunk].load (http, mDecoder, mHost, getTsPath (seqNum-range), seqNum-range, mBitrate);
         cLog::log (LOGINFO, "loaded");
         }

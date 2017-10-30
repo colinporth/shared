@@ -97,17 +97,26 @@ inline std::string getPtsStrDeb (uint64_t pts) {
   }
 //}}}
 //{{{
-inline std::string getMsTimeStr (int bst, uint32_t msTime) {
+inline std::string getTimeStr (uint32_t secs) {
+
+  return dec (secs / (60*60)) + ':' +
+         dec ((secs / 60) % 60, 2, '0') + ':' +
+         dec( secs % 60, 2, '0');
+  }
+//}}}
+//{{{
+inline std::string getMsTimeStr (int bst, uint32_t ms) {
 
   // convert msTime to str
-  int subSec = msTime % 1000;
-  msTime /= 1000;
-  int second = msTime % 60;
-  msTime /= 60;
-  int minute = msTime  % 60;
-  msTime /= 60;
-  int hour = bst + msTime;
+  int subSec = ms % 1000;
+  ms /= 1000;
+  int second = ms % 60;
+  ms /= 60;
+  int minute = ms  % 60;
+  ms /= 60;
+  int hour = bst + ms;
 
   return dec(hour,2,'0') + "."  + dec(minute,2, '0') + "." + dec(second,2, '0') + "." + dec(subSec,3, '0');
   }
 //}}}
+
