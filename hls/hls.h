@@ -19,12 +19,12 @@ const char* kPathNames[] = { "none", "bbc_radio_one",    "bbc_radio_two",       
 
 const uint16_t kFramesPerChunk = 300;
 const uint16_t kSamplesPerFrame = 1024;
-const uint16_t kSamplesPerSec = 48000;
+const uint16_t kSamplesPerSecond = 48000;
 
-const float kSamplesPerSecF = kSamplesPerSec;
-const double kSamplesPerSecD = kSamplesPerSec;
-const float kFramesPerSecond = kSamplesPerSecF / kSamplesPerFrame;
-const float kSecondsPerFrame = kSamplesPerFrame / kSamplesPerSecF;
+const float kSamplesPerSecondF = kSamplesPerSecond;
+const double kSamplesPerSecondD = kSamplesPerSecond;
+const float kFramesPerSecond = kSamplesPerSecondF / kSamplesPerFrame;
+const float kSecondsPerFrame = kSamplesPerFrame / kSamplesPerSecondF;
 
 const int kMaxZoom = 4;
 const float kNormalZoom = 1;
@@ -38,8 +38,8 @@ class cHls {
 public:
   enum ePlaying { ePause, eScrub, ePlay };
   //{{{
-  cHls (int chan, int bitrate, int daylightSecs) :
-      mChan (chan), mBitrate(bitrate), mDaylightSecs(daylightSecs) {
+  cHls (int chan, int bitrate, int daylightSeconds) :
+      mChan (chan), mBitrate(bitrate), mDaylightSeconds(daylightSeconds) {
     mDecoder = new cAacDecoder();
     }
   //}}}
@@ -132,8 +132,8 @@ public:
     }
   //}}}
   //{{{
-  uint32_t getPlayTzSec() {
-    return uint32_t (mPlaySample / kSamplesPerSec) + mDaylightSecs;
+  uint32_t getPlayTzSeconds() {
+    return uint32_t (mPlaySample / kSamplesPerSecond) + mDaylightSeconds;
     }
   //}}}
 
@@ -178,8 +178,8 @@ public:
     }
   //}}}
   //{{{
-  void incPlaySec (int secs) {
-    setPlaySample (mPlaySample + (secs * kSamplesPerSec));
+  void incPlaySeconds (int seconds) {
+    setPlaySample (mPlaySample + (seconds * kSamplesPerSecond));
     }
   //}}}
 
@@ -205,7 +205,7 @@ public:
 
     int chunk;
     if (!findSeqNumChunk (seqNum, 0, chunk)) {
-      cLog::log (LOGINFO, "loading " + dec(seqNum) + " at " + getTimeStr (getPlayTzSec()));
+      cLog::log (LOGINFO, "loading " + dec(seqNum) + " at " + getTimeStr (getPlayTzSeconds()));
       ok &= mChunks[chunk].load (http, mDecoder, mHost, getTsPath (seqNum), seqNum, mBitrate);
       cLog::log (LOGINFO, "loaded");
       }
@@ -214,7 +214,7 @@ public:
 
     for (auto range = 1; range <= kMaxChunkRange; range++) {
       if (!findSeqNumChunk (seqNum, range, chunk)) {
-        cLog::log (LOGINFO, "loading " + dec(seqNum+range) + " at " + getTimeStr(getPlayTzSec()));
+        cLog::log (LOGINFO, "loading " + dec(seqNum+range) + " at " + getTimeStr(getPlayTzSeconds()));
         ok &= mChunks[chunk].load (http, mDecoder, mHost, getTsPath (seqNum+range), seqNum+range, mBitrate);
         cLog::log (LOGINFO, "loaded");
         }
@@ -222,7 +222,7 @@ public:
         return true;
 
       if (!findSeqNumChunk (seqNum, -range, chunk)) {
-        cLog::log (LOGINFO, "loading " + dec(seqNum-range) + " at " + getTimeStr(getPlayTzSec()));
+        cLog::log (LOGINFO, "loading " + dec(seqNum-range) + " at " + getTimeStr(getPlayTzSeconds()));
         ok &= mChunks[chunk].load (http, mDecoder, mHost, getTsPath (seqNum-range), seqNum-range, mBitrate);
         cLog::log (LOGINFO, "loaded");
         }
@@ -520,14 +520,14 @@ private:
     mPlaySample = sample;
 
     // convert mPlaySample to wall clock time
-    mPlayTimePoint = mBaseDatePoint + chrono::milliseconds (int(mPlaySample * 1000 / kSamplesPerSec));
+    mPlayTimePoint = mBaseDatePoint + chrono::milliseconds (int(mPlaySample * 1000 / kSamplesPerSecond));
     }
   //}}}
   //{{{
   void loadChan (cHttp& http) {
 
     const string kSrc = "as-hls-uk-live.akamaized.net";
-    const int kBaseTimeSecsOffset = 17;
+    const int kBaseTimeSecondsOffset = 17;
 
     mHost = http.getRedirectable (kSrc, getM3u8path());
 
@@ -550,8 +550,8 @@ private:
     inputStream >> date::parse ("%FT%T", mBaseTimePoint);
 
     mBaseDatePoint = floor<date::days>(mBaseTimePoint);
-    const auto secsSinceMidnight = chrono::duration_cast<chrono::seconds>(mBaseTimePoint - mBaseDatePoint);
-    mBaseFrame = uint32_t((uint32_t(secsSinceMidnight.count()) - kBaseTimeSecsOffset) * kFramesPerSecond);
+    const auto seconds = chrono::duration_cast<chrono::seconds>(mBaseTimePoint - mBaseDatePoint);
+    mBaseFrame = uint32_t((uint32_t(seconds.count()) - kBaseTimeSecondsOffset) * kFramesPerSecond);
 
     http.freeContent();
 
@@ -566,7 +566,7 @@ private:
   cAacDecoder* mDecoder = 0;
   int mBitrate = kDefaultBitrate;
 
-  int mDaylightSecs = 0;
+  int mDaylightSeconds = 0;
   string mDateTime;
   uint32_t mBaseFrame = 0;
   uint32_t mBaseSeqNum = 0;
