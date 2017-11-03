@@ -21,6 +21,13 @@ public:
     mConditionVariable.notify_one();
     }
   //}}}
+  //{{{
+  void notifyAll() {
+    std::unique_lock<std::mutex> lock (mMutex);
+    mCount++;
+    mConditionVariable.notify_all();
+    }
+  //}}}
 
 private:
   std::mutex mMutex;
