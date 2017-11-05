@@ -335,7 +335,7 @@ private:
       }
     //}}}
     //{{{
-    bool load (cHttp& http, cAacDecoder* decoder, string host, string path, uint32_t seqNum, uint32_t bitrate) {
+    bool load (cHttp& http, cAacDecoder* decoder, const string& host, const string& path, uint32_t seqNum, uint32_t bitrate) {
 
       auto ok = true;
 
