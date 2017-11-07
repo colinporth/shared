@@ -39,12 +39,7 @@ const char levelColours[][12] = { "\033[38;5;208m",   // note   orange
                                   "\033[38;5;147m",   // info3  bluish
                                    };
 
-#ifdef _WIN32
-  const char* prefixFormat =        "%02.2d:%02.2d:%02.2d.%03d %s";
-#else
-  const char* prefixFormat =        "%02.2d:%02.2d:%02.2d.%06d %s";
-#endif
-
+const char* prefixFormat =        "%02.2d:%02.2d:%02.2d.%06d %s";
 const char* postfix =             "\033[m\n";
 //}}}
 const int kMaxBuffer = 10000;
