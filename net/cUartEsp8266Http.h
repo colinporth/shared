@@ -101,7 +101,7 @@ protected:
     }
   //}}}
   //{{{
-  virtual void sendCommand (std::string command) {
+  virtual void sendCommand (const std::string& command) {
     //debug ("sendC:" + command);
     std::string fullCommand = command + "\r\n";
     HAL_UART_Transmit_DMA (&UartHandle, (uint8_t*)(fullCommand.c_str()), fullCommand.size());

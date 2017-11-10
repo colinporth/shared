@@ -37,7 +37,7 @@ protected:
     }
   //}}}
 
-  virtual void sendCommand (std::string command) {
+  virtual void sendCommand (const std::string& command) {
     std::string fullCommand = command + "\r\n";
     DWORD numWritten;
     WriteFile (mComHandle, fullCommand.c_str(), (DWORD)fullCommand.size(), &numWritten, NULL);

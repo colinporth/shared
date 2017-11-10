@@ -11,7 +11,7 @@ public:
 
 protected:
   //{{{
-  virtual int connectToHost (std::string host) {
+  virtual int connectToHost (const std::string& host) {
 
     if (!mNetConn || (host != mLastHost)) {
       // delete any old connection
@@ -43,7 +43,7 @@ protected:
     }
   //}}}
   //{{{
-  virtual bool getSend (std::string sendStr) {
+  virtual bool getSend (const std::string& sendStr) {
 
     if (netconn_write (mNetConn, sendStr.c_str(), (int)sendStr.size(), NETCONN_NOCOPY) != ERR_OK) {
       netconn_delete (mNetConn);

@@ -26,12 +26,12 @@ public:
     }
   //}}}
   //{{{
-  void setTcpHost (std::string host) {
+  void setTcpHost (const std::string& host) {
     sendCommandWait ("AT+CIPSTART=4,\"TCP\",\"" + host + "\",80", "OK");
     }
   //}}}
   //{{{
-  void send (std::string path) {
+  void send (const std::string& path) {
 
     std::string httpSend = "AT+CIPSEND=4," + dec(path.size()+2);
 
@@ -85,7 +85,7 @@ public:
 
 protected:
   //{{{
-  virtual int connectToHost (std::string host) {
+  virtual int connectToHost (const std::string& host) {
 
     if (host != mLastHost) {
       closeTcp();
@@ -97,7 +97,7 @@ protected:
     }
   //}}}
   //{{{
-  virtual bool getSend (std::string sendStr) {
+  virtual bool getSend (const std::string& sendStr) {
     send (sendStr);
     return true;
     }
@@ -109,19 +109,19 @@ protected:
   //}}}
 
   virtual void initialiseComms() = 0;
-  virtual void sendCommand (std::string command) = 0;
+  virtual void sendCommand ((const std::string& command) = 0;
   virtual uint8_t readChar() = 0;
   virtual bool readChars (uint8_t* content, DWORD bytesLeft, DWORD& numRead) = 0;
 
 private:
   //{{{
-  bool sendCommandWait (std::string command, std::string str) {
+  bool sendCommandWait (const std::string& command, const std::string& str) {
     sendCommand (command);
     return readReplyUntil (str);
     }
   //}}}
   //{{{
-  bool readReplyUntil (std::string str) {
+  bool readReplyUntil (const std::string& str) {
     std::string reply;
     do {
       reply.clear();

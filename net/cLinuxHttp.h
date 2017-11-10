@@ -30,7 +30,7 @@ public:
 
 protected:
   //{{{
-  virtual int connectToHost (std::string host) {
+  virtual int connectToHost (const std::string& host) {
 
     if ((mSocket == -1) || (host != mLastHost)) {
       // notConnected or diff host
@@ -74,7 +74,7 @@ protected:
     }
   //}}}
   //{{{
-  virtual bool getSend (std::string sendStr) {
+  virtual bool getSend (const std::string& sendStr) {
 
     if (send (mSocket, sendStr.c_str(), (int)sendStr.size(), 0) < 0)  {
       close (mSocket);

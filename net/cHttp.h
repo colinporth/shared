@@ -38,7 +38,7 @@ public:
   std::string getLastPath() { return mLastPath; }
 
   //{{{
-  int get (std::string host, std::string path) {
+  int get (const std::string& host, std::string path) {
   // send http GET request to host, return response code
 
     mResponse = 0;
@@ -67,7 +67,7 @@ public:
     }
   //}}}
   //{{{
-  std::string getRedirectable (std::string host, std::string path) {
+  std::string getRedirectable (const std::string& host, const std::string& path) {
 
     auto response = get (host, path);
     if (response == 302) {
@@ -89,8 +89,8 @@ public:
   //}}}
 
 protected:
-  virtual int connectToHost (std::string host) = 0;
-  virtual bool getSend (std::string sendStr) = 0;
+  virtual int connectToHost (const std::string& host) = 0;
+  virtual bool getSend (const std::string& sendStr) = 0;
   //{{{
   virtual int getAllRecv() {
 
