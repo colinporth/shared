@@ -58,7 +58,7 @@ FILE* mFile = NULL;
 #endif
 
 //{{{
-bool cLog::init (string title, enum eLogLevel logLevel, bool buffer, string path) {
+bool cLog::init (const string& title, enum eLogLevel logLevel, bool buffer, string path) {
 
   #ifdef _WIN32
     hStdOut = GetStdHandle (STD_OUTPUT_HANDLE);
@@ -119,7 +119,7 @@ void cLog::setLogLevel (enum eLogLevel logLevel) {
 
 
 //{{{
-void cLog::log (enum eLogLevel logLevel, string logStr) {
+void cLog::log (enum eLogLevel logLevel, const string& logStr) {
 
   //  get time
   auto timePoint = chrono::system_clock::now() + chrono::seconds (mDaylightSecs);
