@@ -1013,9 +1013,10 @@ public:
         //printf ("\n");
 
         if (tag == 0x41504943) {
-          cLog::log (LOGINFO, "jpeg");
-          mJpegBuf =  ptr + 10 + 14;
+          cLog::log (LOGINFO, "cMp3decoder found jpeg tag - copying to jpegBuf");
           mJpegLen = frameSize - 14;
+          mJpegBuf =  (uint8_t*)malloc (mJpegLen);
+          memcpy (mJpegBuf, ptr + 10 + 14, mJpegLen);
           }
         ptr += frameSize + 10;
         }
