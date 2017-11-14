@@ -751,7 +751,7 @@ public:
 
     uint32_t val = getBits (count);
     if (val != 0)
-      printf ("field error - %d bits should be 0 is %x\n", count, val);
+       cLog::log (LOGINFO, "field error - %d bits should be 0 is %x", count, val);
     }
   //}}}
   //{{{
@@ -856,7 +856,7 @@ public:
 
   //{{{
   void print() {
-    printf ("- pid:%4d sid:%5d stream:%2d - packets:%6d disCon:%d repCon:%d  \n",
+     cLog::log (LOGINFO, "- pid:%4d sid:%5d stream:%2d - packets:%6d disCon:%d repCon:%d  ",
             mPid,  mSid, mStreamType, mTotal, mDisContinuity, mRepeatContinuity);
     }
   //}}}
@@ -932,7 +932,7 @@ public:
     char* timeStr = asctime (&time);
     timeStr[24] = 0;
 
-    printf ("%s\n", (prefix + timeStr + " " + std::to_string (mDuration/60) + " " + mTitle).c_str());
+     cLog::log (LOGINFO, "%s", (prefix + timeStr + " " + std::to_string (mDuration/60) + " " + mTitle).c_str());
     }
   //}}}
 
@@ -1013,7 +1013,7 @@ public:
   //}}}
   //{{{
   void print() {
-    printf ("- sid:%d tsid:%d onid:%d - prog:%d v:%d a:%d sub:%d pcr:%d %s <%s>\n",
+     cLog::log (LOGINFO,"- sid:%d tsid:%d onid:%d - prog:%d v:%d a:%d sub:%d pcr:%d %s <%s>",
             mSid, mTsid, mOnid, mProgramPid, mVidPid, mNumAudPids, mSubPid, mPcrPid, getTypeStr().c_str(), mName.c_str());
     mNow.print ("  - ");
 
@@ -6902,7 +6902,7 @@ public:
       else {
         if (lostSync) {
           //{{{  lostSync warning
-          printf ("%d demux ****** resynced bytes:%d ******\n", mPackets, lostSync);
+           cLog::log (LOGINFO, "%d demux ****** resynced bytes:%d ******", mPackets, lostSync);
           streamPos += lostSync;
           lostSync = 0;
           }
@@ -7006,7 +7006,7 @@ public:
             else if (pidInfoIt->second.mBufPtr) {
               // add to buffered section
               if (pidInfoIt->second.mBufPtr + tsFrameBytesLeft > pidInfoIt->second.mBuffer + pidInfoIt->second.mBufSize)
-                printf ("%d sectionBuffer overflow > 4096 %d\n",
+                 cLog::log (LOGINFO, "%d sectionBuffer overflow > 4096 %d",
                         mPackets, (int)(pidInfoIt->second.mBufPtr - pidInfoIt->second.mBuffer));
               else {
                 memcpy (pidInfoIt->second.mBufPtr, tsPtr, tsFrameBytesLeft);
@@ -7078,7 +7078,7 @@ public:
               pidInfoIt->second.mBufPtr += tsFrameBytesLeft;
 
               if (pidInfoIt->second.mBufPtr > pidInfoIt->second.mBuffer+ pidInfoIt->second.mBufSize)
-                printf ("%d demux *** PES overflow *** %d %d\n",
+                 cLog::log (LOGINFO, "%d demux *** PES overflow *** %d %d",
                         mPackets, int(pidInfoIt->second.mBufPtr - pidInfoIt->second.mBuffer), pidInfoIt->second.mBufSize);
               }
               //}}}
@@ -7097,7 +7097,7 @@ public:
   //{{{
   void printPids() {
 
-    printf ("--- PidInfoMap -----\n");
+    cLog::log (LOGINFO, "--- PidInfoMap -----");
     for (auto pidInfo : mPidInfoMap)
       pidInfo.second.print();
     }
@@ -7105,7 +7105,7 @@ public:
   //{{{
   void printServices() {
 
-    printf ("--- ServiceMap -----\n");
+    cLog::log (LOGINFO, "--- ServiceMap -----");
     for (auto service : mServiceMap)
       service.second.print();
     }
@@ -7113,9 +7113,9 @@ public:
   //{{{
   void printPrograms() {
 
-    printf ("--- ProgramMap -----\n");
+    cLog::log (LOGINFO, "--- ProgramMap -----");
     for (auto map : mProgramMap)
-      printf ("- programPid:%d sid:%d\n", map.first, map.second);
+      cLog::log (LOGINFO, "- programPid:%d sid:%d", map.first, map.second);
     }
   //}}}
 
@@ -7151,7 +7151,7 @@ private:
     auto sectionLength = HILO(Nit->section_length) + 3;
     if (crc32 (buf, sectionLength)) {
       //{{{  bad crc
-      printf ("parseNIT - bad crc %d\n", sectionLength);
+      cLog::log (LOGINFO, "parseNIT - bad crc %d", sectionLength);
       return;
       }
       //}}}
@@ -7159,7 +7159,7 @@ private:
         (Nit->table_id != TID_NIT_OTH) &&
         (Nit->table_id != TID_BAT)) {
       //{{{  wrong tid
-      printf ("parseNIT - wrong TID %x\n", Nit->table_id);
+      cLog::log (LOGINFO, "parseNIT - wrong TID %x", Nit->table_id);
       return;
       }
       //}}}
@@ -7230,13 +7230,13 @@ private:
     auto sectionLength = HILO(Pat->section_length) + 3;
     if (crc32 (buf, sectionLength)) {
       //{{{  bad crc
-      printf ("parsePAT - bad crc %d\n", sectionLength);
+      cLog::log (LOGINFO, "parsePAT - bad crc %d", sectionLength);
       return;
       }
       //}}}
     if (Pat->table_id != TID_PAT) {
       //{{{  wrong tid
-      printf ("parsePAT - unexpected TID %x\n", Pat->table_id);
+      cLog::log (LOGINFO, "parsePAT - unexpected TID %x", Pat->table_id);
       return;
       }
       //}}}
@@ -7263,7 +7263,7 @@ private:
     auto sectionLength = HILO(Sdt->section_length) + 3;
     if (crc32 (buf, sectionLength)) {
       //{{{  wrong crc
-      printf ("parseSDT - bad crc %d\n", sectionLength);
+      cLog::log (LOGINFO, "parseSDT - bad crc %d", sectionLength);
       return;
       }
       //}}}
@@ -7271,12 +7271,12 @@ private:
       return;
     if (Sdt->table_id != TID_SDT_ACT) {
       //{{{  wrong tid
-      printf ("parseSDT - unexpected TID %x\n", Sdt->table_id);
+      cLog::log (LOGINFO, "parseSDT - unexpected TID %x", Sdt->table_id);
       return;
       }
       //}}}
 
-    //printf ("SDT - tsid:%d onid:%d\n", tsid, onid);
+    //cLog::log (LOGINFO, "SDT - tsid:%d onid:%d", tsid, onid);
 
     auto ptr = buf + SDT_LEN;
     sectionLength -= SDT_LEN + 4;
@@ -7316,7 +7316,7 @@ private:
                 // insert new cService, get serviceIt iterator
                 auto pair = mServiceMap.insert (tServiceMap::value_type (sid, cService (sid, tsid, onid, serviceType, nameStr)));
                 auto serviceIt = pair.first;
-                printf ("SDT new cService tsid:%d sid:%d %s name<%s>\n",
+                cLog::log (LOGINFO, "SDT new cService tsid:%d sid:%d %s name<%s>",
                         tsid, sid, serviceIt->second.getTypeStr().c_str(), nameStr.c_str());
                 }
               }
@@ -7334,7 +7334,7 @@ private:
             break;
           default:
             //{{{  other
-            printf ("SDT - unexpected tag:%x\n", GetDescrTag(ptr));
+            cLog::log (LOGINFO, "SDT - unexpected tag:%x", GetDescrTag(ptr));
             break;
             //}}}
           }
@@ -7355,19 +7355,19 @@ private:
     auto sectionLength = HILO(pmt->section_length) + 3;
     if (crc32 (buf, sectionLength)) {
       //{{{  bad crc
-      printf ("parsePMT - pid:%d bad crc %d\n", pid, sectionLength);
+      cLog::log (LOGINFO, "parsePMT - pid:%d bad crc %d", pid, sectionLength);
       return;
       }
       //}}}
     if (pmt->table_id != TID_PMT) {
       //{{{  wrong tid
-      printf ("parsePMT - wrong TID %x\n", pmt->table_id);
+      cLog::log (LOGINFO, "parsePMT - wrong TID %x", pmt->table_id);
       return;
       }
       //}}}
 
     auto sid = HILO (pmt->program_number);
-    //printf ("PMT - pid:%d sid:%d\n", pid, sid);
+    //cLog::log (LOGINFO, "PMT - pid:%d sid:%d", pid, sid);
 
     auto serviceIt = mServiceMap.find (sid);
     if (serviceIt != mServiceMap.end()) {
@@ -7408,7 +7408,7 @@ private:
           case 11: recognised = false; break;
           case 13:
           default:
-            printf ("parsePMT - unknown streamType:%d sid:%d esPid:%d\n", streamType, sid, esPid);
+            cLog::log (LOGINFO, "parsePMT - unknown streamType:%d sid:%d esPid:%d", streamType, sid, esPid);
             recognised = false;
             break;
           }
@@ -7432,7 +7432,7 @@ private:
         }
       }
       //}}}
-    else if (pid == 32)
+    else if (pid == 32 || pid == 0x100)
       // simple tsFile with no SDT, pid 32 used to allocate service with sid
       mServiceMap.insert (tServiceMap::value_type (sid, cService (sid, 0, 0, kServiceTypeTV, "file")));
     }
@@ -7443,7 +7443,7 @@ private:
     auto Eit = (eit_t*)buf;
     auto sectionLength = HILO(Eit->section_length) + 3;
     if (crc32 (buf, sectionLength)) {
-      //printf ("%d parseEit len:%d tag:%d Bad CRC  \n", mPackets, sectionLength, tag);
+      //cLog::log (LOGINFO, "%d parseEit len:%d tag:%d Bad CRC  ", mPackets, sectionLength, tag);
       return;
       }
 
@@ -7455,7 +7455,7 @@ private:
                (tid == TID_EIT_ACT_SCH+1) || (tid == TID_EIT_OTH_SCH+1);
     if (!now && !next && !epg) {
       //{{{  unexpected tid
-      printf ("parseEIT - unexpected tid:%x\n", tid);
+      cLog::log (LOGINFO, "parseEIT - unexpected tid:%x", tid);
       return;
       }
       //}}}
@@ -7538,7 +7538,7 @@ private:
 
             #ifdef EIT_EXTENDED_EVENT_DEBUG
               //{{{  print eit extended event
-              printf ("EIT extendedEvent sid:%d descLen:%d lastDescNum:%d DescNum:%d item:%d\n",
+              cLog::log (LOGINFO, "EIT extendedEvent sid:%d descLen:%d lastDescNum:%d DescNum:%d item:%d",
                       sid, GetDescrLength (ptr),
                       CastExtendedEventDescr(ptr)->last_descr_number,
                       CastExtendedEventDescr(ptr)->descr_number,
@@ -7547,11 +7547,10 @@ private:
               for (auto i = 0; i < GetDescrLength (ptr) -2; i++) {
                 char c = *(ptr + 2 + i);
                 if ((c >= 0x20) && (c <= 0x7F))
-                  printf ("%c", c);
+                  cLog::log (LOGINFO, "%c", c);
                 else
-                  printf("<%02x> ", c & 0xFF);
+                  cLog::log (LOGINFO, "<%02x> ", c & 0xFF);
                 }
-              printf ("\n");
               //}}}
             #endif
 
@@ -7566,12 +7565,12 @@ private:
           case DESCR_DATA_BROADCAST: // 0x64
           case 0x76:                 // content_identifier
           case 0x7e:                 // FTA_content_management
-            //printf ("parseEIT - expected tag:%x %d %d\n", GetDescrTag(ptr), tid, sid);
+            //printf ("parseEIT - expected tag:%x %d %d", GetDescrTag(ptr), tid, sid);
             break;
           case 0x4a:                 // linkage
           case 0x89:                 // user_defined
           default:
-            //printf ("parseEIT - unexpected tag:%x %d %d\n", GetDescrTag(ptr), tid, sid);
+            //printf ("parseEIT - unexpected tag:%x %d %d", GetDescrTag(ptr), tid, sid);
             break;
           }
 
@@ -7646,7 +7645,7 @@ private:
           buf + DESCR_EXTENDED_EVENT_LEN + CastExtendedEventDescr(buf)->length_of_items + 1,
           *((uint8_t*)(buf + DESCR_EXTENDED_EVENT_LEN + CastExtendedEventDescr(buf)->length_of_items)));
 
-        printf ("extended event - %d %d %c%c%c %s\n",
+        cLog::log (LOGINFO, "extended event - %d %d %c%c%c %s",
                 CastExtendedEventDescr(buf)->descr_number, CastExtendedEventDescr(buf)->last_descr_number,
                 CastExtendedEventDescr(buf)->lang_code1,
                 CastExtendedEventDescr(buf)->lang_code2,
@@ -7659,7 +7658,7 @@ private:
           std::string text2 = getDescrStr (
             ptr + ITEM_EXTENDED_EVENT_LEN + CastExtendedEventItem(ptr)->item_description_length + 1,
             *(uint8_t* )(ptr + ITEM_EXTENDED_EVENT_LEN + CastExtendedEventItem(ptr)->item_description_length));
-          printf ("- %s %s\n", text.c_str(), text2.c_str());
+          cLog::log (LOGINFO, "- %s %s", text.c_str(), text2.c_str());
 
           length -= ITEM_EXTENDED_EVENT_LEN + CastExtendedEventItem(ptr)->item_description_length +
                     *((uint8_t* )(ptr + ITEM_EXTENDED_EVENT_LEN +
@@ -7675,7 +7674,7 @@ private:
       case DESCR_COMPONENT: {
         //{{{  component
         std::string str = getDescrStr (buf + DESCR_COMPONENT_LEN, GetDescrLength (buf) - DESCR_COMPONENT_LEN);
-        printf ("component %2d %2d %d %s\n",
+        cLog::log (LOGINFO, "component %2d %2d %d %s",
                 CastComponentDescr(buf)->stream_content,
                 CastComponentDescr(buf)->component_type,
                 CastComponentDescr(buf)->component_tag, str.c_str());
@@ -7705,7 +7704,7 @@ private:
         while (length > 0) {
           //auto sid = HILO (CastServiceListDescrLoop(ptr)->service_id);
           //auto serviceType = CastServiceListDescrLoop(ptr)->service_type;
-          //printf ("serviceList sid:%5d type:%d\n", sid, serviceType);
+          //cLog::log (LOGINFO,  ("serviceList sid:%5d type:%d", sid, serviceType);
           length -= DESCR_SERVICE_LIST_LEN;
           ptr += DESCR_SERVICE_LIST_LEN;
           }
@@ -7733,7 +7732,7 @@ private:
         break;
       //}}}
       default:
-        printf ("parseDescr - %s unexpected descr:%02X\n", sectionName.c_str(), GetDescrTag(buf));
+        cLog::log (LOGINFO, "parseDescr - %s unexpected descr:%02X", sectionName.c_str(), GetDescrTag(buf));
         break;
       }
     }
@@ -7780,7 +7779,7 @@ private:
     else if (streamType == 27) {
       // h264 minimal parser
       while (pesPtr < pesEnd) {
-        //printf ("VPES\n");
+        //printf ("VPES");
         //{{{  skip past startcode, find next startcode
         auto buf = pesPtr;
         auto bufLen = uint32_t (pesEnd - pesPtr);
@@ -7824,7 +7823,7 @@ private:
           switch (bitstream.getBits (5)) {
             case 1:
             case 5:
-              //printf ("SLICE\n");
+              //printf ("SLICE");
               bitstream.getUe();
               switch (bitstream.getUe()) {
                 case 5: return 'P';
@@ -7833,11 +7832,11 @@ private:
                 default:return '?';
                 }
               break;
-            //case 6: //printf ("SEI\n"); break;
-            //case 7: //printf ("SPS\n"); break;
-            //case 8: //printf ("PPS\n"); break;
-            //case 9: //printf ("AUD\n"); break;
-            //case 0x0d: //printf ("SEQEXT\n"); break;
+            //case 6: //printf ("SEI"); break;
+            //case 7: //printf ("SPS"); break;
+            //case 8: //printf ("PPS"); break;
+            //case 9: //printf ("AUD"); break;
+            //case 0x0d: //printf ("SEQEXT"); break;
             }
           }
         pesPtr += nalLen;
