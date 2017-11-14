@@ -991,7 +991,7 @@ public:
     if (tag == 0x49443303)  {
       // got ID3 tag
       auto tagSize = (*(ptr+6)<<21) | (*(ptr+7)<<14) | (*(ptr+8)<<7) | *(ptr+9);
-      cLog::log (LOGINFO, "%c%c%c ver:%d %02x flags:%02x tagSize:%d",
+      cLog::log (LOGINFO3, "cMp3decoder - %c%c%c ver:%d %02x flags:%02x tagSize:%d",
                            *ptr, *(ptr+1), *(ptr+2), *(ptr+3), *(ptr+4), *(ptr+5), tagSize);
       ptr += 10;
 
@@ -1003,7 +1003,7 @@ public:
 
         auto frameFlags1 = *(ptr+8);
         auto frameFlags2 = *(ptr+9);
-        cLog::log (LOGINFO, "tag %c%c%c%c - %02x %02x - frameSize:%d",
+        cLog::log (LOGINFO3, "cMp3decoder - tag %c%c%c%c - %02x %02x - frameSize:%d",
                             *ptr, *(ptr+1), *(ptr+2), *(ptr+3), frameFlags1, frameFlags2, frameSize);
         //for (auto i = 0; i < (tag == 0x41504943 ? 11 : frameSize); i++)
         //  printf ("%c", *(ptr+10+i));
@@ -1013,7 +1013,7 @@ public:
         //printf ("\n");
 
         if (tag == 0x41504943) {
-          cLog::log (LOGINFO, "cMp3decoder found jpeg tag - copying to jpegBuf");
+          cLog::log (LOGINFO3, "cMp3decoder - jpeg tag found");
           mJpegLen = frameSize - 14;
           mJpegBuf =  (uint8_t*)malloc (mJpegLen);
           memcpy (mJpegBuf, ptr + 10 + 14, mJpegLen);
