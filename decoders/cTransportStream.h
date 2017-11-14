@@ -751,7 +751,7 @@ public:
 
     uint32_t val = getBits (count);
     if (val != 0)
-       cLog::log (LOGINFO, "field error - %d bits should be 0 is %x", count, val);
+      cLog::log (LOGINFO, "field error - %d bits should be 0 is %x", count, val);
     }
   //}}}
   //{{{
@@ -856,8 +856,8 @@ public:
 
   //{{{
   void print() {
-     cLog::log (LOGINFO, "- pid:%4d sid:%5d stream:%2d - packets:%6d disCon:%d repCon:%d  ",
-            mPid,  mSid, mStreamType, mTotal, mDisContinuity, mRepeatContinuity);
+    cLog::log (LOGINFO, "- pid:%4d sid:%5d stream:%2d - packets:%6d disCon:%d repCon:%d  ",
+                         mPid,  mSid, mStreamType, mTotal, mDisContinuity, mRepeatContinuity);
     }
   //}}}
 
@@ -932,7 +932,7 @@ public:
     char* timeStr = asctime (&time);
     timeStr[24] = 0;
 
-     cLog::log (LOGINFO, "%s", (prefix + timeStr + " " + std::to_string (mDuration/60) + " " + mTitle).c_str());
+    cLog::log (LOGINFO, "%s", (prefix + timeStr + " " + std::to_string (mDuration/60) + " " + mTitle).c_str());
     }
   //}}}
 
@@ -948,11 +948,10 @@ public:
 class cService {
 public:
   //{{{
-  cService (int sid, int tsid, int onid, int type, std::string name) : mSid(sid), mTsid(tsid), mOnid(onid), mType(type) {
+  cService (int sid, int tsid, int onid, int type, std::string name) : 
+      mSid(sid), mTsid(tsid), mOnid(onid), mType(type) {
 
     mName = name;
-    mAudPids[0] = -1;
-    mAudPids[1] = -1;
     }
   //}}}
   ~cService() {}
@@ -984,16 +983,20 @@ public:
   std::string getName() { return mName; }
 
   //  sets
-  void setVidPid (const int pid) { mVidPid = pid; }
-  void setAudPid (const int pid) {
-    if (mNumAudPids == 0)
-      mAudPids[mNumAudPids++] = pid;
-    else if (mAudPids[0] != pid)
+  void setVidPid (int pid) { mVidPid = pid; }
+  void setAudPid (int pid) {
+    if (mNumAudPids == 0) {
+      mAudPids[0] = pid;
+      mNumAudPids = 1;
+      }
+    else if (mAudPids[0] != pid) {
       mAudPids[1] = pid;
+      mNumAudPids = 2;
+      }
     }
-  void setSubPid (const int pid) { mSubPid = pid; }
-  void setPcrPid (const int pid) { mPcrPid = pid; }
-  void setProgramPid (const int pid) { mProgramPid = pid; }
+  void setSubPid (int pid) { mSubPid = pid; }
+  void setPcrPid (int pid) { mPcrPid = pid; }
+  void setProgramPid (int pid) { mProgramPid = pid; }
 
   //{{{
   bool setNow (time_t startTime, int duration, std::string str1, std::string str2) {
@@ -1013,8 +1016,11 @@ public:
   //}}}
   //{{{
   void print() {
-     cLog::log (LOGINFO,"- sid:%d tsid:%d onid:%d - prog:%d v:%d a:%d sub:%d pcr:%d %s <%s>",
-            mSid, mTsid, mOnid, mProgramPid, mVidPid, mNumAudPids, mSubPid, mPcrPid, getTypeStr().c_str(), mName.c_str());
+    cLog::log (LOGINFO,"- sid:%d tsid:%d onid:%d - prog:%d - v:%d - an:%d a0:%d a1:%d - sub:%d pcr:%d %s <%s>",
+                           mSid, mTsid, mOnid,
+                           mProgramPid, mVidPid,
+                           mNumAudPids, mAudPids[0], mAudPids[2],
+                           mSubPid, mPcrPid, getTypeStr().c_str(), mName.c_str());
     mNow.print ("  - ");
 
     for (auto epgItem : mEpgItemMap)
@@ -1030,7 +1036,7 @@ private:
 
   int mVidPid = -1;
   int mNumAudPids = 0;
-  int mAudPids[2];
+  int mAudPids[2] = {-1,-1};
   int mSubPid = -1;
   int mPcrPid = -1;
   int mProgramPid = -1;
@@ -6902,7 +6908,7 @@ public:
       else {
         if (lostSync) {
           //{{{  lostSync warning
-           cLog::log (LOGINFO, "%d demux ****** resynced bytes:%d ******", mPackets, lostSync);
+          cLog::log (LOGINFO, "%d demux ****** resynced bytes:%d ******", mPackets, lostSync);
           streamPos += lostSync;
           lostSync = 0;
           }
@@ -7006,7 +7012,7 @@ public:
             else if (pidInfoIt->second.mBufPtr) {
               // add to buffered section
               if (pidInfoIt->second.mBufPtr + tsFrameBytesLeft > pidInfoIt->second.mBuffer + pidInfoIt->second.mBufSize)
-                 cLog::log (LOGINFO, "%d sectionBuffer overflow > 4096 %d",
+                cLog::log (LOGINFO, "%d sectionBuffer overflow > 4096 %d",
                         mPackets, (int)(pidInfoIt->second.mBufPtr - pidInfoIt->second.mBuffer));
               else {
                 memcpy (pidInfoIt->second.mBufPtr, tsPtr, tsFrameBytesLeft);
@@ -7078,7 +7084,7 @@ public:
               pidInfoIt->second.mBufPtr += tsFrameBytesLeft;
 
               if (pidInfoIt->second.mBufPtr > pidInfoIt->second.mBuffer+ pidInfoIt->second.mBufSize)
-                 cLog::log (LOGINFO, "%d demux *** PES overflow *** %d %d",
+                cLog::log (LOGINFO, "%d demux *** PES overflow *** %d %d",
                         mPackets, int(pidInfoIt->second.mBufPtr - pidInfoIt->second.mBuffer), pidInfoIt->second.mBufSize);
               }
               //}}}
@@ -7399,11 +7405,15 @@ private:
         auto recognised = true;
         switch (streamType) {
           case 2:  serviceIt->second.setVidPid (esPid); break; // ISO 13818-2 video
+          case 27: serviceIt->second.setVidPid (esPid); break; // HD vid
+
           case 3:  serviceIt->second.setAudPid (esPid); break; // ISO 11172-3 audio
           case 4:  serviceIt->second.setAudPid (esPid); break; // ISO 13818-3 audio
+          case 15: serviceIt->second.setAudPid (esPid); break; // HD aud ADTS
+          case 17: serviceIt->second.setAudPid (esPid); break; // HD aud LATM
+
           case 6:  serviceIt->second.setSubPid (esPid); break; // subtitle
-          case 17: serviceIt->second.setAudPid (esPid); break; // HD aud
-          case 27: serviceIt->second.setVidPid (esPid); break; // HD vid
+
           case 5:  recognised = false; break;
           case 11: recognised = false; break;
           case 13:
@@ -7432,8 +7442,10 @@ private:
         }
       }
       //}}}
-    else if (pid == 32 || pid == 0x100)
+    else if (pid == 32)
       // simple tsFile with no SDT, pid 32 used to allocate service with sid
+      mServiceMap.insert (tServiceMap::value_type (sid, cService (sid, 0, 0, kServiceTypeTV, "file")));
+    else if (pid == 0x100)
       mServiceMap.insert (tServiceMap::value_type (sid, cService (sid, 0, 0, kServiceTypeTV, "file")));
     }
   //}}}
