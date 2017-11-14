@@ -948,7 +948,7 @@ public:
 class cService {
 public:
   //{{{
-  cService (int sid, int tsid, int onid, int type, std::string name) : 
+  cService (int sid, int tsid, int onid, int type, std::string name) :
       mSid(sid), mTsid(tsid), mOnid(onid), mType(type) {
 
     mName = name;
@@ -7377,7 +7377,7 @@ private:
 
     auto serviceIt = mServiceMap.find (sid);
     if (serviceIt != mServiceMap.end()) {
-      //{{{  service declared by SMT
+      //{{{  add to service
       serviceIt->second.setProgramPid (pid);
 
       // point programPid to service by sid
@@ -7401,6 +7401,7 @@ private:
         auto pmtInfo = (pmt_info_t*)ptr;
         auto streamType = pmtInfo->stream_type;
         auto esPid = HILO (pmtInfo->elementary_PID);
+        cLog::log (LOGNOTICE, "PMT - adding stream to service esPid:%d streamType:%d", esPid, streamType);
 
         auto recognised = true;
         switch (streamType) {
@@ -7442,11 +7443,15 @@ private:
         }
       }
       //}}}
-    else if (pid == 32)
+    else if (pid == 32) {
       // simple tsFile with no SDT, pid 32 used to allocate service with sid
+      cLog::log (LOGNOTICE, "PMT - serviceMap insert pid 32");
       mServiceMap.insert (tServiceMap::value_type (sid, cService (sid, 0, 0, kServiceTypeTV, "file")));
-    else if (pid == 0x100)
+      }
+    else if (pid == 0x100) {
+      cLog::log (LOGNOTICE, "PMT - serviceMap insert pid 0x100");
       mServiceMap.insert (tServiceMap::value_type (sid, cService (sid, 0, 0, kServiceTypeTV, "file")));
+      }
     }
   //}}}
   //{{{
