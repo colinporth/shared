@@ -16,7 +16,11 @@
                                (60 * ((10*((x##_m & 0xF0)>>4)) + (x##_m & 0xF))) + \
                                      ((10*((x##_s & 0xF0)>>4)) + (x##_s & 0xF)))
 //}}}
-//{{{  dvb const, struct
+//{{{  const, struct
+#define kMaxSectionSize  4096
+#define kAudPesBufSize  10000
+#define kVidPesBufSize 600000
+
 //{{{  pid const
 #define PID_PAT   0x00   /* Program Association Table */
 #define PID_CAT   0x01   /* Conditional Access Table */
@@ -600,7 +604,7 @@ static unsigned long crcTable[256] = {
   0xbcb4666d, 0xb8757bda, 0xb5365d03, 0xb1f740b4};
 //}}}
 //}}}
-//{{{  DVB HD huffman
+//{{{  HD epg huffman decode
 // const
 #define START   '\0'
 #define STOP    '\0'
@@ -6419,10 +6423,6 @@ const char* huffDecode (const unsigned char *src, size_t size) {
 //}}}
 //}}}
 
-#define kMaxSectionSize  4096
-#define kAudPesBufSize  10000
-#define kVidPesBufSize 600000
-
 //{{{
 class cBitstream {
 // used to parse H264 stream to find I frames
@@ -6768,7 +6768,6 @@ public:
 //{{{
 class cService {
 public:
-  cService() {}
   //{{{
   cService (int sid, int tsid, int onid, int type, int vid, int aud, int pcr, const std::string& name) :
       mSid(sid), mTsid(tsid), mOnid(onid), mType(type), mVidPid(vid), mAudPid(aud), mPcrPid(pcr) {
@@ -6886,10 +6885,37 @@ public:
   cTransportStream() {}
   virtual ~cTransportStream() {}
 
+  //{{{  gets
   int getPackets() { return mPackets; }
   int getDiscontinuity() { return mDiscontinuity; }
   std::string getTimeString() { return mTimeStr; }
   std::string getNetworkString() { return mNetworkNameStr; }
+  //}}}
+  //{{{
+  void printPids() {
+
+    cLog::log (LOGINFO, "--- PidInfoMap -----");
+    for (auto pidInfo : mPidInfoMap)
+      pidInfo.second.print();
+    }
+  //}}}
+  //{{{
+  void printServices() {
+
+    cLog::log (LOGINFO, "--- ServiceMap -----");
+    for (auto service : mServiceMap)
+      service.second.print();
+    }
+  //}}}
+  //{{{
+  void printPrograms() {
+
+    cLog::log (LOGINFO, "--- ProgramMap -----");
+    for (auto map : mProgramMap)
+      cLog::log (LOGINFO, "- programPid:%d sid:%d", map.first, map.second);
+    }
+  //}}}
+
   //{{{
   int64_t demux (uint8_t* tsBase, int64_t streamPos, int64_t streamSize, bool skipped,
                  int audPid, int vidPid, uint64_t basePts) {
@@ -7108,37 +7134,11 @@ public:
     return streamPos;
     }
   //}}}
-
-  //{{{
-  void printPids() {
-
-    cLog::log (LOGINFO, "--- PidInfoMap -----");
-    for (auto pidInfo : mPidInfoMap)
-      pidInfo.second.print();
-    }
-  //}}}
-  //{{{
-  void printServices() {
-
-    cLog::log (LOGINFO, "--- ServiceMap -----");
-    for (auto service : mServiceMap)
-      service.second.print();
-    }
-  //}}}
-  //{{{
-  void printPrograms() {
-
-    cLog::log (LOGINFO, "--- ProgramMap -----");
-    for (auto map : mProgramMap)
-      cLog::log (LOGINFO, "- programPid:%d sid:%d", map.first, map.second);
-    }
-  //}}}
                                       // PMT - sets cService pids
-  std::map<int,int> mProgramMap;      // PAT inserts <pid,sid>'s    into mProgramMap
+  std::map<int,int>      mProgramMap; // PAT inserts <pid,sid>'s    into mProgramMap
   std::map<int,cService> mServiceMap; // SDT inserts <sid,cService> into mServiceMap
   std::map<int,cPidInfo> mPidInfoMap; // pid inserts <pid,cPidInfo> into mPidInfoMap
                                       // EIT - adds cService Now,Epg events
-
 protected:
   virtual void pidPacket (int pid, uint8_t* ptr) {}
   virtual bool audDecodePes (cPidInfo* pidInfo, uint64_t basePts) { return false; }
