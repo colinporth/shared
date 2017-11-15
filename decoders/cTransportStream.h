@@ -6419,12 +6419,13 @@ const char* huffDecode (const unsigned char *src, size_t size) {
 //}}}
 //}}}
 
-#define kVidPesBufSize 600000
-#define kAudPesBufSize  10000
 #define kMaxSectionSize  4096
+#define kAudPesBufSize  10000
+#define kVidPesBufSize 600000
 
 //{{{
 class cBitstream {
+// used to parse H264 stream to find I frames
 public:
   //{{{
   cBitstream (const uint8_t* buffer, uint32_t bit_len) {
@@ -6656,7 +6657,7 @@ private:
 class cPidInfo {
 public:
   //{{{
-  cPidInfo (int pid, bool isSection) : mPid(pid),  mIsSection(isSection) {
+  cPidInfo (int pid, bool isSection) : mPid(pid), mIsSection(isSection) {
 
     switch (pid) {
       case PID_PAT: mInfo = "Pat "; break;
@@ -6681,8 +6682,9 @@ public:
   //}}}
 
   int mPid;
-  int mSid = -1;
   bool mIsSection;
+
+  int mSid = -1;
 
   int mStreamType = 0;
   uint64_t mPts = 0;
@@ -6878,11 +6880,6 @@ private:
   tEpgItemMap mEpgItemMap;
   };
 //}}}
-                                             // PMT - sets cService pids
-typedef std::map<int,cPidInfo> tPidInfoMap;  // pid inserts <pid,cPidInfo> into mPidInfoMap
-typedef std::map<int,int>      tProgramMap;  // PAT inserts <pid,sid>'s    into mProgramMap
-typedef std::map<int,cService> tServiceMap;  // SDT inserts <sid,cService> into mServiceMap
-                                             // EIT - adds cService Now,Epg events
 
 class cTransportStream {
 public:
@@ -6891,6 +6888,8 @@ public:
 
   int getPackets() { return mPackets; }
   int getDiscontinuity() { return mDiscontinuity; }
+  std::string getTimeString() { return mTimeStr; }
+  std::string getNetworkString() { return mNetworkNameStr; }
   //{{{
   int64_t demux (uint8_t* tsBase, int64_t streamPos, int64_t streamSize, bool skipped,
                  int audPid, int vidPid, uint64_t basePts) {
@@ -6955,7 +6954,7 @@ public:
           auto pidInfoIt = mPidInfoMap.find (pid);
           if (pidInfoIt == mPidInfoMap.end()) {
             // new pid, insert new cPidInfo, get pidInfoIt iterator
-            auto insertPair = mPidInfoMap.insert (tPidInfoMap::value_type (pid, cPidInfo(pid, isSection)));
+            auto insertPair = mPidInfoMap.insert (std::map<int,cPidInfo>::value_type (pid, cPidInfo(pid, isSection)));
             pidInfoIt = insertPair.first;
             }
 
@@ -7134,17 +7133,17 @@ public:
       cLog::log (LOGINFO, "- programPid:%d sid:%d", map.first, map.second);
     }
   //}}}
+                                      // PMT - sets cService pids
+  std::map<int,int> mProgramMap;      // PAT inserts <pid,sid>'s    into mProgramMap
+  std::map<int,cService> mServiceMap; // SDT inserts <sid,cService> into mServiceMap
+  std::map<int,cPidInfo> mPidInfoMap; // pid inserts <pid,cPidInfo> into mPidInfoMap
+                                      // EIT - adds cService Now,Epg events
 
 protected:
   virtual void pidPacket (int pid, uint8_t* ptr) {}
   virtual bool audDecodePes (cPidInfo* pidInfo, uint64_t basePts) { return false; }
   virtual bool vidDecodePes (cPidInfo* pidInfo, uint64_t basePts, char frameType,  bool skipped) { return false; }
   virtual void startProgram (int vpid, int apid, const std::string& name, const std::string& startTime) {}
-
-  std::string mTimeStr;
-  std::string mNetworkNameStr;
-  tServiceMap mServiceMap;
-  tPidInfoMap mPidInfoMap;
 
 private:
   //{{{
@@ -7264,7 +7263,7 @@ private:
       auto sid = HILO (patProgram->program_number);
       auto pid = HILO (patProgram->network_pid);
       if (mProgramMap.find (pid) == mProgramMap.end())
-        mProgramMap.insert (tProgramMap::value_type (pid, sid));
+        mProgramMap.insert (std::map<int,int>::value_type (pid, sid));
 
       sectionLength -= PAT_PROG_LEN;
       ptr += PAT_PROG_LEN;
@@ -7331,7 +7330,7 @@ private:
 
                 // insert new cService, get serviceIt iterator
                 auto pair = mServiceMap.insert (
-                  tServiceMap::value_type (sid, cService (sid, tsid, onid, serviceType, -1,-1,-1, nameStr)));
+                  std::map<int,cService>::value_type (sid, cService (sid, tsid, onid, serviceType, -1,-1,-1, nameStr)));
                 auto serviceIt = pair.first;
                 cLog::log (LOGINFO, "SDT new cService tsid:%d sid:%d %s name<%s>",
                         tsid, sid, serviceIt->second.getTypeStr().c_str(), nameStr.c_str());
@@ -7457,12 +7456,12 @@ private:
     else if (pid == 32) {
       // simple tsFile with no SDT, pid 32 used to allocate service with sid
       cLog::log (LOGINFO, "parsePmt - serviceMap.insert pid 32");
-      mServiceMap.insert (tServiceMap::value_type (sid, cService (sid,0,0, kServiceTypeTV, -1,-1,-1, "file32")));
+      mServiceMap.insert (std::map<int,cService>::value_type (sid, cService (sid,0,0, kServiceTypeTV, -1,-1,-1, "file32")));
       }
     else if (pid == 256) {
       // simple tsFile with no SDT, pid 256 used to allocate service with sid
       cLog::log (LOGINFO, "parsePmt - serviceMap.insert pid 0x100");
-      mServiceMap.insert (tServiceMap::value_type (sid, cService (sid,0,0, kServiceTypeTV, 258,257,258, "file256")));
+      mServiceMap.insert (std::map<int,cService>::value_type (sid, cService (sid,0,0, kServiceTypeTV, 258,257,258, "file256")));
       }
     }
   //}}}
@@ -7913,7 +7912,8 @@ private:
   //}}}
 
   //{{{  private vars
-  tProgramMap mProgramMap;
+  std::string mTimeStr;
+  std::string mNetworkNameStr;
 
   int mPackets = 0;
   int mDiscontinuity = 0;
