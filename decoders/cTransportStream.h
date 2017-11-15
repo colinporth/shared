@@ -600,460 +600,6 @@ static unsigned long crcTable[256] = {
   0xbcb4666d, 0xb8757bda, 0xb5365d03, 0xb1f740b4};
 //}}}
 //}}}
-#define kVidPesBufSize 600000
-#define kAudPesBufSize  10000
-#define kMaxSectionSize  4096
-
-//{{{
-class cBitstream {
-public:
-  //{{{
-  cBitstream (const uint8_t* buffer, uint32_t bit_len) {
-    mDecBuffer = buffer;
-    mDecBufferSize = bit_len;
-    mNumOfBitsInBuffer = 0;
-    mBookmarkOn = false;
-    };
-  //}}}
-  ~cBitstream() {};
-
-  //{{{
-  uint32_t peekBits (uint32_t bits) {
-
-    bookmark (true);
-    uint32_t ret = getBits (bits);
-    bookmark (false);
-    return ret;
-    }
-  //}}}
-  //{{{
-  uint32_t getBits (uint32_t numBits) {
-
-    //{{{
-    static const uint32_t msk[33] = {
-      0x00000000, 0x00000001, 0x00000003, 0x00000007,
-      0x0000000f, 0x0000001f, 0x0000003f, 0x0000007f,
-      0x000000ff, 0x000001ff, 0x000003ff, 0x000007ff,
-      0x00000fff, 0x00001fff, 0x00003fff, 0x00007fff,
-      0x0000ffff, 0x0001ffff, 0x0003ffff, 0x0007ffff,
-      0x000fffff, 0x001fffff, 0x003fffff, 0x007fffff,
-      0x00ffffff, 0x01ffffff, 0x03ffffff, 0x07ffffff,
-      0x0fffffff, 0x1fffffff, 0x3fffffff, 0x7fffffff,
-      0xffffffff
-      };
-    //}}}
-
-    if (numBits == 0)
-      return 0;
-
-    uint32_t retData;
-    if (mNumOfBitsInBuffer >= numBits) {  // don't need to read from FILE
-      mNumOfBitsInBuffer -= numBits;
-      retData = mDecData >> mNumOfBitsInBuffer;
-      // wmay - this gets done below...retData &= msk[numBits];
-      }
-    else {
-      uint32_t nbits;
-      nbits = numBits - mNumOfBitsInBuffer;
-      if (nbits == 32)
-        retData = 0;
-      else
-        retData = mDecData << nbits;
-
-      switch ((nbits - 1) / 8) {
-        case 3:
-          nbits -= 8;
-          if (mDecBufferSize < 8)
-            return 0;
-          retData |= *mDecBuffer++ << nbits;
-          mDecBufferSize -= 8;
-          // fall through
-        case 2:
-          nbits -= 8;
-          if (mDecBufferSize < 8)
-            return 0;
-          retData |= *mDecBuffer++ << nbits;
-          mDecBufferSize -= 8;
-        case 1:
-          nbits -= 8;
-          if (mDecBufferSize < 8)
-            return 0;
-          retData |= *mDecBuffer++ << nbits;
-          mDecBufferSize -= 8;
-        case 0:
-          break;
-        }
-      if (mDecBufferSize < nbits)
-        return 0;
-
-      mDecData = *mDecBuffer++;
-      mNumOfBitsInBuffer = min(8u, mDecBufferSize) - nbits;
-      mDecBufferSize -= min(8u, mDecBufferSize);
-      retData |= (mDecData >> mNumOfBitsInBuffer) & msk[nbits];
-      }
-
-    return (retData & msk[numBits]);
-    };
-  //}}}
-
-  //{{{
-  uint32_t getUe() {
-
-    uint32_t bits;
-    uint32_t read;
-    int bits_left;
-    bool done = false;
-    bits = 0;
-
-    // we want to read 8 bits at a time - if we don't have 8 bits,
-    // read what's left, and shift.  The exp_golomb_bits calc remains the same.
-    while (!done) {
-      bits_left = bits_remain();
-      if (bits_left < 8) {
-        read = peekBits (bits_left) << (8 - bits_left);
-        done = true;
-        }
-      else {
-        read = peekBits (8);
-        if (read == 0) {
-          getBits (8);
-          bits += 8;
-          }
-        else
-         done = true;
-        }
-      }
-
-    uint8_t coded = exp_golomb_bits[read];
-    getBits (coded);
-    bits += coded;
-
-    return getBits (bits + 1) - 1;
-    }
-  //}}}
-  //{{{
-  int32_t getSe() {
-
-    uint32_t ret;
-    ret = getUe();
-    if ((ret & 0x1) == 0) {
-      ret >>= 1;
-      int32_t temp = 0 - ret;
-      return temp;
-      }
-
-    return (ret + 1) >> 1;
-    }
-  //}}}
-
-  //{{{
-  void check_0s (int count) {
-
-    uint32_t val = getBits (count);
-    if (val != 0)
-      cLog::log (LOGINFO, "field error - %d bits should be 0 is %x", count, val);
-    }
-  //}}}
-  //{{{
-  int bits_remain() {
-    return mDecBufferSize + mNumOfBitsInBuffer;
-    };
-  //}}}
-  //{{{
-  int byte_align() {
-
-    int temp = 0;
-    if (mNumOfBitsInBuffer != 0)
-      temp = getBits (mNumOfBitsInBuffer);
-    else {
-      // if we are byte aligned, check for 0x7f value - this will indicate
-      // we need to skip those bits
-      uint8_t readval = peekBits (8);
-      if (readval == 0x7f)
-        readval = getBits (8);
-      }
-
-    return temp;
-    };
-  //}}}
-
-private:
-  //{{{
-  const uint8_t exp_golomb_bits[256] = {
-    8, 7, 6, 6, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 3,
-    3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2,
-    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0,
-    };
-  //}}}
-
-  //{{{
-  void bookmark (bool on) {
-
-    if (on) {
-      mNumOfBitsInBuffer_bookmark = mNumOfBitsInBuffer;
-      mDecBuffer_bookmark = mDecBuffer;
-      mDecBufferSize_bookmark = mDecBufferSize;
-      mBookmarkOn = 1;
-      mDecData_bookmark = mDecData;
-      }
-
-    else {
-      mNumOfBitsInBuffer = mNumOfBitsInBuffer_bookmark;
-      mDecBuffer = mDecBuffer_bookmark;
-      mDecBufferSize = mDecBufferSize_bookmark;
-      mDecData = mDecData_bookmark;
-      mBookmarkOn = 0;
-      }
-
-    };
-  //}}}
-
-  uint32_t mNumOfBitsInBuffer;
-  const uint8_t* mDecBuffer;
-  uint8_t mDecData;
-  uint8_t mDecData_bookmark;
-  uint32_t mDecBufferSize;
-
-  bool mBookmarkOn;
-  uint32_t mNumOfBitsInBuffer_bookmark;
-  const uint8_t* mDecBuffer_bookmark;
-  uint32_t mDecBufferSize_bookmark;
-  };
-//}}}
-//{{{
-class cPidInfo {
-public:
-  //{{{
-  cPidInfo (int pid, bool isSection) : mPid(pid),  mIsSection(isSection) {
-
-    switch (pid) {
-      case PID_PAT: mInfo = "Pat "; break;
-      case PID_CAT: mInfo = "Cat "; break;
-      case PID_SDT: mInfo = "Sdt "; break;
-      case PID_NIT: mInfo = "Nit "; break;
-      case PID_EIT: mInfo = "Eit "; break;
-      case PID_RST: mInfo = "Rst "; break;
-      case PID_TDT: mInfo = "Tdt "; break;
-      case PID_SYN: mInfo = "Syn "; break;
-      default:;
-      }
-    }
-  //}}}
-  ~cPidInfo() {}
-
-  //{{{
-  void print() {
-    cLog::log (LOGINFO, "- pid:%4d sid:%5d stream:%2d - packets:%6d disCon:%d repCon:%d  ",
-                         mPid,  mSid, mStreamType, mTotal, mDisContinuity, mRepeatContinuity);
-    }
-  //}}}
-
-  int mPid;
-  int mSid = -1;
-  bool mIsSection;
-
-  int mStreamType = 0;
-  uint64_t mPts = 0;
-  uint64_t mDts = 0;
-  uint64_t mPcr = 0;
-
-  int mTotal = 0;
-  int mContinuity = -1;
-  int mDisContinuity = 0;
-  int mRepeatContinuity = 0;
-
-  int mSectionLength = 0;
-
-  // content buffer
-  int mBufSize = 0;
-  uint8_t* mBuffer = nullptr;
-  uint8_t* mBufPtr = nullptr;
-
-  int64_t mStreamPos = -1;
-
-  std::string mInfo;
-  };
-//}}}
-//{{{
-class cEpgItem {
-public:
-  cEpgItem() : mStartTime(0), mDuration(0) {}
-  //{{{
-  cEpgItem (time_t startTime, int duration, std::string title, std::string shortDescription)
-      : mStartTime(startTime), mDuration(duration) {
-    mTitle = title;
-    mShortDescription = shortDescription;
-    }
-  //}}}
-  ~cEpgItem() {}
-
-  //{{{
-  std::string getNameStr() {
-    return mTitle;
-    }
-  //}}}
-  //{{{
-  std::string getStartTimeStr() {
-    struct tm time = *localtime (&mStartTime);
-    char* timeStr = asctime (&time);
-    timeStr[24] = 0;
-    return std::string (timeStr);
-    }
-  //}}}
-
-  //{{{
-  void set (time_t startTime, int duration, std::string title, std::string shortDescription) {
-
-    mDuration = duration;
-    mStartTime = startTime;
-
-    mTitle = title;
-    mShortDescription = shortDescription;
-    }
-  //}}}
-
-  //{{{
-  void print (std::string prefix) {
-
-    struct tm time = *localtime (&mStartTime);
-    char* timeStr = asctime (&time);
-    timeStr[24] = 0;
-
-    cLog::log (LOGINFO, "%s", (prefix + timeStr + " " + std::to_string (mDuration/60) + " " + mTitle).c_str());
-    }
-  //}}}
-
-  // vars
-  time_t mStartTime;
-  int mDuration;
-
-  std::string mTitle;
-  std::string mShortDescription;
-  };
-//}}}
-//{{{
-class cService {
-public:
-  //{{{
-  cService (int sid, int tsid, int onid, int type, std::string name) :
-      mSid(sid), mTsid(tsid), mOnid(onid), mType(type) {
-
-    mName = name;
-    }
-  //}}}
-  ~cService() {}
-
-  //  gets
-  int getSid() const { return mSid; }
-  int getTsid() const { return mTsid; }
-  int getOnid() const { return mOnid; }
-  int getType() const { return mType; }
-  //{{{
-  std::string getTypeStr() {
-    switch (mType) {
-      case kServiceTypeTV :           return "TV";
-      case kServiceTypeRadio :        return "Radio";
-      case kServiceTypeAdvancedSDTV : return "SDTV";
-      case kServiceTypeAdvancedHDTV : return "HDTV";
-      default : return "none";
-      }
-    }
-  //}}}
-
-  int getVidPid() const { return mVidPid; }
-  int getAudPid() const { return mAudPids[0]; }
-  int getSubPid() const { return mSubPid; }
-  int getPcrPid() const { return mPcrPid; }
-  int getProgramPid() const { return mProgramPid; }
-
-  cEpgItem* getNow() { return &mNow; }
-  std::string getName() { return mName; }
-
-  //  sets
-  void setVidPid (int pid) { mVidPid = pid; }
-  void setAudPid (int pid) {
-    if (mNumAudPids == 0) {
-      mAudPids[0] = pid;
-      mNumAudPids = 1;
-      }
-    else if (mAudPids[0] != pid) {
-      mAudPids[1] = pid;
-      mNumAudPids = 2;
-      }
-    }
-  void setSubPid (int pid) { mSubPid = pid; }
-  void setPcrPid (int pid) { mPcrPid = pid; }
-  void setProgramPid (int pid) { mProgramPid = pid; }
-
-  //{{{
-  bool setNow (time_t startTime, int duration, std::string str1, std::string str2) {
-
-    bool nowChanged = (startTime != mNow.mStartTime);
-
-    mNow.set (startTime, duration, str1, str2);
-
-    return nowChanged;
-    }
-  //}}}
-  //{{{
-  void setEpg (time_t startTime, int duration, std::string str1, std::string str2) {
-
-    mEpgItemMap.insert (tEpgItemMap::value_type (startTime, cEpgItem(startTime, duration, str1, str2)));
-    }
-  //}}}
-  //{{{
-  void print() {
-    cLog::log (LOGINFO,"- sid:%d tsid:%d onid:%d - prog:%d - v:%d - an:%d a0:%d a1:%d - sub:%d pcr:%d %s <%s>",
-                           mSid, mTsid, mOnid,
-                           mProgramPid, mVidPid,
-                           mNumAudPids, mAudPids[0], mAudPids[2],
-                           mSubPid, mPcrPid, getTypeStr().c_str(), mName.c_str());
-    mNow.print ("  - ");
-
-    for (auto epgItem : mEpgItemMap)
-      epgItem.second.print ("    - ");
-    }
-  //}}}
-
-private:
-  int mSid;
-  int mTsid;
-  int mOnid;
-  int mType;
-
-  int mVidPid = -1;
-  int mNumAudPids = 0;
-  int mAudPids[2] = {-1,-1};
-  int mSubPid = -1;
-  int mPcrPid = -1;
-  int mProgramPid = -1;
-
-  std::string mName;
-
-  cEpgItem mNow;
-
-  typedef std::map<time_t,cEpgItem> tEpgItemMap;  // startTime, cEpgItem
-  tEpgItemMap mEpgItemMap;
-  };
-//}}}
-typedef std::map<int,cPidInfo> tPidInfoMap;  // pid inserts <pid,cPidInfo> into mPidInfoMap
-typedef std::map<int,int>      tProgramMap;  // PAT inserts <pid,sid>'s    into mProgramMap
-typedef std::map<int,cService> tServiceMap;  // SDT inserts <sid,cService> into mServiceMap
-                                             // PMT - sets cService pids
-                                             // EIT - adds cService Now,Epg events
 //{{{  DVB HD huffman
 // const
 #define START   '\0'
@@ -6873,6 +6419,471 @@ const char* huffDecode (const unsigned char *src, size_t size) {
 //}}}
 //}}}
 
+#define kVidPesBufSize 600000
+#define kAudPesBufSize  10000
+#define kMaxSectionSize  4096
+
+//{{{
+class cBitstream {
+public:
+  //{{{
+  cBitstream (const uint8_t* buffer, uint32_t bit_len) {
+    mDecBuffer = buffer;
+    mDecBufferSize = bit_len;
+    mNumOfBitsInBuffer = 0;
+    mBookmarkOn = false;
+    };
+  //}}}
+  ~cBitstream() {};
+
+  //{{{
+  uint32_t peekBits (uint32_t bits) {
+
+    bookmark (true);
+    uint32_t ret = getBits (bits);
+    bookmark (false);
+    return ret;
+    }
+  //}}}
+  //{{{
+  uint32_t getBits (uint32_t numBits) {
+
+    //{{{
+    static const uint32_t msk[33] = {
+      0x00000000, 0x00000001, 0x00000003, 0x00000007,
+      0x0000000f, 0x0000001f, 0x0000003f, 0x0000007f,
+      0x000000ff, 0x000001ff, 0x000003ff, 0x000007ff,
+      0x00000fff, 0x00001fff, 0x00003fff, 0x00007fff,
+      0x0000ffff, 0x0001ffff, 0x0003ffff, 0x0007ffff,
+      0x000fffff, 0x001fffff, 0x003fffff, 0x007fffff,
+      0x00ffffff, 0x01ffffff, 0x03ffffff, 0x07ffffff,
+      0x0fffffff, 0x1fffffff, 0x3fffffff, 0x7fffffff,
+      0xffffffff
+      };
+    //}}}
+
+    if (numBits == 0)
+      return 0;
+
+    uint32_t retData;
+    if (mNumOfBitsInBuffer >= numBits) {  // don't need to read from FILE
+      mNumOfBitsInBuffer -= numBits;
+      retData = mDecData >> mNumOfBitsInBuffer;
+      // wmay - this gets done below...retData &= msk[numBits];
+      }
+    else {
+      uint32_t nbits;
+      nbits = numBits - mNumOfBitsInBuffer;
+      if (nbits == 32)
+        retData = 0;
+      else
+        retData = mDecData << nbits;
+
+      switch ((nbits - 1) / 8) {
+        case 3:
+          nbits -= 8;
+          if (mDecBufferSize < 8)
+            return 0;
+          retData |= *mDecBuffer++ << nbits;
+          mDecBufferSize -= 8;
+          // fall through
+        case 2:
+          nbits -= 8;
+          if (mDecBufferSize < 8)
+            return 0;
+          retData |= *mDecBuffer++ << nbits;
+          mDecBufferSize -= 8;
+        case 1:
+          nbits -= 8;
+          if (mDecBufferSize < 8)
+            return 0;
+          retData |= *mDecBuffer++ << nbits;
+          mDecBufferSize -= 8;
+        case 0:
+          break;
+        }
+      if (mDecBufferSize < nbits)
+        return 0;
+
+      mDecData = *mDecBuffer++;
+      mNumOfBitsInBuffer = min(8u, mDecBufferSize) - nbits;
+      mDecBufferSize -= min(8u, mDecBufferSize);
+      retData |= (mDecData >> mNumOfBitsInBuffer) & msk[nbits];
+      }
+
+    return (retData & msk[numBits]);
+    };
+  //}}}
+
+  //{{{
+  uint32_t getUe() {
+
+    uint32_t bits;
+    uint32_t read;
+    int bits_left;
+    bool done = false;
+    bits = 0;
+
+    // we want to read 8 bits at a time - if we don't have 8 bits,
+    // read what's left, and shift.  The exp_golomb_bits calc remains the same.
+    while (!done) {
+      bits_left = bits_remain();
+      if (bits_left < 8) {
+        read = peekBits (bits_left) << (8 - bits_left);
+        done = true;
+        }
+      else {
+        read = peekBits (8);
+        if (read == 0) {
+          getBits (8);
+          bits += 8;
+          }
+        else
+         done = true;
+        }
+      }
+
+    uint8_t coded = exp_golomb_bits[read];
+    getBits (coded);
+    bits += coded;
+
+    return getBits (bits + 1) - 1;
+    }
+  //}}}
+  //{{{
+  int32_t getSe() {
+
+    uint32_t ret;
+    ret = getUe();
+    if ((ret & 0x1) == 0) {
+      ret >>= 1;
+      int32_t temp = 0 - ret;
+      return temp;
+      }
+
+    return (ret + 1) >> 1;
+    }
+  //}}}
+
+  //{{{
+  void check_0s (int count) {
+
+    uint32_t val = getBits (count);
+    if (val != 0)
+      cLog::log (LOGINFO, "field error - %d bits should be 0 is %x", count, val);
+    }
+  //}}}
+  //{{{
+  int bits_remain() {
+    return mDecBufferSize + mNumOfBitsInBuffer;
+    };
+  //}}}
+  //{{{
+  int byte_align() {
+
+    int temp = 0;
+    if (mNumOfBitsInBuffer != 0)
+      temp = getBits (mNumOfBitsInBuffer);
+    else {
+      // if we are byte aligned, check for 0x7f value - this will indicate
+      // we need to skip those bits
+      uint8_t readval = peekBits (8);
+      if (readval == 0x7f)
+        readval = getBits (8);
+      }
+
+    return temp;
+    };
+  //}}}
+
+private:
+  //{{{
+  const uint8_t exp_golomb_bits[256] = {
+    8, 7, 6, 6, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 3,
+    3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2,
+    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0,
+    };
+  //}}}
+
+  //{{{
+  void bookmark (bool on) {
+
+    if (on) {
+      mNumOfBitsInBuffer_bookmark = mNumOfBitsInBuffer;
+      mDecBuffer_bookmark = mDecBuffer;
+      mDecBufferSize_bookmark = mDecBufferSize;
+      mBookmarkOn = 1;
+      mDecData_bookmark = mDecData;
+      }
+
+    else {
+      mNumOfBitsInBuffer = mNumOfBitsInBuffer_bookmark;
+      mDecBuffer = mDecBuffer_bookmark;
+      mDecBufferSize = mDecBufferSize_bookmark;
+      mDecData = mDecData_bookmark;
+      mBookmarkOn = 0;
+      }
+
+    };
+  //}}}
+
+  uint32_t mNumOfBitsInBuffer;
+  const uint8_t* mDecBuffer;
+  uint8_t mDecData;
+  uint8_t mDecData_bookmark;
+  uint32_t mDecBufferSize;
+
+  bool mBookmarkOn;
+  uint32_t mNumOfBitsInBuffer_bookmark;
+  const uint8_t* mDecBuffer_bookmark;
+  uint32_t mDecBufferSize_bookmark;
+  };
+//}}}
+//{{{
+class cPidInfo {
+public:
+  //{{{
+  cPidInfo (int pid, bool isSection) : mPid(pid),  mIsSection(isSection) {
+
+    switch (pid) {
+      case PID_PAT: mInfo = "Pat "; break;
+      case PID_CAT: mInfo = "Cat "; break;
+      case PID_SDT: mInfo = "Sdt "; break;
+      case PID_NIT: mInfo = "Nit "; break;
+      case PID_EIT: mInfo = "Eit "; break;
+      case PID_RST: mInfo = "Rst "; break;
+      case PID_TDT: mInfo = "Tdt "; break;
+      case PID_SYN: mInfo = "Syn "; break;
+      default:;
+      }
+    }
+  //}}}
+  ~cPidInfo() {}
+
+  //{{{
+  void print() {
+    cLog::log (LOGINFO, "- pid:%4d sid:%5d stream:%2d - packets:%6d disCon:%d repCon:%d  ",
+                         mPid,  mSid, mStreamType, mTotal, mDisContinuity, mRepeatContinuity);
+    }
+  //}}}
+
+  int mPid;
+  int mSid = -1;
+  bool mIsSection;
+
+  int mStreamType = 0;
+  uint64_t mPts = 0;
+  uint64_t mDts = 0;
+  uint64_t mPcr = 0;
+
+  int mTotal = 0;
+  int mContinuity = -1;
+  int mDisContinuity = 0;
+  int mRepeatContinuity = 0;
+
+  int mSectionLength = 0;
+
+  // content buffer
+  int mBufSize = 0;
+  uint8_t* mBuffer = nullptr;
+  uint8_t* mBufPtr = nullptr;
+
+  int64_t mStreamPos = -1;
+
+  std::string mInfo;
+  };
+//}}}
+//{{{
+class cEpgItem {
+public:
+  cEpgItem() : mStartTime(0), mDuration(0) {}
+  //{{{
+  cEpgItem (time_t startTime, int duration, std::string title, std::string shortDescription)
+      : mStartTime(startTime), mDuration(duration) {
+    mTitle = title;
+    mShortDescription = shortDescription;
+    }
+  //}}}
+  ~cEpgItem() {}
+
+  //{{{
+  std::string getNameStr() {
+    return mTitle;
+    }
+  //}}}
+  //{{{
+  std::string getStartTimeStr() {
+    struct tm time = *localtime (&mStartTime);
+    char* timeStr = asctime (&time);
+    timeStr[24] = 0;
+    return std::string (timeStr);
+    }
+  //}}}
+
+  //{{{
+  void set (time_t startTime, int duration, std::string title, std::string shortDescription) {
+
+    mDuration = duration;
+    mStartTime = startTime;
+
+    mTitle = title;
+    mShortDescription = shortDescription;
+    }
+  //}}}
+
+  //{{{
+  void print (std::string prefix) {
+
+    struct tm time = *localtime (&mStartTime);
+    char* timeStr = asctime (&time);
+    timeStr[24] = 0;
+
+    cLog::log (LOGINFO, "%s", (prefix + timeStr + " " + std::to_string (mDuration/60) + " " + mTitle).c_str());
+    }
+  //}}}
+
+  // vars
+  time_t mStartTime;
+  int mDuration;
+
+  std::string mTitle;
+  std::string mShortDescription;
+  };
+//}}}
+//{{{
+class cService {
+public:
+  cService() {}
+  //{{{
+  cService (int sid, int tsid, int onid, int type, int vid, int aud, int pcr, const std::string& name) :
+      mSid(sid), mTsid(tsid), mOnid(onid), mType(type), mVidPid(vid), mAudPid(aud), mPcrPid(pcr) {
+
+    mName = name;
+    }
+  //}}}
+  ~cService() {}
+
+  //  gets
+  int getSid() const { return mSid; }
+  int getTsid() const { return mTsid; }
+  int getOnid() const { return mOnid; }
+  int getType() const { return mType; }
+  //{{{
+  std::string getTypeStr() {
+    switch (mType) {
+      case kServiceTypeTV :           return "TV";
+      case kServiceTypeRadio :        return "Radio";
+      case kServiceTypeAdvancedSDTV : return "SDTV";
+      case kServiceTypeAdvancedHDTV : return "HDTV";
+      default : return "none";
+      }
+    }
+  //}}}
+
+  int getVidPid() const { return mVidPid; }
+  int getAudPid() const { return mAudPid; }
+  int getSubPid() const { return mSubPid; }
+  int getPcrPid() const { return mPcrPid; }
+  int getProgramPid() const { return mProgramPid; }
+
+  cEpgItem* getNow() { return &mNow; }
+  std::string getName() { return mName; }
+
+  //  sets
+  //{{{
+  void setVidPid (int pid, int streamType) {
+    if (pid != mVidPid) {
+      cLog::log (LOGINFO, "setVidPid - esPid:%d streamType:%d", pid, streamType);
+      mVidPid = pid;
+      }
+    }
+  //}}}
+  //{{{
+  void setAudPid (int pid, int streamType) {
+    if ((pid != mAudPid) && (pid != mAudPid1)) {
+      // use first aud pid, may be many
+      if (mAudPid == -1)
+        mAudPid = pid;
+      else if (mAudPid1 == -1)
+        mAudPid1 = pid;
+      cLog::log (LOGINFO, "setAudPid - pid:%d streamType:%d, mAudPid %d mAudPid1 %d",
+                          pid, streamType, mAudPid, mAudPid1);
+      }
+    }
+  //}}}
+  void setSubPid (int pid, int streamType) { mSubPid = pid; }
+  void setPcrPid (int pid) { mPcrPid = pid; }
+  void setProgramPid (int pid) { mProgramPid = pid; }
+
+  //{{{
+  bool setNow (time_t startTime, int duration, std::string str1, std::string str2) {
+
+    bool nowChanged = (startTime != mNow.mStartTime);
+
+    mNow.set (startTime, duration, str1, str2);
+
+    return nowChanged;
+    }
+  //}}}
+  //{{{
+  void setEpg (time_t startTime, int duration, std::string str1, std::string str2) {
+
+    mEpgItemMap.insert (tEpgItemMap::value_type (startTime, cEpgItem(startTime, duration, str1, str2)));
+    }
+  //}}}
+  //{{{
+  void print() {
+    cLog::log (LOGINFO,"- sid:%d tsid:%d onid:%d - prog:%d - v:%d - a:%d - sub:%d pcr:%d %s <%s>",
+                           mSid, mTsid, mOnid,
+                           mProgramPid, mVidPid, mAudPid,
+                           mSubPid, mPcrPid, getTypeStr().c_str(), mName.c_str());
+    mNow.print ("  - ");
+
+    for (auto epgItem : mEpgItemMap)
+      epgItem.second.print ("    - ");
+    }
+  //}}}
+
+private:
+  int mSid = -1;
+  int mTsid = -1;
+  int mOnid = -1;
+  int mType = -1;
+
+  int mVidPid = -1;
+  int mAudPid = -1;
+  int mAudPid1 = -1;
+  int mSubPid = -1;
+  int mPcrPid = -1;
+  int mProgramPid = -1;
+
+  std::string mName;
+
+  cEpgItem mNow;
+
+  typedef std::map<time_t,cEpgItem> tEpgItemMap;  // startTime, cEpgItem
+  tEpgItemMap mEpgItemMap;
+  };
+//}}}
+                                             // PMT - sets cService pids
+typedef std::map<int,cPidInfo> tPidInfoMap;  // pid inserts <pid,cPidInfo> into mPidInfoMap
+typedef std::map<int,int>      tProgramMap;  // PAT inserts <pid,sid>'s    into mProgramMap
+typedef std::map<int,cService> tServiceMap;  // SDT inserts <sid,cService> into mServiceMap
+                                             // EIT - adds cService Now,Epg events
+
 class cTransportStream {
 public:
   cTransportStream() {}
@@ -6880,7 +6891,6 @@ public:
 
   int getPackets() { return mPackets; }
   int getDiscontinuity() { return mDiscontinuity; }
-
   //{{{
   int64_t demux (uint8_t* tsBase, int64_t streamPos, int64_t streamSize, bool skipped,
                  int audPid, int vidPid, uint64_t basePts) {
@@ -7129,7 +7139,7 @@ protected:
   virtual void pidPacket (int pid, uint8_t* ptr) {}
   virtual bool audDecodePes (cPidInfo* pidInfo, uint64_t basePts) { return false; }
   virtual bool vidDecodePes (cPidInfo* pidInfo, uint64_t basePts, char frameType,  bool skipped) { return false; }
-  virtual void startProgram (int vpid, int apid, std::string name, std::string startTime) {}
+  virtual void startProgram (int vpid, int apid, const std::string& name, const std::string& startTime) {}
 
   std::string mTimeStr;
   std::string mNetworkNameStr;
@@ -7320,7 +7330,8 @@ private:
                   *((uint8_t*)(ptr + DESCR_SERVICE_LEN + CastServiceDescr(ptr)->provider_name_length)));
 
                 // insert new cService, get serviceIt iterator
-                auto pair = mServiceMap.insert (tServiceMap::value_type (sid, cService (sid, tsid, onid, serviceType, nameStr)));
+                auto pair = mServiceMap.insert (
+                  tServiceMap::value_type (sid, cService (sid, tsid, onid, serviceType, -1,-1,-1, nameStr)));
                 auto serviceIt = pair.first;
                 cLog::log (LOGINFO, "SDT new cService tsid:%d sid:%d %s name<%s>",
                         tsid, sid, serviceIt->second.getTypeStr().c_str(), nameStr.c_str());
@@ -7401,25 +7412,25 @@ private:
         auto pmtInfo = (pmt_info_t*)ptr;
         auto streamType = pmtInfo->stream_type;
         auto esPid = HILO (pmtInfo->elementary_PID);
-        cLog::log (LOGNOTICE, "PMT - adding stream to service esPid:%d streamType:%d", esPid, streamType);
 
         auto recognised = true;
         switch (streamType) {
-          case 2:  serviceIt->second.setVidPid (esPid); break; // ISO 13818-2 video
-          case 27: serviceIt->second.setVidPid (esPid); break; // HD vid
+          case 2:  serviceIt->second.setVidPid (esPid, streamType); break; // ISO 13818-2 video
+          case 27: serviceIt->second.setVidPid (esPid, streamType); break; // HD vid
 
-          case 3:  serviceIt->second.setAudPid (esPid); break; // ISO 11172-3 audio
-          case 4:  serviceIt->second.setAudPid (esPid); break; // ISO 13818-3 audio
-          case 15: serviceIt->second.setAudPid (esPid); break; // HD aud ADTS
-          case 17: serviceIt->second.setAudPid (esPid); break; // HD aud LATM
+          case 3:  serviceIt->second.setAudPid (esPid, streamType); break; // ISO 11172-3 audio
+          case 4:  serviceIt->second.setAudPid (esPid, streamType); break; // ISO 13818-3 audio
+          case 15: serviceIt->second.setAudPid (esPid, streamType); break; // HD aud ADTS
+          case 17: serviceIt->second.setAudPid (esPid, streamType); break; // HD aud LATM
 
-          case 6:  serviceIt->second.setSubPid (esPid); break; // subtitle
+          case 6:  serviceIt->second.setSubPid (esPid, streamType); break; // subtitle
 
           case 5:  recognised = false; break;
           case 11: recognised = false; break;
+
           case 13:
           default:
-            cLog::log (LOGINFO, "parsePMT - unknown streamType:%d sid:%d esPid:%d", streamType, sid, esPid);
+            cLog::log (LOGINFO, "parsePmt - unknown streamType:%d sid:%d esPid:%d", streamType, sid, esPid);
             recognised = false;
             break;
           }
@@ -7445,12 +7456,13 @@ private:
       //}}}
     else if (pid == 32) {
       // simple tsFile with no SDT, pid 32 used to allocate service with sid
-      cLog::log (LOGNOTICE, "PMT - serviceMap insert pid 32");
-      mServiceMap.insert (tServiceMap::value_type (sid, cService (sid, 0, 0, kServiceTypeTV, "file")));
+      cLog::log (LOGINFO, "parsePmt - serviceMap.insert pid 32");
+      mServiceMap.insert (tServiceMap::value_type (sid, cService (sid,0,0, kServiceTypeTV, -1,-1,-1, "file32")));
       }
-    else if (pid == 0x100) {
-      cLog::log (LOGNOTICE, "PMT - serviceMap insert pid 0x100");
-      mServiceMap.insert (tServiceMap::value_type (sid, cService (sid, 0, 0, kServiceTypeTV, "file")));
+    else if (pid == 256) {
+      // simple tsFile with no SDT, pid 256 used to allocate service with sid
+      cLog::log (LOGINFO, "parsePmt - serviceMap.insert pid 0x100");
+      mServiceMap.insert (tServiceMap::value_type (sid, cService (sid,0,0, kServiceTypeTV, 258,257,258, "file256")));
       }
     }
   //}}}
@@ -7582,12 +7594,12 @@ private:
           case DESCR_DATA_BROADCAST: // 0x64
           case 0x76:                 // content_identifier
           case 0x7e:                 // FTA_content_management
-            //printf ("parseEIT - expected tag:%x %d %d", GetDescrTag(ptr), tid, sid);
+            //cLog::log(LOGINFO, "parseEIT - expected tag:%x %d %d", GetDescrTag(ptr), tid, sid);
             break;
           case 0x4a:                 // linkage
           case 0x89:                 // user_defined
           default:
-            //printf ("parseEIT - unexpected tag:%x %d %d", GetDescrTag(ptr), tid, sid);
+            //cLog::log(LOGINFO, "parseEIT - unexpected tag:%x %d %d", GetDescrTag(ptr), tid, sid);
             break;
           }
 
@@ -7629,6 +7641,7 @@ private:
     dts = ((*(tsPtr+8) >= 10) && (*(tsPtr+7) & 0x40)) ? parseTimeStamp (tsPtr+14) : 0;
     }
   //}}}
+
   //{{{
   std::string getDescrStr (uint8_t* buf, int len) {
 
@@ -7796,7 +7809,7 @@ private:
     else if (streamType == 27) {
       // h264 minimal parser
       while (pesPtr < pesEnd) {
-        //printf ("VPES");
+        //cLog::log(LOGINFO, "VPES");
         //{{{  skip past startcode, find next startcode
         auto buf = pesPtr;
         auto bufLen = uint32_t (pesEnd - pesPtr);
@@ -7840,7 +7853,7 @@ private:
           switch (bitstream.getBits (5)) {
             case 1:
             case 5:
-              //printf ("SLICE");
+              //cLog::log(LOGINFO, "SLICE");
               bitstream.getUe();
               switch (bitstream.getUe()) {
                 case 5: return 'P';
@@ -7849,11 +7862,11 @@ private:
                 default:return '?';
                 }
               break;
-            //case 6: //printf ("SEI"); break;
-            //case 7: //printf ("SPS"); break;
-            //case 8: //printf ("PPS"); break;
-            //case 9: //printf ("AUD"); break;
-            //case 0x0d: //printf ("SEQEXT"); break;
+            //case 6: cLog::log(LOGINFO, ("SEI"); break;
+            //case 7: cLog::log(LOGINFO, ("SPS"); break;
+            //case 8: cLog::log(LOGINFO, ("PPS"); break;
+            //case 9: cLog::log(LOGINFO,  ("AUD"); break;
+            //case 0x0d: cLog::log(LOGINFO, ("SEQEXT"); break;
             }
           }
         pesPtr += nalLen;
