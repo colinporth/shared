@@ -813,21 +813,21 @@ public:
       window = (int16_t*)bigMalloc (512*2, "mp3window");
       mdct_win = (int32_t*)bigMalloc (8*36*4, "mp3MdctWin");
 
-      for (auto i = 1; i < (8191 + 16) * 4; i++) {
+      for (auto i = 1u; i < (8191 + 16) * 4; i++) {
         int e;
         float fm = frexpf (powf (i/4.0f, 4.0f/3.0f) * powf (2.0f, (i & 3) * 0.25f), &e);
         table43value[i] = (uint32_t)(fm * (1LL << 31) + 0.5f);
         table43exp[i] = -e - FRAC_BITS + 31 - 5 + 100;
         }
 
-      for (auto i = 1; i < (8191 + 16) * 4; i++) {
+      for (auto i = 1u; i < (8191 + 16) * 4; i++) {
         int e;
         float fm = frexpf (powf (i/4.0f, 4.0f/3.0f) * powf (2.0f, (i & 3) * 0.25f), &e);
         table43value[i] = (uint32_t)(fm * (1LL << 31) + 0.5f);
         table43exp[i] = -e - FRAC_BITS + 31 - 5 + 100;
         }
 
-      for (auto i = 0; i < 512*16; i++){
+      for (auto i = 0u; i < 512*16; i++){
         auto exponent = i >> 4;
         float f = powf (float(i & 15), 4.0f / 3.0f) * powf (2.0f, (exponent - 400.0f) * 0.25f + FRAC_BITS + 5.0f);
         expval_table[(exponent * 16) + (i & 15)] = (uint32_t)f;
@@ -835,7 +835,7 @@ public:
           exp_table[exponent]= (uint32_t)f;
         }
 
-      for (auto i = 0; i < 7; i++) {
+      for (auto i = 0u; i < 7; i++) {
         int v;
         if (i != 6) {
           float f = (float)tanf (i * PI / 12.0f);
@@ -847,10 +847,10 @@ public:
         is_table[1][6 - i] = v;
         }
 
-      for (auto i = 7; i < 16; i++)
+      for (auto i = 7u; i < 16; i++)
         is_table[0][i] = is_table[1][i] = 0;
 
-      for (auto i = 0; i < 16; i++)
+      for (auto i = 0u; i < 16; i++)
         for (auto j = 0; j < 2; j++) {
           auto e = -(j + 1) * ((i + 1) >> 1);
           float f = powf (2.0f, e / 4.0f);
@@ -859,7 +859,7 @@ public:
           is_table_lsf[j][k][i] = FIXR(1.0f);
           }
 
-      for (auto i = 0; i < 8; i++) {
+      for (auto i = 0u; i < 8; i++) {
         auto ci = ci_table[i];
         auto cs = (float)(1.0 / sqrt(1.0 + ci * ci));
         auto ca = cs * ci;
@@ -874,7 +874,7 @@ public:
         }
       //}}}
       //{{{  synth init
-      for (auto i = 0; i < 257; i++) {
+      for (auto i = 0u; i < 257; i++) {
         auto v = mp3_enwindow[i];
 
       #if WFRAC_BITS < 16
@@ -890,7 +890,7 @@ public:
         }
       //}}}
       //{{{  huffman decode tables
-      for (auto i = 1; i < 16; i++) {
+      for (auto i = 1u; i < 16; i++) {
         uint8_t tmp_bits[512];
         memset (tmp_bits , 0, sizeof (tmp_bits));
 
@@ -898,12 +898,12 @@ public:
         memset (tmp_codes, 0, sizeof (tmp_codes));
 
         auto h = &mp3_huff_tables[i];
-        auto xsize = h->xsize;
+        unsigned xsize = h->xsize;
         //auto n = xsize * xsize;
 
         int j = 0;
-        for (auto x = 0; x < xsize; x++)
-          for (auto y = 0; y < xsize; y++){
+        for (auto x = 0u; x < xsize; x++)
+          for (auto y = 0u; y < xsize; y++){
             tmp_bits [(x << 5) | y | ((x&&y)<<4)]= h->bits [j];
             tmp_codes[(x << 5) | y | ((x&&y)<<4)]= h->codes[j++];
             }
@@ -912,14 +912,14 @@ public:
         buildVlcTable (&huff_vlc[i], 7, 512, tmp_bits, 1, 1, tmp_codes, 2, 2, 0, 0);
         }
 
-      for (auto i = 0; i < 2; i++) {
+      for (auto i = 0u; i < 2; i++) {
         huff_quad_vlc[i].bits = i ? 4 : 7;
         buildVlcTable (&huff_quad_vlc[i],  i ? 4 : 7, 16, mp3_quad_bits[i], 1, 1, mp3_quad_codes[i], 1, 1, 0, 0);
         }
 
-      for (auto i = 0; i < 9; i++) {
+      for (auto i = 0u; i < 9; i++) {
         auto k = 0;
-        for (auto j = 0; j < 22; j++) {
+        for (auto j = 0u; j < 22; j++) {
           band_index_long[i][j] = k;
           k += bandSize_long[i][j];
           }
@@ -927,8 +927,8 @@ public:
         }
       //}}}
       //{{{  compute mdct windows
-      for (auto i = 0; i < 36; i++)
-        for (auto j = 0; j < 4; j++){
+      for (auto i = 0u; i < 36; i++)
+        for (auto j = 0u; j < 4; j++){
           if (j == 2 && i % 3 != 1)
             continue;
 
@@ -956,8 +956,8 @@ public:
             mdct_win[(j*36) + i] = FIXHR((d / (1 << 5)));
           }
 
-      for (auto j = 0; j < 4; j++)
-        for (auto i = 0; i < 36; i += 2) {
+      for (auto j = 0u; j < 4; j++)
+        for (auto i = 0u; i < 36; i += 2) {
           mdct_win[(j + 4)*36 + i] = mdct_win[j*36 + i];
           mdct_win[(j + 4)*36 + i + 1] = -mdct_win[j*36 + i+1];
           }
@@ -969,11 +969,11 @@ public:
   void* operator new (std::size_t size) { return bigMalloc (size, "cMp3Decoder"); }
   void operator delete (void *ptr) { bigFree (ptr); }
 
-  int getMode() { return mModeExt; }
-  int getBitRate() { return mBitRate; }
-  int getSampleRate() { return mSampleRate; }
-  int getNumChannels() { return mNumChannels; }
-  int getFrameBodySize() { return mFrameBodySize; }
+  unsigned getMode() { return mModeExt; }
+  unsigned getBitRate() { return mBitRate; }
+  unsigned getSampleRate() { return mSampleRate; }
+  unsigned getNumChannels() { return mNumChannels; }
+  unsigned getFrameBodySize() { return mFrameBodySize; }
   //{{{
   uint8_t* getJpeg (int& jpegLen) {
     jpegLen = mJpegLen;
@@ -982,7 +982,7 @@ public:
   //}}}
 
   //{{{
-  int findId3tag (uint8_t* buf, int bufLen) {
+  unsigned findId3tag (uint8_t* buf, int bufLen) {
   // check for ID3 tag
 
     auto ptr = buf;
@@ -1060,7 +1060,7 @@ public:
       get_bits (&mBitstream, 16);
 
     int32_t subBandSamples [2][36][32];
-    auto numFrames = decodeLayer3 (&subBandSamples[0][0][0]);
+    unsigned numFrames = decodeLayer3 (&subBandSamples[0][0][0]);
 
     // what does this do ???
     mLastBufLen = 0;
@@ -1089,9 +1089,9 @@ public:
 
     if (outSamples) {
       // synthFilter subBandsamples to outSamples, using synthBuf
-      for (auto channel = 0; channel < mNumChannels; channel++) {
+      for (auto channel = 0u; channel < mNumChannels; channel++) {
         auto outSamplesPtr = outSamples + channel;
-        for (auto frame = 0; frame < numFrames; frame++) {
+        for (auto frame = 0u; frame < numFrames; frame++) {
           synthFilter (channel, frame, &subBandSamples[0][0][0], outSamplesPtr);
           outSamplesPtr += 32 * mNumChannels;
           }
@@ -1101,7 +1101,7 @@ public:
     }
   //}}}
   //{{{
-  int decodeNextFrame (uint8_t* buf, int bufLen, uint8_t* waveform, int16_t* samples) {
+  int decodeNextFrame (uint8_t* buf, unsigned bufLen, uint8_t* waveform, int16_t* samples) {
   // find next valid frame header, decode header, decode body
   // - return buf bytesUsed
   //   - 0 if complete frame not found
@@ -1143,7 +1143,7 @@ private:
   int buildVlcTable (vlc_t* vlc, int table_nb_bits, int nb_codes, const void* bits, int bits_wrap, int bitsSize,
                      const void *codes, int codes_wrap, int codesSize, uint32_t code_prefix, int n_prefix) {
 
-    auto tableSize = 1 << table_nb_bits;
+    unsigned tableSize = 1 << table_nb_bits;
     auto table_index = vlc->tableSize;
     vlc->tableSize += tableSize;
     if (vlc->tableSize > vlc->table_allocated) {
@@ -1152,7 +1152,7 @@ private:
       }
 
     int16_t (*table)[2] = &vlc->table[table_index];
-    for (auto i = 0; i < tableSize; i++) {
+    for (auto i = 0u; i < tableSize; i++) {
       table[i][1] = 0; //bits
       table[i][0] = -1; //codes
       }
@@ -1189,7 +1189,7 @@ private:
         }
       }
 
-    for (auto i = 0; i < tableSize; i++) {
+    for (auto i = 0u; i < tableSize; i++) {
       int n = table[i][1]; //bits
       if (n < 0) {
         n = -n;
@@ -2295,13 +2295,13 @@ private:
 
     granule_t mGranules[2][2];
     if (!mLsf)
-      for (int channel = 0; channel < mNumChannels; channel++) {
+      for (auto channel = 0u; channel < mNumChannels; channel++) {
         mGranules[channel][0].scfsi = 0; // all scale factors are transmitted
         mGranules[channel][1].scfsi = get_bits (&mBitstream, 4);
         }
 
     for (auto granuleIndex = 0; granuleIndex < numGranules; granuleIndex++)
-      for (auto channel = 0; channel < mNumChannels; channel++) {
+      for (auto channel = 0u; channel < mNumChannels; channel++) {
         //{{{  per channel
         auto granule = &mGranules[channel][granuleIndex];
         granule->part2_3_length = get_bits (&mBitstream, 12);
@@ -2410,7 +2410,7 @@ private:
     init_get_bits (&mBitstream, mLastBuf + mLastBufLen - mainDataBegin, mainDataBegin * 8);
 
     for (auto granuleIndex = 0; granuleIndex < numGranules; granuleIndex++) {
-      for (auto channel = 0; channel < mNumChannels; channel++) {
+      for (auto channel = 0u; channel < mNumChannels; channel++) {
         //{{{  per channel
         auto granule = &mGranules[channel][granuleIndex];
         auto bits_pos = get_bits_count (&mBitstream);
@@ -2528,7 +2528,7 @@ private:
         //}}}
       if (mNumChannels == 2)
         computeStereo (&mGranules[0][granuleIndex], &mGranules[1][granuleIndex]);
-      for (auto channel = 0; channel < mNumChannels; channel++) {
+      for (auto channel = 0u; channel < mNumChannels; channel++) {
         auto granule = &mGranules[channel][granuleIndex];
         reorderBlock (granule);
         computeAntialias (granule);
@@ -2610,11 +2610,11 @@ private:
   int mLastBufLen = 0;
   uint8_t mLastBuf[2*512 + 24];
 
-  int mFrameBodySize = 0;
-  int mBitRate = 0;
-  int mNumChannels = 0;
-  int mSampleRate = 0;
-  int mSampleRateIndex = 0;
+  unsigned mFrameBodySize = 0;
+  unsigned mBitRate = 0;
+  unsigned mNumChannels = 0;
+  unsigned mSampleRate = 0;
+  unsigned mSampleRateIndex = 0;
 
   int mModeExt = 0;
   int mLsf = 0;
