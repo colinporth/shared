@@ -1169,8 +1169,8 @@ private:
       if (n > 0 && code_prefix2 == code_prefix) {
         if (n <= table_nb_bits) {
           int j = (code << (table_nb_bits - n)) & (tableSize - 1);
-          int nb = 1 << (table_nb_bits - n);
-          for (auto k = 0; k < nb; k++) {
+          unsigned nb = 1 << (table_nb_bits - n);
+          for (auto k = 0u; k < nb; k++) {
             if (table[j][1] /*bits*/ != 0)
               return -1;
             table[j][1] = n; //bits
@@ -1484,14 +1484,14 @@ private:
   //{{{
   void imdct36 (int32_t* out, int32_t* buf, int32_t* in, int32_t* win) {
 
-    for (auto i = 17; i >= 1; i--)
+    for (auto i = 17u; i >= 1; i--)
       in[i] += in[i-1];
-    for (auto i = 17; i >= 3; i -= 2)
+    for (auto i = 17u; i >= 3; i -= 2)
       in[i] += in[i-2];
 
     int tmp[18];
     int t0, t1, t2, t3, s0, s1, s2, s3;
-    for (auto j = 0; j < 2; j++) {
+    for (auto j = 0u; j < 2; j++) {
       auto tmp1 = tmp + j;
       auto in1 = in + j;
 
@@ -1521,7 +1521,7 @@ private:
       }
 
     auto i = 0;
-    for (auto j = 0; j < 4; j++) {
+    for (auto j = 0u; j < 4; j++) {
       t0 = tmp[i];
       t1 = tmp[i + 2];
       s0 = t1 + t0;
@@ -1844,7 +1844,7 @@ private:
       non_zero_found_short[1] = 0;
       non_zero_found_short[2] = 0;
       auto k = (13 - granule1->short_start) * 3 + granule1->long_end - 3;
-      for (auto i = 12;i >= granule1->short_start;i--) {
+      for (auto i = 12; i >= granule1->short_start; i--) {
         //{{{  for last band, use previous scale factor
         if (i != 11)
           k -= 3;
@@ -1898,7 +1898,7 @@ private:
 
         //  test if non zero band. if so, stop doing i-stereo */
         if (!non_zero_found) {
-          for (auto j = 0; j < len; j++) {
+          for (auto j = 0u; j < len; j++) {
             if (tab1[j] != 0) {
               non_zero_found = 1;
               goto found2;
@@ -1913,7 +1913,7 @@ private:
 
           auto v1 = is_tab[0][sf];
           auto v2 = is_tab[1][sf];
-          for (auto j = 0; j < len; j++) {
+          for (auto j = 0u; j < len; j++) {
             tmp0 = tab0[j];
             tab0[j] = MULL(tmp0, v1);
             tab1[j] = MULL(tmp0, v2);
@@ -1924,7 +1924,7 @@ private:
       found2:
           if (mModeExt & MODE_EXT_MS_STEREO) {
             //{{{  lower part of the spectrum : do ms stereo if enabled
-            for (auto j = 0; j < len; j++) {
+            for (auto j = 0u; j < len; j++) {
               tmp0 = tab0[j];
               tmp1 = tab1[j];
               tab0[j] = MULL(tmp0 + tmp1, FIXR (0.70710678118654752440));
@@ -1940,7 +1940,7 @@ private:
       //{{{  ms stereo ONLY the 1/sqrt(2) normalization factor is included in the global gain
       auto tab0 = granule0->sb_hybrid;
       auto tab1 = granule1->sb_hybrid;
-      for (auto i = 0; i < 576; i++) {
+      for (auto i = 0u; i < 576; i++) {
         tmp0 = tab0[i];
         tmp1 = tab1[i];
         tab0[i] = tmp0 + tmp1;
@@ -1976,7 +1976,7 @@ private:
       auto k = granule->long_end;
       for (auto i = granule->short_start; i < 13; i++) {
         auto len = bstab[i];
-        for (auto l = 0; l < 3; l++) {
+        for (auto l = 0u; l < 3; l++) {
           auto v0 = gains[l] - (granule->scale_factors[k++] << shift) + 400;
           for (auto j = len; j > 0; j--)
            *exp_ptr++ = v0;
@@ -1993,7 +1993,7 @@ private:
     int last_pos;
     //{{{  get low frequencies (called big values)
     int s_index = 0;
-    for (auto i = 0; i < 3; i++) {
+    for (auto i = 0u; i < 3; i++) {
       auto j = granule->regionSize[i];
       if (j == 0)
         continue;
@@ -2276,7 +2276,7 @@ private:
     for (auto j = sblimit; j < 32; j++) {
       // overlap
       auto out_ptr = subBandSamples + j;
-      for (auto i = 0; i < 18; i++) {
+      for (auto i = 0u; i < 18; i++) {
         *out_ptr = mdctBufPtr[i];
         mdctBufPtr[i] = 0;
         out_ptr += 32;
@@ -2291,7 +2291,7 @@ private:
 
     int mainDataBegin = get_bits (&mBitstream, mLsf ? 8 : 9);
     get_bits (&mBitstream, mLsf ? mNumChannels : mNumChannels == 2 ? 3 : 5); // privateBits
-    int numGranules = mLsf ? 1 : 2;
+    unsigned numGranules = mLsf ? 1 : 2;
 
     granule_t mGranules[2][2];
     if (!mLsf)
@@ -2300,7 +2300,7 @@ private:
         mGranules[channel][1].scfsi = get_bits (&mBitstream, 4);
         }
 
-    for (auto granuleIndex = 0; granuleIndex < numGranules; granuleIndex++)
+    for (auto granuleIndex = 0u; granuleIndex < numGranules; granuleIndex++)
       for (auto channel = 0u; channel < mNumChannels; channel++) {
         //{{{  per channel
         auto granule = &mGranules[channel][granuleIndex];
@@ -2340,7 +2340,7 @@ private:
         else {
           granule->block_type = 0;
           granule->switch_point = 0;
-          for (auto i = 0; i < 3; i++)
+          for (auto i = 0u; i < 3; i++)
             granule->table_select[i] = get_bits (&mBitstream, 5);
           //{{{  compute huffman coded region sizes
           auto region_address1 = get_bits (&mBitstream, 4);
@@ -2360,7 +2360,7 @@ private:
         granule->regionSize[2] = (576 / 2);
 
         auto j = 0;
-        for (auto i = 0; i < 3; i++) {
+        for (auto i = 0u; i < 3; i++) {
           auto k = granule->regionSize[i];
           if (granule->big_values < k)
             k = granule->big_values;
@@ -2409,7 +2409,7 @@ private:
     mInBitstream = mBitstream;
     init_get_bits (&mBitstream, mLastBuf + mLastBufLen - mainDataBegin, mainDataBegin * 8);
 
-    for (auto granuleIndex = 0; granuleIndex < numGranules; granuleIndex++) {
+    for (auto granuleIndex = 0u; granuleIndex < numGranules; granuleIndex++) {
       for (auto channel = 0u; channel < mNumChannels; channel++) {
         //{{{  per channel
         auto granule = &mGranules[channel][granuleIndex];
@@ -2419,10 +2419,10 @@ private:
           auto slen2 = slen_table[1][granule->scalefac_compress];
           if (granule->block_type == 2) {
             //{{{  block_type 2
-            auto n = granule->switch_point ? 17 : 18;
+            auto n = granule->switch_point ? 17u : 18u;
             auto j = 0;
             if (slen1)
-              for (auto i = 0; i < n; i++)
+              for (auto i = 0u; i < n; i++)
                 granule->scale_factors[j++] = get_bits (&mBitstream, slen1);
             else {
               memset (&granule->scale_factors[j], 0, n);
@@ -2443,12 +2443,12 @@ private:
           else {
             auto sc = mGranules[channel][0].scale_factors;
             auto j = 0;
-            for (auto k = 0; k < 4; k++) {
-              auto n = (k == 0 ? 6 : 5);
+            for (auto k = 0u; k < 4; k++) {
+              auto n = (k == 0 ? 6u : 5u);
               if ((granule->scfsi & (0x8 >> k)) == 0) {
                 auto slen = (k < 2) ? slen1 : slen2;
                 if (slen)
-                  for (auto i = 0; i < n; i++)
+                  for (auto i = 0u; i < n; i++)
                     granule->scale_factors[j++] = get_bits (&mBitstream, slen);
                 else {
                   memset (&granule->scale_factors[j], 0, n);
@@ -2456,7 +2456,7 @@ private:
                   }
                 }
               else // simply copy from last granule
-                for (auto i = 0; i < n; i++) {
+                for (auto i = 0u; i < n; i++) {
                   granule->scale_factors[j] = sc[j];
                   j++;
                   }
@@ -2506,7 +2506,7 @@ private:
             }
 
           auto j = 0;
-          for (auto k = 0; k < 4; k++) {
+          for (auto k = 0u; k < 4; k++) {
             auto n = lsf_nsf_table[tindex2][tindex][k];
             sl = slen[k];
             if (sl) {
@@ -2543,9 +2543,9 @@ private:
   void calcWaveform (int32_t* subBandSamples, uint8_t* waveform) {
   // calc power from subBandSamples
 
-    for (auto channel = 0; channel < 2; channel++) {
+    for (auto channel = 0u; channel < 2; channel++) {
       float value = 0;
-      for (auto i = 0; i < 36*32; i++) {
+      for (auto i = 0u; i < 36*32; i++) {
         value += (*subBandSamples) * (*subBandSamples);
         subBandSamples++;
         }
@@ -2562,7 +2562,7 @@ private:
     dct32 (subBandSamples + (channel*36*32) + (frame*32), tmp);
 
     auto offsetSynthBuf = mSynthBuf[channel] + mSynthBufOffset[channel];
-    for (auto j = 0; j < 32; j++) // could 32bit to 16bit - could limit
+    for (auto j = 0u; j < 32; j++) // could 32bit to 16bit - could limit
       offsetSynthBuf[j] = tmp[j];
     memcpy (offsetSynthBuf + 512, offsetSynthBuf, 32 * sizeof(int16_t));
 
@@ -2579,7 +2579,7 @@ private:
     w++;
 
     // calc two samples at a time to avoid one memory access per two samples
-    for (auto j = 1; j < 16; j++) {
+    for (auto j = 1u; j < 16; j++) {
       auto sum2 = 0;
       p = offsetSynthBuf + 16 + j;
       SUM8P2(sum, +=, sum2, -=, w, w2, p);
