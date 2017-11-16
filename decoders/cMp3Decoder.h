@@ -806,12 +806,12 @@ public:
 
     if (!table43exp) {
       //{{{  compute n ^ (4/3) and store it in mantissa/exp format
-      table43exp = (int8_t*)malloc ((8191 + 16)*4 * sizeof (table43exp[0]), "mp3Tab43");
-      table43value = (uint32_t*)malloc ((8191 + 16)*4 * sizeof (table43value[0]), "mp3Val43");
-      exp_table = (uint32_t*)malloc (512*4, "mp3ExpTab");
-      expval_table = (uint32_t*)malloc (512*16*4, "mp3ExpVal");
-      window = (int16_t*)malloc (512*2, "mp3window");
-      mdct_win = (int32_t*)malloc (8*36*4, "mp3MdctWin");
+      table43exp = (int8_t*)malloc ((8191 + 16)*4 * sizeof (table43exp[0]));
+      table43value = (uint32_t*)malloc ((8191 + 16)*4 * sizeof (table43value[0]));
+      exp_table = (uint32_t*)malloc (512*4);
+      expval_table = (uint32_t*)malloc (512*16*4);
+      window = (int16_t*)malloc (512*2);
+      mdct_win = (int32_t*)malloc (8*36*4);
 
       for (auto i = 1u; i < (8191 + 16) * 4; i++) {
         int e;
