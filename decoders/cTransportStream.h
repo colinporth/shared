@@ -6820,7 +6820,7 @@ public:
         mAudPid = pid;
       else if (mAudPid1 == -1)
         mAudPid1 = pid;
-      cLog::log (LOGINFO, "setAudPid - pid:%d streamType:%d, mAudPid %d mAudPid1 %d",
+      cLog::log (LOGINFO, "setAudPid - esPid:%d streamType:%d, mAudPid %d mAudPid1 %d",
                           pid, streamType, mAudPid, mAudPid1);
       }
     }
@@ -7063,7 +7063,8 @@ public:
             }
             //}}}
           else {
-            if (payStart && !(*tsPtr) && !(*(tsPtr+1)) && (*(tsPtr+2) == 1) && (*(tsPtr+3) == 0xc0)) {
+            if (payStart && !(*tsPtr) && !(*(tsPtr+1)) && (*(tsPtr+2) == 1) &&
+                ((*(tsPtr+3) == 0xBD) || (*(tsPtr+3) == 0xC0))) {
               //{{{  start new audio pes, decode last pes
               if (pid == audPid) {
                 if (pidInfoIt->second.mBufPtr)
@@ -7086,7 +7087,7 @@ public:
                 }
               }
               //}}}
-            else if (payStart && !(*tsPtr) && !(*(tsPtr+1)) && (*(tsPtr+2) == 1) && (*(tsPtr+3) == 0xe0)) {
+            else if (payStart && !(*tsPtr) && !(*(tsPtr+1)) && (*(tsPtr+2) == 1) && (*(tsPtr+3) == 0xE0)) {
               //{{{  start new video pes, decode last pes
               if (pid == vidPid) {
                 if (pidInfoIt->second.mBufPtr) {
@@ -7113,6 +7114,8 @@ public:
                 }
               }
               //}}}
+            else if (payStart)
+               cLog::log (LOGERROR, "demux - unrecognised streamId 0x0001%x%x", *(tsPtr+2), *(tsPtr+3));
             if (pidInfoIt->second.mBufPtr) {
               //{{{  copy tsFrameBytesLeft bytes to buffer
               memcpy (pidInfoIt->second.mBufPtr, tsPtr, tsFrameBytesLeft);
