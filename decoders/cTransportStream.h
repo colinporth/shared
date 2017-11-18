@@ -6853,7 +6853,7 @@ public:
                            mProgramPid, mVidPid, mAudPid,
                            mSubPid, mPcrPid, getTypeStr().c_str(), mName.c_str());
     mNow.print ("");
-    for (auto epgItem : mEpgItemMap)
+    for (auto &epgItem : mEpgItemMap)
       epgItem.second.print ("- ");
     }
   //}}}
@@ -6894,28 +6894,28 @@ public:
   //{{{
   void printPidInfos() {
 
-    cLog::log (LOGINFO, "--- printPidInfos -----");
-    for (auto pidInfo : mPidInfoMap)
+    cLog::log (LOGINFO, "--- pidInfos");
+    for (auto &pidInfo : mPidInfoMap)
       pidInfo.second.print();
-    cLog::log (LOGINFO, "-----------------------");
+    cLog::log (LOGINFO, "---");
     }
   //}}}
   //{{{
   void printPrograms() {
 
-    cLog::log (LOGINFO, "--- printPrograms -----");
-    for (auto map : mProgramMap)
-      cLog::log (LOGINFO, "- programPid:%d sid:%d", map.first, map.second);
-    cLog::log (LOGINFO, "-----------------------");
+    cLog::log (LOGINFO, "--- programs");
+    for (auto &map : mProgramMap)
+      cLog::log (LOGINFO, "programPid:%d sid:%d", map.first, map.second);
+    cLog::log (LOGINFO, "---");
     }
   //}}}
   //{{{
   void printServices() {
 
-    cLog::log (LOGINFO, "--- printServices -----");
-    for (auto service : mServiceMap)
+    cLog::log (LOGINFO, "--- services");
+    for (auto &service : mServiceMap)
       service.second.print();
-    cLog::log (LOGINFO, "-----------------------");
+    cLog::log (LOGINFO, "---");
     }
   //}}}
 
@@ -6930,7 +6930,7 @@ public:
 
     if (skipped)
       //{{{  reset pid continuity, buffers
-      for (auto pidInfo : mPidInfoMap) {
+      for (auto &pidInfo : mPidInfoMap) {
         pidInfo.second.mBufPtr = nullptr;
         pidInfo.second.mStreamPos = -1;
         pidInfo.second.mContinuity = -1;
