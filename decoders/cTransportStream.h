@@ -6674,12 +6674,10 @@ public:
   //}}}
   ~cPidInfo() {}
 
-  //{{{
   void print() {
-    cLog::log (LOGINFO, "- pid:%4d sid:%5d stream:%2d - packets:%6d disCon:%d repCon:%d  ",
+    cLog::log (LOGINFO, "pid:%d sid:%d streamType:%d - packets:%d disConinuity:%d repConinuity:%d",
                          mPid,  mSid, mStreamType, mTotal, mDisContinuity, mRepeatContinuity);
     }
-  //}}}
 
   int mPid;
   bool mIsSection;
@@ -6753,7 +6751,7 @@ public:
     char* timeStr = asctime (&time);
     timeStr[24] = 0;
 
-    cLog::log (LOGINFO, "%s", (prefix + timeStr + " " + std::to_string (mDuration/60) + " " + mTitle).c_str());
+    cLog::log (LOGINFO, prefix + timeStr + " " + dec(mDuration/60) + " " + mTitle);
     }
   //}}}
 
@@ -6777,7 +6775,7 @@ public:
   //}}}
   ~cService() {}
 
-  //  gets
+  //{{{  gets
   int getSid() const { return mSid; }
   int getTsid() const { return mTsid; }
   int getOnid() const { return mOnid; }
@@ -6802,8 +6800,8 @@ public:
 
   cEpgItem* getNow() { return &mNow; }
   std::string getName() { return mName; }
-
-  //  sets
+  //}}}
+  //{{{  sets
   //{{{
   void setVidPid (int pid, int streamType) {
     if (pid != mVidPid) {
@@ -6825,6 +6823,7 @@ public:
       }
     }
   //}}}
+
   void setSubPid (int pid, int streamType) { mSubPid = pid; }
   void setPcrPid (int pid) { mPcrPid = pid; }
   void setProgramPid (int pid) { mProgramPid = pid; }
@@ -6845,16 +6844,17 @@ public:
     mEpgItemMap.insert (tEpgItemMap::value_type (startTime, cEpgItem(startTime, duration, str1, str2)));
     }
   //}}}
+  //}}}
+
   //{{{
   void print() {
-    cLog::log (LOGINFO,"- sid:%d tsid:%d onid:%d - prog:%d - v:%d - a:%d - sub:%d pcr:%d %s <%s>",
+    cLog::log (LOGINFO,"sid:%d tsid:%d onid:%d - prog:%d - v:%d - a:%d - sub:%d pcr:%d %s <%s>",
                            mSid, mTsid, mOnid,
                            mProgramPid, mVidPid, mAudPid,
                            mSubPid, mPcrPid, getTypeStr().c_str(), mName.c_str());
-    mNow.print ("  - ");
-
+    mNow.print ("");
     for (auto epgItem : mEpgItemMap)
-      epgItem.second.print ("    - ");
+      epgItem.second.print ("- ");
     }
   //}}}
 
@@ -6892,27 +6892,30 @@ public:
   std::string getNetworkString() { return mNetworkNameStr; }
   //}}}
   //{{{
-  void printPids() {
+  void printPidInfos() {
 
-    cLog::log (LOGINFO, "--- PidInfoMap -----");
+    cLog::log (LOGINFO, "--- printPidInfos -----");
     for (auto pidInfo : mPidInfoMap)
       pidInfo.second.print();
-    }
-  //}}}
-  //{{{
-  void printServices() {
-
-    cLog::log (LOGINFO, "--- ServiceMap -----");
-    for (auto service : mServiceMap)
-      service.second.print();
+    cLog::log (LOGINFO, "-----------------------");
     }
   //}}}
   //{{{
   void printPrograms() {
 
-    cLog::log (LOGINFO, "--- ProgramMap -----");
+    cLog::log (LOGINFO, "--- printPrograms -----");
     for (auto map : mProgramMap)
       cLog::log (LOGINFO, "- programPid:%d sid:%d", map.first, map.second);
+    cLog::log (LOGINFO, "-----------------------");
+    }
+  //}}}
+  //{{{
+  void printServices() {
+
+    cLog::log (LOGINFO, "--- printServices -----");
+    for (auto service : mServiceMap)
+      service.second.print();
+    cLog::log (LOGINFO, "-----------------------");
     }
   //}}}
 
@@ -7063,59 +7066,64 @@ public:
             }
             //}}}
           else {
-            if (payStart && !(*tsPtr) && !(*(tsPtr+1)) && (*(tsPtr+2) == 1) &&
-                ((*(tsPtr+3) == 0xBD) || (*(tsPtr+3) == 0xC0))) {
-              //{{{  start new audio pes, decode last pes
-              if (pid == audPid) {
-                if (pidInfoIt->second.mBufPtr)
-                  decoded = audDecodePes (&pidInfoIt->second, basePts);
+            if (payStart) {
+              uint32_t streamId = ((*tsPtr) << 24) | ((*(tsPtr+1)) << 16) | ((*(tsPtr+2)) << 8) | *(tsPtr+3);
+              if ((streamId == 0x000001C0) || (streamId == 0x000001BD)) {
+                //{{{  start new audio pes, decode last pes
+                if (pid == audPid) {
+                  if (pidInfoIt->second.mBufPtr)
+                    decoded = audDecodePes (&pidInfoIt->second, basePts);
 
-                //  start next audPES
-                if (!pidInfoIt->second.mBuffer) {
-                  // allocate audPES buffer
-                  pidInfoIt->second.mBufSize = kAudPesBufSize;
-                  pidInfoIt->second.mBuffer = (uint8_t*)malloc (pidInfoIt->second.mBufSize);
+                  //  start next audPES
+                  if (!pidInfoIt->second.mBuffer) {
+                    // allocate audPES buffer
+                    pidInfoIt->second.mBufSize = kAudPesBufSize;
+                    pidInfoIt->second.mBuffer = (uint8_t*)malloc (pidInfoIt->second.mBufSize);
+                    }
+
+                  pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer;
+                  pidInfoIt->second.mStreamPos = streamPos;
+                  parseTimeStamps (tsPtr, pidInfoIt->second.mPts, pidInfoIt->second.mDts);
+
+                  int pesHeaderBytes = 9 + *(tsPtr+8);
+                  tsPtr += pesHeaderBytes;
+                  tsFrameBytesLeft -= pesHeaderBytes;
                   }
-
-                pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer;
-                pidInfoIt->second.mStreamPos = streamPos;
-                parseTimeStamps (tsPtr, pidInfoIt->second.mPts, pidInfoIt->second.mDts);
-
-                int pesHeaderBytes = 9 + *(tsPtr+8);
-                tsPtr += pesHeaderBytes;
-                tsFrameBytesLeft -= pesHeaderBytes;
                 }
-              }
-              //}}}
-            else if (payStart && !(*tsPtr) && !(*(tsPtr+1)) && (*(tsPtr+2) == 1) && (*(tsPtr+3) == 0xE0)) {
-              //{{{  start new video pes, decode last pes
-              if (pid == vidPid) {
-                if (pidInfoIt->second.mBufPtr) {
-                  char frameType =
-                    parseFrameType (pidInfoIt->second.mBuffer, pidInfoIt->second.mBufPtr, pidInfoIt->second.mStreamType);
-                  decoded = vidDecodePes (&pidInfoIt->second, basePts, frameType, skipped);
-                  skipped = false;
+                //}}}
+              else if (streamId == 0x000001E0) {
+                //{{{  start new video pes, decode last pes
+                if (pid == vidPid) {
+                  if (pidInfoIt->second.mBufPtr) {
+                    char frameType =
+                      parseFrameType (pidInfoIt->second.mBuffer, pidInfoIt->second.mBufPtr, pidInfoIt->second.mStreamType);
+                    decoded = vidDecodePes (&pidInfoIt->second, basePts, frameType, skipped);
+                    skipped = false;
+                    }
+
+                  //  start next vidPES
+                  if (!pidInfoIt->second.mBuffer) {
+                    // allocate vidPESbuffer
+                    pidInfoIt->second.mBufSize = kVidPesBufSize;
+                    pidInfoIt->second.mBuffer = (uint8_t*)malloc (pidInfoIt->second.mBufSize);
+                    }
+
+                  pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer;
+                  pidInfoIt->second.mStreamPos = streamPos;
+                  parseTimeStamps (tsPtr, pidInfoIt->second.mPts, pidInfoIt->second.mDts);
+
+                  int pesHeaderBytes = 9 + *(tsPtr+8);
+                  tsPtr += pesHeaderBytes;
+                  tsFrameBytesLeft -= pesHeaderBytes;
                   }
-
-                //  start next vidPES
-                if (!pidInfoIt->second.mBuffer) {
-                  // allocate vidPESbuffer
-                  pidInfoIt->second.mBufSize = kVidPesBufSize;
-                  pidInfoIt->second.mBuffer = (uint8_t*)malloc (pidInfoIt->second.mBufSize);
-                  }
-
-                pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer;
-                pidInfoIt->second.mStreamPos = streamPos;
-                parseTimeStamps (tsPtr, pidInfoIt->second.mPts, pidInfoIt->second.mDts);
-
-                int pesHeaderBytes = 9 + *(tsPtr+8);
-                tsPtr += pesHeaderBytes;
-                tsFrameBytesLeft -= pesHeaderBytes;
                 }
+                //}}}
+              else if (streamId == 0x000001C1) {
+                // second audio channel ?
+                }
+              else
+                cLog::log (LOGERROR, "demux - unrecognised streamId " + hex(streamId));
               }
-              //}}}
-            else if (payStart)
-               cLog::log (LOGERROR, "demux - unrecognised streamId 0x0001%x%x", *(tsPtr+2), *(tsPtr+3));
             if (pidInfoIt->second.mBufPtr) {
               //{{{  copy tsFrameBytesLeft bytes to buffer
               memcpy (pidInfoIt->second.mBufPtr, tsPtr, tsFrameBytesLeft);
@@ -7137,11 +7145,11 @@ public:
     return streamPos;
     }
   //}}}
-                                      // PMT - sets cService pids
-  std::map<int,int>      mProgramMap; // PAT inserts <pid,sid>'s    into mProgramMap
-  std::map<int,cService> mServiceMap; // SDT inserts <sid,cService> into mServiceMap
-  std::map<int,cPidInfo> mPidInfoMap; // pid inserts <pid,cPidInfo> into mPidInfoMap
-                                      // EIT - adds cService Now,Epg events
+                                      // PMT set cService pids
+  std::map<int,int>      mProgramMap; // PAT insert <pid,sid>'s    into mProgramMap
+  std::map<int,cService> mServiceMap; // SDT insert <sid,cService> into mServiceMap
+  std::map<int,cPidInfo> mPidInfoMap; // pid insert <pid,cPidInfo> into mPidInfoMap
+                                      // EIT add cService Now,Epg events
 protected:
   virtual void pidPacket (int pid, uint8_t* ptr) {}
   virtual bool audDecodePes (cPidInfo* pidInfo, uint64_t basePts) { return false; }
@@ -7230,13 +7238,13 @@ private:
       static const char wday_name[][4] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
       static const char mon_name[][4] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun",
                                           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
-      mTimeStr = std::to_string (time.tm_hour) + ":" +
-                 std::to_string (time.tm_min) + ":" +
-                 std::to_string (time.tm_sec) + " " +
+      mTimeStr = dec (time.tm_hour) + ":" +
+                 dec(time.tm_min) + ":" +
+                 dec(time.tm_sec) + " " +
                  wday_name[time.tm_wday] + " " +
-                 std::to_string (time.tm_mday) + " " +
+                 dec(time.tm_mday) + " " +
                  mon_name[time.tm_mon] + " " +
-                 std::to_string (1900 + time.tm_year);
+                 dec(1900 + time.tm_year);
       }
     }
   //}}}
