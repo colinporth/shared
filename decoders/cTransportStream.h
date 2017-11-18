@@ -6882,7 +6882,6 @@ private:
 
 class cTransportStream {
 public:
-  cTransportStream() {}
   virtual ~cTransportStream() {}
 
   //{{{  gets
@@ -7627,7 +7626,8 @@ private:
   uint64_t parsePcr (uint8_t* tsPtr) {
   // return 33 bits of pcr
 
-    return ((tsPtr[5] << 25) | (tsPtr[6] << 17) | (tsPtr[7] << 9) | (tsPtr[8] << 1) | (tsPtr[9] >> 7))  & 0x1FFFFFFFF;
+    return ((tsPtr[5] << 25) | (tsPtr[6] << 17) | 
+            (tsPtr[7] << 9) | (tsPtr[8] << 1) | (tsPtr[9] >> 7))  & 0x1FFFFFFFF;
     }
   //}}}
   //{{{
@@ -7640,8 +7640,8 @@ private:
   //}}}
   //{{{
   void parseTimeStamps (uint8_t* tsPtr, uint64_t& pts, uint64_t& dts) {
-    pts = ((*(tsPtr+8) >= 5) && (*(tsPtr+7) & 0x80)) ? parseTimeStamp (tsPtr+9) : 0;
-    dts = ((*(tsPtr+8) >= 10) && (*(tsPtr+7) & 0x40)) ? parseTimeStamp (tsPtr+14) : 0;
+    pts = ((tsPtr[8] >= 5) && (tsPtr[7] & 0x80)) ? parseTimeStamp (tsPtr+9) : 0;
+    dts = ((tsPtr[8] >= 10) && (tsPtr[7] & 0x40)) ? parseTimeStamp (tsPtr+14) : 0;
     }
   //}}}
 
