@@ -6956,18 +6956,18 @@ public:
         if ((tsPtr+187 == tsEnd) || (*(tsPtr+187) == 0x47)) {
           // last packet or succeeded by syncCode
           //{{{  parse ts packet
-          bool payStart = ((*tsPtr) & 0x40) != 0;
-          uint16_t pid = ((*tsPtr & 0x1F) << 8) | *(tsPtr+1);
-          bool adaption = (*(tsPtr+2) & 0x20) != 0;
-          uint8_t headerBytes = adaption ? (4 + *(tsPtr+3)) : 3;
-          uint8_t continuity = *(tsPtr+2) & 0x0F;
+          bool payStart = (tsPtr[0] & 0x40) != 0;
+          uint16_t pid = ((tsPtr[0] & 0x1F) << 8) | tsPtr[1];
+          bool adaption = (tsPtr[2] & 0x20) != 0;
+          uint8_t headerBytes = adaption ? (4 + tsPtr[3]) : 3;
+          uint8_t continuity = tsPtr[2] & 0x0F;
           //{{{  unused bits
           //bool tei = *tsPtr & 0x80;
           //bool payload = *(tsPtr+2) & 0x10;
           //if ((adaption && (*(tsPtr+4) & 0x80)) discontinuity = true;
           //}}}
 
-          bool hasPcr = adaption && (*(tsPtr+4) & 0x10);
+          bool hasPcr = adaption && (tsPtr[4] & 0x10);
           uint64_t pcr = hasPcr ? parsePcr (tsPtr) : 0;
 
           pidPacket (pid, tsPtr-1);
@@ -7067,7 +7067,7 @@ public:
             //}}}
           else {
             if (payStart) {
-              uint32_t streamId = ((*tsPtr) << 24) | ((*(tsPtr+1)) << 16) | ((*(tsPtr+2)) << 8) | *(tsPtr+3);
+              uint32_t streamId = (tsPtr[0] << 24) | (tsPtr[1] << 16) | (tsPtr[2] << 8) | tsPtr[3];
               if ((streamId == 0x000001C0) || (streamId == 0x000001BD)) {
                 //{{{  start new audio pes, decode last pes
                 if (pid == audPid) {
@@ -7627,22 +7627,15 @@ private:
   uint64_t parsePcr (uint8_t* tsPtr) {
   // return 33 bits of pcr
 
-    return ((*(tsPtr+5)<<25) |
-            (*(tsPtr+6)<<17) |
-            (*(tsPtr+7)<<9) |
-            (*(tsPtr+8)<<1) |
-            (*(tsPtr+9)>>7))  & 0x1FFFFFFFF;
+    return ((tsPtr[5] << 25) | (tsPtr[6] << 17) | (tsPtr[7] << 9) | (tsPtr[8] << 1) | (tsPtr[9] >> 7))  & 0x1FFFFFFFF;
     }
   //}}}
   //{{{
   uint64_t parseTimeStamp (uint8_t* tsPtr) {
-  // return 33 bits of pts, dts
+  // return 33 bits of pts,dts
 
-    return ((((*tsPtr) & 0x0E) << 29) |
-            (*(tsPtr+1) << 22) |
-           ((*(tsPtr+2) & 0xFE) << 14) |
-            (*(tsPtr+3) << 7)  |
-            (*(tsPtr+4) >> 1)) & 0x1FFFFFFFF;
+    return ((tsPtr[0] & 0x0E) << 29) | (tsPtr[1] << 22) |
+           ((tsPtr[2] & 0xFE) << 14) | (tsPtr[3] << 7)  | (tsPtr[4] >> 1);
     }
   //}}}
   //{{{
