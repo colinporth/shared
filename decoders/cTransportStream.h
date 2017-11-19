@@ -7626,7 +7626,7 @@ private:
   uint64_t parsePcr (uint8_t* tsPtr) {
   // return 33 bits of pcr
 
-    return ((tsPtr[5] << 25) | (tsPtr[6] << 17) | 
+    return ((tsPtr[5] << 25) | (tsPtr[6] << 17) |
             (tsPtr[7] << 9) | (tsPtr[8] << 1) | (tsPtr[9] >> 7))  & 0x1FFFFFFFF;
     }
   //}}}
@@ -7887,7 +7887,6 @@ private:
     // cPidInfo from pid using mPidInfoMap
     auto pidInfoIt = mPidInfoMap.find (pid);
     if (pidInfoIt != mPidInfoMap.end()) {
-
       // cService from cPidInfo.sid using mServiceMap
       auto serviceIt = mServiceMap.find (pidInfoIt->second.mSid);
       if (serviceIt != mServiceMap.end()) {
