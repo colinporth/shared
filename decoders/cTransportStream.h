@@ -6347,7 +6347,9 @@ const char* huffDecode (const unsigned char *src, size_t size) {
     char* uncompressed = (char *)calloc(1, uncompressed_len + 1);
     int p = 0;
 
-    unsigned value = 0, byte = 2, bit = 0;
+    unsigned value = 0;
+    unsigned byte = 2;
+    unsigned bit = 0;
     while (byte < 6 && byte < size) {
       value |= src[byte] << ((5-byte) * 8);
       byte++;
@@ -7144,10 +7146,10 @@ public:
     return streamPos;
     }
   //}}}
-                                      // PMT set cService pids
   std::map<int,int>      mProgramMap; // PAT insert <pid,sid>'s    into mProgramMap
   std::map<int,cService> mServiceMap; // SDT insert <sid,cService> into mServiceMap
   std::map<int,cPidInfo> mPidInfoMap; // pid insert <pid,cPidInfo> into mPidInfoMap
+                                      // PMT set cService pids
                                       // EIT add cService Now,Epg events
 protected:
   virtual void pidPacket (int pid, uint8_t* ptr) {}
@@ -7156,97 +7158,6 @@ protected:
   virtual void startProgram (int vpid, int apid, const std::string& name, const std::string& startTime) {}
 
 private:
-  //{{{
-  void parseSection (int pid, uint8_t* buf, int tag) {
-
-    switch (pid) {
-      case PID_NIT: parseNit (buf); break;
-      case PID_TDT: parseTdt (buf); break;
-      case PID_PAT: parsePat (buf); break;
-      case PID_SDT: parseSdt (buf); break;
-      case PID_EIT: parseEit (buf, tag); break;
-      default:      parsePmt (pid, buf); break;
-      }
-    }
-  //}}}
-  //{{{
-  void parseNit (uint8_t* buf) {
-
-    auto Nit = (nit_t*)buf;
-    auto sectionLength = HILO(Nit->section_length) + 3;
-    if (crc32 (buf, sectionLength)) {
-      //{{{  bad crc
-      cLog::log (LOGINFO, "parseNIT - bad crc %d", sectionLength);
-      return;
-      }
-      //}}}
-    if ((Nit->table_id != TID_NIT_ACT) &&
-        (Nit->table_id != TID_NIT_OTH) &&
-        (Nit->table_id != TID_BAT)) {
-      //{{{  wrong tid
-      cLog::log (LOGINFO, "parseNIT - wrong TID %x", Nit->table_id);
-      return;
-      }
-      //}}}
-
-    auto networkId = HILO (Nit->network_id);
-
-    auto ptr = buf + NIT_LEN;
-    auto loopLength = HILO (Nit->network_descr_length);
-    sectionLength -= NIT_LEN + 4;
-    if (loopLength <= sectionLength) {
-      if (sectionLength >= 0)
-        parseDescrs ("parseNIT1", networkId, ptr, loopLength, Nit->table_id);
-      sectionLength -= loopLength;
-
-      ptr += loopLength;
-      auto NitMid = (nit_mid_t*) ptr;
-      loopLength = HILO (NitMid->transport_stream_loop_length);
-      if ((sectionLength > 0) && (loopLength <= sectionLength)) {
-        // iterate nitMids
-        sectionLength -= SIZE_NIT_MID;
-        ptr += SIZE_NIT_MID;
-
-        while (loopLength > 0) {
-          auto TSDesc = (nit_ts_t*)ptr;
-          auto tsid = HILO (TSDesc->transport_stream_id);
-
-          auto loop2Length = HILO (TSDesc->transport_descrs_length);
-          ptr += NIT_TS_LEN;
-          if (loop2Length <= loopLength)
-            if (loopLength >= 0)
-              parseDescrs ("parseNIT2", tsid, ptr, loop2Length, Nit->table_id);
-
-          loopLength -= loop2Length + NIT_TS_LEN;
-          sectionLength -= loop2Length + NIT_TS_LEN;
-          ptr += loop2Length;
-          }
-        }
-      }
-    }
-  //}}}
-  //{{{
-  void parseTdt (uint8_t* buf) {
-
-    auto Tdt = (tdt_t*)buf;
-    if (Tdt->table_id == TID_TDT) {
-      mCurTime = MjdToEpochTime (Tdt->utc_mjd) + BcdTimeToSeconds (Tdt->utc_time);
-
-      tm time = *localtime (&mCurTime);
-
-      static const char wday_name[][4] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
-      static const char mon_name[][4] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                                          "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
-      mTimeStr = dec (time.tm_hour) + ":" +
-                 dec(time.tm_min) + ":" +
-                 dec(time.tm_sec) + " " +
-                 wday_name[time.tm_wday] + " " +
-                 dec(time.tm_mday) + " " +
-                 mon_name[time.tm_mon] + " " +
-                 dec(1900 + time.tm_year);
-      }
-    }
-  //}}}
   //{{{
   void parsePat (uint8_t* buf) {
   // PAT declares programPid,sid to mProgramMap, recogneses programPid PMT to declare service streams
@@ -7476,6 +7387,84 @@ private:
     }
   //}}}
   //{{{
+  void parseTdt (uint8_t* buf) {
+
+    auto Tdt = (tdt_t*)buf;
+    if (Tdt->table_id == TID_TDT) {
+      mCurTime = MjdToEpochTime (Tdt->utc_mjd) + BcdTimeToSeconds (Tdt->utc_time);
+
+      tm time = *localtime (&mCurTime);
+
+      static const char wday_name[][4] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+      static const char mon_name[][4] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                          "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+      mTimeStr = dec (time.tm_hour) + ":" +
+                 dec(time.tm_min) + ":" +
+                 dec(time.tm_sec) + " " +
+                 wday_name[time.tm_wday] + " " +
+                 dec(time.tm_mday) + " " +
+                 mon_name[time.tm_mon] + " " +
+                 dec(1900 + time.tm_year);
+      }
+    }
+  //}}}
+  //{{{
+  void parseNit (uint8_t* buf) {
+
+    auto Nit = (nit_t*)buf;
+    auto sectionLength = HILO(Nit->section_length) + 3;
+    if (crc32 (buf, sectionLength)) {
+      //{{{  bad crc
+      cLog::log (LOGINFO, "parseNIT - bad crc %d", sectionLength);
+      return;
+      }
+      //}}}
+    if ((Nit->table_id != TID_NIT_ACT) &&
+        (Nit->table_id != TID_NIT_OTH) &&
+        (Nit->table_id != TID_BAT)) {
+      //{{{  wrong tid
+      cLog::log (LOGINFO, "parseNIT - wrong TID %x", Nit->table_id);
+      return;
+      }
+      //}}}
+
+    auto networkId = HILO (Nit->network_id);
+
+    auto ptr = buf + NIT_LEN;
+    auto loopLength = HILO (Nit->network_descr_length);
+    sectionLength -= NIT_LEN + 4;
+    if (loopLength <= sectionLength) {
+      if (sectionLength >= 0)
+        parseDescrs ("parseNIT1", networkId, ptr, loopLength, Nit->table_id);
+      sectionLength -= loopLength;
+
+      ptr += loopLength;
+      auto NitMid = (nit_mid_t*) ptr;
+      loopLength = HILO (NitMid->transport_stream_loop_length);
+      if ((sectionLength > 0) && (loopLength <= sectionLength)) {
+        // iterate nitMids
+        sectionLength -= SIZE_NIT_MID;
+        ptr += SIZE_NIT_MID;
+
+        while (loopLength > 0) {
+          auto TSDesc = (nit_ts_t*)ptr;
+          auto tsid = HILO (TSDesc->transport_stream_id);
+
+          auto loop2Length = HILO (TSDesc->transport_descrs_length);
+          ptr += NIT_TS_LEN;
+          if (loop2Length <= loopLength)
+            if (loopLength >= 0)
+              parseDescrs ("parseNIT2", tsid, ptr, loop2Length, Nit->table_id);
+
+          loopLength -= loop2Length + NIT_TS_LEN;
+          sectionLength -= loop2Length + NIT_TS_LEN;
+          ptr += loop2Length;
+          }
+        }
+      }
+    }
+  //}}}
+  //{{{
   void parseEit (uint8_t* buf, int tag) {
 
     auto Eit = (eit_t*)buf;
@@ -7618,6 +7607,19 @@ private:
 
       sectionLength -= loopLength + EIT_EVENT_LEN;
       ptr += loopLength;
+      }
+    }
+  //}}}
+  //{{{
+  void parseSection (int pid, uint8_t* buf, int tag) {
+
+    switch (pid) {
+      case PID_PAT: parsePat (buf); break;
+      case PID_SDT: parseSdt (buf); break;
+      case PID_TDT: parseTdt (buf); break;
+      case PID_NIT: parseNit (buf); break;
+      case PID_EIT: parseEit (buf, tag); break;
+      default:      parsePmt (pid, buf); break;
       }
     }
   //}}}
