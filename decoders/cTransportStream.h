@@ -6921,13 +6921,13 @@ public:
   //}}}
 
   //{{{
-  int64_t demux (uint8_t* tsBase, int64_t streamPos, int64_t streamSize, bool skipped,
+  int64_t demux (uint8_t* tsBuffer, uint64_t tsBufferSize, int64_t streamPos, bool skipped,
                  int audPid, int vidPid, uint64_t basePts) {
-  // demux stream at streamPos, return at end or first decode producing new frame
-  // return streamPos at next packet
+  // demux from tsBuffer to tsBuffer + tsBufferSize, streamPos is offset into full stream of first packet
+  // - return bytes decoded
 
-    uint8_t* tsPtr = tsBase + streamPos;
-    uint8_t* tsEnd = tsBase + streamSize;
+    auto tsPtr = tsBuffer;
+    auto tsEnd = tsBuffer + tsBufferSize;
 
     if (skipped)
       //{{{  reset pid continuity, buffers
@@ -6954,8 +6954,8 @@ public:
           //}}}
 
         // full packet with start syncCode
-        if ((tsPtr+187 == tsEnd) || (*(tsPtr+187) == 0x47)) {
-          // last packet or succeeded by syncCode
+        if ((tsPtr+187 >= tsEnd) || (*(tsPtr+187) == 0x47)) {
+          // lastPacket or nextPacket starts with syncCode
           //{{{  parse ts packet
           bool payStart = (tsPtr[0] & 0x40) != 0;
           uint16_t pid = ((tsPtr[0] & 0x1F) << 8) | tsPtr[1];
@@ -7143,7 +7143,7 @@ public:
           }
         }
       }
-    return streamPos;
+    return tsPtr - tsBuffer;
     }
   //}}}
   std::map<int,int>      mProgramMap; // PAT insert <pid,sid>'s    into mProgramMap
