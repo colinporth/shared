@@ -9,37 +9,26 @@
 
 #include "iAudio.h"
 //}}}
-#define NUM_BUFFERS 6
-
-//{{{
-class cAudio2VoiceCallback : public IXAudio2VoiceCallback {
-public:
-  cAudio2VoiceCallback() : hBufferEndEvent (CreateEvent (NULL, FALSE, FALSE, NULL)) {}
-  ~cAudio2VoiceCallback() { CloseHandle (hBufferEndEvent); }
-
-  STDMETHOD_(void, OnVoiceProcessingPassStart)(UINT32) override {}
-  STDMETHOD_(void, OnVoiceProcessingPassEnd)() override {}
-  STDMETHOD_(void, OnStreamEnd)() override {}
-  STDMETHOD_(void, OnBufferStart)(void*) override {}
-  STDMETHOD_(void, OnBufferEnd)(void*) override { SetEvent (hBufferEndEvent); }
-  STDMETHOD_(void, OnLoopEnd)(void*) override {}
-  STDMETHOD_(void, OnVoiceError)(void*, HRESULT) override {}
-
-  HANDLE hBufferEndEvent;
-  };
-//}}}
+const int kMaxBuffers = 6;
 
 class cWinAudio : public iAudio {
 public:
   //{{{
   cWinAudio() {
-    mSilence = (int16_t*)malloc (1024*2*6);
-    memset (mSilence, 0, 1024*2*6);
+
+    memset (&mBuffer, 0, sizeof (XAUDIO2_BUFFER));
+
+    mSilence = (int16_t*)malloc (kMaxChannels * kMaxSilenceSamples * kBytesPerChannel);
+    memset (mSilence, 0, kMaxChannels * kMaxSilenceSamples * kBytesPerChannel);
+
+    // guess initial buffer allocation
+    for (auto i = 0; i < kMaxBuffers; i++)
+      mBuffers [i] = (uint8_t*)malloc (kMaxChannels * kMaxSilenceSamples * kBytesPerChannel);
     }
   //}}}
   //{{{
   virtual ~cWinAudio() {
-    free (mSilence);
+    audClose();
     }
   //}}}
 
@@ -50,6 +39,7 @@ public:
   //}}}
   //{{{
   void setVolume (float volume) {
+
     if (volume < 0)
       mVolume = 0;
     else if (volume > 100.0f)
@@ -62,24 +52,24 @@ public:
   //{{{
   void audOpen (int sampleFreq, int bitsPerSample, int channels) {
 
-    // create the XAudio2 engine.
-    HRESULT hr = XAudio2Create (&mxAudio2);
-    if (hr != S_OK) {
+    mChannels = channels;
+
+    // create XAudio2 engine.
+    if (XAudio2Create (&mXAudio2) != S_OK) {
       cLog::log (LOGERROR, "cWinAudio - XAudio2Create failed");
       return;
       }
 
-    hr = mxAudio2->CreateMasteringVoice (&mxAudio2MasteringVoice, channels, sampleFreq);
-    if (hr != S_OK) {
+    if (mXAudio2->CreateMasteringVoice (&mMasteringVoice, channels, sampleFreq) != S_OK) {
       cLog::log (LOGERROR, "cWinAudio - CreateMasteringVoice failed");
       return;
       }
 
     DWORD dwChannelMask;
-    hr = mxAudio2MasteringVoice->GetChannelMask (&dwChannelMask);
+    mMasteringVoice->GetChannelMask (&dwChannelMask);
 
     XAUDIO2_VOICE_DETAILS details;
-    mxAudio2MasteringVoice->GetVoiceDetails (&details);
+    mMasteringVoice->GetVoiceDetails (&details);
     auto masterChannelMask = dwChannelMask;
     auto masterChannels = details.InputChannels;
     auto masterRate = details.InputSampleRate;
@@ -87,25 +77,22 @@ public:
                          " ch:" + hex(masterChannels) +
                          " rate:" + dec(masterRate));
 
-    mChannels = channels;
-
     WAVEFORMATEX waveformatex;
     memset ((void*)&waveformatex, 0, sizeof (WAVEFORMATEX));
     waveformatex.wFormatTag      = WAVE_FORMAT_PCM;
     waveformatex.wBitsPerSample  = bitsPerSample;
     waveformatex.nChannels       = channels;
     waveformatex.nSamplesPerSec  = (unsigned long)sampleFreq;
-    waveformatex.nBlockAlign     = waveformatex.nChannels * waveformatex.wBitsPerSample/8;
-    waveformatex.nAvgBytesPerSec = waveformatex.nSamplesPerSec * waveformatex.nChannels * waveformatex.wBitsPerSample/8;
+    waveformatex.nBlockAlign     = channels * bitsPerSample / 8;
+    waveformatex.nAvgBytesPerSec = waveformatex.nSamplesPerSec * channels * bitsPerSample/8;
 
-    hr = mxAudio2->CreateSourceVoice (&mxAudio2SourceVoice, &waveformatex,
-                                      0, XAUDIO2_DEFAULT_FREQ_RATIO, &mAudio2VoiceCallback, nullptr, nullptr);
-    if (hr != S_OK) {
+    if (mXAudio2->CreateSourceVoice (&mSourceVoice, &waveformatex,
+                                     0, XAUDIO2_DEFAULT_FREQ_RATIO, &mVoiceCallback, nullptr, nullptr) != S_OK) {
       cLog::log (LOGERROR, "CreateSourceVoice failed");
       return;
       }
 
-    mxAudio2SourceVoice->Start();
+    mSourceVoice->Start();
     }
   //}}}
   //{{{
@@ -114,67 +101,99 @@ public:
     if (!src)
       src = mSilence;
 
-    // copy data, it can be reused before we play it
-    // - can reverse if needed
-    mBuffers[mBufferIndex] = (uint8_t*)realloc (mBuffers[mBufferIndex], len);
+    // copy data, it can be reused before we play it, could reverse if needed
     if (mVolume == 1.0f)
       memcpy (mBuffers[mBufferIndex], src, len);
     else {
+      // crude volume, must be able to set mastering voice volume instead ************
       auto dst = (int16_t*)mBuffers[mBufferIndex];
-      for (auto i = 0; i < len/ 2; i++)
+      for (auto i = 0; i < len / 2; i++)
         *dst++ = (int16_t)(*src++ * mVolume);
       }
 
     // queue buffer
-    XAUDIO2_BUFFER xAudio2_buffer;
-    memset ((void*)&xAudio2_buffer, 0, sizeof (XAUDIO2_BUFFER));
-    xAudio2_buffer.AudioBytes = len;
-    xAudio2_buffer.pAudioData = mBuffers[mBufferIndex];
-    HRESULT hr = mxAudio2SourceVoice->SubmitSourceBuffer (&xAudio2_buffer);
-    if (hr != S_OK) {
-      cLog::log (LOGERROR, "XAudio2 - SubmitSourceBufferCreate failed");
+    mBuffer.AudioBytes = len;
+    mBuffer.pAudioData = mBuffers[mBufferIndex];
+    if (mSourceVoice->SubmitSourceBuffer (&mBuffer) != S_OK) {
+      cLog::log (LOGERROR, "XAudio2 - SubmitSourceBuffer failed");
       return;
       }
 
-    // printf ("winAudioPlay %3.1f\n", pitch);
+    // cycle buffers
+    mBufferIndex = (mBufferIndex + 1) % kMaxBuffers;
+
     if ((pitch > 0.005f) && (pitch < 4.0f))
-      mxAudio2SourceVoice->SetFrequencyRatio (pitch, XAUDIO2_COMMIT_NOW);
+      mSourceVoice->SetFrequencyRatio (pitch, XAUDIO2_COMMIT_NOW);
 
-    // cycle round buffers
-    mBufferIndex = (mBufferIndex+1) % NUM_BUFFERS;
-
-    // wait for buffer free if none left
-    XAUDIO2_VOICE_STATE xAudio_voice_state;
-    mxAudio2SourceVoice->GetState (&xAudio_voice_state);
-    if (xAudio_voice_state.BuffersQueued >= NUM_BUFFERS)
-      WaitForSingleObject (mAudio2VoiceCallback.hBufferEndEvent, INFINITE);
+    // if none left block waiting for free buffer
+    XAUDIO2_VOICE_STATE voiceState;
+    mSourceVoice->GetState (&voiceState);
+    if (voiceState.BuffersQueued >= kMaxBuffers)
+      mVoiceCallback.wait();
     }
   //}}}
   //{{{
-  void audSilence() {
-    audPlay (mSilence, mChannels * 1024*2, 1.0f);
+  void audSilence (int samples) {
+    audPlay (mSilence, mChannels * samples * kBytesPerChannel, 1.0f);
     }
   //}}}
   //{{{
   void audClose() {
 
-    HRESULT hr = mxAudio2SourceVoice->Stop();
-    hr = mxAudio2->Release();
+    free (mSilence);
+
+    for (auto i = 0; i < kMaxBuffers; i++)
+      free (mBuffers[i]);
+
+    mSourceVoice->Stop();
+    mXAudio2->Release();
     }
   //}}}
 
   float mVolume = 0.8f;
 
 private:
+  //{{{  const
+  const int kBytesPerChannel = 2;
+  const int kMaxChannels = 6;
+  const int kMaxSilenceSamples = 1152;
+  //}}}
+  //{{{
+  class cAudio2VoiceCallback : public IXAudio2VoiceCallback {
+  public:
+    cAudio2VoiceCallback() : mBufferEndEvent (CreateEvent (NULL, FALSE, FALSE, NULL)) {}
+    ~cAudio2VoiceCallback() { CloseHandle (mBufferEndEvent); }
+
+    // overrides
+    STDMETHOD_(void, OnVoiceProcessingPassStart)(UINT32) override {}
+    STDMETHOD_(void, OnVoiceProcessingPassEnd)() override {}
+    STDMETHOD_(void, OnStreamEnd)() override {}
+    STDMETHOD_(void, OnBufferStart)(void*) override {}
+    STDMETHOD_(void, OnBufferEnd)(void*) override { SetEvent (mBufferEndEvent); }
+    STDMETHOD_(void, OnLoopEnd)(void*) override {}
+    STDMETHOD_(void, OnVoiceError)(void*, HRESULT) override {}
+
+    void wait() {
+      WaitForSingleObject (mBufferEndEvent, INFINITE);
+      }
+
+    HANDLE mBufferEndEvent;
+    };
+  //}}}
+
+  // vars
+  IXAudio2* mXAudio2;
+  IXAudio2MasteringVoice* mMasteringVoice;
+  IXAudio2SourceVoice* mSourceVoice;
+  cAudio2VoiceCallback mVoiceCallback;
+
   int mChannels = 0;
+
+  // buffers
+  XAUDIO2_BUFFER mBuffer;
+
   int16_t* mSilence = nullptr;
 
-  IXAudio2* mxAudio2;
-  IXAudio2MasteringVoice* mxAudio2MasteringVoice;
-  IXAudio2SourceVoice* mxAudio2SourceVoice;
-
   int mBufferIndex = 0;
-  BYTE* mBuffers [NUM_BUFFERS] = { NULL, NULL, NULL, NULL, NULL, NULL };
-
-  cAudio2VoiceCallback mAudio2VoiceCallback;
+  uint8_t* mBuffers [kMaxBuffers];
   };
