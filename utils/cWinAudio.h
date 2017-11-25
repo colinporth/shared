@@ -13,7 +13,7 @@ public:
   virtual cWinAudio::~cWinAudio();
 
   void audOpen (int srcChannels, int srcSampleRate);
-  void audPlay (int srcChannels, int16_t* src, int len, float pitch);
+  void audPlay (int srcChannels, int16_t* src, int srcSamples, float pitch);
   void audSilence (int samples);
   void audClose();
 
@@ -30,11 +30,6 @@ public:
   float mVolume;
 
 private:
-  //{{{  const
-  const int kBytesPerChannel = 2;
-  const int kMaxChannels = 6;
-  const int kMaxSilenceSamples = 1152;
-  //}}}
   //{{{
   class cAudio2VoiceCallback : public IXAudio2VoiceCallback {
   public:
@@ -72,10 +67,8 @@ private:
   int mSrcSampleRate = 0;
 
   // buffers
-  XAUDIO2_BUFFER mBuffer;
-
   int16_t* mSilence = nullptr;
 
   int mBufferIndex = 0;
-  uint8_t* mBuffers [kMaxBuffers];
+  XAUDIO2_BUFFER mBuffers [kMaxBuffers];
   };
