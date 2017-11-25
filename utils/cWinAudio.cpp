@@ -19,7 +19,7 @@ const float kMaxVolume = 4.f;
 
 //{{{
 cWinAudio::cWinAudio() :
-    mVolume(kDefaultVolume) {
+    mDstVolume(kDefaultVolume) {
 
   // init XAUDIO2_BUFFER, most fields unused
 
@@ -116,7 +116,7 @@ void cWinAudio::audPlay (int srcChannels, int16_t* src, int srcSamples, float pi
     }
   mBufferIndex = (mBufferIndex + 1) % kMaxBuffers;
 
-  mMasteringVoice->SetVolume (mVolume, XAUDIO2_COMMIT_NOW);
+  mMasteringVoice->SetVolume (mDstVolume, XAUDIO2_COMMIT_NOW);
 
   if ((pitch > 0.005f) && (pitch < 4.0f))
     mSourceVoice->SetFrequencyRatio (pitch, XAUDIO2_COMMIT_NOW);
@@ -141,12 +141,6 @@ void cWinAudio::audClose() {
 
 //{{{
 void cWinAudio::setVolume (float volume) {
-
-  if (volume < 0.f)
-    mVolume = 0.f;
-  else if (volume > kMaxVolume)
-    mVolume = kMaxVolume;
-  else
-    mVolume = volume;
+  mDstVolume = min (max (volume, 0.f), kMaxVolume);
   }
 //}}}

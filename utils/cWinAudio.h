@@ -22,11 +22,8 @@ public:
 
   int getSrcChannels() { return mSrcChannels; }
 
-  float getVolume() { return mVolume; }
+  float getVolume() { return mDstVolume; }
   void setVolume (float volume);
-
-  // public only for widgets to access directly
-  float mVolume;
 
 private:
   //{{{
@@ -57,6 +54,8 @@ private:
   IXAudio2MasteringVoice* mMasteringVoice;
   IXAudio2SourceVoice* mSourceVoice;
   cAudio2VoiceCallback mVoiceCallback;
+
+  float mDstVolume;
 
   int mDstChannels = 0;
   int mDstSampleRate = 0;
