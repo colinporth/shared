@@ -118,6 +118,52 @@ void cWinAudio::audPlay (int srcChannels, int16_t* src, int srcSamples, float pi
 
   mMasteringVoice->SetVolume (mDstVolume, XAUDIO2_COMMIT_NOW);
 
+  //if (mSrcChannels == 2 && mDstChannels == 2)
+  //if (mSrcChannels == 6 && mDstChannels == 6)
+  //if (mSrcChannels == 2 && mDstChannels == 6)
+  if (mSrcChannels == 6 && mDstChannels == 2) {
+    switch (mMixDown) {
+      case 1: {
+        float kLevelMatrix[12] = {// FL   FR    C    W    BL  BR
+                                    1.f, 0.f, 0.f, 0.f, 0.f, 0.f,  // dstL
+                                    0.f, 1.f, 0.f, 0.f, 0.f, 0.f}; // dstR
+        mSourceVoice->SetOutputMatrix (mMasteringVoice, mSrcChannels, mDstChannels, kLevelMatrix, XAUDIO2_COMMIT_NOW);
+        break;
+        }
+      case 2: {
+        float kLevelMatrix[12] = {// FL   FR    C    W    BL  BR
+                                    0.f, 0.f, 0.f, 0.f, 1.f, 0.f,  // dstL
+                                    0.f, 0.f, 0.f, 0.f, 0.f, 1.f}; // dstR
+        mSourceVoice->SetOutputMatrix (mMasteringVoice, mSrcChannels, mDstChannels, kLevelMatrix, XAUDIO2_COMMIT_NOW);
+        break;
+        }
+      case 3: {
+        float kLevelMatrix[12] = {// FL   FR    C    W    BL  BR
+                                    0.f, 0.f, 1.f, 0.f, 0.f, 0.f,  // dstL
+                                    0.f, 0.f, 1.f, 0.f, 0.f, 0.f}; // dstR
+        mSourceVoice->SetOutputMatrix (mMasteringVoice, mSrcChannels, mDstChannels, kLevelMatrix, XAUDIO2_COMMIT_NOW);
+        break;
+        }
+
+      case 4: {
+        float kLevelMatrix[12] = {// FL   FR    C    W    BL  BR
+                                    0.f, 0.f, 0.f, 1.f, 0.f, 0.f,  // dstL
+                                    0.f, 0.f, 0.f, 1.f, 0.f, 0.f}; // dstR
+        mSourceVoice->SetOutputMatrix (mMasteringVoice, mSrcChannels, mDstChannels, kLevelMatrix, XAUDIO2_COMMIT_NOW);
+        break;
+        }
+
+      default: {
+        float kLevelMatrix[12] = {// FL   FR    C    W    BL  BR
+                                    1.f, 0.f, 1.f, 1.f, 1.f, 0.f,  // dstL
+                                    0.f, 1.f, 1.f, 1.f, 0.f, 1.f}; // dstR
+        mSourceVoice->SetOutputMatrix (mMasteringVoice, mSrcChannels, mDstChannels, kLevelMatrix, XAUDIO2_COMMIT_NOW);
+        break;
+        }
+      }
+    cLog::log (LOGNOTICE, "6 to 2 mixdown");
+    }
+
   if ((pitch > 0.005f) && (pitch < 4.0f))
     mSourceVoice->SetFrequencyRatio (pitch, XAUDIO2_COMMIT_NOW);
 

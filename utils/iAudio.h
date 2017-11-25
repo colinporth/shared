@@ -17,4 +17,7 @@ public:
 
   virtual float getVolume() = 0;
   virtual void setVolume (float volume) = 0;
+
+  virtual int getMixDown() = 0;
+  virtual void setMixDown (int mixDown) = 0;
   };

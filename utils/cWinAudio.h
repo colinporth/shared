@@ -25,6 +25,9 @@ public:
   float getVolume() { return mDstVolume; }
   void setVolume (float volume);
 
+  int getMixDown() { return mMixDown; }
+  void setMixDown (int mixDown) { mMixDown = mixDown; }
+
 private:
   //{{{
   class cAudio2VoiceCallback : public IXAudio2VoiceCallback {
@@ -56,6 +59,7 @@ private:
   cAudio2VoiceCallback mVoiceCallback;
 
   float mDstVolume;
+  int mMixDown = 0;
 
   int mDstChannels = 0;
   int mDstSampleRate = 0;
