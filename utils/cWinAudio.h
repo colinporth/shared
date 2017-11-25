@@ -14,7 +14,6 @@ public:
 
   void audOpen (int srcChannels, int srcSampleRate);
   void audPlay (int srcChannels, int16_t* src, int srcSamples, float pitch);
-  void audSilence (int samples);
   void audClose();
 
   int getDstChannels() { return mDstChannels; }

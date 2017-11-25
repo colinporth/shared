@@ -7,7 +7,6 @@ public:
 
   virtual void audOpen (int srcChannels, int srcSampleRate) = 0;
   virtual void audPlay (int srcChannels, int16_t* src, int srcSamples, float pitch) = 0;
-  virtual void audSilence (int samples) = 0;
   virtual void audClose() = 0;
 
   virtual int getDstChannels() = 0;

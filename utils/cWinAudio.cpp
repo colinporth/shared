@@ -129,11 +129,6 @@ void cWinAudio::audPlay (int srcChannels, int16_t* src, int srcSamples, float pi
   }
 //}}}
 //{{{
-void cWinAudio::audSilence (int samples) {
-  audPlay (mSrcChannels, mSilence, mSrcChannels * samples * kBytesPerChannel, 1.0f);
-  }
-//}}}
-//{{{
 void cWinAudio::audClose() {
 
   if (mXAudio2) {
