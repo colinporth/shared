@@ -8,6 +8,7 @@
 
 const float kDefaultVolume = 0.8f;
 const float kMaxVolume = 4.f;
+const int kBitsPerSample = 16;
 
   //{{{
   cWinAudio::cWinAudio() :
@@ -27,14 +28,24 @@ const float kMaxVolume = 4.f;
   //}}}
   //{{{
   cWinAudio::~cWinAudio() {
+
     audClose();
+
+    free (mSilence);
+    mSilence = nullptr;
+
+    for (auto i = 0; i < kMaxBuffers; i++) {
+      free (mBuffers[i]);
+      mBuffers[i] = nullptr;
+      }
     }
   //}}}
 
   //{{{
-  void cWinAudio::audOpen (int sampleRate, int bitsPerSample, int channels) {
+  void cWinAudio::audOpen (int srcChannels, int srcSampleRate) {
 
-    mInChannels = channels;
+    mSrcChannels = srcChannels;
+    mSrcSampleRate = srcSampleRate;
 
     // create XAudio2 engine.
     if (XAudio2Create (&mXAudio2) != S_OK) {
@@ -43,7 +54,7 @@ const float kMaxVolume = 4.f;
       }
 
     // create masteringVoice
-    if (mXAudio2->CreateMasteringVoice (&mMasteringVoice, channels, sampleRate) != S_OK) {
+    if (mXAudio2->CreateMasteringVoice (&mMasteringVoice, XAUDIO2_DEFAULT_CHANNELS, srcSampleRate) != S_OK) {
       cLog::log (LOGERROR, "cWinAudio - CreateMasteringVoice failed");
       return;
       }
@@ -51,26 +62,26 @@ const float kMaxVolume = 4.f;
     // get masteringVoiceChannelMask
     DWORD masteringVoiceChannelMask;
     mMasteringVoice->GetChannelMask (&masteringVoiceChannelMask);
-    mOutChannelMask = masteringVoiceChannelMask;
+    mDstChannelMask = masteringVoiceChannelMask;
 
-    // get masteringVoice outChannels, samplerate
+    // get masteringVoice outChannels, sampleRate
     XAUDIO2_VOICE_DETAILS masteringVoiceDetails;
     mMasteringVoice->GetVoiceDetails (&masteringVoiceDetails);
-    mOutChannels = masteringVoiceDetails.InputChannels;
-    mOutSampleRate = masteringVoiceDetails.InputSampleRate;
-    cLog::log (LOGINFO, "cWinAudio - audOpen mask:" + hex(mOutChannelMask) +
-                         " ch:" + dec(mOutChannels) +
-                         " rate:" + dec(mOutSampleRate));
+    mDstChannels = masteringVoiceDetails.InputChannels;
+    mDstSampleRate = masteringVoiceDetails.InputSampleRate;
+    cLog::log (LOGINFO, "cWinAudio - audOpen mask:" + hex(mDstChannelMask) +
+                         " ch:" + dec(mDstChannels) +
+                         " rate:" + dec(mDstSampleRate));
 
     // create sourceVoice
     WAVEFORMATEX waveformatex;
     memset (&waveformatex, 0, sizeof (WAVEFORMATEX));
     waveformatex.wFormatTag      = WAVE_FORMAT_PCM;
-    waveformatex.wBitsPerSample  = bitsPerSample;
-    waveformatex.nChannels       = channels;
-    waveformatex.nSamplesPerSec  = (unsigned long)sampleRate;
-    waveformatex.nBlockAlign     = channels * bitsPerSample / 8;
-    waveformatex.nAvgBytesPerSec = waveformatex.nSamplesPerSec * channels * bitsPerSample/8;
+    waveformatex.wBitsPerSample  = kBitsPerSample;
+    waveformatex.nChannels       = srcChannels;
+    waveformatex.nSamplesPerSec  = (unsigned long)srcSampleRate;
+    waveformatex.nBlockAlign     = srcChannels * kBitsPerSample / 8;
+    waveformatex.nAvgBytesPerSec = waveformatex.nSamplesPerSec * srcChannels * kBitsPerSample/8;
 
     if (mXAudio2->CreateSourceVoice (&mSourceVoice, &waveformatex,
                                      0, XAUDIO2_DEFAULT_FREQ_RATIO, &mVoiceCallback, nullptr, nullptr) != S_OK) {
@@ -82,7 +93,13 @@ const float kMaxVolume = 4.f;
     }
   //}}}
   //{{{
-  void cWinAudio::audPlay (int16_t* src, int len, float pitch) {
+  void cWinAudio::audPlay (int srcChannels, int16_t* src, int len, float pitch) {
+
+    if (srcChannels != mSrcChannels) {
+      cLog::log (LOGNOTICE, "audPlay - srcChannels:" + dec (mSrcChannels) + " changedTo:" + dec(srcChannels));
+      audClose();
+      audOpen (srcChannels, mSrcSampleRate);
+      }
 
     memcpy (mBuffers[mBufferIndex], src ? src : mSilence, len);
 
@@ -95,14 +112,12 @@ const float kMaxVolume = 4.f;
       cLog::log (LOGERROR, "XAudio2 - SubmitSourceBuffer failed");
       return;
       }
-
-    // cycle buffers
     mBufferIndex = (mBufferIndex + 1) % kMaxBuffers;
 
     if ((pitch > 0.005f) && (pitch < 4.0f))
       mSourceVoice->SetFrequencyRatio (pitch, XAUDIO2_COMMIT_NOW);
 
-    // if none left block waiting for free buffer
+    // block waiting for free buffer if all used
     XAUDIO2_VOICE_STATE voiceState;
     mSourceVoice->GetState (&voiceState);
     if (voiceState.BuffersQueued >= kMaxBuffers)
@@ -111,19 +126,17 @@ const float kMaxVolume = 4.f;
   //}}}
   //{{{
   void cWinAudio::audSilence (int samples) {
-    audPlay (mSilence, mInChannels * samples * kBytesPerChannel, 1.0f);
+    audPlay (mSrcChannels, mSilence, mSrcChannels * samples * kBytesPerChannel, 1.0f);
     }
   //}}}
   //{{{
   void cWinAudio::audClose() {
 
-    free (mSilence);
-
-    for (auto i = 0; i < kMaxBuffers; i++)
-      free (mBuffers[i]);
-
-    mSourceVoice->Stop();
-    mXAudio2->Release();
+    if (mXAudio2) {
+      mSourceVoice->Stop();
+      mXAudio2->Release();
+      mXAudio2 = nullptr;
+      }
     }
   //}}}
 

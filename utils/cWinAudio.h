@@ -12,14 +12,16 @@ public:
   cWinAudio();
   virtual cWinAudio::~cWinAudio();
 
-  void audOpen (int sampleRate, int bitsPerSample, int channels);
-  void audPlay (int16_t* src, int len, float pitch);
+  void audOpen (int srcChannels, int srcSampleRate);
+  void audPlay (int srcChannels, int16_t* src, int len, float pitch);
   void audSilence (int samples);
   void audClose();
 
-  int getOutChannels() { return mOutChannels; }
-  int getOutSampleRate() { return mOutSampleRate; }
-  int getOutChannelMask() { return mOutChannelMask; }
+  int getDstChannels() { return mDstChannels; }
+  int getDstSampleRate() { return mDstSampleRate; }
+  int getDstChannelMask() { return mDstChannelMask; }
+
+  int getSrcChannels() { return mSrcChannels; }
 
   float getVolume() { return mVolume; }
   void setVolume (float volume);
@@ -62,11 +64,12 @@ private:
   IXAudio2SourceVoice* mSourceVoice;
   cAudio2VoiceCallback mVoiceCallback;
 
-  int mOutChannels = 0;
-  int mOutSampleRate = 0;
-  int mOutChannelMask = 0;
+  int mDstChannels = 0;
+  int mDstSampleRate = 0;
+  int mDstChannelMask = 0;
 
-  int mInChannels = 0;
+  int mSrcChannels = 0;
+  int mSrcSampleRate = 0;
 
   // buffers
   XAUDIO2_BUFFER mBuffer;
