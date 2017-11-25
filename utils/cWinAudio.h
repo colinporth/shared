@@ -1,12 +1,8 @@
 // cWinAudio.h
 #pragma once
 //{{{  includes
-#include <stdio.h>
 #include <stdint.h>
-
 #include <xaudio2.h>
-#pragma comment(lib,"Xaudio2.lib")
-
 #include "iAudio.h"
 //}}}
 const int kMaxBuffers = 6;

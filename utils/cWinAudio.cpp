@@ -1,9 +1,9 @@
 // cWinAudio.cpp
 #include "cWinAudio.h"
 
+#include <stdio.h>
 #include "utils.h"
 #include "cLog.h"
-
 #pragma comment(lib,"Xaudio2.lib")
 
 const float kDefaultVolume = 0.8f;
