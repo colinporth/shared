@@ -16,13 +16,17 @@ public:
   cWinAudio();
   virtual cWinAudio::~cWinAudio();
 
-  float getVolume();
-  void setVolume (float volume);
-
   void audOpen (int sampleFreq, int bitsPerSample, int channels);
   void audPlay (int16_t* src, int len, float pitch);
   void audSilence (int samples);
   void audClose();
+
+  int getOutChannels() { return mOutChannels; }
+  int getOutSampleRate() { return mOutSampleRate; }
+  int getOutChannelMask() { return mOutChannelMask; }
+
+  float getVolume() { return mVolume; }
+  void setVolume (float volume);
 
   // public only for widgets to access directly
   float mVolume;
@@ -62,7 +66,11 @@ private:
   IXAudio2SourceVoice* mSourceVoice;
   cAudio2VoiceCallback mVoiceCallback;
 
-  int mChannels = 0;
+  int mOutChannels = 0;
+  int mOutSampleRate = 0;
+  int mOutChannelMask = 0;
+
+  int mInChannels = 0;
 
   // buffers
   XAUDIO2_BUFFER mBuffer;

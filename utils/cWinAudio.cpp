@@ -10,14 +10,17 @@ const float kDefaultVolume = 0.8f;
 const float kMaxVolume = 4.f;
 
   //{{{
-  cWinAudio::cWinAudio() : mVolume(kDefaultVolume) {
+  cWinAudio::cWinAudio() :
+      mVolume(kDefaultVolume) {
 
+    // init XAUDIO2_BUFFER, most fields unused
     memset (&mBuffer, 0, sizeof (XAUDIO2_BUFFER));
 
+    // allloc and clear mSilence
     mSilence = (int16_t*)malloc (kMaxChannels * kMaxSilenceSamples * kBytesPerChannel);
     memset (mSilence, 0, kMaxChannels * kMaxSilenceSamples * kBytesPerChannel);
 
-    // guess initial buffer allocation
+    // guess initial buffer alloc
     for (auto i = 0; i < kMaxBuffers; i++)
       mBuffers [i] = (uint8_t*)malloc (kMaxChannels * kMaxSilenceSamples * kBytesPerChannel);
     }
@@ -29,26 +32,9 @@ const float kMaxVolume = 4.f;
   //}}}
 
   //{{{
-  float cWinAudio::getVolume() {
-    return mVolume;
-    }
-  //}}}
-  //{{{
-  void cWinAudio::setVolume (float volume) {
-
-    if (volume < 0.f)
-      mVolume = 0.f;
-    else if (volume > kMaxVolume)
-      mVolume = kMaxVolume;
-    else
-      mVolume = volume;
-    }
-  //}}}
-
-  //{{{
   void cWinAudio::audOpen (int sampleFreq, int bitsPerSample, int channels) {
 
-    mChannels = channels;
+    mInChannels = channels;
 
     // create XAudio2 engine.
     if (XAudio2Create (&mXAudio2) != S_OK) {
@@ -66,12 +52,12 @@ const float kMaxVolume = 4.f;
 
     XAUDIO2_VOICE_DETAILS details;
     mMasteringVoice->GetVoiceDetails (&details);
-    auto masterChannelMask = dwChannelMask;
-    auto masterChannels = details.InputChannels;
-    auto masterRate = details.InputSampleRate;
-    cLog::log (LOGINFO, "cWinAudio - audOpen mask:" + hex(masterChannelMask) +
-                         " ch:" + hex(masterChannels) +
-                         " rate:" + dec(masterRate));
+    mOutChannelMask = dwChannelMask;
+    mOutChannels = details.InputChannels;
+    mOutSampleRate = details.InputSampleRate;
+    cLog::log (LOGINFO, "cWinAudio - audOpen mask:" + hex(mOutChannelMask) +
+                         " ch:" + dec(mOutChannels) +
+                         " rate:" + dec(mOutSampleRate));
 
     WAVEFORMATEX waveformatex;
     memset ((void*)&waveformatex, 0, sizeof (WAVEFORMATEX));
@@ -121,7 +107,7 @@ const float kMaxVolume = 4.f;
   //}}}
   //{{{
   void cWinAudio::audSilence (int samples) {
-    audPlay (mSilence, mChannels * samples * kBytesPerChannel, 1.0f);
+    audPlay (mSilence, mInChannels * samples * kBytesPerChannel, 1.0f);
     }
   //}}}
   //{{{
@@ -134,5 +120,17 @@ const float kMaxVolume = 4.f;
 
     mSourceVoice->Stop();
     mXAudio2->Release();
+    }
+  //}}}
+
+  //{{{
+  void cWinAudio::setVolume (float volume) {
+
+    if (volume < 0.f)
+      mVolume = 0.f;
+    else if (volume > kMaxVolume)
+      mVolume = kMaxVolume;
+    else
+      mVolume = volume;
     }
   //}}}
