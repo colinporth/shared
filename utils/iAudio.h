@@ -5,7 +5,7 @@ class iAudio {
 public:
   virtual ~iAudio() {}
 
-  virtual void audOpen (int sampleFreq, int bitsPerSample, int channels) = 0;
+  virtual void audOpen (int sampleRate, int bitsPerSample, int channels) = 0;
   virtual void audPlay (int16_t* src, int len, float pitch) = 0;
   virtual void audSilence (int samples) = 0;
   virtual void audClose() = 0;

@@ -12,7 +12,7 @@ public:
   cWinAudio();
   virtual cWinAudio::~cWinAudio();
 
-  void audOpen (int sampleFreq, int bitsPerSample, int channels);
+  void audOpen (int sampleRate, int bitsPerSample, int channels);
   void audPlay (int16_t* src, int len, float pitch);
   void audSilence (int samples);
   void audClose();

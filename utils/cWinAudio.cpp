@@ -32,7 +32,7 @@ const float kMaxVolume = 4.f;
   //}}}
 
   //{{{
-  void cWinAudio::audOpen (int sampleFreq, int bitsPerSample, int channels) {
+  void cWinAudio::audOpen (int sampleRate, int bitsPerSample, int channels) {
 
     mInChannels = channels;
 
@@ -42,29 +42,33 @@ const float kMaxVolume = 4.f;
       return;
       }
 
-    if (mXAudio2->CreateMasteringVoice (&mMasteringVoice, channels, sampleFreq) != S_OK) {
+    // create masteringVoice
+    if (mXAudio2->CreateMasteringVoice (&mMasteringVoice, channels, sampleRate) != S_OK) {
       cLog::log (LOGERROR, "cWinAudio - CreateMasteringVoice failed");
       return;
       }
 
-    DWORD dwChannelMask;
-    mMasteringVoice->GetChannelMask (&dwChannelMask);
+    // get masteringVoiceChannelMask
+    DWORD masteringVoiceChannelMask;
+    mMasteringVoice->GetChannelMask (&masteringVoiceChannelMask);
+    mOutChannelMask = masteringVoiceChannelMask;
 
-    XAUDIO2_VOICE_DETAILS details;
-    mMasteringVoice->GetVoiceDetails (&details);
-    mOutChannelMask = dwChannelMask;
-    mOutChannels = details.InputChannels;
-    mOutSampleRate = details.InputSampleRate;
+    // get masteringVoice outChannels, samplerate
+    XAUDIO2_VOICE_DETAILS masteringVoiceDetails;
+    mMasteringVoice->GetVoiceDetails (&masteringVoiceDetails);
+    mOutChannels = masteringVoiceDetails.InputChannels;
+    mOutSampleRate = masteringVoiceDetails.InputSampleRate;
     cLog::log (LOGINFO, "cWinAudio - audOpen mask:" + hex(mOutChannelMask) +
                          " ch:" + dec(mOutChannels) +
                          " rate:" + dec(mOutSampleRate));
 
+    // create sourceVoice
     WAVEFORMATEX waveformatex;
-    memset ((void*)&waveformatex, 0, sizeof (WAVEFORMATEX));
+    memset (&waveformatex, 0, sizeof (WAVEFORMATEX));
     waveformatex.wFormatTag      = WAVE_FORMAT_PCM;
     waveformatex.wBitsPerSample  = bitsPerSample;
     waveformatex.nChannels       = channels;
-    waveformatex.nSamplesPerSec  = (unsigned long)sampleFreq;
+    waveformatex.nSamplesPerSec  = (unsigned long)sampleRate;
     waveformatex.nBlockAlign     = channels * bitsPerSample / 8;
     waveformatex.nAvgBytesPerSec = waveformatex.nSamplesPerSec * channels * bitsPerSample/8;
 
