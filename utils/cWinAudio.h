@@ -25,8 +25,14 @@ public:
   float getVolume() { return mDstVolume; }
   void setVolume (float volume);
 
-  int getMixDown() { return mMixDown; }
-  void setMixDown (int mixDown) { mMixDown = mixDown; }
+  bool getMixedFL() { return (mMixDown == eBestMix) || (mMixDown == eFLFR); }
+  bool getMixedFR() { return (mMixDown == eBestMix) || (mMixDown == eFLFR); }
+  bool getMixedC()  { return (mMixDown == eBestMix) || (mMixDown == eCentre); }
+  bool getMixedW()  { return (mMixDown == eBestMix) || (mMixDown == eWoofer); }
+  bool getMixedBL() { return (mMixDown == eBestMix) || (mMixDown == eBLBR); }
+  bool getMixedBR() { return (mMixDown == eBestMix) || (mMixDown == eBLBR); }
+  eMixDown getMixDown() { return mMixDown; }
+  void setMixDown (eMixDown mixDown) { mMixDown = mixDown; }
 
 private:
   //{{{
@@ -59,7 +65,8 @@ private:
   cAudio2VoiceCallback mVoiceCallback;
 
   float mDstVolume;
-  int mMixDown = 0;
+  eMixDown mMixDown = eBestMix;
+  eMixDown mLastMixDown = eNoMix;
 
   int mDstChannels = 0;
   int mDstSampleRate = 0;

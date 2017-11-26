@@ -3,6 +3,8 @@
 
 class iAudio {
 public:
+  enum eMixDown { eBestMix, eFLFR, eBLBR, eCentre, eWoofer, eAllMix, eNoMix };
+
   virtual ~iAudio() {}
 
   virtual void audOpen (int srcChannels, int srcSampleRate) = 0;
@@ -18,6 +20,13 @@ public:
   virtual float getVolume() = 0;
   virtual void setVolume (float volume) = 0;
 
-  virtual int getMixDown() = 0;
-  virtual void setMixDown (int mixDown) = 0;
+  virtual bool getMixedFL() = 0;
+  virtual bool getMixedFR() = 0;
+  virtual bool getMixedC() = 0;
+  virtual bool getMixedW() = 0;
+  virtual bool getMixedBL() = 0;
+  virtual bool getMixedBR() = 0;
+
+  virtual eMixDown getMixDown() = 0;
+  virtual void setMixDown (eMixDown mixDown) = 0;
   };
