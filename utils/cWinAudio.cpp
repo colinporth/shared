@@ -21,9 +21,7 @@ const float kMaxVolume = 4.f;
 cWinAudio::cWinAudio() :
     mDstVolume(kDefaultVolume) {
 
-  // init XAUDIO2_BUFFER, most fields unused
-
-  // allloc and clear mSilence
+  // alloc and clear mSilence
   mSilence = (int16_t*)malloc (kMaxChannels * kMaxSilenceSamples * kBytesPerChannel);
   memset (mSilence, 0, kMaxChannels * kMaxSilenceSamples * kBytesPerChannel);
 
@@ -53,15 +51,19 @@ void cWinAudio::audOpen (int srcChannels, int srcSampleRate) {
 
   // create XAudio2 engine.
   if (XAudio2Create (&mXAudio2) != S_OK) {
+    //{{{  error, return
     cLog::log (LOGERROR, "cWinAudio - XAudio2Create failed");
     return;
     }
+    //}}}
 
   // create masteringVoice
   if (mXAudio2->CreateMasteringVoice (&mMasteringVoice, XAUDIO2_DEFAULT_CHANNELS, srcSampleRate) != S_OK) {
+    //{{{  error, return
     cLog::log (LOGERROR, "cWinAudio - CreateMasteringVoice failed");
     return;
     }
+    //}}}
 
   // get masteringVoiceChannelMask
   DWORD masteringVoiceChannelMask;
@@ -89,9 +91,11 @@ void cWinAudio::audOpen (int srcChannels, int srcSampleRate) {
 
   if (mXAudio2->CreateSourceVoice (&mSourceVoice, &waveformatex,
                                    0, XAUDIO2_DEFAULT_FREQ_RATIO, &mVoiceCallback, nullptr, nullptr) != S_OK) {
+    //{{{  error, return
     cLog::log (LOGERROR, "CreateSourceVoice failed");
     return;
     }
+    //}}}
 
   mSourceVoice->Start();
   }
@@ -124,7 +128,69 @@ void cWinAudio::audPlay (int srcChannels, int16_t* src, int srcSamples, float pi
 
   if (mMixDown != mLastMixDown) {
     if (mSrcChannels == 6) {
-      if (mDstChannels == 6) {
+      // 5.1 src
+      if (mDstChannels == 2) {
+        //{{{  6 to 2 mixDown
+        switch (mMixDown) {
+          case eFLFR: {
+            //{{{  front only
+            float kLevelMatrix[12] = {// FL   FR    C    W    BL  BR
+                                        1.f, 0.f, 0.f, 0.f, 0.f, 0.f,  // dstL
+                                        0.f, 1.f, 0.f, 0.f, 0.f, 0.f}; // dstR
+            mSourceVoice->SetOutputMatrix (mMasteringVoice, mSrcChannels, mDstChannels, kLevelMatrix, XAUDIO2_COMMIT_NOW);
+            break;
+            }
+            //}}}
+          case eBLBR: {
+            //{{{  back only
+            float kLevelMatrix[12] = {// FL   FR    C    W    BL  BR
+                                        0.f, 0.f, 0.f, 0.f, 1.f, 0.f,  // dstL
+                                        0.f, 0.f, 0.f, 0.f, 0.f, 1.f}; // dstR
+            mSourceVoice->SetOutputMatrix (mMasteringVoice, mSrcChannels, mDstChannels, kLevelMatrix, XAUDIO2_COMMIT_NOW);
+            break;
+            }
+            //}}}
+          case eCentre: {
+            //{{{  centre only
+            float kLevelMatrix[12] = {// FL   FR    C    W    BL  BR
+                                        0.f, 0.f, 1.f, 0.f, 0.f, 0.f,  // dstL
+                                        0.f, 0.f, 1.f, 0.f, 0.f, 0.f}; // dstR
+            mSourceVoice->SetOutputMatrix (mMasteringVoice, mSrcChannels, mDstChannels, kLevelMatrix, XAUDIO2_COMMIT_NOW);
+            break;
+            }
+            //}}}
+          case eWoofer: {
+            //{{{  woofer only
+            float kLevelMatrix[12] = {// FL   FR    C    W    BL  BR
+                                        0.f, 0.f, 0.f, 1.f, 0.f, 0.f,  // dstL
+                                        0.f, 0.f, 0.f, 1.f, 0.f, 0.f}; // dstR
+            mSourceVoice->SetOutputMatrix (mMasteringVoice, mSrcChannels, mDstChannels, kLevelMatrix, XAUDIO2_COMMIT_NOW);
+            break;
+            }
+            //}}}
+          case eAllMix:
+          case eBestMix: {
+            //{{{  eBestMix
+            float kLevelMatrix[12] = {// FL   FR    C    W    BL  BR
+                                        1.f, 0.f, 1.f, 1.f, 1.f, 0.f,  // dstL
+                                        0.f, 1.f, 1.f, 1.f, 0.f, 1.f}; // dstR
+            mSourceVoice->SetOutputMatrix (mMasteringVoice, mSrcChannels, mDstChannels, kLevelMatrix, XAUDIO2_COMMIT_NOW);
+            break;
+            }
+            //}}}
+          }
+
+        mLastMixDown = mMixDown;
+
+        cLog::log (LOGNOTICE, "6 to 2 mixdown changed to " + dec(mMixDown));
+        }
+        //}}}
+      else if (mDstChannels == 4) {
+        //{{{  6 to 4 mixDown
+        cLog::log (LOGNOTICE, "6 to 4 mixdown missing");
+        }
+        //}}}
+      else {
         //{{{  6 to 6 mixDown
         switch (mMixDown) {
           case eFLFR: {
@@ -212,65 +278,26 @@ void cWinAudio::audPlay (int srcChannels, int16_t* src, int srcSamples, float pi
         cLog::log (LOGNOTICE, "6 to 6 mixdown changed to " + dec(mMixDown));
         }
         //}}}
-      else {
-        //{{{  6 to 2 mixDown
-        switch (mMixDown) {
-          case eFLFR: {
-            //{{{  front only
-            float kLevelMatrix[12] = {// FL   FR    C    W    BL  BR
-                                        1.f, 0.f, 0.f, 0.f, 0.f, 0.f,  // dstL
-                                        0.f, 1.f, 0.f, 0.f, 0.f, 0.f}; // dstR
-            mSourceVoice->SetOutputMatrix (mMasteringVoice, mSrcChannels, mDstChannels, kLevelMatrix, XAUDIO2_COMMIT_NOW);
-            break;
-            }
-            //}}}
-          case eBLBR: {
-            //{{{  back only
-            float kLevelMatrix[12] = {// FL   FR    C    W    BL  BR
-                                        0.f, 0.f, 0.f, 0.f, 1.f, 0.f,  // dstL
-                                        0.f, 0.f, 0.f, 0.f, 0.f, 1.f}; // dstR
-            mSourceVoice->SetOutputMatrix (mMasteringVoice, mSrcChannels, mDstChannels, kLevelMatrix, XAUDIO2_COMMIT_NOW);
-            break;
-            }
-            //}}}
-          case eCentre: {
-            //{{{  centre only
-            float kLevelMatrix[12] = {// FL   FR    C    W    BL  BR
-                                        0.f, 0.f, 1.f, 0.f, 0.f, 0.f,  // dstL
-                                        0.f, 0.f, 1.f, 0.f, 0.f, 0.f}; // dstR
-            mSourceVoice->SetOutputMatrix (mMasteringVoice, mSrcChannels, mDstChannels, kLevelMatrix, XAUDIO2_COMMIT_NOW);
-            break;
-            }
-            //}}}
-          case eWoofer: {
-            //{{{  woofer only
-            float kLevelMatrix[12] = {// FL   FR    C    W    BL  BR
-                                        0.f, 0.f, 0.f, 1.f, 0.f, 0.f,  // dstL
-                                        0.f, 0.f, 0.f, 1.f, 0.f, 0.f}; // dstR
-            mSourceVoice->SetOutputMatrix (mMasteringVoice, mSrcChannels, mDstChannels, kLevelMatrix, XAUDIO2_COMMIT_NOW);
-            break;
-            }
-            //}}}
-          case eAllMix:
-          case eBestMix: {
-            //{{{  eBestMix
-            float kLevelMatrix[12] = {// FL   FR    C    W    BL  BR
-                                        1.f, 0.f, 1.f, 1.f, 1.f, 0.f,  // dstL
-                                        0.f, 1.f, 1.f, 1.f, 0.f, 1.f}; // dstR
-            mSourceVoice->SetOutputMatrix (mMasteringVoice, mSrcChannels, mDstChannels, kLevelMatrix, XAUDIO2_COMMIT_NOW);
-            break;
-            }
-            //}}}
-          }
-
+      }
+    else { 
+      // steroe src
+      if (mDstChannels == 2) {
+        //{{{  2 to 2 mixDown
+        float kLevelMatrix[4] = {// L   R
+                                  1.f, 0.f,  // dst L
+                                  0.f, 1.f}; // dst R
+        mSourceVoice->SetOutputMatrix (mMasteringVoice, mSrcChannels, mDstChannels, kLevelMatrix, XAUDIO2_COMMIT_NOW);
         mLastMixDown = mMixDown;
 
-        cLog::log (LOGNOTICE, "6 to 2 mixdown changed to " + dec(mMixDown));
+        cLog::log (LOGNOTICE, "2 to 2 mixdown changed to " + dec(mMixDown) = " nothing changed");
         }
         //}}}
-      }
-    else { // srcChannels = 2
-      if (mDstChannels == 6) {
+      else if (mDstChannels == 4) {
+        //{{{  2 to 4 mixDown
+        cLog::log (LOGNOTICE, "2 to 4 mixdown missing");
+        }
+        //}}}
+      else {
         //{{{  2 to 6 duplicate src LR to dst pairs
         float kLevelMatrix[12] = {// L   R
                                    1.f, 0.f,  // dst FL
@@ -283,17 +310,6 @@ void cWinAudio::audPlay (int srcChannels, int16_t* src, int srcSamples, float pi
         mLastMixDown = mMixDown;
 
         cLog::log (LOGNOTICE, "2 to 6 mixdown changed to " + dec(mMixDown) + " nothing changed");
-        }
-        //}}}
-      else {
-        //{{{  2 to 2 mixDown
-        float kLevelMatrix[4] = {// L   R
-                                  1.f, 0.f,  // dst L
-                                  0.f, 1.f}; // dst R
-        mSourceVoice->SetOutputMatrix (mMasteringVoice, mSrcChannels, mDstChannels, kLevelMatrix, XAUDIO2_COMMIT_NOW);
-        mLastMixDown = mMixDown;
-
-        cLog::log (LOGNOTICE, "2 to 2 mixdown changed to " + dec(mMixDown) = " nothing changed");
         }
         //}}}
       }
