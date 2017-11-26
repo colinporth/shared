@@ -18,6 +18,8 @@ public:
   virtual int getSrcChannels() = 0;
 
   virtual float getVolume() = 0;
+  virtual float getDefaultVolume() = 0;
+  virtual float getMaxVolume() = 0;
   virtual void setVolume (float volume) = 0;
 
   virtual bool getMixedFL() = 0;

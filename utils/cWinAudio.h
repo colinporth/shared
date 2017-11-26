@@ -23,6 +23,8 @@ public:
   int getSrcChannels() { return mSrcChannels; }
 
   float getVolume() { return mDstVolume; }
+  float getDefaultVolume() { return kDefaultVolume; }
+  float getMaxVolume() { return kMaxVolume; }
   void setVolume (float volume);
 
   bool getMixedFL() { return (mMixDown == eBestMix) || (mMixDown == eFLFR); }
@@ -35,6 +37,8 @@ public:
   void setMixDown (eMixDown mixDown) { mMixDown = mixDown; }
 
 private:
+  const float kMaxVolume = 3.f;
+  const float kDefaultVolume = 0.8f;
   //{{{
   class cAudio2VoiceCallback : public IXAudio2VoiceCallback {
   public:

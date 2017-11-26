@@ -12,9 +12,6 @@ const int kMaxChannels = 6;
 const int kBitsPerSample = 16;
 const int kBytesPerChannel = 2;
 const int kMaxSilenceSamples = 1152;
-
-const float kDefaultVolume = 0.8f;
-const float kMaxVolume = 4.f;
 //}}}
 
 //{{{
@@ -279,7 +276,7 @@ void cWinAudio::audPlay (int srcChannels, int16_t* src, int srcSamples, float pi
         }
         //}}}
       }
-    else { 
+    else {
       // steroe src
       if (mDstChannels == 2) {
         //{{{  2 to 2 mixDown
@@ -337,6 +334,6 @@ void cWinAudio::audClose() {
 
 //{{{
 void cWinAudio::setVolume (float volume) {
-  mDstVolume = min (max (volume, 0.f), kMaxVolume);
+  mDstVolume = min (max (volume, 0.f), getMaxVolume());
   }
 //}}}
