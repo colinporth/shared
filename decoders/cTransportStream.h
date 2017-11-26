@@ -7342,6 +7342,7 @@ private:
           case 4:  serviceIt->second.setAudPid (esPid, streamType); break; // ISO 13818-3 audio
           case 15: serviceIt->second.setAudPid (esPid, streamType); break; // HD aud ADTS
           case 17: serviceIt->second.setAudPid (esPid, streamType); break; // HD aud LATM
+          case 129: serviceIt->second.setAudPid (esPid, streamType); break; // aud AC3
 
           case 6:  serviceIt->second.setSubPid (esPid, streamType); break; // subtitle
 
