@@ -7070,14 +7070,15 @@ public:
             if (payStart) {
               uint32_t streamId = (tsPtr[0] << 24) | (tsPtr[1] << 16) | (tsPtr[2] << 8) | tsPtr[3];
               if ((streamId == 0x000001C0) || (streamId == 0x000001BD)) {
-                //{{{  start new audio pes, decode last pes
+                //{{{  start new audPes
                 if (pid == audPid) {
-                  if (pidInfoIt->second.mBufPtr)
+                  // expected audPes, has valid buffer and valid streamType
+                  if (pidInfoIt->second.mBufPtr && pidInfoIt->second.mStreamType)
                     decoded = audDecodePes (&pidInfoIt->second, basePts);
 
-                  //  start next audPES
+                  //  start next audPes
                   if (!pidInfoIt->second.mBuffer) {
-                    // allocate audPES buffer
+                    // allocate audPes buffer
                     pidInfoIt->second.mBufSize = kAudPesBufSize;
                     pidInfoIt->second.mBuffer = (uint8_t*)malloc (pidInfoIt->second.mBufSize);
                     }
@@ -7095,9 +7096,10 @@ public:
               else if (streamId == 0x000001E0) {
                 //{{{  start new video pes, decode last pes
                 if (pid == vidPid) {
-                  if (pidInfoIt->second.mBufPtr) {
-                    char frameType =
-                      parseFrameType (pidInfoIt->second.mBuffer, pidInfoIt->second.mBufPtr, pidInfoIt->second.mStreamType);
+                  if (pidInfoIt->second.mBufPtr && pidInfoIt->second.mStreamType) {
+                    // valid buffer and streamType
+                    char frameType = parseFrameType (pidInfoIt->second.mBuffer, pidInfoIt->second.mBufPtr,
+                                                     pidInfoIt->second.mStreamType);
                     decoded = vidDecodePes (&pidInfoIt->second, basePts, frameType, skipped);
                     skipped = false;
                     }
