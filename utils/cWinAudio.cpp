@@ -11,7 +11,7 @@
 const int kMaxChannels = 6;
 const int kBitsPerSample = 16;
 const int kBytesPerChannel = 2;
-const int kMaxSilenceSamples = 1152;
+const int kMaxSamples = 1536;
 //}}}
 
 //{{{
@@ -19,14 +19,14 @@ cWinAudio::cWinAudio() :
     mDstVolume(kDefaultVolume) {
 
   // alloc and clear mSilence
-  mSilence = (int16_t*)malloc (kMaxChannels * kMaxSilenceSamples * kBytesPerChannel);
-  memset (mSilence, 0, kMaxChannels * kMaxSilenceSamples * kBytesPerChannel);
+  mSilence = (int16_t*)malloc (kMaxChannels * kMaxSamples * kBytesPerChannel);
+  memset (mSilence, 0, kMaxChannels * kMaxSamples * kBytesPerChannel);
 
   // guess initial buffer alloc
   for (auto i = 0; i < kMaxBuffers; i++) {
     memset (&mBuffers[i], 0, sizeof (XAUDIO2_BUFFER));
-    mBuffers[i].AudioBytes = kMaxChannels * kMaxSilenceSamples * kBytesPerChannel;
-    mBuffers[i].pAudioData = (const BYTE*)malloc (kMaxChannels * kMaxSilenceSamples * kBytesPerChannel);
+    mBuffers[i].AudioBytes = kMaxChannels * kMaxSamples * kBytesPerChannel;
+    mBuffers[i].pAudioData = (const BYTE*)malloc (kMaxChannels * kMaxSamples * kBytesPerChannel);
     }
   }
 //}}}
@@ -109,6 +109,12 @@ void cWinAudio::audPlay (int srcChannels, int16_t* src, int srcSamples, float pi
     //}}}
 
   int len = srcChannels * srcSamples * 2;
+  if (srcSamples > kMaxSamples) {
+    //{{{  error, return
+    cLog::log (LOGERROR, "audPlay - too many samples " + dec(srcSamples));
+    return;
+    }
+    //}}}
   memcpy ((void*)mBuffers[mBufferIndex].pAudioData, src ? src : mSilence, len);
 
   // queue buffer
