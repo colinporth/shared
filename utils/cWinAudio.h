@@ -5,7 +5,7 @@
 #include <xaudio2.h>
 #include "iAudio.h"
 //}}}
-const int kMaxBuffers = 6;
+const int kMaxBuffers = 4;
 
 class cWinAudio : public iAudio {
 public:

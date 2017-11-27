@@ -84,7 +84,7 @@ void cWinAudio::audOpen (int srcChannels, int srcSampleRate) {
   waveformatex.nChannels       = srcChannels;
   waveformatex.nSamplesPerSec  = (unsigned long)srcSampleRate;
   waveformatex.nBlockAlign     = srcChannels * kBitsPerSample / 8;
-  waveformatex.nAvgBytesPerSec = waveformatex.nSamplesPerSec * srcChannels * kBitsPerSample/8;
+  waveformatex.nAvgBytesPerSec = waveformatex.nSamplesPerSec * srcChannels * kBitsPerSample / 8;
 
   if (mXAudio2->CreateSourceVoice (&mSourceVoice, &waveformatex,
                                    0, XAUDIO2_DEFAULT_FREQ_RATIO, &mVoiceCallback, nullptr, nullptr) != S_OK) {
