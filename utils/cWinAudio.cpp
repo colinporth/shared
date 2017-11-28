@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include "utils.h"
 #include "cLog.h"
+
 #pragma comment(lib,"Xaudio2.lib")
 //}}}
 //{{{  const
@@ -102,7 +103,8 @@ void cWinAudio::audOpen (int srcChannels, int srcSampleRate) {
   }
 //}}}
 //{{{
-void cWinAudio::audPlay (int srcChannels, int16_t* src, int srcSamples, float pitch) {
+void cWinAudio::audPlay (int srcChannels, int16_t* srcSamples, int srcNumSamples, float pitch) {
+// play silence if src == nullptr, maintains timing
 
   if (srcChannels != mSrcChannels) {
     //{{{  recreate sourceVoice with new num of channels
@@ -112,14 +114,14 @@ void cWinAudio::audPlay (int srcChannels, int16_t* src, int srcSamples, float pi
     }
     //}}}
 
-  int len = srcChannels * srcSamples * 2;
-  if (srcSamples > kMaxSamples) {
+  int len = srcChannels * srcNumSamples * 2;
+  if (srcNumSamples > kMaxSamples) {
     //{{{  error, return
-    cLog::log (LOGERROR, "audPlay - too many samples " + dec(srcSamples));
+    cLog::log (LOGERROR, "audPlay - too many samples " + dec(srcNumSamples));
     return;
     }
     //}}}
-  memcpy ((void*)mBuffers[mBufferIndex].pAudioData, src ? src : mSilence, len);
+  memcpy ((void*)mBuffers[mBufferIndex].pAudioData, srcSamples ? srcSamples : mSilence, len);
 
   // queue buffer
   mBuffers[mBufferIndex].AudioBytes = len;
