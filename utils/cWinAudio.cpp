@@ -8,6 +8,8 @@
 #pragma comment(lib,"Xaudio2.lib")
 //}}}
 //{{{  const
+const int kMaxBuffers = 2;
+
 const int kMaxChannels = 6;
 const int kBitsPerSample = 16;
 const int kBytesPerChannel = 2;
@@ -24,9 +26,11 @@ cWinAudio::cWinAudio() :
 
   // guess initial buffer alloc
   for (auto i = 0; i < kMaxBuffers; i++) {
-    memset (&mBuffers[i], 0, sizeof (XAUDIO2_BUFFER));
-    mBuffers[i].AudioBytes = kMaxChannels * kMaxSamples * kBytesPerChannel;
-    mBuffers[i].pAudioData = (const BYTE*)malloc (kMaxChannels * kMaxSamples * kBytesPerChannel);
+    XAUDIO2_BUFFER buffer;
+    memset (&buffer, 0, sizeof (XAUDIO2_BUFFER));
+    buffer.AudioBytes = kMaxChannels * kMaxSamples * kBytesPerChannel;
+    buffer.pAudioData = (const BYTE*)malloc (kMaxChannels * kMaxSamples * kBytesPerChannel);
+    mBuffers.push_back (buffer);
     }
   }
 //}}}
@@ -125,7 +129,7 @@ void cWinAudio::audPlay (int srcChannels, int16_t* src, int srcSamples, float pi
     return;
     }
     //}}}
-  mBufferIndex = (mBufferIndex + 1) % kMaxBuffers;
+  mBufferIndex = (mBufferIndex + 1) % mBuffers.size();
 
   mMasteringVoice->SetVolume (mDstVolume, XAUDIO2_COMMIT_NOW);
 
@@ -182,15 +186,69 @@ void cWinAudio::audPlay (int srcChannels, int16_t* src, int srcSamples, float pi
             }
             //}}}
           }
-
-        mLastMixDown = mMixDown;
-
         cLog::log (LOGNOTICE, "6 to 2 mixdown changed to " + dec(mMixDown));
         }
         //}}}
       else if (mDstChannels == 4) {
         //{{{  6 to 4 mixDown
-        cLog::log (LOGNOTICE, "6 to 4 mixdown missing");
+        switch (mMixDown) {
+          case eFLFR: {
+            //{{{  front only
+            float kLevelMatrix[24] = {// FL   FR    C    W    BL  BR
+                                        1.f, 0.f, 0.f, 0.f, 0.f, 0.f,  // dstFL
+                                        0.f, 1.f, 0.f, 0.f, 0.f, 0.f,  // dstFR
+                                        1.f, 0.f, 0.f, 0.f, 0.f, 0.f,  // dstBL
+                                        0.f, 1.f, 0.f, 0.f, 0.f, 0.f}; // dstBR
+            mSourceVoice->SetOutputMatrix (mMasteringVoice, mSrcChannels, mDstChannels, kLevelMatrix, XAUDIO2_COMMIT_NOW);
+            break;
+            }
+            //}}}
+          case eBLBR: {
+            //{{{  back only
+            float kLevelMatrix[24] = {// FL   FR    C    W    BL  BR
+                                        0.f, 0.f, 0.f, 0.f, 1.f, 0.f,  // dstFL
+                                        0.f, 0.f, 0.f, 0.f, 0.f, 1.f,  // dstFR
+                                        0.f, 0.f, 0.f, 0.f, 1.f, 0.f,  // dstBL
+                                        0.f, 0.f, 0.f, 0.f, 0.f, 1.f}; // dstBR
+            mSourceVoice->SetOutputMatrix (mMasteringVoice, mSrcChannels, mDstChannels, kLevelMatrix, XAUDIO2_COMMIT_NOW);
+            break;
+            }
+            //}}}
+          case eCentre: {
+            //{{{  centre only
+            float kLevelMatrix[24] = {// FL   FR    C    W    BL  BR
+                                        0.f, 0.f, 1.f, 0.f, 0.f, 0.f,  // dstFL
+                                        0.f, 0.f, 1.f, 0.f, 0.f, 0.f,  // dstFR
+                                        0.f, 0.f, 1.f, 0.f, 0.f, 0.f,  // dstBL
+                                        0.f, 0.f, 1.f, 0.f, 0.f, 0.f}; // dstBR
+            mSourceVoice->SetOutputMatrix (mMasteringVoice, mSrcChannels, mDstChannels, kLevelMatrix, XAUDIO2_COMMIT_NOW);
+            break;
+            }
+            //}}}
+          case eWoofer: {
+            //{{{  woofer only
+            float kLevelMatrix[24] = {// FL   FR    C    W    BL  BR
+                                        0.f, 0.f, 0.f, 1.f, 0.f, 0.f,  // dstFL
+                                        0.f, 0.f, 0.f, 1.f, 0.f, 0.f,  // dstFR
+                                        0.f, 0.f, 0.f, 1.f, 0.f, 0.f,  // dstBL
+                                        0.f, 0.f, 0.f, 1.f, 0.f, 0.f}; // dstBR
+            mSourceVoice->SetOutputMatrix (mMasteringVoice, mSrcChannels, mDstChannels, kLevelMatrix, XAUDIO2_COMMIT_NOW);
+            break;
+            }
+            //}}}
+          case eAllMix:
+          case eBestMix: {
+            //{{{  eBestMix
+            float kLevelMatrix[24] = {// FL   FR    C    W    BL  BR
+                                        1.f, 0.f, 1.f, 1.f, 0.f, 0.f,  // dst FL + C + W
+                                        0.f, 1.f, 1.f, 1.f, 0.f, 0.f,  // dst FR + C + W
+                                        0.f, 0.f, 0.f, 0.f, 1.f, 0.f,  // dst BL
+                                        0.f, 0.f, 0.f, 0.f, 0.f, 1.f}; // dst BR
+            mSourceVoice->SetOutputMatrix (mMasteringVoice, mSrcChannels, mDstChannels, kLevelMatrix, XAUDIO2_COMMIT_NOW);
+            break;
+            }
+            //}}}
+          }
         }
         //}}}
       else {
@@ -275,9 +333,6 @@ void cWinAudio::audPlay (int srcChannels, int16_t* src, int srcSamples, float pi
             }
             //}}}
           }
-
-        mLastMixDown = mMixDown;
-
         cLog::log (LOGNOTICE, "6 to 6 mixdown changed to " + dec(mMixDown));
         }
         //}}}
@@ -290,14 +345,17 @@ void cWinAudio::audPlay (int srcChannels, int16_t* src, int srcSamples, float pi
                                   1.f, 0.f,  // dst L
                                   0.f, 1.f}; // dst R
         mSourceVoice->SetOutputMatrix (mMasteringVoice, mSrcChannels, mDstChannels, kLevelMatrix, XAUDIO2_COMMIT_NOW);
-        mLastMixDown = mMixDown;
-
         cLog::log (LOGNOTICE, "2 to 2 mixdown changed to " + dec(mMixDown) = " nothing changed");
         }
         //}}}
       else if (mDstChannels == 4) {
         //{{{  2 to 4 mixDown
-        cLog::log (LOGNOTICE, "2 to 4 mixdown missing");
+        float kLevelMatrix[8] = {// L   R
+                                 1.f, 0.f,  // dst FL
+                                 0.f, 1.f,  // dst FR
+                                 1.f, 0.f,  // dst BL
+                                 0.f, 1.f}; // dst BR
+        mSourceVoice->SetOutputMatrix (mMasteringVoice, mSrcChannels, mDstChannels, kLevelMatrix, XAUDIO2_COMMIT_NOW);
         }
         //}}}
       else {
@@ -310,12 +368,11 @@ void cWinAudio::audPlay (int srcChannels, int16_t* src, int srcSamples, float pi
                                    1.f, 0.f,  // dst BL
                                    0.f, 1.f}; // dst BR
         mSourceVoice->SetOutputMatrix (mMasteringVoice, mSrcChannels, mDstChannels, kLevelMatrix, XAUDIO2_COMMIT_NOW);
-        mLastMixDown = mMixDown;
-
         cLog::log (LOGNOTICE, "2 to 6 mixdown changed to " + dec(mMixDown) + " nothing changed");
         }
         //}}}
       }
+    mLastMixDown = mMixDown;
     }
   if ((pitch > 0.005f) && (pitch < 4.0f))
     mSourceVoice->SetFrequencyRatio (pitch, XAUDIO2_COMMIT_NOW);
@@ -323,7 +380,7 @@ void cWinAudio::audPlay (int srcChannels, int16_t* src, int srcSamples, float pi
   // block waiting for free buffer if all used
   XAUDIO2_VOICE_STATE voiceState;
   mSourceVoice->GetState (&voiceState);
-  if (voiceState.BuffersQueued >= kMaxBuffers)
+  if (voiceState.BuffersQueued >= mBuffers.size())
     mVoiceCallback.wait();
   }
 //}}}

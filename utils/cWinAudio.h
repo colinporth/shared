@@ -3,10 +3,9 @@
 //{{{  includes
 #include <stdint.h>
 #include <xaudio2.h>
+#include <vector>
 #include "iAudio.h"
 //}}}
-const int kMaxBuffers = 4;
-
 class cWinAudio : public iAudio {
 public:
   cWinAudio();
@@ -83,5 +82,5 @@ private:
   int16_t* mSilence = nullptr;
 
   int mBufferIndex = 0;
-  XAUDIO2_BUFFER mBuffers [kMaxBuffers];
+  std::vector<XAUDIO2_BUFFER> mBuffers;
   };
