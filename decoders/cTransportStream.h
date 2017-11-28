@@ -7095,7 +7095,7 @@ public:
                     }
                   break;
                   //}}}
-                case 0x1E0:
+                case 0xE0:
                   //{{{  start new video pes, decode last pes
                   if (pid == vidPid) {
                     if (pidInfoIt->second.mBufPtr && pidInfoIt->second.mStreamType) {
@@ -7137,7 +7137,6 @@ public:
                 case 0xd6:
                 case 0xd8:
                 case 0xda:
-                case 0xe0:
                   break;
                 default:
                   cLog::log (LOGERROR, "demux - pid " + dec(pid) + " unknown streamId " + hex(streamId));
