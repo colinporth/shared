@@ -7067,65 +7067,81 @@ public:
             }
             //}}}
           else {
-            if (payStart) {
-              uint32_t streamId = (tsPtr[0] << 24) | (tsPtr[1] << 16) | (tsPtr[2] << 8) | tsPtr[3];
-              if ((streamId == 0x000001C0) || (streamId == 0x000001BD)) {
-                //{{{  start new audPes
-                if (pid == audPid) {
-                  // expected audPes, has valid buffer and valid streamType
-                  if (pidInfoIt->second.mBufPtr && pidInfoIt->second.mStreamType)
-                    decoded = audDecodePes (&pidInfoIt->second, basePts);
+            if (payStart && !tsPtr[0] && !tsPtr[1] && tsPtr[2] == 1) {
+              int streamId = tsPtr[3];
+              switch (streamId) {
+                case 0xBD:
+                case 0xC0:
+                  //{{{  start new audPes
+                  if (pid == audPid) {
+                    // expected audPes, has valid buffer and valid streamType
+                    if (pidInfoIt->second.mBufPtr && pidInfoIt->second.mStreamType)
+                      decoded = audDecodePes (&pidInfoIt->second, basePts);
 
-                  //  start next audPes
-                  if (!pidInfoIt->second.mBuffer) {
-                    // allocate audPes buffer
-                    pidInfoIt->second.mBufSize = kAudPesBufSize;
-                    pidInfoIt->second.mBuffer = (uint8_t*)malloc (pidInfoIt->second.mBufSize);
+                    //  start next audPes
+                    if (!pidInfoIt->second.mBuffer) {
+                      // allocate audPes buffer
+                      pidInfoIt->second.mBufSize = kAudPesBufSize;
+                      pidInfoIt->second.mBuffer = (uint8_t*)malloc (pidInfoIt->second.mBufSize);
+                      }
+
+                    pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer;
+                    pidInfoIt->second.mStreamPos = streamPos;
+                    parseTimeStamps (tsPtr, pidInfoIt->second.mPts, pidInfoIt->second.mDts);
+
+                    int pesHeaderBytes = 9 + *(tsPtr+8);
+                    tsPtr += pesHeaderBytes;
+                    tsFrameBytesLeft -= pesHeaderBytes;
                     }
+                  break;
+                  //}}}
+                case 0x1E0:
+                  //{{{  start new video pes, decode last pes
+                  if (pid == vidPid) {
+                    if (pidInfoIt->second.mBufPtr && pidInfoIt->second.mStreamType) {
+                      // valid buffer and streamType
+                      char frameType = parseFrameType (pidInfoIt->second.mBuffer, pidInfoIt->second.mBufPtr,
+                                                       pidInfoIt->second.mStreamType);
+                      decoded = vidDecodePes (&pidInfoIt->second, basePts, frameType, skipped);
+                      skipped = false;
+                      }
 
-                  pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer;
-                  pidInfoIt->second.mStreamPos = streamPos;
-                  parseTimeStamps (tsPtr, pidInfoIt->second.mPts, pidInfoIt->second.mDts);
+                    //  start next vidPES
+                    if (!pidInfoIt->second.mBuffer) {
+                      // allocate vidPESbuffer
+                      pidInfoIt->second.mBufSize = kVidPesBufSize;
+                      pidInfoIt->second.mBuffer = (uint8_t*)malloc (pidInfoIt->second.mBufSize);
+                      }
 
-                  int pesHeaderBytes = 9 + *(tsPtr+8);
-                  tsPtr += pesHeaderBytes;
-                  tsFrameBytesLeft -= pesHeaderBytes;
-                  }
-                }
-                //}}}
-              else if (streamId == 0x000001E0) {
-                //{{{  start new video pes, decode last pes
-                if (pid == vidPid) {
-                  if (pidInfoIt->second.mBufPtr && pidInfoIt->second.mStreamType) {
-                    // valid buffer and streamType
-                    char frameType = parseFrameType (pidInfoIt->second.mBuffer, pidInfoIt->second.mBufPtr,
-                                                     pidInfoIt->second.mStreamType);
-                    decoded = vidDecodePes (&pidInfoIt->second, basePts, frameType, skipped);
-                    skipped = false;
+                    pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer;
+                    pidInfoIt->second.mStreamPos = streamPos;
+                    parseTimeStamps (tsPtr, pidInfoIt->second.mPts, pidInfoIt->second.mDts);
+
+                    int pesHeaderBytes = 9 + *(tsPtr+8);
+                    tsPtr += pesHeaderBytes;
+                    tsFrameBytesLeft -= pesHeaderBytes;
                     }
-
-                  //  start next vidPES
-                  if (!pidInfoIt->second.mBuffer) {
-                    // allocate vidPESbuffer
-                    pidInfoIt->second.mBufSize = kVidPesBufSize;
-                    pidInfoIt->second.mBuffer = (uint8_t*)malloc (pidInfoIt->second.mBufSize);
-                    }
-
-                  pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer;
-                  pidInfoIt->second.mStreamPos = streamPos;
-                  parseTimeStamps (tsPtr, pidInfoIt->second.mPts, pidInfoIt->second.mDts);
-
-                  int pesHeaderBytes = 9 + *(tsPtr+8);
-                  tsPtr += pesHeaderBytes;
-                  tsFrameBytesLeft -= pesHeaderBytes;
-                  }
+                  break;
+                  //}}}
+                case 0xc1:
+                case 0xc2:
+                case 0xc4:
+                case 0xc6:
+                case 0xc8:
+                case 0xca:
+                case 0xcc:
+                case 0xce:
+                case 0xd0:
+                case 0xd2:
+                case 0xd4:
+                case 0xd6:
+                case 0xd8:
+                case 0xda:
+                case 0xe0:
+                  break;
+                default:
+                  cLog::log (LOGERROR, "demux - pid " + dec(pid) + " unknown streamId " + hex(streamId));
                 }
-                //}}}
-              else if (streamId == 0x000001C1) {
-                // second audio channel ?
-                }
-              else
-                cLog::log (LOGERROR, "demux - unrecognised streamId " + hex(streamId));
               }
             if (pidInfoIt->second.mBufPtr) {
               //{{{  copy tsFrameBytesLeft bytes to buffer
