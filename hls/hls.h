@@ -205,7 +205,7 @@ public:
 
     int chunk;
     if (!findSeqNumChunk (seqNum, 0, chunk)) {
-      cLog::log (LOGINFO, "loading " + dec(seqNum) + " at " + getTimeStr (getPlayTzSeconds()));
+      cLog::log (LOGINFO, "loading " + dec(seqNum) + " at " + getTimeString (getPlayTzSeconds()));
       ok &= mChunks[chunk].load (http, mDecoder, mHost, getTsPath (seqNum), seqNum, mBitrate);
       cLog::log (LOGINFO, "loaded");
       }
@@ -214,7 +214,7 @@ public:
 
     for (auto range = 1; range <= kMaxChunkRange; range++) {
       if (!findSeqNumChunk (seqNum, range, chunk)) {
-        cLog::log (LOGINFO, "loading " + dec(seqNum+range) + " at " + getTimeStr(getPlayTzSeconds()));
+        cLog::log (LOGINFO, "loading " + dec(seqNum+range) + " at " + getTimeString(getPlayTzSeconds()));
         ok &= mChunks[chunk].load (http, mDecoder, mHost, getTsPath (seqNum+range), seqNum+range, mBitrate);
         cLog::log (LOGINFO, "loaded");
         }
@@ -222,7 +222,7 @@ public:
         return true;
 
       if (!findSeqNumChunk (seqNum, -range, chunk)) {
-        cLog::log (LOGINFO, "loading " + dec(seqNum-range) + " at " + getTimeStr(getPlayTzSeconds()));
+        cLog::log (LOGINFO, "loading " + dec(seqNum-range) + " at " + getTimeString(getPlayTzSeconds()));
         ok &= mChunks[chunk].load (http, mDecoder, mHost, getTsPath (seqNum-range), seqNum-range, mBitrate);
         cLog::log (LOGINFO, "loaded");
         }

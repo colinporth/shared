@@ -6662,14 +6662,14 @@ public:
   cPidInfo (int pid, bool isSection) : mPid(pid), mIsSection(isSection) {
 
     switch (pid) {
-      case PID_PAT: mInfo = "Pat "; break;
-      case PID_CAT: mInfo = "Cat "; break;
-      case PID_SDT: mInfo = "Sdt "; break;
-      case PID_NIT: mInfo = "Nit "; break;
-      case PID_EIT: mInfo = "Eit "; break;
-      case PID_RST: mInfo = "Rst "; break;
-      case PID_TDT: mInfo = "Tdt "; break;
-      case PID_SYN: mInfo = "Syn "; break;
+      case PID_PAT: mInfo = "Pat"; break;
+      case PID_CAT: mInfo = "Cat"; break;
+      case PID_SDT: mInfo = "Sdt"; break;
+      case PID_NIT: mInfo = "Nit"; break;
+      case PID_EIT: mInfo = "Eit"; break;
+      case PID_RST: mInfo = "Rst"; break;
+      case PID_TDT: mInfo = "Tdt"; break;
+      case PID_SYN: mInfo = "Syn"; break;
       default:;
       }
     }
@@ -6921,8 +6921,7 @@ public:
   //}}}
 
   //{{{
-  int64_t demux (uint8_t* tsBuffer, uint64_t tsBufferSize, int64_t streamPos, bool skipped,
-                 int audPid, int vidPid, uint64_t basePts) {
+  int64_t demux (uint8_t* tsBuffer, uint64_t tsBufferSize, int64_t streamPos, bool skipped, uint64_t basePts) {
   // demux from tsBuffer to tsBuffer + tsBufferSize, streamPos is offset into full stream of first packet
   // - return bytes decoded
 
@@ -6953,9 +6952,8 @@ public:
           }
           //}}}
 
-        // full packet with start syncCode
+        // check for full packet with start syncCode
         if ((tsPtr+187 >= tsEnd) || (*(tsPtr+187) == 0x47)) {
-          // lastPacket or nextPacket starts with syncCode
           //{{{  parse ts packet
           bool payStart = (tsPtr[0] & 0x40) != 0;
           uint16_t pid = ((tsPtr[0] & 0x1F) << 8) | tsPtr[1];
@@ -7071,72 +7069,72 @@ public:
               int streamId = tsPtr[3];
               switch (streamId) {
                 case 0xBD:
-                case 0xC0:
-                  //{{{  start new audPes
-                  if (pid == audPid) {
-                    // expected audPes, has valid buffer and valid streamType
-                    if (pidInfoIt->second.mBufPtr && pidInfoIt->second.mStreamType)
-                      decoded = audDecodePes (&pidInfoIt->second, basePts);
+                case 0xC0: {
+                  //{{{  new audPes
+                  if (pidInfoIt->second.mBufPtr && pidInfoIt->second.mStreamType)
+                    // valid buffer and streamType, decode it
+                    decoded = audDecodePes (&pidInfoIt->second, basePts);
 
-                    //  start next audPes
-                    if (!pidInfoIt->second.mBuffer) {
-                      // allocate audPes buffer
-                      pidInfoIt->second.mBufSize = kAudPesBufSize;
-                      pidInfoIt->second.mBuffer = (uint8_t*)malloc (pidInfoIt->second.mBufSize);
-                      }
-
-                    pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer;
-                    pidInfoIt->second.mStreamPos = streamPos;
-                    parseTimeStamps (tsPtr, pidInfoIt->second.mPts, pidInfoIt->second.mDts);
-
-                    int pesHeaderBytes = 9 + *(tsPtr+8);
-                    tsPtr += pesHeaderBytes;
-                    tsFrameBytesLeft -= pesHeaderBytes;
+                  //  start next audPes
+                  if (!pidInfoIt->second.mBuffer) {
+                    // allocate audPes buffer
+                    pidInfoIt->second.mBufSize = kAudPesBufSize;
+                    pidInfoIt->second.mBuffer = (uint8_t*)malloc (pidInfoIt->second.mBufSize);
                     }
+
+                  pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer;
+                  pidInfoIt->second.mStreamPos = streamPos;
+                  parseTimeStamps (tsPtr, pidInfoIt->second.mPts, pidInfoIt->second.mDts);
+
+                  int pesHeaderBytes = 9 + *(tsPtr+8);
+                  tsPtr += pesHeaderBytes;
+                  tsFrameBytesLeft -= pesHeaderBytes;
+
                   break;
+                  }
                   //}}}
-                case 0xE0:
-                  //{{{  start new video pes, decode last pes
-                  if (pid == vidPid) {
-                    if (pidInfoIt->second.mBufPtr && pidInfoIt->second.mStreamType) {
-                      // valid buffer and streamType
-                      char frameType = parseFrameType (pidInfoIt->second.mBuffer, pidInfoIt->second.mBufPtr,
-                                                       pidInfoIt->second.mStreamType);
-                      decoded = vidDecodePes (&pidInfoIt->second, basePts, frameType, skipped);
-                      skipped = false;
-                      }
-
-                    //  start next vidPES
-                    if (!pidInfoIt->second.mBuffer) {
-                      // allocate vidPESbuffer
-                      pidInfoIt->second.mBufSize = kVidPesBufSize;
-                      pidInfoIt->second.mBuffer = (uint8_t*)malloc (pidInfoIt->second.mBufSize);
-                      }
-
-                    pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer;
-                    pidInfoIt->second.mStreamPos = streamPos;
-                    parseTimeStamps (tsPtr, pidInfoIt->second.mPts, pidInfoIt->second.mDts);
-
-                    int pesHeaderBytes = 9 + *(tsPtr+8);
-                    tsPtr += pesHeaderBytes;
-                    tsFrameBytesLeft -= pesHeaderBytes;
+                case 0xE0: {
+                  //{{{  new vidPes
+                  if (pidInfoIt->second.mBufPtr && pidInfoIt->second.mStreamType) {
+                    // valid buffer and streamType, decode it
+                    char frameType = parseFrameType (pidInfoIt->second.mBuffer, pidInfoIt->second.mBufPtr,
+                                                     pidInfoIt->second.mStreamType);
+                    decoded = vidDecodePes (&pidInfoIt->second, basePts, frameType, skipped);
+                    skipped = false;
                     }
+
+                  //  start next vidPES
+                  if (!pidInfoIt->second.mBuffer) {
+                    // allocate vidPESbuffer
+                    pidInfoIt->second.mBufSize = kVidPesBufSize;
+                    pidInfoIt->second.mBuffer = (uint8_t*)malloc (pidInfoIt->second.mBufSize);
+                    }
+
+                  pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer;
+                  pidInfoIt->second.mStreamPos = streamPos;
+                  parseTimeStamps (tsPtr, pidInfoIt->second.mPts, pidInfoIt->second.mDts);
+
+                  int pesHeaderBytes = 9 + *(tsPtr+8);
+                  tsPtr += pesHeaderBytes;
+                  tsFrameBytesLeft -= pesHeaderBytes;
+
                   break;
+                  }
                   //}}}
-                case 0xc1:
-                case 0xc2:
-                case 0xc4:
-                case 0xc6:
-                case 0xc8:
-                case 0xca:
-                case 0xcc:
-                case 0xce:
-                case 0xd0:
-                case 0xd2:
-                case 0xd4:
-                case 0xd6:
-                case 0xd8:
-                case 0xda:
+                case 0xC1:
+                case 0xC2:
+                case 0xC4:
+                case 0xC6:
+                case 0xC8:
+                case 0xCA:
+                case 0xCC:
+                case 0xCE:
+                case 0xD0:
+                case 0xD2:
+                case 0xD4:
+                case 0xD6:
+                case 0xD8:
+                case 0xDA: // known streamIds
                   break;
                 default:
                   cLog::log (LOGERROR, "demux - pid " + dec(pid) + " unknown streamId " + hex(streamId));
@@ -7163,6 +7161,8 @@ public:
     return tsPtr - tsBuffer;
     }
   //}}}
+
+  // vars
   std::map<int,int>      mProgramMap; // PAT insert <pid,sid>'s    into mProgramMap
   std::map<int,cService> mServiceMap; // SDT insert <sid,cService> into mServiceMap
   std::map<int,cPidInfo> mPidInfoMap; // pid insert <pid,cPidInfo> into mPidInfoMap
@@ -7910,7 +7910,7 @@ private:
       // cService from cPidInfo.sid using mServiceMap
       auto serviceIt = mServiceMap.find (pidInfoIt->second.mSid);
       if (serviceIt != mServiceMap.end()) {
-        std::string str = serviceIt->second.getName() + serviceIt->second.getNow()->mTitle;
+        std::string str = serviceIt->second.getName() + " " + serviceIt->second.getNow()->mTitle;
         if (pid == serviceIt->second.getVidPid())
           pidInfoIt->second.mInfo = "vid " + str;
         else if (pid == serviceIt->second.getAudPid())
