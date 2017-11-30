@@ -6688,6 +6688,9 @@ public:
 
   int mStreamType = 0;
   uint64_t mPts = 0;
+  uint64_t mFirstPts = 0;
+  uint64_t mLastPts = 0;
+  uint64_t mLengthPts = 0;
 
   int mTotal = 0;
   int mContinuity = -1;
@@ -6889,18 +6892,21 @@ public:
   std::string getNetworkString() { return mNetworkNameStr; }
 
   //{{{
-  bool getService (int index, int& audPid, int& vidPid) {
+  bool getService (int index, int& audPid, int& vidPid, uint64_t& basePts) {
 
     audPid = 0;
     vidPid = 0;
+    basePts = 0;
 
     auto service = mServiceMap.begin();
     if (service != mServiceMap.end()) {
+      audPid = service->second.getAudPid();
+      vidPid = service->second.getVidPid();
       auto pidInfoIt = mPidInfoMap.find (audPid);
       if (pidInfoIt != mPidInfoMap.end()) {
-        audPid = service->second.getAudPid();
-        vidPid = service->second.getVidPid();
-        cLog::log (LOGINFO, "getService - vidPid:%d audPid:%d", vidPid, audPid);
+        basePts = pidInfoIt->second.mFirstPts;
+        cLog::log (LOGINFO, "getService - vidPid:%d audPid:%d %s",
+                            vidPid, audPid, getFullPtsString(basePts).c_str());
         return true;
         }
       }
@@ -7095,7 +7101,17 @@ public:
 
                     pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer;
                     pidInfoIt->second.mStreamPos = streamPos;
+
                     pidInfoIt->second.mPts = (tsPtr[7] & 0x80) ? parseTimeStamp (tsPtr+9) : 0;
+                    if (!pidInfoIt->second.mFirstPts) {
+                      pidInfoIt->second.mFirstPts = pidInfoIt->second.mPts;
+                      cLog::log (LOGNOTICE, "pid:" + dec(pid) + " firstPts:" + getFullPtsString (pidInfoIt->second.mPts));
+                      }
+                    if (pidInfoIt->second.mPts > pidInfoIt->second.mLastPts) {
+                      pidInfoIt->second.mLastPts = pidInfoIt->second.mPts;
+                      pidInfoIt->second.mLengthPts = pidInfoIt->second. mLastPts - pidInfoIt->second.mFirstPts;
+                      //cLog::log (LOGNOTICE, "pid:" + dec(pid) + " lastPts:" + getFullPtsString (pidInfoIt->second.mPts));
+                      }
 
                     int pesHeaderBytes = 9 + tsPtr[8];
                     tsPtr += pesHeaderBytes;
@@ -7114,7 +7130,7 @@ public:
                       skip = false;
                       }
 
-                    // start next vidPES
+                    // start next vidPes
                     if (!pidInfoIt->second.mBuffer) {
                       // allocate vidPESbuffer
                       pidInfoIt->second.mBufSize = kVidPesBufSize;
@@ -7123,7 +7139,17 @@ public:
 
                     pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer;
                     pidInfoIt->second.mStreamPos = streamPos;
+
                     pidInfoIt->second.mPts = (tsPtr[7] & 0x80) ? parseTimeStamp (tsPtr+9) : 0;
+                    if (!pidInfoIt->second.mFirstPts) {
+                      pidInfoIt->second.mFirstPts = pidInfoIt->second.mPts;
+                      cLog::log (LOGNOTICE, "pid:" + dec (pid) + " firstPts:" + getFullPtsString (pidInfoIt->second.mPts));
+                      }
+                    if (pidInfoIt->second.mPts > pidInfoIt->second.mLastPts) {
+                      pidInfoIt->second.mLastPts = pidInfoIt->second.mPts;
+                      pidInfoIt->second.mLengthPts = pidInfoIt->second. mLastPts - pidInfoIt->second.mFirstPts;
+                      //cLog::log (LOGNOTICE, "pid:" + dec (pid) + " lastPts:" + getFullPtsString (pidInfoIt->second.mPts));
+                      }
 
                     int pesHeaderBytes = 9 + tsPtr[8];
                     tsPtr += pesHeaderBytes;
