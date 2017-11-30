@@ -6690,7 +6690,6 @@ public:
   uint64_t mPts = 0;
   uint64_t mFirstPts = 0;
   uint64_t mLastPts = 0;
-  uint64_t mLengthPts = 0;
 
   int mTotal = 0;
   int mContinuity = -1;
@@ -7109,7 +7108,6 @@ public:
                       }
                     if (pidInfoIt->second.mPts > pidInfoIt->second.mLastPts) {
                       pidInfoIt->second.mLastPts = pidInfoIt->second.mPts;
-                      pidInfoIt->second.mLengthPts = pidInfoIt->second. mLastPts - pidInfoIt->second.mFirstPts;
                       //cLog::log (LOGNOTICE, "pid:" + dec(pid) + " lastPts:" + getFullPtsString (pidInfoIt->second.mPts));
                       }
 
@@ -7147,7 +7145,6 @@ public:
                       }
                     if (pidInfoIt->second.mPts > pidInfoIt->second.mLastPts) {
                       pidInfoIt->second.mLastPts = pidInfoIt->second.mPts;
-                      pidInfoIt->second.mLengthPts = pidInfoIt->second. mLastPts - pidInfoIt->second.mFirstPts;
                       //cLog::log (LOGNOTICE, "pid:" + dec (pid) + " lastPts:" + getFullPtsString (pidInfoIt->second.mPts));
                       }
 
