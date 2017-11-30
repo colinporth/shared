@@ -7097,19 +7097,15 @@ public:
                       pidInfoIt->second.mBufSize = kAudPesBufSize;
                       pidInfoIt->second.mBuffer = (uint8_t*)malloc (pidInfoIt->second.mBufSize);
                       }
-
                     pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer;
+
                     pidInfoIt->second.mStreamPos = streamPos;
 
                     pidInfoIt->second.mPts = (tsPtr[7] & 0x80) ? parseTimeStamp (tsPtr+9) : 0;
-                    if (!pidInfoIt->second.mFirstPts) {
+                    if (!pidInfoIt->second.mFirstPts)
                       pidInfoIt->second.mFirstPts = pidInfoIt->second.mPts;
-                      cLog::log (LOGNOTICE, "pid:" + dec(pid) + " firstPts:" + getFullPtsString (pidInfoIt->second.mPts));
-                      }
-                    if (pidInfoIt->second.mPts > pidInfoIt->second.mLastPts) {
+                    if (pidInfoIt->second.mPts > pidInfoIt->second.mLastPts)
                       pidInfoIt->second.mLastPts = pidInfoIt->second.mPts;
-                      //cLog::log (LOGNOTICE, "pid:" + dec(pid) + " lastPts:" + getFullPtsString (pidInfoIt->second.mPts));
-                      }
 
                     int pesHeaderBytes = 9 + tsPtr[8];
                     tsPtr += pesHeaderBytes;
@@ -7134,19 +7130,14 @@ public:
                       pidInfoIt->second.mBufSize = kVidPesBufSize;
                       pidInfoIt->second.mBuffer = (uint8_t*)malloc (pidInfoIt->second.mBufSize);
                       }
-
                     pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer;
                     pidInfoIt->second.mStreamPos = streamPos;
 
                     pidInfoIt->second.mPts = (tsPtr[7] & 0x80) ? parseTimeStamp (tsPtr+9) : 0;
-                    if (!pidInfoIt->second.mFirstPts) {
+                    if (!pidInfoIt->second.mFirstPts)
                       pidInfoIt->second.mFirstPts = pidInfoIt->second.mPts;
-                      cLog::log (LOGNOTICE, "pid:" + dec (pid) + " firstPts:" + getFullPtsString (pidInfoIt->second.mPts));
-                      }
-                    if (pidInfoIt->second.mPts > pidInfoIt->second.mLastPts) {
+                    if (pidInfoIt->second.mPts > pidInfoIt->second.mLastPts)
                       pidInfoIt->second.mLastPts = pidInfoIt->second.mPts;
-                      //cLog::log (LOGNOTICE, "pid:" + dec (pid) + " lastPts:" + getFullPtsString (pidInfoIt->second.mPts));
-                      }
 
                     int pesHeaderBytes = 9 + tsPtr[8];
                     tsPtr += pesHeaderBytes;
@@ -7186,7 +7177,6 @@ public:
                              pid,
                              int(pidInfoIt->second.mBufPtr - pidInfoIt->second.mBuffer),
                              pidInfoIt->second.mBufSize);
-
                 }
               else
                 cLog::log (LOGERROR, "demux - copy error - pid:%d tsFrameBytesLeft:%d", pid, tsFrameBytesLeft);
