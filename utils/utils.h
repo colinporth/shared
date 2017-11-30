@@ -79,19 +79,23 @@ inline std::string getPtsString (uint64_t pts) {
 inline std::string getFullPtsString (uint64_t pts) {
 // all digits
 
-  pts /= 900;
-  uint32_t hs = pts % 100;
+  if (!pts)
+    return "--:--:--:--";
+  else {
+    pts /= 900;
+    uint32_t hs = pts % 100;
 
-  pts /= 100;
-  uint32_t secs = pts % 60;
+    pts /= 100;
+    uint32_t secs = pts % 60;
 
-  pts /= 60;
-  uint32_t mins = pts % 60;
+    pts /= 60;
+    uint32_t mins = pts % 60;
 
-  pts /= 60;
-  uint32_t hours = pts % 60;
+    pts /= 60;
+    uint32_t hours = pts % 60;
 
-  return dec (hours,2,'0') + ':' + dec (mins,2,'0') + ':' + dec(secs,2,'0') + ':' + dec(hs,2,'0');
+    return dec (hours,2,'0') + ':' + dec (mins,2,'0') + ':' + dec(secs,2,'0') + ':' + dec(hs,2,'0');
+    }
   }
 //}}}
 //{{{
@@ -116,27 +120,13 @@ inline std::string getDebugPtsString (uint64_t pts) {
   return str + dec (secs, 2, '0') + 's' + dec (hs, 2, '0') + "." + dec (frac,3,'0');
   }
 //}}}
+
 //{{{
 inline std::string getTimeString (uint32_t secs) {
 
   return dec (secs / (60*60)) + ':' +
          dec ((secs / 60) % 60, 2, '0') + ':' +
          dec( secs % 60, 2, '0');
-  }
-//}}}
-//{{{
-inline std::string getMsTimeString (int bst, uint32_t ms) {
-
-  // convert msTime to str
-  int subSec = ms % 1000;
-  ms /= 1000;
-  int second = ms % 60;
-  ms /= 60;
-  int minute = ms  % 60;
-  ms /= 60;
-  int hour = bst + ms;
-
-  return dec(hour,2,'0') + "."  + dec(minute,2, '0') + "." + dec(second,2, '0') + "." + dec(subSec,3, '0');
   }
 //}}}
 

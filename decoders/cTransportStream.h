@@ -6688,8 +6688,6 @@ public:
 
   int mStreamType = 0;
   uint64_t mPts = 0;
-  uint64_t mDts = 0;
-  uint64_t mPcr = 0;
 
   int mTotal = 0;
   int mContinuity = -1;
@@ -6769,8 +6767,8 @@ public:
 class cService {
 public:
   //{{{
-  cService (int sid, int tsid, int onid, int type, int vid, int aud, int pcr, const std::string& name) :
-      mSid(sid), mTsid(tsid), mOnid(onid), mType(type), mVidPid(vid), mAudPid(aud), mPcrPid(pcr) {
+  cService (int sid, int tsid, int onid, int type, int vid, int aud, const std::string& name) :
+      mSid(sid), mTsid(tsid), mOnid(onid), mType(type), mVidPid(vid), mAudPid(aud) {
 
     mName = name;
     }
@@ -6797,7 +6795,6 @@ public:
   int getVidPid() const { return mVidPid; }
   int getAudPid() const { return mAudPid; }
   int getSubPid() const { return mSubPid; }
-  int getPcrPid() const { return mPcrPid; }
   int getProgramPid() const { return mProgramPid; }
 
   cEpgItem* getNow() { return &mNow; }
@@ -6827,7 +6824,6 @@ public:
   //}}}
 
   void setSubPid (int pid, int streamType) { mSubPid = pid; }
-  void setPcrPid (int pid) { mPcrPid = pid; }
   void setProgramPid (int pid) { mProgramPid = pid; }
 
   //{{{
@@ -6850,10 +6846,10 @@ public:
 
   //{{{
   void print() {
-    cLog::log (LOGINFO,"sid:%d tsid:%d onid:%d - prog:%d - v:%d - a:%d - sub:%d pcr:%d %s <%s>",
+    cLog::log (LOGINFO,"sid:%d tsid:%d onid:%d - prog:%d - v:%d - a:%d - sub:%d %s <%s>",
                            mSid, mTsid, mOnid,
                            mProgramPid, mVidPid, mAudPid,
-                           mSubPid, mPcrPid, getTypeStr().c_str(), mName.c_str());
+                           mSubPid, getTypeStr().c_str(), mName.c_str());
     mNow.print ("");
     for (auto &epgItem : mEpgItemMap)
       epgItem.second.print ("- ");
@@ -6870,7 +6866,6 @@ private:
   int mAudPid = -1;
   int mAudPid1 = -1;
   int mSubPid = -1;
-  int mPcrPid = -1;
   int mProgramPid = -1;
 
   std::string mName;
@@ -6955,24 +6950,12 @@ public:
         // check for full packet with start syncCode
         if ((tsPtr+187 >= tsEnd) || (*(tsPtr+187) == 0x47)) {
           //{{{  parse ts packet
-          bool payStart = (tsPtr[0] & 0x40) != 0;
           uint16_t pid = ((tsPtr[0] & 0x1F) << 8) | tsPtr[1];
-          bool adaption = (tsPtr[2] & 0x20) != 0;
-          uint8_t headerBytes = adaption ? (4 + tsPtr[3]) : 3;
-          uint8_t continuity = tsPtr[2] & 0x0F;
-          //{{{  unused bits
-          //bool tei = *tsPtr & 0x80;
-          //bool payload = *(tsPtr+2) & 0x10;
-          //if ((adaption && (*(tsPtr+4) & 0x80)) discontinuity = true;
-          //}}}
+          uint8_t continuityCount = tsPtr[2] & 0x0F;
+          bool payloadStart = tsPtr[0] & 0x40;
 
-          bool hasPcr = adaption && (tsPtr[4] & 0x10);
-          uint64_t pcr = hasPcr ? parsePcr (tsPtr) : 0;
-
-          pidPacket (pid, tsPtr-1);
-
-          tsPtr += headerBytes;
-          auto tsFrameBytesLeft = 187 - headerBytes;
+          // skip past adaption field
+          uint8_t headerBytes = (tsPtr[2] & 0x20) ? 4 + tsPtr[3] : 3;
 
           auto isSection = (pid == PID_PAT) || (pid == PID_SDT) ||
                            (pid == PID_EIT) || (pid == PID_TDT) ||
@@ -6989,9 +6972,9 @@ public:
           // test continuity, reset buffers if fail
           if ((pid != 0x1FFF) &&
               (pidInfoIt->second.mContinuity >= 0) &&
-              (pidInfoIt->second.mContinuity != ((continuity-1) & 0x0F))) {
+              (pidInfoIt->second.mContinuity != ((continuityCount-1) & 0x0F))) {
             // test continuity
-            if (pidInfoIt->second.mContinuity == continuity) // strange case of bbc subtitles
+            if (pidInfoIt->second.mContinuity == continuityCount) // strange case of bbc subtitles
               pidInfoIt->second.mRepeatContinuity++;
             else {
               mDiscontinuity++;
@@ -6999,17 +6982,18 @@ public:
               }
             pidInfoIt->second.mBufPtr = nullptr;
             }
-          pidInfoIt->second.mContinuity = continuity;
+
+          pidInfoIt->second.mContinuity = continuityCount;
           pidInfoIt->second.mTotal++;
 
-          // use ts pcr
-          if (hasPcr)
-            pidInfoIt->second.mPcr = pcr;
+          tsPtr += headerBytes;
+          auto tsFrameBytesLeft = 187 - headerBytes;
+
           //}}}
 
           if (isSection) {
             //{{{  parse section pids
-            if (payStart) {
+            if (payloadStart) {
               // parse sectionStart
               int pointerField = *tsPtr;
               if (pointerField && pidInfoIt->second.mBufPtr) {
@@ -7069,7 +7053,7 @@ public:
             }
             //}}}
           else {
-            if (payStart) {
+            if (payloadStart) {
               if (!tsPtr[0] && !tsPtr[1] && tsPtr[2] == 1) {
                 int streamId = tsPtr[3];
                 switch (streamId) {
@@ -7089,7 +7073,7 @@ public:
 
                     pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer;
                     pidInfoIt->second.mStreamPos = streamPos;
-                    parseTimeStamps (tsPtr, pidInfoIt->second.mPts, pidInfoIt->second.mDts);
+                    pidInfoIt->second.mPts = (tsPtr[7] & 0x80) ? parseTimeStamp (tsPtr+9) : 0;
 
                     int pesHeaderBytes = 9 + tsPtr[8];
                     tsPtr += pesHeaderBytes;
@@ -7117,7 +7101,7 @@ public:
 
                     pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer;
                     pidInfoIt->second.mStreamPos = streamPos;
-                    parseTimeStamps (tsPtr, pidInfoIt->second.mPts, pidInfoIt->second.mDts);
+                    pidInfoIt->second.mPts = (tsPtr[7] & 0x80) ? parseTimeStamp (tsPtr+9) : 0;
 
                     int pesHeaderBytes = 9 + tsPtr[8];
                     tsPtr += pesHeaderBytes;
@@ -7182,7 +7166,6 @@ public:
                                       // PMT set cService pids
                                       // EIT add cService Now,Epg events
 protected:
-  virtual void pidPacket (int pid, uint8_t* ptr) {}
   virtual bool audDecodePes (cPidInfo* pidInfo, uint64_t basePts) { return false; }
   virtual bool vidDecodePes (cPidInfo* pidInfo, uint64_t basePts, char frameType,  bool skip) { return false; }
   virtual void startProgram (int vpid, int apid, const std::string& name, const std::string& startTime) {}
@@ -7281,7 +7264,7 @@ private:
 
                 // insert new cService, get serviceIt iterator
                 auto pair = mServiceMap.insert (
-                  std::map<int,cService>::value_type (sid, cService (sid, tsid, onid, serviceType, -1,-1,-1, nameStr)));
+                  std::map<int,cService>::value_type (sid, cService (sid, tsid, onid, serviceType, -1,-1, nameStr)));
                 auto serviceIt = pair.first;
                 cLog::log (LOGINFO, "SDT new cService tsid:%d sid:%d %s name<%s>",
                         tsid, sid, serviceIt->second.getTypeStr().c_str(), nameStr.c_str());
@@ -7347,7 +7330,7 @@ private:
         sectionIt->second.mSid = sid;
       updatePidInfo (pid);
 
-      serviceIt->second.setPcrPid (HILO (pmt->PCR_PID));
+      //HILO (pmt->PCR_PID));
 
       auto ptr = buf + PMT_LEN;
       sectionLength -= 4;
@@ -7408,12 +7391,12 @@ private:
     else if (pid == 32) {
       // simple tsFile with no SDT, pid 32 used to allocate service with sid
       cLog::log (LOGINFO, "parsePmt - serviceMap.insert pid 32");
-      mServiceMap.insert (std::map<int,cService>::value_type (sid, cService (sid,0,0, kServiceTypeTV, -1,-1,-1, "file32")));
+      mServiceMap.insert (std::map<int,cService>::value_type (sid, cService (sid,0,0, kServiceTypeTV, -1,-1, "file32")));
       }
     else if (pid == 256) {
       // simple tsFile with no SDT, pid 256 used to allocate service with sid
       cLog::log (LOGINFO, "parsePmt - serviceMap.insert pid 0x100");
-      mServiceMap.insert (std::map<int,cService>::value_type (sid, cService (sid,0,0, kServiceTypeTV, 258,257,258, "file256")));
+      mServiceMap.insert (std::map<int,cService>::value_type (sid, cService (sid,0,0, kServiceTypeTV, 258,257, "file256")));
       }
     }
   //}}}
@@ -7656,33 +7639,23 @@ private:
   //}}}
 
   //{{{
-  uint64_t parsePcr (uint8_t* tsPtr) {
-  // return 33 bits of pcr
-
-    uint64_t pcr = tsPtr[5];
-    pcr = (pcr << 8) | tsPtr[6];
-    pcr = (pcr << 8) | tsPtr[7];
-    pcr = (pcr << 8) | tsPtr[8];
-    pcr = (pcr << 1) | (tsPtr[9] >> 7);
-    return pcr;
-    }
-  //}}}
-  //{{{
   uint64_t parseTimeStamp (uint8_t* tsPtr) {
   // return 33 bits of pts,dts
 
-    uint64_t pts = (tsPtr[0] & 0x0E) << 29;
-    pts |=  tsPtr[1] << 22;
-    pts |= (tsPtr[2] & 0xFE) << 14;
-    pts |=  tsPtr[3] << 7;
-    pts |=  tsPtr[4] >> 1;
-    return pts;
-    }
-  //}}}
-  //{{{
-  void parseTimeStamps (uint8_t* tsPtr, uint64_t& pts, uint64_t& dts) {
-    pts = ((tsPtr[8] >= 5) && (tsPtr[7] & 0x80)) ? parseTimeStamp (tsPtr+9) : 0;
-    dts = ((tsPtr[8] >= 10) && (tsPtr[7] & 0x40)) ? parseTimeStamp (tsPtr+14) : 0;
+    if ((tsPtr[0] & 0x01) && (tsPtr[2] & 0x01) && (tsPtr[4] & 0x01)) {
+      // valid marker bits
+      uint64_t pts = tsPtr[0] & 0x0E;
+      pts = (pts << 7) | tsPtr[1];
+      pts = (pts << 8) | (tsPtr[2] & 0xFE);
+      pts = (pts << 7) | tsPtr[3];
+      pts = (pts << 7) | (tsPtr[4] >> 1);
+      return pts;
+      }
+    else {
+      cLog::log (LOGNOTICE, "parseTs  %02x %02x %02x %02x 0x02 - invalid",
+                             tsPtr[0], tsPtr[1],tsPtr[2],tsPtr[3],tsPtr[4]);
+      return 0;
+      }
     }
   //}}}
 
