@@ -18,7 +18,7 @@
 //}}}
 //{{{  const, struct
 #define kMaxSectionSize  4096
-#define kAudPesBufSize  10000
+#define kAudPesBufSize  15000
 #define kVidPesBufSize 600000
 
 //{{{  pid const
@@ -6678,7 +6678,7 @@ public:
 
   void print() {
     cLog::log (LOGINFO, "pid:%d sid:%d streamType:%d - packets:%d disConinuity:%d repConinuity:%d",
-                         mPid,  mSid, mStreamType, mTotal, mDisContinuity, mRepeatContinuity);
+                         mPid, mSid, mStreamType, mTotal, mDisContinuity, mRepeatContinuity);
     }
 
   int mPid;
@@ -6921,14 +6921,14 @@ public:
   //}}}
 
   //{{{
-  int64_t demux (uint8_t* tsBuffer, uint64_t tsBufferSize, int64_t streamPos, bool skipped, uint64_t basePts) {
+  int64_t demux (uint8_t* tsBuf, uint64_t tsBufSize, int64_t streamPos, bool skip, uint64_t basePts) {
   // demux from tsBuffer to tsBuffer + tsBufferSize, streamPos is offset into full stream of first packet
   // - return bytes decoded
 
-    auto tsPtr = tsBuffer;
-    auto tsEnd = tsBuffer + tsBufferSize;
+    auto tsPtr = tsBuf;
+    auto tsEnd = tsBuf + tsBufSize;
 
-    if (skipped)
+    if (skip)
       //{{{  reset pid continuity, buffers
       for (auto &pidInfo : mPidInfoMap) {
         pidInfo.second.mBufPtr = nullptr;
@@ -7028,7 +7028,7 @@ public:
                 //}}}
 
               do {
-                pidInfoIt->second.mSectionLength = (((*(tsPtr + pointerField + 2) & 0x0F) << 8) | *(tsPtr + pointerField + 3)) + 3;
+                pidInfoIt->second.mSectionLength = ((tsPtr[pointerField+2] & 0x0F) << 8) | tsPtr[pointerField+3] + 3;
                 if (pointerField < 183 - pidInfoIt->second.mSectionLength) {
                   parseSection (pid, tsPtr + pointerField + 1, 3);
                   pointerField += pidInfoIt->second.mSectionLength;
@@ -7039,11 +7039,15 @@ public:
                     pidInfoIt->second.mBufSize = kMaxSectionSize;
                     pidInfoIt->second.mBuffer = (uint8_t*)malloc(pidInfoIt->second.mBufSize);
                     }
-                  memcpy (pidInfoIt->second.mBuffer, tsPtr + pointerField + 1, 183 - pointerField);
-                  pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer + 183 - pointerField;
+                  if (183 - pointerField > 0) {
+                    memcpy (pidInfoIt->second.mBuffer, tsPtr + pointerField + 1, 183 - pointerField);
+                    pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer + 183 - pointerField;
+                    }
+                  else
+                    cLog::log (LOGERROR, "demux - section packet pid:%d pointerField:%d", pid, pointerField);
                   break;
                   }
-                } while (*(tsPtr + pointerField + 1) != 0xFF);
+                } while (tsPtr[pointerField+1] != 0xFF);
               }
 
             else if (pidInfoIt->second.mBufPtr) {
@@ -7065,89 +7069,98 @@ public:
             }
             //}}}
           else {
-            if (payStart && !tsPtr[0] && !tsPtr[1] && tsPtr[2] == 1) {
-              int streamId = tsPtr[3];
-              switch (streamId) {
-                case 0xBD:
-                case 0xC0: {
-                  //{{{  new audPes
-                  if (pidInfoIt->second.mBufPtr && pidInfoIt->second.mStreamType)
-                    // valid buffer and streamType, decode it
-                    decoded = audDecodePes (&pidInfoIt->second, basePts);
+            if (payStart) {
+              if (!tsPtr[0] && !tsPtr[1] && tsPtr[2] == 1) {
+                int streamId = tsPtr[3];
+                switch (streamId) {
+                  case 0xBD:
+                  case 0xC0: {
+                    //{{{  new audPes
+                    if (pidInfoIt->second.mBufPtr && pidInfoIt->second.mStreamType)
+                      // valid buffer and streamType, decode it
+                      decoded = audDecodePes (&pidInfoIt->second, basePts);
 
-                  //  start next audPes
-                  if (!pidInfoIt->second.mBuffer) {
-                    // allocate audPes buffer
-                    pidInfoIt->second.mBufSize = kAudPesBufSize;
-                    pidInfoIt->second.mBuffer = (uint8_t*)malloc (pidInfoIt->second.mBufSize);
+                    // start next audPes
+                    if (!pidInfoIt->second.mBuffer) {
+                      // allocate audPes buffer
+                      pidInfoIt->second.mBufSize = kAudPesBufSize;
+                      pidInfoIt->second.mBuffer = (uint8_t*)malloc (pidInfoIt->second.mBufSize);
+                      }
+
+                    pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer;
+                    pidInfoIt->second.mStreamPos = streamPos;
+                    parseTimeStamps (tsPtr, pidInfoIt->second.mPts, pidInfoIt->second.mDts);
+
+                    int pesHeaderBytes = 9 + tsPtr[8];
+                    tsPtr += pesHeaderBytes;
+                    tsFrameBytesLeft -= pesHeaderBytes;
+
+                    break;
                     }
+                    //}}}
+                  case 0xE0: {
+                    //{{{  new vidPes
+                    if (pidInfoIt->second.mBufPtr && pidInfoIt->second.mStreamType) {
+                      // valid buffer and streamType, decode it
+                      char frameType = parseFrameType (pidInfoIt->second.mBuffer, pidInfoIt->second.mBufPtr,
+                                                       pidInfoIt->second.mStreamType);
+                      decoded = vidDecodePes (&pidInfoIt->second, basePts, frameType, skip);
+                      skip = false;
+                      }
 
-                  pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer;
-                  pidInfoIt->second.mStreamPos = streamPos;
-                  parseTimeStamps (tsPtr, pidInfoIt->second.mPts, pidInfoIt->second.mDts);
+                    // start next vidPES
+                    if (!pidInfoIt->second.mBuffer) {
+                      // allocate vidPESbuffer
+                      pidInfoIt->second.mBufSize = kVidPesBufSize;
+                      pidInfoIt->second.mBuffer = (uint8_t*)malloc (pidInfoIt->second.mBufSize);
+                      }
 
-                  int pesHeaderBytes = 9 + *(tsPtr+8);
-                  tsPtr += pesHeaderBytes;
-                  tsFrameBytesLeft -= pesHeaderBytes;
+                    pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer;
+                    pidInfoIt->second.mStreamPos = streamPos;
+                    parseTimeStamps (tsPtr, pidInfoIt->second.mPts, pidInfoIt->second.mDts);
 
-                  break;
+                    int pesHeaderBytes = 9 + tsPtr[8];
+                    tsPtr += pesHeaderBytes;
+                    tsFrameBytesLeft -= pesHeaderBytes;
+
+                    break;
+                    }
+                    //}}}
+                  case 0xC1:
+                  case 0xC2:
+                  case 0xC4:
+                  case 0xC6:
+                  case 0xC8:
+                  case 0xCA:
+                  case 0xCC:
+                  case 0xCE:
+                  case 0xD0:
+                  case 0xD2:
+                  case 0xD4:
+                  case 0xD6:
+                  case 0xD8:
+                  case 0xDA: // known streamIds
+                    break;
+                  default:
+                    cLog::log (LOGERROR, "demux - pid " + dec(pid) + " unknown streamId " + hex(streamId));
                   }
-                  //}}}
-                case 0xE0: {
-                  //{{{  new vidPes
-                  if (pidInfoIt->second.mBufPtr && pidInfoIt->second.mStreamType) {
-                    // valid buffer and streamType, decode it
-                    char frameType = parseFrameType (pidInfoIt->second.mBuffer, pidInfoIt->second.mBufPtr,
-                                                     pidInfoIt->second.mStreamType);
-                    decoded = vidDecodePes (&pidInfoIt->second, basePts, frameType, skipped);
-                    skipped = false;
-                    }
-
-                  //  start next vidPES
-                  if (!pidInfoIt->second.mBuffer) {
-                    // allocate vidPESbuffer
-                    pidInfoIt->second.mBufSize = kVidPesBufSize;
-                    pidInfoIt->second.mBuffer = (uint8_t*)malloc (pidInfoIt->second.mBufSize);
-                    }
-
-                  pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer;
-                  pidInfoIt->second.mStreamPos = streamPos;
-                  parseTimeStamps (tsPtr, pidInfoIt->second.mPts, pidInfoIt->second.mDts);
-
-                  int pesHeaderBytes = 9 + *(tsPtr+8);
-                  tsPtr += pesHeaderBytes;
-                  tsFrameBytesLeft -= pesHeaderBytes;
-
-                  break;
-                  }
-                  //}}}
-                case 0xC1:
-                case 0xC2:
-                case 0xC4:
-                case 0xC6:
-                case 0xC8:
-                case 0xCA:
-                case 0xCC:
-                case 0xCE:
-                case 0xD0:
-                case 0xD2:
-                case 0xD4:
-                case 0xD6:
-                case 0xD8:
-                case 0xDA: // known streamIds
-                  break;
-                default:
-                  cLog::log (LOGERROR, "demux - pid " + dec(pid) + " unknown streamId " + hex(streamId));
                 }
               }
             if (pidInfoIt->second.mBufPtr) {
               //{{{  copy tsFrameBytesLeft bytes to buffer
-              memcpy (pidInfoIt->second.mBufPtr, tsPtr, tsFrameBytesLeft);
-              pidInfoIt->second.mBufPtr += tsFrameBytesLeft;
+              if (tsFrameBytesLeft > 0) {
+                memcpy (pidInfoIt->second.mBufPtr, tsPtr, tsFrameBytesLeft);
+                pidInfoIt->second.mBufPtr += tsFrameBytesLeft;
 
-              if (pidInfoIt->second.mBufPtr > pidInfoIt->second.mBuffer+ pidInfoIt->second.mBufSize)
-                cLog::log (LOGINFO, "%d demux *** PES overflow *** %d %d",
-                        mPackets, int(pidInfoIt->second.mBufPtr - pidInfoIt->second.mBuffer), pidInfoIt->second.mBufSize);
+                if (pidInfoIt->second.mBufPtr > pidInfoIt->second.mBuffer+ pidInfoIt->second.mBufSize)
+                  cLog::log (LOGERROR, "demux - %d - pes overflow %d > %d",
+                             pid,
+                             int(pidInfoIt->second.mBufPtr - pidInfoIt->second.mBuffer),
+                             pidInfoIt->second.mBufSize);
+
+                }
+              else
+                cLog::log (LOGERROR, "demux - copy error - pid:%d tsFrameBytesLeft:%d", pid, tsFrameBytesLeft);
               }
               //}}}
             }
@@ -7158,7 +7171,7 @@ public:
           }
         }
       }
-    return tsPtr - tsBuffer;
+    return tsPtr - tsBuf;
     }
   //}}}
 
@@ -7171,7 +7184,7 @@ public:
 protected:
   virtual void pidPacket (int pid, uint8_t* ptr) {}
   virtual bool audDecodePes (cPidInfo* pidInfo, uint64_t basePts) { return false; }
-  virtual bool vidDecodePes (cPidInfo* pidInfo, uint64_t basePts, char frameType,  bool skipped) { return false; }
+  virtual bool vidDecodePes (cPidInfo* pidInfo, uint64_t basePts, char frameType,  bool skip) { return false; }
   virtual void startProgram (int vpid, int apid, const std::string& name, const std::string& startTime) {}
 
 private:
@@ -7646,16 +7659,24 @@ private:
   uint64_t parsePcr (uint8_t* tsPtr) {
   // return 33 bits of pcr
 
-    return ((tsPtr[5] << 25) | (tsPtr[6] << 17) |
-            (tsPtr[7] << 9) | (tsPtr[8] << 1) | (tsPtr[9] >> 7))  & 0x1FFFFFFFF;
+    uint64_t pcr = tsPtr[5];
+    pcr = (pcr << 8) | tsPtr[6];
+    pcr = (pcr << 8) | tsPtr[7];
+    pcr = (pcr << 8) | tsPtr[8];
+    pcr = (pcr << 1) | (tsPtr[9] >> 7);
+    return pcr;
     }
   //}}}
   //{{{
   uint64_t parseTimeStamp (uint8_t* tsPtr) {
   // return 33 bits of pts,dts
 
-    return ((tsPtr[0] & 0x0E) << 29) | (tsPtr[1] << 22) |
-           ((tsPtr[2] & 0xFE) << 14) | (tsPtr[3] << 7)  | (tsPtr[4] >> 1);
+    uint64_t pts = (tsPtr[0] & 0x0E) << 29;
+    pts |=  tsPtr[1] << 22;
+    pts |= (tsPtr[2] & 0xFE) << 14;
+    pts |=  tsPtr[3] << 7;
+    pts |=  tsPtr[4] >> 1;
+    return pts;
     }
   //}}}
   //{{{
