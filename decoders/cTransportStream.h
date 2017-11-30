@@ -6804,7 +6804,7 @@ public:
   //{{{
   void setVidPid (int pid, int streamType) {
     if (pid != mVidPid) {
-      cLog::log (LOGINFO, "setVidPid - esPid:%d streamType:%d", pid, streamType);
+      //cLog::log (LOGINFO, "setVidPid - esPid:%d streamType:%d", pid, streamType);
       mVidPid = pid;
       }
     }
@@ -6817,8 +6817,8 @@ public:
         mAudPid = pid;
       else if (mAudPid1 == -1)
         mAudPid1 = pid;
-      cLog::log (LOGINFO, "setAudPid - esPid:%d streamType:%d, mAudPid %d mAudPid1 %d",
-                          pid, streamType, mAudPid, mAudPid1);
+      //cLog::log (LOGINFO, "setAudPid - esPid:%d streamType:%d, mAudPid %d mAudPid1 %d",
+      //                    pid, streamType, mAudPid, mAudPid1);
       }
     }
   //}}}
@@ -6884,8 +6884,30 @@ public:
   //{{{  gets
   int getPackets() { return mPackets; }
   int getDiscontinuity() { return mDiscontinuity; }
+
   std::string getTimeString() { return mTimeStr; }
   std::string getNetworkString() { return mNetworkNameStr; }
+
+  //{{{
+  bool getService (int index, int& audPid, int& vidPid) {
+
+    audPid = 0;
+    vidPid = 0;
+
+    auto service = mServiceMap.begin();
+    if (service != mServiceMap.end()) {
+      auto pidInfoIt = mPidInfoMap.find (audPid);
+      if (pidInfoIt != mPidInfoMap.end()) {
+        audPid = service->second.getAudPid();
+        vidPid = service->second.getVidPid();
+        cLog::log (LOGINFO, "getService - vidPid:%d audPid:%d", vidPid, audPid);
+        return true;
+        }
+      }
+
+    return false;
+    }
+  //}}}
   //}}}
   //{{{
   void printPidInfos() {

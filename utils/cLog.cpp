@@ -42,7 +42,7 @@ const char levelColours[][12] = { "\033[38;5;208m",   // note   orange
 const char* prefixFormat =        "%02.2d:%02.2d:%02.2d.%06d %s";
 const char* postfix =             "\033[m\n";
 //}}}
-const int kMaxBuffer = 10000;
+const int kMaxBuffer = 100000;
 
 enum eLogLevel mLogLevel = LOGERROR;
 
