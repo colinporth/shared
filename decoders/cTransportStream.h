@@ -6916,7 +6916,7 @@ public:
   //}}}
 
   //{{{
-  int64_t demux (uint8_t* tsBuf, uint64_t tsBufSize, int64_t streamPos, bool skip, uint64_t basePts) {
+  int64_t demux (uint8_t* tsBuf, uint64_t tsBufSize, int64_t streamPos, bool skip) {
   // demux from tsBuffer to tsBuffer + tsBufferSize, streamPos is offset into full stream of first packet
   // - return bytes decoded
 
@@ -7062,7 +7062,7 @@ public:
                     //{{{  new audPes
                     if (pidInfoIt->second.mBufPtr && pidInfoIt->second.mStreamType)
                       // valid buffer and streamType, decode it
-                      decoded = audDecodePes (&pidInfoIt->second, basePts);
+                      decoded = audDecodePes (&pidInfoIt->second);
 
                     // start next audPes
                     if (!pidInfoIt->second.mBuffer) {
@@ -7088,7 +7088,7 @@ public:
                       // valid buffer and streamType, decode it
                       char frameType = parseFrameType (pidInfoIt->second.mBuffer, pidInfoIt->second.mBufPtr,
                                                        pidInfoIt->second.mStreamType);
-                      decoded = vidDecodePes (&pidInfoIt->second, basePts, frameType, skip);
+                      decoded = vidDecodePes (&pidInfoIt->second, frameType, skip);
                       skip = false;
                       }
 
@@ -7166,8 +7166,8 @@ public:
                                       // PMT set cService pids
                                       // EIT add cService Now,Epg events
 protected:
-  virtual bool audDecodePes (cPidInfo* pidInfo, uint64_t basePts) { return false; }
-  virtual bool vidDecodePes (cPidInfo* pidInfo, uint64_t basePts, char frameType,  bool skip) { return false; }
+  virtual bool audDecodePes (cPidInfo* pidInfo) { return false; }
+  virtual bool vidDecodePes (cPidInfo* pidInfo, char frameType,  bool skip) { return false; }
   virtual void startProgram (int vpid, int apid, const std::string& name, const std::string& startTime) {}
 
 private:
