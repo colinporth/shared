@@ -7560,9 +7560,11 @@ private:
     auto Eit = (eit_t*)buf;
     auto sectionLength = HILO(Eit->section_length) + 3;
     if (crc32 (buf, sectionLength)) {
-      //cLog::log (LOGINFO, "%d parseEit len:%d tag:%d Bad CRC  ", mPackets, sectionLength, tag);
+      //{{{  error, return
+      cLog::log (LOGINFO, "%d parseEit len:%d tag:%d Bad CRC  ", mPackets, sectionLength, tag);
       return;
       }
+      //}}}
 
     auto tid = Eit->table_id;
     auto sid = HILO (Eit->service_id);
@@ -7570,134 +7572,116 @@ private:
     auto next = (tid == TID_EIT_OTH);
     auto epg = (tid == TID_EIT_ACT_SCH) || (tid == TID_EIT_OTH_SCH) ||
                (tid == TID_EIT_ACT_SCH+1) || (tid == TID_EIT_OTH_SCH+1);
-    if (!now && !epg) {
-      //{{{  unexpected tid
+    if (now || next || epg) {
+      auto ptr = buf + EIT_LEN;
+      sectionLength -= EIT_LEN + 4;
+      while (sectionLength > 0) {
+        auto EitEvent = (eit_event_t*)ptr;
+        auto loopLength = HILO (EitEvent->descrs_loop_length);
+        if (loopLength > sectionLength - EIT_EVENT_LEN)
+          return;
+        ptr += EIT_EVENT_LEN;
+
+        // parse Descrs
+        auto DescrLength = 0;
+        while ((DescrLength < loopLength) &&
+               (GetDescrLength (ptr) > 0) && (GetDescrLength (ptr) <= loopLength - DescrLength)) {
+          switch (GetDescrTag(ptr)) {
+            case DESCR_SHORT_EVENT: {
+              //{{{  shortEvent
+              auto it = mServiceMap.find (sid);
+              if (it != mServiceMap.end()) {
+                // recognised service
+                auto startTime = MjdToEpochTime (EitEvent->mjd) + BcdTimeToSeconds (EitEvent->start_time);
+                auto duration = BcdTimeToSeconds (EitEvent->duration);
+                auto running = (EitEvent->running_status == 0x04);
+
+                auto title = huffDecode (ptr + DESCR_SHORT_EVENT_LEN, CastShortEventDescr(ptr)->event_name_length);
+                std::string titleStr = title ?
+                  title : getDescrStr (ptr + DESCR_SHORT_EVENT_LEN, CastShortEventDescr(ptr)->event_name_length);
+
+                auto shortDescription = huffDecode (
+                  ptr + DESCR_SHORT_EVENT_LEN + CastShortEventDescr(ptr)->event_name_length+1,
+                  size_t(ptr + DESCR_SHORT_EVENT_LEN + CastShortEventDescr(ptr)->event_name_length));
+                std::string shortDescriptionStr = shortDescription ?
+                  shortDescription : getDescrStr (
+                    ptr + DESCR_SHORT_EVENT_LEN + CastShortEventDescr(ptr)->event_name_length+1,
+                    *((uint8_t*)(ptr + DESCR_SHORT_EVENT_LEN + CastShortEventDescr(ptr)->event_name_length)));
+
+                if (now & running) {
+                  if (it->second.setNow (startTime, duration, titleStr, shortDescriptionStr)) {
+                    updatePidInfo (it->second.getProgramPid());
+                    updatePidInfo (it->second.getVidPid());
+                    updatePidInfo (it->second.getAudPid());
+                    updatePidInfo (it->second.getSubPid());
+                    startProgram (it->second.getVidPid(), it->second.getAudPid(),
+                                  it->second.getNow()->getNameStr(), it->second.getNow()->getStartTimeStr());
+                    }
+                  }
+                else if (epg)
+                  it->second.setEpg (startTime, duration, titleStr, shortDescriptionStr);
+                }
+
+              break;
+              }
+              //}}}
+            case DESCR_EXTENDED_EVENT: {
+              //{{{  extendedEvent
+              //0x4E extended_event_descr
+              //#define DESCR_EXTENDED_EVENT_LEN 7
+              //typedef struct descr_extended_event_struct {
+              //  uint8_t descr_tag                         :8;
+               // uint8_t descr_length                      :8;
+              //  /* TBD */
+              //  uint8_t last_descr_number                 :4;
+              //  uint8_t descr_number                      :4;
+              //  uint8_t lang_code1                             :8;
+              //  uint8_t lang_code2                             :8;
+              //  uint8_t lang_code3                             :8;
+              //  uint8_t length_of_items                        :8;
+              //  } descr_extended_event_t;
+              //#define CastExtendedEventdescr(x) ((descr_extended_event_t *)(x))
+              //#define ITEM_EXTENDED_EVENT_LEN 1
+              //typedef struct item_extended_event_struct {
+              //  uint8_t item_description_length               :8;
+              //  } item_extended_event_t;
+              //#define CastExtendedEventItem(x) ((item_extended_event_t *)(x))
+
+              #ifdef EIT_EXTENDED_EVENT_DEBUG
+                //{{{  print eit extended event
+                cLog::log (LOGINFO, "EIT extendedEvent sid:%d descLen:%d lastDescNum:%d DescNum:%d item:%d",
+                        sid, GetDescrLength (ptr),
+                        CastExtendedEventDescr(ptr)->last_descr_number,
+                        CastExtendedEventDescr(ptr)->descr_number,
+                        CastExtendedEventDescr(ptr)->length_of_items);
+
+                for (auto i = 0; i < GetDescrLength (ptr) -2; i++) {
+                  char c = *(ptr + 2 + i);
+                  if ((c >= 0x20) && (c <= 0x7F))
+                    cLog::log (LOGINFO, "%c", c);
+                  else
+                    cLog::log (LOGINFO, "<%02x> ", c & 0xFF);
+                  }
+                //}}}
+              #endif
+
+              break;
+              }
+              //}}}
+            }
+          DescrLength += GetDescrLength (ptr);
+          ptr += GetDescrLength (ptr);
+          }
+        sectionLength -= loopLength + EIT_EVENT_LEN;
+        ptr += loopLength;
+        }
+      }
+    else {
+      //{{{  unexpected tid, error, return
       cLog::log (LOGINFO, "parseEIT - unexpected tid:%x", tid);
       return;
       }
       //}}}
-
-    // parse Descrs
-    auto ptr = buf + EIT_LEN;
-    sectionLength -= EIT_LEN + 4;
-    while (sectionLength > 0) {
-      auto EitEvent = (eit_event_t*)ptr;
-      auto loopLength = HILO (EitEvent->descrs_loop_length);
-      if (loopLength > sectionLength - EIT_EVENT_LEN)
-        return;
-      ptr += EIT_EVENT_LEN;
-
-      auto DescrLength = 0;
-      while ((DescrLength < loopLength) &&
-             (GetDescrLength (ptr) > 0) &&
-             (GetDescrLength (ptr) <= loopLength - DescrLength)) {
-
-        switch (GetDescrTag(ptr)) {
-          case DESCR_SHORT_EVENT: {
-            //{{{  shortEvent
-            auto it = mServiceMap.find (sid);
-            if (it != mServiceMap.end()) {
-              // recognised service
-              auto startTime = MjdToEpochTime (EitEvent->mjd) + BcdTimeToSeconds (EitEvent->start_time);
-              auto duration = BcdTimeToSeconds (EitEvent->duration);
-              auto running = (EitEvent->running_status == 0x04);
-
-              auto title = huffDecode (ptr + DESCR_SHORT_EVENT_LEN, CastShortEventDescr(ptr)->event_name_length);
-              std::string titleStr = title ?
-                title : getDescrStr (ptr + DESCR_SHORT_EVENT_LEN, CastShortEventDescr(ptr)->event_name_length);
-
-              auto shortDescription = huffDecode (
-                ptr + DESCR_SHORT_EVENT_LEN + CastShortEventDescr(ptr)->event_name_length+1,
-                size_t(ptr + DESCR_SHORT_EVENT_LEN + CastShortEventDescr(ptr)->event_name_length));
-              std::string shortDescriptionStr = shortDescription ?
-                shortDescription : getDescrStr (
-                  ptr + DESCR_SHORT_EVENT_LEN + CastShortEventDescr(ptr)->event_name_length+1,
-                  *((uint8_t*)(ptr + DESCR_SHORT_EVENT_LEN + CastShortEventDescr(ptr)->event_name_length)));
-
-              if (now & running) {
-                if (it->second.setNow (startTime, duration, titleStr, shortDescriptionStr)) {
-                  updatePidInfo (it->second.getProgramPid());
-                  updatePidInfo (it->second.getVidPid());
-                  updatePidInfo (it->second.getAudPid());
-                  updatePidInfo (it->second.getSubPid());
-                  startProgram (it->second.getVidPid(), it->second.getAudPid(),
-                                it->second.getNow()->getNameStr(), it->second.getNow()->getStartTimeStr());
-                  }
-                }
-              else if (epg)
-                it->second.setEpg (startTime, duration, titleStr, shortDescriptionStr);
-              }
-
-            break;
-            }
-            //}}}
-          case DESCR_EXTENDED_EVENT: {
-            //{{{  extendedEvent
-            //0x4E extended_event_descr
-            //#define DESCR_EXTENDED_EVENT_LEN 7
-            //typedef struct descr_extended_event_struct {
-            //  uint8_t descr_tag                         :8;
-             // uint8_t descr_length                      :8;
-            //  /* TBD */
-            //  uint8_t last_descr_number                 :4;
-            //  uint8_t descr_number                      :4;
-            //  uint8_t lang_code1                             :8;
-            //  uint8_t lang_code2                             :8;
-            //  uint8_t lang_code3                             :8;
-            //  uint8_t length_of_items                        :8;
-            //  } descr_extended_event_t;
-            //#define CastExtendedEventdescr(x) ((descr_extended_event_t *)(x))
-            //#define ITEM_EXTENDED_EVENT_LEN 1
-            //typedef struct item_extended_event_struct {
-            //  uint8_t item_description_length               :8;
-            //  } item_extended_event_t;
-            //#define CastExtendedEventItem(x) ((item_extended_event_t *)(x))
-
-            #ifdef EIT_EXTENDED_EVENT_DEBUG
-              //{{{  print eit extended event
-              cLog::log (LOGINFO, "EIT extendedEvent sid:%d descLen:%d lastDescNum:%d DescNum:%d item:%d",
-                      sid, GetDescrLength (ptr),
-                      CastExtendedEventDescr(ptr)->last_descr_number,
-                      CastExtendedEventDescr(ptr)->descr_number,
-                      CastExtendedEventDescr(ptr)->length_of_items);
-
-              for (auto i = 0; i < GetDescrLength (ptr) -2; i++) {
-                char c = *(ptr + 2 + i);
-                if ((c >= 0x20) && (c <= 0x7F))
-                  cLog::log (LOGINFO, "%c", c);
-                else
-                  cLog::log (LOGINFO, "<%02x> ", c & 0xFF);
-                }
-              //}}}
-            #endif
-
-            break;
-            }
-            //}}}
-          case DESCR_COMPONENT:      // 0x50
-          case DESCR_CA_IDENT:       // 0x53
-          case DESCR_CONTENT:        // 0x54
-          case 0x5f:                 // private_data
-          case DESCR_ML_COMPONENT:   // 0x5e
-          case DESCR_DATA_BROADCAST: // 0x64
-          case 0x76:                 // content_identifier
-          case 0x7e:                 // FTA_content_management
-            //cLog::log(LOGINFO, "parseEIT - expected tag:%x %d %d", GetDescrTag(ptr), tid, sid);
-            break;
-          case 0x4a:                 // linkage
-          case 0x89:                 // user_defined
-          default:
-            //cLog::log(LOGINFO, "parseEIT - unexpected tag:%x %d %d", GetDescrTag(ptr), tid, sid);
-            break;
-          }
-
-        DescrLength += GetDescrLength (ptr);
-        ptr += GetDescrLength (ptr);
-        }
-
-      sectionLength -= loopLength + EIT_EVENT_LEN;
-      ptr += loopLength;
-      }
     }
   //}}}
   //{{{
