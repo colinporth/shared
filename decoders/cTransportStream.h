@@ -6908,7 +6908,6 @@ public:
     else if (streamType == 27) {
       // h264 minimal parser
       while (pesBuf < pesEnd) {
-        //cLog::log(LOGINFO, "VPES");
         //{{{  skip past startcode, find next startcode
         auto buf = pesBuf;
         auto bufSize = pesBufSize;
@@ -6976,7 +6975,6 @@ public:
     return '?';
     }
   //}}}
-
   //{{{  gets
   int getPackets() { return mPackets; }
   int getDiscontinuity() { return mDiscontinuity; }
@@ -6985,11 +6983,12 @@ public:
   std::string getNetworkString() { return mNetworkNameStr; }
 
   //{{{
-  bool getService (int index, int& audPid, int& vidPid, uint64_t& basePts) {
+  bool getService (int index, int& audPid, int& vidPid, uint64_t& basePts, uint64_t& lastPts) {
 
     audPid = 0;
     vidPid = 0;
     basePts = 0;
+    lastPts = 0;
 
     auto service = mServiceMap.begin();
     if (service != mServiceMap.end()) {
@@ -6998,8 +6997,10 @@ public:
       auto pidInfoIt = mPidInfoMap.find (audPid);
       if (pidInfoIt != mPidInfoMap.end()) {
         basePts = pidInfoIt->second.mFirstPts;
-        cLog::log (LOGINFO, "getService - vidPid:%d audPid:%d %s",
-                            vidPid, audPid, getFullPtsString(basePts).c_str());
+        lastPts = pidInfoIt->second.mLastPts;
+        cLog::log (LOGINFO, "getService - vidPid:%d audPid:%d %s %s",
+                            vidPid, audPid, 
+                            getFullPtsString(basePts).c_str(), getFullPtsString(lastPts).c_str());
         return true;
         }
       }
@@ -7007,33 +7008,6 @@ public:
     return false;
     }
   //}}}
-  //}}}
-  //{{{
-  void printPidInfos() {
-
-    cLog::log (LOGINFO, "--- pidInfos");
-    for (auto &pidInfo : mPidInfoMap)
-      pidInfo.second.print();
-    cLog::log (LOGINFO, "---");
-    }
-  //}}}
-  //{{{
-  void printPrograms() {
-
-    cLog::log (LOGINFO, "--- programs");
-    for (auto &map : mProgramMap)
-      cLog::log (LOGINFO, "programPid:%d sid:%d", map.first, map.second);
-    cLog::log (LOGINFO, "---");
-    }
-  //}}}
-  //{{{
-  void printServices() {
-
-    cLog::log (LOGINFO, "--- services");
-    for (auto &service : mServiceMap)
-      service.second.print();
-    cLog::log (LOGINFO, "---");
-    }
   //}}}
 
   //{{{
@@ -7053,7 +7027,6 @@ public:
         }
       //}}}
 
-    // while full packet
     int lostSync = 0;
     bool decoded = false;
     while (!decoded && (tsPtr+188 <= tsEnd)) {
@@ -7068,7 +7041,7 @@ public:
           }
           //}}}
 
-        // check for full packet with start syncCode
+        // check for full packet, followed by start syncCode if not end
         if ((tsPtr+187 >= tsEnd) || (*(tsPtr+187) == 0x47)) {
           //{{{  parse ts packet
           uint16_t pid = ((tsPtr[0] & 0x1F) << 8) | tsPtr[1];
@@ -7235,7 +7208,36 @@ public:
           }
         }
       }
+
     return tsPtr - tsBuf;
+    }
+  //}}}
+
+  //{{{
+  void printPidInfos() {
+
+    cLog::log (LOGINFO, "--- pidInfos");
+    for (auto &pidInfo : mPidInfoMap)
+      pidInfo.second.print();
+    cLog::log (LOGINFO, "---");
+    }
+  //}}}
+  //{{{
+  void printPrograms() {
+
+    cLog::log (LOGINFO, "--- programs");
+    for (auto &map : mProgramMap)
+      cLog::log (LOGINFO, "programPid:%d sid:%d", map.first, map.second);
+    cLog::log (LOGINFO, "---");
+    }
+  //}}}
+  //{{{
+  void printServices() {
+
+    cLog::log (LOGINFO, "--- services");
+    for (auto &service : mServiceMap)
+      service.second.print();
+    cLog::log (LOGINFO, "---");
     }
   //}}}
 
