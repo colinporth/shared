@@ -55,31 +55,35 @@ template <typename T> std::string decFrac (T value, int width, int precision, ch
 //}}}
 
 //{{{
-inline std::string getPtsString (uint64_t pts) {
+inline std::string getPtsString (int64_t pts) {
 // miss out zeros
 
-  pts /= 900;
-  uint32_t hs = pts % 100;
+  if (pts < 0)
+    return "--:--:--";
+  else {
+    pts /= 900;
+    uint32_t hs = pts % 100;
 
-  pts /= 100;
-  uint32_t secs = pts % 60;
+    pts /= 100;
+    uint32_t secs = pts % 60;
 
-  pts /= 60;
-  uint32_t mins = pts % 60;
+    pts /= 60;
+    uint32_t mins = pts % 60;
 
-  pts /= 60;
-  uint32_t hours = pts % 60;
+    pts /= 60;
+    uint32_t hours = pts % 60;
 
-  std::string str (hours ? (dec (hours) + ':' + dec (mins, 2, '0')) : dec (mins));
+    std::string str (hours ? (dec (hours) + ':' + dec (mins, 2, '0')) : dec (mins));
 
-  return str + ':' + dec(secs, 2, '0') + ':' + dec(hs, 2, '0');
+    return str + ':' + dec(secs, 2, '0') + ':' + dec(hs, 2, '0');
+    }
   }
 //}}}
 //{{{
-inline std::string getFullPtsString (uint64_t pts) {
+inline std::string getFullPtsString (int64_t pts) {
 // all digits
 
-  if (!pts)
+  if (pts < 0)
     return "--:--:--:--";
   else {
     pts /= 900;
@@ -99,25 +103,29 @@ inline std::string getFullPtsString (uint64_t pts) {
   }
 //}}}
 //{{{
-inline std::string getDebugPtsString (uint64_t pts) {
+inline std::string getDebugPtsString (int64_t pts) {
 
-  uint32_t frac = pts % 900;
+  if (pts < 0)
+    return "--:--:--:--";
+  else {
+    uint32_t frac = pts % 900;
 
-  pts /= 900;
-  uint32_t hs = pts % 100;
+    pts /= 900;
+    uint32_t hs = pts % 100;
 
-  pts /= 100;
-  uint32_t secs = pts % 60;
+    pts /= 100;
+    uint32_t secs = pts % 60;
 
-  pts /= 60;
-  uint32_t mins = pts % 60;
+    pts /= 60;
+    uint32_t mins = pts % 60;
 
-  pts /= 60;
-  uint32_t hours = pts % 60;
+    pts /= 60;
+    uint32_t hours = pts % 60;
 
-  std::string str (hours ? (dec (hours) + 'h' + dec (mins, 2, '0') + 'm') : mins ? (dec (mins) + 'm') : "");
+    std::string str (hours ? (dec (hours) + 'h' + dec (mins, 2, '0') + 'm') : mins ? (dec (mins) + 'm') : "");
 
-  return str + dec (secs, 2, '0') + 's' + dec (hs, 2, '0') + "." + dec (frac,3,'0');
+    return str + dec (secs, 2, '0') + 's' + dec (hs, 2, '0') + "." + dec (frac,3,'0');
+    }
   }
 //}}}
 

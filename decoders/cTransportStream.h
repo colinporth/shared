@@ -6692,9 +6692,9 @@ public:
   int mDisContinuity = 0;
   int mRepeatContinuity = 0;
 
-  uint64_t mPts = 0;
-  uint64_t mFirstPts = 0;
-  uint64_t mLastPts = 0;
+  int64_t mPts = -1;
+  int64_t mFirstPts = -1;
+  int64_t mLastPts = -1;
 
   int mSectionLength = 0;
 
@@ -6983,12 +6983,12 @@ public:
   std::string getNetworkString() { return mNetworkNameStr; }
 
   //{{{
-  bool getService (int index, int& audPid, int& vidPid, uint64_t& basePts, uint64_t& lastPts) {
+  bool getService (int index, int& audPid, int& vidPid, int64_t& basePts, int64_t& lastPts) {
 
     audPid = 0;
     vidPid = 0;
-    basePts = 0;
-    lastPts = 0;
+    basePts = -1;
+    lastPts = -1;
 
     auto service = mServiceMap.begin();
     if (service != mServiceMap.end()) {
@@ -6999,7 +6999,7 @@ public:
         basePts = pidInfoIt->second.mFirstPts;
         lastPts = pidInfoIt->second.mLastPts;
         cLog::log (LOGINFO, "getService - vidPid:%d audPid:%d %s %s",
-                            vidPid, audPid, 
+                            vidPid, audPid,
                             getFullPtsString(basePts).c_str(), getFullPtsString(lastPts).c_str());
         return true;
         }
@@ -7011,7 +7011,7 @@ public:
   //}}}
 
   //{{{
-  int64_t demux (uint8_t* tsBuf, uint64_t tsBufSize, int64_t streamPos, bool skip) {
+  int64_t demux (uint8_t* tsBuf, int64_t tsBufSize, int64_t streamPos, bool skip) {
   // demux from tsBuffer to tsBuffer + tsBufferSize, streamPos is offset into full stream of first packet
   // - return bytes decoded
 
@@ -7063,26 +7063,26 @@ public:
             pidInfoIt = insertPair.first;
             }
 
+          auto pidInfo = &pidInfoIt->second;
+
           // test continuity, reset buffers if fail
           if ((pid != 0x1FFF) &&
-              (pidInfoIt->second.mContinuity >= 0) &&
-              (pidInfoIt->second.mContinuity != ((continuityCount-1) & 0x0F))) {
+              (pidInfo->mContinuity >= 0) && (pidInfo->mContinuity != ((continuityCount-1) & 0x0F))) {
             // test continuity
-            if (pidInfoIt->second.mContinuity == continuityCount) // strange case of bbc subtitles
-              pidInfoIt->second.mRepeatContinuity++;
+            if (pidInfo->mContinuity == continuityCount) // strange case of bbc subtitles
+              pidInfo->mRepeatContinuity++;
             else {
               mDiscontinuity++;
-              pidInfoIt->second.mDisContinuity++;
+              pidInfo->mDisContinuity++;
               }
-            pidInfoIt->second.mBufPtr = nullptr;
+            pidInfo->mBufPtr = nullptr;
             }
 
-          pidInfoIt->second.mContinuity = continuityCount;
-          pidInfoIt->second.mTotal++;
+          pidInfo->mContinuity = continuityCount;
+          pidInfo->mTotal++;
 
           tsPtr += headerBytes;
           auto tsFrameBytesLeft = 187 - headerBytes;
-
           //}}}
 
           if (isSection) {
@@ -7090,36 +7090,36 @@ public:
             if (payloadStart) {
               // parse sectionStart
               int pointerField = *tsPtr;
-              if (pointerField && pidInfoIt->second.mBufPtr) {
+              if (pointerField && pidInfo->mBufPtr) {
                 //{{{  payStart packet starts with end of lastSection
                 // copy to end of buffer
-                memcpy (pidInfoIt->second.mBufPtr, tsPtr+1, pointerField);
+                memcpy (pidInfo->mBufPtr, tsPtr+1, pointerField);
 
                 // parse buffer if enough bytes for sectionLength
-                pidInfoIt->second.mBufPtr += pointerField;
-                if (pidInfoIt->second.mBufPtr - pidInfoIt->second.mBuffer >= pidInfoIt->second.mSectionLength)
-                  parseSection (pid, pidInfoIt->second.mBuffer, 1);
+                pidInfo->mBufPtr += pointerField;
+                if (pidInfo->mBufPtr - pidInfo->mBuffer >= pidInfo->mSectionLength)
+                  parseSection (pid, pidInfo->mBuffer, 1);
 
                 /// reset buffer
-                pidInfoIt->second.mBufPtr = nullptr;
+                pidInfo->mBufPtr = nullptr;
                 }
                 //}}}
 
               do {
-                pidInfoIt->second.mSectionLength = ((tsPtr[pointerField+2] & 0x0F) << 8) | tsPtr[pointerField+3] + 3;
-                if (pointerField < 183 - pidInfoIt->second.mSectionLength) {
+                pidInfo->mSectionLength = ((tsPtr[pointerField+2] & 0x0F) << 8) | tsPtr[pointerField+3] + 3;
+                if (pointerField < 183 - pidInfo->mSectionLength) {
                   parseSection (pid, tsPtr + pointerField + 1, 3);
-                  pointerField += pidInfoIt->second.mSectionLength;
+                  pointerField += pidInfo->mSectionLength;
                   }
                 else {
                   // section straddles packets, start buffering
-                  if (!pidInfoIt->second.mBuffer) {
-                    pidInfoIt->second.mBufSize = kMaxSectionSize;
-                    pidInfoIt->second.mBuffer = (uint8_t*)malloc(pidInfoIt->second.mBufSize);
+                  if (!pidInfo->mBuffer) {
+                    pidInfo->mBufSize = kMaxSectionSize;
+                    pidInfo->mBuffer = (uint8_t*)malloc(pidInfo->mBufSize);
                     }
                   if (183 - pointerField > 0) {
-                    memcpy (pidInfoIt->second.mBuffer, tsPtr + pointerField + 1, 183 - pointerField);
-                    pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer + 183 - pointerField;
+                    memcpy (pidInfo->mBuffer, tsPtr + pointerField + 1, 183 - pointerField);
+                    pidInfo->mBufPtr = pidInfo->mBuffer + 183 - pointerField;
                     }
                   else
                     cLog::log (LOGERROR, "demux - section packet pid:%d pointerField:%d", pid, pointerField);
@@ -7128,20 +7128,20 @@ public:
                 } while (tsPtr[pointerField+1] != 0xFF);
               }
 
-            else if (pidInfoIt->second.mBufPtr) {
+            else if (pidInfo->mBufPtr) {
               // add to buffered section
-              if (pidInfoIt->second.mBufPtr + tsFrameBytesLeft > pidInfoIt->second.mBuffer + pidInfoIt->second.mBufSize)
+              if (pidInfo->mBufPtr + tsFrameBytesLeft > pidInfo->mBuffer + pidInfo->mBufSize)
                 cLog::log (LOGINFO, "%d sectionBuffer overflow > 4096 %d",
-                        mPackets, (int)(pidInfoIt->second.mBufPtr - pidInfoIt->second.mBuffer));
+                        mPackets, (int)(pidInfo->mBufPtr - pidInfo->mBuffer));
               else {
-                memcpy (pidInfoIt->second.mBufPtr, tsPtr, tsFrameBytesLeft);
-                pidInfoIt->second.mBufPtr += tsFrameBytesLeft;
+                memcpy (pidInfo->mBufPtr, tsPtr, tsFrameBytesLeft);
+                pidInfo->mBufPtr += tsFrameBytesLeft;
                 }
 
-              if ((pidInfoIt->second.mBufPtr - pidInfoIt->second.mBuffer) >= pidInfoIt->second.mSectionLength) {
+              if ((pidInfo->mBufPtr - pidInfo->mBuffer) >= pidInfo->mSectionLength) {
                 // enough bytes to parse buffered section
-                parseSection (pid, pidInfoIt->second.mBuffer, 4);
-                pidInfoIt->second.mBufPtr = 0;
+                parseSection (pid, pidInfo->mBuffer, 4);
+                pidInfo->mBufPtr = 0;
                 }
               }
             }
@@ -7154,7 +7154,6 @@ public:
               bool isAud = (tsPtr[3] == 0xBD) || (tsPtr[3] == 0xC0);
 
               if (isVid || isAud) {
-                auto pidInfo = &pidInfoIt->second;
                 if (pidInfo->mBufPtr && pidInfo->mStreamType) {
                   if (isVid) {
                     decoded = vidDecodePes (pidInfo, skip);
@@ -7173,7 +7172,7 @@ public:
                 pidInfo->mStreamPos = streamPos;
 
                 pidInfo->mPts = (tsPtr[7] & 0x80) ? parseTimeStamp (tsPtr+9) : 0;
-                if (!pidInfo->mFirstPts)
+                if (pidInfo->mFirstPts == -1)
                   pidInfo->mFirstPts = pidInfo->mPts;
                 if (pidInfo->mPts > pidInfo->mLastPts)
                   pidInfo->mLastPts = pidInfo->mPts;
@@ -7184,20 +7183,23 @@ public:
                 }
               }
               //}}}
-            if (pidInfoIt->second.mBufPtr) {
+            if (pidInfo->mBufPtr) {
               //{{{  copy rest of packet to mBuffer
-              if (tsFrameBytesLeft > 0) {
-                memcpy (pidInfoIt->second.mBufPtr, tsPtr, tsFrameBytesLeft);
-                pidInfoIt->second.mBufPtr += tsFrameBytesLeft;
-
-                if (pidInfoIt->second.mBufPtr > pidInfoIt->second.mBuffer+ pidInfoIt->second.mBufSize)
-                  cLog::log (LOGERROR, "demux - %d - pes overflow %d > %d",
-                             pid,
-                             int(pidInfoIt->second.mBufPtr - pidInfoIt->second.mBuffer),
-                             pidInfoIt->second.mBufSize);
-                }
-              else
+              if (tsFrameBytesLeft <= 0)
                 cLog::log (LOGERROR, "demux - copy error - pid:%d tsFrameBytesLeft:%d", pid, tsFrameBytesLeft);
+
+              else if ((pidInfo->mBufPtr + tsFrameBytesLeft) <= (pidInfo->mBuffer + pidInfo->mBufSize)) {
+                memcpy (pidInfo->mBufPtr, tsPtr, tsFrameBytesLeft);
+                pidInfo->mBufPtr += tsFrameBytesLeft;
+                }
+
+              else {
+                cLog::log (LOGERROR, "demux - %d - pes overflow %d > %d",
+                           pid,
+                           int(pidInfo->mBufPtr - pidInfo->mBuffer) + tsFrameBytesLeft,
+                           pidInfo->mBufSize);
+                pidInfo->mBufPtr = nullptr;
+                }
               }
               //}}}
             }
@@ -7721,12 +7723,12 @@ private:
   //}}}
 
   //{{{
-  uint64_t parseTimeStamp (uint8_t* tsPtr) {
+  int64_t parseTimeStamp (uint8_t* tsPtr) {
   // return 33 bits of pts,dts
 
     if ((tsPtr[0] & 0x01) && (tsPtr[2] & 0x01) && (tsPtr[4] & 0x01)) {
       // valid marker bits
-      uint64_t pts = tsPtr[0] & 0x0E;
+      int64_t pts = tsPtr[0] & 0x0E;
       pts = (pts << 7) | tsPtr[1];
       pts = (pts << 8) | (tsPtr[2] & 0xFE);
       pts = (pts << 7) | tsPtr[3];
