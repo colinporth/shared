@@ -6767,10 +6767,7 @@ class cService {
 public:
   //{{{
   cService (int sid, int tsid, int onid, int type, int vid, int aud, const std::string& name) :
-      mSid(sid), mTsid(tsid), mOnid(onid), mType(type), mVidPid(vid), mAudPid(aud) {
-
-    mName = name;
-    }
+      mSid(sid), mTsid(tsid), mOnid(onid), mType(type), mVidPid(vid), mAudPid(aud), mName(name) {}
   //}}}
   ~cService() {}
 
@@ -6791,10 +6788,10 @@ public:
     }
   //}}}
 
+  int getProgramPid() const { return mProgramPid; }
   int getVidPid() const { return mVidPid; }
   int getAudPid() const { return mAudPid; }
   int getSubPid() const { return mSubPid; }
-  int getProgramPid() const { return mProgramPid; }
 
   cEpgItem* getNow() { return &mNow; }
   std::string getName() { return mName; }
@@ -6845,10 +6842,11 @@ public:
 
   //{{{
   void print() {
-    cLog::log (LOGINFO,"sid:%d tsid:%d onid:%d - prog:%d - v:%d - a:%d - sub:%d %s <%s>",
-                           mSid, mTsid, mOnid,
-                           mProgramPid, mVidPid, mAudPid,
-                           mSubPid, getTypeStr().c_str(), mName.c_str());
+    cLog::log (LOGINFO, "sid:%d tsid:%d onid:%d - prog:%d - v:%d - a:%d - sub:%d %s <%s>",
+                        mSid, mTsid, mOnid,
+                        mProgramPid, mVidPid, mAudPid,
+                        mSubPid, getTypeStr().c_str(), mName.c_str());
+
     mNow.print ("");
     for (auto &epgItem : mEpgItemMap)
       epgItem.second.print ("- ");
@@ -6856,16 +6854,16 @@ public:
   //}}}
 
 private:
-  int mSid = -1;
-  int mTsid = -1;
-  int mOnid = -1;
-  int mType = -1;
+  int mSid;
+  int mTsid;
+  int mOnid;
+  int mType;
 
+  int mProgramPid = -1;
   int mVidPid = -1;
   int mAudPid = -1;
   int mAudPid1 = -1;
   int mSubPid = -1;
-  int mProgramPid = -1;
 
   std::string mName;
 
