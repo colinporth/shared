@@ -17,10 +17,7 @@
                                      ((10*((x##_s & 0xF0)>>4)) + (x##_s & 0xF)))
 //}}}
 //{{{  const, struct
-#define kMaxSectionSize  4096
-#define kAudPesBufSize  20000
-#define kVidPesBufSize 600000
-
+const int kBufSize = 4096;
 //{{{  pid const
 #define PID_PAT   0x00   /* Program Association Table */
 #define PID_CAT   0x01   /* Conditional Access Table */
@@ -6394,7 +6391,7 @@ const char* huffDecode (const unsigned char *src, size_t size) {
         if (nextCh != STOP && nextCh != ESCAPE) {
           if (p >= uncompressed_len) {
             uncompressed_len += 10;
-            uncompressed = (char *)realloc(uncompressed, uncompressed_len + 1);
+            uncompressed = (char *)realloc (uncompressed, uncompressed_len + 1);
             }
           uncompressed[p++] = nextCh;
           uncompressed[p] = 0;
@@ -6884,7 +6881,7 @@ public:
   virtual ~cTransportStream() {}
 
   //{{{
-  static char getFrameType (uint8_t* pesBuf, uint32_t pesBufSize, int streamType) {
+  static char getFrameType (uint8_t* pesBuf, int64_t pesBufSize, int streamType) {
   // return frameType of video pes
 
     auto pesEnd = pesBuf + pesBufSize;
@@ -6939,7 +6936,7 @@ public:
             break;
             }
 
-          nalSize = bufSize;
+          nalSize = (uint32_t)bufSize;
           }
         //}}}
 
@@ -7061,6 +7058,8 @@ public:
             // new pid, insert new cPidInfo, get pidInfoIt iterator
             auto insertPair = mPidInfoMap.insert (std::map<int,cPidInfo>::value_type (pid, cPidInfo(pid, isSection)));
             pidInfoIt = insertPair.first;
+            pidInfoIt->second.mBufSize = kBufSize;
+            pidInfoIt->second.mBuffer = (uint8_t*)malloc (kBufSize);
             }
 
           auto pidInfo = &pidInfoIt->second;
@@ -7113,10 +7112,6 @@ public:
                   }
                 else {
                   // section straddles packets, start buffering
-                  if (!pidInfo->mBuffer) {
-                    pidInfo->mBufSize = kMaxSectionSize;
-                    pidInfo->mBuffer = (uint8_t*)malloc(pidInfo->mBufSize);
-                    }
                   if (183 - pointerField > 0) {
                     memcpy (pidInfo->mBuffer, tsPtr + pointerField + 1, 183 - pointerField);
                     pidInfo->mBufPtr = pidInfo->mBuffer + 183 - pointerField;
@@ -7164,10 +7159,6 @@ public:
                   }
 
                 // start next pes
-                if (!pidInfo->mBuffer) {
-                  pidInfo->mBufSize = isVid ? kVidPesBufSize : kAudPesBufSize;
-                  pidInfo->mBuffer = (uint8_t*)malloc (pidInfo->mBufSize);
-                  }
                 pidInfo->mBufPtr = pidInfo->mBuffer;
                 pidInfo->mStreamPos = streamPos;
 
@@ -7194,11 +7185,14 @@ public:
                 }
 
               else {
-                cLog::log (LOGERROR, "demux - %d - pes overflow %d > %d",
-                           pid,
-                           int(pidInfo->mBufPtr - pidInfo->mBuffer) + tsFrameBytesLeft,
-                           pidInfo->mBufSize);
-                pidInfo->mBufPtr = nullptr;
+                pidInfo->mBufSize *= 2;
+                auto ptrOffset = pidInfo->mBufPtr - pidInfo->mBuffer;
+                pidInfo->mBuffer = (uint8_t*)realloc (pidInfo->mBuffer, pidInfo->mBufSize);
+
+                memcpy (pidInfo->mBuffer + ptrOffset, tsPtr, tsFrameBytesLeft);
+                pidInfo->mBufPtr = pidInfo->mBuffer + ptrOffset + tsFrameBytesLeft;
+
+                //cLog::log (LOGERROR, "demux - %d - realloc %d", pid, pidInfo->mBufSize);
                 }
               }
               //}}}
