@@ -7570,7 +7570,7 @@ private:
     auto next = (tid == TID_EIT_OTH);
     auto epg = (tid == TID_EIT_ACT_SCH) || (tid == TID_EIT_OTH_SCH) ||
                (tid == TID_EIT_ACT_SCH+1) || (tid == TID_EIT_OTH_SCH+1);
-    if (!now && !next && !epg) {
+    if (!now && !epg) {
       //{{{  unexpected tid
       cLog::log (LOGINFO, "parseEIT - unexpected tid:%x", tid);
       return;
