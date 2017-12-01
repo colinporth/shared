@@ -7891,7 +7891,7 @@ private:
       // cService from cPidInfo.sid using mServiceMap
       auto serviceIt = mServiceMap.find (pidInfoIt->second.mSid);
       if (serviceIt != mServiceMap.end()) {
-        std::string str = serviceIt->second.getName() + " " + serviceIt->second.getNow()->mTitle;
+        std::string str = serviceIt->second.getName() + " - " + serviceIt->second.getNow()->mTitle;
         if (pid == serviceIt->second.getVidPid())
           pidInfoIt->second.mInfo = "vid " + str;
         else if (pid == serviceIt->second.getAudPid())
