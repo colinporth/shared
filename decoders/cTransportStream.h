@@ -18,7 +18,7 @@
 //}}}
 //{{{  const, struct
 #define kMaxSectionSize  4096
-#define kAudPesBufSize  15000
+#define kAudPesBufSize  20000
 #define kVidPesBufSize 600000
 
 //{{{  pid const
@@ -6677,7 +6677,7 @@ public:
   ~cPidInfo() {}
 
   void print() {
-    cLog::log (LOGINFO, "pid:%d sid:%d streamType:%d - packets:%d disConinuity:%d repConinuity:%d",
+    cLog::log (LOGINFO, "pid:%d sid:%d streamType:%d - packets:%d disContinuity:%d repContinuity:%d",
                          mPid, mSid, mStreamType, mTotal, mDisContinuity, mRepeatContinuity);
     }
 
@@ -6685,16 +6685,16 @@ public:
   bool mIsSection;
 
   int mSid = -1;
-
   int mStreamType = 0;
-  uint64_t mPts = 0;
-  uint64_t mFirstPts = 0;
-  uint64_t mLastPts = 0;
-
   int mTotal = 0;
+
   int mContinuity = -1;
   int mDisContinuity = 0;
   int mRepeatContinuity = 0;
+
+  uint64_t mPts = 0;
+  uint64_t mFirstPts = 0;
+  uint64_t mLastPts = 0;
 
   int mSectionLength = 0;
 
@@ -6882,6 +6882,100 @@ private:
 class cTransportStream {
 public:
   virtual ~cTransportStream() {}
+
+  //{{{
+  static char getFrameType (uint8_t* pesBuf, uint32_t pesBufSize, int streamType) {
+  // return frameType of video pes
+
+    auto pesEnd = pesBuf + pesBufSize;
+    if (streamType == 2) {
+      //{{{  mpeg2 minimal parser
+      while (pesBuf + 6 < pesEnd) {
+        // look for pictureHeader 00000100
+        if (!pesBuf[0] && !pesBuf[1] && (pesBuf[2] == 0x01) && !pesBuf[3])
+          // extract frameType I,B,P
+          switch ((pesBuf[5] >> 3) & 0x03) {
+            case 1: return 'I';
+            case 2: return 'P';
+            case 3: return 'B';
+            default: return '?';
+            }
+        pesBuf++;
+        }
+      }
+      //}}}
+
+    else if (streamType == 27) {
+      // h264 minimal parser
+      while (pesBuf < pesEnd) {
+        //cLog::log(LOGINFO, "VPES");
+        //{{{  skip past startcode, find next startcode
+        auto buf = pesBuf;
+        auto bufSize = pesBufSize;
+
+        uint32_t startOffset = 0;
+        if (!buf[0] && !buf[1]) {
+          if (!buf[2] && buf[3] == 1) {
+            buf += 4;
+            startOffset = 4;
+            }
+          else if (buf[2] == 1) {
+            buf += 3;
+            startOffset = 3;
+            }
+          }
+
+        // find next start code
+        auto offset = startOffset;
+        uint32_t nalSize;
+        uint32_t val = 0xffffffff;
+        while (offset++ < bufSize - 3) {
+          val = (val << 8) | *buf++;
+          if (val == 0x0000001) {
+            nalSize = offset - 4;
+            break;
+            }
+          if ((val & 0x00ffffff) == 0x0000001) {
+            nalSize = offset - 3;
+            break;
+            }
+
+          nalSize = bufSize;
+          }
+        //}}}
+
+        if (nalSize > 3) {
+          // parse NAL bitStream
+          cBitstream bitstream (buf, (nalSize - startOffset) * 8);
+          bitstream.check_0s (1);
+          bitstream.getBits (2);
+          switch (bitstream.getBits (5)) {
+            case 1:
+            case 5:
+              //cLog::log(LOGINFO, "SLICE");
+              bitstream.getUe();
+              switch (bitstream.getUe()) {
+                case 5: return 'P';
+                case 6: return 'B';
+                case 7: return 'I';
+                default:return '?';
+                }
+              break;
+            //case 6: cLog::log(LOGINFO, ("SEI"); break;
+            //case 7: cLog::log(LOGINFO, ("SPS"); break;
+            //case 8: cLog::log(LOGINFO, ("PPS"); break;
+            //case 9: cLog::log(LOGINFO,  ("AUD"); break;
+            //case 0x0d: cLog::log(LOGINFO, ("SEQEXT"); break;
+            }
+          }
+
+        pesBuf += nalSize;
+        }
+      }
+
+    return '?';
+    }
+  //}}}
 
   //{{{  gets
   int getPackets() { return mPackets; }
@@ -7080,94 +7174,45 @@ public:
             }
             //}}}
           else {
-            if (payloadStart) {
-              if (!tsPtr[0] && !tsPtr[1] && tsPtr[2] == 1) {
-                int streamId = tsPtr[3];
-                switch (streamId) {
-                  case 0xBD:
-                  case 0xC0: {
-                    //{{{  new audPes
-                    if (pidInfoIt->second.mBufPtr && pidInfoIt->second.mStreamType)
-                      // valid buffer and streamType, decode it
-                      decoded = audDecodePes (&pidInfoIt->second);
+            if (payloadStart && !tsPtr[0] && !tsPtr[1] && (tsPtr[2] == 0x01)) {
+              //{{{  start new payload
+              // look for recognised streamId
+              bool isVid = (tsPtr[3] == 0xE0);
+              bool isAud = (tsPtr[3] == 0xBD) || (tsPtr[3] == 0xC0);
 
-                    // start next audPes
-                    if (!pidInfoIt->second.mBuffer) {
-                      // allocate audPes buffer
-                      pidInfoIt->second.mBufSize = kAudPesBufSize;
-                      pidInfoIt->second.mBuffer = (uint8_t*)malloc (pidInfoIt->second.mBufSize);
-                      }
-                    pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer;
-
-                    pidInfoIt->second.mStreamPos = streamPos;
-
-                    pidInfoIt->second.mPts = (tsPtr[7] & 0x80) ? parseTimeStamp (tsPtr+9) : 0;
-                    if (!pidInfoIt->second.mFirstPts)
-                      pidInfoIt->second.mFirstPts = pidInfoIt->second.mPts;
-                    if (pidInfoIt->second.mPts > pidInfoIt->second.mLastPts)
-                      pidInfoIt->second.mLastPts = pidInfoIt->second.mPts;
-
-                    int pesHeaderBytes = 9 + tsPtr[8];
-                    tsPtr += pesHeaderBytes;
-                    tsFrameBytesLeft -= pesHeaderBytes;
-
-                    break;
+              if (isVid || isAud) {
+                auto pidInfo = &pidInfoIt->second;
+                if (pidInfo->mBufPtr && pidInfo->mStreamType) {
+                  if (isVid) {
+                    decoded = vidDecodePes (pidInfo, skip);
+                    skip = false;
                     }
-                    //}}}
-                  case 0xE0: {
-                    //{{{  new vidPes
-                    if (pidInfoIt->second.mBufPtr && pidInfoIt->second.mStreamType) {
-                      // valid buffer and streamType, decode it
-                      char frameType = parseFrameType (pidInfoIt->second.mBuffer, pidInfoIt->second.mBufPtr,
-                                                       pidInfoIt->second.mStreamType);
-                      decoded = vidDecodePes (&pidInfoIt->second, frameType, skip);
-                      skip = false;
-                      }
-
-                    // start next vidPes
-                    if (!pidInfoIt->second.mBuffer) {
-                      // allocate vidPESbuffer
-                      pidInfoIt->second.mBufSize = kVidPesBufSize;
-                      pidInfoIt->second.mBuffer = (uint8_t*)malloc (pidInfoIt->second.mBufSize);
-                      }
-                    pidInfoIt->second.mBufPtr = pidInfoIt->second.mBuffer;
-                    pidInfoIt->second.mStreamPos = streamPos;
-
-                    pidInfoIt->second.mPts = (tsPtr[7] & 0x80) ? parseTimeStamp (tsPtr+9) : 0;
-                    if (!pidInfoIt->second.mFirstPts)
-                      pidInfoIt->second.mFirstPts = pidInfoIt->second.mPts;
-                    if (pidInfoIt->second.mPts > pidInfoIt->second.mLastPts)
-                      pidInfoIt->second.mLastPts = pidInfoIt->second.mPts;
-
-                    int pesHeaderBytes = 9 + tsPtr[8];
-                    tsPtr += pesHeaderBytes;
-                    tsFrameBytesLeft -= pesHeaderBytes;
-
-                    break;
-                    }
-                    //}}}
-                  case 0xC1:
-                  case 0xC2:
-                  case 0xC4:
-                  case 0xC6:
-                  case 0xC8:
-                  case 0xCA:
-                  case 0xCC:
-                  case 0xCE:
-                  case 0xD0:
-                  case 0xD2:
-                  case 0xD4:
-                  case 0xD6:
-                  case 0xD8:
-                  case 0xDA: // known streamIds
-                    break;
-                  default:
-                    cLog::log (LOGERROR, "demux - pid " + dec(pid) + " unknown streamId " + hex(streamId));
+                  else
+                    decoded = audDecodePes (pidInfo, skip);
                   }
+
+                // start next pes
+                if (!pidInfo->mBuffer) {
+                  pidInfo->mBufSize = isVid ? kVidPesBufSize : kAudPesBufSize;
+                  pidInfo->mBuffer = (uint8_t*)malloc (pidInfo->mBufSize);
+                  }
+                pidInfo->mBufPtr = pidInfo->mBuffer;
+                pidInfo->mStreamPos = streamPos;
+
+                pidInfo->mPts = (tsPtr[7] & 0x80) ? parseTimeStamp (tsPtr+9) : 0;
+                if (!pidInfo->mFirstPts)
+                  pidInfo->mFirstPts = pidInfo->mPts;
+                if (pidInfo->mPts > pidInfo->mLastPts)
+                  pidInfo->mLastPts = pidInfo->mPts;
+
+                int pesHeaderBytes = 9 + tsPtr[8];
+                tsPtr += pesHeaderBytes;
+                tsFrameBytesLeft -= pesHeaderBytes;
                 }
               }
+              //}}}
             if (pidInfoIt->second.mBufPtr) {
-              //{{{  copy tsFrameBytesLeft bytes to buffer
+              //{{{  copy rest of packet to mBuffer
               if (tsFrameBytesLeft > 0) {
                 memcpy (pidInfoIt->second.mBufPtr, tsPtr, tsFrameBytesLeft);
                 pidInfoIt->second.mBufPtr += tsFrameBytesLeft;
@@ -7201,8 +7246,8 @@ public:
                                       // PMT set cService pids
                                       // EIT add cService Now,Epg events
 protected:
-  virtual bool audDecodePes (cPidInfo* pidInfo) { return false; }
-  virtual bool vidDecodePes (cPidInfo* pidInfo, char frameType,  bool skip) { return false; }
+  virtual bool audDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
+  virtual bool vidDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
   virtual void startProgram (int vpid, int apid, const std::string& name, const std::string& startTime) {}
 
 private:
@@ -7837,97 +7882,6 @@ private:
     }
   //}}}
 
-  //{{{
-  char parseFrameType (uint8_t* pesPtr, uint8_t* pesEnd, int streamType) {
-  // return frameType of video pes
-
-    if (streamType == 2) {
-      //{{{  mpeg2 minimal parser
-      while (pesPtr + 6 < pesEnd) {
-        // look for pictureHeader 00000100
-        if (!pesPtr[0] && !pesPtr[1] && (pesPtr[2] == 0x01) && !pesPtr[3])
-          // extract frameType I,B,P
-          switch ((pesPtr[5] >> 3) & 0x03) {
-            case 1: return 'I';
-            case 2: return 'P';
-            case 3: return 'B';
-            default: return '?';
-            }
-        pesPtr++;
-        }
-      }
-      //}}}
-
-    else if (streamType == 27) {
-      // h264 minimal parser
-      while (pesPtr < pesEnd) {
-        //cLog::log(LOGINFO, "VPES");
-        //{{{  skip past startcode, find next startcode
-        auto buf = pesPtr;
-        auto bufLen = uint32_t (pesEnd - pesPtr);
-
-        uint32_t startOffset = 0;
-        if (!buf[0] && !buf[1]) {
-          if (!buf[2] && buf[3] == 1) {
-            buf += 4;
-            startOffset = 4;
-            }
-          else if (buf[2] == 1) {
-            buf += 3;
-            startOffset = 3;
-            }
-          }
-
-        // find next start code
-        auto offset = startOffset;
-        uint32_t nalLen;
-        uint32_t val = 0xffffffff;
-        while (offset++ < bufLen - 3) {
-          val = (val << 8) | *buf++;
-          if (val == 0x0000001) {
-            nalLen = offset - 4;
-            break;
-            }
-          if ((val & 0x00ffffff) == 0x0000001) {
-            nalLen = offset - 3;
-            break;
-            }
-
-          nalLen = bufLen;
-          }
-        //}}}
-
-        if (nalLen > 3) {
-          // parse NAL bitStream
-          cBitstream bitstream (buf, (nalLen - startOffset) * 8);
-          bitstream.check_0s (1);
-          bitstream.getBits (2);
-          switch (bitstream.getBits (5)) {
-            case 1:
-            case 5:
-              //cLog::log(LOGINFO, "SLICE");
-              bitstream.getUe();
-              switch (bitstream.getUe()) {
-                case 5: return 'P';
-                case 6: return 'B';
-                case 7: return 'I';
-                default:return '?';
-                }
-              break;
-            //case 6: cLog::log(LOGINFO, ("SEI"); break;
-            //case 7: cLog::log(LOGINFO, ("SPS"); break;
-            //case 8: cLog::log(LOGINFO, ("PPS"); break;
-            //case 9: cLog::log(LOGINFO,  ("AUD"); break;
-            //case 0x0d: cLog::log(LOGINFO, ("SEQEXT"); break;
-            }
-          }
-        pesPtr += nalLen;
-        }
-      }
-
-    return '?';
-    }
-  //}}}
 
   //{{{
   void updatePidInfo (int pid) {
