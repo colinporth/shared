@@ -6973,7 +6973,7 @@ public:
     }
   //}}}
   //{{{  gets
-  int getPackets() { return mPackets; }
+  uint64_t getPackets() { return mPackets; }
   int getDiscontinuity() { return mDiscontinuity; }
 
   std::string getTimeString() { return mTimeStr; }
@@ -7490,9 +7490,9 @@ private:
       static const char wday_name[][4] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
       static const char mon_name[][4] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun",
                                           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
-      mTimeStr = dec (time.tm_hour) + ":" +
-                 dec(time.tm_min) + ":" +
-                 dec(time.tm_sec) + " " +
+      mTimeStr = dec(time.tm_hour,2,'0') + ":" +
+                 dec(time.tm_min,2,'0') + ":" +
+                 dec(time.tm_sec,2,'0') + ":00 " +
                  wday_name[time.tm_wday] + " " +
                  dec(time.tm_mday) + " " +
                  mon_name[time.tm_mon] + " " +
@@ -7880,7 +7880,6 @@ private:
     }
   //}}}
 
-
   //{{{
   void updatePidInfo (int pid) {
   // update pid cPidInfo UI text for speed, lock avoidance
@@ -7919,7 +7918,7 @@ private:
   std::string mTimeStr;
   std::string mNetworkNameStr;
 
-  int mPackets = 0;
+  uint64_t mPackets = 0;
   int mDiscontinuity = 0;
 
   time_t mCurTime;
