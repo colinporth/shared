@@ -7095,7 +7095,7 @@ public:
                 // parse buffer if enough bytes for sectionLength
                 pidInfo->mBufPtr += pointerField;
                 if (pidInfo->mBufPtr - pidInfo->mBuffer >= pidInfo->mSectionLength)
-                  parseSection (pid, pidInfo->mBuffer, 1);
+                  parseSection (pid, pidInfo, pidInfo->mBuffer, 1);
 
                 /// reset buffer
                 pidInfo->mBufPtr = nullptr;
@@ -7105,7 +7105,7 @@ public:
               do {
                 pidInfo->mSectionLength = ((tsPtr[pointerField+2] & 0x0F) << 8) | tsPtr[pointerField+3] + 3;
                 if (pointerField < 183 - pidInfo->mSectionLength) {
-                  parseSection (pid, tsPtr + pointerField + 1, 3);
+                  parseSection (pid, pidInfo, tsPtr + pointerField + 1, 3);
                   pointerField += pidInfo->mSectionLength;
                   }
                 else {
@@ -7133,7 +7133,7 @@ public:
 
               if ((pidInfo->mBufPtr - pidInfo->mBuffer) >= pidInfo->mSectionLength) {
                 // enough bytes to parse buffered section
-                parseSection (pid, pidInfo->mBuffer, 4);
+                parseSection (pid, pidInfo, pidInfo->mBuffer, 4);
                 pidInfo->mBufPtr = 0;
                 }
               }
@@ -7405,7 +7405,6 @@ private:
       if (sectionIt != mPidInfoMap.end())
         sectionIt->second.mSid = sid;
       updatePidInfo (pid);
-
       //HILO (pmt->PCR_PID));
 
       auto ptr = buf + PMT_LEN;
@@ -7477,7 +7476,7 @@ private:
     }
   //}}}
   //{{{
-  void parseTdt (uint8_t* buf) {
+  void parseTdt (cPidInfo* pidInfo, uint8_t* buf) {
 
     auto Tdt = (tdt_t*)buf;
     if (Tdt->table_id == TID_TDT) {
@@ -7495,11 +7494,12 @@ private:
                  dec(time.tm_mday) + " " +
                  mon_name[time.tm_mon] + " " +
                  dec(1900 + time.tm_year);
+      pidInfo->mInfoStr = mTimeStr;
       }
     }
   //}}}
   //{{{
-  void parseNit (uint8_t* buf) {
+  void parseNit (cPidInfo* pidInfo, uint8_t* buf) {
 
     auto Nit = (nit_t*)buf;
     auto sectionLength = HILO(Nit->section_length) + 3;
@@ -7543,8 +7543,10 @@ private:
           auto loop2Length = HILO (TSDesc->transport_descrs_length);
           ptr += NIT_TS_LEN;
           if (loop2Length <= loopLength)
-            if (loopLength >= 0)
+            if (loopLength >= 0) {
               parseDescrs ("parseNIT2", tsid, ptr, loop2Length, Nit->table_id);
+              pidInfo->mInfoStr = mNetworkNameStr;
+              }
 
           loopLength -= loop2Length + NIT_TS_LEN;
           sectionLength -= loop2Length + NIT_TS_LEN;
@@ -7685,13 +7687,13 @@ private:
     }
   //}}}
   //{{{
-  void parseSection (int pid, uint8_t* buf, int tag) {
+  void parseSection (int pid, cPidInfo* pidInfo, uint8_t* buf, int tag) {
 
     switch (pid) {
       case PID_PAT: parsePat (buf); break;
       case PID_SDT: parseSdt (buf); break;
-      case PID_TDT: parseTdt (buf); break;
-      case PID_NIT: parseNit (buf); break;
+      case PID_TDT: parseTdt (pidInfo, buf); break;
+      case PID_NIT: parseNit (pidInfo, buf); break;
       case PID_EIT: parseEit (buf, tag); break;
       default:      parsePmt (pid, buf); break;
       }
