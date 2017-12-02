@@ -6659,15 +6659,14 @@ public:
   cPidInfo (int pid, bool isSection) : mPid(pid), mIsSection(isSection) {
 
     switch (pid) {
-      case PID_PAT: mInfo = "Pat"; break;
-      case PID_CAT: mInfo = "Cat"; break;
-      case PID_SDT: mInfo = "Sdt"; break;
-      case PID_NIT: mInfo = "Nit"; break;
-      case PID_EIT: mInfo = "Eit"; break;
-      case PID_RST: mInfo = "Rst"; break;
-      case PID_TDT: mInfo = "Tdt"; break;
-      case PID_SYN: mInfo = "Syn"; break;
-      default:;
+      case PID_PAT: mTypeStr = "Pat"; break;
+      case PID_CAT: mTypeStr = "Cat"; break;
+      case PID_SDT: mTypeStr = "Sdt"; break;
+      case PID_NIT: mTypeStr = "Nit"; break;
+      case PID_EIT: mTypeStr = "Eit"; break;
+      case PID_RST: mTypeStr = "Rst"; break;
+      case PID_TDT: mTypeStr = "Tdt"; break;
+      case PID_SYN: mTypeStr = "Syn"; break;
       }
     }
   //}}}
@@ -6702,7 +6701,8 @@ public:
 
   int64_t mStreamPos = -1;
 
-  std::string mInfo;
+  std::string mTypeStr = "   ";
+  std::string mInfoStr;
   };
 //}}}
 //{{{
@@ -6791,6 +6791,7 @@ public:
   int getProgramPid() const { return mProgramPid; }
   int getVidPid() const { return mVidPid; }
   int getAudPid() const { return mAudPid; }
+  int getAudOtherPid() const { return mAudOtherPid; }
   int getSubPid() const { return mSubPid; }
 
   cEpgItem* getNow() { return &mNow; }
@@ -6807,14 +6808,14 @@ public:
   //}}}
   //{{{
   void setAudPid (int pid, int streamType) {
-    if ((pid != mAudPid) && (pid != mAudPid1)) {
+    if ((pid != mAudPid) && (pid != mAudOtherPid)) {
       // use first aud pid, may be many
       if (mAudPid == -1)
         mAudPid = pid;
-      else if (mAudPid1 == -1)
-        mAudPid1 = pid;
-      //cLog::log (LOGINFO, "setAudPid - esPid:%d streamType:%d, mAudPid %d mAudPid1 %d",
-      //                    pid, streamType, mAudPid, mAudPid1);
+      else if (mAudOtherPid == -1)
+        mAudOtherPid = pid;
+      //cLog::log (LOGINFO, "setAudPid - esPid:%d streamType:%d, mAudPid %d mAudOtherPid %d",
+      //                    pid, streamType, mAudPid, mAudOtherPid);
       }
     }
   //}}}
@@ -6843,9 +6844,8 @@ public:
   //{{{
   void print() {
     cLog::log (LOGINFO, "sid:%d tsid:%d onid:%d - prog:%d - v:%d - a:%d - sub:%d %s <%s>",
-                        mSid, mTsid, mOnid,
-                        mProgramPid, mVidPid, mAudPid,
-                        mSubPid, getTypeStr().c_str(), mName.c_str());
+                        mSid, mTsid, mOnid, mProgramPid, mVidPid, mAudPid, mSubPid,
+                        getTypeStr().c_str(), mName.c_str());
 
     mNow.print ("");
     for (auto &epgItem : mEpgItemMap)
@@ -6862,7 +6862,7 @@ private:
   int mProgramPid = -1;
   int mVidPid = -1;
   int mAudPid = -1;
-  int mAudPid1 = -1;
+  int mAudOtherPid = -1;
   int mSubPid = -1;
 
   std::string mName;
@@ -7864,7 +7864,7 @@ private:
 
   //{{{
   void updatePidInfo (int pid) {
-  // update pid cPidInfo UI text for speed, lock avoidance
+  // update pid cPidInfo UI text for speed
 
     // cPidInfo from pid using mPidInfoMap
     auto pidInfoIt = mPidInfoMap.find (pid);
@@ -7872,15 +7872,18 @@ private:
       // cService from cPidInfo.sid using mServiceMap
       auto serviceIt = mServiceMap.find (pidInfoIt->second.mSid);
       if (serviceIt != mServiceMap.end()) {
-        std::string str = serviceIt->second.getName() + " - " + serviceIt->second.getNow()->mTitle;
-        if (pid == serviceIt->second.getVidPid())
-          pidInfoIt->second.mInfo = "vid " + str;
+        if (pid == serviceIt->second.getProgramPid())
+          pidInfoIt->second.mTypeStr = "pgm";
+        else if (pid == serviceIt->second.getVidPid())
+          pidInfoIt->second.mTypeStr = "vid";
         else if (pid == serviceIt->second.getAudPid())
-          pidInfoIt->second.mInfo = "aud " + str;
+          pidInfoIt->second.mTypeStr = "aud";
+        else if (pid == serviceIt->second.getAudOtherPid())
+          pidInfoIt->second.mTypeStr = "oth";
         else if (pid == serviceIt->second.getSubPid())
-          pidInfoIt->second.mInfo = "sub " + str;
-        else if (pid == serviceIt->second.getProgramPid())
-          pidInfoIt->second.mInfo = "pgm " + str;
+          pidInfoIt->second.mTypeStr = "sub";
+
+        pidInfoIt->second.mInfoStr = serviceIt->second.getName() + " - " + serviceIt->second.getNow()->mTitle;
         }
       }
     }
