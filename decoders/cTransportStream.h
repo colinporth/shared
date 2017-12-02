@@ -6570,7 +6570,7 @@ public:
 
     uint32_t val = getBits (count);
     if (val != 0)
-      cLog::log (LOGINFO, "field error - %d bits should be 0 is %x", count, val);
+      cLog::log (LOGERROR, "field error - %d bits should be 0 is %x", count, val);
     }
   //}}}
   //{{{
@@ -7035,7 +7035,7 @@ public:
       else {
         if (lostSync) {
           //{{{  lostSync warning
-          cLog::log (LOGINFO, "%d demux ****** resynced bytes:%d ******", mPackets, lostSync);
+          cLog::log (LOGERROR, "%d demux ****** resynced bytes:%d ******", mPackets, lostSync);
           streamPos += lostSync;
           lostSync = 0;
           }
@@ -7130,7 +7130,7 @@ public:
               // add to buffered section
               if (pidInfo->mBufPtr + tsFrameBytesLeft > pidInfo->mBuffer + pidInfo->mBufSize)
                 cLog::log (LOGINFO, "%d sectionBuffer overflow > 4096 %d",
-                        mPackets, (int)(pidInfo->mBufPtr - pidInfo->mBuffer));
+                                    mPackets, (int)(pidInfo->mBufPtr - pidInfo->mBuffer));
               else {
                 memcpy (pidInfo->mBufPtr, tsPtr, tsFrameBytesLeft);
                 pidInfo->mBufPtr += tsFrameBytesLeft;
@@ -7191,10 +7191,8 @@ public:
                 pidInfo->mBufSize *= 2;
                 auto ptrOffset = pidInfo->mBufPtr - pidInfo->mBuffer;
                 pidInfo->mBuffer = (uint8_t*)realloc (pidInfo->mBuffer, pidInfo->mBufSize);
-
                 memcpy (pidInfo->mBuffer + ptrOffset, tsPtr, tsFrameBytesLeft);
                 pidInfo->mBufPtr = pidInfo->mBuffer + ptrOffset + tsFrameBytesLeft;
-
                 //cLog::log (LOGERROR, "demux - %d - realloc %d", pid, pidInfo->mBufSize);
                 }
               }
@@ -7253,20 +7251,20 @@ protected:
 
 private:
   //{{{
-  void parsePat (uint8_t* buf) {
+  void parsePat (cPidInfo* pidInfo, uint8_t* buf) {
   // PAT declares programPid,sid to mProgramMap, recogneses programPid PMT to declare service streams
 
     auto Pat = (pat_t*)buf;
     auto sectionLength = HILO(Pat->section_length) + 3;
     if (crc32 (buf, sectionLength)) {
       //{{{  bad crc
-      cLog::log (LOGINFO, "parsePAT - bad crc %d", sectionLength);
+      cLog::log (LOGERROR, "parsePAT - bad crc %d", sectionLength);
       return;
       }
       //}}}
     if (Pat->table_id != TID_PAT) {
       //{{{  wrong tid
-      cLog::log (LOGINFO, "parsePAT - unexpected TID %x", Pat->table_id);
+      cLog::log (LOGERROR, "parsePAT - unexpected TID %x", Pat->table_id);
       return;
       }
       //}}}
@@ -7286,14 +7284,14 @@ private:
     }
   //}}}
   //{{{
-  void parseSdt (uint8_t* buf) {
+  void parseSdt (cPidInfo* pidInfo, uint8_t* buf) {
   // SDT add new services to mServiceMap declaring serviceType, name
 
     auto Sdt = (sdt_t*)buf;
     auto sectionLength = HILO(Sdt->section_length) + 3;
     if (crc32 (buf, sectionLength)) {
       //{{{  wrong crc
-      cLog::log (LOGINFO, "parseSDT - bad crc %d", sectionLength);
+      cLog::log (LOGERROR, "parseSDT - bad crc %d", sectionLength);
       return;
       }
       //}}}
@@ -7301,7 +7299,7 @@ private:
       return;
     if (Sdt->table_id != TID_SDT_ACT) {
       //{{{  wrong tid
-      cLog::log (LOGINFO, "parseSDT - unexpected TID %x", Sdt->table_id);
+      cLog::log (LOGERROR, "parseSDT - unexpected TID %x", Sdt->table_id);
       return;
       }
       //}}}
@@ -7348,7 +7346,7 @@ private:
                   std::map<int,cService>::value_type (sid, cService (sid, tsid, onid, serviceType, -1,-1, nameStr)));
                 auto serviceIt = pair.first;
                 cLog::log (LOGINFO, "SDT new cService tsid:%d sid:%d %s name<%s>",
-                        tsid, sid, serviceIt->second.getTypeStr().c_str(), nameStr.c_str());
+                           tsid, sid, serviceIt->second.getTypeStr().c_str(), nameStr.c_str());
                 }
               }
 
@@ -7379,20 +7377,20 @@ private:
     }
   //}}}
   //{{{
-  void parsePmt (int pid, uint8_t* buf) {
+  void parsePmt (cPidInfo* pidInfo, int pid, uint8_t* buf) {
   // PMT declares streams for a service
 
     auto pmt = (pmt_t*)buf;
     auto sectionLength = HILO(pmt->section_length) + 3;
     if (crc32 (buf, sectionLength)) {
       //{{{  bad crc
-      cLog::log (LOGINFO, "parsePMT - pid:%d bad crc %d", pid, sectionLength);
+      cLog::log (LOGERROR, "parsePMT - pid:%d bad crc %d", pid, sectionLength);
       return;
       }
       //}}}
     if (pmt->table_id != TID_PMT) {
       //{{{  wrong tid
-      cLog::log (LOGINFO, "parsePMT - wrong TID %x", pmt->table_id);
+      cLog::log (LOGERROR, "parsePMT - wrong TID %x", pmt->table_id);
       return;
       }
       //}}}
@@ -7444,7 +7442,7 @@ private:
 
           case 13:
           default:
-            cLog::log (LOGINFO, "parsePmt - unknown streamType:%d sid:%d esPid:%d", streamType, sid, esPid);
+            cLog::log (LOGERROR, "parsePmt - unknown streamType:%d sid:%d esPid:%d", streamType, sid, esPid);
             recognised = false;
             break;
           }
@@ -7510,7 +7508,7 @@ private:
     auto sectionLength = HILO(Nit->section_length) + 3;
     if (crc32 (buf, sectionLength)) {
       //{{{  bad crc
-      cLog::log (LOGINFO, "parseNIT - bad crc %d", sectionLength);
+      cLog::log (LOGERROR, "parseNIT - bad crc %d", sectionLength);
       return;
       }
       //}}}
@@ -7518,7 +7516,7 @@ private:
         (Nit->table_id != TID_NIT_OTH) &&
         (Nit->table_id != TID_BAT)) {
       //{{{  wrong tid
-      cLog::log (LOGINFO, "parseNIT - wrong TID %x", Nit->table_id);
+      cLog::log (LOGERROR, "parseNIT - wrong TID %x", Nit->table_id);
       return;
       }
       //}}}
@@ -7562,13 +7560,16 @@ private:
     }
   //}}}
   //{{{
-  void parseEit (uint8_t* buf, int tag) {
+  void parseEit (cPidInfo* pidInfo, uint8_t* buf, int tag) {
 
     auto Eit = (eit_t*)buf;
     auto sectionLength = HILO(Eit->section_length) + 3;
     if (crc32 (buf, sectionLength)) {
       //{{{  error, return
-      cLog::log (LOGINFO, "%d parseEit len:%d tag:%d Bad CRC  ", mPackets, sectionLength, tag);
+      mEitError++;
+      //cLog::log (LOGERROR, "%d parseEit len:%d tag:%d Bad CRC  ", mPackets, sectionLength, tag);
+      pidInfo->mInfoStr = "CRC errors " + dec (mEitError);
+
       return;
       }
       //}}}
@@ -7657,10 +7658,10 @@ private:
               #ifdef EIT_EXTENDED_EVENT_DEBUG
                 //{{{  print eit extended event
                 cLog::log (LOGINFO, "EIT extendedEvent sid:%d descLen:%d lastDescNum:%d DescNum:%d item:%d",
-                        sid, GetDescrLength (ptr),
-                        CastExtendedEventDescr(ptr)->last_descr_number,
-                        CastExtendedEventDescr(ptr)->descr_number,
-                        CastExtendedEventDescr(ptr)->length_of_items);
+                                    sid, GetDescrLength (ptr),
+                                    CastExtendedEventDescr(ptr)->last_descr_number,
+                                    CastExtendedEventDescr(ptr)->descr_number,
+                                    CastExtendedEventDescr(ptr)->length_of_items);
 
                 for (auto i = 0; i < GetDescrLength (ptr) -2; i++) {
                   char c = *(ptr + 2 + i);
@@ -7685,7 +7686,7 @@ private:
       }
     else {
       //{{{  unexpected tid, error, return
-      cLog::log (LOGINFO, "parseEIT - unexpected tid:%x", tid);
+      cLog::log (LOGERROR, "parseEIT - unexpected tid:%x", tid);
       return;
       }
       //}}}
@@ -7695,12 +7696,12 @@ private:
   void parseSection (int pid, cPidInfo* pidInfo, uint8_t* buf, int tag) {
 
     switch (pid) {
-      case PID_PAT: parsePat (buf); break;
-      case PID_SDT: parseSdt (buf); break;
+      case PID_PAT: parsePat (pidInfo, buf); break;
+      case PID_SDT: parseSdt (pidInfo, buf); break;
       case PID_TDT: parseTdt (pidInfo, buf); break;
       case PID_NIT: parseNit (pidInfo, buf); break;
-      case PID_EIT: parseEit (buf, tag); break;
-      default:      parsePmt (pid, buf); break;
+      case PID_EIT: parseEit (pidInfo, buf, tag); break;
+      default:      parsePmt (pidInfo, pid, buf); break;
       }
     }
   //}}}
@@ -7760,10 +7761,10 @@ private:
           *((uint8_t*)(buf + DESCR_EXTENDED_EVENT_LEN + CastExtendedEventDescr(buf)->length_of_items)));
 
         cLog::log (LOGINFO, "extended event - %d %d %c%c%c %s",
-                CastExtendedEventDescr(buf)->descr_number, CastExtendedEventDescr(buf)->last_descr_number,
-                CastExtendedEventDescr(buf)->lang_code1,
-                CastExtendedEventDescr(buf)->lang_code2,
-                CastExtendedEventDescr(buf)->lang_code3, text.c_str());
+                             CastExtendedEventDescr(buf)->descr_number, CastExtendedEventDescr(buf)->last_descr_number,
+                             CastExtendedEventDescr(buf)->lang_code1,
+                             CastExtendedEventDescr(buf)->lang_code2,
+                             CastExtendedEventDescr(buf)->lang_code3, text.c_str());
 
         auto ptr = buf + DESCR_EXTENDED_EVENT_LEN;
         auto length = CastExtendedEventDescr(buf)->length_of_items;
@@ -7789,9 +7790,9 @@ private:
         //{{{  component
         std::string str = getDescrStr (buf + DESCR_COMPONENT_LEN, GetDescrLength (buf) - DESCR_COMPONENT_LEN);
         cLog::log (LOGINFO, "component %2d %2d %d %s",
-                CastComponentDescr(buf)->stream_content,
-                CastComponentDescr(buf)->component_type,
-                CastComponentDescr(buf)->component_tag, str.c_str());
+                            CastComponentDescr(buf)->stream_content,
+                            CastComponentDescr(buf)->component_type,
+                            CastComponentDescr(buf)->component_tag, str.c_str());
         break;
         }
         //}}}
@@ -7912,6 +7913,8 @@ private:
 
   uint64_t mPackets = 0;
   int mDiscontinuity = 0;
+
+  uint64_t mEitError = 0;
 
   time_t mCurTime;
   //}}}
