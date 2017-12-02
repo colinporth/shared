@@ -6994,11 +6994,11 @@ public:
         if (pidInfoIt != mPidInfoMap.end()) {
           firstPts = pidInfoIt->second.mFirstPts;
           lastPts = pidInfoIt->second.mLastPts;
-          cLog::log (LOGNOTICE, "getService " + dec(index) + 
-                                " " + dec(vidPid) + 
-                                ":" + dec(audPid) +
-                                " " + getFullPtsString (firstPts) +
-                                " " + getFullPtsString (lastPts));
+          cLog::log (LOGNOTICE, "getService " + dec(index) +
+                                " aud:" + dec(audPid) +
+                                " vid:" + dec(vidPid) +
+                                " first:" + getFullPtsString (firstPts) +
+                                " last:" + getFullPtsString (lastPts));
           return true;
           }
         }

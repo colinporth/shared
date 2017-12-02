@@ -102,32 +102,6 @@ inline std::string getFullPtsString (int64_t pts) {
     }
   }
 //}}}
-//{{{
-inline std::string getDebugPtsString (int64_t pts) {
-
-  if (pts < 0)
-    return "--:--:--:--";
-  else {
-    uint32_t frac = pts % 900;
-
-    pts /= 900;
-    uint32_t hs = pts % 100;
-
-    pts /= 100;
-    uint32_t secs = pts % 60;
-
-    pts /= 60;
-    uint32_t mins = pts % 60;
-
-    pts /= 60;
-    uint32_t hours = pts % 60;
-
-    std::string str (hours ? (dec (hours) + 'h' + dec (mins, 2, '0') + 'm') : mins ? (dec (mins) + 'm') : "");
-
-    return str + dec (secs, 2, '0') + 's' + dec (hs, 2, '0') + "." + dec (frac,3,'0');
-    }
-  }
-//}}}
 
 //{{{
 inline std::string getTimeString (uint32_t secs) {
@@ -137,4 +111,3 @@ inline std::string getTimeString (uint32_t secs) {
          dec( secs % 60, 2, '0');
   }
 //}}}
-
