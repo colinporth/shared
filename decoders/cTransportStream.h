@@ -6978,26 +6978,31 @@ public:
   std::string getNetworkString() { return mNetworkNameStr; }
 
   //{{{
-  bool getService (int index, int& audPid, int& vidPid, int64_t& basePts, int64_t& lastPts) {
+  bool getService (int index, int& audPid, int& vidPid, int64_t& firstPts, int64_t& lastPts) {
 
     audPid = 0;
     vidPid = 0;
-    basePts = -1;
+    firstPts = -1;
     lastPts = -1;
 
-    auto service = mServiceMap.begin();
-    if (service != mServiceMap.end()) {
-      audPid = service->second.getAudPid();
-      vidPid = service->second.getVidPid();
-      auto pidInfoIt = mPidInfoMap.find (audPid);
-      if (pidInfoIt != mPidInfoMap.end()) {
-        basePts = pidInfoIt->second.mFirstPts;
-        lastPts = pidInfoIt->second.mLastPts;
-        cLog::log (LOGINFO, "getService - vidPid:%d audPid:%d %s %s",
-                            vidPid, audPid,
-                            getFullPtsString(basePts).c_str(), getFullPtsString(lastPts).c_str());
-        return true;
+    int i = 0;
+    for (auto &service : mServiceMap) {
+      if (i == index) {
+        audPid = service.second.getAudPid();
+        vidPid = service.second.getVidPid();
+        auto pidInfoIt = mPidInfoMap.find (audPid);
+        if (pidInfoIt != mPidInfoMap.end()) {
+          firstPts = pidInfoIt->second.mFirstPts;
+          lastPts = pidInfoIt->second.mLastPts;
+          cLog::log (LOGNOTICE, "getService " + dec(index) + 
+                                " " + dec(vidPid) + 
+                                ":" + dec(audPid) +
+                                " " + getFullPtsString (firstPts) +
+                                " " + getFullPtsString (lastPts));
+          return true;
+          }
         }
+      i++;
       }
 
     return false;
