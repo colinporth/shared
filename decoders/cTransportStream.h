@@ -6682,8 +6682,8 @@ public:
 
   int mSid = -1;
   int mStreamType = 0;
-  int mTotal = 0;
 
+  int mTotal = 0;
   int mContinuity = -1;
   int mDisContinuity = 0;
   int mRepeatContinuity = 0;
