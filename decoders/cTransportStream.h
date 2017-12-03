@@ -6971,13 +6971,8 @@ public:
     }
   //}}}
 
-  //{{{  gets
   uint64_t getPackets() { return mPackets; }
-  int getDiscontinuity() { return mDiscontinuity; }
-
-  std::string getTimeString() { return mTimeStr; }
-  std::string getNetworkString() { return mNetworkNameStr; }
-  //}}}
+  uint64_t getDiscontinuity() { return mDiscontinuity; }
   //{{{
   bool getService (int index, int& audPid, int& vidPid, int64_t& firstPts, int64_t& lastPts) {
 
@@ -7483,20 +7478,10 @@ private:
     auto Tdt = (tdt_t*)buf;
     if (Tdt->table_id == TID_TDT) {
       mCurTime = MjdToEpochTime (Tdt->utc_mjd) + BcdTimeToSeconds (Tdt->utc_time);
+      if (mFirstTime == 0)
+        mFirstTime = mCurTime;
 
-      tm time = *localtime (&mCurTime);
-
-      static const char wday_name[][4] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
-      static const char mon_name[][4] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                                          "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
-      mTimeStr = dec(time.tm_hour,2,'0') + ":" +
-                 dec(time.tm_min,2,'0') + ":" +
-                 dec(time.tm_sec,2,'0') + ":00 " +
-                 wday_name[time.tm_wday] + " " +
-                 dec(time.tm_mday) + " " +
-                 mon_name[time.tm_mon] + " " +
-                 dec(1900 + time.tm_year);
-      pidInfo->mInfoStr = mTimeStr;
+      pidInfo->mInfoStr = getTimeStr (mFirstTime) + " to " + getTimeDateStr (mCurTime);
       }
     }
   //}}}
@@ -7706,6 +7691,34 @@ private:
   //}}}
 
   //{{{
+  std::string getTimeStr (time_t& time) {
+
+    tm localTm = *localtime (&time);
+
+    return dec(localTm.tm_hour,2,'0') + ":" +
+           dec(localTm.tm_min,2,'0') + ":" +
+           dec(localTm.tm_sec,2,'0');
+    }
+  //}}}
+  //{{{
+  std::string getTimeDateStr (time_t& time) {
+
+    tm localTm = *localtime (&time);
+
+    const char day_name[][4] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+    const char mon_name[][4] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+
+    return dec(localTm.tm_hour,2,'0') + ":" +
+           dec(localTm.tm_min,2,'0') + ":" +
+           dec(localTm.tm_sec,2,'0') + " " +
+           day_name[localTm.tm_wday] + " " +
+           dec(localTm.tm_mday) + " " +
+           mon_name[localTm.tm_mon] + " " +
+           dec(1900 + localTm.tm_year);
+    }
+  //}}}
+  //{{{
   int64_t parseTimeStamp (uint8_t* tsPtr) {
   // return 33 bits of pts,dts
 
@@ -7886,7 +7899,7 @@ private:
         else if (pid == serviceIt->second.getAudPid())
           pidInfoIt->second.mTypeStr = "aud";
         else if (pid == serviceIt->second.getAudOtherPid())
-          pidInfoIt->second.mTypeStr = "oth";
+          pidInfoIt->second.mTypeStr = "ads";
         else if (pid == serviceIt->second.getSubPid())
           pidInfoIt->second.mTypeStr = "sub";
 
@@ -7907,14 +7920,13 @@ private:
   //}}}
 
   //{{{  private vars
-  std::string mTimeStr;
+  time_t mFirstTime;
+  time_t mCurTime;
+
   std::string mNetworkNameStr;
 
   uint64_t mPackets = 0;
-  int mDiscontinuity = 0;
-
+  uint64_t mDiscontinuity = 0;
   uint64_t mEitError = 0;
-
-  time_t mCurTime;
   //}}}
   };
