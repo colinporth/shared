@@ -6970,13 +6970,14 @@ public:
     return '?';
     }
   //}}}
+
   //{{{  gets
   uint64_t getPackets() { return mPackets; }
   int getDiscontinuity() { return mDiscontinuity; }
 
   std::string getTimeString() { return mTimeStr; }
   std::string getNetworkString() { return mNetworkNameStr; }
-
+  //}}}
   //{{{
   bool getService (int index, int& audPid, int& vidPid, int64_t& firstPts, int64_t& lastPts) {
 
@@ -7008,8 +7009,6 @@ public:
     return false;
     }
   //}}}
-  //}}}
-
   //{{{
   int64_t demux (uint8_t* tsBuf, int64_t tsBufSize, int64_t streamPos, bool skip) {
   // demux from tsBuffer to tsBuffer + tsBufferSize, streamPos is offset into full stream of first packet
