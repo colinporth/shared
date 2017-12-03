@@ -6,6 +6,8 @@
 #include <time.h>
 
 #include "dvbSubtitle.h"
+
+using namespace std;
 //}}}
 //{{{  macros
 #define HILO(x) (x##_hi << 8 | x##_lo)
@@ -6674,7 +6676,7 @@ public:
 
   void print() {
     cLog::log (LOGINFO, "pid:%d sid:%d streamType:%d - packets:%d disContinuity:%d repContinuity:%d",
-                         mPid, mSid, mStreamType, mTotal, mDisContinuity, mRepeatContinuity);
+                        mPid, mSid, mStreamType, mTotal, mDisContinuity, mRepeatContinuity);
     }
 
   int mPid;
@@ -6701,8 +6703,8 @@ public:
 
   int64_t mStreamPos = -1;
 
-  std::string mTypeStr = "   ";
-  std::string mInfoStr;
+  string mTypeStr = "   ";
+  string mInfoStr;
   };
 //}}}
 //{{{
@@ -6710,7 +6712,7 @@ class cEpgItem {
 public:
   cEpgItem() : mStartTime(0), mDuration(0) {}
   //{{{
-  cEpgItem (time_t startTime, int duration, std::string title, std::string shortDescription)
+  cEpgItem (time_t startTime, int duration, string title, string shortDescription)
       : mStartTime(startTime), mDuration(duration) {
     mTitle = title;
     mShortDescription = shortDescription;
@@ -6719,21 +6721,21 @@ public:
   ~cEpgItem() {}
 
   //{{{
-  std::string getNameStr() {
+  string getNameStr() {
     return mTitle;
     }
   //}}}
   //{{{
-  std::string getStartTimeStr() {
+  string getStartTimeStr() {
     struct tm time = *localtime (&mStartTime);
     char* timeStr = asctime (&time);
     timeStr[24] = 0;
-    return std::string (timeStr);
+    return string (timeStr);
     }
   //}}}
 
   //{{{
-  void set (time_t startTime, int duration, std::string title, std::string shortDescription) {
+  void set (time_t startTime, int duration, string title, string shortDescription) {
 
     mDuration = duration;
     mStartTime = startTime;
@@ -6744,7 +6746,7 @@ public:
   //}}}
 
   //{{{
-  void print (std::string prefix) {
+  void print (string prefix) {
 
     struct tm time = *localtime (&mStartTime);
     char* timeStr = asctime (&time);
@@ -6758,16 +6760,16 @@ public:
   time_t mStartTime;
   int mDuration;
 
-  std::string mTitle;
-  std::string mShortDescription;
+  string mTitle;
+  string mShortDescription;
   };
 //}}}
 //{{{
 class cService {
 public:
   //{{{
-  cService (int sid, int tsid, int onid, int type, int vid, int aud, const std::string& name) :
-      mSid(sid), mTsid(tsid), mOnid(onid), mType(type), mVidPid(vid), mAudPid(aud), mName(name) {}
+  cService (int sid, int tsid, int onid, int type, int vidPid, int audPid, const string& name) :
+      mSid(sid), mTsid(tsid), mOnid(onid), mType(type), mVidPid(vidPid), mAudPid(audPid), mName(name) {}
   //}}}
   ~cService() {}
 
@@ -6777,7 +6779,7 @@ public:
   int getOnid() const { return mOnid; }
   int getType() const { return mType; }
   //{{{
-  std::string getTypeStr() {
+  string getTypeStr() {
     switch (mType) {
       case kServiceTypeTV :           return "TV";
       case kServiceTypeRadio :        return "Radio";
@@ -6795,7 +6797,7 @@ public:
   int getSubPid() const { return mSubPid; }
 
   cEpgItem* getNow() { return &mNow; }
-  std::string getName() { return mName; }
+  string getName() { return mName; }
   //}}}
   //{{{  sets
   //{{{
@@ -6824,7 +6826,7 @@ public:
   void setProgramPid (int pid) { mProgramPid = pid; }
 
   //{{{
-  bool setNow (time_t startTime, int duration, std::string str1, std::string str2) {
+  bool setNow (time_t startTime, int duration, string str1, string str2) {
 
     bool nowChanged = (startTime != mNow.mStartTime);
 
@@ -6834,7 +6836,7 @@ public:
     }
   //}}}
   //{{{
-  void setEpg (time_t startTime, int duration, std::string str1, std::string str2) {
+  void setEpg (time_t startTime, int duration, string str1, string str2) {
 
     mEpgItemMap.insert (tEpgItemMap::value_type (startTime, cEpgItem(startTime, duration, str1, str2)));
     }
@@ -6865,11 +6867,11 @@ private:
   int mAudOtherPid = -1;
   int mSubPid = -1;
 
-  std::string mName;
+  string mName;
 
   cEpgItem mNow;
 
-  typedef std::map<time_t,cEpgItem> tEpgItemMap;  // startTime, cEpgItem
+  typedef map<time_t,cEpgItem> tEpgItemMap; // startTime, cEpgItem
   tEpgItemMap mEpgItemMap;
   };
 //}}}
@@ -6878,6 +6880,34 @@ class cTransportStream {
 public:
   virtual ~cTransportStream() {}
 
+  //{{{
+  static string getTimeStr (time_t& time) {
+
+    tm localTm = *localtime (&time);
+
+    return dec(localTm.tm_hour,2,'0') + ":" +
+           dec(localTm.tm_min,2,'0') + ":" +
+           dec(localTm.tm_sec,2,'0');
+    }
+  //}}}
+  //{{{
+  static string getTimeDateStr (time_t& time) {
+
+    tm localTm = *localtime (&time);
+
+    const char day_name[][4] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+    const char mon_name[][4] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+
+    return dec(localTm.tm_hour,2,'0') + ":" +
+           dec(localTm.tm_min,2,'0') + ":" +
+           dec(localTm.tm_sec,2,'0') + " " +
+           day_name[localTm.tm_wday] + " " +
+           dec(localTm.tm_mday) + " " +
+           mon_name[localTm.tm_mon] + " " +
+           dec(1900 + localTm.tm_year);
+    }
+  //}}}
   //{{{
   static char getFrameType (uint8_t* pesBuf, int64_t pesBufSize, int streamType) {
   // return frameType of video pes
@@ -6991,10 +7021,10 @@ public:
           firstPts = pidInfoIt->second.mFirstPts;
           lastPts = pidInfoIt->second.mLastPts;
           cLog::log (LOGNOTICE, "getService " + dec(index) +
-                                " aud:" + dec(audPid) +
-                                " vid:" + dec(vidPid) +
-                                " first:" + getFullPtsString (firstPts) +
-                                " last:" + getFullPtsString (lastPts));
+                                " vidPid:" + dec(vidPid) +
+                                " audPid:" + dec(audPid) +
+                                " firstPts:" + getFullPtsString (firstPts) +
+                                " lastPts:" + getFullPtsString (lastPts));
           return true;
           }
         }
@@ -7053,7 +7083,7 @@ public:
           auto pidInfoIt = mPidInfoMap.find (pid);
           if (pidInfoIt == mPidInfoMap.end()) {
             // new pid, insert new cPidInfo, get pidInfoIt iterator
-            auto insertPair = mPidInfoMap.insert (std::map<int,cPidInfo>::value_type (pid, cPidInfo(pid, isSection)));
+            auto insertPair = mPidInfoMap.insert (map<int,cPidInfo>::value_type (pid, cPidInfo(pid, isSection)));
             pidInfoIt = insertPair.first;
             pidInfoIt->second.mBufSize = kBufSize;
             pidInfoIt->second.mBuffer = (uint8_t*)malloc (kBufSize);
@@ -7233,15 +7263,15 @@ public:
   //}}}
 
   // vars
-  std::map<int,int>      mProgramMap; // PAT insert <pid,sid>'s    into mProgramMap
-  std::map<int,cService> mServiceMap; // SDT insert <sid,cService> into mServiceMap
-  std::map<int,cPidInfo> mPidInfoMap; // pid insert <pid,cPidInfo> into mPidInfoMap
-                                      // PMT set cService pids
-                                      // EIT add cService Now,Epg events
+  map<int,int>      mProgramMap; // PAT insert <pid,sid>'s    into mProgramMap
+  map<int,cService> mServiceMap; // SDT insert <sid,cService> into mServiceMap
+  map<int,cPidInfo> mPidInfoMap; // pid insert <pid,cPidInfo> into mPidInfoMap
+                                 // PMT set cService pids
+                                 // EIT add cService Now,Epg events
 protected:
   virtual bool audDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
   virtual bool vidDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
-  virtual void startProgram (int vpid, int apid, const std::string& name, const std::string& startTime) {}
+  virtual void startProgram (int vidPid, int audPid, const string& name, const string& startTime) {}
 
 private:
   //{{{
@@ -7270,7 +7300,7 @@ private:
       auto sid = HILO (patProgram->program_number);
       auto pid = HILO (patProgram->network_pid);
       if (mProgramMap.find (pid) == mProgramMap.end())
-        mProgramMap.insert (std::map<int,int>::value_type (pid, sid));
+        mProgramMap.insert (map<int,int>::value_type (pid, sid));
 
       sectionLength -= PAT_PROG_LEN;
       ptr += PAT_PROG_LEN;
@@ -7331,13 +7361,13 @@ private:
                 auto tsid = HILO (Sdt->transport_stream_id);
                 auto onid = HILO (Sdt->original_network_id);
 
-                std::string nameStr = getDescrStr (
+                string nameStr = getDescrStr (
                   ptr + DESCR_SERVICE_LEN + CastServiceDescr(ptr)->provider_name_length + 1,
                   *((uint8_t*)(ptr + DESCR_SERVICE_LEN + CastServiceDescr(ptr)->provider_name_length)));
 
                 // insert new cService, get serviceIt iterator
                 auto pair = mServiceMap.insert (
-                  std::map<int,cService>::value_type (sid, cService (sid, tsid, onid, serviceType, -1,-1, nameStr)));
+                  map<int,cService>::value_type (sid, cService (sid, tsid, onid, serviceType, -1,-1, nameStr)));
                 auto serviceIt = pair.first;
                 cLog::log (LOGINFO, "SDT new cService tsid:%d sid:%d %s name<%s>",
                            tsid, sid, serviceIt->second.getTypeStr().c_str(), nameStr.c_str());
@@ -7463,12 +7493,12 @@ private:
     else if (pid == 32) {
       // simple tsFile with no SDT, pid 32 used to allocate service with sid
       cLog::log (LOGINFO, "parsePmt - serviceMap.insert pid 32");
-      mServiceMap.insert (std::map<int,cService>::value_type (sid, cService (sid,0,0, kServiceTypeTV, -1,-1, "file32")));
+      mServiceMap.insert (map<int,cService>::value_type (sid, cService (sid,0,0, kServiceTypeTV, -1,-1, "file32")));
       }
     else if (pid == 256) {
       // simple tsFile with no SDT, pid 256 used to allocate service with sid
       cLog::log (LOGINFO, "parsePmt - serviceMap.insert pid 0x100");
-      mServiceMap.insert (std::map<int,cService>::value_type (sid, cService (sid,0,0, kServiceTypeTV, 258,257, "file256")));
+      mServiceMap.insert (map<int,cService>::value_type (sid, cService (sid,0,0, kServiceTypeTV, 258,257, "file256")));
       }
     }
   //}}}
@@ -7589,13 +7619,13 @@ private:
                 auto running = (EitEvent->running_status == 0x04);
 
                 auto title = huffDecode (ptr + DESCR_SHORT_EVENT_LEN, CastShortEventDescr(ptr)->event_name_length);
-                std::string titleStr = title ?
+                string titleStr = title ?
                   title : getDescrStr (ptr + DESCR_SHORT_EVENT_LEN, CastShortEventDescr(ptr)->event_name_length);
 
                 auto shortDescription = huffDecode (
                   ptr + DESCR_SHORT_EVENT_LEN + CastShortEventDescr(ptr)->event_name_length+1,
                   size_t(ptr + DESCR_SHORT_EVENT_LEN + CastShortEventDescr(ptr)->event_name_length));
-                std::string shortDescriptionStr = shortDescription ?
+                string shortDescriptionStr = shortDescription ?
                   shortDescription : getDescrStr (
                     ptr + DESCR_SHORT_EVENT_LEN + CastShortEventDescr(ptr)->event_name_length+1,
                     *((uint8_t*)(ptr + DESCR_SHORT_EVENT_LEN + CastShortEventDescr(ptr)->event_name_length)));
@@ -7691,34 +7721,6 @@ private:
   //}}}
 
   //{{{
-  std::string getTimeStr (time_t& time) {
-
-    tm localTm = *localtime (&time);
-
-    return dec(localTm.tm_hour,2,'0') + ":" +
-           dec(localTm.tm_min,2,'0') + ":" +
-           dec(localTm.tm_sec,2,'0');
-    }
-  //}}}
-  //{{{
-  std::string getTimeDateStr (time_t& time) {
-
-    tm localTm = *localtime (&time);
-
-    const char day_name[][4] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
-    const char mon_name[][4] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                                 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
-
-    return dec(localTm.tm_hour,2,'0') + ":" +
-           dec(localTm.tm_min,2,'0') + ":" +
-           dec(localTm.tm_sec,2,'0') + " " +
-           day_name[localTm.tm_wday] + " " +
-           dec(localTm.tm_mday) + " " +
-           mon_name[localTm.tm_mon] + " " +
-           dec(1900 + localTm.tm_year);
-    }
-  //}}}
-  //{{{
   int64_t parseTimeStamp (uint8_t* tsPtr) {
   // return 33 bits of pts,dts
 
@@ -7740,9 +7742,9 @@ private:
   //}}}
 
   //{{{
-  std::string getDescrStr (uint8_t* buf, int len) {
+  string getDescrStr (uint8_t* buf, int len) {
 
-    std::string str;
+    string str;
     for (auto i = 0; i < len; i++) {
       if (*buf == 0)
         break;
@@ -7760,7 +7762,7 @@ private:
   //}}}
   //{{{
   //{{{
-  void parseDescr (std::string sectionName, int key, uint8_t* buf, int tid) {
+  void parseDescr (string sectionName, int key, uint8_t* buf, int tid) {
   //}}}
 
     switch (GetDescrTag(buf)) {
@@ -7768,7 +7770,7 @@ private:
         break;
       case DESCR_EXTENDED_EVENT: {
         //{{{  extended event
-        std::string text = getDescrStr (
+        string text = getDescrStr (
           buf + DESCR_EXTENDED_EVENT_LEN + CastExtendedEventDescr(buf)->length_of_items + 1,
           *((uint8_t*)(buf + DESCR_EXTENDED_EVENT_LEN + CastExtendedEventDescr(buf)->length_of_items)));
 
@@ -7782,7 +7784,7 @@ private:
         auto length = CastExtendedEventDescr(buf)->length_of_items;
         while ((length > 0) && (length < GetDescrLength (buf))) {
           text = getDescrStr (ptr + ITEM_EXTENDED_EVENT_LEN, CastExtendedEventItem(ptr)->item_description_length);
-          std::string text2 = getDescrStr (
+          string text2 = getDescrStr (
             ptr + ITEM_EXTENDED_EVENT_LEN + CastExtendedEventItem(ptr)->item_description_length + 1,
             *(uint8_t* )(ptr + ITEM_EXTENDED_EVENT_LEN + CastExtendedEventItem(ptr)->item_description_length));
           cLog::log (LOGINFO, "- %s %s", text.c_str(), text2.c_str());
@@ -7800,7 +7802,7 @@ private:
         //}}}
       case DESCR_COMPONENT: {
         //{{{  component
-        std::string str = getDescrStr (buf + DESCR_COMPONENT_LEN, GetDescrLength (buf) - DESCR_COMPONENT_LEN);
+        string str = getDescrStr (buf + DESCR_COMPONENT_LEN, GetDescrLength (buf) - DESCR_COMPONENT_LEN);
         cLog::log (LOGINFO, "component %2d %2d %d %s",
                             CastComponentDescr(buf)->stream_content,
                             CastComponentDescr(buf)->component_type,
@@ -7865,7 +7867,7 @@ private:
     }
   //}}}
   //{{{
-  void parseDescrs (std::string sectionName, int key, uint8_t* buf, int len, uint8_t tid) {
+  void parseDescrs (string sectionName, int key, uint8_t* buf, int len, uint8_t tid) {
 
    auto ptr = buf;
    auto DescrLength = 0;
@@ -7923,7 +7925,7 @@ private:
   time_t mFirstTime;
   time_t mCurTime;
 
-  std::string mNetworkNameStr;
+  string mNetworkNameStr;
 
   uint64_t mPackets = 0;
   uint64_t mDiscontinuity = 0;
