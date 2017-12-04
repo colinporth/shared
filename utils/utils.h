@@ -4,6 +4,7 @@
 #include <sstream>
 #include <iostream>
 #include <iomanip>
+#include <stdio.h>
 
 #ifdef USE_NANOVG
   #define bigMalloc(size,tag)   malloc (size)
@@ -109,5 +110,36 @@ inline std::string getTimeString (uint32_t secs) {
   return dec (secs / (60*60)) + ':' +
          dec ((secs / 60) % 60, 2, '0') + ':' +
          dec( secs % 60, 2, '0');
+  }
+//}}}
+
+//{{{
+inline std::string getTimetString (time_t& time) {
+  
+  tm localTm;
+  localtime_s (&localTm, &time);
+
+  return dec(localTm.tm_hour,2,'0') + ":" +
+         dec(localTm.tm_min,2,'0') + ":" +
+         dec(localTm.tm_sec,2,'0');
+  }
+//}}}
+//{{{
+inline std::string getTimetDateString (time_t& time) {
+
+  tm localTm;
+  localtime_s(&localTm, &time);
+
+  const char day_name[][4] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+  const char mon_name[][4] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+
+  return dec(localTm.tm_hour,2,'0') + ":" +
+         dec(localTm.tm_min,2,'0') + ":" +
+         dec(localTm.tm_sec,2,'0') + " " +
+         day_name[localTm.tm_wday] + " " +
+         dec(localTm.tm_mday) + " " +
+         mon_name[localTm.tm_mon] + " " +
+         dec(1900 + localTm.tm_year);
   }
 //}}}
