@@ -352,8 +352,8 @@ typedef struct descr_gen_struct {
 
 #define CastGenericDescr(x) ((descr_gen_t *)(x))
 
-#define GetDescrTag(x) (((descr_gen_t *) x)->descr_tag)
-#define GetDescrLength(x) (((descr_gen_t *) x)->descr_length+2)
+#define getDescrTag(x) (((descr_gen_t *) x)->descr_tag)
+#define getDescrLength(x) (((descr_gen_t *) x)->descr_length+2)
 //}}}
 
 //{{{  0x40 network_name_desciptor
@@ -399,16 +399,12 @@ typedef struct descr_bouquet_name_struct {
 #define CastBouquetNameDescr(x) ((descr_bouquet_name_t *)(x))
 //}}}
 //{{{  0x48 service_descr
-#define DESCR_SERVICE_LEN  4
-
 typedef struct descr_service_struct {
   uint8_t descr_tag             :8;
   uint8_t descr_length          :8;
   uint8_t service_type          :8;
   uint8_t provider_name_length  :8;
   } descr_service_t;
-
-#define CastServiceDescr(x) ((descr_service_t *)(x))
 //}}}
 //{{{  0x4D short_event_descr
 #define DESCR_SHORT_EVENT_LEN 6
@@ -7189,7 +7185,7 @@ public:
                 pidInfo->mBufPtr = pidInfo->mBuffer;
                 pidInfo->mStreamPos = streamPos;
 
-                pidInfo->mPts = (tsPtr[7] & 0x80) ? parseTimeStamp (tsPtr+9) : 0;
+                pidInfo->mPts = (tsPtr[7] & 0x80) ? getTimeStamp (tsPtr+9) : 0;
                 if (pidInfo->mFirstPts == -1)
                   pidInfo->mFirstPts = pidInfo->mPts;
                 if (pidInfo->mPts > pidInfo->mLastPts)
@@ -7278,32 +7274,33 @@ private:
   void parsePat (cPidInfo* pidInfo, uint8_t* buf) {
   // PAT declares programPid,sid to mProgramMap, recogneses programPid PMT to declare service streams
 
-    auto Pat = (pat_t*)buf;
-    auto sectionLength = HILO(Pat->section_length) + 3;
+    auto pat = (pat_t*)buf;
+    auto sectionLength = HILO(pat->section_length) + 3;
     if (crc32 (buf, sectionLength)) {
       //{{{  bad crc
       cLog::log (LOGERROR, "parsePAT - bad crc %d", sectionLength);
       return;
       }
       //}}}
-    if (Pat->table_id != TID_PAT) {
+    if (pat->table_id != TID_PAT) {
       //{{{  wrong tid
-      cLog::log (LOGERROR, "parsePAT - unexpected TID %x", Pat->table_id);
+      cLog::log (LOGERROR, "parsePAT - unexpected TID %x", pat->table_id);
       return;
       }
       //}}}
 
-    auto ptr = buf + PAT_LEN;
+    buf += PAT_LEN;
     sectionLength -= PAT_LEN + 4;
     while (sectionLength > 0) {
-      auto patProgram = (pat_prog_t*)ptr;
+      auto patProgram = (pat_prog_t*)buf;
+
       auto sid = HILO (patProgram->program_number);
       auto pid = HILO (patProgram->network_pid);
       if (mProgramMap.find (pid) == mProgramMap.end())
         mProgramMap.insert (map<int,int>::value_type (pid, sid));
 
       sectionLength -= PAT_PROG_LEN;
-      ptr += PAT_PROG_LEN;
+      buf += PAT_PROG_LEN;
       }
     }
   //}}}
@@ -7311,44 +7308,42 @@ private:
   void parseSdt (cPidInfo* pidInfo, uint8_t* buf) {
   // SDT add new services to mServiceMap declaring serviceType, name
 
-    auto Sdt = (sdt_t*)buf;
-    auto sectionLength = HILO(Sdt->section_length) + 3;
+    auto sdt = (sdt_t*)buf;
+    auto sectionLength = HILO(sdt->section_length) + 3;
     if (crc32 (buf, sectionLength)) {
       //{{{  wrong crc
       cLog::log (LOGERROR, "parseSDT - bad crc %d", sectionLength);
       return;
       }
       //}}}
-    if (Sdt->table_id == TID_SDT_OTH) // ignore other multiplex services for now
+    if (sdt->table_id == TID_SDT_OTH) // ignore other multiplex services for now
       return;
-    if (Sdt->table_id != TID_SDT_ACT) {
+    if (sdt->table_id != TID_SDT_ACT) {
       //{{{  wrong tid
-      cLog::log (LOGERROR, "parseSDT - unexpected TID %x", Sdt->table_id);
+      cLog::log (LOGERROR, "parseSDT - unexpected TID %x", sdt->table_id);
       return;
       }
       //}}}
 
-    //cLog::log (LOGINFO, "SDT - tsid:%d onid:%d", tsid, onid);
-
-    auto ptr = buf + SDT_LEN;
+    buf += SDT_LEN;
     sectionLength -= SDT_LEN + 4;
     while (sectionLength > 0) {
-      auto SdtDescr = (sdt_descr_t*)ptr;
+      auto SdtDescr = (sdt_descr_t*)buf;
       auto sid = HILO (SdtDescr->service_id);
       auto free_ca_mode = SdtDescr->free_ca_mode;
       //auto running_status = SdtDescr->running_status;
       auto loopLength = HILO (SdtDescr->descrs_loop_length);
-      ptr += SDT_DESCR_LEN;
+      buf += SDT_DESCR_LEN;
 
-      auto DescrLength = 0;
-      while ((DescrLength < loopLength) &&
-             (GetDescrLength (ptr) > 0) &&
-             (GetDescrLength (ptr) <= loopLength - DescrLength)) {
+      auto descrLength = 0;
+      while ((descrLength < loopLength) &&
+             (getDescrLength (buf) > 0) && (getDescrLength (buf) <= loopLength - descrLength)) {
 
-        switch (GetDescrTag (ptr)) {
-          case DESCR_SERVICE: { // 0x48
+        switch (getDescrTag (buf)) {
+          case DESCR_SERVICE: {
             //{{{  service
-            auto serviceType = CastServiceDescr(ptr)->service_type;
+            auto serviceType = ((descr_service_t*)buf)->service_type;
+
             if ((free_ca_mode == 0) &&
                 ((serviceType == kServiceTypeTV)  ||
                  (serviceType == kServiceTypeRadio) ||
@@ -7358,12 +7353,12 @@ private:
               auto it = mServiceMap.find (sid);
               if (it == mServiceMap.end()) {
                 // new service
-                auto tsid = HILO (Sdt->transport_stream_id);
-                auto onid = HILO (Sdt->original_network_id);
+                auto tsid = HILO (sdt->transport_stream_id);
+                auto onid = HILO (sdt->original_network_id);
 
                 string nameStr = getDescrStr (
-                  ptr + DESCR_SERVICE_LEN + CastServiceDescr(ptr)->provider_name_length + 1,
-                  *((uint8_t*)(ptr + DESCR_SERVICE_LEN + CastServiceDescr(ptr)->provider_name_length)));
+                  buf + sizeof(descr_service_t) + ((descr_service_t*)buf)->provider_name_length + 1,
+                  *((uint8_t*)(buf + sizeof(descr_service_t) + ((descr_service_t*)buf)->provider_name_length)));
 
                 // insert new cService, get serviceIt iterator
                 auto pair = mServiceMap.insert (
@@ -7387,13 +7382,13 @@ private:
             break;
           default:
             //{{{  other
-            cLog::log (LOGINFO, "SDT - unexpected tag:%x", GetDescrTag(ptr));
+            cLog::log (LOGINFO, "SDT - unexpected tag:%x", getDescrTag(buf));
             break;
             //}}}
           }
 
-        DescrLength += GetDescrLength (ptr);
-        ptr += GetDescrLength (ptr);
+        descrLength += getDescrLength (buf);
+        buf += getDescrLength (buf);
         }
 
       sectionLength -= loopLength + SDT_DESCR_LEN;
@@ -7434,44 +7429,44 @@ private:
       updatePidInfo (pid);
       //HILO (pmt->PCR_PID));
 
-      auto ptr = buf + PMT_LEN;
+      buf += PMT_LEN;
       sectionLength -= 4;
       auto programInfoLength = HILO (pmt->program_info_length);
 
       auto streamLength = sectionLength - programInfoLength - PMT_LEN;
       if (streamLength >= 0)
-        parseDescrs ("parsePMT1", sid, ptr, programInfoLength, pmt->table_id);
+        parseDescrs ("PMT", sid, buf, programInfoLength, pmt->table_id);
 
-      ptr += programInfoLength;
+      buf += programInfoLength;
       while (streamLength > 0) {
-        auto pmtInfo = (pmt_info_t*)ptr;
+        auto pmtInfo = (pmt_info_t*)buf;
         auto streamType = pmtInfo->stream_type;
         auto esPid = HILO (pmtInfo->elementary_PID);
 
-        auto recognised = true;
+        auto ok = false;
         switch (streamType) {
-          case 2:  serviceIt->second.setVidPid (esPid, streamType); break; // ISO 13818-2 video
-          case 27: serviceIt->second.setVidPid (esPid, streamType); break; // HD vid
+          case 2:  serviceIt->second.setVidPid (esPid, streamType); ok = true; break; // ISO 13818-2 video
+          case 27: serviceIt->second.setVidPid (esPid, streamType); ok = true; break; // HD vid
 
-          case 3:  serviceIt->second.setAudPid (esPid, streamType); break; // ISO 11172-3 audio
-          case 4:  serviceIt->second.setAudPid (esPid, streamType); break; // ISO 13818-3 audio
-          case 15: serviceIt->second.setAudPid (esPid, streamType); break; // HD aud ADTS
-          case 17: serviceIt->second.setAudPid (esPid, streamType); break; // HD aud LATM
-          case 129: serviceIt->second.setAudPid (esPid, streamType); break; // aud AC3
+          case 3:  serviceIt->second.setAudPid (esPid, streamType); ok = true; break; // ISO 11172-3 audio
+          case 4:  serviceIt->second.setAudPid (esPid, streamType); ok = true; break; // ISO 13818-3 audio
+          case 15: serviceIt->second.setAudPid (esPid, streamType); ok = true; break; // HD aud ADTS
+          case 17: serviceIt->second.setAudPid (esPid, streamType); ok = true; break; // HD aud LATM
+          case 129: serviceIt->second.setAudPid (esPid, streamType); ok = true; break; // aud AC3
 
-          case 6:  serviceIt->second.setSubPid (esPid, streamType); break; // subtitle
+          case 6:  serviceIt->second.setSubPid (esPid, streamType); ok = true; break; // subtitle
 
-          case 5:  recognised = false; break;
-          case 11: recognised = false; break;
+          case 5:
+          case 11:
+          case 13: break;
 
-          case 13:
           default:
-            cLog::log (LOGERROR, "parsePmt - unknown streamType:%d sid:%d esPid:%d", streamType, sid, esPid);
-            recognised = false;
+            cLog::log (LOGERROR, "parsePmt - unknown streamType:%d sid:%d esPid:%d",
+                                 streamType, sid, esPid);
             break;
           }
 
-        if (recognised) {
+        if (ok) {
           // set sid for each stream pid
           auto sectionIt = mPidInfoMap.find (esPid);
           if (sectionIt != mPidInfoMap.end()) {
@@ -7482,11 +7477,11 @@ private:
           }
 
         auto loopLength = HILO (pmtInfo->ES_info_length);
-        parseDescrs ("parsePMT2", sid, ptr, loopLength, pmt->table_id);
+        parseDescrs ("PMT", sid, buf, loopLength, pmt->table_id);
 
-        ptr += PMT_INFO_LEN;
+        buf += PMT_INFO_LEN;
         streamLength -= loopLength + PMT_INFO_LEN;
-        ptr += loopLength;
+        buf += loopLength;
         }
       }
       //}}}
@@ -7505,9 +7500,11 @@ private:
   //{{{
   void parseTdt (cPidInfo* pidInfo, uint8_t* buf) {
 
-    auto Tdt = (tdt_t*)buf;
-    if (Tdt->table_id == TID_TDT) {
-      mCurTime = MjdToEpochTime (Tdt->utc_mjd) + BcdTimeToSeconds (Tdt->utc_time);
+    auto tdt = (tdt_t*)buf;
+
+    if (tdt->table_id == TID_TDT) {
+      mCurTime = MjdToEpochTime (tdt->utc_mjd) + BcdTimeToSeconds (tdt->utc_time);
+
       if (mFirstTime == 0)
         mFirstTime = mCurTime;
 
@@ -7518,56 +7515,57 @@ private:
   //{{{
   void parseNit (cPidInfo* pidInfo, uint8_t* buf) {
 
-    auto Nit = (nit_t*)buf;
-    auto sectionLength = HILO(Nit->section_length) + 3;
+    auto nit = (nit_t*)buf;
+    auto sectionLength = HILO(nit->section_length) + 3;
+
     if (crc32 (buf, sectionLength)) {
       //{{{  bad crc
       cLog::log (LOGERROR, "parseNIT - bad crc %d", sectionLength);
       return;
       }
       //}}}
-    if ((Nit->table_id != TID_NIT_ACT) &&
-        (Nit->table_id != TID_NIT_OTH) &&
-        (Nit->table_id != TID_BAT)) {
+    if ((nit->table_id != TID_NIT_ACT) &&
+        (nit->table_id != TID_NIT_OTH) &&
+        (nit->table_id != TID_BAT)) {
       //{{{  wrong tid
-      cLog::log (LOGERROR, "parseNIT - wrong TID %x", Nit->table_id);
+      cLog::log (LOGERROR, "parseNIT - wrong TID %x", nit->table_id);
       return;
       }
       //}}}
 
-    auto networkId = HILO (Nit->network_id);
+    auto networkId = HILO (nit->network_id);
 
-    auto ptr = buf + NIT_LEN;
-    auto loopLength = HILO (Nit->network_descr_length);
+    buf += NIT_LEN;
+    auto loopLength = HILO (nit->network_descr_length);
     sectionLength -= NIT_LEN + 4;
     if (loopLength <= sectionLength) {
       if (sectionLength >= 0)
-        parseDescrs ("parseNIT1", networkId, ptr, loopLength, Nit->table_id);
+        parseDescrs ("NIT", networkId, buf, loopLength, nit->table_id);
       sectionLength -= loopLength;
 
-      ptr += loopLength;
-      auto NitMid = (nit_mid_t*) ptr;
-      loopLength = HILO (NitMid->transport_stream_loop_length);
+      buf += loopLength;
+      auto nitMid = (nit_mid_t*)buf;
+      loopLength = HILO (nitMid->transport_stream_loop_length);
       if ((sectionLength > 0) && (loopLength <= sectionLength)) {
         // iterate nitMids
         sectionLength -= SIZE_NIT_MID;
-        ptr += SIZE_NIT_MID;
+        buf += SIZE_NIT_MID;
 
         while (loopLength > 0) {
-          auto TSDesc = (nit_ts_t*)ptr;
+          auto TSDesc = (nit_ts_t*)buf;
           auto tsid = HILO (TSDesc->transport_stream_id);
 
           auto loop2Length = HILO (TSDesc->transport_descrs_length);
-          ptr += NIT_TS_LEN;
+          buf += NIT_TS_LEN;
           if (loop2Length <= loopLength)
             if (loopLength >= 0) {
-              parseDescrs ("parseNIT2", tsid, ptr, loop2Length, Nit->table_id);
+              parseDescrs ("NIT", tsid, buf, loop2Length, nit->table_id);
               pidInfo->mInfoStr = mNetworkNameStr;
               }
 
           loopLength -= loop2Length + NIT_TS_LEN;
           sectionLength -= loop2Length + NIT_TS_LEN;
-          ptr += loop2Length;
+          buf += loop2Length;
           }
         }
       }
@@ -7607,8 +7605,8 @@ private:
         // parse Descrs
         auto DescrLength = 0;
         while ((DescrLength < loopLength) &&
-               (GetDescrLength (ptr) > 0) && (GetDescrLength (ptr) <= loopLength - DescrLength)) {
-          switch (GetDescrTag(ptr)) {
+               (getDescrLength (ptr) > 0) && (getDescrLength (ptr) <= loopLength - DescrLength)) {
+          switch (getDescrTag(ptr)) {
             case DESCR_SHORT_EVENT: {
               //{{{  shortEvent
               auto it = mServiceMap.find (sid);
@@ -7672,12 +7670,12 @@ private:
               #ifdef EIT_EXTENDED_EVENT_DEBUG
                 //{{{  print eit extended event
                 cLog::log (LOGINFO, "EIT extendedEvent sid:%d descLen:%d lastDescNum:%d DescNum:%d item:%d",
-                                    sid, GetDescrLength (ptr),
+                                    sid, getDescrLength (ptr),
                                     CastExtendedEventDescr(ptr)->last_descr_number,
                                     CastExtendedEventDescr(ptr)->descr_number,
                                     CastExtendedEventDescr(ptr)->length_of_items);
 
-                for (auto i = 0; i < GetDescrLength (ptr) -2; i++) {
+                for (auto i = 0; i < getDescrLength (ptr) -2; i++) {
                   char c = *(ptr + 2 + i);
                   if ((c >= 0x20) && (c <= 0x7F))
                     cLog::log (LOGINFO, "%c", c);
@@ -7691,8 +7689,8 @@ private:
               }
               //}}}
             }
-          DescrLength += GetDescrLength (ptr);
-          ptr += GetDescrLength (ptr);
+          DescrLength += getDescrLength (ptr);
+          ptr += getDescrLength (ptr);
           }
         sectionLength -= loopLength + EIT_EVENT_LEN;
         ptr += loopLength;
@@ -7721,7 +7719,7 @@ private:
   //}}}
 
   //{{{
-  int64_t parseTimeStamp (uint8_t* tsPtr) {
+  int64_t getTimeStamp (uint8_t* tsPtr) {
   // return 33 bits of pts,dts
 
     if ((tsPtr[0] & 0x01) && (tsPtr[2] & 0x01) && (tsPtr[4] & 0x01)) {
@@ -7734,13 +7732,12 @@ private:
       return pts;
       }
     else {
-      cLog::log (LOGNOTICE, "parseTs  %02x %02x %02x %02x 0x02 - invalid",
-                             tsPtr[0], tsPtr[1],tsPtr[2],tsPtr[3],tsPtr[4]);
-      return 0;
+      cLog::log (LOGERROR, "getParseTs - failed - %02x %02x %02x %02x 0x02",
+                           tsPtr[0], tsPtr[1],tsPtr[2],tsPtr[3],tsPtr[4]);
+      return -1;
       }
     }
   //}}}
-
   //{{{
   string getDescrStr (uint8_t* buf, int len) {
 
@@ -7761,13 +7758,9 @@ private:
     }
   //}}}
   //{{{
-  //{{{
   void parseDescr (string sectionName, int key, uint8_t* buf, int tid) {
-  //}}}
 
-    switch (GetDescrTag(buf)) {
-      case 0x25: // NIT2
-        break;
+    switch (getDescrTag(buf)) {
       case DESCR_EXTENDED_EVENT: {
         //{{{  extended event
         string text = getDescrStr (
@@ -7782,7 +7775,7 @@ private:
 
         auto ptr = buf + DESCR_EXTENDED_EVENT_LEN;
         auto length = CastExtendedEventDescr(buf)->length_of_items;
-        while ((length > 0) && (length < GetDescrLength (buf))) {
+        while ((length > 0) && (length < getDescrLength (buf))) {
           text = getDescrStr (ptr + ITEM_EXTENDED_EVENT_LEN, CastExtendedEventItem(ptr)->item_description_length);
           string text2 = getDescrStr (
             ptr + ITEM_EXTENDED_EVENT_LEN + CastExtendedEventItem(ptr)->item_description_length + 1,
@@ -7802,7 +7795,7 @@ private:
         //}}}
       case DESCR_COMPONENT: {
         //{{{  component
-        string str = getDescrStr (buf + DESCR_COMPONENT_LEN, GetDescrLength (buf) - DESCR_COMPONENT_LEN);
+        string str = getDescrStr (buf + DESCR_COMPONENT_LEN, getDescrLength (buf) - DESCR_COMPONENT_LEN);
         cLog::log (LOGINFO, "component %2d %2d %d %s",
                             CastComponentDescr(buf)->stream_content,
                             CastComponentDescr(buf)->component_type,
@@ -7812,7 +7805,7 @@ private:
         //}}}
       case DESCR_NW_NAME: {
         //{{{  networkName
-        mNetworkNameStr = getDescrStr (buf + DESCR_BOUQUET_NAME_LEN, GetDescrLength (buf) - DESCR_BOUQUET_NAME_LEN);
+        mNetworkNameStr = getDescrStr (buf + DESCR_BOUQUET_NAME_LEN, getDescrLength (buf) - DESCR_BOUQUET_NAME_LEN);
         break;
         }
         //}}}
@@ -7828,7 +7821,7 @@ private:
       case DESCR_SERVICE_LIST: {
         //{{{  service list
         auto ptr = buf;
-        auto length = GetDescrLength(buf);
+        auto length = getDescrLength(buf);
 
         while (length > 0) {
           //auto sid = HILO (CastServiceListDescrLoop(ptr)->service_id);
@@ -7841,7 +7834,8 @@ private:
         break;
         }
         //}}}
-      //{{{  expected Descrs
+
+      case 0x25: // NIT2
       case DESCR_COUNTRY_AVAIL:
       case DESCR_CONTENT:
       case DESCR_CA_IDENT:
@@ -7859,9 +7853,9 @@ private:
       case 0x83:
       case 0xC3:
         break;
-      //}}}
+
       default:
-        cLog::log (LOGINFO, "parseDescr - %s unexpected descr:%02X", sectionName.c_str(), GetDescrTag(buf));
+        cLog::log (LOGERROR, "parseDescr - " + sectionName + " unknown tag:" + dec(getDescrTag(buf)));
         break;
       }
     }
@@ -7869,17 +7863,15 @@ private:
   //{{{
   void parseDescrs (string sectionName, int key, uint8_t* buf, int len, uint8_t tid) {
 
-   auto ptr = buf;
-   auto DescrLength = 0;
-
-   while (DescrLength < len) {
-     if ((GetDescrLength (ptr) <= 0) || (GetDescrLength (ptr) > len - DescrLength))
+   auto descrLength = 0;
+   while (descrLength < len) {
+     if ((getDescrLength (buf) <= 0) || (getDescrLength (buf) > len - descrLength))
        return;
 
-      parseDescr (sectionName, key, ptr, tid);
+      parseDescr (sectionName, key, buf, tid);
 
-      DescrLength += GetDescrLength (ptr);
-      ptr += GetDescrLength (ptr);
+      descrLength += getDescrLength (buf);
+      buf += getDescrLength (buf);
       }
     }
   //}}}
