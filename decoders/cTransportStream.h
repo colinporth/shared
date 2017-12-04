@@ -1163,7 +1163,7 @@ public:
                 pidInfo->mBufPtr = pidInfo->mBuffer;
                 pidInfo->mStreamPos = streamPos;
 
-                pidInfo->mPts = (tsPtr[7] & 0x80) ? getTimeStamp (tsPtr+9) : 0;
+                pidInfo->mPts = (tsPtr[7] & 0x80) ? getPtsDts (tsPtr+9) : -1;
                 if (pidInfo->mFirstPts == -1)
                   pidInfo->mFirstPts = pidInfo->mPts;
                 if (pidInfo->mPts > pidInfo->mLastPts)
@@ -1191,7 +1191,7 @@ public:
                 pidInfo->mBuffer = (uint8_t*)realloc (pidInfo->mBuffer, pidInfo->mBufSize);
                 memcpy (pidInfo->mBuffer + ptrOffset, tsPtr, tsFrameBytesLeft);
                 pidInfo->mBufPtr = pidInfo->mBuffer + ptrOffset + tsFrameBytesLeft;
-                //cLog::log (LOGERROR, "demux - %d - realloc %d", pid, pidInfo->mBufSize);
+                //cLog::log (LOGINFO, "demux " + dec(pid) + " realloc " + dec(pidInfo->mBufSize));
                 }
               }
               //}}}
@@ -1321,10 +1321,10 @@ private:
         switch (getDescrTag (buf)) {
           case DESCR_SERVICE: {
             //{{{  service
-            // serviceType == kServiceTypeRadio
             auto serviceType = ((descr_service_t*)buf)->service_type;
             if (freeChannel &&
                 ((serviceType == kServiceTypeTV)  ||
+                 //(serviceType == kServiceTypeRadio) ||
                  (serviceType == kServiceTypeAdvancedHDTV) ||
                  (serviceType == kServiceTypeAdvancedSDTV))) {
 
@@ -1340,7 +1340,7 @@ private:
                   map<int,cService>::value_type (sid, cService (sid, serviceType, -1,-1, nameStr)));
                 auto serviceIt = pair.first;
 
-                cLog::log (LOGINFO, "SDT new cService - sid:" + dec(sid) + " " +
+                cLog::log (LOGINFO, "SDT - add service:" + dec(sid) + " " +
                                     serviceIt->second.getTypeStr() + " " + nameStr);
                 }
               }
@@ -1356,6 +1356,7 @@ private:
           case 0x7e: // FTA_content_management
           case 0x7f: // extension
             break;
+
           default:
             //{{{  other
             cLog::log (LOGINFO, "SDT - unexpected tag " + dec(getDescrTag(buf)));
@@ -1668,7 +1669,7 @@ private:
   //}}}
 
   //{{{
-  int64_t getTimeStamp (uint8_t* tsPtr) {
+  int64_t getPtsDts (uint8_t* tsPtr) {
   // return 33 bits of pts,dts
 
     if ((tsPtr[0] & 0x01) && (tsPtr[2] & 0x01) && (tsPtr[4] & 0x01)) {
