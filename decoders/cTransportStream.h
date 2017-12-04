@@ -717,7 +717,6 @@ public:
 
   int mSectionLength = 0;
 
-  // content buffer
   int mBufSize = 0;
   uint8_t* mBuffer = nullptr;
   uint8_t* mBufPtr = nullptr;
@@ -731,32 +730,17 @@ public:
 //{{{
 class cEpgItem {
 public:
-  cEpgItem() : mStartTime(0), mDuration(0) {}
   //{{{
-  cEpgItem (time_t startTime, int duration, string title, string shortDescription)
-      : mStartTime(startTime), mDuration(duration) {
-    mTitle = title;
-    mShortDescription = shortDescription;
-    }
-  //}}}
-  ~cEpgItem() {}
-
-  //{{{
-  string getNameStr() {
-    return mTitle;
-    }
-  //}}}
-  //{{{
-  string getStartTimeStr() {
-    struct tm time = *localtime (&mStartTime);
-    char* timeStr = asctime (&time);
-    timeStr[24] = 0;
-    return string (timeStr);
-    }
+  cEpgItem (time_t startTime, int duration, const string& title, string shortDescription)
+      : mStartTime(startTime), mDuration(duration), mTitle(title), mShortDescription(shortDescription) {}
   //}}}
 
+  time_t getStartTime() { return mStartTime; }
+  string getTitleString() { return mTitle; }
+  string getStartTimeString() { return getTimetString (mStartTime); }
+
   //{{{
-  void set (time_t startTime, int duration, string title, string shortDescription) {
+  void set (time_t startTime, int duration, const string& title, string shortDescription) {
 
     mDuration = duration;
     mStartTime = startTime;
@@ -777,9 +761,9 @@ public:
     }
   //}}}
 
-  // vars
-  time_t mStartTime;
-  int mDuration;
+private:
+  time_t mStartTime = 0;
+  int mDuration = 0;
 
   string mTitle;
   string mShortDescription;
@@ -815,8 +799,10 @@ public:
   int getAudOtherPid() const { return mAudOtherPid; }
   int getSubPid() const { return mSubPid; }
 
-  cEpgItem* getNow() { return &mNow; }
-  string getName() { return mName; }
+  string getNameString() { return mName; }
+
+  cEpgItem* getNow() { return mNow; }
+  string getNowTitleString() { return mNow ? mNow->getTitleString() : ""; }
   //}}}
   //{{{  sets
   //{{{
@@ -844,17 +830,22 @@ public:
   //{{{
   bool setNow (time_t startTime, int duration, string str1, string str2) {
 
-    bool nowChanged = (startTime != mNow.mStartTime);
 
-    mNow.set (startTime, duration, str1, str2);
-
-    return nowChanged;
+    if (mNow) {
+      bool changed = startTime != mNow->getStartTime();
+      mNow->set (startTime, duration, str1, str2);
+      return changed;
+      }
+    else {
+      mNow = new cEpgItem (startTime, duration, str1, str2);
+      return true;
+      }
     }
   //}}}
   //{{{
   void setEpg (time_t startTime, int duration, string str1, string str2) {
 
-    mEpgItemMap.insert (tEpgItemMap::value_type (startTime, cEpgItem(startTime, duration, str1, str2)));
+    mEpgItemMap.insert (map<time_t, cEpgItem>::value_type (startTime, cEpgItem(startTime, duration, str1, str2)));
     }
   //}}}
   //}}}
@@ -868,7 +859,8 @@ public:
                         " subPid:" + dec (mSubPid) +
                         getTypeStr() + " " + mName);
 
-    mNow.print ("");
+    if (mNow)
+      mNow->print ("");
     for (auto &epgItem : mEpgItemMap)
       epgItem.second.print ("- ");
     }
@@ -886,10 +878,8 @@ private:
 
   string mName;
 
-  cEpgItem mNow;
-
-  typedef map<time_t,cEpgItem> tEpgItemMap; // startTime, cEpgItem
-  tEpgItemMap mEpgItemMap;
+  cEpgItem* mNow = nullptr;
+  map<time_t, cEpgItem> mEpgItemMap;
   };
 //}}}
 
@@ -1019,6 +1009,205 @@ public:
   //}}}
   //{{{
   int64_t demux (uint8_t* tsBuf, int64_t tsBufSize, int64_t streamPos, bool skip) {
+  // demux from tsBuffer to tsBuffer + tsBufferSize, streamPos is offset into full stream of first packet
+  // - return bytes decoded
+
+    auto tsPtr = tsBuf;
+    auto tsEnd = tsBuf + tsBufSize;
+
+    if (skip)
+      //{{{  reset pid continuity, buffers
+      for (auto &pidInfo : mPidInfoMap) {
+        pidInfo.second.mBufPtr = nullptr;
+        pidInfo.second.mStreamPos = -1;
+        pidInfo.second.mContinuity = -1;
+        }
+      //}}}
+
+    int lostSync = 0;
+    bool decoded = false;
+    while (!decoded && (tsPtr+188 <= tsEnd)) {
+      if (*tsPtr++ != 0x47)
+        lostSync++;
+      else {
+        if (lostSync) {
+          //{{{  lostSync warning
+          cLog::log (LOGERROR, "%d demux ****** resynced bytes:%d ******", mPackets, lostSync);
+          streamPos += lostSync;
+          lostSync = 0;
+          }
+          //}}}
+
+        // check for full packet, followed by start syncCode if not end
+        if ((tsPtr+187 >= tsEnd) || (*(tsPtr+187) == 0x47)) {
+          //{{{  parse ts packet
+          uint16_t pid = ((tsPtr[0] & 0x1F) << 8) | tsPtr[1];
+          uint8_t continuityCount = tsPtr[2] & 0x0F;
+          bool payloadStart = tsPtr[0] & 0x40;
+
+          // skip past adaption field
+          uint8_t headerBytes = (tsPtr[2] & 0x20) ? 4 + tsPtr[3] : 3;
+
+          auto isSection = (pid == PID_PAT) || (pid == PID_SDT) ||
+                           (pid == PID_EIT) || (pid == PID_TDT) ||
+                           (mProgramMap.find (pid) != mProgramMap.end());
+
+          // find or create pidInfo
+          auto pidInfoIt = mPidInfoMap.find (pid);
+          if (pidInfoIt == mPidInfoMap.end()) {
+            // new pid, insert new cPidInfo, get pidInfoIt iterator
+            auto insertPair = mPidInfoMap.insert (map<int,cPidInfo>::value_type (pid, cPidInfo(pid, isSection)));
+            pidInfoIt = insertPair.first;
+            pidInfoIt->second.mBufSize = kBufSize;
+            pidInfoIt->second.mBuffer = (uint8_t*)malloc (kBufSize);
+            }
+
+          auto pidInfo = &pidInfoIt->second;
+
+          // test continuity, reset buffers if fail
+          if ((pid != 0x1FFF) &&
+              (pidInfo->mContinuity >= 0) && (pidInfo->mContinuity != ((continuityCount-1) & 0x0F))) {
+            // test continuity
+            if (pidInfo->mContinuity == continuityCount) // strange case of bbc subtitles
+              pidInfo->mRepeatContinuity++;
+            else {
+              mDiscontinuity++;
+              pidInfo->mDisContinuity++;
+              }
+            pidInfo->mBufPtr = nullptr;
+            }
+
+          pidInfo->mContinuity = continuityCount;
+          pidInfo->mTotal++;
+
+          tsPtr += headerBytes;
+          auto tsFrameBytesLeft = 187 - headerBytes;
+          //}}}
+
+          if (isSection) {
+            //{{{  parse section pids
+            if (payloadStart) {
+              // parse sectionStart
+              int pointerField = *tsPtr;
+              if (pointerField && pidInfo->mBufPtr) {
+                //{{{  payStart packet starts with end of lastSection
+                // copy to end of buffer
+                memcpy (pidInfo->mBufPtr, tsPtr+1, pointerField);
+
+                // parse buffer if enough bytes for sectionLength
+                pidInfo->mBufPtr += pointerField;
+                if (pidInfo->mBufPtr - pidInfo->mBuffer >= pidInfo->mSectionLength)
+                  parseSection (pidInfo, pidInfo->mBuffer, 1);
+
+                /// reset buffer
+                pidInfo->mBufPtr = nullptr;
+                }
+                //}}}
+
+              do {
+                pidInfo->mSectionLength = ((tsPtr[pointerField+2] & 0x0F) << 8) | tsPtr[pointerField+3] + 3;
+                if (pointerField < 183 - pidInfo->mSectionLength) {
+                  parseSection (pidInfo, tsPtr + pointerField + 1, 3);
+                  pointerField += pidInfo->mSectionLength;
+                  }
+                else {
+                  // section straddles packets, start buffering
+                  if (183 - pointerField > 0) {
+                    memcpy (pidInfo->mBuffer, tsPtr + pointerField + 1, 183 - pointerField);
+                    pidInfo->mBufPtr = pidInfo->mBuffer + 183 - pointerField;
+                    }
+                  else
+                    cLog::log (LOGERROR, "demux - section packet pid:%d pointerField:%d", pid, pointerField);
+                  break;
+                  }
+                } while (tsPtr[pointerField+1] != 0xFF);
+              }
+
+            else if (pidInfo->mBufPtr) {
+              // add to buffered section
+              if (pidInfo->mBufPtr + tsFrameBytesLeft > pidInfo->mBuffer + pidInfo->mBufSize)
+                cLog::log (LOGINFO, "%d sectionBuffer overflow > 4096 %d",
+                                    mPackets, (int)(pidInfo->mBufPtr - pidInfo->mBuffer));
+              else {
+                memcpy (pidInfo->mBufPtr, tsPtr, tsFrameBytesLeft);
+                pidInfo->mBufPtr += tsFrameBytesLeft;
+                }
+
+              if ((pidInfo->mBufPtr - pidInfo->mBuffer) >= pidInfo->mSectionLength) {
+                // enough bytes to parse buffered section
+                parseSection (pidInfo, pidInfo->mBuffer, 4);
+                pidInfo->mBufPtr = 0;
+                }
+              }
+            }
+            //}}}
+          else {
+            if (payloadStart && !tsPtr[0] && !tsPtr[1] && (tsPtr[2] == 0x01)) {
+              //{{{  start new payload
+              // recognised streamId's
+              bool isVid = (tsPtr[3] == 0xE0);
+              bool isAud = (tsPtr[3] == 0xBD) || (tsPtr[3] == 0xC0);
+
+              if (isVid || isAud) {
+                if (pidInfo->mBufPtr && pidInfo->mStreamType) {
+                  if (isVid) {
+                    decoded = vidDecodePes (pidInfo, skip);
+                    skip = false;
+                    }
+                  else
+                    decoded = audDecodePes (pidInfo, skip);
+                  }
+
+                // start next pes
+                pidInfo->mBufPtr = pidInfo->mBuffer;
+                pidInfo->mStreamPos = streamPos;
+
+                pidInfo->mPts = (tsPtr[7] & 0x80) ? getTimeStamp (tsPtr+9) : 0;
+                if (pidInfo->mFirstPts == -1)
+                  pidInfo->mFirstPts = pidInfo->mPts;
+                if (pidInfo->mPts > pidInfo->mLastPts)
+                  pidInfo->mLastPts = pidInfo->mPts;
+
+                int pesHeaderBytes = 9 + tsPtr[8];
+                tsPtr += pesHeaderBytes;
+                tsFrameBytesLeft -= pesHeaderBytes;
+                }
+              }
+              //}}}
+            if (pidInfo->mBufPtr) {
+              //{{{  copy rest of packet to mBuffer
+              if (tsFrameBytesLeft <= 0)
+                cLog::log (LOGERROR, "demux - copy error - pid:%d tsFrameBytesLeft:%d", pid, tsFrameBytesLeft);
+
+              else if ((pidInfo->mBufPtr + tsFrameBytesLeft) <= (pidInfo->mBuffer + pidInfo->mBufSize)) {
+                memcpy (pidInfo->mBufPtr, tsPtr, tsFrameBytesLeft);
+                pidInfo->mBufPtr += tsFrameBytesLeft;
+                }
+
+              else {
+                pidInfo->mBufSize *= 2;
+                auto ptrOffset = pidInfo->mBufPtr - pidInfo->mBuffer;
+                pidInfo->mBuffer = (uint8_t*)realloc (pidInfo->mBuffer, pidInfo->mBufSize);
+                memcpy (pidInfo->mBuffer + ptrOffset, tsPtr, tsFrameBytesLeft);
+                pidInfo->mBufPtr = pidInfo->mBuffer + ptrOffset + tsFrameBytesLeft;
+                //cLog::log (LOGERROR, "demux - %d - realloc %d", pid, pidInfo->mBufSize);
+                }
+              }
+              //}}}
+            }
+
+          tsPtr += tsFrameBytesLeft;
+          streamPos += 188;
+          mPackets++;
+          }
+        }
+      }
+
+    return tsPtr - tsBuf;
+    }
+  //}}}
+  //{{{
+  int64_t demuxPid (int decodePid, uint8_t* tsBuf, int64_t tsBufSize, int64_t streamPos, bool skip) {
   // demux from tsBuffer to tsBuffer + tsBufferSize, streamPos is offset into full stream of first packet
   // - return bytes decoded
 
@@ -1618,7 +1807,8 @@ private:
                     updatePidInfo (it->second.getAudPid());
                     updatePidInfo (it->second.getSubPid());
                     startProgram (it->second.getVidPid(), it->second.getAudPid(),
-                                  it->second.getNow()->getNameStr(), it->second.getNow()->getStartTimeStr());
+                                  it->second.getNow()->getTitleString(),
+                                  it->second.getNow()->getStartTimeString());
                     }
                   }
                 else if (epg)
@@ -1816,7 +2006,7 @@ private:
         else if (pid == serviceIt->second.getSubPid())
           pidInfoIt->second.mTypeStr = "sub";
 
-        pidInfoIt->second.mInfoStr = serviceIt->second.getName() + " - " + serviceIt->second.getNow()->mTitle;
+        pidInfoIt->second.mInfoStr = serviceIt->second.getNameString() + " " + serviceIt->second.getNowTitleString();
         }
       }
     }
