@@ -6799,7 +6799,6 @@ public:
   //{{{
   void setVidPid (int pid, int streamType) {
     if (pid != mVidPid) {
-      //cLog::log (LOGINFO, "setVidPid - esPid:%d streamType:%d", pid, streamType);
       mVidPid = pid;
       }
     }
@@ -6812,8 +6811,6 @@ public:
         mAudPid = pid;
       else if (mAudOtherPid == -1)
         mAudOtherPid = pid;
-      //cLog::log (LOGINFO, "setAudPid - esPid:%d streamType:%d, mAudPid %d mAudOtherPid %d",
-      //                    pid, streamType, mAudPid, mAudOtherPid);
       }
     }
   //}}}
@@ -7272,13 +7269,13 @@ private:
     auto sectionLength = HILO(pat->section_length) + 3;
     if (crc32 (buf, sectionLength)) {
       //{{{  bad crc
-      cLog::log (LOGERROR, "parsePAT - bad crc %d", sectionLength);
+      cLog::log (LOGERROR, "parsePAT - bad crc " + dec(sectionLength));
       return;
       }
       //}}}
     if (pat->table_id != TID_PAT) {
       //{{{  wrong tid
-      cLog::log (LOGERROR, "parsePAT - unexpected TID %x", pat->table_id);
+      cLog::log (LOGERROR, "parsePAT - unexpected TID " + dec(pat->table_id));
       return;
       }
       //}}}
@@ -7306,7 +7303,7 @@ private:
     auto sectionLength = HILO(sdt->section_length) + 3;
     if (crc32 (buf, sectionLength)) {
       //{{{  wrong crc
-      cLog::log (LOGERROR, "parseSDT - bad crc %d", sectionLength);
+      cLog::log (LOGERROR, "parseSDT - bad crc " + dec(sectionLength));
       return;
       }
       //}}}
@@ -7314,7 +7311,7 @@ private:
       return;
     if (sdt->table_id != TID_SDT_ACT) {
       //{{{  wrong tid
-      cLog::log (LOGERROR, "parseSDT - unexpected TID %x", sdt->table_id);
+      cLog::log (LOGERROR, "parseSDT - unexpected TID " + dec(sdt->table_id));
       return;
       }
       //}}}
@@ -7358,8 +7355,9 @@ private:
                 auto pair = mServiceMap.insert (
                   map<int,cService>::value_type (sid, cService (sid, tsid, onid, serviceType, -1,-1, nameStr)));
                 auto serviceIt = pair.first;
-                cLog::log (LOGINFO, "SDT new cService tsid:%d sid:%d %s name<%s>",
-                           tsid, sid, serviceIt->second.getTypeStr().c_str(), nameStr.c_str());
+                cLog::log (LOGINFO, "SDT new cService tsid:" + dec(tsid) + 
+                                    " sid:" + dec(sid) + " " + 
+                                    serviceIt->second.getTypeStr() + " " + nameStr);
                 }
               }
 
@@ -7376,7 +7374,7 @@ private:
             break;
           default:
             //{{{  other
-            cLog::log (LOGINFO, "SDT - unexpected tag:%x", getDescrTag(buf));
+            cLog::log (LOGINFO, "SDT - unexpected tag " + dec(getDescrTag(buf)));
             break;
             //}}}
           }
@@ -7404,13 +7402,12 @@ private:
       //}}}
     if (pmt->table_id != TID_PMT) {
       //{{{  wrong tid
-      cLog::log (LOGERROR, "parsePMT - wrong TID %x", pmt->table_id);
+      cLog::log (LOGERROR, "parsePMT - wrong TID " + dec (pmt->table_id));
       return;
       }
       //}}}
 
     auto sid = HILO (pmt->program_number);
-    //cLog::log (LOGINFO, "PMT - pid:%d sid:%d", pidInfo->mPid, sid);
 
     auto serviceIt = mServiceMap.find (sid);
     if (serviceIt != mServiceMap.end()) {
@@ -7456,7 +7453,7 @@ private:
           case 13: break;
 
           default:
-            cLog::log (LOGERROR, "parsePmt - unknown streamType:%d sid:%d esPid:%d",
+            cLog::log (LOGERROR, "parsePmt - unknown streamType:%d sid:%d pid:%d",
                                  streamType, sid, pid);
             break;
           }
@@ -7515,7 +7512,7 @@ private:
 
     if (crc32 (buf, sectionLength)) {
       //{{{  bad crc
-      cLog::log (LOGERROR, "parseNIT - bad crc %d", sectionLength);
+      cLog::log (LOGERROR, "parseNIT - bad crc " + dec(sectionLength));
       return;
       }
       //}}}
@@ -7523,7 +7520,7 @@ private:
         (nit->table_id != TID_NIT_OTH) &&
         (nit->table_id != TID_BAT)) {
       //{{{  wrong tid
-      cLog::log (LOGERROR, "parseNIT - wrong TID %x", nit->table_id);
+      cLog::log (LOGERROR, "parseNIT - wrong TID " +dec (nit->table_id));
       return;
       }
       //}}}
@@ -7576,7 +7573,6 @@ private:
       mEitError++;
       //cLog::log (LOGERROR, "%d parseEit len:%d tag:%d Bad CRC  ", mPackets, sectionLength, tag);
       pidInfo->mInfoStr = "CRC errors " + dec (mEitError);
-
       return;
       }
       //}}}
@@ -7693,7 +7689,7 @@ private:
       }
     else {
       //{{{  unexpected tid, error, return
-      cLog::log (LOGERROR, "parseEIT - unexpected tid:%x", tid);
+      cLog::log (LOGERROR, "parseEIT - unexpected tid " + dec(tid));
       return;
       }
       //}}}
