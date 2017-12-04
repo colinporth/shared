@@ -7000,34 +7000,28 @@ public:
   uint64_t getPackets() { return mPackets; }
   uint64_t getDiscontinuity() { return mDiscontinuity; }
   //{{{
-  bool getService (int index, int& audPid, int& vidPid, int64_t& firstPts, int64_t& lastPts) {
+  cService* getService (int index, int64_t& firstPts, int64_t& lastPts) {
 
-    audPid = 0;
-    vidPid = 0;
     firstPts = -1;
     lastPts = -1;
 
     int i = 0;
     for (auto &service : mServiceMap) {
       if (i == index) {
-        audPid = service.second.getAudPid();
-        vidPid = service.second.getVidPid();
-        auto pidInfoIt = mPidInfoMap.find (audPid);
+        auto pidInfoIt = mPidInfoMap.find (service.second.getAudPid());
         if (pidInfoIt != mPidInfoMap.end()) {
           firstPts = pidInfoIt->second.mFirstPts;
           lastPts = pidInfoIt->second.mLastPts;
           cLog::log (LOGNOTICE, "getService " + dec(index) +
-                                " vidPid:" + dec(vidPid) +
-                                " audPid:" + dec(audPid) +
                                 " firstPts:" + getFullPtsString (firstPts) +
                                 " lastPts:" + getFullPtsString (lastPts));
-          return true;
+          return &service.second;
           }
         }
       i++;
       }
 
-    return false;
+    return nullptr;
     }
   //}}}
   //{{{
@@ -7120,7 +7114,7 @@ public:
                 // parse buffer if enough bytes for sectionLength
                 pidInfo->mBufPtr += pointerField;
                 if (pidInfo->mBufPtr - pidInfo->mBuffer >= pidInfo->mSectionLength)
-                  parseSection (pid, pidInfo, pidInfo->mBuffer, 1);
+                  parseSection (pidInfo, pidInfo->mBuffer, 1);
 
                 /// reset buffer
                 pidInfo->mBufPtr = nullptr;
@@ -7130,7 +7124,7 @@ public:
               do {
                 pidInfo->mSectionLength = ((tsPtr[pointerField+2] & 0x0F) << 8) | tsPtr[pointerField+3] + 3;
                 if (pointerField < 183 - pidInfo->mSectionLength) {
-                  parseSection (pid, pidInfo, tsPtr + pointerField + 1, 3);
+                  parseSection (pidInfo, tsPtr + pointerField + 1, 3);
                   pointerField += pidInfo->mSectionLength;
                   }
                 else {
@@ -7158,7 +7152,7 @@ public:
 
               if ((pidInfo->mBufPtr - pidInfo->mBuffer) >= pidInfo->mSectionLength) {
                 // enough bytes to parse buffered section
-                parseSection (pid, pidInfo, pidInfo->mBuffer, 4);
+                parseSection (pidInfo, pidInfo->mBuffer, 4);
                 pidInfo->mBufPtr = 0;
                 }
               }
@@ -7167,7 +7161,7 @@ public:
           else {
             if (payloadStart && !tsPtr[0] && !tsPtr[1] && (tsPtr[2] == 0x01)) {
               //{{{  start new payload
-              // look for recognised streamId
+              // recognised streamId's
               bool isVid = (tsPtr[3] == 0xE0);
               bool isAud = (tsPtr[3] == 0xBD) || (tsPtr[3] == 0xC0);
 
@@ -7396,14 +7390,15 @@ private:
     }
   //}}}
   //{{{
-  void parsePmt (cPidInfo* pidInfo, int pid, uint8_t* buf) {
+  void parsePmt (cPidInfo* pidInfo, uint8_t* buf) {
   // PMT declares streams for a service
+    int pid = pidInfo->mPid;
 
     auto pmt = (pmt_t*)buf;
     auto sectionLength = HILO(pmt->section_length) + 3;
     if (crc32 (buf, sectionLength)) {
       //{{{  bad crc
-      cLog::log (LOGERROR, "parsePMT - pid:%d bad crc %d", pid, sectionLength);
+      cLog::log (LOGERROR, "parsePMT - pid:%d bad crc %d", pidInfo->mPid, sectionLength);
       return;
       }
       //}}}
@@ -7415,19 +7410,19 @@ private:
       //}}}
 
     auto sid = HILO (pmt->program_number);
-    //cLog::log (LOGINFO, "PMT - pid:%d sid:%d", pid, sid);
+    //cLog::log (LOGINFO, "PMT - pid:%d sid:%d", pidInfo->mPid, sid);
 
     auto serviceIt = mServiceMap.find (sid);
     if (serviceIt != mServiceMap.end()) {
       //{{{  add to service
-      serviceIt->second.setProgramPid (pid);
+      serviceIt->second.setProgramPid (pidInfo->mPid);
 
       // point programPid to service by sid
-      auto sectionIt = mPidInfoMap.find (pid);
+      auto sectionIt = mPidInfoMap.find (pidInfo->mPid);
       if (sectionIt != mPidInfoMap.end())
         sectionIt->second.mSid = sid;
-      updatePidInfo (pid);
-      //HILO (pmt->PCR_PID));
+      updatePidInfo (pidInfo->mPid);
+      //auto pcrPid = HILO (pmt->PCR_PID));
 
       buf += PMT_LEN;
       sectionLength -= 4;
@@ -7441,20 +7436,20 @@ private:
       while (streamLength > 0) {
         auto pmtInfo = (pmt_info_t*)buf;
         auto streamType = pmtInfo->stream_type;
-        auto esPid = HILO (pmtInfo->elementary_PID);
+        auto pid = HILO (pmtInfo->elementary_PID);
 
         auto ok = false;
         switch (streamType) {
-          case 2:  serviceIt->second.setVidPid (esPid, streamType); ok = true; break; // ISO 13818-2 video
-          case 27: serviceIt->second.setVidPid (esPid, streamType); ok = true; break; // HD vid
+          case 2:  serviceIt->second.setVidPid (pid, streamType); ok = true; break; // ISO 13818-2 video
+          case 27: serviceIt->second.setVidPid (pid, streamType); ok = true; break; // HD vid
 
-          case 3:  serviceIt->second.setAudPid (esPid, streamType); ok = true; break; // ISO 11172-3 audio
-          case 4:  serviceIt->second.setAudPid (esPid, streamType); ok = true; break; // ISO 13818-3 audio
-          case 15: serviceIt->second.setAudPid (esPid, streamType); ok = true; break; // HD aud ADTS
-          case 17: serviceIt->second.setAudPid (esPid, streamType); ok = true; break; // HD aud LATM
-          case 129: serviceIt->second.setAudPid (esPid, streamType); ok = true; break; // aud AC3
+          case 3:  serviceIt->second.setAudPid (pid, streamType); ok = true; break; // ISO 11172-3 audio
+          case 4:  serviceIt->second.setAudPid (pid, streamType); ok = true; break; // ISO 13818-3 audio
+          case 15: serviceIt->second.setAudPid (pid, streamType); ok = true; break; // HD aud ADTS
+          case 17: serviceIt->second.setAudPid (pid, streamType); ok = true; break; // HD aud LATM
+          case 129: serviceIt->second.setAudPid (pid, streamType); ok = true; break; // aud AC3
 
-          case 6:  serviceIt->second.setSubPid (esPid, streamType); ok = true; break; // subtitle
+          case 6:  serviceIt->second.setSubPid (pid, streamType); ok = true; break; // subtitle
 
           case 5:
           case 11:
@@ -7462,18 +7457,18 @@ private:
 
           default:
             cLog::log (LOGERROR, "parsePmt - unknown streamType:%d sid:%d esPid:%d",
-                                 streamType, sid, esPid);
+                                 streamType, sid, pid);
             break;
           }
 
         if (ok) {
           // set sid for each stream pid
-          auto sectionIt = mPidInfoMap.find (esPid);
+          auto sectionIt = mPidInfoMap.find (pid);
           if (sectionIt != mPidInfoMap.end()) {
             sectionIt->second.mSid = sid;
             sectionIt->second.mStreamType = streamType;
             }
-          updatePidInfo (esPid);
+          updatePidInfo (pid);
           }
 
         auto loopLength = HILO (pmtInfo->ES_info_length);
@@ -7593,20 +7588,20 @@ private:
     auto epg = (tid == TID_EIT_ACT_SCH) || (tid == TID_EIT_OTH_SCH) ||
                (tid == TID_EIT_ACT_SCH+1) || (tid == TID_EIT_OTH_SCH+1);
     if (now || next || epg) {
-      auto ptr = buf + EIT_LEN;
+      buf += EIT_LEN;
       sectionLength -= EIT_LEN + 4;
       while (sectionLength > 0) {
-        auto EitEvent = (eit_event_t*)ptr;
+        auto EitEvent = (eit_event_t*)buf;
         auto loopLength = HILO (EitEvent->descrs_loop_length);
         if (loopLength > sectionLength - EIT_EVENT_LEN)
           return;
-        ptr += EIT_EVENT_LEN;
+        buf += EIT_EVENT_LEN;
 
         // parse Descrs
         auto DescrLength = 0;
         while ((DescrLength < loopLength) &&
-               (getDescrLength (ptr) > 0) && (getDescrLength (ptr) <= loopLength - DescrLength)) {
-          switch (getDescrTag(ptr)) {
+               (getDescrLength (buf) > 0) && (getDescrLength (buf) <= loopLength - DescrLength)) {
+          switch (getDescrTag(buf)) {
             case DESCR_SHORT_EVENT: {
               //{{{  shortEvent
               auto it = mServiceMap.find (sid);
@@ -7616,17 +7611,17 @@ private:
                 auto duration = BcdTimeToSeconds (EitEvent->duration);
                 auto running = (EitEvent->running_status == 0x04);
 
-                auto title = huffDecode (ptr + DESCR_SHORT_EVENT_LEN, CastShortEventDescr(ptr)->event_name_length);
+                auto title = huffDecode (buf + DESCR_SHORT_EVENT_LEN, CastShortEventDescr(buf)->event_name_length);
                 string titleStr = title ?
-                  title : getDescrStr (ptr + DESCR_SHORT_EVENT_LEN, CastShortEventDescr(ptr)->event_name_length);
+                  title : getDescrStr (buf + DESCR_SHORT_EVENT_LEN, CastShortEventDescr(buf)->event_name_length);
 
                 auto shortDescription = huffDecode (
-                  ptr + DESCR_SHORT_EVENT_LEN + CastShortEventDescr(ptr)->event_name_length+1,
-                  size_t(ptr + DESCR_SHORT_EVENT_LEN + CastShortEventDescr(ptr)->event_name_length));
+                  buf + DESCR_SHORT_EVENT_LEN + CastShortEventDescr(buf)->event_name_length+1,
+                  size_t(buf + DESCR_SHORT_EVENT_LEN + CastShortEventDescr(buf)->event_name_length));
                 string shortDescriptionStr = shortDescription ?
                   shortDescription : getDescrStr (
-                    ptr + DESCR_SHORT_EVENT_LEN + CastShortEventDescr(ptr)->event_name_length+1,
-                    *((uint8_t*)(ptr + DESCR_SHORT_EVENT_LEN + CastShortEventDescr(ptr)->event_name_length)));
+                    buf + DESCR_SHORT_EVENT_LEN + CastShortEventDescr(buf)->event_name_length+1,
+                    *((uint8_t*)(buf + DESCR_SHORT_EVENT_LEN + CastShortEventDescr(buf)->event_name_length)));
 
                 if (now & running) {
                   if (it->second.setNow (startTime, duration, titleStr, shortDescriptionStr)) {
@@ -7670,13 +7665,13 @@ private:
               #ifdef EIT_EXTENDED_EVENT_DEBUG
                 //{{{  print eit extended event
                 cLog::log (LOGINFO, "EIT extendedEvent sid:%d descLen:%d lastDescNum:%d DescNum:%d item:%d",
-                                    sid, getDescrLength (ptr),
-                                    CastExtendedEventDescr(ptr)->last_descr_number,
-                                    CastExtendedEventDescr(ptr)->descr_number,
-                                    CastExtendedEventDescr(ptr)->length_of_items);
+                                    sid, getDescrLength (buf),
+                                    CastExtendedEventDescr(buf)->last_descr_number,
+                                    CastExtendedEventDescr(buf)->descr_number,
+                                    CastExtendedEventDescr(buf)->length_of_items);
 
-                for (auto i = 0; i < getDescrLength (ptr) -2; i++) {
-                  char c = *(ptr + 2 + i);
+                for (auto i = 0; i < getDescrLength (buf) -2; i++) {
+                  char c = *(buf + 2 + i);
                   if ((c >= 0x20) && (c <= 0x7F))
                     cLog::log (LOGINFO, "%c", c);
                   else
@@ -7689,11 +7684,11 @@ private:
               }
               //}}}
             }
-          DescrLength += getDescrLength (ptr);
-          ptr += getDescrLength (ptr);
+          DescrLength += getDescrLength (buf);
+          buf += getDescrLength (buf);
           }
         sectionLength -= loopLength + EIT_EVENT_LEN;
-        ptr += loopLength;
+        buf += loopLength;
         }
       }
     else {
@@ -7705,15 +7700,15 @@ private:
     }
   //}}}
   //{{{
-  void parseSection (int pid, cPidInfo* pidInfo, uint8_t* buf, int tag) {
+  void parseSection (cPidInfo* pidInfo, uint8_t* buf, int tag) {
 
-    switch (pid) {
+    switch (pidInfo->mPid) {
       case PID_PAT: parsePat (pidInfo, buf); break;
       case PID_SDT: parseSdt (pidInfo, buf); break;
       case PID_TDT: parseTdt (pidInfo, buf); break;
       case PID_NIT: parseNit (pidInfo, buf); break;
       case PID_EIT: parseEit (pidInfo, buf, tag); break;
-      default:      parsePmt (pidInfo, pid, buf); break;
+      default:      parsePmt (pidInfo, buf); break;
       }
     }
   //}}}
