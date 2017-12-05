@@ -115,7 +115,7 @@ inline std::string getTimeString (uint32_t secs) {
 
 //{{{
 inline std::string getTimetString (time_t& time) {
-  
+
   tm localTm;
   localtime_s (&localTm, &time);
 
@@ -141,5 +141,15 @@ inline std::string getTimetDateString (time_t& time) {
          dec(localTm.tm_mday) + " " +
          mon_name[localTm.tm_mon] + " " +
          dec(1900 + localTm.tm_year);
+  }
+//}}}
+//{{{
+inline std::string getTimetShortString (time_t& time) {
+
+  tm localTm;
+  localtime_s (&localTm, &time);
+
+  return dec(localTm.tm_hour,2,'0') + ":" +
+         dec(localTm.tm_min,2,'0');
   }
 //}}}

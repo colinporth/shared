@@ -357,8 +357,6 @@ typedef struct descr_service_struct {
   } descr_service_t;
 //}}}
 //{{{  0x4D short_event_descr
-#define DESCR_SHORT_EVENT_LEN 6
-
 typedef struct descr_short_event_struct {
   uint8_t descr_tag         :8;
   uint8_t descr_length      :8;
@@ -367,12 +365,8 @@ typedef struct descr_short_event_struct {
   uint8_t lang_code3        :8;
   uint8_t event_name_length :8;
   } descr_short_event_t;
-
-#define CastShortEventDescr(x) ((descr_short_event_t *)(x))
 //}}}
 //{{{  0x4E extended_event_descr
-#define DESCR_EXTENDED_EVENT_LEN 7
-
 typedef struct descr_extended_event_struct {
   uint8_t descr_tag          :8;
   uint8_t descr_length       :8;
@@ -386,9 +380,6 @@ typedef struct descr_extended_event_struct {
   } descr_extended_event_t;
 
 #define CastExtendedEventDescr(x) ((descr_extended_event_t *)(x))
-
-#define ITEM_EXTENDED_EVENT_LEN 1
-
 typedef struct item_extended_event_struct {
   uint8_t item_description_length               :8;
   } item_extended_event_t;
@@ -736,8 +727,10 @@ public:
   //}}}
 
   time_t getStartTime() { return mStartTime; }
+
   string getTitleString() { return mTitle; }
-  string getStartTimeString() { return getTimetString (mStartTime); }
+  string getStartTimeString() { return getTimetShortString (mStartTime); }
+  string getDurationString() { return dec(mDuration/60) + "m"; }
 
   //{{{
   void set (time_t startTime, int duration, const string& title, string shortDescription) {
@@ -801,8 +794,8 @@ public:
 
   string getNameString() { return mName; }
 
-  cEpgItem* getNow() { return mNow; }
-  string getNowTitleString() { return mNow ? mNow->getTitleString() : ""; }
+  vector<cEpgItem*> getNowVec() { return mNowVec; }
+  string getNowTitleString() { return mNowVec.empty() ? "" : mNowVec[0]->getTitleString(); }
   //}}}
   //{{{  sets
   //{{{
@@ -830,16 +823,12 @@ public:
   //{{{
   bool setNow (time_t startTime, int duration, string str1, string str2) {
 
+    for (auto epgItem : mNowVec)
+      if (startTime == epgItem->getStartTime())
+        return false;
 
-    if (mNow) {
-      bool changed = startTime != mNow->getStartTime();
-      mNow->set (startTime, duration, str1, str2);
-      return changed;
-      }
-    else {
-      mNow = new cEpgItem (startTime, duration, str1, str2);
-      return true;
-      }
+    mNowVec.push_back (new cEpgItem (startTime, duration, str1, str2));
+    return true;
     }
   //}}}
   //{{{
@@ -859,8 +848,9 @@ public:
                         " subPid:" + dec (mSubPid) +
                         getTypeStr() + " " + mName);
 
-    if (mNow)
-      mNow->print ("");
+    if (mNowVec.empty())
+    for (auto nowEpgItem : mNowVec)
+      nowEpgItem->print ("");
     for (auto &epgItem : mEpgItemMap)
       epgItem.second.print ("- ");
     }
@@ -878,7 +868,7 @@ private:
 
   string mName;
 
-  cEpgItem* mNow = nullptr;
+  vector<cEpgItem*> mNowVec;
   map<time_t, cEpgItem> mEpgItemMap;
   };
 //}}}
@@ -1245,7 +1235,7 @@ public:
 protected:
   virtual bool audDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
   virtual bool vidDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
-  virtual void startProgram (int vidPid, int audPid, const string& name, const string& startTime) {}
+  virtual void startProgram (int vidPid, int audPid, const string& name, time_t startTime) {}
 
 private:
   //{{{
@@ -1586,22 +1576,24 @@ private:
               //{{{  shortEvent
               auto it = mServiceMap.find (sid);
               if (it != mServiceMap.end()) {
-                // recognised service
+                // recognise service
                 auto startTime = MjdToEpochTime (eitEvent->mjd) + BcdTimeToSeconds (eitEvent->start_time);
                 auto duration = BcdTimeToSeconds (eitEvent->duration);
                 auto running = eitEvent->running_status == 0x04;
 
-                auto title = huffDecode (buf + DESCR_SHORT_EVENT_LEN, CastShortEventDescr(buf)->event_name_length);
-                string titleStr = title ?
-                  title : getDescrStr (buf + DESCR_SHORT_EVENT_LEN, CastShortEventDescr(buf)->event_name_length);
+                auto title = huffDecode (buf + sizeof(descr_short_event_struct),
+                                         ((descr_short_event_t*)(buf))->event_name_length);
+                string titleStr = title ? title : getDescrStr (buf + sizeof(descr_short_event_struct),
+                                                               ((descr_short_event_t*)(buf))->event_name_length);
 
                 auto shortDescription = huffDecode (
-                  buf + DESCR_SHORT_EVENT_LEN + CastShortEventDescr(buf)->event_name_length+1,
-                  size_t(buf + DESCR_SHORT_EVENT_LEN + CastShortEventDescr(buf)->event_name_length));
+                  buf + sizeof(descr_short_event_struct) + ((descr_short_event_t*)(buf))->event_name_length+1,
+                  size_t(buf + sizeof(descr_short_event_struct) + ((descr_short_event_t*)(buf))->event_name_length));
+
                 string shortDescriptionStr = shortDescription ?
                   shortDescription : getDescrStr (
-                    buf + DESCR_SHORT_EVENT_LEN + CastShortEventDescr(buf)->event_name_length+1,
-                    *((uint8_t*)(buf + DESCR_SHORT_EVENT_LEN + CastShortEventDescr(buf)->event_name_length)));
+                    buf + sizeof(descr_short_event_struct) + ((descr_short_event_t*)(buf))->event_name_length+1,
+                    *((uint8_t*)(buf + sizeof(descr_short_event_struct) + ((descr_short_event_t*)(buf))->event_name_length)));
 
                 if (now & running) {
                   if (it->second.setNow (startTime, duration, titleStr, shortDescriptionStr)) {
@@ -1609,9 +1601,7 @@ private:
                     updatePidInfo (it->second.getVidPid());
                     updatePidInfo (it->second.getAudPid());
                     updatePidInfo (it->second.getSubPid());
-                    startProgram (it->second.getVidPid(), it->second.getAudPid(),
-                                  it->second.getNow()->getTitleString(),
-                                  it->second.getNow()->getStartTimeString());
+                    startProgram (it->second.getVidPid(), it->second.getAudPid(), titleStr, startTime);
                     }
                   }
                 else if (epg)
@@ -1713,8 +1703,8 @@ private:
     switch (getDescrTag(buf)) {
       case DESCR_EXTENDED_EVENT: {
         auto text = getDescrStr (
-          buf + DESCR_EXTENDED_EVENT_LEN + CastExtendedEventDescr(buf)->length_of_items + 1,
-          *((uint8_t*)(buf + DESCR_EXTENDED_EVENT_LEN + CastExtendedEventDescr(buf)->length_of_items)));
+          buf + sizeof(descr_extended_event_struct) + CastExtendedEventDescr(buf)->length_of_items + 1,
+          *((uint8_t*)(buf + sizeof(descr_extended_event_struct) + CastExtendedEventDescr(buf)->length_of_items)));
 
         cLog::log (LOGINFO, "extended event - %d %d %c%c%c %s",
                              CastExtendedEventDescr(buf)->descr_number, CastExtendedEventDescr(buf)->last_descr_number,
@@ -1722,22 +1712,24 @@ private:
                              CastExtendedEventDescr(buf)->lang_code2,
                              CastExtendedEventDescr(buf)->lang_code3, text.c_str());
 
-        auto ptr = buf + DESCR_EXTENDED_EVENT_LEN;
+        auto ptr = buf + sizeof(descr_extended_event_struct);
         auto length = CastExtendedEventDescr(buf)->length_of_items;
         while ((length > 0) && (length < getDescrLength (buf))) {
-          text = getDescrStr (ptr + ITEM_EXTENDED_EVENT_LEN, CastExtendedEventItem(ptr)->item_description_length);
+          text = getDescrStr (ptr + sizeof(item_extended_event_struct), CastExtendedEventItem(ptr)->item_description_length);
           auto text2 = getDescrStr (
-            ptr + ITEM_EXTENDED_EVENT_LEN + CastExtendedEventItem(ptr)->item_description_length + 1,
-            *(uint8_t* )(ptr + ITEM_EXTENDED_EVENT_LEN + CastExtendedEventItem(ptr)->item_description_length));
+            ptr + sizeof(item_extended_event_struct) +
+            CastExtendedEventItem(ptr)->item_description_length + 1,
+            *(uint8_t*)(ptr + sizeof(item_extended_event_struct) +
+                        CastExtendedEventItem(ptr)->item_description_length));
           cLog::log (LOGINFO, "- %s %s", text.c_str(), text2.c_str());
 
-          length -= ITEM_EXTENDED_EVENT_LEN + CastExtendedEventItem(ptr)->item_description_length +
-                    *((uint8_t* )(ptr + ITEM_EXTENDED_EVENT_LEN +
-                    CastExtendedEventItem(ptr)->item_description_length)) + 1;
+          length -= sizeof(item_extended_event_struct) + CastExtendedEventItem(ptr)->item_description_length +
+                    *((uint8_t*)(ptr + sizeof(item_extended_event_struct) +
+                                  CastExtendedEventItem(ptr)->item_description_length)) + 1;
 
-          ptr += ITEM_EXTENDED_EVENT_LEN + CastExtendedEventItem(ptr)->item_description_length +
-                 *((uint8_t* )(ptr + ITEM_EXTENDED_EVENT_LEN +
-                 CastExtendedEventItem(ptr)->item_description_length)) + 1;
+          ptr += sizeof(item_extended_event_struct) + CastExtendedEventItem(ptr)->item_description_length +
+                 *((uint8_t*)(ptr + sizeof(item_extended_event_struct) +
+                               CastExtendedEventItem(ptr)->item_description_length)) + 1;
           }
 
         break;
