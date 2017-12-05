@@ -679,7 +679,7 @@ private:
 class cPidInfo {
 public:
   //{{{
-  cPidInfo (int pid, bool isSection) : mPid(pid), mIsSection(isSection) {
+  cPidInfo (int pid, bool isPsi) : mPid(pid), mPsi(isPsi) {
 
     switch (pid) {
       case PID_PAT: mTypeStr = "Pat"; break;
@@ -701,7 +701,7 @@ public:
     }
 
   int mPid;
-  bool mIsSection;
+  bool mPsi;
 
   int mSid = -1;
   int mStreamType = 0;
@@ -1049,15 +1049,15 @@ public:
           // skip past adaption field
           int headerBytes = (tsPtr[2] & 0x20) ? 4 + tsPtr[3] : 3;
 
-          bool isSection = (pid == PID_PAT) || (pid == PID_SDT) ||
-                           (pid == PID_EIT) || (pid == PID_TDT) ||
-                           (mProgramMap.find (pid) != mProgramMap.end());
+          bool isPsi = (pid == PID_PAT) || (pid == PID_SDT) ||
+                       (pid == PID_EIT) || (pid == PID_TDT) ||
+                       (mProgramMap.find (pid) != mProgramMap.end());
 
           // find or create pidInfo
           auto pidInfoIt = mPidInfoMap.find (pid);
           if (pidInfoIt == mPidInfoMap.end()) {
             // new pid, insert new cPidInfo, get pidInfoIt iterator
-            auto insertPair = mPidInfoMap.insert (map<int,cPidInfo>::value_type (pid, cPidInfo(pid, isSection)));
+            auto insertPair = mPidInfoMap.insert (map<int,cPidInfo>::value_type (pid, cPidInfo(pid, isPsi)));
             pidInfoIt = insertPair.first;
             pidInfoIt->second.mBufSize = kBufSize;
             pidInfoIt->second.mBuffer = (uint8_t*)malloc (kBufSize);
@@ -1085,7 +1085,7 @@ public:
           int tsFrameBytesLeft = 187 - headerBytes;
           //}}}
 
-          if (isSection) {
+          if (isPsi) {
             //{{{  parse section pid
             if (payloadStart) {
               // parse sectionStart
@@ -1097,7 +1097,7 @@ public:
 
                 // if enough for sectionLength, parse last buffered section
                 if (pidInfo->mBufPtr - pidInfo->mBuffer >= pidInfo->mSectionLength)
-                  parseSection (pidInfo, pidInfo->mBuffer);
+                  parsePsi (pidInfo, pidInfo->mBuffer);
 
                 /// start new buffer
                 pidInfo->mBufPtr = nullptr;
@@ -1106,7 +1106,7 @@ public:
               do {
                 pidInfo->mSectionLength = ((tsPtr[pointerField+2] & 0x0F) << 8) + tsPtr[pointerField+3] + 3;
                 if (pointerField + pidInfo->mSectionLength < 183) {
-                  parseSection (pidInfo, tsPtr + pointerField + 1);
+                  parsePsi (pidInfo, tsPtr + pointerField + 1);
                   pointerField += pidInfo->mSectionLength;
                   }
                 else {
@@ -1135,7 +1135,7 @@ public:
 
                 if ((pidInfo->mBufPtr - pidInfo->mBuffer) >= pidInfo->mSectionLength) {
                   // enough to parse buffered section
-                  parseSection (pidInfo, pidInfo->mBuffer);
+                  parsePsi (pidInfo, pidInfo->mBuffer);
                   pidInfo->mBufPtr = nullptr;
                   }
                 }
@@ -1655,7 +1655,7 @@ private:
     }
   //}}}
   //{{{
-  void parseSection (cPidInfo* pidInfo, uint8_t* buf) {
+  void parsePsi (cPidInfo* pidInfo, uint8_t* buf) {
 
     switch (pidInfo->mPid) {
       case PID_PAT: parsePat (pidInfo, buf); break;
