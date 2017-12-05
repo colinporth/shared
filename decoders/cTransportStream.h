@@ -1040,8 +1040,8 @@ public:
           int headerBytes = (tsPtr[2] & 0x20) ? 4 + tsPtr[3] : 3;
 
           bool isPsi = (pid == PID_PAT) || (pid == PID_SDT) ||
-                       (pid == PID_EIT) || (pid == PID_TDT) ||
-                       (mProgramMap.find (pid) != mProgramMap.end());
+                       (mProgramMap.find (pid) != mProgramMap.end()) ||
+                       (pid == PID_EIT) || (pid == PID_TDT);
 
           // find or create pidInfo
           auto pidInfoIt = mPidInfoMap.find (pid);
@@ -1052,7 +1052,6 @@ public:
             pidInfoIt->second.mBufSize = kBufSize;
             pidInfoIt->second.mBuffer = (uint8_t*)malloc (kBufSize);
             }
-
           auto pidInfo = &pidInfoIt->second;
 
           // test continuity, reset buffers if fail
@@ -1067,7 +1066,6 @@ public:
               }
             pidInfo->mBufPtr = nullptr;
             }
-
           pidInfo->mContinuity = continuityCount;
           pidInfo->mTotal++;
 
@@ -1076,7 +1074,7 @@ public:
           //}}}
 
           if (isPsi) {
-            //{{{  parse section pid
+            //{{{  parse psi pid
             if (payloadStart) {
               // parse sectionStart
               int pointerField = *tsPtr;
