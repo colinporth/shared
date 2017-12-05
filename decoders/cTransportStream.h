@@ -1042,14 +1042,14 @@ public:
         // check for full packet, followed by start syncCode if not end
         if ((tsPtr+187 >= tsEnd) || (*(tsPtr+187) == 0x47)) {
           //{{{  parse ts packet
-          uint16_t pid = ((tsPtr[0] & 0x1F) << 8) | tsPtr[1];
-          uint8_t continuityCount = tsPtr[2] & 0x0F;
+          int pid = ((tsPtr[0] & 0x1F) << 8) | tsPtr[1];
+          int continuityCount = tsPtr[2] & 0x0F;
           bool payloadStart = tsPtr[0] & 0x40;
 
           // skip past adaption field
-          uint8_t headerBytes = (tsPtr[2] & 0x20) ? 4 + tsPtr[3] : 3;
+          int headerBytes = (tsPtr[2] & 0x20) ? 4 + tsPtr[3] : 3;
 
-          auto isSection = (pid == PID_PAT) || (pid == PID_SDT) ||
+          bool isSection = (pid == PID_PAT) || (pid == PID_SDT) ||
                            (pid == PID_EIT) || (pid == PID_TDT) ||
                            (mProgramMap.find (pid) != mProgramMap.end());
 
@@ -1082,7 +1082,7 @@ public:
           pidInfo->mTotal++;
 
           tsPtr += headerBytes;
-          auto tsFrameBytesLeft = 187 - headerBytes;
+          int tsFrameBytesLeft = 187 - headerBytes;
           //}}}
 
           if (isSection) {
@@ -1091,8 +1091,7 @@ public:
               // parse sectionStart
               int pointerField = *tsPtr;
               if (pointerField && pidInfo->mBufPtr) {
-                //{{{  payStart packet starts with end of lastSection
-                // copy to end of buffer
+                // payStart packet starts with end of lastSection, copy to end of buffer
                 memcpy (pidInfo->mBufPtr, tsPtr+1, pointerField);
 
                 // parse buffer if enough bytes for sectionLength
@@ -1103,7 +1102,6 @@ public:
                 /// reset buffer
                 pidInfo->mBufPtr = nullptr;
                 }
-                //}}}
 
               do {
                 pidInfo->mSectionLength = ((tsPtr[pointerField+2] & 0x0F) << 8) | tsPtr[pointerField+3] + 3;
@@ -1127,8 +1125,8 @@ public:
             else if (pidInfo->mBufPtr) {
               // add to buffered section
               if (pidInfo->mBufPtr + tsFrameBytesLeft > pidInfo->mBuffer + pidInfo->mBufSize)
-                cLog::log (LOGINFO, "%d sectionBuffer overflow > 4096 %d",
-                                    mPackets, (int)(pidInfo->mBufPtr - pidInfo->mBuffer));
+                cLog::log (LOGERROR, "%d sectionBuffer overflow > 4096 %d",
+                                     mPackets, (int)(pidInfo->mBufPtr - pidInfo->mBuffer));
               else {
                 memcpy (pidInfo->mBufPtr, tsPtr, tsFrameBytesLeft);
                 pidInfo->mBufPtr += tsFrameBytesLeft;
@@ -1145,7 +1143,7 @@ public:
           else if ((decodePid == -1) || (pid == decodePid)) {
             if (payloadStart && !tsPtr[0] && !tsPtr[1] && (tsPtr[2] == 0x01)) {
               //{{{  start new payload
-              // recognised streamId's
+              // recognise streamIds
               bool isVid = (tsPtr[3] == 0xE0);
               bool isAud = (tsPtr[3] == 0xBD) || (tsPtr[3] == 0xC0);
 
@@ -1159,10 +1157,11 @@ public:
                     decoded = audDecodePes (pidInfo, skip);
                   }
 
-                // start next pes
+                // start buffering pes
                 pidInfo->mBufPtr = pidInfo->mBuffer;
                 pidInfo->mStreamPos = streamPos;
 
+                // form pts, firstPts, lastPts
                 pidInfo->mPts = (tsPtr[7] & 0x80) ? getPtsDts (tsPtr+9) : -1;
                 if (pidInfo->mFirstPts == -1)
                   pidInfo->mFirstPts = pidInfo->mPts;
@@ -1180,19 +1179,18 @@ public:
               if (tsFrameBytesLeft <= 0)
                 cLog::log (LOGERROR, "demux - copy error - pid:%d tsFrameBytesLeft:%d", pid, tsFrameBytesLeft);
 
-              else if ((pidInfo->mBufPtr + tsFrameBytesLeft) <= (pidInfo->mBuffer + pidInfo->mBufSize)) {
-                memcpy (pidInfo->mBufPtr, tsPtr, tsFrameBytesLeft);
-                pidInfo->mBufPtr += tsFrameBytesLeft;
-                }
-
-              else {
+              else if ((pidInfo->mBufPtr + tsFrameBytesLeft) > (pidInfo->mBuffer + pidInfo->mBufSize)) {
+                // realloc buffer to twice size
                 pidInfo->mBufSize *= 2;
+                cLog::log (LOGINFO1, "demux pid:" + dec(pid) + " realloc to " + dec(pidInfo->mBufSize));
+
                 auto ptrOffset = pidInfo->mBufPtr - pidInfo->mBuffer;
                 pidInfo->mBuffer = (uint8_t*)realloc (pidInfo->mBuffer, pidInfo->mBufSize);
-                memcpy (pidInfo->mBuffer + ptrOffset, tsPtr, tsFrameBytesLeft);
-                pidInfo->mBufPtr = pidInfo->mBuffer + ptrOffset + tsFrameBytesLeft;
-                //cLog::log (LOGINFO, "demux " + dec(pid) + " realloc " + dec(pidInfo->mBufSize));
+                pidInfo->mBufPtr = pidInfo->mBuffer + ptrOffset;
                 }
+
+              memcpy (pidInfo->mBufPtr, tsPtr, tsFrameBytesLeft);
+              pidInfo->mBufPtr += tsFrameBytesLeft;
               }
               //}}}
             }
