@@ -1086,32 +1086,32 @@ public:
           //}}}
 
           if (isSection) {
-            //{{{  parse section pids
+            //{{{  parse section pid
             if (payloadStart) {
               // parse sectionStart
               int pointerField = *tsPtr;
               if (pointerField && pidInfo->mBufPtr) {
                 // payStart packet starts with end of lastSection, copy to end of buffer
                 memcpy (pidInfo->mBufPtr, tsPtr+1, pointerField);
-
-                // parse buffer if enough bytes for sectionLength
                 pidInfo->mBufPtr += pointerField;
-                if (pidInfo->mBufPtr - pidInfo->mBuffer >= pidInfo->mSectionLength)
-                  parseSection (pidInfo, pidInfo->mBuffer, 1);
 
-                /// reset buffer
+                // if enough for sectionLength, parse last buffered section
+                if (pidInfo->mBufPtr - pidInfo->mBuffer >= pidInfo->mSectionLength)
+                  parseSection (pidInfo, pidInfo->mBuffer);
+
+                /// start new buffer
                 pidInfo->mBufPtr = nullptr;
                 }
 
               do {
-                pidInfo->mSectionLength = ((tsPtr[pointerField+2] & 0x0F) << 8) | tsPtr[pointerField+3] + 3;
-                if (pointerField < 183 - pidInfo->mSectionLength) {
-                  parseSection (pidInfo, tsPtr + pointerField + 1, 3);
+                pidInfo->mSectionLength = ((tsPtr[pointerField+2] & 0x0F) << 8) + tsPtr[pointerField+3] + 3;
+                if (pointerField + pidInfo->mSectionLength < 183) {
+                  parseSection (pidInfo, tsPtr + pointerField + 1);
                   pointerField += pidInfo->mSectionLength;
                   }
                 else {
                   // section straddles packets, start buffering
-                  if (183 - pointerField > 0) {
+                  if (pointerField < 183) {
                     memcpy (pidInfo->mBuffer, tsPtr + pointerField + 1, 183 - pointerField);
                     pidInfo->mBufPtr = pidInfo->mBuffer + 183 - pointerField;
                     }
@@ -1124,18 +1124,20 @@ public:
 
             else if (pidInfo->mBufPtr) {
               // add to buffered section
-              if (pidInfo->mBufPtr + tsFrameBytesLeft > pidInfo->mBuffer + pidInfo->mBufSize)
-                cLog::log (LOGERROR, "%d sectionBuffer overflow > 4096 %d",
-                                     mPackets, (int)(pidInfo->mBufPtr - pidInfo->mBuffer));
+              if (pidInfo->mBufPtr + tsFrameBytesLeft > pidInfo->mBuffer + pidInfo->mBufSize) {
+                cLog::log (LOGERROR, "demux - %d sectionBuffer overflow %d > %d",
+                                     mPackets, (int)(pidInfo->mBufPtr - pidInfo->mBuffer), pidInfo->mBufSize);
+                pidInfo->mBufPtr = nullptr;
+                }
               else {
                 memcpy (pidInfo->mBufPtr, tsPtr, tsFrameBytesLeft);
                 pidInfo->mBufPtr += tsFrameBytesLeft;
-                }
 
-              if ((pidInfo->mBufPtr - pidInfo->mBuffer) >= pidInfo->mSectionLength) {
-                // enough bytes to parse buffered section
-                parseSection (pidInfo, pidInfo->mBuffer, 4);
-                pidInfo->mBufPtr = 0;
+                if ((pidInfo->mBufPtr - pidInfo->mBuffer) >= pidInfo->mSectionLength) {
+                  // enough to parse buffered section
+                  parseSection (pidInfo, pidInfo->mBuffer);
+                  pidInfo->mBufPtr = nullptr;
+                  }
                 }
               }
             }
@@ -1547,13 +1549,13 @@ private:
     }
   //}}}
   //{{{
-  void parseEit (cPidInfo* pidInfo, uint8_t* buf, int tag) {
+  void parseEit (cPidInfo* pidInfo, uint8_t* buf) {
 
     auto eit = (eit_t*)buf;
     auto sectionLength = HILO(eit->section_length) + 3;
     if (crc32 (buf, sectionLength)) {
       mEitError++;
-      //cLog::log (LOGERROR, "%d parseEit len:%d tag:%d Bad CRC  ", mPackets, sectionLength, tag);
+      //cLog::log (LOGERROR, "%d parseEit len:%d Bad CRC  ", mPackets, sectionLength);
       pidInfo->mInfoStr = "CRC errors " + dec (mEitError);
       return;
       }
@@ -1653,14 +1655,14 @@ private:
     }
   //}}}
   //{{{
-  void parseSection (cPidInfo* pidInfo, uint8_t* buf, int tag) {
+  void parseSection (cPidInfo* pidInfo, uint8_t* buf) {
 
     switch (pidInfo->mPid) {
       case PID_PAT: parsePat (pidInfo, buf); break;
       case PID_SDT: parseSdt (pidInfo, buf); break;
       case PID_TDT: parseTdt (pidInfo, buf); break;
       case PID_NIT: parseNit (pidInfo, buf); break;
-      case PID_EIT: parseEit (pidInfo, buf, tag); break;
+      case PID_EIT: parseEit (pidInfo, buf); break;
       default:      parsePmt (pidInfo, buf); break;
       }
     }
