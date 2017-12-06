@@ -1072,60 +1072,58 @@ public:
           tsPtr += headerBytes;
           int tsFrameBytesLeft = 187 - headerBytes;
           //}}}
-
           if (isPsi) {
             //{{{  parse psi pid
             if (payloadStart) {
-              // parse sectionStart
-              int pointerField = *tsPtr;
-              if (pointerField && pidInfo->mBufPtr) {
-                // payStart packet starts with end of lastSection, copy to end of buffer
-                memcpy (pidInfo->mBufPtr, tsPtr+1, pointerField);
-                pidInfo->mBufPtr += pointerField;
-
-                // if enough for sectionLength, parse last buffered section
-                if (pidInfo->mBufPtr - pidInfo->mBuffer >= pidInfo->mSectionLength)
-                  parsePsi (pidInfo, pidInfo->mBuffer);
-
-                /// start new buffer
-                pidInfo->mBufPtr = nullptr;
+              int pointerField = tsPtr[0];
+              cLog::log (LOGINFO1, "-------- payloadStart------- pf:"  + dec(pointerField));
+              if ((pointerField > 0) && pidInfo->mBufPtr) {
+                // packet starts with end of lastSection, copy to bufPtr, if sectionLength, parse lastSection
+                cLog::log (LOGINFO1, "- add to lastSection " + dec(pidInfo->mSectionLength) +
+                                      " bufPtr:" + dec(int(pidInfo->mBufPtr - pidInfo->mBuffer)));
+                addToSectionBuffer (pidInfo, tsPtr+1, pointerField);
                 }
 
               do {
-                pidInfo->mSectionLength = ((tsPtr[pointerField+2] & 0x0F) << 8) + tsPtr[pointerField+3] + 3;
-                if (pointerField + pidInfo->mSectionLength < 183) {
+                pidInfo->mSectionLength = ((tsPtr[pointerField+2] & 0x0F) << 8) + tsPtr[pointerField+3] + 3;;
+                cLog::log(LOGINFO1, "sectionLength " + dec(pidInfo->mSectionLength) +
+                                     " pf:" + dec(pointerField));
+                if (pointerField < 183 - pidInfo->mSectionLength) {
+                  // parse section without buffering
+                  cLog::log (LOGINFO1, "- parse " + dec(pidInfo->mSectionLength) +
+                                       " pf:" + dec(pointerField));
                   parsePsi (pidInfo, tsPtr + pointerField + 1);
                   pointerField += pidInfo->mSectionLength;
                   }
+                else if (pointerField < 183) {
+                  // section straddles packet, start buffering
+                  cLog::log (pointerField < 181 ? LOGINFO1 : LOGINFO, 
+                                       "- straddle packet " + dec(pidInfo->mSectionLength) +
+                                       " pf:" + dec(pointerField));
+                  memcpy (pidInfo->mBuffer, tsPtr+1 + pointerField, 183 - pointerField);
+                  pidInfo->mBufPtr = pidInfo->mBuffer + 183 - pointerField;
+                  break;
+                  }
                 else {
-                  // section straddles packets, start buffering
-                  if (pointerField < 183) {
-                    memcpy (pidInfo->mBuffer, tsPtr + pointerField + 1, 183 - pointerField);
-                    pidInfo->mBufPtr = pidInfo->mBuffer + 183 - pointerField;
-                    }
-                  else
-                    cLog::log (LOGERROR, "demux - section packet pid:%d pointerField:%d", pid, pointerField);
+                  cLog::log (LOGERROR, "demux - section packet pid:%d pointerField:%d", pid, pointerField);
+                  pidInfo->mBufPtr = nullptr;
                   break;
                   }
                 } while (tsPtr[pointerField+1] != 0xFF);
+              cLog::log (LOGINFO1, "^^^^^^^^ payloadStart ^^^^^^^^");
               }
 
             else if (pidInfo->mBufPtr) {
               // add to buffered section
-              if (pidInfo->mBufPtr + tsFrameBytesLeft > pidInfo->mBuffer + pidInfo->mBufSize) {
-                cLog::log (LOGERROR, "demux - %d sectionBuffer overflow %d > %d",
-                                     mPackets, (int)(pidInfo->mBufPtr - pidInfo->mBuffer), pidInfo->mBufSize);
-                pidInfo->mBufPtr = nullptr;
+              if (pidInfo->mBufPtr + tsFrameBytesLeft <= pidInfo->mBuffer + pidInfo->mBufSize) {
+                cLog::log (LOGINFO1, "notPayloadStart *** wanting " + dec(pidInfo->mSectionLength) +
+                                      " bufPtr:" + dec(int(pidInfo->mBufPtr - pidInfo->mBuffer)));
+                addToSectionBuffer (pidInfo, tsPtr, tsFrameBytesLeft);
                 }
               else {
-                memcpy (pidInfo->mBufPtr, tsPtr, tsFrameBytesLeft);
-                pidInfo->mBufPtr += tsFrameBytesLeft;
-
-                if ((pidInfo->mBufPtr - pidInfo->mBuffer) >= pidInfo->mSectionLength) {
-                  // enough to parse buffered section
-                  parsePsi (pidInfo, pidInfo->mBuffer);
-                  pidInfo->mBufPtr = nullptr;
-                  }
+                cLog::log (LOGERROR, "demux - sectionBuffer overflow %d > %d",
+                                     (int)(pidInfo->mBufPtr - pidInfo->mBuffer), pidInfo->mBufSize);
+                pidInfo->mBufPtr = nullptr;
                 }
               }
             }
@@ -1237,8 +1235,24 @@ protected:
 
 private:
   //{{{
+  void addToSectionBuffer (cPidInfo* pidInfo, uint8_t* buf, int bufBytes) {
+
+    memcpy (pidInfo->mBufPtr, buf, bufBytes);
+    pidInfo->mBufPtr += bufBytes;
+
+    if (pidInfo->mBufPtr - pidInfo->mBuffer >= pidInfo->mSectionLength) {
+      cLog::log (LOGINFO1, "- parse bufferedSection " + dec(pidInfo->mSectionLength));
+      parsePsi (pidInfo, pidInfo->mBuffer);
+      pidInfo->mBufPtr = nullptr;
+      }
+    }
+  //}}}
+
+  //{{{
   void parsePat (cPidInfo* pidInfo, uint8_t* buf) {
   // PAT declares programPid,sid to mProgramMap, recogneses programPid PMT to declare service streams
+
+    cLog::log (LOGINFO1, "parsePat");
 
     auto pat = (pat_t*)buf;
     auto sectionLength = HILO(pat->section_length) + 3;
@@ -1273,6 +1287,8 @@ private:
   //{{{
   void parseSdt (cPidInfo* pidInfo, uint8_t* buf) {
   // SDT add new services to mServiceMap declaring serviceType, name
+
+    cLog::log (LOGINFO1, "parseSdt");
 
     auto sdt = (sdt_t*)buf;
     auto sectionLength = HILO(sdt->section_length) + 3;
@@ -1363,8 +1379,10 @@ private:
   //{{{
   void parsePmt (cPidInfo* pidInfo, uint8_t* buf) {
   // PMT declares streams for a service
-    int pid = pidInfo->mPid;
 
+    cLog::log (LOGINFO1, "parsePmt");
+
+    int pid = pidInfo->mPid;
     auto pmt = (pmt_t*)buf;
     auto sectionLength = HILO(pmt->section_length) + 3;
     if (crc32 (buf, sectionLength)) {
@@ -1468,8 +1486,9 @@ private:
   //{{{
   void parseTdt (cPidInfo* pidInfo, uint8_t* buf) {
 
-    auto tdt = (tdt_t*)buf;
+    cLog::log (LOGINFO1, "parseTdt");
 
+    auto tdt = (tdt_t*)buf;
     if (tdt->table_id == TID_TDT) {
       mCurTime = MjdToEpochTime (tdt->utc_mjd) + BcdTimeToSeconds (tdt->utc_time);
 
@@ -1482,6 +1501,8 @@ private:
   //}}}
   //{{{
   void parseNit (cPidInfo* pidInfo, uint8_t* buf) {
+
+    cLog::log (LOGINFO1, "parseNit");
 
     auto nit = (nit_t*)buf;
     auto sectionLength = HILO(nit->section_length) + 3;
@@ -1539,11 +1560,13 @@ private:
   //{{{
   void parseEit (cPidInfo* pidInfo, uint8_t* buf) {
 
+    cLog::log (LOGINFO1, "parseEit");
+
     auto eit = (eit_t*)buf;
     auto sectionLength = HILO(eit->section_length) + 3;
     if (crc32 (buf, sectionLength)) {
       mEitError++;
-      //cLog::log (LOGERROR, "%d parseEit len:%d Bad CRC  ", mPackets, sectionLength);
+      cLog::log (LOGINFO, " - parseEit - bad CRC " + dec(sectionLength));
       pidInfo->mInfoStr = "CRC errors " + dec (mEitError);
       return;
       }
@@ -1611,20 +1634,21 @@ private:
               //}}}
             case DESCR_EXTENDED_EVENT: {
               //{{{  extendedEvent
-              size_t len = ((descr_gen_t*)(buf))->descr_length;
-              cLog::log(LOGINFO, "EIT extendedEvent sid:" + dec(sid) + " len:" + dec(len));
+              if (false) {
+                size_t len = ((descr_gen_t*)(buf))->descr_length;
+                cLog::log(LOGINFO, "EIT extendedEvent sid:" + dec(sid) + " len:" + dec(len));
 
-              string str;
-              for (auto i = 0; i < len; i++) {
-                int n = buf[i];
-                str += hex(n,2) + " ";
-                if ((i % 16) == 15) {
-                  cLog::log (LOGINFO, str);
-                  str = "";
+                string str;
+                for (auto i = 0; i < len; i++) {
+                  int n = buf[i];
+                  str += hex(n,2) + " ";
+                  if ((i % 16) == 15) {
+                    cLog::log (LOGINFO, str);
+                    str = "";
+                    }
                   }
+                cLog::log (LOGINFO, str);
                 }
-              cLog::log (LOGINFO, str);
-
               break;
               }
               //}}}
