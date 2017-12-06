@@ -871,8 +871,7 @@ public:
                   }
                 else if (pointerField < 183) {
                   // start buffering section. straddles packets
-                  cLog::log (pointerField < 181 ? LOGINFO1 : LOGINFO,
-                                       "- straddle packet " + dec(pidInfo->mSectionLength) +
+                  cLog::log (LOGINFO1, "- straddle packet " + dec(pidInfo->mSectionLength) +
                                        " pf:" + dec(pointerField));
                   memcpy (pidInfo->mBuffer, tsPtr+1 + pointerField, 183 - pointerField);
                   pidInfo->mBufPtr = pidInfo->mBuffer + 183 - pointerField;
