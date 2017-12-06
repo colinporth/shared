@@ -1,6 +1,11 @@
 // cTransportStream.h - transport stream parser
-#pragma once
+// PAT inserts <pid,sid>'s into mProgramMap#pragma once
+// SDT inserts <sid,cService> into mServiceMap
+// PMT sets cService pids
+// pid inserts <pid,cPidInfo> into mPidInfoMap
 //{{{  includes
+#pragma once
+
 #include <string>
 #include <map>
 #include <time.h>
@@ -437,236 +442,6 @@ static unsigned long crcTable[256] = {
 //}}}
 
 //{{{
-class cBitstream {
-// used to parse H264 stream to find I frames
-public:
-  //{{{
-  cBitstream (const uint8_t* buffer, uint32_t bit_len) {
-    mDecBuffer = buffer;
-    mDecBufferSize = bit_len;
-    mNumOfBitsInBuffer = 0;
-    mBookmarkOn = false;
-    };
-  //}}}
-  ~cBitstream() {};
-
-  //{{{
-  uint32_t peekBits (uint32_t bits) {
-
-    bookmark (true);
-    uint32_t ret = getBits (bits);
-    bookmark (false);
-    return ret;
-    }
-  //}}}
-  //{{{
-  uint32_t getBits (uint32_t numBits) {
-
-    //{{{
-    static const uint32_t msk[33] = {
-      0x00000000, 0x00000001, 0x00000003, 0x00000007,
-      0x0000000f, 0x0000001f, 0x0000003f, 0x0000007f,
-      0x000000ff, 0x000001ff, 0x000003ff, 0x000007ff,
-      0x00000fff, 0x00001fff, 0x00003fff, 0x00007fff,
-      0x0000ffff, 0x0001ffff, 0x0003ffff, 0x0007ffff,
-      0x000fffff, 0x001fffff, 0x003fffff, 0x007fffff,
-      0x00ffffff, 0x01ffffff, 0x03ffffff, 0x07ffffff,
-      0x0fffffff, 0x1fffffff, 0x3fffffff, 0x7fffffff,
-      0xffffffff
-      };
-    //}}}
-
-    if (numBits == 0)
-      return 0;
-
-    uint32_t retData;
-    if (mNumOfBitsInBuffer >= numBits) {  // don't need to read from FILE
-      mNumOfBitsInBuffer -= numBits;
-      retData = mDecData >> mNumOfBitsInBuffer;
-      // wmay - this gets done below...retData &= msk[numBits];
-      }
-    else {
-      uint32_t nbits;
-      nbits = numBits - mNumOfBitsInBuffer;
-      if (nbits == 32)
-        retData = 0;
-      else
-        retData = mDecData << nbits;
-
-      switch ((nbits - 1) / 8) {
-        case 3:
-          nbits -= 8;
-          if (mDecBufferSize < 8)
-            return 0;
-          retData |= *mDecBuffer++ << nbits;
-          mDecBufferSize -= 8;
-          // fall through
-        case 2:
-          nbits -= 8;
-          if (mDecBufferSize < 8)
-            return 0;
-          retData |= *mDecBuffer++ << nbits;
-          mDecBufferSize -= 8;
-        case 1:
-          nbits -= 8;
-          if (mDecBufferSize < 8)
-            return 0;
-          retData |= *mDecBuffer++ << nbits;
-          mDecBufferSize -= 8;
-        case 0:
-          break;
-        }
-      if (mDecBufferSize < nbits)
-        return 0;
-
-      mDecData = *mDecBuffer++;
-      mNumOfBitsInBuffer = min(8u, mDecBufferSize) - nbits;
-      mDecBufferSize -= min(8u, mDecBufferSize);
-      retData |= (mDecData >> mNumOfBitsInBuffer) & msk[nbits];
-      }
-
-    return (retData & msk[numBits]);
-    };
-  //}}}
-
-  //{{{
-  uint32_t getUe() {
-
-    uint32_t bits;
-    uint32_t read;
-    int bits_left;
-    bool done = false;
-    bits = 0;
-
-    // we want to read 8 bits at a time - if we don't have 8 bits,
-    // read what's left, and shift.  The exp_golomb_bits calc remains the same.
-    while (!done) {
-      bits_left = bits_remain();
-      if (bits_left < 8) {
-        read = peekBits (bits_left) << (8 - bits_left);
-        done = true;
-        }
-      else {
-        read = peekBits (8);
-        if (read == 0) {
-          getBits (8);
-          bits += 8;
-          }
-        else
-         done = true;
-        }
-      }
-
-    uint8_t coded = exp_golomb_bits[read];
-    getBits (coded);
-    bits += coded;
-
-    return getBits (bits + 1) - 1;
-    }
-  //}}}
-  //{{{
-  int32_t getSe() {
-
-    uint32_t ret;
-    ret = getUe();
-    if ((ret & 0x1) == 0) {
-      ret >>= 1;
-      int32_t temp = 0 - ret;
-      return temp;
-      }
-
-    return (ret + 1) >> 1;
-    }
-  //}}}
-
-  //{{{
-  void check_0s (int count) {
-
-    uint32_t val = getBits (count);
-    if (val != 0)
-      cLog::log (LOGERROR, "field error - %d bits should be 0 is %x", count, val);
-    }
-  //}}}
-  //{{{
-  int bits_remain() {
-    return mDecBufferSize + mNumOfBitsInBuffer;
-    };
-  //}}}
-  //{{{
-  int byte_align() {
-
-    int temp = 0;
-    if (mNumOfBitsInBuffer != 0)
-      temp = getBits (mNumOfBitsInBuffer);
-    else {
-      // if we are byte aligned, check for 0x7f value - this will indicate
-      // we need to skip those bits
-      uint8_t readval = peekBits (8);
-      if (readval == 0x7f)
-        readval = getBits (8);
-      }
-
-    return temp;
-    };
-  //}}}
-
-private:
-  //{{{
-  const uint8_t exp_golomb_bits[256] = {
-    8, 7, 6, 6, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 3,
-    3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2,
-    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0,
-    };
-  //}}}
-
-  //{{{
-  void bookmark (bool on) {
-
-    if (on) {
-      mNumOfBitsInBuffer_bookmark = mNumOfBitsInBuffer;
-      mDecBuffer_bookmark = mDecBuffer;
-      mDecBufferSize_bookmark = mDecBufferSize;
-      mBookmarkOn = 1;
-      mDecData_bookmark = mDecData;
-      }
-
-    else {
-      mNumOfBitsInBuffer = mNumOfBitsInBuffer_bookmark;
-      mDecBuffer = mDecBuffer_bookmark;
-      mDecBufferSize = mDecBufferSize_bookmark;
-      mDecData = mDecData_bookmark;
-      mBookmarkOn = 0;
-      }
-
-    };
-  //}}}
-
-  uint32_t mNumOfBitsInBuffer;
-  const uint8_t* mDecBuffer;
-  uint8_t mDecData;
-  uint8_t mDecData_bookmark;
-  uint32_t mDecBufferSize;
-
-  bool mBookmarkOn;
-  uint32_t mNumOfBitsInBuffer_bookmark;
-  const uint8_t* mDecBuffer_bookmark;
-  uint32_t mDecBufferSize_bookmark;
-  };
-//}}}
-//{{{
 class cPidInfo {
 public:
   //{{{
@@ -1028,7 +803,6 @@ public:
           lostSync = 0;
           }
           //}}}
-
         // check for full packet, followed by start syncCode if not end
         if ((tsPtr+187 >= tsEnd) || (*(tsPtr+187) == 0x47)) {
           //{{{  parse ts packet
@@ -1077,7 +851,7 @@ public:
             if (payloadStart) {
               int pointerField = tsPtr[0];
               cLog::log (LOGINFO1, "-------- payloadStart------- pf:"  + dec(pointerField));
-              if ((pointerField > 0) && pidInfo->mBufPtr) {
+              if (pidInfo->mBufPtr && (pointerField > 0)) {
                 // packet starts with end of lastSection, copy to bufPtr, if sectionLength, parse lastSection
                 cLog::log (LOGINFO1, "- add to lastSection " + dec(pidInfo->mSectionLength) +
                                       " bufPtr:" + dec(int(pidInfo->mBufPtr - pidInfo->mBuffer)));
@@ -1096,8 +870,8 @@ public:
                   pointerField += pidInfo->mSectionLength;
                   }
                 else if (pointerField < 183) {
-                  // section straddles packet, start buffering
-                  cLog::log (pointerField < 181 ? LOGINFO1 : LOGINFO, 
+                  // start buffering section. straddles packets
+                  cLog::log (pointerField < 181 ? LOGINFO1 : LOGINFO,
                                        "- straddle packet " + dec(pidInfo->mSectionLength) +
                                        " pf:" + dec(pointerField));
                   memcpy (pidInfo->mBuffer, tsPtr+1 + pointerField, 183 - pointerField);
@@ -1114,10 +888,10 @@ public:
               }
 
             else if (pidInfo->mBufPtr) {
-              // add to buffered section
-              if (pidInfo->mBufPtr + tsFrameBytesLeft <= pidInfo->mBuffer + pidInfo->mBufSize) {
-                cLog::log (LOGINFO1, "notPayloadStart *** wanting " + dec(pidInfo->mSectionLength) +
-                                      " bufPtr:" + dec(int(pidInfo->mBufPtr - pidInfo->mBuffer)));
+              // add packet to buffered section
+              if ((pidInfo->mBufPtr + tsFrameBytesLeft) <= (pidInfo->mBuffer + pidInfo->mBufSize)) {
+                cLog::log (LOGINFO1, "payload add ---> bufPtr:" + dec(int(pidInfo->mBufPtr - pidInfo->mBuffer)) +
+                                     " of " +  dec(pidInfo->mSectionLength));
                 addToSectionBuffer (pidInfo, tsPtr, tsFrameBytesLeft);
                 }
               else {
@@ -1223,17 +997,246 @@ public:
   //}}}
 
   // vars
-  map<int,int>      mProgramMap; // PAT insert <pid,sid>'s    into mProgramMap
-  map<int,cService> mServiceMap; // SDT insert <sid,cService> into mServiceMap
-  map<int,cPidInfo> mPidInfoMap; // pid insert <pid,cPidInfo> into mPidInfoMap
-                                 // PMT set cService pids
-                                 // EIT add cService Now,Epg events
+  map<int,cPidInfo> mPidInfoMap;
+  map<int,cService> mServiceMap;
+
 protected:
   virtual bool audDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
   virtual bool vidDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
   virtual void startProgram (int vidPid, int audPid, const string& name, time_t startTime) {}
 
 private:
+  //{{{
+  class cBitstream {
+  // used to parse H264 stream to find I frames
+  public:
+    //{{{
+    cBitstream (const uint8_t* buffer, uint32_t bit_len) {
+      mDecBuffer = buffer;
+      mDecBufferSize = bit_len;
+      mNumOfBitsInBuffer = 0;
+      mBookmarkOn = false;
+      };
+    //}}}
+    ~cBitstream() {};
+
+    //{{{
+    uint32_t peekBits (uint32_t bits) {
+
+      bookmark (true);
+      uint32_t ret = getBits (bits);
+      bookmark (false);
+      return ret;
+      }
+    //}}}
+    //{{{
+    uint32_t getBits (uint32_t numBits) {
+
+      //{{{
+      static const uint32_t msk[33] = {
+        0x00000000, 0x00000001, 0x00000003, 0x00000007,
+        0x0000000f, 0x0000001f, 0x0000003f, 0x0000007f,
+        0x000000ff, 0x000001ff, 0x000003ff, 0x000007ff,
+        0x00000fff, 0x00001fff, 0x00003fff, 0x00007fff,
+        0x0000ffff, 0x0001ffff, 0x0003ffff, 0x0007ffff,
+        0x000fffff, 0x001fffff, 0x003fffff, 0x007fffff,
+        0x00ffffff, 0x01ffffff, 0x03ffffff, 0x07ffffff,
+        0x0fffffff, 0x1fffffff, 0x3fffffff, 0x7fffffff,
+        0xffffffff
+        };
+      //}}}
+
+      if (numBits == 0)
+        return 0;
+
+      uint32_t retData;
+      if (mNumOfBitsInBuffer >= numBits) {  // don't need to read from FILE
+        mNumOfBitsInBuffer -= numBits;
+        retData = mDecData >> mNumOfBitsInBuffer;
+        // wmay - this gets done below...retData &= msk[numBits];
+        }
+      else {
+        uint32_t nbits;
+        nbits = numBits - mNumOfBitsInBuffer;
+        if (nbits == 32)
+          retData = 0;
+        else
+          retData = mDecData << nbits;
+
+        switch ((nbits - 1) / 8) {
+          case 3:
+            nbits -= 8;
+            if (mDecBufferSize < 8)
+              return 0;
+            retData |= *mDecBuffer++ << nbits;
+            mDecBufferSize -= 8;
+            // fall through
+          case 2:
+            nbits -= 8;
+            if (mDecBufferSize < 8)
+              return 0;
+            retData |= *mDecBuffer++ << nbits;
+            mDecBufferSize -= 8;
+          case 1:
+            nbits -= 8;
+            if (mDecBufferSize < 8)
+              return 0;
+            retData |= *mDecBuffer++ << nbits;
+            mDecBufferSize -= 8;
+          case 0:
+            break;
+          }
+        if (mDecBufferSize < nbits)
+          return 0;
+
+        mDecData = *mDecBuffer++;
+        mNumOfBitsInBuffer = min(8u, mDecBufferSize) - nbits;
+        mDecBufferSize -= min(8u, mDecBufferSize);
+        retData |= (mDecData >> mNumOfBitsInBuffer) & msk[nbits];
+        }
+
+      return (retData & msk[numBits]);
+      };
+    //}}}
+
+    //{{{
+    uint32_t getUe() {
+
+      uint32_t bits;
+      uint32_t read;
+      int bits_left;
+      bool done = false;
+      bits = 0;
+
+      // we want to read 8 bits at a time - if we don't have 8 bits,
+      // read what's left, and shift.  The exp_golomb_bits calc remains the same.
+      while (!done) {
+        bits_left = bits_remain();
+        if (bits_left < 8) {
+          read = peekBits (bits_left) << (8 - bits_left);
+          done = true;
+          }
+        else {
+          read = peekBits (8);
+          if (read == 0) {
+            getBits (8);
+            bits += 8;
+            }
+          else
+           done = true;
+          }
+        }
+
+      uint8_t coded = exp_golomb_bits[read];
+      getBits (coded);
+      bits += coded;
+
+      return getBits (bits + 1) - 1;
+      }
+    //}}}
+    //{{{
+    int32_t getSe() {
+
+      uint32_t ret;
+      ret = getUe();
+      if ((ret & 0x1) == 0) {
+        ret >>= 1;
+        int32_t temp = 0 - ret;
+        return temp;
+        }
+
+      return (ret + 1) >> 1;
+      }
+    //}}}
+
+    //{{{
+    void check_0s (int count) {
+
+      uint32_t val = getBits (count);
+      if (val != 0)
+        cLog::log (LOGERROR, "field error - %d bits should be 0 is %x", count, val);
+      }
+    //}}}
+    //{{{
+    int bits_remain() {
+      return mDecBufferSize + mNumOfBitsInBuffer;
+      };
+    //}}}
+    //{{{
+    int byte_align() {
+
+      int temp = 0;
+      if (mNumOfBitsInBuffer != 0)
+        temp = getBits (mNumOfBitsInBuffer);
+      else {
+        // if we are byte aligned, check for 0x7f value - this will indicate
+        // we need to skip those bits
+        uint8_t readval = peekBits (8);
+        if (readval == 0x7f)
+          readval = getBits (8);
+        }
+
+      return temp;
+      };
+    //}}}
+
+  private:
+    //{{{
+    const uint8_t exp_golomb_bits[256] = {
+      8, 7, 6, 6, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 3,
+      3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2,
+      2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+      2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1,
+      1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+      1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+      1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+      1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0,
+      };
+    //}}}
+
+    //{{{
+    void bookmark (bool on) {
+
+      if (on) {
+        mNumOfBitsInBuffer_bookmark = mNumOfBitsInBuffer;
+        mDecBuffer_bookmark = mDecBuffer;
+        mDecBufferSize_bookmark = mDecBufferSize;
+        mBookmarkOn = 1;
+        mDecData_bookmark = mDecData;
+        }
+
+      else {
+        mNumOfBitsInBuffer = mNumOfBitsInBuffer_bookmark;
+        mDecBuffer = mDecBuffer_bookmark;
+        mDecBufferSize = mDecBufferSize_bookmark;
+        mDecData = mDecData_bookmark;
+        mBookmarkOn = 0;
+        }
+
+      };
+    //}}}
+
+    uint32_t mNumOfBitsInBuffer;
+    const uint8_t* mDecBuffer;
+    uint8_t mDecData;
+    uint8_t mDecData_bookmark;
+    uint32_t mDecBufferSize;
+
+    bool mBookmarkOn;
+    uint32_t mNumOfBitsInBuffer_bookmark;
+    const uint8_t* mDecBuffer_bookmark;
+    uint32_t mDecBufferSize_bookmark;
+    };
+  //}}}
+
   //{{{
   void addToSectionBuffer (cPidInfo* pidInfo, uint8_t* buf, int bufBytes) {
 
@@ -1560,8 +1563,6 @@ private:
   //{{{
   void parseEit (cPidInfo* pidInfo, uint8_t* buf) {
 
-    cLog::log (LOGINFO1, "parseEit");
-
     auto eit = (eit_t*)buf;
     auto sectionLength = HILO(eit->section_length) + 3;
     if (crc32 (buf, sectionLength)) {
@@ -1570,6 +1571,8 @@ private:
       pidInfo->mInfoStr = "CRC errors " + dec (mEitError);
       return;
       }
+
+    cLog::log (LOGINFO1, "parseEit");
 
     auto tid = eit->table_id;
     auto sid = HILO (eit->service_id);
@@ -1840,6 +1843,8 @@ private:
   //}}}
 
   //{{{  private vars
+  map<int,int> mProgramMap;
+
   time_t mFirstTime;
   time_t mCurTime;
 
