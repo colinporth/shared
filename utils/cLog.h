@@ -30,6 +30,7 @@ public:
   static enum eLogLevel getLogLevel();
   static void setLogLevel (enum eLogLevel logLevel);
 
+  static void log (enum eLogLevel logLevel, const std::wstring& logStr);
   static void log (enum eLogLevel logLevel, const std::string& logStr);
   static void log (enum eLogLevel logLevel, const char* format, ... );
 

@@ -119,6 +119,55 @@ void cLog::setLogLevel (enum eLogLevel logLevel) {
 
 
 //{{{
+void cLog::log (enum eLogLevel logLevel, const wstring& wstr) {
+
+  //  get time
+  auto timePoint = chrono::system_clock::now() + chrono::seconds (mDaylightSecs);
+  auto logStr = watrToStr (wstr);
+
+  lock_guard<mutex> lockGuard (mLinesMutex);
+
+  if (mBuffer) {
+    mLines.push_front (cLine (logLevel, timePoint, logStr));
+    if (mLines.size() > kMaxBuffer)
+      mLines.pop_back();
+    }
+
+  else if (logLevel <= mLogLevel) {
+    auto datePoint = floor<date::days>(timePoint);
+    auto timeOfDay = date::make_time (chrono::duration_cast<chrono::microseconds>(timePoint - datePoint));
+    auto h = timeOfDay.hours().count();
+    auto m = timeOfDay.minutes().count();
+    auto s = timeOfDay.seconds().count();
+    auto subSec = timeOfDay.subseconds().count();
+
+    // write log line
+    char buffer[40];
+    sprintf (buffer, prefixFormat, h, m, s, subSec, levelColours[logLevel]);
+    fputs (buffer, stdout);
+    fputs (logStr.c_str(), stdout);
+    fputs (postfix, stdout);
+    }
+
+  if (mFile) {
+    auto datePoint = floor<date::days>(timePoint);
+    auto timeOfDay = date::make_time (chrono::duration_cast<chrono::microseconds>(timePoint - datePoint));
+    auto h = timeOfDay.hours().count();
+    auto m = timeOfDay.minutes().count();
+    auto s = timeOfDay.seconds().count();
+    auto subSec = timeOfDay.subseconds().count();
+
+    char buffer[40];
+    sprintf (buffer, prefixFormat, h, m, s, subSec, levelNames[logLevel]);
+    fputs (buffer, mFile);
+    fputc (' ', mFile);
+    fputs (logStr.c_str(), mFile);
+    fputc ('\n', mFile);
+    fflush (mFile);
+    }
+  }
+//}}}
+//{{{
 void cLog::log (enum eLogLevel logLevel, const string& logStr) {
 
   //  get time
