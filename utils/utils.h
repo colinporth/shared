@@ -5,6 +5,8 @@
 #include <iostream>
 #include <iomanip>
 #include <stdio.h>
+#include <locale>
+#include  <codecvt>
 
 #ifdef USE_NANOVG
   #define bigMalloc(size,tag)   malloc (size)
@@ -151,5 +153,12 @@ inline std::string getTimetShortString (time_t& time) {
 
   return dec(localTm.tm_hour,2,'0') + ":" +
          dec(localTm.tm_min,2,'0');
+  }
+//}}}
+
+//{{{
+inline std::string wstrToStr (std::wstring wstr) {
+  std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converter;
+  return converter.to_bytes (wstr);
   }
 //}}}
