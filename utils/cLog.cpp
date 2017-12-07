@@ -13,6 +13,8 @@
 #include <mutex>
 #include <deque>
 
+#include "utils.h"
+
 #define remove_utf8   remove
 #define rename_utf8   rename
 #define fopen64_utf8  fopen
@@ -123,7 +125,7 @@ void cLog::log (enum eLogLevel logLevel, const wstring& wstr) {
 
   //  get time
   auto timePoint = chrono::system_clock::now() + chrono::seconds (mDaylightSecs);
-  auto logStr = watrToStr (wstr);
+  auto logStr = wstrToStr (wstr);
 
   lock_guard<mutex> lockGuard (mLinesMutex);
 
