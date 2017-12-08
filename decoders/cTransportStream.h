@@ -448,14 +448,15 @@ public:
   cPidInfo (int pid, bool isPsi) : mPid(pid), mPsi(isPsi) {
 
     switch (pid) {
-      case PID_PAT: mTypeStr = "Pat"; break;
-      case PID_CAT: mTypeStr = "Cat"; break;
-      case PID_SDT: mTypeStr = "Sdt"; break;
-      case PID_NIT: mTypeStr = "Nit"; break;
-      case PID_EIT: mTypeStr = "Eit"; break;
-      case PID_RST: mTypeStr = "Rst"; break;
-      case PID_TDT: mTypeStr = "Tdt"; break;
-      case PID_SYN: mTypeStr = "Syn"; break;
+      case PID_PAT: mTypeStr = "Pat "; break;
+      case PID_CAT: mTypeStr = "Cat "; break;
+      case PID_SDT: mTypeStr = "Sdt "; break;
+      case PID_NIT: mTypeStr = "Nit "; break;
+      case PID_EIT: mTypeStr = "Eit "; break;
+      case PID_RST: mTypeStr = "Rst "; break;
+      case PID_TDT: mTypeStr = "Tdt "; break;
+      case PID_SYN: mTypeStr = "Syn "; break;
+      default :     mTypeStr = "****"; break;
       }
     }
   //}}}
@@ -489,7 +490,7 @@ public:
 
   int64_t mStreamPos = -1;
 
-  string mTypeStr = "   ";
+  string mTypeStr;
   string mInfoStr;
   };
 //}}}
@@ -1412,7 +1413,6 @@ private:
       if (sectionIt != mPidInfoMap.end())
         sectionIt->second.mSid = sid;
       updatePidInfo (pidInfo->mPid);
-      //auto pcrPid = HILO (pmt->PCR_PID));
 
       buf += sizeof(pmt_t);
       sectionLength -= 4;
@@ -1420,7 +1420,7 @@ private:
 
       auto streamLength = sectionLength - programInfoLength - sizeof(pmt_t);
       if (streamLength >= 0)
-        parseDescrs ("PMT", sid, buf, programInfoLength, pmt->table_id);
+        parseDescrs (sid, buf, programInfoLength, pmt->table_id);
 
       buf += programInfoLength;
       while (streamLength > 0) {
@@ -1428,41 +1428,39 @@ private:
         auto streamType = pmtInfo->stream_type;
         auto pid = HILO (pmtInfo->elementary_PID);
 
-        auto ok = false;
+        string streamStr;
         switch (streamType) {
-          case 2:  serviceIt->second.setVidPid (pid, streamType); ok = true; break; // ISO 13818-2 video
-          case 27: serviceIt->second.setVidPid (pid, streamType); ok = true; break; // HD vid
+          case   2: serviceIt->second.setVidPid (pid, streamType); streamStr = "mpg2"; break; // ISO 13818-2 video
+          case  27: serviceIt->second.setVidPid (pid, streamType); streamStr = "h264"; break; // HD vid
 
-          case 3:  serviceIt->second.setAudPid (pid, streamType); ok = true; break; // ISO 11172-3 audio
-          case 4:  serviceIt->second.setAudPid (pid, streamType); ok = true; break; // ISO 13818-3 audio
-          case 15: serviceIt->second.setAudPid (pid, streamType); ok = true; break; // HD aud ADTS
-          case 17: serviceIt->second.setAudPid (pid, streamType); ok = true; break; // HD aud LATM
-          case 129: serviceIt->second.setAudPid (pid, streamType); ok = true; break; // aud AC3
+          case   3: serviceIt->second.setAudPid (pid, streamType); streamStr = "mp2a"; break; // ISO 11172-3 audio
+          case   4: serviceIt->second.setAudPid (pid, streamType); streamStr = "mp3a"; break; // ISO 13818-3 audio
+          case  15: serviceIt->second.setAudPid (pid, streamType); streamStr = "aaca"; break; // HD aud ADTS
+          case  17: serviceIt->second.setAudPid (pid, streamType); streamStr = "aacl"; break; // HD aud LATM
+          case 129: serviceIt->second.setAudPid (pid, streamType); streamStr = "ac-3"; break; // aud AC3
 
-          case 6:  serviceIt->second.setSubPid (pid, streamType); ok = true; break; // subtitle
+          case   6: serviceIt->second.setSubPid (pid, streamType); streamStr = "subt"; break; // subtitle
 
-          case 5:
-          case 11:
-          case 13: break;
+          case   5: streamStr = "mtdp"; break;// private mpeg2 tabled data - private
+          case  11: streamStr = "dsmu"; break;// dsm cc u_n
+          case  13: streamStr = "dsmt"; break;// dsm cc tabled data
 
           default:
-            cLog::log (LOGERROR, "parsePmt - unknown streamType:%d sid:%d pid:%d",
-                                 streamType, sid, pid);
+            cLog::log (LOGERROR, "parsePmt - unknown streamType:%d sid:%d pid:%d", streamType, sid, pid);
             break;
           }
 
-        if (ok) {
-          // set sid for each stream pid
-          auto sectionIt = mPidInfoMap.find (pid);
-          if (sectionIt != mPidInfoMap.end()) {
-            sectionIt->second.mSid = sid;
-            sectionIt->second.mStreamType = streamType;
-            }
-          updatePidInfo (pid);
+        // set sid for each stream pid
+        auto sectionIt = mPidInfoMap.find (pid);
+        if (sectionIt != mPidInfoMap.end()) {
+          sectionIt->second.mSid = sid;
+          sectionIt->second.mStreamType = streamType;
+          sectionIt->second.mTypeStr = streamStr;
           }
+        updatePidInfo (pid);
 
         auto loopLength = HILO (pmtInfo->ES_info_length);
-        parseDescrs ("PMT", sid, buf, loopLength, pmt->table_id);
+        parseDescrs (sid, buf, loopLength, pmt->table_id);
 
         buf += sizeof(pmt_info_t);
         streamLength -= loopLength + sizeof(pmt_info_t);
@@ -1531,7 +1529,7 @@ private:
     sectionLength -= sizeof(nit_t) + 4;
     if (loopLength <= sectionLength) {
       if (sectionLength >= 0)
-        parseDescrs ("NIT", networkId, buf, loopLength, nit->table_id);
+        parseDescrs (networkId, buf, loopLength, nit->table_id);
       sectionLength -= loopLength;
 
       buf += loopLength;
@@ -1549,7 +1547,7 @@ private:
           buf += sizeof(nit_ts_t);
           if (loopLength2 <= loopLength)
             if (loopLength >= 0)
-              parseDescrs ("NIT", tsid, buf, loopLength2, nit->table_id);
+              parseDescrs (tsid, buf, loopLength2, nit->table_id);
 
           loopLength -= loopLength2 + sizeof(nit_ts_t);
           sectionLength -= loopLength2 + sizeof(nit_ts_t);
@@ -1722,7 +1720,7 @@ private:
     }
   //}}}
   //{{{
-  void parseDescr (string sectionName, int key, uint8_t* buf, int tid) {
+  void parseDescr (int key, uint8_t* buf, int tid) {
 
     switch (getDescrTag(buf)) {
       case DESCR_EXTENDED_EVENT: {
@@ -1783,20 +1781,20 @@ private:
       case 0xC3: break;
 
       default:
-        cLog::log (LOGERROR, "parseDescr - " + sectionName + " unknown tag:" + dec(getDescrTag(buf)));
+        cLog::log (LOGERROR, "parseDescr - unknown tag:" + dec(getDescrTag(buf)));
         break;
       }
     }
   //}}}
   //{{{
-  void parseDescrs (string sectionName, int key, uint8_t* buf, int len, uint8_t tid) {
+  void parseDescrs (int key, uint8_t* buf, int len, uint8_t tid) {
 
    auto descrLength = 0;
    while (descrLength < len) {
      if ((getDescrLength (buf) <= 0) || (getDescrLength (buf) > len - descrLength))
        return;
 
-      parseDescr (sectionName, key, buf, tid);
+      parseDescr (key, buf, tid);
 
       descrLength += getDescrLength (buf);
       buf += getDescrLength (buf);
@@ -1814,18 +1812,16 @@ private:
       // cService from cPidInfo.sid using mServiceMap
       auto serviceIt = mServiceMap.find (pidInfoIt->second.mSid);
       if (serviceIt != mServiceMap.end()) {
-        if (pid == serviceIt->second.getProgramPid())
-          pidInfoIt->second.mTypeStr = "pgm";
-        else if (pid == serviceIt->second.getVidPid())
-          pidInfoIt->second.mTypeStr = "vid";
-        else if (pid == serviceIt->second.getAudPid())
-          pidInfoIt->second.mTypeStr = "aud";
-        else if (pid == serviceIt->second.getAudOtherPid())
-          pidInfoIt->second.mTypeStr = "ads";
-        else if (pid == serviceIt->second.getSubPid())
-          pidInfoIt->second.mTypeStr = "sub";
-
-        pidInfoIt->second.mInfoStr = serviceIt->second.getNameString() + " " + serviceIt->second.getNowTitleString();
+        if (pid == serviceIt->second.getProgramPid()) {
+          pidInfoIt->second.mTypeStr = "pgm ";
+          pidInfoIt->second.mInfoStr = serviceIt->second.getNameString() + " " + serviceIt->second.getNowTitleString();
+          }
+        else if ((pid == serviceIt->second.getVidPid()) ||
+                 (pid == serviceIt->second.getAudPid()) ||
+                 (pid == serviceIt->second.getSubPid()))
+          pidInfoIt->second.mInfoStr = serviceIt->second.getNameString();
+        else
+          pidInfoIt->second.mInfoStr = "";
         }
       }
     }
