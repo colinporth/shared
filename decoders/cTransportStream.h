@@ -814,9 +814,8 @@ public:
           // skip past adaption field
           int headerBytes = (tsPtr[2] & 0x20) ? 4 + tsPtr[3] : 3;
 
-          bool isPsi = (pid == PID_PAT) || (pid == PID_SDT) ||
-                       (mProgramMap.find (pid) != mProgramMap.end()) ||
-                       (pid == PID_EIT) || (pid == PID_TDT);
+          bool isPsi = (pid == PID_PAT) || (pid == PID_SDT) || (pid == PID_EIT) || (pid == PID_TDT) ||
+                       (mProgramMap.find (pid) != mProgramMap.end());
 
           // find or create pidInfo
           auto pidInfoIt = mPidInfoMap.find (pid);
@@ -1253,7 +1252,7 @@ private:
 
   //{{{
   void parsePat (cPidInfo* pidInfo, uint8_t* buf) {
-  // PAT declares programPid,sid to mProgramMap, recogneses programPid PMT to declare service streams
+  // PAT declares programPid,sid to mProgramMap to recognise programPid PMT to declare service streams
 
     cLog::log (LOGINFO1, "parsePat");
 
@@ -1276,7 +1275,6 @@ private:
     sectionLength -= sizeof(pat_t) + 4;
     while (sectionLength > 0) {
       auto patProgram = (pat_prog_t*)buf;
-
       auto sid = HILO (patProgram->program_number);
       auto pid = HILO (patProgram->network_pid);
       if (mProgramMap.find (pid) == mProgramMap.end())
@@ -1380,108 +1378,6 @@ private:
     }
   //}}}
   //{{{
-  void parsePmt (cPidInfo* pidInfo, uint8_t* buf) {
-  // PMT declares streams for a service
-
-    cLog::log (LOGINFO1, "parsePmt");
-
-    auto pmt = (pmt_t*)buf;
-    auto sectionLength = HILO(pmt->section_length) + 3;
-    if (crc32 (buf, sectionLength)) {
-      //{{{  bad crc
-      cLog::log (LOGERROR, "parsePMT - pid:%d bad crc %d", pidInfo->mPid, sectionLength);
-      return;
-      }
-      //}}}
-    if (pmt->table_id != TID_PMT) {
-      //{{{  wrong tid
-      cLog::log (LOGERROR, "parsePMT - wrong TID " + dec (pmt->table_id));
-      return;
-      }
-      //}}}
-
-    auto sid = HILO (pmt->program_number);
-
-    auto serviceIt = mServiceMap.find (sid);
-    if (serviceIt != mServiceMap.end()) {
-      //{{{  service known, add serviceId to pgmPid, add esStream pids to service
-      pidInfo->mSid = sid;
-      pidInfo->mTypeStr = "pgm ";
-      pidInfo->mInfoStr = dec(sid) + " " + serviceIt->second.getNameString() +
-                                     " " + serviceIt->second.getNowTitleString();
-
-      serviceIt->second.setProgramPid (pidInfo->mPid);
-
-      buf += sizeof(pmt_t);
-      sectionLength -= 4;
-      auto programInfoLength = HILO (pmt->program_info_length);
-
-      auto streamLength = sectionLength - programInfoLength - sizeof(pmt_t);
-      if (streamLength >= 0)
-        parseDescrs (sid, buf, programInfoLength, pmt->table_id);
-
-      buf += programInfoLength;
-      while (streamLength > 0) {
-        auto pmtInfo = (pmt_info_t*)buf;
-        auto streamType = pmtInfo->stream_type;
-        auto esPid = HILO (pmtInfo->elementary_PID);
-
-        string streamStr;
-        switch (streamType) {
-          case   2: serviceIt->second.setVidPid (esPid, streamType); streamStr = "mpv"; break; // ISO 13818-2 video
-          case  27: serviceIt->second.setVidPid (esPid, streamType); streamStr = "264"; break; // HD vid
-
-          case   3: serviceIt->second.setAudPid (esPid, streamType); streamStr = "m2a"; break; // ISO 11172-3 audio
-          case   4: serviceIt->second.setAudPid (esPid, streamType); streamStr = "m3a"; break; // ISO 13818-3 audio
-          case  15: serviceIt->second.setAudPid (esPid, streamType); streamStr = "aac"; break; // HD aud ADTS
-          case  17: serviceIt->second.setAudPid (esPid, streamType); streamStr = "aac"; break; // HD aud LATM
-          case 129: serviceIt->second.setAudPid (esPid, streamType); streamStr = "ac3"; break; // aud AC3
-
-          case   6: serviceIt->second.setSubPid (esPid, streamType); streamStr = "sub"; break; // subtitle
-
-          case   5: streamStr = "mtd"; break;// private mpeg2 tabled data - private
-          case  11: streamStr = "dsm"; break;// dsm cc u_n
-          case  13: streamStr = "dsm"; break;// dsm cc tabled data
-
-          default:
-            cLog::log (LOGERROR, "parsePmt - unknown streamType:%d sid:%d pid:%d", streamType, sid, esPid);
-            break;
-          }
-
-        // set sid for each stream pid
-        auto esPidInfoIt = mPidInfoMap.find (esPid);
-        if (esPidInfoIt != mPidInfoMap.end()) {
-          esPidInfoIt->second.mSid = sid;
-          esPidInfoIt->second.mStreamType = streamType;
-          esPidInfoIt->second.mTypeStr = streamStr;
-          esPidInfoIt->second.mInfoStr = dec(sid);
-          }
-
-        auto loopLength = HILO (pmtInfo->ES_info_length);
-        parseDescrs (sid, buf, loopLength, pmt->table_id);
-
-        buf += sizeof(pmt_info_t);
-        streamLength -= loopLength + sizeof(pmt_info_t);
-        buf += loopLength;
-        }
-      }
-      //}}}
-
-    else if (pidInfo->mPid == 32) {
-      // simple tsFile with no SDT, pid 32 used to allocate service with sid
-      cLog::log (LOGINFO, "parsePmt - serviceMap.insert pid 32");
-      mServiceMap.insert (map<int,cService>::value_type (sid, cService (sid, kServiceTypeTV, -1,-1, "file32")));
-      }
-
-    else if (pidInfo->mPid == 256) {
-      // simple tsFile with no SDT, pid 256 used to allocate service with sid
-      cLog::log (LOGINFO, "parsePmt - serviceMap.insert pid 0x100");
-      mServiceMap.insert (map<int,cService>::value_type (sid, cService (sid, kServiceTypeTV, 258,257, "file256")));
-      }
-
-    }
-  //}}}
-  //{{{
   void parseTdt (cPidInfo* pidInfo, uint8_t* buf) {
 
     cLog::log (LOGINFO1, "parseTdt");
@@ -1558,6 +1454,8 @@ private:
   //{{{
   void parseEit (cPidInfo* pidInfo, uint8_t* buf) {
 
+    cLog::log (LOGINFO1, "parseEit");
+
     auto eit = (eit_t*)buf;
     auto sectionLength = HILO(eit->section_length) + 3;
     if (crc32 (buf, sectionLength)) {
@@ -1566,8 +1464,6 @@ private:
       pidInfo->mInfoStr = "CRC errors " + dec (mEitError);
       return;
       }
-
-    cLog::log (LOGINFO1, "parseEit");
 
     auto tid = eit->table_id;
     auto sid = HILO (eit->service_id);
@@ -1663,6 +1559,106 @@ private:
       cLog::log (LOGERROR, "parseEIT - unexpected tid " + dec(tid));
       return;
       }
+    }
+  //}}}
+  //{{{
+  void parsePmt (cPidInfo* pidInfo, uint8_t* buf) {
+  // PMT declares streams for a service
+
+    cLog::log (LOGINFO1, "parsePmt");
+
+    auto pmt = (pmt_t*)buf;
+    auto sectionLength = HILO(pmt->section_length) + 3;
+    if (crc32 (buf, sectionLength)) {
+      //{{{  bad crc
+      cLog::log (LOGERROR, "parsePMT - pid:%d bad crc %d", pidInfo->mPid, sectionLength);
+      return;
+      }
+      //}}}
+    if (pmt->table_id != TID_PMT) {
+      //{{{  wrong tid
+      cLog::log (LOGERROR, "parsePMT - wrong TID " + dec (pmt->table_id));
+      return;
+      }
+      //}}}
+
+    auto sid = HILO (pmt->program_number);
+
+    if (pidInfo->mPid == 32) {
+      // sichboPVR sFile - no SDT, pgmPid = 32 allocates service with sid
+      cLog::log (LOGNOTICE, "parsePmt - serviceMap.insert pid 32");
+      mServiceMap.insert (map<int,cService>::value_type (sid, cService (sid, kServiceTypeTV, -1,-1, "file32")));
+      }
+    //else if (pidInfo->mPid == 256) {
+      // simple tsFile with no SDT, pid 256 used to allocate service with sid
+      //cLog::log (LOGNOTICE, "parsePmt - serviceMap.insert pid 0x100");
+      //mServiceMap.insert (map<int,cService>::value_type (sid, cService (sid, kServiceTypeTV, 258,257, "file256")));
+      //}
+
+    auto serviceIt = mServiceMap.find (sid);
+    if (serviceIt != mServiceMap.end()) {
+      //{{{  service known, add serviceId to pgmPid, add esStream pids to service
+      pidInfo->mSid = sid;
+      pidInfo->mTypeStr = "pgm ";
+      pidInfo->mInfoStr = dec(sid) + " " + serviceIt->second.getNameString() +
+                                     " " + serviceIt->second.getNowTitleString();
+
+      serviceIt->second.setProgramPid (pidInfo->mPid);
+
+      buf += sizeof(pmt_t);
+      sectionLength -= 4;
+      auto programInfoLength = HILO (pmt->program_info_length);
+
+      auto streamLength = sectionLength - programInfoLength - sizeof(pmt_t);
+      if (streamLength >= 0)
+        parseDescrs (sid, buf, programInfoLength, pmt->table_id);
+
+      buf += programInfoLength;
+      while (streamLength > 0) {
+        auto pmtInfo = (pmt_info_t*)buf;
+        auto streamType = pmtInfo->stream_type;
+        auto esPid = HILO (pmtInfo->elementary_PID);
+
+        string streamStr;
+        switch (streamType) {
+          case   2: serviceIt->second.setVidPid (esPid, streamType); streamStr = "mpv"; break; // ISO 13818-2 video
+          case  27: serviceIt->second.setVidPid (esPid, streamType); streamStr = "264"; break; // HD vid
+
+          case   3: serviceIt->second.setAudPid (esPid, streamType); streamStr = "m2a"; break; // ISO 11172-3 audio
+          case   4: serviceIt->second.setAudPid (esPid, streamType); streamStr = "m3a"; break; // ISO 13818-3 audio
+          case  15: serviceIt->second.setAudPid (esPid, streamType); streamStr = "aac"; break; // HD aud ADTS
+          case  17: serviceIt->second.setAudPid (esPid, streamType); streamStr = "aac"; break; // HD aud LATM
+          case 129: serviceIt->second.setAudPid (esPid, streamType); streamStr = "ac3"; break; // aud AC3
+
+          case   6: serviceIt->second.setSubPid (esPid, streamType); streamStr = "sub"; break; // subtitle
+
+          case   5: streamStr = "mtd"; break;// private mpeg2 tabled data - private
+          case  11: streamStr = "dsm"; break;// dsm cc u_n
+          case  13: streamStr = "dsm"; break;// dsm cc tabled data
+
+          default:
+            cLog::log (LOGERROR, "parsePmt - unknown streamType:%d sid:%d pid:%d", streamType, sid, esPid);
+            break;
+          }
+
+        // set sid for each stream pid
+        auto esPidInfoIt = mPidInfoMap.find (esPid);
+        if (esPidInfoIt != mPidInfoMap.end()) {
+          esPidInfoIt->second.mSid = sid;
+          esPidInfoIt->second.mStreamType = streamType;
+          esPidInfoIt->second.mTypeStr = streamStr;
+          esPidInfoIt->second.mInfoStr = dec(sid);
+          }
+
+        auto loopLength = HILO (pmtInfo->ES_info_length);
+        parseDescrs (sid, buf, loopLength, pmt->table_id);
+
+        buf += sizeof(pmt_info_t);
+        streamLength -= loopLength + sizeof(pmt_info_t);
+        buf += loopLength;
+        }
+      }
+      //}}}
     }
   //}}}
   //{{{
