@@ -1621,7 +1621,7 @@ private:
 
         string streamStr;
         switch (streamType) {
-          case   2: serviceIt->second.setVidPid (esPid, streamType); streamStr = "mpv"; break; // ISO 13818-2 video
+          case   2: serviceIt->second.setVidPid (esPid, streamType); streamStr = "m2v"; break; // ISO 13818-2 video
           case  27: serviceIt->second.setVidPid (esPid, streamType); streamStr = "264"; break; // HD vid
 
           case   3: serviceIt->second.setAudPid (esPid, streamType); streamStr = "m2a"; break; // ISO 11172-3 audio
