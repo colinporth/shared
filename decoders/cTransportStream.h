@@ -850,30 +850,37 @@ public:
             //{{{  parse psi pid
             if (payloadStart) {
               auto payloadPtr = tsPtr;
-              int pointerField = payloadPtr[0];
-
+              auto pointerField = *payloadPtr++;
               cLog::log (LOGINFO1, "-------- payloadStart------- "  + dec(pointerField));
-              if (pidInfo->mBufPtr && (pointerField > 0)) {
+
+              if ((pointerField > 0) && pidInfo->mBufPtr) {
+                // finish lastSection
                 cLog::log (LOGINFO1, "- end lastSection " + dec(pidInfo->mSectionLength) +
-                                      " bufPtr:" + dec(int(pidInfo->mBufPtr - pidInfo->mBuffer)));
-                addToSectionBuffer (pidInfo, payloadPtr+1, pointerField);
+                                      " mBufPtr:" + dec(int(pidInfo->mBufPtr - pidInfo->mBuffer)));
+                addToSectionBuffer (pidInfo, payloadPtr, pointerField);
                 }
 
-              while (payloadPtr[pointerField+1] != 0xFF) {
-                pidInfo->mSectionLength = ((payloadPtr[pointerField+2] & 0x0F) << 8) + payloadPtr[pointerField+3] + 3;;
-                cLog::log(LOGINFO1, "sectionLength " + dec(pidInfo->mSectionLength) + " pf:" + dec(pointerField));
-                if (pidInfo->mSectionLength < 183 - pointerField) {
+              // point to real payload start
+              payloadPtr += pointerField;
+              auto bytesLeft = 183 - pointerField;
+
+              while ((bytesLeft > 0) && (payloadPtr[0] != 0xFF)) {
+                // valid section tableId, get section length
+                pidInfo->mSectionLength = ((payloadPtr[1] & 0x0F) << 8) + payloadPtr[2] + 3;;
+                if (pidInfo->mSectionLength < bytesLeft) {
                   // parse section from payload
-                  cLog::log (LOGINFO1, "- parse " + dec(pidInfo->mSectionLength) + " pf:" + dec(pointerField));
-                  parsePsi (pidInfo, payloadPtr + pointerField + 1);
-                  pointerField += pidInfo->mSectionLength;
+                  cLog::log (LOGINFO1, "- parse " + dec(pidInfo->mSectionLength));
+                  parsePsi (pidInfo, payloadPtr);
+                  payloadPtr += pidInfo->mSectionLength;
+                  bytesLeft -= pidInfo->mSectionLength;
+                  pidInfo->mBufPtr = nullptr;
                   }
                 else {
-                  // start buffering payload, straddles packets
-                  cLog::log (LOGINFO1, "- straddle " + dec(pidInfo->mSectionLength) + " pf:" + dec(pointerField));
-                  memcpy (pidInfo->mBuffer, payloadPtr+1 + pointerField, 183 - pointerField);
-                  pidInfo->mBufPtr = pidInfo->mBuffer + 183 - pointerField;
-                  break;
+                  // start payload buffer, straddles packets
+                  cLog::log (LOGINFO1, "- straddle " + dec(pidInfo->mSectionLength));
+                  memcpy (pidInfo->mBuffer, payloadPtr, bytesLeft);
+                  pidInfo->mBufPtr = pidInfo->mBuffer + bytesLeft;
+                  bytesLeft = 0;
                   }
                 }
               cLog::log (LOGINFO1, "^^^^^^^^ payloadStart ^^^^^^^^");
@@ -882,7 +889,7 @@ public:
             else if (pidInfo->mBufPtr) {
               // add packet to buffered section
               if ((pidInfo->mBufPtr + tsFrameBytesLeft) <= (pidInfo->mBuffer + pidInfo->mBufSize)) {
-                cLog::log (LOGINFO1, "payload add ---> bufPtr:" + dec(int(pidInfo->mBufPtr - pidInfo->mBuffer)) +
+                cLog::log (LOGINFO1, "payload add ---> mBufPtr:" + dec(int(pidInfo->mBufPtr - pidInfo->mBuffer)) +
                                      " of " +  dec(pidInfo->mSectionLength));
                 addToSectionBuffer (pidInfo, tsPtr, tsFrameBytesLeft);
                 }
@@ -1235,7 +1242,7 @@ private:
     memcpy (pidInfo->mBufPtr, buf, bufBytes);
     pidInfo->mBufPtr += bufBytes;
 
-    if (pidInfo->mBufPtr - pidInfo->mBuffer >= pidInfo->mSectionLength) {
+    if ((pidInfo->mBufPtr - pidInfo->mBuffer) >= pidInfo->mSectionLength) {
       cLog::log (LOGINFO1, "- parse bufferedSection " + dec(pidInfo->mSectionLength));
       parsePsi (pidInfo, pidInfo->mBuffer);
       pidInfo->mBufPtr = nullptr;
