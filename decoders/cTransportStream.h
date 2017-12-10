@@ -30,13 +30,10 @@ const int kBufSize = 4096;
 #define PID_PAT   0x00   /* Program Association Table */
 #define PID_CAT   0x01   /* Conditional Access Table */
 #define PID_NIT   0x10   /* Network Information Table */
-#define PID_BAT   0x11   /* Bouquet Association Table */
 #define PID_SDT   0x11   /* Service Description Table */
 #define PID_EIT   0x12   /* Event Information Table */
 #define PID_RST   0x13   /* Running Status Table */
 #define PID_TDT   0x14   /* Time Date Table */
-#define PID_TOT   0x14   /* Time Offset Table */
-#define PID_STF   0x14   /* Stuffing Table */
 #define PID_SYN   0x15   /* Network sync */
 //}}}
 //{{{  tid const
@@ -450,8 +447,8 @@ public:
     switch (pid) {
       case PID_PAT: mTypeStr = "Pat"; break;
       case PID_CAT: mTypeStr = "Cat"; break;
-      case PID_SDT: mTypeStr = "Sdt"; break;
       case PID_NIT: mTypeStr = "Nit"; break;
+      case PID_SDT: mTypeStr = "Sdt"; break;
       case PID_EIT: mTypeStr = "Eit"; break;
       case PID_RST: mTypeStr = "Rst"; break;
       case PID_TDT: mTypeStr = "Tdt"; break;
@@ -813,8 +810,8 @@ public:
 
           // skip past adaption field
           int headerBytes = (tsPtr[2] & 0x20) ? 4 + tsPtr[3] : 3;
-
-          bool isPsi = (pid == PID_PAT) || (pid == PID_SDT) || (pid == PID_EIT) || (pid == PID_TDT) ||
+          bool isPsi = (pid == PID_PAT) || (pid == PID_CAT) || (pid == PID_NIT) || (pid == PID_SDT) ||
+                       (pid == PID_EIT) || (pid == PID_RST) || (pid == PID_TDT) || (pid == PID_SYN) ||
                        (mProgramMap.find (pid) != mProgramMap.end());
 
           // find or create pidInfo
@@ -850,49 +847,40 @@ public:
             //{{{  parse psi pid
             if (payloadStart) {
               auto payloadPtr = tsPtr;
+              auto payloadBytesLeft = tsFrameBytesLeft;
+
               auto pointerField = *payloadPtr++;
-              cLog::log (LOGINFO1, "-------- payloadStart------- "  + dec(pointerField));
-
-              if ((pointerField > 0) && pidInfo->mBufPtr) {
-                // finish lastSection
-                cLog::log (LOGINFO1, "- end lastSection " + dec(pidInfo->mSectionLength) +
-                                      " mBufPtr:" + dec(int(pidInfo->mBufPtr - pidInfo->mBuffer)));
+              payloadBytesLeft--;
+              if ((pointerField > 0) && pidInfo->mBufPtr) // nonZero pointerField, finish lastSection
                 addToSectionBuffer (pidInfo, payloadPtr, pointerField);
-                }
 
-              // point to real payload start
+              // goto real payload start
               payloadPtr += pointerField;
-              auto bytesLeft = 183 - pointerField;
+              payloadBytesLeft -= pointerField;
 
-              while ((bytesLeft > 0) && (payloadPtr[0] != 0xFF)) {
+              while ((payloadBytesLeft >= 3) && (payloadPtr[0] != 0xFF)) {
                 // valid section tableId, get section length
                 pidInfo->mSectionLength = ((payloadPtr[1] & 0x0F) << 8) + payloadPtr[2] + 3;;
-                if (pidInfo->mSectionLength < bytesLeft) {
+                if (pidInfo->mSectionLength < payloadBytesLeft) {
                   // parse section from payload
-                  cLog::log (LOGINFO1, "- parse " + dec(pidInfo->mSectionLength));
                   parsePsi (pidInfo, payloadPtr);
                   payloadPtr += pidInfo->mSectionLength;
-                  bytesLeft -= pidInfo->mSectionLength;
+                  payloadBytesLeft -= pidInfo->mSectionLength;
                   pidInfo->mBufPtr = nullptr;
                   }
                 else {
                   // start payload buffer, straddles packets
-                  cLog::log (LOGINFO1, "- straddle " + dec(pidInfo->mSectionLength));
-                  memcpy (pidInfo->mBuffer, payloadPtr, bytesLeft);
-                  pidInfo->mBufPtr = pidInfo->mBuffer + bytesLeft;
-                  bytesLeft = 0;
+                  memcpy (pidInfo->mBuffer, payloadPtr, payloadBytesLeft);
+                  pidInfo->mBufPtr = pidInfo->mBuffer + payloadBytesLeft;
+                  payloadBytesLeft = 0;
                   }
                 }
-              cLog::log (LOGINFO1, "^^^^^^^^ payloadStart ^^^^^^^^");
               }
 
             else if (pidInfo->mBufPtr) {
               // add packet to buffered section
-              if ((pidInfo->mBufPtr + tsFrameBytesLeft) <= (pidInfo->mBuffer + pidInfo->mBufSize)) {
-                cLog::log (LOGINFO1, "payload add ---> mBufPtr:" + dec(int(pidInfo->mBufPtr - pidInfo->mBuffer)) +
-                                     " of " +  dec(pidInfo->mSectionLength));
+              if ((pidInfo->mBufPtr + tsFrameBytesLeft) <= (pidInfo->mBuffer + pidInfo->mBufSize))
                 addToSectionBuffer (pidInfo, tsPtr, tsFrameBytesLeft);
-                }
               else {
                 cLog::log (LOGERROR, "demux - sectionBuffer overflow %d > %d",
                                      (int)(pidInfo->mBufPtr - pidInfo->mBuffer), pidInfo->mBufSize);
@@ -1254,8 +1242,7 @@ private:
   void parsePat (cPidInfo* pidInfo, uint8_t* buf) {
   // PAT declares programPid,sid to mProgramMap to recognise programPid PMT to declare service streams
 
-    cLog::log (LOGINFO1, "parsePat");
-
+    //cLog::log (LOGINFO1, "parsePat");
     auto pat = (pat_t*)buf;
     auto sectionLength = HILO(pat->section_length) + 3;
     if (crc32 (buf, sectionLength)) {
@@ -1289,8 +1276,7 @@ private:
   void parseSdt (cPidInfo* pidInfo, uint8_t* buf) {
   // SDT add new services to mServiceMap declaring serviceType, name
 
-    cLog::log (LOGINFO1, "parseSdt");
-
+    //cLog::log (LOGINFO1, "parseSdt");
     auto sdt = (sdt_t*)buf;
     auto sectionLength = HILO(sdt->section_length) + 3;
     if (crc32 (buf, sectionLength)) {
@@ -1380,8 +1366,7 @@ private:
   //{{{
   void parseTdt (cPidInfo* pidInfo, uint8_t* buf) {
 
-    cLog::log (LOGINFO1, "parseTdt");
-
+    //cLog::log (LOGINFO1, "parseTdt");
     auto tdt = (tdt_t*)buf;
     if (tdt->table_id == TID_TDT) {
       mCurTime = MjdToEpochTime (tdt->utc_mjd) + BcdTimeToSeconds (tdt->utc_time);
@@ -1396,8 +1381,7 @@ private:
   //{{{
   void parseNit (cPidInfo* pidInfo, uint8_t* buf) {
 
-    cLog::log (LOGINFO1, "parseNit");
-
+    //cLog::log (LOGINFO1, "parseNit");
     auto nit = (nit_t*)buf;
     auto sectionLength = HILO(nit->section_length) + 3;
 
@@ -1454,14 +1438,11 @@ private:
   //{{{
   void parseEit (cPidInfo* pidInfo, uint8_t* buf) {
 
-    cLog::log (LOGINFO1, "parseEit");
-
+    //cLog::log (LOGINFO1, "parseEit");
     auto eit = (eit_t*)buf;
     auto sectionLength = HILO(eit->section_length) + 3;
     if (crc32 (buf, sectionLength)) {
-      mEitError++;
-      cLog::log (LOGINFO, " - parseEit - bad CRC " + dec(sectionLength));
-      pidInfo->mInfoStr = "CRC errors " + dec (mEitError);
+      cLog::log (LOGERROR, "parseEit - bad CRC " + dec(sectionLength));
       return;
       }
 
@@ -1565,8 +1546,7 @@ private:
   void parsePmt (cPidInfo* pidInfo, uint8_t* buf) {
   // PMT declares streams for a service
 
-    cLog::log (LOGINFO1, "parsePmt");
-
+    //cLog::log (LOGINFO1, "parsePmt");
     auto pmt = (pmt_t*)buf;
     auto sectionLength = HILO(pmt->section_length) + 3;
     if (crc32 (buf, sectionLength)) {
@@ -1666,10 +1646,13 @@ private:
 
     switch (pidInfo->mPid) {
       case PID_PAT: parsePat (pidInfo, buf); break;
-      case PID_SDT: parseSdt (pidInfo, buf); break;
-      case PID_TDT: parseTdt (pidInfo, buf); break;
+      case PID_CAT: break;
       case PID_NIT: parseNit (pidInfo, buf); break;
+      case PID_SDT: parseSdt (pidInfo, buf); break;
       case PID_EIT: parseEit (pidInfo, buf); break;
+      case PID_RST: break;
+      case PID_TDT: parseTdt (pidInfo, buf); break;
+      case PID_SYN: break;
       default:      parsePmt (pidInfo, buf); break;
       }
     }
@@ -1816,6 +1799,5 @@ private:
 
   uint64_t mPackets = 0;
   uint64_t mDiscontinuity = 0;
-  uint64_t mEitError = 0;
   //}}}
   };
