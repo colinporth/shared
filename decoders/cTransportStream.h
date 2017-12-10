@@ -411,10 +411,31 @@ public:
   //}}}
   ~cPidInfo() {}
 
+  int getBufUsed() { return int(mBufPtr - mBuffer); }
+  //{{{
+  void addToBuffer (uint8_t* buf, int bufSize) {
+
+    if (getBufUsed() + bufSize > mBufSize) {
+      // realloc buffer to twice size
+      mBufSize *= 2;
+      cLog::log (LOGINFO1, "demux pid:" + dec(mPid) + " realloc to " + dec(mBufSize));
+
+      auto ptrOffset = getBufUsed();
+      mBuffer = (uint8_t*)realloc (mBuffer, mBufSize);
+      mBufPtr = mBuffer + ptrOffset;
+      }
+
+    memcpy (mBufPtr, buf, bufSize);
+    mBufPtr += bufSize;
+    }
+  //}}}
+
+  //{{{
   void print() {
     cLog::log (LOGINFO, "pid:%d sid:%d streamType:%d - packets:%d disContinuity:%d repContinuity:%d",
                         mPid, mSid, mStreamType, mTotal, mDisContinuity, mRepeatContinuity);
     }
+  //}}}
 
   int mPid;
   bool mPsi;
@@ -819,12 +840,12 @@ public:
               if (pidInfo->mBufPtr)
                 cLog::log (LOGINFO1, "demux - unused section buffer " + dec(pid) +
                                      " sectionLength:" + dec(pidInfo->mSectionLength) +
-                                     " got:" +  dec((int)(pidInfo->mBufPtr - pidInfo->mBuffer)));
+                                     " got:" +  dec(pidInfo->getBufUsed()));
 
               while ((payloadBytesLeft >= 3) && (payloadPtr[0] != 0xFF)) {
                 // valid section tableId, get section length
                 pidInfo->mSectionLength = ((payloadPtr[1] & 0x0F) << 8) + payloadPtr[2] + 3;;
-                if (pidInfo->mSectionLength < payloadBytesLeft) {
+                if (payloadBytesLeft >= pidInfo->mSectionLength) {
                   // parse section from payload without buffer
                   parsePsi (pidInfo, payloadPtr);
                   payloadPtr += pidInfo->mSectionLength;
@@ -842,11 +863,11 @@ public:
 
             else if (pidInfo->mBufPtr) {
               // add packet to buffered section
-              if ((pidInfo->mBufPtr + tsFrameBytesLeft) <= (pidInfo->mBuffer + pidInfo->mBufSize))
+              if (pidInfo->getBufUsed() + tsFrameBytesLeft <= pidInfo->mBufSize)
                 addToSectionBuffer (pidInfo, tsPtr, tsFrameBytesLeft);
               else {
                 cLog::log (LOGERROR, "demux - sectionBuffer overflow %d > %d",
-                                     (int)(pidInfo->mBufPtr - pidInfo->mBuffer), pidInfo->mBufSize);
+                                     pidInfo->getBufUsed(), pidInfo->mBufSize);
                 pidInfo->mBufPtr = nullptr;
                 }
               }
@@ -872,8 +893,6 @@ public:
                     decoded = audDecodePes (pidInfo, skip);
                   }
 
-                // start buffering pes
-                pidInfo->mBufPtr = pidInfo->mBuffer;
                 pidInfo->mStreamPos = streamPos;
 
                 // form pts, firstPts, lastPts
@@ -886,28 +905,13 @@ public:
                 int pesHeaderBytes = 9 + tsPtr[8];
                 tsPtr += pesHeaderBytes;
                 tsFrameBytesLeft -= pesHeaderBytes;
+
+                pidInfo->mBufPtr = pidInfo->mBuffer;
                 }
               }
               //}}}
-            if (pidInfo->mBufPtr) {
-              //{{{  copy rest of packet to mBuffer
-              if (tsFrameBytesLeft <= 0)
-                cLog::log (LOGERROR, "demux - copy error - pid:%d tsFrameBytesLeft:%d", pid, tsFrameBytesLeft);
-
-              else if ((pidInfo->mBufPtr + tsFrameBytesLeft) > (pidInfo->mBuffer + pidInfo->mBufSize)) {
-                // realloc buffer to twice size
-                pidInfo->mBufSize *= 2;
-                cLog::log (LOGINFO1, "demux pid:" + dec(pid) + " realloc to " + dec(pidInfo->mBufSize));
-
-                auto ptrOffset = pidInfo->mBufPtr - pidInfo->mBuffer;
-                pidInfo->mBuffer = (uint8_t*)realloc (pidInfo->mBuffer, pidInfo->mBufSize);
-                pidInfo->mBufPtr = pidInfo->mBuffer + ptrOffset;
-                }
-
-              memcpy (pidInfo->mBufPtr, tsPtr, tsFrameBytesLeft);
-              pidInfo->mBufPtr += tsFrameBytesLeft;
-              }
-              //}}}
+            if (pidInfo->mBufPtr)
+              pidInfo->addToBuffer (tsPtr, tsFrameBytesLeft);
             }
 
           tsPtr += tsFrameBytesLeft;
@@ -925,8 +929,10 @@ public:
   void printPidInfos() {
 
     cLog::log (LOGINFO, "--- pidInfos");
+
     for (auto &pidInfo : mPidInfoMap)
       pidInfo.second.print();
+
     cLog::log (LOGINFO, "---");
     }
   //}}}
@@ -934,8 +940,10 @@ public:
   void printPrograms() {
 
     cLog::log (LOGINFO, "--- programs");
+
     for (auto &map : mProgramMap)
       cLog::log (LOGINFO, "programPid:%d sid:%d", map.first, map.second);
+
     cLog::log (LOGINFO, "---");
     }
   //}}}
@@ -943,8 +951,10 @@ public:
   void printServices() {
 
     cLog::log (LOGINFO, "--- services");
+
     for (auto &service : mServiceMap)
       service.second.print();
+
     cLog::log (LOGINFO, "---");
     }
   //}}}
@@ -1196,7 +1206,7 @@ private:
     memcpy (pidInfo->mBufPtr, buf, bufBytes);
     pidInfo->mBufPtr += bufBytes;
 
-    if ((pidInfo->mBufPtr - pidInfo->mBuffer) >= pidInfo->mSectionLength) {
+    if (pidInfo->getBufUsed() >= pidInfo->mSectionLength) {
       parsePsi (pidInfo, pidInfo->mBuffer);
       pidInfo->mBufPtr = nullptr;
       }
