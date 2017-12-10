@@ -849,40 +849,33 @@ public:
           if (isPsi) {
             //{{{  parse psi pid
             if (payloadStart) {
-              int pointerField = tsPtr[0];
-              cLog::log (LOGINFO1, "-------- payloadStart------- pf:"  + dec(pointerField));
+              auto payloadPtr = tsPtr;
+              int pointerField = payloadPtr[0];
+
+              cLog::log (LOGINFO1, "-------- payloadStart------- "  + dec(pointerField));
               if (pidInfo->mBufPtr && (pointerField > 0)) {
-                // packet starts with end of lastSection, copy to bufPtr, if sectionLength, parse lastSection
-                cLog::log (LOGINFO1, "- add to lastSection " + dec(pidInfo->mSectionLength) +
+                cLog::log (LOGINFO1, "- end lastSection " + dec(pidInfo->mSectionLength) +
                                       " bufPtr:" + dec(int(pidInfo->mBufPtr - pidInfo->mBuffer)));
-                addToSectionBuffer (pidInfo, tsPtr+1, pointerField);
+                addToSectionBuffer (pidInfo, payloadPtr+1, pointerField);
                 }
 
-              do {
-                pidInfo->mSectionLength = ((tsPtr[pointerField+2] & 0x0F) << 8) + tsPtr[pointerField+3] + 3;;
-                cLog::log(LOGINFO1, "sectionLength " + dec(pidInfo->mSectionLength) +
-                                     " pf:" + dec(pointerField));
-                if (pointerField < 183 - pidInfo->mSectionLength) {
-                  // parse section without buffering
-                  cLog::log (LOGINFO1, "- parse " + dec(pidInfo->mSectionLength) +
-                                       " pf:" + dec(pointerField));
-                  parsePsi (pidInfo, tsPtr + pointerField + 1);
+              while (payloadPtr[pointerField+1] != 0xFF) {
+                pidInfo->mSectionLength = ((payloadPtr[pointerField+2] & 0x0F) << 8) + payloadPtr[pointerField+3] + 3;;
+                cLog::log(LOGINFO1, "sectionLength " + dec(pidInfo->mSectionLength) + " pf:" + dec(pointerField));
+                if (pidInfo->mSectionLength < 183 - pointerField) {
+                  // parse section from payload
+                  cLog::log (LOGINFO1, "- parse " + dec(pidInfo->mSectionLength) + " pf:" + dec(pointerField));
+                  parsePsi (pidInfo, payloadPtr + pointerField + 1);
                   pointerField += pidInfo->mSectionLength;
                   }
-                else if (pointerField < 183) {
-                  // start buffering section. straddles packets
-                  cLog::log (LOGINFO1, "- straddle packet " + dec(pidInfo->mSectionLength) +
-                                       " pf:" + dec(pointerField));
-                  memcpy (pidInfo->mBuffer, tsPtr+1 + pointerField, 183 - pointerField);
+                else {
+                  // start buffering payload, straddles packets
+                  cLog::log (LOGINFO1, "- straddle " + dec(pidInfo->mSectionLength) + " pf:" + dec(pointerField));
+                  memcpy (pidInfo->mBuffer, payloadPtr+1 + pointerField, 183 - pointerField);
                   pidInfo->mBufPtr = pidInfo->mBuffer + 183 - pointerField;
                   break;
                   }
-                else {
-                  cLog::log (LOGERROR, "demux - section packet pid:%d pointerField:%d", pid, pointerField);
-                  pidInfo->mBufPtr = nullptr;
-                  break;
-                  }
-                } while (tsPtr[pointerField+1] != 0xFF);
+                }
               cLog::log (LOGINFO1, "^^^^^^^^ payloadStart ^^^^^^^^");
               }
 
