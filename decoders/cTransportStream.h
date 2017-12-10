@@ -813,7 +813,6 @@ public:
             pidInfoIt = insertPair.first;
             pidInfoIt->second.mBufSize = kBufSize;
             pidInfoIt->second.mBuffer = (uint8_t*)malloc (kBufSize);
-            pidInfoIt->second.mBufPtr = nullptr;
             }
           auto pidInfo = &pidInfoIt->second;
 
