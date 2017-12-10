@@ -26,7 +26,7 @@ using namespace std;
                                      ((10*((x##_s & 0xF0)>>4)) + (x##_s & 0xF)))
 //}}}
 //{{{  const, struct
-const int kBufSize = 4096;
+const int kBufSize = 512;
 //{{{  pid const
 #define PID_PAT   0x00   /* Program Association Table */
 #define PID_CAT   0x01   /* Conditional Access Table */
@@ -413,7 +413,7 @@ public:
 
   int getBufUsed() { return int(mBufPtr - mBuffer); }
   //{{{
-  void addToBuffer (uint8_t* buf, int bufSize) {
+  int addToBuffer (uint8_t* buf, int bufSize) {
 
     if (getBufUsed() + bufSize > mBufSize) {
       // realloc buffer to twice size
@@ -427,6 +427,8 @@ public:
 
     memcpy (mBufPtr, buf, bufSize);
     mBufPtr += bufSize;
+
+    return getBufUsed();
     }
   //}}}
 
@@ -781,13 +783,14 @@ public:
           //}}}
         // check for full packet, followed by start syncCode if not end
         if ((tsPtr+187 >= tsEnd) || (*(tsPtr+187) == 0x47)) {
-          //{{{  parse ts packet
+          //{{{  parse ts packet header
           int pid = ((tsPtr[0] & 0x1F) << 8) | tsPtr[1];
           int continuityCount = tsPtr[2] & 0x0F;
           bool payloadStart = tsPtr[0] & 0x40;
 
           // skip past adaption field
           int headerBytes = (tsPtr[2] & 0x20) ? 4 + tsPtr[3] : 3;
+
           bool isPsi = (pid == PID_PAT) || (pid == PID_CAT) || (pid == PID_NIT) || (pid == PID_SDT) ||
                        (pid == PID_EIT) || (pid == PID_RST) || (pid == PID_TDT) || (pid == PID_SYN) ||
                        (mProgramMap.find (pid) != mProgramMap.end());
@@ -822,7 +825,7 @@ public:
           int tsFrameBytesLeft = 187 - headerBytes;
           //}}}
           if (isPsi) {
-            //{{{  parse psi pid
+            //{{{  parse body as psi
             if (payloadStart) {
               auto payloadPtr = tsPtr;
               auto payloadBytesLeft = tsFrameBytesLeft;
@@ -861,22 +864,16 @@ public:
                 }
               }
 
-            else if (pidInfo->mBufPtr) {
-              // add packet to buffered section
-              if (pidInfo->getBufUsed() + tsFrameBytesLeft <= pidInfo->mBufSize)
-                addToSectionBuffer (pidInfo, tsPtr, tsFrameBytesLeft);
-              else {
-                cLog::log (LOGERROR, "demux - sectionBuffer overflow %d > %d",
-                                     pidInfo->getBufUsed(), pidInfo->mBufSize);
-                pidInfo->mBufPtr = nullptr;
-                }
-              }
+            else if (pidInfo->mBufPtr)
+              addToSectionBuffer (pidInfo, tsPtr, tsFrameBytesLeft);
+
             else
               cLog::log (LOGINFO1, "demux - trying to add section to section not started " + dec(pid) +
                                    " " +  dec(pidInfo->mSectionLength));
             }
             //}}}
           else if ((decodePid == -1) || (pid == decodePid)) {
+            // parse body as pes
             if (payloadStart && !tsPtr[0] && !tsPtr[1] && (tsPtr[2] == 0x01)) {
               //{{{  start new payload
               // recognise streamIds
@@ -1201,12 +1198,9 @@ private:
   //}}}
 
   //{{{
-  void addToSectionBuffer (cPidInfo* pidInfo, uint8_t* buf, int bufBytes) {
+  void addToSectionBuffer (cPidInfo* pidInfo, uint8_t* buf, int bufSize) {
 
-    memcpy (pidInfo->mBufPtr, buf, bufBytes);
-    pidInfo->mBufPtr += bufBytes;
-
-    if (pidInfo->getBufUsed() >= pidInfo->mSectionLength) {
+    if (pidInfo->addToBuffer (buf, bufSize) >= pidInfo->mSectionLength) {
       parsePsi (pidInfo, pidInfo->mBuffer);
       pidInfo->mBufPtr = nullptr;
       }
@@ -1220,7 +1214,7 @@ private:
     //cLog::log (LOGINFO1, "parsePat");
     auto pat = (pat_t*)buf;
     auto sectionLength = HILO(pat->section_length) + 3;
-    if (crc32 (buf, sectionLength)) {
+    if (crc32Block (0xffffffff, buf, sectionLength) != 0) {
       //{{{  bad crc
       cLog::log (LOGERROR, "parsePAT - bad crc " + dec(sectionLength));
       return;
@@ -1254,7 +1248,7 @@ private:
     //cLog::log (LOGINFO1, "parseSdt");
     auto sdt = (sdt_t*)buf;
     auto sectionLength = HILO(sdt->section_length) + 3;
-    if (crc32 (buf, sectionLength)) {
+    if (crc32Block (0xffffffff, buf, sectionLength) != 0) {
       //{{{  wrong crc
       cLog::log (LOGERROR, "parseSDT - bad crc " + dec(sectionLength));
       return;
@@ -1359,8 +1353,7 @@ private:
     //cLog::log (LOGINFO1, "parseNit");
     auto nit = (nit_t*)buf;
     auto sectionLength = HILO(nit->section_length) + 3;
-
-    if (crc32 (buf, sectionLength)) {
+    if (crc32Block (0xffffffff, buf, sectionLength) != 0) {
       //{{{  bad crc
       cLog::log (LOGERROR, "parseNIT - bad crc " + dec(sectionLength));
       return;
@@ -1416,10 +1409,12 @@ private:
     //cLog::log (LOGINFO1, "parseEit");
     auto eit = (eit_t*)buf;
     auto sectionLength = HILO(eit->section_length) + 3;
-    if (crc32 (buf, sectionLength)) {
+    if (crc32Block (0xffffffff, buf, sectionLength) != 0) {
+      //{{{  bad crc
       cLog::log (LOGERROR, "parseEit - bad CRC " + dec(sectionLength));
       return;
       }
+      //}}}
 
     auto tid = eit->table_id;
     auto sid = HILO (eit->service_id);
@@ -1524,7 +1519,7 @@ private:
     //cLog::log (LOGINFO1, "parsePmt");
     auto pmt = (pmt_t*)buf;
     auto sectionLength = HILO(pmt->section_length) + 3;
-    if (crc32 (buf, sectionLength)) {
+    if (crc32Block (0xffffffff, buf, sectionLength) != 0) {
       //{{{  bad crc
       cLog::log (LOGERROR, "parsePMT - pid:%d bad crc %d", pidInfo->mPid, sectionLength);
       return;
@@ -1547,11 +1542,6 @@ private:
         mServiceMap.insert (map<int,cService>::value_type (sid, cService (sid, kServiceTypeTV, -1,-1, "file32")));
         }
       }
-    //else if (pidInfo->mPid == 256) {
-      // simple tsFile with no SDT, pid 256 used to allocate service with sid
-      //cLog::log (LOGNOTICE, "parsePmt - serviceMap.insert pid 0x100");
-      //mServiceMap.insert (map<int,cService>::value_type (sid, cService (sid, kServiceTypeTV, 258,257, "file256")));
-      //}
 
     auto serviceIt = mServiceMap.find (sid);
     if (serviceIt != mServiceMap.end()) {
@@ -1595,7 +1585,8 @@ private:
           case  13: streamStr = "dsm"; break;// dsm cc tabled data
 
           default:
-            cLog::log (LOGERROR, "parsePmt - unknown streamType:%d sid:%d pid:%d", streamType, sid, esPid);
+            cLog::log (LOGERROR, "parsePmt - unknown streamType:%d sid:%d pid:%d",
+                                 streamType, sid, esPid);
             break;
           }
 
@@ -1785,11 +1776,6 @@ private:
       crc = (crc << 8) ^ mCrcTable[((crc >> 24) ^ *block++) & 0xff];
 
     return crc;
-    }
-  //}}}
-  //{{{
-  bool crc32 (uint8_t* data, int len) {
-    return crc32Block (0xffffffff, data, len) != 0;
     }
   //}}}
 
