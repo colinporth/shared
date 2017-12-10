@@ -816,9 +816,9 @@ public:
                 if (pidInfo->mSectionLength < payloadBytesLeft) {
                   // parse section from payload without buffer
                   parsePsi (pidInfo, payloadPtr);
-                  pidInfo->mBufPtr = nullptr;
                   payloadPtr += pidInfo->mSectionLength;
                   payloadBytesLeft -= pidInfo->mSectionLength;
+                  pidInfo->mBufPtr = nullptr;
                   }
                 else {
                   // start payload buffer, straddles packets
@@ -839,6 +839,9 @@ public:
                 pidInfo->mBufPtr = nullptr;
                 }
               }
+            else
+              cLog::log (LOGINFO1, "demux - trying to add section to section not started " + dec(pid) +
+                                   " " +  dec(pidInfo->mSectionLength));
             }
             //}}}
           else if ((decodePid == -1) || (pid == decodePid)) {
