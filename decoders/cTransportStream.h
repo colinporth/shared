@@ -810,6 +810,11 @@ public:
               payloadPtr += pointerField;
               payloadBytesLeft -= pointerField;
 
+              if (pidInfo->mBufPtr)
+                cLog::log (LOGINFO1, "demux - unused section buffer " + dec(pid) +
+                                     " sectionLength:" + dec(pidInfo->mSectionLength) +
+                                     " got:" +  dec((int)(pidInfo->mBufPtr - pidInfo->mBuffer)));
+
               while ((payloadBytesLeft >= 3) && (payloadPtr[0] != 0xFF)) {
                 // valid section tableId, get section length
                 pidInfo->mSectionLength = ((payloadPtr[1] & 0x0F) << 8) + payloadPtr[2] + 3;;
