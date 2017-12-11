@@ -137,7 +137,7 @@ const int kBufSize = 512;
 #define DESCR_ANNOUNCEMENT_SUPPORT  0x6E
 //}}}
 
-//{{{  pat_prog_t
+//{{{  pat_t
 typedef struct {
   uint8_t table_id                  :8;
 
@@ -147,6 +147,7 @@ typedef struct {
   uint8_t section_syntax_indicator  :1;
 
   uint8_t section_length_lo         :8;
+
   uint8_t transport_stream_id_hi    :8;
   uint8_t transport_stream_id_lo    :8;
 
@@ -157,7 +158,8 @@ typedef struct {
   uint8_t section_number            :8;
   uint8_t last_section_number       :8;
   } pat_t;
-
+//}}}
+//{{{  pat_prog_t
 typedef struct {
   uint8_t program_number_hi         :8;
   uint8_t program_number_lo         :8;
@@ -168,6 +170,7 @@ typedef struct {
   /* or program_map_pid (if prog_num=0)*/
   } pat_prog_t;
 //}}}
+
 //{{{  pmt_t
 typedef struct {
    unsigned char table_id            :8;
@@ -206,6 +209,7 @@ typedef struct {
    // descrs
   } pmt_info_t;
 //}}}
+
 //{{{  nit_t
 typedef struct {
   uint8_t table_id                     :8;
@@ -252,6 +256,7 @@ typedef struct {
   /* descrs  */
   } nit_ts_t;
 //}}}
+
 //{{{  eit_t
 typedef struct {
   uint8_t table_id                    :8;
@@ -294,6 +299,7 @@ typedef struct {
   uint8_t descrs_loop_length_lo       :8;
   } eit_event_t;
 //}}}
+
 //{{{  std_t
 typedef struct {
   uint8_t table_id                    :8;
@@ -326,6 +332,7 @@ typedef struct {
   uint8_t descrs_loop_length_lo        :8;
   } sdt_descr_t;
 //}}}
+
 //{{{  tdt_t
 typedef struct {
   uint8_t table_id                  :8;
@@ -821,6 +828,8 @@ public:
           pidInfo->mContinuity = continuityCount;
           pidInfo->mTotal++;
 
+          packet (pid, tsPtr-1);
+
           tsPtr += headerBytes;
           int tsFrameBytesLeft = 187 - headerBytes;
           //}}}
@@ -964,6 +973,22 @@ protected:
   virtual bool audDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
   virtual bool vidDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
   virtual void startProgram (int vidPid, int audPid, const string& name, time_t startTime) {}
+  virtual void packet (int pid, uint8_t* tsPtr) {}
+
+  //{{{
+  uint32_t crc32Block (uint32_t crc, uint8_t* block, int len) {
+  // Compute CRC32 over a block of data, by table method.
+  // Returns a working value, suitable for re-input for further blocks
+  // Notes: Input value should be 0xffffffff for the first block,
+  //        else return value from previous call (not sure if that
+  //        needs complementing before being passed back in
+
+    for (auto j = 0; j < len; j++)
+      crc = (crc << 8) ^ mCrcTable[((crc >> 24) ^ *block++) & 0xff];
+
+    return crc;
+    }
+  //}}}
 
 private:
   //{{{
@@ -1216,7 +1241,7 @@ private:
     auto sectionLength = HILO(pat->section_length) + 3;
     if (crc32Block (0xffffffff, buf, sectionLength) != 0) {
       //{{{  bad crc
-      cLog::log (LOGERROR, "parsePAT - bad crc " + dec(sectionLength));
+      cLog::log (LOGERROR, "parsePAT - bad crc - sectionLength:" + dec(sectionLength));
       return;
       }
       //}}}
@@ -1764,20 +1789,6 @@ private:
        }
      }
    //}}}
-  //{{{
-  uint32_t crc32Block (uint32_t crc, uint8_t* block, int len) {
-  // Compute CRC32 over a block of data, by table method.
-  // Returns a working value, suitable for re-input for further blocks
-  // Notes: Input value should be 0xffffffff for the first block,
-  //        else return value from previous call (not sure if that
-  //        needs complementing before being passed back in
-
-    for (auto j = 0; j < len; j++)
-      crc = (crc << 8) ^ mCrcTable[((crc >> 24) ^ *block++) & 0xff];
-
-    return crc;
-    }
-  //}}}
 
   //{{{  private vars
   map<int,int> mProgramMap;
