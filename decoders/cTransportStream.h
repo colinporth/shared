@@ -798,20 +798,10 @@ public:
           // skip past adaption field
           int headerBytes = (tsPtr[2] & 0x20) ? 4 + tsPtr[3] : 3;
 
-          bool isPsi = (pid == PID_PAT) || (pid == PID_CAT) || (pid == PID_NIT) || (pid == PID_SDT) ||
-                       (pid == PID_EIT) || (pid == PID_RST) || (pid == PID_TDT) || (pid == PID_SYN) ||
-                       (mProgramMap.find (pid) != mProgramMap.end());
-
-          // find or create pidInfo
-          auto pidInfoIt = mPidInfoMap.find (pid);
-          if (pidInfoIt == mPidInfoMap.end()) {
-            // new pid, insert new cPidInfo, get pidInfoIt iterator
-            auto insertPair = mPidInfoMap.insert (map<int,cPidInfo>::value_type (pid, cPidInfo(pid, isPsi)));
-            pidInfoIt = insertPair.first;
-            pidInfoIt->second.mBufSize = kBufSize;
-            pidInfoIt->second.mBuffer = (uint8_t*)malloc (kBufSize);
-            }
-          auto pidInfo = &pidInfoIt->second;
+          auto psi = (pid == PID_PAT) || (pid == PID_CAT) || (pid == PID_NIT) || (pid == PID_SDT) ||
+                     (pid == PID_EIT) || (pid == PID_RST) || (pid == PID_TDT) || (pid == PID_SYN) ||
+                     (mProgramMap.find (pid) != mProgramMap.end());
+          auto pidInfo = findCreatePidInfo (pid, psi);
 
           // test continuity, reset buffers if fail
           if ((pid != 0x1FFF) &&
@@ -833,7 +823,7 @@ public:
           tsPtr += headerBytes;
           int tsFrameBytesLeft = 187 - headerBytes;
           //}}}
-          if (isPsi) {
+          if (pidInfo->mPsi) {
             //{{{  parse body as psi
             if (payloadStart) {
               auto payloadPtr = tsPtr;
@@ -881,7 +871,7 @@ public:
                                    " " +  dec(pidInfo->mSectionLength));
             }
             //}}}
-          else if ((decodePid == -1) || (pid == decodePid)) {
+          else if ((decodePid == -1) || (decodePid == pid)) {
             // parse body as pes
             if (payloadStart && !tsPtr[0] && !tsPtr[1] && (tsPtr[2] == 0x01)) {
               //{{{  start new payload
@@ -1222,6 +1212,22 @@ private:
     };
   //}}}
 
+  //{{{
+  cPidInfo* findCreatePidInfo (int pid, bool psi) {
+
+    // find or create pidInfo
+    auto pidInfoIt = mPidInfoMap.find (pid);
+    if (pidInfoIt == mPidInfoMap.end()) {
+      // new pid, insert new cPidInfo, get pidInfoIt iterator
+      auto insertPair = mPidInfoMap.insert (map<int,cPidInfo>::value_type (pid, cPidInfo(pid, psi)));
+      pidInfoIt = insertPair.first;
+      pidInfoIt->second.mBufSize = kBufSize;
+      pidInfoIt->second.mBuffer = (uint8_t*)malloc (kBufSize);
+      }
+
+    return &pidInfoIt->second;
+    }
+  //}}}
   //{{{
   void addToSectionBuffer (cPidInfo* pidInfo, uint8_t* buf, int bufSize) {
 
@@ -1615,14 +1621,12 @@ private:
             break;
           }
 
-        // set sid for each stream pid
-        auto esPidInfoIt = mPidInfoMap.find (esPid);
-        if (esPidInfoIt != mPidInfoMap.end()) {
-          esPidInfoIt->second.mSid = sid;
-          esPidInfoIt->second.mStreamType = streamType;
-          esPidInfoIt->second.mTypeStr = streamStr;
-          esPidInfoIt->second.mInfoStr = dec(sid);
-          }
+        // set sid, streamType for esPid
+        auto esPidInfo = findCreatePidInfo (esPid, false);
+        esPidInfo->mSid = sid;
+        esPidInfo->mInfoStr = dec(sid);
+        esPidInfo->mStreamType = streamType;
+        esPidInfo->mTypeStr = streamStr;
 
         auto loopLength = HILO (pmtInfo->ES_info_length);
         parseDescrs (sid, buf, loopLength, pmt->table_id);
