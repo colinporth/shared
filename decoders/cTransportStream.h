@@ -1,9 +1,9 @@
-//{{{  cTransportStream.h - transport stream parser
-// PAT inserts <pid,sid>'s into mProgramMap
-// SDT inserts <sid,cService> into mServiceMap
-// PMT sets cService pids
-// pid inserts <pid,cPidInfo> into mPidInfoMap
-//}}}
+ //{{{  cTransportStream.h - transport stream parser
+ // PAT inserts <pid,sid>'s into mProgramMap
+ // SDT inserts <sid,cService> into mServiceMap
+ // PMT sets cService pids
+ // pid inserts <pid,cPidInfo> into mPidInfoMap
+ //}}}
 //{{{  includes
 #pragma once
 
@@ -400,25 +400,55 @@ typedef struct item_extended_event_struct {
 //{{{
 class cPidInfo {
 public:
-  //{{{
-  cPidInfo (int pid, bool isPsi) : mPid(pid), mPsi(isPsi) {
-
-    switch (pid) {
-      case PID_PAT: mTypeStr = "Pat"; break;
-      case PID_CAT: mTypeStr = "Cat"; break;
-      case PID_NIT: mTypeStr = "Nit"; break;
-      case PID_SDT: mTypeStr = "Sdt"; break;
-      case PID_EIT: mTypeStr = "Eit"; break;
-      case PID_RST: mTypeStr = "Rst"; break;
-      case PID_TDT: mTypeStr = "Tdt"; break;
-      case PID_SYN: mTypeStr = "Syn"; break;
-      default :     mTypeStr = "***"; break;
-      }
-    }
-  //}}}
+  cPidInfo (int pid, bool isPsi) : mPid(pid), mPsi(isPsi) {}
   ~cPidInfo() {}
 
   int getBufUsed() { return int(mBufPtr - mBuffer); }
+
+  //{{{
+  string getTypeString() {
+
+    // known pids
+    switch (mPid) {
+      case PID_PAT: return "PAT";
+      case PID_CAT: return "CAT";
+      case PID_NIT: return "NIT";
+      case PID_SDT: return "SDT";
+      case PID_EIT: return "EIT";
+      case PID_RST: return "RST";
+      case PID_TDT: return "TDT";
+      case PID_SYN: return "SYN";
+      }
+
+    if (mSid != -1) {
+      // service - pgm or es
+      switch (mStreamType) {
+        case   0: return "pgm";
+        case   2: return "m2v"; // ISO 13818-2 video
+        case   3: return "m2a"; // ISO 11172-3 audio
+        case   4: return "m3a"; // ISO 13818-3 audio
+        case   5: return "mtd"; // private mpeg2 tabled data - private
+        case   6: return "sub"; // subtitle
+        case  11: return "dsm"; // dsm cc u_n
+        case  13: return "dsm"; // dsm cc tabled data
+        case  15: return "aac"; // HD aud ADTS
+        case  17: return "aac"; // HD aud LATM
+        case  27: return "264"; // HD vid
+        case 129: return "ac3"; // aud AC3
+        default : return dec(mStreamType,3);
+        }
+      }
+
+    // unknown pid
+    return "---";
+    }
+  //}}}
+  //{{{
+  string getInfoString() {
+
+    return (mSid > 0 ? dec(mSid) : "") + (mInfoStr.empty() ? "" : " " + mInfoStr);
+    }
+  //}}}
   //{{{
   int addToBuffer (uint8_t* buf, int bufSize) {
 
@@ -469,7 +499,6 @@ public:
 
   int64_t mStreamPos = -1;
 
-  string mTypeStr;
   string mInfoStr;
   };
 //}}}
@@ -520,17 +549,14 @@ private:
 //{{{
 class cService {
 public:
-  //{{{
-  cService (int sid, int type, int vidPid, int audPid, const string& name) :
-      mSid(sid), mType(type), mVidPid(vidPid), mAudPid(audPid), mName(name) {}
-  //}}}
+  cService (int sid, int type, const string& name) : mSid(sid), mType(type), mName(name) {}
   ~cService() {}
 
   //{{{  gets
   int getSid() const { return mSid; }
   int getType() const { return mType; }
   //{{{
-  string getTypeStr() {
+  string getTypeString() {
     switch (mType) {
       case kServiceTypeTV :           return "TV";
       case kServiceTypeRadio :        return "Radio";
@@ -601,7 +627,7 @@ public:
                         " vidPid:" + dec(mVidPid) +
                         " audPid:" + dec (mAudPid) +
                         " subPid:" + dec (mSubPid) +
-                        getTypeStr() + " " + mName);
+                        getTypeString() + " " + mName);
 
     if (mNowVec.empty())
     for (auto nowEpgItem : mNowVec)
@@ -1219,7 +1245,7 @@ private:
                  (pid == PID_EIT) || (pid == PID_RST) || (pid == PID_TDT) || (pid == PID_SYN) ||
                  (mProgramMap.find (pid) != mProgramMap.end());
 
-      // new pid, insert new cPidInfo, get pidInfoIt iterator
+      // insert new cPidInfo for new pid, allocate buffer
       auto insertPair = mPidInfoMap.insert (map<int,cPidInfo>::value_type (pid, cPidInfo(pid, psi)));
       pidInfoIt = insertPair.first;
       pidInfoIt->second.mBufSize = kBufSize;
@@ -1301,7 +1327,6 @@ private:
       auto sdtDescr = (sdt_descr_t*)buf;
       auto sid = HILO (sdtDescr->service_id);
       auto freeChannel = sdtDescr->free_ca_mode == 0;
-      //auto running = sdtDescr->running_status;
 
       auto loopLength = HILO (sdtDescr->descrs_loop_length);
       buf += sizeof(sdt_descr_t);
@@ -1309,7 +1334,6 @@ private:
       auto descrLength = 0;
       while ((descrLength < loopLength) &&
              (getDescrLength (buf) > 0) && (getDescrLength (buf) <= loopLength - descrLength)) {
-
         switch (getDescrTag (buf)) {
           case DESCR_SERVICE: {
             //{{{  service
@@ -1329,11 +1353,9 @@ private:
 
                 // insert new cService, get serviceIt iterator
                 auto pair = mServiceMap.insert (
-                  map<int,cService>::value_type (sid, cService (sid, serviceType, -1,-1, nameStr)));
-                auto serviceIt = pair.first;
+                  map<int,cService>::value_type (sid, cService (sid, serviceType, nameStr)));
 
-                cLog::log (LOGINFO, "SDT - add service:" + dec(sid) + " " +
-                                    serviceIt->second.getTypeStr() + " " + nameStr);
+                cLog::log (LOGINFO, "SDT - add service:" + dec(sid) +  " " + nameStr);
                 }
               }
 
@@ -1501,8 +1523,8 @@ private:
                       // new now
                       auto pidInfoIt = mPidInfoMap.find (serviceIt->second.getProgramPid());
                       if (pidInfoIt != mPidInfoMap.end()) // update service pgmPid infoStr with new now
-                        pidInfoIt->second.mInfoStr = serviceIt->second.getNameString() +
-                                                     " " + serviceIt->second.getNowTitleString();
+                        pidInfoIt->second.mInfoStr =
+                          serviceIt->second.getNameString() + " " + serviceIt->second.getNowTitleString();
 
                       startProgram (&serviceIt->second, titleStr, startTime);
                       }
@@ -1551,7 +1573,7 @@ private:
   //}}}
   //{{{
   void parsePmt (cPidInfo* pidInfo, uint8_t* buf) {
-  // PMT declares streams for a service
+  // PMT declares pgmPid and streams for a service
 
     //cLog::log (LOGINFO1, "parsePmt");
     auto pmt = (pmt_t*)buf;
@@ -1574,74 +1596,69 @@ private:
     if (pidInfo->mPid == 32) {
       auto serviceIt = mServiceMap.find (sid);
       if (serviceIt == mServiceMap.end()) {
-        // sichboPVR sFile - no SDT, pgmPid = 32 allocates service with sid
+        // service not known, sichboPVR,tvFrab ts File - pgmPid = 32 declares service sid, no SDT
         cLog::log (LOGNOTICE, "parsePmt - serviceMap.insert pid 32");
-        mServiceMap.insert (map<int,cService>::value_type (sid, cService (sid, kServiceTypeTV, -1,-1, "file32")));
+        mServiceMap.insert (
+          map<int,cService>::value_type (sid, cService (sid, kServiceTypeTV, "file32")));
         }
       }
 
     auto serviceIt = mServiceMap.find (sid);
     if (serviceIt != mServiceMap.end()) {
-      //{{{  service known, add serviceId to pgmPid, add esStream pids to service
+      //  service known, add serviceId to pgmPid, add esStream pids to service
       pidInfo->mSid = sid;
-      pidInfo->mTypeStr = "pgm ";
-      pidInfo->mInfoStr = dec(sid) + " " + serviceIt->second.getNameString() +
-                                     " " + serviceIt->second.getNowTitleString();
+      pidInfo->mInfoStr = serviceIt->second.getNameString() + " " + serviceIt->second.getNowTitleString();
       serviceIt->second.setProgramPid (pidInfo->mPid);
 
       buf += sizeof(pmt_t);
       sectionLength -= 4;
       auto programInfoLength = HILO (pmt->program_info_length);
-
       auto streamLength = sectionLength - programInfoLength - sizeof(pmt_t);
       if (streamLength >= 0)
         parseDescrs (sid, buf, programInfoLength, pmt->table_id);
 
       buf += programInfoLength;
       while (streamLength > 0) {
+        //{{{  add elementary stream pid to service
         auto pmtInfo = (pmt_info_t*)buf;
-        auto streamType = pmtInfo->stream_type;
+
         auto esPid = HILO (pmtInfo->elementary_PID);
-
-        string streamStr;
-        switch (streamType) {
-          case   2: serviceIt->second.setVidPid (esPid, streamType); streamStr = "m2v"; break; // ISO 13818-2 video
-          case  27: serviceIt->second.setVidPid (esPid, streamType); streamStr = "264"; break; // HD vid
-
-          case   3: serviceIt->second.setAudPid (esPid, streamType); streamStr = "m2a"; break; // ISO 11172-3 audio
-          case   4: serviceIt->second.setAudPid (esPid, streamType); streamStr = "m3a"; break; // ISO 13818-3 audio
-          case  15: serviceIt->second.setAudPid (esPid, streamType); streamStr = "aac"; break; // HD aud ADTS
-          case  17: serviceIt->second.setAudPid (esPid, streamType); streamStr = "aac"; break; // HD aud LATM
-          case 129: serviceIt->second.setAudPid (esPid, streamType); streamStr = "ac3"; break; // aud AC3
-
-          case   6: serviceIt->second.setSubPid (esPid, streamType); streamStr = "sub"; break; // subtitle
-
-          case   5: streamStr = "mtd"; break;// private mpeg2 tabled data - private
-          case  11: streamStr = "dsm"; break;// dsm cc u_n
-          case  13: streamStr = "dsm"; break;// dsm cc tabled data
-
-          default:
-            cLog::log (LOGERROR, "parsePmt - unknown streamType:%d sid:%d pid:%d",
-                                 streamType, sid, esPid);
-            break;
-          }
-
-        // set sid, streamType for esPid
         auto esPidInfo = findCreatePidInfo (esPid);
         esPidInfo->mSid = sid;
-        esPidInfo->mInfoStr = dec(sid);
-        esPidInfo->mStreamType = streamType;
-        esPidInfo->mTypeStr = streamStr;
+        esPidInfo->mStreamType = pmtInfo->stream_type;
+
+        switch (esPidInfo->mStreamType) {
+          case   2: // ISO 13818-2 video
+          case  27: // HD vid
+            serviceIt->second.setVidPid (esPid, esPidInfo->mStreamType); break;
+          case   3: // ISO 11172-3 audio
+          case   4: // ISO 13818-3 audio
+          case  15: // HD aud ADTS
+          case  17: // HD aud LATM
+          case 129: // aud AC3
+            serviceIt->second.setAudPid (esPid, esPidInfo->mStreamType);  break;
+          case   6: // subtitle
+            serviceIt->second.setSubPid (esPid, esPidInfo->mStreamType);  break;
+          case   5: // private mpeg2 tabled data - private
+          case  11: // dsm cc u_n
+          case  13: // dsm cc tabled data
+            break;
+          default:
+            cLog::log (LOGERROR, "parsePmt - unknown streamType:%d sid:%d pid:%d",
+                                 esPidInfo->mStreamType, sid, esPid);
+            break;
+          }
+        //}}}
 
         auto loopLength = HILO (pmtInfo->ES_info_length);
-        parseDescrs (sid, buf, loopLength, pmt->table_id);
+        if (loopLength >= 0)
+          parseDescrs (sid, buf, loopLength, pmt->table_id);
 
         buf += sizeof(pmt_info_t);
         streamLength -= loopLength + sizeof(pmt_info_t);
         buf += loopLength;
         }
       }
-      //}}}
     }
   //}}}
   //{{{
