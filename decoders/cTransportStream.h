@@ -798,10 +798,7 @@ public:
           // skip past adaption field
           int headerBytes = (tsPtr[2] & 0x20) ? 4 + tsPtr[3] : 3;
 
-          auto psi = (pid == PID_PAT) || (pid == PID_CAT) || (pid == PID_NIT) || (pid == PID_SDT) ||
-                     (pid == PID_EIT) || (pid == PID_RST) || (pid == PID_TDT) || (pid == PID_SYN) ||
-                     (mProgramMap.find (pid) != mProgramMap.end());
-          auto pidInfo = findCreatePidInfo (pid, psi);
+          auto pidInfo = findCreatePidInfo (pid);
 
           // test continuity, reset buffers if fail
           if ((pid != 0x1FFF) &&
@@ -818,7 +815,7 @@ public:
           pidInfo->mContinuity = continuityCount;
           pidInfo->mTotal++;
 
-          packet (pid, tsPtr-1);
+          packet (pidInfo, tsPtr-1);
 
           tsPtr += headerBytes;
           int tsFrameBytesLeft = 187 - headerBytes;
@@ -962,8 +959,8 @@ public:
 protected:
   virtual bool audDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
   virtual bool vidDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
-  virtual void startProgram (int vidPid, int audPid, const string& name, time_t startTime) {}
-  virtual void packet (int pid, uint8_t* tsPtr) {}
+  virtual void startProgram (cService* service, const string& name, time_t startTime) {}
+  virtual void packet (cPidInfo* pidInfo, uint8_t* tsPtr) {}
 
   //{{{
   uint32_t crc32Block (uint32_t crc, uint8_t* block, int len) {
@@ -1213,11 +1210,15 @@ private:
   //}}}
 
   //{{{
-  cPidInfo* findCreatePidInfo (int pid, bool psi) {
+  cPidInfo* findCreatePidInfo (int pid) {
 
     // find or create pidInfo
     auto pidInfoIt = mPidInfoMap.find (pid);
     if (pidInfoIt == mPidInfoMap.end()) {
+      auto psi = (pid == PID_PAT) || (pid == PID_CAT) || (pid == PID_NIT) || (pid == PID_SDT) ||
+                 (pid == PID_EIT) || (pid == PID_RST) || (pid == PID_TDT) || (pid == PID_SYN) ||
+                 (mProgramMap.find (pid) != mProgramMap.end());
+
       // new pid, insert new cPidInfo, get pidInfoIt iterator
       auto insertPair = mPidInfoMap.insert (map<int,cPidInfo>::value_type (pid, cPidInfo(pid, psi)));
       pidInfoIt = insertPair.first;
@@ -1493,13 +1494,18 @@ private:
                     *((uint8_t*)(buf + sizeof(descr_short_event_struct) + ((descr_short_event_t*)(buf))->event_name_length)));
 
                 if (now & running) {
-                  if (serviceIt->second.setNow (startTime, duration, titleStr, shortDescriptionStr)) {
-                    // new now
-                    auto pidInfoIt = mPidInfoMap.find (serviceIt->second.getProgramPid());
-                    if (pidInfoIt != mPidInfoMap.end()) // update service pgmPid infoStr with new now
-                     pidInfoIt->second.mInfoStr = serviceIt->second.getNameString() + " " + serviceIt->second.getNowTitleString();
+                  if (serviceIt->second.getVidPid() != -1 &&
+                      serviceIt->second.getAudPid() != -1 &&
+                      serviceIt->second.getProgramPid() != -1) {
+                    if (serviceIt->second.setNow (startTime, duration, titleStr, shortDescriptionStr)) {
+                      // new now
+                      auto pidInfoIt = mPidInfoMap.find (serviceIt->second.getProgramPid());
+                      if (pidInfoIt != mPidInfoMap.end()) // update service pgmPid infoStr with new now
+                        pidInfoIt->second.mInfoStr = serviceIt->second.getNameString() +
+                                                     " " + serviceIt->second.getNowTitleString();
 
-                    startProgram (serviceIt->second.getVidPid(), serviceIt->second.getAudPid(), titleStr, startTime);
+                      startProgram (&serviceIt->second, titleStr, startTime);
+                      }
                     }
                   }
                 else if (epg)
@@ -1581,7 +1587,6 @@ private:
       pidInfo->mTypeStr = "pgm ";
       pidInfo->mInfoStr = dec(sid) + " " + serviceIt->second.getNameString() +
                                      " " + serviceIt->second.getNowTitleString();
-
       serviceIt->second.setProgramPid (pidInfo->mPid);
 
       buf += sizeof(pmt_t);
@@ -1622,7 +1627,7 @@ private:
           }
 
         // set sid, streamType for esPid
-        auto esPidInfo = findCreatePidInfo (esPid, false);
+        auto esPidInfo = findCreatePidInfo (esPid);
         esPidInfo->mSid = sid;
         esPidInfo->mInfoStr = dec(sid);
         esPidInfo->mStreamType = streamType;
