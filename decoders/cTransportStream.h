@@ -613,9 +613,14 @@ public:
   int getSid() const { return mSid; }
 
   int getProgramPid() const { return mProgramPid; }
+
   int getVidPid() const { return mVidPid; }
+  int getVidStreamType() const { return mVidStreamType; }
+
   int getAudPid() const { return mAudPid; }
+  int getAudStreamType() const { return mAudStreamType; }
   int getAudOtherPid() const { return mAudOtherPid; }
+
   int getSubPid() const { return mSubPid; }
 
   string getNameString() { return mName; }
@@ -626,15 +631,23 @@ public:
   //{{{  sets
   void setName (const string& name) { mName = name;}
 
-  void setVidPid (int pid, int streamType) { mVidPid = pid; }
+  //{{{
+  void setVidPid (int pid, int streamType) { 
+    mVidPid = pid; 
+    mVidStreamType = streamType;
+    }
+  //}}}
   void setSubPid (int pid, int streamType) { mSubPid = pid; }
   void setProgramPid (int pid) { mProgramPid = pid; }
   //{{{
   void setAudPid (int pid, int streamType) {
+
     if ((pid != mAudPid) && (pid != mAudOtherPid)) {
       // use first aud pid, may be many
-      if (mAudPid == -1)
+      if (mAudPid == -1) {
         mAudPid = pid;
+        mAudStreamType = streamType;
+        }
       else if (mAudOtherPid == -1)
         mAudOtherPid = pid;
       }
@@ -682,8 +695,10 @@ private:
 
   int mProgramPid = -1;
   int mVidPid = -1;
+  int mVidStreamType = 0;
   int mAudPid = -1;
   int mAudOtherPid = -1;
+  int mAudStreamType = 0;
   int mSubPid = -1;
 
   string mName;
@@ -697,6 +712,14 @@ class cRecordFile {
 public:
   cRecordFile (int vidPid, int audPid) : mVidPid(vidPid), mAudPid(audPid) {}
   ~cRecordFile() { closeFile(); }
+
+  //{{{
+  void createFile (const string& name) {
+
+    string fileName = "c:/videos/" + name + ".ts";
+    mFile = CreateFile (fileName.c_str(), GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, 0, NULL);
+    }
+  //}}}
 
   //{{{
   void writePat (int tsid, int sid, int pgmPid) {
@@ -771,23 +794,17 @@ public:
     }
   //}}}
   //{{{
-  void writePacket (uint8_t* ts) {
+  void writePes (int pid, uint8_t* ts) {
 
-    DWORD numBytesUsed;
-    WriteFile (mFile, ts, 188, &numBytesUsed, NULL);
-    if (numBytesUsed != 188)
-      cLog::log (LOGERROR, "writePacket " + dec(numBytesUsed));
+    //cLog::log (LOGINFO, "writePes");
+    if ((pid == mVidPid) || (pid == mAudPid))
+      writePacket (ts);
     }
   //}}}
 
-  //{{{
-  void createFile (const string& name) {
-    string fileName = "c:/videos/" + name + ".ts";
-    mFile = CreateFile (fileName.c_str(), GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, 0, NULL);
-    }
-  //}}}
   //{{{
   void closeFile() {
+
     if (mFile != 0) {
       CloseHandle (mFile);
       mFile = 0;
@@ -795,20 +812,17 @@ public:
     }
   //}}}
 
-  int mVidPid = -1;
-  int mAudPid = -1;
-
 private:
   //{{{
   uint8_t* tsHeader (uint8_t* ts, int pid, int continuityCount) {
 
     memset (ts, 0xFF, 188);
 
-    *ts++ = 0x47; // sync byte
-    *ts++ = 0x40 | ((pid & 0x1f00) >> 8);           // payload_unit_start_indicator + pid upper
-    *ts++ = pid & 0xff;                             // pid lower
-    *ts++ = 0x10 | continuityCount;                 // no adaptControls + cont count
-    *ts++ = 0;                                      // pointerField
+    *ts++ = 0x47;                         // sync byte
+    *ts++ = 0x40 | ((pid & 0x1f00) >> 8); // payload_unit_start_indicator + pid upper
+    *ts++ = pid & 0xff;                   // pid lower
+    *ts++ = 0x10 | continuityCount;       // no adaptControls + cont count
+    *ts++ = 0;                            // pointerField
 
     return ts;
     }
@@ -823,15 +837,22 @@ private:
     *tsPtr++ = (crc & 0x0000ff00) >>  8;
     *tsPtr++ =  crc & 0x000000ff;
 
-    // write
+    writePacket (ts);
+    }
+  //}}}
+  //{{{
+  void writePacket (uint8_t* ts) {
+
     DWORD numBytesUsed;
     WriteFile (mFile, ts, 188, &numBytesUsed, NULL);
     if (numBytesUsed != 188)
-      cLog::log (LOGERROR, "writePat " + dec(numBytesUsed));
+      cLog::log (LOGERROR, "writePacket " + dec(numBytesUsed));
     }
   //}}}
 
   HANDLE mFile = 0;
+  int mVidPid = -1;
+  int mAudPid = -1;
   };
 //}}}
 
