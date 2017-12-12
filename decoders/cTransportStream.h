@@ -1,9 +1,8 @@
- //{{{  cTransportStream.h - transport stream parser
- // PAT inserts <pid,sid>'s into mProgramMap
- // SDT inserts <sid,cService> into mServiceMap
- // PMT sets cService pids
- // pid inserts <pid,cPidInfo> into mPidInfoMap
- //}}}
+//{{{  cTransportStream.h - transport stream parser
+// PAT inserts <pid,sid> into mProgramMap
+// PMT declares pgm and elementary stream pids, adds cService into mServiceMap
+// SDT names a service in mServiceMap
+//}}}
 //{{{  includes
 #pragma once
 
@@ -632,8 +631,8 @@ public:
   void setName (const string& name) { mName = name;}
 
   //{{{
-  void setVidPid (int pid, int streamType) { 
-    mVidPid = pid; 
+  void setVidPid (int pid, int streamType) {
+    mVidPid = pid;
     mVidStreamType = streamType;
     }
   //}}}
@@ -856,9 +855,8 @@ private:
   };
 //}}}
 
-class cTransportStream {
-public:
-  cTransportStream() {}
+class cTransportStream { 
+public: 
   virtual ~cTransportStream() {}
 
   //{{{
