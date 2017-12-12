@@ -1634,7 +1634,7 @@ private:
   void parsePmt (cPidInfo* pidInfo, uint8_t* buf) {
   // PMT declares pgmPid and streams for a service
 
-    cLog::log (LOGINFO1, "parsePmt " + dec(pidInfo->mPid));
+    //cLog::log (LOGINFO1, "parsePmt " + dec(pidInfo->mPid));
     auto pmt = (pmt_t*)buf;
     auto sectionLength = HILO(pmt->section_length) + 3;
     if (crc32 (0xffffffff, buf, sectionLength) != 0) {
