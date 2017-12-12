@@ -713,10 +713,74 @@ public:
   ~cRecordFile() { closeFile(); }
 
   //{{{
-  void createFile (const string& name) {
+  void createFile (const string& name, cService* service) {
 
-    string fileName = "c:/videos/" + name + ".ts";
-    mFile = CreateFile (fileName.c_str(), GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, 0, NULL);
+    // close any previous file
+    closeFile();
+
+    if ((service->getVidPid() > 0) && (service->getAudPid() > 0)) {
+      mFile = CreateFile (name.c_str(), GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, 0, NULL);
+
+      writePat (0x1234, service->getSid(), kPgmPid); // tsid, sid, pgmPid
+      writePmt (service->getSid(), kPgmPid, service->getVidPid(),
+                service->getVidPid(), service->getVidStreamType(),
+                service->getAudPid(), service->getAudStreamType());
+      }
+    }
+  //}}}
+  //{{{
+  void writePes (int pid, uint8_t* ts) {
+
+    //cLog::log (LOGINFO, "writePes");
+    if ((pid == mVidPid) || (pid == mAudPid))
+      writePacket (ts);
+    }
+  //}}}
+  //{{{
+  void closeFile() {
+
+    if (mFile != 0) {
+      CloseHandle (mFile);
+      mFile = 0;
+      }
+    }
+  //}}}
+
+private:
+  //{{{
+  uint8_t* tsHeader (uint8_t* ts, int pid, int continuityCount) {
+
+    memset (ts, 0xFF, 188);
+
+    *ts++ = 0x47;                         // sync byte
+    *ts++ = 0x40 | ((pid & 0x1f00) >> 8); // payload_unit_start_indicator + pid upper
+    *ts++ = pid & 0xff;                   // pid lower
+    *ts++ = 0x10 | continuityCount;       // no adaptControls + cont count
+    *ts++ = 0;                            // pointerField
+
+    return ts;
+    }
+  //}}}
+  //{{{
+  void writeSection (uint8_t* ts, uint8_t* tsSectionStart, uint8_t* tsPtr) {
+
+    // tsSection crc, calc from tsSection start to here
+    auto crc = crc32 (0xffffffff, tsSectionStart, int(tsPtr - tsSectionStart));
+    *tsPtr++ = (crc & 0xff000000) >> 24;
+    *tsPtr++ = (crc & 0x00ff0000) >> 16;
+    *tsPtr++ = (crc & 0x0000ff00) >>  8;
+    *tsPtr++ =  crc & 0x000000ff;
+
+    writePacket (ts);
+    }
+  //}}}
+  //{{{
+  void writePacket (uint8_t* ts) {
+
+    DWORD numBytesUsed;
+    WriteFile (mFile, ts, 188, &numBytesUsed, NULL);
+    if (numBytesUsed != 188)
+      cLog::log (LOGERROR, "writePacket " + dec(numBytesUsed));
     }
   //}}}
 
@@ -792,62 +856,8 @@ public:
     writeSection (ts, tsSectionStart, tsPtr);
     }
   //}}}
-  //{{{
-  void writePes (int pid, uint8_t* ts) {
 
-    //cLog::log (LOGINFO, "writePes");
-    if ((pid == mVidPid) || (pid == mAudPid))
-      writePacket (ts);
-    }
-  //}}}
-
-  //{{{
-  void closeFile() {
-
-    if (mFile != 0) {
-      CloseHandle (mFile);
-      mFile = 0;
-      }
-    }
-  //}}}
-
-private:
-  //{{{
-  uint8_t* tsHeader (uint8_t* ts, int pid, int continuityCount) {
-
-    memset (ts, 0xFF, 188);
-
-    *ts++ = 0x47;                         // sync byte
-    *ts++ = 0x40 | ((pid & 0x1f00) >> 8); // payload_unit_start_indicator + pid upper
-    *ts++ = pid & 0xff;                   // pid lower
-    *ts++ = 0x10 | continuityCount;       // no adaptControls + cont count
-    *ts++ = 0;                            // pointerField
-
-    return ts;
-    }
-  //}}}
-  //{{{
-  void writeSection (uint8_t* ts, uint8_t* tsSectionStart, uint8_t* tsPtr) {
-
-    // tsSection crc, calc from tsSection start to here
-    auto crc = crc32 (0xffffffff, tsSectionStart, int(tsPtr - tsSectionStart));
-    *tsPtr++ = (crc & 0xff000000) >> 24;
-    *tsPtr++ = (crc & 0x00ff0000) >> 16;
-    *tsPtr++ = (crc & 0x0000ff00) >>  8;
-    *tsPtr++ =  crc & 0x000000ff;
-
-    writePacket (ts);
-    }
-  //}}}
-  //{{{
-  void writePacket (uint8_t* ts) {
-
-    DWORD numBytesUsed;
-    WriteFile (mFile, ts, 188, &numBytesUsed, NULL);
-    if (numBytesUsed != 188)
-      cLog::log (LOGERROR, "writePacket " + dec(numBytesUsed));
-    }
-  //}}}
+  const int kPgmPid = 32;
 
   HANDLE mFile = 0;
   int mVidPid = -1;
@@ -855,8 +865,8 @@ private:
   };
 //}}}
 
-class cTransportStream { 
-public: 
+class cTransportStream {
+public:
   virtual ~cTransportStream() {}
 
   //{{{
@@ -1012,8 +1022,10 @@ public:
           //}}}
         // check for full packet, followed by start syncCode if not end
         if ((tsPtr+187 >= tsEnd) || (*(tsPtr+187) == 0x47)) {
+          auto nextTsPtr = tsPtr + 187;
+          int tsBytesLeft = 187;
+
           // parse ts packet header
-          int tsFrameBytesLeft = 187;
           int pid = ((tsPtr[0] & 0x1F) << 8) | tsPtr[1];
           int continuityCount = tsPtr[2] & 0x0F;
           bool payloadStart = tsPtr[0] & 0x40;
@@ -1039,17 +1051,14 @@ public:
             pidInfo->mContinuity = continuityCount;
             pidInfo->mTotal++;
 
-            packet (pidInfo, tsPtr-1);
-
-            // skip past tsHeader
-            tsPtr += headerBytes;
-            tsFrameBytesLeft -= headerBytes;
-
             if (pidInfo->mPsi) {
-              //{{{  parse body as psi
+              //{{{  psi packet body
+              tsPtr += headerBytes;
+              tsBytesLeft -= headerBytes;
+
               if (payloadStart) {
                 auto payloadPtr = tsPtr;
-                auto payloadBytesLeft = tsFrameBytesLeft;
+                auto payloadBytesLeft = tsBytesLeft;
 
                 auto pointerField = *payloadPtr++;
                 payloadBytesLeft--;
@@ -1086,7 +1095,7 @@ public:
                 }
 
               else if (pidInfo->mBufPtr)
-                addToSectionBuffer (pidInfo, tsPtr, tsFrameBytesLeft);
+                addToSectionBuffer (pidInfo, tsPtr, tsBytesLeft);
 
               else
                 cLog::log (LOGINFO1, "demux - trying to add section to section not started " + dec(pid) +
@@ -1094,7 +1103,11 @@ public:
               }
               //}}}
             else if ((decodePid == -1) || (decodePid == pid)) {
-              //{{{  parse body as pes
+              //{{{  pes packet body
+              pesPacket (pidInfo, tsPtr-1);
+
+              tsPtr += headerBytes;
+              tsBytesLeft -= headerBytes;
               if (payloadStart && !tsPtr[0] && !tsPtr[1] && (tsPtr[2] == 0x01)) {
                 // start new payload, recognise streamIds
                 bool isVid = (tsPtr[3] == 0xE0);
@@ -1122,7 +1135,7 @@ public:
                   // skip past pesHeader
                   int pesHeaderBytes = 9 + tsPtr[8];
                   tsPtr += pesHeaderBytes;
-                  tsFrameBytesLeft -= pesHeaderBytes;
+                  tsBytesLeft -= pesHeaderBytes;
 
                   // start new buffer
                   pidInfo->mBufPtr = pidInfo->mBuffer;
@@ -1130,12 +1143,12 @@ public:
                 }
 
               if (pidInfo->mBufPtr)
-                pidInfo->addToBuffer (tsPtr, tsFrameBytesLeft);
+                pidInfo->addToBuffer (tsPtr, tsBytesLeft);
               }
               //}}}
             }
 
-          tsPtr += tsFrameBytesLeft;
+          tsPtr = nextTsPtr;
           streamPos += 188;
           mPackets++;
           }
@@ -1188,7 +1201,7 @@ protected:
   virtual bool audDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
   virtual bool vidDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
   virtual void startProgram (cService* service, const string& name, time_t startTime) {}
-  virtual void packet (cPidInfo* pidInfo, uint8_t* tsPtr) {}
+  virtual void pesPacket (cPidInfo* pidInfo, uint8_t* tsPtr) {}
 
 private:
   //{{{
@@ -1719,7 +1732,10 @@ private:
                     *((uint8_t*)(buf + sizeof(descr_short_event_struct) + ((descr_short_event_t*)(buf))->event_name_length)));
 
                 if (now) {
-                  if (running && (serviceIt->second.getProgramPid() != -1)) {
+                  if (running &&
+                      !serviceIt->second.getNameString().empty() &&
+                      (serviceIt->second.getProgramPid() != -1)) {
+                    // wait for named service with pgmPid
                     if (serviceIt->second.setNow (startTime, duration, titleStr, shortDescriptionStr)) {
                       // new now
                       auto pidInfoIt = mPidInfoMap.find (serviceIt->second.getProgramPid());
