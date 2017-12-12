@@ -816,36 +816,37 @@ public:
           //}}}
         // check for full packet, followed by start syncCode if not end
         if ((tsPtr+187 >= tsEnd) || (*(tsPtr+187) == 0x47)) {
-          //{{{  parse ts packet header
+          // parse ts packet header
           int pid = ((tsPtr[0] & 0x1F) << 8) | tsPtr[1];
           int continuityCount = tsPtr[2] & 0x0F;
           bool payloadStart = tsPtr[0] & 0x40;
-
-          // skip past adaption field
-          int headerBytes = (tsPtr[2] & 0x20) ? 4 + tsPtr[3] : 3;
+          int headerBytes = (tsPtr[2] & 0x20) ? 4 + tsPtr[3] : 3; // adaption field
 
           auto pidInfo = findCreatePidInfo (pid);
-
-          // test continuity, reset buffers if fail
           if ((pid != 0x1FFF) &&
               (pidInfo->mContinuity >= 0) && (pidInfo->mContinuity != ((continuityCount-1) & 0x0F))) {
-            // test continuity
+            //{{{  continuity error
             if (pidInfo->mContinuity == continuityCount) // strange case of bbc subtitles
               pidInfo->mRepeatContinuity++;
+
             else {
               mDiscontinuity++;
               pidInfo->mDisContinuity++;
               }
+
+            // abandon any buffered pes or section
             pidInfo->mBufPtr = nullptr;
             }
+            //}}}
           pidInfo->mContinuity = continuityCount;
           pidInfo->mTotal++;
 
           packet (pidInfo, tsPtr-1);
 
+          // skip past tsHeader
           tsPtr += headerBytes;
           int tsFrameBytesLeft = 187 - headerBytes;
-          //}}}
+
           if (pidInfo->mPsi) {
             //{{{  parse body as psi
             if (payloadStart) {
@@ -895,10 +896,9 @@ public:
             }
             //}}}
           else if ((decodePid == -1) || (decodePid == pid)) {
-            // parse body as pes
+            //{{{  parse body as pes
             if (payloadStart && !tsPtr[0] && !tsPtr[1] && (tsPtr[2] == 0x01)) {
-              //{{{  start new payload
-              // recognise streamIds
+              // start new payload, recognise streamIds
               bool isVid = (tsPtr[3] == 0xE0);
               bool isAud = (tsPtr[3] == 0xBD) || (tsPtr[3] == 0xC0);
 
@@ -921,17 +921,20 @@ public:
                 if (pidInfo->mPts > pidInfo->mLastPts)
                   pidInfo->mLastPts = pidInfo->mPts;
 
+                // skip past pesHeader
                 int pesHeaderBytes = 9 + tsPtr[8];
                 tsPtr += pesHeaderBytes;
                 tsFrameBytesLeft -= pesHeaderBytes;
 
+                // start new buffer
                 pidInfo->mBufPtr = pidInfo->mBuffer;
                 }
               }
-              //}}}
+
             if (pidInfo->mBufPtr)
               pidInfo->addToBuffer (tsPtr, tsFrameBytesLeft);
             }
+            //}}}
 
           tsPtr += tsFrameBytesLeft;
           streamPos += 188;
@@ -1278,24 +1281,20 @@ private:
       return;
       }
       //}}}
-    if (pat->table_id != TID_PAT) {
-      //{{{  wrong tid
-      cLog::log (LOGERROR, "parsePAT - unexpected TID " + dec(pat->table_id));
-      return;
-      }
-      //}}}
 
-    buf += sizeof(pat_t);
-    sectionLength -= sizeof(pat_t) + 4;
-    while (sectionLength > 0) {
-      auto patProgram = (pat_prog_t*)buf;
-      auto sid = HILO (patProgram->program_number);
-      auto pid = HILO (patProgram->network_pid);
-      if (mProgramMap.find (pid) == mProgramMap.end())
-        mProgramMap.insert (map<int,int>::value_type (pid, sid));
+    if (pat->table_id == TID_PAT) {
+      buf += sizeof(pat_t);
+      sectionLength -= sizeof(pat_t) + 4;
+      while (sectionLength > 0) {
+        auto patProgram = (pat_prog_t*)buf;
+        auto sid = HILO (patProgram->program_number);
+        auto pid = HILO (patProgram->network_pid);
+        if (mProgramMap.find (pid) == mProgramMap.end())
+          mProgramMap.insert (map<int,int>::value_type (pid, sid));
 
-      sectionLength -= sizeof(pat_prog_t);
-      buf += sizeof(pat_prog_t);
+        sectionLength -= sizeof(pat_prog_t);
+        buf += sizeof(pat_prog_t);
+        }
       }
     }
   //}}}
@@ -1312,77 +1311,72 @@ private:
       return;
       }
       //}}}
-    if (sdt->table_id == TID_SDT_OTH) // ignore other multiplex services for now
-      return;
-    if (sdt->table_id != TID_SDT_ACT) {
-      //{{{  wrong tid
-      cLog::log (LOGERROR, "parseSDT - unexpected TID " + dec(sdt->table_id));
-      return;
-      }
-      //}}}
 
-    buf += sizeof(sdt_t);
-    sectionLength -= sizeof(sdt_t) + 4;
-    while (sectionLength > 0) {
-      auto sdtDescr = (sdt_descr_t*)buf;
-      auto sid = HILO (sdtDescr->service_id);
-      auto freeChannel = sdtDescr->free_ca_mode == 0;
+    if (sdt->table_id == TID_SDT_ACT) {
+      // only want this multiplex services
+      buf += sizeof(sdt_t);
+      sectionLength -= sizeof(sdt_t) + 4;
+      while (sectionLength > 0) {
+        auto sdtDescr = (sdt_descr_t*)buf;
+        buf += sizeof(sdt_descr_t);
 
-      auto loopLength = HILO (sdtDescr->descrs_loop_length);
-      buf += sizeof(sdt_descr_t);
+        auto sid = HILO (sdtDescr->service_id);
+        auto freeChannel = sdtDescr->free_ca_mode == 0;
+        auto loopLength = HILO (sdtDescr->descrs_loop_length);
 
-      auto descrLength = 0;
-      while ((descrLength < loopLength) &&
-             (getDescrLength (buf) > 0) && (getDescrLength (buf) <= loopLength - descrLength)) {
-        switch (getDescrTag (buf)) {
-          case DESCR_SERVICE: {
-            //{{{  service
-            auto serviceType = ((descr_service_t*)buf)->service_type;
-            if (freeChannel &&
-                ((serviceType == kServiceTypeTV)  ||
-                 //(serviceType == kServiceTypeRadio) ||
-                 (serviceType == kServiceTypeAdvancedHDTV) ||
-                 (serviceType == kServiceTypeAdvancedSDTV))) {
+        auto descrLength = 0;
+        while ((descrLength < loopLength) &&
+               (getDescrLength (buf) > 0) && (getDescrLength (buf) <= loopLength - descrLength)) {
+          switch (getDescrTag (buf)) {
+            case DESCR_SERVICE: {
+              //{{{  service
+              auto serviceType = ((descr_service_t*)buf)->service_type;
+              if (freeChannel &&
+                  ((serviceType == kServiceTypeTV)  ||
+                   //(serviceType == kServiceTypeRadio) ||
+                   (serviceType == kServiceTypeAdvancedHDTV) ||
+                   (serviceType == kServiceTypeAdvancedSDTV))) {
 
-              auto it = mServiceMap.find (sid);
-              if (it == mServiceMap.end()) {
-                // new service
-                auto nameStr = getDescrStr (
-                  buf + sizeof(descr_service_t) + ((descr_service_t*)buf)->provider_name_length + 1,
-                  *((uint8_t*)(buf + sizeof (descr_service_t) + ((descr_service_t*)buf)->provider_name_length)));
+                auto it = mServiceMap.find (sid);
+                if (it == mServiceMap.end()) {
+                  // new service
+                  auto nameStr = getDescrStr (
+                    buf + sizeof(descr_service_t) + ((descr_service_t*)buf)->provider_name_length + 1,
+                    *((uint8_t*)(buf + sizeof (descr_service_t) + ((descr_service_t*)buf)->provider_name_length)));
 
-                // insert new cService, get serviceIt iterator
-                auto pair = mServiceMap.insert (
-                  map<int,cService>::value_type (sid, cService (sid, serviceType, nameStr)));
+                  // insert new cService, get serviceIt iterator
+                  auto pair = mServiceMap.insert (
+                    map<int,cService>::value_type (sid, cService (sid, serviceType, nameStr)));
 
-                cLog::log (LOGINFO, "SDT - add service:" + dec(sid) +  " " + nameStr);
+                  cLog::log (LOGINFO, "SDT - add service:" + dec(sid) +  " " + nameStr);
+                  }
                 }
+
+              break;
               }
+              //}}}
+            case DESCR_PRIV_DATA_SPEC:
+            case DESCR_CA_IDENT:
+            case DESCR_COUNTRY_AVAIL:
+            case DESCR_DATA_BROADCAST:
+            case 0x73: // default_authority
+            case 0x7e: // FTA_content_management
+            case 0x7f: // extension
+              break;
 
-            break;
+            default:
+              //{{{  other
+              cLog::log (LOGINFO, "SDT - unexpected tag " + dec(getDescrTag(buf)));
+              break;
+              //}}}
             }
-            //}}}
-          case DESCR_PRIV_DATA_SPEC:
-          case DESCR_CA_IDENT:
-          case DESCR_COUNTRY_AVAIL:
-          case DESCR_DATA_BROADCAST:
-          case 0x73: // default_authority
-          case 0x7e: // FTA_content_management
-          case 0x7f: // extension
-            break;
 
-          default:
-            //{{{  other
-            cLog::log (LOGINFO, "SDT - unexpected tag " + dec(getDescrTag(buf)));
-            break;
-            //}}}
+          descrLength += getDescrLength (buf);
+          buf += getDescrLength (buf);
           }
 
-        descrLength += getDescrLength (buf);
-        buf += getDescrLength (buf);
+        sectionLength -= loopLength + sizeof(sdt_descr_t);
         }
-
-      sectionLength -= loopLength + sizeof(sdt_descr_t);
       }
     }
   //}}}
@@ -1426,6 +1420,7 @@ private:
 
     buf += sizeof(nit_t);
     auto loopLength = HILO (nit->network_descr_length);
+
     sectionLength -= sizeof(nit_t) + 4;
     if (loopLength <= sectionLength) {
       if (sectionLength >= 0)
@@ -1515,10 +1510,8 @@ private:
                     buf + sizeof(descr_short_event_struct) + ((descr_short_event_t*)(buf))->event_name_length+1,
                     *((uint8_t*)(buf + sizeof(descr_short_event_struct) + ((descr_short_event_t*)(buf))->event_name_length)));
 
-                if (now & running) {
-                  if (serviceIt->second.getVidPid() != -1 &&
-                      serviceIt->second.getAudPid() != -1 &&
-                      serviceIt->second.getProgramPid() != -1) {
+                if (now) {
+                  if (running && (serviceIt->second.getProgramPid() != -1)) {
                     if (serviceIt->second.setNow (startTime, duration, titleStr, shortDescriptionStr)) {
                       // new now
                       auto pidInfoIt = mPidInfoMap.find (serviceIt->second.getProgramPid());
@@ -1584,79 +1577,77 @@ private:
       return;
       }
       //}}}
-    if (pmt->table_id != TID_PMT) {
-      //{{{  wrong tid
-      cLog::log (LOGERROR, "parsePMT - wrong TID " + dec (pmt->table_id));
-      return;
-      }
-      //}}}
 
-    auto sid = HILO (pmt->program_number);
+    if (pmt->table_id == TID_PMT) {
+      auto sid = HILO (pmt->program_number);
 
-    if (pidInfo->mPid == 32) {
-      auto serviceIt = mServiceMap.find (sid);
-      if (serviceIt == mServiceMap.end()) {
-        // service not known, sichboPVR,tvFrab ts File - pgmPid = 32 declares service sid, no SDT
-        cLog::log (LOGNOTICE, "parsePmt - serviceMap.insert pid 32");
-        mServiceMap.insert (
-          map<int,cService>::value_type (sid, cService (sid, kServiceTypeTV, "file32")));
-        }
-      }
-
-    auto serviceIt = mServiceMap.find (sid);
-    if (serviceIt != mServiceMap.end()) {
-      //  service known, add serviceId to pgmPid, add esStream pids to service
-      pidInfo->mSid = sid;
-      pidInfo->mInfoStr = serviceIt->second.getNameString() + " " + serviceIt->second.getNowTitleString();
-      serviceIt->second.setProgramPid (pidInfo->mPid);
-
-      buf += sizeof(pmt_t);
-      sectionLength -= 4;
-      auto programInfoLength = HILO (pmt->program_info_length);
-      auto streamLength = sectionLength - programInfoLength - sizeof(pmt_t);
-      if (streamLength >= 0)
-        parseDescrs (sid, buf, programInfoLength, pmt->table_id);
-
-      buf += programInfoLength;
-      while (streamLength > 0) {
-        //{{{  add elementary stream pid to service
-        auto pmtInfo = (pmt_info_t*)buf;
-
-        auto esPid = HILO (pmtInfo->elementary_PID);
-        auto esPidInfo = findCreatePidInfo (esPid);
-        esPidInfo->mSid = sid;
-        esPidInfo->mStreamType = pmtInfo->stream_type;
-
-        switch (esPidInfo->mStreamType) {
-          case   2: // ISO 13818-2 video
-          case  27: // HD vid
-            serviceIt->second.setVidPid (esPid, esPidInfo->mStreamType); break;
-          case   3: // ISO 11172-3 audio
-          case   4: // ISO 13818-3 audio
-          case  15: // HD aud ADTS
-          case  17: // HD aud LATM
-          case 129: // aud AC3
-            serviceIt->second.setAudPid (esPid, esPidInfo->mStreamType);  break;
-          case   6: // subtitle
-            serviceIt->second.setSubPid (esPid, esPidInfo->mStreamType);  break;
-          case   5: // private mpeg2 tabled data - private
-          case  11: // dsm cc u_n
-          case  13: // dsm cc tabled data
-            break;
-          default:
-            cLog::log (LOGERROR, "parsePmt - unknown streamType:%d sid:%d pid:%d",
-                                 esPidInfo->mStreamType, sid, esPid);
-            break;
+      if (pidInfo->mPid == 32) {
+        auto serviceIt = mServiceMap.find (sid);
+        if (serviceIt == mServiceMap.end()) {
+          // service not known, pgmPid = 32, no SDT sichboPVR,tvFrab ts File, declare service sid
+          cLog::log (LOGNOTICE, "parsePmt - serviceMap.insert pid 32");
+          mServiceMap.insert (
+            map<int,cService>::value_type (sid, cService (sid, kServiceTypeTV, "file32")));
           }
-        //}}}
+        }
 
-        auto loopLength = HILO (pmtInfo->ES_info_length);
-        if (loopLength >= 0)
-          parseDescrs (sid, buf, loopLength, pmt->table_id);
+      auto serviceIt = mServiceMap.find (sid);
+      if (serviceIt != mServiceMap.end()) {
+        //  service known, add serviceId to pgmPid, add esStream pids to service
+        pidInfo->mSid = sid;
+        pidInfo->mInfoStr = serviceIt->second.getNameString() + " " + serviceIt->second.getNowTitleString();
+        serviceIt->second.setProgramPid (pidInfo->mPid);
 
-        buf += sizeof(pmt_info_t);
-        streamLength -= loopLength + sizeof(pmt_info_t);
-        buf += loopLength;
+        buf += sizeof(pmt_t);
+        sectionLength -= 4;
+        auto programInfoLength = HILO (pmt->program_info_length);
+        auto streamLength = sectionLength - programInfoLength - sizeof(pmt_t);
+        if (streamLength >= 0)
+          parseDescrs (sid, buf, programInfoLength, pmt->table_id);
+
+        buf += programInfoLength;
+        while (streamLength > 0) {
+          //{{{  add elementary stream pid to service
+          auto pmtInfo = (pmt_info_t*)buf;
+
+          auto esPid = HILO (pmtInfo->elementary_PID);
+          auto esPidInfo = findCreatePidInfo (esPid);
+          esPidInfo->mSid = sid;
+          esPidInfo->mStreamType = pmtInfo->stream_type;
+
+          cLog::log (LOGINFO, "parsePmt - add esPid:"+ dec(esPid) + " serv:" + dec(sid));
+
+          switch (esPidInfo->mStreamType) {
+            case   2: // ISO 13818-2 video
+            case  27: // HD vid
+              serviceIt->second.setVidPid (esPid, esPidInfo->mStreamType); break;
+            case   3: // ISO 11172-3 audio
+            case   4: // ISO 13818-3 audio
+            case  15: // HD aud ADTS
+            case  17: // HD aud LATM
+            case 129: // aud AC3
+              serviceIt->second.setAudPid (esPid, esPidInfo->mStreamType);  break;
+            case   6: // subtitle
+              serviceIt->second.setSubPid (esPid, esPidInfo->mStreamType);  break;
+            case   5: // private mpeg2 tabled data - private
+            case  11: // dsm cc u_n
+            case  13: // dsm cc tabled data
+              break;
+            default:
+              cLog::log (LOGERROR, "parsePmt - unknown streamType:%d sid:%d pid:%d",
+                                   esPidInfo->mStreamType, sid, esPid);
+              break;
+            }
+          //}}}
+
+          auto loopLength = HILO (pmtInfo->ES_info_length);
+          if (loopLength >= 0)
+            parseDescrs (sid, buf, loopLength, pmt->table_id);
+
+          buf += sizeof(pmt_info_t);
+          streamLength -= loopLength + sizeof(pmt_info_t);
+          buf += loopLength;
+          }
         }
       }
     }
