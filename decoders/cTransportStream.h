@@ -718,7 +718,8 @@ public:
     // close any previous file
     closeFile();
 
-    if ((service->getVidPid() > 0) && (service->getAudPid() > 0)) {
+    mOk = (service->getVidPid() > 0) && (service->getAudPid() > 0);
+    if (mOk) {
       mFile = CreateFile (name.c_str(), GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, 0, NULL);
 
       writePat (0x1234, service->getSid(), kPgmPid); // tsid, sid, pgmPid
@@ -732,7 +733,7 @@ public:
   void writePes (int pid, uint8_t* ts) {
 
     //cLog::log (LOGINFO, "writePes");
-    if ((pid == mVidPid) || (pid == mAudPid))
+    if (mOk && (pid == mVidPid) || (pid == mAudPid))
       writePacket (ts);
     }
   //}}}
@@ -859,6 +860,7 @@ private:
 
   const int kPgmPid = 32;
 
+  bool mOk = false;
   HANDLE mFile = 0;
   int mVidPid = -1;
   int mAudPid = -1;
