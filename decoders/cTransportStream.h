@@ -731,6 +731,230 @@ public:
   static char getFrameType (uint8_t* pesBuf, int64_t pesBufSize, int streamType) {
   // return frameType of video pes
 
+    //{{{
+    class cBitstream {
+    // used to parse H264 stream to find I frames
+    public:
+      cBitstream (const uint8_t* buffer, uint32_t bit_len) :
+        mDecBuffer(buffer), mDecBufferSize(bit_len), mNumOfBitsInBuffer(0), mBookmarkOn(false) {}
+
+      //{{{
+      uint32_t peekBits (uint32_t bits) {
+
+        bookmark (true);
+        uint32_t ret = getBits (bits);
+        bookmark (false);
+        return ret;
+        }
+      //}}}
+      //{{{
+      uint32_t getBits (uint32_t numBits) {
+
+        //{{{
+        static const uint32_t msk[33] = {
+          0x00000000, 0x00000001, 0x00000003, 0x00000007,
+          0x0000000f, 0x0000001f, 0x0000003f, 0x0000007f,
+          0x000000ff, 0x000001ff, 0x000003ff, 0x000007ff,
+          0x00000fff, 0x00001fff, 0x00003fff, 0x00007fff,
+          0x0000ffff, 0x0001ffff, 0x0003ffff, 0x0007ffff,
+          0x000fffff, 0x001fffff, 0x003fffff, 0x007fffff,
+          0x00ffffff, 0x01ffffff, 0x03ffffff, 0x07ffffff,
+          0x0fffffff, 0x1fffffff, 0x3fffffff, 0x7fffffff,
+          0xffffffff
+          };
+        //}}}
+
+        if (numBits == 0)
+          return 0;
+
+        uint32_t retData;
+        if (mNumOfBitsInBuffer >= numBits) {  // don't need to read from FILE
+          mNumOfBitsInBuffer -= numBits;
+          retData = mDecData >> mNumOfBitsInBuffer;
+          // wmay - this gets done below...retData &= msk[numBits];
+          }
+        else {
+          uint32_t nbits;
+          nbits = numBits - mNumOfBitsInBuffer;
+          if (nbits == 32)
+            retData = 0;
+          else
+            retData = mDecData << nbits;
+
+          switch ((nbits - 1) / 8) {
+            case 3:
+              nbits -= 8;
+              if (mDecBufferSize < 8)
+                return 0;
+              retData |= *mDecBuffer++ << nbits;
+              mDecBufferSize -= 8;
+              // fall through
+            case 2:
+              nbits -= 8;
+              if (mDecBufferSize < 8)
+                return 0;
+              retData |= *mDecBuffer++ << nbits;
+              mDecBufferSize -= 8;
+            case 1:
+              nbits -= 8;
+              if (mDecBufferSize < 8)
+                return 0;
+              retData |= *mDecBuffer++ << nbits;
+              mDecBufferSize -= 8;
+            case 0:
+              break;
+            }
+          if (mDecBufferSize < nbits)
+            return 0;
+
+          mDecData = *mDecBuffer++;
+          mNumOfBitsInBuffer = min(8u, mDecBufferSize) - nbits;
+          mDecBufferSize -= min(8u, mDecBufferSize);
+          retData |= (mDecData >> mNumOfBitsInBuffer) & msk[nbits];
+          }
+
+        return (retData & msk[numBits]);
+        };
+      //}}}
+
+      //{{{
+      uint32_t getUe() {
+
+        uint32_t bits;
+        uint32_t read;
+        int bits_left;
+        bool done = false;
+        bits = 0;
+
+        // we want to read 8 bits at a time - if we don't have 8 bits,
+        // read what's left, and shift.  The exp_golomb_bits calc remains the same.
+        while (!done) {
+          bits_left = bits_remain();
+          if (bits_left < 8) {
+            read = peekBits (bits_left) << (8 - bits_left);
+            done = true;
+            }
+          else {
+            read = peekBits (8);
+            if (read == 0) {
+              getBits (8);
+              bits += 8;
+              }
+            else
+             done = true;
+            }
+          }
+
+        uint8_t coded = exp_golomb_bits[read];
+        getBits (coded);
+        bits += coded;
+
+        return getBits (bits + 1) - 1;
+        }
+      //}}}
+      //{{{
+      int32_t getSe() {
+
+        uint32_t ret;
+        ret = getUe();
+        if ((ret & 0x1) == 0) {
+          ret >>= 1;
+          int32_t temp = 0 - ret;
+          return temp;
+          }
+
+        return (ret + 1) >> 1;
+        }
+      //}}}
+
+      //{{{
+      void check_0s (int count) {
+
+        uint32_t val = getBits (count);
+        if (val != 0)
+          cLog::log (LOGERROR, "field error - %d bits should be 0 is %x", count, val);
+        }
+      //}}}
+      //{{{
+      int bits_remain() {
+        return mDecBufferSize + mNumOfBitsInBuffer;
+        };
+      //}}}
+      //{{{
+      int byte_align() {
+
+        int temp = 0;
+        if (mNumOfBitsInBuffer != 0)
+          temp = getBits (mNumOfBitsInBuffer);
+        else {
+          // if we are byte aligned, check for 0x7f value - this will indicate
+          // we need to skip those bits
+          uint8_t readval = peekBits (8);
+          if (readval == 0x7f)
+            readval = getBits (8);
+          }
+
+        return temp;
+        };
+      //}}}
+
+    private:
+      //{{{
+      const uint8_t exp_golomb_bits[256] = {
+        8, 7, 6, 6, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 3,
+        3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2,
+        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0,
+        };
+      //}}}
+
+      //{{{
+      void bookmark (bool on) {
+
+        if (on) {
+          mNumOfBitsInBuffer_bookmark = mNumOfBitsInBuffer;
+          mDecBuffer_bookmark = mDecBuffer;
+          mDecBufferSize_bookmark = mDecBufferSize;
+          mBookmarkOn = 1;
+          mDecData_bookmark = mDecData;
+          }
+
+        else {
+          mNumOfBitsInBuffer = mNumOfBitsInBuffer_bookmark;
+          mDecBuffer = mDecBuffer_bookmark;
+          mDecBufferSize = mDecBufferSize_bookmark;
+          mDecData = mDecData_bookmark;
+          mBookmarkOn = 0;
+          }
+
+        };
+      //}}}
+
+      uint32_t mNumOfBitsInBuffer;
+      const uint8_t* mDecBuffer;
+      uint8_t mDecData;
+      uint8_t mDecData_bookmark;
+      uint32_t mDecBufferSize;
+
+      bool mBookmarkOn;
+      uint32_t mNumOfBitsInBuffer_bookmark;
+      const uint8_t* mDecBuffer_bookmark;
+      uint32_t mDecBufferSize_bookmark;
+      };
+    //}}}
+
     auto pesEnd = pesBuf + pesBufSize;
     if (streamType == 2) {
       //{{{  mpeg2 minimal parser
@@ -858,22 +1082,22 @@ public:
       clearContinuity();
 
     bool decoded = false;
-    auto tsPtr = tsBuf;
+    auto ts = tsBuf;
     auto tsEnd = tsBuf + tsBufSize;
-    auto nextTsPtr = tsPtr + 188;
-    while (!decoded && (nextTsPtr <= tsEnd)) {
-      if (*tsPtr == 0x47) {
+    auto nextPacket = ts + 188;
+    while (!decoded && (nextPacket <= tsEnd)) {
+      if (*ts == 0x47) {
         // check for full packet, followed by start syncCode if not end
-        if ((tsPtr+188 >= tsEnd) || (*(tsPtr+188) == 0x47)) {
-          tsPtr++;
+        if ((ts+188 >= tsEnd) || (*(ts+188) == 0x47)) {
+          ts++;
           int tsBytesLeft = 188-1;
 
           // parse ts packetHeader
-          int pid = ((tsPtr[0] & 0x1F) << 8) | tsPtr[1];
+          int pid = ((ts[0] & 0x1F) << 8) | ts[1];
           if (pid != 0x1FFF) {
-            int continuityCount = tsPtr[2] & 0x0F;
-            bool payloadStart = tsPtr[0] & 0x40;
-            int headerBytes = (tsPtr[2] & 0x20) ? 4 + tsPtr[3] : 3; // adaption field
+            bool payloadStart =   ts[0] & 0x40;
+            int continuityCount = ts[2] & 0x0F;
+            int headerBytes =    (ts[2] & 0x20) ? (4 + ts[3]) : 3; // adaption field
 
             auto pidInfo = findCreatePsiPidInfo (pid);
             if (pidInfo) {
@@ -896,11 +1120,11 @@ public:
 
               if (pidInfo->mPsi) {
                 //{{{  psi packet body
-                tsPtr += headerBytes;
+                ts += headerBytes;
                 tsBytesLeft -= headerBytes;
 
                 if (payloadStart) {
-                  auto payloadPtr = tsPtr;
+                  auto payloadPtr = ts;
                   auto payloadBytesLeft = tsBytesLeft;
 
                   auto pointerField = *payloadPtr++;
@@ -938,7 +1162,7 @@ public:
                   }
 
                 else if (pidInfo->mBufPtr)
-                  addToSectionBuffer (pidInfo, tsPtr, tsBytesLeft);
+                  addToSectionBuffer (pidInfo, ts, tsBytesLeft);
 
                 else
                   cLog::log (LOGINFO1, "demux - trying to add section to section not started " + dec(pid) +
@@ -947,14 +1171,14 @@ public:
                 //}}}
               else if ((decodePid == -1) || (decodePid == pid)) {
                 //{{{  pes packet body
-                pesPacket (pidInfo, tsPtr-1);
+                pesPacket (pidInfo, ts-1);
 
-                tsPtr += headerBytes;
+                ts += headerBytes;
                 tsBytesLeft -= headerBytes;
-                if (payloadStart && !tsPtr[0] && !tsPtr[1] && (tsPtr[2] == 0x01)) {
+                if (payloadStart && !ts[0] && !ts[1] && (ts[2] == 0x01)) {
                   // start new payload, recognise streamIds
-                  bool isVid = (tsPtr[3] == 0xE0);
-                  bool isAud = (tsPtr[3] == 0xBD) || (tsPtr[3] == 0xC0);
+                  bool isVid = (ts[3] == 0xE0);
+                  bool isAud = (ts[3] == 0xBD) || (ts[3] == 0xC0);
 
                   if (isVid || isAud) {
                     if (pidInfo->mBufPtr && pidInfo->mStreamType) {
@@ -969,15 +1193,15 @@ public:
                     pidInfo->mStreamPos = streamPos;
 
                     // form pts, firstPts, lastPts
-                    pidInfo->mPts = (tsPtr[7] & 0x80) ? getPtsDts (tsPtr+9) : -1;
+                    pidInfo->mPts = (ts[7] & 0x80) ? getPtsDts (ts+9) : -1;
                     if (pidInfo->mFirstPts == -1)
                       pidInfo->mFirstPts = pidInfo->mPts;
                     if (pidInfo->mPts > pidInfo->mLastPts)
                       pidInfo->mLastPts = pidInfo->mPts;
 
                     // skip past pesHeader
-                    int pesHeaderBytes = 9 + tsPtr[8];
-                    tsPtr += pesHeaderBytes;
+                    int pesHeaderBytes = 9 + ts[8];
+                    ts += pesHeaderBytes;
                     tsBytesLeft -= pesHeaderBytes;
 
                     // start new buffer
@@ -986,25 +1210,27 @@ public:
                   }
 
                 if (pidInfo->mBufPtr && (tsBytesLeft > 0))
-                  pidInfo->addToBuffer (tsPtr, tsBytesLeft);
+                  pidInfo->addToBuffer (ts, tsBytesLeft);
                 }
                 //}}}
               }
             }
 
-          tsPtr = nextTsPtr;
-          nextTsPtr = tsPtr + 188;
+          ts = nextPacket;
+          nextPacket += 188;
           streamPos += 188;
           mPackets++;
           }
         }
       else {
+        //{{{  sync error, return
         cLog::log (LOGERROR, "demux - lostSync");
         return tsEnd - tsBuf;
         }
+        //}}}
       }
 
-    return tsPtr - tsBuf;
+    return ts - tsBuf;
     }
   //}}}
 
@@ -1069,237 +1295,6 @@ protected:
 
 private:
   //{{{
-  class cBitstream {
-  // used to parse H264 stream to find I frames
-  public:
-    //{{{
-    cBitstream (const uint8_t* buffer, uint32_t bit_len) {
-      mDecBuffer = buffer;
-      mDecBufferSize = bit_len;
-      mNumOfBitsInBuffer = 0;
-      mBookmarkOn = false;
-      };
-    //}}}
-    ~cBitstream() {};
-
-    //{{{
-    uint32_t peekBits (uint32_t bits) {
-
-      bookmark (true);
-      uint32_t ret = getBits (bits);
-      bookmark (false);
-      return ret;
-      }
-    //}}}
-    //{{{
-    uint32_t getBits (uint32_t numBits) {
-
-      //{{{
-      static const uint32_t msk[33] = {
-        0x00000000, 0x00000001, 0x00000003, 0x00000007,
-        0x0000000f, 0x0000001f, 0x0000003f, 0x0000007f,
-        0x000000ff, 0x000001ff, 0x000003ff, 0x000007ff,
-        0x00000fff, 0x00001fff, 0x00003fff, 0x00007fff,
-        0x0000ffff, 0x0001ffff, 0x0003ffff, 0x0007ffff,
-        0x000fffff, 0x001fffff, 0x003fffff, 0x007fffff,
-        0x00ffffff, 0x01ffffff, 0x03ffffff, 0x07ffffff,
-        0x0fffffff, 0x1fffffff, 0x3fffffff, 0x7fffffff,
-        0xffffffff
-        };
-      //}}}
-
-      if (numBits == 0)
-        return 0;
-
-      uint32_t retData;
-      if (mNumOfBitsInBuffer >= numBits) {  // don't need to read from FILE
-        mNumOfBitsInBuffer -= numBits;
-        retData = mDecData >> mNumOfBitsInBuffer;
-        // wmay - this gets done below...retData &= msk[numBits];
-        }
-      else {
-        uint32_t nbits;
-        nbits = numBits - mNumOfBitsInBuffer;
-        if (nbits == 32)
-          retData = 0;
-        else
-          retData = mDecData << nbits;
-
-        switch ((nbits - 1) / 8) {
-          case 3:
-            nbits -= 8;
-            if (mDecBufferSize < 8)
-              return 0;
-            retData |= *mDecBuffer++ << nbits;
-            mDecBufferSize -= 8;
-            // fall through
-          case 2:
-            nbits -= 8;
-            if (mDecBufferSize < 8)
-              return 0;
-            retData |= *mDecBuffer++ << nbits;
-            mDecBufferSize -= 8;
-          case 1:
-            nbits -= 8;
-            if (mDecBufferSize < 8)
-              return 0;
-            retData |= *mDecBuffer++ << nbits;
-            mDecBufferSize -= 8;
-          case 0:
-            break;
-          }
-        if (mDecBufferSize < nbits)
-          return 0;
-
-        mDecData = *mDecBuffer++;
-        mNumOfBitsInBuffer = min(8u, mDecBufferSize) - nbits;
-        mDecBufferSize -= min(8u, mDecBufferSize);
-        retData |= (mDecData >> mNumOfBitsInBuffer) & msk[nbits];
-        }
-
-      return (retData & msk[numBits]);
-      };
-    //}}}
-
-    //{{{
-    uint32_t getUe() {
-
-      uint32_t bits;
-      uint32_t read;
-      int bits_left;
-      bool done = false;
-      bits = 0;
-
-      // we want to read 8 bits at a time - if we don't have 8 bits,
-      // read what's left, and shift.  The exp_golomb_bits calc remains the same.
-      while (!done) {
-        bits_left = bits_remain();
-        if (bits_left < 8) {
-          read = peekBits (bits_left) << (8 - bits_left);
-          done = true;
-          }
-        else {
-          read = peekBits (8);
-          if (read == 0) {
-            getBits (8);
-            bits += 8;
-            }
-          else
-           done = true;
-          }
-        }
-
-      uint8_t coded = exp_golomb_bits[read];
-      getBits (coded);
-      bits += coded;
-
-      return getBits (bits + 1) - 1;
-      }
-    //}}}
-    //{{{
-    int32_t getSe() {
-
-      uint32_t ret;
-      ret = getUe();
-      if ((ret & 0x1) == 0) {
-        ret >>= 1;
-        int32_t temp = 0 - ret;
-        return temp;
-        }
-
-      return (ret + 1) >> 1;
-      }
-    //}}}
-
-    //{{{
-    void check_0s (int count) {
-
-      uint32_t val = getBits (count);
-      if (val != 0)
-        cLog::log (LOGERROR, "field error - %d bits should be 0 is %x", count, val);
-      }
-    //}}}
-    //{{{
-    int bits_remain() {
-      return mDecBufferSize + mNumOfBitsInBuffer;
-      };
-    //}}}
-    //{{{
-    int byte_align() {
-
-      int temp = 0;
-      if (mNumOfBitsInBuffer != 0)
-        temp = getBits (mNumOfBitsInBuffer);
-      else {
-        // if we are byte aligned, check for 0x7f value - this will indicate
-        // we need to skip those bits
-        uint8_t readval = peekBits (8);
-        if (readval == 0x7f)
-          readval = getBits (8);
-        }
-
-      return temp;
-      };
-    //}}}
-
-  private:
-    //{{{
-    const uint8_t exp_golomb_bits[256] = {
-      8, 7, 6, 6, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 3,
-      3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2,
-      2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-      2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1,
-      1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-      1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-      1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-      1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0,
-      };
-    //}}}
-
-    //{{{
-    void bookmark (bool on) {
-
-      if (on) {
-        mNumOfBitsInBuffer_bookmark = mNumOfBitsInBuffer;
-        mDecBuffer_bookmark = mDecBuffer;
-        mDecBufferSize_bookmark = mDecBufferSize;
-        mBookmarkOn = 1;
-        mDecData_bookmark = mDecData;
-        }
-
-      else {
-        mNumOfBitsInBuffer = mNumOfBitsInBuffer_bookmark;
-        mDecBuffer = mDecBuffer_bookmark;
-        mDecBufferSize = mDecBufferSize_bookmark;
-        mDecData = mDecData_bookmark;
-        mBookmarkOn = 0;
-        }
-
-      };
-    //}}}
-
-    uint32_t mNumOfBitsInBuffer;
-    const uint8_t* mDecBuffer;
-    uint8_t mDecData;
-    uint8_t mDecData_bookmark;
-    uint32_t mDecBufferSize;
-
-    bool mBookmarkOn;
-    uint32_t mNumOfBitsInBuffer_bookmark;
-    const uint8_t* mDecBuffer_bookmark;
-    uint32_t mDecBufferSize_bookmark;
-    };
-  //}}}
-
-  //{{{
   cPidInfo* findCreatePsiPidInfo (int pid) {
   // find pidInfo by pid
   // - create pidInfo for psi pids
@@ -1331,7 +1326,7 @@ private:
   cPidInfo* findCreatePesPidInfo (int pid, int sid, int streamType) {
   // find pes pidInfo by pid
   // - create if not found
-  //   - if created return pidInfo 
+  //   - if created return pidInfo
   //     - else retunr nullptr
 
     auto pidInfoIt = mPidInfoMap.find (pid);
