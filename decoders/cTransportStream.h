@@ -713,6 +713,7 @@ private:
 //}}}
 
 class cTransportStream {
+friend class cTransportStreamBox;
 public:
   virtual ~cTransportStream() {}
 
@@ -1280,44 +1281,6 @@ public:
     }
   //}}}
 
-  //{{{
-  void printPidInfos() {
-
-    cLog::log (LOGINFO, "--- pidInfos");
-
-    for (auto &pidInfo : mPidInfoMap)
-      pidInfo.second.print();
-
-    cLog::log (LOGINFO, "---");
-    }
-  //}}}
-  //{{{
-  void printPrograms() {
-
-    cLog::log (LOGINFO, "--- programs");
-
-    for (auto &map : mProgramMap)
-      cLog::log (LOGINFO, "programPid:%d sid:%d", map.first, map.second);
-
-    cLog::log (LOGINFO, "---");
-    }
-  //}}}
-  //{{{
-  void printServices() {
-
-    cLog::log (LOGINFO, "--- services");
-
-    for (auto &service : mServiceMap)
-      service.second.print();
-
-    cLog::log (LOGINFO, "---");
-    }
-  //}}}
-
-  // vars
-  map<int,cPidInfo> mPidInfoMap;
-  map<int,cService> mServiceMap;
-
 protected:
   virtual bool audDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
   virtual bool vidDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
@@ -1338,6 +1301,10 @@ protected:
       pidInfo.second.clearContinuity();
     }
   //}}}
+
+  // vars
+  map<int,cPidInfo> mPidInfoMap;
+  map<int,cService> mServiceMap;
 
 private:
   //{{{

@@ -56,7 +56,7 @@ bool mBuffer = false;
 int mDaylightSecs = 0;
 FILE* mFile = NULL;
 
-std::map<uint64_t,std::string> mThreadNames;
+std::map<uint64_t,std::string> mThreadNameMap;
 
 #ifdef _WIN32
   HANDLE hStdOut = 0;
@@ -114,8 +114,8 @@ enum eLogLevel cLog::getLogLevel() {
 //}}}
 //{{{
 std::string cLog::getThreadNameString (uint64_t threadId) {
-  auto it = mThreadNames.find (threadId);
-  if (it == mThreadNames.end())
+  auto it = mThreadNameMap.find (threadId);
+  if (it == mThreadNameMap.end())
     return hex(threadId/8,4);
   else
     return it->second;
@@ -124,8 +124,8 @@ std::string cLog::getThreadNameString (uint64_t threadId) {
 //{{{
 std::wstring cLog::getThreadNameWstring (uint64_t threadId) {
 
-  auto it = mThreadNames.find (threadId);
-  if (it == mThreadNames.end())
+  auto it = mThreadNameMap.find (threadId);
+  if (it == mThreadNameMap.end())
     return whex(threadId/8,4);
   else
     return strToWstr(it->second);
@@ -143,9 +143,9 @@ void cLog::setLogLevel (enum eLogLevel logLevel) {
 //{{{
 void cLog::setThreadName (const string& name) {
 
-  auto it = mThreadNames.find (getThreadId());
-  if (it == mThreadNames.end())
-    mThreadNames.insert (map<uint64_t,string>::value_type (getThreadId(), name));
+  auto it = mThreadNameMap.find (getThreadId());
+  if (it == mThreadNameMap.end())
+    mThreadNameMap.insert (map<uint64_t,string>::value_type (getThreadId(), name));
 
   log (LOGNOTICE, "start");
   }
