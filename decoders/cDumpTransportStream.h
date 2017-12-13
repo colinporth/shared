@@ -3,26 +3,24 @@
 #include "stdafx.h"
 
 #include "../../shared/decoders/cTransportStream.h"
-
-using namespace std;
 //}}}
 
 
 class cDumpTransportStream : public cTransportStream {
 public:
-  cDumpTransportStream (const string& rootName) : mRootName(rootName){}
+  cDumpTransportStream (const std::string& rootName) : mRootName(rootName){}
   virtual ~cDumpTransportStream() {}
 
 protected:
   //{{{
-  void startProgram (cService* service, const string& name, time_t startTime) {
+  void startProgram (cService* service, const std::string& name, time_t startTime) {
 
     cLog::log (LOGNOTICE, "startProgram " + name);
 
     auto recordFileIt = mRecordFileMap.find (service->getSid());
     if (recordFileIt == mRecordFileMap.end()) // create new cRecordFile for this cService
       recordFileIt = mRecordFileMap.insert (
-        map<int,cRecordFile>::value_type (
+        std::map<int,cRecordFile>::value_type (
           service->getSid(), cRecordFile (service->getVidPid(), service->getAudPid()))).first;
 
     auto validFileName = validString (service->getNameString() + " - " + name, "<>:\\|?*""/");
@@ -47,7 +45,7 @@ private:
     ~cRecordFile() { closeFile(); }
 
     //{{{
-    void createFile (const string& name, cService* service) {
+    void createFile (const std::string& name, cService* service) {
 
       // close any previous file
       closeFile();
@@ -201,6 +199,6 @@ private:
     };
   //}}}
 
-  string mRootName;
-  map<int,cRecordFile> mRecordFileMap;
+  std::string mRootName;
+  std::map<int,cRecordFile> mRecordFileMap;
   };

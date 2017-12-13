@@ -1,6 +1,10 @@
+// cLog.h
+//{{{  includes
 #pragma once
+
 #include <string>
 #include <chrono>
+//}}}
 
 enum eLogLevel { LOGTITLE, LOGNOTICE, LOGERROR, LOGINFO, LOGINFO1, LOGINFO2, LOGINFO3, LOGMAX };
 const int kBst = 1;

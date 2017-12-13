@@ -12,8 +12,6 @@
 
 #include "dvbSubtitle.h"
 #include "huffman.h"
-
-using namespace std;
 //}}}
 //{{{  macros
 #define HILO(x) (x##_hi << 8 | x##_lo)
@@ -405,7 +403,7 @@ public:
   int getBufUsed() { return int(mBufPtr - mBuffer); }
 
   //{{{
-  string getTypeString() {
+  std::string getTypeString() {
 
     // known pids
     switch (mPid) {
@@ -443,14 +441,14 @@ public:
     }
   //}}}
   //{{{
-  string getInfoString() {
+  std::string getInfoString() {
 
     return (mSid > 0 ? dec(mSid) : "") + (mInfoStr.empty() ? "" : " " + mInfoStr);
     }
   //}}}
 
   //{{{
-  wstring getTypeWstring() {
+  std::wstring getTypeWstring() {
 
     // known pids
     switch (mPid) {
@@ -488,7 +486,7 @@ public:
     }
   //}}}
   //{{{
-  wstring getInfoWstring() {
+  std::wstring getInfoWstring() {
 
     return (mSid > 0 ? wdec(mSid) : L"") + (mInfoStr.empty() ? L"" : L" " + strToWstr(mInfoStr));
     }
@@ -561,25 +559,25 @@ public:
 
   int64_t mStreamPos = -1;
 
-  string mInfoStr;
+  std::string mInfoStr;
   };
 //}}}
 //{{{
 class cEpgItem {
 public:
   //{{{
-  cEpgItem (time_t startTime, int duration, const string& title, string shortDescription)
+  cEpgItem (time_t startTime, int duration, const std::string& title, std::string shortDescription)
       : mStartTime(startTime), mDuration(duration), mTitle(title), mShortDescription(shortDescription) {}
   //}}}
 
   time_t getStartTime() { return mStartTime; }
 
-  string getTitleString() { return mTitle; }
-  string getStartTimeString() { return getTimetShortString (mStartTime); }
-  string getDurationString() { return dec(mDuration/60) + "m"; }
+  std::string getTitleString() { return mTitle; }
+  std::string getStartTimeString() { return getTimetShortString (mStartTime); }
+  std::string getDurationString() { return dec(mDuration/60) + "m"; }
 
   //{{{
-  void set (time_t startTime, int duration, const string& title, const string& shortDescription) {
+  void set (time_t startTime, int duration, const std::string& title, const std::string& shortDescription) {
 
     mDuration = duration;
     mStartTime = startTime;
@@ -590,7 +588,7 @@ public:
   //}}}
 
   //{{{
-  void print (string prefix) {
+  void print (const std::string& prefix) {
 
     struct tm time = *localtime (&mStartTime);
     char* timeStr = asctime (&time);
@@ -604,8 +602,8 @@ private:
   time_t mStartTime = 0;
   int mDuration = 0;
 
-  string mTitle;
-  string mShortDescription;
+  std::string mTitle;
+  std::string mShortDescription;
   };
 //}}}
 //{{{
@@ -628,13 +626,13 @@ public:
 
   int getSubPid() const { return mSubPid; }
 
-  string getNameString() { return mName; }
+  std::string getNameString() { return mName; }
 
-  vector<cEpgItem*> getNowVec() { return mNowVec; }
-  string getNowTitleString() { return mNowVec.empty() ? "" : mNowVec[0]->getTitleString(); }
+  std::vector<cEpgItem*> getNowVec() { return mNowVec; }
+  std::string getNowTitleString() { return mNowVec.empty() ? "" : mNowVec[0]->getTitleString(); }
   //}}}
   //{{{  sets
-  void setName (const string& name) { mName = name;}
+  void setName (const std::string& name) { mName = name;}
 
   //{{{
   void setVidPid (int pid, int streamType) {
@@ -660,7 +658,7 @@ public:
   //}}}
 
   //{{{
-  bool setNow (time_t startTime, int duration, string str1, string str2) {
+  bool setNow (time_t startTime, int duration, const std::string& str1, const std::string& str2) {
 
     for (auto epgItem : mNowVec)
       if (startTime == epgItem->getStartTime())
@@ -671,9 +669,9 @@ public:
     }
   //}}}
   //{{{
-  void setEpg (time_t startTime, int duration, string str1, string str2) {
+  void setEpg (time_t startTime, int duration, const std::string& str1, const std::string& str2) {
 
-    mEpgItemMap.insert (map<time_t, cEpgItem>::value_type (startTime, cEpgItem(startTime, duration, str1, str2)));
+    mEpgItemMap.insert (std::map<time_t, cEpgItem>::value_type (startTime, cEpgItem(startTime, duration, str1, str2)));
     }
   //}}}
   //}}}
@@ -705,10 +703,10 @@ private:
   int mAudStreamType = 0;
   int mSubPid = -1;
 
-  string mName;
+  std::string mName;
 
-  vector<cEpgItem*> mNowVec;
-  map<time_t, cEpgItem> mEpgItemMap;
+  std::vector<cEpgItem*> mNowVec;
+  std::map<time_t, cEpgItem> mEpgItemMap;
   };
 //}}}
 
@@ -855,8 +853,8 @@ public:
             return 0;
 
           mDecData = *mDecBuffer++;
-          mNumOfBitsInBuffer = min(8u, mDecBufferSize) - nbits;
-          mDecBufferSize -= min(8u, mDecBufferSize);
+          mNumOfBitsInBuffer = std::min(8u, mDecBufferSize) - nbits;
+          mDecBufferSize -= std::min(8u, mDecBufferSize);
           retData |= (mDecData >> mNumOfBitsInBuffer) & msk[nbits];
           }
 
@@ -1284,7 +1282,7 @@ public:
 protected:
   virtual bool audDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
   virtual bool vidDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
-  virtual void startProgram (cService* service, const string& name, time_t startTime) {}
+  virtual void startProgram (cService* service, const std::string& name, time_t startTime) {}
   virtual void pesPacket (cPidInfo* pidInfo, uint8_t* ts) {}
 
   //{{{
@@ -1303,8 +1301,8 @@ protected:
   //}}}
 
   // vars
-  map<int,cPidInfo> mPidInfoMap;
-  map<int,cService> mServiceMap;
+  std::map<int,cPidInfo> mPidInfoMap;
+  std::map<int,cService> mServiceMap;
 
 private:
   //{{{
@@ -1319,7 +1317,7 @@ private:
           (pid == PID_EIT) || (pid == PID_RST) || (pid == PID_TDT) || (pid == PID_SYN) ||
           (mProgramMap.find (pid) != mProgramMap.end())) {
         // create new psi cPidInfo, insert
-        pidInfoIt = mPidInfoMap.insert (map<int,cPidInfo>::value_type (pid, cPidInfo(pid, true))).first;
+        pidInfoIt = mPidInfoMap.insert (std::map<int,cPidInfo>::value_type (pid, cPidInfo(pid, true))).first;
         auto pidInfo = &pidInfoIt->second;
 
         // allocate buffer
@@ -1345,7 +1343,7 @@ private:
     auto pidInfoIt = mPidInfoMap.find (pid);
     if (pidInfoIt == mPidInfoMap.end()) {
       // create and  insert new cPidInfo, allocate buffer
-      pidInfoIt = mPidInfoMap.insert (map<int,cPidInfo>::value_type (pid, cPidInfo(pid, false))).first;
+      pidInfoIt = mPidInfoMap.insert (std::map<int,cPidInfo>::value_type (pid, cPidInfo(pid, false))).first;
 
       pidInfoIt->second.mSid = sid;
       pidInfoIt->second.mStreamType = streamType;
@@ -1389,7 +1387,7 @@ private:
         auto sid = HILO (patProgram->program_number);
         auto pid = HILO (patProgram->network_pid);
         if (mProgramMap.find (pid) == mProgramMap.end())
-          mProgramMap.insert (map<int,int>::value_type (pid, sid));
+          mProgramMap.insert (std::map<int,int>::value_type (pid, sid));
 
         sectionLength -= sizeof(pat_prog_t);
         buf += sizeof(pat_prog_t);
@@ -1589,14 +1587,14 @@ private:
 
                 auto title = huffDecode (buf + sizeof(descr_short_event_struct),
                                          ((descr_short_event_t*)(buf))->event_name_length);
-                string titleStr = title ? title : getDescrStr (buf + sizeof(descr_short_event_struct),
+                std::string titleStr = title ? title : getDescrStr (buf + sizeof(descr_short_event_struct),
                                                                ((descr_short_event_t*)(buf))->event_name_length);
 
                 auto shortDescription = huffDecode (
                   buf + sizeof(descr_short_event_struct) + ((descr_short_event_t*)(buf))->event_name_length+1,
                   size_t(buf + sizeof(descr_short_event_struct) + ((descr_short_event_t*)(buf))->event_name_length));
 
-                string shortDescriptionStr = shortDescription ?
+                std::string shortDescriptionStr = shortDescription ?
                   shortDescription : getDescrStr (
                     buf + sizeof(descr_short_event_struct) + ((descr_short_event_t*)(buf))->event_name_length+1,
                     *((uint8_t*)(buf + sizeof(descr_short_event_struct) + ((descr_short_event_t*)(buf))->event_name_length)));
@@ -1630,7 +1628,7 @@ private:
                 size_t len = ((descr_gen_t*)(buf))->descr_length;
                 cLog::log(LOGINFO, "EIT extendedEvent sid:" + dec(sid) + " len:" + dec(len));
 
-                string str;
+                std::string str;
                 for (auto i = 0; i < len; i++) {
                   int n = buf[i];
                   str += hex(n,2) + " ";
@@ -1678,7 +1676,7 @@ private:
       auto serviceIt = mServiceMap.find (sid);
       if (serviceIt == mServiceMap.end()) {
         // service not found, create one
-        auto insertPair = mServiceMap.insert (map<int,cService>::value_type (sid, cService(sid)));
+        auto insertPair = mServiceMap.insert (std::map<int,cService>::value_type (sid, cService(sid)));
         serviceIt = insertPair.first;
         cLog::log (LOGINFO, "parsePmt - create service " + dec(sid));
         }
@@ -1777,9 +1775,9 @@ private:
     }
   //}}}
   //{{{
-  string getDescrStr (uint8_t* buf, int len) {
+  std::string getDescrStr (uint8_t* buf, int len) {
 
-    string str;
+    std::string str;
     for (auto i = 0; i < len; i++) {
       if (*buf == 0)
         break;
@@ -1879,7 +1877,7 @@ private:
   //}}}
 
   //{{{  private vars
-  map<int,int> mProgramMap;
+  std::map<int,int> mProgramMap;
 
   time_t mFirstTime;
   time_t mCurTime;
