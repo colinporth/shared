@@ -526,9 +526,26 @@ public:
   //}}}
 
   //{{{
+  void clearContinuity() {
+
+    mBufPtr = nullptr;
+    mStreamPos = -1;
+    mContinuity = -1;
+    }
+  //}}}
+  //{{{
+  void clearCounts() {
+
+    mPackets = 0;
+    mDisContinuity = 0;
+    mRepeatContinuity = 0;
+    }
+  //}}}
+
+  //{{{
   void print() {
     cLog::log (LOGINFO, "pid:%d sid:%d streamType:%d - packets:%d disContinuity:%d repContinuity:%d",
-                        mPid, mSid, mStreamType, mTotal, mDisContinuity, mRepeatContinuity);
+                        mPid, mSid, mStreamType, mPackets, mDisContinuity, mRepeatContinuity);
     }
   //}}}
 
@@ -538,7 +555,7 @@ public:
   int mSid = -1;
   int mStreamType = 0;
 
-  int mTotal = 0;
+  int mPackets = 0;
   int mContinuity = -1;
   int mDisContinuity = 0;
   int mRepeatContinuity = 0;
@@ -681,7 +698,6 @@ public:
                         " subPid:" + dec (mSubPid) +
                         " " + mName);
 
-    if (mNowVec.empty())
     for (auto nowEpgItem : mNowVec)
       nowEpgItem->print ("");
     for (auto &epgItem : mEpgItemMap)
@@ -831,169 +847,160 @@ public:
     return nullptr;
     }
   //}}}
+
   //{{{
   int64_t demux (uint8_t* tsBuf, int64_t tsBufSize, int64_t streamPos, bool skip, int decodePid) {
   // demux from tsBuffer to tsBuffer + tsBufferSize, streamPos is offset into full stream of first packet
   // if decodePid != -1, only process pesPid == decodePid, saves lots of buffering
   // - return bytes decoded
 
+    if (skip)
+      clearContinuity();
+
+    bool decoded = false;
     auto tsPtr = tsBuf;
     auto tsEnd = tsBuf + tsBufSize;
-
-    if (skip)
-      //{{{  reset pid continuity, buffers
-      for (auto &pidInfo : mPidInfoMap) {
-        pidInfo.second.mBufPtr = nullptr;
-        pidInfo.second.mStreamPos = -1;
-        pidInfo.second.mContinuity = -1;
-        }
-      //}}}
-
-    int lostSync = 0;
-    bool decoded = false;
-    while (!decoded && (tsPtr+188 <= tsEnd)) {
-      if (*tsPtr++ != 0x47)
-        lostSync++;
-      else {
-        if (lostSync) {
-          //{{{  lostSync warning
-          cLog::log (LOGERROR, "%d demux ****** resynced bytes:%d ******", mPackets, lostSync);
-          streamPos += lostSync;
-          lostSync = 0;
-          }
-          //}}}
+    auto nextTsPtr = tsPtr + 188;
+    while (!decoded && (nextTsPtr <= tsEnd)) {
+      if (*tsPtr == 0x47) {
         // check for full packet, followed by start syncCode if not end
-        if ((tsPtr+187 >= tsEnd) || (*(tsPtr+187) == 0x47)) {
-          auto nextTsPtr = tsPtr + 187;
-          int tsBytesLeft = 187;
+        if ((tsPtr+188 >= tsEnd) || (*(tsPtr+188) == 0x47)) {
+          tsPtr++;
+          int tsBytesLeft = 188-1;
 
-          // parse ts packet header
+          // parse ts packetHeader
           int pid = ((tsPtr[0] & 0x1F) << 8) | tsPtr[1];
-          int continuityCount = tsPtr[2] & 0x0F;
-          bool payloadStart = tsPtr[0] & 0x40;
-          int headerBytes = (tsPtr[2] & 0x20) ? 4 + tsPtr[3] : 3; // adaption field
+          if (pid != 0x1FFF) {
+            int continuityCount = tsPtr[2] & 0x0F;
+            bool payloadStart = tsPtr[0] & 0x40;
+            int headerBytes = (tsPtr[2] & 0x20) ? 4 + tsPtr[3] : 3; // adaption field
 
-          auto pidInfo = findPidCreatePsiPidInfo (pid);
-          if (pidInfo) {
-            if ((pid != 0x1FFF) &&
-                (pidInfo->mContinuity >= 0) && (pidInfo->mContinuity != ((continuityCount-1) & 0x0F))) {
-              //{{{  continuity error
-              if (pidInfo->mContinuity == continuityCount) // strange case of bbc subtitles
-                pidInfo->mRepeatContinuity++;
+            auto pidInfo = findPidCreatePsiPidInfo (pid);
+            if (pidInfo) {
+              if ((pidInfo->mContinuity >= 0) && (continuityCount != (pidInfo->mContinuity+1 & 0x0F))) {
+                //{{{  continuity error
+                if (pidInfo->mContinuity == continuityCount) // strange case of bbc subtitles
+                  pidInfo->mRepeatContinuity++;
 
-              else {
-                mDiscontinuity++;
-                pidInfo->mDisContinuity++;
-                }
-
-              // abandon any buffered pes or section
-              pidInfo->mBufPtr = nullptr;
-              }
-              //}}}
-            pidInfo->mContinuity = continuityCount;
-            pidInfo->mTotal++;
-
-            if (pidInfo->mPsi) {
-              //{{{  psi packet body
-              tsPtr += headerBytes;
-              tsBytesLeft -= headerBytes;
-
-              if (payloadStart) {
-                auto payloadPtr = tsPtr;
-                auto payloadBytesLeft = tsBytesLeft;
-
-                auto pointerField = *payloadPtr++;
-                payloadBytesLeft--;
-                if ((pointerField > 0) && pidInfo->mBufPtr)
-                  // nonZero pointerField, finish lastSection
-                  addToSectionBuffer (pidInfo, payloadPtr, pointerField);
-
-                // goto real payload start
-                payloadPtr += pointerField;
-                payloadBytesLeft -= pointerField;
-
-                if (pidInfo->mBufPtr)
-                  cLog::log (LOGINFO1, "demux - unused section buffer " + dec(pid) +
-                                       " sectionLength:" + dec(pidInfo->mSectionLength) +
-                                       " got:" +  dec(pidInfo->getBufUsed()));
-
-                while ((payloadBytesLeft >= 3) && (payloadPtr[0] != 0xFF)) {
-                  // valid section tableId, get section length
-                  pidInfo->mSectionLength = ((payloadPtr[1] & 0x0F) << 8) + payloadPtr[2] + 3;;
-                  if (payloadBytesLeft >= pidInfo->mSectionLength) {
-                    // parse section from payload without buffer
-                    parsePsi (pidInfo, payloadPtr);
-                    payloadPtr += pidInfo->mSectionLength;
-                    payloadBytesLeft -= pidInfo->mSectionLength;
-                    pidInfo->mBufPtr = nullptr;
-                    }
-                  else {
-                    // start payload buffer, straddles packets
-                    memcpy (pidInfo->mBuffer, payloadPtr, payloadBytesLeft);
-                    pidInfo->mBufPtr = pidInfo->mBuffer + payloadBytesLeft;
-                    payloadBytesLeft = 0;
-                    }
+                else {
+                  mDiscontinuity++;
+                  pidInfo->mDisContinuity++;
                   }
+
+                // abandon any buffered pes or section
+                pidInfo->mBufPtr = nullptr;
                 }
+                //}}}
+              pidInfo->mContinuity = continuityCount;
+              pidInfo->mPackets++;
 
-              else if (pidInfo->mBufPtr)
-                addToSectionBuffer (pidInfo, tsPtr, tsBytesLeft);
+              if (pidInfo->mPsi) {
+                //{{{  psi packet body
+                tsPtr += headerBytes;
+                tsBytesLeft -= headerBytes;
 
-              else
-                cLog::log (LOGINFO1, "demux - trying to add section to section not started " + dec(pid) +
-                                     " " +  dec(pidInfo->mSectionLength));
-              }
-              //}}}
-            else if ((decodePid == -1) || (decodePid == pid)) {
-              //{{{  pes packet body
-              pesPacket (pidInfo, tsPtr-1);
+                if (payloadStart) {
+                  auto payloadPtr = tsPtr;
+                  auto payloadBytesLeft = tsBytesLeft;
 
-              tsPtr += headerBytes;
-              tsBytesLeft -= headerBytes;
-              if (payloadStart && !tsPtr[0] && !tsPtr[1] && (tsPtr[2] == 0x01)) {
-                // start new payload, recognise streamIds
-                bool isVid = (tsPtr[3] == 0xE0);
-                bool isAud = (tsPtr[3] == 0xBD) || (tsPtr[3] == 0xC0);
+                  auto pointerField = *payloadPtr++;
+                  payloadBytesLeft--;
+                  if ((pointerField > 0) && pidInfo->mBufPtr)
+                    // nonZero pointerField, finish lastSection
+                    addToSectionBuffer (pidInfo, payloadPtr, pointerField);
 
-                if (isVid || isAud) {
-                  if (pidInfo->mBufPtr && pidInfo->mStreamType) {
-                    if (isVid) {
-                      decoded = vidDecodePes (pidInfo, skip);
-                      skip = false;
+                  // goto real payload start
+                  payloadPtr += pointerField;
+                  payloadBytesLeft -= pointerField;
+
+                  if (pidInfo->mBufPtr)
+                    cLog::log (LOGINFO1, "demux - unused section buffer " + dec(pid) +
+                                         " sectionLength:" + dec(pidInfo->mSectionLength) +
+                                         " got:" +  dec(pidInfo->getBufUsed()));
+
+                  while ((payloadBytesLeft >= 3) && (payloadPtr[0] != 0xFF)) {
+                    // valid section tableId, get section length
+                    pidInfo->mSectionLength = ((payloadPtr[1] & 0x0F) << 8) + payloadPtr[2] + 3;;
+                    if (payloadBytesLeft >= pidInfo->mSectionLength) {
+                      // parse section from payload without buffer
+                      parsePsi (pidInfo, payloadPtr);
+                      payloadPtr += pidInfo->mSectionLength;
+                      payloadBytesLeft -= pidInfo->mSectionLength;
+                      pidInfo->mBufPtr = nullptr;
                       }
-                    else
-                      decoded = audDecodePes (pidInfo, skip);
+                    else {
+                      // start payload buffer, straddles packets
+                      memcpy (pidInfo->mBuffer, payloadPtr, payloadBytesLeft);
+                      pidInfo->mBufPtr = pidInfo->mBuffer + payloadBytesLeft;
+                      payloadBytesLeft = 0;
+                      }
                     }
-
-                  pidInfo->mStreamPos = streamPos;
-
-                  // form pts, firstPts, lastPts
-                  pidInfo->mPts = (tsPtr[7] & 0x80) ? getPtsDts (tsPtr+9) : -1;
-                  if (pidInfo->mFirstPts == -1)
-                    pidInfo->mFirstPts = pidInfo->mPts;
-                  if (pidInfo->mPts > pidInfo->mLastPts)
-                    pidInfo->mLastPts = pidInfo->mPts;
-
-                  // skip past pesHeader
-                  int pesHeaderBytes = 9 + tsPtr[8];
-                  tsPtr += pesHeaderBytes;
-                  tsBytesLeft -= pesHeaderBytes;
-
-                  // start new buffer
-                  pidInfo->mBufPtr = pidInfo->mBuffer;
                   }
-                }
 
-              if (pidInfo->mBufPtr && (tsBytesLeft > 0))
-                pidInfo->addToBuffer (tsPtr, tsBytesLeft);
+                else if (pidInfo->mBufPtr)
+                  addToSectionBuffer (pidInfo, tsPtr, tsBytesLeft);
+
+                else
+                  cLog::log (LOGINFO1, "demux - trying to add section to section not started " + dec(pid) +
+                                       " " +  dec(pidInfo->mSectionLength));
+                }
+                //}}}
+              else if ((decodePid == -1) || (decodePid == pid)) {
+                //{{{  pes packet body
+                pesPacket (pidInfo, tsPtr-1);
+
+                tsPtr += headerBytes;
+                tsBytesLeft -= headerBytes;
+                if (payloadStart && !tsPtr[0] && !tsPtr[1] && (tsPtr[2] == 0x01)) {
+                  // start new payload, recognise streamIds
+                  bool isVid = (tsPtr[3] == 0xE0);
+                  bool isAud = (tsPtr[3] == 0xBD) || (tsPtr[3] == 0xC0);
+
+                  if (isVid || isAud) {
+                    if (pidInfo->mBufPtr && pidInfo->mStreamType) {
+                      if (isVid) {
+                        decoded = vidDecodePes (pidInfo, skip);
+                        skip = false;
+                        }
+                      else
+                        decoded = audDecodePes (pidInfo, skip);
+                      }
+
+                    pidInfo->mStreamPos = streamPos;
+
+                    // form pts, firstPts, lastPts
+                    pidInfo->mPts = (tsPtr[7] & 0x80) ? getPtsDts (tsPtr+9) : -1;
+                    if (pidInfo->mFirstPts == -1)
+                      pidInfo->mFirstPts = pidInfo->mPts;
+                    if (pidInfo->mPts > pidInfo->mLastPts)
+                      pidInfo->mLastPts = pidInfo->mPts;
+
+                    // skip past pesHeader
+                    int pesHeaderBytes = 9 + tsPtr[8];
+                    tsPtr += pesHeaderBytes;
+                    tsBytesLeft -= pesHeaderBytes;
+
+                    // start new buffer
+                    pidInfo->mBufPtr = pidInfo->mBuffer;
+                    }
+                  }
+
+                if (pidInfo->mBufPtr && (tsBytesLeft > 0))
+                  pidInfo->addToBuffer (tsPtr, tsBytesLeft);
+                }
+                //}}}
               }
-              //}}}
             }
 
           tsPtr = nextTsPtr;
+          nextTsPtr = tsPtr + 188;
           streamPos += 188;
           mPackets++;
           }
+        }
+      else {
+        cLog::log (LOGERROR, "demux - lostSync");
+        return tsEnd - tsBuf;
         }
       }
 
@@ -1044,6 +1051,21 @@ protected:
   virtual bool vidDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
   virtual void startProgram (cService* service, const string& name, time_t startTime) {}
   virtual void pesPacket (cPidInfo* pidInfo, uint8_t* tsPtr) {}
+
+  //{{{
+  void clearContinuity() {
+
+    for (auto &pidInfo : mPidInfoMap)
+      pidInfo.second.clearContinuity();
+    }
+  //}}}
+  //{{{
+  void clearCounts() {
+
+    for (auto &pidInfo : mPidInfoMap)
+      pidInfo.second.clearCounts();
+    }
+  //}}}
 
 private:
   //{{{
