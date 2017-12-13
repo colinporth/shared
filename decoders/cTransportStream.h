@@ -1803,11 +1803,10 @@ private:
       pts = (pts << 7) | (tsPtr[4] >> 1);
       return pts;
       }
-    else {
-      cLog::log (LOGERROR, "getParseTs - failed - %02x %02x %02x %02x 0x02",
+    else
+      cLog::log (LOGERROR, "getPtsDts - marker bits - %02x %02x %02x %02x 0x02",
                            tsPtr[0], tsPtr[1],tsPtr[2],tsPtr[3],tsPtr[4]);
-      return -1;
-      }
+    return -1;
     }
   //}}}
   //{{{

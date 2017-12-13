@@ -11,10 +11,12 @@ public:
   class cLine {
   public:
     cLine() {}
-    cLine (eLogLevel logLevel, std::chrono::time_point<std::chrono::system_clock> timePoint, const std::string& str) :
-      mLogLevel(logLevel), mTimePoint(timePoint), mStr(str) {}
+    cLine (eLogLevel logLevel, uint64_t threadId,
+           std::chrono::time_point<std::chrono::system_clock> timePoint, const std::string& str) :
+      mLogLevel(logLevel), mThreadId(threadId), mTimePoint(timePoint), mStr(str) {}
 
     eLogLevel mLogLevel;
+    uint64_t mThreadId;
     std::chrono::time_point<std::chrono::system_clock> mTimePoint;
     std::string mStr;
     };
@@ -35,4 +37,7 @@ public:
   static void log (enum eLogLevel logLevel, const char* format, ... );
 
   static bool getLine (cLine& line, int lineNum);
+
+private:
+  static uint64_t getThreadId();
   };

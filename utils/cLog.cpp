@@ -119,7 +119,6 @@ void cLog::setLogLevel (enum eLogLevel logLevel) {
   }
 //}}}
 
-
 //{{{
 void cLog::log (enum eLogLevel logLevel, const wstring& wstr) {
 
@@ -130,7 +129,7 @@ void cLog::log (enum eLogLevel logLevel, const wstring& wstr) {
   lock_guard<mutex> lockGuard (mLinesMutex);
 
   if (mBuffer) {
-    mLines.push_front (cLine (logLevel, timePoint, logStr));
+    mLines.push_front (cLine (logLevel, getThreadId(), timePoint, logStr));
     if (mLines.size() > kMaxBuffer)
       mLines.pop_back();
     }
@@ -178,7 +177,7 @@ void cLog::log (enum eLogLevel logLevel, const string& logStr) {
   lock_guard<mutex> lockGuard (mLinesMutex);
 
   if (mBuffer) {
-    mLines.push_front (cLine (logLevel, timePoint, logStr));
+    mLines.push_front (cLine (logLevel, getThreadId(), timePoint, logStr));
     if (mLines.size() > kMaxBuffer)
       mLines.pop_back();
     }
@@ -253,5 +252,12 @@ bool cLog::getLine (cLine& line, int lineNum) {
         }
 
   return false;
+  }
+//}}}
+
+// private
+//{{{
+uint64_t cLog::getThreadId() {
+  return GetCurrentThreadId();
   }
 //}}}
