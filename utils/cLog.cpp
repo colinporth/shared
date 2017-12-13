@@ -12,6 +12,7 @@
 #include <string>
 #include <mutex>
 #include <deque>
+#include <map>
 
 #include "utils.h"
 
@@ -55,12 +56,14 @@ bool mBuffer = false;
 int mDaylightSecs = 0;
 FILE* mFile = NULL;
 
+std::map<uint64_t,std::string> mThreadNames;
+
 #ifdef _WIN32
   HANDLE hStdOut = 0;
 #endif
 
 //{{{
-bool cLog::init (const string& title, enum eLogLevel logLevel, bool buffer, string path) {
+bool cLog::init (enum eLogLevel logLevel, bool buffer, string path) {
 
   #ifdef _WIN32
     hStdOut = GetStdHandle (STD_OUTPUT_HANDLE);
@@ -90,8 +93,7 @@ bool cLog::init (const string& title, enum eLogLevel logLevel, bool buffer, stri
       }
     }
 
-  log (LOGTITLE, title);
-
+  setThreadName ("main");
   return mFile != NULL;
   }
 //}}}
@@ -111,11 +113,41 @@ enum eLogLevel cLog::getLogLevel() {
   }
 //}}}
 //{{{
+std::string cLog::getThreadNameString (uint64_t threadId) {
+  auto it = mThreadNames.find (threadId);
+  if (it == mThreadNames.end())
+    return hex(threadId/8,4);
+  else
+    return it->second;
+  }
+//}}}
+//{{{
+std::wstring cLog::getThreadNameWstring (uint64_t threadId) {
+
+  auto it = mThreadNames.find (threadId);
+  if (it == mThreadNames.end())
+    return whex(threadId/8,4);
+  else
+    return strToWstr(it->second);
+  }
+//}}}
+
+//{{{
 void cLog::setLogLevel (enum eLogLevel logLevel) {
 
   logLevel = std::min (logLevel, eLogLevel(LOGMAX-1));
   logLevel = std::max (logLevel, LOGNOTICE);
   mLogLevel = logLevel;
+  }
+//}}}
+//{{{
+void cLog::setThreadName (const string& name) {
+
+  auto it = mThreadNames.find (getThreadId());
+  if (it == mThreadNames.end())
+    mThreadNames.insert (map<uint64_t,string>::value_type (getThreadId(), name));
+
+  log (LOGNOTICE, "start");
   }
 //}}}
 
@@ -194,6 +226,8 @@ void cLog::log (enum eLogLevel logLevel, const string& logStr) {
     char buffer[40];
     sprintf (buffer, prefixFormat, h, m, s, subSec, levelColours[logLevel]);
     fputs (buffer, stdout);
+    fputs (getThreadNameString (getThreadId()).c_str(), stdout);
+    fputc (' ', stdout);
     fputs (logStr.c_str(), stdout);
     fputs (postfix, stdout);
     }

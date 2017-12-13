@@ -24,13 +24,16 @@ public:
 
   ~cLog() { close(); }
 
-  static bool init (const std::string& title, enum eLogLevel logLevel,
-                    bool buffer = false, std::string path = "");
+  static bool init (enum eLogLevel logLevel, bool buffer = false, std::string path = "");
   static void setDaylightOffset (int offset);
   static void close();
 
   static enum eLogLevel getLogLevel();
+  static std::string getThreadNameString (uint64_t threadId);
+  static std::wstring getThreadNameWstring (uint64_t threadId);
+
   static void setLogLevel (enum eLogLevel logLevel);
+  static void setThreadName (const std::string& name);
 
   static void log (enum eLogLevel logLevel, const std::wstring& logStr);
   static void log (enum eLogLevel logLevel, const std::string& logStr);
