@@ -100,7 +100,7 @@ private:
     void writeSection (uint8_t* ts, uint8_t* tsSectionStart, uint8_t* tsPtr) {
 
       // tsSection crc, calc from tsSection start to here
-      auto crc = crc32 (0xffffffff, tsSectionStart, int(tsPtr - tsSectionStart));
+      auto crc = getCrc32 (0xffffffff, tsSectionStart, int(tsPtr - tsSectionStart));
       *tsPtr++ = (crc & 0xff000000) >> 24;
       *tsPtr++ = (crc & 0x00ff0000) >> 16;
       *tsPtr++ = (crc & 0x0000ff00) >>  8;
