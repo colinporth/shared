@@ -1310,15 +1310,12 @@ private:
           (pid == PID_EIT) || (pid == PID_RST) || (pid == PID_TDT) || (pid == PID_SYN) ||
           (mProgramMap.find (pid) != mProgramMap.end())) {
         // create new psi cPidInfo, insert
-        auto insertPair = mPidInfoMap.insert (map<int,cPidInfo>::value_type (pid, cPidInfo(pid, true)));
-
-        // allocate buffer
-        pidInfoIt = insertPair.first;
+        pidInfoIt = mPidInfoMap.insert (map<int,cPidInfo>::value_type (pid, cPidInfo(pid, true))).first;
         auto pidInfo = &pidInfoIt->second;
 
+        // allocate buffer
         pidInfo->mBufSize = kBufSize;
         pidInfo->mBuffer = (uint8_t*)malloc (kBufSize);
-        //cLog::log (LOGINFO, "findPidCreatePsiPidInfo - create " + dec(pid));
         return pidInfo;
         }
       else
@@ -1336,15 +1333,12 @@ private:
     auto pidInfoIt = mPidInfoMap.find (pid);
     if (pidInfoIt == mPidInfoMap.end()) {
       // create and  insert new cPidInfo, allocate buffer
-      auto insertPair = mPidInfoMap.insert (map<int,cPidInfo>::value_type (pid, cPidInfo(pid, false)));
-      pidInfoIt = insertPair.first;
+      pidInfoIt = mPidInfoMap.insert (map<int,cPidInfo>::value_type (pid, cPidInfo(pid, false))).first;
 
       pidInfoIt->second.mSid = sid;
       pidInfoIt->second.mStreamType = streamType;
       pidInfoIt->second.mBufSize = kBufSize;
       pidInfoIt->second.mBuffer = (uint8_t*)malloc (kBufSize);
-
-      //cLog::log (LOGINFO, "createEsPidInfo - created " + dec(pid) + " " + dec(sid) + " " + dec(streamType));
       return &pidInfoIt->second;
       }
 
