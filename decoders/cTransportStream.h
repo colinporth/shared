@@ -1430,12 +1430,12 @@ private:
               auto it = mServiceMap.find (sid);
               if (it != mServiceMap.end()) {
                 if (it->second.getNameString().empty()) {
-                  it->second.setName (name);
                   cLog::log (LOGINFO, "SDT - service named " + dec(sid) +  " " + name);
+                  it->second.setName (name);
                   }
                 }
               else
-                cLog::log (LOGERROR, "SDT - service not found " + dec(sid) +  " " + name);
+                cLog::log (LOGINFO, "SDT - before PMT - ignored " + dec(sid) +  " " + name);
 
               break;
               }
