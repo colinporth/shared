@@ -1,10 +1,6 @@
 // cDumpTransportStream.h
-//{{{  includes
-#include "stdafx.h"
-
+#pragma once
 #include "../../shared/decoders/cTransportStream.h"
-//}}}
-
 
 class cDumpTransportStream : public cTransportStream {
 public:

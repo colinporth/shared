@@ -216,7 +216,6 @@ public:
       if (!findSeqNumChunk (seqNum, range, chunk)) {
         cLog::log (LOGINFO, "loading " + dec(seqNum+range) + " at " + getTimeString(getPlayTzSeconds()));
         ok &= mChunks[chunk].load (http, mDecoder, mHost, getTsPath (seqNum+range), seqNum+range, mBitrate);
-        cLog::log (LOGINFO, "loaded");
         }
       if (mChanChanged)
         return true;
@@ -224,7 +223,6 @@ public:
       if (!findSeqNumChunk (seqNum, -range, chunk)) {
         cLog::log (LOGINFO, "loading " + dec(seqNum-range) + " at " + getTimeString(getPlayTzSeconds()));
         ok &= mChunks[chunk].load (http, mDecoder, mHost, getTsPath (seqNum-range), seqNum-range, mBitrate);
-        cLog::log (LOGINFO, "loaded");
         }
       if (mChanChanged)
         return true;

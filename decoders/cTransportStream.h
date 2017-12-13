@@ -6,9 +6,10 @@
 //{{{  includes
 #pragma once
 
+#include <time.h>
 #include <string>
 #include <map>
-#include <time.h>
+#include <vector>
 
 #include "dvbSubtitle.h"
 #include "huffman.h"
@@ -1260,7 +1261,6 @@ public:
                 //}}}
               }
             }
-
           ts = nextPacket;
           nextPacket += 188;
           streamPos += 188;
