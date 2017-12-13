@@ -875,7 +875,7 @@ public:
             bool payloadStart = tsPtr[0] & 0x40;
             int headerBytes = (tsPtr[2] & 0x20) ? 4 + tsPtr[3] : 3; // adaption field
 
-            auto pidInfo = findPidCreatePsiPidInfo (pid);
+            auto pidInfo = findCreatePsiPidInfo (pid);
             if (pidInfo) {
               if ((pidInfo->mContinuity >= 0) && (continuityCount != (pidInfo->mContinuity+1 & 0x0F))) {
                 //{{{  continuity error
@@ -1300,9 +1300,10 @@ private:
   //}}}
 
   //{{{
-  cPidInfo* findPidCreatePsiPidInfo (int pid) {
+  cPidInfo* findCreatePsiPidInfo (int pid) {
   // find pidInfo by pid
   // - create pidInfo for psi pids
+  // - return pidInfo
 
     auto pidInfoIt = mPidInfoMap.find (pid);
     if (pidInfoIt == mPidInfoMap.end()) {
@@ -1327,8 +1328,11 @@ private:
     }
   //}}}
   //{{{
-  cPidInfo* createEsPidInfo (int pid, int sid, int streamType) {
-  // look for pid, if none create esPidInfo
+  cPidInfo* findCreatePesPidInfo (int pid, int sid, int streamType) {
+  // find pes pidInfo by pid
+  // - create if not found
+  //   - if created return pidInfo 
+  //     - else retunr nullptr
 
     auto pidInfoIt = mPidInfoMap.find (pid);
     if (pidInfoIt == mPidInfoMap.end()) {
@@ -1688,7 +1692,7 @@ private:
         auto pmtInfo = (pmt_info_t*)buf;
 
         auto esPid = HILO (pmtInfo->elementary_PID);
-        auto esPidInfo = createEsPidInfo (esPid, sid, pmtInfo->stream_type);
+        auto esPidInfo = findCreatePesPidInfo (esPid, sid, pmtInfo->stream_type);
         if (esPidInfo) {
           //{{{  set service esPids
           //cLog::log (LOGINFO, "parsePmt - add esPid:"+ dec(esPid) + " serv:" + dec(sid));
