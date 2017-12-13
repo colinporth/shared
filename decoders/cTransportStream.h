@@ -448,6 +448,52 @@ public:
     return (mSid > 0 ? dec(mSid) : "") + (mInfoStr.empty() ? "" : " " + mInfoStr);
     }
   //}}}
+
+  //{{{
+  wstring getTypeWstring() {
+
+    // known pids
+    switch (mPid) {
+      case PID_PAT: return L"PAT";
+      case PID_CAT: return L"CAT";
+      case PID_NIT: return L"NIT";
+      case PID_SDT: return L"SDT";
+      case PID_EIT: return L"EIT";
+      case PID_RST: return L"RST";
+      case PID_TDT: return L"TDT";
+      case PID_SYN: return L"SYN";
+      }
+
+    if (mSid != -1) {
+      // service - pgm or es
+      switch (mStreamType) {
+        case   0: return L"pgm";
+        case   2: return L"m2v"; // ISO 13818-2 video
+        case   3: return L"m2a"; // ISO 11172-3 audio
+        case   4: return L"m3a"; // ISO 13818-3 audio
+        case   5: return L"mtd"; // private mpeg2 tabled data - private
+        case   6: return L"sub"; // subtitle
+        case  11: return L"dsm"; // dsm cc u_n
+        case  13: return L"dsm"; // dsm cc tabled data
+        case  15: return L"aac"; // HD aud ADTS
+        case  17: return L"aac"; // HD aud LATM
+        case  27: return L"264"; // HD vid
+        case 129: return L"ac3"; // aud AC3
+        default : return wdec(mStreamType,3);
+        }
+      }
+
+    // unknown pid
+    return L"---";
+    }
+  //}}}
+  //{{{
+  wstring getInfoWstring() {
+
+    return (mSid > 0 ? wdec(mSid) : L"") + (mInfoStr.empty() ? L"" : L" " + strToWstr(mInfoStr));
+    }
+  //}}}
+
   //{{{
   int addToBuffer (uint8_t* buf, int bufSize) {
 
@@ -671,7 +717,7 @@ public:
   virtual ~cTransportStream() {}
 
   //{{{
-  static uint32_t getCrc32 (uint32_t crc, uint8_t* data, int len) {
+  static uint32_t getCrc32 (uint32_t crc, uint8_t* buf, unsigned int len) {
 
     //{{{
     // CRC32 lookup table for polynomial 0x04c11db7
@@ -721,8 +767,8 @@ public:
       0xbcb4666d, 0xb8757bda, 0xb5365d03, 0xb1f740b4};
     //}}}
 
-    for (auto i = 0; i < len; i++)
-      crc = (crc << 8) ^ crcTable[((crc >> 24) ^ *data++) & 0xff];
+    for (auto i = 0u; i < len; i++)
+      crc = (crc << 8) ^ crcTable[((crc >> 24) ^ *buf++) & 0xff];
 
     return crc;
     }
@@ -1276,7 +1322,7 @@ protected:
   virtual bool audDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
   virtual bool vidDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
   virtual void startProgram (cService* service, const string& name, time_t startTime) {}
-  virtual void pesPacket (cPidInfo* pidInfo, uint8_t* tsPtr) {}
+  virtual void pesPacket (cPidInfo* pidInfo, uint8_t* ts) {}
 
   //{{{
   void clearCounts() {
