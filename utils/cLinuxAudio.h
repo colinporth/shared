@@ -25,7 +25,7 @@ public:
   //}}}
 
   //{{{
-  void audOpen (int srcChannels, int srcSampleRate, int bitsPerSample, int channels) {
+  void audOpen (int srcChannels, int srcSampleRate) {
 
     int err = snd_pcm_open (&mHandle, "default", SND_PCM_STREAM_PLAYBACK, 0);
     if (err < 0)
