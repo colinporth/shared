@@ -6,8 +6,10 @@
   #include "windows.h"
 #endif
 
-#include "date.h"
-#include "cLog.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <fcntl.h>
 
 #include <algorithm>
 #include <string>
@@ -15,7 +17,9 @@
 #include <deque>
 #include <map>
 
+#include "date.h"
 #include "utils.h"
+#include "cLog.h"
 
 #define remove_utf8   remove
 #define rename_utf8   rename
