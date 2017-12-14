@@ -237,7 +237,7 @@ uint64_t cLog::getThreadId() {
   #ifdef _WIN32
     return GetCurrentThreadId();
   #else
-    return 0;
+    return getpid();
   #endif
   }
 //}}}
