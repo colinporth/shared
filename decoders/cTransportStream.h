@@ -385,12 +385,11 @@ typedef struct descr_extended_event_struct {
   uint8_t lang_code3         :8;
   uint8_t length_of_items    :8;
   } descr_extended_event_t;
-
 #define CastExtendedEventDescr(x) ((descr_extended_event_t *)(x))
+
 typedef struct item_extended_event_struct {
   uint8_t item_description_length               :8;
   } item_extended_event_t;
-
 #define CastExtendedEventItem(x) ((item_extended_event_t *)(x))
 //}}}
 //}}}
@@ -1127,25 +1126,24 @@ public:
     if (skip)
       clearContinuity();
 
-    bool decoded = false;
     auto ts = tsBuf;
     auto tsEnd = tsBuf + tsBufSize;
+
+    bool decoded = false;
     auto nextPacket = ts + 188;
     while (!decoded && (nextPacket <= tsEnd)) {
       if (*ts == 0x47) {
-        // check for full packet, followed by start syncCode if not end
         if ((ts+188 >= tsEnd) || (*(ts+188) == 0x47)) {
           ts++;
           int tsBytesLeft = 188-1;
 
-          // parse ts packetHeader
           int pid = ((ts[0] & 0x1F) << 8) | ts[1];
           if (pid != 0x1FFF) {
             bool payloadStart =   ts[0] & 0x40;
             int continuityCount = ts[2] & 0x0F;
             int headerBytes =    (ts[2] & 0x20) ? (4 + ts[3]) : 3; // adaption field
 
-            auto pidInfo = findCreatePsiPidInfo (pid);
+            auto pidInfo = getPidInfo (pid, true);
             if (pidInfo) {
               if ((pidInfo->mContinuity >= 0) && (continuityCount != (pidInfo->mContinuity+1 & 0x0F))) {
                 //{{{  continuity error
@@ -1261,6 +1259,7 @@ public:
                 //}}}
               }
             }
+
           ts = nextPacket;
           nextPacket += 188;
           streamPos += 188;
@@ -1306,53 +1305,29 @@ protected:
 
 private:
   //{{{
-  cPidInfo* findCreatePsiPidInfo (int pid) {
-  // find pidInfo by pid
-  // - create pidInfo for psi pids
-  // - return pidInfo
+  cPidInfo* getPidInfo (int pid, bool createPsiOnly) {
+  // find or create pidInfo by pid
 
     auto pidInfoIt = mPidInfoMap.find (pid);
     if (pidInfoIt == mPidInfoMap.end()) {
-      if ((pid == PID_PAT) || (pid == PID_CAT) || (pid == PID_NIT) || (pid == PID_SDT) ||
+      if (!createPsiOnly ||
+          (pid == PID_PAT) || (pid == PID_CAT) || (pid == PID_NIT) || (pid == PID_SDT) ||
           (pid == PID_EIT) || (pid == PID_RST) || (pid == PID_TDT) || (pid == PID_SYN) ||
           (mProgramMap.find (pid) != mProgramMap.end())) {
+
         // create new psi cPidInfo, insert
-        pidInfoIt = mPidInfoMap.insert (std::map<int,cPidInfo>::value_type (pid, cPidInfo(pid, true))).first;
-        auto pidInfo = &pidInfoIt->second;
+        pidInfoIt = mPidInfoMap.insert (
+          std::map<int,cPidInfo>::value_type (pid, cPidInfo(pid, createPsiOnly))).first;
 
         // allocate buffer
-        pidInfo->mBufSize = kBufSize;
-        pidInfo->mBuffer = (uint8_t*)malloc (kBufSize);
-        return pidInfo;
+        pidInfoIt->second.mBufSize = kBufSize;
+        pidInfoIt->second.mBuffer = (uint8_t*)malloc (kBufSize);
         }
       else
         return nullptr;
       }
 
-    // return psi and pes pidInfos
     return &pidInfoIt->second;
-    }
-  //}}}
-  //{{{
-  cPidInfo* findCreatePesPidInfo (int pid, int sid, int streamType) {
-  // find pes pidInfo by pid
-  // - create if not found
-  //   - if created return pidInfo
-  //     - else retunr nullptr
-
-    auto pidInfoIt = mPidInfoMap.find (pid);
-    if (pidInfoIt == mPidInfoMap.end()) {
-      // create and  insert new cPidInfo, allocate buffer
-      pidInfoIt = mPidInfoMap.insert (std::map<int,cPidInfo>::value_type (pid, cPidInfo(pid, false))).first;
-
-      pidInfoIt->second.mSid = sid;
-      pidInfoIt->second.mStreamType = streamType;
-      pidInfoIt->second.mBufSize = kBufSize;
-      pidInfoIt->second.mBuffer = (uint8_t*)malloc (kBufSize);
-      return &pidInfoIt->second;
-      }
-
-    return nullptr;
     }
   //}}}
   //{{{
@@ -1698,34 +1673,39 @@ private:
         auto pmtInfo = (pmt_info_t*)buf;
 
         auto esPid = HILO (pmtInfo->elementary_PID);
-        auto esPidInfo = findCreatePesPidInfo (esPid, sid, pmtInfo->stream_type);
-        if (esPidInfo) {
-          //{{{  set service esPids
-          //cLog::log (LOGINFO, "parsePmt - add esPid:"+ dec(esPid) + " serv:" + dec(sid));
+        auto esPidInfo = getPidInfo (esPid, false);
+        //{{{  set service esPids
+        //cLog::log (LOGINFO, "parsePmt - add esPid:"+ dec(esPid) + " serv:" + dec(sid));
+        esPidInfo->mSid = sid;
+        esPidInfo->mStreamType = pmtInfo->stream_type;
 
-          switch (esPidInfo->mStreamType) {
-            case   2: // ISO 13818-2 video
-            case  27: // HD vid
-              service->setVidPid (esPid, esPidInfo->mStreamType); break;
-            case   3: // ISO 11172-3 audio
-            case   4: // ISO 13818-3 audio
-            case  15: // HD aud ADTS
-            case  17: // HD aud LATM
-            case 129: // aud AC3
-              service->setAudPid (esPid, esPidInfo->mStreamType);  break;
-            case   6: // subtitle
-              service->setSubPid (esPid, esPidInfo->mStreamType);  break;
-            case   5: // private mpeg2 tabled data - private
-            case  11: // dsm cc u_n
-            case  13: // dsm cc tabled data
-              break;
-            default:
-              cLog::log (LOGERROR, "parsePmt - unknown streamType:%d sid:%d pid:%d",
-                                   esPidInfo->mStreamType, sid, esPid);
-              break;
-            }
+        switch (esPidInfo->mStreamType) {
+          case   2: // ISO 13818-2 video
+          case  27: // HD vid
+            service->setVidPid (esPid, esPidInfo->mStreamType); break;
+
+          case   3: // ISO 11172-3 audio
+          case   4: // ISO 13818-3 audio
+          case  15: // HD aud ADTS
+          case  17: // HD aud LATM
+          case 129: // aud AC3
+            service->setAudPid (esPid, esPidInfo->mStreamType); break;
+
+          case   6: // subtitle
+            service->setSubPid (esPid, esPidInfo->mStreamType); break;
+
+          case   5: // private mpeg2 tabled data - private
+          case  11: // dsm cc u_n
+          case  13: // dsm cc tabled data
+            break;
+
+          default:
+            cLog::log (LOGERROR, "parsePmt - unknown streamType " + dec(sid) +
+                                 " " + dec(esPid) +
+                                 " " + dec(esPidInfo->mStreamType));
+            break;
           }
-          //}}}
+        //}}}
 
         auto loopLength = HILO (pmtInfo->ES_info_length);
         if (loopLength >= 0)
