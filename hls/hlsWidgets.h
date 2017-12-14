@@ -188,7 +188,7 @@ public:
       context->fontSize ((float)getBigFontHeight());
       context->textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_TOP);
       context->fillColor (kWhite);
-      context->text (midx-60.0f+3.0f, y+1.0f, getTimeStrFromSecs (mHls->getPlayTzSeconds()));
+      context->text (midx-60.0f+3.0f, y+1.0f, getTimeString (mHls->getPlayTzSeconds()));
 
       float midy = (float)mY + (mHeight/2);
       uint16_t midWidth = midx + int(mHls->getPlaying() == cHls::eScrub ? kScrubFrames*mZoom : mZoom);
@@ -238,7 +238,7 @@ public:
         }
 
       y = mY + mHeight - getBigFontHeight();
-      draw->drawText (COL_LIGHTGREY, getBigFontHeight(), getTimeStrFromSecs (mHls->getPlayTzSec())),
+      draw->drawText (COL_LIGHTGREY, getBigFontHeight(), getTimeString (mHls->getPlayTzSec())),
                   midx - 60, y, mWidth/2, getBigFontHeight());
 
       uint16_t midWidth = midx + int(mHls->getScrubbing() ? kScrubFrames*mZoom : mZoom);
