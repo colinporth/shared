@@ -37,7 +37,7 @@ public:
     }
   //}}}
   //{{{
-  void audPlay (int srcChannelsint16_t* srcSamples, int srcNumSamples, float pitch) {
+  void audPlay (int srcChannels, int16_t* srcSamples, int srcNumSamples, float pitch) {
 
     if (!src)
       src = mSilence;
@@ -76,7 +76,8 @@ public:
       mVolume = volume;
     }
   //}}}
-  float getMaxVolume() { return kMaxVolume; }
+  float getDefaultVolume() { return 0.7f; };
+  float getMaxVolume() { return 1.0f; }
 
   bool getMixedFL() { return true; }
   bool getMixedFR() { return true; }
