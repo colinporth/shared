@@ -1,9 +1,10 @@
 // cLog.cpp - simple logging
 //{{{  includes
-#define _CRT_SECURE_NO_WARNINGS
-#define NOMINMAX
-
-#include "windows.h"
+#ifdef _WIN32
+  #define _CRT_SECURE_NO_WARNINGS
+  #define NOMINMAX
+  #include "windows.h"
+#endif
 
 #include "date.h"
 #include "cLog.h"
@@ -292,6 +293,11 @@ bool cLog::getLine (cLine& line, int lineNum) {
 // private
 //{{{
 uint64_t cLog::getThreadId() {
-  return GetCurrentThreadId();
+
+  #ifdef _WIN32
+    return GetCurrentThreadId();
+  #else
+    return 0;
+  #endif
   }
 //}}}
