@@ -131,41 +131,38 @@ inline std::string getTimeString (uint32_t secs) {
 //{{{
 inline std::string getTimetString (time_t& time) {
 
-  tm localTm;
-  localtime_s (&localTm, &time);
+  tm* localTm = localtime (&time);
 
-  return dec(localTm.tm_hour,2,'0') + ":" +
-         dec(localTm.tm_min,2,'0') + ":" +
-         dec(localTm.tm_sec,2,'0');
+  return dec(localTm->tm_hour,2,'0') + ":" +
+         dec(localTm->tm_min,2,'0') + ":" +
+         dec(localTm->tm_sec,2,'0');
   }
 //}}}
 //{{{
 inline std::string getTimetDateString (time_t& time) {
 
-  tm localTm;
-  localtime_s(&localTm, &time);
+  tm* localTm = localtime (&time);
 
   const char day_name[][4] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
   const char mon_name[][4] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun",
                                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
 
-  return dec(localTm.tm_hour,2,'0') + ":" +
-         dec(localTm.tm_min,2,'0') + ":" +
-         dec(localTm.tm_sec,2,'0') + " " +
-         day_name[localTm.tm_wday] + " " +
-         dec(localTm.tm_mday) + " " +
-         mon_name[localTm.tm_mon] + " " +
-         dec(1900 + localTm.tm_year);
+  return dec(localTm->tm_hour,2,'0') + ":" +
+         dec(localTm->tm_min,2,'0') + ":" +
+         dec(localTm->tm_sec,2,'0') + " " +
+         day_name[localTm->tm_wday] + " " +
+         dec(localTm->tm_mday) + " " +
+         mon_name[localTm->tm_mon] + " " +
+         dec(1900 + localTm->tm_year);
   }
 //}}}
 //{{{
 inline std::string getTimetShortString (time_t& time) {
 
-  tm localTm;
-  localtime_s (&localTm, &time);
+  tm* localTm = localtime (&time);
 
-  return dec(localTm.tm_hour,2,'0') + ":" +
-         dec(localTm.tm_min,2,'0');
+  return dec(localTm->tm_hour,2,'0') + ":" +
+         dec(localTm->tm_min,2,'0');
   }
 //}}}
 
@@ -271,40 +268,37 @@ inline std::wstring getTimeWstring (uint32_t secs) {
 //{{{
 inline std::wstring getTimetWstring (time_t& time) {
 
-  tm localTm;
-  localtime_s (&localTm, &time);
+  tm* localTm = localtime (&time);
 
-  return wdec(localTm.tm_hour,2,'0') + L":" +
-         wdec(localTm.tm_min,2,'0') + L":" +
-         wdec(localTm.tm_sec,2,'0');
+  return wdec(localTm->tm_hour,2,'0') + L":" +
+         wdec(localTm->tm_min,2,'0') + L":" +
+         wdec(localTm->tm_sec,2,'0');
   }
 //}}}
 //{{{
 inline std::wstring getTimetDateWstring (time_t& time) {
 
-  tm localTm;
-  localtime_s(&localTm, &time);
+  tm* localTm = localtime (&time);
 
   const wchar_t day_name[][4] = { L"Sun", L"Mon", L"Tue", L"Wed", L"Thu", L"Fri", L"Sat" };
   const wchar_t mon_name[][4] = { L"Jan", L"Feb", L"Mar", L"Apr", L"May", L"Jun",
                                   L"Jul", L"Aug", L"Sep", L"Oct", L"Nov", L"Dec" };
 
-  return wdec(localTm.tm_hour,2,'0') + L":" +
-         wdec(localTm.tm_min,2,'0') + L":" +
-         wdec(localTm.tm_sec,2,'0') + L" " +
-         day_name[localTm.tm_wday] + L" " +
-         wdec(localTm.tm_mday) + L" " +
-         mon_name[localTm.tm_mon] + L" " +
-         wdec(1900 + localTm.tm_year);
+  return wdec(localTm->tm_hour,2,'0') + L":" +
+         wdec(localTm->tm_min,2,'0') + L":" +
+         wdec(localTm->tm_sec,2,'0') + L" " +
+         day_name[localTm->tm_wday] + L" " +
+         wdec(localTm->tm_mday) + L" " +
+         mon_name[localTm->tm_mon] + L" " +
+         wdec(1900 + localTm->tm_year);
   }
 //}}}
 //{{{
 inline std::wstring getTimetShortWstring (time_t& time) {
 
-  tm localTm;
-  localtime_s (&localTm, &time);
+  tm* localTm = localtime (&time);
 
-  return wdec(localTm.tm_hour,2,'0') + L":" +
-         wdec(localTm.tm_min,2,'0');
+  return wdec(localTm->tm_hour,2,'0') + L":" +
+         wdec(localTm->tm_min,2,'0');
   }
 //}}}

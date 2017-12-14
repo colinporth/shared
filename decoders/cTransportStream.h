@@ -1331,11 +1331,123 @@ private:
     }
   //}}}
   //{{{
-  void addToSectionBuffer (cPidInfo* pidInfo, uint8_t* buf, int bufSize) {
+  int64_t getPtsDts (uint8_t* tsPtr) {
+  // return 33 bits of pts,dts
 
-    if (pidInfo->addToBuffer (buf, bufSize) >= pidInfo->mSectionLength) {
-      parsePsi (pidInfo, pidInfo->mBuffer);
-      pidInfo->mBufPtr = nullptr;
+    if ((tsPtr[0] & 0x01) && (tsPtr[2] & 0x01) && (tsPtr[4] & 0x01)) {
+      // valid marker bits
+      int64_t pts = tsPtr[0] & 0x0E;
+      pts = (pts << 7) | tsPtr[1];
+      pts = (pts << 8) | (tsPtr[2] & 0xFE);
+      pts = (pts << 7) | tsPtr[3];
+      pts = (pts << 7) | (tsPtr[4] >> 1);
+      return pts;
+      }
+    else
+      cLog::log (LOGERROR, "getPtsDts - marker bits - %02x %02x %02x %02x 0x02",
+                           tsPtr[0], tsPtr[1],tsPtr[2],tsPtr[3],tsPtr[4]);
+    return -1;
+    }
+  //}}}
+  //{{{
+  std::string getDescrStr (uint8_t* buf, int len) {
+
+    std::string str;
+    for (auto i = 0; i < len; i++) {
+      if (*buf == 0)
+        break;
+      if ((*buf >= ' ' && *buf <= '~') || (*buf == '\n') || (*buf >= 0xa0 && *buf <= 0xff))
+        str += *buf;
+      if (*buf == 0x8A)
+        str += '\n';
+      if ((*buf == 0x86 || *buf == 0x87))
+        str += ' ';
+      buf++;
+      }
+
+    return str;
+    }
+  //}}}
+
+  //{{{
+  void parseDescr (int key, uint8_t* buf, int tid) {
+
+    switch (getDescrTag(buf)) {
+      case DESCR_EXTENDED_EVENT: {
+        auto text = getDescrStr (
+          buf + sizeof(descr_extended_event_struct) + CastExtendedEventDescr(buf)->length_of_items + 1,
+          *((uint8_t*)(buf + sizeof(descr_extended_event_struct) + CastExtendedEventDescr(buf)->length_of_items)));
+
+        cLog::log (LOGINFO, "extended event - %d %d %c%c%c %s",
+                             CastExtendedEventDescr(buf)->descr_number, CastExtendedEventDescr(buf)->last_descr_number,
+                             CastExtendedEventDescr(buf)->lang_code1,
+                             CastExtendedEventDescr(buf)->lang_code2,
+                             CastExtendedEventDescr(buf)->lang_code3, text.c_str());
+
+        auto ptr = buf + sizeof(descr_extended_event_struct);
+        auto length = CastExtendedEventDescr(buf)->length_of_items;
+        while ((length > 0) && (length < getDescrLength (buf))) {
+          text = getDescrStr (ptr + sizeof(item_extended_event_struct), CastExtendedEventItem(ptr)->item_description_length);
+          auto text2 = getDescrStr (
+            ptr + sizeof(item_extended_event_struct) +
+            CastExtendedEventItem(ptr)->item_description_length + 1,
+            *(uint8_t*)(ptr + sizeof(item_extended_event_struct) +
+                        CastExtendedEventItem(ptr)->item_description_length));
+          cLog::log (LOGINFO, "- %s %s", text.c_str(), text2.c_str());
+
+          length -= sizeof(item_extended_event_struct) + CastExtendedEventItem(ptr)->item_description_length +
+                    *((uint8_t*)(ptr + sizeof(item_extended_event_struct) +
+                                  CastExtendedEventItem(ptr)->item_description_length)) + 1;
+
+          ptr += sizeof(item_extended_event_struct) + CastExtendedEventItem(ptr)->item_description_length +
+                 *((uint8_t*)(ptr + sizeof(item_extended_event_struct) +
+                               CastExtendedEventItem(ptr)->item_description_length)) + 1;
+          }
+
+        break;
+        }
+
+      // known tags
+      case DESCR_COMPONENT:
+      case DESCR_NW_NAME:
+      case DESCR_TERR_DEL_SYS:
+      case DESCR_SERVICE_LIST:
+      case 0x25: // NIT2
+      case DESCR_COUNTRY_AVAIL:
+      case DESCR_CONTENT:
+      case DESCR_CA_IDENT:
+      case DESCR_ML_COMPONENT:
+      case DESCR_DATA_BROADCAST:
+      case DESCR_PRIV_DATA_SPEC:
+      case DESCR_SYSTEM_CLOCK:
+      case DESCR_MULTIPLEX_BUFFER_UTIL:
+      case DESCR_MAXIMUM_BITRATE:
+      case DESCR_SMOOTHING_BUFFER:
+      case DESCR_FREQUENCY_LIST:  // NIT1
+      case DESCR_LINKAGE:
+      case 0x73:
+      case 0x7F:                  // NIT2
+      case 0x83:
+      case 0xC3: break;
+
+      default:
+        cLog::log (LOGERROR, "parseDescr - unknown tag:" + dec(getDescrTag(buf)));
+        break;
+      }
+    }
+  //}}}
+  //{{{
+  void parseDescrs (int key, uint8_t* buf, int len, uint8_t tid) {
+
+   auto descrLength = 0;
+   while (descrLength < len) {
+     if ((getDescrLength (buf) <= 0) || (getDescrLength (buf) > len - descrLength))
+       return;
+
+      parseDescr (key, buf, tid);
+
+      descrLength += getDescrLength (buf);
+      buf += getDescrLength (buf);
       }
     }
   //}}}
@@ -1736,122 +1848,11 @@ private:
   //}}}
 
   //{{{
-  int64_t getPtsDts (uint8_t* tsPtr) {
-  // return 33 bits of pts,dts
+  void addToSectionBuffer (cPidInfo* pidInfo, uint8_t* buf, int bufSize) {
 
-    if ((tsPtr[0] & 0x01) && (tsPtr[2] & 0x01) && (tsPtr[4] & 0x01)) {
-      // valid marker bits
-      int64_t pts = tsPtr[0] & 0x0E;
-      pts = (pts << 7) | tsPtr[1];
-      pts = (pts << 8) | (tsPtr[2] & 0xFE);
-      pts = (pts << 7) | tsPtr[3];
-      pts = (pts << 7) | (tsPtr[4] >> 1);
-      return pts;
-      }
-    else
-      cLog::log (LOGERROR, "getPtsDts - marker bits - %02x %02x %02x %02x 0x02",
-                           tsPtr[0], tsPtr[1],tsPtr[2],tsPtr[3],tsPtr[4]);
-    return -1;
-    }
-  //}}}
-  //{{{
-  std::string getDescrStr (uint8_t* buf, int len) {
-
-    std::string str;
-    for (auto i = 0; i < len; i++) {
-      if (*buf == 0)
-        break;
-      if ((*buf >= ' ' && *buf <= '~') || (*buf == '\n') || (*buf >= 0xa0 && *buf <= 0xff))
-        str += *buf;
-      if (*buf == 0x8A)
-        str += '\n';
-      if ((*buf == 0x86 || *buf == 0x87))
-        str += ' ';
-      buf++;
-      }
-
-    return str;
-    }
-  //}}}
-  //{{{
-  void parseDescr (int key, uint8_t* buf, int tid) {
-
-    switch (getDescrTag(buf)) {
-      case DESCR_EXTENDED_EVENT: {
-        auto text = getDescrStr (
-          buf + sizeof(descr_extended_event_struct) + CastExtendedEventDescr(buf)->length_of_items + 1,
-          *((uint8_t*)(buf + sizeof(descr_extended_event_struct) + CastExtendedEventDescr(buf)->length_of_items)));
-
-        cLog::log (LOGINFO, "extended event - %d %d %c%c%c %s",
-                             CastExtendedEventDescr(buf)->descr_number, CastExtendedEventDescr(buf)->last_descr_number,
-                             CastExtendedEventDescr(buf)->lang_code1,
-                             CastExtendedEventDescr(buf)->lang_code2,
-                             CastExtendedEventDescr(buf)->lang_code3, text.c_str());
-
-        auto ptr = buf + sizeof(descr_extended_event_struct);
-        auto length = CastExtendedEventDescr(buf)->length_of_items;
-        while ((length > 0) && (length < getDescrLength (buf))) {
-          text = getDescrStr (ptr + sizeof(item_extended_event_struct), CastExtendedEventItem(ptr)->item_description_length);
-          auto text2 = getDescrStr (
-            ptr + sizeof(item_extended_event_struct) +
-            CastExtendedEventItem(ptr)->item_description_length + 1,
-            *(uint8_t*)(ptr + sizeof(item_extended_event_struct) +
-                        CastExtendedEventItem(ptr)->item_description_length));
-          cLog::log (LOGINFO, "- %s %s", text.c_str(), text2.c_str());
-
-          length -= sizeof(item_extended_event_struct) + CastExtendedEventItem(ptr)->item_description_length +
-                    *((uint8_t*)(ptr + sizeof(item_extended_event_struct) +
-                                  CastExtendedEventItem(ptr)->item_description_length)) + 1;
-
-          ptr += sizeof(item_extended_event_struct) + CastExtendedEventItem(ptr)->item_description_length +
-                 *((uint8_t*)(ptr + sizeof(item_extended_event_struct) +
-                               CastExtendedEventItem(ptr)->item_description_length)) + 1;
-          }
-
-        break;
-        }
-
-      // known tags
-      case DESCR_COMPONENT:
-      case DESCR_NW_NAME:
-      case DESCR_TERR_DEL_SYS:
-      case DESCR_SERVICE_LIST:
-      case 0x25: // NIT2
-      case DESCR_COUNTRY_AVAIL:
-      case DESCR_CONTENT:
-      case DESCR_CA_IDENT:
-      case DESCR_ML_COMPONENT:
-      case DESCR_DATA_BROADCAST:
-      case DESCR_PRIV_DATA_SPEC:
-      case DESCR_SYSTEM_CLOCK:
-      case DESCR_MULTIPLEX_BUFFER_UTIL:
-      case DESCR_MAXIMUM_BITRATE:
-      case DESCR_SMOOTHING_BUFFER:
-      case DESCR_FREQUENCY_LIST:  // NIT1
-      case DESCR_LINKAGE:
-      case 0x73:
-      case 0x7F:                  // NIT2
-      case 0x83:
-      case 0xC3: break;
-
-      default:
-        cLog::log (LOGERROR, "parseDescr - unknown tag:" + dec(getDescrTag(buf)));
-        break;
-      }
-    }
-  //}}}
-  //{{{
-  void parseDescrs (int key, uint8_t* buf, int len, uint8_t tid) {
-
-   auto descrLength = 0;
-   while (descrLength < len) {
-     if ((getDescrLength (buf) <= 0) || (getDescrLength (buf) > len - descrLength))
-       return;
-
-      parseDescr (key, buf, tid);
-
-      descrLength += getDescrLength (buf);
-      buf += getDescrLength (buf);
+    if (pidInfo->addToBuffer (buf, bufSize) >= pidInfo->mSectionLength) {
+      parsePsi (pidInfo, pidInfo->mBuffer);
+      pidInfo->mBufPtr = nullptr;
       }
     }
   //}}}
