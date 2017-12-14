@@ -283,7 +283,7 @@ bool cLog::getLine (cLine& line, int lineNum) {
   lock_guard<mutex> lockGuard (mLinesMutex);
 
   int matchingLineNum = 0;
-  for (int lineIndex = 0; lineIndex < mLines.size(); lineIndex++)
+  for (auto lineIndex = 0u; lineIndex < mLines.size(); lineIndex++)
     if (mLines[lineIndex].mLogLevel <= mLogLevel)
       if (matchingLineNum++ == lineNum) {
         line = mLines[lineIndex];
