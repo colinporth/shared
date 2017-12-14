@@ -171,7 +171,7 @@ void cLog::log (enum eLogLevel logLevel, const wstring& wstr) {
     }
 
   else if (logLevel <= mLogLevel) {
-    auto datePoint = floor<date::days>(timePoint);
+    auto datePoint = date::floor<date::days>(timePoint);
     auto timeOfDay = date::make_time (chrono::duration_cast<chrono::microseconds>(timePoint - datePoint));
     auto h = timeOfDay.hours().count();
     auto m = timeOfDay.minutes().count();
@@ -187,7 +187,7 @@ void cLog::log (enum eLogLevel logLevel, const wstring& wstr) {
     }
 
   if (mFile) {
-    auto datePoint = floor<date::days>(timePoint);
+    auto datePoint = date::floor<date::days>(timePoint);
     auto timeOfDay = date::make_time (chrono::duration_cast<chrono::microseconds>(timePoint - datePoint));
     auto h = timeOfDay.hours().count();
     auto m = timeOfDay.minutes().count();
@@ -219,7 +219,7 @@ void cLog::log (enum eLogLevel logLevel, const string& logStr) {
     }
 
   else if (logLevel <= mLogLevel) {
-    auto datePoint = floor<date::days>(timePoint);
+    auto datePoint = date::floor<date::days>(timePoint);
     auto timeOfDay = date::make_time (chrono::duration_cast<chrono::microseconds>(timePoint - datePoint));
     auto h = timeOfDay.hours().count();
     auto m = timeOfDay.minutes().count();
@@ -237,7 +237,7 @@ void cLog::log (enum eLogLevel logLevel, const string& logStr) {
     }
 
   if (mFile) {
-    auto datePoint = floor<date::days>(timePoint);
+    auto datePoint = date::floor<date::days>(timePoint);
     auto timeOfDay = date::make_time (chrono::duration_cast<chrono::microseconds>(timePoint - datePoint));
     auto h = timeOfDay.hours().count();
     auto m = timeOfDay.minutes().count();
