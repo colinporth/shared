@@ -987,16 +987,17 @@ public:
         };
       //}}}
 
-      uint32_t mNumOfBitsInBuffer;
       const uint8_t* mDecBuffer;
-      uint8_t mDecData;
-      uint8_t mDecData_bookmark;
       uint32_t mDecBufferSize;
-
+      uint32_t mNumOfBitsInBuffer;
       bool mBookmarkOn;
-      uint32_t mNumOfBitsInBuffer_bookmark;
-      const uint8_t* mDecBuffer_bookmark;
-      uint32_t mDecBufferSize_bookmark;
+
+      uint8_t mDecData_bookmark = 0;
+      uint8_t mDecData = 0;
+
+      uint32_t mNumOfBitsInBuffer_bookmark = 0;
+      const uint8_t* mDecBuffer_bookmark = 0;
+      uint32_t mDecBufferSize_bookmark = 0;
       };
     //}}}
 
@@ -1145,7 +1146,7 @@ public:
 
             auto pidInfo = getPidInfo (pid, true);
             if (pidInfo) {
-              if ((pidInfo->mContinuity >= 0) && (continuityCount != (pidInfo->mContinuity+1 & 0x0F))) {
+              if ((pidInfo->mContinuity >= 0) && (continuityCount != ((pidInfo->mContinuity+1) & 0x0F))) {
                 //{{{  continuity error
                 if (pidInfo->mContinuity == continuityCount) // strange case of bbc subtitles
                   pidInfo->mRepeatContinuity++;
@@ -1505,7 +1506,7 @@ private:
         buf += sizeof(sdt_descr_t);
 
         auto sid = HILO (sdtDescr->service_id);
-        auto freeChannel = sdtDescr->free_ca_mode == 0;
+        //auto freeChannel = sdtDescr->free_ca_mode == 0;
         auto loopLength = HILO (sdtDescr->descrs_loop_length);
 
         auto descrLength = 0;
@@ -1654,7 +1655,7 @@ private:
       while (sectionLength > 0) {
         auto eitEvent = (eit_event_t*)buf;
         auto loopLength = HILO (eitEvent->descrs_loop_length);
-        if (loopLength > sectionLength - sizeof(eit_event_t))
+        if (loopLength > sectionLength - (int)sizeof(eit_event_t))
           return;
         buf += sizeof(eit_event_t);
 
@@ -1716,7 +1717,7 @@ private:
                 cLog::log(LOGINFO, "EIT extendedEvent sid:" + dec(sid) + " len:" + dec(len));
 
                 std::string str;
-                for (auto i = 0; i < len; i++) {
+                for (auto i = 0u; i < len; i++) {
                   int n = buf[i];
                   str += hex(n,2) + " ";
                   if ((i % 16) == 15) {
