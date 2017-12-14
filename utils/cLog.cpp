@@ -28,28 +28,6 @@
 
 using namespace std;
 //}}}
-//{{{  const
-const char levelNames[][6] =    { "Title",
-                                  "Note-",
-                                  "Err--",
-                                  "Info-",
-                                  "Info1",
-                                  "Info2",
-                                  "Info3",
-                                  };
-
-const char levelColours[][12] = { "\033[38;5;208m",   // note   orange
-                                  "\033[38;5;208m",   // title  orange
-                                  "\033[38;5;196m",   // error  light red
-                                  "\033[38;5;220m",   // info   yellow
-                                  "\033[38;5;112m",   // info1  green
-                                  "\033[38;5;144m",   // info2  nnn
-                                  "\033[38;5;147m",   // info3  bluish
-                                   };
-
-const char* prefixFormat =        "%02.2d:%02.2d:%02.2d.%06d %s";
-const char* postfix =             "\033[m\n";
-//}}}
 const int kMaxBuffer = 100000;
 
 enum eLogLevel mLogLevel = LOGERROR;
@@ -157,63 +135,14 @@ void cLog::setThreadName (const string& name) {
 //}}}
 
 //{{{
-void cLog::log (enum eLogLevel logLevel, const wstring& wstr) {
-
-  //  get time
-  auto timePoint = chrono::system_clock::now() + chrono::seconds (mDaylightSecs);
-  auto logStr = wstrToStr (wstr);
-
-  lock_guard<mutex> lockGuard (mLinesMutex);
-
-  if (mBuffer) {
-    mLines.push_front (cLine (logLevel, getThreadId(), timePoint, logStr));
-    if (mLines.size() > kMaxBuffer)
-      mLines.pop_back();
-    }
-
-  else if (logLevel <= mLogLevel) {
-    auto datePoint = date::floor<date::days>(timePoint);
-    auto timeOfDay = date::make_time (chrono::duration_cast<chrono::microseconds>(timePoint - datePoint));
-    auto h = timeOfDay.hours().count();
-    auto m = timeOfDay.minutes().count();
-    auto s = timeOfDay.seconds().count();
-    auto subSec = timeOfDay.subseconds().count();
-
-    // write log line
-    char buffer[40];
-    sprintf (buffer, prefixFormat, h, m, s, subSec, levelColours[logLevel]);
-    fputs (buffer, stdout);
-    fputs (logStr.c_str(), stdout);
-    fputs (postfix, stdout);
-    }
-
-  if (mFile) {
-    auto datePoint = date::floor<date::days>(timePoint);
-    auto timeOfDay = date::make_time (chrono::duration_cast<chrono::microseconds>(timePoint - datePoint));
-    auto h = timeOfDay.hours().count();
-    auto m = timeOfDay.minutes().count();
-    auto s = timeOfDay.seconds().count();
-    auto subSec = timeOfDay.subseconds().count();
-
-    char buffer[40];
-    sprintf (buffer, prefixFormat, h, m, s, subSec, levelNames[logLevel]);
-    fputs (buffer, mFile);
-    fputc (' ', mFile);
-    fputs (logStr.c_str(), mFile);
-    fputc ('\n', mFile);
-    fflush (mFile);
-    }
-  }
-//}}}
-//{{{
 void cLog::log (enum eLogLevel logLevel, const string& logStr) {
 
-  //  get time
-  auto timePoint = chrono::system_clock::now() + chrono::seconds (mDaylightSecs);
-
   lock_guard<mutex> lockGuard (mLinesMutex);
 
+  auto timePoint = chrono::system_clock::now() + chrono::seconds (mDaylightSecs);
+
   if (mBuffer) {
+    // to buffer for widget access
     mLines.push_front (cLine (logLevel, getThreadId(), timePoint, logStr));
     if (mLines.size() > kMaxBuffer)
       mLines.pop_back();
@@ -222,36 +151,43 @@ void cLog::log (enum eLogLevel logLevel, const string& logStr) {
   else if (logLevel <= mLogLevel) {
     auto datePoint = date::floor<date::days>(timePoint);
     auto timeOfDay = date::make_time (chrono::duration_cast<chrono::microseconds>(timePoint - datePoint));
-    auto h = timeOfDay.hours().count();
-    auto m = timeOfDay.minutes().count();
-    auto s = timeOfDay.seconds().count();
-    auto subSec = timeOfDay.subseconds().count();
+    int h = timeOfDay.hours().count();
+    int m = timeOfDay.minutes().count();
+    int s = timeOfDay.seconds().count();
+    int subSec = timeOfDay.subseconds().count();
 
-    // write log line
+    // to stdout
     char buffer[40];
+    //{{{
+    const char levelColours[][13] = {
+      "\033[38;5;208m\000",   // note   orange
+      "\033[38;5;208m\000",   // title  orange
+      "\033[38;5;196m\000",   // error  light red
+      "\033[38;5;220m\000",   // info   yellow
+      "\033[38;5;112m\000",   // info1  green
+      "\033[38;5;144m\000",   // info2  nnn
+      "\033[38;5;147m\000",   // info3  bluish
+      };
+    //}}}
+    const char* prefixFormat = "%02.2d:%02.2d:%02.2d.%06d %s";
     sprintf (buffer, prefixFormat, h, m, s, subSec, levelColours[logLevel]);
     fputs (buffer, stdout);
     fputs (getThreadNameString (getThreadId()).c_str(), stdout);
     fputc (' ', stdout);
     fputs (logStr.c_str(), stdout);
+    const char* postfix = "\033[m\n";
     fputs (postfix, stdout);
-    }
 
-  if (mFile) {
-    auto datePoint = date::floor<date::days>(timePoint);
-    auto timeOfDay = date::make_time (chrono::duration_cast<chrono::microseconds>(timePoint - datePoint));
-    auto h = timeOfDay.hours().count();
-    auto m = timeOfDay.minutes().count();
-    auto s = timeOfDay.seconds().count();
-    auto subSec = timeOfDay.subseconds().count();
-
-    char buffer[40];
-    sprintf (buffer, prefixFormat, h, m, s, subSec, levelNames[logLevel]);
-    fputs (buffer, mFile);
-    fputc (' ', mFile);
-    fputs (logStr.c_str(), mFile);
-    fputc ('\n', mFile);
-    fflush (mFile);
+    if (mFile) {
+      // to file
+      const char levelNames[][6] = { "Title", "Note-", "Err--", "Info-", "Info1", "Info2", "Info3", };
+      sprintf (buffer, prefixFormat, h, m, s, subSec, levelNames[logLevel]);
+      fputs (buffer, mFile);
+      fputc (' ', mFile);
+      fputs (logStr.c_str(), mFile);
+      fputc ('\n', mFile);
+      fflush (mFile);
+      }
     }
   }
 //}}}
