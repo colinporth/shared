@@ -39,8 +39,8 @@ public:
   //{{{
   void audPlay (int srcChannels, int16_t* srcSamples, int srcNumSamples, float pitch) {
 
-    if (!src)
-      src = mSilence;
+    if (!srcSamples)
+      srcSamples = mSilence;
 
     snd_pcm_sframes_t frames = snd_pcm_writei (mHandle, srcSamples, srcNumSamples);
     if (frames < 0)
