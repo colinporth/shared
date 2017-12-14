@@ -547,7 +547,7 @@ private:
     istringstream inputStream (extDateTimeString);
     inputStream >> date::parse ("%FT%T", mBaseTimePoint);
 
-    mBaseDatePoint = chrono::floor<date::days>(mBaseTimePoint);
+    mBaseDatePoint = floor<date::days>(mBaseTimePoint);
     const auto seconds = chrono::duration_cast<chrono::seconds>(mBaseTimePoint - mBaseDatePoint);
     mBaseFrame = uint32_t((uint32_t(seconds.count()) - kBaseTimeSecondsOffset) * kFramesPerSecond);
 
