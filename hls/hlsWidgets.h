@@ -162,13 +162,13 @@ public:
 
     uint16_t midx = mX + (mWidth/2);
     float samplesPerPixF = kSamplesPerFrame / mZoom;
-    float pixPerSec = kSamplesPerSecF / samplesPerPixF;
+    float pixPerSec = kSamplesPerSecondF / samplesPerPixF;
     double sample = mHls->getPlaySample() - ((mWidth/2) + mAnimation) * samplesPerPixF;
 
     int16_t y = mY + mHeight - getBoxHeight()/2;
-    int secs = int (sample / kSamplesPerSec);
-    float subSecSamples = (float)fmod (sample, kSamplesPerSecD);
-    float nextxF = (kSamplesPerSecF - subSecSamples) / samplesPerPixF;
+    int secs = int (sample / kSamplesPerSecond);
+    float subSecSamples = (float)fmod (sample, kSamplesPerSecondD);
+    float nextxF = (kSamplesPerSecondF - subSecSamples) / samplesPerPixF;
 
     #ifdef USE_NANOVG
       //{{{  nanoVg rects waveform
@@ -188,7 +188,7 @@ public:
       context->fontSize ((float)getBigFontHeight());
       context->textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_TOP);
       context->fillColor (kWhite);
-      context->text (midx-60.0f+3.0f, y+1.0f, getTimeStrFromSecs (mHls->getPlayTzSec()));
+      context->text (midx-60.0f+3.0f, y+1.0f, getTimeStrFromSecs (mHls->getPlayTzSeconds()));
 
       float midy = (float)mY + (mHeight/2);
       uint16_t midWidth = midx + int(mHls->getPlaying() == cHls::eScrub ? kScrubFrames*mZoom : mZoom);
