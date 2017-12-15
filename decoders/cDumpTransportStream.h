@@ -13,16 +13,18 @@ protected:
   //{{{
   void startProgram (cService* service, const std::string& name, time_t startTime) {
 
-    cLog::log (LOGNOTICE, "startProgram " + name);
+    if ((service->getVidPid() > 0) && (service->getAudPid() > 0)) {
+      // tv service
+      auto recordFileIt = mRecordFileMap.find (service->getSid());
+      if (recordFileIt == mRecordFileMap.end()) 
+        recordFileIt = mRecordFileMap.insert (
+          std::map<int,cRecordFile>::value_type (
+            service->getSid(), cRecordFile (service->getVidPid(), service->getAudPid()))).first;
 
-    auto recordFileIt = mRecordFileMap.find (service->getSid());
-    if (recordFileIt == mRecordFileMap.end()) // create new cRecordFile for this cService
-      recordFileIt = mRecordFileMap.insert (
-        std::map<int,cRecordFile>::value_type (
-          service->getSid(), cRecordFile (service->getVidPid(), service->getAudPid()))).first;
-
-    auto validFileName = validString (service->getNameString() + " - " + name, "<>:/|?*\"\'\\");
-    recordFileIt->second.createFile (mRootName + "/" + validFileName + ".ts", service);
+      auto validFileName = validString (service->getNameString() + " - " + name, "<>:/|?*\"\'\\");
+      cLog::log (LOGNOTICE, "starting prgram " + validFileName);
+      recordFileIt->second.createFile (mRootName + "/" + validFileName + ".ts", service);
+      }
     }
   //}}}
   //{{{
@@ -48,26 +50,23 @@ private:
       // close any previous file
       closeFile();
 
-      mOk = (service->getVidPid() > 0) && (service->getAudPid() > 0);
-      if (mOk) {
-        #ifdef WIN_FILE
-          mFile = CreateFile (name.c_str(), GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, 0, NULL);
-        #else
-          mFile = fopen (name.c_str(), "wb");
-        #endif
+      #ifdef WIN_FILE
+        mFile = CreateFile (name.c_str(), GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, 0, NULL);
+      #else
+        mFile = fopen (name.c_str(), "wb");
+      #endif
 
-        writePat (0x1234, service->getSid(), kPgmPid); // tsid, sid, pgmPid
-        writePmt (service->getSid(), kPgmPid, service->getVidPid(),
-                  service->getVidPid(), service->getVidStreamType(),
-                  service->getAudPid(), service->getAudStreamType());
-        }
+      writePat (0x1234, service->getSid(), kPgmPid); // tsid, sid, pgmPid
+      writePmt (service->getSid(), kPgmPid, service->getVidPid(),
+                service->getVidPid(), service->getVidStreamType(),
+                service->getAudPid(), service->getAudStreamType());
       }
     //}}}
     //{{{
     void writePes (int pid, uint8_t* ts) {
 
       //cLog::log (LOGINFO, "writePes");
-      if (mOk && ((pid == mVidPid) || (pid == mAudPid)))
+      if ((pid == mVidPid) || (pid == mAudPid))
         writePacket (ts);
       }
     //}}}
@@ -209,7 +208,6 @@ private:
       FILE* mFile = nullptr;
     #endif
 
-    bool mOk = false;
     int mVidPid = -1;
     int mAudPid = -1;
     };
