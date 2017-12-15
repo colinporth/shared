@@ -151,10 +151,10 @@ void cLog::log (enum eLogLevel logLevel, const string& logStr) {
   else if (logLevel <= mLogLevel) {
     auto datePoint = date::floor<date::days>(timePoint);
     auto timeOfDay = date::make_time (chrono::duration_cast<chrono::microseconds>(timePoint - datePoint));
-    auto h = timeOfDay.hours().count();
-    auto m = timeOfDay.minutes().count();
-    auto s = timeOfDay.seconds().count();
-    auto subSec = timeOfDay.subseconds().count();
+    int h = timeOfDay.hours().count();
+    int m = timeOfDay.minutes().count();
+    int s = (int)timeOfDay.seconds().count();
+    int subSec = (int)timeOfDay.subseconds().count();
 
     // to stdout
     char buffer[40];
