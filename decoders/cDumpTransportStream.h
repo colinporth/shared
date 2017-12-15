@@ -21,7 +21,7 @@ protected:
         std::map<int,cRecordFile>::value_type (
           service->getSid(), cRecordFile (service->getVidPid(), service->getAudPid()))).first;
 
-    auto validFileName = validString (service->getNameString() + " - " + name, "<>:\\|?*'""/");
+    auto validFileName = validString (service->getNameString() + " - " + name, "<>:/|?*\"\'\\");
     recordFileIt->second.createFile (mRootName + "/" + validFileName + ".ts", service);
     }
   //}}}
