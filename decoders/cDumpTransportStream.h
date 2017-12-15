@@ -2,6 +2,8 @@
 #pragma once
 #include "../../shared/decoders/cTransportStream.h"
 
+//#define WIN_FILE
+
 class cDumpTransportStream : public cTransportStream {
 public:
   cDumpTransportStream (const std::string& rootName) : mRootName(rootName){}
@@ -48,7 +50,11 @@ private:
 
       mOk = (service->getVidPid() > 0) && (service->getAudPid() > 0);
       if (mOk) {
-        mFile = CreateFile (name.c_str(), GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, 0, NULL);
+        #ifdef WIN_FILE
+          mFile = CreateFile (name.c_str(), GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, 0, NULL);
+        #else
+          mFile = fopen (name.c_str(), "wb");
+        #endif
 
         writePat (0x1234, service->getSid(), kPgmPid); // tsid, sid, pgmPid
         writePmt (service->getSid(), kPgmPid, service->getVidPid(),
@@ -69,8 +75,13 @@ private:
     void closeFile() {
 
       if (mFile != 0) {
-        CloseHandle (mFile);
-        mFile = 0;
+        #ifdef WIN_FILE
+          CloseHandle (mFile);
+          mFile = 0;
+        #else
+          fclose (mFile);
+          mFile = nullptr;
+        #endif
         }
       }
     //}}}
@@ -106,10 +117,14 @@ private:
     //{{{
     void writePacket (uint8_t* ts) {
 
-      DWORD numBytesUsed;
-      WriteFile (mFile, ts, 188, &numBytesUsed, NULL);
-      if (numBytesUsed != 188)
-        cLog::log (LOGERROR, "writePacket " + dec(numBytesUsed));
+      #ifdef WIN_FILE
+        DWORD numBytesUsed;
+        WriteFile (mFile, ts, 188, &numBytesUsed, NULL);
+        if (numBytesUsed != 188)
+          cLog::log (LOGERROR, "writePacket " + dec(numBytesUsed));
+      #else
+        fwrite (ts, 1, 188, mFile);
+      #endif
       }
     //}}}
 
@@ -188,8 +203,13 @@ private:
 
     const int kPgmPid = 32;
 
+    #ifdef WIN_FILE
+      HANDLE mFile = 0;
+    #else
+      FILE* mFile = nullptr;
+    #endif
+
     bool mOk = false;
-    HANDLE mFile = 0;
     int mVidPid = -1;
     int mAudPid = -1;
     };
