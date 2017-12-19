@@ -4,11 +4,7 @@
 
 class cRootContainer : public cContainer {
 public:
-  // member
-  cRootContainer (uint16_t width, uint16_t height) : cContainer() {
-    mWidth = width;
-    mHeight = height;
-    }
+  cRootContainer (uint16_t width, uint16_t height) : cContainer(width, height) {}
   virtual ~cRootContainer() {}
 
   //{{{
@@ -47,7 +43,6 @@ public:
   //}}}
 
 private:
-  // member var
   cWidget* mProxWidget = nullptr;
   cWidget* mPressedWidget = nullptr;
   };
