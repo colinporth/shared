@@ -133,9 +133,9 @@ public:
     eglTerminate (mEglDisplay);
     }
   //}}}
-  //{{{  iDraw
-  cVg* getContext () { return this; }
 
+  // iDraw
+  cVg* getContext () { return this; }
   uint16_t getLcdWidthPix() { return mRoot->getPixWidth(); }
   uint16_t getLcdHeightPix() { return mRoot->getPixHeight(); }
 
@@ -154,7 +154,7 @@ public:
     fontSize ((float)fontHeight);
     textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_TOP);
     fillColor (nvgRGBA ((colour & 0xFF0000) >> 16, (colour & 0xFF00) >> 8, colour & 0xFF,255));
-    text ((float)x+3, (float)y+1, str);
+    return (int)text ((float)x+3, (float)y+1, str);
     //return (int)metrics.width;
     return 0;
     }
@@ -166,7 +166,6 @@ public:
     fillColor (nvgRGBA ((colour & 0xFF0000) >> 16, (colour & 0xFF00) >> 8, colour & 0xFF,255));
     fill();
     }
-  //}}}
   //}}}
 
 protected:
