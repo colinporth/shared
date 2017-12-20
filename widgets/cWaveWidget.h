@@ -21,7 +21,7 @@ public:
   //}}}
 
   //{{{
-  virtual void onDraw (iDraw* draw) {
+  void onDraw (iDraw* draw) {
     drawCommon (draw, mColour, mColourAfter, mCurFrame - mWidth, getMaxValue()*2, 0, mWidth);
     }
   //}}}

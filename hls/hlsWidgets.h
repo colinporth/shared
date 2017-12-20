@@ -52,7 +52,7 @@ public:
   virtual ~cHlsDotsBox() {}
 
   //{{{
-  virtual void onDown (int16_t x, int16_t y, bool controlled) {
+  void onDown (int16_t x, int16_t y, bool controlled) {
     cWidget::onDown (x, y, controlled);
     }
   //}}}
@@ -90,7 +90,7 @@ public:
   virtual ~cHlsTextWidget() {}
 
   //{{{
-  virtual void onDraw (iDraw* draw) {
+  void onDraw (iDraw* draw) {
     //auto item = mHls->findItem (mHls->getPlayTzSec());
     //if (item)
     //  draw->drawText (COL_WHITE, getFontHeight(), item->mTitle + " - " + item->mSynopsis, mX, mY+1, mWidth-1, mHeight-1);
@@ -110,7 +110,7 @@ public:
   virtual ~cHlsPeakWidget() {}
 
   //{{{
-  virtual void onDown (int16_t x, int16_t y, bool controlled) {
+  void onDown (int16_t x, int16_t y, bool controlled) {
 
     cWidget::onDown (x, y, controlled);
 
@@ -123,7 +123,7 @@ public:
     }
   //}}}
   //{{{
-  virtual void onMove (int16_t x, int16_t y, uint16_t z, int16_t xinc, int16_t yinc, bool controlled) {
+  void onMove (int16_t x, int16_t y, uint16_t z, int16_t xinc, int16_t yinc, bool controlled) {
 
     cWidget::onMove (x, y, z, xinc, yinc, controlled);
     mMove += abs(xinc) + abs(yinc);
@@ -132,7 +132,7 @@ public:
     }
   //}}}
   //{{{
-  virtual void onUp() {
+  void onUp() {
 
     cWidget::onUp();
 
@@ -148,7 +148,7 @@ public:
   //}}}
 
   //{{{
-  virtual void onDraw (iDraw* draw) {
+  void onDraw (iDraw* draw) {
 
     //{{{  animate
     mAnimation /= 2;

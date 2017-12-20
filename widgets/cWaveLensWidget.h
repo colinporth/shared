@@ -11,7 +11,7 @@ public:
   virtual ~cWaveLensWidget() {}
 
   //{{{
-  virtual void onDraw (iDraw* draw) {
+  void onDraw (iDraw* draw) {
 
     if (!mOn && (mWindow <= 0)) {
       mWindow = 0;

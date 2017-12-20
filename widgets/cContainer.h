@@ -89,7 +89,7 @@ public:
   //}}}
 
   //{{{
-  virtual cWidget* picked (int16_t x, int16_t y, uint16_t z) {
+  cWidget* picked (int16_t x, int16_t y, uint16_t z) {
 
     if (cWidget::picked (x, y, z)) {
       if (mSubWidgets.empty())
@@ -109,7 +109,7 @@ public:
     }
   //}}}
   //{{{
-  virtual void onDraw (iDraw* draw) {
+  void onDraw (iDraw* draw) {
     for (auto widget : mSubWidgets)
       if (widget->isVisible())
         widget->onDraw (draw);

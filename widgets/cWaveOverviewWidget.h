@@ -17,7 +17,7 @@ public:
   //}}}
 
   //{{{
-  virtual cWidget* picked (int16_t x, int16_t y, uint16_t z) {
+  cWidget* picked (int16_t x, int16_t y, uint16_t z) {
 
     if (cWidget::picked (x, y, z)) {
       int frame = (x * mMaxFrame) / mWidth;
@@ -30,7 +30,7 @@ public:
     }
   //}}}
   //{{{
-  virtual void onDraw (iDraw* draw) {
+  void onDraw (iDraw* draw) {
 
     drawCommon (draw, mColour, 0, mMaxSummedX);
     }

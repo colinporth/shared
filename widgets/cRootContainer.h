@@ -35,7 +35,7 @@ public:
   //}}}
 
   //{{{
-  virtual void onDraw (iDraw* draw) {
+  void onDraw (iDraw* draw) {
     if (mOn)
       draw->drawRect (COL_DARKGREEN, mX, mY, mWidth, mHeight);
     cContainer::onDraw  (draw);

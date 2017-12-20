@@ -14,14 +14,19 @@ class cDecodePicWidget : public cPicWidget {
 public:
   cDecodePicWidget() : cPicWidget (-1, mMyValue, mMyChanged) {}
   cDecodePicWidget (float width, float height) : cPicWidget (width, height, -1, mMyValue, mMyChanged) {}
+  //{{{
   cDecodePicWidget (float width, float height, int selectValue, int& value, bool& changed)
     : cPicWidget (width, height, selectValue, value, changed) {}
+  //}}}
+  //{{{
   cDecodePicWidget (const uint8_t* buffer, int size, float width, float height, int selectValue, int& value, bool& changed)
       : cPicWidget (width, height, selectValue, value, changed) {
     setPic (buffer, size);
     }
+  //}}}
   virtual ~cDecodePicWidget() {}
 
+  //{{{
   void setPic (const uint8_t* buffer, int size) {
     #ifdef USE_NANOVG
       int width, height, components;
@@ -33,19 +38,23 @@ public:
       cPicWidget::setPic (decodePic.getPic(), decodePic.getWidth(), decodePic.getHeight(), decodePic.getComponents());
     #endif
     }
-
-  virtual void setFileName (std::string fileName) {
+  //}}}
+  //{{{
+  void setFileName (std::string fileName) {
     mFileName = fileName;
     cDecodePic decodePic;
     if (decodePic.setFileName (fileName))
       cPicWidget::setPic (decodePic.getPic(), decodePic.getWidth(), decodePic.getHeight(), decodePic.getComponents());
     }
+  //}}}
 
-  virtual void onDraw (iDraw* draw) {
+  //{{{
+  void onDraw (iDraw* draw) {
     cPicWidget::onDraw (draw);
     if (mFileName.size())
       draw->drawText (COL_WHITE, getFontHeight(), mFileName, mX+2, mY+1, 800, mHeight-1);
     }
+  //}}}
 
 private:
   bool mMyChanged;

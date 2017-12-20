@@ -20,15 +20,19 @@ static std::string intStr (int value, int width = 0, char fill = ' ') {
 
 class cNumBox : public cWidget {
 public:
+  //{{{
   cNumBox (std::string text, float& value, bool& changed, float width) :
     cWidget (COL_GREY, width, 1.0f), mValue(value), mChanged(changed), mText(text) { mChanged = false; }
+  //}}}
   virtual ~cNumBox() {}
 
-  virtual void onDraw (iDraw* draw) {
+  //{{{
+  void onDraw (iDraw* draw) {
 
     cWidget::onDraw (draw);
     draw->drawText (mTextColour, getFontHeight(), mText + intStr (int(mValue)), mX+2, mY+1, mWidth-1, mHeight-1);
     }
+  //}}}
 
 private :
   float& mValue;
