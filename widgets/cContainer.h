@@ -109,20 +109,22 @@ public:
     }
   //}}}
   //{{{
-  virtual void render (iDraw* draw) {
+  virtual void onDraw (iDraw* draw) {
     for (auto widget : mSubWidgets)
       if (widget->isVisible())
-        widget->render (draw);
+        widget->onDraw (draw);
     }
   //}}}
 
 protected:
+  //{{{
   void adjustWidthHeight (cWidget* widget) {
     if (widget->getPixWidth() <= 0) // non +ve width means parent width + width
       widget->setPixWidth (mWidth + widget->getPixWidth());
     if (widget->getPixHeight() <= 0) // non +ve height means parent height + height
       widget->setPixHeight (mHeight + widget->getPixHeight());
     }
+  //}}}
 
   std::vector<cWidget*> mSubWidgets;
   };

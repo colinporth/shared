@@ -30,9 +30,9 @@ public:
     }
   //}}}
   //{{{
-  virtual void render (iDraw* draw) {
+  virtual void onDraw (iDraw* draw) {
 
-    render (draw, mColour, 0, mMaxSummedX);
+    drawCommon (draw, mColour, 0, mMaxSummedX);
     }
   //}}}
 
@@ -74,7 +74,7 @@ protected:
     }
   //}}}
   //{{{
-  void render (iDraw* draw, uint32_t colour, int firstX, int lastX) {
+  void drawCommon (iDraw* draw, uint32_t colour, int firstX, int lastX) {
 
     makeSummedWave();
 

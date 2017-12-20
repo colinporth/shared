@@ -12,7 +12,7 @@ public:
   void setText (std::string& text) { mText = text; }
   void setTextColour (uint32_t colour) { mTextColour = colour; }
 
-  virtual void render (iDraw* draw) {
+  virtual void onDraw (iDraw* draw) {
     cWidget::render (draw);
     draw->drawText (mTextColour, getFontHeight(), mText, mX+2, mY+1, mWidth-3, mHeight-1);
     }

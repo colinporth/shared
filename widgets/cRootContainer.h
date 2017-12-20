@@ -19,26 +19,26 @@ public:
     if (!pressCount) {
       mPressedWidget = picked (x, y, z);
       if (mPressedWidget)
-        mPressedWidget->pressed (x - mPressedWidget->getPixX(), y - mPressedWidget->getPixY(), controlled);
+        mPressedWidget->onDown (x - mPressedWidget->getPixX(), y - mPressedWidget->getPixY(), controlled);
       }
     else if (mPressedWidget)
-      mPressedWidget->moved (x - mPressedWidget->getPixX(), y - mPressedWidget->getPixY(), z, xinc, yinc, controlled);
+      mPressedWidget->onMove (x - mPressedWidget->getPixX(), y - mPressedWidget->getPixY(), z, xinc, yinc, controlled);
     }
   //}}}
   //{{{
   void release() {
     if (mPressedWidget) {
-      mPressedWidget->released();
+      mPressedWidget->onUp();
       mPressedWidget = nullptr;
       }
     }
   //}}}
 
   //{{{
-  virtual void render (iDraw* draw) {
+  virtual void onDraw (iDraw* draw) {
     if (mOn)
       draw->drawRect (COL_DARKGREEN, mX, mY, mWidth, mHeight);
-    cContainer::render (draw);
+    cContainer::onDraw  (draw);
     }
   //}}}
 

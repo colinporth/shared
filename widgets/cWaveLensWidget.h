@@ -11,11 +11,11 @@ public:
   virtual ~cWaveLensWidget() {}
 
   //{{{
-  virtual void render (iDraw* draw) {
+  virtual void onDraw (iDraw* draw) {
 
     if (!mOn && (mWindow <= 0)) {
       mWindow = 0;
-      cWaveOverviewWidget::render(draw);
+      cWaveOverviewWidget::onDraw (draw);
       return;
       }
 
@@ -32,16 +32,16 @@ public:
       firstLensX = 0;
       }
     else
-      cWaveOverviewWidget::render (draw, mColour, 0, firstLensX);
+      cWaveOverviewWidget::drawCommon (draw, mColour, 0, firstLensX);
 
     if (lastLensX > mWidth) {
       firstLensX -= lastLensX - mWidth;
       lastLensX = mWidth;
       }
     else
-      cWaveOverviewWidget::render (draw, mColourAfter, lastLensX, mWidth);
+      cWaveOverviewWidget::drawCommon (draw, mColourAfter, lastLensX, mWidth);
 
-    cWaveWidget::render (draw, COL_LIGHTBLUE, COL_LIGHTGREY, mCurFrame - mWindow, getMaxValue(), firstLensX, lastLensX);
+    cWaveWidget::drawCommon (draw, COL_LIGHTBLUE, COL_LIGHTGREY, mCurFrame - mWindow, getMaxValue(), firstLensX, lastLensX);
 
     draw->rectOutline (COL_YELLOW, mX+firstLensX, mY+1, lastLensX - firstLensX, mHeight-2, 1);
     }

@@ -9,9 +9,9 @@ public:
   virtual ~cValueBox() {}
 
   //{{{
-  virtual void pressed (int16_t x, int16_t y, bool controlled) {
+  virtual void onDown (int16_t x, int16_t y, bool controlled) {
 
-    cWidget::pressed (x, y, controlled);
+    cWidget::onDown (x, y, controlled);
     if (mWidth > mHeight)
       setValue ((float)x / (float)mWidth);
     else
@@ -19,8 +19,8 @@ public:
     }
   //}}}
   //{{{
-  virtual void moved (int16_t x, int16_t y, uint16_t z, int16_t xinc, int16_t yinc, bool controlled) {
-    cWidget::moved (x, y, z, xinc, yinc, controlled);
+  virtual void onMove (int16_t x, int16_t y, uint16_t z, int16_t xinc, int16_t yinc, bool controlled) {
+    cWidget::onMove (x, y, z, xinc, yinc, controlled);
     if (mWidth > mHeight)
       setValue ((float)x / (float)mWidth);
     else
@@ -29,7 +29,7 @@ public:
   //}}}
 
   //{{{
-  virtual void render (iDraw* draw) {
+  virtual void onDraw (iDraw* draw) {
 
     if (mWidth > mHeight)
       draw->rectClipped (mOn ? COL_LIGHTRED : mColour, mX, mY, int(mWidth * limitValue (mValue)), mHeight);

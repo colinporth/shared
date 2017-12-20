@@ -10,15 +10,15 @@ public:
     cWidget (width, height), mText(text), mMyValue(myValue), mValue(value), mChanged(changed) {}
   virtual ~cSelectText() {}
 
-  virtual void pressed (int16_t x, int16_t y, bool controlled) {
-    cWidget::pressed (x, y, controlled);
+  virtual void onDown (int16_t x, int16_t y, bool controlled) {
+    cWidget::onDown (x, y, controlled);
     if (mMyValue != mValue) {
       mValue = mMyValue;
       mChanged = true;
       }
     }
 
-  virtual void render (iDraw* draw) {
+  virtual void onDraw (iDraw* draw) {
     draw->drawText (mOn ? COL_YELLOW : (mMyValue == mValue) ? COL_WHITE : COL_GREY, getFontHeight(), mText, mX+2, mY+1, mWidth-1, mHeight-1);
     }
 

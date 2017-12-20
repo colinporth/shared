@@ -24,9 +24,9 @@ public:
     cWidget (COL_GREY, width, 1.0f), mValue(value), mChanged(changed), mText(text) { mChanged = false; }
   virtual ~cNumBox() {}
 
-  virtual void render (iDraw* draw) {
+  virtual void onDraw (iDraw* draw) {
 
-    cWidget::render (draw);
+    cWidget::onDraw (draw);
     draw->drawText (mTextColour, getFontHeight(), mText + intStr (int(mValue)), mX+2, mY+1, mWidth-1, mHeight-1);
     }
 

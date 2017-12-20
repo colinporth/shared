@@ -10,7 +10,7 @@ public:
 
   virtual ~cWaveCentreWidget() {}
 
-  virtual void render (iDraw* draw) {
-    cWaveWidget::render (draw, mColour, mColourAfter, mCurFrame - mWidth/2, getMaxValue()*2, 0 , mWidth);
+  virtual void onDraw (iDraw* draw) {
+    cWaveWidget::drawCommon (draw, mColour, mColourAfter, mCurFrame - mWidth/2, getMaxValue()*2, 0 , mWidth);
     }
   };

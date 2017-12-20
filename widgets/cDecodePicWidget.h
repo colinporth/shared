@@ -41,8 +41,8 @@ public:
       cPicWidget::setPic (decodePic.getPic(), decodePic.getWidth(), decodePic.getHeight(), decodePic.getComponents());
     }
 
-  virtual void render (iDraw* draw) {
-    cPicWidget::render (draw);
+  virtual void onDraw (iDraw* draw) {
+    cPicWidget::onDraw (draw);
     if (mFileName.size())
       draw->drawText (COL_WHITE, getFontHeight(), mFileName, mX+2, mY+1, 800, mHeight-1);
     }

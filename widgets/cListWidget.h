@@ -11,7 +11,7 @@ public:
   virtual ~cListWidget() {}
 
   //{{{
-  virtual void pressed (int16_t x, int16_t y, bool controlled) {
+  virtual void onDown (int16_t x, int16_t y, bool controlled) {
 
     mPressedIndex = ((int)mScroll + y) / getBoxHeight();
     mTextPressed = x < mMeasure[y / getBoxHeight()];
@@ -22,7 +22,7 @@ public:
     }
   //}}}
   //{{{
-  virtual void moved (int16_t x, int16_t y, uint16_t z, int16_t xinc, int16_t yinc, bool controlled) {
+  virtual void onMove (int16_t x, int16_t y, uint16_t z, int16_t xinc, int16_t yinc, bool controlled) {
 
     mMoveInc += yinc;
 
@@ -34,7 +34,7 @@ public:
     }
   //}}}
   //{{{
-  virtual void released() {
+  virtual void onUp() {
 
     if (mTextPressed && !mMoved) {
       mIndex = mPressedIndex;
@@ -49,7 +49,7 @@ public:
   //}}}
 
   //{{{
-  virtual void render (iDraw* draw) {
+  virtual void onDraw (iDraw* draw) {
 
     if (!mTextPressed && mScrollInc)
       incScroll (mScrollInc * 0.9f);

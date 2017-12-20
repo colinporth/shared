@@ -10,7 +10,7 @@ public:
     cWidget (width, height), mText(text), mMyValue(myValue), mValue(value), mChanged(changed) {}
   virtual ~cSelectBox() {}
 
-  virtual void pressed (int16_t x, int16_t y, bool controlled) {
+  virtual void onDown (int16_t x, int16_t y, bool controlled) {
     cWidget::pressed (x, y);
     if (mMyValue != mValue) {
       mValue = mMyValue;
@@ -18,7 +18,7 @@ public:
       }
     }
 
-  virtual void render (iDraw* draw) {
+  virtual void onDraw (iDraw* draw) {
     draw->rectClipped (mOn ? COL_YELLOW : mMyValue == mValue ? COL_LIGHTRED : mColour, mX+1, mY+1, mWidth-1, mHeight-1);
     draw->text (mTextColour, getFontHeight(), mText, mX+2, mY+1, mWidth-1, mHeight-1);
     }

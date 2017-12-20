@@ -51,16 +51,20 @@ public:
   cHlsDotsBox (cHls* hls, float width, float height) : cWidget(width, height), mHls(hls) {}
   virtual ~cHlsDotsBox() {}
 
-  virtual void pressed (int16_t x, int16_t y, bool controlled) {
-    cWidget::pressed (x, y, controlled);
+  //{{{
+  virtual void onDown (int16_t x, int16_t y, bool controlled) {
+    cWidget::onDown (x, y, controlled);
     }
-
-  virtual void render (iDraw* draw) {
+  //}}}
+  //{{{
+  virtual void onDraw (iDraw* draw) {
     for (auto i = 0; i < 3; i++)
       drawDot (draw, i);
     }
+  //}}}
 
 private:
+  //{{{
   void drawDot (iDraw* draw, uint16_t chunk) {
     bool loaded;
     bool loading;
@@ -75,6 +79,7 @@ private:
                   mX + mWidth / 3, mY + (chunk * getBoxHeight()) + mWidth/6, mWidth, mWidth);
     }
 
+  //}}}
   cHls* mHls;
   };
 //}}}
@@ -84,13 +89,15 @@ public:
   cHlsTextWidget (cHls* hls, float width, float height) : cWidget(width, height), mHls(hls) {}
   virtual ~cHlsTextWidget() {}
 
-  virtual void render (iDraw* draw) {
+  //{{{
+  virtual void onDraw (iDraw* draw) {
     //auto item = mHls->findItem (mHls->getPlayTzSec());
     //if (item)
     //  draw->drawText (COL_WHITE, getFontHeight(), item->mTitle + " - " + item->mSynopsis, mX, mY+1, mWidth-1, mHeight-1);
     //else
     //  draw->drawText (COL_WHITE, getFontHeight(), "no schedule", mX, mY+1, mWidth-1, mHeight-1);
     }
+  //}}}
 
 private:
   cHls* mHls;
@@ -103,9 +110,9 @@ public:
   virtual ~cHlsPeakWidget() {}
 
   //{{{
-  virtual void pressed (int16_t x, int16_t y, bool controlled) {
+  virtual void onDown (int16_t x, int16_t y, bool controlled) {
 
-    cWidget::pressed (x, y, controlled);
+    cWidget::onDown (x, y, controlled);
 
     mMove = 0;
     mPressInc = x - (mWidth/2);
@@ -116,18 +123,18 @@ public:
     }
   //}}}
   //{{{
-  virtual void moved (int16_t x, int16_t y, uint16_t z, int16_t xinc, int16_t yinc, bool controlled) {
+  virtual void onMove (int16_t x, int16_t y, uint16_t z, int16_t xinc, int16_t yinc, bool controlled) {
 
-    cWidget::moved (x, y, z, xinc, yinc, controlled);
+    cWidget::onMove (x, y, z, xinc, yinc, controlled);
     mMove += abs(xinc) + abs(yinc);
 
     mHls->incPlaySample ((-xinc * kSamplesPerFrame) / mZoom);
     }
   //}}}
   //{{{
-  virtual void released() {
+  virtual void onUp() {
 
-    cWidget::released();
+    cWidget::onUp();
 
     if (mMove < getBoxHeight()/2) {
       mAnimation = mPressInc;
@@ -141,7 +148,7 @@ public:
   //}}}
 
   //{{{
-  virtual void render (iDraw* draw) {
+  virtual void onDraw (iDraw* draw) {
 
     //{{{  animate
     mAnimation /= 2;

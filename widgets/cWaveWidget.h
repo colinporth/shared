@@ -21,8 +21,8 @@ public:
   //}}}
 
   //{{{
-  virtual void render (iDraw* draw) {
-    render (draw, mColour, mColourAfter, mCurFrame - mWidth, getMaxValue()*2, 0, mWidth);
+  virtual void onDraw (iDraw* draw) {
+    drawCommon (draw, mColour, mColourAfter, mCurFrame - mWidth, getMaxValue()*2, 0, mWidth);
     }
   //}}}
 
@@ -31,7 +31,7 @@ protected:
   int getCentreY() { return mY + (mHeight/2); }
 
   //{{{
-  void render (iDraw* draw, uint32_t colour, uint32_t colourAfter, int frame, int scale, int x, int lastX) {
+  void drawCommon (iDraw* draw, uint32_t colour, uint32_t colourAfter, int frame, int scale, int x, int lastX) {
 
     if (frame < x) { // not enough front frames
       x = -frame;

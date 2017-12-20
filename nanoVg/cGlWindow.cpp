@@ -252,7 +252,7 @@ void cGlWindow::run () {
 
     beginFrame (winWidth, winHeight, (float)frameBufferWidth / (float)winWidth);
     if (mRoot)
-      mRoot->render (this);
+      mRoot->onDraw (this);
     if (mDrawTests) {
       //{{{  draw
       drawEyes (winWidth*3.0f/4.0f, winHeight/2.0f, winWidth/4.0f, winHeight/2.0f,
