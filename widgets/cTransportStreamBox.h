@@ -10,8 +10,10 @@
 
 class cTransportStreamBox : public cWidget {
 public:
+  //{{{
   cTransportStreamBox (float height, float width, cTransportStream* ts) :
     cWidget (height, width), mTs(ts) {}
+  //}}}
   virtual ~cTransportStreamBox() {}
 
   //{{{
@@ -33,11 +35,11 @@ public:
                    " " + dec(pidInfo.first, 4) +
                    " " + getFullPtsString (pidInfo.second.mPts) +
                    " " + pidInfo.second.getTypeString();
-        draw->drawText (mTextColour, getFontHeight(), str, mX+2, y+1, mWidth-3, mHeight-1);
+        auto width = draw->drawText (mTextColour, getFontHeight(), str, mX+2, y+1, mWidth-3, mHeight-1);
 
-        auto x = mX + 200;
-        draw->drawText (mTextColour, getFontHeight(), pidInfo.second.getInfoString(), x+2, y+1, mWidth-3, mHeight-1);
-        y += getFontHeight();
+        auto x = mX + width;
+        draw->drawText (mTextColour, getFontHeight()/2, pidInfo.second.getInfoString(), x+2, y+1, mWidth-3, mHeight-1);
+        y += getFontHeight()/2;
         if (y > mHeight)
           break;
 
