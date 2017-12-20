@@ -9,12 +9,12 @@ public:
 
   //{{{
   void prox (int16_t x, int16_t y, bool controlled) {
+
     mProxWidget = picked (x, y, 0);
     if (mProxWidget)
       mProxWidget->prox (x - mProxWidget->getPixX(), y - mProxWidget->getPixY(), controlled);
     }
   //}}}
-
   //{{{
   void onDown (int pressCount, int16_t x, int16_t y, uint16_t z, int16_t xinc, int16_t yinc, bool controlled) {
 
@@ -36,7 +36,6 @@ public:
       }
     }
   //}}}
-
   //{{{
   void onDraw (iDraw* draw) {
 
