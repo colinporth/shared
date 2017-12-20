@@ -5,10 +5,12 @@
   #define NOMINMAX
   #include "windows.h"
 #else
+  #include <cstdarg>
+  #include <unistd.h>
   #include <sys/types.h>
   #include <sys/stat.h>
-  #include <unistd.h>
-  #include <cstdarg>
+  #include <sys/syscall.h>
+  #define gettid() syscall(SYS_gettid)
 #endif
 
 #include <algorithm>
