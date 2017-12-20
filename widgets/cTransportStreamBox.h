@@ -19,10 +19,7 @@ public:
   //{{{
   void onDraw (iDraw* draw) {
 
-    //draw->drawText (mTextColour, getFontHeight(), mText, mX+2, mY+1, mWidth-3, mHeight-1);
     //draw->rectClipped (mOn ? COL_LIGHTRED : mColour, mX+1, mY+1, mWidth-1, mHeight-1);
-
-    //auto serviceWidth = 0.f;
     auto y = mY;
     if (mTs->mPidInfoMap.size()) {
       auto maxPidPackets = 10000;
@@ -35,11 +32,11 @@ public:
                    " " + dec(pidInfo.first, 4) +
                    " " + getFullPtsString (pidInfo.second.mPts) +
                    " " + pidInfo.second.getTypeString();
-        auto width = draw->drawText (mTextColour, getFontHeight(), str, mX+2, y+1, mWidth-3, mHeight-1);
-
-        auto x = mX + width;
-        draw->drawText (mTextColour, getFontHeight()/2, pidInfo.second.getInfoString(), x+2, y+1, mWidth-3, mHeight-1);
-        y += getFontHeight()/2;
+        auto width = draw->drawText (mTextColour, getFontHeight()*2/3, str, mX+2, y+1,
+                                     mWidth-3, mHeight-1);
+        draw->drawText (mTextColour, getFontHeight()*2/3, pidInfo.second.getInfoString(),
+                        mX + width + 300 + 2, y+1, mWidth-3, mHeight-1);
+        y += getFontHeight()*2/3;
         if (y > mHeight)
           break;
 

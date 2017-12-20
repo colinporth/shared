@@ -13,6 +13,7 @@
 #define NANOVG_GLES2 1
 #include "cVgGL.h"
 #include "../fonts/FreeSansBold.h"
+#include "../fonts/DroidSansMono1.h"
 
 #include "../utils/cLog.h"
 
@@ -103,7 +104,8 @@ public:
     cVgGL::initialise();
     cLog::log (LOGINFO, "cRaspWindow");
 
-    createFontMem ("sans", (unsigned char*)freeSansBold, sizeof(freeSansBold), 0);
+    //createFontMem ("sans", (unsigned char*)freeSansBold, sizeof(freeSansBold), 0);
+    createFontMem ("sans", (unsigned char*)droidSansMono, sizeof(droidSansMono), 0);
     fontFace ("sans");
     cLog::log (LOGINFO, "create freeSansBold");
 
