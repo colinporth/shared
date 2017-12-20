@@ -1,9 +1,11 @@
 // cPicWidget.h
+//{{{  includes
 #pragma once
 #include "cWidget.h"
 #ifdef USE_NANOVG
   #include "../utils/cLog.h"
 #endif
+//}}}
 
 class cPicWidget : public cWidget {
 public:
@@ -145,10 +147,13 @@ private:
   int& mValue;
   bool& mChanged;
 
+//{{{
 #ifdef USE_NANOVG
   int mImage = -1;
   bool mUpdateTexture = false;
   float mAngle = 0;
+//}}}
+//{{{
 #else
   uint8_t* mSizedRgb888 = nullptr;
   uint16_t mSizedWidth = 0;
@@ -156,4 +161,5 @@ private:
   uint16_t mSizedAllocWidth = 0;
   uint16_t mSizedAllocHeight = 0;
 #endif
+//}}}
   };

@@ -71,7 +71,7 @@ public:
   //{{{
   virtual void pixelClipped (uint32_t colour, int16_t x, int16_t y) {
 
-      rectClipped (colour, x, y, 1, 1);
+    rectClipped (colour, x, y, 1, 1);
     }
   //}}}
   //{{{

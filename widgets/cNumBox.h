@@ -1,21 +1,13 @@
 // cNumBox.h
+//{{{  includes
 #pragma once
 #include <string>
 #include <iostream>
 #include <sstream>
 #include <iomanip>
+
+#include "../utils/utils.h"
 #include "cWidget.h"
-
-//{{{
-static std::string intStr (int value, int width = 0, char fill = ' ') {
-
-  std::ostringstream os;
-  if (width)
-    os << std::setfill (fill) << std::setw (width) << value;
-  else
-    os << value;
-  return os.str();
-  }
 //}}}
 
 class cNumBox : public cWidget {
@@ -30,7 +22,7 @@ public:
   void onDraw (iDraw* draw) {
 
     cWidget::onDraw (draw);
-    draw->drawText (mTextColour, getFontHeight(), mText + intStr (int(mValue)), mX+2, mY+1, mWidth-1, mHeight-1);
+    draw->drawText (mTextColour, getFontHeight(), mText + dec(int(mValue)), mX+2, mY+1, mWidth-1, mHeight-1);
     }
   //}}}
 

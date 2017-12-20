@@ -27,7 +27,6 @@ public:
       setValue ((float)y / (float)mHeight);
     }
   //}}}
-
   //{{{
   void onDraw (iDraw* draw) {
 
