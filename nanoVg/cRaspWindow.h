@@ -189,7 +189,7 @@ protected:
 
       startFrame();
       if (mRoot)
-        mRoot->render (this);
+        mRoot->onDraw (this);
       drawMouse (mouseX, mouseY);
       if (mDrawTests) {
         //{{{  draw tests

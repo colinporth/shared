@@ -13,7 +13,7 @@ public:
   void setTextColour (uint32_t colour) { mTextColour = colour; }
 
   virtual void onDraw (iDraw* draw) {
-    cWidget::render (draw);
+    cWidget::onDraw (draw);
     draw->drawText (mTextColour, getFontHeight(), mText, mX+2, mY+1, mWidth-3, mHeight-1);
     }
 
