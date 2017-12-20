@@ -316,12 +316,12 @@ void cGlWindow::toggleTests() {
 
 //{{{
 void cGlWindow::onMouseDown (bool right, int x, int y, bool controlled) {
-  mRoot->press (0, x, y, 0,  0, 0, controlled);
+  mRoot->onDown (0, x, y, 0,  0, 0, controlled);
   }
 //}}}
 //{{{
 void cGlWindow::onMouseUp (bool right, bool mouseMoved, int x, int y, bool controlled) {
-  mRoot->release();
+  mRoot->onUp();
   }
 //}}}
 //{{{
@@ -334,7 +334,7 @@ void cGlWindow::onMouseProx (bool inClient, int x, int y, bool controlled) {
 void cGlWindow::onMouseMove (bool right, int x, int y, int xInc, int yInc, bool controlled) {
   mMouseX = (float)x;
   mMouseY = (float)y;
-  mRoot->press (1, x, y, 0, xInc, yInc, controlled);
+  mRoot->onDown (1, x, y, 0, xInc, yInc, controlled);
   }
 //}}}
 //{{{

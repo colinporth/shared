@@ -110,6 +110,7 @@ public:
   //}}}
   //{{{
   void onDraw (iDraw* draw) {
+
     for (auto widget : mSubWidgets)
       if (widget->isVisible())
         widget->onDraw (draw);

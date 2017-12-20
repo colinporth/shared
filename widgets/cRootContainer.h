@@ -14,8 +14,10 @@ public:
       mProxWidget->prox (x - mProxWidget->getPixX(), y - mProxWidget->getPixY(), controlled);
     }
   //}}}
+
   //{{{
-  void press (int pressCount, int16_t x, int16_t y, uint16_t z, int16_t xinc, int16_t yinc, bool controlled) {
+  void onDown (int pressCount, int16_t x, int16_t y, uint16_t z, int16_t xinc, int16_t yinc, bool controlled) {
+
     if (!pressCount) {
       mPressedWidget = picked (x, y, z);
       if (mPressedWidget)
@@ -26,7 +28,8 @@ public:
     }
   //}}}
   //{{{
-  void release() {
+  void onUp() {
+
     if (mPressedWidget) {
       mPressedWidget->onUp();
       mPressedWidget = nullptr;
@@ -36,6 +39,7 @@ public:
 
   //{{{
   void onDraw (iDraw* draw) {
+
     if (mOn)
       draw->drawRect (COL_DARKGREEN, mX, mY, mWidth, mHeight);
     cContainer::onDraw  (draw);
