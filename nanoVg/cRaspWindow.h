@@ -176,12 +176,22 @@ protected:
   //{{{
   void initialise() {
 
-    mRoot = new cRootContainer (getWinWidth(), getWinHeight());
+    mRoot = new cRootContainer (mScreenWidth, mScreenHeight);
 
     mFpsGraph = new cPerfGraph (cPerfGraph::GRAPH_RENDER_FPS, "Frame Time");
     mCpuGraph = new cPerfGraph (cPerfGraph::GRAPH_RENDER_MS, "CPU Time");
     }
   //}}}
+  cWidget* add (cWidget* widget) { return mRoot->add (widget); }
+  cWidget* addAt (cWidget* widget, float x, float y) { return mRoot->addAt (widget,x,y); }
+  cWidget* addAtPix (cWidget* widget, int16_t x, int16_t y) { return mRoot->addAtPix (widget,x,y); }
+  cWidget* addTopLeft (cWidget* widget) { return mRoot->addTopLeft (widget); }
+  cWidget* addTopRight (cWidget* widget) { return mRoot->addTopRight (widget); }
+  cWidget* addBottomLeft (cWidget* widget) { return mRoot->addBottomLeft (widget); }
+  cWidget* addBottomRight (cWidget* widget) { return mRoot->addBottomRight (widget); }
+  cWidget* addBelow (cWidget* widget) { return mRoot->addBelow (widget); }
+  cWidget* addLeft (cWidget* widget) { return mRoot->addLeft (widget); }
+  cWidget* addAbove (cWidget* widget) { return mRoot->addAbove (widget); }
   //{{{
   void run() {
 
@@ -198,18 +208,18 @@ protected:
       drawMouse (mouseX, mouseY);
       if (mDrawTests) {
         //{{{  draw tests
-        drawEyes (getWinWidth()*3.0f/4.0f, getWinHeight()/2.0f, getWinWidth()/4.0f, getWinHeight()/2.0f,
+        drawEyes (mScreenWidth*3.0f/4.0f, mScreenHeight/2.0f, mScreenWidth/4.0f, mScreenHeight/2.0f,
                   mouseX, mouseY);
-        drawLines (0.0f, 50.0f, getWinWidth(), getWinHeight());
-        drawSpinner (getWinWidth()/2.0f, getWinHeight()/2.0f, 20.0f);
+        drawLines (0.0f, 50.0f, mScreenWidth, mScreenHeight);
+        drawSpinner (mScreenWidth/2.0f, mScreenHeight/2.0f, 20.0f);
         }
         //}}}
       if (mDrawStats)
-        drawStats (getWinWidth(), getWinHeight(), getFrameStats() + (mVsync ? " vsync" : " free"));
+        drawStats (mScreenWidth, mScreenHeight, getFrameStats() + (mVsync ? " vsync" : " free"));
       if (mDrawPerf) {
         //{{{  render perf stats
-        mFpsGraph->render (this, 0.0f, getWinHeight()-35.0f, getWinWidth()/3.0f -2.0f, 35.0f);
-        mCpuGraph->render (this, getWinWidth()/3.0f, getWinHeight()-35.0f, getWinWidth()/3.0f - 2.0f, 35.0f);
+        mFpsGraph->render (this, 0.0f, mScreenHeight-35.0f, mScreenWidth/3.0f -2.0f, 35.0f);
+        mCpuGraph->render (this, mScreenWidth/3.0f, mScreenHeight-35.0f, mScreenWidth/3.0f - 2.0f, 35.0f);
         }
         //}}}
       endSwapFrame();
@@ -223,9 +233,6 @@ protected:
     cLog::log (LOGNOTICE, "run escaped");
     }
   //}}}
-
-  float getWinWidth() { return float(mScreenWidth); }
-  float getWinHeight() { return float(mScreenHeight); }
 
   //{{{
   int getMouse (int* outx, int* outy) {
@@ -312,9 +319,9 @@ protected:
     mDrawTests = !mDrawTests;
     }
   //}}}
-
   virtual void pollKeyboard() = 0;
 
+  //{{{  vars
   bool mEscape = false;
   bool mVsync = true;
   bool mDrawPerf = false;
@@ -322,6 +329,7 @@ protected:
   bool mDrawTests = false;
 
   cRootContainer* mRoot = nullptr;
+  //}}}
 
 private:
   //{{{
@@ -526,6 +534,7 @@ private:
     }
   //}}}
 
+  //{{{  vars
   DISPMANX_DISPLAY_HANDLE_T mDispmanxDisplay = 0;
   DISPMANX_ELEMENT_HANDLE_T mDispmanxElement = 0;
 
@@ -544,4 +553,5 @@ private:
 
   cPerfGraph* mFpsGraph = nullptr;
   cPerfGraph* mCpuGraph = nullptr;
+  //}}}
   };

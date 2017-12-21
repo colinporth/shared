@@ -20,34 +20,30 @@ public:
   //{{{
   void onDraw (iDraw* draw) {
 
-    auto y = 0;
+    auto y = mY+1;
     auto lineHeight = getFontHeight()*2/3;
 
     if (mTs->mPidInfoMap.size()) {
       for (auto &pidInfo : mTs->mPidInfoMap) {
         mMaxPidPackets = max (mMaxPidPackets, pidInfo.second.mPackets);
         auto frac = (float)pidInfo.second.mPackets / (float)mMaxPidPackets;
+        auto x = mX+2;
 
         auto str = dec (pidInfo.second.mPackets,mPacketDigits) +
                    (mContDigits ? (":" + dec(pidInfo.second.mDisContinuity, mContDigits)) : "") +
                    " " + dec(pidInfo.first, 4) +
                    " " + getFullPtsString (pidInfo.second.mPts) +
                    " " + pidInfo.second.getTypeString();
+
         auto width = draw->drawText (COL_LIGHTGREY, lineHeight, str,
-                                     mX+2, mY+y+1, mWidth-3, lineHeight);
+                                     x, y, mWidth-3, lineHeight);
+        draw->rectClipped (COL_DARKORANGE,
+                           x + width + lineHeight/2, y, int((mWidth - width) * frac), lineHeight - 1);
+        draw->drawText (COL_LIGHTGREY, lineHeight, pidInfo.second.getInfoString(),
+                        x + width + lineHeight/2, y, mWidth-width, lineHeight);
 
-        draw->rectClipped (COL_DARKORANGE, mX+2 + width + lineHeight/2, mY+y+1,
-                           int((mWidth - width) * frac), lineHeight - 1);
-
-        draw->drawText (COL_LIGHTGREY, lineHeight,
-                        pidInfo.second.getInfoString() +
-                        " " + dec(frac) +
-                        " " + dec(width) +
-                        " " + dec(mWidth) +
-                        " " + dec(mMaxPidPackets),
-                        mX + 2 + width + lineHeight/2, mY+y+1, mWidth-3, lineHeight);
         y += lineHeight;
-        if (y > mHeight)
+        if (y > mY + mHeight)
           break;
 
         if (pidInfo.second.mPackets > pow (10, mPacketDigits))

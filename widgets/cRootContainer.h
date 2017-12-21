@@ -4,7 +4,10 @@
 
 class cRootContainer : public cContainer {
 public:
-  cRootContainer (uint16_t width, uint16_t height) : cContainer(width, height) {}
+  //{{{
+  cRootContainer (uint16_t width, uint16_t height) :
+    cContainer(width / getBoxHeight(), height / getBoxHeight()) {}
+  //}}}
   virtual ~cRootContainer() {}
 
   //{{{
