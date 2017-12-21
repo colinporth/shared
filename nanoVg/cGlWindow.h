@@ -41,7 +41,17 @@ public:
   void ellipseSolid (uint32_t colour, int16_t x, int16_t y, uint16_t xradius, uint16_t yradius);
 
 protected:
-  void initialise (std::string title, int width, int height, unsigned char* sansFont);
+  cRootContainer* initialise (std::string title, int width, int height, unsigned char* sansFont);
+  cWidget* add (cWidget* widget) { return mRoot->add (widget); }
+  cWidget* addAt (cWidget* widget, float x, float y) { return mRoot->addAt (widget,x,y); }
+  cWidget* addAtPix (cWidget* widget, int16_t x, int16_t y) { return mRoot->addAtPix (widget,x,y); }
+  cWidget* addTopLeft (cWidget* widget) { return mRoot->addTopLeft (widget); }
+  cWidget* addTopRight (cWidget* widget) { return mRoot->addTopRight (widget); }
+  cWidget* addBottomLeft (cWidget* widget) { return mRoot->addBottomLeft (widget); }
+  cWidget* addBottomRight (cWidget* widget) { return mRoot->addBottomRight (widget); }
+  cWidget* addBelow (cWidget* widget) { return mRoot->addBelow (widget); }
+  cWidget* addLeft (cWidget* widget) { return mRoot->addLeft (widget); }
+  cWidget* addAbove (cWidget* widget) { return mRoot->addAbove (widget); }
   void run();
 
   virtual void onKey (int key, int scancode, int action, int mods) = 0;
@@ -52,22 +62,18 @@ protected:
   virtual void onMouseUp (bool right, bool mouseMoved, int x, int y);
   virtual void onMouseWheel (int delta);
 
-  static cGlWindow* mGlWindow;
-
   std::vector<std::string> getFiles (std::string fileName, std::string match);
 
-  GLFWwindow* mWindow = nullptr;
-
-protected:
   void toggleVsync();
   void togglePerf();
   void toggleStats();
   void toggleTests();
 
-  cRootContainer* mRoot = nullptr;
-
+  static cGlWindow* mGlWindow;
   static float mMouseX;
   static float mMouseY;
+
+  GLFWwindow* mWindow = nullptr;
 
 private:
   void drawSpinner (float cx, float cy, float r, float t);
@@ -90,6 +96,8 @@ private:
   cPerfGraph* mFpsGraph = nullptr;
   cPerfGraph* mCpuGraph = nullptr;
   cGpuGraph* mGpuGraph = nullptr;
+
+  cRootContainer* mRoot = nullptr;
 
   static bool mMouseDown;
   static bool mMouseMoved;

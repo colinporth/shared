@@ -98,6 +98,9 @@ public:
     result = eglMakeCurrent (mEglDisplay, mEglSurface, mEglSurface, mEglContext);
     cLog::log (LOGINFO, "eglMakeCurrent %d", result);
 
+    mFpsGraph = new cPerfGraph (cPerfGraph::GRAPH_RENDER_FPS, "Frame Time");
+    mCpuGraph = new cPerfGraph (cPerfGraph::GRAPH_RENDER_MS, "CPU Time");
+
     // set
     setVsync (true);
 
@@ -146,6 +149,7 @@ public:
   virtual void pixel (uint32_t colour, int16_t x, int16_t y) {}
   //{{{
   virtual void drawRect (uint32_t colour, int16_t x, int16_t y, uint16_t width, uint16_t height) {
+
     beginPath();
     rect (x, y, width, height);
     fillColor (nvgRGBA ((colour & 0xFF0000) >> 16, (colour & 0xFF00) >> 8, colour & 0xFF,255));
@@ -159,12 +163,11 @@ public:
     textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_TOP);
     fillColor (nvgRGBA ((colour & 0xFF0000) >> 16, (colour & 0xFF00) >> 8, colour & 0xFF,255));
     return (int)text ((float)x+3, (float)y+1, str);
-    //return (int)metrics.width;
-    return 0;
     }
   //}}}
   //{{{
   virtual void ellipseSolid (uint32_t colour, int16_t x, int16_t y, uint16_t xradius, uint16_t yradius) {
+
     beginPath();
     ellipse (x, y, xradius, yradius);
     fillColor (nvgRGBA ((colour & 0xFF0000) >> 16, (colour & 0xFF00) >> 8, colour & 0xFF,255));
@@ -173,15 +176,7 @@ public:
   //}}}
 
 protected:
-  //{{{
-  void initialise() {
-
-    mRoot = new cRootContainer (mScreenWidth, mScreenHeight);
-
-    mFpsGraph = new cPerfGraph (cPerfGraph::GRAPH_RENDER_FPS, "Frame Time");
-    mCpuGraph = new cPerfGraph (cPerfGraph::GRAPH_RENDER_MS, "CPU Time");
-    }
-  //}}}
+  void initialise() { mRoot = new cRootContainer (mScreenWidth, mScreenHeight); }
   cWidget* add (cWidget* widget) { return mRoot->add (widget); }
   cWidget* addAt (cWidget* widget, float x, float y) { return mRoot->addAt (widget,x,y); }
   cWidget* addAtPix (cWidget* widget, int16_t x, int16_t y) { return mRoot->addAtPix (widget,x,y); }
@@ -282,6 +277,7 @@ protected:
   //}}}
   //{{{
   uint64_t getAbsoluteClock() {
+
     struct timespec now;
     clock_gettime (CLOCK_MONOTONIC, &now);
     return (((uint64_t)now.tv_sec * 1000000000L) + now.tv_nsec) / 1000;
@@ -289,36 +285,19 @@ protected:
   //}}}
   //{{{
   void uSleep (uint64_t uSec) {
+
     struct timespec req = { 0 };
     req.tv_sec = uSec / 1000000;
     req.tv_nsec = (uSec % 1000000) * 1000;
+
     while (nanosleep (&req, &req) == -1 && errno == EINTR && (req.tv_nsec > 0 || req.tv_sec > 0));
     }
   //}}}
 
-  //{{{
-  void toggleVsync() {
-    mVsync = !mVsync;
-    setVsync (mVsync);
-    }
-  //}}}
-  //{{{
-  void togglePerf() {
-    mDrawPerf = !mDrawPerf;
-    mFpsGraph->reset();
-    mCpuGraph->reset();
-    }
-  //}}}
-  //{{{
-  void toggleStats() {
-    mDrawStats = !mDrawStats;
-    }
-  //}}}
-  //{{{
-  void toggleTests() {
-    mDrawTests = !mDrawTests;
-    }
-  //}}}
+  void toggleVsync() { mVsync = !mVsync; setVsync (mVsync); }
+  void togglePerf() { mDrawPerf = !mDrawPerf; mFpsGraph->reset(); mCpuGraph->reset(); }
+  void toggleStats() { mDrawStats = !mDrawStats; }
+  void toggleTests() { mDrawTests = !mDrawTests; }
   virtual void pollKeyboard() = 0;
 
   //{{{  vars
@@ -327,8 +306,6 @@ protected:
   bool mDrawPerf = false;
   bool mDrawStats = false;
   bool mDrawTests = false;
-
-  cRootContainer* mRoot = nullptr;
   //}}}
 
 private:
@@ -545,13 +522,14 @@ private:
   EGL_DISPMANX_WINDOW_T mNativeWindow;
   int64_t mTime = 0;
 
+  cPerfGraph* mFpsGraph = nullptr;
+  cPerfGraph* mCpuGraph = nullptr;
+
+  cRootContainer* mRoot = nullptr;
   uint32_t mScreenWidth = 0;
   uint32_t mScreenHeight = 0;
 
   int mMouseFd = -1;
   int mMouseButtons = 0;
-
-  cPerfGraph* mFpsGraph = nullptr;
-  cPerfGraph* mCpuGraph = nullptr;
   //}}}
   };

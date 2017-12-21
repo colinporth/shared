@@ -167,14 +167,14 @@ void cGlWindow::ellipseSolid (uint32_t colour, int16_t x, int16_t y, uint16_t xr
 
 // protected
 //{{{
-void cGlWindow::initialise (std::string title, int width, int height, unsigned char* sansFont) {
+cRootContainer* cGlWindow::initialise (std::string title, int width, int height, unsigned char* sansFont) {
 
   mGlWindow = this;
 
   if (!glfwInit()) {
     //{{{  error
     printf ("Failed to init GLFW.");
-    return;
+    return nullptr;
     }
     //}}}
   glfwSetErrorCallback (errorcb);
@@ -195,7 +195,7 @@ void cGlWindow::initialise (std::string title, int width, int height, unsigned c
   if (!mWindow) {
     //{{{  error
     glfwTerminate();
-    return;
+    return nullptr;
     }
     //}}}
 
@@ -212,7 +212,7 @@ void cGlWindow::initialise (std::string title, int width, int height, unsigned c
   if (glewInit() != GLEW_OK) {
     //{{{  error
     printf ("Could not init glew.\n");
-    return;
+    return nullptr;
     }
     //}}}
   // GLEW generates GL error because it calls glGetString(GL_EXTENSIONS), we'll consume it here.
@@ -232,6 +232,8 @@ void cGlWindow::initialise (std::string title, int width, int height, unsigned c
   mFpsGraph = new cPerfGraph (cPerfGraph::GRAPH_RENDER_FPS, "frame");
   mCpuGraph = new cPerfGraph (cPerfGraph::GRAPH_RENDER_MS, "cpu");
   mGpuGraph = new cGpuGraph (cPerfGraph::GRAPH_RENDER_MS, "gpu");
+
+  return mRoot;
   }
 //}}}
 //{{{
