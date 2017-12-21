@@ -1,7 +1,9 @@
-  // cWidget.h - base widget, draws as box with width-1, height-1
+// cWidget.h - base widget, draws as box with width-1, height-1
+//{{{  includes
 #pragma once
 class cContainer;
 #include "iDraw.h"
+//}}}
 
 class cWidget {
 public:

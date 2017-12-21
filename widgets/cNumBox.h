@@ -1,6 +1,7 @@
 // cNumBox.h
 //{{{  includes
 #pragma once
+
 #include <string>
 #include <iostream>
 #include <sstream>

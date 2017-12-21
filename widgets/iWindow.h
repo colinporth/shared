@@ -1,6 +1,5 @@
 // iWindow.h -  windowinterface
 #pragma once
-#include <string>
 
 class iWindow {
 public:

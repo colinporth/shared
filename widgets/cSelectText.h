@@ -1,6 +1,8 @@
 // cSelectText.h
+//{{{  includes
 #pragma once
 #include "cWidget.h"
+//}}}
 
 class cSelectText : public cWidget {
 public:

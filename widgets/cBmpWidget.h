@@ -1,6 +1,8 @@
 // cBitmapWidget.h
+//{{{  includes
 #pragma once
 #include "cPicWidget.h"
+//}}}
 
 class cBmpWidget : public cPicWidget {
 public:

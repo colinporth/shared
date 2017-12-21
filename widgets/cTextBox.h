@@ -1,12 +1,14 @@
 // cTextBox.h
+//{{{  includes
 #pragma once
 #include <string>
 #include "cWidget.h"
+//}}}
 
 class cTextBox : public cWidget {
 public:
   cTextBox (std::string& text, float width) : cWidget (width), mText(text) {}
-  cTextBox (std::string& text, uint32_t colour, uint16_t width, uint16_t height) : 
+  cTextBox (std::string& text, uint32_t colour, uint16_t width, uint16_t height) :
     cWidget (colour, width, height), mText(text) {}
   virtual ~cTextBox() {}
 

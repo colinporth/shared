@@ -1,6 +1,8 @@
 // cWaveLensWidget.h
+//{{{  includes
 #pragma once
 #include "cWaveOverviewWidget.h"
+//}}}
 
 class cWaveLensWidget : public cWaveOverviewWidget {
 public:

@@ -1,6 +1,8 @@
 // cRootContainer.h - singleton root widget
+//{{{  includes
 #pragma once
 #include "cContainer.h"
+//}}}
 
 class cRootContainer : public cContainer {
 public:

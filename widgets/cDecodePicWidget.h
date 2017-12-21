@@ -1,8 +1,10 @@
 // cDecodePicWidget.h - glue cMultiPic and cPicWidget together
+//{{{  includes
 #pragma once
+
 #include "cPicWidget.h"
 #include "../decoders/cDecodePic.h"
-//{{{
+
 #ifdef USE_NANOVG
   extern "C" {
     uint8_t* stbi_load_from_memory (uint8_t* const* buffer, int len, int* x, int* y, int* channels_in_file, int desired_channels);

@@ -110,7 +110,7 @@ public:
     //createFontMem ("sans", (unsigned char*)freeSansBold, sizeof(freeSansBold), 0);
     createFontMem ("sans", (unsigned char*)droidSansMono, sizeof(droidSansMono), 0);
     fontFace ("sans");
-    cLog::log (LOGINFO, "create freeSansBold");
+    cLog::log (LOGINFO, "created sans font droidSansMono");
 
     glViewport (0, 0, mScreenWidth, mScreenHeight);
     glClearColor (0, 0, 0, 1.0f);
@@ -331,15 +331,6 @@ private:
   //}}}
 
   //{{{
-  void drawStats (float x, float y, std::string str) {
-
-    fontSize (12.0f);
-    textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_BOTTOM);
-    fillColor (kWhite);
-    text (0.0f, y, str);
-    }
-  //}}}
-  //{{{
   void drawMouse (int x, int y) {
 
     beginPath();
@@ -508,6 +499,15 @@ private:
         }
       }
     restoreState();
+    }
+  //}}}
+  //{{{
+  void drawStats (float x, float y, std::string str) {
+
+    fontSize (12.0f);
+    textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_BOTTOM);
+    fillColor (kWhite);
+    text (0.0f, y, str);
     }
   //}}}
 

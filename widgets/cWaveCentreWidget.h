@@ -1,6 +1,8 @@
 // cWaveCentredWidget.h
+//{{{  includes
 #pragma once
 #include "cWaveWidget.h"
+//}}}
 
 class cWaveCentreWidget : public cWaveWidget {
 public:

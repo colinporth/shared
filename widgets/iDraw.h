@@ -1,7 +1,9 @@
 // iDraw.h -  draw interface
 #pragma once
+//{{{  includes
 #include <string>
 #include "iWindow.h"
+//}}}
 
 //{{{  colour defines
 #define COL_WHITE         0xFFFFFFFF

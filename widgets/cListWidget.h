@@ -1,6 +1,9 @@
-// cFileNameContainer.h - fileName container
+// cListWidget.h - sring vector select
+//{{{  includes
 #pragma once
 #include "cWidget.h"
+
+//}}}
 
 class cListWidget : public cWidget {
 public:
@@ -60,6 +63,7 @@ public:
     for (int i = 0; (y < mHeight-1) && (index < (int)mNames.size()); i++, index++, y += getBoxHeight()) {
       if (i >= (int)mMeasure.size())
         mMeasure.push_back (0);
+
       mMeasure[i] = draw->drawText (
         mTextPressed && !mMoved && (index == mPressedIndex) ? COL_YELLOW : (index == mIndex) ? mColour : COL_LIGHTGREY,
         getFontHeight(), mNames[index], mX+2, mY+y+1, mWidth-1, mHeight-y-1);
