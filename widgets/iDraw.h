@@ -1,6 +1,7 @@
 // iDraw.h -  draw interface
 #pragma once
 #include <string>
+#include "iWindow.h"
 
 //{{{  colour defines
 #define COL_WHITE         0xFFFFFFFF
@@ -52,12 +53,9 @@
   //}}}
 #endif
 
-class iDraw {
+class iDraw : public iWindow {
 public:
   virtual ~iDraw() {}
-
-  virtual uint16_t getLcdWidthPix() = 0;
-  virtual uint16_t getLcdHeightPix() = 0;
 
   virtual void pixel (uint32_t colour, int16_t x, int16_t y) = 0;
   virtual void drawRect (uint32_t colour, int16_t x, int16_t y, uint16_t width, uint16_t height) = 0;
@@ -89,11 +87,11 @@ public:
       y = 0;
       }
 
-    if (y + height > getLcdHeightPix()) {
+    if (y + height > getHeightPix()) {
       // bottom yclip
-      if (y >= getLcdHeightPix())
+      if (y >= getHeightPix())
         return;
-      height = getLcdHeightPix() - y;
+      height = getHeightPix() - y;
       }
 
     stamp (colour, src, x, y, width, height);
@@ -102,9 +100,9 @@ public:
   //{{{
   virtual void rectClipped (uint32_t colour, int16_t x, int16_t y, uint16_t width, uint16_t height) {
 
-    if (x >= getLcdWidthPix())
+    if (x >= getWidthPix())
       return;
-    if (y >= getLcdHeightPix())
+    if (y >= getHeightPix())
       return;
 
     int xend = x + width;
@@ -117,13 +115,13 @@ public:
 
     if (x < 0)
       x = 0;
-    if (xend > getLcdWidthPix())
-      xend = getLcdWidthPix();
+    if (xend > getWidthPix())
+      xend = getWidthPix();
 
     if (y < 0)
       y = 0;
-    if (yend > getLcdHeightPix())
-      yend = getLcdHeightPix();
+    if (yend > getHeightPix())
+      yend = getHeightPix();
 
     if (!width)
       return;
@@ -145,7 +143,7 @@ public:
   //{{{
   virtual void clear (uint32_t colour) {
 
-    drawRect (colour, 0, 0, getLcdWidthPix(), getLcdHeightPix());
+    drawRect (colour, 0, 0, getWidthPix(), getHeightPix());
     }
   //}}}
 
@@ -269,8 +267,4 @@ public:
       }
     }
   //}}}
-
-  #ifdef USE_NANOVG
-    virtual cVg* getContext() = 0;
-  #endif
   };

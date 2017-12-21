@@ -134,11 +134,15 @@ public:
     }
   //}}}
 
-  // iDraw
+  // iWindow
   cVg* getContext () { return this; }
-  uint16_t getLcdWidthPix() { return mRoot->getPixWidth(); }
-  uint16_t getLcdHeightPix() { return mRoot->getPixHeight(); }
+  uint16_t getWidthPix() { return mRoot->getPixWidth(); }
+  uint16_t getHeightPix() { return mRoot->getPixHeight(); }
+  bool getShift() { return false; }
+  bool getControl() { return false; }
+  bool getMouseDown() { return false; }
 
+  // iDraw
   virtual void pixel (uint32_t colour, int16_t x, int16_t y) {}
   //{{{
   virtual void drawRect (uint32_t colour, int16_t x, int16_t y, uint16_t width, uint16_t height) {

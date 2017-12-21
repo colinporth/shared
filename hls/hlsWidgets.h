@@ -22,8 +22,8 @@ static const int kScrubFrames = 3;
     //: cDecodePicWidget(width, height, -1, mMyValue, mMyChanged), mHls(hls) {}
   //virtual ~cHlsPicWidget() {}
 
-  //virtual void pressed (int16_t x, int16_t y, bool controlled) {
-    //cDecodePicWidget::pressed (x, y, controlled);
+  //virtual void pressed (int16_t x, int16_t y) {
+    //cDecodePicWidget::pressed (x, y);
     //mHls->togglePlaying();
     //}
 
@@ -52,8 +52,8 @@ public:
   virtual ~cHlsDotsBox() {}
 
   //{{{
-  void onDown (int16_t x, int16_t y, bool controlled) {
-    cWidget::onDown (x, y, controlled);
+  void onDown (int16_t x, int16_t y) {
+    cWidget::onDown (x, y);
     }
   //}}}
   //{{{
@@ -110,9 +110,9 @@ public:
   virtual ~cHlsPeakWidget() {}
 
   //{{{
-  void onDown (int16_t x, int16_t y, bool controlled) {
+  void onDown (int16_t x, int16_t y) {
 
-    cWidget::onDown (x, y, controlled);
+    cWidget::onDown (x, y);
 
     mMove = 0;
     mPressInc = x - (mWidth/2);
@@ -123,9 +123,9 @@ public:
     }
   //}}}
   //{{{
-  void onMove (int16_t x, int16_t y, uint16_t z, int16_t xinc, int16_t yinc, bool controlled) {
+  void onMove (int16_t x, int16_t y, uint16_t z, int16_t xinc, int16_t yinc) {
 
-    cWidget::onMove (x, y, z, xinc, yinc, controlled);
+    cWidget::onMove (x, y, z, xinc, yinc);
     mMove += abs(xinc) + abs(yinc);
 
     mHls->incPlaySample ((-xinc * kSamplesPerFrame) / mZoom);

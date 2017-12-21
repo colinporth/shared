@@ -15,8 +15,8 @@ public:
   virtual ~cSelectText() {}
 
   //{{{
-  void onDown (int16_t x, int16_t y, bool controlled) {
-    cWidget::onDown (x, y, controlled);
+  void onDown (int16_t x, int16_t y) {
+    cWidget::onDown (x, y);
     if (mMyValue != mValue) {
       mValue = mMyValue;
       mChanged = true;

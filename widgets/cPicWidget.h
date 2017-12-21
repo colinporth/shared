@@ -49,8 +49,8 @@ public:
   //}}}
 
   //{{{
-  void onDown (int16_t x, int16_t y, bool controlled) {
-    cWidget::onDown (x, y, controlled);
+  void onDown (int16_t x, int16_t y) {
+    cWidget::onDown (x, y);
     if (mSelectValue != mValue) {
       mValue = mSelectValue;
       mChanged = true;

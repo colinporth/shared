@@ -25,18 +25,20 @@ public:
   cGlWindow();
   virtual ~cGlWindow();
 
-  //{{{  iDraw
-  uint16_t getLcdWidthPix();
-  uint16_t getLcdHeightPix();
-
+  // iWindow
   cVg* getContext();
+  uint16_t getWidthPix();
+  uint16_t getHeightPix();
+  bool getShift() { return mShifted; }
+  bool getControl() { return mControlled; }
+  bool getMouseDown() { return mMouseDown; }
 
+  // iDraw
   void pixel (uint32_t colour, int16_t x, int16_t y);
   void drawRect (uint32_t colour, int16_t x, int16_t y, uint16_t width, uint16_t height);
   void stamp (uint32_t colour, uint8_t* src, int16_t x, int16_t y, uint16_t width, uint16_t height);
   int drawText (uint32_t colour, uint16_t fontHeight, std::string str, int16_t x, int16_t y, uint16_t width, uint16_t height);
   void ellipseSolid (uint32_t colour, int16_t x, int16_t y, uint16_t xradius, uint16_t yradius);
-  //}}}
 
 protected:
   void initialise (std::string title, int width, int height, unsigned char* sansFont);
@@ -44,16 +46,11 @@ protected:
 
   virtual void onKey (int key, int scancode, int action, int mods) = 0;
   virtual void onChar (char ch, int mods) = 0;
-  virtual void onMouseProx (bool inClient, int x, int y, bool controlled);
-  virtual void onMouseDown (bool right, int x, int y, bool controlled);
-  virtual void onMouseMove (bool right, int x, int y, int xInc, int yInc, bool controlled);
-  virtual void onMouseUp (bool right, bool mouseMoved, int x, int y, bool controlled);
-  virtual void onMouseWheel (int delta, bool controlled);
-
-  static bool getAlted() { return mAlted; }
-  static bool getSupered() { return mSupered; }
-  static bool getShifted() { return mShifted; }
-  static bool getControlled() { return mControlled; }
+  virtual void onMouseProx (bool inClient, int x, int y);
+  virtual void onMouseDown (bool right, int x, int y);
+  virtual void onMouseMove (bool right, int x, int y, int xInc, int yInc);
+  virtual void onMouseUp (bool right, bool mouseMoved, int x, int y);
+  virtual void onMouseWheel (int delta);
 
   static cGlWindow* mGlWindow;
 

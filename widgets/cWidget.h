@@ -30,16 +30,21 @@ public:
 
   static float getPixel() { return 1.0f / getBoxHeight(); }
 
-  //{{{  constructors, destructor
   cWidget() {}
+  //{{{
   cWidget (float width)
     : mWidth(int(width * getBoxHeight())), mHeight(getBoxHeight()) {}
+  //}}}
+  //{{{
   cWidget (float width, float height)
     : mWidth(int(width * getBoxHeight())), mHeight(int(height * getBoxHeight())) {}
+  //}}}
+  //{{{
   cWidget (uint32_t colour, float width, float height)
     : mColour(colour), mWidth(int(width * getBoxHeight())), mHeight(int(height * getBoxHeight())) {}
-  virtual ~cWidget() {}
   //}}}
+  virtual ~cWidget() {}
+
   //{{{  gets
   float getX() { return mX / (float)getBoxHeight(); }
   float getY() { return mY / (float)getBoxHeight(); }
@@ -96,7 +101,7 @@ public:
   //}}}
 
   //{{{
-  virtual void prox (int16_t x, int16_t y, bool controlled) {
+  virtual void prox (int16_t x, int16_t y) {
     }
   //}}}
   //{{{
@@ -107,14 +112,14 @@ public:
   //}}}
 
   //{{{
-  virtual void onDown (int16_t x, int16_t y, bool controlled) {
+  virtual void onDown (int16_t x, int16_t y) {
     if (!mPressedCount)
       mOn = true;
     mPressedCount++;
     }
   //}}}
   //{{{
-  virtual void onMove (int16_t x, int16_t y, uint16_t z, int16_t xinc, int16_t yinc, bool controlled) {
+  virtual void onMove (int16_t x, int16_t y, uint16_t z, int16_t xinc, int16_t yinc) {
     }
   //}}}
   //{{{

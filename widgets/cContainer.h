@@ -1,7 +1,9 @@
 // cContainer.h - widget container, no background draw
+//{{{  includes
 #pragma once
 #include <vector>
 #include "cWidget.h"
+//}}}
 
 class cContainer : public cWidget {
 public:
@@ -38,6 +40,7 @@ public:
   //}}}
   //{{{
   cWidget* addAtPix (cWidget* widget, int16_t x, int16_t y) {
+
     widget->setParent (this);
     mSubWidgets.push_back (widget);
 

@@ -8,23 +8,23 @@ public:
   virtual ~cRootContainer() {}
 
   //{{{
-  void prox (int16_t x, int16_t y, bool controlled) {
+  void prox (int16_t x, int16_t y) {
 
     mProxWidget = picked (x, y, 0);
     if (mProxWidget)
-      mProxWidget->prox (x - mProxWidget->getPixX(), y - mProxWidget->getPixY(), controlled);
+      mProxWidget->prox (x - mProxWidget->getPixX(), y - mProxWidget->getPixY());
     }
   //}}}
   //{{{
-  void onDown (int pressCount, int16_t x, int16_t y, uint16_t z, int16_t xinc, int16_t yinc, bool controlled) {
+  void onDown (int pressCount, int16_t x, int16_t y, uint16_t z, int16_t xinc, int16_t yinc) {
 
     if (!pressCount) {
       mPressedWidget = picked (x, y, z);
       if (mPressedWidget)
-        mPressedWidget->onDown (x - mPressedWidget->getPixX(), y - mPressedWidget->getPixY(), controlled);
+        mPressedWidget->onDown (x - mPressedWidget->getPixX(), y - mPressedWidget->getPixY());
       }
     else if (mPressedWidget)
-      mPressedWidget->onMove (x - mPressedWidget->getPixX(), y - mPressedWidget->getPixY(), z, xinc, yinc, controlled);
+      mPressedWidget->onMove (x - mPressedWidget->getPixX(), y - mPressedWidget->getPixY(), z, xinc, yinc);
     }
   //}}}
   //{{{

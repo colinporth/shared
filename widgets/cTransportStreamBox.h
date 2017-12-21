@@ -1,6 +1,7 @@
 // cTransportStreamBox.h
 //{{{  includes
 #pragma once
+
 #include <string>
 #include "../utils/utils.h"
 #include "../decoders/cTransportStream.h"
@@ -19,31 +20,39 @@ public:
   //{{{
   void onDraw (iDraw* draw) {
 
-    //draw->rectClipped (mOn ? COL_LIGHTRED : mColour, mX+1, mY+1, mWidth-1, mHeight-1);
-    auto y = mY;
-    if (mTs->mPidInfoMap.size()) {
-      auto maxPidPackets = 10000;
-      for (auto &pidInfo : mTs->mPidInfoMap)
-        maxPidPackets = max (maxPidPackets, pidInfo.second.mPackets);
+    auto y = 0;
+    auto lineHeight = getFontHeight()*2/3;
 
+    if (mTs->mPidInfoMap.size()) {
       for (auto &pidInfo : mTs->mPidInfoMap) {
+        mMaxPidPackets = max (mMaxPidPackets, pidInfo.second.mPackets);
+        auto frac = (float)pidInfo.second.mPackets / (float)mMaxPidPackets;
+
         auto str = dec (pidInfo.second.mPackets,mPacketDigits) +
                    (mContDigits ? (":" + dec(pidInfo.second.mDisContinuity, mContDigits)) : "") +
                    " " + dec(pidInfo.first, 4) +
                    " " + getFullPtsString (pidInfo.second.mPts) +
                    " " + pidInfo.second.getTypeString();
-        auto width = draw->drawText (mTextColour, getFontHeight()*2/3, str, mX+2, y+1,
-                                     mWidth-3, mHeight-1);
-        draw->drawText (mTextColour, getFontHeight()*2/3, pidInfo.second.getInfoString(),
-                        mX + width + 300 + 2, y+1, mWidth-3, mHeight-1);
-        y += getFontHeight()*2/3;
+        auto width = draw->drawText (COL_LIGHTGREY, lineHeight, str,
+                                     mX+2, mY+y+1, mWidth-3, lineHeight);
+
+        draw->rectClipped (COL_DARKORANGE, mX+2 + width + lineHeight/2, mY+y+1,
+                           int((mWidth - width) * frac), lineHeight - 1);
+
+        draw->drawText (COL_LIGHTGREY, lineHeight,
+                        pidInfo.second.getInfoString() +
+                        " " + dec(frac) +
+                        " " + dec(width) +
+                        " " + dec(mWidth) +
+                        " " + dec(mMaxPidPackets),
+                        mX + 2 + width + lineHeight/2, mY+y+1, mWidth-3, lineHeight);
+        y += lineHeight;
         if (y > mHeight)
           break;
 
         if (pidInfo.second.mPackets > pow (10, mPacketDigits))
           mPacketDigits++;
         }
-
       if (mTs->getDiscontinuity() > pow (10, mContDigits))
         mContDigits++;
       }
@@ -52,8 +61,8 @@ public:
 
 private:
   cTransportStream* mTs;
-  uint32_t mTextColour = COL_DARKGREY;
 
   int mContDigits = 0;
   int mPacketDigits = 1;
+  int mMaxPidPackets = 0;
   };
