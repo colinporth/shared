@@ -176,7 +176,12 @@ public:
   //}}}
 
 protected:
-  void initialise() { mRoot = new cRootContainer (mScreenWidth, mScreenHeight); }
+  //{{{
+  cRootContainer* initialise() { 
+    mRoot = new cRootContainer (mScreenWidth, mScreenHeight);
+    return mRoot; 
+    }
+  //}}}
   cWidget* add (cWidget* widget) { return mRoot->add (widget); }
   cWidget* addAt (cWidget* widget, float x, float y) { return mRoot->addAt (widget,x,y); }
   cWidget* addAtPix (cWidget* widget, int16_t x, int16_t y) { return mRoot->addAtPix (widget,x,y); }
