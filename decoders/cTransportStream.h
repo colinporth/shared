@@ -713,7 +713,13 @@ private:
 class cTransportStream {
 friend class cTransportStreamBox;
 public:
-  virtual ~cTransportStream() {}
+  virtual ~cTransportStream() { clear(); }
+  //{{{
+  virtual void clear() {
+    mPidInfoMap.clear();
+    mServiceMap.clear();
+    }
+  //}}}
 
   //{{{
   static uint32_t getCrc32 (uint32_t crc, uint8_t* buf, unsigned int len) {

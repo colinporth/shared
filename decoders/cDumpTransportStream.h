@@ -7,7 +7,14 @@
 class cDumpTransportStream : public cTransportStream {
 public:
   cDumpTransportStream (const std::string& rootName) : mRootName(rootName){}
-  virtual ~cDumpTransportStream() {}
+  virtual ~cDumpTransportStream() { clear(); }
+
+  //{{{
+  virtual void clear() { 
+    mRootName.clear(); 
+    cTransportStream::clear();
+    }
+  //}}}
 
 protected:
   //{{{
@@ -16,7 +23,7 @@ protected:
     if ((service->getVidPid() > 0) && (service->getAudPid() > 0)) {
       // tv service
       auto recordFileIt = mRecordFileMap.find (service->getSid());
-      if (recordFileIt == mRecordFileMap.end()) 
+      if (recordFileIt == mRecordFileMap.end())
         recordFileIt = mRecordFileMap.insert (
           std::map<int,cRecordFile>::value_type (
             service->getSid(), cRecordFile (service->getVidPid(), service->getAudPid()))).first;
