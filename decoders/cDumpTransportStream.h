@@ -2,17 +2,16 @@
 #pragma once
 #include "../../shared/decoders/cTransportStream.h"
 
-//#define WIN_FILE
-
 class cDumpTransportStream : public cTransportStream {
 public:
   cDumpTransportStream (const std::string& rootName) : mRootName(rootName){}
   virtual ~cDumpTransportStream() { clear(); }
 
   //{{{
-  virtual void clear() { 
-    mRootName.clear(); 
+  virtual void clear() {
+    cLog::log (LOGNOTICE, "cDumpTransportStream clear");
     cTransportStream::clear();
+    mRecordFileMap.clear();
     }
   //}}}
 
@@ -57,7 +56,7 @@ private:
       // close any previous file
       closeFile();
 
-      #ifdef WIN_FILE
+      #ifdef _WIN32
         mFile = CreateFile (name.c_str(), GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, 0, NULL);
       #else
         mFile = fopen (name.c_str(), "wb");
@@ -81,7 +80,7 @@ private:
     void closeFile() {
 
       if (mFile != 0) {
-        #ifdef WIN_FILE
+        #ifdef _WIN32
           CloseHandle (mFile);
           mFile = 0;
         #else
@@ -123,7 +122,7 @@ private:
     //{{{
     void writePacket (uint8_t* ts) {
 
-      #ifdef WIN_FILE
+      #ifdef _WIN32
         DWORD numBytesUsed;
         WriteFile (mFile, ts, 188, &numBytesUsed, NULL);
         if (numBytesUsed != 188)
@@ -209,7 +208,7 @@ private:
 
     const int kPgmPid = 32;
 
-    #ifdef WIN_FILE
+    #ifdef _WIN32
       HANDLE mFile = 0;
     #else
       FILE* mFile = nullptr;

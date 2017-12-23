@@ -10,6 +10,7 @@
 #include <string>
 #include <map>
 #include <vector>
+#include <mutex>
 
 #include "dvbSubtitle.h"
 #include "huffman.h"
@@ -398,7 +399,11 @@ typedef struct item_extended_event_struct {
 class cPidInfo {
 public:
   cPidInfo (int pid, bool isPsi) : mPid(pid), mPsi(isPsi) {}
-  ~cPidInfo() {}
+  //{{{
+  ~cPidInfo() {
+    free (mBuffer);
+    }
+  //}}}
 
   int getBufUsed() { return int(mBufPtr - mBuffer); }
 
@@ -610,7 +615,12 @@ private:
 class cService {
 public:
   cService (int sid) : mSid(sid) {}
-  ~cService() {}
+  //{{{
+  ~cService() {
+    mNowVec.clear();
+    mEpgItemMap.clear();
+    }
+  //}}}
 
   //{{{  gets
   int getSid() const { return mSid; }
@@ -716,8 +726,17 @@ public:
   virtual ~cTransportStream() { clear(); }
   //{{{
   virtual void clear() {
-    mPidInfoMap.clear();
+
+    std::lock_guard<std::mutex> lockGuard (mMutex);
+
     mServiceMap.clear();
+    mProgramMap.clear();
+    mPidInfoMap.clear();
+
+    mFirstTime = 0;
+    mCurTime = 0;
+    mPackets = 0;
+    mDiscontinuity = 0;
     }
   //}}}
 
@@ -1150,6 +1169,7 @@ public:
             int continuityCount = ts[2] & 0x0F;
             int headerBytes =    (ts[2] & 0x20) ? (4 + ts[3]) : 3; // adaption field
 
+            std::lock_guard<std::mutex> lockGuard (mMutex);
             auto pidInfo = getPidInfo (pid, true);
             if (pidInfo) {
               if ((pidInfo->mContinuity >= 0) && (continuityCount != ((pidInfo->mContinuity+1) & 0x0F))) {
@@ -1309,6 +1329,7 @@ protected:
   // vars
   std::map<int,cPidInfo> mPidInfoMap;
   std::map<int,cService> mServiceMap;
+  std::mutex mMutex;
 
 private:
   //{{{
@@ -1867,8 +1888,8 @@ private:
   //{{{  private vars
   std::map<int,int> mProgramMap;
 
-  time_t mFirstTime;
-  time_t mCurTime;
+  time_t mFirstTime = 0;
+  time_t mCurTime = 0;
 
   uint64_t mPackets = 0;
   uint64_t mDiscontinuity = 0;
