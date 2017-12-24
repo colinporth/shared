@@ -1327,9 +1327,9 @@ protected:
   //}}}
 
   // vars
+  std::mutex mMutex;
   std::map<int,cPidInfo> mPidInfoMap;
   std::map<int,cService> mServiceMap;
-  std::mutex mMutex;
 
 private:
   //{{{
@@ -1700,19 +1700,15 @@ private:
                 auto duration = BcdTimeToSeconds (eitEvent->duration);
                 auto running = eitEvent->running_status == 0x04;
 
-                auto title = huffDecode (buf + sizeof(descr_short_event_struct),
-                                         ((descr_short_event_t*)(buf))->event_name_length);
-                std::string titleStr = title ? title : getDescrStr (buf + sizeof(descr_short_event_struct),
-                                                               ((descr_short_event_t*)(buf))->event_name_length);
+                auto titleBuf = buf + sizeof(descr_short_event_struct);
+                auto titleBufLen = ((descr_short_event_t*)(buf))->event_name_length;
+                auto title = huffDecode (titleBuf, titleBufLen);
+                std::string titleStr = title ? title : getDescrStr (titleBuf, titleBufLen);
 
-                auto shortDescription = huffDecode (
-                  buf + sizeof(descr_short_event_struct) + ((descr_short_event_t*)(buf))->event_name_length+1,
-                  size_t(buf + sizeof(descr_short_event_struct) + ((descr_short_event_t*)(buf))->event_name_length));
-
-                std::string shortDescriptionStr = shortDescription ?
-                  shortDescription : getDescrStr (
-                    buf + sizeof(descr_short_event_struct) + ((descr_short_event_t*)(buf))->event_name_length+1,
-                    *((uint8_t*)(buf + sizeof(descr_short_event_struct) + ((descr_short_event_t*)(buf))->event_name_length)));
+                titleBuf += ((descr_short_event_t*)(buf))->event_name_length+1;
+                titleBufLen = *((uint8_t*)(buf + sizeof(descr_short_event_struct) + ((descr_short_event_t*)(buf))->event_name_length));
+                auto shortDescription = huffDecode (titleBuf, titleBufLen);
+                std::string shortDescriptionStr = shortDescription ? shortDescription : getDescrStr (titleBuf, titleBufLen);
 
                 if (now) {
                   if (running &&
@@ -1722,9 +1718,9 @@ private:
                     if (serviceIt->second.setNow (startTime, duration, titleStr, shortDescriptionStr)) {
                       // new now
                       auto pidInfoIt = mPidInfoMap.find (serviceIt->second.getProgramPid());
-                      if (pidInfoIt != mPidInfoMap.end()) // update service pgmPid infoStr with new now
-                        pidInfoIt->second.mInfoStr =
-                          serviceIt->second.getNameString() + " " + serviceIt->second.getNowTitleString();
+                      if (pidInfoIt != mPidInfoMap.end())
+                        // update service pgmPid infoStr with new now
+                        pidInfoIt->second.mInfoStr = serviceIt->second.getNameString() + " " + serviceIt->second.getNowTitleString();
 
                       startProgram (&serviceIt->second, titleStr, startTime);
                       }

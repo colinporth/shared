@@ -21,15 +21,23 @@ protected:
 
     if ((service->getVidPid() > 0) && (service->getAudPid() > 0)) {
       // tv service
-      auto recordFileIt = mRecordFileMap.find (service->getSid());
-      if (recordFileIt == mRecordFileMap.end())
-        recordFileIt = mRecordFileMap.insert (
-          std::map<int,cRecordFile>::value_type (
-            service->getSid(), cRecordFile (service->getVidPid(), service->getAudPid()))).first;
+      auto name = service->getNameString();
+      if ((name == "CBBC HD") || (name == "CBBC") ||
+          (name == "CBeebies") || (name == "BBC Parliament") ||
+          (name == "BBC RB 1") || (name == "BBC NEWS") ||
+          (name == "Channel 4+1") || (name == "ITV +1"))
+        cLog::log (LOGNOTICE, "startProgram ignoring channel " + name);
+      else {
+        auto recordFileIt = mRecordFileMap.find (service->getSid());
+        if (recordFileIt == mRecordFileMap.end())
+          recordFileIt = mRecordFileMap.insert (
+            std::map<int,cRecordFile>::value_type (
+              service->getSid(), cRecordFile (service->getVidPid(), service->getAudPid()))).first;
 
-      auto validFileName = validString (service->getNameString() + " - " + name, "<>:/|?*\"\'\\");
-      cLog::log (LOGNOTICE, "starting prgram " + validFileName);
-      recordFileIt->second.createFile (mRootName + "/" + validFileName + ".ts", service);
+        auto validFileName = validString (service->getNameString() + " - " + name, "<>:/|?*\"\'\\");
+        cLog::log (LOGNOTICE, "starting prgram " + validFileName);
+        recordFileIt->second.createFile (mRootName + "/" + validFileName + ".ts", service);
+        }
       }
     }
   //}}}
