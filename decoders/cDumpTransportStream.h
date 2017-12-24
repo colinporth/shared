@@ -21,12 +21,12 @@ protected:
 
     if ((service->getVidPid() > 0) && (service->getAudPid() > 0)) {
       // tv service
-      auto name = service->getNameString();
-      if ((name == "CBBC HD") || (name == "CBBC") ||
-          (name == "CBeebies") || (name == "BBC Parliament") ||
-          (name == "BBC RB 1") || (name == "BBC NEWS") ||
-          (name == "Channel 4+1") || (name == "ITV +1"))
-        cLog::log (LOGNOTICE, "startProgram ignoring channel " + name);
+      auto str = service->getNameString();
+      if ((str == "CBBC HD") || (str == "CBBC") ||
+          (str == "CBeebies") || (str == "BBC Parliament") ||
+          (str == "BBC RB 1") || (str == "BBC NEWS") ||
+          (str == "Channel 4+1") || (str == "ITV +1"))
+        cLog::log (LOGNOTICE, "startProgram ignoring channel " + str);
       else {
         auto recordFileIt = mRecordFileMap.find (service->getSid());
         if (recordFileIt == mRecordFileMap.end())
