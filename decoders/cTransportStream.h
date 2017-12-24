@@ -1305,6 +1305,10 @@ public:
     }
   //}}}
 
+  // public for widget access
+  uint64_t mPackets = 0;
+  uint64_t mDiscontinuity = 0;
+
 protected:
   virtual bool audDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
   virtual bool vidDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
@@ -1703,10 +1707,10 @@ private:
                 auto eventBuf = buf + sizeof(descr_short_event_struct);
                 auto eventBufLen = ((descr_short_event_t*)(buf))->event_name_length;
                 auto title = huffDecode (eventBuf, eventBufLen);
-                std::string titleStr = title ? title : getDescrStr (titleBuf, eventBufLen);
+                std::string titleStr = title ? title : getDescrStr (eventBuf, eventBufLen);
 
                 eventBuf += ((descr_short_event_t*)(buf))->event_name_length + 1;
-                eventBufLen = *((uint8_t*)(buf + sizeof(descr_short_event_struct) + 
+                eventBufLen = *((uint8_t*)(buf + sizeof(descr_short_event_struct) +
                                            ((descr_short_event_t*)(buf))->event_name_length));
                 auto description = huffDecode (eventBuf, eventBufLen);
                 std::string descriptionStr = description ? description : getDescrStr (eventBuf, eventBufLen);
@@ -1721,7 +1725,7 @@ private:
                       auto pidInfoIt = mPidInfoMap.find (serviceIt->second.getProgramPid());
                       if (pidInfoIt != mPidInfoMap.end())
                         // update service pgmPid infoStr with new now
-                        pidInfoIt->second.mInfoStr = serviceIt->second.getNameString() + 
+                        pidInfoIt->second.mInfoStr = serviceIt->second.getNameString() +
                                                      " " + serviceIt->second.getNowTitleString();
 
                       startProgram (&serviceIt->second, titleStr, startTime);
@@ -1888,8 +1892,5 @@ private:
 
   time_t mFirstTime = 0;
   time_t mCurTime = 0;
-
-  uint64_t mPackets = 0;
-  uint64_t mDiscontinuity = 0;
   //}}}
   };
