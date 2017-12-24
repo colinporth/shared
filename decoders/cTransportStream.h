@@ -1700,34 +1700,36 @@ private:
                 auto duration = BcdTimeToSeconds (eitEvent->duration);
                 auto running = eitEvent->running_status == 0x04;
 
-                auto titleBuf = buf + sizeof(descr_short_event_struct);
-                auto titleBufLen = ((descr_short_event_t*)(buf))->event_name_length;
-                auto title = huffDecode (titleBuf, titleBufLen);
-                std::string titleStr = title ? title : getDescrStr (titleBuf, titleBufLen);
+                auto eventBuf = buf + sizeof(descr_short_event_struct);
+                auto eventBufLen = ((descr_short_event_t*)(buf))->event_name_length;
+                auto title = huffDecode (eventBuf, eventBufLen);
+                std::string titleStr = title ? title : getDescrStr (titleBuf, eventBufLen);
 
-                titleBuf += ((descr_short_event_t*)(buf))->event_name_length+1;
-                titleBufLen = *((uint8_t*)(buf + sizeof(descr_short_event_struct) + ((descr_short_event_t*)(buf))->event_name_length));
-                auto shortDescription = huffDecode (titleBuf, titleBufLen);
-                std::string shortDescriptionStr = shortDescription ? shortDescription : getDescrStr (titleBuf, titleBufLen);
+                eventBuf += ((descr_short_event_t*)(buf))->event_name_length + 1;
+                eventBufLen = *((uint8_t*)(buf + sizeof(descr_short_event_struct) + 
+                                           ((descr_short_event_t*)(buf))->event_name_length));
+                auto description = huffDecode (eventBuf, eventBufLen);
+                std::string descriptionStr = description ? description : getDescrStr (eventBuf, eventBufLen);
 
                 if (now) {
                   if (running &&
                       !serviceIt->second.getNameString().empty() &&
                       (serviceIt->second.getProgramPid() != -1)) {
                     // wait for named service with pgmPid
-                    if (serviceIt->second.setNow (startTime, duration, titleStr, shortDescriptionStr)) {
+                    if (serviceIt->second.setNow (startTime, duration, titleStr, descriptionStr)) {
                       // new now
                       auto pidInfoIt = mPidInfoMap.find (serviceIt->second.getProgramPid());
                       if (pidInfoIt != mPidInfoMap.end())
                         // update service pgmPid infoStr with new now
-                        pidInfoIt->second.mInfoStr = serviceIt->second.getNameString() + " " + serviceIt->second.getNowTitleString();
+                        pidInfoIt->second.mInfoStr = serviceIt->second.getNameString() + 
+                                                     " " + serviceIt->second.getNowTitleString();
 
                       startProgram (&serviceIt->second, titleStr, startTime);
                       }
                     }
                   }
                 else if (epg)
-                  serviceIt->second.setEpg (startTime, duration, titleStr, shortDescriptionStr);
+                  serviceIt->second.setEpg (startTime, duration, titleStr, descriptionStr);
                 }
 
               break;

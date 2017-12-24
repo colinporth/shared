@@ -15,6 +15,9 @@
   #pragma comment(lib,"glew32s.lib")
 #endif
 
+#include "../utils/utils.h"
+#include "../utils/cLog.h"
+
 #include "cGlWindow.h"
 
 #include "cPerfGraph.h"
@@ -90,7 +93,6 @@ using namespace std;
     }
   //}}}
 #endif
-
 cGlWindow::cGlWindow() {}
 //{{{
 cGlWindow::~cGlWindow() {
@@ -121,12 +123,12 @@ vector<string> cGlWindow::getFiles (string fileName, string match) {
   return fileNames;
   }
 //}}}
-//{{{  iDraw
+//{{{  iWindow
+cVg* cGlWindow::getContext() { return this; }
 uint16_t cGlWindow::getWidthPix() { return mRoot->getPixWidth(); }
 uint16_t cGlWindow::getHeightPix() { return mRoot->getPixHeight(); }
-
-cVg* cGlWindow::getContext() { return this; }
-
+//}}}
+//{{{  iDraw
 //{{{
 void cGlWindow::pixel (uint32_t colour, int16_t x, int16_t y) {
   rectClipped (colour, x, y, 1, 1);
@@ -175,7 +177,7 @@ cRootContainer* cGlWindow::initialise (string title, int width, int height, unsi
 
   if (!glfwInit()) {
     //{{{  error
-    printf ("Failed to init GLFW.");
+    cLog::log (LOGERROR, "Failed to init GLFW");
     return nullptr;
     }
     //}}}
@@ -196,6 +198,7 @@ cRootContainer* cGlWindow::initialise (string title, int width, int height, unsi
   mWindow = glfwCreateWindow (width, height, title.c_str(), NULL, NULL);
   if (!mWindow) {
     //{{{  error
+    cLog::log (LOGERROR, "failed to create Glfw window " + dec(width) + "x" + dec(height) + " " + title);
     glfwTerminate();
     return nullptr;
     }
@@ -213,7 +216,7 @@ cRootContainer* cGlWindow::initialise (string title, int width, int height, unsi
   glewExperimental = GL_TRUE;
   if (glewInit() != GLEW_OK) {
     //{{{  error
-    printf ("Could not init glew.\n");
+    cLog::log (LOGERROR, "Failed to init glew");
     return nullptr;
     }
     //}}}
@@ -229,7 +232,6 @@ cRootContainer* cGlWindow::initialise (string title, int width, int height, unsi
 
   // init timers
   glfwSetTime (0);
-  double prevt = glfwGetTime();
 
   mFpsGraph = new cPerfGraph (cPerfGraph::GRAPH_RENDER_FPS, "frame");
   mCpuGraph = new cPerfGraph (cPerfGraph::GRAPH_RENDER_MS, "cpu");
@@ -318,20 +320,16 @@ void cGlWindow::toggleTests() {
   }
 //}}}
 
-//{{{
-void cGlWindow::onDown (bool right, int x, int y) {
-  mRoot->onDown (0, x, y, 0,  0, 0);
-  }
-//}}}
-//{{{
-void cGlWindow::onUp (bool right, bool mouseMoved, int x, int y) {
-  mRoot->onUp();
-  }
-//}}}
+// private
 //{{{
 void cGlWindow::onProx (bool inClient, int x, int y) {
   mMouseX = (float)x;
   mMouseY = (float)y;
+  }
+//}}}
+//{{{
+void cGlWindow::onDown (bool right, int x, int y) {
+  mRoot->onDown (0, x, y, 0,  0, 0);
   }
 //}}}
 //{{{
@@ -342,11 +340,15 @@ void cGlWindow::onMove (bool right, int x, int y, int xInc, int yInc) {
   }
 //}}}
 //{{{
+void cGlWindow::onUp (bool right, bool mouseMoved, int x, int y) {
+  mRoot->onUp();
+  }
+//}}}
+//{{{
 void cGlWindow::onWheel (int delta) {
   }
 //}}}
 
-// private
 //{{{
 void cGlWindow::drawSpinner (float cx, float cy, float r, float t) {
 
@@ -594,7 +596,7 @@ void cGlWindow::glfMouseScroll (GLFWwindow* window,  double xoffset, double yoff
 //}}}
 //{{{
 void cGlWindow::errorcb (int error, const char* desc) {
-  printf ("GLFW error %d: %s\n", error, desc);
+  cLog::log (LOGERROR, "GLFW error %d: %s\n", error, desc);
   }
 //}}}
 

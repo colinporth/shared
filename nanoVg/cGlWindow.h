@@ -25,6 +25,8 @@ public:
   cGlWindow();
   virtual ~cGlWindow();
 
+  static std::vector<std::string> getFiles (std::string fileName, std::string match);
+
   // iWindow
   cVg* getContext();
   uint16_t getWidthPix();
@@ -56,13 +58,6 @@ protected:
 
   virtual void onKey (int key, int scancode, int action, int mods) = 0;
   virtual void onChar (char ch, int mods) = 0;
-  virtual void onProx (bool inClient, int x, int y);
-  virtual void onDown (bool right, int x, int y);
-  virtual void onMove (bool right, int x, int y, int xInc, int yInc);
-  virtual void onUp (bool right, bool mouseMoved, int x, int y);
-  virtual void onWheel (int delta);
-
-  std::vector<std::string> getFiles (std::string fileName, std::string match);
 
   void toggleVsync();
   void togglePerf();
@@ -76,6 +71,12 @@ protected:
   GLFWwindow* mWindow = nullptr;
 
 private:
+  void onProx (bool inClient, int x, int y);
+  void onDown (bool right, int x, int y);
+  void onMove (bool right, int x, int y, int xInc, int yInc);
+  void onUp (bool right, bool mouseMoved, int x, int y);
+  void onWheel (int delta);
+
   void drawSpinner (float cx, float cy, float r, float t);
   void drawEyes (float x, float y, float w, float h, float cursorX, float cursorY, float t);
   void drawLines (float x, float y, float w, float h, float t);

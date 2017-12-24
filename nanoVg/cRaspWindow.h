@@ -146,9 +146,9 @@ public:
   bool getMouseDown() { return false; }
 
   // iDraw
-  virtual void pixel (uint32_t colour, int16_t x, int16_t y) {}
+  void pixel (uint32_t colour, int16_t x, int16_t y) {}
   //{{{
-  virtual void drawRect (uint32_t colour, int16_t x, int16_t y, uint16_t width, uint16_t height) {
+  void drawRect (uint32_t colour, int16_t x, int16_t y, uint16_t width, uint16_t height) {
 
     beginPath();
     rect (x, y, width, height);
@@ -157,7 +157,7 @@ public:
     }
   //}}}
   //{{{
-  virtual int drawText (uint32_t colour, uint16_t fontHeight, std::string str, int16_t x, int16_t y, uint16_t width, uint16_t height) {
+  int drawText (uint32_t colour, uint16_t fontHeight, std::string str, int16_t x, int16_t y, uint16_t width, uint16_t height) {
 
     fontSize ((float)fontHeight);
     textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_TOP);
@@ -166,7 +166,7 @@ public:
     }
   //}}}
   //{{{
-  virtual void ellipseSolid (uint32_t colour, int16_t x, int16_t y, uint16_t xradius, uint16_t yradius) {
+  void ellipseSolid (uint32_t colour, int16_t x, int16_t y, uint16_t xradius, uint16_t yradius) {
 
     beginPath();
     ellipse (x, y, xradius, yradius);
@@ -177,9 +177,9 @@ public:
 
 protected:
   //{{{
-  cRootContainer* initialise() { 
+  cRootContainer* initialise() {
     mRoot = new cRootContainer (mScreenWidth, mScreenHeight);
-    return mRoot; 
+    return mRoot;
     }
   //}}}
   cWidget* add (cWidget* widget) { return mRoot->add (widget); }
@@ -304,7 +304,6 @@ protected:
   void toggleStats() { mDrawStats = !mDrawStats; }
   void toggleTests() { mDrawTests = !mDrawTests; }
   virtual void pollKeyboard() = 0;
-
   //{{{  vars
   bool mEscape = false;
   bool mVsync = true;
