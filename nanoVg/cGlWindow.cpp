@@ -21,6 +21,8 @@
 #include "cGpuGraph.h"
 
 #include "../widgets/cRootContainer.h"
+
+using namespace std;
 //}}}
 
 #ifdef _WIN32
@@ -62,12 +64,12 @@
     }
   //}}}
   //{{{
-  std::vector<std::string> listDirectory (std::string parentName, std::string directoryName, char* pathMatchName) {
+  vector<string> listDirectory (string parentName, string directoryName, char* pathMatchName) {
 
-    std::vector<std::string> fileNames;
+    vector<string> fileNames;
 
-    std::string mFullDirName = parentName.empty() ? directoryName : parentName + "/" + directoryName;
-    std::string searchStr (mFullDirName +  "/*");
+    string mFullDirName = parentName.empty() ? directoryName : parentName + "/" + directoryName;
+    string searchStr (mFullDirName +  "/*");
 
     WIN32_FIND_DATAA findFileData;
     auto file = FindFirstFileExA (searchStr.c_str(), FindExInfoBasic, &findFileData,
@@ -97,9 +99,9 @@ cGlWindow::~cGlWindow() {
 //}}}
 
 //{{{
-std::vector<std::string> cGlWindow::getFiles (std::string fileName, std::string match) {
+vector<string> cGlWindow::getFiles (string fileName, string match) {
 
-  std::vector<std::string> fileNames;
+  vector<string> fileNames;
 
   #ifdef _WIN32
     if (fileName.empty())
@@ -110,7 +112,7 @@ std::vector<std::string> cGlWindow::getFiles (std::string fileName, std::string 
         fileName = fullName;
       }
     if (GetFileAttributesA (fileName.c_str()) & FILE_ATTRIBUTE_DIRECTORY)
-      fileNames = listDirectory (std::string(), fileName, (char*)(match.c_str()));
+      fileNames = listDirectory (string(), fileName, (char*)(match.c_str()));
     else if (!fileName.empty())
     #endif
 
@@ -144,7 +146,7 @@ void cGlWindow::stamp (uint32_t colour, uint8_t* src, int16_t x, int16_t y, uint
   }
 //}}}
 //{{{
-int cGlWindow::drawText (uint32_t colour, uint16_t fontHeight, std::string str, int16_t x, int16_t y, uint16_t width, uint16_t height) {
+int cGlWindow::drawText (uint32_t colour, uint16_t fontHeight, string str, int16_t x, int16_t y, uint16_t width, uint16_t height) {
 
   fontSize ((float)fontHeight);
   textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_TOP);
@@ -167,7 +169,7 @@ void cGlWindow::ellipseSolid (uint32_t colour, int16_t x, int16_t y, uint16_t xr
 
 // protected
 //{{{
-cRootContainer* cGlWindow::initialise (std::string title, int width, int height, unsigned char* sansFont) {
+cRootContainer* cGlWindow::initialise (string title, int width, int height, unsigned char* sansFont) {
 
   mGlWindow = this;
 
@@ -317,30 +319,30 @@ void cGlWindow::toggleTests() {
 //}}}
 
 //{{{
-void cGlWindow::onMouseDown (bool right, int x, int y) {
+void cGlWindow::onDown (bool right, int x, int y) {
   mRoot->onDown (0, x, y, 0,  0, 0);
   }
 //}}}
 //{{{
-void cGlWindow::onMouseUp (bool right, bool mouseMoved, int x, int y) {
+void cGlWindow::onUp (bool right, bool mouseMoved, int x, int y) {
   mRoot->onUp();
   }
 //}}}
 //{{{
-void cGlWindow::onMouseProx (bool inClient, int x, int y) {
+void cGlWindow::onProx (bool inClient, int x, int y) {
   mMouseX = (float)x;
   mMouseY = (float)y;
   }
 //}}}
 //{{{
-void cGlWindow::onMouseMove (bool right, int x, int y, int xInc, int yInc) {
+void cGlWindow::onMove (bool right, int x, int y, int xInc, int yInc) {
   mMouseX = (float)x;
   mMouseY = (float)y;
   mRoot->onDown (1, x, y, 0, xInc, yInc);
   }
 //}}}
 //{{{
-void cGlWindow::onMouseWheel (int delta) {
+void cGlWindow::onWheel (int delta) {
   }
 //}}}
 
@@ -496,7 +498,7 @@ void cGlWindow::drawLines (float x, float y, float w, float h, float t) {
   }
 //}}}
 //{{{
-void cGlWindow::drawStats (float x, float y, std::string str) {
+void cGlWindow::drawStats (float x, float y, string str) {
 
   fontSize (12.0f);
   textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_BOTTOM);
@@ -556,13 +558,13 @@ void cGlWindow::glfwCursorPos (GLFWwindow* window, double xpos, double ypos) {
     int yinc = int(ypos) - mMouseIntY;
     if ((xinc != 0) || (yinc != 0)) {
       mMouseMoved = true;
-      mGlWindow->onMouseMove (false, int(xpos), int(ypos), xinc, yinc);
+      mGlWindow->onMove (false, int(xpos), int(ypos), xinc, yinc);
       mMouseIntX = int(xpos);
       mMouseIntY = int(ypos);
       }
     }
   else
-    mGlWindow->onMouseProx (true, int(xpos), int(ypos));
+    mGlWindow->onProx (true, int(xpos), int(ypos));
 
   mMouseX = float(xpos);
   mMouseY = float(ypos);
@@ -573,12 +575,12 @@ void cGlWindow::glfwMouseButton (GLFWwindow* window, int button, int action, int
 
   if (action == GLFW_PRESS) {
     mMouseMoved = false;
-    mGlWindow->onMouseDown (button == GLFW_MOUSE_BUTTON_RIGHT, (int)mMouseX, (int)mMouseY);
+    mGlWindow->onDown (button == GLFW_MOUSE_BUTTON_RIGHT, (int)mMouseX, (int)mMouseY);
     mMouseDown = true;
     }
 
   else if (action == GLFW_RELEASE) {
-    mGlWindow->onMouseUp (button == GLFW_MOUSE_BUTTON_RIGHT, mMouseMoved, (int)mMouseX, (int)mMouseY);
+    mGlWindow->onUp (button == GLFW_MOUSE_BUTTON_RIGHT, mMouseMoved, (int)mMouseX, (int)mMouseY);
     mMouseDown = false;
     mMouseMoved = false;
     }
@@ -587,7 +589,7 @@ void cGlWindow::glfwMouseButton (GLFWwindow* window, int button, int action, int
 //}}}
 //{{{
 void cGlWindow::glfMouseScroll (GLFWwindow* window,  double xoffset, double yoffset) {
-  mGlWindow->onMouseWheel (int (yoffset));
+  mGlWindow->onWheel (int (yoffset));
   }
 //}}}
 //{{{

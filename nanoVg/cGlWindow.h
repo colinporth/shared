@@ -56,11 +56,11 @@ protected:
 
   virtual void onKey (int key, int scancode, int action, int mods) = 0;
   virtual void onChar (char ch, int mods) = 0;
-  virtual void onMouseProx (bool inClient, int x, int y);
-  virtual void onMouseDown (bool right, int x, int y);
-  virtual void onMouseMove (bool right, int x, int y, int xInc, int yInc);
-  virtual void onMouseUp (bool right, bool mouseMoved, int x, int y);
-  virtual void onMouseWheel (int delta);
+  virtual void onProx (bool inClient, int x, int y);
+  virtual void onDown (bool right, int x, int y);
+  virtual void onMove (bool right, int x, int y, int xInc, int yInc);
+  virtual void onUp (bool right, bool mouseMoved, int x, int y);
+  virtual void onWheel (int delta);
 
   std::vector<std::string> getFiles (std::string fileName, std::string match);
 
