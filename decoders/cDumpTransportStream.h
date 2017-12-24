@@ -56,11 +56,8 @@ private:
       // close any previous file
       closeFile();
 
-      #ifdef _WIN32
-        mFile = CreateFile (name.c_str(), GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, 0, NULL);
-      #else
-        mFile = fopen (name.c_str(), "wb");
-      #endif
+      //mFile = CreateFile (name.c_str(), GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, 0, NULL);
+      mFile = fopen (name.c_str(), "wb");
 
       writePat (0x1234, service->getSid(), kPgmPid); // tsid, sid, pgmPid
       writePmt (service->getSid(), kPgmPid, service->getVidPid(),
@@ -80,13 +77,10 @@ private:
     void closeFile() {
 
       if (mFile != 0) {
-        #ifdef _WIN32
-          CloseHandle (mFile);
-          mFile = 0;
-        #else
-          fclose (mFile);
-          mFile = nullptr;
-        #endif
+        //CloseHandle (mFile);
+        //mFile = 0;
+        fclose (mFile);
+        mFile = nullptr;
         }
       }
     //}}}
@@ -122,14 +116,11 @@ private:
     //{{{
     void writePacket (uint8_t* ts) {
 
-      #ifdef _WIN32
-        DWORD numBytesUsed;
-        WriteFile (mFile, ts, 188, &numBytesUsed, NULL);
-        if (numBytesUsed != 188)
-          cLog::log (LOGERROR, "writePacket " + dec(numBytesUsed));
-      #else
-        fwrite (ts, 1, 188, mFile);
-      #endif
+      //DWORD numBytesUsed;
+      //WriteFile (mFile, ts, 188, &numBytesUsed, NULL);
+      //if (numBytesUsed != 188)
+      //  cLog::log (LOGERROR, "writePacket " + dec(numBytesUsed));
+      fwrite (ts, 1, 188, mFile);
       }
     //}}}
 
@@ -208,11 +199,8 @@ private:
 
     const int kPgmPid = 32;
 
-    #ifdef _WIN32
-      HANDLE mFile = 0;
-    #else
-      FILE* mFile = nullptr;
-    #endif
+    //HANDLE mFile = 0;
+    FILE* mFile = nullptr;
 
     int mVidPid = -1;
     int mAudPid = -1;
