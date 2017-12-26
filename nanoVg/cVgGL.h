@@ -66,6 +66,7 @@ public:
     glGetIntegerv (GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &align);
   #endif
 
+    // removed because of strange startup time
     //glFinish();
 
     cVg::initialise();
