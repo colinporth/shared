@@ -8,8 +8,9 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
-#define NANOVG_GL3 1
-#define NANOVG_GL_USE_UNIFORMBUFFER 1
+#define NANOVG_GL2_IMPLEMENTATION
+//#define NANOVG_GL3 1
+//#define NANOVG_GL_USE_UNIFORMBUFFER 1
 #include "cVgGL.h"
 
 typedef struct GLFWwindow GLFWwindow;
