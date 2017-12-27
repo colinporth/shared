@@ -40,7 +40,7 @@ public:
   enum ePlaying { ePause, eScrub, ePlay };
   //{{{
   cHls (int chan, int bitrate, int daylightSeconds) :
-      mChan(chan), mLoadSem("load"), mDaylightSeconds(daylightSeconds), mBitrate(bitrate) {
+      mChan(chan), mLoadSem("load"), mBitrate(bitrate), mDaylightSeconds(daylightSeconds) {
     mDecoder = new cAacDecoder();
     }
   //}}}
