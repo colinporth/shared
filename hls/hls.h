@@ -40,7 +40,7 @@ public:
   enum ePlaying { ePause, eScrub, ePlay };
   //{{{
   cHls (int chan, int bitrate, int daylightSeconds) :
-      mChan (chan), mBitrate(bitrate), mDaylightSeconds(daylightSeconds), mLoadSem("load") {
+      mChan(chan), mLoadSem("load"), mDaylightSeconds(daylightSeconds), mBitrate(bitrate) {
     mDecoder = new cAacDecoder();
     }
   //}}}
@@ -245,8 +245,11 @@ public:
       if (mChanChanged)
         setChan (http, mChan);
       if (!loadAtPlayFrame (http))
-        Sleep (1000);
-
+        #ifdef _WIN32
+          Sleep (1000);
+        #else
+          sleep (1);
+        #endif
       // wait for change to run again
       mLoadSem.wait();
       }
@@ -315,7 +318,7 @@ public:
   chrono::time_point<chrono::system_clock> mBaseDatePoint;
   chrono::time_point<chrono::system_clock> mPlayTimePoint;
 
-  int mChan = kDefaultChan;
+  int mChan = 0;
   bool mChanChanged = true;
 
   float mVolume = kDefaultVolume;
@@ -641,7 +644,7 @@ private:
   cChunk mChunks[kMaxChunks];
 
   cAacDecoder* mDecoder = 0;
-  int mBitrate = kDefaultBitrate;
+  int mBitrate = 0;
 
   int mDaylightSeconds = 0;
   string mDateTime;
