@@ -2,8 +2,9 @@
 #pragma once
 //{{{  includes
 #include "../utils/utils.h"
-#include "../utils/cLog.h"
 #include "../utils/date.h"
+#include "../utils/cLog.h"
+#include "../utils/cSemaphore.h"
 
 #include "../teensyAac/cAacDecoder.h"
 //}}}
@@ -39,7 +40,7 @@ public:
   enum ePlaying { ePause, eScrub, ePlay };
   //{{{
   cHls (int chan, int bitrate, int daylightSeconds) :
-      mChan (chan), mBitrate(bitrate), mDaylightSeconds(daylightSeconds) {
+      mChan (chan), mBitrate(bitrate), mDaylightSeconds(daylightSeconds), mLoadSem("load") {
     mDecoder = new cAacDecoder();
     }
   //}}}
@@ -232,6 +233,83 @@ public:
     }
   //}}}
 
+  //{{{
+  void loader (cHttp& http) {
+  // make sure chunks around playframe loaded, only thread using http
+
+    cLog::setThreadName ("load");
+    http.initialise();
+
+    mChanChanged = true;
+    while (true) {
+      if (mChanChanged)
+        setChan (http, mChan);
+      if (!loadAtPlayFrame (http))
+        Sleep (1000);
+
+      // wait for change to run again
+      mLoadSem.wait();
+      }
+
+    cLog::log (LOGNOTICE, "exit");
+    }
+  //}}}
+  //{{{
+  void player (iAudio* audio, iChange* change) {
+
+    cLog::setThreadName ("play");
+    audio->audOpen (2, 48000);
+
+    uint16_t scrubCount = 0;
+    double scrubSample = 0;
+
+    uint32_t seqNum = 0;
+    uint32_t lastSeqNum = 0;
+
+    while (true) {
+      switch (getPlaying()) {
+        case cHls::ePause:
+          audio->audPlay (2, nullptr, 1024, 1.f);
+          break;
+
+        case cHls::eScrub: {
+          if (scrubCount == 0)
+            scrubSample = getPlaySample();
+          if (scrubCount < 3) {
+            uint32_t numSamples = 0;
+            auto sample = getPlaySamples (scrubSample + scrubCount*kSamplesPerFrame, seqNum, numSamples);
+            audio->audPlay (2, sample, 1024, 1.f);
+            }
+          else
+            audio->audPlay (2, nullptr, 1024, 1.f);
+          if (scrubCount++ > 3)
+            scrubCount = 0;
+          }
+          break;
+
+        case cHls::ePlay: {
+          uint32_t numSamples = 0;
+          auto sample = getPlaySamples (getPlaySample(), seqNum, numSamples);
+          audio->audPlay (2, sample, 1024, 1.f);
+          if (sample)
+            incPlayFrame();
+          change->changed();
+          }
+          break;
+        }
+
+      if (mChanChanged || !seqNum || (seqNum != lastSeqNum)) {
+        lastSeqNum = seqNum;
+        mLoadSem.notify();
+        }
+      }
+
+    // cleanup
+    audio->audClose();
+    cLog::log (LOGNOTICE, "exit");
+    }
+  //}}}
+
   //{{{  vars
   chrono::time_point<chrono::system_clock> mBaseTimePoint;
   chrono::time_point<chrono::system_clock> mBaseDatePoint;
@@ -243,6 +321,7 @@ public:
   float mVolume = kDefaultVolume;
   bool mVolumeChanged = true;
   //}}}
+  cSemaphore mLoadSem;
 
 private:
   //{{{

@@ -1,23 +1,26 @@
 // cRaspWindow.h
-#pragma once
 //{{{  includes
+#pragma once
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
 
+// Egl, gles2
 #include "EGL/egl.h"
 #include "EGL/eglext.h"
 #include "GLES2/gl2.h"
 
+// cVgGL
 #define NANOVG_GLES2 1
 #include "cVgGL.h"
+#include "cPerfGraph.h"
+
 #include "../fonts/FreeSansBold.h"
 #include "../fonts/DroidSansMono1.h"
 
 #include "../utils/cLog.h"
-
-#include "cPerfGraph.h"
 
 #define USE_NANOVG
 #include "../widgets/cRootContainer.h"
@@ -42,7 +45,7 @@ const EGLint kContextAttributeList[] = {
   };
 //}}}
 
-class cRaspWindow : public cVgGL, public iDraw {
+class cRaspWindow : public cVgGL, public iChange, public iDraw {
 public:
   //{{{
   cRaspWindow (float scale, uint32_t alpha) {
@@ -174,6 +177,9 @@ public:
     fill();
     }
   //}}}
+
+  // iChange
+  void changed() {}
 
 protected:
   //{{{

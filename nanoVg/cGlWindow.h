@@ -1,27 +1,31 @@
 // cGlWindow.h
-#pragma once
 //{{{  includes
+#pragma once
+
 #include <string>
 #include <vector>
 
+// Glew, glfw3
 #define GLEW_STATIC
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
+// cVgGL
 #define NANOVG_GL2_IMPLEMENTATION
 //#define NANOVG_GL3 1
 //#define NANOVG_GL_USE_UNIFORMBUFFER 1
 #include "cVgGL.h"
+#include "cPerfGraph.h"
+#include "cGpuGraph.h"
+#include "../../shared/utils/iChange.h"
 
 typedef struct GLFWwindow GLFWwindow;
-class cPerfGraph;
-class cGpuGraph;
 
 #define USE_NANOVG
 #include "../../shared/widgets/cRootContainer.h"
 //}}}
 
-class cGlWindow : public cVgGL, public iDraw {
+class cGlWindow : public cVgGL, public iChange, public iDraw {
 public:
   cGlWindow();
   virtual ~cGlWindow();
@@ -42,6 +46,9 @@ public:
   void stamp (uint32_t colour, uint8_t* src, int16_t x, int16_t y, uint16_t width, uint16_t height);
   int drawText (uint32_t colour, uint16_t fontHeight, std::string str, int16_t x, int16_t y, uint16_t width, uint16_t height);
   void ellipseSolid (uint32_t colour, int16_t x, int16_t y, uint16_t xradius, uint16_t yradius);
+
+  // iChange
+  void changed() {}
 
 protected:
   cRootContainer* initialise (std::string title, int width, int height, unsigned char* sansFont);
