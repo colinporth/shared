@@ -1,6 +1,7 @@
 // hls.h
-#pragma once
 //{{{  includes
+#pragma once
+
 #include "../utils/utils.h"
 #include "../utils/date.h"
 #include "../utils/cLog.h"
@@ -53,7 +54,7 @@ public:
   void operator delete (void *ptr) { bigFree (ptr); }
 
   //{{{
-  void getChunkLoad (int chunk, bool& loaded, bool& loading, int& offset) {
+  void getChunkInfo (int chunk, bool& loaded, bool& loading, int& offset) {
     loaded = mChunks[chunk].getLoaded();
     loading = mChunks[chunk].getLoading();
     offset = getSeqNumOffset (mChunks[chunk].getSeqNum());
@@ -323,8 +324,9 @@ public:
 
   float mVolume = kDefaultVolume;
   bool mVolumeChanged = true;
-  //}}}
+
   cSemaphore mLoadSem;
+  //}}}
 
 private:
   //{{{

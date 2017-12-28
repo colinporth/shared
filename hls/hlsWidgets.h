@@ -69,7 +69,7 @@ private:
     bool loaded;
     bool loading;
     int offset;
-    mHls->getChunkLoad (chunk, loaded, loading, offset);
+    mHls->getChunkInfo (chunk, loaded, loading, offset);
 
     draw->ellipseSolid (loading ? COL_DARKORANGE : loaded ? COL_DARKERGREEN : COL_DARKRED,
                    mX + 2 + ((mWidth-2) / 2), mY + (chunk * getBoxHeight()) + mHeight / 6, (mWidth-2) / 2, (mWidth-2) / 2);
