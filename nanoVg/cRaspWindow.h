@@ -1,4 +1,6 @@
 // cRaspWindow.h
+#define NANOVG
+#define NANOVG_GLES2 1
 //{{{  includes
 #pragma once
 
@@ -13,16 +15,14 @@
 #include "GLES2/gl2.h"
 
 // cVgGL
-#define NANOVG_GLES2 1
 #include "cVgGL.h"
 #include "cPerfGraph.h"
-
 #include "../fonts/FreeSansBold.h"
 #include "../fonts/DroidSansMono1.h"
 
 #include "../utils/cLog.h"
 
-#define USE_NANOVG
+#include "../utils/iChange.h"
 #include "../widgets/cRootContainer.h"
 //}}}
 //{{{
