@@ -7,8 +7,6 @@
 #include <string.h>
 #include <string>
 #include <math.h>
-
-#include "../utils/cLog.h"
 //}}}
 //{{{  defines
 #define MAX_STATES            32

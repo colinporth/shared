@@ -2,7 +2,6 @@
 //{{{  includes
 #pragma once
 #include "cWidget.h"
-
 //}}}
 
 class cListWidget : public cWidget {

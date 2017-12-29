@@ -5,11 +5,9 @@
 #include "cPicWidget.h"
 #include "../decoders/cDecodePic.h"
 
-#ifdef USE_NANOVG
-  extern "C" {
-    uint8_t* stbi_load_from_memory (uint8_t* const* buffer, int len, int* x, int* y, int* channels_in_file, int desired_channels);
-    }
-#endif
+extern "C" {
+  uint8_t* stbi_load_from_memory (uint8_t* const* buffer, int len, int* x, int* y, int* channels_in_file, int desired_channels);
+  }
 //}}}
 
 class cDecodePicWidget : public cPicWidget {
@@ -30,7 +28,7 @@ public:
 
   //{{{
   void setPic (const uint8_t* buffer, int size) {
-    #ifdef USE_NANOVG
+    #ifdef NANOVG
       int width, height, components;
       uint8_t* pic = stbi_load_from_memory ((uint8_t* const*)buffer, size, &width, &height, &components, 4);
       cPicWidget::setPic (pic, width, height, components);

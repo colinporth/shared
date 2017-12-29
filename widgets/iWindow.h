@@ -5,7 +5,7 @@ class iWindow {
 public:
   virtual ~iWindow() {}
 
-  #ifdef USE_NANOVG
+  #ifdef NANOVG
     virtual cVg* getContext() = 0;
   #endif
 

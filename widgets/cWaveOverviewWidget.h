@@ -86,7 +86,7 @@ protected:
     auto centreY = getCentreY();
     auto scale = getMaxValue() * 2;
 
-  #ifdef USE_NANOVG
+  #ifdef NANOVG
     //{{{  draw wave
     auto context = draw->getContext();
 

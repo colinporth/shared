@@ -177,7 +177,7 @@ public:
     float subSecSamples = (float)fmod (sample, kSamplesPerSecondD);
     float nextxF = (kSamplesPerSecondF - subSecSamples) / samplesPerPixF;
 
-    #ifdef USE_NANOVG
+    #ifdef NANOVG
       //{{{  nanoVg rects waveform
       auto context = draw->getContext();
 

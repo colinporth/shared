@@ -1,10 +1,9 @@
 // cPicWidget.h
 //{{{  includes
 #pragma once
+
+#include "../utils/cLog.h"
 #include "cWidget.h"
-#ifdef USE_NANOVG
-  #include "../utils/cLog.h"
-#endif
 //}}}
 
 class cPicWidget : public cWidget {
@@ -30,7 +29,7 @@ public:
     mPicHeight = picHeight;
     mPicComponents = components;
 
-    #ifdef USE_NANOVG
+    #ifdef NANOVG
       mUpdateTexture = true;
     #else
       bigFree (mSizedRgb888);
@@ -64,7 +63,7 @@ public:
     uint16_t width = int((mWidth-1) * mScale);
     uint16_t height = int((mHeight-1) * mScale);
 
-    #ifdef USE_NANOVG
+    #ifdef NANOVG
       //{{{  GL render
       if (mPic) {
         auto context = draw->getContext();
@@ -148,7 +147,7 @@ private:
   bool& mChanged;
 
 //{{{
-#ifdef USE_NANOVG
+#ifdef NANOVG
   int mImage = -1;
   bool mUpdateTexture = false;
   float mAngle = 0;

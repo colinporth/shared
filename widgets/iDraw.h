@@ -1,6 +1,7 @@
 // iDraw.h -  draw interface
-#pragma once
 //{{{  includes
+#pragma once
+
 #include <string>
 #include "iWindow.h"
 //}}}
@@ -44,7 +45,7 @@
 #define COL_DARKORANGE    0xFFC07800
 #define COL_DARKERORANGE  0xFF805000
 //}}}
-#ifdef USE_NANOVG
+#ifdef NANOVG
   //{{{  nanoVG colours
   const sVgColour kWhite      = { 1.0f, 1.0f, 1.0f, 1.0f };
   const sVgColour kGrey       = { 0.5f, 0.5f, 0.5f, 1.0f };

@@ -3,7 +3,6 @@
 #define _CRT_SECURE_NO_WARNINGS
 
 #include "cVg.h"
-#include <stdio.h>
 
 #include "fontStash.h"
 #include "stb_image.h"

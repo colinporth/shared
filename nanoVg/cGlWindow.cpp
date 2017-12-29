@@ -8,20 +8,16 @@
   #include <shlwapi.h> // for shell path functions
   #include <shobjidl.h>
   #include <shlguid.h>
-  #pragma comment(lib,"shlwapi.lib")
 
+  #pragma comment(lib,"shlwapi.lib")
   #pragma comment(lib,"openGL32.lib")
   #pragma comment(lib,"glfw3.lib")
-  #pragma comment(lib,"glew32s.lib")
 #endif
 
 #include "../utils/utils.h"
 #include "../utils/cLog.h"
 
 #include "cGlWindow.h"
-
-#include "cPerfGraph.h"
-#include "cGpuGraph.h"
 
 #include "../widgets/cRootContainer.h"
 
@@ -205,6 +201,8 @@ cRootContainer* cGlWindow::initialise (string title, int width, int height, unsi
     //}}}
 
   glfwMakeContextCurrent (mWindow);
+  gladLoadGLLoader((GLADloadproc) glfwGetProcAddress);
+
   glfwSetKeyCallback (mWindow, glfwKey);
   glfwSetCharModsCallback (mWindow, glfwCharMods);
   glfwSetCursorPosCallback (mWindow, glfwCursorPos);
@@ -213,15 +211,15 @@ cRootContainer* cGlWindow::initialise (string title, int width, int height, unsi
 
   glfwSwapInterval (1);
 
-  glewExperimental = GL_TRUE;
-  if (glewInit() != GLEW_OK) {
+  //glewExperimental = GL_TRUE;
+  //if (glewInit() != GLEW_OK) {
     //{{{  error
-    cLog::log (LOGERROR, "Failed to init glew");
-    return nullptr;
-    }
+    //cLog::log (LOGERROR, "Failed to init glew");
+    //return nullptr;
+    //}
     //}}}
   // GLEW generates GL error because it calls glGetString(GL_EXTENSIONS), we'll consume it here.
-  glGetError();
+  //glGetError();
 
   cVgGL::initialise();
 
@@ -235,7 +233,6 @@ cRootContainer* cGlWindow::initialise (string title, int width, int height, unsi
 
   mFpsGraph = new cPerfGraph (cPerfGraph::GRAPH_RENDER_FPS, "frame");
   mCpuGraph = new cPerfGraph (cPerfGraph::GRAPH_RENDER_MS, "cpu");
-  mGpuGraph = new cGpuGraph (cPerfGraph::GRAPH_RENDER_MS, "gpu");
 
   return mRoot;
   }
@@ -244,7 +241,6 @@ cRootContainer* cGlWindow::initialise (string title, int width, int height, unsi
 void cGlWindow::run () {
 
   while (!glfwWindowShouldClose (mWindow)) {
-    mGpuGraph->start();
     mCpuGraph->start ((float)glfwGetTime());
 
     // Update and render
@@ -273,7 +269,6 @@ void cGlWindow::run () {
       //{{{  render perf stats
       mFpsGraph->render (this, 0.0f, winHeight-35.0f, winWidth/3.0f -2.0f, 35.0f);
       mCpuGraph->render (this, winWidth/3.0f, winHeight-35.0f, winWidth/3.0f - 2.0f, 35.0f);
-      mGpuGraph->render (this, winWidth*2.0f/3.0f, winHeight-35.0f, winWidth/3.0f, 35.0f);
       }
       //}}}
     endFrame();
@@ -281,11 +276,6 @@ void cGlWindow::run () {
 
     mCpuGraph->updateTime ((float)glfwGetTime());
     mFpsGraph->updateTime ((float)glfwGetTime());
-
-    float gpuTimes[3];
-    int numGraphTimers = mGpuGraph->stop (gpuTimes, 3);
-    for (int i = 0; i < numGraphTimers; i++)
-      mGpuGraph->updateValue (gpuTimes[i]);
 
     glfwPollEvents();
     }
@@ -305,8 +295,6 @@ void cGlWindow::togglePerf() {
 
   mFpsGraph->reset();
   mCpuGraph->reset();
-  if (mGpuGraph)
-    mGpuGraph->reset();
   }
 //}}}
 //{{{
@@ -510,7 +498,7 @@ void cGlWindow::drawStats (float x, float y, string str) {
 //}}}
 
 //{{{
-void cGlWindow::glfwKey (GLFWwindow* window, int key, int scancode, int action, int mods) {
+void cGlWindow::glfwKey (struct GLFWwindow* window, int key, int scancode, int action, int mods) {
 
   if ((key == GLFW_KEY_LEFT_SHIFT) && (action == GLFW_PRESS))
     mShifted = true;
@@ -549,12 +537,12 @@ void cGlWindow::glfwKey (GLFWwindow* window, int key, int scancode, int action, 
   }
 //}}}
 //{{{
-void cGlWindow::glfwCharMods (GLFWwindow* window, unsigned int ch, int mods) {
+void cGlWindow::glfwCharMods (struct GLFWwindow* window, unsigned int ch, int mods) {
   mGlWindow->onChar (ch, mods);
   }
 //}}}
 //{{{
-void cGlWindow::glfwCursorPos (GLFWwindow* window, double xpos, double ypos) {
+void cGlWindow::glfwCursorPos (struct GLFWwindow* window, double xpos, double ypos) {
   if (mMouseDown) {
     int xinc = int(xpos) - mMouseIntX;
     int yinc = int(ypos) - mMouseIntY;
@@ -573,7 +561,7 @@ void cGlWindow::glfwCursorPos (GLFWwindow* window, double xpos, double ypos) {
   }
 //}}}
 //{{{
-void cGlWindow::glfwMouseButton (GLFWwindow* window, int button, int action, int mods) {
+void cGlWindow::glfwMouseButton (struct GLFWwindow* window, int button, int action, int mods) {
 
   if (action == GLFW_PRESS) {
     mMouseMoved = false;
@@ -590,7 +578,7 @@ void cGlWindow::glfwMouseButton (GLFWwindow* window, int button, int action, int
   }
 //}}}
 //{{{
-void cGlWindow::glfMouseScroll (GLFWwindow* window,  double xoffset, double yoffset) {
+void cGlWindow::glfMouseScroll (struct GLFWwindow* window,  double xoffset, double yoffset) {
   mGlWindow->onWheel (int (yoffset));
   }
 //}}}

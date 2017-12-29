@@ -1,28 +1,22 @@
 // cGlWindow.h
+#define NANOVG
+//#define NANOVG_GL2_IMPLEMENTATION
+#define NANOVG_GL3 1
+#define NANOVG_GL_USE_UNIFORMBUFFER 1
 //{{{  includes
 #pragma once
 
 #include <string>
 #include <vector>
 
-// Glew, glfw3
-#define GLEW_STATIC
-#include <GL/glew.h>
+#include "glad.h"
 #include <GLFW/glfw3.h>
 
-// cVgGL
-#define NANOVG_GL2_IMPLEMENTATION
-//#define NANOVG_GL3 1
-//#define NANOVG_GL_USE_UNIFORMBUFFER 1
 #include "cVgGL.h"
 #include "cPerfGraph.h"
-#include "cGpuGraph.h"
-#include "../../shared/utils/iChange.h"
 
-typedef struct GLFWwindow GLFWwindow;
-
-#define USE_NANOVG
-#include "../../shared/widgets/cRootContainer.h"
+#include "../utils/iChange.h"
+#include "../widgets/cRootContainer.h"
 //}}}
 
 class cGlWindow : public cVgGL, public iChange, public iDraw {
@@ -76,7 +70,7 @@ protected:
   static float mMouseX;
   static float mMouseY;
 
-  GLFWwindow* mWindow = nullptr;
+  struct GLFWwindow* mWindow = nullptr;
 
 private:
   void onProx (bool inClient, int x, int y);
@@ -90,11 +84,11 @@ private:
   void drawLines (float x, float y, float w, float h, float t);
   void drawStats (float x, float y, std::string str);
 
-  static void glfwKey (GLFWwindow* window, int key, int scancode, int action, int mods);
-  static void glfwCharMods (GLFWwindow* window, unsigned int ch, int mods);
-  static void glfwCursorPos (GLFWwindow* window, double xpos, double ypos);
-  static void glfwMouseButton (GLFWwindow* window, int button, int action, int mods);
-  static void glfMouseScroll (GLFWwindow* window, double xoffset, double yoffset);
+  static void glfwKey (struct GLFWwindow* window, int key, int scancode, int action, int mods);
+  static void glfwCharMods (struct GLFWwindow* window, unsigned int ch, int mods);
+  static void glfwCursorPos (struct GLFWwindow* window, double xpos, double ypos);
+  static void glfwMouseButton (struct GLFWwindow* window, int button, int action, int mods);
+  static void glfMouseScroll (struct GLFWwindow* window, double xoffset, double yoffset);
   static void errorcb (int error, const char* desc);
 
   bool mVsync = true;
@@ -104,7 +98,6 @@ private:
 
   cPerfGraph* mFpsGraph = nullptr;
   cPerfGraph* mCpuGraph = nullptr;
-  cGpuGraph* mGpuGraph = nullptr;
 
   cRootContainer* mRoot = nullptr;
 

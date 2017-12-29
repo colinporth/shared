@@ -1,6 +1,7 @@
 // cVgGL.h - based on Mikko Mononen memon@inside.org nanoVg
-#pragma once
 //{{{  includes
+#pragma once
+
 #include <stdio.h>
 #include "cVg.h"
 //}}}

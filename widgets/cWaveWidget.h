@@ -46,7 +46,7 @@ protected:
     auto wave = mWave + 1 + (frame * 2);
     auto centreY = getCentreY();
 
-  #ifdef USE_NANOVG
+  #ifdef NANOVG
     //{{{  draw wave
     auto context = draw->getContext();
 

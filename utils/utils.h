@@ -17,7 +17,7 @@
 #include <algorithm>
 //}}}
 
-#ifdef USE_NANOVG
+#ifdef NANOVG
   //{{{  malloc, free defines
   #define bigMalloc(size,tag)   malloc (size)
   #define bigFree               free

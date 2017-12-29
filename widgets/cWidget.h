@@ -1,6 +1,7 @@
 // cWidget.h - base widget, draws as box with width-1, height-1
 //{{{  includes
 #pragma once
+
 class cContainer;
 #include "iDraw.h"
 //}}}
@@ -8,7 +9,7 @@ class cContainer;
 class cWidget {
 public:
   //{{{
-  #ifdef USE_NANOVG
+  #ifdef NANOVG
     static uint16_t getBoxHeight()       { return 19; }
     static uint16_t getSmallFontHeight() { return 16; }
     static uint16_t getFontHeight()      { return 18; }
