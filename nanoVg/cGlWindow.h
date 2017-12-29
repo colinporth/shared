@@ -1,8 +1,8 @@
 // cGlWindow.h
 #define NANOVG
-//#define NANOVG_GL2_IMPLEMENTATION
 #define NANOVG_GL3 1
 #define NANOVG_GL_USE_UNIFORMBUFFER 1
+//#define NANOVG_GL2_IMPLEMENTATION
 //{{{  includes
 #pragma once
 

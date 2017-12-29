@@ -172,28 +172,28 @@ cRootContainer* cGlWindow::initialise (string title, int width, int height, unsi
   mGlWindow = this;
 
   if (!glfwInit()) {
-    //{{{  error
+    //{{{  error, return
     cLog::log (LOGERROR, "Failed to init GLFW");
     return nullptr;
     }
     //}}}
   glfwSetErrorCallback (errorcb);
-  //{{{  glfw hints
-  #ifdef NANOVG_GL2_IMPLEMENTATION
-    glfwWindowHint (GLFW_CONTEXT_VERSION_MAJOR, 2);
-    glfwWindowHint (GLFW_CONTEXT_VERSION_MINOR, 0);
-  #else
-    glfwWindowHint (GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint (GLFW_CONTEXT_VERSION_MINOR, 2);
-    glfwWindowHint (GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-    glfwWindowHint (GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    glfwWindowHint (GLFW_OPENGL_DEBUG_CONTEXT, 1);
-  #endif
-  //}}}
+
+  // glfw hints
+#ifdef NANOVG_GL2_IMPLEMENTATION
+  glfwWindowHint (GLFW_CONTEXT_VERSION_MAJOR, 2);
+  glfwWindowHint (GLFW_CONTEXT_VERSION_MINOR, 0);
+#else
+  glfwWindowHint (GLFW_CONTEXT_VERSION_MAJOR, 3);
+  glfwWindowHint (GLFW_CONTEXT_VERSION_MINOR, 2);
+  glfwWindowHint (GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+  glfwWindowHint (GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+  glfwWindowHint (GLFW_OPENGL_DEBUG_CONTEXT, 1);
+#endif
 
   mWindow = glfwCreateWindow (width, height, title.c_str(), NULL, NULL);
   if (!mWindow) {
-    //{{{  error
+    //{{{  error, return
     cLog::log (LOGERROR, "failed to create Glfw window " + dec(width) + "x" + dec(height) + " " + title);
     glfwTerminate();
     return nullptr;
@@ -202,27 +202,14 @@ cRootContainer* cGlWindow::initialise (string title, int width, int height, unsi
 
   glfwMakeContextCurrent (mWindow);
   gladLoadGLLoader((GLADloadproc) glfwGetProcAddress);
-
   glfwSetKeyCallback (mWindow, glfwKey);
   glfwSetCharModsCallback (mWindow, glfwCharMods);
   glfwSetCursorPosCallback (mWindow, glfwCursorPos);
   glfwSetMouseButtonCallback (mWindow, glfwMouseButton);
   glfwSetScrollCallback (mWindow, glfMouseScroll);
-
   glfwSwapInterval (1);
 
-  //glewExperimental = GL_TRUE;
-  //if (glewInit() != GLEW_OK) {
-    //{{{  error
-    //cLog::log (LOGERROR, "Failed to init glew");
-    //return nullptr;
-    //}
-    //}}}
-  // GLEW generates GL error because it calls glGetString(GL_EXTENSIONS), we'll consume it here.
-  //glGetError();
-
   cVgGL::initialise();
-
   createFontMem ("sans", (unsigned char*)sansFont, sizeof(sansFont), 0);
   fontFace ("sans");
 
@@ -230,7 +217,6 @@ cRootContainer* cGlWindow::initialise (string title, int width, int height, unsi
 
   // init timers
   glfwSetTime (0);
-
   mFpsGraph = new cPerfGraph (cPerfGraph::GRAPH_RENDER_FPS, "frame");
   mCpuGraph = new cPerfGraph (cPerfGraph::GRAPH_RENDER_MS, "cpu");
 
