@@ -3,6 +3,7 @@
 #pragma once
 
 #include <string>
+#include <algorithm>
 #include "../utils/utils.h"
 #include "../decoders/cTransportStream.h"
 
@@ -25,7 +26,7 @@ public:
 
     if (mTs->mPidInfoMap.size()) {
       for (auto &pidInfo : mTs->mPidInfoMap) {
-        mMaxPidPackets = max (mMaxPidPackets, pidInfo.second.mPackets);
+        mMaxPidPackets = std::max (mMaxPidPackets, pidInfo.second.mPackets);
         auto frac = (float)pidInfo.second.mPackets / (float)mMaxPidPackets;
         auto x = mX+2;
 
