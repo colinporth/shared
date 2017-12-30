@@ -4,6 +4,9 @@
   #define _CRT_SECURE_NO_WARNINGS
   #define WIN32_LEAN_AND_MEAN
   #include <windows.h>
+
+  #pragma comment(lib,"openGL32.lib")
+  #pragma comment(lib,"glfw3.lib")
 #endif
 
 #include "../utils/utils.h"
@@ -11,12 +14,7 @@
 
 #include "cGlWindow.h"
 
-#include "../widgets/cRootContainer.h"
-
 using namespace std;
-
-#pragma comment(lib,"openGL32.lib")
-#pragma comment(lib,"glfw3.lib")
 //}}}
 
 cGlWindow::cGlWindow() {}
