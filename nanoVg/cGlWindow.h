@@ -1,13 +1,12 @@
 // cGlWindow.h
 #define NANOVG
-//#define NANOVG_GL2 1
-#define NANOVG_GL3 1
-#define NANOVG_UNIFORMBUFFER
+#define NANOVG_GL2 1
+//#define NANOVG_GL3 1
+//#define NANOVG_UNIFORMBUFFER
 //{{{  includes
 #pragma once
 
 #include <string>
-#include <vector>
 
 #include "glad.h"
 #include <GLFW/glfw3.h>
@@ -23,8 +22,6 @@ class cGlWindow : public cVgGL, public iChange, public iDraw {
 public:
   cGlWindow();
   virtual ~cGlWindow();
-
-  static std::vector<std::string> getFiles (std::string fileName, std::string match);
 
   // iWindow
   cVg* getContext();
