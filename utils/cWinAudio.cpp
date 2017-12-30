@@ -78,8 +78,8 @@ void cWinAudio::audOpen (int srcChannels, int srcSampleRate) {
   mDstChannels = masteringVoiceDetails.InputChannels;
   mDstSampleRate = masteringVoiceDetails.InputSampleRate;
   cLog::log (LOGINFO, "cWinAudio - audOpen mask:" + hex(mDstChannelMask) +
-                       " ch:" + dec(mDstChannels) +
-                       " rate:" + dec(mDstSampleRate));
+                       " channels:" + dec(mDstChannels) +
+                       " sampleRate:" + dec(mDstSampleRate));
 
   // create sourceVoice
   WAVEFORMATEX waveformatex;
