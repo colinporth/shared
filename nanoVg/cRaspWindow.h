@@ -46,9 +46,73 @@ const EGLint kContextAttributeList[] = {
 //}}}
 
 class cRaspWindow : public cVgGL, public iChange, public iDraw {
-public:
+public: 
+  cRaspWindow() {}
   //{{{
-  cRaspWindow (float scale, uint32_t alpha) {
+  ~cRaspWindow() {
+
+    // clear screen
+    glClear (GL_COLOR_BUFFER_BIT);
+    eglSwapBuffers (mEglDisplay, mEglSurface);
+    eglDestroySurface (mEglDisplay, mEglSurface);
+
+    DISPMANX_UPDATE_HANDLE_T dispmanxUpdate = vc_dispmanx_update_start (0);
+    vc_dispmanx_element_remove (dispmanxUpdate, mDispmanxElement);
+
+    vc_dispmanx_update_submit_sync (dispmanxUpdate);
+    vc_dispmanx_display_close (mDispmanxDisplay);
+
+    // Release OpenGL resources
+    eglMakeCurrent (mEglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    eglDestroyContext (mEglDisplay, mEglContext);
+    eglTerminate (mEglDisplay);
+    }
+  //}}}
+
+  // iWindow
+  cVg* getContext () { return this; }
+  uint16_t getWidthPix() { return mRoot->getPixWidth(); }
+  uint16_t getHeightPix() { return mRoot->getPixHeight(); }
+  bool getShift() { return false; }
+  bool getControl() { return false; }
+  bool getMouseDown() { return false; }
+
+  // iDraw
+  void pixel (uint32_t colour, int16_t x, int16_t y) {}
+  //{{{
+  void drawRect (uint32_t colour, int16_t x, int16_t y, uint16_t width, uint16_t height) {
+
+    beginPath();
+    rect (x, y, width, height);
+    fillColor (nvgRGBA ((colour & 0xFF0000) >> 16, (colour & 0xFF00) >> 8, colour & 0xFF,255));
+    triangleFill();
+    }
+  //}}}
+  //{{{
+  int drawText (uint32_t colour, uint16_t fontHeight, std::string str, int16_t x, int16_t y, uint16_t width, uint16_t height) {
+
+    fontSize ((float)fontHeight);
+    textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_TOP);
+    fillColor (nvgRGBA ((colour & 0xFF0000) >> 16, (colour & 0xFF00) >> 8, colour & 0xFF,255));
+    return (int)text ((float)x+3, (float)y+1, str);
+    }
+  //}}}
+  //{{{
+  void ellipseSolid (uint32_t colour, int16_t x, int16_t y, uint16_t xradius, uint16_t yradius) {
+
+    beginPath();
+    ellipse (x, y, xradius, yradius);
+    fillColor (nvgRGBA ((colour & 0xFF0000) >> 16, (colour & 0xFF00) >> 8, colour & 0xFF,255));
+    fill();
+    }
+  //}}}
+
+  // iChange
+  void changed() {}
+
+protected:
+  //{{{
+  cRootContainer* initialise (float scale, uint32_t alpha) {
 
     // get EGL display
     mEglDisplay = eglGetDisplay (EGL_DEFAULT_DISPLAY);
@@ -117,73 +181,7 @@ public:
 
     glViewport (0, 0, mScreenWidth, mScreenHeight);
     glClearColor (0, 0, 0, 1.0f);
-    }
-  //}}}
-  //{{{
-  ~cRaspWindow() {
 
-    // clear screen
-    glClear (GL_COLOR_BUFFER_BIT);
-    eglSwapBuffers (mEglDisplay, mEglSurface);
-    eglDestroySurface (mEglDisplay, mEglSurface);
-
-    DISPMANX_UPDATE_HANDLE_T dispmanxUpdate = vc_dispmanx_update_start (0);
-    vc_dispmanx_element_remove (dispmanxUpdate, mDispmanxElement);
-
-    vc_dispmanx_update_submit_sync (dispmanxUpdate);
-    vc_dispmanx_display_close (mDispmanxDisplay);
-
-    // Release OpenGL resources
-    eglMakeCurrent (mEglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-    eglDestroyContext (mEglDisplay, mEglContext);
-    eglTerminate (mEglDisplay);
-    }
-  //}}}
-
-  // iWindow
-  cVg* getContext () { return this; }
-  uint16_t getWidthPix() { return mRoot->getPixWidth(); }
-  uint16_t getHeightPix() { return mRoot->getPixHeight(); }
-  bool getShift() { return false; }
-  bool getControl() { return false; }
-  bool getMouseDown() { return false; }
-
-  // iDraw
-  void pixel (uint32_t colour, int16_t x, int16_t y) {}
-  //{{{
-  void drawRect (uint32_t colour, int16_t x, int16_t y, uint16_t width, uint16_t height) {
-
-    beginPath();
-    rect (x, y, width, height);
-    fillColor (nvgRGBA ((colour & 0xFF0000) >> 16, (colour & 0xFF00) >> 8, colour & 0xFF,255));
-    triangleFill();
-    }
-  //}}}
-  //{{{
-  int drawText (uint32_t colour, uint16_t fontHeight, std::string str, int16_t x, int16_t y, uint16_t width, uint16_t height) {
-
-    fontSize ((float)fontHeight);
-    textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_TOP);
-    fillColor (nvgRGBA ((colour & 0xFF0000) >> 16, (colour & 0xFF00) >> 8, colour & 0xFF,255));
-    return (int)text ((float)x+3, (float)y+1, str);
-    }
-  //}}}
-  //{{{
-  void ellipseSolid (uint32_t colour, int16_t x, int16_t y, uint16_t xradius, uint16_t yradius) {
-
-    beginPath();
-    ellipse (x, y, xradius, yradius);
-    fillColor (nvgRGBA ((colour & 0xFF0000) >> 16, (colour & 0xFF00) >> 8, colour & 0xFF,255));
-    fill();
-    }
-  //}}}
-
-  // iChange
-  void changed() {}
-
-protected:
-  //{{{
-  cRootContainer* initialise() {
     mRoot = new cRootContainer (mScreenWidth, mScreenHeight);
     return mRoot;
     }
