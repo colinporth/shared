@@ -1,13 +1,11 @@
 // cKeyboard.cpp - crude linux keyboard handler
 //{{{  includes
-#include "cKeyboard.h"
-
 #include <stdio.h>
 #include <string>
 #include <unistd.h>
 #include <fcntl.h>
-#include <map>
 
+#include "cKeyboard.h"
 #include "cLog.h"
 
 using namespace std;
@@ -26,6 +24,7 @@ cKeyboard::cKeyboard() {
     new_termios.c_cc[VMIN] = 0;
     tcsetattr (STDIN_FILENO, TCSANOW, &new_termios);
     }
+
   else {
     orig_fl = fcntl (STDIN_FILENO, F_GETFL);
     fcntl (STDIN_FILENO, F_SETFL, orig_fl | O_NONBLOCK);
@@ -68,7 +67,7 @@ void cKeyboard::run() {
     if (m_keymap[ch[0]] != 0)
       m_action = m_keymap[ch[0]];
     else
-      sleep(20);
+      sleep (20);
     }
   }
 //}}}
@@ -76,6 +75,7 @@ void cKeyboard::run() {
 // private
 //{{{
 void cKeyboard::restore_term() {
+
   if (isatty (STDIN_FILENO))
     tcsetattr (STDIN_FILENO, TCSANOW, &orig_termios);
   else

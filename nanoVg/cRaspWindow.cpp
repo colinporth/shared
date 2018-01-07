@@ -244,6 +244,8 @@ int cRaspWindow::getMouse (int* outx, int* outy) {
     else if (mouseY > (int)mScreenHeight)
       mouseY = mScreenHeight;
 
+    cLog::log (LOGINFO, "mouse " + dec(mouseX) + " " + dec(mouseY) + " " + hex(mousePacket.buttons));
+
     mMouseButtons = mousePacket.buttons & 0x03;
     *outx = mouseX;
     *outy = mouseY;
