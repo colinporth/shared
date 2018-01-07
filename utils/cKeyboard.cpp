@@ -51,6 +51,8 @@ int cKeyboard::getEvent() {
 //{{{
 void cKeyboard::run() {
 
+  cLog::setThreadName (" key");
+
   while (true) {
     int ch[8];
     int chnum = 0;

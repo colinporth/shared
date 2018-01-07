@@ -62,6 +62,7 @@ protected:
   void togglePerf() { mDrawPerf = !mDrawPerf; mFpsGraph->reset(); mCpuGraph->reset(); }
   void toggleStats() { mDrawStats = !mDrawStats; }
   void toggleTests() { mDrawTests = !mDrawTests; }
+
   virtual void pollKeyboard() = 0;
 
   //  vars
