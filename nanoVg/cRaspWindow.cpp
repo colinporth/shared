@@ -120,6 +120,8 @@ cRootContainer* cRaspWindow::initialise (float scale, uint32_t alpha) {
 
   mScreenWidth = int(mScreenWidth * scale);
   mScreenHeight = int(mScreenHeight * scale);
+  mMouseX = mScreenWidth / 2;
+  mMouseY = mScreenHeight / 2;
 
   mDispmanxDisplay = vc_dispmanx_display_open (0);
   DISPMANX_UPDATE_HANDLE_T dispmanxUpdate = vc_dispmanx_update_start (0);
@@ -158,8 +160,8 @@ cRootContainer* cRaspWindow::initialise (float scale, uint32_t alpha) {
   fontFace ("sans");
   cLog::log (LOGINFO, "created sans font droidSansMono");
 
-  glViewport (0, 0, mScreenWidth, mScreenHeight);
-  glClearColor (0, 0, 0, 1.0f);
+  glViewport (0.f, 0.f, mScreenWidth, mScreenHeight);
+  glClearColor (0.f, 0.f, 0.f, 1.f);
 
   mRoot = new cRootContainer (mScreenWidth, mScreenHeight);
   return mRoot;
@@ -168,93 +170,41 @@ cRootContainer* cRaspWindow::initialise (float scale, uint32_t alpha) {
 //{{{
 void cRaspWindow::run() {
 
-  int mouseX = mScreenWidth/2;
-  int mouseY = mScreenHeight/2;
-  while (!mEscape) {
-    mMouseButtons = getMouse (&mouseX, &mouseY);
-
-    mCpuGraph->start (getAbsoluteClock() / 1000000.0f);
-
+  while (!mExit) {
+    mCpuGraph->start (getAbsoluteClock() / 1000000.f);
     startFrame();
     if (mRoot)
       mRoot->onDraw (this);
-    drawMouse (mouseX, mouseY);
+    drawMouse (mMouseX, mMouseY);
     if (mDrawTests) {
       //{{{  draw tests
-      drawEyes (mScreenWidth*3.0f/4.0f, mScreenHeight/2.0f, mScreenWidth/4.0f, mScreenHeight/2.0f,
-                mouseX, mouseY);
-      drawLines (0.0f, 50.0f, mScreenWidth, mScreenHeight);
-      drawSpinner (mScreenWidth/2.0f, mScreenHeight/2.0f, 20.0f);
+      drawEyes (mScreenWidth*3.f/4.f, mScreenHeight/2.f, mScreenWidth/4.f, mScreenHeight/2.f,
+                mMouseX, mMouseY);
+      drawLines (0.f, 50.f, mScreenWidth, mScreenHeight);
+      drawSpinner (mScreenWidth/2.f, mScreenHeight/2.f, 20.f);
       }
       //}}}
     if (mDrawStats)
       drawStats (mScreenWidth, mScreenHeight, getFrameStats() + (mVsync ? " vsync" : " free"));
     if (mDrawPerf) {
       //{{{  render perf stats
-      mFpsGraph->render (this, 0.0f, mScreenHeight-35.0f, mScreenWidth/3.0f -2.0f, 35.0f);
-      mCpuGraph->render (this, mScreenWidth/3.0f, mScreenHeight-35.0f, mScreenWidth/3.0f - 2.0f, 35.0f);
+      mFpsGraph->render (this, 0.f, mScreenHeight-35.f, mScreenWidth/3.f -2.f, 35.f);
+      mCpuGraph->render (this, mScreenWidth/3.f, mScreenHeight-35.f, mScreenWidth/3.f - 2.f, 35.f);
       }
       //}}}
     endSwapFrame();
 
-    mFpsGraph->updateTime (getAbsoluteClock() / 1000000.0f);
-    mCpuGraph->updateTime (getAbsoluteClock() / 1000000.0f);
+    mFpsGraph->updateTime (getAbsoluteClock() / 1000000.f);
+    mCpuGraph->updateTime (getAbsoluteClock() / 1000000.f);
 
     pollKeyboard();
+    pollMouse();
     }
 
-  cLog::log (LOGNOTICE, "run escaped");
+  cLog::log (LOGNOTICE, "cRaspWindow::run - exit");
   }
 //}}}
 
-//{{{
-int cRaspWindow::getMouse (int* outx, int* outy) {
-
-  struct sMousePacket {
-    char buttons;
-    char dx;
-    char dy;
-    };
-
-  if (mMouseFd < 0)
-    mMouseFd = open ("/dev/input/mouse0", O_RDONLY | O_NONBLOCK);
-
-  if (mMouseFd >= 0) {
-    struct sMousePacket mousePacket;
-    while (true) {
-      int bytes = read (mMouseFd, &mousePacket, sizeof(mousePacket));
-      if (bytes < (int)sizeof(mousePacket))
-        // not enough bytes yet
-        return mMouseButtons;
-
-      if (mousePacket.buttons & 8)
-        break; // This bit should always be set
-      read (mMouseFd, &mousePacket, 1); // Try to sync up again
-      }
-
-    int mouseX = (mousePacket.buttons & 0x10) ? mousePacket.dx - 256 : mousePacket.dx;
-    if (mouseX < 0)
-      mouseX = 0;
-    else if (mouseX > (int)mScreenWidth)
-      mouseX = mScreenWidth;
-
-    int mouseY = - ((mousePacket.buttons & 0x20) ? mousePacket.dy - 256 : mousePacket.dy);
-    if (mouseY < 0)
-      mouseY = 0;
-    else if (mouseY > (int)mScreenHeight)
-      mouseY = mScreenHeight;
-
-    cLog::log (LOGINFO, "mouse " + dec(mouseX) + " " + dec(mouseY) + " " + hex(mousePacket.buttons));
-
-    mMouseButtons = mousePacket.buttons & 0x03;
-    *outx = mouseX;
-    *outy = mouseY;
-    return mMouseButtons;
-    }
-
-  return 0;
-  }
-//}}}
 //{{{
 uint64_t cRaspWindow::getAbsoluteClock() {
 
@@ -275,6 +225,39 @@ void cRaspWindow::uSleep (uint64_t uSec) {
 //}}}
 
 // private
+//{{{
+void cRaspWindow::pollMouse() {
+
+  if (mMouseFd < 0)
+    mMouseFd = open ("/dev/input/mouse0", O_RDONLY | O_NONBLOCK);
+
+  if (mMouseFd < 0) {
+    cLog::log (LOGERROR, "no mouse");
+    return;
+    }
+
+  uint8_t packet[3];
+  while (true) {
+    int bytes = read (mMouseFd, packet, 3);
+    if (bytes != 3)
+      return;
+    if (packet[0] & 8)
+      break;
+    read (mMouseFd, packet, 1);
+    }
+
+  mMouseX += (packet[0] & 0x10) ? packet[1]-0x100 : packet[1];
+  mMouseX = max(0, min((int)mScreenWidth, mMouseX));
+
+  mMouseY -= (packet[0] & 0x20) ? packet[2]-0x100 : packet[2];
+  mMouseY = max(0, min((int)mScreenHeight, mMouseY));
+
+  mMouseButtons = packet[0] & 0x03;
+
+  cLog::log (LOGINFO3, "pollMouse x:%d y:%d buttons:%x", mMouseX, mMouseY, mMouseButtons);
+  }
+//}}}
+
 //{{{
 void cRaspWindow::setVsync (bool vsync) {
   eglSwapInterval (mEglDisplay, vsync ? 1 : 0);
@@ -317,8 +300,8 @@ void cRaspWindow::drawMouse (int x, int y) {
 //{{{
 void cRaspWindow::drawSpinner (float cx, float cy, float r) {
 
-  float t = mTime / 1000000.0f;
-  float a0 = 0.0f + t*6;
+  float t = mTime / 1000000.f;
+  float a0 = 0.f + t*6;
   float a1 = PI + t*6;
   float r0 = r;
   float r1 = r * 0.75f;
@@ -345,7 +328,7 @@ void cRaspWindow::drawSpinner (float cx, float cy, float r) {
 //{{{
 void cRaspWindow::drawEyes (float x, float y, float w, float h, float cursorX, float cursorY) {
 
-  float t = mTime / 1000000.0f;
+  float t = mTime / 1000000.f;
   float ex = w *0.23f;
   float ey = h * 0.5f;
   float lx = x + ex;
@@ -358,8 +341,8 @@ void cRaspWindow::drawEyes (float x, float y, float w, float h, float cursorX, f
 
   auto bg = linearGradient (x,y+h*0.5f,x+w*0.1f,y+h, nvgRGBA(0,0,0,32), nvgRGBA(0,0,0,16));
   beginPath();
-  ellipse (lx+3.0f,ly+16.0f, ex,ey);
-  ellipse (rx+3.0f,ry+16.0f, ex,ey);
+  ellipse (lx+3.f, ly+16.f, ex,ey);
+  ellipse (rx+3.f, ry+16.f, ex,ey);
   fillPaint (bg);
   fill();
 
@@ -373,7 +356,7 @@ void cRaspWindow::drawEyes (float x, float y, float w, float h, float cursorX, f
   dx = (cursorX - rx) / (ex * 10);
   dy = (cursorY - ry) / (ey * 10);
   d = sqrtf (dx*dx+dy*dy);
-  if (d > 1.0f) {
+  if (d > 1.f) {
     dx /= d; dy /= d;
     }
   dx *= ex*0.4f;
@@ -387,7 +370,7 @@ void cRaspWindow::drawEyes (float x, float y, float w, float h, float cursorX, f
   dx = (cursorX - rx) / (ex * 10);
   dy = (cursorY - ry) / (ey * 10);
   d = sqrtf (dx*dx+dy*dy);
-  if (d > 1.0f) {
+  if (d > 1.f) {
     dx /= d;
     dy /= d;
     }
@@ -415,10 +398,10 @@ void cRaspWindow::drawEyes (float x, float y, float w, float h, float cursorX, f
 //{{{
 void cRaspWindow::drawLines (float x, float y, float w, float h) {
 
-  float t = mTime / 1000000.0f;
+  float t = mTime / 1000000.f;
   int i, j;
-  float pad = 5.0f;
-  float s = w/9.0f - pad*2;
+  float pad = 5.f;
+  float s = w/9.f - pad*2;
   float pts[4*2];
   float fx;
   float fy;
@@ -438,7 +421,7 @@ void cRaspWindow::drawLines (float x, float y, float w, float h) {
 
   for (i = 0; i < 3; i++) {
     for (j = 0; j < 3; j++) {
-      fx = x + s*0.5f + (i*3+j)/9.0f*w + pad;
+      fx = x + s*0.5f + (i*3+j)/9.f*w + pad;
       fy = y - s*0.5f + pad;
 
       lineCap (caps[i]);
@@ -470,9 +453,9 @@ void cRaspWindow::drawLines (float x, float y, float w, float h) {
 //{{{
 void cRaspWindow::drawStats (float x, float y, std::string str) {
 
-  fontSize (12.0f);
+  fontSize (12.f);
   textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_BOTTOM);
   fillColor (kWhite);
-  text (0.0f, y, str);
+  text (0.f, y, str);
   }
 //}}}

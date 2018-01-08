@@ -54,7 +54,6 @@ protected:
   cWidget* addAbove (cWidget* widget) { return mRoot->addAbove (widget); }
   void run();
 
-  int getMouse (int* outx, int* outy);
   uint64_t getAbsoluteClock();
   void uSleep (uint64_t uSec);
 
@@ -66,13 +65,20 @@ protected:
   virtual void pollKeyboard() = 0;
 
   //  vars
-  bool mEscape = false;
+  bool mExit = false;
+
+  int mMouseX = 0;
+  int mMouseY = 0;
+  int mMouseButtons = 0;
+
   bool mVsync = true;
   bool mDrawPerf = false;
   bool mDrawStats = false;
   bool mDrawTests = false;
 
 private:
+  void pollMouse();
+
   void setVsync (bool vsync);
   void startFrame();
   void endSwapFrame();
@@ -86,12 +92,12 @@ private:
   //{{{  vars
   DISPMANX_DISPLAY_HANDLE_T mDispmanxDisplay = 0;
   DISPMANX_ELEMENT_HANDLE_T mDispmanxElement = 0;
+  EGL_DISPMANX_WINDOW_T mNativeWindow;
 
   EGLDisplay mEglDisplay;
   EGLSurface mEglSurface;
   EGLContext mEglContext;
 
-  EGL_DISPMANX_WINDOW_T mNativeWindow;
   int64_t mTime = 0;
 
   cPerfGraph* mFpsGraph = nullptr;
@@ -102,6 +108,5 @@ private:
   uint32_t mScreenHeight = 0;
 
   int mMouseFd = -1;
-  int mMouseButtons = 0;
   //}}}
   };

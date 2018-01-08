@@ -16,9 +16,9 @@ cKeyboard::cKeyboard() {
 
   if (isatty (STDIN_FILENO)) {
     struct termios new_termios;
-    tcgetattr (STDIN_FILENO, &orig_termios);
+    tcgetattr (STDIN_FILENO, &mOrigTermios);
 
-    new_termios = orig_termios;
+    new_termios = mOrigTermios;
     new_termios.c_lflag &= ~(ICANON | ECHO | ECHOCTL | ECHONL);
     new_termios.c_cflag |= HUPCL;
     new_termios.c_cc[VMIN] = 0;
@@ -26,11 +26,11 @@ cKeyboard::cKeyboard() {
     }
 
   else {
-    orig_fl = fcntl (STDIN_FILENO, F_GETFL);
-    fcntl (STDIN_FILENO, F_SETFL, orig_fl | O_NONBLOCK);
+    mOrigFl = fcntl (STDIN_FILENO, F_GETFL);
+    fcntl (STDIN_FILENO, F_SETFL, mOrigFl | O_NONBLOCK);
     }
 
-  m_action = -1;
+  mAction = 0;
   }
 //}}}
 //{{{
@@ -41,8 +41,9 @@ cKeyboard::~cKeyboard() {
 
 //{{{
 int cKeyboard::getEvent() {
-  int ret = m_action;
-  m_action = -1;
+
+  int ret = mAction;
+  mAction = 0;
   return ret;
   }
 //}}}
@@ -59,16 +60,17 @@ void cKeyboard::run() {
     while ((ch[chnum] = getchar()) != EOF)
       chnum++;
 
-    if (chnum > 1)
-      ch[0] = ch[chnum - 1] | (ch[chnum - 2] << 8);
-    if (chnum > 0)
-      cLog::log (LOGINFO, "cKeyboard char 0x%x %c ", ch[0], ch[0]);
-
-    if (m_keymap[ch[0]] != 0)
-      m_action = m_keymap[ch[0]];
-    else
-      sleep (20);
+    if (chnum > 0) {
+      if (chnum > 1)
+        ch[0] = ch[chnum-1] | (ch[chnum-2] << 8);
+      if (mKeymap[ch[0]] != 0)
+        mAction = mKeymap[ch[0]];
+      else
+        cLog::log (LOGNOTICE, "cKeyboard - unconfigured key %x", ch[0]);
+      }
     }
+
+  cLog::log (LOGERROR, "exit");
   }
 //}}}
 
@@ -77,9 +79,9 @@ void cKeyboard::run() {
 void cKeyboard::restore_term() {
 
   if (isatty (STDIN_FILENO))
-    tcsetattr (STDIN_FILENO, TCSANOW, &orig_termios);
+    tcsetattr (STDIN_FILENO, TCSANOW, &mOrigTermios);
   else
-    fcntl (STDIN_FILENO, F_SETFL, orig_fl);
+    fcntl (STDIN_FILENO, F_SETFL, mOrigFl);
   }
 //}}}
 //{{{

@@ -41,7 +41,7 @@ bool mBuffer = false;
 int mDaylightSecs = 0;
 FILE* mFile = NULL;
 
-std::map<uint64_t,std::string> mThreadNameMap;
+map<uint64_t,string> mThreadNameMap;
 
 #ifdef _WIN32
   HANDLE hStdOut = 0;
@@ -98,7 +98,7 @@ enum eLogLevel cLog::getLogLevel() {
   }
 //}}}
 //{{{
-std::string cLog::getThreadNameString (uint64_t threadId) {
+string cLog::getThreadNameString (uint64_t threadId) {
   auto it = mThreadNameMap.find (threadId);
   if (it == mThreadNameMap.end())
     return hex(threadId/8,4);
@@ -107,7 +107,7 @@ std::string cLog::getThreadNameString (uint64_t threadId) {
   }
 //}}}
 //{{{
-std::wstring cLog::getThreadNameWstring (uint64_t threadId) {
+wstring cLog::getThreadNameWstring (uint64_t threadId) {
 
   auto it = mThreadNameMap.find (threadId);
   if (it == mThreadNameMap.end())
@@ -120,9 +120,19 @@ std::wstring cLog::getThreadNameWstring (uint64_t threadId) {
 //{{{
 void cLog::setLogLevel (enum eLogLevel logLevel) {
 
-  logLevel = std::min (logLevel, eLogLevel(LOGMAX-1));
-  logLevel = std::max (logLevel, LOGNOTICE);
+  logLevel = max (LOGNOTICE, min (eLogLevel(LOGMAX-1), logLevel));
   mLogLevel = logLevel;
+
+  switch (mLogLevel) {
+    case LOGTITLE:  cLog::log (LOGNOTICE, "setLogLevel to LOGTITLE"); break;
+    case LOGNOTICE: cLog::log (LOGNOTICE, "setLogLevel to LOGNOTICE"); break;
+    case LOGERROR:  cLog::log (LOGNOTICE, "setLogLevel to LOGERROR"); break;
+    case LOGINFO:   cLog::log (LOGNOTICE, "setLogLevel to LOGINFO");  break;
+    case LOGINFO1:  cLog::log (LOGNOTICE, "setLogLevel to LOGINFO1"); break;
+    case LOGINFO2:  cLog::log (LOGNOTICE, "setLogLevel to LOGINFO2"); break;
+    case LOGINFO3:  cLog::log (LOGNOTICE, "setLogLevel to LOGINFO3"); break;
+    default: break;
+    }
   }
 //}}}
 //{{{
