@@ -51,7 +51,7 @@ int cKeyboard::getEvent() {
 //{{{
 void cKeyboard::run() {
 
-  cLog::setThreadName (" key");
+  cLog::setThreadName ("key ");
 
   while (true) {
     int ch[8];
@@ -70,7 +70,7 @@ void cKeyboard::run() {
       }
     }
 
-  cLog::log (LOGERROR, "exit");
+  cLog::log (LOGERROR, "run - exit");
   }
 //}}}
 

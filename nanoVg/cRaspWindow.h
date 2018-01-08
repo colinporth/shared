@@ -40,7 +40,7 @@ public:
   void changed() {}
 
 protected:
-  cRootContainer* initialise (float scale, uint32_t alpha);
+  cRootContainer* initialise (float scale, uint32_t alpha, bool useSourceAlpha);
 
   cWidget* add (cWidget* widget) { return mRoot->add (widget); }
   cWidget* addAt (cWidget* widget, float x, float y) { return mRoot->addAt (widget,x,y); }

@@ -91,7 +91,7 @@ void cRaspWindow::ellipseSolid (uint32_t colour, int16_t x, int16_t y, uint16_t 
 
 // protected
 //{{{
-cRootContainer* cRaspWindow::initialise (float scale, uint32_t alpha) {
+cRootContainer* cRaspWindow::initialise (float scale, uint32_t alpha, bool useSourceAlpha) {
 
   // get EGL display
   mEglDisplay = eglGetDisplay (EGL_DEFAULT_DISPLAY);
@@ -129,8 +129,10 @@ cRootContainer* cRaspWindow::initialise (float scale, uint32_t alpha) {
   // create dispmanx element
   VC_RECT_T dstRect = { 0, 0, (int32_t)mScreenWidth, (int32_t)mScreenHeight };
   VC_RECT_T srcRect = { 0,0, (int32_t)(mScreenWidth << 16), (int32_t)(mScreenHeight << 16) };
-  VC_DISPMANX_ALPHA_T kAlpha = { DISPMANX_FLAGS_ALPHA_FIXED_ALL_PIXELS, alpha, 0 };
-  //VC_DISPMANX_ALPHA_T kAlpha = { DISPMANX_FLAGS_ALPHA_FROM_SOURCE, 200, 0 };
+
+  VC_DISPMANX_ALPHA_T kAlpha = 
+    useSourceAlpha ? { DISPMANX_FLAGS_ALPHA_FROM_SOURCE, 200, 0 } :
+                     { DISPMANX_FLAGS_ALPHA_FIXED_ALL_PIXELS, alpha, 0 };
   mDispmanxElement = vc_dispmanx_element_add (dispmanxUpdate, mDispmanxDisplay, 3000,
                                               &dstRect, 0, &srcRect,
                                               DISPMANX_PROTECTION_NONE, &kAlpha, NULL, DISPMANX_NO_ROTATE);
