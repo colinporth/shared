@@ -132,7 +132,7 @@ cRootContainer* cRaspWindow::initialise (float scale, uint32_t alpha, bool useSo
 
   VC_DISPMANX_ALPHA_T kAlpha;
   if (useSourceAlpha)
-    kAlpha = { DISPMANX_FLAGS_ALPHA_FROM_SOURCE, 200, 0 };
+    kAlpha = { DISPMANX_FLAGS_ALPHA_FROM_SOURCE, alpha, 0 };
   else
     kAlpha = { DISPMANX_FLAGS_ALPHA_FIXED_ALL_PIXELS, alpha, 0 };
   mDispmanxElement = vc_dispmanx_element_add (dispmanxUpdate, mDispmanxDisplay, 3000,
@@ -165,7 +165,7 @@ cRootContainer* cRaspWindow::initialise (float scale, uint32_t alpha, bool useSo
   cLog::log (LOGINFO, "created sans font droidSansMono");
 
   glViewport (0.f, 0.f, mScreenWidth, mScreenHeight);
-  glClearColor (0.f, 0.f, 0.f, 1.f);
+  glClearColor (0.f, 0.f, 0.f, 0.f);
 
   mRoot = new cRootContainer (mScreenWidth, mScreenHeight);
   return mRoot;
