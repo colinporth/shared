@@ -91,7 +91,7 @@ void cRaspWindow::ellipseSolid (uint32_t colour, int16_t x, int16_t y, uint16_t 
 
 // protected
 //{{{
-cRootContainer* cRaspWindow::initialise (float scale, uint32_t alpha, bool useSourceAlpha) {
+cRootContainer* cRaspWindow::initialise (float scale, uint32_t alpha) {
 
   // get EGL display
   mEglDisplay = eglGetDisplay (EGL_DEFAULT_DISPLAY);
@@ -128,16 +128,17 @@ cRootContainer* cRaspWindow::initialise (float scale, uint32_t alpha, bool useSo
 
   // create dispmanx element
   VC_RECT_T dstRect = { 0, 0, (int32_t)mScreenWidth, (int32_t)mScreenHeight };
-  VC_RECT_T srcRect = { 0,0, (int32_t)(mScreenWidth << 16), (int32_t)(mScreenHeight << 16) };
+  VC_RECT_T srcRect = { 0, 0, (int32_t)(mScreenWidth << 16), (int32_t)(mScreenHeight << 16) };
 
-  VC_DISPMANX_ALPHA_T kAlpha;
-  if (useSourceAlpha)
-    kAlpha = { DISPMANX_FLAGS_ALPHA_FROM_SOURCE, alpha, 0 };
+  VC_DISPMANX_ALPHA_T alphaSpec;
+  if (alpha)
+    alphaSpec = { DISPMANX_FLAGS_ALPHA_FIXED_ALL_PIXELS, alpha, 0 };
   else
-    kAlpha = { DISPMANX_FLAGS_ALPHA_FIXED_ALL_PIXELS, alpha, 0 };
+    alphaSpec = { DISPMANX_FLAGS_ALPHA_FROM_SOURCE, 128, 0 };
   mDispmanxElement = vc_dispmanx_element_add (dispmanxUpdate, mDispmanxDisplay, 3000,
                                               &dstRect, 0, &srcRect,
-                                              DISPMANX_PROTECTION_NONE, &kAlpha, NULL, DISPMANX_NO_ROTATE);
+                                              DISPMANX_PROTECTION_NONE, &alphaSpec, NULL, 
+                                              DISPMANX_NO_ROTATE);
   mNativeWindow.element = mDispmanxElement;
   mNativeWindow.width = mScreenWidth;
   mNativeWindow.height = mScreenHeight;
@@ -157,7 +158,6 @@ cRootContainer* cRaspWindow::initialise (float scale, uint32_t alpha, bool useSo
   setVsync (true);
 
   cVgGL::initialise();
-  cLog::log (LOGINFO, "cRaspWindow");
 
   //createFontMem ("sans", (unsigned char*)freeSansBold, sizeof(freeSansBold), 0);
   createFontMem ("sans", (unsigned char*)droidSansMono, sizeof(droidSansMono), 0);
