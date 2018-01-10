@@ -72,7 +72,9 @@ template <typename T> std::string dec (T value, int width = 0, char fill = ' ') 
 template <typename T> std::string decFrac (T value, int width, int precision, char fill) {
 
   std::ostringstream os;
-  os << std::setfill (fill) << std::setw (width) << std::setprecision (precision) << value;
+  os << std::fixed << std::showpoint 
+     << std::setfill (fill) << std::setw (width) << std::setprecision (precision) 
+     << value;
   return os.str();
   }
 //}}}
