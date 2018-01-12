@@ -7,7 +7,7 @@
 class cListWidget : public cWidget {
 public:
   //{{{
-  cListWidget (std::vector <std::string>& names, int& index, bool& indexChanged, float width, float height)
+  cListWidget (std::vector <std::string>& names, unsigned int& index, bool& indexChanged, float width, float height)
     : cWidget (COL_WHITE, width, height), mNames(names), mIndex(index), mIndexChanged(indexChanged) {}
   //}}}
   virtual ~cListWidget() {}
@@ -44,7 +44,7 @@ public:
       }
 
     mTextPressed = false;
-    mPressedIndex = -1;
+    mPressedIndex = 0;
     mMoved = false;
     mMoveInc = 0;
     }
@@ -56,15 +56,16 @@ public:
     if (!mTextPressed && mScrollInc)
       incScroll (mScrollInc * 0.9f);
 
-    int index = int(mScroll) / getBoxHeight();
+    unsigned int index = int(mScroll) / getBoxHeight();
     int y = -(int(mScroll) % getBoxHeight());
 
-    for (int i = 0; (y < mHeight-1) && (index < (int)mNames.size()); i++, index++, y += getBoxHeight()) {
-      if (i >= (int)mMeasure.size())
+    for (unsigned int i = 0; (y < mHeight-1) && (index < mNames.size()); i++, index++, y += getBoxHeight()) {
+      if (i >= mMeasure.size())
         mMeasure.push_back (0);
 
       mMeasure[i] = draw->drawText (
-        mTextPressed && !mMoved && (index == mPressedIndex) ? COL_YELLOW : (index == mIndex) ? mColour : COL_LIGHTGREY,
+        (!mMoved && mTextPressed && (index == mPressedIndex)) ?
+          COL_YELLOW : (index == mIndex) ? mColour : COL_LIGHTBLUE,
         getFontHeight(), mNames[index], mX+2, mY+y+1, mWidth-1, mHeight-y-1);
       }
     }
@@ -86,11 +87,11 @@ private:
   //}}}
 
   std::vector <std::string>& mNames;
-  int& mIndex;
+  unsigned int& mIndex;
   bool& mIndexChanged;
 
   bool mTextPressed = false;
-  int mPressedIndex = -1;
+  unsigned int mPressedIndex = 0;
   bool mMoved = false;
   int mMoveInc = 0;
 
