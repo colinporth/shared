@@ -24,6 +24,8 @@ public:
 
   // iWindow
   cVg* getContext () { return this; }
+  float getWidth() { return mRoot->getWidth(); }
+  float getHeight() { return mRoot->getHeight(); }
   uint16_t getWidthPix() { return mRoot->getPixWidth(); }
   uint16_t getHeightPix() { return mRoot->getPixHeight(); }
   bool getShift() { return false; }
