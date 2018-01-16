@@ -184,8 +184,13 @@ cRootContainer* cRaspWindow::initialise (float scale, uint32_t alpha) {
 void cRaspWindow::run() {
 
   while (!mExit) {
-    mCpuGraph->start (getAbsoluteClock() / 1000000.f);
-    if (mChanged) {
+    if (mCountDown > 0) {
+      mCountDown--;
+      usleep (10000);
+      }
+    else {
+      mCountDown = mChangeCountDown;
+      mCpuGraph->start (getAbsoluteClock() / 1000000.f);
       startFrame();
       if (mRoot)
         mRoot->onDraw (this);
@@ -207,14 +212,12 @@ void cRaspWindow::run() {
         }
         //}}}
       endSwapFrame();
-      mChanged = false;
+      mFpsGraph->updateTime (getAbsoluteClock() / 1000000.f);
+      mCpuGraph->updateTime (getAbsoluteClock() / 1000000.f);
       }
 
-    mFpsGraph->updateTime (getAbsoluteClock() / 1000000.f);
-    mCpuGraph->updateTime (getAbsoluteClock() / 1000000.f);
-
     pollKeyboard();
-    if (mMouseFd >= 0) 
+    if (mMouseFd >= 0)
       pollMouse();
     }
 
