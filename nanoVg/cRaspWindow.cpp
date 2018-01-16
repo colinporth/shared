@@ -186,7 +186,7 @@ void cRaspWindow::run() {
       //{{{  draw tests
       drawEyes (mScreenWidth*3.f/4.f, mScreenHeight/2.f, mScreenWidth/4.f, mScreenHeight/2.f,
                 mMouseX, mMouseY);
-      drawLines (0.f, 50.f, mScreenWidth, mScreenHeight);
+      //drawLines (0.f, 50.f, mScreenWidth, mScreenHeight);
       drawSpinner (mScreenWidth/2.f, mScreenHeight/2.f, 20.f);
       }
       //}}}

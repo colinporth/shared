@@ -60,7 +60,7 @@ protected:
   void uSleep (uint64_t uSec);
 
   void toggleVsync() { mVsync = !mVsync; setVsync (mVsync); }
-  void togglePerf() { mDrawPerf = !mDrawPerf; mFpsGraph->reset(); mCpuGraph->reset(); }
+  void togglePerf()  { mDrawPerf = !mDrawPerf; mFpsGraph->reset(); mCpuGraph->reset(); }
   void toggleStats() { mDrawStats = !mDrawStats; }
   void toggleTests() { mDrawTests = !mDrawTests; }
 
