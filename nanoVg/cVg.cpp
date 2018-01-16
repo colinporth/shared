@@ -6,6 +6,8 @@
 
 #include "fontStash.h"
 #include "stb_image.h"
+
+using namespace std;
 //}}}
 //{{{  defines
 #define KAPPA90 0.5522847493f // Length proportional to radius of a cubic bezier handle for 90deg arcs.
@@ -215,23 +217,28 @@ sVgColour nvgPremulColor (sVgColour c) {
 //}}}
 
 //{{{
-cVg::cVg (int flags) : mDrawEdges(!(flags & DRAW_NOEDGES)), mDrawSolid(!(flags & DRAW_NOSOLID)) {
+cVg::cVg (int flags) :
+    mDrawEdges(!(flags & DRAW_NOEDGES)), mDrawSolid(!(flags & DRAW_NOSOLID)), mDrawTriangles(true) {
+
   saveState();
   resetState();
 
-  setDevicePixelRatio (1.0f);
+  setDevicePixelRatio (1.f);
 
   // init font rendering
   FONSparams fontParams;
   memset (&fontParams, 0, sizeof(fontParams));
+
   fontParams.width = NVG_INIT_FONTIMAGE_SIZE;
   fontParams.height = NVG_INIT_FONTIMAGE_SIZE;
   fontParams.flags = FONS_ZERO_TOPLEFT;
-  fontParams.renderCreate = NULL;
-  fontParams.renderUpdate = NULL;
-  fontParams.renderDraw = NULL;
-  fontParams.renderDelete = NULL;
-  fontParams.userPtr = NULL;
+
+  fontParams.renderCreate = nullptr;
+  fontParams.renderUpdate = nullptr;
+  fontParams.renderDraw = nullptr;
+  fontParams.renderDelete = nullptr;
+  fontParams.userPtr = nullptr;
+
   fonsContext = fonsCreateInternal (&fontParams);
   }
 //}}}
@@ -244,7 +251,8 @@ cVg::~cVg() {
 //}}}
 //{{{
 void cVg::initialise() {
-  fontImages[0] = renderCreateTexture (TEXTURE_ALPHA, NVG_INIT_FONTIMAGE_SIZE, NVG_INIT_FONTIMAGE_SIZE, 0, NULL);
+  fontImages[0] = renderCreateTexture (TEXTURE_ALPHA,
+                                       NVG_INIT_FONTIMAGE_SIZE, NVG_INIT_FONTIMAGE_SIZE, 0, NULL);
   }
 //}}}
 
@@ -750,27 +758,27 @@ void cVg::textAlign (int align) { mStates[mNumStates-1].textAlign = align; }
 void cVg::textLineHeight (float lineHeight) { mStates[mNumStates-1].lineHeight = lineHeight; }
 void cVg::textLetterSpacing (float spacing) { mStates[mNumStates-1].letterSpacing = spacing; }
 void cVg::fontFaceId (int font) { mStates[mNumStates-1].fontId = font; }
-void cVg::fontFace (std::string font) { mStates[mNumStates-1].fontId = fonsGetFontByName (fonsContext, font.c_str()); }
+void cVg::fontFace (string font) { mStates[mNumStates-1].fontId = fonsGetFontByName (fonsContext, font.c_str()); }
 
 //{{{
-int cVg::createFont (std::string name, std::string path) {
+int cVg::createFont (string name, string path) {
   return fonsAddFont (fonsContext, name.c_str(), path.c_str());
   }
 //}}}
 //{{{
-int cVg::createFontMem (std::string name, unsigned char* data, int ndata, int freeData) {
+int cVg::createFontMem (string name, unsigned char* data, int ndata, int freeData) {
   return fonsAddFontMem (fonsContext, name.c_str(), data, ndata, freeData);
   }
 //}}}
 //{{{
-int cVg::findFont (std::string name) {
+int cVg::findFont (string name) {
   if (name.empty())
     return -1;
   return fonsGetFontByName (fonsContext, name.c_str());
   }
 //}}}
 //{{{
-int cVg::addFallbackFont (std::string baseFont, std::string fallbackFont) {
+int cVg::addFallbackFont (string baseFont, string fallbackFont) {
   return addFallbackFontId (findFont (baseFont), findFont (fallbackFont));
   }
 //}}}
@@ -784,7 +792,7 @@ int cVg::addFallbackFontId (int baseFont, int fallbackFont) {
 
 enum eVgCodepointType { NVG_SPACE, NVG_NEWLINE, NVG_CHAR, NVG_CJK_CHAR };
 //{{{
-float cVg::text (float x, float y, std::string str) {
+float cVg::text (float x, float y, string str) {
 
   auto state = &mStates[mNumStates-1];
   if (state->fontId == FONS_INVALID)
@@ -905,7 +913,7 @@ void cVg::textBox (float x, float y, float breakRowWidth, const char* string, co
   }
 //}}}
 //{{{
-float cVg::textBounds (float x, float y, std::string str, float* bounds) {
+float cVg::textBounds (float x, float y, string str, float* bounds) {
 
   auto state = &mStates[mNumStates-1];
   if (state->fontId == FONS_INVALID)
@@ -958,7 +966,7 @@ void cVg::textMetrics (float* ascender, float* descender, float* lineh) {
   }
 //}}}
 //{{{
-int cVg::textGlyphPositions (float x, float y, std::string str, NVGglyphPosition* positions, int maxPositions) {
+int cVg::textGlyphPositions (float x, float y, string str, NVGglyphPosition* positions, int maxPositions) {
 
   auto state = &mStates[mNumStates-1];
   if (state->fontId == FONS_INVALID)
@@ -1490,10 +1498,11 @@ void cVg::endFrame() {
   mVertices.reset();
   }
 //}}}
+
 //{{{
-std::string cVg::getFrameStats() {
-  return "v:" + std::to_string(mVertices.getNumVertices()) +
-         " d:" + std::to_string (mDrawArrays);
+string cVg::getFrameStats() {
+  return "v:" + to_string(mVertices.getNumVertices()) +
+         " d:" + to_string (mDrawArrays);
   }
 //}}}
 //}}}

@@ -1635,9 +1635,9 @@ protected:
   virtual bool renderUpdateTexture (int image, int x, int y, int w, int h, const unsigned char* data) = 0;
   virtual bool renderGetTextureSize (int image, int* w, int* h) = 0;
 
-  bool mDrawEdges = false;
-  bool mDrawSolid = false;
-  bool mDrawTriangles = true;
+  bool mDrawEdges;
+  bool mDrawSolid;
+  bool mDrawTriangles;
   int mDrawArrays = 0;
 
 private:
