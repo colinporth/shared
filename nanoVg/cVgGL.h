@@ -231,9 +231,11 @@ protected:
       switch (draw->mType) {
         case cDraw::TEXT:
           //{{{  text triangles
-          setUniforms (draw->mFirstFragIndex, draw->mImage);
-          glDrawArrays (GL_TRIANGLES, draw->mTriangleFirstVertexIndex, draw->mNumTriangleVertices);
-          mDrawArrays++;
+          if (mDrawText) {
+            setUniforms (draw->mFirstFragIndex, draw->mImage);
+            glDrawArrays (GL_TRIANGLES, draw->mTriangleFirstVertexIndex, draw->mNumTriangleVertices);
+            mDrawArrays++;
+            }
           break;
           //}}}
         case cDraw::TRIANGLE:

@@ -1,4 +1,5 @@
 // cRaspWindow.cpp
+//{{{  includes
 #include <stdio.h>
 #include <fcntl.h>
 
@@ -12,6 +13,7 @@
 #include "cRaspWindow.h"
 
 using namespace std;
+//}}}
 
 //{{{
 const EGLint kConfigAttributeList[] = {
@@ -137,7 +139,7 @@ cRootContainer* cRaspWindow::initialise (float scale, uint32_t alpha) {
     alphaSpec = { DISPMANX_FLAGS_ALPHA_FROM_SOURCE, 128, 0 };
   mDispmanxElement = vc_dispmanx_element_add (dispmanxUpdate, mDispmanxDisplay, 3000,
                                               &dstRect, 0, &srcRect,
-                                              DISPMANX_PROTECTION_NONE, &alphaSpec, NULL, 
+                                              DISPMANX_PROTECTION_NONE, &alphaSpec, NULL,
                                               DISPMANX_NO_ROTATE);
   mNativeWindow.element = mDispmanxElement;
   mNativeWindow.width = mScreenWidth;
