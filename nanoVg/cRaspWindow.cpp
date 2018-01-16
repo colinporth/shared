@@ -186,7 +186,7 @@ void cRaspWindow::run() {
   while (!mExit) {
     if (mCountDown > 0) {
       mCountDown--;
-      usleep (10000);
+      uSleep (10000);
       }
     else {
       mCountDown = mChangeCountDown;
