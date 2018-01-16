@@ -39,7 +39,7 @@ public:
   void ellipseSolid (uint32_t colour, int16_t x, int16_t y, uint16_t xradius, uint16_t yradius);
 
   // iChange
-  void changed() {}
+  void changed() { mChanged = true; }
 
 protected:
   cRootContainer* initialise (float scale, uint32_t alpha);
@@ -110,5 +110,7 @@ private:
   uint32_t mScreenHeight = 0;
 
   int mMouseFd = -1;
+
+  bool mChanged = true;
   //}}}
   };

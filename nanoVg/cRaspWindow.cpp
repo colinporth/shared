@@ -39,6 +39,13 @@ const EGLint kContextAttributeList[] = {
 //{{{
 cRaspWindow::cRaspWindow() {
   bcm_host_init();
+
+  mMouseFd = open ("/dev/input/mouse0", O_RDONLY | O_NONBLOCK);
+  if (mMouseFd < 0) {
+    cLog::log (LOGERROR, "no mouse");
+    return;
+    }
+
   }
 //}}}
 //{{{
@@ -178,33 +185,37 @@ void cRaspWindow::run() {
 
   while (!mExit) {
     mCpuGraph->start (getAbsoluteClock() / 1000000.f);
-    startFrame();
-    if (mRoot)
-      mRoot->onDraw (this);
-    drawMouse (mMouseX, mMouseY);
-    if (mDrawTests) {
-      //{{{  draw tests
-      drawEyes (mScreenWidth*3.f/4.f, mScreenHeight/2.f, mScreenWidth/4.f, mScreenHeight/2.f,
-                mMouseX, mMouseY);
-      //drawLines (0.f, 50.f, mScreenWidth, mScreenHeight);
-      drawSpinner (mScreenWidth/2.f, mScreenHeight/2.f, 20.f);
+    if (mChanged) {
+      startFrame();
+      if (mRoot)
+        mRoot->onDraw (this);
+      drawMouse (mMouseX, mMouseY);
+      if (mDrawTests) {
+        //{{{  draw tests
+        drawEyes (mScreenWidth*3.f/4.f, mScreenHeight/2.f, mScreenWidth/4.f, mScreenHeight/2.f,
+                  mMouseX, mMouseY);
+        //drawLines (0.f, 50.f, mScreenWidth, mScreenHeight);
+        drawSpinner (mScreenWidth/2.f, mScreenHeight/2.f, 20.f);
+        }
+        //}}}
+      if (mDrawStats)
+        drawStats (mScreenWidth, mScreenHeight, getFrameStats() + (mVsync ? " vsync" : " free"));
+      if (mDrawPerf) {
+        //{{{  render perf stats
+        mFpsGraph->render (this, 0.f, mScreenHeight-35.f, mScreenWidth/3.f -2.f, 35.f);
+        mCpuGraph->render (this, mScreenWidth/3.f, mScreenHeight-35.f, mScreenWidth/3.f - 2.f, 35.f);
+        }
+        //}}}
+      endSwapFrame();
+      mChanged = false;
       }
-      //}}}
-    if (mDrawStats)
-      drawStats (mScreenWidth, mScreenHeight, getFrameStats() + (mVsync ? " vsync" : " free"));
-    if (mDrawPerf) {
-      //{{{  render perf stats
-      mFpsGraph->render (this, 0.f, mScreenHeight-35.f, mScreenWidth/3.f -2.f, 35.f);
-      mCpuGraph->render (this, mScreenWidth/3.f, mScreenHeight-35.f, mScreenWidth/3.f - 2.f, 35.f);
-      }
-      //}}}
-    endSwapFrame();
 
     mFpsGraph->updateTime (getAbsoluteClock() / 1000000.f);
     mCpuGraph->updateTime (getAbsoluteClock() / 1000000.f);
 
     pollKeyboard();
-    pollMouse();
+    if (mMouseFd >= 0) 
+      pollMouse();
     }
 
   cLog::log (LOGNOTICE, "cRaspWindow::run - exit");
@@ -233,14 +244,6 @@ void cRaspWindow::uSleep (uint64_t uSec) {
 // private
 //{{{
 void cRaspWindow::pollMouse() {
-
-  if (mMouseFd < 0)
-    mMouseFd = open ("/dev/input/mouse0", O_RDONLY | O_NONBLOCK);
-
-  if (mMouseFd < 0) {
-    cLog::log (LOGERROR, "no mouse");
-    return;
-    }
 
   uint8_t packet[3];
   while (true) {
