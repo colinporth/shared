@@ -542,7 +542,7 @@ public:
   std::string getFrameStats();
   void toggleEdges() { mDrawEdges = !mDrawEdges; }
   void toggleSolid() { mDrawSolid = !mDrawSolid; }
-  void toggleText()  { mDrawText  = !mDrawText; }
+  void toggleTriangles() { mDrawTriangles = !mDrawTriangles; }
   //}}}
 
 protected:
@@ -1637,7 +1637,7 @@ protected:
 
   bool mDrawEdges = false;
   bool mDrawSolid = false;
-  bool mDrawText = false;
+  bool mDrawTriangles = true;
   int mDrawArrays = 0;
 
 private:

@@ -231,7 +231,7 @@ protected:
       switch (draw->mType) {
         case cDraw::TEXT:
           //{{{  text triangles
-          if (mDrawText) {
+          if (mDrawTriangles) {
             setUniforms (draw->mFirstFragIndex, draw->mImage);
             glDrawArrays (GL_TRIANGLES, draw->mTriangleFirstVertexIndex, draw->mNumTriangleVertices);
             mDrawArrays++;
