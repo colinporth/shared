@@ -236,11 +236,10 @@ uint64_t cRaspWindow::getAbsoluteClock() {
 //{{{
 void cRaspWindow::uSleep (uint64_t uSec) {
 
-  struct timespec req = { 0 };
-  req.tv_sec = uSec / 1000000;
-  req.tv_nsec = (uSec % 1000000) * 1000;
-
-  while (nanosleep (&req, &req) == -1 && errno == EINTR && (req.tv_nsec > 0 || req.tv_sec > 0));
+  struct timespec ts;
+  ts.tv_sec = uSec / 1000000;
+  ts.tv_nsec = (uSec % 1000000) * 1000;
+  nanosleep (&ts, NULL);
   }
 //}}}
 
