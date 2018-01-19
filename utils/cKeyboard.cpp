@@ -56,7 +56,6 @@ void cKeyboard::run() {
   while (true) {
     int ch[8];
     int chnum = 0;
-
     while ((ch[chnum] = getchar()) != EOF)
       chnum++;
 
@@ -68,6 +67,10 @@ void cKeyboard::run() {
       else
         cLog::log (LOGNOTICE, "cKeyboard - unconfigured key %x", ch[0]);
       }
+    else
+      msSleep (40);
+
+    //cLog::log (LOGINFO, "cKeyboard::run - loop");
     }
 
   cLog::log (LOGERROR, "run - exit");
@@ -85,10 +88,11 @@ void cKeyboard::restore_term() {
   }
 //}}}
 //{{{
-void cKeyboard::sleep (unsigned int milliSeconds) {
-  struct timespec req;
-  req.tv_sec = milliSeconds / 1000;
-  req.tv_nsec = (milliSeconds % 1000) * 1000000;
-  while (nanosleep(&req, &req) == -1 && errno == EINTR && (req.tv_nsec > 0 || req.tv_sec > 0));
+void cKeyboard::msSleep (int ms) {
+
+  struct timespec ts;
+  ts.tv_sec = ms / 1000;
+  ts.tv_nsec = (ms % 1000) * 1000000;
+  nanosleep (&ts, NULL);
   }
 //}}}

@@ -14,7 +14,7 @@ public:
 
 private:
   void restore_term();
-  void sleep (unsigned int milliSeconds);
+  void msSleep (int ms);
 
   struct termios mOrigTermios;
   int mOrigFl;
