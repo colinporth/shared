@@ -149,6 +149,9 @@ void cLog::setThreadName (const string& name) {
 //{{{
 void cLog::log (enum eLogLevel logLevel, const string& logStr) {
 
+  if (!mBuffer && (logLevel > mLogLevel)) // bomb out early without lock
+    return;
+
   lock_guard<mutex> lockGuard (mLinesMutex);
 
   auto timePoint = chrono::system_clock::now() + chrono::seconds (mDaylightSecs);
@@ -205,6 +208,9 @@ void cLog::log (enum eLogLevel logLevel, const string& logStr) {
 //}}}
 //{{{
 void cLog::log (enum eLogLevel logLevel, const char* format, ... ) {
+
+  if (!mBuffer && (logLevel > mLogLevel)) // bomb out early without lock
+    return;
 
   // form logStr
   va_list args;
