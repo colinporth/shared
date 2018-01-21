@@ -63,6 +63,8 @@ public:
       if (i >= mMeasure.size())
         mMeasure.push_back (0);
 
+      draw->rectClipped (0x40000000, mX, mY+y, mMeasure[i] + getBoxHeight()/2, getBoxHeight());
+
       mMeasure[i] = draw->drawText (
         (!mMoved && mTextPressed && (index == mPressedIndex)) ?
           COL_YELLOW : (index == mIndex) ? mColour : COL_LIGHTBLUE,

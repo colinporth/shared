@@ -75,7 +75,7 @@ void cRaspWindow::drawRect (uint32_t colour, int16_t x, int16_t y, uint16_t widt
 
   beginPath();
   rect (x, y, width, height);
-  fillColor (nvgRGBA ((colour & 0xFF0000) >> 16, (colour & 0xFF00) >> 8, colour & 0xFF,255));
+  fillColor (nvgRGBA ((colour & 0xFF0000) >> 16, (colour & 0xFF00) >> 8, colour & 0xFF, colour >> 24));
   triangleFill();
   }
 //}}}
