@@ -13,7 +13,7 @@
 class cTransportStreamBox : public cWidget {
 public:
   //{{{
-  cTransportStreamBox (float height, float width, cTransportStream* ts) :
+  cTransportStreamBox (cTransportStream* ts, float height, float width) :
     cWidget (height, width), mTs(ts) {}
   //}}}
   virtual ~cTransportStreamBox() {}
