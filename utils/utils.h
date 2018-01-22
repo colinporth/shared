@@ -80,6 +80,33 @@ template <typename T> std::string frac (T value, int width, int precision, char 
 //}}}
 
 //{{{
+inline std::string getOmxPtsString (double pts) {
+// miss out zeros
+
+  if (pts < 0)
+    return "--:--:--";
+  else {
+    auto uintPts = uint32_t (pts / 10000.0);
+
+    uint32_t hs = uintPts % 100;
+
+    uintPts /= 100;
+    uint32_t secs = uintPts % 60;
+
+    uintPts /= 60;
+    uint32_t mins = uintPts % 60;
+
+    uintPts /= 60;
+    uint32_t hours = uintPts % 60;
+
+    std::string str (hours ? (dec (hours) + ':' + dec (mins, 2, '0')) : dec (mins));
+
+    return str + ':' + dec(secs, 2, '0') + ':' + dec(hs, 2, '0');
+    }
+  }
+//}}}
+
+//{{{
 inline std::string getPtsString (int64_t pts) {
 // miss out zeros
 
