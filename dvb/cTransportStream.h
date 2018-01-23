@@ -14,7 +14,7 @@
 
 #include "dvbSubtitle.h"
 //}}}
-//{{{   const
+//{{{  const
 #define START   '\0'
 #define STOP    '\0'
 #define ESCAPE  '\1'
@@ -6306,7 +6306,6 @@ public:
   //}}}
 
   time_t getStartTime() { return mStartTime; }
-
   std::string getTitleString() { return mTitle; }
   std::string getStartTimeString() { return getTimetShortString (mStartTime); }
   std::string getDurationString() { return dec(mDuration/60) + "m"; }
@@ -6352,26 +6351,23 @@ public:
     }
   //}}}
 
-  //{{{  gets
+  //  gets
   int getSid() const { return mSid; }
 
   int getProgramPid() const { return mProgramPid; }
-
   int getVidPid() const { return mVidPid; }
   int getVidStreamType() const { return mVidStreamType; }
-
   int getAudPid() const { return mAudPid; }
   int getAudStreamType() const { return mAudStreamType; }
   int getAudOtherPid() const { return mAudOtherPid; }
-
   int getSubPid() const { return mSubPid; }
 
   std::string getNameString() { return mName; }
-
   std::vector<cEpgItem*> getNowVec() { return mNowVec; }
+  std::map<time_t,cEpgItem> getEpgItemMap() { return mEpgItemMap; }
   std::string getNowTitleString() { return mNowVec.empty() ? "" : mNowVec[0]->getTitleString(); }
-  //}}}
-  //{{{  sets
+
+  // sets
   void setName (const std::string& name) { mName = name;}
 
   //{{{
@@ -6414,7 +6410,6 @@ public:
     mEpgItemMap.insert (std::map<time_t, cEpgItem>::value_type (startTime, cEpgItem(startTime, duration, str1, str2)));
     }
   //}}}
-  //}}}
 
   //{{{
   void print() {
@@ -6446,7 +6441,7 @@ private:
   std::string mName;
 
   std::vector<cEpgItem*> mNowVec;
-  std::map<time_t, cEpgItem> mEpgItemMap;
+  std::map<time_t,cEpgItem> mEpgItemMap;
   };
 //}}}
 
@@ -6847,6 +6842,7 @@ public:
 
   uint64_t getPackets() { return mPackets; }
   uint64_t getDiscontinuity() { return mDiscontinuity; }
+  time_t getCurTime() { return mCurTime; }
   //{{{
   cService* getService (int index, int64_t& firstPts, int64_t& lastPts) {
 
