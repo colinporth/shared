@@ -5,7 +5,7 @@
 #include <string>
 #include <algorithm>
 #include "../utils/utils.h"
-#include "../decoders/cTransportStream.h"
+#include "../dvb/cTransportStream.h"
 
 #include "cWidget.h"
 //}}}

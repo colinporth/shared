@@ -8,7 +8,7 @@
 #include <linux/dvb/frontend.h>
 
 #include "../utils/cBipBuffer.h"
-#include "../decoders/cDumpTransportStream.h"
+#include "cDumpTransportStream.h"
 
 using namespace std;
 //}}}

@@ -1,6 +1,6 @@
 // cDumpTransportStream.h
 #pragma once
-#include "../../shared/decoders/cTransportStream.h"
+#include "cTransportStream.h"
 
 class cDumpTransportStream : public cTransportStream {
 public:
