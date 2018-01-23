@@ -6305,6 +6305,7 @@ public:
       : mStartTime(startTime), mDuration(duration), mTitle(title), mShortDescription(shortDescription) {}
   //}}}
 
+  bool getRecord() { return mRecord; }
   time_t getStartTime() { return mStartTime; }
   std::string getTitleString() { return mTitle; }
   std::string getStartTimeString() { return getTimetShortString (mStartTime); }
@@ -6320,6 +6321,7 @@ public:
     mShortDescription = shortDescription;
     }
   //}}}
+  void toggleRecord() { mRecord = !mRecord; }
 
   //{{{
   void print (const std::string& prefix) {
@@ -6333,6 +6335,7 @@ public:
   //}}}
 
 private:
+  bool mRecord = false;
   time_t mStartTime = 0;
   int mDuration = 0;
 
@@ -6364,7 +6367,7 @@ public:
 
   std::string getNameString() { return mName; }
   std::vector<cEpgItem*> getNowVec() { return mNowVec; }
-  std::map<time_t,cEpgItem> getEpgItemMap() { return mEpgItemMap; }
+  std::map<time_t,cEpgItem>& getEpgItemMap() { return mEpgItemMap; }
   std::string getNowTitleString() { return mNowVec.empty() ? "" : mNowVec[0]->getTitleString(); }
 
   // sets
