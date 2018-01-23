@@ -19,15 +19,15 @@ public:
   void onDraw (iDraw* draw) {
 
     if (mChans == 2) {
-      drawChanBar (draw, mX + 1, mY, mWidth/2 -1, mHeight, mPower[0]);
-      drawChanBar (draw, mX + 1 + mWidth/2 -1, mY, mWidth/2, mHeight, mPower[1]);
+      drawChanBar (draw, mX + 1,            mY, (mWidth/2)-1, mHeight, mPower[0]);
+      drawChanBar (draw, mX + 1 + mWidth/2, mY, (mWidth/2)-1, mHeight, mPower[1]);
       }
     else {
-      drawChanBar (draw, mX + 1, mY, mWidth/5 -1, mHeight, mPower[4]);
-      drawChanBar (draw, mX + 1 + mWidth/5, mY, mWidth/5 -1, mHeight, mPower[0]);
-      drawChanBar (draw, mX + 1 + mWidth*2/5, mY, mWidth/5 -1, mHeight, mPower[2]);
-      drawChanBar (draw, mX + 1 + mWidth*3/5, mY, mWidth/5 -1, mHeight, mPower[1]);
-      drawChanBar (draw, mX + 1 + mWidth*4/5, mY, mWidth/5 -1, mHeight, mPower[5]);
+      drawChanBar (draw, mX + 1,              mY, (mWidth/5)-1, mHeight, mPower[4]);
+      drawChanBar (draw, mX + 1 + mWidth/5,   mY, (mWidth/5)-1, mHeight, mPower[0]);
+      drawChanBar (draw, mX + 1 + mWidth*2/5, mY, (mWidth/5)-1, mHeight, mPower[2]);
+      drawChanBar (draw, mX + 1 + mWidth*3/5, mY, (mWidth/5)-1, mHeight, mPower[1]);
+      drawChanBar (draw, mX + 1 + mWidth*4/5, mY, (mWidth/5)-1, mHeight, mPower[5]);
       drawWooferBar (draw, mX + 1, mY, mWidth-2, mHeight, mPower[3]);
       }
     }
