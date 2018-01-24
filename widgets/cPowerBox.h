@@ -1,4 +1,4 @@
-// cAudBox.h
+// cPowerBox.h
 //{{{  includes
 #pragma once
 #include <string>
@@ -7,13 +7,13 @@
 
 #include "../utils/utils.h"
 //}}}
-const float kBarsScale = 3.0f;  
+const float kBarsScale = 3.0f;
 
-class cAudBox : public cWidget {
+class cPowerBox : public cWidget {
 public:
-  cAudBox (std::array<float,6>& power, int& chans, float width, float height) :
+  cPowerBox (std::array<float,6>& power, int& chans, float width, float height) :
     cWidget (width, height), mPower(power), mChans(chans) {}
-  virtual ~cAudBox() {}
+  virtual ~cPowerBox() {}
 
   //{{{
   void onDraw (iDraw* draw) {
