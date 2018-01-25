@@ -6365,22 +6365,19 @@ public:
   int getAudOtherPid() const { return mAudOtherPid; }
   int getSubPid() const { return mSubPid; }
 
-  std::string getNameString() { return mName; }
   cEpgItem* getNow() { return mNow; }
+  bool getShowEpg() { return mShowEpg; }
+  std::string getNameString() { return mName; }
   std::map<time_t,cEpgItem>& getEpgItemMap() { return mEpgItemMap; }
   std::string getNowTitleString() { return mNow ? mNow->getTitleString() : ""; }
 
   // sets
-  void setName (const std::string& name) { mName = name;}
-
   //{{{
   void setVidPid (int pid, int streamType) {
     mVidPid = pid;
     mVidStreamType = streamType;
     }
   //}}}
-  void setSubPid (int pid, int streamType) { mSubPid = pid; }
-  void setProgramPid (int pid) { mProgramPid = pid; }
   //{{{
   void setAudPid (int pid, int streamType) {
 
@@ -6395,7 +6392,10 @@ public:
       }
     }
   //}}}
-
+  void toggleShowEpg() { mShowEpg = !mShowEpg; }
+  void setName (const std::string& name) { mName = name;}
+  void setSubPid (int pid, int streamType) { mSubPid = pid; }
+  void setProgramPid (int pid) { mProgramPid = pid; }
   //{{{
   bool setNow (time_t startTime, int duration, const std::string& str1, const std::string& str2) {
 
@@ -6443,6 +6443,7 @@ private:
 
   std::string mName;
 
+  bool mShowEpg = false;
   cEpgItem* mNow = nullptr;
   std::map<time_t,cEpgItem> mEpgItemMap;
   };
