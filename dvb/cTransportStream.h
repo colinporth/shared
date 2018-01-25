@@ -6288,8 +6288,10 @@ public:
 class cEpgItem {
 public:
   //{{{
-  cEpgItem (time_t startTime, int duration, const std::string& title, std::string shortDescription)
-      : mStartTime(startTime), mDuration(duration), mTitle(title), mShortDescription(shortDescription) {}
+  cEpgItem (bool now, bool record, time_t startTime, int duration,
+            const std::string& title, std::string shortDescription)
+      : mNow(now), mRecord(record),
+        mStartTime(startTime), mDuration(duration), mTitle(title), mShortDescription(shortDescription) {}
   //}}}
 
   bool getRecord() { return mRecord; }
@@ -6308,7 +6310,12 @@ public:
     mShortDescription = shortDescription;
     }
   //}}}
-  void toggleRecord() { mRecord = !mRecord; }
+  //{{{
+  bool toggleRecord() {
+    mRecord = !mRecord;
+    return mNow;
+    }
+  //}}}
 
   //{{{
   void print (const std::string& prefix) {
@@ -6322,6 +6329,7 @@ public:
   //}}}
 
 private:
+  bool mNow = false;
   bool mRecord = false;
   time_t mStartTime = 0;
   int mDuration = 0;
@@ -6384,23 +6392,39 @@ public:
   void setSubPid (int pid, int streamType) { mSubPid = pid; }
   void setProgramPid (int pid) { mProgramPid = pid; }
   //{{{
-  bool setNow (time_t startTime, int duration, const std::string& str1, const std::string& str2) {
+  bool setNow (bool record, time_t startTime, int duration, const std::string& str1, const std::string& str2) {
 
     if (mNow && (mNow->getStartTime() == startTime))
       return false;
 
     delete mNow;
-    mNow = new cEpgItem (startTime, duration, str1, str2);
+    mNow = new cEpgItem (true, record, startTime, duration, str1, str2);
     return true;
     }
   //}}}
   //{{{
-  void setEpg (time_t startTime, int duration, const std::string& str1, const std::string& str2) {
+  void setEpg (bool record, time_t startTime, int duration, const std::string& str1,
+               const std::string& str2) {
 
-    mEpgItemMap.insert (std::map<time_t, cEpgItem>::value_type (startTime, cEpgItem(startTime, duration, str1, str2)));
+    mEpgItemMap.insert (
+      std::map<time_t, cEpgItem>::value_type (
+        startTime, cEpgItem (false, record, startTime, duration, str1, str2)));
     }
   //}}}
 
+  //{{{
+  bool isEpgRecord (const std::string& title, time_t startTime) {
+  // return true if startTime,title selected to record in epg
+
+    auto epgItemIt = mEpgItemMap.find (startTime);
+    if (epgItemIt != mEpgItemMap.end())
+      if (title == epgItemIt->second.getTitleString())
+        if (epgItemIt->second.getRecord())
+          return true;
+
+    return false;
+    }
+  //}}}
   //{{{
   void print() {
     cLog::log (LOGINFO, "sid:" + dec(mSid) +
@@ -6440,21 +6464,6 @@ class cTransportStream {
 friend class cTransportStreamBox;
 public:
   virtual ~cTransportStream() { clear(); }
-  //{{{
-  virtual void clear() {
-
-    std::lock_guard<std::mutex> lockGuard (mMutex);
-
-    mServiceMap.clear();
-    mProgramMap.clear();
-    mPidInfoMap.clear();
-
-    mPackets = 0;
-    mDiscontinuity = 0;
-    mFirstTime = 0;
-    mCurTime = 0;
-    }
-  //}}}
 
   //{{{
   static uint32_t getCrc32 (uint32_t crc, uint8_t* buf, unsigned int len) {
@@ -7010,6 +7019,23 @@ public:
     }
   //}}}
 
+  //{{{
+  virtual void clear() {
+
+    std::lock_guard<std::mutex> lockGuard (mMutex);
+
+    mServiceMap.clear();
+    mProgramMap.clear();
+    mPidInfoMap.clear();
+
+    mPackets = 0;
+    mDiscontinuity = 0;
+    mFirstTime = 0;
+    mCurTime = 0;
+    }
+  //}}}
+  virtual void startProgram (cService* service, const std::string& name, time_t startTime, bool record) {}
+
   // vars - public for widget access
   uint64_t mPackets = 0;
   uint64_t mDiscontinuity = 0;
@@ -7017,7 +7043,6 @@ public:
 protected:
   virtual bool audDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
   virtual bool vidDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
-  virtual void startProgram (cService* service, const std::string& name, time_t startTime) {}
   virtual void pesPacket (cPidInfo* pidInfo, uint8_t* ts) {}
 
   //{{{
@@ -7498,7 +7523,8 @@ private:
                     !serviceIt->second.getNameString().empty() &&
                     (serviceIt->second.getProgramPid() != -1)) {
                   // wait for named service with pgmPid
-                  if (serviceIt->second.setNow (startTime, duration, titleStr, descriptionStr)) {
+                  bool record = serviceIt->second.isEpgRecord (titleStr, startTime);
+                  if (serviceIt->second.setNow (record, startTime, duration, titleStr, descriptionStr)) {
                     // new now
                     auto pidInfoIt = mPidInfoMap.find (serviceIt->second.getProgramPid());
                     if (pidInfoIt != mPidInfoMap.end())
@@ -7506,12 +7532,12 @@ private:
                       pidInfoIt->second.mInfoStr = serviceIt->second.getNameString() +
                                                    " " + serviceIt->second.getNowTitleString();
 
-                    startProgram (&serviceIt->second, titleStr, startTime);
+                    startProgram (&serviceIt->second, titleStr, startTime, record);
                     }
                   }
                 }
               else // epg
-                serviceIt->second.setEpg (startTime, duration, titleStr, descriptionStr);
+                serviceIt->second.setEpg (false, startTime, duration, titleStr, descriptionStr);
               }
             }
             //}}}

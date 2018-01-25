@@ -9,25 +9,18 @@ public:
 
   //{{{
   virtual void clear() {
+
     cLog::log (LOGNOTICE, "cDumpTransportStream clear");
     cTransportStream::clear();
     mRecordFileMap.clear();
     }
   //}}}
-
-protected:
   //{{{
-  void startProgram (cService* service, const std::string& name, time_t startTime) {
+  virtual void startProgram (cService* service, const std::string& name, time_t startTime, bool record) {
 
     if ((service->getVidPid() > 0) && (service->getAudPid() > 0)) {
       // tv service
-      auto str = service->getNameString();
-      if ((str == "CBBC HD") || (str == "CBBC") ||
-          (str == "CBeebies") || (str == "BBC Parliament") ||
-          (str == "BBC RB 1") || (str == "BBC NEWS") ||
-          (str == "Channel 4+1") || (str == "ITV +1"))
-        cLog::log (LOGNOTICE, "startProgram ignoring channel " + str);
-      else {
+      if (record) {
         auto recordFileIt = mRecordFileMap.find (service->getSid());
         if (recordFileIt == mRecordFileMap.end())
           recordFileIt = mRecordFileMap.insert (
@@ -36,11 +29,18 @@ protected:
 
         auto validFileName = validString (service->getNameString() + " - " + name, "<>:/|?*\"\'\\");
         cLog::log (LOGNOTICE, "starting prgram " + validFileName);
-        recordFileIt->second.createFile (mRootName + "/" + validFileName + ".ts", service);
+
+        struct tm time = *localtime (&startTime);
+        recordFileIt->second.createFile (mRootName + "/" + validFileName +
+                                         "." + dec(time.tm_hour, 2,'0') +
+                                         "." + dec(time.tm_min, 2,'0') +
+                                         ".ts", service);
         }
       }
     }
   //}}}
+
+protected:
   //{{{
   void pesPacket (cPidInfo* pidInfo, uint8_t* ts) {
   // save pes packet
