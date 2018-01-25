@@ -25,7 +25,7 @@ using namespace std;
 
 // public:
 //{{{
-cDvb::cDvb (const string& root) : mTs(root) {
+cDvb::cDvb (const string& root) : mTs(root, true) {
   allocateBuffer (2048 * 128 * 188); // 50m - T2 5m a second
   }
 //}}}

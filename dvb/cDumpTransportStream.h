@@ -4,7 +4,8 @@
 
 class cDumpTransportStream : public cTransportStream {
 public:
-  cDumpTransportStream (const std::string& rootName) : mRootName(rootName){}
+  cDumpTransportStream (const std::string& rootName, bool recordAll) : 
+    mRootName(rootName), mRecordAll(recordAll){}
   virtual ~cDumpTransportStream() { clear(); }
 
   //{{{
@@ -20,7 +21,7 @@ public:
 
     if ((service->getVidPid() > 0) && (service->getAudPid() > 0)) {
       // tv service
-      if (record) {
+      if (record || mRecordAll) {
         auto recordFileIt = mRecordFileMap.find (service->getSid());
         if (recordFileIt == mRecordFileMap.end())
           recordFileIt = mRecordFileMap.insert (
@@ -215,6 +216,7 @@ private:
     };
   //}}}
 
+  bool mRecordAll;
   std::string mRootName;
   std::map<int,cRecordFile> mRecordFileMap;
   };
