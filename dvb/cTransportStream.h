@@ -6286,8 +6286,6 @@ public:
   int64_t mFirstPts = -1;
   int64_t mLastPts = -1;
 
-  int mSectionLength = 0;
-
   int mBufSize = 0;
   uint8_t* mBuffer = nullptr;
   uint8_t* mBufPtr = nullptr;
@@ -6461,10 +6459,10 @@ public:
     mProgramMap.clear();
     mPidInfoMap.clear();
 
-    mFirstTime = 0;
-    mCurTime = 0;
     mPackets = 0;
     mDiscontinuity = 0;
+    mFirstTime = 0;
+    mCurTime = 0;
     }
   //}}}
 
@@ -6924,49 +6922,44 @@ public:
                 tsBytesLeft -= headerBytes;
 
                 if (payloadStart) {
-                  auto payloadPtr = ts;
-                  auto payloadBytesLeft = tsBytesLeft;
+                  // handle the very odd pointerField
+                  auto pointerField = *ts++;
+                  tsBytesLeft--;
+                  if (pointerField > 0) {
+                    // add it to end of last buffer before starting new buffer
+                    if (pidInfo->mBufPtr)
+                      pidInfo->addToBuffer (ts, pointerField);
+                    else
+                      cLog::log (LOGERROR, "demux - " + dec(pid) + " pointerField without buffer " + dec(pointerField));
+                    }
 
-                  auto pointerField = *payloadPtr++;
-                  payloadBytesLeft--;
-                  if ((pointerField > 0) && pidInfo->mBufPtr)
-                    // nonZero pointerField, finish lastSection
-                    addToSectionBuffer (pidInfo, payloadPtr, pointerField);
+                  if (pidInfo->mBufPtr) {
+                    // parse buffer
+                    auto bufPtr = pidInfo->mBuffer;
+                    while ((bufPtr + 3) <= pidInfo->mBufPtr) {
+                      // enough for tid,sectionLength
+                      if (bufPtr[0] == 0xFF) // invalid tid is end of sections
+                        break;
+                      else {
+                        // valid tid, parse psi section
+                        parsePsi (pidInfo, bufPtr);
 
-                  // goto real payload start
-                  payloadPtr += pointerField;
-                  payloadBytesLeft -= pointerField;
-
-                  if (pidInfo->mBufPtr)
-                    cLog::log (LOGINFO1, "demux - unused section buffer " + dec(pid) +
-                                         " sectionLength:" + dec(pidInfo->mSectionLength) +
-                                         " got:" +  dec(pidInfo->getBufUsed()));
-
-                  while ((payloadBytesLeft >= 3) && (payloadPtr[0] != 0xFF)) {
-                    // valid section tableId, get section length
-                    pidInfo->mSectionLength = ((payloadPtr[1] & 0x0F) << 8) + payloadPtr[2] + 3;;
-                    if (payloadBytesLeft >= pidInfo->mSectionLength) {
-                      // parse section from payload without buffer
-                      parsePsi (pidInfo, payloadPtr);
-                      payloadPtr += pidInfo->mSectionLength;
-                      payloadBytesLeft -= pidInfo->mSectionLength;
-                      pidInfo->mBufPtr = nullptr;
-                      }
-                    else {
-                      // start payload buffer, straddles packets
-                      memcpy (pidInfo->mBuffer, payloadPtr, payloadBytesLeft);
-                      pidInfo->mBufPtr = pidInfo->mBuffer + payloadBytesLeft;
-                      payloadBytesLeft = 0;
+                        // add sectionLength + header to get to next section
+                        bufPtr += ((bufPtr[1] & 0x0F) << 8) + bufPtr[2] + 3;
+                        }
                       }
                     }
+
+                  // start new buffer from real payload start
+                  pidInfo->mBufPtr = pidInfo->mBuffer;
+                  ts += pointerField;
+                  tsBytesLeft -= pointerField;
                   }
 
-                else if (pidInfo->mBufPtr)
-                  addToSectionBuffer (pidInfo, ts, tsBytesLeft);
-
+                if (pidInfo->mBufPtr)
+                  pidInfo->addToBuffer (ts, tsBytesLeft);
                 else
-                  cLog::log (LOGINFO1, "demux - trying to add section to section not started " + dec(pid) +
-                                       " " +  dec(pidInfo->mSectionLength));
+                  cLog::log (LOGERROR, "demux - " + dec(pid) + " trying to add to uninitialised buffer");
                 }
                 //}}}
               else if ((decodePid == -1) || (decodePid == pid)) {
@@ -7034,7 +7027,7 @@ public:
     }
   //}}}
 
-  // public for widget access
+  // vars - public for widget access
   uint64_t mPackets = 0;
   uint64_t mDiscontinuity = 0;
 
@@ -7695,20 +7688,8 @@ private:
     }
   //}}}
 
-  //{{{
-  void addToSectionBuffer (cPidInfo* pidInfo, uint8_t* buf, int bufSize) {
-
-    if (pidInfo->addToBuffer (buf, bufSize) >= pidInfo->mSectionLength) {
-      parsePsi (pidInfo, pidInfo->mBuffer);
-      pidInfo->mBufPtr = nullptr;
-      }
-    }
-  //}}}
-
-  //{{{  private vars
+  // vars
   std::map<int,int> mProgramMap;
-
   time_t mFirstTime = 0;
   time_t mCurTime = 0;
-  //}}}
   };
