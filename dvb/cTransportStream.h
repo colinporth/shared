@@ -6347,7 +6347,7 @@ public:
   cService (int sid) : mSid(sid) {}
   //{{{
   ~cService() {
-    mNowVec.clear();
+    delete mNow;
     mEpgItemMap.clear();
     }
   //}}}
@@ -6364,9 +6364,9 @@ public:
   int getSubPid() const { return mSubPid; }
 
   std::string getNameString() { return mName; }
-  std::vector<cEpgItem*> getNowVec() { return mNowVec; }
+  cEpgItem* getNow() { return mNow; }
   std::map<time_t,cEpgItem>& getEpgItemMap() { return mEpgItemMap; }
-  std::string getNowTitleString() { return mNowVec.empty() ? "" : mNowVec[0]->getTitleString(); }
+  std::string getNowTitleString() { return mNow ? mNow->getTitleString() : ""; }
 
   // sets
   void setName (const std::string& name) { mName = name;}
@@ -6397,11 +6397,11 @@ public:
   //{{{
   bool setNow (time_t startTime, int duration, const std::string& str1, const std::string& str2) {
 
-    for (auto epgItem : mNowVec)
-      if (startTime == epgItem->getStartTime())
-        return false;
+    if (mNow && (mNow->getStartTime() == startTime))
+      return false;
 
-    mNowVec.push_back (new cEpgItem (startTime, duration, str1, str2));
+    delete mNow;
+    mNow = new cEpgItem (startTime, duration, str1, str2);
     return true;
     }
   //}}}
@@ -6421,8 +6421,8 @@ public:
                         " subPid:" + dec (mSubPid) +
                         " " + mName);
 
-    for (auto nowEpgItem : mNowVec)
-      nowEpgItem->print ("");
+    if (mNow)
+      mNow->print ("");
     for (auto &epgItem : mEpgItemMap)
       epgItem.second.print ("- ");
     }
@@ -6441,7 +6441,7 @@ private:
 
   std::string mName;
 
-  std::vector<cEpgItem*> mNowVec;
+  cEpgItem* mNow = nullptr;
   std::map<time_t,cEpgItem> mEpgItemMap;
   };
 //}}}
