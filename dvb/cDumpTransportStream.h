@@ -4,7 +4,7 @@
 
 class cDumpTransportStream : public cTransportStream {
 public:
-  cDumpTransportStream (const std::string& rootName, bool recordAll) : 
+  cDumpTransportStream (const std::string& rootName, bool recordAll) :
     mRootName(rootName), mRecordAll(recordAll){}
   virtual ~cDumpTransportStream() { clear(); }
 
@@ -216,7 +216,7 @@ private:
     };
   //}}}
 
-  bool mRecordAll;
   std::string mRootName;
+  bool mRecordAll;
   std::map<int,cRecordFile> mRecordFileMap;
   };

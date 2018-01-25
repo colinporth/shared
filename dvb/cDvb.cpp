@@ -16,7 +16,7 @@
 #include "../utils/cLog.h"
 #include "../utils/cBipBuffer.h"
 
-#include "../decoders/cDumpTransportStream.h"
+#include "cDumpTransportStream.h"
 
 #include "cDvb.h"
 
