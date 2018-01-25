@@ -5829,7 +5829,7 @@ const int kBufSize = 512;
 #define DESCR_NVOD_REF              0x4B
 #define DESCR_TIME_SHIFTED_SERVICE  0x4C
 #define DESCR_SHORT_EVENT           0x4D
-#define DESCR_EXTENDED_EVENT        0x4E
+#define DESCR_EXT_EVENT             0x4E
 #define DESCR_TIME_SHIFTED_EVENT    0x4F
 
 #define DESCR_COMPONENT             0x50
@@ -5847,7 +5847,7 @@ const int kBufSize = 512;
 #define DESCR_ML_BQ_NAME            0x5C
 #define DESCR_ML_SERVICE_NAME       0x5D
 #define DESCR_ML_COMPONENT          0x5E
-#define DESCR_PRIV_DATA_SPEC        0x5F
+#define DESCR_PRIV_DATA             0x5F
 
 #define DESCR_SERVICE_MOVE          0x60
 #define DESCR_SHORT_SMOOTH_BUF      0x61
@@ -5864,6 +5864,8 @@ const int kBufSize = 512;
 #define DESCR_CELL_LIST             0x6C
 #define DESCR_CELL_FREQ_LINK        0x6D
 #define DESCR_ANNOUNCEMENT_SUPPORT  0x6E
+
+#define DESCR_CONTENT_ID            0x76
 //}}}
 
 //{{{  pat_t
@@ -7216,7 +7218,7 @@ private:
   void parseDescr (int key, uint8_t* buf, int tid) {
 
     switch (getDescrTag(buf)) {
-      case DESCR_EXTENDED_EVENT: {
+      case DESCR_EXT_EVENT: {
         auto text = getDescrStr (
           buf + sizeof(descr_extended_event_struct) + CastExtendedEventDescr(buf)->length_of_items + 1,
           *((uint8_t*)(buf + sizeof(descr_extended_event_struct) + CastExtendedEventDescr(buf)->length_of_items)));
@@ -7261,7 +7263,7 @@ private:
       case DESCR_CA_IDENT:
       case DESCR_ML_COMPONENT:
       case DESCR_DATA_BROADCAST:
-      case DESCR_PRIV_DATA_SPEC:
+      case DESCR_PRIV_DATA:
       case DESCR_SYSTEM_CLOCK:
       case DESCR_MULTIPLEX_BUFFER_UTIL:
       case DESCR_MAXIMUM_BITRATE:
@@ -7374,7 +7376,7 @@ private:
               break;
               }
               //}}}
-            case DESCR_PRIV_DATA_SPEC:
+            case DESCR_PRIV_DATA:
             case DESCR_CA_IDENT:
             case DESCR_COUNTRY_AVAIL:
             case DESCR_DATA_BROADCAST:
@@ -7474,114 +7476,91 @@ private:
   //{{{
   void parseEit (cPidInfo* pidInfo, uint8_t* buf) {
 
-    //cLog::log (LOGINFO1, "parseEit");
     auto eit = (eit_t*)buf;
     auto sectionLength = HILO(eit->section_length) + 3;
     if (getCrc32 (0xffffffff, buf, sectionLength) != 0) {
-      //{{{  bad crc
+      //{{{  bad crc, error, return
       cLog::log (LOGERROR, "parseEit - bad CRC " + dec(sectionLength));
       return;
       }
       //}}}
 
     auto tid = eit->table_id;
-    auto sid = HILO (eit->service_id);
     auto now = (tid == TID_EIT_ACT);
     auto next = (tid == TID_EIT_OTH);
     auto epg = (tid == TID_EIT_ACT_SCH) || (tid == TID_EIT_OTH_SCH) ||
                (tid == TID_EIT_ACT_SCH+1) || (tid == TID_EIT_OTH_SCH+1);
 
     if (now || next || epg) {
+      auto sid = HILO (eit->service_id);
       buf += sizeof(eit_t);
       sectionLength -= sizeof(eit_t) + 4;
       while (sectionLength > 0) {
         auto eitEvent = (eit_event_t*)buf;
         auto loopLength = HILO (eitEvent->descrs_loop_length);
-        if (loopLength > sectionLength - (int)sizeof(eit_event_t))
-          return;
         buf += sizeof(eit_event_t);
+        sectionLength -= sizeof(eit_event_t);
 
-        // parse Descrs
-        auto descrLength = 0;
-        while ((descrLength < loopLength) &&
-               (getDescrLength (buf) > 0) && (getDescrLength (buf) <= loopLength - descrLength)) {
-          switch (getDescrTag(buf)) {
-            case DESCR_SHORT_EVENT: {
-              //{{{  shortEvent
-              auto serviceIt = mServiceMap.find (sid);
-              if (serviceIt != mServiceMap.end()) {
-                // recognise service
-                auto startTime = MjdToEpochTime (eitEvent->mjd) + BcdTimeToSeconds (eitEvent->start_time);
-                auto duration = BcdTimeToSeconds (eitEvent->duration);
-                auto running = eitEvent->running_status == 0x04;
+        // parse Descriptors
+        while (loopLength > 0) {
+          if (getDescrTag (buf) == DESCR_SHORT_EVENT)  {
+            //{{{  shortEvent
+            auto startTime = MjdToEpochTime (eitEvent->mjd) + BcdTimeToSeconds (eitEvent->start_time);
+            auto duration = BcdTimeToSeconds (eitEvent->duration);
+            auto running = eitEvent->running_status == 0x04;
 
-                auto eventBuf = buf + sizeof(descr_short_event_struct);
-                auto eventBufLen = ((descr_short_event_t*)(buf))->event_name_length;
-                auto title = huffDecode (eventBuf, eventBufLen);
-                std::string titleStr = title ? title : getDescrStr (eventBuf, eventBufLen);
+            // get title
+            auto eventBuf = buf + sizeof(descr_short_event_struct);
+            auto eventBufLen = ((descr_short_event_t*)(buf))->event_name_length;
+            auto title = huffDecode (eventBuf, eventBufLen);
+            auto titleStr = title ? title : getDescrStr (eventBuf, eventBufLen);
 
-                eventBuf += ((descr_short_event_t*)(buf))->event_name_length + 1;
-                eventBufLen = *((uint8_t*)(buf + sizeof(descr_short_event_struct) +
-                                           ((descr_short_event_t*)(buf))->event_name_length));
-                auto description = huffDecode (eventBuf, eventBufLen);
-                std::string descriptionStr = description ? description : getDescrStr (eventBuf, eventBufLen);
+            // get description
+            eventBuf += ((descr_short_event_t*)(buf))->event_name_length + 1;
+            eventBufLen = *((uint8_t*)(buf + sizeof(descr_short_event_struct) +
+                                       ((descr_short_event_t*)(buf))->event_name_length));
+            auto description = huffDecode (eventBuf, eventBufLen);
+            auto descriptionStr = description ? description : getDescrStr (eventBuf, eventBufLen);
 
-                if (now) {
-                  if (running &&
-                      !serviceIt->second.getNameString().empty() &&
-                      (serviceIt->second.getProgramPid() != -1)) {
-                    // wait for named service with pgmPid
-                    if (serviceIt->second.setNow (startTime, duration, titleStr, descriptionStr)) {
-                      // new now
-                      auto pidInfoIt = mPidInfoMap.find (serviceIt->second.getProgramPid());
-                      if (pidInfoIt != mPidInfoMap.end())
-                        // update service pgmPid infoStr with new now
-                        pidInfoIt->second.mInfoStr = serviceIt->second.getNameString() +
-                                                     " " + serviceIt->second.getNowTitleString();
+            //cLog::log (LOGINFO3, " - " + hex(tag,2) + " shortEvent " + titleStr);
 
-                      startProgram (&serviceIt->second, titleStr, startTime);
-                      }
+            auto serviceIt = mServiceMap.find (sid);
+            if (serviceIt != mServiceMap.end()) {
+              // recognise service
+              if (now) {
+                if (running &&
+                    !serviceIt->second.getNameString().empty() &&
+                    (serviceIt->second.getProgramPid() != -1)) {
+                  // wait for named service with pgmPid
+                  if (serviceIt->second.setNow (startTime, duration, titleStr, descriptionStr)) {
+                    // new now
+                    auto pidInfoIt = mPidInfoMap.find (serviceIt->second.getProgramPid());
+                    if (pidInfoIt != mPidInfoMap.end())
+                      // update service pgmPid infoStr with new now
+                      pidInfoIt->second.mInfoStr = serviceIt->second.getNameString() +
+                                                   " " + serviceIt->second.getNowTitleString();
+
+                    startProgram (&serviceIt->second, titleStr, startTime);
                     }
                   }
-                else if (epg)
-                  serviceIt->second.setEpg (startTime, duration, titleStr, descriptionStr);
                 }
-
-              break;
+              else if (epg)
+                serviceIt->second.setEpg (startTime, duration, titleStr, descriptionStr);
               }
-              //}}}
-            case DESCR_EXTENDED_EVENT: {
-              //{{{  extendedEvent
-              if (false) {
-                size_t len = ((descr_gen_t*)(buf))->descr_length;
-                cLog::log(LOGINFO, "EIT extendedEvent sid:" + dec(sid) + " len:" + dec(len));
-
-                std::string str;
-                for (auto i = 0u; i < len; i++) {
-                  int n = buf[i];
-                  str += hex(n,2) + " ";
-                  if ((i % 16) == 15) {
-                    cLog::log (LOGINFO, str);
-                    str = "";
-                    }
-                  }
-                cLog::log (LOGINFO, str);
-                }
-              break;
-              }
-              //}}}
             }
-          descrLength += getDescrLength (buf);
+            //}}}
+          loopLength -= getDescrLength (buf);
+          sectionLength -= getDescrLength (buf);
           buf += getDescrLength (buf);
           }
-        sectionLength -= loopLength + sizeof(eit_event_t);
-        buf += loopLength;
         }
       }
     else {
+      //{{{  unexpected tid, error, return
       cLog::log (LOGERROR, "parseEIT - unexpected tid " + dec(tid));
       return;
       }
+      //}}}
     }
   //}}}
   //{{{
