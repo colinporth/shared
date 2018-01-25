@@ -6927,20 +6927,15 @@ public:
                   // handle the very odd pointerField
                   auto pointerField = *ts++;
                   tsBytesLeft--;
-                  if (pointerField > 0) {
-                    // add it to end of last buffer before starting new buffer
-                    if (pidInfo->mBufPtr)
-                      pidInfo->addToBuffer (ts, pointerField);
-                    else
-                      cLog::log (LOGERROR, "demux - " + dec(pid) + " pointerField without buffer " + dec(pointerField));
-                    }
+                  if ((pointerField > 0) && pidInfo->mBufPtr)
+                    pidInfo->addToBuffer (ts, pointerField);
 
                   if (pidInfo->mBufPtr) {
                     // parse buffer
                     auto bufPtr = pidInfo->mBuffer;
                     while ((bufPtr + 3) <= pidInfo->mBufPtr) {
                       // enough for tid,sectionLength
-                      if (bufPtr[0] == 0xFF) // invalid tid is end of sections
+                      if (bufPtr[0] == 0xFF) // invalid tid, end of psi sections
                         break;
                       else {
                         // valid tid, parse psi section
@@ -6952,16 +6947,14 @@ public:
                       }
                     }
 
-                  // start new buffer from real payload start
+                  // add to new buffer from real payload start
                   pidInfo->mBufPtr = pidInfo->mBuffer;
                   ts += pointerField;
                   tsBytesLeft -= pointerField;
-                  }
-
-                if (pidInfo->mBufPtr)
                   pidInfo->addToBuffer (ts, tsBytesLeft);
-                else
-                  cLog::log (LOGERROR, "demux - " + dec(pid) + " trying to add to uninitialised buffer");
+                  }
+                else if (pidInfo->mBufPtr)
+                  pidInfo->addToBuffer (ts, tsBytesLeft);
                 }
                 //}}}
               else if ((decodePid == -1) || (decodePid == pid)) {
