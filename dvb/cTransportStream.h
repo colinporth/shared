@@ -5756,7 +5756,7 @@ static const unsigned huffIndex2[] = {
 //}}}
 //{{{  const, struct
 const int kBufSize = 512;
-//{{{  pid const
+//{{{  pid defines
 #define PID_PAT   0x00   /* Program Association Table */
 #define PID_CAT   0x01   /* Conditional Access Table */
 #define PID_NIT   0x10   /* Network Information Table */
@@ -5766,7 +5766,7 @@ const int kBufSize = 512;
 #define PID_TDT   0x14   /* Time Date Table */
 #define PID_SYN   0x15   /* Network sync */
 //}}}
-//{{{  tid const
+//{{{  tid defines
 #define TID_PAT          0x00   /* Program Association Section */
 #define TID_CAT          0x01   /* Conditional Access Section */
 #define TID_PMT          0x02   /* Conditional Access Section */
@@ -5789,13 +5789,7 @@ const int kBufSize = 512;
 #define TID_ST           0x72   /* Stuffing Section */
 #define TID_TOT          0x73   /* Time Offset Section */
 //}}}
-//{{{  serviceType const
-#define kServiceTypeTV            0x01
-#define kServiceTypeRadio         0x02
-#define kServiceTypeAdvancedSDTV  0x16
-#define kServiceTypeAdvancedHDTV  0x19
-//}}}
-//{{{  descr const
+//{{{  descr defines
 #define DESCR_VIDEO_STREAM          0x02
 #define DESCR_AUDIO_STREAM          0x03
 #define DESCR_HIERARCHY             0x04
@@ -5868,7 +5862,7 @@ const int kBufSize = 512;
 #define DESCR_CONTENT_ID            0x76
 //}}}
 
-//{{{  pat_t
+//{{{  sPat
 typedef struct {
   uint8_t table_id                  :8;
 
@@ -5888,9 +5882,9 @@ typedef struct {
 
   uint8_t section_number            :8;
   uint8_t last_section_number       :8;
-  } pat_t;
+  } sPat;
 //}}}
-//{{{  pat_prog_t
+//{{{  sPatProg
 typedef struct {
   uint8_t program_number_hi         :8;
   uint8_t program_number_lo         :8;
@@ -5899,10 +5893,10 @@ typedef struct {
   uint8_t                           :3;
   uint8_t network_pid_lo            :8;
   /* or program_map_pid (if prog_num=0)*/
-  } pat_prog_t;
+  } sPatProg;
 //}}}
 
-//{{{  pmt_t
+//{{{  sPmt
 typedef struct {
    unsigned char table_id            :8;
 
@@ -5926,9 +5920,9 @@ typedef struct {
    uint8_t                           :4;
    uint8_t program_info_length_lo    :8;
    //descrs
-  } pmt_t;
+  } sPmt;
 //}}}
-//{{{  pmt_info_t
+//{{{  sPmtInfo
 typedef struct {
    uint8_t stream_type        :8;
    uint8_t elementary_PID_hi  :5;
@@ -5938,10 +5932,10 @@ typedef struct {
    uint8_t                    :4;
    uint8_t ES_info_length_lo  :8;
    // descrs
-  } pmt_info_t;
+  } sPmtInfo;
 //}}}
 
-//{{{  nit_t
+//{{{  sNit
 typedef struct {
   uint8_t table_id                     :8;
 
@@ -5961,21 +5955,16 @@ typedef struct {
   uint8_t                           :4;
   uint8_t network_descr_length_lo   :8;
   /* descrs */
-  } nit_t;
+  } sNit;
 //}}}
-//{{{  nit_mid_t
+//{{{  sNitMid
 typedef struct {                                 // after descrs
   uint8_t transport_stream_loop_length_hi  :4;
   uint8_t                                  :4;
   uint8_t transport_stream_loop_length_lo  :8;
-  } nit_mid_t;
+  } sNitMid;
 //}}}
-//{{{  nit_end
-struct nit_end_struct {
-  long CRC;
-  };
-//}}}
-//{{{  nit_ts_t
+//{{{  sNitTs
 typedef struct {
   uint8_t transport_stream_id_hi      :8;
   uint8_t transport_stream_id_lo      :8;
@@ -5985,10 +5974,10 @@ typedef struct {
   uint8_t                             :4;
   uint8_t transport_descrs_length_lo  :8;
   /* descrs  */
-  } nit_ts_t;
+  } sNitTs;
 //}}}
 
-//{{{  eit_t
+//{{{  sEit
 typedef struct {
   uint8_t table_id                    :8;
 
@@ -6010,9 +5999,9 @@ typedef struct {
   uint8_t original_network_id_lo      :8;
   uint8_t segment_last_section_number :8;
   uint8_t segment_last_table_id       :8;
-  } eit_t;
+  } sEit;
 //}}}
-//{{{  eit_event_t
+//{{{  sEitEvent
 typedef struct {
   uint8_t event_id_hi                 :8;
   uint8_t event_id_lo                 :8;
@@ -6028,10 +6017,10 @@ typedef struct {
   uint8_t free_ca_mode                :1;
   uint8_t running_status              :3;
   uint8_t descrs_loop_length_lo       :8;
-  } eit_event_t;
+  } sEitEvent;
 //}}}
 
-//{{{  std_t
+//{{{  sSdt
 typedef struct {
   uint8_t table_id                    :8;
   uint8_t section_length_hi           :4;
@@ -6048,9 +6037,9 @@ typedef struct {
   uint8_t original_network_id_hi      :8;
   uint8_t original_network_id_lo      :8;
   uint8_t                             :8;
-  } sdt_t;
+  } sSdt;
 //}}}
-//{{{  sdt_descr_t
+//{{{  sSdtDescriptor
 typedef struct {
   uint8_t service_id_hi                :8;
   uint8_t service_id_lo                :8;
@@ -6061,10 +6050,10 @@ typedef struct {
   uint8_t free_ca_mode                 :1;
   uint8_t running_status               :3;
   uint8_t descrs_loop_length_lo        :8;
-  } sdt_descr_t;
+  } sSdtDescriptor;
 //}}}
 
-//{{{  tdt_t
+//{{{  sTdt
 typedef struct {
   uint8_t table_id                  :8;
   uint8_t section_length_hi         :4;
@@ -6076,17 +6065,17 @@ typedef struct {
   uint8_t utc_time_h                :8;
   uint8_t utc_time_m                :8;
   uint8_t utc_time_s                :8;
-  } tdt_t;
+  } sTdt;
 //}}}
 
-//{{{  descr_gen_t
+//{{{  sDescriptorGen
 typedef struct descr_gen_struct {
   uint8_t descr_tag        :8;
   uint8_t descr_length     :8;
-  } descr_gen_t;
+  } sDescriptorGen;
 //}}}
-#define getDescrTag(x) (((descr_gen_t *) x)->descr_tag)
-#define getDescrLength(x) (((descr_gen_t *) x)->descr_length+2)
+#define getDescrTag(x) (((sDescriptorGen *) x)->descr_tag)
+#define getDescrLength(x) (((sDescriptorGen *) x)->descr_length+2)
 
 //{{{  0x48 service_descr
 typedef struct descr_service_struct {
@@ -7296,7 +7285,7 @@ private:
   // PAT declares programPid,sid to mProgramMap to recognise programPid PMT to declare service streams
 
     //cLog::log (LOGINFO1, "parsePat");
-    auto pat = (pat_t*)buf;
+    auto pat = (sPat*)buf;
     auto sectionLength = HILO(pat->section_length) + 3;
     if (getCrc32 (0xffffffff, buf, sectionLength) != 0) {
       //{{{  bad crc
@@ -7306,17 +7295,17 @@ private:
       //}}}
 
     if (pat->table_id == TID_PAT) {
-      buf += sizeof(pat_t);
-      sectionLength -= sizeof(pat_t) + 4;
+      buf += sizeof(sPat);
+      sectionLength -= sizeof(sPat) + 4;
       while (sectionLength > 0) {
-        auto patProgram = (pat_prog_t*)buf;
+        auto patProgram = (sPatProg*)buf;
         auto sid = HILO (patProgram->program_number);
         auto pid = HILO (patProgram->network_pid);
         if (mProgramMap.find (pid) == mProgramMap.end())
           mProgramMap.insert (std::map<int,int>::value_type (pid, sid));
 
-        sectionLength -= sizeof(pat_prog_t);
-        buf += sizeof(pat_prog_t);
+        sectionLength -= sizeof(sPatProg);
+        buf += sizeof(sPatProg);
         }
       }
     }
@@ -7326,7 +7315,7 @@ private:
   // SDT name services in mServiceMap
 
     //cLog::log (LOGINFO1, "parseSdt");
-    auto sdt = (sdt_t*)buf;
+    auto sdt = (sSdt*)buf;
     auto sectionLength = HILO(sdt->section_length) + 3;
     if (getCrc32 (0xffffffff, buf, sectionLength) != 0) {
       //{{{  wrong crc
@@ -7337,11 +7326,11 @@ private:
 
     if (sdt->table_id == TID_SDT_ACT) {
       // only want this multiplex services
-      buf += sizeof(sdt_t);
-      sectionLength -= sizeof(sdt_t) + 4;
+      buf += sizeof(sSdt);
+      sectionLength -= sizeof(sSdt) + 4;
       while (sectionLength > 0) {
-        auto sdtDescr = (sdt_descr_t*)buf;
-        buf += sizeof(sdt_descr_t);
+        auto sdtDescr = (sSdtDescriptor*)buf;
+        buf += sizeof(sSdtDescriptor);
 
         auto sid = HILO (sdtDescr->service_id);
         //auto freeChannel = sdtDescr->free_ca_mode == 0;
@@ -7390,7 +7379,7 @@ private:
           buf += getDescrLength (buf);
           }
 
-        sectionLength -= loopLength + sizeof(sdt_descr_t);
+        sectionLength -= loopLength + sizeof(sSdtDescriptor);
         }
       }
     }
@@ -7399,7 +7388,7 @@ private:
   void parseTdt (cPidInfo* pidInfo, uint8_t* buf) {
 
     //cLog::log (LOGINFO1, "parseTdt");
-    auto tdt = (tdt_t*)buf;
+    auto tdt = (sTdt*)buf;
     if (tdt->table_id == TID_TDT) {
       mCurTime = MjdToEpochTime (tdt->utc_mjd) + BcdTimeToSeconds (tdt->utc_time);
 
@@ -7414,7 +7403,7 @@ private:
   void parseNit (cPidInfo* pidInfo, uint8_t* buf) {
 
     //cLog::log (LOGINFO1, "parseNit");
-    auto nit = (nit_t*)buf;
+    auto nit = (sNit*)buf;
     auto sectionLength = HILO(nit->section_length) + 3;
     if (getCrc32 (0xffffffff, buf, sectionLength) != 0) {
       //{{{  bad crc
@@ -7433,34 +7422,34 @@ private:
 
     auto networkId = HILO (nit->network_id);
 
-    buf += sizeof(nit_t);
+    buf += sizeof(sNit);
     auto loopLength = HILO (nit->network_descr_length);
 
-    sectionLength -= sizeof(nit_t) + 4;
+    sectionLength -= sizeof(sNit) + 4;
     if (loopLength <= sectionLength) {
       if (sectionLength >= 0)
         parseDescrs (networkId, buf, loopLength, nit->table_id);
       sectionLength -= loopLength;
 
       buf += loopLength;
-      auto nitMid = (nit_mid_t*)buf;
+      auto nitMid = (sNitMid*)buf;
       loopLength = HILO (nitMid->transport_stream_loop_length);
       if ((sectionLength > 0) && (loopLength <= sectionLength)) {
         // iterate nitMids
-        sectionLength -= sizeof(nit_mid_t);
-        buf += sizeof(nit_mid_t);
+        sectionLength -= sizeof(sNitMid);
+        buf += sizeof(sNitMid);
 
         while (loopLength > 0) {
-          auto TSDesc = (nit_ts_t*)buf;
+          auto TSDesc = (sNitTs*)buf;
           auto tsid = HILO (TSDesc->transport_stream_id);
           auto loopLength2 = HILO (TSDesc->transport_descrs_length);
-          buf += sizeof(nit_ts_t);
+          buf += sizeof(sNitTs);
           if (loopLength2 <= loopLength)
             if (loopLength >= 0)
               parseDescrs (tsid, buf, loopLength2, nit->table_id);
 
-          loopLength -= loopLength2 + sizeof(nit_ts_t);
-          sectionLength -= loopLength2 + sizeof(nit_ts_t);
+          loopLength -= loopLength2 + sizeof(sNitTs);
+          sectionLength -= loopLength2 + sizeof(sNitTs);
           buf += loopLength2;
           }
         }
@@ -7470,7 +7459,7 @@ private:
   //{{{
   void parseEit (cPidInfo* pidInfo, uint8_t* buf) {
 
-    auto eit = (eit_t*)buf;
+    auto eit = (sEit*)buf;
     auto sectionLength = HILO(eit->section_length) + 3;
     if (getCrc32 (0xffffffff, buf, sectionLength) != 0) {
       //{{{  bad crc, error, return
@@ -7487,13 +7476,13 @@ private:
 
     if (now || next || epg) {
       auto sid = HILO (eit->service_id);
-      buf += sizeof(eit_t);
-      sectionLength -= sizeof(eit_t) + 4;
+      buf += sizeof(sEit);
+      sectionLength -= sizeof(sEit) + 4;
       while (sectionLength > 0) {
-        auto eitEvent = (eit_event_t*)buf;
+        auto eitEvent = (sEitEvent*)buf;
         auto loopLength = HILO (eitEvent->descrs_loop_length);
-        buf += sizeof(eit_event_t);
-        sectionLength -= sizeof(eit_event_t);
+        buf += sizeof(sEitEvent);
+        sectionLength -= sizeof(sEitEvent);
 
         // parse Descriptors
         while (loopLength > 0) {
@@ -7501,7 +7490,7 @@ private:
             //{{{  shortEvent
             auto startTime = MjdToEpochTime (eitEvent->mjd) + BcdTimeToSeconds (eitEvent->start_time);
             auto duration = BcdTimeToSeconds (eitEvent->duration);
-            auto running = eitEvent->running_status == 0x04;
+            auto running = (eitEvent->running_status == 0x04);
 
             // get title
             auto eventBuf = buf + sizeof(descr_short_event_struct);
@@ -7562,7 +7551,7 @@ private:
   // PMT declares pgmPid and streams for a service
 
     //cLog::log (LOGINFO1, "parsePmt " + dec(pidInfo->mPid));
-    auto pmt = (pmt_t*)buf;
+    auto pmt = (sPmt*)buf;
     auto sectionLength = HILO(pmt->section_length) + 3;
     if (getCrc32 (0xffffffff, buf, sectionLength) != 0) {
       //{{{  bad crc
@@ -7587,16 +7576,16 @@ private:
       pidInfo->mSid = sid;
       pidInfo->mInfoStr = service->getNameString() + " " + service->getNowTitleString();
 
-      buf += sizeof(pmt_t);
+      buf += sizeof(sPmt);
       sectionLength -= 4;
       auto programInfoLength = HILO (pmt->program_info_length);
-      auto streamLength = sectionLength - programInfoLength - sizeof(pmt_t);
+      auto streamLength = sectionLength - programInfoLength - sizeof(sPmt);
       if (streamLength >= 0)
         parseDescrs (sid, buf, programInfoLength, pmt->table_id);
 
       buf += programInfoLength;
       while (streamLength > 0) {
-        auto pmtInfo = (pmt_info_t*)buf;
+        auto pmtInfo = (sPmtInfo*)buf;
 
         auto esPid = HILO (pmtInfo->elementary_PID);
         auto esPidInfo = getPidInfo (esPid, false);
@@ -7637,8 +7626,8 @@ private:
         if (loopLength >= 0)
           parseDescrs (sid, buf, loopLength, pmt->table_id);
 
-        buf += sizeof(pmt_info_t);
-        streamLength -= loopLength + sizeof(pmt_info_t);
+        buf += sizeof(sPmtInfo);
+        streamLength -= loopLength + sizeof(sPmtInfo);
         buf += loopLength;
         }
       }
