@@ -6068,14 +6068,12 @@ typedef struct {
   } sTdt;
 //}}}
 
-//{{{  sDescriptorGen
 typedef struct descr_gen_struct {
   uint8_t descr_tag        :8;
   uint8_t descr_length     :8;
   } sDescriptorGen;
-//}}}
-#define getDescrTag(x) (((sDescriptorGen *) x)->descr_tag)
-#define getDescrLength(x) (((sDescriptorGen *) x)->descr_length+2)
+#define getDescrTag(x) (((sDescriptorGen*)x)->descr_tag)
+#define getDescrLength(x) (((sDescriptorGen*)x)->descr_length+2)
 
 //{{{  0x48 service_descr
 typedef struct descr_service_struct {
@@ -7311,6 +7309,63 @@ private:
     }
   //}}}
   //{{{
+  void parseNit (cPidInfo* pidInfo, uint8_t* buf) {
+
+    //cLog::log (LOGINFO1, "parseNit");
+    auto nit = (sNit*)buf;
+    auto sectionLength = HILO(nit->section_length) + 3;
+    if (getCrc32 (0xffffffff, buf, sectionLength) != 0) {
+      //{{{  bad crc
+      cLog::log (LOGERROR, "parseNIT - bad crc " + dec(sectionLength));
+      return;
+      }
+      //}}}
+    if ((nit->table_id != TID_NIT_ACT) &&
+        (nit->table_id != TID_NIT_OTH) &&
+        (nit->table_id != TID_BAT)) {
+      //{{{  wrong tid
+      cLog::log (LOGERROR, "parseNIT - wrong TID " +dec (nit->table_id));
+      return;
+      }
+      //}}}
+
+    auto networkId = HILO (nit->network_id);
+
+    buf += sizeof(sNit);
+    auto loopLength = HILO (nit->network_descr_length);
+
+    sectionLength -= sizeof(sNit) + 4;
+    if (loopLength <= sectionLength) {
+      if (sectionLength >= 0)
+        parseDescrs (networkId, buf, loopLength, nit->table_id);
+      sectionLength -= loopLength;
+
+      buf += loopLength;
+      auto nitMid = (sNitMid*)buf;
+      loopLength = HILO (nitMid->transport_stream_loop_length);
+      if ((sectionLength > 0) && (loopLength <= sectionLength)) {
+        // iterate nitMids
+        sectionLength -= sizeof(sNitMid);
+        buf += sizeof(sNitMid);
+
+        while (loopLength > 0) {
+          auto TSDesc = (sNitTs*)buf;
+          auto tsid = HILO (TSDesc->transport_stream_id);
+          auto loopLength2 = HILO (TSDesc->transport_descrs_length);
+          buf += sizeof(sNitTs);
+          if (loopLength2 <= loopLength)
+            if (loopLength >= 0)
+              parseDescrs (tsid, buf, loopLength2, nit->table_id);
+
+          loopLength -= loopLength2 + sizeof(sNitTs);
+          sectionLength -= loopLength2 + sizeof(sNitTs);
+          buf += loopLength2;
+          }
+        }
+      }
+    }
+  //}}}
+  //{{{
   void parseSdt (cPidInfo* pidInfo, uint8_t* buf) {
   // SDT name services in mServiceMap
 
@@ -7385,78 +7440,6 @@ private:
     }
   //}}}
   //{{{
-  void parseTdt (cPidInfo* pidInfo, uint8_t* buf) {
-
-    //cLog::log (LOGINFO1, "parseTdt");
-    auto tdt = (sTdt*)buf;
-    if (tdt->table_id == TID_TDT) {
-      mCurTime = MjdToEpochTime (tdt->utc_mjd) + BcdTimeToSeconds (tdt->utc_time);
-
-      if (mFirstTime == 0)
-        mFirstTime = mCurTime;
-
-      pidInfo->mInfoStr = getTimetString (mFirstTime) + " to " + getTimetDateString (mCurTime);
-      }
-    }
-  //}}}
-  //{{{
-  void parseNit (cPidInfo* pidInfo, uint8_t* buf) {
-
-    //cLog::log (LOGINFO1, "parseNit");
-    auto nit = (sNit*)buf;
-    auto sectionLength = HILO(nit->section_length) + 3;
-    if (getCrc32 (0xffffffff, buf, sectionLength) != 0) {
-      //{{{  bad crc
-      cLog::log (LOGERROR, "parseNIT - bad crc " + dec(sectionLength));
-      return;
-      }
-      //}}}
-    if ((nit->table_id != TID_NIT_ACT) &&
-        (nit->table_id != TID_NIT_OTH) &&
-        (nit->table_id != TID_BAT)) {
-      //{{{  wrong tid
-      cLog::log (LOGERROR, "parseNIT - wrong TID " +dec (nit->table_id));
-      return;
-      }
-      //}}}
-
-    auto networkId = HILO (nit->network_id);
-
-    buf += sizeof(sNit);
-    auto loopLength = HILO (nit->network_descr_length);
-
-    sectionLength -= sizeof(sNit) + 4;
-    if (loopLength <= sectionLength) {
-      if (sectionLength >= 0)
-        parseDescrs (networkId, buf, loopLength, nit->table_id);
-      sectionLength -= loopLength;
-
-      buf += loopLength;
-      auto nitMid = (sNitMid*)buf;
-      loopLength = HILO (nitMid->transport_stream_loop_length);
-      if ((sectionLength > 0) && (loopLength <= sectionLength)) {
-        // iterate nitMids
-        sectionLength -= sizeof(sNitMid);
-        buf += sizeof(sNitMid);
-
-        while (loopLength > 0) {
-          auto TSDesc = (sNitTs*)buf;
-          auto tsid = HILO (TSDesc->transport_stream_id);
-          auto loopLength2 = HILO (TSDesc->transport_descrs_length);
-          buf += sizeof(sNitTs);
-          if (loopLength2 <= loopLength)
-            if (loopLength >= 0)
-              parseDescrs (tsid, buf, loopLength2, nit->table_id);
-
-          loopLength -= loopLength2 + sizeof(sNitTs);
-          sectionLength -= loopLength2 + sizeof(sNitTs);
-          buf += loopLength2;
-          }
-        }
-      }
-    }
-  //}}}
-  //{{{
   void parseEit (cPidInfo* pidInfo, uint8_t* buf) {
 
     auto eit = (sEit*)buf;
@@ -7474,7 +7457,7 @@ private:
     auto epg = (tid == TID_EIT_ACT_SCH) || (tid == TID_EIT_OTH_SCH) ||
                (tid == TID_EIT_ACT_SCH+1) || (tid == TID_EIT_OTH_SCH+1);
 
-    if (now || next || epg) {
+    if (now || epg) {
       auto sid = HILO (eit->service_id);
       buf += sizeof(sEit);
       sectionLength -= sizeof(sEit) + 4;
@@ -7527,7 +7510,7 @@ private:
                     }
                   }
                 }
-              else if (epg)
+              else // epg
                 serviceIt->second.setEpg (startTime, duration, titleStr, descriptionStr);
               }
             }
@@ -7538,12 +7521,27 @@ private:
           }
         }
       }
-    else {
+    else if (!next) {
       //{{{  unexpected tid, error, return
       cLog::log (LOGERROR, "parseEIT - unexpected tid " + dec(tid));
       return;
       }
       //}}}
+    }
+  //}}}
+  //{{{
+  void parseTdt (cPidInfo* pidInfo, uint8_t* buf) {
+
+    //cLog::log (LOGINFO1, "parseTdt");
+    auto tdt = (sTdt*)buf;
+    if (tdt->table_id == TID_TDT) {
+      mCurTime = MjdToEpochTime (tdt->utc_mjd) + BcdTimeToSeconds (tdt->utc_time);
+
+      if (mFirstTime == 0)
+        mFirstTime = mCurTime;
+
+      pidInfo->mInfoStr = getTimetString (mFirstTime) + " to " + getTimetDateString (mCurTime);
+      }
     }
   //}}}
   //{{{
