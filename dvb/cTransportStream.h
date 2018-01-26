@@ -6403,12 +6403,15 @@ public:
     }
   //}}}
   //{{{
-  void setEpg (bool record, time_t startTime, int duration, const std::string& str1,
+  bool setEpg (bool record, time_t startTime, int duration, const std::string& str1,
                const std::string& str2) {
+  // could return true only if changed
 
     mEpgItemMap.insert (
-      std::map<time_t, cEpgItem>::value_type (
+      std::map<time_t,cEpgItem>::value_type (
         startTime, cEpgItem (false, record, startTime, duration, str1, str2)));
+
+    return true;
     }
   //}}}
 
@@ -7467,6 +7470,7 @@ private:
   //{{{
   void parseEit (cPidInfo* pidInfo, uint8_t* buf) {
 
+    //cLog::log (LOGINFO1, "parseEit");
     auto eit = (sEit*)buf;
     auto sectionLength = HILO(eit->section_length) + 3;
     if (getCrc32 (0xffffffff, buf, sectionLength) != 0) {
