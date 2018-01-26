@@ -14,18 +14,19 @@
 
 #include "dvbSubtitle.h"
 //}}}
-//{{{  const
+//{{{  huffman
+// const
 #define START   '\0'
 #define STOP    '\0'
 #define ESCAPE  '\1'
-//}}}
-//{{{  type
+
+// type
 struct tHuffTable {
   unsigned int value;
   short bits;
   char next;
   };
-//}}}
+
 //{{{
 static const struct tHuffTable huffTable1[] = {
     /*   51                             */
@@ -5744,7 +5745,7 @@ static const unsigned huffIndex2[] = {
         3160  /* 128 */
 };
 //}}}
-
+//}}}
 //{{{  macros
 #define HILO(x) (x##_hi << 8 | x##_lo)
 
