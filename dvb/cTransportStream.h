@@ -6467,7 +6467,7 @@ class cTransportStream {
 friend class cTransportStreamBox;
 public:
   virtual ~cTransportStream() { clear(); }
-
+  //{{{  gets
   //{{{
   static uint32_t getCrc32 (uint32_t crc, uint8_t* buf, unsigned int len) {
 
@@ -6871,7 +6871,7 @@ public:
     return nullptr;
     }
   //}}}
-
+  //}}}
   //{{{
   int64_t demux (uint8_t* tsBuf, int64_t tsBufSize, int64_t streamPos, bool skip, int decodePid) {
   // demux from tsBuffer to tsBuffer + tsBufferSize, streamPos is offset into full stream of first packet
@@ -6919,7 +6919,7 @@ public:
               pidInfo->mPackets++;
 
               if (pidInfo->mPsi) {
-                //{{{  psi packet body
+                //{{{  psi packet
                 ts += headerBytes;
                 tsBytesLeft -= headerBytes;
 
@@ -6929,36 +6929,39 @@ public:
                   tsBytesLeft--;
                   if ((pointerField > 0) && pidInfo->mBufPtr)
                     pidInfo->addToBuffer (ts, pointerField);
-
-                  if (pidInfo->mBufPtr) {
-                    // parse buffer
-                    auto bufPtr = pidInfo->mBuffer;
-                    while ((bufPtr + 3) <= pidInfo->mBufPtr) {
-                      // enough for tid,sectionLength
-                      if (bufPtr[0] == 0xFF) // invalid tid, end of psi sections
-                        break;
-                      else {
-                        // valid tid, parse psi section
-                        parsePsi (pidInfo, bufPtr);
-
-                        // add sectionLength + header to get to next section
-                        bufPtr += ((bufPtr[1] & 0x0F) << 8) + bufPtr[2] + 3;
-                        }
-                      }
-                    }
-
-                  // add to new buffer from real payload start
-                  pidInfo->mBufPtr = pidInfo->mBuffer;
                   ts += pointerField;
                   tsBytesLeft -= pointerField;
-                  pidInfo->addToBuffer (ts, tsBytesLeft);
+
+                  // parse any outstanding buffer
+                  if (pidInfo->mBufPtr) {
+                    auto bufPtr = pidInfo->mBuffer;
+                    while ((bufPtr+3) <= pidInfo->mBufPtr) // enough for tid,sectionLength
+                      if (bufPtr[0] == 0xFF) // invalid tid, end of psi sections
+                        break;
+                      else // valid tid, parse psi section
+                        bufPtr += parsePsi (pidInfo, bufPtr);
+                    }
+
+                  while ((tsBytesLeft >= 3) &&
+                         (ts[0] != 0xFF) && (tsBytesLeft >= (((ts[1] & 0x0F) << 8) + ts[2] + 3))) {
+                    // parse section without buffering
+                    auto sectionLength = parsePsi (pidInfo, ts);
+                    ts += sectionLength;
+                    tsBytesLeft -= sectionLength;
+                    }
+
+                  if (tsBytesLeft > 0 && (ts[0] != 0xFF)) {
+                    // buffer rest of psi packet in new buffer
+                    pidInfo->mBufPtr = pidInfo->mBuffer;
+                    pidInfo->addToBuffer (ts, tsBytesLeft);
+                    }
                   }
                 else if (pidInfo->mBufPtr)
                   pidInfo->addToBuffer (ts, tsBytesLeft);
                 }
                 //}}}
               else if ((decodePid == -1) || (decodePid == pid)) {
-                //{{{  pes packet body
+                //{{{  pes packet
                 pesPacket (pidInfo, ts-1);
 
                 ts += headerBytes;
@@ -7021,7 +7024,7 @@ public:
     return ts - tsBuf;
     }
   //}}}
-
+  virtual void start (cService* service, const std::string& name, time_t startTime, bool record) {}
   //{{{
   virtual void clear() {
 
@@ -7037,7 +7040,6 @@ public:
     mCurTime = 0;
     }
   //}}}
-  virtual void startProgram (cService* service, const std::string& name, time_t startTime, bool record) {}
 
   // vars - public for widget access
   uint64_t mPackets = 0;
@@ -7047,7 +7049,6 @@ protected:
   virtual bool audDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
   virtual bool vidDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
   virtual void pesPacket (cPidInfo* pidInfo, uint8_t* ts) {}
-
   //{{{
   void clearCounts() {
 
@@ -7063,7 +7064,6 @@ protected:
     }
   //}}}
 
-  // vars
   std::mutex mMutex;
   std::map<int,cPidInfo> mPidInfoMap;
   std::map<int,cService> mServiceMap;
@@ -7310,7 +7310,7 @@ private:
   void parsePat (cPidInfo* pidInfo, uint8_t* buf) {
   // PAT declares programPid,sid to mProgramMap to recognise programPid PMT to declare service streams
 
-    //cLog::log (LOGINFO1, "parsePat");
+    //cLog::log (LOGINFO, "parsePat");
     auto pat = (sPat*)buf;
     auto sectionLength = HILO(pat->section_length) + 3;
     if (getCrc32 (0xffffffff, buf, sectionLength) != 0) {
@@ -7339,7 +7339,7 @@ private:
   //{{{
   void parseNit (cPidInfo* pidInfo, uint8_t* buf) {
 
-    //cLog::log (LOGINFO1, "parseNit");
+    //cLog::log (LOGINFO, "parseNit");
     auto nit = (sNit*)buf;
     auto sectionLength = HILO(nit->section_length) + 3;
     if (getCrc32 (0xffffffff, buf, sectionLength) != 0) {
@@ -7397,7 +7397,7 @@ private:
   void parseSdt (cPidInfo* pidInfo, uint8_t* buf) {
   // SDT name services in mServiceMap
 
-    //cLog::log (LOGINFO1, "parseSdt");
+    //cLog::log (LOGINFO, "parseSdt");
     auto sdt = (sSdt*)buf;
     auto sectionLength = HILO(sdt->section_length) + 3;
     if (getCrc32 (0xffffffff, buf, sectionLength) != 0) {
@@ -7470,7 +7470,7 @@ private:
   //{{{
   void parseEit (cPidInfo* pidInfo, uint8_t* buf) {
 
-    //cLog::log (LOGINFO1, "parseEit");
+    //cLog::log (LOGINFO, "parseEit");
     auto eit = (sEit*)buf;
     auto sectionLength = HILO(eit->section_length) + 3;
     if (getCrc32 (0xffffffff, buf, sectionLength) != 0) {
@@ -7536,7 +7536,7 @@ private:
                       pidInfoIt->second.mInfoStr = serviceIt->second.getNameString() +
                                                    " " + serviceIt->second.getNowTitleString();
 
-                    startProgram (&serviceIt->second, titleStr, startTime, record);
+                    start (&serviceIt->second, titleStr, startTime, record);
                     }
                   }
                 }
@@ -7562,7 +7562,7 @@ private:
   //{{{
   void parseTdt (cPidInfo* pidInfo, uint8_t* buf) {
 
-    //cLog::log (LOGINFO1, "parseTdt");
+    //cLog::log (LOGINFO, "parseTdt");
     auto tdt = (sTdt*)buf;
     if (tdt->table_id == TID_TDT) {
       mCurTime = MjdToEpochTime (tdt->utc_mjd) + BcdTimeToSeconds (tdt->utc_time);
@@ -7578,7 +7578,7 @@ private:
   void parsePmt (cPidInfo* pidInfo, uint8_t* buf) {
   // PMT declares pgmPid and streams for a service
 
-    //cLog::log (LOGINFO1, "parsePmt " + dec(pidInfo->mPid));
+    //cLog::log (LOGINFO, "parsePmt " + dec(pidInfo->mPid));
     auto pmt = (sPmt*)buf;
     auto sectionLength = HILO(pmt->section_length) + 3;
     if (getCrc32 (0xffffffff, buf, sectionLength) != 0) {
@@ -7662,7 +7662,8 @@ private:
     }
   //}}}
   //{{{
-  void parsePsi (cPidInfo* pidInfo, uint8_t* buf) {
+  int parsePsi (cPidInfo* pidInfo, uint8_t* buf) {
+  // return sectionLength
 
     switch (pidInfo->mPid) {
       case PID_PAT: parsePat (pidInfo, buf); break;
@@ -7675,6 +7676,8 @@ private:
       case PID_SYN: break;
       default:      parsePmt (pidInfo, buf); break;
       }
+
+    return ((buf[1] & 0x0F) << 8) + buf[2] + 3;
     }
   //}}}
 

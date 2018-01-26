@@ -17,7 +17,7 @@ public:
     }
   //}}}
   //{{{
-  virtual void startProgram (cService* service, const std::string& name, time_t startTime, bool record) {
+  virtual void start (cService* service, const std::string& name, time_t startTime, bool record) {
 
     if ((service->getVidPid() > 0) && (service->getAudPid() > 0)) {
       // tv service
