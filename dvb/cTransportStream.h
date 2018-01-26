@@ -7026,6 +7026,7 @@ public:
     }
   //}}}
   virtual void start (cService* service, const std::string& name, time_t startTime, bool record) {}
+  virtual void stop (cService* service) {}
   //{{{
   virtual void clear() {
 

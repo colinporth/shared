@@ -19,25 +19,37 @@ public:
   //{{{
   virtual void start (cService* service, const std::string& name, time_t startTime, bool record) {
 
-    if ((service->getVidPid() > 0) && (service->getAudPid() > 0)) {
-      // tv service
-      if (record || mRecordAll) {
-        auto recordFileIt = mRecordFileMap.find (service->getSid());
-        if (recordFileIt == mRecordFileMap.end())
-          recordFileIt = mRecordFileMap.insert (
-            std::map<int,cRecordFile>::value_type (
-              service->getSid(), cRecordFile (service->getVidPid(), service->getAudPid()))).first;
+    std::lock_guard<std::mutex> lockGuard (mRecordMutex);
 
-        auto validFileName = validString (service->getNameString() + " - " + name, "<>:/|?*\"\'\\");
-        cLog::log (LOGNOTICE, "starting prgram " + validFileName);
+    if ((record || mRecordAll) && (service->getVidPid() > 0) && (service->getAudPid() > 0)) {
+      auto recordFileIt = mRecordFileMap.find (service->getSid());
+      if (recordFileIt == mRecordFileMap.end())
+        recordFileIt = mRecordFileMap.insert (
+        std::map<int,cRecordFile>::value_type (
+          service->getSid(), cRecordFile (service->getVidPid(), service->getAudPid()))).first;
 
-        struct tm time = *localtime (&startTime);
-        recordFileIt->second.createFile (mRootName + "/" + validFileName +
-                                         "." + dec(time.tm_hour, 2,'0') +
-                                         "." + dec(time.tm_min, 2,'0') +
-                                         ".ts", service);
-        }
+      auto validFileName = validString (service->getNameString() + " - " + name, "<>:/|?*\"\'\\");
+
+      struct tm time = *localtime (&startTime);
+      auto str = mRootName + "/" + validFileName +
+                 "." + dec(time.tm_mday, 2,'0') +
+                 "." + dec(time.tm_hour, 2,'0') +
+                 "." + dec(time.tm_min, 2,'0') +
+                 "." + dec(time.tm_sec, 2,'0') +
+                 ".ts";
+      cLog::log (LOGNOTICE, "start file " + str);
+      recordFileIt->second.createFile (str, service);
       }
+    }
+  //}}}
+  //{{{
+  virtual void stop (cService* service) {
+
+    std::lock_guard<std::mutex> lockGuard (mRecordMutex);
+
+    auto recordFileIt = mRecordFileMap.find (service->getSid());
+    if (recordFileIt != mRecordFileMap.end()) // close any record
+      mRecordFileMap.erase (recordFileIt);
     }
   //}}}
 
@@ -45,6 +57,8 @@ protected:
   //{{{
   void pesPacket (cPidInfo* pidInfo, uint8_t* ts) {
   // save pes packet
+
+    std::lock_guard<std::mutex> lockGuard (mRecordMutex);
 
     auto recordFileIt = mRecordFileMap.find (pidInfo->mSid);
     if (recordFileIt != mRecordFileMap.end())
@@ -61,9 +75,6 @@ private:
 
     //{{{
     void createFile (const std::string& name, cService* service) {
-
-      // close any previous file
-      closeFile();
 
       //mFile = CreateFile (name.c_str(), GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, 0, NULL);
       mFile = fopen (name.c_str(), "wb");
@@ -216,6 +227,7 @@ private:
     };
   //}}}
 
+  std::mutex mRecordMutex;
   std::string mRootName;
   bool mRecordAll;
   std::map<int,cRecordFile> mRecordFileMap;
