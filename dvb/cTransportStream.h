@@ -6475,7 +6475,8 @@ private:
 //}}}
 
 class cTransportStream {
-friend class cTransportStreamBox;
+friend class cTsEpgBox;
+friend class cTsPidBox;
 public:
   virtual ~cTransportStream() { clear(); }
   //{{{  gets
@@ -7539,7 +7540,7 @@ private:
                     !serviceIt->second.getNameString().empty() &&
                     (serviceIt->second.getProgramPid() != -1)) {
                   // wait for named service with pgmPid
-                  if (serviceIt->second.setNow (serviceIt->second.isEpgRecord(titleStr, startTime), 
+                  if (serviceIt->second.setNow (serviceIt->second.isEpgRecord(titleStr, startTime),
                                                 startTime, duration, titleStr, descriptionStr)) {
                     // new now
                     auto pidInfoIt = mPidInfoMap.find (serviceIt->second.getProgramPid());
@@ -7548,7 +7549,7 @@ private:
                       pidInfoIt->second.mInfoStr = serviceIt->second.getNameString() +
                                                    " " + serviceIt->second.getNowTitleString();
 
-                    start (&serviceIt->second, titleStr, startTime, 
+                    start (&serviceIt->second, titleStr, startTime,
                            serviceIt->second.isEpgRecord (titleStr, startTime));
                     }
                   }
