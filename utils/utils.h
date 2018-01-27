@@ -163,17 +163,17 @@ inline std::string getTimeString (uint32_t secs) {
   }
 //}}}
 //{{{
-inline std::string getTimetString (time_t& time) {
+inline std::string getTimetString (const time_t& time) {
 
   tm* localTm = localtime (&time);
 
-  return dec(localTm->tm_hour,2,'0') + ":" +
-         dec(localTm->tm_min,2,'0') + ":" +
+  return dec(localTm->tm_hour,2,'0') + "." +
+         dec(localTm->tm_min,2,'0') + "." +
          dec(localTm->tm_sec,2,'0');
   }
 //}}}
 //{{{
-inline std::string getTimetDateString (time_t& time) {
+inline std::string getTimetDateString (const time_t& time) {
 
   tm* localTm = localtime (&time);
 
@@ -181,8 +181,8 @@ inline std::string getTimetDateString (time_t& time) {
   const char mon_name[][4] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun",
                                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
 
-  return dec(localTm->tm_hour,2,'0') + ":" +
-         dec(localTm->tm_min,2,'0') + ":" +
+  return dec(localTm->tm_hour,2,'0') + "." +
+         dec(localTm->tm_min,2,'0') + "." +
          dec(localTm->tm_sec,2,'0') + " " +
          day_name[localTm->tm_wday] + " " +
          dec(localTm->tm_mday) + " " +
@@ -191,12 +191,10 @@ inline std::string getTimetDateString (time_t& time) {
   }
 //}}}
 //{{{
-inline std::string getTimetShortString (time_t& time) {
+inline std::string getTimetShortString (const time_t& time) {
 
   tm* localTm = localtime (&time);
-
-  return dec(localTm->tm_hour,2,'0') + ":" +
-         dec(localTm->tm_min,2,'0');
+  return dec(localTm->tm_hour,2,'0') + "." + dec(localTm->tm_min,2,'0');
   }
 //}}}
 

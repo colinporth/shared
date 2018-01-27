@@ -6119,14 +6119,9 @@ typedef struct item_extended_event_struct {
 class cPidInfo {
 public:
   cPidInfo (int pid, bool isPsi) : mPid(pid), mPsi(isPsi) {}
-  //{{{
-  ~cPidInfo() {
-    free (mBuffer);
-    }
-  //}}}
+  ~cPidInfo() { free (mBuffer); }
 
   int getBufUsed() { return int(mBufPtr - mBuffer); }
-
   //{{{
   std::string getTypeString() {
 
@@ -6171,7 +6166,6 @@ public:
     return (mSid > 0 ? dec(mSid) : "") + (mInfoStr.empty() ? "" : " " + mInfoStr);
     }
   //}}}
-
   //{{{
   std::wstring getTypeWstring() {
 
@@ -6290,10 +6284,11 @@ class cEpgItem {
 public:
   //{{{
   cEpgItem (bool now, bool record, time_t startTime, int duration,
-            const std::string& title, std::string shortDescription)
-      : mNow(now), mRecord(record),
-        mStartTime(startTime), mDuration(duration), mTitle(title), mShortDescription(shortDescription) {}
+            const std::string& title, std::string description) :
+    mNow(now), mRecord(record),
+    mStartTime(startTime), mDuration(duration), mTitle(title), mDescription(description) {}
   //}}}
+  ~cEpgItem() { cLog::log (LOGINFO3, "~cEpgItem"); }
 
   bool getRecord() { return mRecord; }
   time_t getStartTime() { return mStartTime; }
@@ -6302,19 +6297,19 @@ public:
   std::string getDurationString() { return dec(mDuration/60) + "m"; }
 
   //{{{
-  void set (time_t startTime, int duration, const std::string& title, const std::string& shortDescription) {
+  void set (time_t startTime, int duration, const std::string& title, const std::string& description) {
 
     mDuration = duration;
     mStartTime = startTime;
 
     mTitle = title;
-    mShortDescription = shortDescription;
+    mDescription = description;
     }
   //}}}
   //{{{
   bool toggleRecord() {
     mRecord = !mRecord;
-    return mNow;
+    return mRecord;
     }
   //}}}
 
@@ -6330,13 +6325,14 @@ public:
   //}}}
 
 private:
-  bool mNow = false;
+  const bool mNow = false;
+
   bool mRecord = false;
+
   time_t mStartTime = 0;
   int mDuration = 0;
-
   std::string mTitle;
-  std::string mShortDescription;
+  std::string mDescription;
   };
 //}}}
 //{{{
@@ -6345,8 +6341,14 @@ public:
   cService (int sid) : mSid(sid) {}
   //{{{
   ~cService() {
-    delete mNow;
+
+    delete mNowEpgItem;
+
+    for (auto epgItem : mEpgItemMap)
+      delete epgItem.second;
     mEpgItemMap.clear();
+
+    cLog::log (LOGINFO3, "~cService");
     }
   //}}}
 
@@ -6361,11 +6363,11 @@ public:
   int getAudOtherPid() const { return mAudOtherPid; }
   int getSubPid() const { return mSubPid; }
 
-  cEpgItem* getNow() { return mNow; }
+  cEpgItem* getNowEpgItem() { return mNowEpgItem; }
   bool getShowEpg() { return mShowEpg; }
   std::string getNameString() { return mName; }
-  std::map<time_t,cEpgItem>& getEpgItemMap() { return mEpgItemMap; }
-  std::string getNowTitleString() { return mNow ? mNow->getTitleString() : ""; }
+  std::map<time_t,cEpgItem*>& getEpgItemMap() { return mEpgItemMap; }
+  std::string getNowTitleString() { return mNowEpgItem ? mNowEpgItem->getTitleString() : ""; }
 
   // sets
   //{{{
@@ -6393,24 +6395,32 @@ public:
   void setSubPid (int pid, int streamType) { mSubPid = pid; }
   void setProgramPid (int pid) { mProgramPid = pid; }
   //{{{
-  bool setNow (bool record, time_t startTime, int duration, const std::string& str1, const std::string& str2) {
+  bool setNow (bool record, time_t startTime, int duration,
+               const std::string& str1, const std::string& str2) {
 
-    if (mNow && (mNow->getStartTime() == startTime))
+    if (mNowEpgItem && (mNowEpgItem->getStartTime() == startTime))
       return false;
 
-    delete mNow;
-    mNow = new cEpgItem (true, record, startTime, duration, str1, str2);
+    cLog::log (LOGINFO, "delete cEpgItem");
+    delete mNowEpgItem;
+
+    cLog::log (LOGINFO, "new cEpgItem");
+    mNowEpgItem = new cEpgItem (true, record, startTime, duration, str1, str2);
     return true;
     }
   //}}}
   //{{{
-  bool setEpg (bool record, time_t startTime, int duration, const std::string& str1,
-               const std::string& str2) {
+  bool setEpg (bool record, time_t startTime, int duration, const std::string& title,
+               const std::string& description) {
   // could return true only if changed
 
-    mEpgItemMap.insert (
-      std::map<time_t,cEpgItem>::value_type (
-        startTime, cEpgItem (false, record, startTime, duration, str1, str2)));
+    auto epgItemIt = mEpgItemMap.find (startTime);
+    if (epgItemIt == mEpgItemMap.end())
+      mEpgItemMap.insert (
+        std::map<time_t,cEpgItem*>::value_type (
+          startTime, new cEpgItem (false, record, startTime, duration, title, description)));
+    else
+      epgItemIt->second->set (startTime, duration, title, description);
 
     return true;
     }
@@ -6422,8 +6432,8 @@ public:
 
     auto epgItemIt = mEpgItemMap.find (startTime);
     if (epgItemIt != mEpgItemMap.end())
-      if (title == epgItemIt->second.getTitleString())
-        if (epgItemIt->second.getRecord())
+      if (title == epgItemIt->second->getTitleString())
+        if (epgItemIt->second->getRecord())
           return true;
 
     return false;
@@ -6438,10 +6448,10 @@ public:
                         " subPid:" + dec (mSubPid) +
                         " " + mName);
 
-    if (mNow)
-      mNow->print ("");
-    for (auto &epgItem : mEpgItemMap)
-      epgItem.second.print ("- ");
+    if (mNowEpgItem)
+      mNowEpgItem->print ("");
+    for (auto epgItem : mEpgItemMap)
+      epgItem.second->print ("- ");
     }
   //}}}
 
@@ -6459,8 +6469,8 @@ private:
   std::string mName;
 
   bool mShowEpg = false;
-  cEpgItem* mNow = nullptr;
-  std::map<time_t,cEpgItem> mEpgItemMap;
+  cEpgItem* mNowEpgItem = nullptr;
+  std::map<time_t,cEpgItem*> mEpgItemMap;
   };
 //}}}
 
@@ -7025,7 +7035,7 @@ public:
     return ts - tsBuf;
     }
   //}}}
-  virtual void start (cService* service, const std::string& name, time_t startTime, bool record) {}
+  virtual void start (cService* service, const std::string& name, time_t startTime, bool selected) {}
   virtual void stop (cService* service) {}
   //{{{
   virtual void clear() {
@@ -7083,8 +7093,8 @@ private:
           (mProgramMap.find (pid) != mProgramMap.end())) {
 
         // create new psi cPidInfo, insert
-        pidInfoIt = mPidInfoMap.insert (
-          std::map<int,cPidInfo>::value_type (pid, cPidInfo(pid, createPsiOnly))).first;
+        pidInfoIt = mPidInfoMap.insert (std::map<int,cPidInfo>::value_type (
+          pid, cPidInfo(pid, createPsiOnly))).first;
 
         // allocate buffer
         pidInfoIt->second.mBufSize = kBufSize;
@@ -7529,8 +7539,8 @@ private:
                     !serviceIt->second.getNameString().empty() &&
                     (serviceIt->second.getProgramPid() != -1)) {
                   // wait for named service with pgmPid
-                  bool record = serviceIt->second.isEpgRecord (titleStr, startTime);
-                  if (serviceIt->second.setNow (record, startTime, duration, titleStr, descriptionStr)) {
+                  if (serviceIt->second.setNow (serviceIt->second.isEpgRecord(titleStr, startTime), 
+                                                startTime, duration, titleStr, descriptionStr)) {
                     // new now
                     auto pidInfoIt = mPidInfoMap.find (serviceIt->second.getProgramPid());
                     if (pidInfoIt != mPidInfoMap.end())
@@ -7538,7 +7548,8 @@ private:
                       pidInfoIt->second.mInfoStr = serviceIt->second.getNameString() +
                                                    " " + serviceIt->second.getNowTitleString();
 
-                    start (&serviceIt->second, titleStr, startTime, record);
+                    start (&serviceIt->second, titleStr, startTime, 
+                           serviceIt->second.isEpgRecord (titleStr, startTime));
                     }
                   }
                 }

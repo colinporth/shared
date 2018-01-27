@@ -17,28 +17,25 @@ public:
     }
   //}}}
   //{{{
-  virtual void start (cService* service, const std::string& name, time_t startTime, bool record) {
+  virtual void start (cService* service, const std::string& name, time_t startTime, bool selected) {
 
-    std::lock_guard<std::mutex> lockGuard (mRecordMutex);
+    if (selected || mRecordAll) {
+      std::lock_guard<std::mutex> lockGuard (mRecordMutex);
 
-    if ((record || mRecordAll) && (service->getVidPid() > 0) && (service->getAudPid() > 0)) {
-      auto recordFileIt = mRecordFileMap.find (service->getSid());
-      if (recordFileIt == mRecordFileMap.end())
-        recordFileIt = mRecordFileMap.insert (
-        std::map<int,cRecordFile>::value_type (
-          service->getSid(), cRecordFile (service->getVidPid(), service->getAudPid()))).first;
+      if ((service->getVidPid() > 0) && (service->getAudPid() > 0)) {
+        auto recordFileIt = mRecordFileMap.find (service->getSid());
+        if (recordFileIt == mRecordFileMap.end())
+          recordFileIt = mRecordFileMap.insert (
+          std::map<int,cRecordFile>::value_type (
+            service->getSid(), cRecordFile (service->getVidPid(), service->getAudPid()))).first;
 
-      auto validFileName = validString (service->getNameString() + " - " + name, "<>:/|?*\"\'\\");
+        auto validFileName = validString (service->getNameString() + " - " + name, "<>:/|?*\"\'\\");
 
-      struct tm time = *localtime (&startTime);
-      auto str = mRootName + "/" + validFileName +
-                 "." + dec(time.tm_mday, 2,'0') +
-                 "." + dec(time.tm_hour, 2,'0') +
-                 "." + dec(time.tm_min, 2,'0') +
-                 "." + dec(time.tm_sec, 2,'0') +
-                 ".ts";
-      cLog::log (LOGNOTICE, "start file " + str);
-      recordFileIt->second.createFile (str, service);
+        struct tm time = *localtime (&startTime);
+        auto str = mRootName + "/" + validFileName + " - " + getTimetDateString (startTime) + ".ts";
+        cLog::log (LOGNOTICE, "start file " + str);
+        recordFileIt->second.createFile (str, service);
+        }
       }
     }
   //}}}
