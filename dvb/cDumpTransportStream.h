@@ -13,28 +13,30 @@ public:
 
     cLog::log (LOGNOTICE, "cDumpTransportStream clear");
     cTransportStream::clear();
-    mRecordFileMap.clear();
+    mRecordServiceMap.clear();
     }
   //}}}
   //{{{
   virtual void start (cService* service, const std::string& name, time_t startTime, bool selected) {
 
+    auto recordServiceIt = mRecordServiceMap.find (service->getSid());
+    if (recordServiceIt != mRecordServiceMap.end())
+      recordServiceIt->second.close();
+
     if (selected || mRecordAll) {
       std::lock_guard<std::mutex> lockGuard (mRecordMutex);
 
       if ((service->getVidPid() > 0) && (service->getAudPid() > 0)) {
-        auto recordFileIt = mRecordFileMap.find (service->getSid());
-        if (recordFileIt == mRecordFileMap.end())
-          recordFileIt = mRecordFileMap.insert (
-          std::map<int,cRecordFile>::value_type (
-            service->getSid(), cRecordFile (service->getVidPid(), service->getAudPid()))).first;
+        if (recordServiceIt == mRecordServiceMap.end())
+          recordServiceIt = mRecordServiceMap.insert (
+          std::map<int,cRecordService>::value_type (
+            service->getSid(), cRecordService (service->getVidPid(), service->getAudPid()))).first;
 
         auto validFileName = validString (service->getNameString() + " - " + name, "<>:/|?*\"\'\\");
-
-        struct tm time = *localtime (&startTime);
         auto str = mRootName + "/" + validFileName + " - " + getTimetDateString (startTime) + ".ts";
         cLog::log (LOGNOTICE, "start file " + str);
-        recordFileIt->second.createFile (str, service);
+
+        recordServiceIt->second.create (str, service);
         }
       }
     }
@@ -44,9 +46,9 @@ public:
 
     std::lock_guard<std::mutex> lockGuard (mRecordMutex);
 
-    auto recordFileIt = mRecordFileMap.find (service->getSid());
-    if (recordFileIt != mRecordFileMap.end()) // close any record
-      mRecordFileMap.erase (recordFileIt);
+    auto recordServiceIt = mRecordServiceMap.find (service->getSid());
+    if (recordServiceIt != mRecordServiceMap.end()) // close any record
+      mRecordServiceMap.erase (recordServiceIt);
     }
   //}}}
 
@@ -57,26 +59,26 @@ protected:
 
     std::lock_guard<std::mutex> lockGuard (mRecordMutex);
 
-    auto recordFileIt = mRecordFileMap.find (pidInfo->mSid);
-    if (recordFileIt != mRecordFileMap.end())
-      recordFileIt->second.writePes (pidInfo->mPid, ts);
+    auto recordServiceIt = mRecordServiceMap.find (pidInfo->mSid);
+    if (recordServiceIt != mRecordServiceMap.end())
+      recordServiceIt->second.writePes (pidInfo->mPid, ts);
     }
   //}}}
 
 private:
   //{{{
-  class cRecordFile {
+  class cRecordService {
   public:
-    cRecordFile (int vidPid, int audPid) : mVidPid(vidPid), mAudPid(audPid) {}
-    ~cRecordFile() { closeFile(); }
+    cRecordService (int vidPid, int audPid) : mVidPid(vidPid), mAudPid(audPid) {}
+    ~cRecordService() { close(); }
 
     //{{{
-    void createFile (const std::string& name, cService* service) {
+    void create (const std::string& name, cService* service) {
 
-      //mFile = CreateFile (name.c_str(), GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, 0, NULL);
       mFile = fopen (name.c_str(), "wb");
 
       writePat (0x1234, service->getSid(), kPgmPid); // tsid, sid, pgmPid
+
       writePmt (service->getSid(), kPgmPid, service->getVidPid(),
                 service->getVidPid(), service->getVidStreamType(),
                 service->getAudPid(), service->getAudStreamType());
@@ -87,15 +89,13 @@ private:
 
       //cLog::log (LOGINFO, "writePes");
       if ((pid == mVidPid) || (pid == mAudPid))
-        writePacket (ts);
+        fwrite (ts, 1, 188, mFile);
       }
     //}}}
     //{{{
-    void closeFile() {
+    void close() {
 
-      if (mFile != 0) {
-        //CloseHandle (mFile);
-        //mFile = 0;
+      if (mFile) {
         fclose (mFile);
         mFile = nullptr;
         }
@@ -127,20 +127,9 @@ private:
       *tsPtr++ = (crc & 0x0000ff00) >>  8;
       *tsPtr++ =  crc & 0x000000ff;
 
-      writePacket (ts);
-      }
-    //}}}
-    //{{{
-    void writePacket (uint8_t* ts) {
-
-      //DWORD numBytesUsed;
-      //WriteFile (mFile, ts, 188, &numBytesUsed, NULL);
-      //if (numBytesUsed != 188)
-      //  cLog::log (LOGERROR, "writePacket " + dec(numBytesUsed));
       fwrite (ts, 1, 188, mFile);
       }
     //}}}
-
     //{{{
     void writePat (int tsid, int sid, int pgmPid) {
 
@@ -216,9 +205,7 @@ private:
 
     const int kPgmPid = 32;
 
-    //HANDLE mFile = 0;
     FILE* mFile = nullptr;
-
     int mVidPid = -1;
     int mAudPid = -1;
     };
@@ -227,5 +214,5 @@ private:
   std::mutex mRecordMutex;
   std::string mRootName;
   bool mRecordAll;
-  std::map<int,cRecordFile> mRecordFileMap;
+  std::map<int,cRecordService> mRecordServiceMap;
   };
