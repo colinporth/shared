@@ -6457,6 +6457,7 @@ public:
 
 private:
   const int mSid;
+  std::string mName;
 
   int mProgramPid = -1;
   int mVidPid = -1;
@@ -6466,11 +6467,10 @@ private:
   int mAudStreamType = 0;
   int mSubPid = -1;
 
-  std::string mName;
-
-  bool mShowEpg = false;
   cEpgItem* mNowEpgItem = nullptr;
   std::map<time_t,cEpgItem*> mEpgItemMap;
+
+  bool mShowEpg = true;
   };
 //}}}
 
