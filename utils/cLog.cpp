@@ -121,17 +121,19 @@ wstring cLog::getThreadNameWstring (uint64_t threadId) {
 void cLog::setLogLevel (enum eLogLevel logLevel) {
 
   logLevel = max (LOGNOTICE, min (eLogLevel(LOGMAX-1), logLevel));
-  mLogLevel = logLevel;
 
-  switch (mLogLevel) {
-    case LOGTITLE:  cLog::log (LOGNOTICE, "setLogLevel to LOGTITLE"); break;
-    case LOGNOTICE: cLog::log (LOGNOTICE, "setLogLevel to LOGNOTICE"); break;
-    case LOGERROR:  cLog::log (LOGNOTICE, "setLogLevel to LOGERROR"); break;
-    case LOGINFO:   cLog::log (LOGNOTICE, "setLogLevel to LOGINFO");  break;
-    case LOGINFO1:  cLog::log (LOGNOTICE, "setLogLevel to LOGINFO1"); break;
-    case LOGINFO2:  cLog::log (LOGNOTICE, "setLogLevel to LOGINFO2"); break;
-    case LOGINFO3:  cLog::log (LOGNOTICE, "setLogLevel to LOGINFO3"); break;
-    default: break;
+  if (mLogLevel != logLevel) {
+    switch (logLevel) {
+      case LOGTITLE:  cLog::log (LOGNOTICE, "setLogLevel to LOGTITLE"); break;
+      case LOGNOTICE: cLog::log (LOGNOTICE, "setLogLevel to LOGNOTICE"); break;
+      case LOGERROR:  cLog::log (LOGNOTICE, "setLogLevel to LOGERROR"); break;
+      case LOGINFO:   cLog::log (LOGNOTICE, "setLogLevel to LOGINFO");  break;
+      case LOGINFO1:  cLog::log (LOGNOTICE, "setLogLevel to LOGINFO1"); break;
+      case LOGINFO2:  cLog::log (LOGNOTICE, "setLogLevel to LOGINFO2"); break;
+      case LOGINFO3:  cLog::log (LOGNOTICE, "setLogLevel to LOGINFO3"); break;
+      default: break;
+      }
+    mLogLevel = logLevel;
     }
   }
 //}}}
