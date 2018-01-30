@@ -144,7 +144,7 @@ void cLog::setThreadName (const string& name) {
   if (it == mThreadNameMap.end())
     mThreadNameMap.insert (map<uint64_t,string>::value_type (getThreadId(), name));
 
-  log (LOGNOTICE, "start");
+  log (LOGINFO, "start");
   }
 //}}}
 

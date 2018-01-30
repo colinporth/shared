@@ -104,26 +104,7 @@ public:
     return true;
     }
   //}}}
-  //{{{
-  void pause() {
 
-    auto hr = mMediaControl->Pause();
-    if (hr != S_OK)
-      cLog::log (LOGERROR, "pause graph failed " + dec(hr));
-
-    mGrabberCB.clear();
-    }
-  //}}}
-  //{{{
-  void stop() {
-
-    auto hr = mMediaControl->Stop();
-    if (hr != S_OK)
-      cLog::log (LOGERROR, "stop graph failed " + dec(hr));
-
-    mGrabberCB.clear();
-    }
-  //}}}
   //{{{
   void tune (int frequency) {
 
@@ -170,20 +151,27 @@ public:
     //}}}
     }
   //}}}
-
   //{{{
-  void signalThread() {
+  void pause() {
 
-    while (true) {
-      if (mScanningTuner) {
-        long signal = 0;
-        mScanningTuner->get_SignalStrength (&signal);
-        mSignal = signal / 0x10000;
-        }
-      Sleep (100);
-      }
+    auto hr = mMediaControl->Pause();
+    if (hr != S_OK)
+      cLog::log (LOGERROR, "pause graph failed " + dec(hr));
+
+    mGrabberCB.clear();
     }
   //}}}
+  //{{{
+  void stop() {
+
+    auto hr = mMediaControl->Stop();
+    if (hr != S_OK)
+      cLog::log (LOGERROR, "stop graph failed " + dec(hr));
+
+    mGrabberCB.clear();
+    }
+  //}}}
+
   //{{{
   void grabThread() {
 
@@ -207,7 +195,26 @@ public:
     else
       cLog::log (LOGERROR, "run graph failed " + dec(hr));
 
-    cLog::log (LOGNOTICE, "exit");
+    cLog::log (LOGINFO, "exit");
+    CoUninitialize();
+    }
+  //}}}
+  //{{{
+  void signalThread() {
+
+    CoInitializeEx (NULL, COINIT_MULTITHREADED);
+    cLog::setThreadName ("sig ");
+
+    while (true) {
+      if (mScanningTuner) {
+        long signal = 0;
+        mScanningTuner->get_SignalStrength (&signal);
+        mSignal = signal / 0x10000;
+        }
+      Sleep (100);
+      }
+
+    cLog::log (LOGINFO, "exit");
     CoUninitialize();
     }
   //}}}
