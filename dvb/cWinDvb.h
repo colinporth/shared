@@ -161,6 +161,7 @@ public:
       cLog::log (LOGERROR, "stop graph failed " + dec(hr));
 
     mGrabberCB.clear();
+    clear();
     }
   //}}}
 
