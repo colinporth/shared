@@ -41,18 +41,10 @@ DEFINE_GUID (CLSID_Dump, 0x36a5f770, 0xfe4c, 0x11ce, 0xa8, 0xed, 0x00, 0xaa, 0x0
 #include "cDumpTransportStream.h"
 //}}}
 
-class cDvb {
+class cDvb : public cDumpTransportStream {
 public:
-  //{{{
-  cDvb (const std::string& root){
-    mDvbTs = new cDumpTransportStream (root, false);
-    }
-  //}}}
-  //{{{
-  ~cDvb() {
-    delete mDvbTs;
-    }
-  //}}}
+  cDvb (const std::string& root) : cDumpTransportStream (root, false) {}
+  virtual ~cDvb() {}
 
   int getSignal() { return mSignal; }
 
@@ -185,7 +177,7 @@ public:
       while (true) {
         auto ptr = getBlock (blockSize);
         if (blockSize) {
-          streamPos += mDvbTs->demux (ptr, blockSize, streamPos, false, -1);
+          streamPos += demux (ptr, blockSize, streamPos, false, -1);
           releaseBlock (blockSize);
           }
         else
@@ -221,7 +213,6 @@ public:
 
   // vars - public for widget
   int mSignal = 0;
-  cDumpTransportStream* mDvbTs;
 
 private:
   //{{{

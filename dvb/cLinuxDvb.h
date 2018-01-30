@@ -13,7 +13,7 @@
 using namespace std;
 //}}}
 
-class cDvb : public cBipBuffer {
+class cDvb : public cDumpTransportStream, public cBipBuffer {
 public:
   cDvb (const string& root);
   virtual ~cDvb();
@@ -26,7 +26,6 @@ public:
   void readThread (const string& inTs);
 
   // public for widgets
-  cDumpTransportStream mTs;
   std::string mTuneStr = "untuned";
   std::string mSignalStr = "signal";
   std::string mPacketStr = "packet";

@@ -25,7 +25,7 @@ using namespace std;
 
 // public:
 //{{{
-cDvb::cDvb (const string& root) : mTs(root, true) {
+cDvb::cDvb (const string& root) : cDumpTrnsportStream (root, true) {
   allocateBuffer (2048 * 128 * 188); // 50m - T2 5m a second
   }
 //}}}
@@ -127,18 +127,18 @@ void cDvb::grabThread() {
     int blockSize = 0;
     auto ptr = getContiguousBlock (blockSize);
     if (blockSize > 0) {
-      streamPos += mTs.demux (ptr, blockSize, 0, false, -1);
+      streamPos += demux (ptr, blockSize, 0, false, -1);
       decommitBlock (blockSize);
 
-      bool show = (mTs.getDiscontinuity() != mLastDiscontinuity) || (blockSize > mLastBlockSize);
-      mLastDiscontinuity = mTs.getDiscontinuity();
+      bool show = (getDiscontinuity() != mLastDiscontinuity) || (blockSize > mLastBlockSize);
+      mLastDiscontinuity = getDiscontinuity();
       if (blockSize > mLastBlockSize)
         mLastBlockSize = blockSize;
       if (blockSize > mMaxBlockSize)
         mMaxBlockSize = blockSize;
 
-      mPacketStr = dec(mTs.getDiscontinuity()) +
-                   ":" + dec(mTs.getPackets()) +
+      mPacketStr = dec(getDiscontinuity()) +
+                   ":" + dec(getPackets()) +
                    " " + dec(blockSize,6) +
                    ":" + dec(mMaxBlockSize);
       updateSignalString();
@@ -174,10 +174,10 @@ void cDvb::readThread (const string& inTs) {
   while (run) {
     int bytesRead = fread (buffer, 1, blockSize, file);
     if (bytesRead > 0)
-      streamPos += mTs.demux (buffer, bytesRead, streamPos, false, -1);
+      streamPos += demux (buffer, bytesRead, streamPos, false, -1);
     else
       break;
-    mPacketStr = dec(mTs.getDiscontinuity()) + ":" + dec(mTs.getPackets());
+    mPacketStr = dec(getDiscontinuity()) + ":" + dec(getPackets());
     }
 
   fclose (file);
