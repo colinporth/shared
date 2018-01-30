@@ -76,29 +76,31 @@ private:
     void create (const std::string& name, cService* service) {
 
       mFile = fopen (name.c_str(), "wb");
+      if (mFile) {
+        writePat (0x1234, service->getSid(), kPgmPid); // tsid, sid, pgmPid
 
-      writePat (0x1234, service->getSid(), kPgmPid); // tsid, sid, pgmPid
-
-      writePmt (service->getSid(), kPgmPid, service->getVidPid(),
-                service->getVidPid(), service->getVidStreamType(),
-                service->getAudPid(), service->getAudStreamType());
+        writePmt (service->getSid(), kPgmPid, service->getVidPid(),
+                  service->getVidPid(), service->getVidStreamType(),
+                  service->getAudPid(), service->getAudStreamType());
+        }
+      else
+        cLog::log (LOGERROR, "cRecordService::create failed");
       }
     //}}}
     //{{{
     void writePes (int pid, uint8_t* ts) {
 
       //cLog::log (LOGINFO, "writePes");
-      if ((pid == mVidPid) || (pid == mAudPid))
+      if (mFile && ((pid == mVidPid) || (pid == mAudPid)))
         fwrite (ts, 1, 188, mFile);
       }
     //}}}
     //{{{
     void close() {
 
-      if (mFile) {
+      if (mFile) 
         fclose (mFile);
-        mFile = nullptr;
-        }
+      mFile = nullptr;
       }
     //}}}
 
