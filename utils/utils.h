@@ -199,7 +199,7 @@ inline std::string getTimetShortString (const time_t& time) {
 //}}}
 
 //{{{
-inline std::string validString (const std::string& str, const char* inValidChars) {
+inline std::string validFileString (const std::string& str, const char* inValidChars) {
 
   auto validStr = str;
   for (auto i = 0u; i < strlen(inValidChars); ++i)

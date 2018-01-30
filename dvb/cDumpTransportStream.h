@@ -32,7 +32,7 @@ public:
           std::map<int,cRecordService>::value_type (
             service->getSid(), cRecordService (service->getVidPid(), service->getAudPid()))).first;
 
-        auto validFileName = validString (service->getNameString() + " - " + name, "<>:/|?*\"\'\\");
+        auto validFileName = validFileString (name, "<>:/|?*\"\'\\");
         auto str = mRootName + "/" + validFileName + " - " + getTimetDateString (startTime) + ".ts";
         cLog::log (LOGNOTICE, "start file " + str);
 
@@ -98,7 +98,7 @@ private:
     //{{{
     void close() {
 
-      if (mFile) 
+      if (mFile)
         fclose (mFile);
       mFile = nullptr;
       }
