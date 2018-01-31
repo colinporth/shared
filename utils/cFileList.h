@@ -1,4 +1,4 @@
-// cFileList.h
+// cFileList.h - windows only for now
 //{{{  includes
 #pragma once
 
