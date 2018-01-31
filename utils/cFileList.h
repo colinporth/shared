@@ -15,23 +15,69 @@
 //{{{
 class cFileItem {
 public:
-  cFileItem (const std::string& path) : mPath(path) {}
+  //{{{
+  cFileItem (const std::string& pathName, const std::string& fileName) :
+      mPathName(pathName), mFileName(fileName) {
+
+    if (pathName.empty()) {
+      // extract any path name from filename
+      std::string::size_type lastSlashPos = mFileName.rfind ('\\');
+      if (lastSlashPos != std::string::npos) {
+        mPathName = std::string (mFileName, 0, lastSlashPos);
+        mFileName = mFileName.substr (lastSlashPos+1);
+        }
+      }
+
+    // extract any extension from filename
+    std::string::size_type lastDotPos = mFileName.rfind ('.');
+    if (lastDotPos != std::string::npos) {
+      mExtension = mFileName.substr (lastDotPos+1);
+      mFileName = std::string (mFileName, 0, lastDotPos);
+      }
+    }
+  //}}}
   virtual ~cFileItem() {}
 
-  std::string getPath() { return mPath; }
+  std::string getPathName() { return mPathName; }
+  std::string getFileName() { return mFileName; }
+  std::string getExtension() { return mExtension; }
+  std::string getFullName() {
+    return (mPathName.empty() ? mFileName : mPathName + "/" + mFileName) +
+           (mExtension.empty() ? "" : "." + mExtension); }
 
 private:
-  std::string mPath;
+  std::string mPathName;
+  std::string mFileName;
+  std::string mExtension;
+  // size
+  // creation data
   };
 //}}}
 
 class cFileList {
 public:
   //{{{
-  cFileList(const string& fileName, const std::string& matchString) :
-      mFileName(fileName), mMatchString(matchString) {
+  cFileList (const string& fileName, const std::string& matchString) {
 
-    getFiles();
+    if (!fileName.empty()) {
+      mMatchString = matchString;
+
+      auto resolvedFileName = fileName;
+      if (mFileName.find (".lnk") <= fileName.size()) {
+        resolvedFileName = resolveShortcut (fileName);
+        if (resolvedFileName.empty()) {
+          cLog::log (LOGERROR, "cFileList - link " + fileName + " unresolved");
+          return;
+          }
+        }
+
+      if (GetFileAttributesA (resolvedFileName.c_str()) & FILE_ATTRIBUTE_DIRECTORY) {
+        mWatchName = resolvedFileName;
+        scanDirectory ("", resolvedFileName);
+        }
+      else if (!resolvedFileName.empty())
+        mFileItemList.push_back (cFileItem ("", resolvedFileName));
+      }
     }
   //}}}
   virtual ~cFileList() {}
@@ -46,6 +92,8 @@ public:
   cFileItem getCurFileItem() { return getFileItem (mItemIndex); }
   cFileItem getFileItem (int index) { return mFileItemList[index]; }
   //}}}
+
+  // actions
   void setChanged() { mChanged = true; }
   void resetChanged() { mChanged = false; }
   void setIndex (int index) { mItemIndex = index; }
@@ -71,36 +119,38 @@ public:
   //{{{
   void watchThread() {
 
-    CoInitializeEx (NULL, COINIT_MULTITHREADED);
-    cLog::setThreadName ("wtch");
+    if (!mWatchName.empty()) {
+      CoInitializeEx (NULL, COINIT_MULTITHREADED);
+      cLog::setThreadName ("wtch");
 
-    // Watch the directory for file creation and deletion.
-    auto handle = FindFirstChangeNotification (mFileName.c_str(), TRUE,
-                                               FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME);
-    if (handle == INVALID_HANDLE_VALUE)
-     cLog::log (LOGERROR, "FindFirstChangeNotification function failed");
+      // Watch the directory for file creation and deletion.
+      auto handle = FindFirstChangeNotification (mWatchName.c_str(), TRUE,
+                                                 FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME);
+      if (handle == INVALID_HANDLE_VALUE)
+       cLog::log (LOGERROR, "FindFirstChangeNotification function failed");
 
-    //while (!getExit()) {
-    while (true) {
-      cLog::log (LOGINFO, "Waiting for notification");
-      if (WaitForSingleObject (handle, INFINITE) == WAIT_OBJECT_0) {
-        // A file was created, renamed, or deleted in the directory.
-        getFiles();
-        if (FindNextChangeNotification (handle) == FALSE)
-          cLog::log (LOGERROR, "FindNextChangeNotification function failed");
+      //while (!getExit()) {
+      while (true) {
+        cLog::log (LOGINFO, "Waiting for notification");
+        if (WaitForSingleObject (handle, INFINITE) == WAIT_OBJECT_0) {
+          // A file was created, renamed, or deleted in the directory.
+          scanDirectory ("", mWatchName);
+          if (FindNextChangeNotification (handle) == FALSE)
+            cLog::log (LOGERROR, "FindNextChangeNotification function failed");
+          }
+        else
+          cLog::log (LOGERROR, "No changes in the timeout period");
         }
-      else
-        cLog::log (LOGERROR, "No changes in the timeout period");
-      }
 
-    cLog::log (LOGINFO, "exit");
-    CoUninitialize();
+      cLog::log (LOGINFO, "exit");
+      CoUninitialize();
+      }
     }
   //}}}
 
 private:
   //{{{
-  bool resolveShortcut (const std::string& shortcut, std::string& fullName) {
+  std::string resolveShortcut (const std::string& shortcut) {
 
     // get IShellLink interface
     IShellLinkA* iShellLink;
@@ -124,23 +174,23 @@ private:
             // Get the description of the target
             char szDesc[MAX_PATH];
             if (iShellLink->GetDescription (szDesc, MAX_PATH) == S_OK) {
+              std::string fullName;
               lstrcpynA ((char*)fullName.c_str(), szPath, MAX_PATH);
-              return true;
+              return fullName;
               }
             }
           }
         }
       }
 
-    fullName[0] = '\0';
-    return false;
+    return "";
     }
   //}}}
   //{{{
-  void scanDirectory (const std::string& parentName, const string& directoryName) {
+  void scanDirectory (const std::string& parentName, const std::string& directoryName) {
 
-    string pathFileName = parentName.empty() ? directoryName : parentName + "/" + directoryName;
-    string searchStr (pathFileName +  "/*");
+    std::string pathFileName = parentName.empty() ? directoryName : parentName + "/" + directoryName;
+    std::string searchStr (pathFileName +  "/*");
 
     WIN32_FIND_DATAA findFileData;
     auto file = FindFirstFileExA (searchStr.c_str(), FindExInfoBasic, &findFileData,
@@ -151,39 +201,22 @@ private:
           scanDirectory (pathFileName, findFileData.cFileName);
         else if (PathMatchSpecA (findFileData.cFileName, mMatchString.c_str()))
           if ((findFileData.cFileName[0] != '.') && (findFileData.cFileName[0] != '..'))
-            mFileItemList.push_back (cFileItem (pathFileName + "/" + findFileData.cFileName));
+            mFileItemList.push_back (cFileItem (pathFileName, findFileData.cFileName));
         } while (FindNextFileA (file, &findFileData));
 
       FindClose (file);
       }
     }
   //}}}
-  //{{{
-  void getFiles() {
 
-    mFileItemList.clear();
-
-    if (mFileName.empty())
-      return;
-
-    string useFileName = mFileName;
-    if (mFileName.find (".lnk") <= mFileName.size()) {
-      string fullName;
-      if (resolveShortcut (mFileName.c_str(), fullName))
-        useFileName = fullName;
-      }
-
-    if (GetFileAttributesA (useFileName.c_str()) & FILE_ATTRIBUTE_DIRECTORY)
-      scanDirectory ("", useFileName);
-    else if (!useFileName.empty())
-      mFileItemList.push_back (cFileItem (useFileName));
-    }
-  //}}}
-
+  // vars
   concurrency::concurrent_vector <cFileItem> mFileItemList;
 
   std::string mFileName;
   std::string mMatchString;
+
+  std::string mWatchName;
+
   int mItemIndex = 0;
   bool mChanged = false;
   };
