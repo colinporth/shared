@@ -72,7 +72,7 @@ public:
         }
 
       if (GetFileAttributesA (resolvedFileName.c_str()) & FILE_ATTRIBUTE_DIRECTORY) {
-        mWatchName = resolvedFileName;
+        mWatchRootName = resolvedFileName;
         scanDirectory ("", resolvedFileName);
         }
       else if (!resolvedFileName.empty())
@@ -92,7 +92,7 @@ public:
   // actions
   void setIndex (int index) { mItemIndex = index; }
   //{{{
-  bool prev() {
+  bool prevIndex() {
     if (!empty() && (mItemIndex > 0)) {
       mItemIndex--;
       return true;
@@ -101,7 +101,7 @@ public:
     }
   //}}}
   //{{{
-  bool next() {
+  bool nextIndex() {
     if (!empty() && (mItemIndex < size()-1)) {
       mItemIndex++;
       return true;
@@ -113,12 +113,12 @@ public:
   //{{{
   void watchThread() {
 
-    if (!mWatchName.empty()) {
+    if (!mWatchRootName.empty()) {
       CoInitializeEx (NULL, COINIT_MULTITHREADED);
       cLog::setThreadName ("wtch");
 
       // Watch the directory for file creation and deletion.
-      auto handle = FindFirstChangeNotification (mWatchName.c_str(), TRUE,
+      auto handle = FindFirstChangeNotification (mWatchRootName.c_str(), TRUE,
                                                  FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME);
       if (handle == INVALID_HANDLE_VALUE)
        cLog::log (LOGERROR, "FindFirstChangeNotification function failed");
@@ -129,7 +129,7 @@ public:
         if (WaitForSingleObject (handle, INFINITE) == WAIT_OBJECT_0) {
           // A file was created, renamed, or deleted in the directory.
           mFileItemList.clear();
-          scanDirectory ("", mWatchName);
+          scanDirectory ("", mWatchRootName);
           if (FindNextChangeNotification (handle) == FALSE)
             cLog::log (LOGERROR, "FindNextChangeNotification function failed");
           }
@@ -184,8 +184,8 @@ private:
   //{{{
   void scanDirectory (const std::string& parentName, const std::string& directoryName) {
 
-    std::string pathFileName = parentName.empty() ? directoryName : parentName + "/" + directoryName;
-    std::string searchStr (pathFileName +  "/*");
+    auto pathFileName = parentName.empty() ? directoryName : parentName + "/" + directoryName;
+    auto searchStr = pathFileName +  "/*";
 
     WIN32_FIND_DATAA findFileData;
     auto file = FindFirstFileExA (searchStr.c_str(), FindExInfoBasic, &findFileData,
@@ -209,8 +209,7 @@ private:
 
   std::string mFileName;
   std::string mMatchString;
-
-  std::string mWatchName;
+  std::string mWatchRootName;
 
   int mItemIndex = 0;
   };
