@@ -82,20 +82,14 @@ public:
   //}}}
   virtual ~cFileList() {}
 
-  //{{{  gets
+  // gets
   int size() { return (int)mFileItemList.size(); }
   bool empty() { return mFileItemList.empty(); }
-
   bool isCurIndex (int index) { return mItemIndex == index; }
-  bool isChanged() { return mChanged; }
-
   cFileItem getCurFileItem() { return getFileItem (mItemIndex); }
   cFileItem getFileItem (int index) { return mFileItemList[index]; }
-  //}}}
 
   // actions
-  void setChanged() { mChanged = true; }
-  void resetChanged() { mChanged = false; }
   void setIndex (int index) { mItemIndex = index; }
   //{{{
   bool prev() {
@@ -134,6 +128,7 @@ public:
         cLog::log (LOGINFO, "Waiting for notification");
         if (WaitForSingleObject (handle, INFINITE) == WAIT_OBJECT_0) {
           // A file was created, renamed, or deleted in the directory.
+          mFileItemList.clear();
           scanDirectory ("", mWatchName);
           if (FindNextChangeNotification (handle) == FALSE)
             cLog::log (LOGERROR, "FindNextChangeNotification function failed");
@@ -218,5 +213,4 @@ private:
   std::string mWatchName;
 
   int mItemIndex = 0;
-  bool mChanged = false;
   };
