@@ -6410,7 +6410,7 @@ public:
     }
   //}}}
 
-  //  gets
+  //{{{  gets
   int getSid() const { return mSid; }
 
   int getProgramPid() const { return mProgramPid; }
@@ -6427,7 +6427,21 @@ public:
   std::map<time_t,cEpgItem*>& getEpgItemMap() { return mEpgItemMap; }
   std::string getNowTitleString() { return mNowEpgItem ? mNowEpgItem->getTitleString() : ""; }
 
-  // sets
+  //{{{
+  bool isEpgRecord (const std::string& title, time_t startTime) {
+  // return true if startTime, title selected to record in epg
+
+    auto epgItemIt = mEpgItemMap.find (startTime);
+    if (epgItemIt != mEpgItemMap.end())
+      if (title == epgItemIt->second->getTitleString())
+        if (epgItemIt->second->getRecord())
+          return true;
+
+    return false;
+    }
+  //}}}
+  //}}}
+  //{{{  sets
   //{{{
   void setVidPid (int pid, int streamType) {
     mVidPid = pid;
@@ -6483,20 +6497,39 @@ public:
     return true;
     }
   //}}}
+  //}}}
 
+  // file
   //{{{
-  bool isEpgRecord (const std::string& title, time_t startTime) {
-  // return true if startTime,title selected to record in epg
+  bool openFile (const std::string& fileName, int tsid, int pgmPid) {
 
-    auto epgItemIt = mEpgItemMap.find (startTime);
-    if (epgItemIt != mEpgItemMap.end())
-      if (title == epgItemIt->second->getTitleString())
-        if (epgItemIt->second->getRecord())
-          return true;
+    mFile = fopen (fileName.c_str(), "wb");
+    if (mFile) {
+      writePat (tsid);
+      writePmt();
+      return true;
+      }
 
+    cLog::log (LOGERROR, "cService::openFile " + fileName);
     return false;
     }
   //}}}
+  //{{{
+  void writePacket (uint8_t* ts, int pid) {
+
+    if (mFile && ((pid == mVidPid) || (pid == mAudPid)))
+      fwrite (ts, 1, 188, mFile);
+    }
+  //}}}
+  //{{{
+  void closeFile() {
+
+    if (mFile)
+      fclose (mFile);
+    mFile = nullptr;
+    }
+  //}}}
+
   //{{{
   void print() {
     cLog::log (LOGINFO, "sid:" + dec(mSid) +
@@ -6510,35 +6543,6 @@ public:
       mNowEpgItem->print ("");
     for (auto epgItem : mEpgItemMap)
       epgItem.second->print ("- ");
-    }
-  //}}}
-
-  //{{{
-  bool openFile (const std::string& fileName, int tsid, int pgmPid) {
-
-    mFile = fopen (fileName.c_str(), "wb");
-    if (mFile) {
-      writePat (tsid, pgmPid);
-      writePmt (pgmPid);
-      return true;
-      }
-
-    return false;
-    }
-  //}}}
-  //{{{
-  void writePesPacket (uint8_t* ts, int pid) {
-
-    if (mFile && (pid == mVidPid || (pid == mAudPid)))
-      fwrite (ts, 1, 188, mFile);
-    }
-  //}}}
-
-  //{{{
-  void closeFile() {
-    if (mFile)
-      fclose (mFile);
-    mFile = nullptr;
     }
   //}}}
 
@@ -6558,9 +6562,8 @@ private:
     }
   //}}}
   //{{{
-  void writePat (int tsid, int pgmPid) {
+  void writePat (int tsid) {
 
-    //cLog::log (LOGINFO, "writePat");
     uint8_t ts[188];
     uint8_t* tsSectionStart = tsHeader (ts, PID_PAT, 0);
     uint8_t* tsPtr = tsSectionStart;
@@ -6579,18 +6582,17 @@ private:
 
     *tsPtr++ = (mSid & 0xFF00) >> 8;                    // first section serviceId
     *tsPtr++ =  mSid & 0x00FF;
-    *tsPtr++ = 0xE0 | ((pgmPid & 0x1F00) >> 8);        // first section pgmPid
-    *tsPtr++ = pgmPid & 0x00FF;
+    *tsPtr++ = 0xE0 | ((mProgramPid & 0x1F00) >> 8);        // first section pgmPid
+    *tsPtr++ = mProgramPid & 0x00FF;
 
     writeSection (ts, tsSectionStart, tsPtr);
     }
   //}}}
   //{{{
-  void writePmt (int pgmPid) {
+  void writePmt() {
 
-    //cLog::log (LOGINFO, "writePmt");
     uint8_t ts[188];
-    uint8_t* tsSectionStart = tsHeader (ts, pgmPid, 0);
+    uint8_t* tsSectionStart = tsHeader (ts, mProgramPid, 0);
     uint8_t* tsPtr = tsSectionStart;
 
     int sectionLength = 23; // 5+4 + program_info_length + esStreams * (5 + ES_info_length) + 4
@@ -7104,7 +7106,7 @@ public:
                 //}}}
               else if ((decodePid == -1) || (decodePid == pid)) {
                 //{{{  pes packet
-                pesPacket (pidInfo, ts-1);
+                pesPacket (pidInfo->mSid, pidInfo->mPid, ts-1);
 
                 ts += headerBytes;
                 tsBytesLeft -= headerBytes;
@@ -7191,7 +7193,7 @@ protected:
   virtual bool vidDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
 
   virtual void start (cService* service, const std::string& name, time_t startTime, bool selected) {}
-  virtual void pesPacket (cPidInfo* pidInfo, uint8_t* ts) {}
+  virtual void pesPacket (int sid, int pid, uint8_t* ts) {}
   virtual void stop (cService* service) {}
 
   //{{{
@@ -7209,6 +7211,7 @@ protected:
     }
   //}}}
 
+  // vars
   std::mutex mMutex;
   std::map<int,cPidInfo> mPidInfoMap;
   std::map<int,cService> mServiceMap;
