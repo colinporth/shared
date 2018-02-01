@@ -8,6 +8,8 @@
 #include <shlwapi.h>
 
 #include <vector>
+#include <chrono>
+#include "date.h"
 
 #pragma comment(lib,"shlwapi.lib")
 //}}}
@@ -15,6 +17,8 @@
 //{{{
 class cFileItem {
 public:
+  const string kTimeFormatStr = "%D %T";
+
   //{{{
   cFileItem (const std::string& pathName, const std::string& fileName) :
       mPathName(pathName), mFileName(fileName) {
@@ -34,6 +38,19 @@ public:
       mExtension = mFileName.substr (lastDotPos+1);
       mFileName = std::string (mFileName, 0, lastDotPos);
       }
+
+
+    auto fileHandle = CreateFile (getFullName().c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+    mFileSize = GetFileSize (fileHandle, NULL);
+
+    FILETIME creationTime;
+    FILETIME lastAccessTime;
+    FILETIME lastWriteTime;
+    GetFileTime (fileHandle, &creationTime, &lastAccessTime, &lastWriteTime);
+
+    mCreationTimePoint = getFileTimePoint (creationTime);
+    mLastAccessTimePoint = getFileTimePoint (lastAccessTime);
+    mLastWriteTimePoint = getFileTimePoint (lastWriteTime);
     }
   //}}}
   virtual ~cFileItem() {}
@@ -45,12 +62,76 @@ public:
     return (mPathName.empty() ? mFileName : mPathName + "/" + mFileName) +
            (mExtension.empty() ? "" : "." + mExtension); }
 
+  //{{{
+  std::string getFileSizeString() const {
+
+    if (mFileSize < 1000)
+      return dec(mFileSize) + "b";
+
+    if (mFileSize < 1000000)
+      return frac(mFileSize/1000.f,4,1,' ') + "k";
+
+    if (mFileSize < 1000000000)
+      return frac(mFileSize/1000000.f,4,1,' ') + "m";
+
+    return frac(mFileSize/1000000000.f,4,1,' ') + "g";
+    }
+  //}}}
+
+  //{{{
+  std::string getCreationTimeString() const {
+
+    if (mCreationTimePoint.time_since_epoch() == chrono::seconds::zero())
+      return "";
+    else
+      return date::format (kTimeFormatStr, floor<chrono::seconds>(mCreationTimePoint));
+    }
+  //}}}
+  //{{{
+  std::string getLastAccessTimeString() const {
+
+    if (mLastAccessTimePoint.time_since_epoch() == chrono::seconds::zero())
+      return "";
+    else
+      return date::format (kTimeFormatStr, floor<chrono::seconds>(mLastAccessTimePoint));
+    }
+  //}}}
+  //{{{
+  std::string getLastWriteTimeString() const {
+
+    if (mLastWriteTimePoint.time_since_epoch() == chrono::seconds::zero())
+      return "";
+    else
+      return date::format (kTimeFormatStr, floor<chrono::seconds>(mLastWriteTimePoint));
+    }
+  //}}}
+
 private:
+  //{{{
+  chrono::system_clock::time_point getFileTimePoint (FILETIME fileTime) {
+
+    // filetime_duration has the same layout as FILETIME; 100ns intervals
+    using filetime_duration = chrono::duration<int64_t, ratio<1, 10'000'000>>;
+
+    // January 1, 1601 (NT epoch) - January 1, 1970 (Unix epoch):
+    constexpr chrono::duration<int64_t> nt_to_unix_epoch{INT64_C(-11644473600)};
+
+    const filetime_duration asDuration{static_cast<int64_t>(
+        (static_cast<uint64_t>((fileTime).dwHighDateTime) << 32)
+            | (fileTime).dwLowDateTime)};
+    const auto withUnixEpoch = asDuration + nt_to_unix_epoch;
+    return chrono::system_clock::time_point{ chrono::duration_cast<chrono::system_clock::duration>(withUnixEpoch)};
+    }
+  //}}}
+
   std::string mPathName;
   std::string mFileName;
   std::string mExtension;
-  // size
-  // creation data
+
+  uint64_t mFileSize = 0;
+  std::chrono::time_point<std::chrono::system_clock> mCreationTimePoint;
+  std::chrono::time_point<std::chrono::system_clock> mLastAccessTimePoint;
+  std::chrono::time_point<std::chrono::system_clock> mLastWriteTimePoint;
   };
 //}}}
 
