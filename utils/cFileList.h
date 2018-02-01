@@ -48,6 +48,8 @@ public:
     FILETIME lastWriteTime;
     GetFileTime (fileHandle, &creationTime, &lastAccessTime, &lastWriteTime);
 
+    CloseHandle (fileHandle);
+
     mCreationTimePoint = getFileTimePoint (creationTime);
     mLastAccessTimePoint = getFileTimePoint (lastAccessTime);
     mLastWriteTimePoint = getFileTimePoint (lastWriteTime);
