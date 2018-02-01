@@ -6,7 +6,7 @@ class cDumpTransportStream : public cTransportStream {
 public:
   cDumpTransportStream (const std::string& rootName, bool recordAll) :
     mRootName(rootName), mRecordAll(recordAll) {}
-  virtual ~cDumpTransportStream() { clear(); }
+  virtual ~cDumpTransportStream() {}
 
 protected:
   //{{{
@@ -29,12 +29,6 @@ protected:
     }
   //}}}
   //{{{
-  void stop (cService* service) {
-
-    service->closeFile();
-    }
-  //}}}
-  //{{{
   void pesPacket (cPidInfo* pidInfo, uint8_t* ts) {
   // save pes packet
 
@@ -42,6 +36,12 @@ protected:
     auto serviceIt = mServiceMap.find (pidInfo->mSid);
     if (serviceIt != mServiceMap.end())
       serviceIt->second.writePesPacket (ts, pidInfo->mPid);
+    }
+  //}}}
+  //{{{
+  void stop (cService* service) {
+
+    service->closeFile();
     }
   //}}}
 

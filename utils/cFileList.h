@@ -38,10 +38,10 @@ public:
   //}}}
   virtual ~cFileItem() {}
 
-  std::string getPathName() { return mPathName; }
-  std::string getFileName() { return mFileName; }
-  std::string getExtension() { return mExtension; }
-  std::string getFullName() {
+  std::string getPathName() const { return mPathName; }
+  std::string getFileName() const { return mFileName; }
+  std::string getExtension() const { return mExtension; }
+  std::string getFullName() const {
     return (mPathName.empty() ? mFileName : mPathName + "/" + mFileName) +
            (mExtension.empty() ? "" : "." + mExtension); }
 
@@ -205,11 +205,10 @@ private:
   //}}}
 
   // vars
-  concurrency::concurrent_vector <cFileItem> mFileItemList;
-
   std::string mFileName;
   std::string mMatchString;
   std::string mWatchRootName;
 
+  concurrency::concurrent_vector <cFileItem> mFileItemList;
   int mItemIndex = 0;
   };

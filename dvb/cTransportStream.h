@@ -7021,7 +7021,7 @@ public:
   // - return bytes decoded
 
     if (skip)
-      clearContinuity();
+      clearPidContinuity();
 
     auto ts = tsBuf;
     auto tsEnd = tsBuf + tsBufSize;
@@ -7191,17 +7191,18 @@ protected:
   virtual bool vidDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
 
   virtual void start (cService* service, const std::string& name, time_t startTime, bool selected) {}
-  virtual void stop (cService* service) {}
   virtual void pesPacket (cPidInfo* pidInfo, uint8_t* ts) {}
+  virtual void stop (cService* service) {}
+
   //{{{
-  void clearCounts() {
+  void clearPidCounts() {
 
     for (auto &pidInfo : mPidInfoMap)
       pidInfo.second.clearCounts();
     }
   //}}}
   //{{{
-  void clearContinuity() {
+  void clearPidContinuity() {
 
     for (auto &pidInfo : mPidInfoMap)
       pidInfo.second.clearContinuity();
