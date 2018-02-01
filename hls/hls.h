@@ -41,7 +41,7 @@ public:
   enum ePlaying { ePause, eScrub, ePlay };
   //{{{
   cHls (int chan, int bitrate, int daylightSeconds) :
-      mChan(chan), mLoadSem("load"), mBitrate(bitrate), mDaylightSeconds(daylightSeconds) {
+      mChan(chan), mLoadSem("hlsLoad"), mBitrate(bitrate), mDaylightSeconds(daylightSeconds) {
     mDecoder = new cAacDecoder();
     }
   //}}}
