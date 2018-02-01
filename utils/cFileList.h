@@ -17,8 +17,6 @@
 //{{{
 class cFileItem {
 public:
-  const string kTimeFormatStr = "%D %T";
-
   //{{{
   cFileItem (const std::string& pathName, const std::string& fileName) :
       mPathName(pathName), mFileName(fileName) {
@@ -109,6 +107,8 @@ public:
   //}}}
 
 private:
+  const string kTimeFormatStr = "%D %T";
+
   //{{{
   chrono::system_clock::time_point getFileTimePoint (FILETIME fileTime) {
 
