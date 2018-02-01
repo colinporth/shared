@@ -69,12 +69,12 @@ public:
       return dec(mFileSize) + "b";
 
     if (mFileSize < 1000000)
-      return frac(mFileSize/1000.f,4,1,' ') + "k";
+      return frac((float)mFileSize/1000.f,4,1,' ') + "k";
 
     if (mFileSize < 1000000000)
-      return frac(mFileSize/1000000.f,4,1,' ') + "m";
+      return frac((float)mFileSize/1000000.f,4,1,' ') + "m";
 
-    return frac(mFileSize/1000000000.f,4,1,' ') + "g";
+    return frac((float)mFileSize/1000000000.f,4,1,' ') + "g";
     }
   //}}}
 
@@ -166,9 +166,11 @@ public:
   virtual ~cFileList() {}
 
   // gets
-  int size() { return (int)mFileItemList.size(); }
+  size_t size() { return mFileItemList.size(); }
   bool empty() { return mFileItemList.empty(); }
+
   bool isCurIndex (int index) { return mItemIndex == index; }
+  unsigned getIndex() { return mItemIndex; }
   cFileItem getCurFileItem() { return getFileItem (mItemIndex); }
   cFileItem getFileItem (int index) { return mFileItemList[index]; }
 
@@ -293,5 +295,5 @@ private:
   std::string mWatchRootName;
 
   concurrency::concurrent_vector <cFileItem> mFileItemList;
-  int mItemIndex = 0;
+  unsigned mItemIndex = 0;
   };
