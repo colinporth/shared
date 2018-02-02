@@ -12,17 +12,16 @@ public:
 
 protected:
   //{{{
-  void start (cService* service, const std::string& name,
-              std::chrono::system_clock::time_point startTime, bool selected) {
+  void start (cService* service, const std::string& name, std::chrono::system_clock::time_point time, bool selected) {
 
     service->closeFile();
 
     if (selected || mRecordAll) {
       if ((service->getVidPid() > 0) && (service->getAudPid() > 0)) {
-        auto validFileName = validFileString (name, "<>:/|?*\"\'\\");
+        auto validName = validFileString (name, "<>:/|?*\"\'\\");
         service->openFile (
-          mRootName + "/" + validFileName + " @ " +
-          date::format ("%D %T", floor<std::chrono::seconds>(startTime)) + ".ts",
+          //mRootName + "/" + validName + "@" + date::format ("%H:%M %a %d %b %Y", floor<std::chrono::seconds>(time)) + ".ts",
+          mRootName + "/" + validName + "@" + date::format ("%H:%M", floor<std::chrono::seconds>(time)) + ".ts",
           0x1234, 32);
         }
       }

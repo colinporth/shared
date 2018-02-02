@@ -6475,10 +6475,7 @@ public:
     if (mNowEpgItem && (mNowEpgItem->getStartTime() == startTime))
       return false;
 
-    cLog::log (LOGINFO, "delete cEpgItem");
     delete mNowEpgItem;
-
-    cLog::log (LOGINFO, "new cEpgItem");
     mNowEpgItem = new cEpgItem (true, record, startTime, duration, str1, str2);
     return true;
     }
