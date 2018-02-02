@@ -14,7 +14,7 @@ protected:
   //{{{
   void start (cService* service, const std::string& name, std::chrono::system_clock::time_point time, bool selected) {
 
-    std::lock_guard<std::mutex> lockGuard (mMutex);
+    std::lock_guard<std::mutex> lockGuard (mFileMutex);
 
     service->closeFile();
 
@@ -31,7 +31,7 @@ protected:
   void pesPacket (int sid, int pid, uint8_t* ts) {
   // look up service and write it
 
-    std::lock_guard<std::mutex> lockGuard (mMutex);
+    std::lock_guard<std::mutex> lockGuard (mFileMutex);
 
     auto serviceIt = mServiceMap.find (sid);
     if (serviceIt != mServiceMap.end())
@@ -41,13 +41,14 @@ protected:
   //{{{
   void stop (cService* service) {
 
-    std::lock_guard<std::mutex> lockGuard (mMutex);
+    std::lock_guard<std::mutex> lockGuard (mFileMutex);
 
     service->closeFile();
     }
   //}}}
 
 private:
+  std::mutex mFileMutex;
   std::string mRootName;
   bool mRecordAll;
   };
