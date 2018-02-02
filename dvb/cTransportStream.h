@@ -6500,7 +6500,7 @@ public:
 
   // file
   //{{{
-  bool openFile (const std::string& fileName, int tsid, int pgmPid) {
+  bool openFile (const std::string& fileName, int tsid) {
 
     mFile = fopen (fileName.c_str(), "wb");
     if (mFile) {
