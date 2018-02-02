@@ -6347,25 +6347,23 @@ public:
 class cEpgItem {
 public:
   //{{{
-  cEpgItem (bool now, bool record, system_clock::time_point startTime, seconds duration,
+  cEpgItem (bool now, bool record, system_clock::time_point time, seconds duration,
             const string& title, string description) :
-    mNow(now), mRecord(record),
-    mStartTime(startTime), mDuration(duration), mTitle(title), mDescription(description) {}
+    mNow(now), mRecord(record), mTime(time), mDuration(duration), mTitle(title), mDescription(description) {}
   //}}}
   ~cEpgItem() { cLog::log (LOGINFO3, "~cEpgItem"); }
 
   bool getRecord() { return mRecord; }
-  system_clock::time_point getStartTime() { return mStartTime; }
+  system_clock::time_point getTime() { return mTime; }
   seconds getDuration() { return mDuration; }
   string getTitleString() { return mTitle; }
   string getDesriptionString() { return mDescription; }
 
   //{{{
-  void set (system_clock::time_point startTime, seconds duration,
-            const string& title, const string& description) {
+  void set (system_clock::time_point time, seconds duration, const string& title, const string& description) {
 
     mDuration = duration;
-    mStartTime = startTime;
+    mTime = time;
 
     mTitle = title;
     mDescription = description;
@@ -6380,8 +6378,7 @@ public:
 
   //{{{
   void print (const string& prefix) {
-
-    cLog::log (LOGINFO, prefix + date::format ("%D %T", floor<seconds>(mStartTime)) +
+    cLog::log (LOGINFO, prefix + date::format ("%D %T", floor<seconds>(mTime)) +
                         " " + dec(duration_cast<minutes>(mDuration).count()) + "m" +
                         " " + mTitle);
     }
@@ -6392,7 +6389,7 @@ private:
 
   bool mRecord = false;
 
-  system_clock::time_point mStartTime;
+  system_clock::time_point mTime;
   seconds mDuration;
   string mTitle;
   string mDescription;
@@ -6472,14 +6469,14 @@ public:
   void setSubPid (int pid, int streamType) { mSubPid = pid; }
   void setProgramPid (int pid) { mProgramPid = pid; }
   //{{{
-  bool setNow (bool record, system_clock::time_point startTime, seconds duration,
+  bool setNow (bool record, system_clock::time_point time, seconds duration,
                const string& str1, const string& str2) {
 
-    if (mNowEpgItem && (mNowEpgItem->getStartTime() == startTime))
+    if (mNowEpgItem && (mNowEpgItem->getTime() == time))
       return false;
 
     delete mNowEpgItem;
-    mNowEpgItem = new cEpgItem (true, record, startTime, duration, str1, str2);
+    mNowEpgItem = new cEpgItem (true, record, time, duration, str1, str2);
     return true;
     }
   //}}}
@@ -6992,7 +6989,7 @@ public:
   uint64_t getPackets() { return mPackets; }
   uint64_t getDiscontinuity() { return mDiscontinuity; }
 
-  system_clock::time_point getCurTime() { return mCurTime; }
+  system_clock::time_point getTime() { return mTime; }
   //{{{
   cService* getService (int index, int64_t& firstPts, int64_t& lastPts) {
 
@@ -7718,14 +7715,14 @@ private:
     //cLog::log (LOGINFO, "parseTdt");
     auto tdt = (sTdt*)buf;
     if (tdt->table_id == TID_TDT) {
-      mCurTime = system_clock::from_time_t (MjdToEpochTime (tdt->utc_mjd) + BcdTimeToSeconds (tdt->utc_time));
+      mTime = system_clock::from_time_t (MjdToEpochTime (tdt->utc_mjd) + BcdTimeToSeconds (tdt->utc_time));
       if (!mTimeDefined) {
-        mFirstTime = mCurTime;
+        mFirstTime = mTime;
         mTimeDefined = true;
         }
 
       pidInfo->mInfoStr = date::format ("%T", floor<seconds>(mFirstTime)) +
-                          " to " + date::format ("%T", floor<seconds>(mCurTime));
+                          " to " + date::format ("%T", floor<seconds>(mTime));
       }
     }
   //}}}
@@ -7840,6 +7837,6 @@ private:
   map<int,int> mProgramMap;
 
   bool mTimeDefined = false;
-  system_clock::time_point mCurTime;
+  system_clock::time_point mTime;
   system_clock::time_point mFirstTime;
   };

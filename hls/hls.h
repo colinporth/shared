@@ -315,9 +315,9 @@ public:
   //}}}
 
   //{{{  vars
-  chrono::time_point<chrono::system_clock> mBaseTimePoint;
-  chrono::time_point<chrono::system_clock> mBaseDatePoint;
-  chrono::time_point<chrono::system_clock> mPlayTimePoint;
+  chrono::system_clock::time_point mBaseTimePoint;
+  chrono::system_clock::time_point mBaseDatePoint;
+  chrono::system_clock::time_point mPlayTimePoint;
 
   int mChan = 0;
   bool mChanChanged = true;
@@ -491,7 +491,7 @@ private:
 
     // vars
     uint32_t mSeqNum = 0;
-    chrono::time_point<chrono::system_clock> mTimePoint;
+    chrono::system_clock::time_point mTimePoint;
 
     uint16_t mSrcFramesLoaded = 0;
     bool mLoaded = false;
