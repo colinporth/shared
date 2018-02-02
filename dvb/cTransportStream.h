@@ -16,6 +16,9 @@
 #include "../utils/date.h"
 
 #include "dvbSubtitle.h"
+
+using namespace std;
+using namespace chrono;
 //}}}
 //{{{  huffman
 // const
@@ -6184,7 +6187,7 @@ public:
 
   int getBufUsed() { return int(mBufPtr - mBuffer); }
   //{{{
-  std::string getTypeString() {
+  string getTypeString() {
 
     // known pids
     switch (mPid) {
@@ -6222,13 +6225,13 @@ public:
     }
   //}}}
   //{{{
-  std::string getInfoString() {
+  string getInfoString() {
 
     return (mSid > 0 ? dec(mSid) : "") + (mInfoStr.empty() ? "" : " " + mInfoStr);
     }
   //}}}
   //{{{
-  std::wstring getTypeWstring() {
+  wstring getTypeWstring() {
 
     // known pids
     switch (mPid) {
@@ -6266,7 +6269,7 @@ public:
     }
   //}}}
   //{{{
-  std::wstring getInfoWstring() {
+  wstring getInfoWstring() {
 
     return (mSid > 0 ? wdec(mSid) : L"") + (mInfoStr.empty() ? L"" : L" " + strToWstr(mInfoStr));
     }
@@ -6337,29 +6340,29 @@ public:
 
   int64_t mStreamPos = -1;
 
-  std::string mInfoStr;
+  string mInfoStr;
   };
 //}}}
 //{{{
 class cEpgItem {
 public:
   //{{{
-  cEpgItem (bool now, bool record, std::chrono::system_clock::time_point startTime, std::chrono::seconds duration,
-            const std::string& title, std::string description) :
+  cEpgItem (bool now, bool record, system_clock::time_point startTime, seconds duration,
+            const string& title, string description) :
     mNow(now), mRecord(record),
     mStartTime(startTime), mDuration(duration), mTitle(title), mDescription(description) {}
   //}}}
   ~cEpgItem() { cLog::log (LOGINFO3, "~cEpgItem"); }
 
   bool getRecord() { return mRecord; }
-  std::chrono::system_clock::time_point getStartTime() { return mStartTime; }
-  std::chrono::seconds getDuration() { return mDuration; }
-  std::string getTitleString() { return mTitle; }
-  std::string getDesriptionString() { return mDescription; }
+  system_clock::time_point getStartTime() { return mStartTime; }
+  seconds getDuration() { return mDuration; }
+  string getTitleString() { return mTitle; }
+  string getDesriptionString() { return mDescription; }
 
   //{{{
-  void set (std::chrono::system_clock::time_point startTime, std::chrono::seconds duration,
-            const std::string& title, const std::string& description) {
+  void set (system_clock::time_point startTime, seconds duration,
+            const string& title, const string& description) {
 
     mDuration = duration;
     mStartTime = startTime;
@@ -6376,10 +6379,10 @@ public:
   //}}}
 
   //{{{
-  void print (const std::string& prefix) {
+  void print (const string& prefix) {
 
-    cLog::log (LOGINFO, prefix + date::format ("%D %T", floor<std::chrono::seconds>(mStartTime)) +
-                        " " + dec(std::chrono::duration_cast<std::chrono::minutes>(mDuration).count()) + "m" +
+    cLog::log (LOGINFO, prefix + date::format ("%D %T", floor<seconds>(mStartTime)) +
+                        " " + dec(duration_cast<minutes>(mDuration).count()) + "m" +
                         " " + mTitle);
     }
   //}}}
@@ -6389,10 +6392,10 @@ private:
 
   bool mRecord = false;
 
-  std::chrono::system_clock::time_point mStartTime;
-  std::chrono::seconds mDuration;
-  std::string mTitle;
-  std::string mDescription;
+  system_clock::time_point mStartTime;
+  seconds mDuration;
+  string mTitle;
+  string mDescription;
   };
 //}}}
 //{{{
@@ -6425,12 +6428,12 @@ public:
 
   cEpgItem* getNowEpgItem() { return mNowEpgItem; }
   bool getShowEpg() { return mShowEpg; }
-  std::string getNameString() { return mName; }
-  std::map<std::chrono::system_clock::time_point,cEpgItem*>& getEpgItemMap() { return mEpgItemMap; }
-  std::string getNowTitleString() { return mNowEpgItem ? mNowEpgItem->getTitleString() : ""; }
+  string getNameString() { return mName; }
+  map<system_clock::time_point,cEpgItem*>& getEpgItemMap() { return mEpgItemMap; }
+  string getNowTitleString() { return mNowEpgItem ? mNowEpgItem->getTitleString() : ""; }
 
   //{{{
-  bool isEpgRecord (const std::string& title, std::chrono::system_clock::time_point startTime) {
+  bool isEpgRecord (const string& title, system_clock::time_point startTime) {
   // return true if startTime, title selected to record in epg
 
     auto epgItemIt = mEpgItemMap.find (startTime);
@@ -6465,12 +6468,12 @@ public:
     }
   //}}}
   void toggleShowEpg() { mShowEpg = !mShowEpg; }
-  void setName (const std::string& name) { mName = name;}
+  void setName (const string& name) { mName = name;}
   void setSubPid (int pid, int streamType) { mSubPid = pid; }
   void setProgramPid (int pid) { mProgramPid = pid; }
   //{{{
-  bool setNow (bool record, std::chrono::system_clock::time_point startTime, std::chrono::seconds duration,
-               const std::string& str1, const std::string& str2) {
+  bool setNow (bool record, system_clock::time_point startTime, seconds duration,
+               const string& str1, const string& str2) {
 
     if (mNowEpgItem && (mNowEpgItem->getStartTime() == startTime))
       return false;
@@ -6481,14 +6484,14 @@ public:
     }
   //}}}
   //{{{
-  bool setEpg (bool record, std::chrono::system_clock::time_point startTime, std::chrono::seconds duration,
-               const std::string& title, const std::string& description) {
+  bool setEpg (bool record, system_clock::time_point startTime, seconds duration,
+               const string& title, const string& description) {
   // could return true only if changed
 
     auto epgItemIt = mEpgItemMap.find (startTime);
     if (epgItemIt == mEpgItemMap.end())
       mEpgItemMap.insert (
-        std::map<std::chrono::system_clock::time_point,cEpgItem*>::value_type (
+        map<system_clock::time_point,cEpgItem*>::value_type (
           startTime, new cEpgItem (false, record, startTime, duration, title, description)));
     else
       epgItemIt->second->set (startTime, duration, title, description);
@@ -6500,7 +6503,7 @@ public:
 
   // file
   //{{{
-  bool openFile (const std::string& fileName, int tsid) {
+  bool openFile (const string& fileName, int tsid) {
 
     mFile = fopen (fileName.c_str(), "wb");
     if (mFile) {
@@ -6644,7 +6647,7 @@ private:
   //}}}
 
   const int mSid;
-  std::string mName;
+  string mName;
 
   int mProgramPid = -1;
   int mVidPid = -1;
@@ -6655,7 +6658,7 @@ private:
   int mSubPid = -1;
 
   cEpgItem* mNowEpgItem = nullptr;
-  std::map<std::chrono::system_clock::time_point,cEpgItem*> mEpgItemMap;
+  map<system_clock::time_point,cEpgItem*> mEpgItemMap;
 
   bool mShowEpg = true;
   FILE* mFile = nullptr;
@@ -6749,8 +6752,8 @@ public:
             return 0;
 
           mDecData = *mDecBuffer++;
-          mNumOfBitsInBuffer = std::min(8u, mDecBufferSize) - nbits;
-          mDecBufferSize -= std::min(8u, mDecBufferSize);
+          mNumOfBitsInBuffer = min(8u, mDecBufferSize) - nbits;
+          mDecBufferSize -= min(8u, mDecBufferSize);
           retData |= (mDecData >> mNumOfBitsInBuffer) & msk[nbits];
           }
 
@@ -6989,7 +6992,7 @@ public:
   uint64_t getPackets() { return mPackets; }
   uint64_t getDiscontinuity() { return mDiscontinuity; }
 
-  std::chrono::system_clock::time_point getCurTime() { return mCurTime; }
+  system_clock::time_point getCurTime() { return mCurTime; }
   //{{{
   cService* getService (int index, int64_t& firstPts, int64_t& lastPts) {
 
@@ -7042,7 +7045,7 @@ public:
             int continuityCount = ts[2] & 0x0F;
             int headerBytes =    (ts[2] & 0x20) ? (4 + ts[3]) : 3; // adaption field
 
-            std::lock_guard<std::mutex> lockGuard (mMutex);
+            lock_guard<mutex> lockGuard (mMutex);
             auto pidInfo = getPidInfo (pid, true);
             if (pidInfo) {
               if ((pidInfo->mContinuity >= 0) && (continuityCount != ((pidInfo->mContinuity+1) & 0x0F))) {
@@ -7171,7 +7174,7 @@ public:
   //{{{
   virtual void clear() {
 
-    std::lock_guard<std::mutex> lockGuard (mMutex);
+    lock_guard<mutex> lockGuard (mMutex);
 
     mServiceMap.clear();
     mProgramMap.clear();
@@ -7192,8 +7195,7 @@ protected:
   virtual bool audDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
   virtual bool vidDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
 
-  virtual void start (cService* service, const std::string& name,
-                      std::chrono::system_clock::time_point startTime, bool selected) {}
+  virtual void start (cService* service, const string& name, system_clock::time_point time, bool selected) {}
   virtual void pesPacket (int sid, int pid, uint8_t* ts) {}
   virtual void stop (cService* service) {}
 
@@ -7213,9 +7215,9 @@ protected:
   //}}}
 
   // vars
-  std::mutex mMutex;
-  std::map<int,cPidInfo> mPidInfoMap;
-  std::map<int,cService> mServiceMap;
+  mutex mMutex;
+  map<int,cPidInfo> mPidInfoMap;
+  map<int,cService> mServiceMap;
 
 private:
   //{{{
@@ -7230,7 +7232,7 @@ private:
           (mProgramMap.find (pid) != mProgramMap.end())) {
 
         // create new psi cPidInfo, insert
-        pidInfoIt = mPidInfoMap.insert (std::map<int,cPidInfo>::value_type (
+        pidInfoIt = mPidInfoMap.insert (map<int,cPidInfo>::value_type (
           pid, cPidInfo(pid, createPsiOnly))).first;
 
         // allocate buffer
@@ -7264,9 +7266,9 @@ private:
     }
   //}}}
   //{{{
-  std::string getDescrStr (uint8_t* buf, int len) {
+  string getDescrStr (uint8_t* buf, int len) {
 
-    std::string str;
+    string str;
     for (auto i = 0; i < len; i++) {
       if (*buf == 0)
         break;
@@ -7477,7 +7479,7 @@ private:
         auto sid = HILO (patProgram->program_number);
         auto pid = HILO (patProgram->network_pid);
         if (mProgramMap.find (pid) == mProgramMap.end())
-          mProgramMap.insert (std::map<int,int>::value_type (pid, sid));
+          mProgramMap.insert (map<int,int>::value_type (pid, sid));
 
         sectionLength -= sizeof(sPatProg);
         buf += sizeof(sPatProg);
@@ -7649,9 +7651,9 @@ private:
         while (loopLength > 0) {
           if (getDescrTag (buf) == DESCR_SHORT_EVENT)  {
             //{{{  shortEvent
-            auto startTime = std::chrono::system_clock::from_time_t (MjdToEpochTime (eitEvent->mjd) +
+            auto startTime = system_clock::from_time_t (MjdToEpochTime (eitEvent->mjd) +
                                                                      BcdTimeToSeconds (eitEvent->start_time));
-            std::chrono::seconds duration (BcdTimeToSeconds (eitEvent->duration));
+            seconds duration (BcdTimeToSeconds (eitEvent->duration));
             auto running = (eitEvent->running_status == 0x04);
 
             // get title
@@ -7716,15 +7718,14 @@ private:
     //cLog::log (LOGINFO, "parseTdt");
     auto tdt = (sTdt*)buf;
     if (tdt->table_id == TID_TDT) {
-      mCurTime = std::chrono::system_clock::from_time_t (MjdToEpochTime (tdt->utc_mjd) +
-                                                         BcdTimeToSeconds (tdt->utc_time));
+      mCurTime = system_clock::from_time_t (MjdToEpochTime (tdt->utc_mjd) + BcdTimeToSeconds (tdt->utc_time));
       if (!mTimeDefined) {
         mFirstTime = mCurTime;
         mTimeDefined = true;
         }
 
-      pidInfo->mInfoStr = date::format ("%T", floor<std::chrono::seconds>(mFirstTime)) +
-                          " to " + date::format ("%T", floor<std::chrono::seconds>(mCurTime));
+      pidInfo->mInfoStr = date::format ("%T", floor<seconds>(mFirstTime)) +
+                          " to " + date::format ("%T", floor<seconds>(mCurTime));
       }
     }
   //}}}
@@ -7748,7 +7749,7 @@ private:
       auto serviceIt = mServiceMap.find (sid);
       if (serviceIt == mServiceMap.end()) {
         // service not found, create one
-        auto insertPair = mServiceMap.insert (std::map<int,cService>::value_type (sid, cService(sid)));
+        auto insertPair = mServiceMap.insert (map<int,cService>::value_type (sid, cService(sid)));
         serviceIt = insertPair.first;
         cLog::log (LOGINFO, "parsePmt - create service " + dec(sid));
         }
@@ -7836,9 +7837,9 @@ private:
   //}}}
 
   // vars
-  std::map<int,int> mProgramMap;
+  map<int,int> mProgramMap;
 
   bool mTimeDefined = false;
-  std::chrono::system_clock::time_point mCurTime;
-  std::chrono::system_clock::time_point mFirstTime;
+  system_clock::time_point mCurTime;
+  system_clock::time_point mFirstTime;
   };
