@@ -2,7 +2,8 @@
 //{{{  includes
 #pragma once
 #include "cTransportStream.h"
-
+#include <chrono>
+#include "../utils/date.h"
 //}}}
 
 class cDumpTransportStream : public cTransportStream {
@@ -13,7 +14,8 @@ public:
 
 protected:
   //{{{
-  void start (cService* service, const std::string& name, time_t startTime, bool selected) {
+  void start (cService* service, const std::string& name,
+              std::chrono::system_clock::time_point startTime, bool selected) {
 
     service->closeFile();
 
@@ -21,7 +23,8 @@ protected:
       if ((service->getVidPid() > 0) && (service->getAudPid() > 0)) {
         auto validFileName = validFileString (name, "<>:/|?*\"\'\\");
         service->openFile (
-          mRootName + "/" + validFileName + " @ " + getTimetDateString (startTime) + ".ts",
+          mRootName + "/" + validFileName + " @ " +
+          date::format ("%D %T", floor<std::chrono::seconds>(startTime)) + ".ts",
           0x1234, 32);
         }
       }
