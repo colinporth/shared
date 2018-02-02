@@ -170,13 +170,13 @@ public:
   size_t size() { return mFileItemList.size(); }
   bool empty() { return mFileItemList.empty(); }
 
-  bool isCurIndex (int index) { return mItemIndex == index; }
+  bool isCurIndex (unsigned index) { return mItemIndex == index; }
   unsigned getIndex() { return mItemIndex; }
   cFileItem getCurFileItem() { return getFileItem (mItemIndex); }
-  cFileItem getFileItem (int index) { return mFileItemList[index]; }
+  cFileItem getFileItem (unsigned index) { return mFileItemList[index]; }
 
   // actions
-  void setIndex (int index) { mItemIndex = index; }
+  void setIndex (unsigned index) { mItemIndex = index; }
   //{{{
   bool prevIndex() {
     if (!empty() && (mItemIndex > 0)) {
