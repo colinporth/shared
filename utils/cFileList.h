@@ -87,7 +87,7 @@ public:
     if (mCreationTimePoint.time_since_epoch() == seconds::zero())
       return "";
     else
-      return date::format (kTimeFormatStr, floor<seconds>(mCreationTimePoint));
+      return date::format ("%T %D", floor<seconds>(mCreationTimePoint));
     }
   //}}}
   //{{{
@@ -96,7 +96,7 @@ public:
     if (mLastAccessTimePoint.time_since_epoch() == seconds::zero())
       return "";
     else
-      return date::format (kTimeFormatStr, floor<seconds>(mLastAccessTimePoint));
+      return date::format ("%T %D", floor<seconds>(mLastAccessTimePoint));
     }
   //}}}
   //{{{
@@ -105,13 +105,11 @@ public:
     if (mLastWriteTimePoint.time_since_epoch() == seconds::zero())
       return "";
     else
-      return date::format (kTimeFormatStr, floor<seconds>(mLastWriteTimePoint));
+      return date::format ("%T %D", floor<seconds>(mLastWriteTimePoint));
     }
   //}}}
 
 private:
-  const string kTimeFormatStr = "%D %T";
-
   //{{{
   system_clock::time_point getFileTimePoint (FILETIME fileTime) {
 
