@@ -12,29 +12,32 @@
 #include "date.h"
 
 #pragma comment(lib,"shlwapi.lib")
+
+using namespace std;
+using namespace chrono;
 //}}}
 
 //{{{
 class cFileItem {
 public:
   //{{{
-  cFileItem (const std::string& pathName, const std::string& fileName) :
+  cFileItem (const string& pathName, const string& fileName) :
       mPathName(pathName), mFileName(fileName) {
 
     if (pathName.empty()) {
       // extract any path name from filename
-      std::string::size_type lastSlashPos = mFileName.rfind ('\\');
-      if (lastSlashPos != std::string::npos) {
-        mPathName = std::string (mFileName, 0, lastSlashPos);
+      string::size_type lastSlashPos = mFileName.rfind ('\\');
+      if (lastSlashPos != string::npos) {
+        mPathName = string (mFileName, 0, lastSlashPos);
         mFileName = mFileName.substr (lastSlashPos+1);
         }
       }
 
     // extract any extension from filename
-    std::string::size_type lastDotPos = mFileName.rfind ('.');
-    if (lastDotPos != std::string::npos) {
+    string::size_type lastDotPos = mFileName.rfind ('.');
+    if (lastDotPos != string::npos) {
       mExtension = mFileName.substr (lastDotPos+1);
-      mFileName = std::string (mFileName, 0, lastDotPos);
+      mFileName = string (mFileName, 0, lastDotPos);
       }
 
 
@@ -55,15 +58,15 @@ public:
   //}}}
   virtual ~cFileItem() {}
 
-  std::string getPathName() const { return mPathName; }
-  std::string getFileName() const { return mFileName; }
-  std::string getExtension() const { return mExtension; }
-  std::string getFullName() const {
+  string getPathName() const { return mPathName; }
+  string getFileName() const { return mFileName; }
+  string getExtension() const { return mExtension; }
+  string getFullName() const {
     return (mPathName.empty() ? mFileName : mPathName + "/" + mFileName) +
            (mExtension.empty() ? "" : "." + mExtension); }
 
   //{{{
-  std::string getFileSizeString() const {
+  string getFileSizeString() const {
 
     if (mFileSize < 1000)
       return dec(mFileSize) + "b";
@@ -79,30 +82,30 @@ public:
   //}}}
 
   //{{{
-  std::string getCreationTimeString() const {
+  string getCreationTimeString() const {
 
-    if (mCreationTimePoint.time_since_epoch() == chrono::seconds::zero())
+    if (mCreationTimePoint.time_since_epoch() == seconds::zero())
       return "";
     else
-      return date::format (kTimeFormatStr, floor<chrono::seconds>(mCreationTimePoint));
+      return date::format (kTimeFormatStr, floor<seconds>(mCreationTimePoint));
     }
   //}}}
   //{{{
-  std::string getLastAccessTimeString() const {
+  string getLastAccessTimeString() const {
 
-    if (mLastAccessTimePoint.time_since_epoch() == chrono::seconds::zero())
+    if (mLastAccessTimePoint.time_since_epoch() == seconds::zero())
       return "";
     else
-      return date::format (kTimeFormatStr, floor<chrono::seconds>(mLastAccessTimePoint));
+      return date::format (kTimeFormatStr, floor<seconds>(mLastAccessTimePoint));
     }
   //}}}
   //{{{
-  std::string getLastWriteTimeString() const {
+  string getLastWriteTimeString() const {
 
-    if (mLastWriteTimePoint.time_since_epoch() == chrono::seconds::zero())
+    if (mLastWriteTimePoint.time_since_epoch() == seconds::zero())
       return "";
     else
-      return date::format (kTimeFormatStr, floor<chrono::seconds>(mLastWriteTimePoint));
+      return date::format (kTimeFormatStr, floor<seconds>(mLastWriteTimePoint));
     }
   //}}}
 
@@ -110,37 +113,37 @@ private:
   const string kTimeFormatStr = "%D %T";
 
   //{{{
-  chrono::system_clock::time_point getFileTimePoint (FILETIME fileTime) {
+  system_clock::time_point getFileTimePoint (FILETIME fileTime) {
 
     // filetime_duration has the same layout as FILETIME; 100ns intervals
-    using filetime_duration = chrono::duration<int64_t, ratio<1, 10'000'000>>;
+    using filetime_duration = duration<int64_t, ratio<1, 10'000'000>>;
 
     // January 1, 1601 (NT epoch) - January 1, 1970 (Unix epoch):
-    constexpr chrono::duration<int64_t> nt_to_unix_epoch{INT64_C(-11644473600)};
+    constexpr duration<int64_t> nt_to_unix_epoch{INT64_C(-11644473600)};
 
     const filetime_duration asDuration{static_cast<int64_t>(
         (static_cast<uint64_t>((fileTime).dwHighDateTime) << 32)
             | (fileTime).dwLowDateTime)};
     const auto withUnixEpoch = asDuration + nt_to_unix_epoch;
-    return chrono::system_clock::time_point{ chrono::duration_cast<chrono::system_clock::duration>(withUnixEpoch)};
+    return system_clock::time_point{ duration_cast<system_clock::duration>(withUnixEpoch)};
     }
   //}}}
 
-  std::string mPathName;
-  std::string mFileName;
-  std::string mExtension;
+  string mPathName;
+  string mFileName;
+  string mExtension;
 
   uint64_t mFileSize = 0;
-  std::chrono::time_point<std::chrono::system_clock> mCreationTimePoint;
-  std::chrono::time_point<std::chrono::system_clock> mLastAccessTimePoint;
-  std::chrono::time_point<std::chrono::system_clock> mLastWriteTimePoint;
+  time_point<system_clock> mCreationTimePoint;
+  time_point<system_clock> mLastAccessTimePoint;
+  time_point<system_clock> mLastWriteTimePoint;
   };
 //}}}
 
 class cFileList {
 public:
   //{{{
-  cFileList (const string& fileName, const std::string& matchString) {
+  cFileList (const string& fileName, const string& matchString) {
 
     if (!fileName.empty()) {
       mMatchString = matchString;
@@ -230,7 +233,7 @@ public:
 
 private:
   //{{{
-  std::string resolveShortcut (const std::string& shortcut) {
+  string resolveShortcut (const string& shortcut) {
 
     // get IShellLink interface
     IShellLinkA* iShellLink;
@@ -254,7 +257,7 @@ private:
             // Get the description of the target
             char szDesc[MAX_PATH];
             if (iShellLink->GetDescription (szDesc, MAX_PATH) == S_OK) {
-              std::string fullName;
+              string fullName;
               lstrcpynA ((char*)fullName.c_str(), szPath, MAX_PATH);
               return fullName;
               }
@@ -267,7 +270,7 @@ private:
     }
   //}}}
   //{{{
-  void scanDirectory (const std::string& parentName, const std::string& directoryName) {
+  void scanDirectory (const string& parentName, const string& directoryName) {
 
     auto pathFileName = parentName.empty() ? directoryName : parentName + "/" + directoryName;
     auto searchStr = pathFileName +  "/*";
@@ -290,9 +293,9 @@ private:
   //}}}
 
   // vars
-  std::string mFileName;
-  std::string mMatchString;
-  std::string mWatchRootName;
+  string mFileName;
+  string mMatchString;
+  string mWatchRootName;
 
   concurrency::concurrent_vector <cFileItem> mFileItemList;
   unsigned mItemIndex = 0;
