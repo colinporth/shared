@@ -6314,8 +6314,8 @@ public:
 
   //{{{
   void print() {
-    cLog::log (LOGINFO, "pid:%d sid:%d streamType:%d - packets:%d disContinuity:%d repContinuity:%d",
-                        mPid, mSid, mStreamType, mPackets, mDisContinuity, mRepeatContinuity);
+    cLog::log (LOGINFO, "pid:%d sid:%d streamType:%d - disContinuity:%d repContinuity:%d",
+                        mPid, mSid, mStreamType, mDisContinuity, mRepeatContinuity);
     }
   //}}}
 
@@ -6986,7 +6986,6 @@ public:
     }
   //}}}
 
-  uint64_t getPackets() { return mPackets; }
   uint64_t getDiscontinuity() { return mDiscontinuity; }
 
   system_clock::time_point getTime() { return mTime; }
@@ -7154,7 +7153,6 @@ public:
           ts = nextPacket;
           nextPacket += 188;
           streamPos += 188;
-          mPackets++;
           }
         }
       else {
@@ -7177,16 +7175,12 @@ public:
     mProgramMap.clear();
     mPidInfoMap.clear();
 
-    mPackets = 0;
     mDiscontinuity = 0;
 
     mTimeDefined = false;
     }
   //}}}
 
-  // vars - public for widget access
-  uint64_t mPackets = 0;
-  uint64_t mDiscontinuity = 0;
   mutex mMutex;
 
 protected:
@@ -7834,6 +7828,8 @@ private:
   //}}}
 
   // vars
+  uint64_t mDiscontinuity = 0;
+
   map<int,int> mProgramMap;
 
   bool mTimeDefined = false;

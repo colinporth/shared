@@ -47,12 +47,15 @@ public:
   virtual ~cDvb() {}
 
   int getSignal() { return mSignal; }
+  int getFrequency() { return mFrequency; }
 
   //{{{
   bool createGraph (int frequency)  {
 
     if (!createGraphDvbT (frequency))
       return false;
+
+    mFrequency = frequency;
 
     createFilter (mGrabberFilter, CLSID_SampleGrabber, L"grabber", mDvbCapture);
     mGrabberFilter.As (&mGrabber);
@@ -141,6 +144,8 @@ public:
     if (hr != S_OK)
       cLog::log (LOGERROR, "tune - run" + dec(hr));
     //}}}
+
+    mFrequency = frequency;
     }
   //}}}
   //{{{
@@ -780,5 +785,7 @@ private:
   Microsoft::WRL::ComPtr<IFileSinkFilter> mFileSinkFilter;
 
   Microsoft::WRL::ComPtr<IMediaControl> mMediaControl;
+
+  int mFrequency = 0;
   //}}}
   };
