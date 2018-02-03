@@ -91,7 +91,7 @@ public:
     if (mCreationTimePoint.time_since_epoch() == seconds::zero())
       return "";
     else
-      return date::format ("%T %D", floor<seconds>(mCreationTimePoint));
+      return date::format ("%H.%M %a %d %b %Y", floor<seconds>(mCreationTimePoint));
     }
   //}}}
   //{{{
@@ -100,7 +100,7 @@ public:
     if (mLastAccessTimePoint.time_since_epoch() == seconds::zero())
       return "";
     else
-      return date::format ("%T %D", floor<seconds>(mLastAccessTimePoint));
+      return date::format ("%H.%M %a %d %b %Y", floor<seconds>(mLastAccessTimePoint));
     }
   //}}}
   //{{{
@@ -109,7 +109,7 @@ public:
     if (mLastWriteTimePoint.time_since_epoch() == seconds::zero())
       return "";
     else
-      return date::format ("%T %D", floor<seconds>(mLastWriteTimePoint));
+      return date::format ("%H.%M %a %d %b %Y", floor<seconds>(mLastWriteTimePoint));
     }
   //}}}
 
