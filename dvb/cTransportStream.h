@@ -7187,6 +7187,7 @@ public:
   // vars - public for widget access
   uint64_t mPackets = 0;
   uint64_t mDiscontinuity = 0;
+  mutex mMutex;
 
 protected:
   virtual bool audDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
@@ -7212,7 +7213,6 @@ protected:
   //}}}
 
   // vars
-  mutex mMutex;
   map<int,cPidInfo> mPidInfoMap;
   map<int,cService> mServiceMap;
 
