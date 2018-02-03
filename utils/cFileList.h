@@ -42,7 +42,11 @@ public:
 
 
     auto fileHandle = CreateFile (getFullName().c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
-    mFileSize = GetFileSize (fileHandle, NULL);
+    LARGE_INTEGER largeInteger;
+    if (!GetFileSizeEx (fileHandle, &largeInteger))
+      cLog::log (LOGERROR, "fileSizeEx problem");
+    else
+      mFileSize = largeInteger.QuadPart;
 
     FILETIME creationTime;
     FILETIME lastAccessTime;
