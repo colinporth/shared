@@ -110,6 +110,7 @@ void cWinAudio::audPlay (int srcChannels, int16_t* srcSamples, int srcNumSamples
     //{{{  recreate sourceVoice with new num of channels
     cLog::log (LOGNOTICE, "audPlay - srcChannels:" + dec (mSrcChannels) + " changedTo:" + dec(srcChannels));
     audClose();
+
     audOpen (srcChannels, mSrcSampleRate);
     }
     //}}}
@@ -394,6 +395,8 @@ void cWinAudio::audClose() {
     mXAudio2->Release();
     mXAudio2 = nullptr;
     }
+
+  mLastMixDown = eNoMix;
   }
 //}}}
 
