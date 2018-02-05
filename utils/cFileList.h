@@ -113,6 +113,10 @@ public:
     }
   //}}}
 
+  static bool compareSize (const cFileItem& a, const cFileItem& b) { return (a.mFileSize < b.mFileSize); }
+  static bool compareCreation (const cFileItem& a, const cFileItem& b) { return (a.mCreationTimePoint < b.mCreationTimePoint); }
+  static bool compareFileName (const cFileItem& a, const cFileItem& b) { return (a.mFileName < b.mFileName); }
+
 private:
   //{{{
   system_clock::time_point getFileTimePoint (FILETIME fileTime) {
@@ -165,6 +169,8 @@ public:
         }
       else if (!resolvedFileName.empty())
         mFileItemList.push_back (cFileItem ("", resolvedFileName));
+
+      sort (mFileItemList.begin(), mFileItemList.end(), cFileItem::compareCreation);
       }
     }
   //}}}
@@ -220,6 +226,7 @@ public:
           // A file was created, renamed, or deleted in the directory.
           mFileItemList.clear();
           scanDirectory ("", mWatchRootName);
+          sort (mFileItemList.begin(), mFileItemList.end(), cFileItem::compareCreation);
           if (FindNextChangeNotification (handle) == FALSE)
             cLog::log (LOGERROR, "FindNextChangeNotification function failed");
           }
