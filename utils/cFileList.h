@@ -95,15 +95,6 @@ public:
     }
   //}}}
   //{{{
-  string getLastAccessTimeString() const {
-
-    if (mLastAccessTimePoint.time_since_epoch() == seconds::zero())
-      return "";
-    else
-      return date::format ("%H.%M %a %d %b %Y", floor<seconds>(mLastAccessTimePoint));
-    }
-  //}}}
-  //{{{
   string getLastWriteTimeString() const {
 
     if (mLastWriteTimePoint.time_since_epoch() == seconds::zero())
@@ -112,10 +103,22 @@ public:
       return date::format ("%H.%M %a %d %b %Y", floor<seconds>(mLastWriteTimePoint));
     }
   //}}}
+  //{{{
+  string getLastAccessTimeString() const {
 
-  static bool compareSize (const cFileItem& a, const cFileItem& b) { return (a.mFileSize < b.mFileSize); }
-  static bool compareCreation (const cFileItem& a, const cFileItem& b) { return (a.mCreationTimePoint < b.mCreationTimePoint); }
-  static bool compareFileName (const cFileItem& a, const cFileItem& b) { return (a.mFileName < b.mFileName); }
+    if (mLastAccessTimePoint.time_since_epoch() == seconds::zero())
+      return "";
+    else
+      return date::format ("%H.%M %a %d %b %Y", floor<seconds>(mLastAccessTimePoint));
+    }
+  //}}}
+
+  static bool compareSizeUp (const cFileItem& a, const cFileItem& b) { return (a.mFileSize < b.mFileSize); }
+  static bool compareCreationUp (const cFileItem& a, const cFileItem& b) { return (a.mCreationTimePoint < b.mCreationTimePoint); }
+  static bool compareFileNameUp (const cFileItem& a, const cFileItem& b) { return (a.mFileName < b.mFileName); }
+  static bool compareSizeDown (const cFileItem& a, const cFileItem& b) { return (a.mFileSize > b.mFileSize); }
+  static bool compareCreationDown (const cFileItem& a, const cFileItem& b) { return (a.mCreationTimePoint > b.mCreationTimePoint); }
+  static bool compareFileNameDown (const cFileItem& a, const cFileItem& b) { return (a.mFileName > b.mFileName); }
 
 private:
   //{{{
@@ -141,8 +144,8 @@ private:
 
   uint64_t mFileSize = 0;
   time_point<system_clock> mCreationTimePoint;
-  time_point<system_clock> mLastAccessTimePoint;
   time_point<system_clock> mLastWriteTimePoint;
+  time_point<system_clock> mLastAccessTimePoint;
   };
 //}}}
 
@@ -170,7 +173,7 @@ public:
       else if (!resolvedFileName.empty())
         mFileItemList.push_back (cFileItem ("", resolvedFileName));
 
-      sort (mFileItemList.begin(), mFileItemList.end(), cFileItem::compareCreation);
+      sort();
       }
     }
   //}}}
@@ -205,6 +208,20 @@ public:
     return false;
     }
   //}}}
+  //{{{
+  void nextSort() {
+    switch (mSort) {
+      case eFileNameUp   : mSort = eFileNameDown; break;
+      case eFileNameDown : mSort = eCreationUp; break;
+      case eCreationUp   : mSort = eCreationDown; break;
+      case eCreationDown : mSort = eSizeUp; break;
+      case eSizeUp       : mSort = eSizeDown; break;
+      case eSizeDown     : mSort = eFileNameUp; break;
+      }
+
+    sort();
+    }
+  //}}}
 
   //{{{
   void watchThread() {
@@ -226,7 +243,7 @@ public:
           // A file was created, renamed, or deleted in the directory.
           mFileItemList.clear();
           scanDirectory ("", mWatchRootName);
-          sort (mFileItemList.begin(), mFileItemList.end(), cFileItem::compareCreation);
+          sort();
           if (FindNextChangeNotification (handle) == FALSE)
             cLog::log (LOGERROR, "FindNextChangeNotification function failed");
           }
@@ -241,6 +258,8 @@ public:
   //}}}
 
 private:
+  enum eSort { eFileNameUp, eFileNameDown, eCreationUp, eCreationDown, eSizeUp, eSizeDown };
+
   //{{{
   string resolveShortcut (const string& shortcut) {
 
@@ -300,11 +319,25 @@ private:
       }
     }
   //}}}
+  //{{{
+  void sort() {
+    switch (mSort) {
+      case eFileNameUp   : std::sort (mFileItemList.begin(), mFileItemList.end(), cFileItem::compareFileNameUp); break;
+      case eFileNameDown : std::sort (mFileItemList.begin(), mFileItemList.end(), cFileItem::compareFileNameDown); break;
+      case eCreationUp   : std::sort (mFileItemList.begin(), mFileItemList.end(), cFileItem::compareCreationUp); break;
+      case eCreationDown : std::sort (mFileItemList.begin(), mFileItemList.end(), cFileItem::compareCreationDown); break;
+      case eSizeUp       : std::sort (mFileItemList.begin(), mFileItemList.end(), cFileItem::compareSizeUp); break;
+      case eSizeDown     : std::sort (mFileItemList.begin(), mFileItemList.end(), cFileItem::compareSizeDown); break;
+      }
+    }
+  //}}}
 
   // vars
   string mFileName;
   string mMatchString;
   string mWatchRootName;
+
+  eSort mSort = eFileNameUp;
 
   concurrency::concurrent_vector <cFileItem> mFileItemList;
   unsigned mItemIndex = 0;
