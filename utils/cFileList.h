@@ -48,16 +48,16 @@ public:
     else
       mFileSize = largeInteger.QuadPart;
 
-    FILETIME creationTime;
-    FILETIME lastAccessTime;
-    FILETIME lastWriteTime;
-    GetFileTime (fileHandle, &creationTime, &lastAccessTime, &lastWriteTime);
+    FILETIME creation;
+    FILETIME lastAccess;
+    FILETIME lastWrite;
+    GetFileTime (fileHandle, &creation, &lastAccess, &lastWrite);
 
     CloseHandle (fileHandle);
 
-    mCreationTimePoint = getFileTimePoint (creationTime);
-    mLastAccessTimePoint = getFileTimePoint (lastAccessTime);
-    mLastWriteTimePoint = getFileTimePoint (lastWriteTime);
+    mCreationTimePoint = getFileTimePoint (creation);
+    mLastAccessTimePoint = getFileTimePoint (lastAccess);
+    mLastWriteTimePoint = getFileTimePoint (lastWrite);
     }
   //}}}
   virtual ~cFileItem() {}
@@ -86,7 +86,7 @@ public:
   //}}}
 
   //{{{
-  string getCreationTimeString() const {
+  string getCreationString() const {
 
     if (mCreationTimePoint.time_since_epoch() == seconds::zero())
       return "";
@@ -95,7 +95,7 @@ public:
     }
   //}}}
   //{{{
-  string getLastWriteTimeString() const {
+  string getLastWriteString() const {
 
     if (mLastWriteTimePoint.time_since_epoch() == seconds::zero())
       return "";
@@ -104,7 +104,7 @@ public:
     }
   //}}}
   //{{{
-  string getLastAccessTimeString() const {
+  string getLastAccessString() const {
 
     if (mLastAccessTimePoint.time_since_epoch() == seconds::zero())
       return "";
