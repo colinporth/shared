@@ -20,6 +20,8 @@ using namespace chrono;
 //{{{
 class cFileItem {
 public:
+  static const int kFields = 3;
+
   //{{{
   cFileItem (const string& pathName, const string& fileName) :
       mPathName(pathName), mFileName(fileName) {
@@ -110,6 +112,19 @@ public:
       return "";
     else
       return date::format ("%H.%M %a %d %b %Y", floor<seconds>(mLastAccessTimePoint));
+    }
+  //}}}
+
+  //{{{
+  string getFieldString (int field) const {
+    switch (field) {
+      case 0: return getFileName();
+      case 1: return getFileSizeString();
+      case 2: return getCreationString();
+      case 3: return getLastWriteString();
+      case 4: return getLastAccessString();
+      }
+    return "empty";
     }
   //}}}
 
