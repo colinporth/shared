@@ -117,23 +117,34 @@ public:
 
   //{{{
   string getFieldString (int field) const {
+
     switch (field) {
       case 0: return getFileName();
       case 1: return getFileSizeString();
       case 2: return getCreationString();
       case 3: return getLastWriteString();
       case 4: return getLastAccessString();
+      case 5: return getPathName();
+      case 6: return getExtension();
+      case 7: return getFullName();
       }
+
     return "empty";
     }
   //}}}
+  //{{{
+  static bool compare (const cFileItem& a, const cFileItem& b) {
+    switch (mCompareField) {
+      case 0:  return mCompareFieldUp ? (a.mFileName > b.mFileName) : (a.mFileName < b.mFileName);
+      case 1:  return mCompareFieldUp ? (a.mFileSize > b.mFileSize) : (a.mFileSize < b.mFileSize);
+      case 2:  return mCompareFieldUp ? (a.mCreationTimePoint > b.mCreationTimePoint) : (a.mCreationTimePoint < b.mCreationTimePoint);
+      }
+    return (a.mFileName > b.mFileName);
+    }
+  //}}}
 
-  static bool compareSizeUp (const cFileItem& a, const cFileItem& b) { return (a.mFileSize < b.mFileSize); }
-  static bool compareCreationUp (const cFileItem& a, const cFileItem& b) { return (a.mCreationTimePoint < b.mCreationTimePoint); }
-  static bool compareFileNameUp (const cFileItem& a, const cFileItem& b) { return (a.mFileName < b.mFileName); }
-  static bool compareSizeDown (const cFileItem& a, const cFileItem& b) { return (a.mFileSize > b.mFileSize); }
-  static bool compareCreationDown (const cFileItem& a, const cFileItem& b) { return (a.mCreationTimePoint > b.mCreationTimePoint); }
-  static bool compareFileNameDown (const cFileItem& a, const cFileItem& b) { return (a.mFileName > b.mFileName); }
+  static int mCompareField;
+  static bool mCompareFieldUp;
 
 private:
   //{{{
@@ -163,6 +174,8 @@ private:
   time_point<system_clock> mLastAccessTimePoint;
   };
 //}}}
+int cFileItem::mCompareField = 0;
+bool cFileItem::mCompareFieldUp = false;
 
 class cFileList {
 public:
@@ -225,15 +238,13 @@ public:
   //}}}
   //{{{
   void nextSort() {
-    switch (mSort) {
-      case eFileNameUp   : mSort = eFileNameDown; break;
-      case eFileNameDown : mSort = eCreationUp; break;
-      case eCreationUp   : mSort = eCreationDown; break;
-      case eCreationDown : mSort = eSizeUp; break;
-      case eSizeUp       : mSort = eSizeDown; break;
-      case eSizeDown     : mSort = eFileNameUp; break;
-      }
-
+    cFileItem::mCompareField = (cFileItem::mCompareField + 1) % cFileItem::kFields;
+    sort();
+    }
+  //}}}
+  //{{{
+  void toggleSortUp() {
+    cFileItem::mCompareFieldUp = !cFileItem::mCompareFieldUp;
     sort();
     }
   //}}}
@@ -336,14 +347,7 @@ private:
   //}}}
   //{{{
   void sort() {
-    switch (mSort) {
-      case eFileNameUp   : std::sort (mFileItemList.begin(), mFileItemList.end(), cFileItem::compareFileNameUp); break;
-      case eFileNameDown : std::sort (mFileItemList.begin(), mFileItemList.end(), cFileItem::compareFileNameDown); break;
-      case eCreationUp   : std::sort (mFileItemList.begin(), mFileItemList.end(), cFileItem::compareCreationUp); break;
-      case eCreationDown : std::sort (mFileItemList.begin(), mFileItemList.end(), cFileItem::compareCreationDown); break;
-      case eSizeUp       : std::sort (mFileItemList.begin(), mFileItemList.end(), cFileItem::compareSizeUp); break;
-      case eSizeDown     : std::sort (mFileItemList.begin(), mFileItemList.end(), cFileItem::compareSizeDown); break;
-      }
+    std::sort (mFileItemList.begin(), mFileItemList.end(), cFileItem::compare);
     }
   //}}}
 
@@ -351,8 +355,6 @@ private:
   string mFileName;
   string mMatchString;
   string mWatchRootName;
-
-  eSort mSort = eFileNameUp;
 
   concurrency::concurrent_vector <cFileItem> mFileItemList;
   unsigned mItemIndex = 0;
