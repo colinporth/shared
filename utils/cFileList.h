@@ -135,16 +135,16 @@ public:
   //{{{
   static bool compare (const cFileItem& a, const cFileItem& b) {
     switch (mCompareField) {
-      case 0:  return mCompareFieldUp ? (a.mFileName > b.mFileName) : (a.mFileName < b.mFileName);
-      case 1:  return mCompareFieldUp ? (a.mFileSize > b.mFileSize) : (a.mFileSize < b.mFileSize);
-      case 2:  return mCompareFieldUp ? (a.mCreationTimePoint > b.mCreationTimePoint) : (a.mCreationTimePoint < b.mCreationTimePoint);
+      case 0:  return mCompareFieldDescending ? (a.mFileName > b.mFileName) : (a.mFileName < b.mFileName);
+      case 1:  return mCompareFieldDescending ? (a.mFileSize > b.mFileSize) : (a.mFileSize < b.mFileSize);
+      case 2:  return mCompareFieldDescending ? (a.mCreationTimePoint > b.mCreationTimePoint) : (a.mCreationTimePoint < b.mCreationTimePoint);
       }
     return (a.mFileName > b.mFileName);
     }
   //}}}
 
   static int mCompareField;
-  static bool mCompareFieldUp;
+  static bool mCompareFieldDescending;
 
 private:
   //{{{
@@ -175,7 +175,7 @@ private:
   };
 //}}}
 int cFileItem::mCompareField = 0;
-bool cFileItem::mCompareFieldUp = false;
+bool cFileItem::mCompareFieldDescending = false;
 
 class cFileList {
 public:
@@ -244,7 +244,7 @@ public:
   //}}}
   //{{{
   void toggleSortUp() {
-    cFileItem::mCompareFieldUp = !cFileItem::mCompareFieldUp;
+    cFileItem::mCompareFieldDescending = !cFileItem::mCompareFieldDescending;
     sort();
     }
   //}}}
@@ -284,8 +284,6 @@ public:
   //}}}
 
 private:
-  enum eSort { eFileNameUp, eFileNameDown, eCreationUp, eCreationDown, eSizeUp, eSizeDown };
-
   //{{{
   string resolveShortcut (const string& shortcut) {
 
