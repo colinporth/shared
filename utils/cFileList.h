@@ -132,6 +132,7 @@ public:
     return "empty";
     }
   //}}}
+
   //{{{
   static bool compare (const cFileItem& a, const cFileItem& b) {
     switch (mCompareField) {
@@ -142,7 +143,6 @@ public:
     return (a.mFileName > b.mFileName);
     }
   //}}}
-
   static int mCompareField;
   static bool mCompareFieldDescending;
 
