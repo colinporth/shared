@@ -30,12 +30,12 @@
 
 using namespace std;
 //}}}
-const int kMaxBuffer = 100000;
+const int kMaxBuffer = 10000;
 
 enum eLogLevel mLogLevel = LOGERROR;
 
 mutex mLinesMutex;
-deque<cLog::cLine> mLines;
+deque<cLog::cLine> mLineDeque;
 
 bool mBuffer = false;
 int mDaylightSecs = 0;
@@ -160,9 +160,9 @@ void cLog::log (enum eLogLevel logLevel, const string& logStr) {
 
   if (mBuffer) {
     // to buffer for widget access
-    mLines.push_front (cLine (logLevel, getThreadId(), timePoint, logStr));
-    if (mLines.size() > kMaxBuffer)
-      mLines.pop_back();
+    mLineDeque.push_front (cLine (logLevel, getThreadId(), timePoint, logStr));
+    if (mLineDeque.size() > kMaxBuffer)
+      mLineDeque.pop_back();
     }
 
   else if (logLevel <= mLogLevel) {
@@ -234,15 +234,16 @@ void cLog::log (enum eLogLevel logLevel, const char* format, ... ) {
 //}}}
 
 //{{{
-bool cLog::getLine (cLine& line, int lineNum) {
+bool cLog::getLine (cLine& line, unsigned lineNum, unsigned& lastLineIndex) {
+// still a bit too dumb, holding onto lastLineIndex between searches helps
 
   lock_guard<mutex> lockGuard (mLinesMutex);
 
-  int matchingLineNum = 0;
-  for (auto lineIndex = 0u; lineIndex < mLines.size(); lineIndex++)
-    if (mLines[lineIndex].mLogLevel <= mLogLevel)
-      if (matchingLineNum++ == lineNum) {
-        line = mLines[lineIndex];
+  unsigned matchingLineNum = 0;
+  for (auto i = lastLineIndex; i < mLineDeque.size(); i++)
+    if (mLineDeque[i].mLogLevel <= mLogLevel)
+      if (lineNum == matchingLineNum++) {
+        line = mLineDeque[i];
         return true;
         }
 

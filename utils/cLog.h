@@ -42,7 +42,7 @@ public:
   static void log (enum eLogLevel logLevel, const std::string& logStr);
   static void log (enum eLogLevel logLevel, const char* format, ... );
 
-  static bool getLine (cLine& line, int lineNum);
+  static bool getLine (cLine& line, unsigned lineNum, unsigned& lastLineIndex);
 
 private:
   static uint64_t getThreadId();
