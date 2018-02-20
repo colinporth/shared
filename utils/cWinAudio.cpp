@@ -341,7 +341,7 @@ void cWinAudio::audPlay (int srcChannels, int16_t* srcSamples, int srcNumSamples
         //}}}
       }
     else {
-      // steroe src
+      // stereo src
       if (mDstChannels == 2) {
         //{{{  2 to 2 mixDown
         float kLevelMatrix[4] = {// L   R
