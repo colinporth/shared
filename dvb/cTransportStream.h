@@ -6378,7 +6378,7 @@ public:
 
   //{{{
   void print (const string& prefix) {
-    cLog::log (LOGINFO, prefix + date::format ("%D %T", floor<seconds>(mTime)) +
+    cLog::log (LOGINFO, prefix + date::format ("%D %T", date::floor<seconds>(mTime)) +
                         " " + dec(duration_cast<minutes>(mDuration).count()) + "m" +
                         " " + mTitle);
     }
@@ -7715,8 +7715,8 @@ private:
         mTimeDefined = true;
         }
 
-      pidInfo->mInfoStr = date::format ("%T", floor<seconds>(mFirstTime)) +
-                          " to " + date::format ("%T", floor<seconds>(mTime));
+      pidInfo->mInfoStr = date::format ("%T", date::floor<seconds>(mFirstTime)) +
+                          " to " + date::format ("%T", date::floor<seconds>(mTime));
       }
     }
   //}}}
