@@ -21,7 +21,7 @@ protected:
     if (selected || mRecordAll) {
       if ((service->getVidPid() > 0) && (service->getAudPid() > 0)) {
         auto validName = validFileString (name, "<>:/|?*\"\'\\");
-        auto timeStr = date::format ("@%H.%M %a %d %b %Y", floor<seconds>(time));
+        auto timeStr = date::format ("@%H.%M %a %d %b %Y", date::floor<seconds>(time));
         service->openFile (mRootName + "/" + validName + timeStr  + ".ts", 0x1234);
         }
       }
