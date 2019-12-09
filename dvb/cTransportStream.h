@@ -7574,7 +7574,7 @@ private:
               auto it = mServiceMap.find (sid);
               if (it != mServiceMap.end()) {
                 if (it->second.getNameString().empty()) {
-                  cLog::log (LOGINFO, "SDT - service named " + dec(sid) +  " " + name);
+                  cLog::log (LOGINFO, "SDT - service " + dec(sid) +  " named " + name);
                   it->second.setName (name);
                   }
                 }
