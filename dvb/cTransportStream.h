@@ -7695,12 +7695,8 @@ private:
           }
         }
       }
-    else if (!next) {
-      //{{{  unexpected tid, error, return
+    else if (!next)
       cLog::log (LOGERROR, "parseEIT - unexpected tid " + dec(tid));
-      return;
-      }
-      //}}}
     }
   //}}}
   //{{{
