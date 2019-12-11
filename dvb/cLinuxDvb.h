@@ -1,4 +1,4 @@
-// cDvb.h
+// cLinuxDvb.h
 //{{{  includes
 #pragma once
 #include <string>

@@ -1,4 +1,4 @@
-// cDvb.h
+// cWinDvb.h
 //{{{  includes
 #pragma once
 
