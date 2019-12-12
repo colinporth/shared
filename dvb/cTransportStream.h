@@ -7182,6 +7182,8 @@ public:
   //}}}
 
   mutex mMutex;
+  map<int,cPidInfo> mPidInfoMap;
+  map<int,cService> mServiceMap;
 
 protected:
   virtual bool audDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
@@ -7205,10 +7207,6 @@ protected:
       pidInfo.second.clearContinuity();
     }
   //}}}
-
-  // vars
-  map<int,cPidInfo> mPidInfoMap;
-  map<int,cService> mServiceMap;
 
 private:
   //{{{
