@@ -25,7 +25,7 @@ using namespace std;
 
 // public:
 //{{{
-cDvb::cDvb (const string& root) : cDumpTrnsportStream (root, true) {
+cDvb::cDvb (const string& root) : cDumpTransportStream (root, true) {
   allocateBuffer (2048 * 128 * 188); // 50m - T2 5m a second
   }
 //}}}
