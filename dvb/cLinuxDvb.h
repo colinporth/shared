@@ -32,7 +32,7 @@ public:
 
 private:
   void init (int frequency);
-  void tune (unsigned int frequency, fe_bandwidth_t bandwidth);
+  void tune (int frequency);
   void setTsFilter (uint16_t pid, dmx_pes_type_t pestype);
 
   int mFrontEnd = 0;

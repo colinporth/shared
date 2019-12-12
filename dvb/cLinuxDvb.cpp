@@ -196,7 +196,7 @@ void cDvb::init (int frequency) {
     cLog::log (LOGERROR, "open frontend failed");
     return;
     }
-  tune (frequency * 1000000, BANDWIDTH_8_MHZ);
+  tune (frequency);
 
   // demux nonBlocking rw
   mDemux = open ("/dev/dvb/adapter0/demux0", O_RDWR | O_NONBLOCK);
@@ -215,12 +215,12 @@ void cDvb::init (int frequency) {
   }
 //}}}
 //{{{
-void cDvb::tune (unsigned int frequency, fe_bandwidth_t bandwidth) {
+void cDvb::tune (int frequency) {
 
   struct dvb_frontend_info feInfo;
   auto error = ioctl (mFrontEnd, FE_GET_INFO, &feInfo);
   if (error < 0) {
-    cLog::log (LOGERROR, "dvbTune::ioctl FE_GET_INFO " + dec(frequency) + " " + dec(error));
+    cLog::log (LOGERROR, "dvbTune::ioctl FE_GET_INFO " + dec(frequency) + "Mhz " + dec(error));
     return;
     }
   mTuneStr = "tune " + string(feInfo.name) + " to " + dec(frequency/1000000);
@@ -228,13 +228,13 @@ void cDvb::tune (unsigned int frequency, fe_bandwidth_t bandwidth) {
   uSleep (100000);
 
   struct dvb_frontend_parameters feParams;
-  feParams.frequency = frequency;
-  feParams.u.ofdm.bandwidth = bandwidth;
-  feParams.inversion = INVERSION_OFF;
+  feParams.frequency = frequency * 1000000;
+  feParams.inversion = INVERSION_AUTO;
+  feParams.u.ofdm.bandwidth = BANDWIDTH_8_MHZ;
   feParams.u.ofdm.constellation = QAM_AUTO;
-  feParams.u.ofdm.code_rate_HP = FEC_AUTO;
   feParams.u.ofdm.transmission_mode = TRANSMISSION_MODE_AUTO;
   feParams.u.ofdm.guard_interval = GUARD_INTERVAL_AUTO;
+  feParams.u.ofdm.code_rate_HP = FEC_AUTO;
   feParams.u.ofdm.code_rate_LP = FEC_AUTO;
   feParams.u.ofdm.hierarchy_information = HIERARCHY_AUTO;
   error = ioctl (mFrontEnd, FE_SET_FRONTEND, &feParams);
@@ -267,8 +267,8 @@ void cDvb::tune (unsigned int frequency, fe_bandwidth_t bandwidth) {
   else {
     error = ioctl (mFrontEnd, FE_GET_FRONTEND, feParams);
     if (error >= 0)
-      cLog::log (LOGINFO, "Frequency " + dec(feParams.frequency) + " " + dec(error));
-    mTuneStr = "tuned " + string(feInfo.name) + " to " + dec(feParams.frequency/1000000);
+      cLog::log (LOGINFO, "Frequency " + dec(feParams.frequency) + "Mhz " + dec(error));
+    mTuneStr = string(feInfo.name) + " " + dec(feParams.frequency/1000000) + "Mhz";
     }
 
   updateSignalString();
