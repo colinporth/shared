@@ -14,7 +14,9 @@ const float kDefaultVolume = 0.8f;
 const uint32_t kDefaultChan = 4;
 const uint32_t kDefaultBitrate = 128000;
 
-const int kPool [] = { 0, 7, 7, 7, 6, 6, 6 };
+const string kSrc = "as-hls-uk-live.bbcfmt.hs.llnwd.net";
+
+const int kPool [] = { 0, 904, 904, 904, 904, 904, 904 };
 
 const char* kPathNames[] = { "none", "bbc_radio_one",    "bbc_radio_two",       "bbc_radio_three",
                                      "bbc_radio_fourfm", "bbc_radio_five_live", "bbc_6music" };
@@ -517,10 +519,12 @@ private:
   //{{{
   string getPathRoot() {
 
-    // "pool_x/live/chanPathName/chanPathName.isml/chanPathName-audio=bitrate"
+    //pool_904/live/uk/bbc_radio_three/bbc_radio_three.isml/bbc_radio_three-audio=128000.norewind.m3u8
     return "pool_" + dec(kPool[mChan]) +
-           "/live/" + kPathNames[mChan] + '/' + kPathNames[mChan] +
-           ".isml/" + kPathNames[mChan] + "-audio=" + dec(mBitrate);
+           "/live/uk/" +
+           kPathNames[mChan] + '/' +
+           kPathNames[mChan] + ".isml/" +
+           kPathNames[mChan] + "-audio=" + dec(mBitrate);
     }
   //}}}
   //{{{
@@ -608,7 +612,6 @@ private:
   //{{{
   void loadChan (cHttp& http) {
 
-    const string kSrc = "as-hls-uk-live.akamaized.net";
     const int kBaseTimeSecondsOffset = 17;
 
     mHost = http.getRedirectable (kSrc, getM3u8path());
