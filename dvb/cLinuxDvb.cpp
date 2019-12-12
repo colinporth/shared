@@ -18,7 +18,7 @@
 
 #include "cDumpTransportStream.h"
 
-#include "cDvb.h"
+#include "cLinuxDvb.h"
 
 using namespace std;
 //}}}
@@ -138,7 +138,6 @@ void cDvb::grabThread() {
         mMaxBlockSize = blockSize;
 
       mPacketStr = dec(getDiscontinuity()) +
-                   ":" + dec(getPackets()) +
                    " " + dec(blockSize,6) +
                    ":" + dec(mMaxBlockSize);
       updateSignalString();
@@ -177,7 +176,7 @@ void cDvb::readThread (const string& inTs) {
       streamPos += demux (buffer, bytesRead, streamPos, false, -1);
     else
       break;
-    mPacketStr = dec(getDiscontinuity()) + ":" + dec(getPackets());
+    mPacketStr = dec(getDiscontinuity());
     }
 
   fclose (file);
