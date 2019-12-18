@@ -38,57 +38,210 @@ cDvb::~cDvb() {
 //}}}
 
 //{{{
-void cDvb::uSleep (uint64_t uSec) {
+void cDvb::tune (int frequency) {
 
-  struct timespec timeRequest = { 0 };
+  if (frequency < 1000)
+    frequency *= 1000000UL;
+  else if (frequency < 1000000)
+    frequency *= 1000UL;
+  bool t2 = frequency == 626000000;
 
-  timeRequest.tv_sec = uSec / 1000000;
-  timeRequest.tv_nsec = (uSec % 1000000) * 1000;
+  struct dvb_frontend_info fe_info;
+  if (ioctl (mFrontEnd, FE_GET_INFO, &fe_info) < 0) {
+    //{{{  error
+    cLog::log (LOGERROR, "FE_GET_INFO failed");
+    return;
+    }
+    //}}}
+  cLog::log (LOGINFO, "tuning %s %s to %u ", fe_info.name, t2 ? "T2" : "T", frequency);
 
-  while ((nanosleep (&timeRequest, &timeRequest) == -1) &&
-         (errno == EINTR) &&
-         (timeRequest.tv_nsec > 0 || timeRequest.tv_sec > 0));
-  }
-//}}}
-//{{{
-void cDvb::updateSignalString() {
+  // discard stale events
+  struct dvb_frontend_event ev;
+  while (true)
+    if (ioctl (mFrontEnd, FE_GET_EVENT, &ev) == -1)
+      break;
+    else
+      cLog::log (LOGINFO, "discarding stale event");
 
-  fe_status_t feStatus;
-  auto error = ioctl (mFrontEnd, FE_READ_STATUS, &feStatus);
-  if (error < 0)
-    cLog::log (LOGERROR, "FE_READ_STATUS " + dec(error));
+  //{{{
+  struct dtv_property tuneProps[10];
 
-  string str = "";
-  if (feStatus & FE_TIMEDOUT)
-    str += "timeout ";
-  if (feStatus & FE_HAS_LOCK)
-    str += "lock ";
-  if (feStatus & FE_HAS_SIGNAL)
-    str += "s";
-  if (feStatus & FE_HAS_CARRIER)
-    str += "c";
-  if (feStatus & FE_HAS_VITERBI)
-    str += "v";
-  if (feStatus & FE_HAS_SYNC)
-    str += "s";
+  tuneProps[0].cmd = DTV_CLEAR;
 
-  uint32_t value;
-  error = ioctl (mFrontEnd, FE_READ_SIGNAL_STRENGTH, &value);
-  if (error < 0)
-    cLog::log (LOGERROR, "FE_READ_SIGNAL_STRENGTH " + dec(error));
-  str += dec((value*100)/0x10000, 3);
+  tuneProps[1].cmd = DTV_DELIVERY_SYSTEM;
+  tuneProps[1].u.data = t2 ? SYS_DVBT2 : SYS_DVBT;
 
-  error = ioctl (mFrontEnd, FE_READ_SNR, &value);
-  if (error < 0)
-    cLog::log (LOGERROR, "FE_READ_SNR " + dec(error));
-  str += ":" + dec(value,3);
+  tuneProps[2].cmd = DTV_FREQUENCY;
+  tuneProps[2].u.data = frequency;
 
-  error = ioctl (mFrontEnd, FE_READ_BER, &value);
-  if (error < 0)
-    cLog::log (LOGERROR, "FE_READ_BER " + dec(error));
-  str += ":" + dec(value);
+  tuneProps[3].cmd = DTV_MODULATION;
+  tuneProps[3].u.data = QAM_AUTO;
 
-  mSignalStr = str;
+  tuneProps[4].cmd = DTV_CODE_RATE_HP;
+  tuneProps[4].u.data = FEC_AUTO;
+
+  tuneProps[5].cmd = DTV_CODE_RATE_LP;
+  tuneProps[5].u.data = 0;
+
+  tuneProps[6].cmd = DTV_INVERSION;
+  tuneProps[6].u.data = INVERSION_AUTO;
+
+  tuneProps[7].cmd = DTV_TRANSMISSION_MODE;
+  tuneProps[7].u.data = TRANSMISSION_MODE_AUTO;
+
+  tuneProps[8].cmd = DTV_BANDWIDTH_HZ;
+  tuneProps[8].u.data = 8000000;
+
+  tuneProps[9].cmd = DTV_TUNE;
+  //}}}
+  struct dtv_properties cmdTune = { .num = 10, .props = tuneProps };
+  if ((ioctl (mFrontEnd, FE_SET_PROPERTY, &cmdTune)) == -1) {
+    //{{{  error
+    cLog::log (LOGERROR, "FE_SET_PROPERTY TUNE failed");
+    return;
+    }
+    //}}}
+
+  // wait for zero status indicating start of tuning
+  do {
+    ioctl (mFrontEnd, FE_GET_EVENT, &ev);
+    cLog::log (LOGINFO, "waiting to tune");
+    } while (ev.status != 0);
+
+  // wait for tuning
+  for (int i = 0; i < 10; i++) {
+    usleep (100000);
+
+    if (ioctl (mFrontEnd, FE_GET_EVENT, &ev) == -1) // no answer, consider it as not locked situation
+      ev.status = FE_NONE;
+
+    if (ev.status & FE_HAS_LOCK) {
+      // tuning locked
+      struct dtv_property getProps[] = {
+          { .cmd = DTV_DELIVERY_SYSTEM },
+          { .cmd = DTV_MODULATION },
+          { .cmd = DTV_INNER_FEC },
+          { .cmd = DTV_CODE_RATE_HP },
+          { .cmd = DTV_CODE_RATE_LP },
+          { .cmd = DTV_INVERSION },
+          { .cmd = DTV_GUARD_INTERVAL },
+          { .cmd = DTV_TRANSMISSION_MODE },
+        };
+      struct dtv_properties cmdGet = {
+        .num = sizeof(getProps) / sizeof (getProps[0]), .props = getProps };
+      if ((ioctl (mFrontEnd, FE_GET_PROPERTY, &cmdGet)) == -1) {
+        //{{{  error
+        cLog::log (LOGERROR, "FE_GET_PROPERTY failed");
+        return;
+        }
+        //}}}
+
+      //{{{
+      const char* deliveryTab[] = {
+        "UNDEFINED",
+        "DVBC_ANNEX_A",
+        "DVBC_ANNEX_B",
+        "DVBT",
+        "DSS",
+        "DVBS",
+        "DVBS2",
+        "DVBH",
+        "ISDBT",
+        "ISDBS",
+        "ISDBC",
+        "ATSC",
+        "ATSCMH",
+        "DTMB",
+        "CMMB",
+        "DAB",
+        "DVBT2",
+        "TURBO",
+        "DVBC_ANNEX_C"
+        };
+      //}}}
+      //{{{
+      const char* modulationTab[] =  {
+        "QPSK",
+        "QAM_16",
+        "QAM_32",
+        "QAM_64",
+        "QAM_128",
+        "QAM_256",
+        "QAM_AUTO",
+        "VSB_8",
+        "VSB_16",
+        "PSK_8",
+        "APSK_16",
+        "APSK_32",
+        "DQPSK"
+      };
+      //}}}
+      //{{{
+      const char* inversionTab[] = {
+        "INV_OFF",
+        "INV_ON",
+        "INV_AUTO"
+        };
+      //}}}
+      //{{{
+      const char* codeRateTab[] = {
+        "FEC_NONE",
+        "FEC_1_2",
+        "FEC_2_3",
+        "FEC_3_4",
+        "FEC_4_5",
+        "FEC_5_6",
+        "FEC_6_7",
+        "FEC_7_8",
+        "FEC_8_9",
+        "FEC_AUTO",
+        "FEC_3_5",
+        "FEC_9_10",
+        };
+      //}}}
+      //{{{
+      const char* transmissionModeTab[] = {
+        "TM_2K",
+        "TM_8K",
+        "TM_AUTO",
+        "TM_4K",
+        "TM_1K",
+        "TM_16K",
+        "TM_32K"
+        };
+      //}}}
+      //{{{
+      const char* guardTab[] = {
+        "GUARD_1_32",
+        "GUARD_1_16",
+        "GUARD_1_8",
+        "GUARD_1_4",
+        "GUARD_AUTO",
+        "GUARD_1_128",
+        "GUARD_19_128",
+        "GUARD_19_256"
+        };
+      //}}}
+      cLog::log (LOGINFO, "locked using %s %s %s %s %s %s %s ",
+        deliveryTab [getProps[0].u.buffer.data[0]],
+        modulationTab [getProps[1].u.buffer.data[0]],
+        codeRateTab [getProps[2].u.buffer.data[0]],
+        codeRateTab [getProps[3].u.buffer.data[0]],
+        codeRateTab [getProps[4].u.buffer.data[0]],
+        inversionTab [getProps[5].u.buffer.data[0]],
+        guardTab [getProps[6].u.buffer.data[0]],
+        transmissionModeTab [getProps[7].u.buffer.data[0]]);
+
+      monitorFe();
+      mTuneStr = string(fe_info.name) + " " + dec(frequency/1000000) + "Mhz";
+      updateSignalString();
+      return;
+      }
+    else
+      cLog::log (LOGINFO, "waiting for lock");
+    }
+
+  cLog::log (LOGERROR, "tuning failed\n");
   }
 //}}}
 
@@ -215,66 +368,6 @@ void cDvb::init (int frequency) {
   }
 //}}}
 //{{{
-void cDvb::tune (int frequency) {
-
-  struct dvb_frontend_info feInfo;
-  auto error = ioctl (mFrontEnd, FE_GET_INFO, &feInfo);
-  if (error < 0) {
-    cLog::log (LOGERROR, "dvbTune::ioctl FE_GET_INFO " + dec(frequency) + "Mhz " + dec(error));
-    return;
-    }
-  mTuneStr = "tune " + string(feInfo.name) + " to " + dec(frequency/1000000);
-  cLog::log (LOGNOTICE, mTuneStr);
-  uSleep (100000);
-
-  struct dvb_frontend_parameters feParams;
-  feParams.frequency = frequency * 1000000;
-  feParams.inversion = INVERSION_AUTO;
-  feParams.u.ofdm.bandwidth = BANDWIDTH_8_MHZ;
-  feParams.u.ofdm.constellation = QAM_AUTO;
-  feParams.u.ofdm.transmission_mode = TRANSMISSION_MODE_AUTO;
-  feParams.u.ofdm.guard_interval = GUARD_INTERVAL_AUTO;
-  feParams.u.ofdm.code_rate_HP = FEC_AUTO;
-  feParams.u.ofdm.code_rate_LP = FEC_AUTO;
-  feParams.u.ofdm.hierarchy_information = HIERARCHY_AUTO;
-  error = ioctl (mFrontEnd, FE_SET_FRONTEND, &feParams);
-  if (error < 0) {
-    cLog::log (LOGERROR, "tune - FE_SET_FRONTEND failed " + dec(error));
-    return;
-    }
-
-  //{{{  wait for lock
-  struct pollfd pfd[1];
-  pfd[0].fd = mFrontEnd;
-  pfd[0].events = POLLPRI;
-
-  time_t tm1 = time ((time_t*)NULL);
-
-  int lockCountDown = 2;
-  fe_status_t feStatus;
-  do {
-    if (poll (pfd, 1, 3000) > 0)
-      if (pfd[0].revents & POLLPRI)
-        if (ioctl (mFrontEnd, FE_READ_STATUS, &feStatus) >= 0)
-          if (feStatus & FE_HAS_LOCK)
-            lockCountDown--;
-    uSleep (10000);
-    } while (lockCountDown && !(feStatus & FE_TIMEDOUT) && (time ((time_t*)NULL) - tm1 < 4));
-  //}}}
-
-  if (lockCountDown)
-    cLog::log (LOGERROR, "tune - unable to lock");
-  else {
-    error = ioctl (mFrontEnd, FE_GET_FRONTEND, feParams);
-    if (error >= 0)
-      cLog::log (LOGINFO, "Frequency " + dec(feParams.frequency) + "Mhz " + dec(error));
-    mTuneStr = string(feInfo.name) + " " + dec(feParams.frequency/1000000) + "Mhz";
-    }
-
-  updateSignalString();
-  }
-//}}}
-//{{{
 void cDvb::setTsFilter (uint16_t pid, dmx_pes_type_t pestype) {
 
   struct dmx_pes_filter_params pesFilterParams;
@@ -287,5 +380,103 @@ void cDvb::setTsFilter (uint16_t pid, dmx_pes_type_t pestype) {
   auto error = ioctl (mDemux, DMX_SET_PES_FILTER, &pesFilterParams);
   if (error < 0)
     cLog::log (LOGERROR, "Demux set filter pid " + dec(pid) + " " + dec(error));
+  }
+//}}}
+//{{{
+void cDvb::monitorFe() {
+
+  fe_status_t festatus;
+  if (ioctl (mFrontEnd, FE_READ_STATUS, &festatus) == -1)
+    cLog::log (LOGERROR, "FE_READ_STATUS failed");
+  else
+    cLog::log (LOGINFO, "status %s%s%s%s%s%s",
+               festatus & FE_HAS_LOCK ? "lock " : "",
+               festatus & FE_HAS_SYNC ? "sync " : "",
+               festatus & FE_TIMEDOUT ? "timedout " : "",
+               festatus & FE_HAS_SIGNAL ? "sig " : "",
+               festatus & FE_HAS_CARRIER ? "carrier " : "",
+               festatus & FE_HAS_VITERBI ? "viterbi " : "");
+
+
+  struct dtv_property getProps[] = {
+      { .cmd = DTV_STAT_SIGNAL_STRENGTH },
+      { .cmd = DTV_STAT_CNR },
+      { .cmd = DTV_STAT_PRE_ERROR_BIT_COUNT },
+      { .cmd = DTV_STAT_PRE_TOTAL_BIT_COUNT },
+      { .cmd = DTV_STAT_POST_ERROR_BIT_COUNT },
+      { .cmd = DTV_STAT_POST_TOTAL_BIT_COUNT },
+      { .cmd = DTV_STAT_ERROR_BLOCK_COUNT },
+      { .cmd = DTV_STAT_TOTAL_BLOCK_COUNT },
+    };
+  struct dtv_properties cmdGet = {
+    .num = sizeof(getProps) / sizeof (getProps[0]),
+    .props = getProps
+    };
+  if ((ioctl (mFrontEnd, FE_GET_PROPERTY, &cmdGet)) == -1)
+    cLog::log (LOGERROR, "FE_GET_PROPERTY failed");
+  else
+    for (int i = 0; i < 8; i++) {
+      auto uvalue = getProps[i].u.st.stat[0].uvalue;
+      cLog::log (LOGINFO, "stats %d len:%d scale:%d uvalue:%d",
+                 i,
+                 getProps[i].u.st.len,
+                 getProps[i].u.st.stat[0].scale,
+                 int(uvalue));
+      }
+    //__s64 svalue;
+  }
+//}}}
+//{{{
+void cDvb::updateSignalString() {
+
+  fe_status_t feStatus;
+  auto error = ioctl (mFrontEnd, FE_READ_STATUS, &feStatus);
+  if (error < 0)
+    cLog::log (LOGERROR, "FE_READ_STATUS " + dec(error));
+
+  string str = "";
+  if (feStatus & FE_TIMEDOUT)
+    str += "timeout ";
+  if (feStatus & FE_HAS_LOCK)
+    str += "lock ";
+  if (feStatus & FE_HAS_SIGNAL)
+    str += "s";
+  if (feStatus & FE_HAS_CARRIER)
+    str += "c";
+  if (feStatus & FE_HAS_VITERBI)
+    str += "v";
+  if (feStatus & FE_HAS_SYNC)
+    str += "s";
+
+  uint32_t value;
+  error = ioctl (mFrontEnd, FE_READ_SIGNAL_STRENGTH, &value);
+  if (error < 0)
+    cLog::log (LOGERROR, "FE_READ_SIGNAL_STRENGTH " + dec(error));
+  str += dec((value*100)/0x10000, 3);
+
+  error = ioctl (mFrontEnd, FE_READ_SNR, &value);
+  if (error < 0)
+    cLog::log (LOGERROR, "FE_READ_SNR " + dec(error));
+  str += ":" + dec(value,3);
+
+  error = ioctl (mFrontEnd, FE_READ_BER, &value);
+  if (error < 0)
+    cLog::log (LOGERROR, "FE_READ_BER " + dec(error));
+  str += ":" + dec(value);
+
+  mSignalStr = str;
+  }
+//}}}
+//{{{
+void cDvb::uSleep (uint64_t uSec) {
+
+  struct timespec timeRequest = { 0 };
+
+  timeRequest.tv_sec = uSec / 1000000;
+  timeRequest.tv_nsec = (uSec % 1000000) * 1000;
+
+  while ((nanosleep (&timeRequest, &timeRequest) == -1) &&
+         (errno == EINTR) &&
+         (timeRequest.tv_nsec > 0 || timeRequest.tv_sec > 0));
   }
 //}}}

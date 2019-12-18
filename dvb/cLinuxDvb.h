@@ -18,8 +18,7 @@ public:
   cDvb (const string& root);
   virtual ~cDvb();
 
-  void uSleep (uint64_t uSec);
-  void updateSignalString();
+  void tune (int frequency);
 
   void captureThread (int frequency);
   void grabThread();
@@ -32,8 +31,10 @@ public:
 
 private:
   void init (int frequency);
-  void tune (int frequency);
   void setTsFilter (uint16_t pid, dmx_pes_type_t pestype);
+  void monitorFe();
+  void updateSignalString();
+  void uSleep (uint64_t uSec);
 
   int mFrontEnd = 0;
   int mDemux = 0;
