@@ -367,6 +367,7 @@ void cDvb::init (int frequency) {
     }
   }
 //}}}
+
 //{{{
 void cDvb::setTsFilter (uint16_t pid, dmx_pes_type_t pestype) {
 
@@ -382,6 +383,7 @@ void cDvb::setTsFilter (uint16_t pid, dmx_pes_type_t pestype) {
     cLog::log (LOGERROR, "Demux set filter pid " + dec(pid) + " " + dec(error));
   }
 //}}}
+
 //{{{
 void cDvb::monitorFe() {
 
