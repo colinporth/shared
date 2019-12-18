@@ -1258,9 +1258,17 @@ protected:
         }
 
       auto path = &mPaths[mNumPaths];
-      memset (path, 0, sizeof(*path));
+      //memset (path, 0, sizeof(*path));
+      path->mNumPoints = 0;
       path->mFirstPointIndex = mNumPoints;
       path->mWinding = eSOLID;
+      path->mConvex = false;
+      path->mClosed = false;
+      path->mNumBevel = 0;
+      path->mPathVertices.mNumFillVertices = 0;
+      path->mPathVertices.mFirstFillVertexIndex = 0;
+      path->mPathVertices.mNumStrokeVertices = 0;
+      path->mPathVertices.mFirstStrokeVertexIndex = 0;;
 
       mNumPaths++;
       }
