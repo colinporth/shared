@@ -227,8 +227,6 @@ cVg::cVg (int flags) :
 
   // init font rendering
   FONSparams fontParams;
-  memset (&fontParams, 0, sizeof(fontParams));
-
   fontParams.width = NVG_INIT_FONTIMAGE_SIZE;
   fontParams.height = NVG_INIT_FONTIMAGE_SIZE;
   fontParams.flags = FONS_ZERO_TOPLEFT;
@@ -376,8 +374,6 @@ cVg::cPaint cVg::linearGradient (float sx, float sy, float ex, float ey, sVgColo
     }
 
   cPaint p;
-  //memset (&p, 0, sizeof(p));
-
   const float large = 1e5;
   p.mTransform.set (dy, -dx, dx, dy, sx - dx * large, sy - dy * large);
   p.extent[0] = large;
@@ -397,13 +393,9 @@ cVg::cPaint cVg::radialGradient (float cx, float cy, float inr, float outr, sVgC
   float f = (outr - inr);
 
   cPaint p;
-  //memset (&p, 0, sizeof (p));
-
   p.mTransform.setTranslate (cx, cy);
-
   p.extent[0] = r;
   p.extent[1] = r;
-
   p.radius = r;
   p.feather = maxf (1.0f, f);
   p.innerColor = icol;
@@ -416,15 +408,11 @@ cVg::cPaint cVg::radialGradient (float cx, float cy, float inr, float outr, sVgC
 cVg::cPaint cVg::boxGradient (float x, float y, float w, float h, float r, float f, sVgColour icol, sVgColour ocol) {
 
   cPaint p;
-  //memset (&p, 0, sizeof (p));
-
   p.mTransform.setTranslate (x + w * 0.5f, y + h * 0.5f);
-
   p.radius = r;
   p.feather = maxf (1.0f, f);
   p.innerColor = icol;
   p.outerColor = ocol;
-
   return p;
   }
 //}}}
@@ -432,8 +420,6 @@ cVg::cPaint cVg::boxGradient (float x, float y, float w, float h, float r, float
 cVg::cPaint cVg::imagePattern (float cx, float cy, float w, float h, float angle, int image, float alpha) {
 
   cPaint p;
-  //memset (&p, 0, sizeof(p));
-
   p.mTransform.setRotateTranslate (angle, cx, cy);
   p.extent[0] = w;
   p.extent[1] = h;
@@ -1417,7 +1403,7 @@ void cVg::intersectScissor (float x, float y, float w, float h) {
 void cVg::resetScissor() {
 
   auto state = &mStates[mNumStates-1];
-  //memset (&state->scissor.mTransform, 0, sizeof(cTransform));
+  state->scissor.mTransform.setIdentity();
   state->scissor.extent[0] = -1.0f;
   state->scissor.extent[1] = -1.0f;
   }

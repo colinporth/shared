@@ -515,7 +515,7 @@ protected:
       if (mTextures[i].id == image) {
         if (mTextures[i].tex != 0 && (mTextures[i].flags & IMAGE_NODELETE) == 0)
           glDeleteTextures (1, &mTextures[i].tex);
-        memset (&mTextures[i], 0, sizeof(mTextures[i]));
+        mTextures[i].reset();
         return true;
         }
       }
@@ -565,6 +565,18 @@ private:
   //{{{
   class cTexture {
   public:
+    //{{{
+    void reset() {
+      id = 0;
+      tex = 0;
+
+      width = 0;
+      height = 0;
+      type = 0;
+      flags = 0;
+      }
+    //}}}
+
     int id = 0;
     GLuint tex = 0;
 
@@ -1127,7 +1139,7 @@ private:
       texture = &mTextures[mNumTextures++];
       }
 
-    memset (texture, 0, sizeof(*texture));
+    texture->reset();
     texture->id = ++mTextureId;
     return texture;
     }
