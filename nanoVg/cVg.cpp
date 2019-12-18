@@ -376,7 +376,7 @@ cVg::cPaint cVg::linearGradient (float sx, float sy, float ex, float ey, sVgColo
     }
 
   cPaint p;
-  memset (&p, 0, sizeof(p));
+  //memset (&p, 0, sizeof(p));
 
   const float large = 1e5;
   p.mTransform.set (dy, -dx, dx, dy, sx - dx * large, sy - dy * large);
@@ -397,7 +397,7 @@ cVg::cPaint cVg::radialGradient (float cx, float cy, float inr, float outr, sVgC
   float f = (outr - inr);
 
   cPaint p;
-  memset (&p, 0, sizeof (p));
+  //memset (&p, 0, sizeof (p));
 
   p.mTransform.setTranslate (cx, cy);
 
@@ -416,7 +416,7 @@ cVg::cPaint cVg::radialGradient (float cx, float cy, float inr, float outr, sVgC
 cVg::cPaint cVg::boxGradient (float x, float y, float w, float h, float r, float f, sVgColour icol, sVgColour ocol) {
 
   cPaint p;
-  memset (&p, 0, sizeof (p));
+  //memset (&p, 0, sizeof (p));
 
   p.mTransform.setTranslate (x + w * 0.5f, y + h * 0.5f);
 
@@ -432,7 +432,7 @@ cVg::cPaint cVg::boxGradient (float x, float y, float w, float h, float r, float
 cVg::cPaint cVg::imagePattern (float cx, float cy, float w, float h, float angle, int image, float alpha) {
 
   cPaint p;
-  memset (&p, 0, sizeof(p));
+  //memset (&p, 0, sizeof(p));
 
   p.mTransform.setRotateTranslate (angle, cx, cy);
   p.extent[0] = w;
@@ -1417,7 +1417,7 @@ void cVg::intersectScissor (float x, float y, float w, float h) {
 void cVg::resetScissor() {
 
   auto state = &mStates[mNumStates-1];
-  memset (&state->scissor.mTransform, 0, sizeof(cTransform));
+  //memset (&state->scissor.mTransform, 0, sizeof(cTransform));
   state->scissor.extent[0] = -1.0f;
   state->scissor.extent[1] = -1.0f;
   }
