@@ -1,6 +1,6 @@
 // cGlWindow.h
 #define NANOVG
-#define NANOVG_GL2 1
+#define NANOVG_GLES2 1
 //#define NANOVG_GL3 1
 //#define NANOVG_UNIFORMBUFFER
 //{{{  includes
