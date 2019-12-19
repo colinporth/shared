@@ -1,10 +1,7 @@
 // cGlWindow.cpp
 //{{{  includes
-#ifdef _WIN32
-  #define _CRT_SECURE_NO_WARNINGS
-  #define WIN32_LEAN_AND_MEAN
-  #include <windows.h>
-#endif
+#define _CRT_SECURE_NO_WARNINGS
+#define WIN32_LEAN_AND_MEAN
 
 #include "../utils/utils.h"
 #include "../utils/cLog.h"
@@ -83,13 +80,13 @@ cRootContainer* cGlWindow::initialise (string title, int width, int height, unsi
 
   // glfw hints
 #ifdef NANOVG_GL3
-  glfwWindowHint (GLFW_CONTEXT_VERSION_MAJOR, 3);
-  glfwWindowHint (GLFW_CONTEXT_VERSION_MINOR, 2);
   glfwWindowHint (GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
   glfwWindowHint (GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+  glfwWindowHint (GLFW_CONTEXT_VERSION_MAJOR, 3);
+  glfwWindowHint (GLFW_CONTEXT_VERSION_MINOR, 2);
   glfwWindowHint (GLFW_OPENGL_DEBUG_CONTEXT, 1);
 #else
-  glfwWindowHint (GLFW_CONTEXT_VERSION_MAJOR, 2);
+  glfwWindowHint (GLFW_CONTEXT_VERSION_MAJOR, 3);
   glfwWindowHint (GLFW_CONTEXT_VERSION_MINOR, 0);
 #endif
 
@@ -104,11 +101,13 @@ cRootContainer* cGlWindow::initialise (string title, int width, int height, unsi
 
   glfwMakeContextCurrent (mWindow);
   gladLoadGLLoader((GLADloadproc) glfwGetProcAddress);
+
   glfwSetKeyCallback (mWindow, glfwKey);
   glfwSetCharModsCallback (mWindow, glfwCharMods);
   glfwSetCursorPosCallback (mWindow, glfwCursorPos);
   glfwSetMouseButtonCallback (mWindow, glfwMouseButton);
   glfwSetScrollCallback (mWindow, glfMouseScroll);
+
   glfwSwapInterval (1);
 
   cVgGL::initialise();
@@ -119,8 +118,8 @@ cRootContainer* cGlWindow::initialise (string title, int width, int height, unsi
 
   // init timers
   glfwSetTime (0);
-  mFpsGraph = new cPerfGraph (cPerfGraph::GRAPH_RENDER_FPS, "frame");
   mCpuGraph = new cPerfGraph (cPerfGraph::GRAPH_RENDER_MS, "cpu");
+  mFpsGraph = new cPerfGraph (cPerfGraph::GRAPH_RENDER_FPS, "frame");
 
   return mRoot;
   }
