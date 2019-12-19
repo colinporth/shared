@@ -1,6 +1,6 @@
 // cGlWindow.h
 #define NANOVG
-#define NANOVG_GLES3 1
+#define NANOVG_GLES2 1
 //#define NANOVG_GL3 1
 //#define NANOVG_UNIFORMBUFFER
 //{{{  includes
@@ -25,8 +25,10 @@ public:
 
   // iWindow
   cVg* getContext();
+
   uint16_t getWidthPix();
   uint16_t getHeightPix();
+
   bool getShift() { return mShifted; }
   bool getControl() { return mControlled; }
   bool getMouseDown() { return mMouseDown; }
