@@ -95,8 +95,8 @@ private:
   bool mDrawStats = false;
   bool mDrawTests = false;
 
-  cPerfGraph* mFpsGraph = nullptr;
   cPerfGraph* mCpuGraph = nullptr;
+  cPerfGraph* mFpsGraph = nullptr;
 
   cRootContainer* mRoot = nullptr;
 

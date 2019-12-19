@@ -18,6 +18,22 @@ cGlWindow::~cGlWindow() {
   }
 //}}}
 
+//{{{  static var inits
+cGlWindow* cGlWindow::mGlWindow = NULL;
+
+bool cGlWindow::mMouseDown = false;
+bool cGlWindow::mMouseMoved = false;
+float cGlWindow::mMouseX = 0;
+float cGlWindow::mMouseY = 0;
+int cGlWindow::mMouseIntX = 0;
+int cGlWindow::mMouseIntY = 0;
+
+bool cGlWindow::mAlted = false;
+bool cGlWindow::mSupered = false;
+bool cGlWindow::mShifted = false;
+bool cGlWindow::mControlled = false;
+//}}}
+
 //{{{  iWindow
 cVg* cGlWindow::getContext() { return this; }
 uint16_t cGlWindow::getWidthPix() { return mRoot->getPixWidth(); }
@@ -87,7 +103,7 @@ cRootContainer* cGlWindow::initialise (string title, int width, int height, unsi
   glfwWindowHint (GLFW_CONTEXT_VERSION_MINOR, 2);
 #else
   glfwWindowHint (GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-  glfwWindowHint (GLFW_CONTEXT_VERSION_MAJOR, 2);
+  glfwWindowHint (GLFW_CONTEXT_VERSION_MAJOR, 3);
   glfwWindowHint (GLFW_CONTEXT_VERSION_MINOR, 0);
 #endif
 
@@ -470,23 +486,9 @@ void cGlWindow::glfMouseScroll (struct GLFWwindow* window,  double xoffset, doub
   mGlWindow->onWheel (int (yoffset));
   }
 //}}}
+
 //{{{
 void cGlWindow::errorcb (int error, const char* desc) {
   cLog::log (LOGERROR, "GLFW error %d: %s\n", error, desc);
   }
-//}}}
-
-//{{{  static var inits
-cGlWindow* cGlWindow::mGlWindow = NULL;
-bool cGlWindow::mMouseDown = false;
-bool cGlWindow::mMouseMoved = false;
-float cGlWindow::mMouseX = 0;
-float cGlWindow::mMouseY = 0;
-int cGlWindow::mMouseIntX = 0;
-int cGlWindow::mMouseIntY = 0;
-
-bool cGlWindow::mAlted = false;
-bool cGlWindow::mSupered = false;
-bool cGlWindow::mShifted = false;
-bool cGlWindow::mControlled = false;
 //}}}
