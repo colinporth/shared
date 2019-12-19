@@ -101,9 +101,19 @@ cRootContainer* cGlWindow::initialise (string title, int width, int height, unsi
   glfwWindowHint (GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
   glfwWindowHint (GLFW_CONTEXT_VERSION_MAJOR, 3);
   glfwWindowHint (GLFW_CONTEXT_VERSION_MINOR, 2);
-#else
+#elseif NANOVG_GL2
+  glfwWindowHint (GLFW_OPENGL_DEBUG_CONTEXT, 1);
+  glfwWindowHint (GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+  glfwWindowHint (GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+  glfwWindowHint (GLFW_CONTEXT_VERSION_MAJOR, 2);
+  glfwWindowHint (GLFW_CONTEXT_VERSION_MINOR, 0);
+#elseif NANOVG_GLES3
   glfwWindowHint (GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
   glfwWindowHint (GLFW_CONTEXT_VERSION_MAJOR, 3);
+  glfwWindowHint (GLFW_CONTEXT_VERSION_MINOR, 0);
+#else NANOVG_GLE23
+  glfwWindowHint (GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
+  glfwWindowHint (GLFW_CONTEXT_VERSION_MAJOR, 2);
   glfwWindowHint (GLFW_CONTEXT_VERSION_MINOR, 0);
 #endif
 
@@ -117,7 +127,7 @@ cRootContainer* cGlWindow::initialise (string title, int width, int height, unsi
     //}}}
 
   glfwMakeContextCurrent (mWindow);
-  gladLoadGLLoader((GLADloadproc) glfwGetProcAddress);
+  gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
 
   glfwSetKeyCallback (mWindow, glfwKey);
   glfwSetCharModsCallback (mWindow, glfwCharMods);
