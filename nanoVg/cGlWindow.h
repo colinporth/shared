@@ -20,7 +20,7 @@
 
 class cGlWindow : public cVgGL, public iChange, public iDraw {
 public:
-  cGlWindow();
+  cGlWindow() {};
   virtual ~cGlWindow();
 
   // iWindow
@@ -45,6 +45,8 @@ public:
 
 protected:
   cRootContainer* initialise (std::string title, int width, int height, unsigned char* sansFont);
+  void run();
+
   cWidget* add (cWidget* widget) { return mRoot->add (widget); }
   cWidget* addAt (cWidget* widget, float x, float y) { return mRoot->addAt (widget,x,y); }
   cWidget* addAtPix (cWidget* widget, int16_t x, int16_t y) { return mRoot->addAtPix (widget,x,y); }
@@ -55,7 +57,6 @@ protected:
   cWidget* addBelow (cWidget* widget) { return mRoot->addBelow (widget); }
   cWidget* addLeft (cWidget* widget) { return mRoot->addLeft (widget); }
   cWidget* addAbove (cWidget* widget) { return mRoot->addAbove (widget); }
-  void run();
 
   virtual void onKey (int key, int scancode, int action, int mods) = 0;
   virtual void onChar (char ch, int mods) = 0;
