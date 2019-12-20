@@ -1,4 +1,4 @@
-// cLiunuxDvb.cpp
+// cLinuxDvb.cpp
 //{{{  includes
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,7 +26,8 @@ using namespace std;
 // public:
 //{{{
 cDvb::cDvb (const string& root) : cDumpTransportStream (root, true) {
-  allocateBuffer (2048 * 128 * 188); // 50m - T2 5m a second
+  mBibBuffer = new cBipBuffer();
+  mBibBuffer->allocateBuffer (2048 * 128 * 188); // 50m - T2 5m a second
   }
 //}}}
 //{{{
@@ -255,10 +256,10 @@ void cDvb::captureThread (int frequency) {
 
   while (true) {
     int bytesAllocated = 0;
-    auto ptr = reserve (128 * 188, bytesAllocated);
+    auto ptr = mBibBuffer->reserve (128 * 188, bytesAllocated);
     if (ptr) {
       int bytesRead = read (mDvr, ptr, bytesAllocated);
-      commit (bytesRead);
+      mBibBuffer->commit (bytesRead);
       if (bytesRead < bytesAllocated)
         cLog::log (LOGERROR, "write bytesRead " + dec(bytesRead) + " < " + dec(bytesAllocated));
       }
@@ -278,10 +279,10 @@ void cDvb::grabThread() {
   bool run = true;
   while (run) {
     int blockSize = 0;
-    auto ptr = getContiguousBlock (blockSize);
+    auto ptr = mBibBuffer->getContiguousBlock (blockSize);
     if (blockSize > 0) {
       streamPos += demux (ptr, blockSize, 0, false, -1);
-      decommitBlock (blockSize);
+      mBibBuffer->decommitBlock (blockSize);
 
       bool show = (getDiscontinuity() != mLastDiscontinuity) || (blockSize > mLastBlockSize);
       mLastDiscontinuity = getDiscontinuity();

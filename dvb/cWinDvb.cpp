@@ -15,8 +15,6 @@
 #include "cWinDvb.h"
 #include <bdamedia.h>
 
-using namespace std;
-
 DEFINE_GUID (CLSID_DVBTLocator, 0x9CD64701, 0xBDF3, 0x4d14, 0x8E,0x03, 0xF1,0x29,0x83,0xD8,0x66,0x64);
 DEFINE_GUID (CLSID_BDAtif, 0xFC772ab0, 0x0c7f, 0x11d3, 0x8F,0xf2, 0x00,0xa0,0xc9,0x22,0x4c,0xf4);
 DEFINE_GUID (CLSID_Dump, 0x36a5f770, 0xfe4c, 0x11ce, 0xa8, 0xed, 0x00, 0xaa, 0x00, 0x2f, 0xea, 0xb5);
@@ -193,6 +191,39 @@ void cDvb::signalThread() {
 
   cLog::log (LOGINFO, "exit");
   CoUninitialize();
+  }
+//}}}
+//{{{
+void cDvb::readThread (const std::string& inTs) {
+
+  cLog::setThreadName ("read");
+
+  auto file = fopen (inTs.c_str(), "rb");
+  if (!file) {
+    //{{{  error, return
+    cLog::log (LOGERROR, "no file " + inTs);
+    return;
+    }
+    //}}}
+
+  uint64_t streamPos = 0;
+  auto blockSize = 188 * 8;
+  auto buffer = (uint8_t*)malloc (blockSize);
+
+  bool run = true;
+  while (run) {
+    int bytesRead = fread (buffer, 1, blockSize, file);
+    if (bytesRead > 0)
+      streamPos += demux (buffer, bytesRead, streamPos, false, -1);
+    else
+      break;
+    mPacketStr = dec(getDiscontinuity());
+    }
+
+  fclose (file);
+  free (buffer);
+
+  cLog::log (LOGERROR, "exit");
   }
 //}}}
 

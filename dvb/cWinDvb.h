@@ -52,6 +52,7 @@ public:
 
   void grabThread();
   void signalThread();
+  void readThread (const std::string& inTs);
 
   // vars - public for widget
   int mSignal = 0;

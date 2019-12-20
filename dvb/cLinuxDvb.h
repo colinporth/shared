@@ -13,7 +13,9 @@
 using namespace std;
 //}}}
 
-class cDvb : public cDumpTransportStream, public cBipBuffer {
+class cBipBuffer;
+
+class cDvb : public cDumpTransportStream {
 public:
   cDvb (const string& root);
   virtual ~cDvb();
@@ -44,4 +46,5 @@ private:
   uint64_t mLastDiscontinuity = 0;
   int mLastBlockSize = 0;
   int mMaxBlockSize = 0;
+  cBipBuffer* mBipBuffer;
   };
