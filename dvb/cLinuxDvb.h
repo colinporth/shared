@@ -22,6 +22,7 @@ public:
 
   void captureThread (int frequency);
   void grabThread();
+
   void readThread (const string& inTs);
 
   // public for widgets

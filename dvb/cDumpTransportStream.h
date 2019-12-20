@@ -6,22 +6,22 @@
 
 class cDumpTransportStream : public cTransportStream {
 public:
-  cDumpTransportStream (const string& rootName, bool recordAll) :
+  cDumpTransportStream (const std::string& rootName, bool recordAll) :
     mRootName(rootName), mRecordAll(recordAll) {}
   virtual ~cDumpTransportStream() {}
 
 protected:
   //{{{
-  void start (cService* service, const string& name, system_clock::time_point time, bool selected) {
+  void start (cService* service, const std::string& name, std::chrono::system_clock::time_point time, bool selected) {
 
-    lock_guard<mutex> lockGuard (mFileMutex);
+    std::lock_guard<std::mutex> lockGuard (mFileMutex);
 
     service->closeFile();
 
     if (selected || mRecordAll) {
       if ((service->getVidPid() > 0) && (service->getAudPid() > 0)) {
         auto validName = validFileString (name, "<>:/|?*\"\'\\");
-        auto timeStr = date::format ("@%H.%M %a %d %b %Y", date::floor<seconds>(time));
+        auto timeStr = date::format ("@%H.%M %a %d %b %Y", date::floor<std::chrono::seconds>(time));
         service->openFile (mRootName + "/" + validName + timeStr  + ".ts", 0x1234);
         }
       }
@@ -31,7 +31,7 @@ protected:
   void pesPacket (int sid, int pid, uint8_t* ts) {
   // look up service and write it
 
-    lock_guard<mutex> lockGuard (mFileMutex);
+    std::lock_guard<std::mutex> lockGuard (mFileMutex);
 
     auto serviceIt = mServiceMap.find (sid);
     if (serviceIt != mServiceMap.end())
@@ -41,14 +41,14 @@ protected:
   //{{{
   void stop (cService* service) {
 
-    lock_guard<mutex> lockGuard (mFileMutex);
+    std::lock_guard<std::mutex> lockGuard (mFileMutex);
 
     service->closeFile();
     }
   //}}}
 
 private:
-  mutex mFileMutex;
-  string mRootName;
+  std::mutex mFileMutex;
+  std::string mRootName;
   bool mRecordAll;
   };

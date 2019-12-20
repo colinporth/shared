@@ -188,6 +188,7 @@ void cDvb::signalThread() {
       mSignal = signal / 0x10000;
       }
     Sleep (100);
+    mSignalStr = dec(mSignal,3);
     }
 
   cLog::log (LOGINFO, "exit");
