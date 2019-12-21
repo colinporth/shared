@@ -443,16 +443,17 @@ void cDvb::updateSignalString() {
   if (feStatus & FE_HAS_SYNC)
     str += "s";
 
-  uint32_t value;
-  error = ioctl (mFrontEnd, FE_READ_SIGNAL_STRENGTH, &value);
+  uint32_t strength;
+  error = ioctl (mFrontEnd, FE_READ_SIGNAL_STRENGTH, &strength);
   if (error < 0)
     cLog::log (LOGERROR, "FE_READ_SIGNAL_STRENGTH " + dec(error));
-  str += " " + frac((value*100)/0x10000, 5, 3, ' ');
+  str += " " + frac((strength*100.0f)/0x10000, 5, 3, ' ');
 
-  error = ioctl (mFrontEnd, FE_READ_SNR, &value);
+  uint32_t snr;
+  error = ioctl (mFrontEnd, FE_READ_SNR, &snr);
   if (error < 0)
     cLog::log (LOGERROR, "FE_READ_SNR " + dec(error));
-  str += ":" + dec(value,3);
+  str += ":" + dec(snr,3);
 
   mSignalStr = str;
   }
