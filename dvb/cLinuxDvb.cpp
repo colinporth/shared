@@ -295,7 +295,7 @@ void cDvb::grabThread() {
       updateSignalString();
 
       if (show)
-        cLog::log (LOGINFO, mPacketStr + " " + mSignalStr);
+        cLog::log (LOGINFO, mErrorStr + " " + mSignalStr);
       }
     else
       uSleep (1000);
@@ -328,7 +328,7 @@ void cDvb::readThread (const std::string& inTs) {
       streamPos += demux (buffer, bytesRead, streamPos, false, -1);
     else
       break;
-    mPacketStr = dec(getDiscontinuity());
+    mErrorStr = dec(getDiscontinuity());
     }
 
   fclose (file);
