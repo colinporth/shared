@@ -50,7 +50,7 @@ public:
   // vars - public for widget
   std::string mTuneStr = "untuned";
   std::string mSignalStr = "signal";
-  std::string mErrorStr = "";
+  std::string mErrorStr = "ok";
 
 private:
   //{{{
@@ -334,7 +334,6 @@ private:
   //}}}
 
   bool createGraph (int frequency);
-  bool createGraph (int frequency, const std::string& fileName);
 
   bool connectPins (Microsoft::WRL::ComPtr<IBaseFilter> fromFilter,
                     Microsoft::WRL::ComPtr<IBaseFilter> toFilter,
@@ -376,7 +375,5 @@ private:
   Microsoft::WRL::ComPtr<IFileSinkFilter> mFileSinkFilter;
 
   Microsoft::WRL::ComPtr<IMediaControl> mMediaControl;
-
-  int mFrequency = 0;
   //}}}
   };

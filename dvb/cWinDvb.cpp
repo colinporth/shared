@@ -74,8 +74,6 @@ void cDvb::tune (int frequency) {
   if (hr != S_OK)
     cLog::log (LOGERROR, "tune - run" + dec(hr));
   //}}}
-
-  mFrequency = frequency;
   }
 //}}}
 //{{{
@@ -114,7 +112,8 @@ void cDvb::grabThread() {
       if (blockSize) {
         streamPos += demux (ptr, blockSize, streamPos, false, -1);
         releaseBlock (blockSize);
-        mErrorStr = dec (getDiscontinuity());
+        if (getDiscontinuity())
+          mErrorStr = "errors " + dec (getDiscontinuity());
         }
       else
         Sleep (1);
@@ -135,7 +134,7 @@ void cDvb::signalThread() {
     if (mScanningTuner) {
       long signal = 0;
       mScanningTuner->get_SignalStrength (&signal);
-      mSignalStr = dec(signal / 0x10000, 3);
+      mSignalStr = "signal " + dec(signal / 0x10000, 3);
       }
     Sleep (100);
     }
@@ -464,7 +463,7 @@ bool cDvb::createGraph (int frequency)  {
   if (!createGraphDvbT (frequency))
     return false;
 
-  mFrequency = frequency;
+  mTuneStr = "tuned " + dec (frequency / 1000, 3) + "Mhz";
 
   createFilter (mGrabberFilter, CLSID_SampleGrabber, L"grabber", mDvbCapture);
   mGrabberFilter.As (&mGrabber);
@@ -489,27 +488,6 @@ bool cDvb::createGraph (int frequency)  {
   return true;
   }
 //}}}
-//{{{
-bool cDvb::createGraph (int frequency, const std::string& fileName) {
-// dump whole ts via filter
-
-  if (!createGraphDvbT (frequency))
-    return false;
-
-  createFilter (mInfTeeFilter, CLSID_InfTee, L"infTee", mDvbCapture);
-
-  auto wstr = std::wstring (fileName.begin(), fileName.end());
-  createFilter (mDumpFilter, CLSID_Dump, L"dump", mInfTeeFilter);
-  mDumpFilter.As (&mFileSinkFilter);
-  mFileSinkFilter->SetFileName (wstr.c_str(), nullptr);
-
-  createFilter (mMpeg2Demux, CLSID_MPEG2Demultiplexer, L"MPEG2demux", mInfTeeFilter);
-  createFilter (mBdaTif, CLSID_BDAtif, L"BDAtif", mMpeg2Demux);
-  mGraphBuilder.As (&mMediaControl);
-  return true;
-  }
-//}}}
-
 //{{{
 bool cDvb::connectPins (Microsoft::WRL::ComPtr<IBaseFilter> fromFilter,
                   Microsoft::WRL::ComPtr<IBaseFilter> toFilter,
