@@ -1,9 +1,9 @@
 // cWinDvb.h
 //{{{  includes
 #pragma once
+#include <string>
 
 #include <wrl.h>
-
 #include <initguid.h>
 #include <DShow.h>
 #include <bdaiface.h>
@@ -32,19 +32,12 @@ public:
   virtual HRESULT STDMETHODCALLTYPE SetCallback (ISampleGrabberCB* pCallback, long WhichMethodToCallback) = 0;
   };
 EXTERN_C const CLSID CLSID_SampleGrabber;
-
 //}}}
 
 class cDvb : public cDumpTransportStream {
 public:
-  cDvb (const std::string& root);
+  cDvb (int frequency, const std::string& root);
   virtual ~cDvb() {}
-
-  int getSignal() { return mSignal; }
-  int getFrequency() { return mFrequency; }
-
-  bool createGraph (int frequency);
-  bool createGraph (int frequency, const std::string& fileName);
 
   void tune (int frequency);
   void pause();
@@ -55,8 +48,6 @@ public:
   void readThread (const std::string& inTs);
 
   // vars - public for widget
-  int mSignal = 0;
-
   std::string mTuneStr = "untuned";
   std::string mSignalStr = "signal";
   std::string mPacketStr = "packet";
@@ -341,6 +332,9 @@ private:
     cBipBuffer mBipBuffer;
     };
   //}}}
+
+  bool createGraph (int frequency);
+  bool createGraph (int frequency, const std::string& fileName);
 
   bool connectPins (Microsoft::WRL::ComPtr<IBaseFilter> fromFilter,
                     Microsoft::WRL::ComPtr<IBaseFilter> toFilter,

@@ -9,21 +9,18 @@
 
 #include "cDumpTransportStream.h"
 
-using namespace std;
-//}}}
-
 class cBipBuffer;
+//}}}
 
 class cDvb : public cDumpTransportStream {
 public:
-  cDvb (const string& root);
+  cDvb (int frequency, const string& root);
   virtual ~cDvb();
 
   void tune (int frequency);
 
-  void captureThread (int frequency);
+  void captureThread();
   void grabThread();
-
   void readThread (const string& inTs);
 
   // public for widgets

@@ -19,15 +19,15 @@
 #include "cDumpTransportStream.h"
 
 #include "cLinuxDvb.h"
-
-using namespace std;
 //}}}
 
 // public:
 //{{{
-cDvb::cDvb (const string& root) : cDumpTransportStream (root, true) {
+cDvb::cDvb (int frequency, const std::string& root) : cDumpTransportStream (root, true) {
   mBibBuffer = new cBipBuffer();
   mBibBuffer->allocateBuffer (2048 * 128 * 188); // 50m - T2 5m a second
+
+  init (frequency);
   }
 //}}}
 //{{{
@@ -247,12 +247,10 @@ void cDvb::tune (int frequency) {
 //}}}
 
 //{{{
-void cDvb::captureThread (int frequency) {
+void cDvb::captureThread() {
 // thread - read packet and write to bipBuffer
 
   cLog::setThreadName ("capt");
-
-  init (frequency);
 
   while (true) {
     int bytesAllocated = 0;
@@ -307,7 +305,7 @@ void cDvb::grabThread() {
   }
 //}}}
 //{{{
-void cDvb::readThread (const string& inTs) {
+void cDvb::readThread (const std::string& inTs) {
 
   cLog::setThreadName ("read");
 

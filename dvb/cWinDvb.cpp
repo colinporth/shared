@@ -24,57 +24,10 @@ DEFINE_GUID (CLSID_Dump, 0x36a5f770, 0xfe4c, 0x11ce, 0xa8, 0xed, 0x00, 0xaa, 0x0
 //}}}
 
 // public:
-cDvb::cDvb (const std::string& root) : cDumpTransportStream (root, false) {};
-
 //{{{
-bool cDvb::createGraph (int frequency)  {
-
-  if (!createGraphDvbT (frequency))
-    return false;
-
-  mFrequency = frequency;
-
-  createFilter (mGrabberFilter, CLSID_SampleGrabber, L"grabber", mDvbCapture);
-  mGrabberFilter.As (&mGrabber);
-
-  auto hr = mGrabber->SetOneShot (false);
-  if (hr != S_OK)
-    cLog::log (LOGERROR, "SetOneShot failed " + dec(hr));
-
-  hr = mGrabber->SetBufferSamples (true);
-  if (hr != S_OK)
-    cLog::log (LOGERROR, "SetBufferSamples failed " + dec(hr));
-
-  mGrabberCB.allocateBuffer (128*240*188);
-  hr = mGrabber->SetCallback (&mGrabberCB, 0);
-  if (hr != S_OK)
-    cLog::log (LOGERROR, "SetCallback failed " + dec(hr));
-
-  createFilter (mMpeg2Demux, CLSID_MPEG2Demultiplexer, L"MPEG2demux", mGrabberFilter);
-  createFilter (mBdaTif, CLSID_BDAtif, L"BDAtif", mMpeg2Demux);
-  mGraphBuilder.As (&mMediaControl);
-
-  return true;
-  }
-//}}}
-//{{{
-bool cDvb::createGraph (int frequency, const std::string& fileName) {
-
-  if (!createGraphDvbT (frequency))
-    return false;
-
-  createFilter (mInfTeeFilter, CLSID_InfTee, L"infTee", mDvbCapture);
-
-  auto wstr = std::wstring (fileName.begin(), fileName.end());
-  createFilter (mDumpFilter, CLSID_Dump, L"dump", mInfTeeFilter);
-  mDumpFilter.As (&mFileSinkFilter);
-  mFileSinkFilter->SetFileName (wstr.c_str(), nullptr);
-
-  createFilter (mMpeg2Demux, CLSID_MPEG2Demultiplexer, L"MPEG2demux", mInfTeeFilter);
-  createFilter (mBdaTif, CLSID_BDAtif, L"BDAtif", mMpeg2Demux);
-  mGraphBuilder.As (&mMediaControl);
-  return true;
-  }
+cDvb::cDvb (int frequency, const std::string& root) : cDumpTransportStream (root, false) {
+  createGraph (frequency);
+  };
 //}}}
 
 //{{{
@@ -178,16 +131,15 @@ void cDvb::grabThread() {
 void cDvb::signalThread() {
 
   CoInitializeEx (NULL, COINIT_MULTITHREADED);
-  cLog::setThreadName ("sig ");
+  cLog::setThreadName ("sign");
 
   while (true) {
     if (mScanningTuner) {
       long signal = 0;
       mScanningTuner->get_SignalStrength (&signal);
-      mSignal = signal / 0x10000;
+      mSignalStr = dec(signal / 0x10000, 3);
       }
     Sleep (100);
-    mSignalStr = dec(mSignal,3);
     }
 
   cLog::log (LOGINFO, "exit");
@@ -507,6 +459,58 @@ private:
   ULONG ul_cbrc = 0;
   cBipBuffer mBipBuffer;
   };
+//}}}
+
+//{{{
+bool cDvb::createGraph (int frequency)  {
+
+  if (!createGraphDvbT (frequency))
+    return false;
+
+  mFrequency = frequency;
+
+  createFilter (mGrabberFilter, CLSID_SampleGrabber, L"grabber", mDvbCapture);
+  mGrabberFilter.As (&mGrabber);
+
+  auto hr = mGrabber->SetOneShot (false);
+  if (hr != S_OK)
+    cLog::log (LOGERROR, "SetOneShot failed " + dec(hr));
+
+  hr = mGrabber->SetBufferSamples (true);
+  if (hr != S_OK)
+    cLog::log (LOGERROR, "SetBufferSamples failed " + dec(hr));
+
+  mGrabberCB.allocateBuffer (128*240*188);
+  hr = mGrabber->SetCallback (&mGrabberCB, 0);
+  if (hr != S_OK)
+    cLog::log (LOGERROR, "SetCallback failed " + dec(hr));
+
+  createFilter (mMpeg2Demux, CLSID_MPEG2Demultiplexer, L"MPEG2demux", mGrabberFilter);
+  createFilter (mBdaTif, CLSID_BDAtif, L"BDAtif", mMpeg2Demux);
+  mGraphBuilder.As (&mMediaControl);
+
+  return true;
+  }
+//}}}
+//{{{
+bool cDvb::createGraph (int frequency, const std::string& fileName) {
+// dump whole ts via filter
+
+  if (!createGraphDvbT (frequency))
+    return false;
+
+  createFilter (mInfTeeFilter, CLSID_InfTee, L"infTee", mDvbCapture);
+
+  auto wstr = std::wstring (fileName.begin(), fileName.end());
+  createFilter (mDumpFilter, CLSID_Dump, L"dump", mInfTeeFilter);
+  mDumpFilter.As (&mFileSinkFilter);
+  mFileSinkFilter->SetFileName (wstr.c_str(), nullptr);
+
+  createFilter (mMpeg2Demux, CLSID_MPEG2Demultiplexer, L"MPEG2demux", mInfTeeFilter);
+  createFilter (mBdaTif, CLSID_BDAtif, L"BDAtif", mMpeg2Demux);
+  mGraphBuilder.As (&mMediaControl);
+  return true;
+  }
 //}}}
 
 //{{{
