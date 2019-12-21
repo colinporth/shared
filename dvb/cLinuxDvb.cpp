@@ -19,6 +19,8 @@
 #include "cDumpTransportStream.h"
 
 #include "cLinuxDvb.h"
+
+using namespace std;
 //}}}
 
 // public:
