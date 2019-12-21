@@ -103,7 +103,6 @@ void cDvb::stop() {
 //{{{
 void cDvb::grabThread() {
 
-  CoInitializeEx (NULL, COINIT_MULTITHREADED);
   cLog::setThreadName ("grab");
 
   auto hr = mMediaControl->Run();
@@ -115,6 +114,7 @@ void cDvb::grabThread() {
       if (blockSize) {
         streamPos += demux (ptr, blockSize, streamPos, false, -1);
         releaseBlock (blockSize);
+        mErrorStr = dec (getDiscontinuity());
         }
       else
         Sleep (1);
@@ -124,13 +124,11 @@ void cDvb::grabThread() {
     cLog::log (LOGERROR, "run graph failed " + dec(hr));
 
   cLog::log (LOGINFO, "exit");
-  CoUninitialize();
   }
 //}}}
 //{{{
 void cDvb::signalThread() {
 
-  CoInitializeEx (NULL, COINIT_MULTITHREADED);
   cLog::setThreadName ("sign");
 
   while (true) {
@@ -143,7 +141,6 @@ void cDvb::signalThread() {
     }
 
   cLog::log (LOGINFO, "exit");
-  CoUninitialize();
   }
 //}}}
 //{{{
@@ -170,7 +167,7 @@ void cDvb::readThread (const std::string& inTs) {
       streamPos += demux (buffer, bytesRead, streamPos, false, -1);
     else
       break;
-    mPacketStr = dec(getDiscontinuity());
+    mErrorStr = dec(getDiscontinuity());
     }
 
   fclose (file);

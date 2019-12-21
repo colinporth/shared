@@ -26,7 +26,7 @@ public:
   // public for widgets
   std::string mTuneStr = "untuned";
   std::string mSignalStr = "signal";
-  std::string mPacketStr = "packet";
+  std::string mErrorStr = "";
 
 private:
   void init (int frequency);

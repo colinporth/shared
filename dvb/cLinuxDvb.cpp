@@ -289,9 +289,7 @@ void cDvb::grabThread() {
       if (blockSize > mMaxBlockSize)
         mMaxBlockSize = blockSize;
 
-      mPacketStr = dec(getDiscontinuity()) +
-                   " " + dec(blockSize,6) +
-                   ":" + dec(mMaxBlockSize);
+      mErrorStr = dec(getDiscontinuity()) + " " + dec(blockSize,6) + ":" + dec(mMaxBlockSize);
       updateSignalString();
 
       if (show)
