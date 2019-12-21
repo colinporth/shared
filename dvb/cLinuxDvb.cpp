@@ -14,8 +14,8 @@
 #include "../utils/date.h"
 #include "../utils/utils.h"
 #include "../utils/cLog.h"
-#include "../utils/cBipBuffer.h"
 
+#include "../utils/cBipBuffer.h"
 #include "cDumpTransportStream.h"
 
 #include "cLinuxDvb.h"

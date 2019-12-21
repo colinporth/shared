@@ -7,7 +7,6 @@
 #include <linux/dvb/dmx.h>
 #include <linux/dvb/frontend.h>
 
-#include "../utils/cBipBuffer.h"
 #include "cDumpTransportStream.h"
 
 using namespace std;
