@@ -14,7 +14,7 @@ class cBipBuffer;
 
 class cDvb : public cDumpTransportStream {
 public:
-  cDvb (int frequency, const string& root);
+  cDvb (int frequency, const std::string& root);
   virtual ~cDvb();
 
   void tune (int frequency);
