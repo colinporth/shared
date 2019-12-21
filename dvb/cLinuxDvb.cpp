@@ -26,10 +26,32 @@ using namespace std;
 // public:
 //{{{
 cDvb::cDvb (int frequency, const std::string& root) : cDumpTransportStream (root, true) {
+
   mBipBuffer = new cBipBuffer();
   mBipBuffer->allocateBuffer (2048 * 128 * 188); // 50m - T2 5m a second
 
-  init (frequency);
+  // frontend nonBlocking rw
+  mFrontEnd = open ("/dev/dvb/adapter0/frontend0", O_RDWR | O_NONBLOCK);
+  if (mFrontEnd < 0){
+    cLog::log (LOGERROR, "open frontend failed");
+    return;
+    }
+  tune (frequency);
+
+  // demux nonBlocking rw
+  mDemux = open ("/dev/dvb/adapter0/demux0", O_RDWR | O_NONBLOCK);
+  if (mDemux < 0) {
+    cLog::log (LOGERROR, "open demux failed");
+    return;
+    }
+  setTsFilter (8192, DMX_PES_OTHER);
+
+  // dvr blocking reads
+  mDvr = open ("/dev/dvb/adapter0/dvr0", O_RDONLY);
+  if (mDvr < 0) {
+    cLog::log (LOGERROR, "open dvr failed");
+    return;
+    }
   }
 //}}}
 //{{{
@@ -291,7 +313,7 @@ void cDvb::grabThread() {
       if (blockSize > mMaxBlockSize)
         mMaxBlockSize = blockSize;
 
-      mErrorStr = dec(getDiscontinuity()) + " " + dec(blockSize,6) + ":" + dec(mMaxBlockSize);
+      mErrorStr = dec(getDiscontinuity()) + " " + dec(blockSize,6) + " max" + dec(mMaxBlockSize);
       updateSignalString();
 
       if (show)
@@ -339,34 +361,6 @@ void cDvb::readThread (const std::string& inTs) {
 //}}}
 
 // private
-//{{{
-void cDvb::init (int frequency) {
-
-  // frontend nonBlocking rw
-  mFrontEnd = open ("/dev/dvb/adapter0/frontend0", O_RDWR | O_NONBLOCK);
-  if (mFrontEnd < 0){
-    cLog::log (LOGERROR, "open frontend failed");
-    return;
-    }
-  tune (frequency);
-
-  // demux nonBlocking rw
-  mDemux = open ("/dev/dvb/adapter0/demux0", O_RDWR | O_NONBLOCK);
-  if (mDemux < 0) {
-    cLog::log (LOGERROR, "open demux failed");
-    return;
-    }
-  setTsFilter (8192, DMX_PES_OTHER);
-
-  // dvr blocking reads
-  mDvr = open ("/dev/dvb/adapter0/dvr0", O_RDONLY);
-  if (mDvr < 0) {
-    cLog::log (LOGERROR, "open dvr failed");
-    return;
-    }
-  }
-//}}}
-
 //{{{
 void cDvb::setTsFilter (uint16_t pid, dmx_pes_type_t pestype) {
 
@@ -468,6 +462,7 @@ void cDvb::updateSignalString() {
   mSignalStr = str;
   }
 //}}}
+
 //{{{
 void cDvb::uSleep (uint64_t uSec) {
 

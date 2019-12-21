@@ -29,7 +29,6 @@ public:
   std::string mErrorStr = "";
 
 private:
-  void init (int frequency);
   void setTsFilter (uint16_t pid, dmx_pes_type_t pestype);
   void monitorFe();
   void updateSignalString();
