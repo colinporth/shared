@@ -447,13 +447,13 @@ void cDvb::updateSignalString() {
   error = ioctl (mFrontEnd, FE_READ_SIGNAL_STRENGTH, &strength);
   if (error < 0)
     cLog::log (LOGERROR, "FE_READ_SIGNAL_STRENGTH " + dec(error));
-  str += " " + frac((strength & 0xFFFF) / 100.f, 5, 3, ' ');
+  str += " " + frac((strength & 0xFFFF) / 1000.f, 5, 2, ' ');
 
   uint32_t snr;
   error = ioctl (mFrontEnd, FE_READ_SNR, &snr);
   if (error < 0)
     cLog::log (LOGERROR, "FE_READ_SNR " + dec(error));
-  str += ":" + dec(snr,3);
+  str += " snr:" + dec((snr & 0xFFFF) / 1000.f,3);
 
   mSignalStr = str;
   }
