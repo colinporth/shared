@@ -36,7 +36,7 @@ EXTERN_C const CLSID CLSID_SampleGrabber;
 
 class cDvb : public cDumpTransportStream {
 public:
-  cDvb (int frequency, const std::string& root);
+  cDvb (int frequency, const std::string& root, bool recordAll);
   virtual ~cDvb() {}
 
   void tune (int frequency);

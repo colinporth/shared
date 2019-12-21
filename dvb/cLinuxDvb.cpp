@@ -25,7 +25,7 @@ using namespace std;
 
 // public:
 //{{{
-cDvb::cDvb (int frequency, const std::string& root) : cDumpTransportStream (root, true) {
+cDvb::cDvb (int frequency, const std::string& root, bool recordAll) : cDumpTransportStream (root, recordAll) {
 
   mBipBuffer = new cBipBuffer();
   mBipBuffer->allocateBuffer (2048 * 128 * 188); // 50m - T2 5m a second

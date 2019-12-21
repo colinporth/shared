@@ -25,7 +25,7 @@ DEFINE_GUID (CLSID_Dump, 0x36a5f770, 0xfe4c, 0x11ce, 0xa8, 0xed, 0x00, 0xaa, 0x0
 
 // public:
 //{{{
-cDvb::cDvb (int frequency, const std::string& root) : cDumpTransportStream (root, false) {
+cDvb::cDvb (int frequency, const std::string& root, bool recordAll) : cDumpTransportStream (root, recordAll) {
   createGraph (frequency);
   };
 //}}}
@@ -488,6 +488,7 @@ bool cDvb::createGraph (int frequency)  {
   return true;
   }
 //}}}
+
 //{{{
 bool cDvb::connectPins (Microsoft::WRL::ComPtr<IBaseFilter> fromFilter,
                   Microsoft::WRL::ComPtr<IBaseFilter> toFilter,
