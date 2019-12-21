@@ -21,7 +21,7 @@ public:
 
   void captureThread();
   void grabThread();
-  void readThread (const string& inTs);
+  void readThread (const std::string& inTs);
 
   // public for widgets
   std::string mTuneStr = "untuned";
