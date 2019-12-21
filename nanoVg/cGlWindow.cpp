@@ -111,7 +111,7 @@ cRootContainer* cGlWindow::initialise (string title, int width, int height, unsi
   glfwWindowHint (GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
   glfwWindowHint (GLFW_CONTEXT_VERSION_MAJOR, 3);
   glfwWindowHint (GLFW_CONTEXT_VERSION_MINOR, 0);
-#else NANOVG_GLE23
+#elseif NANOVG_GLE2
   glfwWindowHint (GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
   glfwWindowHint (GLFW_CONTEXT_VERSION_MAJOR, 2);
   glfwWindowHint (GLFW_CONTEXT_VERSION_MINOR, 0);
