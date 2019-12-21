@@ -447,7 +447,7 @@ void cDvb::updateSignalString() {
   error = ioctl (mFrontEnd, FE_READ_SIGNAL_STRENGTH, &value);
   if (error < 0)
     cLog::log (LOGERROR, "FE_READ_SIGNAL_STRENGTH " + dec(error));
-  str += " " + frac(value/0x10000, 5, 3, " ");
+  str += " " + frac(value/0x10000, 5, 3, ' ');
 
   error = ioctl (mFrontEnd, FE_READ_SNR, &value);
   if (error < 0)
