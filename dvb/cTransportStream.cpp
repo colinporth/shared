@@ -6320,12 +6320,12 @@ cEpgItem::cEpgItem (bool now, bool record, std::chrono::system_clock::time_point
 //}}}
 cEpgItem::~cEpgItem() { cLog::log (LOGINFO3, "~cEpgItem"); }
 
-bool cEpgItem::getRecord() { return mRecord; }
-std::chrono::system_clock::time_point cEpgItem::getTime() { return mTime; }
-std::chrono::seconds cEpgItem::getDuration() { return mDuration; }
-std::string cEpgItem::getTitleString() { return mTitle; }
-std::string cEpgItem::getDesriptionString() { return mDescription; }
-
+//{{{
+bool cEpgItem::toggleRecord() {
+  mRecord = !mRecord;
+  return mRecord;
+  }
+//}}}
 //{{{
 void cEpgItem::set (std::chrono::system_clock::time_point time, std::chrono::seconds duration, const std::string& title, const std::string& description) {
 
@@ -6334,12 +6334,6 @@ void cEpgItem::set (std::chrono::system_clock::time_point time, std::chrono::sec
 
   mTitle = title;
   mDescription = description;
-  }
-//}}}
-//{{{
-bool cEpgItem::toggleRecord() {
-  mRecord = !mRecord;
-  return mRecord;
   }
 //}}}
 
@@ -6366,23 +6360,6 @@ cService::~cService() {
   cLog::log (LOGINFO3, "~cService");
   }
 //}}}
-
-// gets
-int cService::getSid() const { return mSid; }
-
-int cService::getProgramPid() const { return mProgramPid; }
-int cService::getVidPid() const { return mVidPid; }
-int cService::getVidStreamType() const { return mVidStreamType; }
-int cService::getAudPid() const { return mAudPid; }
-int cService::getAudStreamType() const { return mAudStreamType; }
-int cService::getAudOtherPid() const { return mAudOtherPid; }
-int cService::getSubPid() const { return mSubPid; }
-
-cEpgItem* cService::getNowEpgItem() { return mNowEpgItem; }
-bool cService::getShowEpg() { return mShowEpg; }
-std::string cService::getNameString() { return mName; }
-std::map<std::chrono::system_clock::time_point,cEpgItem*>& cService::getEpgItemMap() { return mEpgItemMap; }
-std::string cService::getNowTitleString() { return mNowEpgItem ? mNowEpgItem->getTitleString() : ""; }
 
 //{{{
 bool cService::isEpgRecord (const std::string& title, std::chrono::system_clock::time_point startTime) {
@@ -6916,8 +6893,6 @@ char cTransportStream::getFrameType (uint8_t* pesBuf, int64_t pesBufSize, int st
   return '?';
   }
 //}}}
-uint64_t cTransportStream::getDiscontinuity() { return mDiscontinuity; }
-std::chrono::system_clock::time_point cTransportStream::getTime() { return mTime; }
 //{{{
 cService* cTransportStream::getService (int index, int64_t& firstPts, int64_t& lastPts) {
 
@@ -7111,9 +7086,6 @@ void cTransportStream::clear() {
 //}}}
 
 //  cTransportStream - protected:
-bool cTransportStream::audDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
-bool cTransportStream::vidDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
-
 //{{{
 void cTransportStream::clearPidCounts() {
 

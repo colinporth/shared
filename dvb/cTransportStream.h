@@ -66,14 +66,16 @@ public:
             const std::string& title, std::string description);
   ~cEpgItem();
 
-  bool getRecord();
-  std::chrono::system_clock::time_point getTime();
-  std::chrono::seconds getDuration();
-  std::string getTitleString();
-  std::string getDesriptionString();
+  std::string getTitleString() { return mTitle; }
+  std::string getDesriptionString() { return mDescription; }
 
-  void set (std::chrono::system_clock::time_point time, std::chrono::seconds duration, const std::string& title, const std::string& description);
+  std::chrono::seconds getDuration() { return mDuration; }
+  std::chrono::system_clock::time_point getTime() { return mTime; }
+
+  bool getRecord() { return mRecord; }
+
   bool toggleRecord();
+  void set (std::chrono::system_clock::time_point time, std::chrono::seconds duration, const std::string& title, const std::string& description);
 
   void print (const std::string& prefix);
 
@@ -95,21 +97,21 @@ public:
   ~cService();
 
   // gets
-  int getSid() const;
+  int getSid() const { return mSid; }
+  int getProgramPid() const { return mProgramPid; }
+  int getVidPid() const { return mVidPid; }
+  int getVidStreamType() const { return mVidStreamType; }
+  int getAudPid() const { return mAudPid; }
+  int getAudStreamType() const { return mAudStreamType; }
+  int getAudOtherPid() const { return mAudOtherPid; }
+  int getSubPid() const { return mSubPid; }
 
-  int getProgramPid() const;
-  int getVidPid() const;
-  int getVidStreamType() const;
-  int getAudPid() const;
-  int getAudStreamType() const;
-  int getAudOtherPid() const;
-  int getSubPid() const;
+  std::string getNameString() { return mName; }
 
-  cEpgItem* getNowEpgItem();
-  bool getShowEpg();
-  std::string getNameString();
-  std::map<std::chrono::system_clock::time_point,cEpgItem*>& getEpgItemMap();
-  std::string getNowTitleString();
+  bool getShowEpg() { return mShowEpg; }
+  cEpgItem* getNowEpgItem() { return mNowEpgItem; }
+  std::string getNowTitleString() { return mNowEpgItem ? mNowEpgItem->getTitleString() : ""; }
+  std::map<std::chrono::system_clock::time_point,cEpgItem*>& getEpgItemMap() { return mEpgItemMap; }
 
   bool isEpgRecord (const std::string& title, std::chrono::system_clock::time_point startTime);
 
@@ -165,9 +167,8 @@ public:
 
   //  gets
   static char getFrameType (uint8_t* pesBuf, int64_t pesBufSize, int streamType);
-  uint64_t getDiscontinuity();
-
-  std::chrono::system_clock::time_point getTime();
+  uint64_t getDiscontinuity() { return mDiscontinuity; }
+  std::chrono::system_clock::time_point getTime() { return mTime; }
   cService* getService (int index, int64_t& firstPts, int64_t& lastPts);
   int64_t demux (uint8_t* tsBuf, int64_t tsBufSize, int64_t streamPos, bool skip, int decodePid);
   virtual void clear();
@@ -177,8 +178,8 @@ public:
   std::map<int,cService> mServiceMap;
 
 protected:
-  virtual bool audDecodePes (cPidInfo* pidInfo, bool skip);
-  virtual bool vidDecodePes (cPidInfo* pidInfo, bool skip);
+  virtual bool audDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
+  virtual bool vidDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
 
   virtual void start (cService* service, const std::string& name, std::chrono::system_clock::time_point time, bool selected) {}
   virtual void pesPacket (int sid, int pid, uint8_t* ts) {}
