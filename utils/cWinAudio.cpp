@@ -1,5 +1,7 @@
 // cWinAudio.cpp
 //{{{  includes
+#define _SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING
+
 #include "cWinAudio.h"
 
 #include <stdio.h>

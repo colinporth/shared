@@ -239,7 +239,7 @@ public:
     unsigned int return_value = 0;
     unsigned int x, y, decode_y, burst_bytes;
     int last_undisposed_frame = (frame - 1);
-    register unsigned char colour;
+    unsigned char colour;
 
     /*  Ensure this frame is supposed to be decoded */
     if (mFrames[frame].display == false) {

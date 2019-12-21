@@ -1,6 +1,7 @@
 // cWinDvb.cpp
 //{{{  includes
 #define _CRT_SECURE_NO_WARNINGS
+#define _SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 
@@ -212,7 +213,7 @@ void cDvb::readThread (const std::string& inTs) {
 
   bool run = true;
   while (run) {
-    int bytesRead = fread (buffer, 1, blockSize, file);
+    auto bytesRead = fread (buffer, 1, blockSize, file);
     if (bytesRead > 0)
       streamPos += demux (buffer, bytesRead, streamPos, false, -1);
     else

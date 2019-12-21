@@ -1,6 +1,8 @@
 // hls.h
 #pragma once
 //{{{  includes
+#include "../widgets/cDecodePicWidget.h"
+
 #include "../utils/utils.h"
 #include "../utils/cLog.h"
 

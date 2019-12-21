@@ -8,6 +8,11 @@
   #define ATTRIBUTE __attribute__((section(".textqspi")))
 #endif
 
+#ifdef _MSC_VER
+  #pragma warning(push)
+  #pragma warning(disable: 4838)  // conversion from 'unsigned int' to 'const int' requires a narrowing conversion
+#endif
+
 //{{{
 /* pow2exp[i] = pow(2, i*4/3) exponent */
 const int pow2exp[] ATTRIBUTE = { 14, 13, 11, 10, 9, 7, 6, 5 };
@@ -1726,3 +1731,7 @@ const int noiseTab[] ATTRIBUTE {
   0x7cd80630, 0x6e45efe0, 0x7f8ad7eb, 0x59d7df99, 0x86c70946, 0xda233629, 0x753f6cbf, 0x825eeb40,
 };
 //}}}
+
+#ifdef _MSC_VER
+  #pragma warning(pop)
+#endif
