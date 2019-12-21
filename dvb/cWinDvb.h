@@ -334,6 +334,7 @@ private:
   //}}}
 
   bool createGraph (int frequency);
+  bool createGraphDvbT (int frequency);
 
   bool connectPins (Microsoft::WRL::ComPtr<IBaseFilter> fromFilter,
                     Microsoft::WRL::ComPtr<IBaseFilter> toFilter,
@@ -344,7 +345,6 @@ private:
   void createFilter (Microsoft::WRL::ComPtr<IBaseFilter>& filter,
                      const CLSID& clsid, wchar_t* title,
                      Microsoft::WRL::ComPtr<IBaseFilter> fromFilter);
-  bool createGraphDvbT (int frequency);
 
   uint8_t* getBlock (int& len);
   void releaseBlock (int len);

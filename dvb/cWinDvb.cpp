@@ -488,127 +488,6 @@ bool cDvb::createGraph (int frequency)  {
   return true;
   }
 //}}}
-
-//{{{
-bool cDvb::connectPins (Microsoft::WRL::ComPtr<IBaseFilter> fromFilter,
-                  Microsoft::WRL::ComPtr<IBaseFilter> toFilter,
-                  wchar_t* fromPinName, wchar_t* toPinName) {
-// if name == NULL use first correct direction unconnected pin
-// else use pin matching name
-
-  Microsoft::WRL::ComPtr<IEnumPins> fromPins;
-  fromFilter->EnumPins (&fromPins);
-
-  Microsoft::WRL::ComPtr<IPin> fromPin;
-  while (fromPins->Next (1, &fromPin, NULL) == S_OK) {
-    Microsoft::WRL::ComPtr<IPin> connectedPin;
-    fromPin->ConnectedTo (&connectedPin);
-    if (!connectedPin) {
-      // match fromPin info
-      PIN_INFO fromPinInfo;
-      fromPin->QueryPinInfo (&fromPinInfo);
-      if ((fromPinInfo.dir == PINDIR_OUTPUT) &&
-          (!fromPinName || !wcscmp (fromPinInfo.achName, fromPinName))) {
-        // found fromPin, look for toPin
-        Microsoft::WRL::ComPtr<IEnumPins> toPins;
-        toFilter->EnumPins (&toPins);
-
-        Microsoft::WRL::ComPtr<IPin> toPin;
-        while (toPins->Next (1, &toPin, NULL) == S_OK) {
-          Microsoft::WRL::ComPtr<IPin> connectedPin;
-          toPin->ConnectedTo (&connectedPin);
-          if (!connectedPin) {
-            // match toPin info
-            PIN_INFO toPinInfo;
-            toPin->QueryPinInfo (&toPinInfo);
-            if ((toPinInfo.dir == PINDIR_INPUT) &&
-                (!toPinName || !wcscmp (toPinInfo.achName, toPinName))) {
-              // found toPin
-              if (mGraphBuilder->Connect (fromPin.Get(), toPin.Get()) == S_OK) {
-                cLog::log (LOGINFO, "- connecting pin " + wstrToStr (fromPinInfo.achName) +
-                                    " to " + wstrToStr (toPinInfo.achName));
-                return true;
-                }
-              else {
-                cLog::log (LOGINFO, "- connectPins failed");
-                return false;
-                }
-              }
-            }
-          }
-        cLog::log (LOGERROR, "connectPins - no toPin");
-        return false;
-        }
-      }
-    }
-
-  cLog::log (LOGERROR, "connectPins - no fromPin");
-  return false;
-  }
-//}}}
-//{{{
-void cDvb::findFilter (Microsoft::WRL::ComPtr<IBaseFilter>& filter,
-                 const CLSID& clsid, wchar_t* name,
-                 Microsoft::WRL::ComPtr<IBaseFilter> fromFilter) {
-// Find instance of filter of type CLSID by name, add to graphBuilder, connect fromFilter
-
-  cLog::log (LOGINFO, "findFilter " + wstrToStr (name));
-
-  Microsoft::WRL::ComPtr<ICreateDevEnum> systemDevEnum;
-  CoCreateInstance (CLSID_SystemDeviceEnum, nullptr,
-                    CLSCTX_INPROC_SERVER, IID_PPV_ARGS (&systemDevEnum));
-
-  Microsoft::WRL::ComPtr<IEnumMoniker> classEnumerator;
-  systemDevEnum->CreateClassEnumerator (clsid, &classEnumerator, 0);
-
-  if (classEnumerator) {
-    int i = 1;
-    IMoniker* moniker = NULL;
-    ULONG fetched;
-    while (classEnumerator->Next (1, &moniker, &fetched) == S_OK) {
-      IPropertyBag* propertyBag;
-      if (moniker->BindToStorage (NULL, NULL, IID_IPropertyBag, (void**)&propertyBag) == S_OK) {
-        VARIANT varName;
-        VariantInit (&varName);
-        propertyBag->Read (L"FriendlyName", &varName, 0);
-        VariantClear (&varName);
-
-        cLog::log (LOGINFO, "FindFilter " + wstrToStr (varName.bstrVal));
-
-        // bind the filter
-        moniker->BindToObject (NULL, NULL, IID_IBaseFilter, (void**)(&filter));
-
-        mGraphBuilder->AddFilter (filter.Get(), name);
-        propertyBag->Release();
-
-        if (connectPins (fromFilter, filter)) {
-          propertyBag->Release();
-          break;
-          }
-        else
-          mGraphBuilder->RemoveFilter (filter.Get());
-        }
-      propertyBag->Release();
-      moniker->Release();
-      }
-
-    moniker->Release();
-    }
-  }
-//}}}
-//{{{
-void cDvb::createFilter (Microsoft::WRL::ComPtr<IBaseFilter>& filter,
-                   const CLSID& clsid, wchar_t* title,
-                   Microsoft::WRL::ComPtr<IBaseFilter> fromFilter) {
-// createFilter type clsid, add to graphBuilder, connect fromFilter
-
-  cLog::log (LOGINFO, "createFilter " + wstrToStr (title));
-  CoCreateInstance (clsid, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS (filter.GetAddressOf()));
-  mGraphBuilder->AddFilter (filter.Get(), title);
-  connectPins (fromFilter, filter);
-  }
-//}}}
-
 //{{{
 bool cDvb::createGraphDvbT (int frequency) {
 
@@ -732,6 +611,126 @@ bool cDvb::createGraphDvbT (int frequency) {
 
   findFilter (mDvbCapture, KSCATEGORY_BDA_RECEIVER_COMPONENT, L"DVBTcapture", mDvbTuner);
   return true;
+  }
+//}}}
+
+//{{{
+bool cDvb::connectPins (Microsoft::WRL::ComPtr<IBaseFilter> fromFilter,
+                  Microsoft::WRL::ComPtr<IBaseFilter> toFilter,
+                  wchar_t* fromPinName, wchar_t* toPinName) {
+// if name == NULL use first correct direction unconnected pin
+// else use pin matching name
+
+  Microsoft::WRL::ComPtr<IEnumPins> fromPins;
+  fromFilter->EnumPins (&fromPins);
+
+  Microsoft::WRL::ComPtr<IPin> fromPin;
+  while (fromPins->Next (1, &fromPin, NULL) == S_OK) {
+    Microsoft::WRL::ComPtr<IPin> connectedPin;
+    fromPin->ConnectedTo (&connectedPin);
+    if (!connectedPin) {
+      // match fromPin info
+      PIN_INFO fromPinInfo;
+      fromPin->QueryPinInfo (&fromPinInfo);
+      if ((fromPinInfo.dir == PINDIR_OUTPUT) &&
+          (!fromPinName || !wcscmp (fromPinInfo.achName, fromPinName))) {
+        // found fromPin, look for toPin
+        Microsoft::WRL::ComPtr<IEnumPins> toPins;
+        toFilter->EnumPins (&toPins);
+
+        Microsoft::WRL::ComPtr<IPin> toPin;
+        while (toPins->Next (1, &toPin, NULL) == S_OK) {
+          Microsoft::WRL::ComPtr<IPin> connectedPin;
+          toPin->ConnectedTo (&connectedPin);
+          if (!connectedPin) {
+            // match toPin info
+            PIN_INFO toPinInfo;
+            toPin->QueryPinInfo (&toPinInfo);
+            if ((toPinInfo.dir == PINDIR_INPUT) &&
+                (!toPinName || !wcscmp (toPinInfo.achName, toPinName))) {
+              // found toPin
+              if (mGraphBuilder->Connect (fromPin.Get(), toPin.Get()) == S_OK) {
+                cLog::log (LOGINFO, "- connecting pin " + wstrToStr (fromPinInfo.achName) +
+                                    " to " + wstrToStr (toPinInfo.achName));
+                return true;
+                }
+              else {
+                cLog::log (LOGINFO, "- connectPins failed");
+                return false;
+                }
+              }
+            }
+          }
+        cLog::log (LOGERROR, "connectPins - no toPin");
+        return false;
+        }
+      }
+    }
+
+  cLog::log (LOGERROR, "connectPins - no fromPin");
+  return false;
+  }
+//}}}
+//{{{
+void cDvb::findFilter (Microsoft::WRL::ComPtr<IBaseFilter>& filter,
+                 const CLSID& clsid, wchar_t* name,
+                 Microsoft::WRL::ComPtr<IBaseFilter> fromFilter) {
+// Find instance of filter of type CLSID by name, add to graphBuilder, connect fromFilter
+
+  cLog::log (LOGINFO, "findFilter " + wstrToStr (name));
+
+  Microsoft::WRL::ComPtr<ICreateDevEnum> systemDevEnum;
+  CoCreateInstance (CLSID_SystemDeviceEnum, nullptr,
+                    CLSCTX_INPROC_SERVER, IID_PPV_ARGS (&systemDevEnum));
+
+  Microsoft::WRL::ComPtr<IEnumMoniker> classEnumerator;
+  systemDevEnum->CreateClassEnumerator (clsid, &classEnumerator, 0);
+
+  if (classEnumerator) {
+    int i = 1;
+    IMoniker* moniker = NULL;
+    ULONG fetched;
+    while (classEnumerator->Next (1, &moniker, &fetched) == S_OK) {
+      IPropertyBag* propertyBag;
+      if (moniker->BindToStorage (NULL, NULL, IID_IPropertyBag, (void**)&propertyBag) == S_OK) {
+        VARIANT varName;
+        VariantInit (&varName);
+        propertyBag->Read (L"FriendlyName", &varName, 0);
+        VariantClear (&varName);
+
+        cLog::log (LOGINFO, "FindFilter " + wstrToStr (varName.bstrVal));
+
+        // bind the filter
+        moniker->BindToObject (NULL, NULL, IID_IBaseFilter, (void**)(&filter));
+
+        mGraphBuilder->AddFilter (filter.Get(), name);
+        propertyBag->Release();
+
+        if (connectPins (fromFilter, filter)) {
+          propertyBag->Release();
+          break;
+          }
+        else
+          mGraphBuilder->RemoveFilter (filter.Get());
+        }
+      propertyBag->Release();
+      moniker->Release();
+      }
+
+    moniker->Release();
+    }
+  }
+//}}}
+//{{{
+void cDvb::createFilter (Microsoft::WRL::ComPtr<IBaseFilter>& filter,
+                   const CLSID& clsid, wchar_t* title,
+                   Microsoft::WRL::ComPtr<IBaseFilter> fromFilter) {
+// createFilter type clsid, add to graphBuilder, connect fromFilter
+
+  cLog::log (LOGINFO, "createFilter " + wstrToStr (title));
+  CoCreateInstance (clsid, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS (filter.GetAddressOf()));
+  mGraphBuilder->AddFilter (filter.Get(), title);
+  connectPins (fromFilter, filter);
   }
 //}}}
 
