@@ -14,7 +14,7 @@ const float kDefaultVolume = 0.8f;
 const uint32_t kDefaultChan = 4;
 const uint32_t kDefaultBitrate = 128000;
 
-const string kSrc = "as-hls-uk-live.bbcfmt.hs.llnwd.net";
+const std::string kSrc = "as-hls-uk-live.bbcfmt.hs.llnwd.net";
 
 const int kPool [] = { 0, 904, 904, 904, 904, 904, 904 };
 
@@ -317,9 +317,9 @@ public:
   //}}}
 
   //{{{  vars
-  chrono::system_clock::time_point mBaseTimePoint;
-  chrono::system_clock::time_point mBaseDatePoint;
-  chrono::system_clock::time_point mPlayTimePoint;
+  std::chrono::system_clock::time_point mBaseTimePoint;
+  std::chrono::system_clock::time_point mBaseDatePoint;
+  std::chrono::system_clock::time_point mPlayTimePoint;
 
   int mChan = 0;
   bool mChanChanged = true;
@@ -419,7 +419,7 @@ private:
       }
     //}}}
     //{{{
-    bool load (cHttp& http, cAacDecoder* decoder, const string& host, const string& path, uint32_t seqNum, uint32_t bitrate) {
+    bool load (cHttp& http, cAacDecoder* decoder, const std::string& host, const std::string& path, uint32_t seqNum, uint32_t bitrate) {
 
       auto ok = true;
 
@@ -493,7 +493,7 @@ private:
 
     // vars
     uint32_t mSeqNum = 0;
-    chrono::system_clock::time_point mTimePoint;
+    std::chrono::system_clock::time_point mTimePoint;
 
     uint16_t mSrcFramesLoaded = 0;
     bool mLoaded = false;
@@ -517,7 +517,7 @@ private:
   //}}}
 
   //{{{
-  string getPathRoot() {
+  std::string getPathRoot() {
 
     //pool_904/live/uk/bbc_radio_three/bbc_radio_three.isml/bbc_radio_three-audio=128000.norewind.m3u8
     return "pool_" + dec(kPool[mChan]) +
@@ -528,12 +528,12 @@ private:
     }
   //}}}
   //{{{
-  string getM3u8path() {
+  std::string getM3u8path() {
     return getPathRoot() + ".norewind.m3u8";
     }
   //}}}
   //{{{
-  string getTsPath (uint32_t seqNum) {
+  std::string getTsPath (uint32_t seqNum) {
     return getPathRoot() + '-' + dec(seqNum) + ".ts";
     }
   //}}}
@@ -606,7 +606,7 @@ private:
     mPlaySample = sample;
 
     // convert mPlaySample to wall clock time
-    mPlayTimePoint = mBaseDatePoint + chrono::milliseconds (int(mPlaySample * 1000 / kSamplesPerSecond));
+    mPlayTimePoint = mBaseDatePoint + std::chrono::milliseconds (int(mPlaySample * 1000 / kSamplesPerSecond));
     }
   //}}}
   //{{{
@@ -627,15 +627,15 @@ private:
     const auto kExtDateTime = "#EXT-X-PROGRAM-DATE-TIME:";
     const auto extDateTime = strstr (extSeqEnd + 1, kExtDateTime) + strlen (kExtDateTime);
     const auto extDateTimeEnd =  strstr (extDateTime + 1, "\n");
-    const auto extDateTimeString = string(extDateTime, size_t(extDateTimeEnd - extDateTime));
+    const auto extDateTimeString = std::string(extDateTime, size_t(extDateTimeEnd - extDateTime));
     cLog::log (LOGNOTICE, kExtDateTime + extDateTimeString);
 
     // parse ISO time format from string
-    istringstream inputStream (extDateTimeString);
+    std::istringstream inputStream (extDateTimeString);
     inputStream >> date::parse ("%FT%T", mBaseTimePoint);
 
     mBaseDatePoint = date::floor<date::days>(mBaseTimePoint);
-    const auto seconds = chrono::duration_cast<chrono::seconds>(mBaseTimePoint - mBaseDatePoint);
+    const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(mBaseTimePoint - mBaseDatePoint);
     mBaseFrame = uint32_t((uint32_t(seconds.count()) - kBaseTimeSecondsOffset) * kFramesPerSecond);
 
     http.freeContent();
@@ -645,14 +645,14 @@ private:
   //}}}
 
   //{{{  vars
-  string mHost;
+  std::string mHost;
   cChunk mChunks[kMaxChunks];
 
   cAacDecoder* mDecoder = 0;
   int mBitrate = 0;
 
   int mDaylightSeconds = 0;
-  string mDateTime;
+  std::string mDateTime;
   uint32_t mBaseFrame = 0;
   uint32_t mBaseSeqNum = 0;
 
