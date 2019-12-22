@@ -12,6 +12,8 @@
 
 #include "../utils/utils.h"
 #include "../utils/cLog.h"
+
+using namespace std;
 //}}}
 //{{{  huffman
 // const
