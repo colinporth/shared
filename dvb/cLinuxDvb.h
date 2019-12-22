@@ -20,8 +20,8 @@ public:
   void tune (int frequency);
 
   void captureThread();
+  void signalThread();
   void grabThread();
-  void readThread (const std::string& inTs);
 
   // public for widgets
   std::string mTuneStr = "untuned";
@@ -30,8 +30,8 @@ public:
 
 private:
   void setTsFilter (uint16_t pid, dmx_pes_type_t pestype);
-  void monitorFe();
   void updateSignalString();
+  void monitorFe();
   void uSleep (uint64_t uSec);
 
   int mFrontEnd = 0;

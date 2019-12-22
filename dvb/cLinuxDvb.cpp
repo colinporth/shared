@@ -83,7 +83,7 @@ void cDvb::tune (int frequency) {
   // discard stale events
   struct dvb_frontend_event ev;
   while (true)
-    if (ioctl (mFrontEnd, FE_GET_EVENT, &ev) == -1)
+    if (ioctl (mFrontEnd, FE_GET_EVENT, &ev) < 0)
       break;
     else
       cLog::log (LOGINFO, "discarding stale event");
@@ -120,7 +120,7 @@ void cDvb::tune (int frequency) {
   tuneProps[9].cmd = DTV_TUNE;
   //}}}
   struct dtv_properties cmdTune = { .num = 10, .props = tuneProps };
-  if ((ioctl (mFrontEnd, FE_SET_PROPERTY, &cmdTune)) == -1) {
+  if ((ioctl (mFrontEnd, FE_SET_PROPERTY, &cmdTune)) < 0) {
     //{{{  error
     cLog::log (LOGERROR, "FE_SET_PROPERTY TUNE failed");
     return;
@@ -137,7 +137,7 @@ void cDvb::tune (int frequency) {
   for (int i = 0; i < 10; i++) {
     usleep (100000);
 
-    if (ioctl (mFrontEnd, FE_GET_EVENT, &ev) == -1) // no answer, consider it as not locked situation
+    if (ioctl (mFrontEnd, FE_GET_EVENT, &ev) < 0) // no answer, consider it as not locked situation
       ev.status = FE_NONE;
 
     if (ev.status & FE_HAS_LOCK) {
@@ -152,9 +152,8 @@ void cDvb::tune (int frequency) {
           { .cmd = DTV_GUARD_INTERVAL },
           { .cmd = DTV_TRANSMISSION_MODE },
         };
-      struct dtv_properties cmdGet = {
-        .num = sizeof(getProps) / sizeof (getProps[0]), .props = getProps };
-      if ((ioctl (mFrontEnd, FE_GET_PROPERTY, &cmdGet)) == -1) {
+      struct dtv_properties cmdGet = { .num = sizeof(getProps) / sizeof (getProps[0]), .props = getProps };
+      if ((ioctl (mFrontEnd, FE_GET_PROPERTY, &cmdGet)) < 0) {
         //{{{  error
         cLog::log (LOGERROR, "FE_GET_PROPERTY failed");
         return;
@@ -257,9 +256,9 @@ void cDvb::tune (int frequency) {
         guardTab [getProps[6].u.buffer.data[0]],
         transmissionModeTab [getProps[7].u.buffer.data[0]]);
 
+      updateSignalString();
       monitorFe();
       mTuneStr = string(fe_info.name) + " " + dec(frequency/1000000) + "Mhz";
-      updateSignalString();
       return;
       }
     else
@@ -287,6 +286,19 @@ void cDvb::captureThread() {
       }
     else
       cLog::log (LOGERROR, "bipBuffer.reserve failed " + dec(bytesAllocated));
+    }
+
+  cLog::log (LOGERROR, "exit");
+  }
+//}}}
+//{{{
+void cDvb::signalThread() {
+
+  cLog::setThreadName ("sign");
+
+  while (run) {
+    updateSignalString();
+    uSleep (1000);
     }
 
   cLog::log (LOGERROR, "exit");
@@ -327,37 +339,37 @@ void cDvb::grabThread() {
   }
 //}}}
 //{{{
-void cDvb::readThread (const std::string& inTs) {
+//void cDvb::readThread (const std::string& inTs) {
 
-  cLog::setThreadName ("read");
+  //cLog::setThreadName ("read");
 
-  auto file = fopen (inTs.c_str(), "rb");
-  if (!file) {
+  //auto file = fopen (inTs.c_str(), "rb");
+  //if (!file) {
     //{{{  error, return
-    cLog::log (LOGERROR, "no file " + inTs);
-    return;
-    }
+    //cLog::log (LOGERROR, "no file " + inTs);
+    //return;
+    //}
     //}}}
 
-  uint64_t streamPos = 0;
-  auto blockSize = 188 * 8;
-  auto buffer = (uint8_t*)malloc (blockSize);
+  //uint64_t streamPos = 0;
+  //auto blockSize = 188 * 8;
+  //auto buffer = (uint8_t*)malloc (blockSize);
 
-  bool run = true;
-  while (run) {
-    int bytesRead = fread (buffer, 1, blockSize, file);
-    if (bytesRead > 0)
-      streamPos += demux (buffer, bytesRead, streamPos, false, -1);
-    else
-      break;
-    mErrorStr = dec(getDiscontinuity());
-    }
+  //bool run = true;
+  //while (run) {
+    //int bytesRead = fread (buffer, 1, blockSize, file);
+    //if (bytesRead > 0)
+      //streamPos += demux (buffer, bytesRead, streamPos, false, -1);
+    //else
+      //break;
+    //mErrorStr = dec (getDiscontinuity());
+    //}
 
-  fclose (file);
-  free (buffer);
+  //fclose (file);
+  //free (buffer);
 
-  cLog::log (LOGERROR, "exit");
-  }
+  //cLog::log (LOGERROR, "exit");
+  //}
 //}}}
 
 // private
@@ -378,20 +390,45 @@ void cDvb::setTsFilter (uint16_t pid, dmx_pes_type_t pestype) {
 //}}}
 
 //{{{
-void cDvb::monitorFe() {
+void cDvb::updateSignalString() {
 
-  fe_status_t festatus;
-  if (ioctl (mFrontEnd, FE_READ_STATUS, &festatus) == -1)
+  fe_status_t feStatus;
+  if (ioctl (mFrontEnd, FE_READ_STATUS, &feStatus) < 0)
     cLog::log (LOGERROR, "FE_READ_STATUS failed");
-  else
-    cLog::log (LOGINFO, "status %s%s%s%s%s%s",
-               festatus & FE_HAS_LOCK ? "lock " : "",
-               festatus & FE_HAS_SYNC ? "sync " : "",
-               festatus & FE_TIMEDOUT ? "timedout " : "",
-               festatus & FE_HAS_SIGNAL ? "sig " : "",
-               festatus & FE_HAS_CARRIER ? "carrier " : "",
-               festatus & FE_HAS_VITERBI ? "viterbi " : "");
 
+  else {
+    string str = "";
+    if (feStatus & FE_TIMEDOUT)
+      str += "timeout ";
+    if (feStatus & FE_HAS_LOCK)
+      str += "lock ";
+    if (feStatus & FE_HAS_SIGNAL)
+      str += "s";
+    if (feStatus & FE_HAS_CARRIER)
+      str += "c";
+    if (feStatus & FE_HAS_VITERBI)
+      str += "v";
+    if (feStatus & FE_HAS_SYNC)
+      str += "s";
+
+    uint32_t strength;
+    if (ioctl (mFrontEnd, FE_READ_SIGNAL_STRENGTH, &strength) < 0)
+      cLog::log (LOGERROR, "FE_READ_SIGNAL_STRENGTH failed");
+    else
+      str += " " + frac((strength & 0xFFFF) / 1000.f, 5, 2, ' ');
+
+    uint32_t snr;
+    if (ioctl (mFrontEnd, FE_READ_SNR, &snr) < 0)
+      cLog::log (LOGERROR, "FE_READ_SNR failed");
+    else
+      str += " snr:" + dec((snr & 0xFFFF) / 1000.f,3);
+
+    mSignalStr = str;
+    }
+  }
+//}}}
+//{{{
+void cDvb::monitorFe() {
 
   struct dtv_property getProps[] = {
       { .cmd = DTV_STAT_SIGNAL_STRENGTH },
@@ -407,7 +444,7 @@ void cDvb::monitorFe() {
     .num = sizeof(getProps) / sizeof (getProps[0]),
     .props = getProps
     };
-  if ((ioctl (mFrontEnd, FE_GET_PROPERTY, &cmdGet)) == -1)
+  if ((ioctl (mFrontEnd, FE_GET_PROPERTY, &cmdGet)) < 0)
     cLog::log (LOGERROR, "FE_GET_PROPERTY failed");
   else
     for (int i = 0; i < 8; i++) {
@@ -419,43 +456,6 @@ void cDvb::monitorFe() {
                  int(uvalue));
       }
     //__s64 svalue;
-  }
-//}}}
-//{{{
-void cDvb::updateSignalString() {
-
-  fe_status_t feStatus;
-  auto error = ioctl (mFrontEnd, FE_READ_STATUS, &feStatus);
-  if (error < 0)
-    cLog::log (LOGERROR, "FE_READ_STATUS " + dec(error));
-
-  string str = "";
-  if (feStatus & FE_TIMEDOUT)
-    str += "timeout ";
-  if (feStatus & FE_HAS_LOCK)
-    str += "lock ";
-  if (feStatus & FE_HAS_SIGNAL)
-    str += "s";
-  if (feStatus & FE_HAS_CARRIER)
-    str += "c";
-  if (feStatus & FE_HAS_VITERBI)
-    str += "v";
-  if (feStatus & FE_HAS_SYNC)
-    str += "s";
-
-  uint32_t strength;
-  error = ioctl (mFrontEnd, FE_READ_SIGNAL_STRENGTH, &strength);
-  if (error < 0)
-    cLog::log (LOGERROR, "FE_READ_SIGNAL_STRENGTH " + dec(error));
-  str += " " + frac((strength & 0xFFFF) / 1000.f, 5, 2, ' ');
-
-  uint32_t snr;
-  error = ioctl (mFrontEnd, FE_READ_SNR, &snr);
-  if (error < 0)
-    cLog::log (LOGERROR, "FE_READ_SNR " + dec(error));
-  str += " snr:" + dec((snr & 0xFFFF) / 1000.f,3);
-
-  mSignalStr = str;
   }
 //}}}
 
