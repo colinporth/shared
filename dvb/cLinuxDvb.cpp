@@ -296,7 +296,7 @@ void cDvb::signalThread() {
 
   cLog::setThreadName ("sign");
 
-  while (run) {
+  while (true) {
     updateSignalString();
     uSleep (1000);
     }
