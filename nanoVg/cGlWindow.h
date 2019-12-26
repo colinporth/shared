@@ -25,7 +25,8 @@ public:
 
   // iWindow
   cVg* getContext();
-
+  float getWidth() { return 800; }
+  float getHeight() { return 480; }
   uint16_t getWidthPix();
   uint16_t getHeightPix();
 
@@ -42,10 +43,10 @@ public:
 
   // iChange
   void changed() {}
+  void setChangeCountDown (int countDown) {}
 
 protected:
   cRootContainer* initialise (std::string title, int width, int height, unsigned char* sansFont);
-  void run();
 
   cWidget* add (cWidget* widget) { return mRoot->add (widget); }
   cWidget* addAt (cWidget* widget, float x, float y) { return mRoot->addAt (widget,x,y); }
@@ -57,14 +58,15 @@ protected:
   cWidget* addBelow (cWidget* widget) { return mRoot->addBelow (widget); }
   cWidget* addLeft (cWidget* widget) { return mRoot->addLeft (widget); }
   cWidget* addAbove (cWidget* widget) { return mRoot->addAbove (widget); }
-
-  virtual void onKey (int key, int scancode, int action, int mods) = 0;
-  virtual void onChar (char ch, int mods) = 0;
+  void run();
 
   void toggleVsync();
   void togglePerf();
   void toggleStats();
   void toggleTests();
+
+  virtual void onKey (int key, int scancode, int action, int mods) = 0;
+  virtual void onChar (char ch, int mods) = 0;
 
   static cGlWindow* mGlWindow;
   static float mMouseX;
@@ -89,7 +91,7 @@ private:
   static void glfwCursorPos (struct GLFWwindow* window, double xpos, double ypos);
   static void glfwMouseButton (struct GLFWwindow* window, int button, int action, int mods);
   static void glfMouseScroll (struct GLFWwindow* window, double xoffset, double yoffset);
-  static void errorcb (int error, const char* desc);
+  static void errorCallback (int error, const char* desc);
 
   bool mVsync = true;
   bool mDrawPerf = false;

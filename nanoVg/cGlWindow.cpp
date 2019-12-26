@@ -86,13 +86,13 @@ cRootContainer* cGlWindow::initialise (string title, int width, int height, unsi
 
   mGlWindow = this;
 
+  glfwSetErrorCallback (errorCallback);
   if (!glfwInit()) {
     //{{{  error, return
     cLog::log (LOGERROR, "Failed to init GLFW");
     return nullptr;
     }
     //}}}
-  glfwSetErrorCallback (errorcb);
 
   // glfw hints
 #ifdef NANOVG_GL3
@@ -127,7 +127,7 @@ cRootContainer* cGlWindow::initialise (string title, int width, int height, unsi
     //}}}
 
   glfwMakeContextCurrent (mWindow);
-  gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
+  gladLoadGLLoader ((GLADloadproc)glfwGetProcAddress);
 
   glfwSetKeyCallback (mWindow, glfwKey);
   glfwSetCharModsCallback (mWindow, glfwCharMods);
@@ -155,6 +155,8 @@ cRootContainer* cGlWindow::initialise (string title, int width, int height, unsi
 void cGlWindow::run () {
 
   while (!glfwWindowShouldClose (mWindow)) {
+    glfwPollEvents();
+
     mCpuGraph->start ((float)glfwGetTime());
 
     // Update and render
@@ -190,8 +192,6 @@ void cGlWindow::run () {
 
     mCpuGraph->updateTime ((float)glfwGetTime());
     mFpsGraph->updateTime ((float)glfwGetTime());
-
-    glfwPollEvents();
     }
   }
 //}}}
@@ -498,7 +498,7 @@ void cGlWindow::glfMouseScroll (struct GLFWwindow* window,  double xoffset, doub
 //}}}
 
 //{{{
-void cGlWindow::errorcb (int error, const char* desc) {
+void cGlWindow::errorCallback (int error, const char* desc) {
   cLog::log (LOGERROR, "GLFW error %d: %s\n", error, desc);
   }
 //}}}

@@ -1,6 +1,8 @@
 // cRaspWindow.h
 #define NANOVG
 #define NANOVG_GLES2 1
+//#define NANOVG_GL3 1
+//#define NANOVG_UNIFORMBUFFER
 //{{{  includes
 #pragma once
 
@@ -28,6 +30,7 @@ public:
   float getHeight() { return mRoot->getHeight(); }
   uint16_t getWidthPix() { return mRoot->getPixWidth(); }
   uint16_t getHeightPix() { return mRoot->getPixHeight(); }
+
   bool getShift() { return false; }
   bool getControl() { return false; }
   bool getMouseDown() { return false; }
@@ -35,12 +38,12 @@ public:
   // iDraw
   void pixel (uint32_t colour, int16_t x, int16_t y) {}
   void drawRect (uint32_t colour, int16_t x, int16_t y, uint16_t width, uint16_t height);
+  void stamp (uint32_t colour, uint8_t* src, int16_t x, int16_t y, uint16_t width, uint16_t height) {}
   int drawText (uint32_t colour, uint16_t fontHeight, std::string str, int16_t x, int16_t y, uint16_t width, uint16_t height);
   void ellipseSolid (uint32_t colour, int16_t x, int16_t y, uint16_t xradius, uint16_t yradius);
 
   // iChange
   void changed() { mCountDown = 0; }
-
   void setChangeCountDown (int countDown) { mChangeCountDown = countDown; }
 
 protected:
@@ -58,13 +61,13 @@ protected:
   cWidget* addAbove (cWidget* widget) { return mRoot->addAbove (widget); }
   void run();
 
-  uint64_t getAbsoluteClock();
-  void uSleep (uint64_t uSec);
-
   void toggleVsync() { mVsync = !mVsync; setVsync (mVsync); }
   void togglePerf()  { mDrawPerf = !mDrawPerf; mFpsGraph->reset(); mCpuGraph->reset(); }
   void toggleStats() { mDrawStats = !mDrawStats; }
   void toggleTests() { mDrawTests = !mDrawTests; }
+
+  uint64_t getAbsoluteClock();
+  void uSleep (uint64_t uSec);
 
   virtual void pollKeyboard() = 0;
 
