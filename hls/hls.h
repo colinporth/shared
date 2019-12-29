@@ -648,7 +648,7 @@ private:
   std::string mHost;
   cChunk mChunks[kMaxChunks];
 
-  cAacDecoder* mDecoder = 0;
+  cAacDecoder* mDecoder = nullptr;
   int mBitrate = 0;
 
   int mDaylightSeconds = 0;

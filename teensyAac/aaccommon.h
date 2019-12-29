@@ -1,7 +1,7 @@
 #pragma once
 #include "cAacDecoder.h"
 
-//#define AAC_ENABLE_SBR
+#define AAC_ENABLE_SBR
 
 #ifdef _WIN32
   #define bigMalloc(size,tag)   malloc (size)

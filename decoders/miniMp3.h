@@ -1,5 +1,4 @@
-//{{{  copyright
-// https://github.com/lieff/minimp3
+//{{{  miniMp3.h based on https://github.com/lieff/minimp3
 // To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.
 // This software is distributed without any warranty.
 // See <http://creativecommons.org/publicdomain/zero/1.0/>.
@@ -111,31 +110,25 @@
   //{{{
   static int have_simd() {
 
-  #ifdef MINIMP3_ONLY_SIMD
-    return 1;
-  #else /* MINIMP3_ONLY_SIMD */
-    static int g_have_simd;
-    int CPUInfo[4];
+    #ifdef MINIMP3_ONLY_SIMD
+      return 1;
 
-  #ifdef MINIMP3_TEST
-    static int g_counter;
-    if (g_counter++ > 100)
-      return 0;
-  #endif /* MINIMP3_TEST */
+    #else 
+      static int g_have_simd;
+      if (g_have_simd)
+        goto end;
 
-    if (g_have_simd)
-      goto end;
+      int CPUInfo[4];
+      minimp3_cpuid(CPUInfo, 0);
+      g_have_simd = 1;
+      if (CPUInfo[0] > 0) {
+        minimp3_cpuid (CPUInfo, 1);
+        g_have_simd = (CPUInfo[3] & (1 << 26)) + 1; /* SSE2 */
+        }
 
-    minimp3_cpuid(CPUInfo, 0);
-    g_have_simd = 1;
-    if (CPUInfo[0] > 0) {
-      minimp3_cpuid(CPUInfo, 1);
-      g_have_simd = (CPUInfo[3] & (1 << 26)) + 1; /* SSE2 */
-      }
-
-  end:
-    return g_have_simd - 1;
-  #endif /* MINIMP3_ONLY_SIMD */
+    end:
+      return g_have_simd - 1;
+    #endif
     }
   //}}}
   //}}}
@@ -166,13 +159,8 @@
   //}}}
   //}}}
 #else
-  //{{{  SIMD checks
   #define HAVE_SSE 0
   #define HAVE_SIMD 0
-  #ifdef MINIMP3_ONLY_SIMD
-    #error MINIMP3_ONLY_SIMD used, but SSE/NEON not enabled
-  #endif /* MINIMP3_ONLY_SIMD */
-  //}}}
 #endif
 //}}}
 
@@ -1533,10 +1521,10 @@ static void mp3d_synth (float* xl, int16_t* dstl, int nch, float* lins)
 #if HAVE_SIMD
     if (have_simd()) for (i = 14; i >= 0; i--)
     {
-#define VLOAD(k) f4 w0 = VSET(*w++); f4 w1 = VSET(*w++); f4 vz = VLD(&zlin[4*i - 64*k]); f4 vy = VLD(&zlin[4*i - 64*(15 - k)]);
-#define V0(k) { VLOAD(k) b =         VADD(VMUL(vz, w1), VMUL(vy, w0)) ; a =         VSUB(VMUL(vz, w0), VMUL(vy, w1));  }
-#define V1(k) { VLOAD(k) b = VADD(b, VADD(VMUL(vz, w1), VMUL(vy, w0))); a = VADD(a, VSUB(VMUL(vz, w0), VMUL(vy, w1))); }
-#define V2(k) { VLOAD(k) b = VADD(b, VADD(VMUL(vz, w1), VMUL(vy, w0))); a = VADD(a, VSUB(VMUL(vy, w1), VMUL(vz, w0))); }
+        #define VLOAD(k) f4 w0 = VSET(*w++); f4 w1 = VSET(*w++); f4 vz = VLD(&zlin[4*i - 64*k]); f4 vy = VLD(&zlin[4*i - 64*(15 - k)]);
+        #define V0(k) { VLOAD(k) b =         VADD(VMUL(vz, w1), VMUL(vy, w0)) ; a =         VSUB(VMUL(vz, w0), VMUL(vy, w1));  }
+        #define V1(k) { VLOAD(k) b = VADD(b, VADD(VMUL(vz, w1), VMUL(vy, w0))); a = VADD(a, VSUB(VMUL(vz, w0), VMUL(vy, w1))); }
+        #define V2(k) { VLOAD(k) b = VADD(b, VADD(VMUL(vz, w1), VMUL(vy, w0))); a = VADD(a, VSUB(VMUL(vy, w1), VMUL(vz, w0))); }
         f4 a, b;
         zlin[4*i]     = xl[18*(31 - i)];
         zlin[4*i + 1] = xr[18*(31 - i)];
@@ -1581,15 +1569,16 @@ static void mp3d_synth (float* xl, int16_t* dstl, int nch, float* lins)
         }
     } else
 #endif /* HAVE_SIMD */
+
 #ifdef MINIMP3_ONLY_SIMD
     {}
 #else /* MINIMP3_ONLY_SIMD */
     for (i = 14; i >= 0; i--)
     {
-#define LOAD(k) float w0 = *w++; float w1 = *w++; float *vz = &zlin[4*i - k*64]; float *vy = &zlin[4*i - (15 - k)*64];
-#define S0(k) { int j; LOAD(k); for (j = 0; j < 4; j++) b[j]  = vz[j]*w1 + vy[j]*w0, a[j]  = vz[j]*w0 - vy[j]*w1; }
-#define S1(k) { int j; LOAD(k); for (j = 0; j < 4; j++) b[j] += vz[j]*w1 + vy[j]*w0, a[j] += vz[j]*w0 - vy[j]*w1; }
-#define S2(k) { int j; LOAD(k); for (j = 0; j < 4; j++) b[j] += vz[j]*w1 + vy[j]*w0, a[j] += vy[j]*w1 - vz[j]*w0; }
+        #define LOAD(k) float w0 = *w++; float w1 = *w++; float *vz = &zlin[4*i - k*64]; float *vy = &zlin[4*i - (15 - k)*64];
+        #define S0(k) { int j; LOAD(k); for (j = 0; j < 4; j++) b[j]  = vz[j]*w1 + vy[j]*w0, a[j]  = vz[j]*w0 - vy[j]*w1; }
+        #define S1(k) { int j; LOAD(k); for (j = 0; j < 4; j++) b[j] += vz[j]*w1 + vy[j]*w0, a[j] += vz[j]*w0 - vy[j]*w1; }
+        #define S2(k) { int j; LOAD(k); for (j = 0; j < 4; j++) b[j] += vz[j]*w1 + vy[j]*w0, a[j] += vy[j]*w1 - vz[j]*w0; }
         float a[4], b[4];
 
         zlin[4*i]     = xl[18*(31 - i)];
