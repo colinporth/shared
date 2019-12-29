@@ -113,7 +113,7 @@
     #ifdef MINIMP3_ONLY_SIMD
       return 1;
 
-    #else 
+    #else
       static int g_have_simd;
       if (g_have_simd)
         goto end;
@@ -151,12 +151,10 @@
 
   typedef float32x4_t f4;
 
-  //{{{
-  static int have_simd()
-  {   /* TODO: detect neon for !MINIMP3_ONLY_SIMD */
-      return 1;
-  }
-  //}}}
+  static int have_simd() {
+    // TODO: detect neon for !MINIMP3_ONLY_SIMD
+    return 1;
+    }
   //}}}
 #else
   #define HAVE_SSE 0
