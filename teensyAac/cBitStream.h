@@ -4,7 +4,7 @@
 
 class cBitStream {
 public:
-  cBitStream (int numBytes, unsigned char* buf) : bytePtr(buf), nBytes(numBytes) {}
+  cBitStream (int numBytes, uint8_t* buf) : bytePtr(buf), nBytes(numBytes) {}
 
   //{{{
   void AdvanceBitstream (int nBits) {
@@ -64,7 +64,7 @@ public:
     // if we cross an int boundary, read next bytes in buffer
     if (lowBits > 0) {
       unsigned int iCache = 0;
-      unsigned char* buf = bytePtr;
+      uint8_t* buf = bytePtr;
       while (lowBits > 0) {
         iCache <<= 8;
         if (buf < bytePtr + nBytes)
@@ -80,7 +80,7 @@ public:
   //}}}
 
   //{{{
-  int CalcBitsUsed (unsigned char* startBuf, int startOffset) {
+  int CalcBitsUsed (uint8_t* startBuf, int startOffset) {
     return ((int)(bytePtr - startBuf) * 8) - cachedBits - startOffset;
     }
   //}}}
@@ -117,7 +117,7 @@ private:
     }
   //}}}
 
-  unsigned char* bytePtr;
+  uint8_t* bytePtr;
   unsigned int iCache = 0;
   int cachedBits = 0;
   int nBytes;

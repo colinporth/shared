@@ -12,7 +12,7 @@
 class cWinAudio : public iAudio {
 public:
   cWinAudio();
-  virtual cWinAudio::~cWinAudio();
+  virtual ~cWinAudio();
 
   void audOpen (int srcChannels, int srcSampleRate);
   void audPlay (int srcChannels, int16_t* srcSamples, int srcNumSamples, float pitch);

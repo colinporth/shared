@@ -1,12 +1,15 @@
 // cAacDecoder.h
 #pragma once
+
+#include <stdint.h>
+
 #define AAC_MAX_NCHANS    2 // set to default max number of channels  */
 #define AAC_MAX_NSAMPS    1024
 
-#define AAC_NUM_PROFILES  3
 #define AAC_PROFILE_MP    0
 #define AAC_PROFILE_LC    1
 #define AAC_PROFILE_SSR   2
+#define AAC_NUM_PROFILES  3
 
 //{{{  error enum
 enum {
@@ -38,7 +41,7 @@ enum {
   ERR_AAC_RAWBLOCK_PARAMS               = -22,
 
   ERR_AAC_UNKNOWN           = -9999
-};
+  };
 //}}}
 //{{{  struct AACFrameInfo
 typedef struct _AACFrameInfo {
@@ -61,7 +64,7 @@ public:
   cAacDecoder();
   ~cAacDecoder();
 
-  int AACDecode (unsigned char** inbuf, int* bytesLeft, short* outbuf);
+  int AACDecode (uint8_t** inbuf, int* bytesLeft, short* outbuf);
 
   int AACSetRawBlockParams (int copyLast, AACFrameInfo* aacFrameInfo);
   int AACFlushCodec();
@@ -72,11 +75,15 @@ public:
   int bitRate;
   int nChans;
   int sampRate;
+
   int profile;
   int format;
+
   int sbrEnabled;
+
   int tnsUsed;
   int pnsUsed;
+
   int frameCount;
   //}}}
 
@@ -97,14 +104,16 @@ private:
   int DecodeDataStreamElement (cBitStream& bitStream);
   int DecodeFillElement (cBitStream& bitStream);
 
-  int DecodeNoiselessData (unsigned char** buf, int* bitOffset, int* bitsAvail, int ch);
-  int DecodeNextElement (unsigned char** buf, int* bitOffset, int* bitsAvail);
-  int UnpackADIFHeader (unsigned char* *buf, int* bitOffset, int* bitsAvail);
+  int DecodeNoiselessData (uint8_t** buf, int* bitOffset, int* bitsAvail, int ch);
+  int DecodeNextElement (uint8_t** buf, int* bitOffset, int* bitsAvail);
+
   int SetRawBlockParams (int copyLast, int nChans, int sampRate, int profile);
 
-  int UnpackADTSHeader (unsigned char** buf, int* bitOffset, int* bitsAvail);
-  int GetADTSChannelMapping (unsigned char* buf, int bitOffset, int bitsAvail);
-  int AACFindSyncWord (unsigned char* buf, int nBytes);
+  int UnpackADIFHeader (uint8_t* *buf, int* bitOffset, int* bitsAvail);
+  int UnpackADTSHeader (uint8_t** buf, int* bitOffset, int* bitsAvail);
+
+  int AACFindSyncWord (uint8_t* buf, int nBytes);
+  int GetADTSChannelMapping (uint8_t* buf, int bitOffset, int bitsAvail);
 
   //{{{  private vars
   PSInfoBase* psInfoBase; /* baseline MPEG-4 LC decoding */
@@ -116,7 +125,7 @@ private:
   int rawSampleFBits;
 
   /* fill data (can be used for processing SBR or other extensions) */
-  unsigned char* fillBuf;
+  uint8_t* fillBuf;
   int fillCount;
   int fillExtType;
 

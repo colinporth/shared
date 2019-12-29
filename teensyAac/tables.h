@@ -103,7 +103,7 @@ const int poly43hi[] ATTRIBUTE = { 0x10852163, 0xd333f6a4, 0x46e9408b, 0x27c2cef
 
 //{{{
 /* cLog2[i] = ceil(log2(i)) (disregard i == 0) */
-const unsigned char cLog2[] ATTRIBUTE = {0, 0, 1, 2, 2, 3, 3, 3, 3};
+const uint8_t cLog2[] ATTRIBUTE = {0, 0, 1, 2, 2, 3, 3, 3, 3};
 //}}}
 //{{{
 /* log2Tab[x] = floor(log2(x)), format = Q28 */
@@ -161,7 +161,7 @@ const int postSkip[] ATTRIBUTE = { 15, 1 };
  *   gainBits[winSequence][1] = locBitsZero (bits for alocCode if window == 0)
  *   gainBits[winSequence][2] = locBits (bits for alocCode if window != 0)
  */
-const unsigned char gainBits[4][3]  = {
+const uint8_t gainBits[4][3]  = {
   {1, 5, 5},  /* long */
   {2, 4, 2},  /* start */
   {8, 2, 2},  /* short */
@@ -1106,7 +1106,7 @@ const int kbdWindow[] ATTRIBUTE  = {
 const int bitrevtabOffset[] ATTRIBUTE = { 0, 17 };
 //}}}
 //{{{
-const unsigned char bitrevtab[] ATTRIBUTE = {
+const uint8_t bitrevtab[] ATTRIBUTE = {
   /* nfft = 64 */
   0x01, 0x08, 0x02, 0x04, 0x03, 0x0c, 0x05, 0x0a, 0x07, 0x0e, 0x0b, 0x0d, 0x00, 0x06, 0x09, 0x0f,
   0x00,
@@ -1124,7 +1124,7 @@ const unsigned char bitrevtab[] ATTRIBUTE = {
   };
 //}}}
 //{{{
-const unsigned char uniqueIDTab[] ATTRIBUTE = { 0x5f, 0x4b, 0x43, 0x5f, 0x5f, 0x4a, 0x52, 0x5f };
+const uint8_t uniqueIDTab[] ATTRIBUTE = { 0x5f, 0x4b, 0x43, 0x5f, 0x5f, 0x4a, 0x52, 0x5f };
 //}}}
 
 //{{{
@@ -1149,10 +1149,10 @@ const int elementNumChans[] ATTRIBUTE = { 1, 2, 0, 1, 0, 0, 0, 0 };
 
 //{{{
 /* total number of scale factor bands in one window */
-const unsigned char sfBandTotalShort[] ATTRIBUTE  = { 12, 12, 12, 14, 14, 14, 15, 15, 15, 15, 15, 15 };
+const uint8_t sfBandTotalShort[] ATTRIBUTE  = { 12, 12, 12, 14, 14, 14, 15, 15, 15, 15, 15, 15 };
 //}}}
 //{{{
-const unsigned char sfBandTotalLong[] ATTRIBUTE = { 41, 41, 47, 49, 49, 51, 47, 47, 43, 43, 43, 40 };
+const uint8_t sfBandTotalLong[] ATTRIBUTE = { 41, 41, 47, 49, 49, 51, 47, 47, 43, 43, 43, 40 };
 //}}}
 //{{{
 /* scale factor band tables */
@@ -1224,25 +1224,25 @@ const short sfBandTabLong[] ATTRIBUTE = {
 const int tnsMaxBandsShortOffset[] ATTRIBUTE = { 0, 0, 12 };
 //}}}
 //{{{
-const unsigned char tnsMaxBandsShort[] ATTRIBUTE = {
+const uint8_t tnsMaxBandsShort[] ATTRIBUTE = {
    9,  9, 10, 14, 14, 14, 14, 14, 14, 14, 14, 14,   /* short block, Main/LC */
    7,  7,  7,  6,  6,  6,  7,  7,  8,  8,  8,  7    /* short block, SSR */
 };
 //}}}
 //{{{
-const unsigned char tnsMaxOrderShort[] ATTRIBUTE = { 7, 7, 7 };
+const uint8_t tnsMaxOrderShort[] ATTRIBUTE = { 7, 7, 7 };
 //}}}
 //{{{
 const int tnsMaxBandsLongOffset[] ATTRIBUTE = { 0, 0, 12 };
 //}}}
 //{{{
-const unsigned char tnsMaxBandsLong[] ATTRIBUTE = {
+const uint8_t tnsMaxBandsLong[] ATTRIBUTE = {
   31, 31, 34, 40, 42, 51, 46, 46, 42, 42, 42, 39,   /* long block, Main/LC */
   28, 28, 27, 26, 26, 26, 29, 29, 23, 23, 23, 19,   /* long block, SSR */
 };
 //}}}
 //{{{
-const unsigned char tnsMaxOrderLong[] ATTRIBUTE = { 20, 12, 12 };
+const uint8_t tnsMaxOrderLong[] ATTRIBUTE = { 20, 12, 12 };
 //}}}
 
 //{{{
@@ -1400,7 +1400,7 @@ const HuffInfo huffTabSpecInfo[] ATTRIBUTE = {
 /* k0Tab[sampRateIdx][k] = k0 = startMin + offset(bs_start_freq) for given sample rate (4.6.18.3.2.1)
  * downsampled (single-rate) SBR not currently supported
  */
-const unsigned char k0Tab[9][16] ATTRIBUTE = {
+const uint8_t k0Tab[9][16] ATTRIBUTE = {
     {  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 16, 18, 20, 23, 27, 31 }, /* 96 kHz */
     {  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 16, 18, 20, 23, 27, 31 }, /* 88 kHz */
     {  6,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 19, 21, 23, 26, 30 }, /* 64 kHz */
@@ -1417,7 +1417,7 @@ const unsigned char k0Tab[9][16] ATTRIBUTE = {
  * generated with Matlab script calc_stopvec.m
  * downsampled (single-rate) SBR not currently supported
  */
-const unsigned char k2Tab[9][14] ATTRIBUTE = {
+const uint8_t k2Tab[9][14] ATTRIBUTE = {
   { 13, 15, 17, 19, 21, 24, 27, 31, 35, 39, 44, 50, 57, 64 }, /* 96 kHz */
   { 15, 17, 19, 21, 23, 26, 29, 33, 37, 41, 46, 51, 57, 64 }, /* 88 kHz */
   { 20, 22, 24, 26, 28, 31, 34, 37, 41, 45, 49, 54, 59, 64 }, /* 64 kHz */
@@ -1433,7 +1433,7 @@ const unsigned char k2Tab[9][14] ATTRIBUTE = {
 /* NINT(2.048E6 / Fs) (figure 4.47)
  * downsampled (single-rate) SBR not currently supported
  */
-const unsigned char goalSBTab[] ATTRIBUTE = {
+const uint8_t goalSBTab[] ATTRIBUTE = {
   21, 23, 32, 43, 46, 64, 85, 93, 128
 };
 //}}}

@@ -46,11 +46,11 @@ void BitReverse (int* inout, int tabidx) {
     t = p0; t1 = *(&(p0)+1); p0 = p1; *(&(p0)+1) = *(&(p1)+1); p1 = t; *(&(p1)+1) = t1
 
   int a, b, t, t1;
-  const unsigned char* tab = bitrevtab + bitrevtabOffset[tabidx];
+  const uint8_t* tab = bitrevtab + bitrevtabOffset[tabidx];
   int nbits = nfftlog2Tab[tabidx];
 
   int* part0 = inout;
-  int* part1 = inout + (1 << nbits);
+  int* part1 = inout + int(1 << nbits);
 
   while ((a = *tab++) != 0) {
     b = *tab++;
@@ -495,10 +495,10 @@ void DCT4 (int tabidx, int* coef, int gb)
   void InitSBRState (PSInfoSBR* psInfoSBR) {
 
     int i, ch;
-    unsigned char *c;
+    uint8_t *c;
 
     /* clear SBR state structure */
-    c = (unsigned char*)psInfoSBR;
+    c = (uint8_t*)psInfoSBR;
     for (i = 0; i < (int)sizeof(PSInfoSBR); i++)
       *c++ = 0;
 
@@ -1437,12 +1437,12 @@ int DequantBlock (int* inbuf, int nSamps, int scale) {
 //}}}
 //{{{
 void StereoProcessGroup (int* coefL, int* coefR, const short* sfbTab,
-                                int msMaskPres, unsigned char* msMaskPtr, int msMaskOffset, int maxSFB,
-                                unsigned char* cbRight, short* sfRight, int* gbCurrent)
+                                int msMaskPres, uint8_t* msMaskPtr, int msMaskOffset, int maxSFB,
+                                uint8_t* cbRight, short* sfRight, int* gbCurrent)
 {
   int sfb, width, cbIdx, sf, cl, cr, scalef, scalei;
   int gbMaskL, gbMaskR;
-  unsigned char msMask;
+  uint8_t msMask;
 
   msMask = (*msMaskPtr++) >> msMaskOffset;
   gbMaskL = 0;
@@ -1827,7 +1827,7 @@ void DecodeTNSInfo (cBitStream& bitStream, int winSequence, TNSInfo* ti, signed 
   int i, w, f, coefBits, compress;
   signed char c, s, n;
 
-  unsigned char *filtLength, *filtOrder, *filtDir;
+  uint8_t *filtLength, *filtOrder, *filtDir;
 
   filtLength = ti->length;
   filtOrder =  ti->order;
@@ -2012,40 +2012,7 @@ cAacDecoder::~cAacDecoder() {
 //}}}
 
 //{{{
-int cAacDecoder::AACSetRawBlockParams (int copyLast, AACFrameInfo *aacFrameInfo)
-{
-  format = AAC_FF_RAW;
-  if (copyLast)
-    return SetRawBlockParams (1, 0, 0, 0);
-  else
-    return SetRawBlockParams (0, aacFrameInfo->nChans, aacFrameInfo->sampRateCore, aacFrameInfo->profile);
-}
-//}}}
-//{{{
-int cAacDecoder::AACFlushCodec() {
-// reset common state variables which change per-frame
-// don't touch state variables which are (usually) constant for entire clip
-// (nChans, sampRate, profile, format, sbrEnabled)
-
-  prevBlockID = AAC_ID_INVALID;
-  currBlockID = AAC_ID_INVALID;
-  currInstTag = -1;
-  adtsBlocksLeft = 0;
-  tnsUsed = 0;
-  pnsUsed = 0;
-
-  // reset internal codec state (flush overlap buffers, etc.)
-  memset (psInfoBase->overlap, 0, AAC_MAX_NCHANS * AAC_MAX_NSAMPS * sizeof(int));
-  memset (psInfoBase->prevWinShape, 0, AAC_MAX_NCHANS * sizeof(int));
-
-#ifdef AAC_ENABLE_SBR
-  InitSBRState (psInfoSBR);
-#endif
-
-  return ERR_AAC_NONE;
-  }
-//}}}
-//{{{
+int cAacDecoder::AACDecode (uint8_t** inbuf, int* bytesLeft, short* outbuf) {
 // Inputs:      valid AAC decoder instance pointer (HAACDecoder)
 //              double pointer to buffer of AAC data
 //              pointer to number of valid bytes remaining in inbuf
@@ -2059,11 +2026,10 @@ int cAacDecoder::AACFlushCodec() {
 // Notes:       inbuf pointer and bytesLeft are not updated until whole frame is
 //              successfully decoded, so if ERR_AAC_INDATA_UNDERFLOW is returned
 //              just call AACDecode again with more data in inbuf
-int cAacDecoder::AACDecode (unsigned char** inbuf, int* bytesLeft, short* outbuf) {
 
   int err, offset, bitOffset, bitsAvail;
   int ch, baseChan, elementChans;
-  unsigned char *inptr;
+  uint8_t *inptr;
 
 #ifdef AAC_ENABLE_SBR
   int baseChanSBR;
@@ -2217,6 +2183,41 @@ int cAacDecoder::AACDecode (unsigned char** inbuf, int* bytesLeft, short* outbuf
   frameCount++;
   *bytesLeft -= (int)(inptr - *inbuf);
   *inbuf = inptr;
+
+  return ERR_AAC_NONE;
+  }
+//}}}
+
+//{{{
+int cAacDecoder::AACSetRawBlockParams (int copyLast, AACFrameInfo *aacFrameInfo)
+{
+  format = AAC_FF_RAW;
+  if (copyLast)
+    return SetRawBlockParams (1, 0, 0, 0);
+  else
+    return SetRawBlockParams (0, aacFrameInfo->nChans, aacFrameInfo->sampRateCore, aacFrameInfo->profile);
+}
+//}}}
+//{{{
+int cAacDecoder::AACFlushCodec() {
+// reset common state variables which change per-frame
+// don't touch state variables which are (usually) constant for entire clip
+// (nChans, sampRate, profile, format, sbrEnabled)
+
+  prevBlockID = AAC_ID_INVALID;
+  currBlockID = AAC_ID_INVALID;
+  currInstTag = -1;
+  adtsBlocksLeft = 0;
+  tnsUsed = 0;
+  pnsUsed = 0;
+
+  // reset internal codec state (flush overlap buffers, etc.)
+  memset (psInfoBase->overlap, 0, AAC_MAX_NCHANS * AAC_MAX_NSAMPS * sizeof(int));
+  memset (psInfoBase->prevWinShape, 0, AAC_MAX_NCHANS * sizeof(int));
+
+#ifdef AAC_ENABLE_SBR
+  InitSBRState (psInfoSBR);
+#endif
 
   return ERR_AAC_NONE;
   }
@@ -2491,7 +2492,7 @@ int cAacDecoder::StereoProcess()
 {
   int gp, win, nSamps, msMaskOffset;
   int *coefL, *coefR;
-  unsigned char *msMaskPtr;
+  uint8_t *msMaskPtr;
   const short *sfbTab;
 
   /* mid-side and intensity stereo require common_window == 1 (see MPEG4 spec, Correction 2, 2004) */
@@ -2541,7 +2542,7 @@ int cAacDecoder::Dequantize (int ch)
   int gp, cb, sfb, win, width, nSamps, gbMask;
   int *coef;
   const short *sfbTab;
-  unsigned char *sfbCodeBook;
+  uint8_t *sfbCodeBook;
   short *scaleFactors;
 
   ICSInfo *icsInfo = (ch == 1 && psInfoBase->commonWin == 1) ? &(psInfoBase->icsInfo[0]) : &(psInfoBase->icsInfo[ch]);
@@ -2594,11 +2595,11 @@ int cAacDecoder::PNS (int ch) {
   int gp, sfb, win, width, nSamps, gb, gbMask;
   int *coef;
   const short *sfbTab;
-  unsigned char *sfbCodeBook;
+  uint8_t *sfbCodeBook;
   short *scaleFactors;
   int msMaskOffset, checkCorr, genNew;
-  unsigned char msMask;
-  unsigned char *msMaskPtr;
+  uint8_t msMask;
+  uint8_t *msMaskPtr;
 
   if (!psInfoBase->pnsUsed[ch])
     return 0;
@@ -2673,14 +2674,14 @@ int cAacDecoder::PNS (int ch) {
   }
 //}}}
 //{{{
-int cAacDecoder::TNSFilter (int ch)
-{
+int cAacDecoder::TNSFilter (int ch) {
+
   int win, winLen, nWindows, nSFB, filt, bottom, top, order, maxOrder, dir;
   int start, end, size, tnsMaxBand, numFilt, gbMask;
   int *audioCoef;
-  unsigned char *filtLength, *filtOrder, *filtRes, *filtDir;
+  uint8_t *filtLength, *filtOrder, *filtRes, *filtDir;
   signed char *filtCoef;
-  const unsigned char *tnsMaxBandTab;
+  const uint8_t *tnsMaxBandTab;
   const short *sfbTab;
 
   auto ti = &psInfoBase->tnsInfo[ch];
@@ -2766,7 +2767,7 @@ int cAacDecoder::DecodeSingleChannelElement (cBitStream& bitStream) {
 int cAacDecoder::DecodeChannelPairElement (cBitStream& bitStream)
 {
   int sfb, gp, maskOffset;
-  unsigned char currBit, *maskPtr;
+  uint8_t currBit, *maskPtr;
 
   auto icsInfo = psInfoBase->icsInfo;
 
@@ -2791,7 +2792,7 @@ int cAacDecoder::DecodeChannelPairElement (cBitStream& bitStream)
       maskOffset = 0;
       for (gp = 0; gp < icsInfo->numWinGroup; gp++) {
         for (sfb = 0; sfb < icsInfo->maxSFB; sfb++) {
-          currBit = (unsigned char)(bitStream.GetBits( 1));
+          currBit = (uint8_t)(bitStream.GetBits( 1));
           *maskPtr |= currBit << maskOffset;
           if (++maskOffset == 8) {
             maskPtr++;
@@ -2826,7 +2827,7 @@ int cAacDecoder::DecodeDataStreamElement (cBitStream& bitStream) {
     bitStream.ByteAlignBitstream();
 
   psInfoBase->dataCount = dataCount;
-  unsigned char* dataBuf = psInfoBase->dataBuf;
+  uint8_t* dataBuf = psInfoBase->dataBuf;
   while (dataCount--)
     *dataBuf++ = bitStream.GetBits(8);
 
@@ -2841,7 +2842,7 @@ int cAacDecoder::DecodeFillElement (cBitStream& bitStream) {
     myFillCount += (bitStream.GetBits(8) - 1);
 
   psInfoBase->fillCount = myFillCount;
-  unsigned char* myFillBuf = psInfoBase->fillBuf;
+  uint8_t* myFillBuf = psInfoBase->fillBuf;
   while (myFillCount--)
     *myFillBuf++ = bitStream.GetBits(8);
 
@@ -2865,7 +2866,7 @@ int cAacDecoder::DecodeFillElement (cBitStream& bitStream) {
 //}}}
 
 //{{{
-int cAacDecoder::DecodeNoiselessData (unsigned char** buf, int* bitOffset, int* bitsAvail, int ch) {
+int cAacDecoder::DecodeNoiselessData (uint8_t** buf, int* bitOffset, int* bitsAvail, int ch) {
 
   cBitStream bitStream ((*bitsAvail+7) >> 3, *buf);
   bitStream.GetBits (*bitOffset);
@@ -2889,7 +2890,7 @@ int cAacDecoder::DecodeNoiselessData (unsigned char** buf, int* bitOffset, int* 
   }
 //}}}
 //{{{
-int cAacDecoder::DecodeNextElement (unsigned char **buf, int* bitOffset, int* bitsAvail) {
+int cAacDecoder::DecodeNextElement (uint8_t **buf, int* bitOffset, int* bitsAvail) {
 
   cBitStream bitStream ((*bitsAvail + 7) >> 3, *buf);
   bitStream.GetBits (*bitOffset);
@@ -2972,8 +2973,8 @@ int cAacDecoder::SetRawBlockParams (int copyLast, int nChans, int sampRate, int 
 //}}}
 
 //{{{
-int cAacDecoder::UnpackADIFHeader (unsigned char* *buf, int* bitOffset, int* bitsAvail)
-{
+int cAacDecoder::UnpackADIFHeader (uint8_t* *buf, int* bitOffset, int* bitsAvail) {
+
   int i, bitsUsed;
   ADIFHeader *fhADIF;
   ProgConfigElement *pce;
@@ -2991,10 +2992,10 @@ int cAacDecoder::UnpackADIFHeader (unsigned char* *buf, int* bitOffset, int* bit
 
   /* read ADIF header fields */
   fhADIF->copyBit = bitStream.GetBits(1);
-  if (fhADIF->copyBit) {
+  if (fhADIF->copyBit)
     for (i = 0; i < ADIF_COPYID_SIZE; i++)
       fhADIF->copyID[i] = bitStream.GetBits(8);
-  }
+
   fhADIF->origCopy = bitStream.GetBits(1);
   fhADIF->home =     bitStream.GetBits(1);
   fhADIF->bsType =   bitStream.GetBits(1);
@@ -3042,7 +3043,7 @@ int cAacDecoder::UnpackADIFHeader (unsigned char* *buf, int* bitOffset, int* bit
 }
 //}}}
 //{{{
-int cAacDecoder::UnpackADTSHeader (unsigned char** buf, int* bitOffset, int* bitsAvail)
+int cAacDecoder::UnpackADTSHeader (uint8_t** buf, int* bitOffset, int* bitsAvail)
 {
   int bitsUsed;
   ADTSHeader *fhADTS;
@@ -3117,7 +3118,18 @@ int cAacDecoder::UnpackADTSHeader (unsigned char** buf, int* bitOffset, int* bit
 //}}}
 
 //{{{
-int cAacDecoder::GetADTSChannelMapping (unsigned char* buf, int bitOffset, int bitsAvail) {
+int cAacDecoder::AACFindSyncWord (uint8_t* buf, int nBytes) {
+// find byte-aligned syncword (12 bits = 0xFFF)
+
+  for (int i = 0; i < nBytes - 1; i++)
+    if ( (buf[i+0] & SYNCWORDH) == SYNCWORDH && (buf[i+1] & SYNCWORDL) == SYNCWORDL )
+      return i;
+
+  return -1;
+  }
+//}}}
+//{{{
+int cAacDecoder::GetADTSChannelMapping (uint8_t* buf, int bitOffset, int bitsAvail) {
 
   int nChans = 0;
   do {
@@ -3145,18 +3157,5 @@ int cAacDecoder::GetADTSChannelMapping (unsigned char* buf, int bitOffset, int b
   psInfoBase->useImpChanMap = 1;
 
   return ERR_AAC_NONE;
-  }
-//}}}
-//{{{
-int cAacDecoder::AACFindSyncWord (unsigned char* buf, int nBytes) {
-
-  int i;
-  /* find byte-aligned syncword (12 bits = 0xFFF) */
-  for (i = 0; i < nBytes - 1; i++) {
-    if ( (buf[i+0] & SYNCWORDH) == SYNCWORDH && (buf[i+1] & SYNCWORDL) == SYNCWORDL )
-      return i;
-    }
-
-  return -1;
   }
 //}}}
