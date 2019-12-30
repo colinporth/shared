@@ -1,18 +1,75 @@
-/*{{{  includes*/
+/*
+** FAAD2 - Freeware Advanced Audio (AAC) Decoder including SBR decoding
+** Copyright (C) 2003-2005 M. Bakker, Nero AG, http://www.nero.com
+**  
+** This program is free software; you can redistribute it and/or modify
+** it under the terms of the GNU General Public License as published by
+** the Free Software Foundation; either version 2 of the License, or
+** (at your option) any later version.
+** 
+** This program is distributed in the hope that it will be useful,
+** but WITHOUT ANY WARRANTY; without even the implied warranty of
+** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+** GNU General Public License for more details.
+** 
+** You should have received a copy of the GNU General Public License
+** along with this program; if not, write to the Free Software 
+** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+**
+** Any non-GPL usage of this software or parts of this software is strictly
+** forbidden.
+**
+** The "appropriate copyright message" mentioned in section 2c of the GPLv2
+** must read: "Code from FAAD2 is copyright (c) Nero AG, www.nero.com"
+**
+** Commercial non-GPL licensing of this software is possible.
+** For more info contact Nero AG through Mpeg4AAClicense@nero.com.
+**
+** $Id: cfft.c,v 1.35 2007/11/01 12:33:29 menno Exp $
+**/
+
+/*
+ * Algorithmically based on Fortran-77 FFTPACK
+ * by Paul N. Swarztrauber(Version 4, 1985).
+ *
+ * Does even sized fft only
+ */
+
+/* isign is +1 for backward and -1 for forward transforms */
+
 #include "common.h"
 #include "structs.h"
 
 #include <stdlib.h>
 
 #include "cfft.h"
-/*}}}*/
-/* Algorithmically based on Fortran-77 FFTPACK by Paul N. Swarztrauber(Version 4, 1985)* Does even sized fft only */
-/* isign is +1 for backward and -1 for forward transforms */
+#include "cfft_tab.h"
 
-static const uint16_t ntryh[4] = {3, 4, 2, 5};
 
-/*{{{*/
-static void passf2pos (const uint16_t ido, const uint16_t l1, const complex_t* cc,
+/* static function declarations */
+static void passf2pos(const uint16_t ido, const uint16_t l1, const complex_t *cc,
+                      complex_t *ch, const complex_t *wa);
+static void passf2neg(const uint16_t ido, const uint16_t l1, const complex_t *cc,
+                      complex_t *ch, const complex_t *wa);
+static void passf3(const uint16_t ido, const uint16_t l1, const complex_t *cc,
+                   complex_t *ch, const complex_t *wa1, const complex_t *wa2, const int8_t isign);
+static void passf4pos(const uint16_t ido, const uint16_t l1, const complex_t *cc, complex_t *ch,
+                      const complex_t *wa1, const complex_t *wa2, const complex_t *wa3);
+static void passf4neg(const uint16_t ido, const uint16_t l1, const complex_t *cc, complex_t *ch,
+                      const complex_t *wa1, const complex_t *wa2, const complex_t *wa3);
+static void passf5(const uint16_t ido, const uint16_t l1, const complex_t *cc, complex_t *ch,
+                   const complex_t *wa1, const complex_t *wa2, const complex_t *wa3,
+                   const complex_t *wa4, const int8_t isign);
+INLINE void cfftf1(uint16_t n, complex_t *c, complex_t *ch,
+                   const uint16_t *ifac, const complex_t *wa, const int8_t isign);
+static void cffti1(uint16_t n, complex_t *wa, uint16_t *ifac);
+
+
+/*----------------------------------------------------------------------
+   passf2, passf3, passf4, passf5. Complex FFT passes fwd and bwd.
+  ----------------------------------------------------------------------*/
+
+static void passf2pos(const uint16_t ido, const uint16_t l1, const complex_t *cc,
                       complex_t *ch, const complex_t *wa)
 {
     uint16_t i, k, ah, ac;
@@ -56,9 +113,8 @@ static void passf2pos (const uint16_t ido, const uint16_t l1, const complex_t* c
         }
     }
 }
-/*}}}*/
-/*{{{*/
-static void passf2neg (const uint16_t ido, const uint16_t l1, const complex_t* cc,
+
+static void passf2neg(const uint16_t ido, const uint16_t l1, const complex_t *cc,
                       complex_t *ch, const complex_t *wa)
 {
     uint16_t i, k, ah, ac;
@@ -102,9 +158,9 @@ static void passf2neg (const uint16_t ido, const uint16_t l1, const complex_t* c
         }
     }
 }
-/*}}}*/
-/*{{{*/
-static void passf3 (const uint16_t ido, const uint16_t l1, const complex_t* cc,
+
+
+static void passf3(const uint16_t ido, const uint16_t l1, const complex_t *cc,
                    complex_t *ch, const complex_t *wa1, const complex_t *wa2,
                    const int8_t isign)
 {
@@ -240,9 +296,9 @@ static void passf3 (const uint16_t ido, const uint16_t l1, const complex_t* cc,
         }
     }
 }
-/*}}}*/
-/*{{{*/
-static void passf4pos (const uint16_t ido, const uint16_t l1, const complex_t* cc,
+
+
+static void passf4pos(const uint16_t ido, const uint16_t l1, const complex_t *cc,
                       complex_t *ch, const complex_t *wa1, const complex_t *wa2,
                       const complex_t *wa3)
 {
@@ -328,9 +384,8 @@ static void passf4pos (const uint16_t ido, const uint16_t l1, const complex_t* c
         }
     }
 }
-/*}}}*/
-/*{{{*/
-static void passf4neg (const uint16_t ido, const uint16_t l1, const complex_t* cc,
+
+static void passf4neg(const uint16_t ido, const uint16_t l1, const complex_t *cc,
                       complex_t *ch, const complex_t *wa1, const complex_t *wa2,
                       const complex_t *wa3)
 {
@@ -416,9 +471,8 @@ static void passf4neg (const uint16_t ido, const uint16_t l1, const complex_t* c
         }
     }
 }
-/*}}}*/
-/*{{{*/
-static void passf5 (const uint16_t ido, const uint16_t l1, const complex_t* cc,
+
+static void passf5(const uint16_t ido, const uint16_t l1, const complex_t *cc,
                    complex_t *ch, const complex_t *wa1, const complex_t *wa2, const complex_t *wa3,
                    const complex_t *wa4, const int8_t isign)
 {
@@ -632,15 +686,19 @@ static void passf5 (const uint16_t ido, const uint16_t l1, const complex_t* cc,
         }
     }
 }
-/*}}}*/
 
-/*{{{*/
-static INLINE void cfftf1pos (uint16_t n, complex_t* c, complex_t* ch,
-                             const uint16_t *ifac, const complex_t *wa, const int8_t isign) {
 
+/*----------------------------------------------------------------------
+   cfftf1, cfftf, cfftb, cffti1, cffti. Complex FFTs.
+  ----------------------------------------------------------------------*/
+
+static INLINE void cfftf1pos(uint16_t n, complex_t *c, complex_t *ch,
+                             const uint16_t *ifac, const complex_t *wa,
+                             const int8_t isign)
+{
     uint16_t i;
     uint16_t k1, l1, l2;
-    uint16_t na, nf, ip, iw, ix2, ix3, ix4, ido; //, idl1;
+    uint16_t na, nf, ip, iw, ix2, ix3, ix4, ido, idl1;
 
     nf = ifac[1];
     na = 0;
@@ -652,7 +710,7 @@ static INLINE void cfftf1pos (uint16_t n, complex_t* c, complex_t* ch,
         ip = ifac[k1];
         l2 = ip*l1;
         ido = n / l2;
-        //idl1 = ido*l1;
+        idl1 = ido*l1;
 
         switch (ip)
         {
@@ -712,14 +770,14 @@ static INLINE void cfftf1pos (uint16_t n, complex_t* c, complex_t* ch,
         IM(c[i]) = IM(ch[i]);
     }
 }
-/*}}}*/
-/*{{{*/
-static INLINE void cfftf1neg (uint16_t n, complex_t* c, complex_t* ch,
-                             const uint16_t *ifac, const complex_t *wa, const int8_t isign) { 
 
+static INLINE void cfftf1neg(uint16_t n, complex_t *c, complex_t *ch,
+                             const uint16_t *ifac, const complex_t *wa,
+                             const int8_t isign)
+{
     uint16_t i;
     uint16_t k1, l1, l2;
-    uint16_t na, nf, ip, iw, ix2, ix3, ix4, ido;//, idl1;
+    uint16_t na, nf, ip, iw, ix2, ix3, ix4, ido, idl1;
 
     nf = ifac[1];
     na = 0;
@@ -731,7 +789,7 @@ static INLINE void cfftf1neg (uint16_t n, complex_t* c, complex_t* ch,
         ip = ifac[k1];
         l2 = ip*l1;
         ido = n / l2;
-        //idl1 = ido*l1;
+        idl1 = ido*l1;
 
         switch (ip)
         {
@@ -791,14 +849,26 @@ static INLINE void cfftf1neg (uint16_t n, complex_t* c, complex_t* ch,
         IM(c[i]) = IM(ch[i]);
     }
 }
-/*}}}*/
-/*{{{*/
-static void cffti1 (uint16_t n, complex_t* wa, uint16_t* ifac) {
 
+void cfftf(cfft_info *cfft, complex_t *c)
+{
+    cfftf1neg(cfft->n, c, cfft->work, (const uint16_t*)cfft->ifac, (const complex_t*)cfft->tab, -1);
+}
+
+void cfftb(cfft_info *cfft, complex_t *c)
+{
+    cfftf1pos(cfft->n, c, cfft->work, (const uint16_t*)cfft->ifac, (const complex_t*)cfft->tab, +1);
+}
+
+static void cffti1(uint16_t n, complex_t *wa, uint16_t *ifac)
+{
+    static uint16_t ntryh[4] = {3, 4, 2, 5};
+#ifndef FIXED_POINT
     real_t arg, argh, argld, fi;
     uint16_t ido, ipm;
     uint16_t i1, k1, l1, l2;
     uint16_t ld, ii, ip;
+#endif
     uint16_t ntry = 0, i, j;
     uint16_t ib;
     uint16_t nf, nl, nq, nr;
@@ -841,6 +911,7 @@ startloop:
     ifac[0] = n;
     ifac[1] = nf;
 
+#ifndef FIXED_POINT
     argh = (real_t)2.0*(real_t)M_PI / (real_t)n;
     i = 0;
     l1 = 1;
@@ -868,7 +939,11 @@ startloop:
                 fi++;
                 arg = fi * argld;
                 RE(wa[i]) = (real_t)cos(arg);
+#if 1
                 IM(wa[i]) = (real_t)sin(arg);
+#else
+                IM(wa[i]) = (real_t)-sin(arg);
+#endif
             }
 
             if (ip > 5)
@@ -879,38 +954,52 @@ startloop:
         }
         l1 = l2;
     }
+#endif
 }
-/*}}}*/
 
-/*{{{*/
-void cfftf (cfft_info* cfft, complex_t *c) {
-  cfftf1neg (cfft->n, c, cfft->work, (const uint16_t*)cfft->ifac, (const complex_t*)cfft->tab, -1);
-  }
-/*}}}*/
-/*{{{*/
-void cfftb (cfft_info* cfft, complex_t *c) {
-  cfftf1pos (cfft->n, c, cfft->work, (const uint16_t*)cfft->ifac, (const complex_t*)cfft->tab, +1);
-  }
-/*}}}*/
+cfft_info *cffti(uint16_t n)
+{
+    cfft_info *cfft = (cfft_info*)faad_malloc(sizeof(cfft_info));
 
-/*{{{*/
-cfft_info* cffti (uint16_t n) {
+    cfft->n = n;
+    cfft->work = (complex_t*)faad_malloc(n*sizeof(complex_t));
 
-  cfft_info *cfft = (cfft_info*)faad_malloc(sizeof(cfft_info));
+#ifndef FIXED_POINT
+    cfft->tab = (complex_t*)faad_malloc(n*sizeof(complex_t));
 
-  cfft->n = n;
-  cfft->work = (complex_t*)faad_malloc(n*sizeof(complex_t));
-  cfft->tab = (complex_t*)faad_malloc(n*sizeof(complex_t));
-  cffti1(n, cfft->tab, cfft->ifac);
+    cffti1(n, cfft->tab, cfft->ifac);
+#else
+    cffti1(n, NULL, cfft->ifac);
 
-  return cfft;
-  }
-/*}}}*/
-/*{{{*/
-void cfftu (cfft_info* cfft) {
+    switch (n)
+    {
+    case 64: cfft->tab = (complex_t*)cfft_tab_64; break;
+    case 512: cfft->tab = (complex_t*)cfft_tab_512; break;
+#ifdef LD_DEC
+    case 256: cfft->tab = (complex_t*)cfft_tab_256; break;
+#endif
 
-  faad_free(cfft->work);
-  faad_free(cfft->tab);
-  faad_free(cfft);
-  }
-/*}}}*/
+#ifdef ALLOW_SMALL_FRAMELENGTH
+    case 60: cfft->tab = (complex_t*)cfft_tab_60; break;
+    case 480: cfft->tab = (complex_t*)cfft_tab_480; break;
+#ifdef LD_DEC
+    case 240: cfft->tab = (complex_t*)cfft_tab_240; break;
+#endif
+#endif
+    case 128: cfft->tab = (complex_t*)cfft_tab_128; break;
+    }
+#endif
+
+    return cfft;
+}
+
+void cfftu(cfft_info *cfft)
+{
+    if (cfft->work) faad_free(cfft->work);
+#ifndef FIXED_POINT
+    if (cfft->tab) faad_free(cfft->tab);
+#endif
+
+    if (cfft) faad_free(cfft);
+}
+

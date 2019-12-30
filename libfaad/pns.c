@@ -1,20 +1,96 @@
-/*{{{  includes*/
+/*
+** FAAD2 - Freeware Advanced Audio (AAC) Decoder including SBR decoding
+** Copyright (C) 2003-2005 M. Bakker, Nero AG, http://www.nero.com
+**  
+** This program is free software; you can redistribute it and/or modify
+** it under the terms of the GNU General Public License as published by
+** the Free Software Foundation; either version 2 of the License, or
+** (at your option) any later version.
+** 
+** This program is distributed in the hope that it will be useful,
+** but WITHOUT ANY WARRANTY; without even the implied warranty of
+** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+** GNU General Public License for more details.
+** 
+** You should have received a copy of the GNU General Public License
+** along with this program; if not, write to the Free Software 
+** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+**
+** Any non-GPL usage of this software or parts of this software is strictly
+** forbidden.
+**
+** The "appropriate copyright message" mentioned in section 2c of the GPLv2
+** must read: "Code from FAAD2 is copyright (c) Nero AG, www.nero.com"
+**
+** Commercial non-GPL licensing of this software is possible.
+** For more info contact Nero AG through Mpeg4AAClicense@nero.com.
+**
+** $Id: pns.c,v 1.38 2007/11/01 12:33:32 menno Exp $
+**/
+
 #include "common.h"
 #include "structs.h"
 
 #include "pns.h"
-/*}}}*/
+
+
+/* static function declarations */
+static void gen_rand_vector(real_t *spec, int16_t scale_factor, uint16_t size,
+                            uint8_t sub,
+                            /* RNG states */ uint32_t *__r1, uint32_t *__r2);
+
+
+#ifdef FIXED_POINT
+
+#define DIV(A, B) (((int64_t)A << REAL_BITS)/B)
+
+#define step(shift) \
+    if ((0x40000000l >> shift) + root <= value)       \
+    {                                                 \
+        value -= (0x40000000l >> shift) + root;       \
+        root = (root >> 1) | (0x40000000l >> shift);  \
+    } else {                                          \
+        root = root >> 1;                             \
+    }
+
+/* fixed point square root approximation */
+/* !!!! ONLY WORKS FOR EVEN %REAL_BITS% !!!! */
+real_t fp_sqrt(real_t value)
+{
+    real_t root = 0;
+
+    step( 0); step( 2); step( 4); step( 6);
+    step( 8); step(10); step(12); step(14);
+    step(16); step(18); step(20); step(22);
+    step(24); step(26); step(28); step(30);
+
+    if (root < value)
+        ++root;
+
+    root <<= (REAL_BITS/2);
+
+    return root;
+}
+
+static real_t const pow2_table[] =
+{
+    COEF_CONST(1.0),
+    COEF_CONST(1.18920711500272),
+    COEF_CONST(1.41421356237310),
+    COEF_CONST(1.68179283050743)
+};
+#endif
 
 /* The function gen_rand_vector(addr, size) generates a vector of length
    <size> with signed random values of average energy MEAN_NRG per random
    value. A suitable random number generator can be realized using one
    multiplication/accumulation per random value.
 */
-/*{{{*/
 static INLINE void gen_rand_vector(real_t *spec, int16_t scale_factor, uint16_t size,
                                    uint8_t sub,
                                    /* RNG states */ uint32_t *__r1, uint32_t *__r2)
 {
+#ifndef FIXED_POINT
     uint16_t i;
     real_t energy = 0.0;
 
@@ -33,9 +109,52 @@ static INLINE void gen_rand_vector(real_t *spec, int16_t scale_factor, uint16_t 
     {
         spec[i] *= scale;
     }
+#else
+    uint16_t i;
+    real_t energy = 0, scale;
+    int32_t exp, frac;
+
+    for (i = 0; i < size; i++)
+    {
+        /* this can be replaced by a 16 bit random generator!!!! */
+        real_t tmp = (int32_t)ne_rng(__r1, __r2);
+        if (tmp < 0)
+            tmp = -(tmp & ((1<<(REAL_BITS-1))-1));
+        else
+            tmp = (tmp & ((1<<(REAL_BITS-1))-1));
+
+        energy += MUL_R(tmp,tmp);
+
+        spec[i] = tmp;
+    }
+
+    energy = fp_sqrt(energy);
+    if (energy > 0)
+    {
+        scale = DIV(REAL_CONST(1),energy);
+
+        exp = scale_factor >> 2;
+        frac = scale_factor & 3;
+
+        /* IMDCT pre-scaling */
+        exp -= sub;
+
+        if (exp < 0)
+            scale >>= -exp;
+        else
+            scale <<= exp;
+
+        if (frac)
+            scale = MUL_C(scale, pow2_table[frac]);
+
+        for (i = 0; i < size; i++)
+        {
+            spec[i] = MUL_R(spec[i], scale);
+        }
+    }
+#endif
 }
-/*}}}*/
-/*{{{*/
+
 void pns_decode(ic_stream *ics_left, ic_stream *ics_right,
                 real_t *spec_left, real_t *spec_right, uint16_t frame_len,
                 uint8_t channel_pair, uint8_t object_type,
@@ -48,6 +167,19 @@ void pns_decode(ic_stream *ics_left, ic_stream *ics_right,
     uint16_t nshort = frame_len >> 3;
 
     uint8_t sub = 0;
+
+#ifdef FIXED_POINT
+    /* IMDCT scaling */
+    if (object_type == LD)
+    {
+        sub = 9 /*9*/;
+    } else {
+        if (ics_left->window_sequence == EIGHT_SHORT_SEQUENCE)
+            sub = 7 /*7*/;
+        else
+            sub = 10 /*10*/;
+    }
+#endif
 
     for (g = 0; g < ics_left->num_window_groups; g++)
     {
@@ -68,10 +200,13 @@ void pns_decode(ic_stream *ics_left, ic_stream *ics_right,
                     ics_left->ltp2.long_used[sfb] = 0;
 #endif
 
+#ifdef MAIN_DEC
                     /* For scalefactor bands coded using PNS the corresponding
                        predictors are switched to "off".
                     */
                     ics_left->pred.prediction_used[sfb] = 0;
+#endif
+
                     offs = ics_left->swb_offset[sfb];
                     size = min(ics_left->swb_offset[sfb+1], ics_left->swb_offset_max) - offs;
 
@@ -116,7 +251,10 @@ void pns_decode(ic_stream *ics_left, ic_stream *ics_right,
                             ics_right->ltp.long_used[sfb] = 0;
                             ics_right->ltp2.long_used[sfb] = 0;
 #endif
+#ifdef MAIN_DEC
                             ics_right->pred.prediction_used[sfb] = 0;
+#endif
+
                             offs = ics_right->swb_offset[sfb];
                             size = min(ics_right->swb_offset[sfb+1], ics_right->swb_offset_max) - offs;
 
@@ -131,4 +269,3 @@ void pns_decode(ic_stream *ics_left, ic_stream *ics_right,
         } /* b */
     } /* g */
 }
-/*}}}*/
