@@ -334,7 +334,7 @@ private:
       do {
         if ((findFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) && (findFileData.cFileName[0] != '.'))
           scanDirectory (pathFileName, findFileData.cFileName);
-        else if (PathMatchSpecExA (findFileData.cFileName, mMatchString.c_str(), PMSF_MULTIPLE))
+        else if (PathMatchSpecExA (findFileData.cFileName, mMatchString.c_str(), PMSF_MULTIPLE) == S_OK)
           if ((findFileData.cFileName[0] != '.') && (findFileData.cFileName[0] != '..'))
             mFileItemList.push_back (cFileItem (pathFileName, findFileData.cFileName));
         } while (FindNextFileA (file, &findFileData));
