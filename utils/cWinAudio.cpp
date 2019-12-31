@@ -16,7 +16,8 @@ const int kMaxBuffers = 2;
 const int kMaxChannels = 6;
 const int kBitsPerSample = 16;
 const int kBytesPerChannel = 2;
-const int kMaxSamples = 1536;
+
+const int kMaxSamples = 2048;
 //}}}
 
 //{{{
