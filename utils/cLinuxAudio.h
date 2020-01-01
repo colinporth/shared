@@ -25,7 +25,7 @@ public:
   //}}}
 
   //{{{
-  void audOpen (int srcChannels, int srcSampleRate) {
+  void open (int srcChannels, int srcSampleRate) {
 
     int err = snd_pcm_open (&mHandle, "default", SND_PCM_STREAM_PLAYBACK, 0);
     if (err < 0)
@@ -37,7 +37,7 @@ public:
     }
   //}}}
   //{{{
-  void audPlay (int srcChannels, int16_t* srcSamples, int srcNumSamples, float pitch) {
+  void play (int srcChannels, int16_t* srcSamples, int srcNumSamples, float pitch) {
 
     if (!srcSamples)
       srcSamples = mSilence;
@@ -50,7 +50,7 @@ public:
     }
   //}}}
   //{{{
-  void audClose() {
+  void close() {
     snd_pcm_close (mHandle);
     }
   //}}}

@@ -14,9 +14,9 @@ public:
   cWinAudio();
   virtual ~cWinAudio();
 
-  void audOpen (int srcChannels, int srcSampleRate);
-  void audPlay (int srcChannels, int16_t* srcSamples, int srcNumSamples, float pitch);
-  void audClose();
+  void open (int srcChannels, int srcSampleRate);
+  void play (int srcChannels, int16_t* srcSamples, int srcNumSamples, float pitch);
+  void close();
 
   int getDstChannels() { return mDstChannels; }
   int getDstSampleRate() { return mDstSampleRate; }

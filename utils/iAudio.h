@@ -7,9 +7,9 @@ public:
 
   virtual ~iAudio() {}
 
-  virtual void audOpen (int srcChannels, int srcSampleRate) = 0;
-  virtual void audPlay (int srcChannels, int16_t* srcSamples, int srcNumSamples, float pitch) = 0;
-  virtual void audClose() = 0;
+  virtual void open (int srcChannels, int srcSampleRate) = 0;
+  virtual void play (int srcChannels, int16_t* srcSamples, int srcNumSamples, float pitch) = 0;
+  virtual void close() = 0;
 
   virtual int getDstChannels() = 0;
   virtual int getDstSampleRate() = 0;

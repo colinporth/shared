@@ -41,7 +41,7 @@ cWinAudio::cWinAudio() :
 //{{{
 cWinAudio::~cWinAudio() {
 
-  audClose();
+  close();
 
   free (mSilence);
   mSilence = nullptr;
@@ -49,7 +49,7 @@ cWinAudio::~cWinAudio() {
 //}}}
 
 //{{{
-void cWinAudio::audOpen (int srcChannels, int srcSampleRate) {
+void cWinAudio::open (int srcChannels, int srcSampleRate) {
 
   mSrcChannels = srcChannels;
   mSrcSampleRate = srcSampleRate;
@@ -106,15 +106,15 @@ void cWinAudio::audOpen (int srcChannels, int srcSampleRate) {
   }
 //}}}
 //{{{
-void cWinAudio::audPlay (int srcChannels, int16_t* srcSamples, int srcNumSamples, float pitch) {
+void cWinAudio::play (int srcChannels, int16_t* srcSamples, int srcNumSamples, float pitch) {
 // play silence if src == nullptr, maintains timing
 
   if (srcChannels != mSrcChannels) {
     //{{{  recreate sourceVoice with new num of channels
     cLog::log (LOGNOTICE, "audPlay - srcChannels:" + dec (mSrcChannels) + " changedTo:" + dec(srcChannels));
-    audClose();
+    close();
 
-    audOpen (srcChannels, mSrcSampleRate);
+    open (srcChannels, mSrcSampleRate);
     }
     //}}}
 
@@ -391,7 +391,7 @@ void cWinAudio::audPlay (int srcChannels, int16_t* srcSamples, int srcNumSamples
   }
 //}}}
 //{{{
-void cWinAudio::audClose() {
+void cWinAudio::close() {
 
   if (mXAudio2) {
     mSourceVoice->Stop();
