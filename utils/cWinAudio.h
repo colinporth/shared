@@ -14,8 +14,6 @@ public:
   cWinAudio (int srcChannels, int srcSampleRate);
   virtual ~cWinAudio();
 
-  void play (int srcChannels, int16_t* srcSamples, int srcNumSamples, float pitch);
-
   int getDstChannels() { return mDstChannels; }
   int getDstSampleRate() { return mDstSampleRate; }
   int getDstChannelMask() { return mDstChannelMask; }
@@ -35,6 +33,8 @@ public:
   bool getMixedBR() { return (mMixDown == eBestMix) || (mMixDown == eBLBR); }
   eMixDown getMixDown() { return mMixDown; }
   void setMixDown (eMixDown mixDown) { mMixDown = mixDown; }
+
+  void play (int srcChannels, int16_t* srcSamples, int srcNumSamples, float pitch);
 
 private:
   const float kMaxVolume = 3.f;
@@ -61,6 +61,9 @@ private:
     HANDLE mBufferEndEvent;
     };
   //}}}
+
+  void open (int srcChannels, int srcSampleRate);
+  void close();
 
   // vars
   IXAudio2* mXAudio2;

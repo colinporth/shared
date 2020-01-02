@@ -36,69 +36,13 @@ cWinAudio::cWinAudio (int srcChannels, int srcSampleRate) : mDstVolume(kDefaultV
     buffer.pAudioData = (const BYTE*)malloc (kMaxChannels * kMaxSamples * kBytesPerChannel);
     mBuffers.push_back (buffer);
     }
-
-  mSrcChannels = srcChannels;
-  mSrcSampleRate = srcSampleRate;
-
-  // create XAudio2 engine.
-  if (XAudio2Create (&mXAudio2) != S_OK) {
-    //{{{  error, return
-    cLog::log (LOGERROR, "cWinAudio - XAudio2Create failed");
-    return;
-    }
-    //}}}
-
-  // create masteringVoice
-  if (mXAudio2->CreateMasteringVoice (&mMasteringVoice, XAUDIO2_DEFAULT_CHANNELS, srcSampleRate) != S_OK) {
-    //{{{  error, return
-    cLog::log (LOGERROR, "cWinAudio - CreateMasteringVoice failed");
-    return;
-    }
-    //}}}
-
-  // get masteringVoiceChannelMask
-  DWORD masteringVoiceChannelMask;
-  mMasteringVoice->GetChannelMask (&masteringVoiceChannelMask);
-  mDstChannelMask = masteringVoiceChannelMask;
-
-  // get masteringVoice outChannels, sampleRate
-  XAUDIO2_VOICE_DETAILS masteringVoiceDetails;
-  mMasteringVoice->GetVoiceDetails (&masteringVoiceDetails);
-  mDstChannels = masteringVoiceDetails.InputChannels;
-  mDstSampleRate = masteringVoiceDetails.InputSampleRate;
-  cLog::log (LOGINFO, "cWinAudio - audOpen mask:" + hex(mDstChannelMask) +
-                       " channels:" + dec(mDstChannels) +
-                       " sampleRate:" + dec(mDstSampleRate));
-
-  // create sourceVoice
-  WAVEFORMATEX waveformatex;
-  memset (&waveformatex, 0, sizeof (WAVEFORMATEX));
-  waveformatex.wFormatTag      = WAVE_FORMAT_PCM;
-  waveformatex.wBitsPerSample  = kBitsPerSample;
-  waveformatex.nChannels       = srcChannels;
-  waveformatex.nSamplesPerSec  = (unsigned long)srcSampleRate;
-  waveformatex.nBlockAlign     = srcChannels * kBitsPerSample / 8;
-  waveformatex.nAvgBytesPerSec = waveformatex.nSamplesPerSec * srcChannels * kBitsPerSample / 8;
-
-  if (mXAudio2->CreateSourceVoice (&mSourceVoice, &waveformatex,
-                                   0, XAUDIO2_DEFAULT_FREQ_RATIO, &mVoiceCallback, nullptr, nullptr) != S_OK) {
-    //{{{  error, return
-    cLog::log (LOGERROR, "CreateSourceVoice failed");
-    return;
-    }
-    //}}}
-
-  mSourceVoice->Start();
+  open (srcChannels, srcSampleRate);
   }
 //}}}
 //{{{
 cWinAudio::~cWinAudio() {
 
-  if (mXAudio2) {
-    mSourceVoice->Stop();
-    mXAudio2->Release();
-    mXAudio2 = nullptr;
-    }
+  close();
 
   mLastMixDown = eNoMix;
 
@@ -108,15 +52,20 @@ cWinAudio::~cWinAudio() {
 //}}}
 
 //{{{
+void cWinAudio::setVolume (float volume) {
+  mDstVolume = min (max (volume, 0.f), getMaxVolume());
+  }
+//}}}
+//{{{
 void cWinAudio::play (int srcChannels, int16_t* srcSamples, int srcNumSamples, float pitch) {
 // play silence if src == nullptr, maintains timing
 
   if (srcChannels != mSrcChannels) {
     //{{{  recreate sourceVoice with new num of channels
     cLog::log (LOGNOTICE, "audPlay - srcChannels:" + dec (mSrcChannels) + " changedTo:" + dec(srcChannels));
-    //close();
+    close();
 
-    //open (srcChannels, mSrcSampleRate);
+    open (srcChannels, mSrcSampleRate);
     }
     //}}}
 
@@ -394,7 +343,69 @@ void cWinAudio::play (int srcChannels, int16_t* srcSamples, int srcNumSamples, f
 //}}}
 
 //{{{
-void cWinAudio::setVolume (float volume) {
-  mDstVolume = min (max (volume, 0.f), getMaxVolume());
+void cWinAudio::open (int srcChannels, int srcSampleRate) {
+
+  mSrcChannels = srcChannels;
+  mSrcSampleRate = srcSampleRate;
+
+  // create XAudio2 engine.
+  if (XAudio2Create (&mXAudio2) != S_OK) {
+    //{{{  error, return
+    cLog::log (LOGERROR, "cWinAudio - XAudio2Create failed");
+    return;
+    }
+    //}}}
+
+  // create masteringVoice
+  if (mXAudio2->CreateMasteringVoice (&mMasteringVoice, XAUDIO2_DEFAULT_CHANNELS, srcSampleRate) != S_OK) {
+    //{{{  error, return
+    cLog::log (LOGERROR, "cWinAudio - CreateMasteringVoice failed");
+    return;
+    }
+    //}}}
+
+  // get masteringVoiceChannelMask
+  DWORD masteringVoiceChannelMask;
+  mMasteringVoice->GetChannelMask (&masteringVoiceChannelMask);
+  mDstChannelMask = masteringVoiceChannelMask;
+
+  // get masteringVoice outChannels, sampleRate
+  XAUDIO2_VOICE_DETAILS masteringVoiceDetails;
+  mMasteringVoice->GetVoiceDetails (&masteringVoiceDetails);
+  mDstChannels = masteringVoiceDetails.InputChannels;
+  mDstSampleRate = masteringVoiceDetails.InputSampleRate;
+  cLog::log (LOGINFO, "cWinAudio - audOpen mask:" + hex(mDstChannelMask) +
+                       " channels:" + dec(mDstChannels) +
+                       " sampleRate:" + dec(mDstSampleRate));
+
+  // create sourceVoice
+  WAVEFORMATEX waveformatex;
+  memset (&waveformatex, 0, sizeof (WAVEFORMATEX));
+  waveformatex.wFormatTag      = WAVE_FORMAT_PCM;
+  waveformatex.wBitsPerSample  = kBitsPerSample;
+  waveformatex.nChannels       = srcChannels;
+  waveformatex.nSamplesPerSec  = (unsigned long)srcSampleRate;
+  waveformatex.nBlockAlign     = srcChannels * kBitsPerSample / 8;
+  waveformatex.nAvgBytesPerSec = waveformatex.nSamplesPerSec * srcChannels * kBitsPerSample / 8;
+
+  if (mXAudio2->CreateSourceVoice (&mSourceVoice, &waveformatex,
+                                   0, XAUDIO2_DEFAULT_FREQ_RATIO, &mVoiceCallback, nullptr, nullptr) != S_OK) {
+    //{{{  error, return
+    cLog::log (LOGERROR, "CreateSourceVoice failed");
+    return;
+    }
+    //}}}
+
+  mSourceVoice->Start();
+  }
+//}}}
+//{{{
+void cWinAudio::close() {
+
+  if (mXAudio2) {
+    mSourceVoice->Stop();
+    mXAudio2->Release();
+    mXAudio2 = nullptr;
+    }
   }
 //}}}
