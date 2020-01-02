@@ -20,9 +20,9 @@ const int kBytesPerChannel = 2;
 const int kMaxSamples = 2048;
 //}}}
 
+// public
 //{{{
-cWinAudio::cWinAudio() :
-    mDstVolume(kDefaultVolume) {
+cWinAudio::cWinAudio (int srcChannels, int srcSampleRate) : mDstVolume(kDefaultVolume) {
 
   // alloc and clear mSilence
   mSilence = (int16_t*)malloc (kMaxChannels * kMaxSamples * kBytesPerChannel);
@@ -36,20 +36,6 @@ cWinAudio::cWinAudio() :
     buffer.pAudioData = (const BYTE*)malloc (kMaxChannels * kMaxSamples * kBytesPerChannel);
     mBuffers.push_back (buffer);
     }
-  }
-//}}}
-//{{{
-cWinAudio::~cWinAudio() {
-
-  close();
-
-  free (mSilence);
-  mSilence = nullptr;
-  }
-//}}}
-
-//{{{
-void cWinAudio::open (int srcChannels, int srcSampleRate) {
 
   mSrcChannels = srcChannels;
   mSrcSampleRate = srcSampleRate;
@@ -106,15 +92,31 @@ void cWinAudio::open (int srcChannels, int srcSampleRate) {
   }
 //}}}
 //{{{
+cWinAudio::~cWinAudio() {
+
+  if (mXAudio2) {
+    mSourceVoice->Stop();
+    mXAudio2->Release();
+    mXAudio2 = nullptr;
+    }
+
+  mLastMixDown = eNoMix;
+
+  free (mSilence);
+  mSilence = nullptr;
+  }
+//}}}
+
+//{{{
 void cWinAudio::play (int srcChannels, int16_t* srcSamples, int srcNumSamples, float pitch) {
 // play silence if src == nullptr, maintains timing
 
   if (srcChannels != mSrcChannels) {
     //{{{  recreate sourceVoice with new num of channels
     cLog::log (LOGNOTICE, "audPlay - srcChannels:" + dec (mSrcChannels) + " changedTo:" + dec(srcChannels));
-    close();
+    //close();
 
-    open (srcChannels, mSrcSampleRate);
+    //open (srcChannels, mSrcSampleRate);
     }
     //}}}
 
@@ -388,18 +390,6 @@ void cWinAudio::play (int srcChannels, int16_t* srcSamples, int srcNumSamples, f
   mSourceVoice->GetState (&voiceState);
   if (voiceState.BuffersQueued >= mBuffers.size())
     mVoiceCallback.wait();
-  }
-//}}}
-//{{{
-void cWinAudio::close() {
-
-  if (mXAudio2) {
-    mSourceVoice->Stop();
-    mXAudio2->Release();
-    mXAudio2 = nullptr;
-    }
-
-  mLastMixDown = eNoMix;
   }
 //}}}
 

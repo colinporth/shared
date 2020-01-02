@@ -11,12 +11,10 @@
 
 class cWinAudio : public iAudio {
 public:
-  cWinAudio();
+  cWinAudio (int srcChannels, int srcSampleRate);
   virtual ~cWinAudio();
 
-  void open (int srcChannels, int srcSampleRate);
   void play (int srcChannels, int16_t* srcSamples, int srcNumSamples, float pitch);
-  void close();
 
   int getDstChannels() { return mDstChannels; }
   int getDstSampleRate() { return mDstSampleRate; }

@@ -7,10 +7,6 @@ public:
 
   virtual ~iAudio() {}
 
-  virtual void open (int srcChannels, int srcSampleRate) = 0;
-  virtual void play (int srcChannels, int16_t* srcSamples, int srcNumSamples, float pitch) = 0;
-  virtual void close() = 0;
-
   virtual int getDstChannels() = 0;
   virtual int getDstSampleRate() = 0;
   virtual int getDstChannelMask() = 0;
@@ -31,4 +27,6 @@ public:
 
   virtual eMixDown getMixDown() = 0;
   virtual void setMixDown (eMixDown mixDown) = 0;
+
+  virtual void play (int srcChannels, int16_t* srcSamples, int srcNumSamples, float pitch) = 0;
   };

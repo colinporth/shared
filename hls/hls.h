@@ -261,10 +261,9 @@ public:
     }
   //}}}
   //{{{
-  void player (iAudio* audio, iChange* change) {
+  void player (iAudio& audio, iChange* change) {
 
     cLog::setThreadName ("play");
-    audio->open (2, 48000);
 
     uint16_t scrubCount = 0;
     double scrubSample = 0;
@@ -275,7 +274,7 @@ public:
     while (true) {
       switch (getPlaying()) {
         case cHls::ePause:
-          audio->play (2, nullptr, 1024, 1.f);
+          audio.play (2, nullptr, 1024, 1.f);
           break;
 
         case cHls::eScrub: {
@@ -284,10 +283,10 @@ public:
           if (scrubCount < 3) {
             uint32_t numSamples = 0;
             auto sample = getPlaySamples (scrubSample + scrubCount*kSamplesPerFrame, seqNum, numSamples);
-            audio->play (2, sample, 1024, 1.f);
+            audio.play (2, sample, 1024, 1.f);
             }
           else
-            audio->play (2, nullptr, 1024, 1.f);
+            audio.play (2, nullptr, 1024, 1.f);
           if (scrubCount++ > 3)
             scrubCount = 0;
           }
@@ -296,7 +295,7 @@ public:
         case cHls::ePlay: {
           uint32_t numSamples = 0;
           auto sample = getPlaySamples (getPlaySample(), seqNum, numSamples);
-          audio->play (2, sample, 1024, 1.f);
+          audio.play (2, sample, 1024, 1.f);
           if (sample)
             incPlayFrame();
           change->changed();
@@ -311,7 +310,6 @@ public:
       }
 
     // cleanup
-    audio->close();
     cLog::log (LOGNOTICE, "exit");
     }
   //}}}
