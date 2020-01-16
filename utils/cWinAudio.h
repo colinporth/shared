@@ -34,7 +34,7 @@ public:
   eMixDown getMixDown() { return mMixDown; }
   void setMixDown (eMixDown mixDown) { mMixDown = mixDown; }
 
-  void play (int srcChannels, int16_t* srcSamples, int srcNumSamples, float pitch);
+  void play (int srcChannels, void* srcSamples, int srcNumSamples, float pitch);
 
 private:
   const float kMaxVolume = 3.f;

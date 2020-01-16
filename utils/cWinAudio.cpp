@@ -57,7 +57,7 @@ void cWinAudio::setVolume (float volume) {
   }
 //}}}
 //{{{
-void cWinAudio::play (int srcChannels, int16_t* srcSamples, int srcNumSamples, float pitch) {
+void cWinAudio::play (int srcChannels, void* srcSamples, int srcNumSamples, float pitch) {
 // play silence if src == nullptr, maintains timing
 
   if (srcChannels != mSrcChannels) {
