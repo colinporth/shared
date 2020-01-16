@@ -28,5 +28,5 @@ public:
   virtual eMixDown getMixDown() = 0;
   virtual void setMixDown (eMixDown mixDown) = 0;
 
-  virtual void play (int srcChannels, int16_t* srcSamples, int srcNumSamples, float pitch) = 0;
+  virtual void play (int srcChannels, void* srcSamples, int srcNumSamples, float pitch) = 0;
   };
