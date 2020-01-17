@@ -19,8 +19,8 @@ public:
            std::chrono::time_point<std::chrono::system_clock> timePoint, const std::string& str) :
       mLogLevel(logLevel), mThreadId(threadId), mTimePoint(timePoint), mStr(str) {}
 
-    eLogLevel mLogLevel;
-    uint64_t mThreadId;
+    eLogLevel mLogLevel = LOGNOTICE;
+    uint64_t mThreadId = 0;
     std::chrono::time_point<std::chrono::system_clock> mTimePoint;
     std::string mStr;
     };

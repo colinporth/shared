@@ -11,6 +11,8 @@
 #include <chrono>
 #include "date.h"
 
+#include "concurrent_vector.h"
+
 #pragma comment(lib,"shlwapi.lib")
 
 using namespace std;
