@@ -55,27 +55,34 @@ public:
   //}}}
   //{{{
   virtual ~cSong() {
+
     mFrames.clear();
+
+    auto temp = mImage;
+    mImage = nullptr;
+    delete temp;
     }
   //}}}
 
   //{{{
   void init (std::string fileName, eAudioFrameType audioFrameType, uint16_t samplesPerFrame, int sampleRate) {
 
-    mFrames.clear();
-
-    mPlayFrame = 0;
-    mNumFrames = 0;
-
     mFileName = fileName;
-    mPathName = "";
 
     mSampleRate = sampleRate;
     mSamplesPerFrame = samplesPerFrame;
     mAudioFrameType = audioFrameType;
 
-    mMaxPowerValue = 0;
+    mFrames.clear();
 
+    mPlayFrame = 0;
+    mNumFrames = 0;
+
+    auto temp = mImage;
+    mImage = nullptr;
+    delete temp;
+
+    mMaxPowerValue = 0;
     mMaxFreqValue = 0.f;
     for (int i = 0; i < kMaxFreq; i++)
       mMaxFreqValues[i] = 0.f;
@@ -127,7 +134,7 @@ public:
                       uint64_t(streamIndex + frameLen - mFrames[0].mStreamIndex));
 
     // calc silent window
-    auto frame = getNumLoadedFrames()-1;
+    auto frame = getNumParsedFrames()-1;
     if (mFrames[frame].isSilent()) {
       auto window = kSilentWindow;
       auto windowFrame = frame - 1;
@@ -154,7 +161,7 @@ public:
   //}}}
 
   // gets
-  int getNumLoadedFrames() { return (int)mFrames.size(); }
+  int getNumParsedFrames() { return (int)mFrames.size(); }
   //{{{
   uint32_t getPlayFrame() {
 
@@ -204,12 +211,10 @@ public:
     }
   //}}}
 
-  //{{{  public vars
+  //{{{  public vars, simpler access for gui
   std::string mFileName;
-  std::string mPathName;
 
   uint16_t mChannels = 2;
-
   int mSampleRate = 44100;
   uint16_t mSamplesPerFrame = 1152;
   eAudioFrameType mAudioFrameType = eUnknown;
@@ -218,10 +223,6 @@ public:
 
   int mPlayFrame = 0;
   int mNumFrames = 0;
-
-  kiss_fftr_cfg fftrConfig;
-  kiss_fft_scalar timeBuf[kMaxSamples];
-  kiss_fft_cpx freqBuf[kMaxFreq];
 
   float mMaxPowerValue = 0.f;
   float mMaxFreqValue = 0.f;
@@ -244,7 +245,7 @@ private:
   //{{{
   int skipNext (int fromFrame, bool silent) {
 
-    for (auto frame = fromFrame; frame < getNumLoadedFrames(); frame++)
+    for (auto frame = fromFrame; frame < getNumParsedFrames(); frame++)
       if (mFrames[frame].isSilent() ^ silent)
         return frame;
 
@@ -258,4 +259,8 @@ private:
   // private vars
   uint16_t mBitsPerSample = 32;
   uint16_t mMaxSamplesPerFrame = kMaxSamples;
+
+  kiss_fftr_cfg fftrConfig;
+  kiss_fft_scalar timeBuf[kMaxSamples];
+  kiss_fft_cpx freqBuf[kMaxFreq];
   };

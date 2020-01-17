@@ -39,7 +39,8 @@ uint8_t* parseId3Tag (uint8_t* stream, uint8_t* streamLast, int& jpegLen) {
         cLog::log (LOGINFO3, "parseId3Tag - APIC jpeg tag found");
         jpegLen = frameSize - 14;
         auto jpegBuf =  (uint8_t*)malloc (jpegLen);
-        memcpy (jpegBuf, ptr + 10 + 14, jpegLen);
+        if (jpegBuf)
+          memcpy (jpegBuf, ptr + 10 + 14, jpegLen);
         return jpegBuf;
         }
 

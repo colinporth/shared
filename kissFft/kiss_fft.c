@@ -196,7 +196,7 @@ static void kf_bfly_generic (kiss_fft_cpx* Fout, const size_t fstride, const kis
       int twidx = 0;
       Fout[ k ] = scratch[0];
       for (q = 1; q < p; ++q ) {
-        twidx += fstride * k;
+        twidx += (int)fstride * k;
         if (twidx >= Norig)
           twidx -= Norig;
         C_MUL(t,scratch[q] , twiddles[twidx] );

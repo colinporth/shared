@@ -252,6 +252,59 @@ bool cLog::getLine (cLine& line, unsigned lineNum, unsigned& lastLineIndex) {
   }
 //}}}
 
+//{{{
+void cLog::avLogCallback (void* ptr, int level, const char* fmt, va_list vargs) {
+
+  char str[100];
+  vsnprintf (str, 100, fmt, vargs);
+
+  // trim trailing return
+  auto len = strlen (str);
+  if (len > 0)
+    str[len-1] = 0;
+
+  // copied from ffmpeg, less dependency
+  #define AV_LOG_PANIC     0
+  #define AV_LOG_FATAL     8
+  #define AV_LOG_ERROR    16
+  #define AV_LOG_WARNING  24
+  #define AV_LOG_INFO     32
+  #define AV_LOG_VERBOSE  40
+  #define AV_LOG_DEBUG    48
+  #define AV_LOG_TRACE    56
+
+  switch (level) {
+    case AV_LOG_PANIC:
+      cLog::log (LOGERROR,   "ffmpeg Panic - %s", str);
+      break;
+    case AV_LOG_FATAL:
+      cLog::log (LOGERROR,   "ffmpeg Fatal - %s ", str);
+      break;
+    case AV_LOG_ERROR:
+      cLog::log (LOGERROR,   "ffmpeg Error - %s ", str);
+      break;
+    case AV_LOG_WARNING:
+      cLog::log (LOGNOTICE,  "ffmpeg Warn  - %s ", str);
+      break;
+    case AV_LOG_INFO:
+      cLog::log (LOGINFO,    "ffmpeg Info  - %s ", str);
+      break;
+    case AV_LOG_VERBOSE:
+      cLog::log (LOGINFO,    "ffmpeg Verbo - %s ", str);
+      break;
+    case AV_LOG_DEBUG:
+      cLog::log (LOGINFO,    "ffmpeg Debug - %s ", str);
+      break;
+    case AV_LOG_TRACE:
+      cLog::log (LOGINFO,    "ffmpeg Trace - %s ", str);
+      break;
+    default :
+      cLog::log (LOGERROR,   "ffmpeg ????? - %s ", str);
+      break;
+    }
+  }
+//}}}
+
 // private
 //{{{
 uint64_t cLog::getThreadId() {

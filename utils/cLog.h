@@ -44,6 +44,8 @@ public:
 
   static bool getLine (cLine& line, unsigned lineNum, unsigned& lastLineIndex);
 
+  static void avLogCallback (void* ptr, int level, const char* fmt, va_list vargs);
+
 private:
   static uint64_t getThreadId();
   };
