@@ -14,9 +14,6 @@
 #include "concurrent_vector.h"
 
 #pragma comment(lib,"shlwapi.lib")
-
-using namespace std;
-using namespace chrono;
 //}}}
 
 //{{{
@@ -25,23 +22,23 @@ public:
   static const int kFields = 3;
 
   //{{{
-  cFileItem (const string& pathName, const string& fileName) :
+  cFileItem (const std::string& pathName, const std::string& fileName) :
       mPathName(pathName), mFileName(fileName) {
 
     if (pathName.empty()) {
       // extract any path name from filename
-      string::size_type lastSlashPos = mFileName.rfind ('\\');
-      if (lastSlashPos != string::npos) {
-        mPathName = string (mFileName, 0, lastSlashPos);
+      std::string::size_type lastSlashPos = mFileName.rfind ('\\');
+      if (lastSlashPos != std::string::npos) {
+        mPathName = std::string (mFileName, 0, lastSlashPos);
         mFileName = mFileName.substr (lastSlashPos+1);
         }
       }
 
     // extract any extension from filename
-    string::size_type lastDotPos = mFileName.rfind ('.');
-    if (lastDotPos != string::npos) {
+    std::string::size_type lastDotPos = mFileName.rfind ('.');
+    if (lastDotPos != std::string::npos) {
       mExtension = mFileName.substr (lastDotPos+1);
-      mFileName = string (mFileName, 0, lastDotPos);
+      mFileName = std::string (mFileName, 0, lastDotPos);
       }
 
 
@@ -66,296 +63,296 @@ public:
   //}}}
   virtual ~cFileItem() {}
 
-  string getPathName() const { return mPathName; }
-  string getFileName() const { return mFileName; }
-  string getExtension() const { return mExtension; }
-  string getFullName() const {
-    return (mPathName.empty() ? mFileName : mPathName + "/" + mFileName) +
-           (mExtension.empty() ? "" : "." + mExtension); }
+   //{{{
+     std::string getPathName() const { return mPathName; }
+     std::string getFileName() const { return mFileName; }
+     std::string getExtension() const { return mExtension; }
+     std::string getFullName() const { return (mPathName.empty() ? mFileName : mPathName + "/" + mFileName) + 
+                                              (mExtension.empty() ? "" : "." + mExtension); }
 
-  //{{{
-  string getFileSizeString() const {
+     //{{{
+     std::string getFileSizeString() const {
 
-    if (mFileSize < 1000)
-      return dec(mFileSize) + "b";
+       if (mFileSize < 1000)
+         return dec(mFileSize) + "b";
 
-    if (mFileSize < 1000000)
-      return frac((float)mFileSize/1000.f,4,1,' ') + "k";
+       if (mFileSize < 1000000)
+         return frac((float)mFileSize/1000.f,4,1,' ') + "k";
 
-    if (mFileSize < 1000000000)
-      return frac((float)mFileSize/1000000.f,4,1,' ') + "m";
+       if (mFileSize < 1000000000)
+         return frac((float)mFileSize/1000000.f,4,1,' ') + "m";
 
-    return frac((float)mFileSize/1000000000.f,4,1,' ') + "g";
-    }
-  //}}}
+       return frac((float)mFileSize/1000000000.f,4,1,' ') + "g";
+       }
+     //}}}
 
-  //{{{
-  string getCreationString() const {
+     //{{{
+     std::string getCreationString() const {
 
-    if (mCreationTimePoint.time_since_epoch() == seconds::zero())
-      return "";
-    else
-      return date::format ("%H.%M %a %d %b %Y", floor<seconds>(mCreationTimePoint));
-    }
-  //}}}
-  //{{{
-  string getLastWriteString() const {
+       if (mCreationTimePoint.time_since_epoch() == std::chrono::seconds::zero())
+         return "";
+       else
+         return date::format ("%H.%M %a %d %b %Y", floor<std::chrono::seconds>(mCreationTimePoint));
+       }
+     //}}}
+     //{{{
+     std::string getLastWriteString() const {
 
-    if (mLastWriteTimePoint.time_since_epoch() == seconds::zero())
-      return "";
-    else
-      return date::format ("%H.%M %a %d %b %Y", floor<seconds>(mLastWriteTimePoint));
-    }
-  //}}}
-  //{{{
-  string getLastAccessString() const {
+       if (mLastWriteTimePoint.time_since_epoch() == std::chrono::seconds::zero())
+         return "";
+       else
+         return date::format ("%H.%M %a %d %b %Y", floor<std::chrono::seconds>(mLastWriteTimePoint));
+       }
+     //}}}
+     //{{{
+     std::string getLastAccessString() const {
 
-    if (mLastAccessTimePoint.time_since_epoch() == seconds::zero())
-      return "";
-    else
-      return date::format ("%H.%M %a %d %b %Y", floor<seconds>(mLastAccessTimePoint));
-    }
-  //}}}
+       if (mLastAccessTimePoint.time_since_epoch() == std::chrono::seconds::zero())
+         return "";
+       else
+         return date::format ("%H.%M %a %d %b %Y", floor<std::chrono::seconds>(mLastAccessTimePoint));
+       }
+     //}}}
 
-  //{{{
-  string getFieldString (int field) const {
+     //{{{
+     std::string getFieldString (int field) const {
 
-    switch (field) {
-      case 0: return getFileName();
-      case 1: return getFileSizeString();
-      case 2: return getCreationString();
-      case 3: return getLastWriteString();
-      case 4: return getLastAccessString();
-      case 5: return getPathName();
-      case 6: return getExtension();
-      case 7: return getFullName();
-      }
+       switch (field) {
+         case 0: return getFileName();
+         case 1: return getFileSizeString();
+         case 2: return getCreationString();
+         case 3: return getLastWriteString();
+         case 4: return getLastAccessString();
+         case 5: return getPathName();
+         case 6: return getExtension();
+         case 7: return getFullName();
+         }
 
-    return "empty";
-    }
-  //}}}
+       return "empty";
+       }
+     //}}}
 
-  //{{{
-  static bool compare (const cFileItem& a, const cFileItem& b) {
-    switch (mCompareField) {
-      case 0:  return mCompareFieldDescending ? (a.mFileName > b.mFileName) : (a.mFileName < b.mFileName);
-      case 1:  return mCompareFieldDescending ? (a.mFileSize > b.mFileSize) : (a.mFileSize < b.mFileSize);
-      case 2:  return mCompareFieldDescending ? (a.mCreationTimePoint > b.mCreationTimePoint) : (a.mCreationTimePoint < b.mCreationTimePoint);
-      }
-    return (a.mFileName > b.mFileName);
-    }
-  //}}}
-  static int mCompareField;
-  static bool mCompareFieldDescending;
+     //{{{
+    static bool compare (const cFileItem& a, const cFileItem& b) {
+       switch (mCompareField) {
+         case 0:  return mCompareFieldDescending ? (a.mFileName > b.mFileName) : (a.mFileName < b.mFileName);
+         case 1:  return mCompareFieldDescending ? (a.mFileSize > b.mFileSize) : (a.mFileSize < b.mFileSize);
+         case 2:  return mCompareFieldDescending ? (a.mCreationTimePoint > b.mCreationTimePoint) : (a.mCreationTimePoint < b.mCreationTimePoint);
+         }
+       return (a.mFileName > b.mFileName);
+       }
+     //}}}
+     static int mCompareField;
+     static bool mCompareFieldDescending;
 
-private:
-  //{{{
-  system_clock::time_point getFileTimePoint (FILETIME fileTime) {
+   private:
+     //{{{
+     std::chrono::system_clock::time_point getFileTimePoint (FILETIME fileTime) {
 
-    // filetime_duration has the same layout as FILETIME; 100ns intervals
-    using filetime_duration = duration<int64_t, ratio<1, 10'000'000>>;
+       // filetime_duration has the same layout as FILETIME; 100ns intervals
+       using filetime_duration = std::chrono::duration<int64_t, std::ratio<1, 10'000'000>>;
 
-    // January 1, 1601 (NT epoch) - January 1, 1970 (Unix epoch):
-    constexpr duration<int64_t> nt_to_unix_epoch{INT64_C(-11644473600)};
+       // January 1, 1601 (NT epoch) - January 1, 1970 (Unix epoch):
+       constexpr std::chrono::duration<int64_t> nt_to_unix_epoch{INT64_C(-11644473600)};
 
-    const filetime_duration asDuration{static_cast<int64_t>(
-        (static_cast<uint64_t>((fileTime).dwHighDateTime) << 32)
-            | (fileTime).dwLowDateTime)};
-    const auto withUnixEpoch = asDuration + nt_to_unix_epoch;
-    return system_clock::time_point{ duration_cast<system_clock::duration>(withUnixEpoch)};
-    }
-  //}}}
+       const filetime_duration asDuration{static_cast<int64_t>(
+           (static_cast<uint64_t>((fileTime).dwHighDateTime) << 32)
+               | (fileTime).dwLowDateTime)};
+       const auto withUnixEpoch = asDuration + nt_to_unix_epoch;
+       return std::chrono::system_clock::time_point{ std::chrono::duration_cast<std::chrono::system_clock::duration>(withUnixEpoch)};
+       }
+     //}}}
 
-  string mPathName;
-  string mFileName;
-  string mExtension;
+     std::string mPathName;
+     std::string mFileName;
+     std::string mExtension;
 
-  uint64_t mFileSize = 0;
-  time_point<system_clock> mCreationTimePoint;
-  time_point<system_clock> mLastWriteTimePoint;
-  time_point<system_clock> mLastAccessTimePoint;
-  };
-//}}}
-int cFileItem::mCompareField = 0;
-bool cFileItem::mCompareFieldDescending = false;
+     uint64_t mFileSize = 0;
+     std::chrono::time_point<std::chrono::system_clock> mCreationTimePoint;
+     std::chrono::time_point<std::chrono::system_clock> mLastWriteTimePoint;
+     std::chrono::time_point<std::chrono::system_clock> mLastAccessTimePoint;
+     };
+   //}}}
+   int cFileItem::mCompareField = 0;
+   bool cFileItem::mCompareFieldDescending = false;
 
-class cFileList {
-public:
-  //{{{
-  cFileList (const string& fileName, const string& matchString) {
+   class cFileList {
+   public:
+     //{{{
+     cFileList (const std::string& fileName, const std::string& matchString) {
 
-    if (!fileName.empty()) {
-      mMatchString = matchString;
+       if (!fileName.empty()) {
+         mMatchString = matchString;
 
-      auto resolvedFileName = fileName;
-      if (mFileName.find (".lnk") <= fileName.size()) {
-        resolvedFileName = resolveShortcut (fileName);
-        if (resolvedFileName.empty()) {
-          cLog::log (LOGERROR, "cFileList - link " + fileName + " unresolved");
-          return;
-          }
-        }
+         auto resolvedFileName = fileName;
+         if (mFileName.find (".lnk") <= fileName.size()) {
+           resolvedFileName = resolveShortcut (fileName);
+           if (resolvedFileName.empty()) {
+             cLog::log (LOGERROR, "cFileList - link " + fileName + " unresolved");
+             return;
+             }
+           }
 
-      if (GetFileAttributesA (resolvedFileName.c_str()) & FILE_ATTRIBUTE_DIRECTORY) {
-        mWatchRootName = resolvedFileName;
-        scanDirectory ("", resolvedFileName);
-        }
-      else if (!resolvedFileName.empty())
-        mFileItemList.push_back (cFileItem ("", resolvedFileName));
+         if (GetFileAttributesA (resolvedFileName.c_str()) & FILE_ATTRIBUTE_DIRECTORY) {
+           mWatchRootName = resolvedFileName;
+           scanDirectory ("", resolvedFileName);
+           }
+         else if (!resolvedFileName.empty())
+           mFileItemList.push_back (cFileItem ("", resolvedFileName));
 
-      sort();
-      }
-    }
-  //}}}
-  virtual ~cFileList() {}
+         sort();
+         }
+       }
+     //}}}
+     virtual ~cFileList() {}
 
-  // gets
-  size_t size() { return mFileItemList.size(); }
-  bool empty() { return mFileItemList.empty(); }
+     // gets
+     size_t size() { return mFileItemList.size(); }
+     bool empty() { return mFileItemList.empty(); }
 
-  bool isCurIndex (unsigned index) { return mItemIndex == index; }
-  unsigned getIndex() { return mItemIndex; }
-  cFileItem getCurFileItem() { return getFileItem (mItemIndex); }
-  cFileItem getFileItem (unsigned index) { return mFileItemList[index]; }
+     bool isCurIndex (unsigned index) { return mItemIndex == index; }
+     unsigned getIndex() { return mItemIndex; }
+     cFileItem getCurFileItem() { return getFileItem (mItemIndex); }
+     cFileItem getFileItem (unsigned index) { return mFileItemList[index]; }
 
-  // actions
-  void setIndex (unsigned index) { mItemIndex = index; }
-  //{{{
-  bool prevIndex() {
-    if (!empty() && (mItemIndex > 0)) {
-      mItemIndex--;
-      return true;
-      }
-    return false;
-    }
-  //}}}
-  //{{{
-  bool nextIndex() {
-    if (!empty() && (mItemIndex < size()-1)) {
-      mItemIndex++;
-      return true;
-      }
-    return false;
-    }
-  //}}}
-  //{{{
-  void nextSort() {
-    cFileItem::mCompareField = (cFileItem::mCompareField + 1) % cFileItem::kFields;
-    sort();
-    }
-  //}}}
-  //{{{
-  void toggleSortUp() {
-    cFileItem::mCompareFieldDescending = !cFileItem::mCompareFieldDescending;
-    sort();
-    }
-  //}}}
+     // actions
+     void setIndex (unsigned index) { mItemIndex = index; }
+     //{{{
+     bool prevIndex() {
+       if (!empty() && (mItemIndex > 0)) {
+         mItemIndex--;
+         return true;
+         }
+       return false;
+       }
+     //}}}
+     //{{{
+     bool nextIndex() {
+       if (!empty() && (mItemIndex < size()-1)) {
+         mItemIndex++;
+         return true;
+         }
+       return false;
+       }
+     //}}}
+     //{{{
+     void nextSort() {
+       cFileItem::mCompareField = (cFileItem::mCompareField + 1) % cFileItem::kFields;
+       sort();
+       }
+     //}}}
+     //{{{
+     void toggleSortUp() {
+       cFileItem::mCompareFieldDescending = !cFileItem::mCompareFieldDescending;
+       sort();
+       }
+     //}}}
 
-  //{{{
-  void watchThread() {
+     //{{{
+     void watchThread() {
 
-    if (!mWatchRootName.empty()) {
-      CoInitializeEx (NULL, COINIT_MULTITHREADED);
-      cLog::setThreadName ("wtch");
+       if (!mWatchRootName.empty()) {
+         CoInitializeEx (NULL, COINIT_MULTITHREADED);
+         cLog::setThreadName ("wtch");
 
-      // Watch the directory for file creation and deletion.
-      auto handle = FindFirstChangeNotification (mWatchRootName.c_str(), TRUE,
-                                                 FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME);
-      if (handle == INVALID_HANDLE_VALUE)
-       cLog::log (LOGERROR, "FindFirstChangeNotification function failed");
+         // Watch the directory for file creation and deletion.
+         auto handle = FindFirstChangeNotification (mWatchRootName.c_str(), TRUE,
+                                                    FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME);
+         if (handle == INVALID_HANDLE_VALUE)
+          cLog::log (LOGERROR, "FindFirstChangeNotification function failed");
 
-      //while (!getExit()) {
-      while (true) {
-        cLog::log (LOGINFO, "Waiting for notification");
-        if (WaitForSingleObject (handle, INFINITE) == WAIT_OBJECT_0) {
-          // A file was created, renamed, or deleted in the directory.
-          mFileItemList.clear();
-          scanDirectory ("", mWatchRootName);
-          sort();
-          if (FindNextChangeNotification (handle) == FALSE)
-            cLog::log (LOGERROR, "FindNextChangeNotification function failed");
-          }
-        else
-          cLog::log (LOGERROR, "No changes in the timeout period");
-        }
+         //while (!getExit()) {
+         while (true) {
+           cLog::log (LOGINFO, "Waiting for notification");
+           if (WaitForSingleObject (handle, INFINITE) == WAIT_OBJECT_0) {
+             // A file was created, renamed, or deleted in the directory.
+             mFileItemList.clear();
+             scanDirectory ("", mWatchRootName);
+             sort();
+             if (FindNextChangeNotification (handle) == FALSE)
+               cLog::log (LOGERROR, "FindNextChangeNotification function failed");
+             }
+           else
+             cLog::log (LOGERROR, "No changes in the timeout period");
+           }
 
-      cLog::log (LOGINFO, "exit");
-      CoUninitialize();
-      }
-    }
-  //}}}
+         cLog::log (LOGINFO, "exit");
+         CoUninitialize();
+         }
+       }
+     //}}}
 
-private:
-  //{{{
-  string resolveShortcut (const string& shortcut) {
+   private:
+     //{{{
+     std::string resolveShortcut (const std::string& shortcut) {
 
-    // get IShellLink interface
-    IShellLinkA* iShellLink;
-    if (CoCreateInstance (CLSID_ShellLink, NULL, CLSCTX_INPROC_SERVER, IID_IShellLink, (void**)&iShellLink) == S_OK) {
-      // get IPersistFile interface
-      IPersistFile* iPersistFile;
-      iShellLink->QueryInterface (IID_IPersistFile,(void**)&iPersistFile);
+       // get IShellLink interface
+       IShellLinkA* iShellLink;
+       if (CoCreateInstance (CLSID_ShellLink, NULL, CLSCTX_INPROC_SERVER, IID_IShellLink, (void**)&iShellLink) == S_OK) {
+         // get IPersistFile interface
+         IPersistFile* iPersistFile;
+         iShellLink->QueryInterface (IID_IPersistFile,(void**)&iPersistFile);
 
-      // IPersistFile uses LPCOLESTR, ensure string is Unicode
-      WCHAR wideShortcutFileName[MAX_PATH];
-      MultiByteToWideChar (CP_ACP, 0, shortcut.c_str(), -1, wideShortcutFileName, MAX_PATH);
+         // IPersistFile uses LPCOLESTR, ensure string is Unicode
+         WCHAR wideShortcutFileName[MAX_PATH];
+         MultiByteToWideChar (CP_ACP, 0, shortcut.c_str(), -1, wideShortcutFileName, MAX_PATH);
 
-      // open shortcut file and init it from its contents
-      if (iPersistFile->Load (wideShortcutFileName, STGM_READ) == S_OK) {
-        // find target of shortcut, even if it has been moved or renamed
-        if (iShellLink->Resolve (NULL, SLR_UPDATE) == S_OK) {
-          // get the path to shortcut
-          char szPath[MAX_PATH];
-          WIN32_FIND_DATAA wfd;
-          if (iShellLink->GetPath (szPath, MAX_PATH, &wfd, SLGP_RAWPATH) == S_OK) {
-            // Get the description of the target
-            char szDesc[MAX_PATH];
-            if (iShellLink->GetDescription (szDesc, MAX_PATH) == S_OK) {
-              string fullName;
-              lstrcpynA ((char*)fullName.c_str(), szPath, MAX_PATH);
-              return fullName;
-              }
-            }
-          }
-        }
-      }
+         // open shortcut file and init it from its contents
+         if (iPersistFile->Load (wideShortcutFileName, STGM_READ) == S_OK) {
+           // find target of shortcut, even if it has been moved or renamed
+           if (iShellLink->Resolve (NULL, SLR_UPDATE) == S_OK) {
+             // get the path to shortcut
+             char szPath[MAX_PATH];
+             WIN32_FIND_DATAA wfd;
+             if (iShellLink->GetPath (szPath, MAX_PATH, &wfd, SLGP_RAWPATH) == S_OK) {
+               // Get the description of the target
+               char szDesc[MAX_PATH];
+               if (iShellLink->GetDescription (szDesc, MAX_PATH) == S_OK) {
+                 std::string fullName;
+                 lstrcpynA ((char*)fullName.c_str(), szPath, MAX_PATH);
+                 return fullName;
+                 }
+               }
+             }
+           }
+         }
 
-    return "";
-    }
-  //}}}
-  //{{{
-  void scanDirectory (const string& parentName, const string& directoryName) {
+       return "";
+       }
+     //}}}
+     //{{{
+     void scanDirectory (const std::string& parentName, const std::string& directoryName) {
 
-    auto pathFileName = parentName.empty() ? directoryName : parentName + "/" + directoryName;
-    auto searchStr = pathFileName +  "/*";
+       auto pathFileName = parentName.empty() ? directoryName : parentName + "/" + directoryName;
+       auto searchStr = pathFileName +  "/*";
 
-    WIN32_FIND_DATAA findFileData;
-    auto file = FindFirstFileExA (searchStr.c_str(), FindExInfoBasic, &findFileData,
-                                  FindExSearchNameMatch, NULL, FIND_FIRST_EX_LARGE_FETCH);
-    if (file != INVALID_HANDLE_VALUE) {
-      do {
-        if ((findFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) && (findFileData.cFileName[0] != '.'))
-          scanDirectory (pathFileName, findFileData.cFileName);
-        else if (PathMatchSpecExA (findFileData.cFileName, mMatchString.c_str(), PMSF_MULTIPLE) == S_OK)
-          if ((findFileData.cFileName[0] != '.') && (findFileData.cFileName[0] != '..'))
-            mFileItemList.push_back (cFileItem (pathFileName, findFileData.cFileName));
-        } while (FindNextFileA (file, &findFileData));
+       WIN32_FIND_DATAA findFileData;
+       auto file = FindFirstFileExA (searchStr.c_str(), FindExInfoBasic, &findFileData,
+                                     FindExSearchNameMatch, NULL, FIND_FIRST_EX_LARGE_FETCH);
+       if (file != INVALID_HANDLE_VALUE) {
+         do {
+           if ((findFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) && (findFileData.cFileName[0] != '.'))
+             scanDirectory (pathFileName, findFileData.cFileName);
+           else if (PathMatchSpecExA (findFileData.cFileName, mMatchString.c_str(), PMSF_MULTIPLE) == S_OK)
+             if ((findFileData.cFileName[0] != '.') && (findFileData.cFileName[0] != '..'))
+               mFileItemList.push_back (cFileItem (pathFileName, findFileData.cFileName));
+           } while (FindNextFileA (file, &findFileData));
 
-      FindClose (file);
-      }
-    }
-  //}}}
-  //{{{
-  void sort() {
-    std::sort (mFileItemList.begin(), mFileItemList.end(), cFileItem::compare);
-    }
-  //}}}
+         FindClose (file);
+         }
+       }
+     //}}}
+     //{{{
+     void sort() {
+       std::sort (mFileItemList.begin(), mFileItemList.end(), cFileItem::compare);
+       }
+     //}}}
 
-  // vars
-  string mFileName;
-  string mMatchString;
-  string mWatchRootName;
+     // vars
+     std::string mFileName;
+     std::string mMatchString;
+     std::string mWatchRootName;
 
-  concurrency::concurrent_vector <cFileItem> mFileItemList;
-  unsigned mItemIndex = 0;
-  };
+     concurrency::concurrent_vector <cFileItem> mFileItemList;
+     unsigned mItemIndex = 0;
+     };
