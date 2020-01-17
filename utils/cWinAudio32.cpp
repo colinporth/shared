@@ -345,7 +345,7 @@ void cWinAudio32::open (int srcChannels, int srcSampleRate) {
   // create XAudio2 engine.
   if (XAudio2Create (&mXAudio2) != S_OK) {
     //{{{  error, return
-    cLog::log (LOGERROR, "cWinAudio - XAudio2Create failed");
+    cLog::log (LOGERROR, "cWinAudio32 - XAudio2Create failed");
     return;
     }
     //}}}
@@ -353,7 +353,7 @@ void cWinAudio32::open (int srcChannels, int srcSampleRate) {
   // create masteringVoice
   if (mXAudio2->CreateMasteringVoice (&mMasteringVoice, XAUDIO2_DEFAULT_CHANNELS, srcSampleRate) != S_OK) {
     //{{{  error, return
-    cLog::log (LOGERROR, "cWinAudio - CreateMasteringVoice failed");
+    cLog::log (LOGERROR, "cWinAudio32 - CreateMasteringVoice failed");
     return;
     }
     //}}}
@@ -368,7 +368,7 @@ void cWinAudio32::open (int srcChannels, int srcSampleRate) {
   mMasteringVoice->GetVoiceDetails (&masteringVoiceDetails);
   mDstChannels = masteringVoiceDetails.InputChannels;
   mDstSampleRate = masteringVoiceDetails.InputSampleRate;
-  cLog::log (LOGINFO, "cWinAudio - audOpen mask:" + hex(mDstChannelMask) +
+  cLog::log (LOGINFO, "cWinAudio32 - audOpen mask:" + hex(mDstChannelMask) +
                        " channels:" + dec(mDstChannels) +
                        " sampleRate:" + dec(mDstSampleRate));
 
