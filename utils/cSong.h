@@ -32,7 +32,7 @@ public:
     bool isSilentThreshold() { return mPowerValues[0] + mPowerValues[1] < kSilentThreshold; }
 
     bool hasTitle() { return !mTitle.empty(); }
-    void setTitle (const string& title) { mTitle = title; }
+    void setTitle (const std::string& title) { mTitle = title; }
 
     const float kSilentThreshold = 0.05f;
 
@@ -45,7 +45,7 @@ public:
     float mFreqValues[kMaxFreq];
     uint8_t mFreqLuma[kMaxSpectrum];
 
-    string mTitle;
+    std::string mTitle;
     };
   //}}}
 
@@ -109,7 +109,7 @@ public:
     float powerValues[kMaxChannels];
     for (auto chan = 0; chan < mChannels; chan++) {
       powerValues[chan] = sqrtf (powerSum[chan] / numSamples);
-      mMaxPowerValue = max (mMaxPowerValue, powerValues[chan]);
+      mMaxPowerValue = std::max (mMaxPowerValue, powerValues[chan]);
       }
 
     kiss_fftr (fftrConfig, timeBuf, freqBuf);
@@ -117,8 +117,8 @@ public:
     float freqValues[kMaxFreq];
     for (auto freq = 0; freq < kMaxFreq; freq++) {
       freqValues[freq] = sqrt ((freqBuf[freq].r * freqBuf[freq].r) + (freqBuf[freq].i * freqBuf[freq].i));
-      mMaxFreqValue = max (mMaxFreqValue, freqValues[freq]);
-      mMaxFreqValues[freq] = max (mMaxFreqValues[freq], freqValues[freq]);
+      mMaxFreqValue = std::max (mMaxFreqValue, freqValues[freq]);
+      mMaxFreqValues[freq] = std::max (mMaxFreqValues[freq], freqValues[freq]);
       }
 
     uint8_t lumaValues[kMaxFreq];
@@ -190,7 +190,7 @@ public:
   // sets
   //{{{
   void setPlayFrame (int frame) {
-    mPlayFrame = min (max (frame, 0), mNumFrames-1);
+    mPlayFrame = std::min (std::max (frame, 0), mNumFrames-1);
     }
   //}}}
   void incPlayFrame (int frames) { setPlayFrame (mPlayFrame + frames); }
