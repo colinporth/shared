@@ -1,7 +1,21 @@
 // cCaptureWASAPI.cpp
+//{{{  includes
 #define _CRT_SECURE_NO_WARNINGS
+
+#include <mmdeviceapi.h>
+#include <audioclient.h>
+#include <functiondiscoverykeys_devpkey.h>
+#include <initguid.h>
+#include <avrt.h>
+
+#include <thread>
+
 #include "cCaptureWASAPI.h"
 #include "cLog.h"
+//}}}
+
+// init static singleton pointer
+cCaptureWASAPI* cCaptureWASAPI::mCaptureWASAPI = nullptr;
 
 //{{{
 cCaptureWASAPI::cCaptureWASAPI (uint32_t bufferSize) {
@@ -47,12 +61,15 @@ cCaptureWASAPI::cCaptureWASAPI (uint32_t bufferSize) {
     mStreamWritePtr = mStreamFirst;
 
     cLog::log (LOGNOTICE, "Simple buffer lasts %d minutes", bufferSize / 4 / 2 / 48000 / 60);
-    }
 
+    mCaptureWASAPI = this;
+    launch();
+    }
   }
 //}}}
 //{{{
 cCaptureWASAPI::~cCaptureWASAPI() {
+// shut down resources
 
   if (mAudioClient) {
     mAudioClient->Stop();
@@ -86,8 +103,10 @@ float* cCaptureWASAPI::getFrame (int frameSize) {
   }
 //}}}
 
+// private
 //{{{
 void cCaptureWASAPI::run() {
+// body of reader thread
 
   // create a periodic waitable timer, -ve relative time, convert to milliseconds
   HANDLE wakeUp = CreateWaitableTimer (NULL, FALSE, NULL);
@@ -150,5 +169,25 @@ void cCaptureWASAPI::run() {
 
   CancelWaitableTimer (wakeUp);
   CloseHandle (wakeUp);
+  }
+//}}}
+//{{{
+void cCaptureWASAPI::launch() {
+// launch reader thread at MM priority
+
+  std::thread ([=]() {
+    CoInitializeEx (NULL, COINIT_MULTITHREADED);
+    cLog::setThreadName ("capt");
+
+    // elevate task priority
+    DWORD taskIndex = 0;
+    HANDLE taskHandle = AvSetMmThreadCharacteristics ("Audio", &taskIndex);
+    if (taskHandle) {
+      mCaptureWASAPI->run();
+      AvRevertMmThreadCharacteristics (taskHandle);
+      }
+
+    CoUninitialize();
+    } ).detach();
   }
 //}}}

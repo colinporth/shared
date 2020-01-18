@@ -1,15 +1,17 @@
 // cCaptureWASAPI.h
 #pragma once
-
+//{{{  includes
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <mmsystem.h>
+#include <Strmif.h>
+
 #include <stdint.h>
 
-#include <mmsystem.h>
-#include <mmdeviceapi.h>
-#include <audioclient.h>
-#include <functiondiscoverykeys_devpkey.h>
-#include <initguid.h>
+struct IMMDevice;
+struct IAudioClient;
+struct IAudioCaptureClient;
+//}}}
 
 class cCaptureWASAPI {
 // simple big linear buffer for now
@@ -19,11 +21,16 @@ public:
 
   int getChannels() { return kCaptureChannnels; }
   WAVEFORMATEX* getWaveFormatEx() { return mWaveFormatEx; }
+
   float* getFrame (int frameSize);
 
-  void run();
-
 private:
+  void run();
+  void launch();
+
+  // static singleton ref
+  static cCaptureWASAPI* mCaptureWASAPI;
+
   const int kCaptureChannnels = 2;
 
   IMMDevice* mMMDevice = NULL;
