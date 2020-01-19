@@ -49,7 +49,7 @@ map<uint64_t,string> mThreadNameMap;
 #endif
 
 //{{{
-bool cLog::init (enum eLogLevel logLevel, bool buffer, string path) {
+bool cLog::init (enum eLogLevel logLevel, bool buffer, string path, std::string title) {
 
   #ifdef _WIN32
     hStdOut = GetStdHandle (STD_OUTPUT_HANDLE);
@@ -80,6 +80,8 @@ bool cLog::init (enum eLogLevel logLevel, bool buffer, string path) {
     }
 
   setThreadName ("main");
+
+  log (LOGNOTICE, title);
   return mFile != NULL;
   }
 //}}}
