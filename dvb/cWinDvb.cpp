@@ -3,7 +3,11 @@
 #define _CRT_SECURE_NO_WARNINGS
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
-#define _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS 
+
+#define _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS
+
+#include <locale>
+#include <codecvt>
 
 #include <chrono>
 #include "../utils/date.h"
@@ -21,6 +25,13 @@ DEFINE_GUID (CLSID_BDAtif, 0xFC772ab0, 0x0c7f, 0x11d3, 0x8F,0xf2, 0x00,0xa0,0xc9
 DEFINE_GUID (CLSID_Dump, 0x36a5f770, 0xfe4c, 0x11ce, 0xa8, 0xed, 0x00, 0xaa, 0x00, 0x2f, 0xea, 0xb5);
 
 #pragma comment (lib,"strmiids")
+//}}}
+
+//{{{
+inline std::string wstrToStr (const std::wstring& wstr) {
+  std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converter;
+  return converter.to_bytes (wstr);
+  }
 //}}}
 
 // public:

@@ -12,8 +12,7 @@
 #include <iostream>
 #include <iomanip>
 #include <stdio.h>
-#include <locale>
-#include <codecvt>
+
 #include <algorithm>
 //}}}
 
@@ -45,13 +44,6 @@
 #endif
 
 // string utils
-//{{{
-inline std::string wstrToStr (const std::wstring& wstr) {
-  std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converter;
-  return converter.to_bytes (wstr);
-  }
-//}}}
-
 //{{{
 template <typename T> std::string hex (T value, int width = 0) {
 
