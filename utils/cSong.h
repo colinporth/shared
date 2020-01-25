@@ -91,7 +91,7 @@ public:
     }
   //}}}
   //{{{
-  int addFrame (uint32_t streamIndex, uint32_t frameLen, int numSamples, float* samples, uint32_t streamLen) {
+  bool addFrame (uint32_t streamIndex, uint32_t frameLen, int numSamples, float* samples, uint32_t streamLen) {
   // return true if enough frames added to start playing
 
     // sum of squares channel power
@@ -134,14 +134,14 @@ public:
                       uint64_t(streamIndex + frameLen - mFrames[0].mStreamIndex));
 
     // calc silent window
-    auto frame = getNumParsedFrames()-1;
-    if (mFrames[frame].isSilent()) {
+    auto frameNum = getNumParsedFrames()-1;
+    if (mFrames[frameNum].isSilent()) {
       auto window = kSilentWindow;
-      auto windowFrame = frame - 1;
+      auto windowFrame = frameNum - 1;
       while ((window >= 0) && (windowFrame >= 0)) {
         // walk backwards looking for no silence
         if (!mFrames[windowFrame].isSilentThreshold()) {
-          mFrames[frame].mSilent = false;
+          mFrames[frameNum].mSilent = false;
           break;
           }
         windowFrame--;
@@ -149,7 +149,8 @@ public:
         }
       }
 
-    return frame;
+    // return true if first frame, used to launch player
+    return frameNum == 0;
     }
   //}}}
   //{{{
