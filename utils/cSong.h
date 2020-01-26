@@ -11,7 +11,6 @@
 
 class cSong {
 public:
-  static constexpr int kMaxChannels = 2;
   static constexpr int kMaxSamplesPerFrame = 2048;
   static constexpr int kMaxFreq = (kMaxSamplesPerFrame/2) + 1;
   static constexpr int kMaxSpectrum = kMaxFreq/2;
@@ -77,13 +76,12 @@ public:
   //}}}
 
   //{{{
-  void init (std::string fileName, eAudioFrameType audioFrameType, uint16_t samplesPerFrame, int sampleRate) {
+  void init (eAudioFrameType audioFrameType, int numChannels, int samplesPerFrame, int sampleRate) {
 
-    mFileName = fileName;
-
+    mAudioFrameType = audioFrameType;
+    mNumChannels = numChannels;
     mSampleRate = sampleRate;
     mSamplesPerFrame = samplesPerFrame;
-    mAudioFrameType = audioFrameType;
 
     mFrames.clear();
 
@@ -109,20 +107,17 @@ public:
     mSamplesPerFrame = samplesPerFrame;
 
     // sum of squares channel power
-    float powerSum[kMaxChannels] = { 0.f };
+    float* powerValues = (float*)calloc (1, mNumChannels * 4);
     for (int sample = 0; sample < samplesPerFrame; sample++) {
       timeBuf[sample] = 0;
-      for (auto chan = 0; chan < mChannels; chan++) {
-        auto value = samples[(sample * mChannels) + chan];
+      for (auto chan = 0; chan < mNumChannels; chan++) {
+        auto value = samples[(sample * mNumChannels) + chan];
         timeBuf[sample] += value;
-        powerSum[chan] += value * value;
+        powerValues[chan] += value * value;
         }
       }
-
-    // channel powerValues
-    float* powerValues = (float*)malloc (kMaxChannels * 4);
-    for (int chan = 0; chan < mChannels; chan++) {
-      powerValues[chan] = sqrtf (powerSum[chan] / samplesPerFrame);
+    for (int chan = 0; chan < mNumChannels; chan++) {
+      powerValues[chan] = sqrtf (powerValues[chan] / samplesPerFrame);
       mMaxPowerValue = std::max (mMaxPowerValue, powerValues[chan]);
       }
 
@@ -170,7 +165,7 @@ public:
 
   // gets
   int getAudioFrameType() { return mAudioFrameType; }
-  int getNumChannels() { return mChannels; }
+  int getNumChannels() { return mNumChannels; }
   int getSampleRate() { return mSampleRate; }
   int getSamplesPerFrame() { return mSamplesPerFrame; }
   int getMaxSamplesPerFrame() { return kMaxSamplesPerFrame; }
@@ -249,8 +244,6 @@ public:
   //}}}
 
   //{{{  public vars, simpler access for gui
-  std::string mFileName;
-
   concurrency::concurrent_vector<cFrame*> mFrames;
 
   int mPlayFrame = 0;
@@ -284,18 +277,17 @@ private:
     }
   //}}}
 
-  // private const
   static constexpr int kSilentWindowFrames = 10;
-
-  int mChannels = kMaxChannels;
+  //{{{  vars
+  int mNumChannels = 0;
   int mSamplesPerFrame = 0;
   int mSampleRate = 0;
   eAudioFrameType mAudioFrameType = eUnknown;
 
   int mTotalFrames = 0;
 
-  // private vars
   kiss_fftr_cfg fftrConfig;
   kiss_fft_scalar timeBuf[kMaxSamplesPerFrame];
   kiss_fft_cpx freqBuf[kMaxFreq];
+  //}}}
   };
