@@ -11,48 +11,60 @@
 
 class cSong {
 public:
-  static const int kMaxChannels = 2;
-  static const int kMaxSamples = 2048;
-  static const int kMaxFreq = 1025;
-  static const int kMaxSpectrum = 512;
+  static constexpr int kMaxChannels = 2;
+  static constexpr int kMaxSamplesPerFrame = 2048;
+  static constexpr int kMaxFreq = (kMaxSamplesPerFrame/2) + 1;
+  static constexpr int kMaxSpectrum = kMaxFreq/2;
   //{{{
   class cFrame {
   public:
-    cFrame (uint32_t streamIndex, uint32_t len, float* powerValues, float* freqValues, uint8_t* lumaValues)
-        : mStreamIndex(streamIndex), mLen(len) {
-
-      memcpy (mPowerValues, powerValues, kMaxChannels * 4);
-      memcpy (mFreqValues, freqValues, kMaxFreq * 4);
-      memcpy (mFreqLuma, lumaValues, kMaxSpectrum);
-
+    //{{{
+    cFrame (uint32_t streamIndex, uint32_t len, float* samples, float* powerValues, float* freqValues, uint8_t* lumaValues)
+        : mStreamIndex(streamIndex), mLen(len),
+          mSamples(samples), mPowerValues(powerValues), mFreqValues(freqValues), mFreqLuma(lumaValues) {
       mSilent = isSilentThreshold();
       }
+    //}}}
+    //{{{
+    ~cFrame() {
+      free (mSamples);
+      free (mPowerValues);
+      free (mFreqValues);
+      free (mFreqLuma);
+      }
+    //}}}
+
+    int getStreamIndex() { return mStreamIndex; }
+    float* getSamples() { return mSamples; }
+    float* getPowerValues() { return mPowerValues;  }
+    float* getFreqValues() { return mFreqValues; }
+    uint8_t* getFreqLuma() { return mFreqLuma; }
 
     bool isSilent() { return mSilent; }
     bool isSilentThreshold() { return mPowerValues[0] + mPowerValues[1] < kSilentThreshold; }
+    void setSilent (bool silent) { mSilent = silent; }
 
     bool hasTitle() { return !mTitle.empty(); }
+    std::string getTitle() { return mTitle; }
     void setTitle (const std::string& title) { mTitle = title; }
 
-    const float kSilentThreshold = 0.05f;
+    static constexpr float kSilentThreshold = 0.05f;
 
-    // vars
+  private:
     uint32_t mStreamIndex;
     uint32_t mLen;
 
-    bool mSilent;
-    float mPowerValues[kMaxChannels];
-    float mFreqValues[kMaxFreq];
-    uint8_t mFreqLuma[kMaxSpectrum];
+    float* mSamples;
+    float* mPowerValues;
+    float* mFreqValues;
+    uint8_t* mFreqLuma;
 
+    bool mSilent;
     std::string mTitle;
     };
   //}}}
 
-  //{{{
-  cSong() {
-    }
-  //}}}
+  cSong() {}
   //{{{
   virtual ~cSong() {
 
@@ -76,7 +88,7 @@ public:
     mFrames.clear();
 
     mPlayFrame = 0;
-    mNumFrames = 0;
+    mTotalFrames = 0;
 
     auto temp = mImage;
     mImage = nullptr;
@@ -87,16 +99,18 @@ public:
     for (int i = 0; i < kMaxFreq; i++)
       mMaxFreqValues[i] = 0.f;
 
-    fftrConfig = kiss_fftr_alloc (kMaxSamples, 0, 0, 0);
+    fftrConfig = kiss_fftr_alloc (kMaxSamplesPerFrame, 0, 0, 0);
     }
   //}}}
   //{{{
-  bool addFrame (uint32_t streamIndex, uint32_t frameLen, int numSamples, float* samples, uint32_t streamLen) {
+  bool addFrame (int streamIndex, int frameLen, int samplesPerFrame, float* samples, int streamLen) {
   // return true if enough frames added to start playing
+
+    mSamplesPerFrame = samplesPerFrame;
 
     // sum of squares channel power
     float powerSum[kMaxChannels] = { 0.f };
-    for (auto sample = 0; sample < numSamples; sample++) {
+    for (int sample = 0; sample < samplesPerFrame; sample++) {
       timeBuf[sample] = 0;
       for (auto chan = 0; chan < mChannels; chan++) {
         auto value = samples[(sample * mChannels) + chan];
@@ -106,42 +120,42 @@ public:
       }
 
     // channel powerValues
-    float powerValues[kMaxChannels];
-    for (auto chan = 0; chan < mChannels; chan++) {
-      powerValues[chan] = sqrtf (powerSum[chan] / numSamples);
+    float* powerValues = (float*)malloc (kMaxChannels * 4);
+    for (int chan = 0; chan < mChannels; chan++) {
+      powerValues[chan] = sqrtf (powerSum[chan] / samplesPerFrame);
       mMaxPowerValue = std::max (mMaxPowerValue, powerValues[chan]);
       }
 
     kiss_fftr (fftrConfig, timeBuf, freqBuf);
 
-    float freqValues[kMaxFreq];
-    for (auto freq = 0; freq < kMaxFreq; freq++) {
+    float* freqValues = (float*)malloc (kMaxFreq * 4);
+    for (int freq = 0; freq < kMaxFreq; freq++) {
       freqValues[freq] = sqrt ((freqBuf[freq].r * freqBuf[freq].r) + (freqBuf[freq].i * freqBuf[freq].i));
       mMaxFreqValue = std::max (mMaxFreqValue, freqValues[freq]);
       mMaxFreqValues[freq] = std::max (mMaxFreqValues[freq], freqValues[freq]);
       }
 
-    uint8_t lumaValues[kMaxFreq];
-    for (auto freq = 0; freq < kMaxSpectrum; freq++) {
+    uint8_t* lumaValues = (uint8_t*)malloc (kMaxSpectrum);
+    for (int freq = 0; freq < kMaxSpectrum; freq++) {
       auto value = uint8_t((freqValues[freq] / mMaxFreqValue) * 1024.f);
       lumaValues[freq] = value > 255 ? 255 : value;
       }
 
-    mFrames.push_back (cFrame (streamIndex, frameLen, powerValues, freqValues, lumaValues));
+    mFrames.push_back (new cFrame (streamIndex, frameLen, samples, powerValues, freqValues, lumaValues));
 
-    // estimate numFrames
-    mNumFrames = int (uint64_t(streamLen - mFrames[0].mStreamIndex) * (uint64_t)mFrames.size() /
-                      uint64_t(streamIndex + frameLen - mFrames[0].mStreamIndex));
+    // estimate totalFrames
+    mTotalFrames = int (uint64_t(streamLen - mFrames[0]->getStreamIndex()) * (uint64_t)mFrames.size() /
+                        uint64_t(streamIndex + frameLen - mFrames[0]->getStreamIndex()));
 
     // calc silent window
-    auto frameNum = getNumParsedFrames()-1;
-    if (mFrames[frameNum].isSilent()) {
-      auto window = kSilentWindow;
+    auto frameNum = getLastFrame();
+    if (mFrames[frameNum]->isSilent()) {
+      auto window = kSilentWindowFrames;
       auto windowFrame = frameNum - 1;
       while ((window >= 0) && (windowFrame >= 0)) {
         // walk backwards looking for no silence
-        if (!mFrames[windowFrame].isSilentThreshold()) {
-          mFrames[frameNum].mSilent = false;
+        if (!mFrames[windowFrame]->isSilentThreshold()) {
+          mFrames[frameNum]->setSilent (false);
           break;
           }
         windowFrame--;
@@ -153,18 +167,20 @@ public:
     return frameNum == 0;
     }
   //}}}
-  //{{{
-  void setTitle (std::string title) {
-
-    if (!mFrames.empty())
-      mFrames.back().setTitle (title);
-    }
-  //}}}
 
   // gets
-  int getNumParsedFrames() { return (int)mFrames.size(); }
+  int getAudioFrameType() { return mAudioFrameType; }
+  int getNumChannels() { return mChannels; }
+  int getSampleRate() { return mSampleRate; }
+  int getSamplesPerFrame() { return mSamplesPerFrame; }
+  int getMaxSamplesPerFrame() { return kMaxSamplesPerFrame; }
+  int getMaxFreq() { return kMaxFreq; }
+
+  int getNumFrames() { return (int)mFrames.size(); }
+  int getLastFrame() { return getNumFrames() - 1;  }
+  int getTotalFrames() { return mTotalFrames; }
   //{{{
-  uint32_t getPlayFrame() {
+  int getPlayFrame() {
 
     if (mFrames.empty())
       return 0;
@@ -180,22 +196,42 @@ public:
     if (mFrames.empty())
       return 0;
     else if (mPlayFrame < mFrames.size())
-      return mFrames[mPlayFrame].mStreamIndex;
+      return mFrames[mPlayFrame]->getStreamIndex();
     else
-      return mFrames[0].mStreamIndex;
+      return mFrames[0]->getStreamIndex();
     }
   //}}}
-  int getSamplesSize() { return mMaxSamplesPerFrame * mChannels * (mBitsPerSample/8); }
-  int getMaxFreq() { return kMaxFreq; }
+  //{{{
+  float* getPlayFrameSamples() {
+
+    if (mFrames.empty())
+      return nullptr;
+    else if (mPlayFrame < mFrames.size())
+      return mFrames[mPlayFrame]->getSamples();
+    else
+      return mFrames[0]->getSamples();
+    }
+  //}}}
 
   // sets
+  void setSampleRate (int sampleRate) { mSampleRate = sampleRate; }
+  void setSamplesPerFrame (int samplePerFrame) { mSamplesPerFrame = samplePerFrame; }
+
   //{{{
   void setPlayFrame (int frame) {
-    mPlayFrame = std::min (std::max (frame, 0), mNumFrames-1);
+    mPlayFrame = std::min (std::max (frame, 0), getLastFrame());
     }
   //}}}
   void incPlayFrame (int frames) { setPlayFrame (mPlayFrame + frames); }
   void incPlaySec (int secs) { incPlayFrame (secs * mSampleRate / mSamplesPerFrame); }
+
+  //{{{
+  void setTitle (std::string title) {
+
+    if (!mFrames.empty())
+      mFrames.back()->setTitle (title);
+    }
+  //}}}
 
   //{{{
   void prevSilence() {
@@ -215,15 +251,9 @@ public:
   //{{{  public vars, simpler access for gui
   std::string mFileName;
 
-  uint16_t mChannels = 2;
-  int mSampleRate = 44100;
-  uint16_t mSamplesPerFrame = 1152;
-  eAudioFrameType mAudioFrameType = eUnknown;
-
-  concurrency::concurrent_vector<cFrame> mFrames;
+  concurrency::concurrent_vector<cFrame*> mFrames;
 
   int mPlayFrame = 0;
-  int mNumFrames = 0;
 
   float mMaxPowerValue = 0.f;
   float mMaxFreqValue = 0.f;
@@ -237,7 +267,7 @@ private:
   int skipPrev (int fromFrame, bool silent) {
 
     for (auto frame = fromFrame-1; frame >= 0; frame--)
-      if (mFrames[frame].isSilent() ^ silent)
+      if (mFrames[frame]->isSilent() ^ silent)
         return frame;
 
     return fromFrame;
@@ -246,8 +276,8 @@ private:
   //{{{
   int skipNext (int fromFrame, bool silent) {
 
-    for (auto frame = fromFrame; frame < getNumParsedFrames(); frame++)
-      if (mFrames[frame].isSilent() ^ silent)
+    for (int frame = fromFrame; frame < getNumFrames(); frame++)
+      if (mFrames[frame]->isSilent() ^ silent)
         return frame;
 
     return fromFrame;
@@ -255,13 +285,17 @@ private:
   //}}}
 
   // private const
-  const int kSilentWindow = 10;       // about a half second analyse silence in frames
+  static constexpr int kSilentWindowFrames = 10;
+
+  int mChannels = kMaxChannels;
+  int mSamplesPerFrame = 0;
+  int mSampleRate = 0;
+  eAudioFrameType mAudioFrameType = eUnknown;
+
+  int mTotalFrames = 0;
 
   // private vars
-  uint16_t mBitsPerSample = 32;
-  uint16_t mMaxSamplesPerFrame = kMaxSamples;
-
   kiss_fftr_cfg fftrConfig;
-  kiss_fft_scalar timeBuf[kMaxSamples];
+  kiss_fft_scalar timeBuf[kMaxSamplesPerFrame];
   kiss_fft_cpx freqBuf[kMaxFreq];
   };
