@@ -97,12 +97,12 @@ public:
     for (int i = 0; i < kMaxFreq; i++)
       mMaxFreqValues[i] = 0.f;
 
-    fftrConfig = kiss_fftr_alloc (kMaxSamplesPerFrame, 0, 0, 0);
+    fftrConfig = kiss_fftr_alloc (samplesPerFrame, 0, 0, 0);
     }
   //}}}
   //{{{
   bool addFrame (int streamIndex, int frameLen, int samplesPerFrame, float* samples, int streamLen) {
-  // return true if enough frames added to start playing
+  // return true if enough frames added to start playing, streamLen only used to estimate totalFrames
 
     mSamplesPerFrame = samplesPerFrame;
 
