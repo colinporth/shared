@@ -139,8 +139,8 @@ public:
     mFrames.push_back (new cFrame (streamIndex, frameLen, samples, powerValues, freqValues, lumaValues));
 
     // estimate totalFrames
-    mTotalFrames = int (uint64_t(streamLen - mFrames[0]->getStreamIndex()) * (uint64_t)mFrames.size() /
-                        uint64_t(streamIndex + frameLen - mFrames[0]->getStreamIndex()));
+    int averageFrameLen = (streamIndex + frameLen) / getNumFrames();
+    mTotalFrames = streamLen / averageFrameLen;
 
     // calc silent window
     auto frameNum = getLastFrame();
@@ -279,10 +279,11 @@ private:
 
   static constexpr int kSilentWindowFrames = 10;
   //{{{  vars
-  int mNumChannels = 0;
-  int mSamplesPerFrame = 0;
-  int mSampleRate = 0;
   eAudioFrameType mAudioFrameType = eUnknown;
+
+  int mNumChannels = 0;
+  int mSampleRate = 0;
+  int mSamplesPerFrame = 0;
 
   int mTotalFrames = 0;
 
