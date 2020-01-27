@@ -165,6 +165,7 @@ public:
   // gets
   int getAudioFrameType() { return mAudioFrameType; }
   int getNumChannels() { return mNumChannels; }
+  int getNumSampleBytes() { return mNumChannels * sizeof(float); }
   int getSampleRate() { return mSampleRate; }
   int getSamplesPerFrame() { return mSamplesPerFrame; }
   int getMaxSamplesPerFrame() { return kMaxSamplesPerFrame; }
