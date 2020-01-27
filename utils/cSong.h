@@ -11,9 +11,9 @@
 
 class cSong {
 public:
-  static constexpr int kMaxSamplesPerFrame = 2048;
-  static constexpr int kMaxFreq = (kMaxSamplesPerFrame/2) + 1;
-  static constexpr int kMaxSpectrum = kMaxFreq/2;
+  constexpr static int kMaxSamplesPerFrame = 2048;
+  constexpr static int kMaxFreq = (kMaxSamplesPerFrame/2) + 1;
+  constexpr static int kMaxSpectrum = kMaxFreq/2;
   //{{{
   class cFrame {
   public:
@@ -272,7 +272,7 @@ private:
     }
   //}}}
 
-  static constexpr int kSilentWindowFrames = 10;
+  constexpr static int kSilentWindowFrames = 10;
   //{{{  vars
   eAudioFrameType mAudioFrameType = eUnknown;
 
