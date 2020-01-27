@@ -100,7 +100,7 @@ public:
     }
   //}}}
   //{{{
-  bool addFrame (int streamIndex, int frameLen, int samplesPerFrame, float* samples, int streamLen) {
+  bool addFrame (int streamIndex, int frameLen, int streamLen, int samplesPerFrame, float* samples) {
   // return true if enough frames added to start playing, streamLen only used to estimate totalFrames
 
     mSamplesPerFrame = samplesPerFrame;
@@ -242,17 +242,13 @@ public:
     }
   //}}}
 
-  //{{{  public vars, simpler access for gui
+  // public vars
   concurrency::concurrent_vector<cFrame*> mFrames;
-
   int mPlayFrame = 0;
-
   float mMaxPowerValue = 0.f;
   float mMaxFreqValue = 0.f;
   float mMaxFreqValues[kMaxFreq];
-
   cJpegImage* mImage = nullptr;
-  //}}}
 
 private:
   //{{{
