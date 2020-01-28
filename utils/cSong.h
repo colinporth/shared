@@ -18,15 +18,14 @@ public:
   class cFrame {
   public:
     //{{{
-    cFrame (uint32_t streamIndex, uint32_t len, float* samples, float* powerValues, float* freqValues, uint8_t* lumaValues)
+    cFrame (uint32_t streamIndex, uint32_t len, float* powerValues, float* freqValues, uint8_t* lumaValues)
         : mStreamIndex(streamIndex), mLen(len),
-          mSamples(samples), mPowerValues(powerValues), mFreqValues(freqValues), mFreqLuma(lumaValues) {
+          mPowerValues(powerValues), mFreqValues(freqValues), mFreqLuma(lumaValues) {
       mSilent = isSilentThreshold();
       }
     //}}}
     //{{{
     ~cFrame() {
-      free (mSamples);
       free (mPowerValues);
       free (mFreqValues);
       free (mFreqLuma);
@@ -34,7 +33,6 @@ public:
     //}}}
 
     int getStreamIndex() { return mStreamIndex; }
-    float* getSamples() { return mSamples; }
     float* getPowerValues() { return mPowerValues;  }
     float* getFreqValues() { return mFreqValues; }
     uint8_t* getFreqLuma() { return mFreqLuma; }
@@ -53,7 +51,6 @@ public:
     uint32_t mStreamIndex;
     uint32_t mLen;
 
-    float* mSamples;
     float* mPowerValues;
     float* mFreqValues;
     uint8_t* mFreqLuma;
@@ -135,7 +132,7 @@ public:
       lumaValues[freq] = value > 255 ? 255 : value;
       }
 
-    mFrames.push_back (new cFrame (streamIndex, frameLen, samples, powerValues, freqValues, lumaValues));
+    mFrames.push_back (new cFrame (streamIndex, frameLen, powerValues, freqValues, lumaValues));
 
     // estimate totalFrames
     int averageFrameLen = (streamIndex + frameLen) / getNumFrames();
@@ -194,17 +191,6 @@ public:
       return mFrames[mPlayFrame]->getStreamIndex();
     else
       return mFrames[0]->getStreamIndex();
-    }
-  //}}}
-  //{{{
-  float* getPlayFrameSamples() {
-
-    if (mFrames.empty())
-      return nullptr;
-    else if (mPlayFrame < mFrames.size())
-      return mFrames[mPlayFrame]->getSamples();
-    else
-      return mFrames[0]->getSamples();
     }
   //}}}
 
