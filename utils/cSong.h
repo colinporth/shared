@@ -103,7 +103,8 @@ public:
     mSamplesPerFrame = samplesPerFrame;
 
     // sum of squares channel power
-    float* powerValues = (float*)calloc (1, mNumChannels * 4);
+    float* powerValues = (float*)malloc (mNumChannels * 4);
+    memset (powerValues, 0, mNumChannels * 4);
     for (int sample = 0; sample < samplesPerFrame; sample++) {
       timeBuf[sample] = 0;
       for (auto chan = 0; chan < mNumChannels; chan++) {
