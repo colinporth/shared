@@ -88,7 +88,7 @@ public:
     mImage = nullptr;
     delete temp;
 
-    mMaxPowerValue = 0;
+    mMaxPowerValue = 0.f;
     mMaxFreqValue = 0.f;
     for (int i = 0; i < kMaxFreq; i++)
       mMaxFreqValues[i] = 0.f;
@@ -107,7 +107,7 @@ public:
     for (int sample = 0; sample < samplesPerFrame; sample++) {
       timeBuf[sample] = 0;
       for (auto chan = 0; chan < mNumChannels; chan++) {
-        auto value = samples[(sample * mNumChannels) + chan];
+        auto value = *samples++;
         timeBuf[sample] += value;
         powerValues[chan] += value * value;
         }

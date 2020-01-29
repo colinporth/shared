@@ -232,25 +232,43 @@ bool parseAudioFrame (uint8_t* stream, uint8_t* streamLast, uint8_t*& frame, int
         //}}}
       }
     else if (stream[0] == 'R' && stream[1] == 'I' && stream[2] == 'F' && stream[3] == 'F') {
-      //{{{  got wav header
-      // skip over any other chunks before the "data" chunk
-      //  while (mHeader.Subchunk2ID != htonl (0x64617461)) {
-      //    fseek (mFile, 4, SEEK_CUR);
-      //    fread (&mHeader.Subchunk2ID, 4, 1, mFile);
-      //  fread (&mHeader.Subchunk2Size, 4, 1, mFile);
+      //{{{  got wav header, dumb but explicit parser
+      stream += 8;
+      if ((stream[0] == 'W') && (stream[1] == 'A') && (stream[2] == 'V') && (stream[3] == 'E')) {
+        stream += 4;
 
-      if ((stream[36] != 'd') || (stream[37] != 'a') || (stream[38] != 't') || (stream[39] != 'a'))
-        cLog::log (LOGERROR, "data chunk not found");
+        if ((stream[0] == 'f') && (stream[1] == 'm') && (stream[2] == 't') && (stream[3] == ' ')) {
+          stream += 4;
 
-      // get from header
-      sampleRate = 48000;
+          uint32_t fmtSize = stream[0] + (stream[1] << 8) + (stream[2] << 16) + (stream[3] << 24);
+          stream += 4;
 
-      frame = stream + 44;
-      frameLen = int(streamLast - stream) - 44;
+          uint16_t audioFormat = stream[0] + (stream[1] << 8);
+          int numChannels = stream[2] + (stream[3] << 8);
+          sampleRate = stream[4] + (stream[5] << 8) + (stream[6] << 16) + (stream[7] << 24);
+          int blockAlign = stream[12] + (stream[13] << 8);
+          stream += fmtSize;
 
-      audioFrameType = eWav;
+          while (!((stream[0] == 'd') && (stream[1] == 'a') && (stream[2] == 't') && (stream[3] == 'a'))) {
+            stream += 4;
 
-      return true;
+            uint32_t chunkSize = stream[0] + (stream[1] << 8) + (stream[2] << 16) + (stream[3] << 24);
+            stream += 4 + chunkSize;
+            }
+          stream += 4;
+
+          uint32_t dataSize = stream[0] + (stream[1] << 8) + (stream[2] << 16) + (stream[3] << 24);
+          stream += 4;
+
+          frame = stream;
+          frameLen = int(streamLast - stream);
+
+          audioFrameType = eWav;
+          return true;
+          }
+        }
+
+      return false;
       }
       //}}}
     else if (stream[0] == 'I' && stream[1] == 'D' && stream[2] == '3') {
