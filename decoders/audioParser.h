@@ -2,7 +2,7 @@
 #pragma once
 #include "../utils/cLog.h"
 
-enum eAudioFrameType { eMp3, eAac, eId3Tag, eUnknown } ;
+enum eAudioFrameType { eMp3, eAac, eId3Tag, eWav, eUnknown } ;
 
 //{{{
 uint8_t* parseId3Tag (uint8_t* stream, uint8_t* streamLast, int& jpegLen) {
@@ -64,22 +64,7 @@ bool parseAudioFrame (uint8_t* stream, uint8_t* streamLast, uint8_t*& frame, int
   sampleRate = 0;
 
   while ((streamLast - stream) >= 6) {
-    if (stream[0] == 'I' && stream[1] == 'D' && stream[2] == '3') {
-      //{{{  got id3 header
-      auto tagSize = (stream[6] << 21) | (stream[7] << 14) | (stream[8] << 7) | stream[9];
-
-      // return tag & size
-      frame = stream;
-      frameLen = 10 + tagSize;
-
-      audioFrameType = eId3Tag;
-
-      // check for enough bytes for frame body
-      return stream + frameLen < streamLast;
-      }
-      //}}}
-
-    else if ((stream[0] == 0xFF) && ((stream[1] & 0xF0) == 0xF0)) {
+    if ((stream[0] == 0xFF) && ((stream[1] & 0xF0) == 0xF0)) {
       // syncWord found
       if ((stream[1] & 0x06) == 0) {
         //{{{  got aac header
@@ -246,7 +231,42 @@ bool parseAudioFrame (uint8_t* stream, uint8_t* streamLast, uint8_t*& frame, int
         }
         //}}}
       }
+    else if (stream[0] == 'R' && stream[1] == 'I' && stream[2] == 'F' && stream[3] == 'F') {
+      //{{{  got wav header
+      // skip over any other chunks before the "data" chunk
+      //  while (mHeader.Subchunk2ID != htonl (0x64617461)) {
+      //    fseek (mFile, 4, SEEK_CUR);
+      //    fread (&mHeader.Subchunk2ID, 4, 1, mFile);
+      //  fread (&mHeader.Subchunk2Size, 4, 1, mFile);
 
+      if ((stream[36] != 'd') || (stream[37] != 'a') || (stream[38] != 't') || (stream[39] != 'a'))
+        cLog::log (LOGERROR, "data chunk not found");
+
+      // get from header
+      sampleRate = 48000;
+
+      frame = stream + 44;
+      frameLen = int(streamLast - stream) - 44;
+
+      audioFrameType = eWav;
+
+      return true;
+      }
+      //}}}
+    else if (stream[0] == 'I' && stream[1] == 'D' && stream[2] == '3') {
+      //{{{  got id3 header
+      auto tagSize = (stream[6] << 21) | (stream[7] << 14) | (stream[8] << 7) | stream[9];
+
+      // return tag & size
+      frame = stream;
+      frameLen = 10 + tagSize;
+
+      audioFrameType = eId3Tag;
+
+      // check for enough bytes for frame body
+      return stream + frameLen < streamLast;
+      }
+      //}}}
     else {
       skip++;
       stream++;
