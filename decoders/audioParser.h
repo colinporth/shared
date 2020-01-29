@@ -55,7 +55,7 @@ uint8_t* parseId3Tag (uint8_t* stream, uint8_t* streamLast, int& jpegLen) {
 //{{{
 bool parseAudioFrame (uint8_t* stream, uint8_t* streamLast, uint8_t*& frame, int& frameLen,
                       eAudioFrameType& audioFrameType, int& skip, int& sampleRate) {
-// start of mp3 / aac adts parser
+// dumb mp3 / aacAdts / wav / id3Tag parser
 
   frame = nullptr;
   frameLen = 0;
@@ -233,7 +233,11 @@ bool parseAudioFrame (uint8_t* stream, uint8_t* streamLast, uint8_t*& frame, int
       }
     else if (stream[0] == 'R' && stream[1] == 'I' && stream[2] == 'F' && stream[3] == 'F') {
       //{{{  got wav header, dumb but explicit parser
-      stream += 8;
+      stream += 4;
+
+      uint32_t riffSize = stream[0] + (stream[1] << 8) + (stream[2] << 16) + (stream[3] << 24);
+      stream += 4;
+
       if ((stream[0] == 'W') && (stream[1] == 'A') && (stream[2] == 'V') && (stream[3] == 'E')) {
         stream += 4;
 
@@ -296,7 +300,7 @@ bool parseAudioFrame (uint8_t* stream, uint8_t* streamLast, uint8_t*& frame, int
 //}}}
 //{{{
 eAudioFrameType parseAudioFrames (uint8_t* stream, uint8_t* streamLast, int& sampleRate) {
-// return true if stream is aac adts
+// return streamAudioFrameType
 
   eAudioFrameType streamAudioFrameType = eUnknown;
 
