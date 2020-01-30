@@ -88,7 +88,7 @@ public:
     mImage = nullptr;
     delete temp;
 
-    mMaxPowerValue = 0.f;
+    mMaxPowerValue = kMinPowerValue;
     mMaxFreqValue = 0.f;
     for (int i = 0; i < kMaxFreq; i++)
       mMaxFreqValues[i] = 0.f;
@@ -169,6 +169,8 @@ public:
   int getMaxSamplesPerFrame() { return kMaxSamplesPerFrame; }
   int getMaxFreq() { return kMaxFreq; }
 
+  float getMaxPowerValue() { return mMaxPowerValue; }
+
   int getNumFrames() { return (int)mFrames.size(); }
   int getLastFrame() { return getNumFrames() - 1;  }
   int getTotalFrames() { return mTotalFrames; }
@@ -233,7 +235,7 @@ public:
   // public vars
   concurrency::concurrent_vector<cFrame*> mFrames;
   int mPlayFrame = 0;
-  float mMaxPowerValue = 0.f;
+  float mMaxPowerValue = kMinPowerValue;
   float mMaxFreqValue = 0.f;
   float mMaxFreqValues[kMaxFreq];
   cJpegImage* mImage = nullptr;
@@ -260,6 +262,7 @@ private:
     }
   //}}}
 
+  constexpr static float kMinPowerValue = 0.5f;
   constexpr static int kSilentWindowFrames = 10;
   //{{{  vars
   eAudioFrameType mAudioFrameType = eUnknown;
