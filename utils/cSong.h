@@ -262,7 +262,7 @@ private:
     }
   //}}}
 
-  constexpr static float kMinPowerValue = 0.5f;
+  constexpr static float kMinPowerValue = 0.25f;
   constexpr static int kSilentWindowFrames = 10;
   //{{{  vars
   eAudioFrameType mAudioFrameType = eUnknown;
