@@ -11,9 +11,11 @@
 
 class cSong {
 public:
+  //{{{  static constexpr
   constexpr static int kMaxSamplesPerFrame = 2048;
   constexpr static int kMaxFreq = (kMaxSamplesPerFrame/2) + 1;
   constexpr static int kMaxSpectrum = kMaxFreq/2;
+  //}}}
   //{{{
   class cFrame {
   public:
@@ -173,6 +175,7 @@ public:
   int getNumFrames() { return (int)mFrames.size(); }
   int getLastFrame() { return getNumFrames() - 1;  }
   int getTotalFrames() { return mTotalFrames; }
+
   //{{{
   int getPlayFrame() {
     if (mPlayFrame < mFrames.size())
