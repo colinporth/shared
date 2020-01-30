@@ -168,7 +168,6 @@ public:
   int getSamplesPerFrame() { return mSamplesPerFrame; }
   int getMaxSamplesPerFrame() { return kMaxSamplesPerFrame; }
   int getMaxFreq() { return kMaxFreq; }
-
   float getMaxPowerValue() { return mMaxPowerValue; }
 
   int getNumFrames() { return (int)mFrames.size(); }
@@ -176,24 +175,23 @@ public:
   int getTotalFrames() { return mTotalFrames; }
   //{{{
   int getPlayFrame() {
-
-    if (mFrames.empty())
-      return 0;
-    else if (mPlayFrame < mFrames.size())
+    if (mPlayFrame < mFrames.size())
       return mPlayFrame;
-    else
-      return (uint32_t)mFrames.size() - 1;
+    else if (!mFrames.empty())
+      return (int)mFrames.size() - 1;
+    else // startup case
+      return 0;
     }
   //}}}
   //{{{
   uint32_t getPlayFrameStreamIndex() {
 
-    if (mFrames.empty())
-      return 0;
-    else if (mPlayFrame < mFrames.size())
+    if (mPlayFrame < mFrames.size())
       return mFrames[mPlayFrame]->getStreamIndex();
+    else if (!mFrames.empty())
+      return mFrames[mFrames.size()-1]->getStreamIndex();
     else
-      return mFrames[0]->getStreamIndex();
+      return 0;
     }
   //}}}
 
