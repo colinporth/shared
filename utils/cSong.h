@@ -73,6 +73,66 @@ public:
     }
   //}}}
 
+  //{{{  gets
+  int getAudioFrameType() { return mAudioFrameType; }
+  int getNumChannels() { return mNumChannels; }
+  int getNumSampleBytes() { return mNumChannels * sizeof(float); }
+  int getSampleRate() { return mSampleRate; }
+  int getSamplesPerFrame() { return mSamplesPerFrame; }
+  int getMaxSamplesPerFrame() { return kMaxSamplesPerFrame; }
+
+  int getMinZoomIndex() { return -8; }
+  int getMaxZoomIndex() { return 8; }
+  float getMaxPowerValue() { return mMaxPowerValue; }
+  int getMaxFreq() { return kMaxFreq; }
+
+  int getNumFrames() { return (int)mFrames.size(); }
+  int getLastFrame() { return getNumFrames() - 1;  }
+  int getTotalFrames() { return mTotalFrames; }
+
+  //{{{
+  int getPlayFrame() {
+    if (mPlayFrame < mFrames.size())
+      return mPlayFrame;
+    else if (!mFrames.empty())
+      return (int)mFrames.size() - 1;
+    else // startup case
+      return 0;
+    }
+  //}}}
+  //{{{
+  uint32_t getPlayFrameStreamIndex() {
+
+    if (mPlayFrame < mFrames.size())
+      return mFrames[mPlayFrame]->getStreamIndex();
+    else if (!mFrames.empty())
+      return mFrames[mFrames.size()-1]->getStreamIndex();
+    else
+      return 0;
+    }
+  //}}}
+  //}}}
+  //{{{  sets
+  void setSampleRate (int sampleRate) { mSampleRate = sampleRate; }
+  void setSamplesPerFrame (int samplePerFrame) { mSamplesPerFrame = samplePerFrame; }
+
+  //{{{
+  void setTitle (std::string title) {
+
+    if (!mFrames.empty())
+      mFrames.back()->setTitle (title);
+    }
+  //}}}
+
+  //{{{
+  void setPlayFrame (int frame) {
+    mPlayFrame = std::min (std::max (frame, 0), getLastFrame());
+    }
+  //}}}
+  void incPlayFrame (int frames) { setPlayFrame (mPlayFrame + frames); }
+  void incPlaySec (int secs) { incPlayFrame (secs * mSampleRate / mSamplesPerFrame); }
+  //}}}
+
   //{{{
   void init (eAudioFrameType audioFrameType, int numChannels, int samplesPerFrame, int sampleRate) {
 
@@ -159,62 +219,6 @@ public:
 
     // return true if first frame, used to launch player
     return frameNum == 0;
-    }
-  //}}}
-
-  // gets
-  int getAudioFrameType() { return mAudioFrameType; }
-  int getNumChannels() { return mNumChannels; }
-  int getNumSampleBytes() { return mNumChannels * sizeof(float); }
-  int getSampleRate() { return mSampleRate; }
-  int getSamplesPerFrame() { return mSamplesPerFrame; }
-  int getMaxSamplesPerFrame() { return kMaxSamplesPerFrame; }
-  int getMaxFreq() { return kMaxFreq; }
-  float getMaxPowerValue() { return mMaxPowerValue; }
-
-  int getNumFrames() { return (int)mFrames.size(); }
-  int getLastFrame() { return getNumFrames() - 1;  }
-  int getTotalFrames() { return mTotalFrames; }
-
-  //{{{
-  int getPlayFrame() {
-    if (mPlayFrame < mFrames.size())
-      return mPlayFrame;
-    else if (!mFrames.empty())
-      return (int)mFrames.size() - 1;
-    else // startup case
-      return 0;
-    }
-  //}}}
-  //{{{
-  uint32_t getPlayFrameStreamIndex() {
-
-    if (mPlayFrame < mFrames.size())
-      return mFrames[mPlayFrame]->getStreamIndex();
-    else if (!mFrames.empty())
-      return mFrames[mFrames.size()-1]->getStreamIndex();
-    else
-      return 0;
-    }
-  //}}}
-
-  // sets
-  void setSampleRate (int sampleRate) { mSampleRate = sampleRate; }
-  void setSamplesPerFrame (int samplePerFrame) { mSamplesPerFrame = samplePerFrame; }
-
-  //{{{
-  void setPlayFrame (int frame) {
-    mPlayFrame = std::min (std::max (frame, 0), getLastFrame());
-    }
-  //}}}
-  void incPlayFrame (int frames) { setPlayFrame (mPlayFrame + frames); }
-  void incPlaySec (int secs) { incPlayFrame (secs * mSampleRate / mSamplesPerFrame); }
-
-  //{{{
-  void setTitle (std::string title) {
-
-    if (!mFrames.empty())
-      mFrames.back()->setTitle (title);
     }
   //}}}
 
