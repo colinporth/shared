@@ -81,7 +81,7 @@ public:
   int getSamplesPerFrame() { return mSamplesPerFrame; }
   int getMaxSamplesPerFrame() { return kMaxSamplesPerFrame; }
 
-  int getMinZoomIndex() { return -8; }
+  int getMinZoomIndex() { return -32; }
   int getMaxZoomIndex() { return 8; }
   float getMaxPowerValue() { return mMaxPowerValue; }
   int getMaxFreq() { return kMaxFreq; }
