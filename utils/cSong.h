@@ -84,6 +84,7 @@ public:
   int getMinZoomIndex() { return -32; }
   int getMaxZoomIndex() { return 8; }
   float getMaxPowerValue() { return mMaxPowerValue; }
+  float getMaxFreqValue() { return mMaxFreqValue; }
   int getMaxFreq() { return kMaxFreq; }
 
   int getNumFrames() { return (int)mFrames.size(); }
@@ -189,10 +190,11 @@ public:
       mMaxFreqValues[freq] = std::max (mMaxFreqValues[freq], freqValues[freq]);
       }
 
+    float scale = 1024.f / mMaxFreqValue;
     uint8_t* lumaValues = (uint8_t*)malloc (kMaxSpectrum);
     for (int freq = 0; freq < kMaxSpectrum; freq++) {
-      auto value = uint8_t((freqValues[freq] / mMaxFreqValue) * 1024.f);
-      lumaValues[freq] = value > 255 ? 255 : value;
+      auto value = freqValues[freq] * scale;
+      lumaValues[freq] = value > 255 ? 255 : uint8_t(value);
       }
 
     mFrames.push_back (new cFrame (streamIndex, frameLen, powerValues, freqValues, lumaValues));
