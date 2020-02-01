@@ -166,7 +166,7 @@ public:
     mSamplesPerFrame = samplesPerFrame;
 
     // sum of squares channel power
-    float* powerValues = (float*)malloc (mNumChannels * 4);
+    auto powerValues = (float*)malloc (mNumChannels * 4);
     memset (powerValues, 0, mNumChannels * 4);
     for (int sample = 0; sample < samplesPerFrame; sample++) {
       timeBuf[sample] = 0;
@@ -176,23 +176,24 @@ public:
         powerValues[chan] += value * value;
         }
       }
-    for (int chan = 0; chan < mNumChannels; chan++) {
+    for (auto chan = 0; chan < mNumChannels; chan++) {
       powerValues[chan] = sqrtf (powerValues[chan] / samplesPerFrame);
       mMaxPowerValue = std::max (mMaxPowerValue, powerValues[chan]);
       }
 
     kiss_fftr (fftrConfig, timeBuf, freqBuf);
 
-    float* freqValues = (float*)malloc (kMaxFreq * 4);
-    for (int freq = 0; freq < kMaxFreq; freq++) {
+    auto freqValues = (float*)malloc (kMaxFreq * 4);
+    for (auto freq = 0; freq < kMaxFreq; freq++) {
       freqValues[freq] = sqrt ((freqBuf[freq].r * freqBuf[freq].r) + (freqBuf[freq].i * freqBuf[freq].i));
       mMaxFreqValue = std::max (mMaxFreqValue, freqValues[freq]);
       mMaxFreqValues[freq] = std::max (mMaxFreqValues[freq], freqValues[freq]);
       }
 
+    // dodgy juicing of maxFreqValue * 4 to max Luma
     float scale = 1024.f / mMaxFreqValue;
-    uint8_t* lumaValues = (uint8_t*)malloc (kMaxSpectrum);
-    for (int freq = 0; freq < kMaxSpectrum; freq++) {
+    auto lumaValues = (uint8_t*)malloc (kMaxSpectrum);
+    for (auto freq = 0; freq < kMaxSpectrum; freq++) {
       auto value = freqValues[freq] * scale;
       lumaValues[freq] = value > 255 ? 255 : uint8_t(value);
       }
