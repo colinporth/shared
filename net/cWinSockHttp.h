@@ -4,7 +4,11 @@
 
 class cWinSockHttp : public cHttp {
 public:
-  cWinSockHttp() : cHttp() {}
+  //{{{
+  cWinSockHttp() : cHttp() {
+    WSAStartup (MAKEWORD(2,2), &wsaData);
+    }
+  //}}}
   //{{{
   virtual ~cWinSockHttp() {
     if (mSocket != -1)
@@ -99,4 +103,5 @@ protected:
 
 private:
   int mSocket = -1;
+  WSADATA wsaData;
   };
