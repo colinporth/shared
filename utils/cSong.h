@@ -20,9 +20,9 @@ public:
   class cFrame {
   public:
     //{{{
-    cFrame (uint32_t streamIndex, uint32_t len, float* powerValues, float* freqValues, uint8_t* lumaValues)
-        : mStreamIndex(streamIndex), mLen(len),
-          mPowerValues(powerValues), mFreqValues(freqValues), mFreqLuma(lumaValues) {
+    cFrame (uint8_t* stream, uint32_t len, float* powerValues, float* freqValues, uint8_t* lumaValues)
+        : mStream(stream), mLen(len), mPowerValues(powerValues), mFreqValues(freqValues), mFreqLuma(lumaValues) {
+
       mSilent = isSilentThreshold();
       }
     //}}}
@@ -34,7 +34,7 @@ public:
       }
     //}}}
 
-    int getStreamIndex() { return mStreamIndex; }
+    uint8_t* getStream() { return mStream; }
     float* getPowerValues() { return mPowerValues;  }
     float* getFreqValues() { return mFreqValues; }
     uint8_t* getFreqLuma() { return mFreqLuma; }
@@ -50,7 +50,7 @@ public:
     static constexpr float kSilentThreshold = 0.05f;
 
   private:
-    uint32_t mStreamIndex;
+    uint8_t* mStream;
     uint32_t mLen;
 
     float* mPowerValues;
@@ -102,14 +102,14 @@ public:
     }
   //}}}
   //{{{
-  uint32_t getPlayFrameStreamIndex() {
+  uint8_t* getPlayFrameStream() {
 
     if (mPlayFrame < mFrames.size())
-      return mFrames[mPlayFrame]->getStreamIndex();
+      return mFrames[mPlayFrame]->getStream();
     else if (!mFrames.empty())
-      return mFrames[mFrames.size()-1]->getStreamIndex();
+      return mFrames[mFrames.size()-1]->getStream();
     else
-      return 0;
+      return nullptr;
     }
   //}}}
   //}}}
@@ -160,10 +160,11 @@ public:
     }
   //}}}
   //{{{
-  bool addFrame (int streamIndex, int frameLen, int streamLen, int samplesPerFrame, float* samples) {
+  bool addFrame (uint8_t* stream, int frameLen, int estimatedTotalFrames, int samplesPerFrame, float* samples) {
   // return true if enough frames added to start playing, streamLen only used to estimate totalFrames
 
     mSamplesPerFrame = samplesPerFrame;
+    mTotalFrames = estimatedTotalFrames;
 
     // sum of squares channel power
     auto powerValues = (float*)malloc (mNumChannels * 4);
@@ -198,11 +199,7 @@ public:
       lumaValues[freq] = value > 255 ? 255 : uint8_t(value);
       }
 
-    mFrames.push_back (new cFrame (streamIndex, frameLen, powerValues, freqValues, lumaValues));
-
-    // estimate totalFrames
-    int averageFrameLen = (streamIndex + frameLen) / getNumFrames();
-    mTotalFrames = streamLen / averageFrameLen;
+    mFrames.push_back (new cFrame (stream, frameLen, powerValues, freqValues, lumaValues));
 
     // calc silent window
     auto frameNum = getLastFrame();
