@@ -1,6 +1,8 @@
 // cHttp.h - http base class based on tinyHttp parser
 #pragma once
 //{{{  includes
+#include <stdlib.h>
+
 #include <string>
 #include <sstream>
 #include <iostream>
@@ -11,22 +13,19 @@ class cHttp {
 public:
   //{{{
   cHttp() {
-    mScratch = (char*)bigMalloc (kMaxScratch, "httpScratch");
+    mScratch = (char*)malloc (kInitialScratchSize);
+    mScratchAllocSize = kInitialScratchSize;
     }
   //}}}
   //{{{
   virtual ~cHttp() {
 
-    bigFree (mContent);
-    bigFree (mScratch);
+    free (mContent);
+    free (mScratch);
 
     if (mRedirectUrl)
       delete mRedirectUrl;
     }
-  //}}}
-  //{{{  new, delete
-  void* operator new (std::size_t size) { return bigMalloc (size, "cHttp"); }
-  void operator delete (void* ptr) { bigFree (ptr); }
   //}}}
   virtual void initialise() = 0;
 
@@ -35,7 +34,6 @@ public:
   uint8_t* getContent() { return mContent; }
   int getContentSize() { return mContentSize; }
   std::string getLastHost() { return mLastHost; }
-  std::string getLastPath() { return mLastPath; }
 
   //{{{
   int get (const std::string& host, std::string path) {
@@ -43,8 +41,8 @@ public:
 
     mResponse = 0;
 
-    mState = http_header;
-    mParseHeaderState = http_parse_header_done;
+    mState = eHttp_header;
+    mParseHeaderState = eHttp_parse_header_done;
     mChunked = 0;
 
     mKeyStrLen = 0;
@@ -73,7 +71,7 @@ public:
     if (response == 302) {
       response = get (mRedirectUrl->host, path);
       if (response != 200)
-        printf ("cHttp - redirect error\n");
+        cLog::log (LOGERROR, "cHttp - redirect error");
       return response == 200 ? mRedirectUrl->host : host;
       }
 
@@ -82,7 +80,7 @@ public:
   //}}}
   //{{{
   void freeContent() {
-    bigFree (mContent);
+    free (mContent);
     mContent = nullptr;
     mContentSize = 0;
     }
@@ -91,17 +89,17 @@ public:
 protected:
   virtual int connectToHost (const std::string& host) = 0;
   virtual bool getSend (const std::string& sendStr) = 0;
+  virtual int getRecv (uint8_t* buffer, int bufferSize) { return 0; }
   //{{{
   virtual int getAllRecv() {
 
-    auto buffer = (uint8_t*)bigMalloc (kRecvBuffer, "getBuf");
+    uint8_t buffer[2048];
 
-    auto needMoreData = true;
+    bool needMoreData = true;
     while (needMoreData) {
       auto bufferPtr = buffer;
-      int bufferBytesReceived = getRecv (buffer, kRecvBuffer);
+      int bufferBytesReceived = getRecv (buffer, 2048);
       if (bufferBytesReceived <= 0) {
-        bigFree (buffer);
         return bufferBytesReceived;
         }
 
@@ -113,161 +111,7 @@ protected:
         }
       }
 
-    bigFree (buffer);
     return 0;
-    }
-  //}}}
-  virtual int getRecv (uint8_t* buffer, int bufferSize) { return 0; }
-
-  //{{{
-  bool parseRecvData (const uint8_t* data, int length, int& read) {
-
-    auto initialLength = length;
-    while (length) {
-      switch (mState) {
-        case http_header:
-          switch (parseHeaderChar (*data)) {
-            case http_parse_header_code_character:
-              //{{{  code char
-              mResponse = mResponse * 10 + *data - '0';
-              break;
-              //}}}
-            case http_parse_header_done:
-              //{{{  code done
-              if (mParseHeaderState != 0)
-                mState = http_error;
-
-              else if (mChunked) {
-                mContentLen = 0;
-                mState = http_chunk_header;
-                }
-
-              else if (mContentLen == 0)
-                mState = http_close;
-
-              else if (mContentLen > 0)
-                mState = http_raw_data;
-
-              else
-                mState = http_error;
-
-              break;
-              //}}}
-            case http_parse_header_key_character:
-              //{{{  header key char
-              mScratch [mKeyStrLen] = tolower (*data);
-              if (mKeyStrLen >= kMaxScratch)
-                cLog::log (LOGERROR, "mScratch header key overflow " + dec (mKeyStrLen) + " > " + dec (kMaxScratch));
-              else
-                mKeyStrLen++;
-              break;
-              //}}}
-            case http_parse_header_value_character:
-              //{{{  header value char
-              mScratch [mKeyStrLen + mValueStrLen] = *data;
-              if (mKeyStrLen + mValueStrLen >= kMaxScratch)
-                cLog::log(LOGERROR, "mScratch header value overflow " + dec(mKeyStrLen + mValueStrLen) + " > " + dec (kMaxScratch));
-              else
-                mValueStrLen++;
-              break;
-              //}}}
-            case http_parse_header_store_keyvalue: {
-              //{{{  key value done
-              if ((mKeyStrLen == 17) && (strncmp (mScratch, "transfer-encoding", mKeyStrLen) == 0)) {
-                mChunked = (mValueStrLen == 7) && (strncmp (mScratch + mKeyStrLen, "chunked", mValueStrLen) == 0);
-                }
-              else if ((mKeyStrLen == 14) && (strncmp (mScratch, "content-length", mKeyStrLen) == 0)) {
-                mContentLen = 0;
-                for (int ii = mKeyStrLen, end = mKeyStrLen + mValueStrLen; ii != end; ++ii)
-                  mContentLen = mContentLen * 10 + mScratch[ii] - '0';
-                mContent = (uint8_t*)bigMalloc (mContentLen, "httpContent");
-                }
-
-              else if ((mKeyStrLen == 8) && (strncmp (mScratch, "location", mKeyStrLen) == 0)) {
-                if (!mRedirectUrl)
-                  mRedirectUrl = new cUrl();
-                mRedirectUrl->parse (mScratch + mKeyStrLen, mValueStrLen);
-                }
-
-              mKeyStrLen = 0;
-              mValueStrLen = 0;
-              break;
-              }
-              //}}}
-            default:;
-            }
-          --length;
-          ++data;
-          break;
-        //{{{
-        case http_raw_data: {
-          int chunksize = (length < mContentLen) ? length : mContentLen;
-
-          if (mContent) {
-            memcpy (mContent + mContentSize, data, chunksize);
-            mContentSize += chunksize;
-            }
-          mContentLen -= chunksize;
-          length -= chunksize;
-          data += chunksize;
-
-          if (mContentLen == 0)
-            mState = http_close;
-          }
-          break;
-        //}}}
-        //{{{
-        case http_chunk_header:
-          if (!parseChunked (mContentLen, *data)) {
-            if (mContentLen == -1)
-              mState = http_error;
-            else if (mContentLen == 0)
-              mState = http_close;
-            else
-              mState = http_chunk_data;
-            }
-
-          --length;
-          ++data;
-          break;
-        //}}}
-        //{{{
-        case http_chunk_data: {
-          int chunksize = (length < mContentLen) ? length : mContentLen;
-
-          if (!mContent) {
-            mContent = (uint8_t*)bigMalloc (mContentLen, "httpContent");
-            memcpy (mContent + mContentSize, data, chunksize);
-            mContentSize += chunksize;
-            }
-          else
-            printf ("implement more than 1 data chunk\n");
-
-          mContentLen -= chunksize;
-          length -= chunksize;
-          data += chunksize;
-
-          if (mContentLen == 0) {
-            mContentLen = 1;
-            mState = http_chunk_header;
-            }
-          }
-          break;
-        //}}}
-        case http_close:
-        case http_error:
-          break;
-        default:;
-        }
-
-      if (mState == http_error || mState == http_close) {
-        read = initialLength - length;
-        return false;
-        }
-      }
-
-    read = initialLength - length;
-    return true;
     }
   //}}}
 
@@ -275,30 +119,30 @@ protected:
   std::string mLastPath;
 
 private:
-  const int kMaxScratch = 600;
-  const int kRecvBuffer = 220000;
+  const int kInitialScratchSize = 256;
   //{{{
   enum eState {
-    http_header,
-    http_chunk_header,
-    http_chunk_data,
-    http_raw_data,
-    http_close,
-    http_error,
+    eHttp_header,
+    eHttp_chunk_header,
+    eHttp_chunk_data,
+    eHttp_raw_data,
+    eHttp_close,
+    eHttp_error,
     };
   //}}}
   //{{{
   enum eParseHeaderState {
-    http_parse_header_done,
-    http_parse_header_continue,
-    http_parse_header_version_character,
-    http_parse_header_code_character,
-    http_parse_header_status_character,
-    http_parse_header_key_character,
-    http_parse_header_value_character,
-    http_parse_header_store_keyvalue
+    eHttp_parse_header_done,
+    eHttp_parse_header_continue,
+    eHttp_parse_header_version_character,
+    eHttp_parse_header_code_character,
+    eHttp_parse_header_status_character,
+    eHttp_parse_header_key_character,
+    eHttp_parse_header_value_character,
+    eHttp_parse_header_store_keyvalue
     };
   //}}}
+
   //{{{
   const uint8_t kHeaderState[88] = {
   //  *    \t    \n   \r    ' '     ,     :   PAD
@@ -325,6 +169,7 @@ private:
     0xC1, 0xC0, 0xC1, 0xC1, // s4: LF after chunk block
     };
   //}}}
+
   //{{{
   class cUrl {
   public:
@@ -334,7 +179,6 @@ private:
     //}}}
     //{{{
     ~cUrl() {
-
       smallFree (scheme);
       smallFree(host);
       smallFree(port);
@@ -344,6 +188,7 @@ private:
       smallFree(password);
       }
     //}}}
+
     //{{{
     void parse (const char* url, int urlLen) {
     // parseUrl, see RFC 1738, 3986
@@ -364,8 +209,8 @@ private:
           return;
 
       // Copy the scheme to the storage
-      scheme = (char*)smallMalloc (len+1, "url");
-      strncpy (scheme, curstr, len);
+      scheme = (char*)malloc (len+1);
+      strncpy_s (scheme, len+1, curstr, len);
       scheme[len] = '\0';
 
       // Make the character to lower if it is upper case.
@@ -411,8 +256,8 @@ private:
            tmpstr++;
 
         len = tmpstr - curstr;
-        username = (char*)smallMalloc(len+1, "url");
-        strncpy (username, curstr, len);
+        username = (char*)malloc(len+1);
+        strncpy_s (username, len+1, curstr, len);
         username[len] = '\0';
         //}}}
         // Proceed current pointer
@@ -426,8 +271,8 @@ private:
             tmpstr++;
 
           len = tmpstr - curstr;
-          password = (char*)smallMalloc(len+1, "url");
-          strncpy (password, curstr, len);
+          password = (char*)malloc(len+1);
+          strncpy_s (password, len+1, curstr, len);
           password[len] = '\0';
           curstr = tmpstr;
           }
@@ -456,8 +301,8 @@ private:
         }
 
       len = tmpstr - curstr;
-      host = (char*)smallMalloc(len+1, "url");
-      strncpy (host, curstr, len);
+      host = (char*)malloc(len+1);
+      strncpy_s (host, len+1, curstr, len);
       host[len] = '\0';
       curstr = tmpstr;
       //}}}
@@ -471,8 +316,8 @@ private:
           tmpstr++;
 
         len = tmpstr - curstr;
-        port = (char*)smallMalloc(len+1, "httpPort");
-        strncpy (port, curstr, len);
+        port = (char*)malloc(len+1);
+        strncpy_s (port, len+1, curstr, len);
         port[len] = '\0';
         curstr = tmpstr;
         }
@@ -494,8 +339,8 @@ private:
         tmpstr++;
 
       len = tmpstr - curstr;
-      path = (char*)smallMalloc(len+1, "url");
-      strncpy (path, curstr, len);
+      path = (char*)malloc(len+1);
+      strncpy_s (path, len+1, curstr, len);
       path[len] = '\0';
       curstr = tmpstr;
       //}}}
@@ -510,8 +355,8 @@ private:
           tmpstr++;
         len = tmpstr - curstr;
 
-        query = (char*)smallMalloc(len+1, "url");
-        strncpy (query, curstr, len);
+        query = (char*)malloc(len+1);
+        strncpy_s (query, len+1, curstr, len);
         query[len] = '\0';
         curstr = tmpstr;
         }
@@ -527,8 +372,8 @@ private:
           tmpstr++;
         len = tmpstr - curstr;
 
-        fragment = (char*)smallMalloc(len+1, "uel");
-        strncpy (fragment, curstr, len);
+        fragment = (char*)malloc(len+1);
+        strncpy_s (fragment, len+1, curstr, len);
         fragment[len] = '\0';
 
         curstr = tmpstr;
@@ -536,7 +381,8 @@ private:
       //}}}
       }
     //}}}
-    //{{{  public vars
+
+    // vars
     char* scheme;    // mandatory
     char* host;      // mandatory
     char* path;      // optional
@@ -545,12 +391,11 @@ private:
     char* password;  // optional
     char* query;     // optional
     char* fragment;  // optional
-    //}}}
     };
   //}}}
 
   //{{{
-  bool parseChunked (int& size, char ch) {
+  bool parseChunk (int& size, char ch) {
   // Parses the size out of a chunk-encoded HTTP response. Returns non-zero if it
   // needs more data. Retuns zero success or error. When error: size == -1 On
   // success, size = size of following chunk data excluding trailing \r\n. User is
@@ -623,31 +468,198 @@ private:
     mParseHeaderState = (eParseHeaderState)(newstate & 0xF);
 
     switch (newstate) {
-      case 0xC0: return http_parse_header_done;
-      case 0xC1: return http_parse_header_done;
-      case 0xC4: return http_parse_header_store_keyvalue;
-      case 0x80: return http_parse_header_version_character;
-      case 0x81: return http_parse_header_code_character;
-      case 0x82: return http_parse_header_status_character;
-      case 0x84: return http_parse_header_key_character;
-      case 0x87: return http_parse_header_value_character;
-      case 0x88: return http_parse_header_value_character;
+      case 0xC0: return eHttp_parse_header_done;
+      case 0xC1: return eHttp_parse_header_done;
+      case 0xC4: return eHttp_parse_header_store_keyvalue;
+      case 0x80: return eHttp_parse_header_version_character;
+      case 0x81: return eHttp_parse_header_code_character;
+      case 0x82: return eHttp_parse_header_status_character;
+      case 0x84: return eHttp_parse_header_key_character;
+      case 0x87: return eHttp_parse_header_value_character;
+      case 0x88: return eHttp_parse_header_value_character;
       }
 
-    return http_parse_header_continue;
+    return eHttp_parse_header_continue;
+    }
+  //}}}
+  //{{{
+  bool parseRecvData (const uint8_t* data, int length, int& bytesRead) {
+
+    auto initialLength = length;
+    while (length) {
+      switch (mState) {
+        case eHttp_header:
+          switch (parseHeaderChar (*data)) {
+            case eHttp_parse_header_code_character:
+              //{{{  code char
+              mResponse = mResponse * 10 + *data - '0';
+              break;
+              //}}}
+            case eHttp_parse_header_done:
+              //{{{  code done
+              if (mParseHeaderState != 0)
+                mState = eHttp_error;
+
+              else if (mChunked) {
+                mContentLen = 0;
+                mState = eHttp_chunk_header;
+                }
+
+              else if (mContentLen == 0)
+                mState = eHttp_close;
+
+              else if (mContentLen > 0)
+                mState = eHttp_raw_data;
+
+              else
+                mState = eHttp_error;
+
+              break;
+              //}}}
+            case eHttp_parse_header_key_character:
+              //{{{  header key char
+              if (mKeyStrLen >= mScratchAllocSize) {
+                mScratchAllocSize *= 2;
+                mScratch = (char*)realloc (mScratch, mScratchAllocSize);
+                cLog::log (LOGINFO, "mScratch key realloc %d %d", mKeyStrLen, mScratchAllocSize);
+                }
+              mScratch [mKeyStrLen] = tolower (*data);
+              mKeyStrLen++;
+
+              break;
+              //}}}
+            case eHttp_parse_header_value_character:
+              //{{{  header value char
+
+              if (mKeyStrLen + mValueStrLen >= mScratchAllocSize) {
+                mScratchAllocSize *= 2;
+                mScratch = (char*)realloc (mScratch, mScratchAllocSize);
+                cLog::log (LOGINFO, "mScratch value realloc %d %d", mKeyStrLen + mValueStrLen, mScratchAllocSize);
+                }
+              mScratch [mKeyStrLen + mValueStrLen] = *data;
+              mValueStrLen++;
+
+              break;
+              //}}}
+            case eHttp_parse_header_store_keyvalue: {
+              //{{{  key value done
+              if ((mKeyStrLen == 17) && (strncmp (mScratch, "transfer-encoding", mKeyStrLen) == 0)) {
+                mChunked = (mValueStrLen == 7) && (strncmp (mScratch + mKeyStrLen, "chunked", mValueStrLen) == 0);
+                }
+
+              else if ((mKeyStrLen == 14) && (strncmp (mScratch, "content-length", mKeyStrLen) == 0)) {
+                mContentLen = 0;
+                for (int ii = mKeyStrLen, end = mKeyStrLen + mValueStrLen; ii != end; ++ii)
+                  mContentLen = mContentLen * 10 + mScratch[ii] - '0';
+                mContent = (uint8_t*)malloc (mContentLen);
+                }
+
+              else if ((mKeyStrLen == 8) && (strncmp (mScratch, "location", mKeyStrLen) == 0)) {
+                if (!mRedirectUrl)
+                  mRedirectUrl = new cUrl();
+                mRedirectUrl->parse (mScratch + mKeyStrLen, mValueStrLen);
+                }
+
+              mKeyStrLen = 0;
+              mValueStrLen = 0;
+              break;
+              }
+              //}}}
+            default:;
+            }
+          data++;
+          length--;
+          break;
+
+        //{{{
+        case eHttp_raw_data: {
+          int chunksize = (length < mContentLen) ? length : mContentLen;
+
+          if (mContent) {
+            memcpy (mContent + mContentSize, data, chunksize);
+            mContentSize += chunksize;
+            }
+
+          mContentLen -= chunksize;
+          length -= chunksize;
+          data += chunksize;
+
+          if (mContentLen == 0)
+            mState = eHttp_close;
+          }
+
+          break;
+        //}}}
+        //{{{
+        case eHttp_chunk_header:
+          if (!parseChunk (mContentLen, *data)) {
+            if (mContentLen == -1)
+              mState = eHttp_error;
+            else if (mContentLen == 0)
+              mState = eHttp_close;
+            else
+              mState = eHttp_chunk_data;
+            }
+
+          data++;
+          length--;
+
+          break;
+        //}}}
+        //{{{
+        case eHttp_chunk_data: {
+          int chunksize = (length < mContentLen) ? length : mContentLen;
+
+          cLog::log (LOGINFO, "chunked data %d", mContentLen);
+          if (!mContent) {
+            mContent = (uint8_t*)malloc (mContentLen);
+            memcpy (mContent + mContentSize, data, chunksize);
+            mContentSize += chunksize;
+            }
+          else
+            cLog::log (LOGERROR, "implement more than 1 data chunk");
+
+          mContentLen -= chunksize;
+          length -= chunksize;
+          data += chunksize;
+
+          if (mContentLen == 0) {
+            mContentLen = 1;
+            mState = eHttp_chunk_header;
+            }
+          }
+
+          break;
+        //}}}
+        case eHttp_close:
+        case eHttp_error:
+          break;
+        default:;
+        }
+
+      if ((mState == eHttp_error) || (mState == eHttp_close)) {
+        bytesRead = initialLength - length;
+        return false;
+        }
+      }
+
+    bytesRead = initialLength - length;
+    return true;
     }
   //}}}
 
   //{{{  private vars
   int mResponse = 0;
-  eState mState = http_header;
-  eParseHeaderState mParseHeaderState = http_parse_header_done;
+  eState mState = eHttp_header;
+  eParseHeaderState mParseHeaderState = eHttp_parse_header_done;
   int mChunked = 0;
 
   int mKeyStrLen = 0;
   int mValueStrLen = 0;
 
   char* mScratch;
+  int mScratchAllocSize = 0;
+
   cUrl* mRedirectUrl = nullptr;
 
   uint8_t* mContent = nullptr;

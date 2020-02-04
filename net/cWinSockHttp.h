@@ -1,6 +1,9 @@
 // cWinSock.h - winSock http
 #pragma once
+
 #include "cHttp.h"
+#include <winsock2.h>
+#include <WS2tcpip.h>
 
 class cWinSockHttp : public cHttp {
 public:
