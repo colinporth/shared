@@ -33,7 +33,6 @@ public:
   int getResponse() { return mResponse; }
   uint8_t* getContent() { return mContent; }
   int getContentSize() { return mContentSize; }
-  std::string getLastHost() { return mLastHost; }
 
   //{{{
   int get (const std::string& host, std::string path) {
@@ -43,7 +42,7 @@ public:
 
     mState = eHttp_header;
     mParseHeaderState = eHttp_parse_header_done;
-    mChunked = 0;
+    mChunked = false;
 
     mKeyStrLen = 0;
     mValueStrLen = 0;
@@ -84,6 +83,7 @@ public:
 
     auto response = get (host, path);
     if (response == 302) {
+      cLog::log (LOGINFO, "getRedirect %s", mRedirectUrl->host);
       response = get (mRedirectUrl->host, path);
       if (response != 200)
         cLog::log (LOGERROR, "cHttp - redirect error");
@@ -105,8 +105,6 @@ protected:
   virtual int connectToHost (const std::string& host) = 0;
   virtual bool getSend (const std::string& sendStr) = 0;
   virtual int getRecv (uint8_t* buffer, int bufferSize) { return 0; }
-
-  std::string mLastHost;
 
 private:
   constexpr static int kRecvBufferSize = 1024;
@@ -534,11 +532,12 @@ private:
               //}}}
             case eHttp_parse_header_store_keyvalue: {
               //{{{  key value done
-              if ((mKeyStrLen == 17) && (strncmp (mScratch, "transfer-encoding", mKeyStrLen) == 0)) {
+              if ((mKeyStrLen == 17) && (strncmp (mScratch, "transfer-encoding", mKeyStrLen) == 0))
+                // transfer-encoding chunked
                 mChunked = (mValueStrLen == 7) && (strncmp (mScratch + mKeyStrLen, "chunked", mValueStrLen) == 0);
-                }
 
               else if ((mKeyStrLen == 14) && (strncmp (mScratch, "content-length", mKeyStrLen) == 0)) {
+                // content-length len
                 mContentLen = 0;
                 for (int ii = mKeyStrLen, end = mKeyStrLen + mValueStrLen; ii != end; ++ii)
                   mContentLen = mContentLen * 10 + mScratch[ii] - '0';
@@ -546,6 +545,7 @@ private:
                 }
 
               else if ((mKeyStrLen == 8) && (strncmp (mScratch, "location", mKeyStrLen) == 0)) {
+                // location url redirect
                 if (!mRedirectUrl)
                   mRedirectUrl = new cUrl();
                 mRedirectUrl->parse (mScratch + mKeyStrLen, mValueStrLen);
@@ -564,16 +564,16 @@ private:
 
         //{{{
         case eHttp_raw_data: {
-          int chunksize = (length < mContentLen) ? length : mContentLen;
+          int chunkSize = (length < mContentLen) ? length : mContentLen;
 
           if (mContent) {
-            memcpy (mContent + mContentSize, data, chunksize);
-            mContentSize += chunksize;
+            memcpy (mContent + mContentSize, data, chunkSize);
+            mContentSize += chunkSize;
             }
 
-          mContentLen -= chunksize;
-          length -= chunksize;
-          data += chunksize;
+          mContentLen -= chunkSize;
+          length -= chunkSize;
+          data += chunkSize;
 
           if (mContentLen == 0)
             mState = eHttp_close;
@@ -581,6 +581,7 @@ private:
 
           break;
         //}}}
+
         //{{{
         case eHttp_chunk_header:
           if (!parseChunk (mContentLen, *data)) {
@@ -622,9 +623,11 @@ private:
 
           break;
         //}}}
+
         case eHttp_close:
         case eHttp_error:
           break;
+
         default:;
         }
 
@@ -641,9 +644,10 @@ private:
 
   //{{{  private vars
   int mResponse = 0;
+
   eState mState = eHttp_header;
   eParseHeaderState mParseHeaderState = eHttp_parse_header_done;
-  int mChunked = 0;
+  bool mChunked = 0;
 
   int mKeyStrLen = 0;
   int mValueStrLen = 0;
