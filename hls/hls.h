@@ -612,7 +612,7 @@ private:
 
     const int kBaseTimeSecondsOffset = 17;
 
-    mHost = http.getRedirectable (kSrc, getM3u8path());
+    mHost = http.getRedirect (kSrc, getM3u8path());
 
     // point to #EXT-X-MEDIA-SEQUENCE: sequence num str
     const auto kExtSeq = "#EXT-X-MEDIA-SEQUENCE:";

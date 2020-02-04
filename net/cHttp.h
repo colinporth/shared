@@ -58,14 +58,29 @@ public:
     if (!getSend ("GET /" + path + " HTTP/1.1\r\nHost: " + host + "\r\n\r\n"))
       return 0;
 
-    getAllRecv();
+    uint8_t buffer[kRecvBufferSize];
 
-    mLastPath = path;
+    bool needMoreData = true;
+    while (needMoreData) {
+      auto bufferPtr = buffer;
+      auto bufferBytesReceived = getRecv (buffer, sizeof(buffer));
+      if (bufferBytesReceived <= 0)
+        break;
+      //cLog::log (LOGINFO, "getAllRecv %d", bufferBytesReceived);
+
+      while (needMoreData && (bufferBytesReceived > 0)) {
+        int bytesReceived;
+        needMoreData = parseRecvData (bufferPtr, bufferBytesReceived, bytesReceived);
+        bufferBytesReceived -= bytesReceived;
+        bufferPtr += bytesReceived;
+        }
+      }
+
     return mResponse;
     }
   //}}}
   //{{{
-  std::string getRedirectable (const std::string& host, const std::string& path) {
+  std::string getRedirect (const std::string& host, const std::string& path) {
 
     auto response = get (host, path);
     if (response == 302) {
@@ -90,33 +105,8 @@ protected:
   virtual int connectToHost (const std::string& host) = 0;
   virtual bool getSend (const std::string& sendStr) = 0;
   virtual int getRecv (uint8_t* buffer, int bufferSize) { return 0; }
-  //{{{
-  virtual int getAllRecv() {
-
-    uint8_t buffer[kRecvBufferSize];
-
-    bool needMoreData = true;
-    while (needMoreData) {
-      auto bufferPtr = buffer;
-      auto bufferBytesReceived = getRecv (buffer, sizeof(buffer));
-      if (bufferBytesReceived <= 0)
-        return bufferBytesReceived;
-      //cLog::log (LOGINFO, "getAllRecv %d", bufferBytesReceived);
-
-      while (needMoreData && (bufferBytesReceived > 0)) {
-        int bytesReceived;
-        needMoreData = parseRecvData (bufferPtr, bufferBytesReceived, bytesReceived);
-        bufferBytesReceived -= bytesReceived;
-        bufferPtr += bytesReceived;
-        }
-      }
-
-    return 0;
-    }
-  //}}}
 
   std::string mLastHost;
-  std::string mLastPath;
 
 private:
   constexpr static int kRecvBufferSize = 1024;
