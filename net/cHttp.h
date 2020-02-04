@@ -93,15 +93,15 @@ protected:
   //{{{
   virtual int getAllRecv() {
 
-    uint8_t buffer[2048];
+    uint8_t buffer[kRecvBufferSize];
 
     bool needMoreData = true;
     while (needMoreData) {
       auto bufferPtr = buffer;
-      int bufferBytesReceived = getRecv (buffer, 2048);
-      if (bufferBytesReceived <= 0) {
+      auto bufferBytesReceived = getRecv (buffer, sizeof(buffer));
+      if (bufferBytesReceived <= 0)
         return bufferBytesReceived;
-        }
+      //cLog::log (LOGINFO, "getAllRecv %d", bufferBytesReceived);
 
       while (needMoreData && (bufferBytesReceived > 0)) {
         int bytesReceived;
@@ -119,7 +119,8 @@ protected:
   std::string mLastPath;
 
 private:
-  const int kInitialScratchSize = 256;
+  constexpr static int kRecvBufferSize = 1024;
+  constexpr static int kInitialScratchSize = 256;
   //{{{
   enum eState {
     eHttp_header,
@@ -146,27 +147,27 @@ private:
   //{{{
   const uint8_t kHeaderState[88] = {
   //  *    \t    \n   \r    ' '     ,     :   PAD
-    0x80,    1, 0xC1, 0xC1,    1, 0x80, 0x80, 0xC1, // state 0: HTTP version
-    0x81,    2, 0xC1, 0xC1,    2,    1,    1, 0xC1, // state 1: Response code
-    0x82, 0x82,    4,    3, 0x82, 0x82, 0x82, 0xC1, // state 2: Response reason
-    0xC1, 0xC1,    4, 0xC1, 0xC1, 0xC1, 0xC1, 0xC1, // state 3: HTTP version newline
-    0x84, 0xC1, 0xC0,    5, 0xC1, 0xC1,    6, 0xC1, // state 4: Start of header field
-    0xC1, 0xC1, 0xC0, 0xC1, 0xC1, 0xC1, 0xC1, 0xC1, // state 5: Last CR before end of header
-    0x87,    6, 0xC1, 0xC1,    6, 0x87, 0x87, 0xC1, // state 6: leading whitespace before header value
-    0x87, 0x87, 0xC4,   10, 0x87, 0x88, 0x87, 0xC1, // state 7: header field value
-    0x87, 0x88,    6,    9, 0x88, 0x88, 0x87, 0xC1, // state 8: Split value field value
-    0xC1, 0xC1,    6, 0xC1, 0xC1, 0xC1, 0xC1, 0xC1, // state 9: CR after split value field
-    0xC1, 0xC1, 0xC4, 0xC1, 0xC1, 0xC1, 0xC1, 0xC1, // state 10:CR after header value
+    0x80,    1, 0xC1, 0xC1,    1, 0x80, 0x80, 0xC1,  // state 0:  HTTP version
+    0x81,    2, 0xC1, 0xC1,    2,    1,    1, 0xC1,  // state 1:  Response code
+    0x82, 0x82,    4,    3, 0x82, 0x82, 0x82, 0xC1,  // state 2:  Response reason
+    0xC1, 0xC1,    4, 0xC1, 0xC1, 0xC1, 0xC1, 0xC1,  // state 3:  HTTP version newline
+    0x84, 0xC1, 0xC0,    5, 0xC1, 0xC1,    6, 0xC1,  // state 4:  Start of header field
+    0xC1, 0xC1, 0xC0, 0xC1, 0xC1, 0xC1, 0xC1, 0xC1,  // state 5:  Last CR before end of header
+    0x87,    6, 0xC1, 0xC1,    6, 0x87, 0x87, 0xC1,  // state 6:  leading whitespace before header value
+    0x87, 0x87, 0xC4,   10, 0x87, 0x88, 0x87, 0xC1,  // state 7:  header field value
+    0x87, 0x88,    6,    9, 0x88, 0x88, 0x87, 0xC1,  // state 8:  Split value field value
+    0xC1, 0xC1,    6, 0xC1, 0xC1, 0xC1, 0xC1, 0xC1,  // state 9:  CR after split value field
+    0xC1, 0xC1, 0xC4, 0xC1, 0xC1, 0xC1, 0xC1, 0xC1,  // state 10: CR after header value
     };
   //}}}
   //{{{
   const uint8_t kChunkState[20] = {
   //  *    LF    CR    HEX
-    0xC1, 0xC1, 0xC1,    1, // s0: initial hex char
-    0xC1, 0xC1,    2, 0x81, // s1: additional hex chars, followed by CR
-    0xC1, 0x83, 0xC1, 0xC1, // s2: trailing LF
-    0xC1, 0xC1,    4, 0xC1, // s3: CR after chunk block
-    0xC1, 0xC0, 0xC1, 0xC1, // s4: LF after chunk block
+    0xC1, 0xC1, 0xC1,    1,  // s0: initial hex char
+    0xC1, 0xC1,    2, 0x81,  // s1: additional hex chars, followed by CR
+    0xC1, 0x83, 0xC1, 0xC1,  // s2: trailing LF
+    0xC1, 0xC1,    4, 0xC1,  // s3: CR after chunk block
+    0xC1, 0xC0, 0xC1, 0xC1,  // s4: LF after chunk block
     };
   //}}}
 
@@ -483,7 +484,7 @@ private:
     }
   //}}}
   //{{{
-  bool parseRecvData (const uint8_t* data, int length, int& bytesRead) {
+  bool parseRecvData (const uint8_t* data, int length, int& bytesParsed) {
 
     auto initialLength = length;
     while (length) {
@@ -608,20 +609,20 @@ private:
         //}}}
         //{{{
         case eHttp_chunk_data: {
-          int chunksize = (length < mContentLen) ? length : mContentLen;
+          int chunkSize = (length < mContentLen) ? length : mContentLen;
 
-          cLog::log (LOGINFO, "chunked data %d", mContentLen);
+          cLog::log (LOGINFO, "chunked data %d chunksize %d", mContentLen, chunkSize);
           if (!mContent) {
             mContent = (uint8_t*)malloc (mContentLen);
-            memcpy (mContent + mContentSize, data, chunksize);
-            mContentSize += chunksize;
+            memcpy (mContent + mContentSize, data, chunkSize);
+            mContentSize += chunkSize;
             }
           else
             cLog::log (LOGERROR, "implement more than 1 data chunk");
 
-          mContentLen -= chunksize;
-          length -= chunksize;
-          data += chunksize;
+          mContentLen -= chunkSize;
+          length -= chunkSize;
+          data += chunkSize;
 
           if (mContentLen == 0) {
             mContentLen = 1;
@@ -638,12 +639,12 @@ private:
         }
 
       if ((mState == eHttp_error) || (mState == eHttp_close)) {
-        bytesRead = initialLength - length;
+        bytesParsed = initialLength - length;
         return false;
         }
       }
 
-    bytesRead = initialLength - length;
+    bytesParsed = initialLength - length;
     return true;
     }
   //}}}
