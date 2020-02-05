@@ -516,12 +516,61 @@ private:
         case eHttp_header:
           switch (parseHeaderChar (*data)) {
             case eHttp_parse_header_code_character:
-              //{{{  code char
+              //{{{  respone char
               mResponse = mResponse * 10 + *data - '0';
               break;
               //}}}
+            case eHttp_parse_header_key_character:
+              //{{{  key char
+              if (mKeyLen >= mScratchAllocSize) {
+                mScratchAllocSize *= 2;
+                mScratch = (char*)realloc (mScratch, mScratchAllocSize);
+                cLog::log (LOGINFO, "mScratch key realloc %d %d", mKeyLen, mScratchAllocSize);
+                }
+
+              mScratch [mKeyLen] = tolower (*data);
+              mKeyLen++;
+
+              break;
+              //}}}
+            case eHttp_parse_header_value_character:
+              //{{{  value char
+              if (mKeyLen + mValueLen >= mScratchAllocSize) {
+                mScratchAllocSize *= 2;
+                mScratch = (char*)realloc (mScratch, mScratchAllocSize);
+                cLog::log (LOGINFO, "mScratch value realloc %d %d", mKeyLen + mValueLen, mScratchAllocSize);
+                }
+
+              mScratch [mKeyLen + mValueLen] = *data;
+              mValueLen++;
+
+              break;
+              //}}}
+            case eHttp_parse_header_store_keyvalue: {
+              //{{{  key value 
+              std::string key = std::string (mScratch, size_t (mKeyLen));
+              std::string value = std::string (mScratch + mKeyLen, size_t (mValueLen));
+              headerCallback (key, value);
+              //cLog::log (LOGINFO, "header key:" + key + " value:" + value);
+
+              if (key == "content-length") {
+                mContentLen = stoi (value);
+                mContent = (uint8_t*)malloc (mContentLen);
+                mContentLenValid = true;
+                }
+              else if (key == "location")
+                mRedirectUrl.parse (value);
+              else if (key == "transfer-encoding")
+                mChunked = value == "chunked";
+
+              mKeyLen = 0;
+              mValueLen = 0;
+
+              break;
+              }
+              //}}}
             case eHttp_parse_header_done:
-              //{{{  code done
+              //{{{  done
               if (mParseHeaderState != 0)
                 mState = eHttp_error;
 
@@ -543,55 +592,6 @@ private:
                 mState = eHttp_error;
 
               break;
-              //}}}
-            case eHttp_parse_header_key_character:
-              //{{{  header key char
-              if (mKeyLen >= mScratchAllocSize) {
-                mScratchAllocSize *= 2;
-                mScratch = (char*)realloc (mScratch, mScratchAllocSize);
-                cLog::log (LOGINFO, "mScratch key realloc %d %d", mKeyLen, mScratchAllocSize);
-                }
-
-              mScratch [mKeyLen] = tolower (*data);
-              mKeyLen++;
-
-              break;
-              //}}}
-            case eHttp_parse_header_value_character:
-              //{{{  header value char
-              if (mKeyLen + mValueLen >= mScratchAllocSize) {
-                mScratchAllocSize *= 2;
-                mScratch = (char*)realloc (mScratch, mScratchAllocSize);
-                cLog::log (LOGINFO, "mScratch value realloc %d %d", mKeyLen + mValueLen, mScratchAllocSize);
-                }
-
-              mScratch [mKeyLen + mValueLen] = *data;
-              mValueLen++;
-
-              break;
-              //}}}
-            case eHttp_parse_header_store_keyvalue: {
-              //{{{  key value done
-              std::string key = std::string (mScratch, size_t (mKeyLen));
-              std::string value = std::string (mScratch + mKeyLen, size_t (mValueLen));
-              headerCallback (key, value);
-              //cLog::log (LOGINFO, "header key:" + key + " value:" + value);
-
-              if (key == "content-length") {
-                mContentLen = stoi (value);
-                mContent = (uint8_t*)malloc (mContentLen);
-                mContentLenValid = true;
-                }
-              else if (key == "location")
-                mRedirectUrl.parse (value);
-              else if (key == "transfer-encoding")
-                mChunked = value == "chunked";
-
-              mKeyLen = 0;
-              mValueLen = 0;
-
-              break;
-              }
               //}}}
             default:;
             }

@@ -14,14 +14,14 @@ public:
   //{{{  static constexpr
   constexpr static int kMaxSamplesPerFrame = 2048;
   constexpr static int kMaxFreq = (kMaxSamplesPerFrame/2) + 1;
-  constexpr static int kMaxSpectrum = kMaxFreq/2;
+  constexpr static int kMaxSpectrum = kMaxFreq;
   //}}}
   //{{{
   class cFrame {
   public:
     //{{{
-    cFrame (uint8_t* stream, uint32_t len, float* powerValues, float* freqValues, uint8_t* lumaValues)
-        : mStream(stream), mLen(len), mPowerValues(powerValues), mFreqValues(freqValues), mFreqLuma(lumaValues) {
+    cFrame (uint8_t* ptr, uint32_t len, float* powerValues, float* freqValues, uint8_t* lumaValues)
+        : mPtr(ptr), mLen(len), mPowerValues(powerValues), mFreqValues(freqValues), mFreqLuma(lumaValues) {
 
       mSilent = isSilentThreshold();
       }
@@ -34,7 +34,9 @@ public:
       }
     //}}}
 
-    uint8_t* getStream() { return mStream; }
+    uint8_t* getPtr() { return mPtr; }
+    int getLen() { return mLen; }
+
     float* getPowerValues() { return mPowerValues;  }
     float* getFreqValues() { return mFreqValues; }
     uint8_t* getFreqLuma() { return mFreqLuma; }
@@ -50,7 +52,7 @@ public:
     static constexpr float kSilentThreshold = 0.05f;
 
   private:
-    uint8_t* mStream;
+    uint8_t* mPtr;
     uint32_t mLen;
 
     float* mPowerValues;
@@ -102,14 +104,25 @@ public:
     }
   //}}}
   //{{{
-  uint8_t* getPlayFrameStream() {
+  uint8_t* getPlayFramePtr() {
 
     if (mPlayFrame < mFrames.size())
-      return mFrames[mPlayFrame]->getStream();
+      return mFrames[mPlayFrame]->getPtr();
     else if (!mFrames.empty())
-      return mFrames[mFrames.size()-1]->getStream();
-    else
-      return nullptr;
+      return mFrames[mFrames.size()-1]->getPtr();
+
+    return nullptr;
+    }
+  //}}}
+  //{{{
+  int getPlayFrameLen() {
+
+    if (mPlayFrame < mFrames.size())
+      return mFrames[mPlayFrame]->getLen();
+    else if (!mFrames.empty())
+      return mFrames[mFrames.size()-1]->getLen();
+
+     return 0;
     }
   //}}}
   //}}}
@@ -239,10 +252,13 @@ public:
 
   // public vars
   concurrency::concurrent_vector<cFrame*> mFrames;
+
   int mPlayFrame = 0;
+
   float mMaxPowerValue = kMinPowerValue;
   float mMaxFreqValue = 0.f;
   float mMaxFreqValues[kMaxFreq];
+
   cJpegImage* mImage = nullptr;
 
 private:
