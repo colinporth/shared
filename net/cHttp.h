@@ -15,22 +15,42 @@ public:
   //{{{
   class cUrl {
   public:
+    ~cUrl() { clear(); }
     //{{{
-    ~cUrl() {
+    void clear() {
       free (scheme);
+      scheme = nullptr;
+
       free (host);
+      host = nullptr;
+
       free (port);
+      port = nullptr;
+
       free (query);
+      query = nullptr;
+
       free (fragment);
+      fragment = nullptr;
+
       free (username);
+      username = nullptr;
+
       free (password);
+      password = nullptr;
       }
     //}}}
 
+    std::string getHost() { return host; }
     //{{{
-    void parse (const char* url, int urlLen) {
+    void parse (const std::string& urlString) {
     // parseUrl, see RFC 1738, 3986
+    // !!! keep converting to string !!!
 
+      clear();
+
+      auto url = urlString.c_str();
+      int urlLen = (int)urlString.size();
       auto curstr = url;
       //{{{  parse scheme
       // <scheme>:<scheme-specific-part>
@@ -220,7 +240,7 @@ public:
       }
     //}}}
 
-    // vars
+  private:
     char* scheme = nullptr;    // mandatory
     char* host = nullptr;      // mandatory
     char* path = nullptr;      // optional
@@ -243,9 +263,7 @@ public:
 
     free (mContent);
     free (mScratch);
-
-    if (mRedirectUrl)
-      delete mRedirectUrl;
+    mRedirectUrl.clear();
     }
   //}}}
   virtual void initialise() = 0;
@@ -301,10 +319,10 @@ public:
 
     auto response = get (host, path);
     if (response == 302) {
-      cLog::log (LOGINFO, "getRedirect host %s", mRedirectUrl->host);
-      response = get (mRedirectUrl->host, path);
+      cLog::log (LOGINFO, "getRedirect host " +  mRedirectUrl.getHost());
+      response = get (mRedirectUrl.getHost(), path);
       if (response == 200)
-        return mRedirectUrl->host;
+        return mRedirectUrl.getHost();
       else
         cLog::log (LOGERROR, "cHttp - redirect - get error");
       }
@@ -563,11 +581,8 @@ private:
                 mContent = (uint8_t*)malloc (mContentLen);
                 mContentLenValid = true;
                 }
-              else if (key == "location") {
-                if (!mRedirectUrl)
-                  mRedirectUrl = new cUrl();
-                mRedirectUrl->parse (mScratch + mKeyLen, mValueLen);
-                }
+              else if (key == "location")
+                mRedirectUrl.parse (value);
               else if (key == "transfer-encoding")
                 mChunked = value == "chunked";
 
@@ -694,16 +709,14 @@ private:
   bool mChunked = 0;
   bool mContentLenValid = false;
   int mContentLen = -1;
-
-  int mKeyLen = 0;
-  int mValueLen = 0;
+  uint8_t* mContent = nullptr;
+  int mContentSize = 0;
 
   char* mScratch;
   int mScratchAllocSize = 0;
+  int mKeyLen = 0;
+  int mValueLen = 0;
 
-  cUrl* mRedirectUrl = nullptr;
-
-  uint8_t* mContent = nullptr;
-  int mContentSize = 0;
+  cUrl mRedirectUrl;
   //}}}
   };
