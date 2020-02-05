@@ -10,232 +10,228 @@
 #include <functional>
 //}}}
 
-//{{{
-class cUrl {
+class cHttp {
 public:
   //{{{
-  cUrl() : scheme(nullptr), host(nullptr), path(nullptr), port(nullptr),
-                 username(nullptr), password(nullptr), query(nullptr), fragment(nullptr) {}
-  //}}}
-  //{{{
-  ~cUrl() {
-    smallFree (scheme);
-    smallFree(host);
-    smallFree(port);
-    smallFree(query);
-    smallFree(fragment);
-    smallFree(username);
-    smallFree(password);
-    }
-  //}}}
-
-  //{{{
-  void parse (const char* url, int urlLen) {
-  // parseUrl, see RFC 1738, 3986
-
-    auto curstr = url;
-    //{{{  parse scheme
-    // <scheme>:<scheme-specific-part>
-    // <scheme> := [a-z\+\-\.]+
-    //             upper case = lower case for resiliency
-    const char* tmpstr = strchr (curstr, ':');
-    if (!tmpstr)
-      return;
-    auto len = tmpstr - curstr;
-
-    // Check restrictions
-    for (auto i = 0; i < len; i++)
-      if (!isalpha (curstr[i]) && ('+' != curstr[i]) && ('-' != curstr[i]) && ('.' != curstr[i]))
-        return;
-
-    // Copy the scheme to the storage
-    scheme = (char*)malloc (len+1);
-    strncpy_s (scheme, len+1, curstr, len);
-    scheme[len] = '\0';
-
-    // Make the character to lower if it is upper case.
-    for (auto i = 0; i < len; i++)
-      scheme[i] = tolower (scheme[i]);
+  class cUrl {
+  public:
+    //{{{
+    ~cUrl() {
+      free (scheme);
+      free (host);
+      free (port);
+      free (query);
+      free (fragment);
+      free (username);
+      free (password);
+      }
     //}}}
 
-    // skip ':'
-    tmpstr++;
-    curstr = tmpstr;
-    //{{{  parse user, password
-    // <user>:<password>@<host>:<port>/<url-path>
-    // Any ":", "@" and "/" must be encoded.
-    // Eat "//" */
-    for (auto i = 0; i < 2; i++ ) {
-      if ('/' != *curstr )
+    //{{{
+    void parse (const char* url, int urlLen) {
+    // parseUrl, see RFC 1738, 3986
+
+      auto curstr = url;
+      //{{{  parse scheme
+      // <scheme>:<scheme-specific-part>
+      // <scheme> := [a-z\+\-\.]+
+      //             upper case = lower case for resiliency
+      const char* tmpstr = strchr (curstr, ':');
+      if (!tmpstr)
         return;
-      curstr++;
-      }
+      auto len = tmpstr - curstr;
 
-    // Check if the user (and password) are specified
-    auto userpass_flag = 0;
-    tmpstr = curstr;
-    while (tmpstr < url + urlLen) {
-      if ('@' == *tmpstr) {
-        // Username and password are specified
-        userpass_flag = 1;
-       break;
-        }
-      else if ('/' == *tmpstr) {
-        // End of <host>:<port> specification
-        userpass_flag = 0;
-        break;
-        }
+      // Check restrictions
+      for (auto i = 0; i < len; i++)
+        if (!isalpha (curstr[i]) && ('+' != curstr[i]) && ('-' != curstr[i]) && ('.' != curstr[i]))
+          return;
+
+      // Copy the scheme to the storage
+      scheme = (char*)malloc (len+1);
+      strncpy_s (scheme, len+1, curstr, len);
+      scheme[len] = '\0';
+
+      // Make the character to lower if it is upper case.
+      for (auto i = 0; i < len; i++)
+        scheme[i] = tolower (scheme[i]);
+      //}}}
+
+      // skip ':'
       tmpstr++;
-      }
+      curstr = tmpstr;
+      //{{{  parse user, password
+      // <user>:<password>@<host>:<port>/<url-path>
+      // Any ":", "@" and "/" must be encoded.
+      // Eat "//" */
+      for (auto i = 0; i < 2; i++ ) {
+        if ('/' != *curstr )
+          return;
+        curstr++;
+        }
 
-    // User and password specification
-    tmpstr = curstr;
-    if (userpass_flag) {
-      //{{{  Read username
-      while ((tmpstr < url + urlLen) && (':' != *tmpstr) && ('@' != *tmpstr))
-         tmpstr++;
+      // Check if the user (and password) are specified
+      auto userpass_flag = 0;
+      tmpstr = curstr;
+      while (tmpstr < url + urlLen) {
+        if ('@' == *tmpstr) {
+          // Username and password are specified
+          userpass_flag = 1;
+         break;
+          }
+        else if ('/' == *tmpstr) {
+          // End of <host>:<port> specification
+          userpass_flag = 0;
+          break;
+          }
+        tmpstr++;
+        }
+
+      // User and password specification
+      tmpstr = curstr;
+      if (userpass_flag) {
+        //{{{  Read username
+        while ((tmpstr < url + urlLen) && (':' != *tmpstr) && ('@' != *tmpstr))
+           tmpstr++;
+
+        len = tmpstr - curstr;
+        username = (char*)malloc(len+1);
+        strncpy_s (username, len+1, curstr, len);
+        username[len] = '\0';
+        //}}}
+        // Proceed current pointer
+        curstr = tmpstr;
+        if (':' == *curstr) {
+          // Skip ':'
+          curstr++;
+          //{{{  Read password
+          tmpstr = curstr;
+          while ((tmpstr < url + urlLen) && ('@' != *tmpstr))
+            tmpstr++;
+
+          len = tmpstr - curstr;
+          password = (char*)malloc(len+1);
+          strncpy_s (password, len+1, curstr, len);
+          password[len] = '\0';
+          curstr = tmpstr;
+          }
+          //}}}
+
+        // Skip '@'
+        if ('@' != *curstr)
+          return;
+        curstr++;
+        }
+      //}}}
+
+      auto bracket_flag = ('[' == *curstr) ? 1 : 0;
+      //{{{  parse host
+      tmpstr = curstr;
+      while (tmpstr < url + urlLen) {
+        if (bracket_flag && ']' == *tmpstr) {
+          // End of IPv6 address
+          tmpstr++;
+          break;
+          }
+        else if (!bracket_flag && (':' == *tmpstr || '/' == *tmpstr))
+          // Port number is specified
+          break;
+        tmpstr++;
+        }
 
       len = tmpstr - curstr;
-      username = (char*)malloc(len+1);
-      strncpy_s (username, len+1, curstr, len);
-      username[len] = '\0';
-      //}}}
-      // Proceed current pointer
+      host = (char*)malloc(len+1);
+      strncpy_s (host, len+1, curstr, len);
+      host[len] = '\0';
       curstr = tmpstr;
+      //}}}
+      //{{{  parse port number
       if (':' == *curstr) {
-        // Skip ':'
         curstr++;
-        //{{{  Read password
+
+        // Read port number
         tmpstr = curstr;
-        while ((tmpstr < url + urlLen) && ('@' != *tmpstr))
+        while ((tmpstr < url + urlLen) && ('/' != *tmpstr))
           tmpstr++;
 
         len = tmpstr - curstr;
-        password = (char*)malloc(len+1);
-        strncpy_s (password, len+1, curstr, len);
-        password[len] = '\0';
+        port = (char*)malloc(len+1);
+        strncpy_s (port, len+1, curstr, len);
+        port[len] = '\0';
         curstr = tmpstr;
         }
-        //}}}
+      //}}}
 
-      // Skip '@'
-      if ('@' != *curstr)
+      // end of string ?
+      if (curstr >= url + urlLen)
         return;
-      curstr++;
-      }
-    //}}}
 
-    auto bracket_flag = ('[' == *curstr) ? 1 : 0;
-    //{{{  parse host
-    tmpstr = curstr;
-    while (tmpstr < url + urlLen) {
-      if (bracket_flag && ']' == *tmpstr) {
-        // End of IPv6 address
+      //{{{  Skip '/'
+      if ('/' != *curstr)
+        return;
+
+      curstr++;
+      //}}}
+      //{{{  Parse path
+      tmpstr = curstr;
+      while ((tmpstr < url + urlLen) && ('#' != *tmpstr) && ('?' != *tmpstr))
         tmpstr++;
-        break;
+
+      len = tmpstr - curstr;
+      path = (char*)malloc(len+1);
+      strncpy_s (path, len+1, curstr, len);
+      path[len] = '\0';
+      curstr = tmpstr;
+      //}}}
+      //{{{  parse query
+      if ('?' == *curstr) {
+        // skip '?'
+        curstr++;
+
+        /* Read query */
+        tmpstr = curstr;
+        while ((tmpstr < url + urlLen) && ('#' != *tmpstr))
+          tmpstr++;
+        len = tmpstr - curstr;
+
+        query = (char*)malloc(len+1);
+        strncpy_s (query, len+1, curstr, len);
+        query[len] = '\0';
+        curstr = tmpstr;
         }
-      else if (!bracket_flag && (':' == *tmpstr || '/' == *tmpstr))
-        // Port number is specified
-        break;
-      tmpstr++;
-      }
+      //}}}
+      //{{{  parse fragment
+      if ('#' == *curstr) {
+        // Skip '#'
+        curstr++;
 
-    len = tmpstr - curstr;
-    host = (char*)malloc(len+1);
-    strncpy_s (host, len+1, curstr, len);
-    host[len] = '\0';
-    curstr = tmpstr;
-    //}}}
-    //{{{  parse port number
-    if (':' == *curstr) {
-      curstr++;
+        /* Read fragment */
+        tmpstr = curstr;
+        while (tmpstr < url + urlLen)
+          tmpstr++;
+        len = tmpstr - curstr;
 
-      // Read port number
-      tmpstr = curstr;
-      while ((tmpstr < url + urlLen) && ('/' != *tmpstr))
-        tmpstr++;
+        fragment = (char*)malloc(len+1);
+        strncpy_s (fragment, len+1, curstr, len);
+        fragment[len] = '\0';
 
-      len = tmpstr - curstr;
-      port = (char*)malloc(len+1);
-      strncpy_s (port, len+1, curstr, len);
-      port[len] = '\0';
-      curstr = tmpstr;
+        curstr = tmpstr;
+        }
+      //}}}
       }
     //}}}
 
-    // end of string ?
-    if (curstr >= url + urlLen)
-      return;
-
-    //{{{  Skip '/'
-    if ('/' != *curstr)
-      return;
-
-    curstr++;
-    //}}}
-    //{{{  Parse path
-    tmpstr = curstr;
-    while ((tmpstr < url + urlLen) && ('#' != *tmpstr) && ('?' != *tmpstr))
-      tmpstr++;
-
-    len = tmpstr - curstr;
-    path = (char*)malloc(len+1);
-    strncpy_s (path, len+1, curstr, len);
-    path[len] = '\0';
-    curstr = tmpstr;
-    //}}}
-    //{{{  parse query
-    if ('?' == *curstr) {
-      // skip '?'
-      curstr++;
-
-      /* Read query */
-      tmpstr = curstr;
-      while ((tmpstr < url + urlLen) && ('#' != *tmpstr))
-        tmpstr++;
-      len = tmpstr - curstr;
-
-      query = (char*)malloc(len+1);
-      strncpy_s (query, len+1, curstr, len);
-      query[len] = '\0';
-      curstr = tmpstr;
-      }
-    //}}}
-    //{{{  parse fragment
-    if ('#' == *curstr) {
-      // Skip '#'
-      curstr++;
-
-      /* Read fragment */
-      tmpstr = curstr;
-      while (tmpstr < url + urlLen)
-        tmpstr++;
-      len = tmpstr - curstr;
-
-      fragment = (char*)malloc(len+1);
-      strncpy_s (fragment, len+1, curstr, len);
-      fragment[len] = '\0';
-
-      curstr = tmpstr;
-      }
-    //}}}
-    }
+    // vars
+    char* scheme = nullptr;    // mandatory
+    char* host = nullptr;      // mandatory
+    char* path = nullptr;      // optional
+    char* port = nullptr;      // optional
+    char* username = nullptr;  // optional
+    char* password = nullptr;  // optional
+    char* query = nullptr;     // optional
+    char* fragment = nullptr;  // optional
+    };
   //}}}
 
-  // vars
-  char* scheme;    // mandatory
-  char* host;      // mandatory
-  char* path;      // optional
-  char* port;      // optional
-  char* username;  // optional
-  char* password;  // optional
-  char* query;     // optional
-  char* fragment;  // optional
-  };
-//}}}
-
-class cHttp {
-public:
   //{{{
   cHttp() {
     mScratch = (char*)malloc (kInitialScratchSize);
@@ -262,8 +258,8 @@ public:
   //{{{
   int get (const std::string& host, const std::string& path,
            const std::string& header = "",
-           const std::function<void (const std::string&, const std::string&)>& headerCallback = [](const std::string&, const std::string&) noexcept {},
-           const std::function<void (const uint8_t*, int)>& dataCallback = [](const uint8_t*, int) noexcept {}) {
+           const std::function<void (const std::string& key, const std::string& value)>& headerCallback = [](const std::string&, const std::string&) noexcept {},
+           const std::function<void (const uint8_t* data, int len)>& dataCallback = [](const uint8_t*, int) noexcept {}) {
   // send http GET request to host, return response code
 
     clear();
@@ -272,13 +268,12 @@ public:
     if (connectToHostResult < 0)
       return connectToHostResult;
 
-    if (getSend ("GET /" + path + " HTTP/1.1\r\n" +
-                 "Host: " + host + "\r\n" +
-                 (header.empty() ? "" : (header + "\r\n")) +
-                 "\r\n")) {
-
+    std::string request = "GET /" + path + " HTTP/1.1\r\n" +
+                          "Host: " + host + "\r\n" +
+                          (header.empty() ? "" : (header + "\r\n")) +
+                          "\r\n";
+    if (getSend (request)) {
       uint8_t buffer[kRecvBufferSize];
-
       bool needMoreData = true;
       while (needMoreData) {
         auto bufferPtr = buffer;
@@ -386,15 +381,18 @@ private:
 
   //{{{
   void clear() {
+
     mResponse = 0;
 
     mState = eHttp_header;
     mParseHeaderState = eHttp_parse_header_done;
+
     mChunked = false;
+    mContentLen = -1;
+    mContentLenValid = false;
 
     mKeyLen = 0;
     mValueLen = 0;
-    mContentLen = -1;
 
     freeContent();
     }
@@ -489,8 +487,8 @@ private:
   //}}}
   //{{{
   bool parseRecvData (const uint8_t* data, int length, int& bytesParsed,
-                      const std::function<void (const std::string&, const std::string&)>& headerCallback,
-                      const std::function<void (const uint8_t*, int)>& dataCallback) {
+                      const std::function<void (const std::string& key, const std::string& value)>& headerCallback,
+                      const std::function<void (const uint8_t* data, int len)>& dataCallback) {
 
     auto initialLength = length;
 
@@ -558,26 +556,20 @@ private:
               std::string key = std::string (mScratch, size_t (mKeyLen));
               std::string value = std::string (mScratch + mKeyLen, size_t (mValueLen));
               headerCallback (key, value);
-
               //cLog::log (LOGINFO, "header key:" + key + " value:" + value);
 
-              if ((mKeyLen == 17) && (strncmp (mScratch, "transfer-encoding", mKeyLen) == 0))
-                // transfer-encoding chunked
-                mChunked = (mValueLen == 7) && (strncmp (mScratch + mKeyLen, "chunked", mValueLen) == 0);
-              else if ((mKeyLen == 14) && (strncmp (mScratch, "content-length", mKeyLen) == 0)) {
-                // content-length len
-                mContentLen = 0;
-                for (int ii = mKeyLen, end = mKeyLen + mValueLen; ii != end; ++ii)
-                  mContentLen = mContentLen * 10 + mScratch[ii] - '0';
+              if (key == "content-length") {
+                mContentLen = stoi (value);
                 mContent = (uint8_t*)malloc (mContentLen);
                 mContentLenValid = true;
                 }
-              else if ((mKeyLen == 8) && (strncmp (mScratch, "location", mKeyLen) == 0)) {
-                // location url redirect
+              else if (key == "location") {
                 if (!mRedirectUrl)
                   mRedirectUrl = new cUrl();
                 mRedirectUrl->parse (mScratch + mKeyLen, mValueLen);
                 }
+              else if (key == "transfer-encoding")
+                mChunked = value == "chunked";
 
               mKeyLen = 0;
               mValueLen = 0;
