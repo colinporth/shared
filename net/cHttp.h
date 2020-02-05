@@ -42,6 +42,7 @@ public:
     //}}}
 
     std::string getHost() { return host; }
+    std::string getPath() { return path; }
     //{{{
     void parse (const std::string& urlString) {
     // parseUrl, see RFC 1738, 3986
