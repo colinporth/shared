@@ -38,7 +38,7 @@ public:
   int get (const std::string& host, const std::string& path,
            const std::string& header = "",
            const std::function<void (const std::string& key, const std::string& value)>& headerCallback = [](const std::string&, const std::string&) noexcept {},
-           const std::function<void (const uint8_t* data, int len)>& dataCallback = [](const uint8_t*, int) noexcept {}) {
+           const std::function<bool (const uint8_t* data, int len)>& dataCallback = [](const uint8_t*, int) noexcept { return true; }) {
   // send http GET request to host, return response code
 
     clear();
@@ -267,7 +267,7 @@ private:
   //{{{
   bool parseRecvData (const uint8_t* data, int length, int& bytesParsed,
                       const std::function<void (const std::string& key, const std::string& value)>& headerCallback,
-                      const std::function<void (const uint8_t* data, int len)>& dataCallback) {
+                      const std::function<bool (const uint8_t* data, int len)>& dataCallback) {
 
     auto initialLength = length;
 
@@ -428,7 +428,8 @@ private:
         //{{{
         case eHttp_stream_data: {
           //cLog::log (LOGINFO, "eHttp_stream_data len:%d", length);
-          dataCallback (data, length);
+          if (!dataCallback (data, length))
+            mState = eHttp_close;
 
           //int chunkSize = (length < mContentLen) ? length : mContentLen;
           //memcpy (mContent + mContentSize, data, chunkSize);
