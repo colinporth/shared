@@ -16,7 +16,6 @@
 #pragma comment(lib,"shlwapi.lib")
 //}}}
 
-//{{{
 class cFileItem {
 public:
   static const int kFields = 3;
@@ -67,7 +66,7 @@ public:
      std::string getPathName() const { return mPathName; }
      std::string getFileName() const { return mFileName; }
      std::string getExtension() const { return mExtension; }
-     std::string getFullName() const { return (mPathName.empty() ? mFileName : mPathName + "/" + mFileName) + 
+     std::string getFullName() const { return (mPathName.empty() ? mFileName : mPathName + "/" + mFileName) +
                                               (mExtension.empty() ? "" : "." + mExtension); }
 
      //{{{
@@ -133,7 +132,7 @@ public:
      //}}}
 
      //{{{
-    static bool compare (const cFileItem& a, const cFileItem& b) {
+     static bool compare (const cFileItem& a, const cFileItem& b) {
        switch (mCompareField) {
          case 0:  return mCompareFieldDescending ? (a.mFileName > b.mFileName) : (a.mFileName < b.mFileName);
          case 1:  return mCompareFieldDescending ? (a.mFileSize > b.mFileSize) : (a.mFileSize < b.mFileSize);
