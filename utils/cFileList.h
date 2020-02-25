@@ -326,6 +326,7 @@ private:
   //{{{
   void sort() {
     std::sort (mFileItemList.begin(), mFileItemList.end(),
+      // compare lambda
       [=](const cFileItem& a, const cFileItem& b) {
         switch (mCompareField) {
           case 0:  return mCompareFieldDescending ? (a.mFileName > b.mFileName) : (a.mFileName < b.mFileName);
