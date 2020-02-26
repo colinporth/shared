@@ -2,32 +2,28 @@
 /**************************************************************************************
  * MULSHIFT32(x, y)    signed multiply of two 32-bit integers (x and y),
  *                     returns top 32-bits of 64-bit result
- * CLIPTOSHORT(x)      convert 32-bit integer to 16-bit short,
+ * MADD64(sum64, x, y) 64-bit multiply accumulate: sum64 += (x*y)
  *                     clipping to [-32768, 32767]
  * FASTABS(x)          branchless absolute value of signed integer x
  * CLZ(x)              count leading zeros on signed integer x
- * MADD64(sum64, x, y) 64-bit multiply accumulate: sum64 += (x*y)
+ * CLIPTOSHORT(x)      convert 32-bit integer to 16-bit short,
  **************************************************************************************/
 
 //{{{
-static __inline int MULSHIFT32(int x, int y) {
-	__int64 x64 = x;
-	__int64 y64 = y;
-	__int64 res = x64 * y64;
-	return res >> 32;
-	}
+typedef union _U64 {
+	__int64 w64;
+	struct {
+		unsigned int lo32;
+		signed int   hi32;
+		} r;
+	} U64;
 //}}}
+
+inline int MULSHIFT32 (int x, int y) { return ((__int64)x * (__int64)y) >> 32; }
+inline __int64 MADD64 (__int64 sum64, int x, int y) { return sum64 + ((__int64)x * (__int64)y); }
+
 //{{{
-static __inline short CLIPTOSHORT(int x) {
-/* clip to [-32768, 32767] */
-	int sign = x >> 31;
-	if (sign != (x >> 15))
-		x = sign ^ ((1 << 15) - 1);
-	return (short)x;
-	}
-//}}}
-//{{{
-static __inline int FASTABS(int x) {
+inline int FASTABS (int x) {
 	int sign = x >> (sizeof(int) * 8 - 1);
 	x ^= sign;
 	x -= sign;
@@ -35,7 +31,7 @@ static __inline int FASTABS(int x) {
 	}
 //}}}
 //{{{
-static __inline int CLZ(int x) {
+inline int CLZ (int x) {
 /* count leading zeros with binary search */
 	if (!x)
 		return 32;
@@ -48,20 +44,13 @@ static __inline int CLZ(int x) {
 	return numZeros;
 	}
 //}}}
-
 //{{{
-typedef union _U64 {
-	__int64 w64;
-	struct {
-		unsigned int lo32;
-		signed int   hi32;
-		} r;
-	} U64;
-//}}}
-//{{{
-static __inline __int64 MADD64(__int64 sum64, int x, int y) {
-	sum64 += (__int64)x * (__int64)y;
-	return sum64;
+inline short CLIPTOSHORT (int x) {
+/* clip to [-32768, 32767] */
+	int sign = x >> 31;
+	if (sign != (x >> 15))
+		x = sign ^ ((1 << 15) - 1);
+	return (short)x;
 	}
 //}}}
 
