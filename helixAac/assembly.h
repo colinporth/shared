@@ -9,13 +9,15 @@
  * MADD64(sum64, x, y) 64-bit multiply accumulate: sum64 += (x*y)
  **************************************************************************************/
 
+//{{{
 static __inline int MULSHIFT32(int x, int y) {
 	__int64 x64 = x;
 	__int64 y64 = y;
 	__int64 res = x64 * y64;
 	return res >> 32;
 	}
-
+//}}}
+//{{{
 static __inline short CLIPTOSHORT(int x) {
 /* clip to [-32768, 32767] */
 	int sign = x >> 31;
@@ -23,14 +25,16 @@ static __inline short CLIPTOSHORT(int x) {
 		x = sign ^ ((1 << 15) - 1);
 	return (short)x;
 	}
-
+//}}}
+//{{{
 static __inline int FASTABS(int x) {
 	int sign = x >> (sizeof(int) * 8 - 1);
 	x ^= sign;
 	x -= sign;
 	return x;
 	}
-
+//}}}
+//{{{
 static __inline int CLZ(int x) {
 /* count leading zeros with binary search */
 	if (!x)
@@ -43,7 +47,9 @@ static __inline int CLZ(int x) {
 	numZeros -= ((unsigned int)x >> 31);
 	return numZeros;
 	}
+//}}}
 
+//{{{
 typedef union _U64 {
 	__int64 w64;
 	struct {
@@ -51,23 +57,23 @@ typedef union _U64 {
 		signed int   hi32;
 		} r;
 	} U64;
-
+//}}}
+//{{{
 static __inline __int64 MADD64(__int64 sum64, int x, int y) {
 	sum64 += (__int64)x * (__int64)y;
 	return sum64;
 	}
+//}}}
 
+//{{{
 #define CLIP_2N(y, n) {            \
 	int sign = (y) >> 31;            \
 	if (sign != (y) >> (n))  {       \
 		(y) = sign ^ ((1 << (n)) - 1); \
 		}                              \
 	}
-
-/* From coder.h, ORIGINAL:
- do y <<= n, clipping to range [-2^30, 2^30 - 1] (i.e. output has one guard bit)
-*/
-//TODO (FB) Is there a better way ?
+//}}}
+//{{{
 #define CLIP_2N_SHIFT(y, n) {       \
 	int sign = (y) >> 31;             \
 	if (sign != (y) >> (30 - (n)))  { \
@@ -77,3 +83,4 @@ static __inline __int64 MADD64(__int64 sum64, int x, int y) {
 		(y) = (y) << (n);               \
 		}                               \
 	}
+//}}}
