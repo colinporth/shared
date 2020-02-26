@@ -132,18 +132,6 @@ typedef struct _ADTSHeader {
 	} ADTSHeader;
 //}}}
 //{{{
-typedef struct _ADIFHeader {
-	unsigned char copyBit;                        /* 0 = no copyright ID, 1 = 72-bit copyright ID follows immediately */
-	unsigned char origCopy;                       /* 0 = copy, 1 = original */
-	unsigned char home;                           /* ignore */
-	unsigned char bsType;                         /* bitstream type: 0 = CBR, 1 = VBR */
-	int           bitRate;                        /* bitRate: CBR = bits/sec, VBR = peak bits/frame, 0 = unknown */
-	unsigned char numPCE;                         /* number of program config elements (max = 16) */
-	int           bufferFull;                     /* bits left in bit reservoir */
-	unsigned char copyID[ADIF_COPYID_SIZE];       /* optional 72-bit copyright ID */
-	} ADIFHeader;
-//}}}
-//{{{
 /* sizeof(ProgConfigElement) = 82 bytes (if KEEP_PCE_COMMENTS not defined) */
 typedef struct _ProgConfigElement {
 	unsigned char elemInstTag;                    /* element instance tag */
@@ -178,7 +166,6 @@ typedef struct _ProgConfigElement {
 typedef struct _PSInfoBase {
 	/* header information */
 	ADTSHeader            fhADTS;
-	ADIFHeader            fhADIF;
 	ProgConfigElement     pce[MAX_NUM_PCE_ADIF];
 	int                   dataCount;
 	unsigned char         dataBuf[DATA_BUF_SIZE];

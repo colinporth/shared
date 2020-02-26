@@ -41,7 +41,7 @@
  * Jon Recker (jrecker@real.com)
  * February 2005
  *
- * filefmt.c - ADIF and ADTS header decoding, raw block handling
+ * filefmt.c - ADTS header decoding, raw block handling
  **************************************************************************************/
 //}}}
 #include "coder.h"
@@ -211,186 +211,6 @@ int GetADTSChannelMapping(AACDecInfo *aacDecInfo, unsigned char *buf, int bitOff
 
 //{{{
 /**************************************************************************************
- * Function:    GetNumChannelsADIF
- *
- * Description: get number of channels from program config elements in an ADIF file
- *
- * Inputs:      array of filled-in program config element structures
- *              number of PCE's
- *
- * Outputs:     none
- *
- * Return:      total number of channels in file
- *              -1 if error (invalid number of PCE's or unsupported mode)
- **************************************************************************************/
-static int GetNumChannelsADIF(ProgConfigElement *fhPCE, int nPCE)
-{
-  int i, j, nChans;
-
-  if (nPCE < 1 || nPCE > MAX_NUM_PCE_ADIF)
-    return -1;
-
-  nChans = 0;
-  for (i = 0; i < nPCE; i++) {
-    /* for now: only support LC, no channel coupling */
-    if (fhPCE[i].profile != AAC_PROFILE_LC || fhPCE[i].numCCE > 0)
-      return -1;
-
-    /* add up number of channels in all channel elements (assume all single-channel) */
-        nChans += fhPCE[i].numFCE;
-        nChans += fhPCE[i].numSCE;
-        nChans += fhPCE[i].numBCE;
-        nChans += fhPCE[i].numLCE;
-
-    /* add one more for every element which is a channel pair */
-        for (j = 0; j < fhPCE[i].numFCE; j++) {
-            if (CHAN_ELEM_IS_CPE(fhPCE[i].fce[j]))
-                nChans++;
-        }
-        for (j = 0; j < fhPCE[i].numSCE; j++) {
-            if (CHAN_ELEM_IS_CPE(fhPCE[i].sce[j]))
-                nChans++;
-        }
-        for (j = 0; j < fhPCE[i].numBCE; j++) {
-            if (CHAN_ELEM_IS_CPE(fhPCE[i].bce[j]))
-                nChans++;
-        }
-
-  }
-
-  return nChans;
-}
-//}}}
-//{{{
-/**************************************************************************************
- * Function:    GetSampleRateIdxADIF
- *
- * Description: get sampling rate index from program config elements in an ADIF file
- *
- * Inputs:      array of filled-in program config element structures
- *              number of PCE's
- *
- * Outputs:     none
- *
- * Return:      sample rate of file
- *              -1 if error (invalid number of PCE's or sample rate mismatch)
- **************************************************************************************/
-static int GetSampleRateIdxADIF(ProgConfigElement *fhPCE, int nPCE)
-{
-  int i, idx;
-
-  if (nPCE < 1 || nPCE > MAX_NUM_PCE_ADIF)
-    return -1;
-
-  /* make sure all PCE's have the same sample rate */
-  idx = fhPCE[0].sampRateIdx;
-  for (i = 1; i < nPCE; i++) {
-    if (fhPCE[i].sampRateIdx != idx)
-      return -1;
-  }
-
-  return idx;
-}
-//}}}
-//{{{
-/**************************************************************************************
- * Function:    UnpackADIFHeader
- *
- * Description: parse the ADIF file header and initialize decoder state
- *
- * Inputs:      valid AACDecInfo struct
- *              double pointer to buffer with complete ADIF header
- *                (starting at 'A' in 'ADIF' tag)
- *              pointer to bit offset
- *              pointer to number of valid bits remaining in inbuf
- *
- * Outputs:     filled-in ADIF struct
- *              updated buffer pointer
- *              updated bit offset
- *              updated number of available bits
- *
- * Return:      0 if successful, error code (< 0) if error
- **************************************************************************************/
-int UnpackADIFHeader(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset, int *bitsAvail)
-{
-  int i, bitsUsed;
-  PSInfoBase *psi;
-  BitStreamInfo bsi;
-  ADIFHeader *fhADIF;
-  ProgConfigElement *pce;
-
-  /* validate pointers */
-  if (!aacDecInfo || !aacDecInfo->psInfoBase)
-    return ERR_AAC_NULL_POINTER;
-  psi = (PSInfoBase *)(aacDecInfo->psInfoBase);
-
-  /* init bitstream reader */
-  SetBitstreamPointer(&bsi, (*bitsAvail + 7) >> 3, *buf);
-  GetBits(&bsi, *bitOffset);
-
-  /* unpack ADIF file header */
-  fhADIF = &(psi->fhADIF);
-  pce = psi->pce;
-
-  /* verify that first 32 bits of header are "ADIF" */
-  if (GetBits(&bsi, 8) != 'A' || GetBits(&bsi, 8) != 'D' || GetBits(&bsi, 8) != 'I' || GetBits(&bsi, 8) != 'F')
-    return ERR_AAC_INVALID_ADIF_HEADER;
-
-  /* read ADIF header fields */
-  fhADIF->copyBit = GetBits(&bsi, 1);
-  if (fhADIF->copyBit) {
-    for (i = 0; i < ADIF_COPYID_SIZE; i++)
-      fhADIF->copyID[i] = GetBits(&bsi, 8);
-  }
-  fhADIF->origCopy = GetBits(&bsi, 1);
-  fhADIF->home =     GetBits(&bsi, 1);
-  fhADIF->bsType =   GetBits(&bsi, 1);
-  fhADIF->bitRate =  GetBits(&bsi, 23);
-  fhADIF->numPCE =   GetBits(&bsi, 4) + 1;  /* add 1 (so range = [1, 16]) */
-  if (fhADIF->bsType == 0)
-    fhADIF->bufferFull = GetBits(&bsi, 20);
-
-  /* parse all program config elements */
-  for (i = 0; i < fhADIF->numPCE; i++)
-    DecodeProgramConfigElement(pce + i, &bsi);
-
-  /* byte align */
-  ByteAlignBitstream(&bsi);
-
-  /* update codec info */
-  psi->nChans = GetNumChannelsADIF(pce, fhADIF->numPCE);
-  psi->sampRateIdx = GetSampleRateIdxADIF(pce, fhADIF->numPCE);
-
-  /* check validity of header */
-  if (psi->nChans < 0 || psi->sampRateIdx < 0 || psi->sampRateIdx >= NUM_SAMPLE_RATES)
-    return ERR_AAC_INVALID_ADIF_HEADER;
-
-  /* syntactic element fields will be read from bitstream for each element */
-  aacDecInfo->prevBlockID = AAC_ID_INVALID;
-  aacDecInfo->currBlockID = AAC_ID_INVALID;
-  aacDecInfo->currInstTag = -1;
-
-  /* fill in user-accessible data */
-  aacDecInfo->bitRate = 0;
-  aacDecInfo->nChans = psi->nChans;
-  aacDecInfo->sampRate = sampRateTab[psi->sampRateIdx];
-  aacDecInfo->profile = pce[0].profile;
-  aacDecInfo->sbrEnabled = 0;
-
-  /* update bitstream reader */
-  bitsUsed = CalcBitsUsed(&bsi, *buf, *bitOffset);
-  *buf += (bitsUsed + *bitOffset) >> 3;
-  *bitOffset = (bitsUsed + *bitOffset) & 0x07;
-  *bitsAvail -= bitsUsed ;
-  if (*bitsAvail < 0)
-    return ERR_AAC_INDATA_UNDERFLOW;
-
-  return ERR_AAC_NONE;
-}
-//}}}
-
-//{{{
-/**************************************************************************************
  * Function:    SetRawBlockParams
  *
  * Description: set internal state variables for decoding a stream of raw data blocks
@@ -447,7 +267,7 @@ int SetRawBlockParams(AACDecInfo *aacDecInfo, int copyLast, int nChans, int samp
 /**************************************************************************************
  * Function:    PrepareRawBlock
  *
- * Description: reset per-block state variables for raw blocks (no ADTS/ADIF headers)
+ * Description: reset per-block state variables for raw blocks (no ADTS headers)
  *
  * Inputs:      valid AACDecInfo struct
  *

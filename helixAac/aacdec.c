@@ -188,16 +188,8 @@ int AACDecode (HAACDecoder hAACDecoder, unsigned char **inbuf, int *bytesLeft, s
     if (bitsAvail < 32)
       return ERR_AAC_INDATA_UNDERFLOW;
 
-    if (IS_ADIF(inptr)) {
-      /* unpack ADIF header */
-      aacDecInfo->format = AAC_FF_ADIF;
-      err = UnpackADIFHeader(aacDecInfo, &inptr, &bitOffset, &bitsAvail);
-      if (err)
-        return err;
-    } else {
-      /* assume ADTS by default */
-      aacDecInfo->format = AAC_FF_ADTS;
-    }
+    /* assume ADTS by default */
+    aacDecInfo->format = AAC_FF_ADTS;
   }
 
 

@@ -21,7 +21,7 @@
 #define AAC_PROFILE_LC    1
 #define AAC_PROFILE_SSR   2
 
-/* define these to enable decoder features */
+#define AAC_ENABLE_SBR 1
 #define AAC_ENABLE_MPEG4
 
 //{{{  error enum

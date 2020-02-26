@@ -1,7 +1,5 @@
 #pragma once
 
-#define AAC_ENABLE_SBR 1
-
 #include "aacdec.h"
 
 /* 12-bit syncword */
@@ -38,7 +36,6 @@
 #define EXT_SBR_DATA    0x0d
 #define EXT_SBR_DATA_CRC  0x0e
 
-#define IS_ADIF(p)    ((p)[0] == 'A' && (p)[1] == 'D' && (p)[2] == 'I' && (p)[3] == 'F')
 #define GET_ELE_ID(p) ((AACElementID)(*(p) >> (8-NUM_SYN_ID_BITS)))
 
 /* AAC file format */
@@ -108,7 +105,6 @@ void ClearBuffer(void *buf, int nBytes);
 
 int UnpackADTSHeader(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset, int *bitsAvail);
 int GetADTSChannelMapping(AACDecInfo *aacDecInfo, unsigned char *buf, int bitOffset, int bitsAvail);
-int UnpackADIFHeader(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset, int *bitsAvail);
 int SetRawBlockParams(AACDecInfo *aacDecInfo, int copyLast, int nChans, int sampRate, int profile);
 int PrepareRawBlock(AACDecInfo *aacDecInfo);
 int FlushCodec(AACDecInfo *aacDecInfo);
