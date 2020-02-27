@@ -6,21 +6,15 @@
 #include "aacdec.h"
 //}}}
 
-#ifndef ASSERT
-  #if defined(_WIN32) && defined(_M_IX86) && (defined (_DEBUG) || defined (REL_ENABLE_ASSERTS))
-    #define ASSERT(x) if (!(x)) __asm int 3;
-  #else
-    #define ASSERT(x) /* do nothing */
-  #endif
-#endif
-
+//{{{  assert, min, max
+#define ASSERT(x) /* do nothing */
 #ifndef MAX
-  #define MAX(a,b)        ((a) > (b) ? (a) : (b))
+  #define MAX(a,b)  ((a) > (b) ? (a) : (b))
 #endif
-
 #ifndef MIN
-  #define MIN(a,b)        ((a) < (b) ? (a) : (b))
+  #define MIN(a,b)  ((a) < (b) ? (a) : (b))
 #endif
+//}}}
 
 //{{{  defines
 /* 12-bit syncword */
@@ -125,11 +119,11 @@ enum {
 //{{{
 typedef struct _AACDecInfo {
   /* pointers to platform-specific state information */
-  void *psInfoBase; /* baseline MPEG-4 LC decoding */
-  void *psInfoSBR;  /* MPEG-4 SBR decoding */
+  void* psInfoBase; /* baseline MPEG-4 LC decoding */
+  void* psInfoSBR;  /* MPEG-4 SBR decoding */
 
   /* raw decoded data, before rounding to 16-bit PCM (for postprocessing such as SBR) */
-  void *rawSampleBuf[AAC_MAX_NCHANS];
+  void* rawSampleBuf[AAC_MAX_NCHANS];
   int rawSampleBytes;
   int rawSampleFBits;
 
@@ -156,7 +150,15 @@ typedef struct _AACDecInfo {
   int pnsUsed;
   int frameCount;
 
-} AACDecInfo;
+  } AACDecInfo;
+//}}}
+//{{{
+typedef struct _BitStreamInfo {
+  unsigned char *bytePtr;
+  unsigned int iCache;
+  int cachedBits;
+  int nBytes;
+  } BitStreamInfo;
 //}}}
 //{{{
 typedef struct _HuffInfo {
@@ -177,12 +179,12 @@ typedef struct _PulseInfo {
 //{{{
 typedef struct _TNSInfo {
   unsigned char tnsDataPresent;
-  unsigned char numFilt[MAX_TNS_FILTERS];     /* max 1 filter each for 8 short windows, or 3 filters for 1 long window */
+  unsigned char numFilt[MAX_TNS_FILTERS]; /* max 1 filter each for 8 short windows, or 3 filters for 1 long window */
   unsigned char coefRes[MAX_TNS_FILTERS];
   unsigned char length[MAX_TNS_FILTERS];
   unsigned char order[MAX_TNS_FILTERS];
   unsigned char dir[MAX_TNS_FILTERS];
-  signed char   coef[MAX_TNS_COEFS];              /* max 3 filters * 20 coefs for 1 long window, or 1 filter * 7 coefs for each of 8 short windows */
+  signed char   coef[MAX_TNS_COEFS];      /* max 3 filters * 20 coefs for 1 long window, or 1 filter * 7 coefs for each of 8 short windows */
   } TNSInfo;
 //}}}
 //{{{
@@ -304,18 +306,11 @@ typedef struct _PSInfoBase {
   int                   gbCurrent[MAX_NCHANS_ELEM];
   int                   coef[MAX_NCHANS_ELEM][AAC_MAX_NSAMPS];
   int                   sbrWorkBuf[MAX_NCHANS_ELEM][AAC_MAX_NSAMPS];
+
   /* state information which must be saved for each element and used in next frame */
   int                   overlap[AAC_MAX_NCHANS][AAC_MAX_NSAMPS];
   int                   prevWinShape[AAC_MAX_NCHANS];
   } PSInfoBase;
-//}}}
-//{{{
-typedef struct _BitStreamInfo {
-  unsigned char *bytePtr;
-  unsigned int iCache;
-  int cachedBits;
-  int nBytes;
-  } BitStreamInfo;
 //}}}
 
 //{{{
@@ -394,32 +389,31 @@ inline short CLIPTOSHORT (int x) {
 
 //}}}
 
-// bitsteram.c
+// bitstream
 void SetBitstreamPointer (BitStreamInfo *bsi, int nBytes, unsigned char *buf);
 unsigned int GetBits (BitStreamInfo *bsi, int nBits);
 unsigned int GetBitsNoAdvance (BitStreamInfo *bsi, int nBits);
 void AdvanceBitstream (BitStreamInfo *bsi, int nBits);
-int CalcBitsUsed (BitStreamInfo *bsi, unsigned char *startBuf, int startOffset);
 void ByteAlignBitstream (BitStreamInfo *bsi);
 
-/* sbrimdct.c */
-void DecWindowOverlapNoClip(int *buf0, int *over0, int *out0, int winTypeCurr, int winTypePrev);
-void DecWindowOverlapLongStartNoClip(int *buf0, int *over0, int *out0, int winTypeCurr, int winTypePrev);
-void DecWindowOverlapLongStopNoClip(int *buf0, int *over0, int *out0, int winTypeCurr, int winTypePrev);
-void DecWindowOverlapShortNoClip(int *buf0, int *over0, int *out0, int winTypeCurr, int winTypePrev);
+// imdct
+int IMDCT (AACDecInfo *aacDecInfo, int ch, int chBase, short *outbuf);
 
+// sbrimdct.c */
+void DecWindowOverlapNoClip (int *buf0, int *over0, int *out0, int winTypeCurr, int winTypePrev);
+void DecWindowOverlapLongStartNoClip (int *buf0, int *over0, int *out0, int winTypeCurr, int winTypePrev);
+void DecWindowOverlapLongStopNoClip (int *buf0, int *over0, int *out0, int winTypeCurr, int winTypePrev);
+void DecWindowOverlapShortNoClip (int *buf0, int *over0, int *out0, int winTypeCurr, int winTypePrev);
+
+// SBR specific functions */
+int InitSBR (AACDecInfo *aacDecInfo);
+void FreeSBR (AACDecInfo *aacDecInfo);
+int DecodeSBRBitstream (AACDecInfo *aacDecInfo, int chBase);
+int DecodeSBRData (AACDecInfo *aacDecInfo, int chBase, short *outbuf);
+int FlushCodecSBR (AACDecInfo *aacDecInfo);
+
+// tabs
+extern const int sampRateTab[NUM_SAMPLE_RATES];
 extern const int cos4sin4tabOffset[NUM_IMDCT_SIZES];
 extern const int cos4sin4tab[128 + 1024];
 extern const int cos1sin1tab[514];
-
-int IMDCT (AACDecInfo *aacDecInfo, int ch, int chBase, short *outbuf);
-
-/* SBR specific functions */
-int InitSBR(AACDecInfo *aacDecInfo);
-void FreeSBR(AACDecInfo *aacDecInfo);
-int DecodeSBRBitstream(AACDecInfo *aacDecInfo, int chBase);
-int DecodeSBRData(AACDecInfo *aacDecInfo, int chBase, short *outbuf);
-int FlushCodecSBR(AACDecInfo *aacDecInfo);
-
-/* aactabs.c - global ROM tables */
-extern const int sampRateTab[NUM_SAMPLE_RATES];

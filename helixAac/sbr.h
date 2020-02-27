@@ -63,6 +63,7 @@ enum {
   HuffTabSBR_fNoise30b = 7
   };
 //}}}
+
 //{{{
 /* need one SBRHeader per element (SCE/CPE), updated only on new header */
 typedef struct _SBRHeader {
@@ -219,47 +220,3 @@ typedef struct _PSInfoSBR {
   int                   XBuf[32+8][64][2];
   } PSInfoSBR;
 //}}}
-
-/* sbrfft.c */
-void FFT32C(int *x);
-
-/* sbrfreq.c */
-int CalcFreqTables(SBRHeader *sbrHdr, SBRFreq *sbrFreq, int sampRateIdx);
-
-/* sbrhfadj.c */
-void AdjustHighFreq(PSInfoSBR *psi, SBRHeader *sbrHdr, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChan, int ch);
-
-/* sbrhfgen.c */
-void GenerateHighFreq(PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChan, int ch);
-
-/* sbrhuff.c */
-void DecodeSBREnvelope(BitStreamInfo *bsi, PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChan, int ch);
-void DecodeSBRNoise(BitStreamInfo *bsi, PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChan, int ch);
-void UncoupleSBREnvelope(PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChanR);
-void UncoupleSBRNoise(PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChanR);
-
-/* sbrmath.c */
-int InvRNormalized(int r);
-int RatioPowInv(int a, int b, int c);
-int SqrtFix(int x, int fBitsIn, int *fBitsOut);
-
-/* sbrqmf.c */
-int QMFAnalysis(int *inbuf, int *delay, int *XBuf, int fBitsIn, int *delayIdx, int qmfaBands);
-void QMFSynthesis(int *inbuf, int *delay, int *delayIdx, int qmfsBands, short *outbuf, int nChans);
-
-/* sbrside.c */
-int GetSampRateIdx(int sampRate);
-int UnpackSBRHeader(BitStreamInfo *bsi, SBRHeader *sbrHdr);
-void UnpackSBRSingleChannel(BitStreamInfo *bsi, PSInfoSBR *psi, int chOut);
-void UnpackSBRChannelPair(BitStreamInfo *bsi, PSInfoSBR *psi, int chOut);
-
-/* sbrtabs.c */
-extern const unsigned char k0Tab[NUM_SAMPLE_RATES_SBR][16];
-extern const unsigned char k2Tab[NUM_SAMPLE_RATES_SBR][14];
-extern const unsigned char goalSBTab[NUM_SAMPLE_RATES_SBR];
-extern const HuffInfo huffTabSBRInfo[10];
-extern const signed int /*short*/ huffTabSBR[604];
-extern const int log2Tab[65];
-extern const int noiseTab[512*2];
-extern const int cTabA[165];
-extern const int cTabS[640];

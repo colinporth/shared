@@ -16,10 +16,10 @@
 #define AAC_MAX_NSAMPS    1024
 #define AAC_MAINBUF_SIZE  (768 * AAC_MAX_NCHANS)
 
-#define AAC_NUM_PROFILES  3
 #define AAC_PROFILE_MP    0
 #define AAC_PROFILE_LC    1
 #define AAC_PROFILE_SSR   2
+#define AAC_NUM_PROFILES  3
 
 //{{{  error enum
 enum {

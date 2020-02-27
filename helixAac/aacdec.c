@@ -1,3 +1,4 @@
+// aacdec.c
 #include "aaccommon.h"
 //{{{  const tables
 //{{{
@@ -162,6 +163,18 @@ static const int pow43[48] = {
   0x75722ef9, 0x78102b85, 0x7ab1d3ec, 0x7d571e09,
   };
 //}}}
+//{{{
+/* pow142[0][i] = -pow(2, i/4.0)
+ * pow142[1][i] = +pow(2, i/4.0)
+ *
+ * i = [0,1,2,3]
+ * format = Q30
+ */
+static const int pow142[2][4]  = {
+  { 0xc0000000, 0xb3e407d7, 0xa57d8666, 0x945d819b },
+  { 0x40000000, 0x4c1bf829, 0x5a82799a, 0x6ba27e65 }
+};
+//}}}
 //}}}
 
 //{{{  bitstream
@@ -182,7 +195,7 @@ static const int pow43[48] = {
  *              stores data as big-endian in cache, regardless of machine endian-ness
  **************************************************************************************/
 //Optimized for REV16, REV32 (FB)
-inline static void RefillBitstreamCache (BitStreamInfo *bsi)
+inline static void RefillBitstreamCache (BitStreamInfo* bsi)
 {
   int nBytes = bsi->nBytes;
   if (nBytes >= 4) {
@@ -221,7 +234,7 @@ inline static void RefillBitstreamCache (BitStreamInfo *bsi)
  *
  * Return:      none
  **************************************************************************************/
-void SetBitstreamPointer (BitStreamInfo *bsi, int nBytes, unsigned char *buf)
+void SetBitstreamPointer (BitStreamInfo* bsi, int nBytes, unsigned char* buf)
 {
   /* init bitstream */
   bsi->bytePtr = buf;
@@ -230,6 +243,7 @@ void SetBitstreamPointer (BitStreamInfo *bsi, int nBytes, unsigned char *buf)
   bsi->nBytes = nBytes;
 }
 //}}}
+
 //{{{
 /**************************************************************************************
  * Function:    GetBits
@@ -247,7 +261,7 @@ void SetBitstreamPointer (BitStreamInfo *bsi, int nBytes, unsigned char *buf)
  *              for speed, does not indicate error if you overrun bit buffer
  *              if nBits == 0, returns 0
  **************************************************************************************/
-unsigned int GetBits (BitStreamInfo *bsi, int nBits)
+unsigned int GetBits (BitStreamInfo* bsi, int nBits)
 {
   unsigned int data, lowBits;
 
@@ -287,7 +301,7 @@ unsigned int GetBits (BitStreamInfo *bsi, int nBits)
  *              for speed, does not indicate error if you overrun bit buffer
  *              if nBits == 0, returns 0
  **************************************************************************************/
-unsigned int GetBitsNoAdvance (BitStreamInfo *bsi, int nBits)
+unsigned int GetBitsNoAdvance (BitStreamInfo* bsi, int nBits)
 {
   unsigned char *buf;
   unsigned int data, iCache;
@@ -315,78 +329,62 @@ unsigned int GetBitsNoAdvance (BitStreamInfo *bsi, int nBits)
   return data;
 }
 //}}}
+
 //{{{
 /**************************************************************************************
  * Function:    AdvanceBitstream
- *
  * Description: move bitstream pointer ahead
- *
  * Inputs:      pointer to initialized BitStreamInfo struct
  *              number of bits to advance bitstream
- *
  * Outputs:     updated bitstream info struct
- *
  * Return:      none
- *
  * Notes:       generally used following GetBitsNoAdvance(bsi, maxBits)
  **************************************************************************************/
-void AdvanceBitstream (BitStreamInfo *bsi, int nBits)
-{
+void AdvanceBitstream (BitStreamInfo* bsi, int nBits) {
+
   nBits &= 0x1f;
   if (nBits > bsi->cachedBits) {
     nBits -= bsi->cachedBits;
     RefillBitstreamCache(bsi);
-  }
+    }
+
   bsi->iCache <<= nBits;
   bsi->cachedBits -= nBits;
-}
+  }
 //}}}
 //{{{
 /**************************************************************************************
  * Function:    CalcBitsUsed
- *
  * Description: calculate how many bits have been read from bitstream
- *
  * Inputs:      pointer to initialized BitStreamInfo struct
  *              pointer to start of bitstream buffer
  *              bit offset into first byte of startBuf (0-7)
- *
  * Outputs:     none
- *
  * Return:      number of bits read from bitstream, as offset from startBuf:startOffset
  **************************************************************************************/
-int CalcBitsUsed (BitStreamInfo *bsi, unsigned char *startBuf, int startOffset)
-{
-  int bitsUsed;
+int CalcBitsUsed (BitStreamInfo* bsi, unsigned char *startBuf, int startOffset) {
 
-  bitsUsed  = (int)(bsi->bytePtr - startBuf) * 8;
+  int bitsUsed = (int)(bsi->bytePtr - startBuf) * 8;
   bitsUsed -= bsi->cachedBits;
   bitsUsed -= startOffset;
-
   return bitsUsed;
-}
+  }
 //}}}
+
 //{{{
 /**************************************************************************************
  * Function:    ByteAlignBitstream
- *
  * Description: bump bitstream pointer to start of next byte
- *
  * Inputs:      pointer to initialized BitStreamInfo struct
- *
  * Outputs:     byte-aligned bitstream BitStreamInfo struct
- *
  * Return:      none
- *
  * Notes:       if bitstream is already byte-aligned, do nothing
  **************************************************************************************/
-void ByteAlignBitstream (BitStreamInfo *bsi)
-{
-  int offset;
+void ByteAlignBitstream (BitStreamInfo* bsi) {
 
-  offset = bsi->cachedBits & 0x07;
+  int offset = bsi->cachedBits & 0x07;
   AdvanceBitstream(bsi, offset);
-}
+  }
 //}}}
 //}}}
 //{{{  decode, huffman
@@ -780,7 +778,7 @@ static void UnpackPairsEsc (BitStreamInfo* bsi, int cb, int nVals, int* coef)
  *              fills coefficient buffer with zeros in any region not coded with
  *                codebook in range [1, 11] (including sfb's above sfbMax)
  **************************************************************************************/
-void DecodeSpectrumLong (PSInfoBase* psi, BitStreamInfo* bsi, int ch)
+static void DecodeSpectrumLong (PSInfoBase* psi, BitStreamInfo* bsi, int ch)
 {
   int i, sfb, cb, nVals, offset;
   const /*short*/ int *sfbTab;
@@ -852,7 +850,7 @@ void DecodeSpectrumLong (PSInfoBase* psi, BitStreamInfo* bsi, int ch)
  *                codebook in range [1, 11] (including sfb's above sfbMax)
  *              deinterleaves window groups into 8 windows
  **************************************************************************************/
-void DecodeSpectrumShort (PSInfoBase* psi, BitStreamInfo* bsi, int ch)
+static void DecodeSpectrumShort (PSInfoBase* psi, BitStreamInfo* bsi, int ch)
 {
   int gp, cb, nVals=0, win, offset, sfb;
   const /*short*/ int *sfbTab;
@@ -1074,7 +1072,7 @@ static void DecodePulseInfo (BitStreamInfo *bsi, PulseInfo *pi)
  *
  * Return:      none
  **************************************************************************************/
-void DecodeICSInfo (BitStreamInfo *bsi, ICSInfo *icsInfo, int sampRateIdx)
+static void DecodeICSInfo (BitStreamInfo *bsi, ICSInfo *icsInfo, int sampRateIdx)
 {
   int sfb, g, mask;
 
@@ -1711,7 +1709,7 @@ const unsigned char uniqueIDTab[8] = {0x5f, 0x4b, 0x43, 0x5f, 0x5f, 0x4a, 0x52, 
  *              gains log2(nfft) - 2 int bits total
  *                so gain 7 int bits (LONG), 4 int bits (SHORT)
  **************************************************************************************/
-void R4FFT (int tabidx, int* x)
+static void R4FFT (int tabidx, int* x)
 {
   int order = nfftlog2Tab[tabidx];
   int nfft = nfftTab[tabidx];
@@ -2012,7 +2010,7 @@ static void PostMultiply (int tabidx, int* fft1)
  *                 short blocks = (-5 + 4 + 2) = 1 total
  *                 long blocks =  (-8 + 7 + 2) = 1 total
  **************************************************************************************/
-void DCT4 (int tabidx, int *coef, int gb)
+static void DCT4 (int tabidx, int *coef, int gb)
 {
   int es;
 
@@ -2301,7 +2299,7 @@ static int DequantBlock (int* inbuf, int nSamps, int scale)
  *
  * Return:      0 if successful, error code (< 0) if error
  **************************************************************************************/
-int Dequantize (AACDecInfo* aacDecInfo, int ch)
+static int Dequantize (AACDecInfo* aacDecInfo, int ch)
 {
   int gp, cb, sfb, win, width, nSamps, gbMask;
   int *coef;
@@ -2375,7 +2373,7 @@ int Dequantize (AACDecInfo* aacDecInfo, int ch)
  *
  * Notes:       only necessary if deinterleaving not part of Huffman decoding
  **************************************************************************************/
-int DeinterleaveShortBlocks (AACDecInfo* aacDecInfo, int ch)
+static int DeinterleaveShortBlocks (AACDecInfo* aacDecInfo, int ch)
 {
   (void)aacDecInfo;
   (void)ch;
@@ -2615,7 +2613,7 @@ static int DecodeFillElement (AACDecInfo *aacDecInfo, BitStreamInfo *bsi)
  * Notes:       #define KEEP_PCE_COMMENTS to save the comment field of the PCE
  *                (otherwise we just skip it in the bitstream, to save memory)
  **************************************************************************************/
-int DecodeProgramConfigElement (ProgConfigElement *pce, BitStreamInfo *bsi)
+static int DecodeProgramConfigElement (ProgConfigElement *pce, BitStreamInfo *bsi)
 {
   int i;
 
@@ -2706,7 +2704,7 @@ int DecodeProgramConfigElement (ProgConfigElement *pce, BitStreamInfo *bsi)
  *
  * Return:      0 if successful, error code (< 0) if error
  **************************************************************************************/
-int DecodeNextElement (AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset, int *bitsAvail)
+static int DecodeNextElement (AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset, int *bitsAvail)
 {
   int err, bitsUsed;
   PSInfoBase *psi;
@@ -2994,7 +2992,7 @@ static void CopyNoiseVector (int *coefL, int *coefR, int nVals)
  *
  * Return:      0 if successful, -1 if error
  **************************************************************************************/
-int PNS (AACDecInfo *aacDecInfo, int ch)
+static int PNS (AACDecInfo *aacDecInfo, int ch)
 {
   int gp, sfb, win, width, nSamps, gb, gbMask;
   int *coef;
@@ -3268,7 +3266,7 @@ static int FilterRegion (int size, int dir, int order, int* audioCoef, int* a, i
  *
  * Return:      0 if successful, -1 if error
  **************************************************************************************/
-int TNSFilter (AACDecInfo* aacDecInfo, int ch)
+static int TNSFilter (AACDecInfo* aacDecInfo, int ch)
 {
   int win, winLen, nWindows, nSFB, filt, bottom, top, order, maxOrder, dir;
   int start, end, size, tnsMaxBand, numFilt, gbMask;
@@ -3358,18 +3356,6 @@ int TNSFilter (AACDecInfo* aacDecInfo, int ch)
 //}}}
 //}}}
 //{{{  stereo
-//{{{
-/* pow142[0][i] = -pow(2, i/4.0)
- * pow142[1][i] = +pow(2, i/4.0)
- *
- * i = [0,1,2,3]
- * format = Q30
- */
-static const int pow142[2][4]  = {
-  { 0xc0000000, 0xb3e407d7, 0xa57d8666, 0x945d819b },
-  { 0x40000000, 0x4c1bf829, 0x5a82799a, 0x6ba27e65 }
-};
-//}}}
 //{{{
 /**************************************************************************************
  * Function:    StereoProcessGroup
@@ -3500,7 +3486,7 @@ static void StereoProcessGroup (int *coefL, int *coefR, const /*short*/ int *sfb
  *
  * Return:      0 if successful, -1 if error
  **************************************************************************************/
-int StereoProcess (AACDecInfo *aacDecInfo)
+static int StereoProcess (AACDecInfo *aacDecInfo)
 {
   PSInfoBase *psi;
   ICSInfo *icsInfo;
@@ -3635,6 +3621,7 @@ static void DecodeTNSInfo (BitStreamInfo *bsi, int winSequence, TNSInfo *ti, sig
   }
 }
 //}}}
+
 //{{{
 /* bitstream field lengths for gain control data:
  *   gainBits[winSequence][0] = maxWindow (how many gain windows there are)
@@ -3752,7 +3739,7 @@ static void DecodeICS (PSInfoBase *psi, BitStreamInfo *bsi, int ch)
  *
  * Return:      0 if successful, error code (< 0) if error
  **************************************************************************************/
-int DecodeNoiselessData (AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset, int *bitsAvail, int ch)
+static int DecodeNoiselessData (AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset, int *bitsAvail, int ch)
 {
   int bitsUsed;
   BitStreamInfo bsi;
@@ -3803,7 +3790,7 @@ int DecodeNoiselessData (AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOf
  * TODO:        test CRC
  *              verify that fixed fields don't change between frames
  **************************************************************************************/
-int UnpackADTSHeader (AACDecInfo* aacDecInfo, unsigned char** buf, int* bitOffset, int* bitsAvail)
+static int UnpackADTSHeader (AACDecInfo* aacDecInfo, unsigned char** buf, int* bitOffset, int* bitsAvail)
 {
   int bitsUsed;
   PSInfoBase *psi;
@@ -3897,7 +3884,7 @@ int UnpackADTSHeader (AACDecInfo* aacDecInfo, unsigned char** buf, int* bitOffse
  * Notes:       calculates total number of channels using rules in 14496-3, 4.5.1.2.1
  *              does not attempt to deduce speaker geometry
  **************************************************************************************/
-int GetADTSChannelMapping (AACDecInfo* aacDecInfo, unsigned char* buf, int bitOffset, int bitsAvail)
+static int GetADTSChannelMapping (AACDecInfo* aacDecInfo, unsigned char* buf, int bitOffset, int bitsAvail)
 {
   int ch, nChans, elementChans, err;
   PSInfoBase *psi;
@@ -3943,7 +3930,7 @@ int GetADTSChannelMapping (AACDecInfo* aacDecInfo, unsigned char* buf, int bitOf
  * Outputs:     updated state variables in aacDecInfo
  * Return:      0 if successful, error code (< 0) if error
  **************************************************************************************/
-int PrepareRawBlock (AACDecInfo* aacDecInfo)
+static int PrepareRawBlock (AACDecInfo* aacDecInfo)
 {
   /* validate pointers */
   if (!aacDecInfo || !aacDecInfo->psInfoBase)
