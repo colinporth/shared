@@ -44,7 +44,7 @@
  * bitstream.c - bitstream parsing functions
  **************************************************************************************/
 //}}}
-#include "bitstream.h"
+#include "aaccommon.h"
 
 //{{{
 /**************************************************************************************
@@ -60,7 +60,7 @@
  *
  * Return:      none
  **************************************************************************************/
-void SetBitstreamPointer(BitStreamInfo *bsi, int nBytes, unsigned char *buf)
+void SetBitstreamPointer (BitStreamInfo *bsi, int nBytes, unsigned char *buf)
 {
   /* init bitstream */
   bsi->bytePtr = buf;
@@ -86,7 +86,7 @@ void SetBitstreamPointer(BitStreamInfo *bsi, int nBytes, unsigned char *buf)
  *              stores data as big-endian in cache, regardless of machine endian-ness
  **************************************************************************************/
 //Optimized for REV16, REV32 (FB)
-static __inline void RefillBitstreamCache(BitStreamInfo *bsi)
+static __inline void RefillBitstreamCache (BitStreamInfo *bsi)
 {
   int nBytes = bsi->nBytes;
   if (nBytes >= 4) {
@@ -128,7 +128,7 @@ static __inline void RefillBitstreamCache(BitStreamInfo *bsi)
  *              for speed, does not indicate error if you overrun bit buffer
  *              if nBits == 0, returns 0
  **************************************************************************************/
-unsigned int GetBits(BitStreamInfo *bsi, int nBits)
+unsigned int GetBits (BitStreamInfo *bsi, int nBits)
 {
   unsigned int data, lowBits;
 
@@ -168,7 +168,7 @@ unsigned int GetBits(BitStreamInfo *bsi, int nBits)
  *              for speed, does not indicate error if you overrun bit buffer
  *              if nBits == 0, returns 0
  **************************************************************************************/
-unsigned int GetBitsNoAdvance(BitStreamInfo *bsi, int nBits)
+unsigned int GetBitsNoAdvance (BitStreamInfo *bsi, int nBits)
 {
   unsigned char *buf;
   unsigned int data, iCache;
@@ -212,7 +212,7 @@ unsigned int GetBitsNoAdvance(BitStreamInfo *bsi, int nBits)
  *
  * Notes:       generally used following GetBitsNoAdvance(bsi, maxBits)
  **************************************************************************************/
-void AdvanceBitstream(BitStreamInfo *bsi, int nBits)
+void AdvanceBitstream (BitStreamInfo *bsi, int nBits)
 {
   nBits &= 0x1f;
   if (nBits > bsi->cachedBits) {
@@ -237,7 +237,7 @@ void AdvanceBitstream(BitStreamInfo *bsi, int nBits)
  *
  * Return:      number of bits read from bitstream, as offset from startBuf:startOffset
  **************************************************************************************/
-int CalcBitsUsed(BitStreamInfo *bsi, unsigned char *startBuf, int startOffset)
+int CalcBitsUsed (BitStreamInfo *bsi, unsigned char *startBuf, int startOffset)
 {
   int bitsUsed;
 
@@ -263,7 +263,7 @@ int CalcBitsUsed(BitStreamInfo *bsi, unsigned char *startBuf, int startOffset)
  *
  * Notes:       if bitstream is already byte-aligned, do nothing
  **************************************************************************************/
-void ByteAlignBitstream(BitStreamInfo *bsi)
+void ByteAlignBitstream (BitStreamInfo *bsi)
 {
   int offset;
 

@@ -12,7 +12,7 @@
  *
  * Return:      none
  **************************************************************************************/
-static void InitSBRState(PSInfoSBR *psi)
+static void InitSBRState (PSInfoSBR* psi)
 {
   int i, ch;
   unsigned char *c;
@@ -34,83 +34,23 @@ static void InitSBRState(PSInfoSBR *psi)
 //}}}
 
 //{{{
-/**************************************************************************************
- * Function:    InitSBR
- *
- * Description: initialize SBR decoder
- *
- * Inputs:      valid AACDecInfo struct
- *
- * Outputs:     PSInfoSBR struct to hold SBR state information
- *
- * Return:      0 if successful, error code (< 0) if error
- *
- * Note:        memory allocation for SBR is only done here
- **************************************************************************************/
-int InitSBR (AACDecInfo *aacDecInfo)
-{
-  PSInfoSBR *psi;
+int InitSBR (AACDecInfo* aacDecInfo) {
 
-  if (!aacDecInfo)
-    return ERR_AAC_NULL_POINTER;
-
-  /* allocate SBR state structure */
-  psi = (PSInfoSBR *)malloc(sizeof(PSInfoSBR));
-  if (!psi) {
-    printf("OOM in SBR, can't allocate %d bytes\n", sizeof(PSInfoSBR));
-    return ERR_AAC_SBR_INIT;
-  }
-  InitSBRState(psi);
-
+  PSInfoSBR* psi = (PSInfoSBR *)malloc(sizeof(PSInfoSBR));
+  InitSBRState (psi);
   aacDecInfo->psInfoSBR = psi;
   return ERR_AAC_NONE;
-}
+  }
 //}}}
 //{{{
-int InitSBRPre (AACDecInfo *aacDecInfo, void **ptr, int *sz)
-{
-        PSInfoSBR *psi;
+void FreeSBR (AACDecInfo* aacDecInfo) {
 
-        if (!aacDecInfo)
-                return ERR_AAC_NULL_POINTER;
-
-        /* allocate SBR state structure */
-        psi = (PSInfoSBR *)*ptr;
-        *sz -= sizeof(PSInfoSBR);
-        if (*sz < 0) {
-                printf("OOM in SBR, can't allocate %d bytes\n", sizeof(PSInfoSBR));
-                return ERR_AAC_SBR_INIT;
-        }
-        InitSBRState(psi);
-
-  *ptr = (void*)((char*)(*ptr) + sizeof(PSInfoSBR));
-        aacDecInfo->psInfoSBR = psi;
-        return ERR_AAC_NONE;
-}
-//}}}
-
-//{{{
-/**************************************************************************************
- * Function:    FreeSBR
- *
- * Description: free SBR decoder
- *
- * Inputs:      valid AACDecInfo struct
- *
- * Outputs:     none
- *
- * Return:      none
- *
- * Note:        memory deallocation for SBR is only done here
- **************************************************************************************/
-void FreeSBR (AACDecInfo *aacDecInfo)
-{
-  if (aacDecInfo && aacDecInfo->psInfoSBR)
-    free(aacDecInfo->psInfoSBR);
-
+  if (aacDecInfo)
+    free (aacDecInfo->psInfoSBR);
   return;
-}
+  }
 //}}}
+
 //{{{
 /**************************************************************************************
  * Function:    DecodeSBRBitstream
@@ -130,7 +70,7 @@ void FreeSBR (AACDecInfo *aacDecInfo)
  *              returns with no error if fill buffer is not an SBR extension block,
  *                or if current block is not a fill block (e.g. for LFE upsampling)
  **************************************************************************************/
-int DecodeSBRBitstream (AACDecInfo *aacDecInfo, int chBase)
+int DecodeSBRBitstream (AACDecInfo* aacDecInfo, int chBase)
 {
   int headerFlag;
   BitStreamInfo bsi;
@@ -207,7 +147,7 @@ int DecodeSBRBitstream (AACDecInfo *aacDecInfo, int chBase)
  *
  * Return:      0 if successful, error code (< 0) if error
  **************************************************************************************/
-int DecodeSBRData (AACDecInfo *aacDecInfo, int chBase, short *outbuf)
+int DecodeSBRData (AACDecInfo* aacDecInfo, int chBase, short *outbuf)
 {
   int k, l, ch, chBlock, qmfaBands, qmfsBands;
   int upsampleOnly, gbIdx, gbMask;
@@ -371,7 +311,7 @@ int DecodeSBRData (AACDecInfo *aacDecInfo, int chBase, short *outbuf)
  *                for the first time. This triggers "upsample-only" mode until
  *                the first valid SBR header is received. Then SBR starts as usual.
  **************************************************************************************/
-int FlushCodecSBR (AACDecInfo *aacDecInfo)
+int FlushCodecSBR (AACDecInfo* aacDecInfo)
 {
   PSInfoSBR *psi;
 

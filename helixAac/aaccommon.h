@@ -4,7 +4,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include "aacdec.h"
-#include "bitstream.h"
 
 #ifndef ASSERT
   #if defined(_WIN32) && defined(_M_IX86) && (defined (_DEBUG) || defined (REL_ENABLE_ASSERTS))
@@ -309,6 +308,14 @@ typedef struct _PSInfoBase {
   int                   prevWinShape[AAC_MAX_NCHANS];
   } PSInfoBase;
 //}}}
+//{{{
+typedef struct _BitStreamInfo {
+  unsigned char *bytePtr;
+  unsigned int iCache;
+  int cachedBits;
+  int nBytes;
+  } BitStreamInfo;
+//}}}
 
 //{{{
 typedef union _U64 {
@@ -387,6 +394,14 @@ inline short CLIPTOSHORT (int x) {
 
 //}}}
 
+// bitsteram.c
+void SetBitstreamPointer (BitStreamInfo *bsi, int nBytes, unsigned char *buf);
+unsigned int GetBits (BitStreamInfo *bsi, int nBits);
+unsigned int GetBitsNoAdvance (BitStreamInfo *bsi, int nBits);
+void AdvanceBitstream (BitStreamInfo *bsi, int nBits);
+int CalcBitsUsed (BitStreamInfo *bsi, unsigned char *startBuf, int startOffset);
+void ByteAlignBitstream (BitStreamInfo *bsi);
+
 /* decelmnt.c */
 int DecodeProgramConfigElement(ProgConfigElement *pce, BitStreamInfo *bsi);
 
@@ -410,12 +425,6 @@ void DecWindowOverlapLongStartNoClip(int *buf0, int *over0, int *out0, int winTy
 void DecWindowOverlapLongStopNoClip(int *buf0, int *over0, int *out0, int winTypeCurr, int winTypePrev);
 void DecWindowOverlapShortNoClip(int *buf0, int *over0, int *out0, int winTypeCurr, int winTypePrev);
 
-/* hufftabs.c */
-extern const HuffInfo huffTabSpecInfo[11];
-extern const signed short huffTabSpec[1241];
-extern const HuffInfo huffTabScaleFactInfo;
-extern const signed short huffTabScaleFact[121];
-
 /* trigtabs.c */
 extern const int cos4sin4tabOffset[NUM_IMDCT_SIZES];
 extern const int sinWindowOffset[NUM_IMDCT_SIZES];
@@ -430,13 +439,6 @@ extern const int kbdWindow[128 + 1024];
 extern const int twidTabEven[4*6 + 16*6 + 64*6];
 extern const int twidTabOdd[8*6 + 32*6 + 128*6];
 
-
-/* decoder functions which must be implemented for each platform */
-AACDecInfo *AllocateBuffers(void);
-AACDecInfo *AllocateBuffersPre(void **space, int *len);
-void FreeBuffers(AACDecInfo *aacDecInfo);
-void ClearBuffer(void *buf, int nBytes);
-
 int UnpackADTSHeader(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset, int *bitsAvail);
 int GetADTSChannelMapping(AACDecInfo *aacDecInfo, unsigned char *buf, int bitOffset, int bitsAvail);
 int SetRawBlockParams(AACDecInfo *aacDecInfo, int copyLast, int nChans, int sampRate, int profile);
@@ -447,7 +449,6 @@ int DecodeNextElement(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffse
 int DecodeNoiselessData(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset, int *bitsAvail, int ch);
 
 int Dequantize(AACDecInfo *aacDecInfo, int ch);
-int StereoProcess(AACDecInfo *aacDecInfo);
 int DeinterleaveShortBlocks(AACDecInfo *aacDecInfo, int ch);
 int PNS(AACDecInfo *aacDecInfo, int ch);
 int TNSFilter(AACDecInfo *aacDecInfo, int ch);
@@ -455,7 +456,6 @@ int IMDCT(AACDecInfo *aacDecInfo, int ch, int chBase, short *outbuf);
 
 /* SBR specific functions */
 int InitSBR(AACDecInfo *aacDecInfo);
-int InitSBRPre(AACDecInfo *aacDecInfo, void **ptr, int *sz);
 void FreeSBR(AACDecInfo *aacDecInfo);
 int DecodeSBRBitstream(AACDecInfo *aacDecInfo, int chBase);
 int DecodeSBRData(AACDecInfo *aacDecInfo, int chBase, short *outbuf);

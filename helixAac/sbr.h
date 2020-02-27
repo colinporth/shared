@@ -1,6 +1,7 @@
 #pragma once
 #include "aaccommon.h"
 
+//{{{  defines
 #define NUM_TIME_SLOTS      16
 #define SAMPLES_PER_SLOT    2 /* RATE in spec */
 #define NUM_SAMPLE_RATES_SBR  9 /* downsampled (single-rate) mode unsupported, so only use Fs_sbr >= 16 kHz */
@@ -36,6 +37,7 @@
 #define NUM_QMF_DELAY_BUFS  10
 #define DELAY_SAMPS_QMFA  (NUM_QMF_DELAY_BUFS * 32)
 #define DELAY_SAMPS_QMFS  (NUM_QMF_DELAY_BUFS * 128)
+//}}}
 
 //{{{
 enum {

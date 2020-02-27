@@ -99,20 +99,3 @@ const /*short*/ int sfBandTabLong[325]  = {
   };
 //}}}
 
-/* TNS max bands (table 4.139) and max order (table 4.138) */
-const int tnsMaxBandsShortOffset[AAC_NUM_PROFILES]  = {0, 0, 12};
-//{{{
-const unsigned /*char*/ int tnsMaxBandsShort[2*NUM_SAMPLE_RATES]  = {
-  9,  9, 10, 14, 14, 14, 14, 14, 14, 14, 14, 14,   /* short block, Main/LC */
-  7,  7,  7,  6,  6,  6,  7,  7,  8,  8,  8,  7    /* short block, SSR */
-  };
-//}}}
-const unsigned /*char*/ int tnsMaxOrderShort[AAC_NUM_PROFILES]  = {7, 7, 7};
-const int tnsMaxBandsLongOffset[AAC_NUM_PROFILES]  = {0, 0, 12};
-//{{{
-const unsigned int /*char*/ tnsMaxBandsLong[2*NUM_SAMPLE_RATES] = {
-  31, 31, 34, 40, 42, 51, 46, 46, 42, 42, 42, 39,   /* long block, Main/LC */
-  28, 28, 27, 26, 26, 26, 29, 29, 23, 23, 23, 19,   /* long block, SSR */
-  };
-//}}}
-const unsigned /*char*/ int tnsMaxOrderLong[AAC_NUM_PROFILES]  = {20, 12, 12};
