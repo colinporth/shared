@@ -1,11 +1,9 @@
 // aacdec.c - fixed point aac sbr, based on real networks helix 2005 - single file 10000 lines
-//{{{  includes
 #include <stdlib.h>
 #include <stdint.h>
-#include <stdio.h>
-
 #include "aacdec.h"
 
+//{{{  assret, min, max
 #define ASSERT(x) /* do nothing */
 
 #ifndef MAX
@@ -3640,22 +3638,21 @@ static void PostMultiply (int tabidx, int* fft1)
  *                 short blocks = (-5 + 4 + 2) = 1 total
  *                 long blocks =  (-8 + 7 + 2) = 1 total
  **************************************************************************************/
-static void DCT4 (int tabidx, int *coef, int gb)
-{
-  int es;
+static void DCT4 (int tabidx, int *coef, int gb) {
+/* fast in-place DCT-IV - adds guard bits if necessary */
 
-  /* fast in-place DCT-IV - adds guard bits if necessary */
   if (gb < GBITS_IN_DCT4) {
-    es = GBITS_IN_DCT4 - gb;
-    PreMultiplyRescale(tabidx, coef, es);
-    R4FFT(tabidx, coef);
-    PostMultiplyRescale(tabidx, coef, es);
-  } else {
-    PreMultiply(tabidx, coef);
-    R4FFT(tabidx, coef);
-    PostMultiply(tabidx, coef);
+    int es = GBITS_IN_DCT4 - gb;
+    PreMultiplyRescale (tabidx, coef, es);
+    R4FFT (tabidx, coef);
+    PostMultiplyRescale (tabidx, coef, es);
+   }
+ else {
+    PreMultiply (tabidx, coef);
+    R4FFT (tabidx, coef);
+    PostMultiply (tabidx, coef);
+    }
   }
-}
 //}}}
 //}}}
 //{{{  dequant
@@ -3837,16 +3834,12 @@ static int DequantBlock (int* inbuf, int nSamps, int scale)
 //{{{
 /**************************************************************************************
  * Function:    Dequantize
- *
  * Description: dequantize all transform coefficients for one channel
- *
  * Inputs:      valid AACDecInfo struct (including unpacked, quantized coefficients)
  *              index of current channel
- *
  * Outputs:     dequantized coefficients, including short-block deinterleaving
  *              flags indicating if intensity and/or PNS is active
  *              minimum guard bit count for dequantized coefficients
- *
  * Return:      0 if successful, error code (< 0) if error
  **************************************************************************************/
 static int Dequantize (AACDecInfo* aacDecInfo, int ch)
@@ -3911,25 +3904,20 @@ static int Dequantize (AACDecInfo* aacDecInfo, int ch)
 //{{{
 /**************************************************************************************
  * Function:    DeinterleaveShortBlocks
- *
  * Description: deinterleave transform coefficients in short blocks for one channel
- *
  * Inputs:      valid AACDecInfo struct (including unpacked, quantized coefficients)
  *              index of current channel
- *
  * Outputs:     deinterleaved coefficients (window groups into 8 separate windows)
- *
  * Return:      0 if successful, error code (< 0) if error
- *
  * Notes:       only necessary if deinterleaving not part of Huffman decoding
  **************************************************************************************/
-static int DeinterleaveShortBlocks (AACDecInfo* aacDecInfo, int ch)
-{
+static int DeinterleaveShortBlocks (AACDecInfo* aacDecInfo, int ch) {
+
   (void)aacDecInfo;
   (void)ch;
   /* not used for this implementation - short block deinterleaving performed during Huffman decoding */
   return ERR_AAC_NONE;
-}
+  }
 //}}}
 //}}}
 //{{{  concealment
@@ -9638,41 +9626,21 @@ static int IMDCT (AACDecInfo *aacDecInfo, int ch, int chOut, short *outbuf)
  * Outputs:     PSInfoSBR struct with proper initial state
  * Return:      none
  **************************************************************************************/
-static void InitSBRState (PSInfoSBR* psi)
-{
-  int i, ch;
-  unsigned char *c;
+static void InitSBRState (PSInfoSBR* psi) {
 
   if (!psi)
     return;
 
   /* clear SBR state structure */
-  c = (unsigned char *)psi;
-  for (i = 0; i < (int)sizeof(PSInfoSBR); i++)
+  unsigned char* c = (unsigned char *)psi;
+  for (int i = 0; i < (int)sizeof(PSInfoSBR); i++)
     *c++ = 0;
 
   /* initialize non-zero state variables */
-  for (ch = 0; ch < AAC_MAX_NCHANS; ch++) {
+  for (int ch = 0; ch < AAC_MAX_NCHANS; ch++) {
     psi->sbrChan[ch].reset = 1;
     psi->sbrChan[ch].laPrev = -1;
-  }
-}
-//}}}
-//{{{
-static int InitSBR (AACDecInfo* aacDecInfo) {
-
-  PSInfoSBR* psi = (PSInfoSBR *)malloc(sizeof(PSInfoSBR));
-  InitSBRState (psi);
-  aacDecInfo->psInfoSBR = psi;
-  return ERR_AAC_NONE;
-  }
-//}}}
-//{{{
-static void FreeSBR (AACDecInfo* aacDecInfo) {
-
-  if (aacDecInfo)
-    free (aacDecInfo->psInfoSBR);
-  return;
+    }
   }
 //}}}
 //{{{
@@ -9912,26 +9880,6 @@ static int DecodeSBRData (AACDecInfo* aacDecInfo, int chBase, short *outbuf)
   return ERR_AAC_NONE;
 }
 //}}}
-//{{{
-/**************************************************************************************
- * Function:    FlushCodecSBR
- * Description: flush internal SBR codec state (after seeking, for example)
- * Inputs:      valid AACDecInfo struct
- * Outputs:     updated state variables for SBR
- * Return:      0 if successful, error code (< 0) if error
- * Notes:       SBR is heavily dependent on state from previous frames
- *                (e.g. delta coded scalefactors, previous envelope boundaries, etc.)
- *              On flush, we reset everything as if SBR had just been initialized
- *                for the first time. This triggers "upsample-only" mode until
- *                the first valid SBR header is received. Then SBR starts as usual.
- **************************************************************************************/
-static int FlushCodecSBR (AACDecInfo* aacDecInfo) {
-
-  PSInfoSBR* psi = (PSInfoSBR*)(aacDecInfo->psInfoSBR);
-  InitSBRState (psi);
-  return 0;
-  }
-//}}}
 
 //{{{
  /**************************************************************************************
@@ -10045,12 +9993,12 @@ static int UnpackADTSHeader (AACDecInfo* aacDecInfo, unsigned char** buf, int* b
 static int GetADTSChannelMapping (AACDecInfo* aacDecInfo, unsigned char* buf, int bitOffset, int bitsAvail)
 {
   int ch, nChans, elementChans, err;
-  PSInfoBase *psi;
 
   /* validate pointers */
   if (!aacDecInfo || !aacDecInfo->psInfoBase)
     return ERR_AAC_NULL_POINTER;
-  psi = (PSInfoBase *)(aacDecInfo->psInfoBase);
+
+  PSInfoBase* psi = (PSInfoBase *)(aacDecInfo->psInfoBase);
 
   nChans = 0;
   do {
@@ -10063,7 +10011,7 @@ static int GetADTSChannelMapping (AACDecInfo* aacDecInfo, unsigned char* buf, in
     nChans += elementChans;
 
     for (ch = 0; ch < elementChans; ch++) {
-      err = DecodeNoiselessData(aacDecInfo, &buf, &bitOffset, &bitsAvail, ch);
+      err = DecodeNoiselessData (aacDecInfo, &buf, &bitOffset, &bitsAvail, ch);
       if (err)
         return err;
     }
@@ -10080,32 +10028,6 @@ static int GetADTSChannelMapping (AACDecInfo* aacDecInfo, unsigned char* buf, in
   return ERR_AAC_NONE;
 }
 //}}}
-//{{{
-/**************************************************************************************
- * Function:    PrepareRawBlock
- * Description: reset per-block state variables for raw blocks (no ADTS headers)
- * Inputs:      valid AACDecInfo struct
- * Outputs:     updated state variables in aacDecInfo
- * Return:      0 if successful, error code (< 0) if error
- **************************************************************************************/
-static int PrepareRawBlock (AACDecInfo* aacDecInfo)
-{
-  /* validate pointers */
-  if (!aacDecInfo || !aacDecInfo->psInfoBase)
-    return ERR_AAC_NULL_POINTER;
-
-  /* syntactic element fields will be read from bitstream for each element */
-  aacDecInfo->prevBlockID = AAC_ID_INVALID;
-  aacDecInfo->currBlockID = AAC_ID_INVALID;
-  aacDecInfo->currInstTag = -1;
-
-  /* fill in user-accessible data */
-  aacDecInfo->bitRate = 0;
-  aacDecInfo->sbrEnabled = 0;
-
-  return ERR_AAC_NONE;
-}
-//}}}
 
 // main decoder
 //{{{
@@ -10117,7 +10039,10 @@ HAACDecoder AACInitDecoder() {
   aacDecInfo->psInfoBase = malloc (sizeof(PSInfoBase));
   memset (aacDecInfo->psInfoBase, 0, sizeof(PSInfoBase));
 
-  InitSBR (aacDecInfo);
+  PSInfoSBR* psi = (PSInfoSBR*)malloc (sizeof(PSInfoSBR));
+  InitSBRState (psi);
+  aacDecInfo->psInfoSBR = psi;
+
   return (HAACDecoder)aacDecInfo;
   }
 //}}}
@@ -10146,11 +10071,12 @@ int AACFlushCodec (HAACDecoder hAACDecoder) {
   aacDecInfo->pnsUsed = 0;
 
   /* reset internal codec state (flush overlap buffers, etc.) */
-  PSInfoBase* psi = (PSInfoBase *)(aacDecInfo->psInfoBase);
-  memset (psi->overlap, 0, AAC_MAX_NCHANS * AAC_MAX_NSAMPS * sizeof(int));
-  memset (psi->prevWinShape, 0, AAC_MAX_NCHANS * sizeof(int));
+  PSInfoBase* psiInfo = (PSInfoBase *)(aacDecInfo->psInfoBase);
+  memset (psiInfo->overlap, 0, AAC_MAX_NCHANS * AAC_MAX_NSAMPS * sizeof(int));
+  memset (psiInfo->prevWinShape, 0, AAC_MAX_NCHANS * sizeof(int));
 
-  FlushCodecSBR (aacDecInfo);
+  PSInfoSBR* psiSbr = (PSInfoSBR*)(aacDecInfo->psInfoSBR);
+  InitSBRState (psiSbr);
 
   return ERR_AAC_NONE;
   }
@@ -10187,7 +10113,7 @@ int AACDecode (HAACDecoder hAACDecoder, unsigned char **inbuf, int *bytesLeft, s
 
   if (aacDecInfo->nChans == -1) {
     /* figure out implicit channel mapping if necessary */
-    int err = GetADTSChannelMapping(aacDecInfo, inptr, bitOffset, bitsAvail);
+    int err = GetADTSChannelMapping (aacDecInfo, inptr, bitOffset, bitsAvail);
     if (err)
       return err;
     }
@@ -10323,9 +10249,11 @@ void AACGetLastFrameInfo (HAACDecoder hAACDecoder, AACFrameInfo *aacFrameInfo) {
 void AACFreeDecoder (HAACDecoder hAACDecoder) {
 
   AACDecInfo* aacDecInfo = (AACDecInfo *)hAACDecoder;
-  FreeSBR (aacDecInfo);
-  if (aacDecInfo)
+
+  if (aacDecInfo) {
+    free (aacDecInfo->psInfoSBR);
     free (aacDecInfo->psInfoBase);
+    }
   free (aacDecInfo);
   }
 //}}}
