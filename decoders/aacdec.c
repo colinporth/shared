@@ -1,7 +1,11 @@
 // aacdec.c - fixed point aac sbr, based on real networks helix 2005 - single file 10000 lines
+//{{{  includes
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
+
 #include "aacdec.h"
+//}}}
 
 //{{{  assert, min, max
 #define ASSERT(x) /* do nothing */
@@ -123,8 +127,6 @@ typedef struct _AACDecInfo {
 
   /* raw decoded data, before rounding to 16-bit PCM (for postprocessing such as SBR) */
   void* rawSampleBuf[AAC_MAX_NCHANS];
-  int rawSampleBytes;
-  int rawSampleFBits;
 
   /* fill data (can be used for processing SBR or other extensions) */
   unsigned char *fillBuf;
@@ -147,7 +149,6 @@ typedef struct _AACDecInfo {
   int sbrEnabled;
   int tnsUsed;
   int pnsUsed;
-  int frameCount;
 
   } AACDecInfo;
 //}}}
@@ -543,7 +544,6 @@ typedef struct _SBRChan {
 //{{{
 typedef struct _PSInfoSBR {
   /* save for entire file */
-  int                   frameCount;
   int                   sampRateIdx;
 
   /* state info that must be saved for each channel */
@@ -8018,19 +8018,13 @@ static void GenerateHighFreq (PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq
 //{{{
 /**************************************************************************************
  * Function:    DecWindowOverlapNoClip
- *
  * Description: apply synthesis window, do overlap-add without clipping,
  *                for winSequence LONG-LONG
- *
  * Inputs:      input buffer (output of type-IV DCT)
  *              overlap buffer (saved from last time)
  *              window type (sin or KBD) for input buffer
  *              window type (sin or KBD) for overlap buffer
- *
  * Outputs:     one channel, one frame of 32-bit PCM, non-interleaved
- *
- * Return:      none
- *
  * Notes:       use this function when the decoded PCM is going to the SBR decoder
  **************************************************************************************/
 static void DecWindowOverlapNoClip (int* buf0, int* over0, int* out0, int winTypeCurr, int winTypePrev)
@@ -8095,19 +8089,13 @@ static void DecWindowOverlapNoClip (int* buf0, int* over0, int* out0, int winTyp
 //{{{
 /**************************************************************************************
  * Function:    DecWindowOverlapLongStart
- *
  * Description: apply synthesis window, do overlap-add, without clipping
  *                for winSequence LONG-START
- *
  * Inputs:      input buffer (output of type-IV DCT)
  *              overlap buffer (saved from last time)
  *              window type (sin or KBD) for input buffer
  *              window type (sin or KBD) for overlap buffer
- *
  * Outputs:     one channel, one frame of 32-bit PCM, non-interleaved
- *
- * Return:      none
- *
  * Notes:       use this function when the decoded PCM is going to the SBR decoder
  **************************************************************************************/
 static void DecWindowOverlapLongStartNoClip (int* buf0, int* over0, int* out0, int winTypeCurr, int winTypePrev)
@@ -8173,19 +8161,13 @@ static void DecWindowOverlapLongStartNoClip (int* buf0, int* over0, int* out0, i
 //{{{
 /**************************************************************************************
  * Function:    DecWindowOverlapLongStop
- *
  * Description: apply synthesis window, do overlap-add, without clipping
  *                for winSequence LONG-STOP
- *
  * Inputs:      input buffer (output of type-IV DCT)
  *              overlap buffer (saved from last time)
  *              window type (sin or KBD) for input buffer
  *              window type (sin or KBD) for overlap buffer
- *
  * Outputs:     one channel, one frame of 32-bit PCM, non-interleaved
- *
- * Return:      none
- *
  * Notes:       use this function when the decoded PCM is going to the SBR decoder
  **************************************************************************************/
 static void DecWindowOverlapLongStopNoClip (int* buf0, int* over0, int* out0, int winTypeCurr, int winTypePrev)
@@ -8250,19 +8232,13 @@ static void DecWindowOverlapLongStopNoClip (int* buf0, int* over0, int* out0, in
 //{{{
 /**************************************************************************************
  * Function:    DecWindowOverlapShort
- *
  * Description: apply synthesis window, do overlap-add, without clipping
  *                for winSequence EIGHT-SHORT (does all 8 short blocks)
- *
  * Inputs:      input buffer (output of type-IV DCT)
  *              overlap buffer (saved from last time)
  *              window type (sin or KBD) for input buffer
  *              window type (sin or KBD) for overlap buffer
- *
  * Outputs:     one channel, one frame of 32-bit PCM, non-interleaved
- *
- * Return:      none
- *
  * Notes:       use this function when the decoded PCM is going to the SBR decoder
  **************************************************************************************/
 static void DecWindowOverlapShortNoClip (int* buf0, int* over0, int* out0, int winTypeCurr, int winTypePrev)
@@ -8421,70 +8397,6 @@ static void DecWindowOverlapShortNoClip (int* buf0, int* over0, int* out0, int w
 }
 //}}}
 
-#define RND_VAL  (1 << (FBITS_OUT_IMDCT-1))
-//{{{
-static int IMDCT (AACDecInfo* aacDecInfo, int ch, int chOut, int16_t* outbuf) {
-/**************************************************************************************
- * Description: inverse transform and convert to 16-bit PCM
- * Inputs:      valid AACDecInfo struct
- *              index of current channel (0 for SCE/LFE, 0 or 1 for CPE)
- *              output channel (range = [0, nChans-1])
- * Outputs:     complete frame of decoded PCM, after inverse transform
- * Return:      0 if successful, -1 if error
- * Notes:       If AAC_ENABLE_SBR is defined at compile time then window + overlap
- *                does NOT clip to 16-bit PCM and does NOT interleave channels
- *              If AAC_ENABLE_SBR is NOT defined at compile time, then window + overlap
- *                does clip to 16-bit PCM and interleaves channels
- *              If SBR is enabled at compile time, but we don't know whether it is
- *                actually used for this frame (e.g. the first frame of a stream),
- *                we need to produce both clipped 16-bit PCM in outbuf AND
- *                unclipped 32-bit PCM in the SBR input buffer. In this case we make
- *                a separate pass over the 32-bit PCM to produce 16-bit PCM output.
- *                This inflicts a slight performance hit when decoding non-SBR files.
- **************************************************************************************/
-
-  PSInfoBase* psi = (PSInfoBase *)(aacDecInfo->psInfoBase);
-  ICSInfo* icsInfo = (ch == 1 && psi->commonWin == 1) ? &(psi->icsInfo[0]) : &(psi->icsInfo[ch]);
-  outbuf += chOut;
-
-  /* optimized type-IV DCT (operates inplace) */
-  if (icsInfo->winSequence == 2) /* 8 short blocks */
-    for (int i = 0; i < 8; i++)
-      DCT4 (0, psi->coef[ch] + i*128, psi->gbCurrent[ch]);
-  else /* 1 long block */
-    DCT4 (1, psi->coef[ch], psi->gbCurrent[ch]);
-
-  // window, overlap-add, don't clip to short (send to SBR decoder)
-  // store the decoded 32-bit samples in top half (second AAC_MAX_NSAMPS samples) of coef buffer
-  if (icsInfo->winSequence == 0)
-    DecWindowOverlapNoClip (psi->coef[ch], psi->overlap[chOut], psi->sbrWorkBuf[ch],
-                            icsInfo->winShape, psi->prevWinShape[chOut]);
-  else if (icsInfo->winSequence == 1)
-    DecWindowOverlapLongStartNoClip (psi->coef[ch], psi->overlap[chOut], psi->sbrWorkBuf[ch],
-                                     icsInfo->winShape, psi->prevWinShape[chOut]);
-  else if (icsInfo->winSequence == 2)
-    DecWindowOverlapShortNoClip (psi->coef[ch], psi->overlap[chOut], psi->sbrWorkBuf[ch],
-                                 icsInfo->winShape, psi->prevWinShape[chOut]);
-  else if (icsInfo->winSequence == 3)
-    DecWindowOverlapLongStopNoClip (psi->coef[ch], psi->overlap[chOut], psi->sbrWorkBuf[ch],
-                                    icsInfo->winShape, psi->prevWinShape[chOut]);
-
-  if (!aacDecInfo->sbrEnabled) {
-    for (int i = 0; i < AAC_MAX_NSAMPS; i++) {
-      *outbuf = CLIPTOSHORT ((psi->sbrWorkBuf[ch][i] + RND_VAL) >> FBITS_OUT_IMDCT);
-      outbuf += aacDecInfo->nChans;
-      }
-    }
-
-  aacDecInfo->rawSampleBuf[ch] = psi->sbrWorkBuf[ch];
-  aacDecInfo->rawSampleBytes = sizeof(int);
-  aacDecInfo->rawSampleFBits = FBITS_OUT_IMDCT;
-
-  psi->prevWinShape[chOut] = icsInfo->winShape;
-  return 0;
-  }
-//}}}
-
 // sbr qmf
 //{{{
 static void PreMultiply64 (int* zbuf1) {
@@ -8492,7 +8404,6 @@ static void PreMultiply64 (int* zbuf1) {
  * Description: pre-twiddle stage of 64-point DCT-IV
  * Inputs:      buffer of 64 samples
  * Outputs:     processed samples in same buffer
- * Return:      none
  * Notes:       minimum 1 GB in, 2 GB out, gains 2 int bits
  *              gbOut = gbIn + 1
  *              output is limited to sqrt(2)/2 plus GB in full GB
@@ -8546,7 +8457,6 @@ static void PostMultiply64 (int* fft1, int nSampsOut) {
  * Inputs:      buffer of 64 samples
  *              number of output samples to calculate
  * Outputs:     processed samples in same buffer
- * Return:      none
  * Notes:       minimum 1 GB in, 2 GB out, gains 2 int bits
  *              gbOut = gbIn + 1
  *              output is limited to sqrt(2)/2 plus GB in full GB
@@ -8597,7 +8507,6 @@ static void QMFAnalysisConv (int* cTab, int *delay, int dIdx, int* uBuf) {
  *              delay buffer of size 32*10 = 320 real-valued PCM samples
  *              index for delay ring buffer (range = [0, 9])
  * Outputs:     64 consecutive 32-bit samples
- * Return:      none
  * Notes:       this is carefully written to be efficient on ARM
  *              use the assembly code version in sbrqmfak.s when building for ARM!
  **************************************************************************************/
@@ -8736,144 +8645,6 @@ static int QMFAnalysis (int* inbuf, int* delay, int* XBuf, int fBitsIn, int* del
 
   /* minimum of 2 GB in output */
   return gbMask;
-  }
-//}}}
-
-// lose FBITS_LOST_DCT4_64 in DCT4, gain 6 for implicit scaling by 1/64, lose 1 for cTab multiply (Q31) */
-#define FBITS_OUT_QMFS  (FBITS_IN_QMFS - FBITS_LOST_DCT4_64 + 6 - 1)
-#define RND_VAL1  (1 << (FBITS_OUT_QMFS-1))
-
-//{{{
-static void QMFSynthesisConv (int* cPtr, int *delay, int dIdx, int16_t* outbuf, int nChans) {
-/**************************************************************************************
- * Description: final convolution kernel for synthesis QMF
- * Inputs:      pointer to coefficient table, reordered for sequential access
- *              delay buffer of size 64*10 = 640 complex samples (1280 ints)
- *              index for delay ring buffer (range = [0, 9])
- *              number of QMF subbands to process (range = [0, 64])
- *              number of channels
- * Outputs:     64 consecutive 16-bit PCM samples, interleaved by factor of nChans
- * Return:      none
- * Notes:       this is carefully written to be efficient on ARM
- *              use the assembly code version in sbrqmfsk.s when building for ARM!
- **************************************************************************************/
-
-  int k, dOff0, dOff1;
-  U64 sum64;
-
-  dOff0 = (dIdx)*128;
-  dOff1 = dOff0 - 1;
-  if (dOff1 < 0)
-    dOff1 += 1280;
-
-  /* scaling note: total gain of coefs (cPtr[0]-cPtr[9] for any k) is < 2.0, so 1 GB in delay values is adequate */
-  for (k = 0; k <= 63; k++) {
-    sum64.w64 = 0;
-    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]); dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
-    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]); dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
-    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]); dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
-    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]); dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
-    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]); dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
-    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]); dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
-    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]); dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
-    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]); dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
-    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]); dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
-    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]); dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
-
-    dOff0++;
-    dOff1--;
-    *outbuf = CLIPTOSHORT ((sum64.r.hi32 + RND_VAL1) >> FBITS_OUT_QMFS);
-    outbuf += nChans;
-    }
-  }
-//}}}
-//{{{
-static void QMFSynthesis (int* inbuf, int *delay, int *delayIdx, int qmfsBands, int16_t* outbuf, int nChans) {
-/**************************************************************************************
- * Description: 64-subband synthesis QMF (4.6.18.4.2)
- * Inputs:      64 consecutive complex subband QMF samples, format = Q(FBITS_IN_QMFS)
- *              delay buffer of size 64*10 = 640 complex samples (1280 ints)
- *              index for delay ring buffer (range = [0, 9])
- *              number of QMF subbands to process (range = [0, 64])
- *              number of channels
- * Outputs:     64 consecutive 16-bit PCM samples, interleaved by factor of nChans
- *              updated delay buffer
- *              updated delay index
- * Return:      none
- * Notes:       assumes MIN_GBITS_IN_QMFS guard bits in input, either from
- *              QMFAnalysis (if upsampling only) or from MapHF (if SBR on)
- **************************************************************************************/
-
-  int n, a0, a1, b0, b1, dOff0, dOff1, dIdx;
-  int *tBufLo, *tBufHi;
-
-  dIdx = *delayIdx;
-  tBufLo = delay + dIdx*128 + 0;
-  tBufHi = delay + dIdx*128 + 127;
-
-  // reorder inputs to DCT-IV, only use first qmfsBands (complex) samples
-  // TODO - fuse with PreMultiply64 to avoid separate reordering steps
-  for (n = 0; n < qmfsBands >> 1; n++) {
-    a0 = *inbuf++;
-    b0 = *inbuf++;
-    a1 = *inbuf++;
-    b1 = *inbuf++;
-    *tBufLo++ = a0;
-    *tBufLo++ = a1;
-    *tBufHi-- = b0;
-    *tBufHi-- = b1;
-    }
-
-  if (qmfsBands & 0x01) {
-    a0 = *inbuf++;
-    b0 = *inbuf++;
-    *tBufLo++ = a0;
-    *tBufHi-- = b0;
-    *tBufLo++ = 0;
-    *tBufHi-- = 0;
-    n++;
-    }
-
-  for ( ; n < 32; n++) {
-    *tBufLo++ = 0;
-    *tBufHi-- = 0;
-    *tBufLo++ = 0;
-    *tBufHi-- = 0;
-    }
-
-  tBufLo = delay + dIdx*128 + 0;
-  tBufHi = delay + dIdx*128 + 64;
-
-  /* 2 GB in, 3 GB out */
-  PreMultiply64 (tBufLo);
-  PreMultiply64 (tBufHi);
-
-  /* 3 GB in, 1 GB out */
-  FFT32C (tBufLo);
-  FFT32C (tBufHi);
-
-  /* 1 GB in, 2 GB out */
-  PostMultiply64 (tBufLo, 64);
-  PostMultiply64 (tBufHi, 64);
-
-  /* could fuse with PostMultiply64 to avoid separate pass */
-  dOff0 = dIdx*128;
-  dOff1 = dIdx*128 + 64;
-  for (n = 32; n != 0; n--) {
-    a0 =  (*tBufLo++);
-    a1 =  (*tBufLo++);
-    b0 =  (*tBufHi++);
-    b1 = -(*tBufHi++);
-
-    delay[dOff0++] = (b0 - a0);
-    delay[dOff0++] = (b1 - a1);
-    delay[dOff1++] = (b0 + a0);
-    delay[dOff1++] = (b1 + a1);
-    }
-
-  QMFSynthesisConv ((int *)cTabS, delay, dIdx, outbuf, nChans);
-
-  *delayIdx = (*delayIdx == NUM_QMF_DELAY_BUFS - 1 ? 0 : *delayIdx + 1);
   }
 //}}}
 //}}}
@@ -9392,8 +9163,209 @@ static int DecodeSBRBitstream (AACDecInfo* aacDecInfo, int chBase) {
   return ERR_AAC_NONE;
   }
 //}}}
+
+// output
 //{{{
-static int DecodeSBRData (AACDecInfo* aacDecInfo, int chBase, int16_t* outbuf) {
+static int IMDCT (AACDecInfo* aacDecInfo, int ch, int chOut, float* outbuf) {
+/**************************************************************************************
+ * Description: inverse transform and convert to 16-bit PCM
+ * Inputs:      valid AACDecInfo struct
+ *              index of current channel (0 for SCE/LFE, 0 or 1 for CPE)
+ *              output channel (range = [0, nChans-1])
+ * Outputs:     complete frame of decoded PCM, if sbr
+ * Return:      0 if successful, -1 if error
+ **************************************************************************************/
+
+  PSInfoBase* psi = (PSInfoBase *)(aacDecInfo->psInfoBase);
+  ICSInfo* icsInfo = (ch == 1 && psi->commonWin == 1) ? &(psi->icsInfo[0]) : &(psi->icsInfo[ch]);
+  outbuf += chOut;
+
+  // optimized type-IV DCT (operates inplace)
+  if (icsInfo->winSequence == 2) // 8 short blocks
+    for (int i = 0; i < 8; i++)
+      DCT4 (0, psi->coef[ch] + i*128, psi->gbCurrent[ch]);
+  else // 1 long block
+    DCT4 (1, psi->coef[ch], psi->gbCurrent[ch]);
+
+  // window, overlap-add, don't clip to short (send to SBR decoder)
+  // store the decoded 32-bit samples in top half (second AAC_MAX_NSAMPS samples) of coef buffer
+  if (icsInfo->winSequence == 0)
+    DecWindowOverlapNoClip (psi->coef[ch], psi->overlap[chOut], psi->sbrWorkBuf[ch],
+                            icsInfo->winShape, psi->prevWinShape[chOut]);
+  else if (icsInfo->winSequence == 1)
+    DecWindowOverlapLongStartNoClip (psi->coef[ch], psi->overlap[chOut], psi->sbrWorkBuf[ch],
+                                     icsInfo->winShape, psi->prevWinShape[chOut]);
+  else if (icsInfo->winSequence == 2)
+    DecWindowOverlapShortNoClip (psi->coef[ch], psi->overlap[chOut], psi->sbrWorkBuf[ch],
+                                 icsInfo->winShape, psi->prevWinShape[chOut]);
+  else if (icsInfo->winSequence == 3)
+    DecWindowOverlapLongStopNoClip (psi->coef[ch], psi->overlap[chOut], psi->sbrWorkBuf[ch],
+                                    icsInfo->winShape, psi->prevWinShape[chOut]);
+
+  aacDecInfo->rawSampleBuf[ch] = psi->sbrWorkBuf[ch];
+
+  if (!aacDecInfo->sbrEnabled)
+    for (int i = 0; i < AAC_MAX_NSAMPS; i++) {
+      *outbuf = psi->sbrWorkBuf[ch][i] / (float)0x20000;
+      outbuf += aacDecInfo->nChans;
+      }
+
+  psi->prevWinShape[chOut] = icsInfo->winShape;
+  return 0;
+  }
+//}}}
+
+//{{{
+static void QMFSynthesisConv (int* cPtr, int* delay, int dIdx, float* outbuf, int nChans) {
+/**************************************************************************************
+ * Description: final convolution kernel for synthesis QMF
+ * Inputs:      pointer to coefficient table, reordered for sequential access
+ *              delay buffer of size 64*10 = 640 complex samples (1280 ints)
+ *              index for delay ring buffer (range = [0, 9])
+ *              number of QMF subbands to process (range = [0, 64])
+ *              number of channels
+ * Outputs:     64 consecutive float PCM samples, interleaved by factor of nChans
+ * Notes:       this is carefully written to be efficient on ARM
+ *              use the assembly code version in sbrqmfsk.s when building for ARM!
+ **************************************************************************************/
+
+  int dOff0 = (dIdx)*128;
+  int dOff1 = dOff0 - 1;
+  if (dOff1 < 0)
+    dOff1 += 1280;
+
+  /* scaling note: total gain of coefs (cPtr[0]-cPtr[9] for any k) is < 2.0, so 1 GB in delay values is adequate */
+  for (int k = 0; k <= 63; k++) {
+    U64 sum64;
+    sum64.w64 = 0;
+
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]);
+    dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
+
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]);
+    dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
+
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]);
+    dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
+
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]);
+    dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
+
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]);
+    dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
+
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]);
+    dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
+
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]);
+    dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
+
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]);
+    dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
+
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]);
+    dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
+
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]);
+    dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
+
+    dOff0++;
+    dOff1--;
+
+    *outbuf = sum64.r.hi32 / (float)0x40000;
+    outbuf += nChans;
+    }
+  }
+//}}}
+//{{{
+static void QMFSynthesis (int* inbuf, int* delay, int* delayIdx, int qmfsBands, float* outbuf, int nChans) {
+/**************************************************************************************
+ * Description: 64-subband synthesis QMF (4.6.18.4.2)
+ * Inputs:      64 consecutive complex subband QMF samples, format = Q(FBITS_IN_QMFS)
+ *              delay buffer of size 64*10 = 640 complex samples (1280 ints)
+ *              index for delay ring buffer (range = [0, 9])
+ *              number of QMF subbands to process (range = [0, 64])
+ *              number of channels
+ * Outputs:     64 consecutive float PCM samples, interleaved by factor of nChans
+ *              updated delay buffer
+ *              updated delay index
+ * Notes:       assumes MIN_GBITS_IN_QMFS guard bits in input, either from
+ *              QMFAnalysis (if upsampling only) or from MapHF (if SBR on)
+ **************************************************************************************/
+
+  int n, a0, a1, b0, b1, dOff0, dOff1;
+
+  int dIdx = *delayIdx;
+  int* tBufLo = delay + dIdx*128 + 0;
+  int* tBufHi = delay + dIdx*128 + 127;
+
+  // reorder inputs to DCT-IV, only use first qmfsBands (complex) samples
+  // TODO - fuse with PreMultiply64 to avoid separate reordering steps
+  for (n = 0; n < qmfsBands >> 1; n++) {
+    a0 = *inbuf++;
+    b0 = *inbuf++;
+    a1 = *inbuf++;
+    b1 = *inbuf++;
+    *tBufLo++ = a0;
+    *tBufLo++ = a1;
+    *tBufHi-- = b0;
+    *tBufHi-- = b1;
+    }
+
+  if (qmfsBands & 0x01) {
+    a0 = *inbuf++;
+    b0 = *inbuf++;
+    *tBufLo++ = a0;
+    *tBufHi-- = b0;
+    *tBufLo++ = 0;
+    *tBufHi-- = 0;
+    n++;
+    }
+
+  for ( ; n < 32; n++) {
+    *tBufLo++ = 0;
+    *tBufHi-- = 0;
+    *tBufLo++ = 0;
+    *tBufHi-- = 0;
+    }
+
+  tBufLo = delay + dIdx*128 + 0;
+  tBufHi = delay + dIdx*128 + 64;
+
+  /* 2 GB in, 3 GB out */
+  PreMultiply64 (tBufLo);
+  PreMultiply64 (tBufHi);
+
+  /* 3 GB in, 1 GB out */
+  FFT32C (tBufLo);
+  FFT32C (tBufHi);
+
+  /* 1 GB in, 2 GB out */
+  PostMultiply64 (tBufLo, 64);
+  PostMultiply64 (tBufHi, 64);
+
+  /* could fuse with PostMultiply64 to avoid separate pass */
+  dOff0 = dIdx*128;
+  dOff1 = dIdx*128 + 64;
+  for (n = 32; n != 0; n--) {
+    a0 =  (*tBufLo++);
+    a1 =  (*tBufLo++);
+    b0 =  (*tBufHi++);
+    b1 = -(*tBufHi++);
+
+    delay[dOff0++] = (b0 - a0);
+    delay[dOff0++] = (b1 - a1);
+    delay[dOff1++] = (b0 + a0);
+    delay[dOff1++] = (b1 + a1);
+    }
+
+  QMFSynthesisConv ((int*)cTabS, delay, dIdx, outbuf, nChans);
+
+  *delayIdx = (*delayIdx == NUM_QMF_DELAY_BUFS - 1 ? 0 : *delayIdx + 1);
+  }
+//}}}
+//{{{
+static int DecodeSBRData (AACDecInfo* aacDecInfo, int chBase, float* outbuf) {
 /**************************************************************************************
  * Description: apply SBR to one frame of PCM data
  * Inputs:      1024 samples of decoded 32-bit PCM, before SBR
@@ -9401,14 +9373,14 @@ static int DecodeSBRData (AACDecInfo* aacDecInfo, int chBase, int16_t* outbuf) {
  *              number of fraction bits in input PCM samples
  *              base output channel (range = [0, nChans-1])
  *              initialized state structs (SBRHdr, SBRGrid, SBRFreq, SBRChan)
- * Outputs:     2048 samples of decoded 16-bit PCM, after SBR
+ * Outputs:     2048 samples of decoded float PCM, after SBR
  * Return:      0 if successful, error code (< 0) if error
  **************************************************************************************/
 
   int k, l, ch, chBlock, qmfaBands, qmfsBands;
 
   // same header and freq tables for both channels in CPE
-  PSInfoSBR* psi = (PSInfoSBR *)(aacDecInfo->psInfoSBR);
+  PSInfoSBR* psi = (PSInfoSBR*)(aacDecInfo->psInfoSBR);
   SBRHeader* sbrHdr = &(psi->sbrHdr[chBase]);
   SBRFreq* sbrFreq = &(psi->sbrFreq[chBase]);
 
@@ -9442,12 +9414,6 @@ static int DecodeSBRData (AACDecInfo* aacDecInfo, int chBase, int16_t* outbuf) {
     SBRGrid* sbrGrid = &(psi->sbrGrid[chBase + ch]);
     SBRChan* sbrChan = &(psi->sbrChan[chBase + ch]);
 
-    if (aacDecInfo->rawSampleBuf[ch] == 0 || aacDecInfo->rawSampleBytes != 4)
-      return ERR_AAC_SBR_PCM_FORMAT;
-
-    int* inbuf = (int *)aacDecInfo->rawSampleBuf[ch];
-    short* outptr = outbuf + chBase + ch;
-
     // restore delay buffers (could use ring buffer or keep in temp buffer for nChans == 1)
     for (l = 0; l < HF_GEN; l++) {
       for (k = 0; k < 64; k++) {
@@ -9456,11 +9422,14 @@ static int DecodeSBRData (AACDecInfo* aacDecInfo, int chBase, int16_t* outbuf) {
         }
       }
 
+    int* inbuf = (int*)aacDecInfo->rawSampleBuf[ch];
+    float* outptr = outbuf + chBase + ch;
+
     // step 1 - analysis QMF
     qmfaBands = sbrFreq->kStart;
     for (l = 0; l < 32; l++) {
       int gbMask = QMFAnalysis (inbuf + l*32, psi->delayQMFA[chBase + ch], psi->XBuf[l + HF_GEN][0],
-                            aacDecInfo->rawSampleFBits, &(psi->delayIdxQMFA[chBase + ch]), qmfaBands);
+                                FBITS_OUT_IMDCT, &(psi->delayIdxQMFA[chBase + ch]), qmfaBands);
       int gbIdx = ((l + HF_GEN) >> 5) & 0x01;
       sbrChan->gbMask[gbIdx] |= gbMask; // gbIdx = (0 if i < 32), (1 if i >= 32)
       }
@@ -9532,11 +9501,9 @@ static int DecodeSBRData (AACDecInfo* aacDecInfo, int chBase, int16_t* outbuf) {
     if (sbrHdr->count > 0)
       sbrChan->reset = 0;
     }
+
   sbrFreq->kStartPrev = sbrFreq->kStart;
   sbrFreq->numQMFBandsPrev = sbrFreq->numQMFBands;
-
-  if (aacDecInfo->nChans > 0 && (chBase + ch) == aacDecInfo->nChans)
-    psi->frameCount++;
 
   return ERR_AAC_NONE;
   }
@@ -9596,7 +9563,7 @@ int AACFlushCodec (HAACDecoder hAACDecoder) {
 //{{{
 int AACDecode (HAACDecoder hAACDecoder, uint8_t* inbuf, int bytesLeft, float* outbuf, int* sampleRate) {
 
-  int16_t samples16[2*2048];
+  *sampleRate = 0;
 
   int bitOffset = 0;
   int bitsAvail = bytesLeft << 3;
@@ -9662,7 +9629,7 @@ int AACDecode (HAACDecoder hAACDecoder, uint8_t* inbuf, int bytesLeft, float* ou
 
       if (TNSFilter (aacDecInfo, ch))
         return 0;
-      if (IMDCT (aacDecInfo, ch, baseChan + ch, samples16))
+      if (IMDCT (aacDecInfo, ch, baseChan + ch, outbuf))
         return 0;
       }
 
@@ -9686,7 +9653,7 @@ int AACDecode (HAACDecoder hAACDecoder, uint8_t* inbuf, int bytesLeft, float* ou
          return 0;
 
       // apply SBR
-      if (DecodeSBRData (aacDecInfo, baseChanSBR, samples16))
+      if (DecodeSBRData (aacDecInfo, baseChanSBR, outbuf))
         return 0;
 
       baseChanSBR += elementChansSBR;
@@ -9695,13 +9662,8 @@ int AACDecode (HAACDecoder hAACDecoder, uint8_t* inbuf, int bytesLeft, float* ou
     baseChan += elementChans;
     } while (aacDecInfo->currBlockID != AAC_ID_END);
 
-  int numSamples = aacDecInfo->nChans * AAC_MAX_NSAMPS * (aacDecInfo->sbrEnabled ? 2 : 1) / 2;
-  int16_t* srcPtr = samples16;
-  float* dstPtr = outbuf;
-  for (auto sample = 0; sample < numSamples * 2; sample++)
-    *dstPtr++ = *srcPtr++ / (float)0x8000;
-
   *sampleRate = aacDecInfo->sampRate * (aacDecInfo->sbrEnabled ? 2 : 1);
+  int numSamples = aacDecInfo->nChans * AAC_MAX_NSAMPS * (aacDecInfo->sbrEnabled ? 2 : 1) / 2;
 
   return numSamples;
   }
