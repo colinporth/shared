@@ -22,7 +22,6 @@
 #define AAC_PROFILE_SSR   2
 
 #define AAC_ENABLE_SBR 1
-#define AAC_ENABLE_MPEG4
 
 //{{{  error enum
 enum {

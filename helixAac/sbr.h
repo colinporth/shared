@@ -1,22 +1,5 @@
 #pragma once
 #include "aaccommon.h"
-#include "bitstream.h"
-
-#ifndef ASSERT
-#if defined(_WIN32) && defined(_M_IX86) && (defined (_DEBUG) || defined (REL_ENABLE_ASSERTS))
-#define ASSERT(x) if (!(x)) __asm int 3;
-#else
-#define ASSERT(x) /* do nothing */
-#endif
-#endif
-
-#ifndef MAX
-#define MAX(a,b)  ((a) > (b) ? (a) : (b))
-#endif
-
-#ifndef MIN
-#define MIN(a,b)  ((a) < (b) ? (a) : (b))
-#endif
 
 #define NUM_TIME_SLOTS      16
 #define SAMPLES_PER_SLOT    2 /* RATE in spec */
@@ -54,32 +37,15 @@
 #define DELAY_SAMPS_QMFA  (NUM_QMF_DELAY_BUFS * 32)
 #define DELAY_SAMPS_QMFS  (NUM_QMF_DELAY_BUFS * 128)
 
-/* do y <<= n, clipping to range [-2^30, 2^30 - 1] (i.e. output has one guard bit) */
-#define CLIP_2N_SHIFT30(y, n) { \
-  int sign = (y) >> 31;  \
-  if (sign != (y) >> (30 - (n)))  { \
-    (y) = sign ^ (0x3fffffff); \
-  } else { \
-    (y) = (y) << (n); \
-  } \
-}
-
-/*
-#define CLIP_2N(y, n) { \
-  int sign = (y) >> 31;  \
-  if (sign != ((y) >> (n)))  { \
-    (y) = sign ^ ((1 << (n)) - 1); \
-  } \
-}
-*/
-
+//{{{
 enum {
   SBR_GRID_FIXFIX = 0,
   SBR_GRID_FIXVAR = 1,
   SBR_GRID_VARFIX = 2,
   SBR_GRID_VARVAR = 3
-};
-
+  };
+//}}}
+//{{{
 enum {
   HuffTabSBR_tEnv15 =    0,
   HuffTabSBR_fEnv15 =    1,
@@ -93,14 +59,9 @@ enum {
   HuffTabSBR_fNoise30 =  5,
   HuffTabSBR_tNoise30b = 9,
   HuffTabSBR_fNoise30b = 7
-};
-
-typedef struct _HuffInfo {
-  int maxBits;              /* number of bits in longest codeword */
-    unsigned /*char*/ int count[MAX_HUFF_BITS];   /* count[i] = number of codes with length i+1 bits */
-  int offset;               /* offset into symbol table */
-} HuffInfo;
-
+  };
+//}}}
+//{{{
 /* need one SBRHeader per element (SCE/CPE), updated only on new header */
 typedef struct _SBRHeader {
   int                   count;
@@ -121,8 +82,9 @@ typedef struct _SBRHeader {
   unsigned char         limiterGains;
   unsigned char         interpFreq;
   unsigned char         smoothMode;
-} SBRHeader;
-
+  } SBRHeader;
+//}}}
+//{{{
 /* need one SBRGrid per channel, updated every frame */
 typedef struct _SBRGrid {
   unsigned char         frameClass;
@@ -139,8 +101,9 @@ typedef struct _SBRGrid {
   unsigned char         numEnvPrev;
   unsigned char         numNoiseFloorsPrev;
   unsigned char         freqResPrev;
-} SBRGrid;
-
+  } SBRGrid;
+//}}}
+//{{{
 /* need one SBRFreq per element (SCE/CPE/LFE), updated only on header reset */
 typedef struct _SBRFreq {
   int                   kStart;       /* k_x */
@@ -163,8 +126,9 @@ typedef struct _SBRFreq {
   unsigned char         numPatches;
   unsigned char         patchNumSubbands[MAX_NUM_PATCHES + 1];
   unsigned char         patchStartSubband[MAX_NUM_PATCHES + 1];
-} SBRFreq;
-
+  } SBRFreq;
+//}}}
+//{{{
 typedef struct _SBRChan {
   int                   reset;
   unsigned char         deltaFlagEnv[MAX_NUM_ENV];
@@ -186,9 +150,9 @@ typedef struct _SBRChan {
   int                   gainNoiseIndex;
   int                   gTemp[MAX_NUM_SMOOTH_COEFS][MAX_QMF_BANDS];
   int                   qTemp[MAX_NUM_SMOOTH_COEFS][MAX_QMF_BANDS];
-
-} SBRChan;
-
+  } SBRChan;
+//}}}
+//{{{
 typedef struct _PSInfoSBR {
   /* save for entire file */
   int                   frameCount;
@@ -251,8 +215,8 @@ typedef struct _PSInfoSBR {
   int                   delayQMFS[AAC_MAX_NCHANS][DELAY_SAMPS_QMFS];
   int                   XBufDelay[AAC_MAX_NCHANS][HF_GEN][64][2];
   int                   XBuf[32+8][64][2];
-
-} PSInfoSBR;
+  } PSInfoSBR;
+//}}}
 
 /* sbrfft.c */
 void FFT32C(int *x);

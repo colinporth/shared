@@ -44,8 +44,7 @@
  * dequant.c - transform coefficient dequantization and short-block deinterleaving
  **************************************************************************************/
 //}}}
-#include "coder.h"
-#include "assembly.h"
+#include "aaccommon.h"
 
 #define SF_OFFSET  100
 //{{{

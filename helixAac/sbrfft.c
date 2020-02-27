@@ -1,5 +1,4 @@
 #include "sbr.h"
-#include "assembly.h"
 
 #define SQRT1_2 0x5a82799a
 

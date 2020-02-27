@@ -1,6 +1,4 @@
-#include <stdint.h>
-#include "coder.h"
-#include "assembly.h"
+#include "aaccommon.h"
 
 #define NUM_FFT_SIZES 2
 static const int nfftTab[NUM_FFT_SIZES] = {64, 512};

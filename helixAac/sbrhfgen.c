@@ -1,5 +1,4 @@
 #include "sbr.h"
-#include "assembly.h"
 
 #define FBITS_LPCOEFS 29  /* Q29 for range of (-4, 4) */
 #define MAG_16      (16 * (1 << (32 - (2*(32-FBITS_LPCOEFS)))))   /* i.e. 16 in Q26 format */

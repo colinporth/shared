@@ -1,5 +1,4 @@
-#include "coder.h"
-#include "assembly.h"
+#include "aaccommon.h"
 
 //{{{
 /* pow14[0][i] = -pow(2, i/4.0)

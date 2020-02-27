@@ -1,5 +1,4 @@
 #pragma once
-#include "aaccommon.h"
 
 typedef struct _BitStreamInfo {
 	unsigned char *bytePtr;

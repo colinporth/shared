@@ -44,7 +44,7 @@
  * trigtabs.c - tables of sin, cos, etc. for IMDCT
  **************************************************************************************/
 //}}}
-#include "coder.h"
+#include "aaccommon.h"
 
 /* for reference, here's the code to generate the bitreverse tables
    short blocks: nbits = 4 (nfft = 64)

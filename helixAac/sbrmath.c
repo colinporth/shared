@@ -1,5 +1,4 @@
 #include "sbr.h"
-#include "assembly.h"
 
 #define Q28_2 0x20000000  /* Q28: 2.0 */
 #define Q28_15  0x30000000  /* Q28: 1.5 */

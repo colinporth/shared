@@ -1,5 +1,4 @@
 #include "sbr.h"
-#include "assembly.h"
 
 //{{{
 /* invBandTab[i] = 1.0 / (i + 1), Q31 */

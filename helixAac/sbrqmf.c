@@ -1,5 +1,4 @@
 #include "sbr.h"
-#include "assembly.h"
 
 //{{{
 /* PreMultiply64() table

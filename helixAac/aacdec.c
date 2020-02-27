@@ -47,6 +47,28 @@
 #include "aaccommon.h"
 
 //{{{
+AACDecInfo* AllocateBuffers() {
+  AACDecInfo* aacDecInfo = (AACDecInfo *)malloc(sizeof(AACDecInfo));
+  ClearBuffer(aacDecInfo, sizeof(AACDecInfo));
+  aacDecInfo->psInfoBase = malloc(sizeof(PSInfoBase));
+  ClearBuffer(aacDecInfo->psInfoBase, sizeof(PSInfoBase));
+  return aacDecInfo;
+  }
+//}}}
+//{{{
+void ClearBuffer (void* buf, int nBytes) {
+ memset(buf, 0, nBytes);
+ }
+//}}}
+//{{{
+void FreeBuffers (AACDecInfo* aacDecInfo) {
+  if (aacDecInfo)
+    free (aacDecInfo->psInfoBase);
+  free(aacDecInfo);
+ }
+//}}}
+
+//{{{
 /**************************************************************************************
  * Function:    AACInitDecoder
  *

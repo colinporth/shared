@@ -1,5 +1,4 @@
-#include "coder.h"
-#include "assembly.h"
+#include "aaccommon.h"
 
 #define FBITS_LPC_COEFS 20
 
