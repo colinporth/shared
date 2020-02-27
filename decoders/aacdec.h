@@ -71,9 +71,6 @@ typedef void* HAACDecoder;
 
 HAACDecoder AACInitDecoder();
 
-int AACFindSyncWord (unsigned char* buf, int nBytes);
-int AACSetRawBlockParams (HAACDecoder hAACDecoder, int copyLast, AACFrameInfo* aacFrameInfo);
-
 int AACDecode (HAACDecoder hAACDecoder, unsigned char** inbuf, int* bytesLeft, short* outbuf);
 void AACGetLastFrameInfo (HAACDecoder hAACDecoder, AACFrameInfo* aacFrameInfo);
 
