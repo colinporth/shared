@@ -71,7 +71,7 @@ typedef void* HAACDecoder;
 
 HAACDecoder AACInitDecoder();
 
-int AACDecode (HAACDecoder hAACDecoder, unsigned char** inbuf, int* bytesLeft, short* outbuf);
+int AACDecode (HAACDecoder hAACDecoder, uint8_t* inbuf, int bytesLeft, int16_t* outbuf);
 void AACGetLastFrameInfo (HAACDecoder hAACDecoder, AACFrameInfo* aacFrameInfo);
 
 int AACFlushCodec (HAACDecoder hAACDecoder);

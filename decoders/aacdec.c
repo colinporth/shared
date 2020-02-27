@@ -3030,6 +3030,352 @@ static void DecodeICSInfo (BitStreamInfo *bsi, ICSInfo *icsInfo, int sampRateIdx
 }
 //}}}
 //}}}
+//{{{  sbrhuff
+//{{{
+static int DecodeOneSymbol (BitStreamInfo* bsi, int huffTabIndex) {
+/**************************************************************************************
+ * Description: dequantize one Huffman symbol from bitstream,
+ *                using table huffTabSBR[huffTabIndex]
+ * Inputs:      BitStreamInfo struct pointing to start of next Huffman codeword
+ *              index of Huffman table
+ * Outputs:     bitstream advanced by number of bits in codeword
+ * Return:      one decoded symbol
+ **************************************************************************************/
+
+  int val;
+  const HuffInfo* hi = &(huffTabSBRInfo[huffTabIndex]);
+  unsigned int bitBuf = getBitsNoAdvance (bsi, hi->maxBits) << (32 - hi->maxBits);
+  int nBits = DecodeHuffmanScalar (huffTabSBR, hi, bitBuf, &val);
+  advanceBitstream (bsi, nBits);
+
+  return val;
+  }
+//}}}
+
+//{{{
+static int DequantizeEnvelope (int nBands, int ampRes, signed char *envQuant, int *envDequant) {
+/**************************************************************************************
+ * Description: dequantize envelope scalefactors
+ * Inputs:      number of scalefactors to process
+ *              amplitude resolution flag for this frame (0 or 1)
+ *              quantized envelope scalefactors
+ * Outputs:     dequantized envelope scalefactors
+ * Return:      extra int bits in output (6 + expMax)
+ *              in other words, output format = Q(FBITS_OUT_DQ_ENV - (6 + expMax))
+ * Notes:       dequantized scalefactors have at least 2 GB
+ **************************************************************************************/
+
+  int exp, expMax, i, scalei;
+
+  if (nBands <= 0)
+    return 0;
+
+  /* scan for largest dequant value (do separately from envelope decoding to keep code cleaner) */
+  expMax = 0;
+  for (i = 0; i < nBands; i++) {
+    if (envQuant[i] > expMax)
+      expMax = envQuant[i];
+  }
+
+  /* dequantized envelope gains
+   *   envDequant = 64*2^(envQuant / alpha) = 2^(6 + envQuant / alpha)
+   *     if ampRes == 0, alpha = 2 and range of envQuant = [0, 127]
+   *     if ampRes == 1, alpha = 1 and range of envQuant = [0, 63]
+   * also if coupling is on, envDequant is scaled by something in range [0, 2]
+   * so range of envDequant = [2^6, 2^69] (no coupling), [2^6, 2^70] (with coupling)
+   *
+   * typical range (from observation) of envQuant/alpha = [0, 27] --> largest envQuant ~= 2^33
+   * output: Q(29 - (6 + expMax))
+   *
+   * reference: 14496-3:2001(E)/4.6.18.3.5 and 14496-4:200X/FPDAM8/5.6.5.1.2.1.5
+   */
+  if (ampRes) {
+    do {
+      exp = *envQuant++;
+      scalei = MIN(expMax - exp, 31);
+      *envDequant++ = envDQTab[0] >> scalei;
+    } while (--nBands);
+
+    return (6 + expMax);
+  } else {
+    expMax >>= 1;
+    do {
+      exp = *envQuant++;
+      scalei = MIN(expMax - (exp >> 1), 31);
+      *envDequant++ = envDQTab[exp & 0x01] >> scalei;
+    } while (--nBands);
+
+    return (6 + expMax);
+  }
+
+}
+//}}}
+//{{{
+static void DequantizeNoise (int nBands, signed char *noiseQuant, int *noiseDequant) {
+/**************************************************************************************
+ * Description: dequantize noise scalefactors
+ * Inputs:      number of scalefactors to process
+ *              quantized noise scalefactors
+ * Outputs:     dequantized noise scalefactors, format = Q(FBITS_OUT_DQ_NOISE)
+ * Return:      none
+ * Notes:       dequantized scalefactors have at least 2 GB
+ **************************************************************************************/
+
+  int exp, scalei;
+
+  if (nBands <= 0)
+    return;
+
+  /* dequantize noise floor gains (4.6.18.3.5):
+   *   noiseDequant = 2^(NOISE_FLOOR_OFFSET - noiseQuant)
+   *
+   * range of noiseQuant = [0, 30] (see 4.6.18.3.6), NOISE_FLOOR_OFFSET = 6
+   *   so range of noiseDequant = [2^-24, 2^6]
+   */
+  do {
+    exp = *noiseQuant++;
+    scalei = NOISE_FLOOR_OFFSET - exp + FBITS_OUT_DQ_NOISE; /* 6 + 24 - exp, exp = [0,30] */
+
+    if (scalei < 0)
+      *noiseDequant++ = 0;
+    else if (scalei < 30)
+      *noiseDequant++ = 1 << scalei;
+    else
+      *noiseDequant++ = 0x3fffffff; /* leave 2 GB */
+
+  } while (--nBands);
+}
+//}}}
+
+//{{{
+static void DecodeSBREnvelope (BitStreamInfo *bsi, PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChan, int ch) {
+/**************************************************************************************
+ * Description: decode delta Huffman coded envelope scalefactors from bitstream
+ * Inputs:      BitStreamInfo struct pointing to start of env data
+ *              initialized PSInfoSBR struct
+ *              initialized SBRGrid struct for this channel
+ *              initialized SBRFreq struct for this SCE/CPE block
+ *              initialized SBRChan struct for this channel
+ *              index of current channel (0 for SCE, 0 or 1 for CPE)
+ * Outputs:     dequantized env scalefactors for left channel (before decoupling)
+ *              dequantized env scalefactors for right channel (if coupling off)
+ *                or raw decoded env scalefactors for right channel (if coupling on)
+ * Return:      none
+ **************************************************************************************/
+
+  int huffIndexTime, huffIndexFreq, env, envStartBits, band, nBands, sf, lastEnv;
+  int freqRes, freqResPrev, dShift, i;
+
+  if (psi->couplingFlag && ch) {
+    dShift = 1;
+    if (sbrGrid->ampResFrame) {
+      huffIndexTime = HuffTabSBR_tEnv30b;
+      huffIndexFreq = HuffTabSBR_fEnv30b;
+      envStartBits = 5;
+    } else {
+      huffIndexTime = HuffTabSBR_tEnv15b;
+      huffIndexFreq = HuffTabSBR_fEnv15b;
+      envStartBits = 6;
+    }
+  } else {
+    dShift = 0;
+    if (sbrGrid->ampResFrame) {
+      huffIndexTime = HuffTabSBR_tEnv30;
+      huffIndexFreq = HuffTabSBR_fEnv30;
+      envStartBits = 6;
+    } else {
+      huffIndexTime = HuffTabSBR_tEnv15;
+      huffIndexFreq = HuffTabSBR_fEnv15;
+      envStartBits = 7;
+    }
+  }
+
+  /* range of envDataQuant[] = [0, 127] (see comments in DequantizeEnvelope() for reference) */
+  for (env = 0; env < sbrGrid->numEnv; env++) {
+    nBands =      (sbrGrid->freqRes[env] ? sbrFreq->nHigh : sbrFreq->nLow);
+    freqRes =     (sbrGrid->freqRes[env]);
+    freqResPrev = (env == 0 ? sbrGrid->freqResPrev : sbrGrid->freqRes[env-1]);
+    lastEnv =     (env == 0 ? sbrGrid->numEnvPrev-1 : env-1);
+    if (lastEnv < 0)
+      lastEnv = 0;  /* first frame */
+
+    ASSERT(nBands <= MAX_QMF_BANDS);
+
+    if (sbrChan->deltaFlagEnv[env] == 0) {
+      /* delta coding in freq */
+      sf = getBits(bsi, envStartBits) << dShift;
+      sbrChan->envDataQuant[env][0] = sf;
+      for (band = 1; band < nBands; band++) {
+        sf = DecodeOneSymbol(bsi, huffIndexFreq) << dShift;
+        sbrChan->envDataQuant[env][band] = sf + sbrChan->envDataQuant[env][band-1];
+      }
+    } else if (freqRes == freqResPrev) {
+      /* delta coding in time - same freq resolution for both frames */
+      for (band = 0; band < nBands; band++) {
+        sf = DecodeOneSymbol(bsi, huffIndexTime) << dShift;
+        sbrChan->envDataQuant[env][band] = sf + sbrChan->envDataQuant[lastEnv][band];
+      }
+    } else if (freqRes == 0 && freqResPrev == 1) {
+      /* delta coding in time - low freq resolution for new frame, high freq resolution for old frame */
+      for (band = 0; band < nBands; band++) {
+        sf = DecodeOneSymbol(bsi, huffIndexTime) << dShift;
+        sbrChan->envDataQuant[env][band] = sf;
+        for (i = 0; i < sbrFreq->nHigh; i++) {
+          if (sbrFreq->freqHigh[i] == sbrFreq->freqLow[band]) {
+            sbrChan->envDataQuant[env][band] += sbrChan->envDataQuant[lastEnv][i];
+            break;
+          }
+        }
+      }
+    } else if (freqRes == 1 && freqResPrev == 0) {
+      /* delta coding in time - high freq resolution for new frame, low freq resolution for old frame */
+      for (band = 0; band < nBands; band++) {
+        sf = DecodeOneSymbol(bsi, huffIndexTime) << dShift;
+        sbrChan->envDataQuant[env][band] = sf;
+        for (i = 0; i < sbrFreq->nLow; i++) {
+          if (sbrFreq->freqLow[i] <= sbrFreq->freqHigh[band] && sbrFreq->freqHigh[band] < sbrFreq->freqLow[i+1] ) {
+            sbrChan->envDataQuant[env][band] += sbrChan->envDataQuant[lastEnv][i];
+            break;
+          }
+        }
+      }
+    }
+
+    /* skip coupling channel */
+    if (ch != 1 || psi->couplingFlag != 1)
+      psi->envDataDequantScale[ch][env] = DequantizeEnvelope(nBands, sbrGrid->ampResFrame, sbrChan->envDataQuant[env], psi->envDataDequant[ch][env]);
+  }
+  sbrGrid->numEnvPrev = sbrGrid->numEnv;
+  sbrGrid->freqResPrev = sbrGrid->freqRes[sbrGrid->numEnv-1];
+}
+//}}}
+//{{{
+static void DecodeSBRNoise (BitStreamInfo *bsi, PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChan, int ch) {
+/**************************************************************************************
+ * Description: decode delta Huffman coded noise scalefactors from bitstream
+ * Inputs:      BitStreamInfo struct pointing to start of noise data
+ *              initialized PSInfoSBR struct
+ *              initialized SBRGrid struct for this channel
+ *              initialized SBRFreq struct for this SCE/CPE block
+ *              initialized SBRChan struct for this channel
+ *              index of current channel (0 for SCE, 0 or 1 for CPE)
+ * Outputs:     dequantized noise scalefactors for left channel (before decoupling)
+ *              dequantized noise scalefactors for right channel (if coupling off)
+ *                or raw decoded noise scalefactors for right channel (if coupling on)
+ * Return:      none
+ **************************************************************************************/
+
+  int huffIndexTime, huffIndexFreq, noiseFloor, band, dShift, sf, lastNoiseFloor;
+
+  if (psi->couplingFlag && ch) {
+    dShift = 1;
+    huffIndexTime = HuffTabSBR_tNoise30b;
+    huffIndexFreq = HuffTabSBR_fNoise30b;
+  } else {
+    dShift = 0;
+    huffIndexTime = HuffTabSBR_tNoise30;
+    huffIndexFreq = HuffTabSBR_fNoise30;
+  }
+
+  for (noiseFloor = 0; noiseFloor < sbrGrid->numNoiseFloors; noiseFloor++) {
+    lastNoiseFloor = (noiseFloor == 0 ? sbrGrid->numNoiseFloorsPrev-1 : noiseFloor-1);
+    if (lastNoiseFloor < 0)
+      lastNoiseFloor = 0; /* first frame */
+
+    ASSERT(sbrFreq->numNoiseFloorBands <= MAX_QMF_BANDS);
+
+    if (sbrChan->deltaFlagNoise[noiseFloor] == 0) {
+      /* delta coding in freq */
+      sbrChan->noiseDataQuant[noiseFloor][0] = getBits(bsi, 5) << dShift;
+      for (band = 1; band < sbrFreq->numNoiseFloorBands; band++) {
+        sf = DecodeOneSymbol(bsi, huffIndexFreq) << dShift;
+        sbrChan->noiseDataQuant[noiseFloor][band] = sf + sbrChan->noiseDataQuant[noiseFloor][band-1];
+      }
+    } else {
+      /* delta coding in time */
+      for (band = 0; band < sbrFreq->numNoiseFloorBands; band++) {
+        sf = DecodeOneSymbol(bsi, huffIndexTime) << dShift;
+        sbrChan->noiseDataQuant[noiseFloor][band] = sf + sbrChan->noiseDataQuant[lastNoiseFloor][band];
+      }
+    }
+
+    /* skip coupling channel */
+    if (ch != 1 || psi->couplingFlag != 1)
+      DequantizeNoise(sbrFreq->numNoiseFloorBands, sbrChan->noiseDataQuant[noiseFloor], psi->noiseDataDequant[ch][noiseFloor]);
+  }
+  sbrGrid->numNoiseFloorsPrev = sbrGrid->numNoiseFloors;
+}
+
+//}}}
+
+//{{{
+static void UncoupleSBREnvelope (PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChanR) {
+/**************************************************************************************
+ * Description: scale dequantized envelope scalefactors according to channel
+ *                coupling rules
+ * Inputs:      initialized PSInfoSBR struct including
+ *                dequantized envelope data for left channel
+ *              initialized SBRGrid struct for this channel
+ *              initialized SBRFreq struct for this SCE/CPE block
+ *              initialized SBRChan struct for right channel including
+ *                quantized envelope scalefactors
+ * Outputs:     dequantized envelope data for left channel (after decoupling)
+ *              dequantized envelope data for right channel (after decoupling)
+ * Return:      none
+ **************************************************************************************/
+
+  int env, band, nBands, scalei, E_1;
+
+  scalei = (sbrGrid->ampResFrame ? 0 : 1);
+  for (env = 0; env < sbrGrid->numEnv; env++) {
+    nBands = (sbrGrid->freqRes[env] ? sbrFreq->nHigh : sbrFreq->nLow);
+    psi->envDataDequantScale[1][env] = psi->envDataDequantScale[0][env]; /* same scalefactor for L and R */
+    for (band = 0; band < nBands; band++) {
+      /* clip E_1 to [0, 24] (scalefactors approach 0 or 2) */
+      E_1 = sbrChanR->envDataQuant[env][band] >> scalei;
+      if (E_1 < 0)  E_1 = 0;
+      if (E_1 > 24) E_1 = 24;
+
+      /* envDataDequant[0] has 1 GB, so << by 2 is okay */
+      psi->envDataDequant[1][env][band] = MULSHIFT32(psi->envDataDequant[0][env][band], dqTabCouple[24 - E_1]) << 2;
+      psi->envDataDequant[0][env][band] = MULSHIFT32(psi->envDataDequant[0][env][band], dqTabCouple[E_1]) << 2;
+    }
+  }
+}
+//}}}
+//{{{
+static void UncoupleSBRNoise (PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChanR) {
+/**************************************************************************************
+ * Description: scale dequantized noise floor scalefactors according to channel
+ *                coupling rules
+ * Inputs:      initialized PSInfoSBR struct including
+ *                dequantized noise data for left channel
+ *              initialized SBRGrid struct for this channel
+ *              initialized SBRFreq struct for this SCE/CPE block
+ *              initialized SBRChan struct for this channel including
+ *                quantized noise scalefactors
+ * Outputs:     dequantized noise data for left channel (after decoupling)
+ *              dequantized noise data for right channel (after decoupling)
+ * Return:      none
+ **************************************************************************************/
+
+  int noiseFloor, band, Q_1;
+
+  for (noiseFloor = 0; noiseFloor < sbrGrid->numNoiseFloors; noiseFloor++) {
+    for (band = 0; band < sbrFreq->numNoiseFloorBands; band++) {
+      /* Q_1 should be in range [0, 24] according to 4.6.18.3.6, but check to make sure */
+      Q_1 = sbrChanR->noiseDataQuant[noiseFloor][band];
+      if (Q_1 < 0)  Q_1 = 0;
+      if (Q_1 > 24) Q_1 = 24;
+
+      /* noiseDataDequant[0] has 1 GB, so << by 2 is okay */
+      psi->noiseDataDequant[1][noiseFloor][band] = MULSHIFT32(psi->noiseDataDequant[0][noiseFloor][band], dqTabCouple[24 - Q_1]) << 2;
+      psi->noiseDataDequant[0][noiseFloor][band] = MULSHIFT32(psi->noiseDataDequant[0][noiseFloor][band], dqTabCouple[Q_1]) << 2;
+    }
+  }
+}
+//}}}
+//}}}
 //{{{  fft
 #define SQRT1_2 0x5a82799a  /* sqrt(1/2) in Q31 */
 #define swapcplx(p0,p1) t = p0; t1 = *(&(p0)+1); p0 = p1; *(&(p0)+1) = *(&(p1)+1); p1 = t; *(&(p1)+1) = t1
@@ -4902,384 +5248,6 @@ static int SqrtFix (int q, int fBitsIn, int *fBitsOut)
 }
 //}}}
 //}}}
-//{{{  sbrhuff
-//{{{
-/**************************************************************************************
- * Function:    DecodeOneSymbol
- * Description: dequantize one Huffman symbol from bitstream,
- *                using table huffTabSBR[huffTabIndex]
- * Inputs:      BitStreamInfo struct pointing to start of next Huffman codeword
- *              index of Huffman table
- * Outputs:     bitstream advanced by number of bits in codeword
- * Return:      one decoded symbol
- **************************************************************************************/
-static int DecodeOneSymbol (BitStreamInfo* bsi, int huffTabIndex) {
-
-  int val;
-  const HuffInfo* hi = &(huffTabSBRInfo[huffTabIndex]);
-  unsigned int bitBuf = getBitsNoAdvance (bsi, hi->maxBits) << (32 - hi->maxBits);
-  int nBits = DecodeHuffmanScalar (huffTabSBR, hi, bitBuf, &val);
-  advanceBitstream (bsi, nBits);
-
-  return val;
-  }
-//}}}
-
-//{{{
-/**************************************************************************************
- * Function:    DequantizeEnvelope
- *
- * Description: dequantize envelope scalefactors
- *
- * Inputs:      number of scalefactors to process
- *              amplitude resolution flag for this frame (0 or 1)
- *              quantized envelope scalefactors
- *
- * Outputs:     dequantized envelope scalefactors
- *
- * Return:      extra int bits in output (6 + expMax)
- *              in other words, output format = Q(FBITS_OUT_DQ_ENV - (6 + expMax))
- *
- * Notes:       dequantized scalefactors have at least 2 GB
- **************************************************************************************/
-static int DequantizeEnvelope(int nBands, int ampRes, signed char *envQuant, int *envDequant)
-{
-  int exp, expMax, i, scalei;
-
-  if (nBands <= 0)
-    return 0;
-
-  /* scan for largest dequant value (do separately from envelope decoding to keep code cleaner) */
-  expMax = 0;
-  for (i = 0; i < nBands; i++) {
-    if (envQuant[i] > expMax)
-      expMax = envQuant[i];
-  }
-
-  /* dequantized envelope gains
-   *   envDequant = 64*2^(envQuant / alpha) = 2^(6 + envQuant / alpha)
-   *     if ampRes == 0, alpha = 2 and range of envQuant = [0, 127]
-   *     if ampRes == 1, alpha = 1 and range of envQuant = [0, 63]
-   * also if coupling is on, envDequant is scaled by something in range [0, 2]
-   * so range of envDequant = [2^6, 2^69] (no coupling), [2^6, 2^70] (with coupling)
-   *
-   * typical range (from observation) of envQuant/alpha = [0, 27] --> largest envQuant ~= 2^33
-   * output: Q(29 - (6 + expMax))
-   *
-   * reference: 14496-3:2001(E)/4.6.18.3.5 and 14496-4:200X/FPDAM8/5.6.5.1.2.1.5
-   */
-  if (ampRes) {
-    do {
-      exp = *envQuant++;
-      scalei = MIN(expMax - exp, 31);
-      *envDequant++ = envDQTab[0] >> scalei;
-    } while (--nBands);
-
-    return (6 + expMax);
-  } else {
-    expMax >>= 1;
-    do {
-      exp = *envQuant++;
-      scalei = MIN(expMax - (exp >> 1), 31);
-      *envDequant++ = envDQTab[exp & 0x01] >> scalei;
-    } while (--nBands);
-
-    return (6 + expMax);
-  }
-
-}
-//}}}
-//{{{
-/**************************************************************************************
- * Function:    DequantizeNoise
- *
- * Description: dequantize noise scalefactors
- *
- * Inputs:      number of scalefactors to process
- *              quantized noise scalefactors
- *
- * Outputs:     dequantized noise scalefactors, format = Q(FBITS_OUT_DQ_NOISE)
- *
- * Return:      none
- *
- * Notes:       dequantized scalefactors have at least 2 GB
- **************************************************************************************/
-static void DequantizeNoise(int nBands, signed char *noiseQuant, int *noiseDequant)
-{
-  int exp, scalei;
-
-  if (nBands <= 0)
-    return;
-
-  /* dequantize noise floor gains (4.6.18.3.5):
-   *   noiseDequant = 2^(NOISE_FLOOR_OFFSET - noiseQuant)
-   *
-   * range of noiseQuant = [0, 30] (see 4.6.18.3.6), NOISE_FLOOR_OFFSET = 6
-   *   so range of noiseDequant = [2^-24, 2^6]
-   */
-  do {
-    exp = *noiseQuant++;
-    scalei = NOISE_FLOOR_OFFSET - exp + FBITS_OUT_DQ_NOISE; /* 6 + 24 - exp, exp = [0,30] */
-
-    if (scalei < 0)
-      *noiseDequant++ = 0;
-    else if (scalei < 30)
-      *noiseDequant++ = 1 << scalei;
-    else
-      *noiseDequant++ = 0x3fffffff; /* leave 2 GB */
-
-  } while (--nBands);
-}
-//}}}
-
-//{{{
-/**************************************************************************************
- * Function:    DecodeSBREnvelope
- *
- * Description: decode delta Huffman coded envelope scalefactors from bitstream
- *
- * Inputs:      BitStreamInfo struct pointing to start of env data
- *              initialized PSInfoSBR struct
- *              initialized SBRGrid struct for this channel
- *              initialized SBRFreq struct for this SCE/CPE block
- *              initialized SBRChan struct for this channel
- *              index of current channel (0 for SCE, 0 or 1 for CPE)
- *
- * Outputs:     dequantized env scalefactors for left channel (before decoupling)
- *              dequantized env scalefactors for right channel (if coupling off)
- *                or raw decoded env scalefactors for right channel (if coupling on)
- *
- * Return:      none
- **************************************************************************************/
-static void DecodeSBREnvelope(BitStreamInfo *bsi, PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChan, int ch)
-{
-  int huffIndexTime, huffIndexFreq, env, envStartBits, band, nBands, sf, lastEnv;
-  int freqRes, freqResPrev, dShift, i;
-
-  if (psi->couplingFlag && ch) {
-    dShift = 1;
-    if (sbrGrid->ampResFrame) {
-      huffIndexTime = HuffTabSBR_tEnv30b;
-      huffIndexFreq = HuffTabSBR_fEnv30b;
-      envStartBits = 5;
-    } else {
-      huffIndexTime = HuffTabSBR_tEnv15b;
-      huffIndexFreq = HuffTabSBR_fEnv15b;
-      envStartBits = 6;
-    }
-  } else {
-    dShift = 0;
-    if (sbrGrid->ampResFrame) {
-      huffIndexTime = HuffTabSBR_tEnv30;
-      huffIndexFreq = HuffTabSBR_fEnv30;
-      envStartBits = 6;
-    } else {
-      huffIndexTime = HuffTabSBR_tEnv15;
-      huffIndexFreq = HuffTabSBR_fEnv15;
-      envStartBits = 7;
-    }
-  }
-
-  /* range of envDataQuant[] = [0, 127] (see comments in DequantizeEnvelope() for reference) */
-  for (env = 0; env < sbrGrid->numEnv; env++) {
-    nBands =      (sbrGrid->freqRes[env] ? sbrFreq->nHigh : sbrFreq->nLow);
-    freqRes =     (sbrGrid->freqRes[env]);
-    freqResPrev = (env == 0 ? sbrGrid->freqResPrev : sbrGrid->freqRes[env-1]);
-    lastEnv =     (env == 0 ? sbrGrid->numEnvPrev-1 : env-1);
-    if (lastEnv < 0)
-      lastEnv = 0;  /* first frame */
-
-    ASSERT(nBands <= MAX_QMF_BANDS);
-
-    if (sbrChan->deltaFlagEnv[env] == 0) {
-      /* delta coding in freq */
-      sf = getBits(bsi, envStartBits) << dShift;
-      sbrChan->envDataQuant[env][0] = sf;
-      for (band = 1; band < nBands; band++) {
-        sf = DecodeOneSymbol(bsi, huffIndexFreq) << dShift;
-        sbrChan->envDataQuant[env][band] = sf + sbrChan->envDataQuant[env][band-1];
-      }
-    } else if (freqRes == freqResPrev) {
-      /* delta coding in time - same freq resolution for both frames */
-      for (band = 0; band < nBands; band++) {
-        sf = DecodeOneSymbol(bsi, huffIndexTime) << dShift;
-        sbrChan->envDataQuant[env][band] = sf + sbrChan->envDataQuant[lastEnv][band];
-      }
-    } else if (freqRes == 0 && freqResPrev == 1) {
-      /* delta coding in time - low freq resolution for new frame, high freq resolution for old frame */
-      for (band = 0; band < nBands; band++) {
-        sf = DecodeOneSymbol(bsi, huffIndexTime) << dShift;
-        sbrChan->envDataQuant[env][band] = sf;
-        for (i = 0; i < sbrFreq->nHigh; i++) {
-          if (sbrFreq->freqHigh[i] == sbrFreq->freqLow[band]) {
-            sbrChan->envDataQuant[env][band] += sbrChan->envDataQuant[lastEnv][i];
-            break;
-          }
-        }
-      }
-    } else if (freqRes == 1 && freqResPrev == 0) {
-      /* delta coding in time - high freq resolution for new frame, low freq resolution for old frame */
-      for (band = 0; band < nBands; band++) {
-        sf = DecodeOneSymbol(bsi, huffIndexTime) << dShift;
-        sbrChan->envDataQuant[env][band] = sf;
-        for (i = 0; i < sbrFreq->nLow; i++) {
-          if (sbrFreq->freqLow[i] <= sbrFreq->freqHigh[band] && sbrFreq->freqHigh[band] < sbrFreq->freqLow[i+1] ) {
-            sbrChan->envDataQuant[env][band] += sbrChan->envDataQuant[lastEnv][i];
-            break;
-          }
-        }
-      }
-    }
-
-    /* skip coupling channel */
-    if (ch != 1 || psi->couplingFlag != 1)
-      psi->envDataDequantScale[ch][env] = DequantizeEnvelope(nBands, sbrGrid->ampResFrame, sbrChan->envDataQuant[env], psi->envDataDequant[ch][env]);
-  }
-  sbrGrid->numEnvPrev = sbrGrid->numEnv;
-  sbrGrid->freqResPrev = sbrGrid->freqRes[sbrGrid->numEnv-1];
-}
-//}}}
-//{{{
-/**************************************************************************************
- * Function:    DecodeSBRNoise
- *
- * Description: decode delta Huffman coded noise scalefactors from bitstream
- *
- * Inputs:      BitStreamInfo struct pointing to start of noise data
- *              initialized PSInfoSBR struct
- *              initialized SBRGrid struct for this channel
- *              initialized SBRFreq struct for this SCE/CPE block
- *              initialized SBRChan struct for this channel
- *              index of current channel (0 for SCE, 0 or 1 for CPE)
- *
- * Outputs:     dequantized noise scalefactors for left channel (before decoupling)
- *              dequantized noise scalefactors for right channel (if coupling off)
- *                or raw decoded noise scalefactors for right channel (if coupling on)
- *
- * Return:      none
- **************************************************************************************/
-static void DecodeSBRNoise(BitStreamInfo *bsi, PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChan, int ch)
-{
-  int huffIndexTime, huffIndexFreq, noiseFloor, band, dShift, sf, lastNoiseFloor;
-
-  if (psi->couplingFlag && ch) {
-    dShift = 1;
-    huffIndexTime = HuffTabSBR_tNoise30b;
-    huffIndexFreq = HuffTabSBR_fNoise30b;
-  } else {
-    dShift = 0;
-    huffIndexTime = HuffTabSBR_tNoise30;
-    huffIndexFreq = HuffTabSBR_fNoise30;
-  }
-
-  for (noiseFloor = 0; noiseFloor < sbrGrid->numNoiseFloors; noiseFloor++) {
-    lastNoiseFloor = (noiseFloor == 0 ? sbrGrid->numNoiseFloorsPrev-1 : noiseFloor-1);
-    if (lastNoiseFloor < 0)
-      lastNoiseFloor = 0; /* first frame */
-
-    ASSERT(sbrFreq->numNoiseFloorBands <= MAX_QMF_BANDS);
-
-    if (sbrChan->deltaFlagNoise[noiseFloor] == 0) {
-      /* delta coding in freq */
-      sbrChan->noiseDataQuant[noiseFloor][0] = getBits(bsi, 5) << dShift;
-      for (band = 1; band < sbrFreq->numNoiseFloorBands; band++) {
-        sf = DecodeOneSymbol(bsi, huffIndexFreq) << dShift;
-        sbrChan->noiseDataQuant[noiseFloor][band] = sf + sbrChan->noiseDataQuant[noiseFloor][band-1];
-      }
-    } else {
-      /* delta coding in time */
-      for (band = 0; band < sbrFreq->numNoiseFloorBands; band++) {
-        sf = DecodeOneSymbol(bsi, huffIndexTime) << dShift;
-        sbrChan->noiseDataQuant[noiseFloor][band] = sf + sbrChan->noiseDataQuant[lastNoiseFloor][band];
-      }
-    }
-
-    /* skip coupling channel */
-    if (ch != 1 || psi->couplingFlag != 1)
-      DequantizeNoise(sbrFreq->numNoiseFloorBands, sbrChan->noiseDataQuant[noiseFloor], psi->noiseDataDequant[ch][noiseFloor]);
-  }
-  sbrGrid->numNoiseFloorsPrev = sbrGrid->numNoiseFloors;
-}
-
-//}}}
-//{{{
-/**************************************************************************************
- * Function:    UncoupleSBREnvelope
- *
- * Description: scale dequantized envelope scalefactors according to channel
- *                coupling rules
- *
- * Inputs:      initialized PSInfoSBR struct including
- *                dequantized envelope data for left channel
- *              initialized SBRGrid struct for this channel
- *              initialized SBRFreq struct for this SCE/CPE block
- *              initialized SBRChan struct for right channel including
- *                quantized envelope scalefactors
- *
- * Outputs:     dequantized envelope data for left channel (after decoupling)
- *              dequantized envelope data for right channel (after decoupling)
- *
- * Return:      none
- **************************************************************************************/
-static void UncoupleSBREnvelope(PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChanR)
-{
-  int env, band, nBands, scalei, E_1;
-
-  scalei = (sbrGrid->ampResFrame ? 0 : 1);
-  for (env = 0; env < sbrGrid->numEnv; env++) {
-    nBands = (sbrGrid->freqRes[env] ? sbrFreq->nHigh : sbrFreq->nLow);
-    psi->envDataDequantScale[1][env] = psi->envDataDequantScale[0][env]; /* same scalefactor for L and R */
-    for (band = 0; band < nBands; band++) {
-      /* clip E_1 to [0, 24] (scalefactors approach 0 or 2) */
-      E_1 = sbrChanR->envDataQuant[env][band] >> scalei;
-      if (E_1 < 0)  E_1 = 0;
-      if (E_1 > 24) E_1 = 24;
-
-      /* envDataDequant[0] has 1 GB, so << by 2 is okay */
-      psi->envDataDequant[1][env][band] = MULSHIFT32(psi->envDataDequant[0][env][band], dqTabCouple[24 - E_1]) << 2;
-      psi->envDataDequant[0][env][band] = MULSHIFT32(psi->envDataDequant[0][env][band], dqTabCouple[E_1]) << 2;
-    }
-  }
-}
-//}}}
-//{{{
-/**************************************************************************************
- * Function:    UncoupleSBRNoise
- *
- * Description: scale dequantized noise floor scalefactors according to channel
- *                coupling rules
- *
- * Inputs:      initialized PSInfoSBR struct including
- *                dequantized noise data for left channel
- *              initialized SBRGrid struct for this channel
- *              initialized SBRFreq struct for this SCE/CPE block
- *              initialized SBRChan struct for this channel including
- *                quantized noise scalefactors
- *
- * Outputs:     dequantized noise data for left channel (after decoupling)
- *              dequantized noise data for right channel (after decoupling)
- *
- * Return:      none
- **************************************************************************************/
-static void UncoupleSBRNoise(PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChanR)
-{
-  int noiseFloor, band, Q_1;
-
-  for (noiseFloor = 0; noiseFloor < sbrGrid->numNoiseFloors; noiseFloor++) {
-    for (band = 0; band < sbrFreq->numNoiseFloorBands; band++) {
-      /* Q_1 should be in range [0, 24] according to 4.6.18.3.6, but check to make sure */
-      Q_1 = sbrChanR->noiseDataQuant[noiseFloor][band];
-      if (Q_1 < 0)  Q_1 = 0;
-      if (Q_1 > 24) Q_1 = 24;
-
-      /* noiseDataDequant[0] has 1 GB, so << by 2 is okay */
-      psi->noiseDataDequant[1][noiseFloor][band] = MULSHIFT32(psi->noiseDataDequant[0][noiseFloor][band], dqTabCouple[24 - Q_1]) << 2;
-      psi->noiseDataDequant[0][noiseFloor][band] = MULSHIFT32(psi->noiseDataDequant[0][noiseFloor][band], dqTabCouple[Q_1]) << 2;
-    }
-  }
-}
-//}}}
-//}}}
 //{{{  sbrfft
 #define SQRT1_2 0x5a82799a
 
@@ -5590,483 +5558,38 @@ static void FFT32C (int *x)
 }
 //}}}
 //}}}
-//{{{  sbrqmf
-//{{{
-/**************************************************************************************
- * Function:    PreMultiply64
- *
- * Description: pre-twiddle stage of 64-point DCT-IV
- *
- * Inputs:      buffer of 64 samples
- *
- * Outputs:     processed samples in same buffer
- *
- * Return:      none
- *
- * Notes:       minimum 1 GB in, 2 GB out, gains 2 int bits
- *              gbOut = gbIn + 1
- *              output is limited to sqrt(2)/2 plus GB in full GB
- *              uses 3-mul, 3-add butterflies instead of 4-mul, 2-add
- **************************************************************************************/
-static void PreMultiply64 (int *zbuf1)
-{
-  int i, ar1, ai1, ar2, ai2, z1, z2;
-  int t, cms2, cps2a, sin2a, cps2b, sin2b;
-  int *zbuf2;
-  const int *csptr;
-
-  zbuf2 = zbuf1 + 64 - 1;
-  csptr = cos4sin4tab64;
-
-  /* whole thing should fit in registers - verify that compiler does this */
-  for (i = 64 >> 2; i != 0; i--) {
-    /* cps2 = (cos+sin), sin2 = sin, cms2 = (cos-sin) */
-    cps2a = *csptr++;
-    sin2a = *csptr++;
-    cps2b = *csptr++;
-    sin2b = *csptr++;
-
-    ar1 = *(zbuf1 + 0);
-    ai2 = *(zbuf1 + 1);
-    ai1 = *(zbuf2 + 0);
-    ar2 = *(zbuf2 - 1);
-
-    /* gain 2 ints bit from MULSHIFT32 by Q30
-     * max per-sample gain (ignoring implicit scaling) = MAX(sin(angle)+cos(angle)) = 1.414
-     * i.e. gain 1 GB since worst case is sin(angle) = cos(angle) = 0.707 (Q30), gain 2 from
-     *   extra sign bits, and eat one in adding
-     */
-    t  = MULSHIFT32(sin2a, ar1 + ai1);
-    z2 = MULSHIFT32(cps2a, ai1) - t;
-    cms2 = cps2a - 2*sin2a;
-    z1 = MULSHIFT32(cms2, ar1) + t;
-    *zbuf1++ = z1;  /* cos*ar1 + sin*ai1 */
-    *zbuf1++ = z2;  /* cos*ai1 - sin*ar1 */
-
-    t  = MULSHIFT32(sin2b, ar2 + ai2);
-    z2 = MULSHIFT32(cps2b, ai2) - t;
-    cms2 = cps2b - 2*sin2b;
-    z1 = MULSHIFT32(cms2, ar2) + t;
-    *zbuf2-- = z2;  /* cos*ai2 - sin*ar2 */
-    *zbuf2-- = z1;  /* cos*ar2 + sin*ai2 */
-  }
-}
-//}}}
-//{{{
-/**************************************************************************************
- * Function:    PostMultiply64
- *
- * Description: post-twiddle stage of 64-point type-IV DCT
- *
- * Inputs:      buffer of 64 samples
- *              number of output samples to calculate
- *
- * Outputs:     processed samples in same buffer
- *
- * Return:      none
- *
- * Notes:       minimum 1 GB in, 2 GB out, gains 2 int bits
- *              gbOut = gbIn + 1
- *              output is limited to sqrt(2)/2 plus GB in full GB
- *              nSampsOut is rounded up to next multiple of 4, since we calculate
- *                4 samples per loop
- **************************************************************************************/
-static void PostMultiply64 (int *fft1, int nSampsOut)
-{
-  int i, ar1, ai1, ar2, ai2;
-  int t, cms2, cps2, sin2;
-  int *fft2;
-  const int *csptr;
-
-  csptr = cos1sin1tab64;
-  fft2 = fft1 + 64 - 1;
-
-  /* load coeffs for first pass
-   * cps2 = (cos+sin)/2, sin2 = sin/2, cms2 = (cos-sin)/2
-   */
-  cps2 = *csptr++;
-  sin2 = *csptr++;
-  cms2 = cps2 - 2*sin2;
-
-  for (i = (nSampsOut + 3) >> 2; i != 0; i--) {
-    ar1 = *(fft1 + 0);
-    ai1 = *(fft1 + 1);
-    ar2 = *(fft2 - 1);
-    ai2 = *(fft2 + 0);
-
-    /* gain 2 int bits (multiplying by Q30), max gain = sqrt(2) */
-    t = MULSHIFT32(sin2, ar1 + ai1);
-    *fft2-- = t - MULSHIFT32(cps2, ai1);
-    *fft1++ = t + MULSHIFT32(cms2, ar1);
-
-    cps2 = *csptr++;
-    sin2 = *csptr++;
-
-    ai2 = -ai2;
-    t = MULSHIFT32(sin2, ar2 + ai2);
-    *fft2-- = t - MULSHIFT32(cps2, ai2);
-    cms2 = cps2 - 2*sin2;
-    *fft1++ = t + MULSHIFT32(cms2, ar2);
-  }
-}
-//}}}
-
-//{{{
-static void QMFAnalysisConv (int *cTab, int *delay, int dIdx, int *uBuf)
-{
-/**************************************************************************************
- * Function:    QMFAnalysisConv
- *
- * Description: convolution kernel for analysis QMF
- *
- * Inputs:      pointer to coefficient table, reordered for sequential access
- *              delay buffer of size 32*10 = 320 real-valued PCM samples
- *              index for delay ring buffer (range = [0, 9])
- *
- * Outputs:     64 consecutive 32-bit samples
- *
- * Return:      none
- *
- * Notes:       this is carefully written to be efficient on ARM
- *              use the assembly code version in sbrqmfak.s when building for ARM!
- **************************************************************************************/
-  int k, dOff;
-  int *cPtr0, *cPtr1;
-  U64 u64lo, u64hi;
-
-  dOff = dIdx*32 + 31;
-  cPtr0 = cTab;
-  cPtr1 = cTab + 33*5 - 1;
-
-  /* special first pass since we need to flip sign to create cTab[384], cTab[512] */
-  u64lo.w64 = 0;
-  u64hi.w64 = 0;
-  u64lo.w64 = MADD64(u64lo.w64,  *cPtr0++,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
-  u64hi.w64 = MADD64(u64hi.w64,  *cPtr0++,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
-  u64lo.w64 = MADD64(u64lo.w64,  *cPtr0++,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
-  u64hi.w64 = MADD64(u64hi.w64,  *cPtr0++,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
-  u64lo.w64 = MADD64(u64lo.w64,  *cPtr0++,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
-  u64hi.w64 = MADD64(u64hi.w64,  *cPtr1--,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
-  u64lo.w64 = MADD64(u64lo.w64, -(*cPtr1--), delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
-  u64hi.w64 = MADD64(u64hi.w64,  *cPtr1--,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
-  u64lo.w64 = MADD64(u64lo.w64, -(*cPtr1--), delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
-  u64hi.w64 = MADD64(u64hi.w64,  *cPtr1--,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
-
-  uBuf[0]  = u64lo.r.hi32;
-  uBuf[32] = u64hi.r.hi32;
-  uBuf++;
-  dOff--;
-
-  /* max gain for any sample in uBuf, after scaling by cTab, ~= 0.99
-   * so we can just sum the uBuf values with no overflow problems
-   */
-  for (k = 1; k <= 31; k++) {
-    u64lo.w64 = 0;
-    u64hi.w64 = 0;
-    u64lo.w64 = MADD64(u64lo.w64, *cPtr0++, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
-    u64hi.w64 = MADD64(u64hi.w64, *cPtr0++, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
-    u64lo.w64 = MADD64(u64lo.w64, *cPtr0++, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
-    u64hi.w64 = MADD64(u64hi.w64, *cPtr0++, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
-    u64lo.w64 = MADD64(u64lo.w64, *cPtr0++, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
-    u64hi.w64 = MADD64(u64hi.w64, *cPtr1--, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
-    u64lo.w64 = MADD64(u64lo.w64, *cPtr1--, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
-    u64hi.w64 = MADD64(u64hi.w64, *cPtr1--, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
-    u64lo.w64 = MADD64(u64lo.w64, *cPtr1--, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
-    u64hi.w64 = MADD64(u64hi.w64, *cPtr1--, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
-
-    uBuf[0]  = u64lo.r.hi32;
-    uBuf[32] = u64hi.r.hi32;
-    uBuf++;
-    dOff--;
-  }
-}
-//}}}
-//{{{
-/**************************************************************************************
- * Function:    QMFAnalysis
- *
- * Description: 32-subband analysis QMF (4.6.18.4.1)
- *
- * Inputs:      32 consecutive samples of decoded 32-bit PCM, format = Q(fBitsIn)
- *              delay buffer of size 32*10 = 320 PCM samples
- *              number of fraction bits in input PCM
- *              index for delay ring buffer (range = [0, 9])
- *              number of subbands to calculate (range = [0, 32])
- *
- * Outputs:     qmfaBands complex subband samples, format = Q(FBITS_OUT_QMFA)
- *              updated delay buffer
- *              updated delay index
- *
- * Return:      guard bit mask
- *
- * Notes:       output stored as RE{X0}, IM{X0}, RE{X1}, IM{X1}, ... RE{X31}, IM{X31}
- *              output stored in int buffer of size 64*2 = 128
- *                (zero-filled from XBuf[2*qmfaBands] to XBuf[127])
- **************************************************************************************/
-static int QMFAnalysis (int *inbuf, int *delay, int *XBuf, int fBitsIn, int *delayIdx, int qmfaBands)
-{
-  int n, y, shift, gbMask;
-  int *delayPtr, *uBuf, *tBuf;
-
-  /* use XBuf[128] as temp buffer for reordering */
-  uBuf = XBuf;    /* first 64 samples */
-  tBuf = XBuf + 64; /* second 64 samples */
-
-  /* overwrite oldest PCM with new PCM
-   * delay[n] has 1 GB after shifting (either << or >>)
-   */
-  delayPtr = delay + (*delayIdx * 32);
-  if (fBitsIn > FBITS_IN_QMFA) {
-    shift = MIN(fBitsIn - FBITS_IN_QMFA, 31);
-    for (n = 32; n != 0; n--) {
-      y = (*inbuf) >> shift;
-      inbuf++;
-      *delayPtr++ = y;
-    }
-  } else {
-    shift = MIN(FBITS_IN_QMFA - fBitsIn, 30);
-    for (n = 32; n != 0; n--) {
-      y = *inbuf++;
-      CLIP_2N_SHIFT30(y, shift);
-      *delayPtr++ = y;
-    }
-  }
-
-  QMFAnalysisConv((int *)cTabA, delay, *delayIdx, uBuf);
-
-  /* uBuf has at least 2 GB right now (1 from clipping to Q(FBITS_IN_QMFA), one from
-   *   the scaling by cTab (MULSHIFT32(*delayPtr--, *cPtr++), with net gain of < 1.0)
-   * TODO - fuse with QMFAnalysisConv to avoid separate reordering
-   */
-    tBuf[2*0 + 0] = uBuf[0];
-    tBuf[2*0 + 1] = uBuf[1];
-    for (n = 1; n < 31; n++) {
-        tBuf[2*n + 0] = -uBuf[64-n];
-        tBuf[2*n + 1] =  uBuf[n+1];
-    }
-    tBuf[2*31 + 1] =  uBuf[32];
-    tBuf[2*31 + 0] = -uBuf[33];
-
-  /* fast in-place DCT-IV - only need 2*qmfaBands output samples */
-  PreMultiply64(tBuf);  /* 2 GB in, 3 GB out */
-  FFT32C(tBuf);     /* 3 GB in, 1 GB out */
-  PostMultiply64(tBuf, qmfaBands*2);  /* 1 GB in, 2 GB out */
-
-  /* TODO - roll into PostMultiply (if enough registers) */
-  gbMask = 0;
-  for (n = 0; n < qmfaBands; n++) {
-    XBuf[2*n+0] =  tBuf[ n + 0];  /* implicit scaling of 2 in our output Q format */
-    gbMask |= FASTABS(XBuf[2*n+0]);
-    XBuf[2*n+1] = -tBuf[63 - n];
-    gbMask |= FASTABS(XBuf[2*n+1]);
-  }
-
-  /* fill top section with zeros for HF generation */
-  for (    ; n < 64; n++) {
-    XBuf[2*n+0] = 0;
-    XBuf[2*n+1] = 0;
-  }
-
-  *delayIdx = (*delayIdx == NUM_QMF_DELAY_BUFS - 1 ? 0 : *delayIdx + 1);
-
-  /* minimum of 2 GB in output */
-  return gbMask;
-}
-//}}}
-
-/* lose FBITS_LOST_DCT4_64 in DCT4, gain 6 for implicit scaling by 1/64, lose 1 for cTab multiply (Q31) */
-#define FBITS_OUT_QMFS  (FBITS_IN_QMFS - FBITS_LOST_DCT4_64 + 6 - 1)
-#define RND_VAL1     (1 << (FBITS_OUT_QMFS-1))
-
-//{{{
-static void QMFSynthesisConv (int *cPtr, int *delay, int dIdx, short *outbuf, int nChans)
-{
-/**************************************************************************************
- * Function:    QMFSynthesisConv
- *
- * Description: final convolution kernel for synthesis QMF
- *
- * Inputs:      pointer to coefficient table, reordered for sequential access
- *              delay buffer of size 64*10 = 640 complex samples (1280 ints)
- *              index for delay ring buffer (range = [0, 9])
- *              number of QMF subbands to process (range = [0, 64])
- *              number of channels
- *
- * Outputs:     64 consecutive 16-bit PCM samples, interleaved by factor of nChans
- *
- * Return:      none
- *
- * Notes:       this is carefully written to be efficient on ARM
- *              use the assembly code version in sbrqmfsk.s when building for ARM!
- **************************************************************************************/
-  int k, dOff0, dOff1;
-  U64 sum64;
-
-  dOff0 = (dIdx)*128;
-  dOff1 = dOff0 - 1;
-  if (dOff1 < 0)
-    dOff1 += 1280;
-
-  /* scaling note: total gain of coefs (cPtr[0]-cPtr[9] for any k) is < 2.0, so 1 GB in delay values is adequate */
-  for (k = 0; k <= 63; k++) {
-    sum64.w64 = 0;
-    sum64.w64 = MADD64(sum64.w64, *cPtr++, delay[dOff0]); dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
-    sum64.w64 = MADD64(sum64.w64, *cPtr++, delay[dOff1]); dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
-    sum64.w64 = MADD64(sum64.w64, *cPtr++, delay[dOff0]); dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
-    sum64.w64 = MADD64(sum64.w64, *cPtr++, delay[dOff1]); dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
-    sum64.w64 = MADD64(sum64.w64, *cPtr++, delay[dOff0]); dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
-    sum64.w64 = MADD64(sum64.w64, *cPtr++, delay[dOff1]); dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
-    sum64.w64 = MADD64(sum64.w64, *cPtr++, delay[dOff0]); dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
-    sum64.w64 = MADD64(sum64.w64, *cPtr++, delay[dOff1]); dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
-    sum64.w64 = MADD64(sum64.w64, *cPtr++, delay[dOff0]); dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
-    sum64.w64 = MADD64(sum64.w64, *cPtr++, delay[dOff1]); dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
-
-    dOff0++;
-    dOff1--;
-    *outbuf = CLIPTOSHORT((sum64.r.hi32 + RND_VAL1) >> FBITS_OUT_QMFS);
-    outbuf += nChans;
-  }
-}
-//}}}
-//{{{
-/**************************************************************************************
- * Function:    QMFSynthesis
- *
- * Description: 64-subband synthesis QMF (4.6.18.4.2)
- *
- * Inputs:      64 consecutive complex subband QMF samples, format = Q(FBITS_IN_QMFS)
- *              delay buffer of size 64*10 = 640 complex samples (1280 ints)
- *              index for delay ring buffer (range = [0, 9])
- *              number of QMF subbands to process (range = [0, 64])
- *              number of channels
- *
- * Outputs:     64 consecutive 16-bit PCM samples, interleaved by factor of nChans
- *              updated delay buffer
- *              updated delay index
- *
- * Return:      none
- *
- * Notes:       assumes MIN_GBITS_IN_QMFS guard bits in input, either from
- *                QMFAnalysis (if upsampling only) or from MapHF (if SBR on)
- **************************************************************************************/
-static void QMFSynthesis (int *inbuf, int *delay, int *delayIdx, int qmfsBands, short *outbuf, int nChans)
-{
-  int n, a0, a1, b0, b1, dOff0, dOff1, dIdx;
-  int *tBufLo, *tBufHi;
-
-  dIdx = *delayIdx;
-  tBufLo = delay + dIdx*128 + 0;
-  tBufHi = delay + dIdx*128 + 127;
-
-  /* reorder inputs to DCT-IV, only use first qmfsBands (complex) samples
-   * TODO - fuse with PreMultiply64 to avoid separate reordering steps
-   */
-    for (n = 0; n < qmfsBands >> 1; n++) {
-    a0 = *inbuf++;
-    b0 = *inbuf++;
-    a1 = *inbuf++;
-    b1 = *inbuf++;
-    *tBufLo++ = a0;
-        *tBufLo++ = a1;
-        *tBufHi-- = b0;
-        *tBufHi-- = b1;
-    }
-  if (qmfsBands & 0x01) {
-    a0 = *inbuf++;
-    b0 = *inbuf++;
-    *tBufLo++ = a0;
-        *tBufHi-- = b0;
-        *tBufLo++ = 0;
-    *tBufHi-- = 0;
-    n++;
-  }
-    for (     ; n < 32; n++) {
-    *tBufLo++ = 0;
-        *tBufHi-- = 0;
-        *tBufLo++ = 0;
-        *tBufHi-- = 0;
-  }
-
-  tBufLo = delay + dIdx*128 + 0;
-  tBufHi = delay + dIdx*128 + 64;
-
-  /* 2 GB in, 3 GB out */
-  PreMultiply64(tBufLo);
-  PreMultiply64(tBufHi);
-
-  /* 3 GB in, 1 GB out */
-  FFT32C(tBufLo);
-  FFT32C(tBufHi);
-
-  /* 1 GB in, 2 GB out */
-  PostMultiply64(tBufLo, 64);
-  PostMultiply64(tBufHi, 64);
-
-  /* could fuse with PostMultiply64 to avoid separate pass */
-  dOff0 = dIdx*128;
-  dOff1 = dIdx*128 + 64;
-  for (n = 32; n != 0; n--) {
-    a0 =  (*tBufLo++);
-    a1 =  (*tBufLo++);
-    b0 =  (*tBufHi++);
-    b1 = -(*tBufHi++);
-
-    delay[dOff0++] = (b0 - a0);
-    delay[dOff0++] = (b1 - a1);
-    delay[dOff1++] = (b0 + a0);
-    delay[dOff1++] = (b1 + a1);
-  }
-
-  QMFSynthesisConv((int *)cTabS, delay, dIdx, outbuf, nChans);
-
-  *delayIdx = (*delayIdx == NUM_QMF_DELAY_BUFS - 1 ? 0 : *delayIdx + 1);
-}
-//}}}
-//}}}
 //{{{  sbrside
 //{{{
+static int GetSampRateIdx (int sampRate) {
 /**************************************************************************************
- * Function:    GetSampRateIdx
- *
  * Description: get index of given sample rate
- *
  * Inputs:      sample rate (in Hz)
- *
  * Outputs:     none
- *
  * Return:      index of sample rate (table 1.15 in 14496-3:2001(E))
  *              -1 if sample rate not found in table
  **************************************************************************************/
-static int GetSampRateIdx (int sampRate)
-{
-  int idx;
 
+  int idx;
   for (idx = 0; idx < NUM_SAMPLE_RATES; idx++) {
     if (sampRate == sampRateTab[idx])
       return idx;
-  }
+    }
 
   return -1;
-}
+  }
 //}}}
 
 //{{{
+static int UnpackSBRHeader (BitStreamInfo *bsi, SBRHeader *sbrHdr) {
 /**************************************************************************************
- * Function:    UnpackSBRHeader
- *
  * Description: unpack SBR header (table 4.56)
- *
  * Inputs:      BitStreamInfo struct pointing to start of SBR header
- *
  * Outputs:     initialized SBRHeader struct for this SCE/CPE block
- *
  * Return:      non-zero if frame reset is triggered, zero otherwise
  **************************************************************************************/
-static int UnpackSBRHeader (BitStreamInfo *bsi, SBRHeader *sbrHdr)
-{
-  SBRHeader sbrHdrPrev;
 
   /* save previous values so we know whether to reset decoder */
+  SBRHeader sbrHdrPrev;
   sbrHdrPrev.startFreq =     sbrHdr->startFreq;
   sbrHdrPrev.stopFreq =      sbrHdr->stopFreq;
   sbrHdrPrev.freqScale =     sbrHdr->freqScale;
@@ -8510,7 +8033,7 @@ static void GenerateHighFreq (PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq
  *
  * Notes:       use this function when the decoded PCM is going to the SBR decoder
  **************************************************************************************/
-static void DecWindowOverlapNoClip (int *buf0, int *over0, int *out0, int winTypeCurr, int winTypePrev)
+static void DecWindowOverlapNoClip (int* buf0, int* over0, int* out0, int winTypeCurr, int winTypePrev)
 {
   int in, w0, w1, f0, f1;
   int *buf1, *over1, *out1;
@@ -8587,7 +8110,7 @@ static void DecWindowOverlapNoClip (int *buf0, int *over0, int *out0, int winTyp
  *
  * Notes:       use this function when the decoded PCM is going to the SBR decoder
  **************************************************************************************/
-static void DecWindowOverlapLongStartNoClip (int *buf0, int *over0, int *out0, int winTypeCurr, int winTypePrev)
+static void DecWindowOverlapLongStartNoClip (int* buf0, int* over0, int* out0, int winTypeCurr, int winTypePrev)
 {
   int i,  in, w0, w1, f0, f1;
   int *buf1, *over1, *out1;
@@ -8665,7 +8188,7 @@ static void DecWindowOverlapLongStartNoClip (int *buf0, int *over0, int *out0, i
  *
  * Notes:       use this function when the decoded PCM is going to the SBR decoder
  **************************************************************************************/
-static void DecWindowOverlapLongStopNoClip (int *buf0, int *over0, int *out0, int winTypeCurr, int winTypePrev)
+static void DecWindowOverlapLongStopNoClip (int* buf0, int* over0, int* out0, int winTypeCurr, int winTypePrev)
 {
   int i, in, w0, w1, f0, f1;
   int *buf1, *over1, *out1;
@@ -8742,7 +8265,7 @@ static void DecWindowOverlapLongStopNoClip (int *buf0, int *over0, int *out0, in
  *
  * Notes:       use this function when the decoded PCM is going to the SBR decoder
  **************************************************************************************/
-static void DecWindowOverlapShortNoClip (int *buf0, int *over0, int *out0, int winTypeCurr, int winTypePrev)
+static void DecWindowOverlapShortNoClip (int* buf0, int* over0, int* out0, int winTypeCurr, int winTypePrev)
 {
   int i, in, w0, w1, f0, f1;
   int *buf1, *over1, *out1;
@@ -8900,8 +8423,8 @@ static void DecWindowOverlapShortNoClip (int *buf0, int *over0, int *out0, int w
 
 #define RND_VAL  (1 << (FBITS_OUT_IMDCT-1))
 //{{{
+static int IMDCT (AACDecInfo* aacDecInfo, int ch, int chOut, int16_t* outbuf) {
 /**************************************************************************************
- * Function:    IMDCT
  * Description: inverse transform and convert to 16-bit PCM
  * Inputs:      valid AACDecInfo struct
  *              index of current channel (0 for SCE/LFE, 0 or 1 for CPE)
@@ -8919,56 +8442,439 @@ static void DecWindowOverlapShortNoClip (int *buf0, int *over0, int *out0, int w
  *                a separate pass over the 32-bit PCM to produce 16-bit PCM output.
  *                This inflicts a slight performance hit when decoding non-SBR files.
  **************************************************************************************/
-static int IMDCT (AACDecInfo *aacDecInfo, int ch, int chOut, short *outbuf)
-{
-  int i;
-  PSInfoBase *psi;
-  ICSInfo *icsInfo;
 
-  /* validate pointers */
-  if (!aacDecInfo || !aacDecInfo->psInfoBase)
-    return -1;
-  psi = (PSInfoBase *)(aacDecInfo->psInfoBase);
-  icsInfo = (ch == 1 && psi->commonWin == 1) ? &(psi->icsInfo[0]) : &(psi->icsInfo[ch]);
+  PSInfoBase* psi = (PSInfoBase *)(aacDecInfo->psInfoBase);
+  ICSInfo* icsInfo = (ch == 1 && psi->commonWin == 1) ? &(psi->icsInfo[0]) : &(psi->icsInfo[ch]);
   outbuf += chOut;
 
   /* optimized type-IV DCT (operates inplace) */
-  if (icsInfo->winSequence == 2) {
-    /* 8 short blocks */
-    for (i = 0; i < 8; i++)
-      DCT4(0, psi->coef[ch] + i*128, psi->gbCurrent[ch]);
-  } else {
-    /* 1 long block */
-    DCT4(1, psi->coef[ch], psi->gbCurrent[ch]);
-  }
+  if (icsInfo->winSequence == 2) /* 8 short blocks */
+    for (int i = 0; i < 8; i++)
+      DCT4 (0, psi->coef[ch] + i*128, psi->gbCurrent[ch]);
+  else /* 1 long block */
+    DCT4 (1, psi->coef[ch], psi->gbCurrent[ch]);
 
-  /* window, overlap-add, don't clip to short (send to SBR decoder)
-   * store the decoded 32-bit samples in top half (second AAC_MAX_NSAMPS samples) of coef buffer
-   */
+  // window, overlap-add, don't clip to short (send to SBR decoder)
+  // store the decoded 32-bit samples in top half (second AAC_MAX_NSAMPS samples) of coef buffer
   if (icsInfo->winSequence == 0)
-    DecWindowOverlapNoClip(psi->coef[ch], psi->overlap[chOut], psi->sbrWorkBuf[ch], icsInfo->winShape, psi->prevWinShape[chOut]);
+    DecWindowOverlapNoClip (psi->coef[ch], psi->overlap[chOut], psi->sbrWorkBuf[ch],
+                            icsInfo->winShape, psi->prevWinShape[chOut]);
   else if (icsInfo->winSequence == 1)
-    DecWindowOverlapLongStartNoClip(psi->coef[ch], psi->overlap[chOut], psi->sbrWorkBuf[ch], icsInfo->winShape, psi->prevWinShape[chOut]);
+    DecWindowOverlapLongStartNoClip (psi->coef[ch], psi->overlap[chOut], psi->sbrWorkBuf[ch],
+                                     icsInfo->winShape, psi->prevWinShape[chOut]);
   else if (icsInfo->winSequence == 2)
-    DecWindowOverlapShortNoClip(psi->coef[ch], psi->overlap[chOut], psi->sbrWorkBuf[ch], icsInfo->winShape, psi->prevWinShape[chOut]);
+    DecWindowOverlapShortNoClip (psi->coef[ch], psi->overlap[chOut], psi->sbrWorkBuf[ch],
+                                 icsInfo->winShape, psi->prevWinShape[chOut]);
   else if (icsInfo->winSequence == 3)
-    DecWindowOverlapLongStopNoClip(psi->coef[ch], psi->overlap[chOut], psi->sbrWorkBuf[ch], icsInfo->winShape, psi->prevWinShape[chOut]);
+    DecWindowOverlapLongStopNoClip (psi->coef[ch], psi->overlap[chOut], psi->sbrWorkBuf[ch],
+                                    icsInfo->winShape, psi->prevWinShape[chOut]);
 
   if (!aacDecInfo->sbrEnabled) {
-    for (i = 0; i < AAC_MAX_NSAMPS; i++) {
-      *outbuf = CLIPTOSHORT((psi->sbrWorkBuf[ch][i] + RND_VAL) >> FBITS_OUT_IMDCT);
+    for (int i = 0; i < AAC_MAX_NSAMPS; i++) {
+      *outbuf = CLIPTOSHORT ((psi->sbrWorkBuf[ch][i] + RND_VAL) >> FBITS_OUT_IMDCT);
       outbuf += aacDecInfo->nChans;
+      }
     }
-  }
 
   aacDecInfo->rawSampleBuf[ch] = psi->sbrWorkBuf[ch];
   aacDecInfo->rawSampleBytes = sizeof(int);
   aacDecInfo->rawSampleFBits = FBITS_OUT_IMDCT;
 
   psi->prevWinShape[chOut] = icsInfo->winShape;
-
   return 0;
-}
+  }
+//}}}
+
+// sbr qmf
+//{{{
+static void PreMultiply64 (int* zbuf1) {
+/**************************************************************************************
+ * Description: pre-twiddle stage of 64-point DCT-IV
+ * Inputs:      buffer of 64 samples
+ * Outputs:     processed samples in same buffer
+ * Return:      none
+ * Notes:       minimum 1 GB in, 2 GB out, gains 2 int bits
+ *              gbOut = gbIn + 1
+ *              output is limited to sqrt(2)/2 plus GB in full GB
+ *              uses 3-mul, 3-add butterflies instead of 4-mul, 2-add
+ **************************************************************************************/
+
+  int i, ar1, ai1, ar2, ai2, z1, z2;
+  int t, cms2, cps2a, sin2a, cps2b, sin2b;
+
+  int* zbuf2 = zbuf1 + 64 - 1;
+  const int* csptr = cos4sin4tab64;
+
+  /* whole thing should fit in registers - verify that compiler does this */
+  for (i = 64 >> 2; i != 0; i--) {
+    /* cps2 = (cos+sin), sin2 = sin, cms2 = (cos-sin) */
+    cps2a = *csptr++;
+    sin2a = *csptr++;
+    cps2b = *csptr++;
+    sin2b = *csptr++;
+
+    ar1 = *(zbuf1 + 0);
+    ai2 = *(zbuf1 + 1);
+    ai1 = *(zbuf2 + 0);
+    ar2 = *(zbuf2 - 1);
+
+    /* gain 2 ints bit from MULSHIFT32 by Q30
+     * max per-sample gain (ignoring implicit scaling) = MAX(sin(angle)+cos(angle)) = 1.414
+     * i.e. gain 1 GB since worst case is sin(angle) = cos(angle) = 0.707 (Q30), gain 2 from
+     *   extra sign bits, and eat one in adding
+     */
+    t  = MULSHIFT32(sin2a, ar1 + ai1);
+    z2 = MULSHIFT32(cps2a, ai1) - t;
+    cms2 = cps2a - 2*sin2a;
+    z1 = MULSHIFT32(cms2, ar1) + t;
+    *zbuf1++ = z1;  /* cos*ar1 + sin*ai1 */
+    *zbuf1++ = z2;  /* cos*ai1 - sin*ar1 */
+
+    t  = MULSHIFT32(sin2b, ar2 + ai2);
+    z2 = MULSHIFT32(cps2b, ai2) - t;
+    cms2 = cps2b - 2*sin2b;
+    z1 = MULSHIFT32(cms2, ar2) + t;
+    *zbuf2-- = z2;  /* cos*ai2 - sin*ar2 */
+    *zbuf2-- = z1;  /* cos*ar2 + sin*ai2 */
+    }
+  }
+//}}}
+//{{{
+static void PostMultiply64 (int* fft1, int nSampsOut) {
+/**************************************************************************************
+ * Description: post-twiddle stage of 64-point type-IV DCT
+ * Inputs:      buffer of 64 samples
+ *              number of output samples to calculate
+ * Outputs:     processed samples in same buffer
+ * Return:      none
+ * Notes:       minimum 1 GB in, 2 GB out, gains 2 int bits
+ *              gbOut = gbIn + 1
+ *              output is limited to sqrt(2)/2 plus GB in full GB
+ *              nSampsOut is rounded up to next multiple of 4, since we calculate
+ *                4 samples per loop
+ **************************************************************************************/
+
+  int i, ar1, ai1, ar2, ai2;
+  int t, cms2, cps2, sin2;
+
+  const int* csptr = cos1sin1tab64;
+  int* fft2 = fft1 + 64 - 1;
+
+  // load coeffs for first pass
+  // cps2 = (cos+sin)/2, sin2 = sin/2, cms2 = (cos-sin)/2
+  cps2 = *csptr++;
+  sin2 = *csptr++;
+  cms2 = cps2 - 2*sin2;
+
+  for (i = (nSampsOut + 3) >> 2; i != 0; i--) {
+    ar1 = *(fft1 + 0);
+    ai1 = *(fft1 + 1);
+    ar2 = *(fft2 - 1);
+    ai2 = *(fft2 + 0);
+
+    /* gain 2 int bits (multiplying by Q30), max gain = sqrt(2) */
+    t = MULSHIFT32(sin2, ar1 + ai1);
+    *fft2-- = t - MULSHIFT32(cps2, ai1);
+    *fft1++ = t + MULSHIFT32(cms2, ar1);
+
+    cps2 = *csptr++;
+    sin2 = *csptr++;
+
+    ai2 = -ai2;
+    t = MULSHIFT32(sin2, ar2 + ai2);
+    *fft2-- = t - MULSHIFT32(cps2, ai2);
+    cms2 = cps2 - 2*sin2;
+    *fft1++ = t + MULSHIFT32(cms2, ar2);
+    }
+  }
+//}}}
+
+//{{{
+static void QMFAnalysisConv (int* cTab, int *delay, int dIdx, int* uBuf) {
+/**************************************************************************************
+ * Description: convolution kernel for analysis QMF
+ * Inputs:      pointer to coefficient table, reordered for sequential access
+ *              delay buffer of size 32*10 = 320 real-valued PCM samples
+ *              index for delay ring buffer (range = [0, 9])
+ * Outputs:     64 consecutive 32-bit samples
+ * Return:      none
+ * Notes:       this is carefully written to be efficient on ARM
+ *              use the assembly code version in sbrqmfak.s when building for ARM!
+ **************************************************************************************/
+
+  int k, dOff;
+  int *cPtr0, *cPtr1;
+  U64 u64lo, u64hi;
+
+  dOff = dIdx*32 + 31;
+  cPtr0 = cTab;
+  cPtr1 = cTab + 33*5 - 1;
+
+  /* special first pass since we need to flip sign to create cTab[384], cTab[512] */
+  u64lo.w64 = 0;
+  u64hi.w64 = 0;
+  u64lo.w64 = MADD64 (u64lo.w64,  *cPtr0++,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
+  u64hi.w64 = MADD64 (u64hi.w64,  *cPtr0++,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
+  u64lo.w64 = MADD64 (u64lo.w64,  *cPtr0++,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
+  u64hi.w64 = MADD64 (u64hi.w64,  *cPtr0++,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
+  u64lo.w64 = MADD64 (u64lo.w64,  *cPtr0++,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
+  u64hi.w64 = MADD64 (u64hi.w64,  *cPtr1--,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
+  u64lo.w64 = MADD64 (u64lo.w64, -(*cPtr1--), delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
+  u64hi.w64 = MADD64 (u64hi.w64,  *cPtr1--,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
+  u64lo.w64 = MADD64 (u64lo.w64, -(*cPtr1--), delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
+  u64hi.w64 = MADD64 (u64hi.w64,  *cPtr1--,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
+
+  uBuf[0]  = u64lo.r.hi32;
+  uBuf[32] = u64hi.r.hi32;
+  uBuf++;
+  dOff--;
+
+  // max gain for any sample in uBuf, after scaling by cTab, ~= 0.99
+  // so we can just sum the uBuf values with no overflow problems
+  for (k = 1; k <= 31; k++) {
+    u64lo.w64 = 0;
+    u64hi.w64 = 0;
+    u64lo.w64 = MADD64 (u64lo.w64, *cPtr0++, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
+    u64hi.w64 = MADD64 (u64hi.w64, *cPtr0++, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
+    u64lo.w64 = MADD64 (u64lo.w64, *cPtr0++, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
+    u64hi.w64 = MADD64 (u64hi.w64, *cPtr0++, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
+    u64lo.w64 = MADD64 (u64lo.w64, *cPtr0++, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
+    u64hi.w64 = MADD64 (u64hi.w64, *cPtr1--, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
+    u64lo.w64 = MADD64 (u64lo.w64, *cPtr1--, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
+    u64hi.w64 = MADD64 (u64hi.w64, *cPtr1--, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
+    u64lo.w64 = MADD64 (u64lo.w64, *cPtr1--, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
+    u64hi.w64 = MADD64 (u64hi.w64, *cPtr1--, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
+
+    uBuf[0]  = u64lo.r.hi32;
+    uBuf[32] = u64hi.r.hi32;
+    uBuf++;
+    dOff--;
+    }
+  }
+//}}}
+//{{{
+static int QMFAnalysis (int* inbuf, int* delay, int* XBuf, int fBitsIn, int* delayIdx, int qmfaBands) {
+/**************************************************************************************
+ * Description: 32-subband analysis QMF (4.6.18.4.1)
+ * Inputs:      32 consecutive samples of decoded 32-bit PCM, format = Q(fBitsIn)
+ *              delay buffer of size 32*10 = 320 PCM samples
+ *              number of fraction bits in input PCM
+ *              index for delay ring buffer (range = [0, 9])
+ *              number of subbands to calculate (range = [0, 32])
+ * Outputs:     qmfaBands complex subband samples, format = Q(FBITS_OUT_QMFA)
+ *              updated delay buffer
+ *              updated delay index
+ * Return:      guard bit mask
+ * Notes:       output stored as RE{X0}, IM{X0}, RE{X1}, IM{X1}, ... RE{X31}, IM{X31}
+ *              output stored in int buffer of size 64*2 = 128
+ *                (zero-filled from XBuf[2*qmfaBands] to XBuf[127])
+ **************************************************************************************/
+
+  int n, y, shift, gbMask;
+  int *delayPtr, *uBuf, *tBuf;
+
+  /* use XBuf[128] as temp buffer for reordering */
+  uBuf = XBuf;    /* first 64 samples */
+  tBuf = XBuf + 64; /* second 64 samples */
+
+  /* overwrite oldest PCM with new PCM
+   * delay[n] has 1 GB after shifting (either << or >>)
+   */
+  delayPtr = delay + (*delayIdx * 32);
+  if (fBitsIn > FBITS_IN_QMFA) {
+    shift = MIN(fBitsIn - FBITS_IN_QMFA, 31);
+    for (n = 32; n != 0; n--) {
+      y = (*inbuf) >> shift;
+      inbuf++;
+      *delayPtr++ = y;
+      }
+    }
+  else {
+    shift = MIN(FBITS_IN_QMFA - fBitsIn, 30);
+    for (n = 32; n != 0; n--) {
+      y = *inbuf++;
+      CLIP_2N_SHIFT30(y, shift);
+      *delayPtr++ = y;
+      }
+    }
+
+  QMFAnalysisConv ((int *)cTabA, delay, *delayIdx, uBuf);
+
+  // uBuf has at least 2 GB right now (1 from clipping to Q(FBITS_IN_QMFA), one from
+  //   the scaling by cTab (MULSHIFT32(*delayPtr--, *cPtr++), with net gain of < 1.0)
+  // TODO - fuse with QMFAnalysisConv to avoid separate reordering
+  tBuf[2*0 + 0] = uBuf[0];
+  tBuf[2*0 + 1] = uBuf[1];
+  for (n = 1; n < 31; n++) {
+    tBuf[2*n + 0] = -uBuf[64-n];
+    tBuf[2*n + 1] =  uBuf[n+1];
+    }
+  tBuf[2*31 + 1] =  uBuf[32];
+  tBuf[2*31 + 0] = -uBuf[33];
+
+  /* fast in-place DCT-IV - only need 2*qmfaBands output samples */
+  PreMultiply64 (tBuf);  /* 2 GB in, 3 GB out */
+  FFT32C (tBuf);     /* 3 GB in, 1 GB out */
+  PostMultiply64 (tBuf, qmfaBands*2);  /* 1 GB in, 2 GB out */
+
+  /* TODO - roll into PostMultiply (if enough registers) */
+  gbMask = 0;
+  for (n = 0; n < qmfaBands; n++) {
+    XBuf[2*n+0] = tBuf[ n + 0];  /* implicit scaling of 2 in our output Q format */
+    gbMask |= FASTABS (XBuf[2*n+0]);
+    XBuf[2*n+1] = -tBuf[63 - n];
+    gbMask |= FASTABS (XBuf[2*n+1]);
+    }
+
+  /* fill top section with zeros for HF generation */
+  for ( ; n < 64; n++) {
+    XBuf[2*n+0] = 0;
+    XBuf[2*n+1] = 0;
+    }
+
+  *delayIdx = (*delayIdx == NUM_QMF_DELAY_BUFS - 1 ? 0 : *delayIdx + 1);
+
+  /* minimum of 2 GB in output */
+  return gbMask;
+  }
+//}}}
+
+// lose FBITS_LOST_DCT4_64 in DCT4, gain 6 for implicit scaling by 1/64, lose 1 for cTab multiply (Q31) */
+#define FBITS_OUT_QMFS  (FBITS_IN_QMFS - FBITS_LOST_DCT4_64 + 6 - 1)
+#define RND_VAL1  (1 << (FBITS_OUT_QMFS-1))
+
+//{{{
+static void QMFSynthesisConv (int* cPtr, int *delay, int dIdx, int16_t* outbuf, int nChans) {
+/**************************************************************************************
+ * Description: final convolution kernel for synthesis QMF
+ * Inputs:      pointer to coefficient table, reordered for sequential access
+ *              delay buffer of size 64*10 = 640 complex samples (1280 ints)
+ *              index for delay ring buffer (range = [0, 9])
+ *              number of QMF subbands to process (range = [0, 64])
+ *              number of channels
+ * Outputs:     64 consecutive 16-bit PCM samples, interleaved by factor of nChans
+ * Return:      none
+ * Notes:       this is carefully written to be efficient on ARM
+ *              use the assembly code version in sbrqmfsk.s when building for ARM!
+ **************************************************************************************/
+
+  int k, dOff0, dOff1;
+  U64 sum64;
+
+  dOff0 = (dIdx)*128;
+  dOff1 = dOff0 - 1;
+  if (dOff1 < 0)
+    dOff1 += 1280;
+
+  /* scaling note: total gain of coefs (cPtr[0]-cPtr[9] for any k) is < 2.0, so 1 GB in delay values is adequate */
+  for (k = 0; k <= 63; k++) {
+    sum64.w64 = 0;
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]); dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]); dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]); dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]); dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]); dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]); dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]); dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]); dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]); dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]); dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
+
+    dOff0++;
+    dOff1--;
+    *outbuf = CLIPTOSHORT ((sum64.r.hi32 + RND_VAL1) >> FBITS_OUT_QMFS);
+    outbuf += nChans;
+    }
+  }
+//}}}
+//{{{
+static void QMFSynthesis (int* inbuf, int *delay, int *delayIdx, int qmfsBands, int16_t* outbuf, int nChans) {
+/**************************************************************************************
+ * Description: 64-subband synthesis QMF (4.6.18.4.2)
+ * Inputs:      64 consecutive complex subband QMF samples, format = Q(FBITS_IN_QMFS)
+ *              delay buffer of size 64*10 = 640 complex samples (1280 ints)
+ *              index for delay ring buffer (range = [0, 9])
+ *              number of QMF subbands to process (range = [0, 64])
+ *              number of channels
+ * Outputs:     64 consecutive 16-bit PCM samples, interleaved by factor of nChans
+ *              updated delay buffer
+ *              updated delay index
+ * Return:      none
+ * Notes:       assumes MIN_GBITS_IN_QMFS guard bits in input, either from
+ *              QMFAnalysis (if upsampling only) or from MapHF (if SBR on)
+ **************************************************************************************/
+
+  int n, a0, a1, b0, b1, dOff0, dOff1, dIdx;
+  int *tBufLo, *tBufHi;
+
+  dIdx = *delayIdx;
+  tBufLo = delay + dIdx*128 + 0;
+  tBufHi = delay + dIdx*128 + 127;
+
+  // reorder inputs to DCT-IV, only use first qmfsBands (complex) samples
+  // TODO - fuse with PreMultiply64 to avoid separate reordering steps
+  for (n = 0; n < qmfsBands >> 1; n++) {
+    a0 = *inbuf++;
+    b0 = *inbuf++;
+    a1 = *inbuf++;
+    b1 = *inbuf++;
+    *tBufLo++ = a0;
+    *tBufLo++ = a1;
+    *tBufHi-- = b0;
+    *tBufHi-- = b1;
+    }
+
+  if (qmfsBands & 0x01) {
+    a0 = *inbuf++;
+    b0 = *inbuf++;
+    *tBufLo++ = a0;
+    *tBufHi-- = b0;
+    *tBufLo++ = 0;
+    *tBufHi-- = 0;
+    n++;
+    }
+
+  for ( ; n < 32; n++) {
+    *tBufLo++ = 0;
+    *tBufHi-- = 0;
+    *tBufLo++ = 0;
+    *tBufHi-- = 0;
+    }
+
+  tBufLo = delay + dIdx*128 + 0;
+  tBufHi = delay + dIdx*128 + 64;
+
+  /* 2 GB in, 3 GB out */
+  PreMultiply64 (tBufLo);
+  PreMultiply64 (tBufHi);
+
+  /* 3 GB in, 1 GB out */
+  FFT32C (tBufLo);
+  FFT32C (tBufHi);
+
+  /* 1 GB in, 2 GB out */
+  PostMultiply64 (tBufLo, 64);
+  PostMultiply64 (tBufHi, 64);
+
+  /* could fuse with PostMultiply64 to avoid separate pass */
+  dOff0 = dIdx*128;
+  dOff1 = dIdx*128 + 64;
+  for (n = 32; n != 0; n--) {
+    a0 =  (*tBufLo++);
+    a1 =  (*tBufLo++);
+    b0 =  (*tBufHi++);
+    b1 = -(*tBufHi++);
+
+    delay[dOff0++] = (b0 - a0);
+    delay[dOff0++] = (b1 - a1);
+    delay[dOff1++] = (b0 + a0);
+    delay[dOff1++] = (b1 + a1);
+    }
+
+  QMFSynthesisConv ((int *)cTabS, delay, dIdx, outbuf, nChans);
+
+  *delayIdx = (*delayIdx == NUM_QMF_DELAY_BUFS - 1 ? 0 : *delayIdx + 1);
+  }
 //}}}
 //}}}
 
@@ -9487,7 +9393,7 @@ static int DecodeSBRBitstream (AACDecInfo* aacDecInfo, int chBase) {
   }
 //}}}
 //{{{
-static int DecodeSBRData (AACDecInfo* aacDecInfo, int chBase, short *outbuf) {
+static int DecodeSBRData (AACDecInfo* aacDecInfo, int chBase, int16_t* outbuf) {
 /**************************************************************************************
  * Description: apply SBR to one frame of PCM data
  * Inputs:      1024 samples of decoded 32-bit PCM, before SBR
@@ -9688,37 +9594,28 @@ int AACFlushCodec (HAACDecoder hAACDecoder) {
   }
 //}}}
 //{{{
-int AACDecode (HAACDecoder hAACDecoder, unsigned char** inbuf, int* bytesLeft, short* outbuf) {
+int AACDecode (HAACDecoder hAACDecoder, uint8_t* inbuf, int bytesLeft, int16_t* outbuf) {
 /**************************************************************************************
  * Description: decode AAC frame
  * Inputs:      valid AAC decoder instance pointer (HAACDecoder)
- *              double pointer to buffer of AAC data
- *              pointer to number of valid bytes remaining in inbuf
- *              pointer to outbuf, big enough to hold one frame of decoded PCM samples
- *                (outbuf must be double-sized if SBR enabled)
+ *              pointer to buffer of AAC data
+ *              valid bytes remaining in inbuf
  * Outputs:     PCM data in outbuf, interleaved LRLRLR... if stereo
  *                number of output samples = 1024 per channel (2048 if SBR enabled)
- *              updated inbuf pointer
- *              updated bytesLeft
  * Return:      0 if successful, error code (< 0) if error
- * Notes:       inbuf pointer and bytesLeft are not updated until whole frame is
- *                successfully decoded, so if ERR_AAC_INDATA_UNDERFLOW is returned
- *                just call AACDecode again with more data in inbuf
  **************************************************************************************/
 
-  // make local copies (see "Notes" above) */
-  unsigned char* inptr = *inbuf;
   int bitOffset = 0;
-  int bitsAvail = (*bytesLeft) << 3;
+  int bitsAvail = bytesLeft << 3;
 
   AACDecInfo* aacDecInfo = (AACDecInfo*)hAACDecoder;
-  int err = UnpackADTSHeader (aacDecInfo, &inptr, &bitOffset, &bitsAvail);
+  int err = UnpackADTSHeader (aacDecInfo, &inbuf, &bitOffset, &bitsAvail);
   if (err)
     return err;
 
   if (aacDecInfo->nChans == -1) {
     // figure out implicit channel mapping if necessary
-    int err = GetADTSChannelMapping (aacDecInfo, inptr, bitOffset, bitsAvail);
+    int err = GetADTSChannelMapping (aacDecInfo, inbuf, bitOffset, bitsAvail);
     if (err)
       return err;
     }
@@ -9727,7 +9624,7 @@ int AACDecode (HAACDecoder hAACDecoder, unsigned char** inbuf, int* bytesLeft, s
   if (aacDecInfo->nChans > AAC_MAX_NCHANS || aacDecInfo->nChans <= 0)
     return ERR_AAC_NCHANS_TOO_HIGH;
 
-  // will be set later if active in this frame */
+  // will be set later if active in this frame
   aacDecInfo->tnsUsed = 0;
   aacDecInfo->pnsUsed = 0;
 
@@ -9736,7 +9633,7 @@ int AACDecode (HAACDecoder hAACDecoder, unsigned char** inbuf, int* bytesLeft, s
   int baseChanSBR = 0;
   do {
     // parse next syntactic element */
-    int err = decodeNextElement (aacDecInfo, &inptr, &bitOffset, &bitsAvail);
+    int err = decodeNextElement (aacDecInfo, &inbuf, &bitOffset, &bitsAvail);
     if (err)
       return err;
 
@@ -9746,25 +9643,25 @@ int AACDecode (HAACDecoder hAACDecoder, unsigned char** inbuf, int* bytesLeft, s
 
     // noiseless decoder and dequantizer */
     for (int ch = 0; ch < elementChans; ch++) {
-      int err = DecodeNoiselessData (aacDecInfo, &inptr, &bitOffset, &bitsAvail, ch);
+      int err = DecodeNoiselessData (aacDecInfo, &inbuf, &bitOffset, &bitsAvail, ch);
       if (err)
         return err;
       if (Dequantize (aacDecInfo, ch))
         return ERR_AAC_DEQUANT;
       }
 
-    // mid-side and intensity stereo */
+    // mid-side and intensity stereo
     if (aacDecInfo->currBlockID == AAC_ID_CPE)
       if (StereoProcess (aacDecInfo))
         return ERR_AAC_STEREO_PROCESS;
 
-    // PNS, TNS, inverse transform */
+    // PNS, TNS, inverse transform
     for (int ch = 0; ch < elementChans; ch++) {
-      if (PNS(aacDecInfo, ch))
+      if (PNS (aacDecInfo, ch))
         return ERR_AAC_PNS;
 
       if (aacDecInfo->sbDeinterleaveReqd[ch]) {
-        // deinterleave short blocks, if required */
+        // deinterleave short blocks, if required
         if (DeinterleaveShortBlocks (aacDecInfo, ch))
           return ERR_AAC_SHORT_BLOCK_DEINT;
         aacDecInfo->sbDeinterleaveReqd[ch] = 0;
@@ -9776,11 +9673,14 @@ int AACDecode (HAACDecoder hAACDecoder, unsigned char** inbuf, int* bytesLeft, s
         return ERR_AAC_IMDCT;
       }
 
-    if (aacDecInfo->sbrEnabled && (aacDecInfo->currBlockID == AAC_ID_FIL || aacDecInfo->currBlockID == AAC_ID_LFE)) {
+    if (aacDecInfo->sbrEnabled &&
+        (aacDecInfo->currBlockID == AAC_ID_FIL || aacDecInfo->currBlockID == AAC_ID_LFE)) {
+
       int elementChansSBR;
       if (aacDecInfo->currBlockID == AAC_ID_LFE)
         elementChansSBR = elementNumChans[AAC_ID_LFE];
-      else if (aacDecInfo->currBlockID == AAC_ID_FIL && (aacDecInfo->prevBlockID == AAC_ID_SCE || aacDecInfo->prevBlockID == AAC_ID_CPE))
+      else if (aacDecInfo->currBlockID == AAC_ID_FIL &&
+               (aacDecInfo->prevBlockID == AAC_ID_SCE || aacDecInfo->prevBlockID == AAC_ID_CPE))
         elementChansSBR = elementNumChans[aacDecInfo->prevBlockID];
       else
         elementChansSBR = 0;
@@ -9788,11 +9688,11 @@ int AACDecode (HAACDecoder hAACDecoder, unsigned char** inbuf, int* bytesLeft, s
       if (baseChanSBR + elementChansSBR > AAC_MAX_NCHANS)
         return ERR_AAC_SBR_NCHANS_TOO_HIGH;
 
-      // parse SBR extension data if present (contained in a fill element) */
+      // parse SBR extension data if present (contained in a fill element)
       if (DecodeSBRBitstream (aacDecInfo, baseChanSBR))
         return ERR_AAC_SBR_BITSTREAM;
 
-      // apply SBR */
+      // apply SBR
       if (DecodeSBRData (aacDecInfo, baseChanSBR, outbuf))
         return ERR_AAC_SBR_DATA;
 
@@ -9802,25 +9702,11 @@ int AACDecode (HAACDecoder hAACDecoder, unsigned char** inbuf, int* bytesLeft, s
     baseChan += elementChans;
     } while (aacDecInfo->currBlockID != AAC_ID_END);
 
-  // byte align after each raw_data_block */
-  if (bitOffset) {
-    inptr++;
-    bitsAvail -= (8-bitOffset);
-    bitOffset = 0;
-    if (bitsAvail < 0)
-      return ERR_AAC_INDATA_UNDERFLOW;
-    }
-
-  // update pointers */
-  aacDecInfo->frameCount++;
-  *bytesLeft -= (int)(inptr - *inbuf);
-  *inbuf = inptr;
-
   return ERR_AAC_NONE;
   }
 //}}}
 //{{{
-void AACGetLastFrameInfo (HAACDecoder hAACDecoder, AACFrameInfo *aacFrameInfo) {
+void AACGetLastFrameInfo (HAACDecoder hAACDecoder, AACFrameInfo* aacFrameInfo) {
 /**************************************************************************************
  * Description: get info about last AAC frame decoded (number of samples decoded,
  *                sample rate, bit rate, etc.)
