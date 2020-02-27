@@ -21,8 +21,6 @@
 #define AAC_PROFILE_LC    1
 #define AAC_PROFILE_SSR   2
 
-#define AAC_ENABLE_SBR 1
-
 //{{{  error enum
 enum {
 	ERR_AAC_NONE                          =   0,

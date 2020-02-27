@@ -1,5 +1,4 @@
 #include "aaccommon.h"
-
 //{{{  const tables
 //{{{
 /* sample rates (table 4.5.1) */
@@ -165,7 +164,232 @@ static const int pow43[48] = {
 //}}}
 //}}}
 
-//{{{  decode bitstream, huffman
+//{{{  bitstream
+//{{{
+/**************************************************************************************
+ * Function:    RefillBitstreamCache
+ *
+ * Description: read new data from bitstream buffer into 32-bit cache
+ *
+ * Inputs:      pointer to initialized BitStreamInfo struct
+ *
+ * Outputs:     updated bitstream info struct
+ *
+ * Return:      none
+ *
+ * Notes:       only call when iCache is completely drained (resets bitOffset to 0)
+ *              always loads 4 new bytes except when bsi->nBytes < 4 (end of buffer)
+ *              stores data as big-endian in cache, regardless of machine endian-ness
+ **************************************************************************************/
+//Optimized for REV16, REV32 (FB)
+inline static void RefillBitstreamCache (BitStreamInfo *bsi)
+{
+  int nBytes = bsi->nBytes;
+  if (nBytes >= 4) {
+    /* optimize for common case, independent of machine endian-ness */
+    bsi->iCache  = (*bsi->bytePtr++) << 24;
+    bsi->iCache |= (*bsi->bytePtr++) << 16;
+    bsi->iCache |= (*bsi->bytePtr++) <<  8;
+    bsi->iCache |= (*bsi->bytePtr++);
+
+    bsi->cachedBits = 32;
+    bsi->nBytes -= 4;
+  } else {
+    bsi->iCache = 0;
+    while (nBytes--) {
+      bsi->iCache |= (*bsi->bytePtr++);
+      bsi->iCache <<= 8;
+    }
+    bsi->iCache <<= ((3 - bsi->nBytes)*8);
+    bsi->cachedBits = 8*bsi->nBytes;
+    bsi->nBytes = 0;
+  }
+}
+//}}}
+
+//{{{
+/**************************************************************************************
+ * Function:    SetBitstreamPointer
+ *
+ * Description: initialize bitstream reader
+ *
+ * Inputs:      pointer to BitStreamInfo struct
+ *              number of bytes in bitstream
+ *              pointer to byte-aligned buffer of data to read from
+ *
+ * Outputs:     initialized bitstream info struct
+ *
+ * Return:      none
+ **************************************************************************************/
+void SetBitstreamPointer (BitStreamInfo *bsi, int nBytes, unsigned char *buf)
+{
+  /* init bitstream */
+  bsi->bytePtr = buf;
+  bsi->iCache = 0;    /* 4-byte unsigned int */
+  bsi->cachedBits = 0;  /* i.e. zero bits in cache */
+  bsi->nBytes = nBytes;
+}
+//}}}
+//{{{
+/**************************************************************************************
+ * Function:    GetBits
+ *
+ * Description: get bits from bitstream, advance bitstream pointer
+ *
+ * Inputs:      pointer to initialized BitStreamInfo struct
+ *              number of bits to get from bitstream
+ *
+ * Outputs:     updated bitstream info struct
+ *
+ * Return:      the next nBits bits of data from bitstream buffer
+ *
+ * Notes:       nBits must be in range [0, 31], nBits outside this range masked by 0x1f
+ *              for speed, does not indicate error if you overrun bit buffer
+ *              if nBits == 0, returns 0
+ **************************************************************************************/
+unsigned int GetBits (BitStreamInfo *bsi, int nBits)
+{
+  unsigned int data, lowBits;
+
+  nBits &= 0x1f;              /* nBits mod 32 to avoid unpredictable results like >> by negative amount */
+  data = bsi->iCache >> (31 - nBits);   /* unsigned >> so zero-extend */
+  data >>= 1;               /* do as >> 31, >> 1 so that nBits = 0 works okay (returns 0) */
+  bsi->iCache <<= nBits;          /* left-justify cache */
+  bsi->cachedBits -= nBits;       /* how many bits have we drawn from the cache so far */
+
+  /* if we cross an int boundary, refill the cache */
+  if (bsi->cachedBits < 0) {
+    lowBits = -bsi->cachedBits;
+    RefillBitstreamCache(bsi);
+    data |= bsi->iCache >> (32 - lowBits);    /* get the low-order bits */
+
+    bsi->cachedBits -= lowBits;     /* how many bits have we drawn from the cache so far */
+    bsi->iCache <<= lowBits;      /* left-justify cache */
+  }
+
+  return data;
+}
+//}}}
+//{{{
+/**************************************************************************************
+ * Function:    GetBitsNoAdvance
+ *
+ * Description: get bits from bitstream, do not advance bitstream pointer
+ *
+ * Inputs:      pointer to initialized BitStreamInfo struct
+ *              number of bits to get from bitstream
+ *
+ * Outputs:     none (state of BitStreamInfo struct left unchanged)
+ *
+ * Return:      the next nBits bits of data from bitstream buffer
+ *
+ * Notes:       nBits must be in range [0, 31], nBits outside this range masked by 0x1f
+ *              for speed, does not indicate error if you overrun bit buffer
+ *              if nBits == 0, returns 0
+ **************************************************************************************/
+unsigned int GetBitsNoAdvance (BitStreamInfo *bsi, int nBits)
+{
+  unsigned char *buf;
+  unsigned int data, iCache;
+  signed int lowBits;
+
+  nBits &= 0x1f;              /* nBits mod 32 to avoid unpredictable results like >> by negative amount */
+  data = bsi->iCache >> (31 - nBits);   /* unsigned >> so zero-extend */
+  data >>= 1;               /* do as >> 31, >> 1 so that nBits = 0 works okay (returns 0) */
+  lowBits = nBits - bsi->cachedBits;    /* how many bits do we have left to read */
+
+  /* if we cross an int boundary, read next bytes in buffer */
+  if (lowBits > 0) {
+    iCache = 0;
+    buf = bsi->bytePtr;
+    while (lowBits > 0) {
+      iCache <<= 8;
+      if (buf < bsi->bytePtr + bsi->nBytes)
+        iCache |= (unsigned int)*buf++;
+      lowBits -= 8;
+    }
+    lowBits = -lowBits;
+    data |= iCache >> lowBits;
+  }
+
+  return data;
+}
+//}}}
+//{{{
+/**************************************************************************************
+ * Function:    AdvanceBitstream
+ *
+ * Description: move bitstream pointer ahead
+ *
+ * Inputs:      pointer to initialized BitStreamInfo struct
+ *              number of bits to advance bitstream
+ *
+ * Outputs:     updated bitstream info struct
+ *
+ * Return:      none
+ *
+ * Notes:       generally used following GetBitsNoAdvance(bsi, maxBits)
+ **************************************************************************************/
+void AdvanceBitstream (BitStreamInfo *bsi, int nBits)
+{
+  nBits &= 0x1f;
+  if (nBits > bsi->cachedBits) {
+    nBits -= bsi->cachedBits;
+    RefillBitstreamCache(bsi);
+  }
+  bsi->iCache <<= nBits;
+  bsi->cachedBits -= nBits;
+}
+//}}}
+//{{{
+/**************************************************************************************
+ * Function:    CalcBitsUsed
+ *
+ * Description: calculate how many bits have been read from bitstream
+ *
+ * Inputs:      pointer to initialized BitStreamInfo struct
+ *              pointer to start of bitstream buffer
+ *              bit offset into first byte of startBuf (0-7)
+ *
+ * Outputs:     none
+ *
+ * Return:      number of bits read from bitstream, as offset from startBuf:startOffset
+ **************************************************************************************/
+int CalcBitsUsed (BitStreamInfo *bsi, unsigned char *startBuf, int startOffset)
+{
+  int bitsUsed;
+
+  bitsUsed  = (int)(bsi->bytePtr - startBuf) * 8;
+  bitsUsed -= bsi->cachedBits;
+  bitsUsed -= startOffset;
+
+  return bitsUsed;
+}
+//}}}
+//{{{
+/**************************************************************************************
+ * Function:    ByteAlignBitstream
+ *
+ * Description: bump bitstream pointer to start of next byte
+ *
+ * Inputs:      pointer to initialized BitStreamInfo struct
+ *
+ * Outputs:     byte-aligned bitstream BitStreamInfo struct
+ *
+ * Return:      none
+ *
+ * Notes:       if bitstream is already byte-aligned, do nothing
+ **************************************************************************************/
+void ByteAlignBitstream (BitStreamInfo *bsi)
+{
+  int offset;
+
+  offset = bsi->cachedBits & 0x07;
+  AdvanceBitstream(bsi, offset);
+}
+//}}}
+//}}}
+//{{{  decode, huffman
 #define APPLY_SIGN(v, s)    {(v) ^= ((signed int)(s) >> 31); (v) -= ((signed int)(s) >> 31);}
 
 #define GET_QUAD_SIGNBITS(v)  (((unsigned int)(v) << 17) >> 29) /* bits 14-12, unsigned */
@@ -357,7 +581,7 @@ int DecodeHuffmanScalar (const signed short*huffTab, const HuffInfo* huffTabInfo
     t = (bitBuf >> shift) - start;
   } while (t >= count);
   *val = (signed int) (*(const uint16_t*)(&map[t]));
-  return (countPtr - huffTabInfo->count);
+  return (int)(countPtr - huffTabInfo->count);
 }
 //}}}
 
@@ -893,7 +1117,7 @@ void DecodeICSInfo (BitStreamInfo *bsi, ICSInfo *icsInfo, int sampRateIdx)
 //{{{  fft
 #define NUM_FFT_SIZES 2
 static const int nfftTab[NUM_FFT_SIZES] = {64, 512};
-static const int nfftlog2Tab[NUM_FFT_SIZES] = {6, 9};
+static const uint8_t nfftlog2Tab[NUM_FFT_SIZES] = {6, 9};
 
 #define SQRT1_2 0x5a82799a  /* sqrt(1/2) in Q31 */
 #define swapcplx(p0,p1) t = p0; t1 = *(&(p0)+1); p0 = p1; *(&(p0)+1) = *(&(p1)+1); p1 = t; *(&(p1)+1) = t1
@@ -1183,10 +1407,13 @@ const unsigned char uniqueIDTab[8] = {0x5f, 0x4b, 0x43, 0x5f, 0x5f, 0x4a, 0x52, 
   int *part0, *part1;
   int a,b, t,t1;
   const unsigned char* tab = bitrevtab + bitrevtabOffset[tabidx];
-  int nbits = nfftlog2Tab[tabidx];
+  uint8_t nbits = nfftlog2Tab[tabidx];
+
+//static const int nfftTab[NUM_FFT_SIZES] = {64, 512};
+//static const uint8_t nfftlog2Tab[NUM_FFT_SIZES] = {6, 9};
 
   part0 = inout;
-  part1 = inout + (1 << nbits);
+  part1 = inout + nfftTab[tabidx];
 
   while ((a = (*(const uint8_t*)(tab++))) != 0) {
     b = (*(const uint8_t*)(tab++));
@@ -1805,6 +2032,7 @@ void DCT4 (int tabidx, int *coef, int gb)
 //}}}
 //{{{  imdct
 #define RND_VAL   (1 << (FBITS_OUT_IMDCT-1))
+
 //{{{
 /**************************************************************************************
  * Function:    IMDCT
@@ -3561,53 +3789,6 @@ int DecodeNoiselessData (AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOf
 //}}}
 
 //{{{
-void ClearBuffer (void* buf, int nBytes) {
- memset(buf, 0, nBytes);
- }
-//}}}
-//{{{
-AACDecInfo* AllocateBuffers() {
-  AACDecInfo* aacDecInfo = (AACDecInfo *)malloc(sizeof(AACDecInfo));
-  ClearBuffer(aacDecInfo, sizeof(AACDecInfo));
-  aacDecInfo->psInfoBase = malloc(sizeof(PSInfoBase));
-  ClearBuffer(aacDecInfo->psInfoBase, sizeof(PSInfoBase));
-  return aacDecInfo;
-  }
-//}}}
-//{{{
-void FreeBuffers (AACDecInfo* aacDecInfo) {
-  if (aacDecInfo)
-    free (aacDecInfo->psInfoBase);
-  free(aacDecInfo);
- }
-//}}}
-//{{{
-/**************************************************************************************
- * Function:    FlushCodec
- * Description: flush internal codec state (after seeking, for example)
- * Inputs:      valid AACDecInfo struct
- * Outputs:     updated state variables in aacDecInfo
- * Return:      0 if successful, error code (< 0) if error
- * Notes:       only need to clear data which is persistent between frames
- *                (such as overlap buffer)
- **************************************************************************************/
-int FlushCodec (AACDecInfo* aacDecInfo)
-{
-  PSInfoBase *psi;
-
-  /* validate pointers */
-  if (!aacDecInfo || !aacDecInfo->psInfoBase)
-    return ERR_AAC_NULL_POINTER;
-  psi = (PSInfoBase *)(aacDecInfo->psInfoBase);
-
-  ClearBuffer(psi->overlap, AAC_MAX_NCHANS * AAC_MAX_NSAMPS * sizeof(int));
-  ClearBuffer(psi->prevWinShape, AAC_MAX_NCHANS * sizeof(int));
-
-  return ERR_AAC_NONE;
-}
-//}}}
-
-//{{{
  /**************************************************************************************
  * Function:    UnpackADTSHeader
  * Description: parse the ADTS frame header and initialize decoder state
@@ -3785,7 +3966,12 @@ int PrepareRawBlock (AACDecInfo* aacDecInfo)
 //{{{
 HAACDecoder AACInitDecoder() {
 
-  AACDecInfo* aacDecInfo = AllocateBuffers();
+  AACDecInfo* aacDecInfo = (AACDecInfo *)malloc (sizeof(AACDecInfo));
+  memset (aacDecInfo, 0, sizeof(AACDecInfo));
+
+  aacDecInfo->psInfoBase = malloc (sizeof(PSInfoBase));
+  memset (aacDecInfo->psInfoBase, 0, sizeof(PSInfoBase));
+
   InitSBR (aacDecInfo);
   return (HAACDecoder)aacDecInfo;
   }
@@ -3802,6 +3988,40 @@ int AACFindSyncWord (unsigned char* buf, int nBytes) {
   return -1;
   }
 //}}}
+//{{{
+/**************************************************************************************
+ * Function:    AACFlushCodec
+ * Description: flush internal codec state (after seeking, for example)
+ * Inputs:      valid AAC decoder instance pointer (HAACDecoder)
+ * Outputs:     updated state variables in aacDecInfo
+ * Return:      0 if successful, error code (< 0) if error
+ **************************************************************************************/
+int AACFlushCodec (HAACDecoder hAACDecoder) {
+
+  // reset common state variables which change per-frame
+  // don't touch state variables which are (usually) constant for entire clip
+  //  (nChans, sampRate, profile, format, sbrEnabled)
+  AACDecInfo* aacDecInfo = (AACDecInfo *)hAACDecoder;
+  aacDecInfo->prevBlockID = AAC_ID_INVALID;
+  aacDecInfo->currBlockID = AAC_ID_INVALID;
+  aacDecInfo->currInstTag = -1;
+  for (int ch = 0; ch < MAX_NCHANS_ELEM; ch++)
+    aacDecInfo->sbDeinterleaveReqd[ch] = 0;
+  aacDecInfo->adtsBlocksLeft = 0;
+  aacDecInfo->tnsUsed = 0;
+  aacDecInfo->pnsUsed = 0;
+
+  /* reset internal codec state (flush overlap buffers, etc.) */
+  PSInfoBase* psi = (PSInfoBase *)(aacDecInfo->psInfoBase);
+  memset (psi->overlap, 0, AAC_MAX_NCHANS * AAC_MAX_NSAMPS * sizeof(int));
+  memset (psi->prevWinShape, 0, AAC_MAX_NCHANS * sizeof(int));
+
+  FlushCodecSBR (aacDecInfo);
+
+  return ERR_AAC_NONE;
+  }
+//}}}
+
 //{{{
 /**************************************************************************************
  * Function:    AACDecode
@@ -3977,7 +4197,7 @@ int AACDecode (HAACDecoder hAACDecoder, unsigned char **inbuf, int *bytesLeft, s
 
   /* update pointers */
   aacDecInfo->frameCount++;
-  *bytesLeft -= (inptr - *inbuf);
+  *bytesLeft -= (int)(inptr - *inbuf);
   *inbuf = inptr;
 
   return ERR_AAC_NONE;
@@ -4015,46 +4235,12 @@ void AACGetLastFrameInfo (HAACDecoder hAACDecoder, AACFrameInfo *aacFrameInfo) {
 //}}}
 
 //{{{
-/**************************************************************************************
- * Function:    AACFlushCodec
- * Description: flush internal codec state (after seeking, for example)
- * Inputs:      valid AAC decoder instance pointer (HAACDecoder)
- * Outputs:     updated state variables in aacDecInfo
- * Return:      0 if successful, error code (< 0) if error
- **************************************************************************************/
-int AACFlushCodec (HAACDecoder hAACDecoder)
-{
-  int ch;
-  AACDecInfo *aacDecInfo = (AACDecInfo *)hAACDecoder;
-
-  if (!aacDecInfo)
-    return ERR_AAC_NULL_POINTER;
-
-  /* reset common state variables which change per-frame
-   * don't touch state variables which are (usually) constant for entire clip
-   *   (nChans, sampRate, profile, format, sbrEnabled)
-   */
-  aacDecInfo->prevBlockID = AAC_ID_INVALID;
-  aacDecInfo->currBlockID = AAC_ID_INVALID;
-  aacDecInfo->currInstTag = -1;
-  for (ch = 0; ch < MAX_NCHANS_ELEM; ch++)
-    aacDecInfo->sbDeinterleaveReqd[ch] = 0;
-  aacDecInfo->adtsBlocksLeft = 0;
-  aacDecInfo->tnsUsed = 0;
-  aacDecInfo->pnsUsed = 0;
-
-  /* reset internal codec state (flush overlap buffers, etc.) */
-  FlushCodec(aacDecInfo);
-  FlushCodecSBR(aacDecInfo);
-
-  return ERR_AAC_NONE;
-  }
-//}}}
-//{{{
 void AACFreeDecoder (HAACDecoder hAACDecoder) {
 
   AACDecInfo* aacDecInfo = (AACDecInfo *)hAACDecoder;
   FreeSBR (aacDecInfo);
-  FreeBuffers (aacDecInfo);
+  if (aacDecInfo)
+    free (aacDecInfo->psInfoBase);
+  free (aacDecInfo);
   }
 //}}}

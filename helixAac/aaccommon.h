@@ -303,9 +303,7 @@ typedef struct _PSInfoBase {
 
   int                   gbCurrent[MAX_NCHANS_ELEM];
   int                   coef[MAX_NCHANS_ELEM][AAC_MAX_NSAMPS];
-  #ifdef AAC_ENABLE_SBR
   int                   sbrWorkBuf[MAX_NCHANS_ELEM][AAC_MAX_NSAMPS];
-  #endif
   /* state information which must be saved for each element and used in next frame */
   int                   overlap[AAC_MAX_NCHANS][AAC_MAX_NSAMPS];
   int                   prevWinShape[AAC_MAX_NCHANS];
@@ -414,7 +412,7 @@ extern const int cos4sin4tabOffset[NUM_IMDCT_SIZES];
 extern const int cos4sin4tab[128 + 1024];
 extern const int cos1sin1tab[514];
 
-int IMDCT(AACDecInfo *aacDecInfo, int ch, int chBase, short *outbuf);
+int IMDCT (AACDecInfo *aacDecInfo, int ch, int chBase, short *outbuf);
 
 /* SBR specific functions */
 int InitSBR(AACDecInfo *aacDecInfo);
