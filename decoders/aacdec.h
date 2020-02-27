@@ -11,7 +11,7 @@
 //    6144 bits =  768 bytes per SCE or CCE-I
 //   12288 bits = 1536 bytes per CPE
 //       0 bits =    0 bytes per CCE-D (uses bits from the SCE/CPE/CCE-I it is coupled to)
-#define AAC_MAX_NCHANS  2   /* set to default max number of channels  */
+#define AAC_MAX_NCHANS    2   /* set to default max number of channels  */
 
 #define AAC_MAX_NSAMPS    1024
 #define AAC_MAINBUF_SIZE  (768 * AAC_MAX_NCHANS)
@@ -71,10 +71,10 @@ typedef void* HAACDecoder;
 
 HAACDecoder AACInitDecoder();
 
-int AACDecode (HAACDecoder hAACDecoder, uint8_t* inbuf, int bytesLeft, int16_t* outbuf);
+int AACDecode (HAACDecoder hAACDecoder, uint8_t* inbuf, int bytesLeft, float* outbuf, int* sampleRate);
 void AACGetLastFrameInfo (HAACDecoder hAACDecoder, AACFrameInfo* aacFrameInfo);
-
 int AACFlushCodec (HAACDecoder hAACDecoder);
+
 void AACFreeDecoder (HAACDecoder hAACDecoder);
 
 //{{{

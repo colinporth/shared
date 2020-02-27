@@ -9594,9 +9594,16 @@ int AACFlushCodec (HAACDecoder hAACDecoder) {
   }
 //}}}
 //{{{
-int AACDecode (HAACDecoder hAACDecoder, uint8_t* inbuf, int bytesLeft, float* outbuf, int* sampleRate) {
-
-  int16_t samples16[2*2048];
+int AACDecode (HAACDecoder hAACDecoder, uint8_t* inbuf, int bytesLeft, int16_t* outbuf) {
+/**************************************************************************************
+ * Description: decode AAC frame
+ * Inputs:      valid AAC decoder instance pointer (HAACDecoder)
+ *              pointer to buffer of AAC data
+ *              valid bytes remaining in inbuf
+ * Outputs:     PCM data in outbuf, interleaved LRLRLR... if stereo
+ *                number of output samples = 1024 per channel (2048 if SBR enabled)
+ * Return:      0 if successful, error code (< 0) if error
+ **************************************************************************************/
 
   int bitOffset = 0;
   int bitsAvail = bytesLeft << 3;
@@ -9604,18 +9611,18 @@ int AACDecode (HAACDecoder hAACDecoder, uint8_t* inbuf, int bytesLeft, float* ou
   AACDecInfo* aacDecInfo = (AACDecInfo*)hAACDecoder;
   int err = UnpackADTSHeader (aacDecInfo, &inbuf, &bitOffset, &bitsAvail);
   if (err)
-    return 0;
+    return err;
 
   if (aacDecInfo->nChans == -1) {
     // figure out implicit channel mapping if necessary
     int err = GetADTSChannelMapping (aacDecInfo, inbuf, bitOffset, bitsAvail);
     if (err)
-      return 0;
+      return err;
     }
 
   // check for valid number of channels */
   if (aacDecInfo->nChans > AAC_MAX_NCHANS || aacDecInfo->nChans <= 0)
-    return 0;
+    return ERR_AAC_NCHANS_TOO_HIGH;
 
   // will be set later if active in this frame
   aacDecInfo->tnsUsed = 0;
@@ -9628,42 +9635,42 @@ int AACDecode (HAACDecoder hAACDecoder, uint8_t* inbuf, int bytesLeft, float* ou
     // parse next syntactic element */
     int err = decodeNextElement (aacDecInfo, &inbuf, &bitOffset, &bitsAvail);
     if (err)
-      return 0;
+      return err;
 
     int elementChans = elementNumChans[aacDecInfo->currBlockID];
     if (baseChan + elementChans > AAC_MAX_NCHANS)
-      return 0;
+      return ERR_AAC_NCHANS_TOO_HIGH;
 
     // noiseless decoder and dequantizer */
     for (int ch = 0; ch < elementChans; ch++) {
       int err = DecodeNoiselessData (aacDecInfo, &inbuf, &bitOffset, &bitsAvail, ch);
       if (err)
-        return 0;
+        return err;
       if (Dequantize (aacDecInfo, ch))
-        return 0;
+        return ERR_AAC_DEQUANT;
       }
 
     // mid-side and intensity stereo
     if (aacDecInfo->currBlockID == AAC_ID_CPE)
       if (StereoProcess (aacDecInfo))
-        return 0;
+        return ERR_AAC_STEREO_PROCESS;
 
     // PNS, TNS, inverse transform
     for (int ch = 0; ch < elementChans; ch++) {
       if (PNS (aacDecInfo, ch))
-        return 0;
+        return ERR_AAC_PNS;
 
       if (aacDecInfo->sbDeinterleaveReqd[ch]) {
         // deinterleave short blocks, if required
         if (DeinterleaveShortBlocks (aacDecInfo, ch))
-          return 0;
+          return ERR_AAC_SHORT_BLOCK_DEINT;
         aacDecInfo->sbDeinterleaveReqd[ch] = 0;
         }
 
       if (TNSFilter (aacDecInfo, ch))
-        return 0;
-      if (IMDCT (aacDecInfo, ch, baseChan + ch, samples16))
-        return 0;
+        return ERR_AAC_TNS;
+      if (IMDCT (aacDecInfo, ch, baseChan + ch, outbuf))
+        return ERR_AAC_IMDCT;
       }
 
     if (aacDecInfo->sbrEnabled &&
@@ -9679,15 +9686,15 @@ int AACDecode (HAACDecoder hAACDecoder, uint8_t* inbuf, int bytesLeft, float* ou
         elementChansSBR = 0;
 
       if (baseChanSBR + elementChansSBR > AAC_MAX_NCHANS)
-        return 0;
+        return ERR_AAC_SBR_NCHANS_TOO_HIGH;
 
       // parse SBR extension data if present (contained in a fill element)
       if (DecodeSBRBitstream (aacDecInfo, baseChanSBR))
-         return 0;
+        return ERR_AAC_SBR_BITSTREAM;
 
       // apply SBR
-      if (DecodeSBRData (aacDecInfo, baseChanSBR, samples16))
-        return 0;
+      if (DecodeSBRData (aacDecInfo, baseChanSBR, outbuf))
+        return ERR_AAC_SBR_DATA;
 
       baseChanSBR += elementChansSBR;
       }
@@ -9695,15 +9702,7 @@ int AACDecode (HAACDecoder hAACDecoder, uint8_t* inbuf, int bytesLeft, float* ou
     baseChan += elementChans;
     } while (aacDecInfo->currBlockID != AAC_ID_END);
 
-  int numSamples = aacDecInfo->nChans * AAC_MAX_NSAMPS * (aacDecInfo->sbrEnabled ? 2 : 1) / 2;
-  int16_t* srcPtr = samples16;
-  float* dstPtr = outbuf;
-  for (auto sample = 0; sample < numSamples * 2; sample++)
-    *dstPtr++ = *srcPtr++ / (float)0x8000;
-
-  *sampleRate = aacDecInfo->sampRate * (aacDecInfo->sbrEnabled ? 2 : 1);
-
-  return numSamples;
+  return ERR_AAC_NONE;
   }
 //}}}
 //{{{
