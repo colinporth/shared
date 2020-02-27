@@ -1,9 +1,10 @@
 #pragma once
-
+//{{{  includes
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
 #include "aacdec.h"
+//}}}
 
 #ifndef ASSERT
   #if defined(_WIN32) && defined(_M_IX86) && (defined (_DEBUG) || defined (REL_ENABLE_ASSERTS))
@@ -21,6 +22,7 @@
   #define MIN(a,b)        ((a) < (b) ? (a) : (b))
 #endif
 
+//{{{  defines
 /* 12-bit syncword */
 #define SYNCWORDH     0xff
 #define SYNCWORDL     0xf0
@@ -94,6 +96,7 @@
 #define FBITS_OUT_IMDCT       (FBITS_IN_IMDCT - FBITS_LOST_IMDCT)
 
 #define NUM_IMDCT_SIZES       2
+//}}}
 
 //{{{
 /* AAC file format */
@@ -326,7 +329,6 @@ typedef union _U64 {
     } r;
   } U64;
 //}}}
-
 inline int MULSHIFT32 (int x, int y) { return ((__int64)x * (__int64)y) >> 32; }
 inline __int64 MADD64 (__int64 sum64, int x, int y) { return sum64 + ((__int64)x * (__int64)y); }
 
@@ -402,56 +404,16 @@ void AdvanceBitstream (BitStreamInfo *bsi, int nBits);
 int CalcBitsUsed (BitStreamInfo *bsi, unsigned char *startBuf, int startOffset);
 void ByteAlignBitstream (BitStreamInfo *bsi);
 
-/* decelmnt.c */
-int DecodeProgramConfigElement(ProgConfigElement *pce, BitStreamInfo *bsi);
-
-/* huffman.c */
-int DecodeHuffmanScalar(const signed short *huffTab, const HuffInfo *huffTabInfo, unsigned int bitBuf, signed int *val);
-void DecodeSpectrumLong(PSInfoBase *psi, BitStreamInfo *bsi, int ch);
-void DecodeSpectrumShort(PSInfoBase *psi, BitStreamInfo *bsi, int ch);
-
-/* noiseless.c */
-void DecodeICSInfo(BitStreamInfo *bsi, ICSInfo *icsInfo, int sampRateIdx);
-
-/* dct4.c */
-void DCT4(int tabidx, int *coef, int gb);
-
-/* fft.c */
-void R4FFT(int tabidx, int *x);
-
 /* sbrimdct.c */
 void DecWindowOverlapNoClip(int *buf0, int *over0, int *out0, int winTypeCurr, int winTypePrev);
 void DecWindowOverlapLongStartNoClip(int *buf0, int *over0, int *out0, int winTypeCurr, int winTypePrev);
 void DecWindowOverlapLongStopNoClip(int *buf0, int *over0, int *out0, int winTypeCurr, int winTypePrev);
 void DecWindowOverlapShortNoClip(int *buf0, int *over0, int *out0, int winTypeCurr, int winTypePrev);
 
-/* trigtabs.c */
 extern const int cos4sin4tabOffset[NUM_IMDCT_SIZES];
-extern const int sinWindowOffset[NUM_IMDCT_SIZES];
-extern const int kbdWindowOffset[NUM_IMDCT_SIZES];
-extern const unsigned char bitrevtab[17 + 129];
-extern const int bitrevtabOffset[NUM_IMDCT_SIZES];
-
 extern const int cos4sin4tab[128 + 1024];
 extern const int cos1sin1tab[514];
-extern const int sinWindow[128 + 1024];
-extern const int kbdWindow[128 + 1024];
-extern const int twidTabEven[4*6 + 16*6 + 64*6];
-extern const int twidTabOdd[8*6 + 32*6 + 128*6];
 
-int UnpackADTSHeader(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset, int *bitsAvail);
-int GetADTSChannelMapping(AACDecInfo *aacDecInfo, unsigned char *buf, int bitOffset, int bitsAvail);
-int SetRawBlockParams(AACDecInfo *aacDecInfo, int copyLast, int nChans, int sampRate, int profile);
-int PrepareRawBlock(AACDecInfo *aacDecInfo);
-int FlushCodec(AACDecInfo *aacDecInfo);
-
-int DecodeNextElement(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset, int *bitsAvail);
-int DecodeNoiselessData(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset, int *bitsAvail, int ch);
-
-int Dequantize(AACDecInfo *aacDecInfo, int ch);
-int DeinterleaveShortBlocks(AACDecInfo *aacDecInfo, int ch);
-int PNS(AACDecInfo *aacDecInfo, int ch);
-int TNSFilter(AACDecInfo *aacDecInfo, int ch);
 int IMDCT(AACDecInfo *aacDecInfo, int ch, int chBase, short *outbuf);
 
 /* SBR specific functions */
@@ -463,18 +425,3 @@ int FlushCodecSBR(AACDecInfo *aacDecInfo);
 
 /* aactabs.c - global ROM tables */
 extern const int sampRateTab[NUM_SAMPLE_RATES];
-extern const int predSFBMax[NUM_SAMPLE_RATES];
-extern const int channelMapTab[NUM_DEF_CHAN_MAPS];
-extern const int elementNumChans[NUM_ELEMENTS];
-extern const unsigned /*char*/ int sfBandTotalShort[NUM_SAMPLE_RATES];
-extern const unsigned /*char*/ int sfBandTotalLong[NUM_SAMPLE_RATES];
-extern const int sfBandTabShortOffset[NUM_SAMPLE_RATES];
-extern const /*short*/ int sfBandTabShort[76];
-extern const int sfBandTabLongOffset[NUM_SAMPLE_RATES];
-extern const /*short*/ int sfBandTabLong[325];
-extern const int tnsMaxBandsShortOffset[AAC_NUM_PROFILES];
-extern const unsigned /*char*/ int tnsMaxBandsShort[2*NUM_SAMPLE_RATES];
-extern const unsigned /*char*/ int tnsMaxOrderShort[AAC_NUM_PROFILES];
-extern const int tnsMaxBandsLongOffset[AAC_NUM_PROFILES];
-extern const unsigned /*char*/ int tnsMaxBandsLong[2*NUM_SAMPLE_RATES];
-extern const unsigned /*char*/ int tnsMaxOrderLong[AAC_NUM_PROFILES];
