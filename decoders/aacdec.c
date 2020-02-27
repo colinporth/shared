@@ -608,7 +608,7 @@ typedef struct _PSInfoSBR {
 //}}}
 //{{{  const tables
 //{{{
-static const HuffInfo huffTabSpecInfo[11]  = {
+static const HuffInfo huffTabSpecInfo [11] = {
   /* table 0 not used */
   {11, {  1,  0,  0,  0,  8,  0, 24,  0, 24,  8, 16,  0,  0,  0,  0,  0,  0,  0,  0,  0},   0},
   { 9, {  0,  0,  1,  1,  7, 24, 15, 19, 14,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},  81},
@@ -624,7 +624,7 @@ static const HuffInfo huffTabSpecInfo[11]  = {
 };
 //}}}
 //{{{
-static const int16_t huffTabSpec[1241]  = {
+static const int16_t huffTabSpec [1241] = {
   /* spectrum table 1 [81] (signed) */
   0x0000, 0x0200, 0x0e00, 0x0007, 0x0040, 0x0001, 0x0038, 0x0008, 0x01c0, 0x03c0, 0x0e40, 0x0039, 0x0078, 0x01c8, 0x000f, 0x0240,
   0x003f, 0x0fc0, 0x01f8, 0x0238, 0x0047, 0x0e08, 0x0009, 0x0208, 0x01c1, 0x0048, 0x0041, 0x0e38, 0x0201, 0x0e07, 0x0207, 0x0e01,
@@ -723,12 +723,14 @@ static const int16_t huffTabSpec[1241]  = {
   0x23cf,
 };
 //}}}
+
 //{{{
 static const HuffInfo huffTabScaleFactInfo  =
   {19, { 1,  0,  1,  3,  2,  4,  3,  5,  4,  6,  6,  6,  5,  8,  4,  7,  3,  7, 46,  0},   0};
-
+//}}}
+//{{{
 /* note - includes offset of -60 (4.6.2.3 in spec) */
-const signed short huffTabScaleFact[121]  = {
+static const int16_t huffTabScaleFact [121] = {
     /* scale factor table [121] */
      0,   -1,    1,   -2,    2,   -3,    3,   -4,    4,   -5,    5,    6,   -6,    7,   -7,    8,
     -8,    9,   -9,   10,  -10,  -11,   11,   12,  -12,   13,  -13,   14,  -14,   16,   15,   17,
@@ -742,22 +744,94 @@ const signed short huffTabScaleFact[121]  = {
 //}}}
 
 //{{{
+static const HuffInfo huffTabSBRInfo [10] = {
+  {19, { 0,  2,  2,  2,  2,  2,  2,  2,  2,  2,  1,  2,  3,  4,  2,  7,  4,  8, 72,  0},   0},
+  {20, { 0,  2,  2,  2,  2,  2,  1,  3,  3,  2,  4,  4,  4,  3,  2,  5,  6, 13, 15, 46}, 121},
+  {17, { 1,  1,  1,  1,  1,  1,  1,  1,  1,  0,  2,  2,  0,  0,  1, 25, 10,  0,  0,  0}, 242},
+  {19, { 1,  1,  1,  1,  1,  1,  1,  1,  1,  0,  3,  1,  0,  1,  1,  2,  1, 29,  2,  0}, 291},
+  {19, { 1,  1,  1,  1,  1,  1,  1,  1,  1,  0,  2,  1,  2,  5,  1,  4,  2,  3, 34,  0}, 340},
+  {20, { 1,  1,  1,  1,  1,  1,  0,  2,  2,  2,  2,  2,  1,  2,  3,  4,  4,  7, 10, 16}, 403},
+  {14, { 1,  1,  1,  1,  1,  1,  1,  1,  1,  0,  0,  1, 13,  2,  0,  0,  0,  0,  0,  0}, 466},
+  {14, { 1,  1,  1,  1,  1,  1,  1,  1,  1,  0,  1,  1,  6,  8,  0,  0,  0,  0,  0,  0}, 491},
+  {14, { 1,  1,  1,  1,  1,  1,  0,  2,  0,  1,  1,  0, 51,  2,  0,  0,  0,  0,  0,  0}, 516},
+  { 8, { 1,  1,  1,  0,  1,  1,  0, 20,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0}, 579},
+};
+//}}}
+//{{{
+// Huffman tables from appendix 4.A.6.1, includes offset of -LAV[i] for table i */
+static const int16_t huffTabSBR [604] = {
+      /* SBR table sbr_tenv15 [121] (signed) */
+     0,   -1,    1,   -2,    2,   -3,    3,   -4,    4,   -5,    5,   -6,    6,   -7,    7,   -8,
+    -9,    8,  -10,    9,  -11,   10,  -12,  -13,   11,  -14,   12,  -15,  -16,   13,  -19,  -18,
+   -17,   14,  -24,  -20,   16,  -26,  -21,   15,  -23,  -25,  -22,  -60,  -59,  -58,  -57,  -56,
+   -55,  -54,  -53,  -52,  -51,  -50,  -49,  -48,  -47,  -46,  -45,  -44,  -43,  -42,  -41,  -40,
+   -39,  -38,  -37,  -36,  -35,  -34,  -33,  -32,  -31,  -30,  -29,  -28,  -27,   17,   18,   19,
+    20,   21,   22,   23,   24,   25,   26,   27,   28,   29,   30,   31,   32,   33,   34,   35,
+    36,   37,   38,   39,   40,   41,   42,   43,   44,   45,   46,   47,   48,   49,   50,   51,
+    52,   53,   54,   55,   56,   57,   58,   59,   60,
+      /* SBR table sbr_fenv15 [121] (signed) */
+     0,   -1,    1,   -2,   -3,    2,   -4,    3,   -5,    4,   -6,    5,   -7,    6,   -8,    7,
+    -9,    8,  -10,    9,  -11,   10,   11,  -12,   12,  -13,   13,   14,  -14,  -15,   15,   16,
+    17,  -16,  -17,  -18,  -19,   18,   19,  -20,  -21,   20,   21,  -24,  -23,  -22,  -26,  -28,
+    22,   23,   25,  -41,  -25,   26,   27,  -30,  -27,   24,   28,   44,  -51,  -46,  -44,  -43,
+   -37,  -33,  -31,  -29,   30,   37,   42,   47,   48,  -60,  -59,  -58,  -57,  -56,  -55,  -54,
+   -53,  -52,  -50,  -49,  -48,  -47,  -45,  -42,  -40,  -39,  -38,  -36,  -35,  -34,  -32,   29,
+    31,   32,   33,   34,   35,   36,   38,   39,   40,   41,   43,   45,   46,   49,   50,   51,
+    52,   53,   54,   55,   56,   57,   58,   59,   60,
+      /* SBR table sbr_tenv15b [49] (signed) */
+     0,    1,   -1,    2,   -2,    3,   -3,    4,   -4,   -5,    5,   -6,    6,    7,   -7,    8,
+   -24,  -23,  -22,  -21,  -20,  -19,  -18,  -17,  -16,  -15,  -14,  -13,  -12,  -11,  -10,   -9,
+    -8,    9,   10,   11,   12,   13,   14,   15,   16,   17,   18,   19,   20,   21,   22,   23,
+    24,
+      /* SBR table sbr_fenv15b [49] (signed) */
+     0,   -1,    1,   -2,    2,    3,   -3,   -4,    4,   -5,    5,   -6,    6,   -7,    7,    8,
+    -9,   -8,  -24,  -23,  -22,  -21,  -20,  -19,  -18,  -17,  -16,  -15,  -14,  -13,  -12,  -11,
+   -10,    9,   10,   11,   12,   13,   14,   15,   16,   17,   18,   19,   20,   21,   22,   23,
+    24,
+      /* SBR table sbr_tenv30 [63] (signed) */
+     0,   -1,    1,   -2,    2,   -3,    3,   -4,    4,   -5,    5,   -6,   -7,    6,   -8,    7,
+    -9,  -10,    8,    9,   10,  -13,  -11,  -12,  -14,   11,   12,  -31,  -30,  -29,  -28,  -27,
+   -26,  -25,  -24,  -23,  -22,  -21,  -20,  -19,  -18,  -17,  -16,  -15,   13,   14,   15,   16,
+    17,   18,   19,   20,   21,   22,   23,   24,   25,   26,   27,   28,   29,   30,   31,
+      /* SBR table sbr_fenv30 [63] (signed) */
+     0,   -1,    1,   -2,    2,   -3,    3,   -4,    4,   -5,    5,   -6,    6,   -7,    7,   -8,
+     8,    9,   -9,  -10,   10,   11,  -11,  -12,   12,   13,  -13,  -15,   14,   15,  -14,   18,
+   -18,  -24,  -19,   16,   17,  -22,  -21,  -16,   20,   21,   22,   25,  -23,  -20,   24,  -31,
+   -30,  -29,  -28,  -27,  -26,  -25,  -17,   19,   23,   26,   27,   28,   29,   30,   31,
+      /* SBR table sbr_tenv30b [25] (signed) */
+     0,    1,   -1,   -2,    2,    3,   -3,   -4,    4,   -5,  -12,  -11,  -10,   -9,   -8,   -7,
+    -6,    5,    6,    7,    8,    9,   10,   11,   12,
+      /* SBR table sbr_fenv30b [25] (signed) */
+     0,   -1,    1,   -2,    2,    3,   -3,   -4,    4,   -5,    5,    6,  -12,  -11,  -10,   -9,
+    -8,   -7,   -6,    7,    8,    9,   10,   11,   12,
+      /* SBR table sbr_tnoise30 [63] (signed) */
+     0,    1,   -1,   -2,    2,   -3,    3,   -4,    4,   -5,    5,   11,  -31,  -30,  -29,  -28,
+   -27,  -26,  -25,  -24,  -23,  -22,  -21,  -20,  -19,  -18,  -17,  -16,  -15,  -14,  -13,  -12,
+   -11,  -10,   -9,   -8,   -7,   -6,    6,    7,    8,    9,   10,   12,   13,   14,   15,   16,
+    17,   18,   19,   20,   21,   22,   23,   24,   25,   26,   27,   28,   29,   30,   31,
+      /* SBR table sbr_tnoise30b [25] (signed) */
+     0,   -1,    1,   -2,    2,  -12,  -11,  -10,   -9,   -8,   -7,   -6,   -5,   -4,   -3,    3,
+     4,    5,    6,    7,    8,    9,   10,   11,   12,
+};
+//}}}
+
+//{{{
 /* sample rates (table 4.5.1) */
-static const int sampRateTab[NUM_SAMPLE_RATES] = {
+static const int sampRateTab [NUM_SAMPLE_RATES] = {
   96000, 88200, 64000, 48000, 44100, 32000,
   24000, 22050, 16000, 12000, 11025,  8000
   };
 //}}}
 //{{{
 /* max scalefactor band for prediction (main profile only) */
-static const int predSFBMax[NUM_SAMPLE_RATES] = {
+static const int predSFBMax [NUM_SAMPLE_RATES] = {
   33, 33, 38, 40, 40, 40, 41, 41, 37, 37, 37, 34
   };
 //}}}
 
 //{{{
 /* channel mapping (table 1.6.3.4) (-1 = unknown, so need to determine mapping based on rules in 8.5.1) */
-static const int channelMapTab[NUM_DEF_CHAN_MAPS] = {
+static const int channelMapTab [NUM_DEF_CHAN_MAPS] = {
   -1, 1, 2, 3, 4, 5, 6, 8
   };
 //}}}
@@ -765,61 +839,68 @@ static const int channelMapTab[NUM_DEF_CHAN_MAPS] = {
 /* number of channels in each element (SCE, CPE, etc.)
  * see AACElementID in aaccommon.h
  */
-static const int elementNumChans[NUM_ELEMENTS] = {
+static const int elementNumChans [NUM_ELEMENTS] = {
   1, 2, 0, 1, 0, 0, 0, 0
   };
 //}}}
 
 //{{{
-static const int invQuant3[16]  = {
+static const int invQuant3 [16] = {
   0x00000000, 0xc8767f65, 0x9becf22c, 0x83358feb, 0x83358feb, 0x9becf22c, 0xc8767f65, 0x00000000,
   0x2bc750e9, 0x5246dd49, 0x6ed9eba1, 0x7e0e2e32, 0x7e0e2e32, 0x6ed9eba1, 0x5246dd49, 0x2bc750e9,
   };
 //}}}
 //{{{
-static const int invQuant4[16]  = {
+static const int invQuant4 [16] = {
   0x00000000, 0xe5632654, 0xcbf00dbe, 0xb4c373ee, 0xa0e0a15f, 0x9126145f, 0x8643c7b3, 0x80b381ac,
   0x7f7437ad, 0x7b1d1a49, 0x7294b5f2, 0x66256db2, 0x563ba8aa, 0x4362210e, 0x2e3d2abb, 0x17851aad,
   };
 //}}}
-static const int8_t sgnMask[3] = { 0x02,  0x04,  0x08 };
-static const int8_t negMask[3] = { ~0x03, ~0x07, ~0x0f };
+//{{{
+static const int8_t sgnMask [3] = {
+  0x02,  0x04,  0x08
+  };
+//}}}
+//{{{
+static const int8_t negMask [3] = {
+  ~0x03, ~0x07, ~0x0f
+  };
+//}}}
 
 //{{{  imdct
-static const int nmdctTab[NUM_IMDCT_SIZES] = {128, 1024};
-static const int postSkip[NUM_IMDCT_SIZES] = {15, 1};
+static const int nmdctTab [NUM_IMDCT_SIZES] = {128, 1024};
+static const int postSkip [NUM_IMDCT_SIZES] = {15, 1};
 //}}}
 //{{{  fft
 #define NUM_FFT_SIZES 2
 
-static const int nfftTab[NUM_FFT_SIZES] = {64, 512};
-static const uint8_t nfftlog2Tab[NUM_FFT_SIZES] = {6, 9};
+static const int nfftTab [NUM_FFT_SIZES] = {64, 512};
+static const uint8_t nfftlog2Tab [NUM_FFT_SIZES] = {6, 9};
 
-/* bit reverse tables for FFT */
-static const int bitrevtabOffset[NUM_IMDCT_SIZES] = {0, 17};
+// bit reverse tables
+static const int bitrevtabOffset [NUM_IMDCT_SIZES] = {0, 17};
 //{{{
-static const uint8_t bitrevtab[17 + 129]  = {
-/* nfft = 64 */
-0x01, 0x08, 0x02, 0x04, 0x03, 0x0c, 0x05, 0x0a, 0x07, 0x0e, 0x0b, 0x0d, 0x00, 0x06, 0x09, 0x0f,
-0x00,
+static const uint8_t bitrevtab [17 + 129]  = {
+  /* nfft = 64 */
+  0x01, 0x08, 0x02, 0x04, 0x03, 0x0c, 0x05, 0x0a, 0x07, 0x0e, 0x0b, 0x0d, 0x00, 0x06, 0x09, 0x0f,
+  0x00,
 
-/* nfft = 512 */
-0x01, 0x40, 0x02, 0x20, 0x03, 0x60, 0x04, 0x10, 0x05, 0x50, 0x06, 0x30, 0x07, 0x70, 0x09, 0x48,
-0x0a, 0x28, 0x0b, 0x68, 0x0c, 0x18, 0x0d, 0x58, 0x0e, 0x38, 0x0f, 0x78, 0x11, 0x44, 0x12, 0x24,
-0x13, 0x64, 0x15, 0x54, 0x16, 0x34, 0x17, 0x74, 0x19, 0x4c, 0x1a, 0x2c, 0x1b, 0x6c, 0x1d, 0x5c,
-0x1e, 0x3c, 0x1f, 0x7c, 0x21, 0x42, 0x23, 0x62, 0x25, 0x52, 0x26, 0x32, 0x27, 0x72, 0x29, 0x4a,
-0x2b, 0x6a, 0x2d, 0x5a, 0x2e, 0x3a, 0x2f, 0x7a, 0x31, 0x46, 0x33, 0x66, 0x35, 0x56, 0x37, 0x76,
-0x39, 0x4e, 0x3b, 0x6e, 0x3d, 0x5e, 0x3f, 0x7e, 0x43, 0x61, 0x45, 0x51, 0x47, 0x71, 0x4b, 0x69,
-0x4d, 0x59, 0x4f, 0x79, 0x53, 0x65, 0x57, 0x75, 0x5b, 0x6d, 0x5f, 0x7d, 0x67, 0x73, 0x6f, 0x7b,
-0x00, 0x08, 0x14, 0x1c, 0x22, 0x2a, 0x36, 0x3e, 0x41, 0x49, 0x55, 0x5d, 0x63, 0x6b, 0x77, 0x7f,
-0x00,
-
-};
+  /* nfft = 512 */
+  0x01, 0x40, 0x02, 0x20, 0x03, 0x60, 0x04, 0x10, 0x05, 0x50, 0x06, 0x30, 0x07, 0x70, 0x09, 0x48,
+  0x0a, 0x28, 0x0b, 0x68, 0x0c, 0x18, 0x0d, 0x58, 0x0e, 0x38, 0x0f, 0x78, 0x11, 0x44, 0x12, 0x24,
+  0x13, 0x64, 0x15, 0x54, 0x16, 0x34, 0x17, 0x74, 0x19, 0x4c, 0x1a, 0x2c, 0x1b, 0x6c, 0x1d, 0x5c,
+  0x1e, 0x3c, 0x1f, 0x7c, 0x21, 0x42, 0x23, 0x62, 0x25, 0x52, 0x26, 0x32, 0x27, 0x72, 0x29, 0x4a,
+  0x2b, 0x6a, 0x2d, 0x5a, 0x2e, 0x3a, 0x2f, 0x7a, 0x31, 0x46, 0x33, 0x66, 0x35, 0x56, 0x37, 0x76,
+  0x39, 0x4e, 0x3b, 0x6e, 0x3d, 0x5e, 0x3f, 0x7e, 0x43, 0x61, 0x45, 0x51, 0x47, 0x71, 0x4b, 0x69,
+  0x4d, 0x59, 0x4f, 0x79, 0x53, 0x65, 0x57, 0x75, 0x5b, 0x6d, 0x5f, 0x7d, 0x67, 0x73, 0x6f, 0x7b,
+  0x00, 0x08, 0x14, 0x1c, 0x22, 0x2a, 0x36, 0x3e, 0x41, 0x49, 0x55, 0x5d, 0x63, 0x6b, 0x77, 0x7f,
+  0x00,
+  };
 //}}}
-static const uint8_t uniqueIDTab[8] = {0x5f, 0x4b, 0x43, 0x5f, 0x5f, 0x4a, 0x52, 0x5f};
+static const uint8_t uniqueIDTab [8] = {0x5f, 0x4b, 0x43, 0x5f, 0x5f, 0x4a, 0x52, 0x5f};
 
 //{{{
-/* Twiddle tables for FFT
+/* Twiddle tables
  * format = Q30
  *
  * for (k = 4; k <= N/4; k <<= 1) {
@@ -861,7 +942,7 @@ static const uint8_t uniqueIDTab[8] = {0x5f, 0x4b, 0x43, 0x5f, 0x5f, 0x4a, 0x52,
  */
 //}}}
 //{{{
-static const int twidTabOdd[8*6 + 32*6 + 128*6]  = {
+static const int twidTabOdd [8*6 + 32*6 + 128*6] = {
   0x40000000, 0x00000000, 0x40000000, 0x00000000, 0x40000000, 0x00000000, 0x539eba45, 0xe7821d59,
   0x4b418bbe, 0xf383a3e2, 0x58c542c5, 0xdc71898d, 0x5a82799a, 0xd2bec333, 0x539eba45, 0xe7821d59,
   0x539eba45, 0xc4df2862, 0x539eba45, 0xc4df2862, 0x58c542c5, 0xdc71898d, 0x3248d382, 0xc13ad060,
@@ -993,7 +1074,7 @@ static const int twidTabOdd[8*6 + 32*6 + 128*6]  = {
 };
 //}}}
 //{{{
-static const int twidTabEven[4*6 + 16*6 + 64*6]  = {
+static const int twidTabEven [4*6 + 16*6 + 64*6] = {
   0x40000000, 0x00000000, 0x40000000, 0x00000000, 0x40000000, 0x00000000, 0x5a82799a, 0xd2bec333,
   0x539eba45, 0xe7821d59, 0x539eba45, 0xc4df2862, 0x40000000, 0xc0000000, 0x5a82799a, 0xd2bec333,
   0x00000000, 0xd2bec333, 0x00000000, 0xd2bec333, 0x539eba45, 0xc4df2862, 0xac6145bb, 0x187de2a7,
@@ -1064,42 +1145,44 @@ static const int twidTabEven[4*6 + 16*6 + 64*6]  = {
 //}}}
 //{{{  tns
 /* TNS max bands (table 4.139) and max order (table 4.138) */
-static const int tnsMaxBandsShortOffset[AAC_NUM_PROFILES]  = {0, 0, 12};
+static const int tnsMaxBandsShortOffset [AAC_NUM_PROFILES] = {0, 0, 12};
 //{{{
-static const unsigned /*char*/ int tnsMaxBandsShort[2*NUM_SAMPLE_RATES]  = {
+static const unsigned /*char*/ int tnsMaxBandsShort [2*NUM_SAMPLE_RATES]  = {
   9,  9, 10, 14, 14, 14, 14, 14, 14, 14, 14, 14,   /* short block, Main/LC */
   7,  7,  7,  6,  6,  6,  7,  7,  8,  8,  8,  7    /* short block, SSR */
   };
 //}}}
-static const unsigned /*char*/ int tnsMaxOrderShort[AAC_NUM_PROFILES]  = {7, 7, 7};
-static const int tnsMaxBandsLongOffset[AAC_NUM_PROFILES]  = {0, 0, 12};
+
+static const unsigned /*char*/ int tnsMaxOrderShort [AAC_NUM_PROFILES] = {7, 7, 7};
+static const int tnsMaxBandsLongOffset[AAC_NUM_PROFILES] = {0, 0, 12};
+
 //{{{
-static const unsigned int /*char*/ tnsMaxBandsLong[2*NUM_SAMPLE_RATES] = {
+static const unsigned int /*char*/ tnsMaxBandsLong [2*NUM_SAMPLE_RATES] = {
   31, 31, 34, 40, 42, 51, 46, 46, 42, 42, 42, 39,   /* long block, Main/LC */
   28, 28, 27, 26, 26, 26, 29, 29, 23, 23, 23, 19,   /* long block, SSR */
   };
 //}}}
-static const unsigned /*char*/ int tnsMaxOrderLong[AAC_NUM_PROFILES]  = {20, 12, 12};
+static const unsigned /*char*/ int tnsMaxOrderLong [AAC_NUM_PROFILES] = {20, 12, 12};
 //}}}
 //{{{  scale factor band
 //{{{
 /* total number of scale factor bands in one window */
-static const uint8_t sfBandTotalShort[NUM_SAMPLE_RATES] = {
+static const uint8_t sfBandTotalShort [NUM_SAMPLE_RATES] = {
   12, 12, 12, 14, 14, 14, 15, 15, 15, 15, 15, 15
   };
 //}}}
 //{{{
-static const uint8_t sfBandTotalLong[NUM_SAMPLE_RATES] = {
+static const uint8_t sfBandTotalLong [NUM_SAMPLE_RATES] = {
   41, 41, 47, 49, 49, 51, 47, 47, 43, 43, 43, 40
   };
 //}}}
 //{{{
-static const int16_t sfBandTabShortOffset[NUM_SAMPLE_RATES] = {
+static const int16_t sfBandTabShortOffset [NUM_SAMPLE_RATES] = {
   0, 0, 0, 13, 13, 13, 28, 28, 44, 44, 44, 60
   };
 //}}}
 //{{{
-static const int16_t sfBandTabShort[76] = {
+static const int16_t sfBandTabShort [76] = {
   /* short block 64, 88, 96 kHz [13] (tables 4.5.24, 4.5.26) */
   0,   4,   8,  12,  16,  20,  24,  32,  40,  48,  64,  92, 128,
 
@@ -1117,12 +1200,12 @@ static const int16_t sfBandTabShort[76] = {
   };
 //}}}
 //{{{
-static const int sfBandTabLongOffset[NUM_SAMPLE_RATES] = {
+static const int sfBandTabLongOffset [NUM_SAMPLE_RATES] = {
   0, 0, 42, 90, 90, 140, 192, 192, 240, 240, 240, 284
   };
 //}}}
 //{{{
-static const int16_t sfBandTabLong[325] = {
+static const int16_t sfBandTabLong [325] = {
   /* long block 88, 96 kHz [42] (table 4.5.25) */
     0,   4,   8,  12,  16,  20,  24,  28,  32,  36,  40,  44,  48,   52,
    56,  64,  72,  80,  88,  96, 108, 120, 132, 144, 156, 172, 188,  212,
@@ -1163,14 +1246,14 @@ static const int16_t sfBandTabLong[325] = {
 //{{{  power
 //{{{
 // pow(2, i/4.0) for i = [0,1,2,3], format = Q30 */
-static const int pow14[4] = {
+static const int pow14 [4] = {
   0x40000000, 0x4c1bf829, 0x5a82799a, 0x6ba27e65
   };
 //}}}
 //{{{
 // pow(2, i/4.0) * pow(j, 4.0/3.0) for i = [0,1,2,3],  j = [0,1,2,...,15]
 // format = Q28 for j = [0-3], Q25 for j = [4-15]
-static const int pow43_14[4][16] = {
+static const int pow43_14 [4][16] = {
   {
   0x00000000, 0x10000000, 0x285145f3, 0x453a5cdb, /* Q28 */
   0x0cb2ff53, 0x111989d6, 0x15ce31c8, 0x1ac7f203, /* Q25 */
@@ -1199,7 +1282,7 @@ static const int pow43_14[4][16] = {
 //}}}
 //{{{
 /* pow(j, 4.0 / 3.0) for j = [16,17,18,...,63], format = Q23 */
-static const int pow43[48] = {
+static const int pow43 [48] = {
   0x1428a2fa, 0x15db1bd6, 0x1796302c, 0x19598d85,
   0x1b24e8bb, 0x1cf7fcfa, 0x1ed28af2, 0x20b4582a,
   0x229d2e6e, 0x248cdb55, 0x26832fda, 0x28800000,
@@ -1217,35 +1300,26 @@ static const int pow43[48] = {
 //{{{
 // pow142[0][i] = -pow(2, i/4.0)
 // pow142[1][i] = +pow(2, i/4.0)
-static const int pow142[2][4] = {
+static const int pow142 [2][4] = {
   { 0xc0000000, 0xb3e407d7, 0xa57d8666, 0x945d819b },
   { 0x40000000, 0x4c1bf829, 0x5a82799a, 0x6ba27e65 }
 };
 //}}}
 //{{{
 // pow2exp[i] = pow(2, i*4/3) exponent
-static const int pow2exp[8] = { 14, 13, 11, 10, 9, 7, 6, 5 };
+static const int pow2exp [8] = { 14, 13, 11, 10, 9, 7, 6, 5 };
 //}}}
 //{{{
 /* pow2exp[i] = pow(2, i*4/3) fraction */
-static const int pow2frac[8] = {
+static const int pow2frac [8] = {
   0x6597fa94, 0x50a28be6, 0x7fffffff, 0x6597fa94,
   0x50a28be6, 0x7fffffff, 0x6597fa94, 0x50a28be6
   };
 //}}}
-//{{{
-// Minimax polynomial approximation to pow(x, 4/3), over the range
-//  poly43lo: x = [0.5, 0.7071]
-//  poly43hi: x = [0.7071, 1.0]
-// Relative error < 1E-7
-// Coefs are scaled by 4, 2, 1, 0.5, 0.25
-static const int poly43lo[5] = { 0x29a0bda9, 0xb02e4828, 0x5957aa1b, 0x236c498d, 0xff581859 };
-static const int poly43hi[5] = { 0x10852163, 0xd333f6a4, 0x46e9408b, 0x27c2cef0, 0xfef577b4 };
-//}}}
 //}}}
 //{{{  sin cos
 //{{{
-static const int cos4sin4tab64[64] = {
+static const int cos4sin4tab64 [64] = {
   0x40c7d2bd, 0x00c90e90, 0x424ff28f, 0x3ff4e5e0, 0x43cdd89a, 0x03ecadcf, 0x454149fc, 0x3fc395f9,
   0x46aa0d6d, 0x070de172, 0x4807eb4b, 0x3f6af2e3, 0x495aada2, 0x0a2abb59, 0x4aa22036, 0x3eeb3347,
   0x4bde1089, 0x0d415013, 0x4d0e4de2, 0x3e44a5ef, 0x4e32a956, 0x104fb80e, 0x4f4af5d1, 0x3d77b192,
@@ -1258,7 +1332,7 @@ static const int cos4sin4tab64[64] = {
 
 //}}}
 //{{{
-static const int cos1sin1tab64[34] = {
+static const int cos1sin1tab64 [34] = {
   0x40000000, 0x00000000, 0x43103085, 0x0323ecbe, 0x45f704f7, 0x0645e9af, 0x48b2b335, 0x09640837,
   0x4b418bbe, 0x0c7c5c1e, 0x4da1fab5, 0x0f8cfcbe, 0x4fd288dc, 0x1294062f, 0x51d1dc80, 0x158f9a76,
   0x539eba45, 0x187de2a7, 0x553805f2, 0x1b5d100a, 0x569cc31b, 0x1e2b5d38, 0x57cc15bc, 0x20e70f32,
@@ -1266,9 +1340,9 @@ static const int cos1sin1tab64[34] = {
   0x5a82799a, 0x2d413ccd,
 };
 //}}}
-static const int cos4sin4tabOffset[NUM_IMDCT_SIZES] = { 0, 128 };
+static const int cos4sin4tabOffset [NUM_IMDCT_SIZES] = { 0, 128 };
 //{{{
-static const int cos4sin4tab[128 + 1024] = {
+static const int cos4sin4tab [128 + 1024] = {
 /* 128 - format = Q30 * 2^-7 */
 0xbf9bc731, 0xff9b783c, 0xbed5332c, 0xc002c697, 0xbe112251, 0xfe096c8d, 0xbd4f9c30, 0xc00f1c4a,
 0xbc90a83f, 0xfc77ae5e, 0xbbd44dd9, 0xc0254e27, 0xbb1a9443, 0xfae67ba2, 0xba6382a6, 0xc04558c0,
@@ -1418,7 +1492,7 @@ static const int cos4sin4tab[128 + 1024] = {
 };
 //}}}
 //{{{
-static const int cos1sin1tab[514] = {
+static const int cos1sin1tab [514] = {
 /* format = Q30 */
 0x40000000, 0x00000000, 0x40323034, 0x003243f1, 0x406438cf, 0x006487c4, 0x409619b2, 0x0096cb58,
 0x40c7d2bd, 0x00c90e90, 0x40f963d3, 0x00fb514b, 0x412accd4, 0x012d936c, 0x415c0da3, 0x015fd4d2,
@@ -1488,9 +1562,9 @@ static const int cos1sin1tab[514] = {
 };
 //}}}
 
-static const int sinWindowOffset[NUM_IMDCT_SIZES] = { 0, 128 };
+static const int sinWindowOffset [NUM_IMDCT_SIZES] = { 0, 128 };
 //{{{
-static const int sinWindow[128 + 1024] = {
+static const int sinWindow [128 + 1024] = {
 /* 128 - format = Q31 * 2^0 */
 0x00c90f88, 0x7fff6216, 0x025b26d7, 0x7ffa72d1, 0x03ed26e6, 0x7ff09478, 0x057f0035, 0x7fe1c76b,
 0x0710a345, 0x7fce0c3e, 0x08a2009a, 0x7fb563b3, 0x0a3308bd, 0x7f97cebd, 0x0bc3ac35, 0x7f754e80,
@@ -1640,9 +1714,9 @@ static const int sinWindow[128 + 1024] = {
 };
 //}}}
 
-static const int kbdWindowOffset[NUM_IMDCT_SIZES] = { 0, 128 };
+static const int kbdWindowOffset [NUM_IMDCT_SIZES] = { 0, 128 };
 //{{{
-static const int kbdWindow[128 + 1024] = {
+static const int kbdWindow [128 + 1024] = {
 /* 128 - format = Q31 * 2^0 */
 0x00016f63, 0x7ffffffe, 0x0003e382, 0x7ffffff1, 0x00078f64, 0x7fffffc7, 0x000cc323, 0x7fffff5d,
 0x0013d9ed, 0x7ffffe76, 0x001d3a9d, 0x7ffffcaa, 0x0029581f, 0x7ffff953, 0x0038b1bd, 0x7ffff372,
@@ -1795,7 +1869,9 @@ static const int kbdWindow[128 + 1024] = {
 //{{{  invtab
 /* invTab[x] = 1/(x+1), format = Q30 */
 #define NUM_TERMS_RPI 5
-static const int invTab[NUM_TERMS_RPI]  = {0x40000000, 0x20000000, 0x15555555, 0x10000000, 0x0ccccccd};
+static const int invTab [NUM_TERMS_RPI]  = {
+  0x40000000, 0x20000000, 0x15555555, 0x10000000, 0x0ccccccd
+};
 //}}}
 
 //{{{
@@ -1804,7 +1880,7 @@ static const int invTab[NUM_TERMS_RPI]  = {0x40000000, 0x20000000, 0x15555555, 0
  *   gainBits[winSequence][1] = locBitsZero (bits for alocCode if window == 0)
  *   gainBits[winSequence][2] = locBits (bits for alocCode if window != 0)
  */
-static const uint8_t gainBits[4][3] = {
+static const uint8_t gainBits [4][3] = {
   {1, 5, 5},  /* long */
   {2, 4, 2},  /* start */
   {8, 2, 2},  /* short */
@@ -1814,56 +1890,67 @@ static const uint8_t gainBits[4][3] = {
 
 //{{{
 /* [1.0, sqrt(2)], format = Q29 (one guard bit for decoupling) */
-static const int envDQTab[2]  = {0x20000000, 0x2d413ccc};
+static const int envDQTab [2] = {
+  0x20000000, 0x2d413ccc
+  };
 //}}}
 //{{{
 /* dqTabCouple[i] = 2 / (1 + 2^(12 - i)), format = Q30 */
-static const int dqTabCouple[25]  = {
+static const int dqTabCouple [25] = {
   0x0007ff80, 0x000ffe00, 0x001ff802, 0x003fe010, 0x007f8080, 0x00fe03f8, 0x01f81f82, 0x03e0f83e,
   0x07878788, 0x0e38e38e, 0x1999999a, 0x2aaaaaab, 0x40000000, 0x55555555, 0x66666666, 0x71c71c72,
   0x78787878, 0x7c1f07c2, 0x7e07e07e, 0x7f01fc08, 0x7f807f80, 0x7fc01ff0, 0x7fe007fe, 0x7ff00200,
   0x7ff80080,
-};
+  };
 //}}}
 //{{{
 /* twiddle table for radix 4 pass, format = Q31 */
-static const int twidTabOdd32[8*6] = {
+static const int twidTabOdd32 [8*6] = {
   0x40000000, 0x00000000, 0x40000000, 0x00000000, 0x40000000, 0x00000000, 0x539eba45, 0xe7821d59,
   0x4b418bbe, 0xf383a3e2, 0x58c542c5, 0xdc71898d, 0x5a82799a, 0xd2bec333, 0x539eba45, 0xe7821d59,
   0x539eba45, 0xc4df2862, 0x539eba45, 0xc4df2862, 0x58c542c5, 0xdc71898d, 0x3248d382, 0xc13ad060,
   0x40000000, 0xc0000000, 0x5a82799a, 0xd2bec333, 0x00000000, 0xd2bec333, 0x22a2f4f8, 0xc4df2862,
   0x58c542c5, 0xcac933ae, 0xcdb72c7e, 0xf383a3e2, 0x00000000, 0xd2bec333, 0x539eba45, 0xc4df2862,
   0xac6145bb, 0x187de2a7, 0xdd5d0b08, 0xe7821d59, 0x4b418bbe, 0xc13ad060, 0xa73abd3b, 0x3536cc52,
-};
+  };
 //}}}
 
 //{{{
 /* cLog2[i] = ceil(log2(i)) (disregard i == 0) */
-static const uint8_t cLog2[9] = {0, 0, 1, 2, 2, 3, 3, 3, 3};
+static const uint8_t cLog2 [9] = {
+  0, 0, 1, 2, 2, 3, 3, 3, 3
+  };
 //}}}
 //{{{
 /* mBandTab[i] = temp1[i] / 2 */
-static const int mBandTab[3]  = {6, 5, 4};
+static const int mBandTab [3] = {
+  6, 5, 4
+  };
 //}}}
 //{{{
 /* invWarpTab[i] = 1.0 / temp2[i], Q30 (see 4.6.18.3.2.1) */
-static const int invWarpTab[2] = {0x40000000, 0x313b13b1};
+static const int invWarpTab [2] = {
+  0x40000000, 0x313b13b1
+  };
 //}}}
 //{{{
 /* squared version of table in 4.6.18.7.5 */
-static const int limGainTab[4] = {0x20138ca7, 0x40000000, 0x7fb27dce, 0x80000000}; /* Q30 (0x80000000 = sentinel for GMAX) */
+/* Q30 (0x80000000 = sentinel for GMAX) */
+static const int limGainTab [4] = {
+  0x20138ca7, 0x40000000, 0x7fb27dce, 0x80000000
+  };
 //}}}
 
 //{{{
 /* hSmooth table from 4.7.18.7.6, format = Q31 */
-static const int hSmoothCoef[MAX_NUM_SMOOTH_COEFS]  = {
+static const int hSmoothCoef [MAX_NUM_SMOOTH_COEFS] = {
   0x2aaaaaab, 0x2697a512, 0x1becfa68, 0x0ebdb043, 0x04130598,
 };
 //}}}
 
 //{{{
 // k0Tab[sampRateIdx][k] = k0 = startMin + offset(bs_start_freq) for given sample rate (4.6.18.3.2.1)
-static const uint8_t k0Tab[NUM_SAMPLE_RATES_SBR][16] = {
+static const uint8_t k0Tab [NUM_SAMPLE_RATES_SBR][16] = {
     {  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 16, 18, 20, 23, 27, 31 }, /* 96 kHz */
     {  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 16, 18, 20, 23, 27, 31 }, /* 88 kHz */
     {  6,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 19, 21, 23, 26, 30 }, /* 64 kHz */
@@ -1877,7 +1964,7 @@ static const uint8_t k0Tab[NUM_SAMPLE_RATES_SBR][16] = {
 //}}}
 //{{{
 // k2Tab[sampRateIdx][k] = stopVector(bs_stop_freq) for given sample rate, bs_stop_freq = [0, 13] (4.6.18.3.2.1)
-static const uint8_t k2Tab[NUM_SAMPLE_RATES_SBR][14] = {
+static const uint8_t k2Tab [NUM_SAMPLE_RATES_SBR][14] = {
   { 13, 15, 17, 19, 21, 24, 27, 31, 35, 39, 44, 50, 57, 64 }, /* 96 kHz */
   { 15, 17, 19, 21, 23, 26, 29, 33, 37, 41, 46, 51, 57, 64 }, /* 88 kHz */
   { 20, 22, 24, 26, 28, 31, 34, 37, 41, 45, 49, 54, 59, 64 }, /* 64 kHz */
@@ -1891,87 +1978,29 @@ static const uint8_t k2Tab[NUM_SAMPLE_RATES_SBR][14] = {
 //}}}
 //{{{
 // NINT(2.048E6 / Fs) (figure 4.47)
-static const uint8_t goalSBTab[NUM_SAMPLE_RATES_SBR] = {
+static const uint8_t goalSBTab [NUM_SAMPLE_RATES_SBR] = {
   21, 23, 32, 43, 46, 64, 85, 93, 128
-};
-
+  };
 //}}}
 
 //{{{
-static const HuffInfo huffTabSBRInfo[10]  = {
-  {19, { 0,  2,  2,  2,  2,  2,  2,  2,  2,  2,  1,  2,  3,  4,  2,  7,  4,  8, 72,  0},   0},
-  {20, { 0,  2,  2,  2,  2,  2,  1,  3,  3,  2,  4,  4,  4,  3,  2,  5,  6, 13, 15, 46}, 121},
-  {17, { 1,  1,  1,  1,  1,  1,  1,  1,  1,  0,  2,  2,  0,  0,  1, 25, 10,  0,  0,  0}, 242},
-  {19, { 1,  1,  1,  1,  1,  1,  1,  1,  1,  0,  3,  1,  0,  1,  1,  2,  1, 29,  2,  0}, 291},
-  {19, { 1,  1,  1,  1,  1,  1,  1,  1,  1,  0,  2,  1,  2,  5,  1,  4,  2,  3, 34,  0}, 340},
-  {20, { 1,  1,  1,  1,  1,  1,  0,  2,  2,  2,  2,  2,  1,  2,  3,  4,  4,  7, 10, 16}, 403},
-  {14, { 1,  1,  1,  1,  1,  1,  1,  1,  1,  0,  0,  1, 13,  2,  0,  0,  0,  0,  0,  0}, 466},
-  {14, { 1,  1,  1,  1,  1,  1,  1,  1,  1,  0,  1,  1,  6,  8,  0,  0,  0,  0,  0,  0}, 491},
-  {14, { 1,  1,  1,  1,  1,  1,  0,  2,  0,  1,  1,  0, 51,  2,  0,  0,  0,  0,  0,  0}, 516},
-  { 8, { 1,  1,  1,  0,  1,  1,  0, 20,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0}, 579},
-};
+// Minimax polynomial approximation to pow(x, 4/3), over the range
+//  poly43lo: x = [0.5, 0.7071]
+// Relative error < 1E-7
+// Coefs are scaled by 4, 2, 1, 0.5, 0.25
+static const int poly43lo [5] = {
+  0x29a0bda9, 0xb02e4828, 0x5957aa1b, 0x236c498d, 0xff581859
+  };
 //}}}
 //{{{
-// Huffman tables from appendix 4.A.6.1, includes offset of -LAV[i] for table i */
-static const int16_t huffTabSBR[604]  = {
-      /* SBR table sbr_tenv15 [121] (signed) */
-     0,   -1,    1,   -2,    2,   -3,    3,   -4,    4,   -5,    5,   -6,    6,   -7,    7,   -8,
-    -9,    8,  -10,    9,  -11,   10,  -12,  -13,   11,  -14,   12,  -15,  -16,   13,  -19,  -18,
-   -17,   14,  -24,  -20,   16,  -26,  -21,   15,  -23,  -25,  -22,  -60,  -59,  -58,  -57,  -56,
-   -55,  -54,  -53,  -52,  -51,  -50,  -49,  -48,  -47,  -46,  -45,  -44,  -43,  -42,  -41,  -40,
-   -39,  -38,  -37,  -36,  -35,  -34,  -33,  -32,  -31,  -30,  -29,  -28,  -27,   17,   18,   19,
-    20,   21,   22,   23,   24,   25,   26,   27,   28,   29,   30,   31,   32,   33,   34,   35,
-    36,   37,   38,   39,   40,   41,   42,   43,   44,   45,   46,   47,   48,   49,   50,   51,
-    52,   53,   54,   55,   56,   57,   58,   59,   60,
-      /* SBR table sbr_fenv15 [121] (signed) */
-     0,   -1,    1,   -2,   -3,    2,   -4,    3,   -5,    4,   -6,    5,   -7,    6,   -8,    7,
-    -9,    8,  -10,    9,  -11,   10,   11,  -12,   12,  -13,   13,   14,  -14,  -15,   15,   16,
-    17,  -16,  -17,  -18,  -19,   18,   19,  -20,  -21,   20,   21,  -24,  -23,  -22,  -26,  -28,
-    22,   23,   25,  -41,  -25,   26,   27,  -30,  -27,   24,   28,   44,  -51,  -46,  -44,  -43,
-   -37,  -33,  -31,  -29,   30,   37,   42,   47,   48,  -60,  -59,  -58,  -57,  -56,  -55,  -54,
-   -53,  -52,  -50,  -49,  -48,  -47,  -45,  -42,  -40,  -39,  -38,  -36,  -35,  -34,  -32,   29,
-    31,   32,   33,   34,   35,   36,   38,   39,   40,   41,   43,   45,   46,   49,   50,   51,
-    52,   53,   54,   55,   56,   57,   58,   59,   60,
-      /* SBR table sbr_tenv15b [49] (signed) */
-     0,    1,   -1,    2,   -2,    3,   -3,    4,   -4,   -5,    5,   -6,    6,    7,   -7,    8,
-   -24,  -23,  -22,  -21,  -20,  -19,  -18,  -17,  -16,  -15,  -14,  -13,  -12,  -11,  -10,   -9,
-    -8,    9,   10,   11,   12,   13,   14,   15,   16,   17,   18,   19,   20,   21,   22,   23,
-    24,
-      /* SBR table sbr_fenv15b [49] (signed) */
-     0,   -1,    1,   -2,    2,    3,   -3,   -4,    4,   -5,    5,   -6,    6,   -7,    7,    8,
-    -9,   -8,  -24,  -23,  -22,  -21,  -20,  -19,  -18,  -17,  -16,  -15,  -14,  -13,  -12,  -11,
-   -10,    9,   10,   11,   12,   13,   14,   15,   16,   17,   18,   19,   20,   21,   22,   23,
-    24,
-      /* SBR table sbr_tenv30 [63] (signed) */
-     0,   -1,    1,   -2,    2,   -3,    3,   -4,    4,   -5,    5,   -6,   -7,    6,   -8,    7,
-    -9,  -10,    8,    9,   10,  -13,  -11,  -12,  -14,   11,   12,  -31,  -30,  -29,  -28,  -27,
-   -26,  -25,  -24,  -23,  -22,  -21,  -20,  -19,  -18,  -17,  -16,  -15,   13,   14,   15,   16,
-    17,   18,   19,   20,   21,   22,   23,   24,   25,   26,   27,   28,   29,   30,   31,
-      /* SBR table sbr_fenv30 [63] (signed) */
-     0,   -1,    1,   -2,    2,   -3,    3,   -4,    4,   -5,    5,   -6,    6,   -7,    7,   -8,
-     8,    9,   -9,  -10,   10,   11,  -11,  -12,   12,   13,  -13,  -15,   14,   15,  -14,   18,
-   -18,  -24,  -19,   16,   17,  -22,  -21,  -16,   20,   21,   22,   25,  -23,  -20,   24,  -31,
-   -30,  -29,  -28,  -27,  -26,  -25,  -17,   19,   23,   26,   27,   28,   29,   30,   31,
-      /* SBR table sbr_tenv30b [25] (signed) */
-     0,    1,   -1,   -2,    2,    3,   -3,   -4,    4,   -5,  -12,  -11,  -10,   -9,   -8,   -7,
-    -6,    5,    6,    7,    8,    9,   10,   11,   12,
-      /* SBR table sbr_fenv30b [25] (signed) */
-     0,   -1,    1,   -2,    2,    3,   -3,   -4,    4,   -5,    5,    6,  -12,  -11,  -10,   -9,
-    -8,   -7,   -6,    7,    8,    9,   10,   11,   12,
-      /* SBR table sbr_tnoise30 [63] (signed) */
-     0,    1,   -1,   -2,    2,   -3,    3,   -4,    4,   -5,    5,   11,  -31,  -30,  -29,  -28,
-   -27,  -26,  -25,  -24,  -23,  -22,  -21,  -20,  -19,  -18,  -17,  -16,  -15,  -14,  -13,  -12,
-   -11,  -10,   -9,   -8,   -7,   -6,    6,    7,    8,    9,   10,   12,   13,   14,   15,   16,
-    17,   18,   19,   20,   21,   22,   23,   24,   25,   26,   27,   28,   29,   30,   31,
-      /* SBR table sbr_tnoise30b [25] (signed) */
-     0,   -1,    1,   -2,    2,  -12,  -11,  -10,   -9,   -8,   -7,   -6,   -5,   -4,   -3,    3,
-     4,    5,    6,    7,    8,    9,   10,   11,   12,
-};
+//  poly43hi: x = [0.7071, 1.0]
+static const int poly43hi[5] = {
+  0x10852163, 0xd333f6a4, 0x46e9408b, 0x27c2cef0, 0xfef577b4
+  };
 //}}}
-
 //{{{
 // log2Tab[x] = floor(log2(x)), format = Q28 */
-static const int log2Tab[65] = {
+static const int log2Tab [65] = {
   0x00000000, 0x00000000, 0x10000000, 0x195c01a3, 0x20000000, 0x25269e12, 0x295c01a3, 0x2ceaecfe,
   0x30000000, 0x32b80347, 0x35269e12, 0x3759d4f8, 0x395c01a3, 0x3b350047, 0x3ceaecfe, 0x3e829fb6,
   0x40000000, 0x41663f6f, 0x42b80347, 0x43f782d7, 0x45269e12, 0x4646eea2, 0x4759d4f8, 0x48608280,
@@ -1981,11 +2010,12 @@ static const int log2Tab[65] = {
   0x595c01a3, 0x59d5d9fd, 0x5a4d3c25, 0x5ac24113, 0x5b350047, 0x5ba58feb, 0x5c1404ea, 0x5c80730b,
   0x5ceaecfe, 0x5d53847a, 0x5dba4a47, 0x5e1f4e51, 0x5e829fb6, 0x5ee44cd5, 0x5f446359, 0x5fa2f045,
   0x60000000
-};
+  };
 //}}}
+
 //{{{
 // coefficient table 4.A.87, format = Q31
-static const int cTabA[165] = {
+static const int cTabA [165] = {
   0x00000000, 0x0055dba1, 0x01b2e41d, 0x09015651, 0x2e3a7532, 0xffed978a, 0x006090c4, 0x01fd3ba0, 0x08a24899, 0x311af3a4,
   0xfff0065d, 0x006b47fa, 0x024bf7a1, 0x082f552e, 0x33ff670e, 0xffef7b8b, 0x0075fded, 0x029e35b4, 0x07a8127d, 0x36e69691,
   0xffee1650, 0x00807994, 0x02f3e48d, 0x070bbf58, 0x39ce0477, 0xffecc31b, 0x008a7dd7, 0x034d01f0, 0x06593912, 0x3cb41219,
@@ -2003,11 +2033,11 @@ static const int cTabA[165] = {
   0x002d8e42, 0xff4aabc8, 0x09caeb0f, 0xdcf898fb, 0x6bfbdd98, 0x003745f9, 0xff120d70, 0x09b18a1d, 0xda3b176a, 0x6c8c4c7a,
   0x004103f4, 0xfed4bec3, 0x09881dc5, 0xd7722f04, 0x6cf4073e, 0x004b6c46, 0xfe933dc0, 0x094d7ec2, 0xd49fd55f, 0x6d32730f,
   0x0055dba1, 0x01b2e41d, 0x09015651, 0x2e3a7532, 0x6d474e1d,
-};
+  };
 //}}}
 //{{{
 //* coefficient table 4.A.87, format = Q31
-static const int cTabS[640] = {
+static const int cTabS [640] = {
   0x00000000, 0x0055dba1, 0x01b2e41d, 0x09015651, 0x2e3a7532, 0x6d474e1d, 0xd1c58ace, 0x09015651, 0xfe4d1be3, 0x0055dba1,
   0xffede50e, 0x005b5371, 0x01d78bfc, 0x08d3e41b, 0x2faa221c, 0x6d41d963, 0xd3337b3d, 0x09299ead, 0xfe70b8d1, 0x0050b177,
   0xffed978a, 0x006090c4, 0x01fd3ba0, 0x08a24899, 0x311af3a4, 0x6d32730f, 0xd49fd55f, 0x094d7ec2, 0xfe933dc0, 0x004b6c46,
@@ -2072,11 +2102,11 @@ static const int cTabS[640] = {
   0x00465348, 0xfeb48d0d, 0x096d0e21, 0xd60a46e5, 0x6d18520e, 0x328cc6f0, 0x086b1eeb, 0x02244a24, 0x0065fde5, 0xffefc9b9,
   0x004b6c46, 0xfe933dc0, 0x094d7ec2, 0xd49fd55f, 0x6d32730f, 0x311af3a4, 0x08a24899, 0x01fd3ba0, 0x006090c4, 0xffed978a,
   0x0050b177, 0xfe70b8d1, 0x09299ead, 0xd3337b3d, 0x6d41d963, 0x2faa221c, 0x08d3e41b, 0x01d78bfc, 0x005b5371, 0xffede50f,
-};
+  };
 //}}}
 //{{{
 /* noise table 4.A.88, format = Q31 */
-static const int noiseTab[512*2] = {
+static const int noiseTab [512*2] = {
   0x8010fd38, 0xb3dc7948, 0x7c4e2301, 0xa9904192, 0x121622a7, 0x86489625, 0xc3d53d25, 0xd0343fa9,
   0x674d6f70, 0x25f4e9fd, 0xce1a8c8b, 0x72a726c5, 0xfea6efc6, 0xaa4adb1a, 0x8b2dd628, 0xf14029e4,
   0x46321c1a, 0x604889a0, 0x33363b63, 0x815ed069, 0x802b4315, 0x8f2bf7f3, 0x85b86073, 0x745cfb46,
@@ -2205,11 +2235,11 @@ static const int noiseTab[512*2] = {
   0x389c3cf6, 0x5b4c5a06, 0x04b335e6, 0x516a8aab, 0x42c8d7d9, 0x92b12af6, 0x86c8549f, 0xfda98acf,
   0x819673b6, 0x69545dac, 0x6feaa230, 0x726e6d3f, 0x886ebdfe, 0x34f5730a, 0x7af63ba2, 0x77307bbf,
   0x7cd80630, 0x6e45efe0, 0x7f8ad7eb, 0x59d7df99, 0x86c70946, 0xda233629, 0x753f6cbf, 0x825eeb40,
-};
+  };
 //}}}
 //{{{
 /* invBandTab[i] = 1.0 / (i + 1), Q31 */
-static const int invBandTab[64] = {
+static const int invBandTab [64] = {
   0x7fffffff, 0x40000000, 0x2aaaaaab, 0x20000000, 0x1999999a, 0x15555555, 0x12492492, 0x10000000,
   0x0e38e38e, 0x0ccccccd, 0x0ba2e8ba, 0x0aaaaaab, 0x09d89d8a, 0x09249249, 0x08888889, 0x08000000,
   0x07878788, 0x071c71c7, 0x06bca1af, 0x06666666, 0x06186186, 0x05d1745d, 0x0590b216, 0x05555555,
@@ -2218,18 +2248,18 @@ static const int invBandTab[64] = {
   0x031f3832, 0x030c30c3, 0x02fa0be8, 0x02e8ba2f, 0x02d82d83, 0x02c8590b, 0x02b93105, 0x02aaaaab,
   0x029cbc15, 0x028f5c29, 0x02828283, 0x02762762, 0x026a439f, 0x025ed098, 0x0253c825, 0x02492492,
   0x023ee090, 0x0234f72c, 0x022b63cc, 0x02222222, 0x02192e2a, 0x02108421, 0x02082082, 0x02000000,
-};
+  };
 //}}}
 //{{{
 /* newBWTab[prev invfMode][curr invfMode], format = Q31 (table 4.158)
  * sample file which uses all of these: al_sbr_sr_64_2_fsaac32.aac
  */
-static const int newBWTab[4][4] = {
+static const int newBWTab [4][4] = {
   {0x00000000, 0x4ccccccd, 0x73333333, 0x7d70a3d7},
   {0x4ccccccd, 0x60000000, 0x73333333, 0x7d70a3d7},
   {0x00000000, 0x60000000, 0x73333333, 0x7d70a3d7},
   {0x00000000, 0x60000000, 0x73333333, 0x7d70a3d7},
-};
+  };
 //}}}
 //}}}
 
@@ -3305,6 +3335,7 @@ static void DecodeICSInfo (BitStreamInfo *bsi, ICSInfo *icsInfo, int sampRateIdx
   }
 }
 //}}}
+
 //{{{
 /**************************************************************************************
  * Function:    R4FFT
@@ -4304,7 +4335,6 @@ static void StereoProcessGroup (int* coefL, int* coefR, const short* sfbTab,
   return;
 }
 //}}}
-
 //{{{
 /**************************************************************************************
  * Function:    StereoProcess
@@ -4314,7 +4344,7 @@ static void StereoProcessGroup (int* coefL, int* coefR, const short* sfbTab,
  *              updated minimum guard bit count for both channels
  * Return:      0 if successful, -1 if error
  **************************************************************************************/
-static int StereoProcess (AACDecInfo *aacDecInfo) {
+static int StereoProcess (AACDecInfo* aacDecInfo) {
 
   ICSInfo* icsInfo;
   int gp, win, nSamps, msMaskOffset;
