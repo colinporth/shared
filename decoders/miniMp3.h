@@ -30,7 +30,7 @@ typedef struct {
   } mp3dec_frame_info_t;
 
 void mp3dec_init (mp3dec_t* dec);
-int mp3dec_decode_frame (mp3dec_t* dec, const uint8_t* mp3, int mp3_bytes, int16_t* pcm, mp3dec_frame_info_t* info);
+int mp3dec_decode_frame (mp3dec_t* dec, const uint8_t* mp3, int mp3_bytes, float* samples, mp3dec_frame_info_t* info);
 
 //{{{
 #ifdef __cplusplus

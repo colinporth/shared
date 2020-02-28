@@ -1555,9 +1555,12 @@ void mp3dec_init (mp3dec_t* dec) {
   }
 //}}}
 //{{{
-int mp3dec_decode_frame (mp3dec_t* dec, const uint8_t* mp3, int mp3_bytes, int16_t* pcm, mp3dec_frame_info_t* info) {
+int mp3dec_decode_frame (mp3dec_t* dec, const uint8_t* mp3, int mp3_bytes, float* samples, mp3dec_frame_info_t* info) {
 
   int success = 1;
+
+  int16_t samples16 [2048*2];
+  int16_t* pcm = samples16;
 
   int frame_size = 0;
   if (mp3_bytes > 4 && dec->header[0] == 0xff && hdr_compare (dec->header, mp3)) {
@@ -1585,10 +1588,6 @@ int mp3dec_decode_frame (mp3dec_t* dec, const uint8_t* mp3, int mp3_bytes, int16
   info->hz = hdr_sample_rate_hz (hdr);
   info->layer = 4 - HDR_GET_LAYER (hdr);
   info->bitrate_kbps = hdr_bitrate_kbps (hdr);
-
-  // header frame_info only ?
-  if (!pcm)
-    return hdr_frame_samples(hdr);
 
   bs_t bs_frame[1];
   bs_init (bs_frame, hdr + HDR_SIZE, frame_size - HDR_SIZE);
@@ -1636,6 +1635,12 @@ int mp3dec_decode_frame (mp3dec_t* dec, const uint8_t* mp3, int mp3_bytes, int16
     }
     //}}}
 
-  return success * hdr_frame_samples (dec->header);
+  int numSamples = success * hdr_frame_samples (dec->header);
+  int16_t* srcPtr = samples16;
+  float* dstPtr = samples;
+  for (int sample = 0; sample < numSamples * 2; sample++)
+    *dstPtr++ = *srcPtr++ / (float)0x8000;
+
+  return numSamples;
   }
 //}}}
