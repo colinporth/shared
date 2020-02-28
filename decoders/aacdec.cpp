@@ -9559,8 +9559,6 @@ int AACFlushCodec (HAACDecoder hAACDecoder) {
 //{{{
 int AACDecode (HAACDecoder hAACDecoder, uint8_t* inbuf, int bytesLeft, float* outbuf, int* sampleRate) {
 
-  cLog::log (LOGINFO1, "AACDecodein");
-
   *sampleRate = 0;
 
   int bitOffset = 0;
@@ -9662,8 +9660,6 @@ int AACDecode (HAACDecoder hAACDecoder, uint8_t* inbuf, int bytesLeft, float* ou
 
   *sampleRate = aacDecInfo->sampRate * (aacDecInfo->sbrEnabled ? 2 : 1);
   int numSamples = aacDecInfo->nChans * AAC_MAX_NSAMPS * (aacDecInfo->sbrEnabled ? 2 : 1) / 2;
-
-  cLog::log (LOGINFO1, "AACDecodeout");
 
   return numSamples;
   }
