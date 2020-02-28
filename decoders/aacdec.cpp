@@ -5,7 +5,7 @@
 #include <string.h>
 
 #include "aacdec.h"
-//#include "../utils/cLog.h"
+#include "../utils/cLog.h"
 //}}}
 
 //{{{  assert, min, max
@@ -4609,7 +4609,7 @@ static void StereoProcessGroup (int* coefL, int* coefR, const short* sfbTab,
       /* intensity stereo */
       if (msMaskPres == 1 && (msMask & 0x01))
         cbIdx ^= 0x01;        /* invert_intensity(): 14 becomes 15, or 15 becomes 14 */
-      sf = -sfRight[sfb];       /* negative since we use identity 0.5^(x) = 2^(-x) (see spec) */
+      sf = -sfRight[sfb];     /* negative since we use identity 0.5^(x) = 2^(-x) (see spec) */
       cbIdx &= 0x01;          /* choose - or + scale factor */
       scalef = pow142[cbIdx][sf & 0x03];
       scalei = (sf >> 2) + 2;     /* +2 to compensate for scalef = Q30 */
@@ -9559,6 +9559,8 @@ int AACFlushCodec (HAACDecoder hAACDecoder) {
 //{{{
 int AACDecode (HAACDecoder hAACDecoder, uint8_t* inbuf, int bytesLeft, float* outbuf, int* sampleRate) {
 
+  cLog::log (LOGINFO1, "AACDecodein");
+
   *sampleRate = 0;
 
   int bitOffset = 0;
@@ -9660,6 +9662,8 @@ int AACDecode (HAACDecoder hAACDecoder, uint8_t* inbuf, int bytesLeft, float* ou
 
   *sampleRate = aacDecInfo->sampRate * (aacDecInfo->sbrEnabled ? 2 : 1);
   int numSamples = aacDecInfo->nChans * AAC_MAX_NSAMPS * (aacDecInfo->sbrEnabled ? 2 : 1) / 2;
+
+  cLog::log (LOGINFO1, "AACDecodeout");
 
   return numSamples;
   }

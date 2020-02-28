@@ -3,8 +3,10 @@
 // This software is distributed without any warranty.
 // See <http://creativecommons.org/publicdomain/zero/1.0/>.
 //}}}
+//{{{  includes
 #include "minimp3.h"
-//#include "../utils/cLog.h"
+#include "../utils/cLog.h"
+//}}}
 //{{{  intrinsics
 #include <intrin.h>
 #include <immintrin.h>
