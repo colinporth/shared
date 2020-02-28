@@ -107,16 +107,16 @@ typedef struct {
   } L3_gr_info_t;
 //}}}
 
-//{{{  struct bs_t
+//{{{  struct sBitStream
 typedef struct {
   const uint8_t* buf;
   int  pos;
   int  limit;
-  } bs_t;
+  } sBitStream;
 //}}}
 //{{{  struct mp3dec_scratch_t
 typedef struct {
-  bs_t          bs;
+  sBitStream    bs;
   uint8_t       maindata [MAX_BITRESERVOIR_BYTES + MAX_L3_FRAME_PAYLOAD_BYTES];
   L3_gr_info_t  gr_info [4];
   float         grbuf [2][576];
@@ -126,14 +126,14 @@ typedef struct {
   } mp3dec_scratch_t;
 //}}}
 //{{{
-static void bs_init (bs_t* bs, const uint8_t* data, int bytes) {
+static void bs_init (sBitStream* bs, const uint8_t* data, int bytes) {
   bs->buf   = data;
   bs->pos   = 0;
   bs->limit = bytes * 8;
   }
 //}}}
 //{{{
-static uint32_t get_bits (bs_t* bs, int n) {
+static uint32_t get_bits (sBitStream* bs, int n) {
 
   uint32_t s = bs->pos & 7;
   int shl = n + s;
@@ -256,7 +256,7 @@ static const L12_subband_alloc_t* L12_subband_alloc_table (const uint8_t* hdr, L
   }
 //}}}
 //{{{
-static void L12_read_scalefactors (bs_t *bs, uint8_t *pba, uint8_t *scfcod, int bands, float* scf) {
+static void L12_read_scalefactors (sBitStream *bs, uint8_t *pba, uint8_t *scfcod, int bands, float* scf) {
 
   //{{{
   static const float g_deq_L12[18*3] = {
@@ -283,7 +283,7 @@ static void L12_read_scalefactors (bs_t *bs, uint8_t *pba, uint8_t *scfcod, int 
   }
 //}}}
 //{{{
-static void L12_read_scale_info (const uint8_t* hdr, bs_t* bs, L12_scale_info* sci) {
+static void L12_read_scale_info (const uint8_t* hdr, sBitStream* bs, L12_scale_info* sci) {
 
   //{{{
   static const uint8_t g_bitalloc_code_tab[] = {
@@ -326,7 +326,7 @@ static void L12_read_scale_info (const uint8_t* hdr, bs_t* bs, L12_scale_info* s
   }
 //}}}
 //{{{
-static int L12_dequantize_granule (float* grbuf, bs_t* bs, L12_scale_info* sci, int group_size) {
+static int L12_dequantize_granule (float* grbuf, sBitStream* bs, L12_scale_info* sci, int group_size) {
 
   int choff = 576;
   for (int j = 0; j < 4; j++) {
@@ -369,7 +369,7 @@ static void L12_apply_scf_384 (L12_scale_info* sci, const float* scf, float* dst
 //}}}
 
 //{{{
-static int L3_read_side_info (bs_t* bs, L3_gr_info_t* gr, const uint8_t* hdr) {
+static int L3_read_side_info (sBitStream* bs, L3_gr_info_t* gr, const uint8_t* hdr) {
 
   //{{{
   static const uint8_t g_scf_long[8][23] = {
@@ -492,7 +492,7 @@ static int L3_read_side_info (bs_t* bs, L3_gr_info_t* gr, const uint8_t* hdr) {
   }
 //}}}
 //{{{
-static void L3_read_scalefactors (uint8_t* scf, uint8_t* ist_pos, const uint8_t* scf_size, const uint8_t* scf_count, bs_t* bitbuf, int scfsi) {
+static void L3_read_scalefactors (uint8_t* scf, uint8_t* ist_pos, const uint8_t* scf_size, const uint8_t* scf_count, sBitStream* bitbuf, int scfsi) {
 
   for (int i = 0; i < 4 && scf_count[i]; i++, scfsi *= 2) {
     int cnt = scf_count[i];
@@ -535,7 +535,7 @@ static float L3_ldexp_q2 (float y, int exp_q2) {
   }
 //}}}
 //{{{
-static void L3_decode_scalefactors (const uint8_t* hdr, uint8_t* ist_pos, bs_t* bs, const L3_gr_info_t* gr, float* scf, int ch) {
+static void L3_decode_scalefactors (const uint8_t* hdr, uint8_t* ist_pos, sBitStream* bs, const L3_gr_info_t* gr, float* scf, int ch) {
 
   //{{{
   static const uint8_t g_scf_partitions [3][28] = {
@@ -635,7 +635,7 @@ static float L3_pow_43 (int x) {
   }
 //}}}
 //{{{
-static void L3_huffman (float *dst, bs_t *bs, const L3_gr_info_t *gr_info, const float *scf, int layer3gr_limit) {
+static void L3_huffman (float *dst, sBitStream *bs, const L3_gr_info_t *gr_info, const float *scf, int layer3gr_limit) {
 
   //{{{
   static const int16_t tabs[] = {
@@ -1228,7 +1228,7 @@ static void L3_save_reservoir (mp3dec_t* h, mp3dec_scratch_t* s) {
   }
 //}}}
 //{{{
-static int L3_restore_reservoir (mp3dec_t* h, bs_t *bs, mp3dec_scratch_t* s, int main_data_begin) {
+static int L3_restore_reservoir (mp3dec_t* h, sBitStream *bs, mp3dec_scratch_t* s, int main_data_begin) {
 
   int frame_bytes = (bs->limit - bs->pos) / 8;
   int bytes_have = MINIMP3_MIN (h->reserv, main_data_begin);
@@ -1682,7 +1682,7 @@ int mp3dec_decode_frame (mp3dec_t* dec, const uint8_t* mp3, int mp3_bytes, float
   info->layer = 4 - HDR_GET_LAYER (hdr);
   info->bitrate_kbps = hdr_bitrate_kbps (hdr);
 
-  bs_t bs_frame[1];
+  sBitStream bs_frame[1];
   bs_init (bs_frame, hdr + HDR_SIZE, frame_size - HDR_SIZE);
   if (HDR_IS_CRC (hdr))
     get_bits (bs_frame, 16);

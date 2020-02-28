@@ -9557,9 +9557,9 @@ int AACFlushCodec (HAACDecoder hAACDecoder) {
   }
 //}}}
 //{{{
-int AACDecode (HAACDecoder hAACDecoder, uint8_t* inbuf, int bytesLeft, float* outbuf, int* sampleRate) {
+int AACDecode (HAACDecoder hAACDecoder, uint8_t* inbuf, int bytesLeft, float* outbuf, int& sampleRate) {
 
-  *sampleRate = 0;
+  sampleRate = 0;
 
   int bitOffset = 0;
   int bitsAvail = bytesLeft << 3;
@@ -9658,7 +9658,7 @@ int AACDecode (HAACDecoder hAACDecoder, uint8_t* inbuf, int bytesLeft, float* ou
     baseChan += elementChans;
     } while (aacDecInfo->currBlockID != AAC_ID_END);
 
-  *sampleRate = aacDecInfo->sampRate * (aacDecInfo->sbrEnabled ? 2 : 1);
+  sampleRate = aacDecInfo->sampRate * (aacDecInfo->sbrEnabled ? 2 : 1);
   int numSamples = aacDecInfo->nChans * AAC_MAX_NSAMPS * (aacDecInfo->sbrEnabled ? 2 : 1) / 2;
 
   return numSamples;
