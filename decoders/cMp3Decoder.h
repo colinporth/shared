@@ -52,6 +52,7 @@ public:
   //}}}
 
   cMp3Decoder();
+  int getSampleRate();
   int decode (uint8_t* inbuf, int bytesLeft, float* outbuf);
 
 private:
@@ -63,11 +64,16 @@ private:
   int L3_restore_reservoir (sBitStream* bs, mp3dec_scratch_t* s, int main_data_begin);
   //}}}
   //{{{  private vars
-  uint8_t header[4];
-  int free_format_bytes;
-  int reserv;
+  uint8_t header[4] = { 0 };
+
+  int free_format_bytes = 0;
+
+  int reserv = 0;
   uint8_t reserv_buf[511];
+
   float mdct_overlap[2][9*32];
   float qmf_state[15*2*32];
+
+  int sampleRate = 0;
   //}}}
   };

@@ -7483,7 +7483,7 @@ void GenerateHighFreq (PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRCh
   }
 //}}}
 //}}}
-
+//{{{  sbr
 //{{{
 void InitSBRState (PSInfoSBR* psi) {
 /**************************************************************************************
@@ -7492,18 +7492,19 @@ void InitSBRState (PSInfoSBR* psi) {
  * Return:      none
  **************************************************************************************/
 
-  /* clear SBR state structure */
+  // clear SBR state structure */
   uint8_t* c = (uint8_t*)psi;
   for (int i = 0; i < (int)sizeof(PSInfoSBR); i++)
     *c++ = 0;
 
-  /* initialize non-zero state variables */
+  // initialize non-zero state variables */
   for (int ch = 0; ch < AAC_MAX_NCHANS; ch++) {
     psi->sbrChan[ch].reset = 1;
     psi->sbrChan[ch].laPrev = -1;
     }
   }
 //}}}
+
 //{{{
 /**************************************************************************************
  * Function:    DecWindowOverlapNoClip
@@ -7885,6 +7886,7 @@ void DecWindowOverlapShortNoClip (int* buf0, int* over0, int* out0, int winTypeC
   } while (i);
 }
 //}}}
+
 //{{{
 void PreMultiply64 (int* zbuf1) {
 /**************************************************************************************
@@ -7985,6 +7987,7 @@ void PostMultiply64 (int* fft1, int nSampsOut) {
     }
   }
 //}}}
+
 //{{{
 void QMFAnalysisConv (int* cTab, int *delay, int dIdx, int* uBuf) {
 /**************************************************************************************
@@ -8281,6 +8284,7 @@ void QMFSynthesis (int* inbuf, int* delay, int* delayIdx, int qmfsBands, float* 
 
   *delayIdx = (*delayIdx == NUM_QMF_DELAY_BUFS - 1 ? 0 : *delayIdx + 1);
   }
+//}}}
 //}}}
 
 // private members

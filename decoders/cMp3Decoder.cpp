@@ -397,6 +397,7 @@ static const f4 g_min = { -32768.0f, -32768.0f, -32768.0f, -32768.0f };
 //}}}
 //}}}
 
+// bitstream utils
 //{{{
 void bs_init (cMp3Decoder::sBitStream* bs, const uint8_t* data, int bytes) {
   bs->buf   = data;
@@ -425,6 +426,7 @@ uint32_t get_bits (cMp3Decoder::sBitStream* bs, int n) {
   }
 //}}}
 
+// header utils
 //{{{
 int hdr_valid (const uint8_t* h) {
   return (h[0] == 0xFF) &&
@@ -475,6 +477,7 @@ int hdr_padding (const uint8_t* h) {
   }
 //}}}
 
+//{{{  L12 utils
 //{{{
 const L12_subband_alloc_t* L12_subband_alloc_table (const uint8_t* hdr, L12_scale_info* sci) {
 
@@ -603,7 +606,8 @@ void L12_apply_scf_384 (L12_scale_info* sci, const float* scf, float* dst) {
     }
   }
 //}}}
-
+//}}}
+//{{{  L3 utils
 //{{{
 int L3_read_side_info (cMp3Decoder::sBitStream* bs, cMp3Decoder::L3_gr_info_t* gr, const uint8_t* hdr) {
 
@@ -794,6 +798,7 @@ float L3_pow_43 (int x) {
 
   sign = 2*x & 64;
   frac = (float)((x & 63) - sign) / ((x & ~63) + sign);
+
   return g_pow43[16 + ((x + sign) >> 6)]*(1.f + frac*((4.f/3) + frac*(2.f/9)))*mult;
   }
 //}}}
@@ -839,7 +844,7 @@ void L3_huffman (float *dst, cMp3Decoder::sBitStream *bs, const cMp3Decoder::L3_
               lsb += PEEK_BITS(linbits);
               FLUSH_BITS(linbits);
               CHECK_BITS;
-              *dst = one*L3_pow_43(lsb)*((int32_t)bs_cache < 0 ? -1: 1);
+              *dst = one * L3_pow_43 (lsb) * ((int32_t)bs_cache < 0 ? -1: 1);
               }
             else
               *dst = g_pow43[16 + lsb - 16*(bs_cache >> 31)]*one;
@@ -1200,6 +1205,7 @@ void L3_imdct_gr (float* grbuf, float* overlap, unsigned block_type, unsigned n_
   else
     L3_imdct36 (grbuf, overlap, g_mdct_window[block_type == STOP_BLOCK_TYPE], 32 - n_long_bands);
   }
+//}}}
 //}}}
 
 //{{{
@@ -1573,6 +1579,7 @@ int mp3d_find_frame (const uint8_t* mp3, int mp3_bytes, int* free_format_bytes, 
   }
 //}}}
 
+// private members
 //{{{
 void cMp3Decoder::clear() {
 
@@ -1642,15 +1649,24 @@ int cMp3Decoder::L3_restore_reservoir (sBitStream *bs, mp3dec_scratch_t* s, int 
   }
 //}}}
 
+// public members
 //{{{
 cMp3Decoder::cMp3Decoder() {
   clear();
+  }
+//}}}
+
+//{{{
+int cMp3Decoder::getSampleRate() {
+  return sampleRate;
   }
 //}}}
 //{{{
 int cMp3Decoder::decode (uint8_t* inbuf, int bytesLeft, float* outbuf) {
 
   int success = 1;
+
+  // keep this around for a while
   mp3dec_frame_info_t info;
 
   int16_t samples16 [2048*2];
@@ -1736,6 +1752,7 @@ int cMp3Decoder::decode (uint8_t* inbuf, int bytesLeft, float* outbuf) {
   for (int sample = 0; sample < numSamples * 2; sample++)
     *dstPtr++ = *srcPtr++ / (float)0x8000;
 
+  sampleRate = info.hz;
   return numSamples;
   }
 //}}}
