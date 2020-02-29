@@ -8837,7 +8837,7 @@ int cAacDecoder::decodeSingleChannelElement (BitStreamInfo* bsi) {
  **************************************************************************************/
 
   /* read instance tag */
-  currInstTag = getBits(bsi, NUM_INST_TAG_BITS);
+  currInstTag = getBits (bsi, NUM_INST_TAG_BITS);
   return 0;
   }
 //}}}
@@ -8996,7 +8996,7 @@ int cAacDecoder::decodeProgramConfigElement (ProgConfigElement* pce, BitStreamIn
     pce->cce[i] |= getBits (bsi, 4);     /* tag select */
     }
 
-  byteAlignBitstream(bsi);
+  byteAlignBitstream (bsi);
 
   pce->commentBytes = getBits (bsi, 8);
   for (int i = 0; i < pce->commentBytes; i++)
@@ -9020,18 +9020,19 @@ int cAacDecoder::decodeFillElement (BitStreamInfo* bsi) {
   if (fillCount1 == 15)
     fillCount1 += getBits (bsi, 8) - 1;
 
+  // !!! probable byte aligned copy into fillBuf which is turned into a second bitstream !!!
   psInfoBase->fillCount = fillCount1;
   uint8_t* fillBuf1 = psInfoBase->fillBuf;
   while (fillCount1--)
     *fillBuf1++ = getBits (bsi, 8);
 
-  currInstTag = -1; /* fill elements don't have instance tag */
+  // fill elements don't have instance tag
+  currInstTag = -1;
   fillExtType = 0;
 
   // check for SBR
-  // aacDecInfo->sbrEnabled is sticky (reset each raw_data_block), so for multichannel
-  //    need to verify that all SCE/CPE/ICCE have valid SBR fill element following, and
-  //    must upsample by 2 for LFE
+  // sbrEnabled is sticky (reset each raw_data_block), so for multichannel
+  // need to verify that all SCE/CPE/ICCE have valid SBR fill element following, and must upsample by 2 for LFE
   if (psInfoBase->fillCount > 0) {
     fillExtType = (int)((psInfoBase->fillBuf[0] >> 4) & 0x0f);
     if (fillExtType == EXT_SBR_DATA || fillExtType == EXT_SBR_DATA_CRC)
@@ -9126,7 +9127,8 @@ int cAacDecoder::DecodeSBRBitstream (int chBase) {
  *                or if current block is not a fill block (e.g. for LFE upsampling)
  **************************************************************************************/
 
-  if (currBlockID != AAC_ID_FIL || (fillExtType != EXT_SBR_DATA && fillExtType != EXT_SBR_DATA_CRC))
+  if ((currBlockID != AAC_ID_FIL) ||
+      ((fillExtType != EXT_SBR_DATA) && (fillExtType != EXT_SBR_DATA_CRC)))
     return ERR_AAC_NONE;
 
   BitStreamInfo bsi;
@@ -9135,24 +9137,24 @@ int cAacDecoder::DecodeSBRBitstream (int chBase) {
     return ERR_AAC_SBR_BITSTREAM;
 
   if (fillExtType == EXT_SBR_DATA_CRC)
-    psInfoSBR->crcCheckWord = getBits(&bsi, 10);
+    psInfoSBR->crcCheckWord = getBits (&bsi, 10);
 
-  int headerFlag = getBits(&bsi, 1);
+  int headerFlag = getBits (&bsi, 1);
   if (headerFlag) {
     /* get sample rate index for output sample rate (2x base rate) */
-    psInfoSBR->sampRateIdx = GetSampRateIdx(2 * sampRate);
+    psInfoSBR->sampRateIdx = GetSampRateIdx (2 * sampRate);
     if (psInfoSBR->sampRateIdx < 0 || psInfoSBR->sampRateIdx >= NUM_SAMPLE_RATES)
       return ERR_AAC_SBR_BITSTREAM;
     else if (psInfoSBR->sampRateIdx >= NUM_SAMPLE_RATES_SBR)
       return ERR_AAC_SBR_SINGLERATE_UNSUPPORTED;
 
     /* reset flag = 1 if header values changed */
-    if (UnpackSBRHeader(&bsi, &(psInfoSBR->sbrHdr[chBase])))
+    if (UnpackSBRHeader (&bsi, &(psInfoSBR->sbrHdr[chBase])))
       psInfoSBR->sbrChan[chBase].reset = 1;
 
     /* first valid SBR header should always trigger CalcFreqTables(), since psInfoSBR->reset was set in InitSBR() */
     if (psInfoSBR->sbrChan[chBase].reset)
-      CalcFreqTables(&(psInfoSBR->sbrHdr[chBase+0]), &(psInfoSBR->sbrFreq[chBase]), psInfoSBR->sampRateIdx);
+      CalcFreqTables (&(psInfoSBR->sbrHdr[chBase+0]), &(psInfoSBR->sbrFreq[chBase]), psInfoSBR->sampRateIdx);
 
     /* copy and reset state to right channel for CPE */
     if (prevBlockID == AAC_ID_CPE)
@@ -9164,13 +9166,13 @@ int cAacDecoder::DecodeSBRBitstream (int chBase) {
     return ERR_AAC_NONE;
 
   if (prevBlockID == AAC_ID_SCE)
-    UnpackSBRSingleChannel(&bsi, psInfoSBR, chBase);
+    UnpackSBRSingleChannel (&bsi, psInfoSBR, chBase);
   else if (prevBlockID == AAC_ID_CPE)
-    UnpackSBRChannelPair(&bsi, psInfoSBR, chBase);
+    UnpackSBRChannelPair (&bsi, psInfoSBR, chBase);
   else
     return ERR_AAC_SBR_BITSTREAM;
 
-  byteAlignBitstream(&bsi);
+  byteAlignBitstream (&bsi);
 
   return ERR_AAC_NONE;
   }
@@ -9360,7 +9362,7 @@ int cAacDecoder::flushCodec() {
 //}}}
 
 //{{{
-int cAacDecoder::decode (uint8_t* inbuf, int bytesLeft, float* outbuf) {
+int cAacDecoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf) {
 
   int bitOffset = 0;
   int bitsAvail = bytesLeft << 3;

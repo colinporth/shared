@@ -75,7 +75,7 @@ public:
   ~cAacDecoder();
 
   int getSampleRate();
-  int decode (uint8_t* inbuf, int bytesLeft, float* outbuf);
+  int decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf);
   int flushCodec();
 
 private:

@@ -516,6 +516,7 @@ const L12_subband_alloc_t* L12_subband_alloc_table (const uint8_t* hdr, L12_scal
   return alloc;
   }
 //}}}
+
 //{{{
 void L12_read_scalefactors (cMp3Decoder::sBitStream *bs, uint8_t *pba, uint8_t *scfcod, int bands, float* scf) {
 
@@ -564,6 +565,7 @@ void L12_read_scale_info (const uint8_t* hdr, cMp3Decoder::sBitStream* bs, L12_s
     sci->bitalloc[2*i + 1] = 0;
   }
 //}}}
+
 //{{{
 int L12_dequantize_granule (float* grbuf, cMp3Decoder::sBitStream* bs, L12_scale_info* sci, int group_size) {
 
@@ -802,6 +804,7 @@ float L3_pow_43 (int x) {
   return g_pow43[16 + ((x + sign) >> 6)]*(1.f + frac*((4.f/3) + frac*(2.f/9)))*mult;
   }
 //}}}
+
 //{{{
 void L3_huffman (float *dst, cMp3Decoder::sBitStream *bs, const cMp3Decoder::L3_gr_info_t *gr_info, const float *scf, int layer3gr_limit) {
 
@@ -903,6 +906,7 @@ void L3_huffman (float *dst, cMp3Decoder::sBitStream *bs, const cMp3Decoder::L3_
   bs->pos = layer3gr_limit;
   }
 //}}}
+
 //{{{
 void L3_midside_stereo (float *left, int n) {
 
@@ -1000,6 +1004,7 @@ void L3_intensity_stereo (float *left, uint8_t *ist_pos, const cMp3Decoder::L3_g
   L3_stereo_process(left, ist_pos, gr->sfbtab, hdr, max_band, gr[1].scalefac_compress & 1);
   }
 //}}}
+
 //{{{
 void L3_reorder (float* grbuf, float* scratch, const uint8_t* sfb) {
 
@@ -1044,6 +1049,7 @@ void L3_antialias (float *grbuf, int nbands) {
     }
   }
 //}}}
+
 //{{{
 void L3_dct3_9 (float *y) {
 
@@ -1662,7 +1668,7 @@ int cMp3Decoder::getSampleRate() {
   }
 //}}}
 //{{{
-int cMp3Decoder::decode (uint8_t* inbuf, int bytesLeft, float* outbuf) {
+int cMp3Decoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf) {
 
   int success = 1;
 
