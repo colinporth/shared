@@ -97,7 +97,7 @@ private:
   PSInfoBase* psInfoBase;
   PSInfoSBR* psInfoSBR;
 
-  // raw decoded data, before rounding to 16-bit PCM (for postprocessing such as SBR)
+  // raw decoded data
   void* rawSampleBuf [AAC_MAX_NCHANS];
 
   // fill data (can be used for processing SBR or other extensions)

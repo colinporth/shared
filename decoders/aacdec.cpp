@@ -7496,9 +7496,6 @@ void InitSBRState (PSInfoSBR* psi) {
  * Return:      none
  **************************************************************************************/
 
-  if (!psi)
-    return;
-
   /* clear SBR state structure */
   uint8_t* c = (uint8_t*)psi;
   for (int i = 0; i < (int)sizeof(PSInfoSBR); i++)
@@ -8329,9 +8326,8 @@ int cAacDecoder::Dequantize (int ch) {
   for (gp = 0; gp < icsInfo->numWinGroup; gp++) {
     for (win = 0; win < icsInfo->winGroupLen[gp]; win++) {
       for (sfb = 0; sfb < icsInfo->maxSFB; sfb++) {
-        /* dequantize one scalefactor band (not necessary if codebook is intensity or PNS)
-         * for zero codebook, still run dequantizer in case non-zero pulse data was added
-         */
+        // dequantize one scalefactor band (not necessary if codebook is intensity or PNS)
+        // for zero codebook, still run dequantizer in case non-zero pulse data was added
         cb = (int)(sfbCodeBook[sfb]);
         width = sfbTab[sfb+1] - sfbTab[sfb];
         if (cb >= 0 && cb <= 11)
@@ -8349,7 +8345,7 @@ int cAacDecoder::Dequantize (int ch) {
   }
   pnsUsed |= psInfoBase->pnsUsed[ch];  /* set flag if PNS used for any channel */
 
-  /* calculate number of guard bits in dequantized data */
+  // calculate number of guard bits in dequantized data */
   psInfoBase->gbCurrent[ch] = CLZ (gbMask) - 1;
 
   return ERR_AAC_NONE;
@@ -8921,7 +8917,9 @@ int cAacDecoder::decodeDataStreamElement (BitStreamInfo* bsi) {
  **************************************************************************************/
 
   currInstTag = getBits (bsi, NUM_INST_TAG_BITS);
+
   unsigned int byteAlign = getBits (bsi, 1);
+
   unsigned int dataCount = getBits (bsi, 8);
   if (dataCount == 255)
     dataCount += getBits (bsi, 8);
@@ -9312,9 +9310,8 @@ cAacDecoder::cAacDecoder() {
   psInfoBase = (struct PSInfoBase*)malloc (sizeof(PSInfoBase));
   memset (psInfoBase, 0, sizeof(PSInfoBase));
 
-  PSInfoSBR* psiSbr = (PSInfoSBR*)malloc (sizeof(PSInfoSBR));
-  InitSBRState (psiSbr);
-  psInfoSBR = psiSbr;
+  psInfoSBR = (PSInfoSBR*)malloc (sizeof(PSInfoSBR));
+  InitSBRState (psInfoSBR);
   }
 //}}}
 //{{{
@@ -9356,8 +9353,7 @@ int cAacDecoder::flushCodec() {
   memset (psiInfo->overlap, 0, AAC_MAX_NCHANS * AAC_MAX_NSAMPS * sizeof(int));
   memset (psiInfo->prevWinShape, 0, AAC_MAX_NCHANS * sizeof(int));
 
-  PSInfoSBR* psiSbr = (PSInfoSBR*)(psInfoSBR);
-  InitSBRState (psiSbr);
+  InitSBRState (psInfoSBR);
 
   return ERR_AAC_NONE;
   }
