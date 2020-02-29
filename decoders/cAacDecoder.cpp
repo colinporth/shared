@@ -1,11 +1,7 @@
 // aacdec.c - fixed point aac sbr, based on real networks helix 2005 - single file 10000 lines
 //{{{  includes
-#include <stdlib.h>
-#include <stdint.h>
-#include <string.h>
 #include <algorithm>
-
-#include "aacdec.h"
+#include "cAacDecoder.h"
 #include "../utils/cLog.h"
 //}}}
 

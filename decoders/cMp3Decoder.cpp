@@ -4,7 +4,7 @@
 // See <http://creativecommons.org/publicdomain/zero/1.0/>.
 //}}}
 //{{{  includes
-#include "minimp3.h"
+#include "cMp3decoder.h"
 #include "../utils/cLog.h"
 //}}}
 //{{{  intrinsics
@@ -1648,7 +1648,7 @@ cMp3Decoder::cMp3Decoder() {
   }
 //}}}
 //{{{
-int cMp3Decoder::decode (const uint8_t* mp3, int mp3_bytes, float* samples) {
+int cMp3Decoder::decode (uint8_t* inbuf, int bytesLeft, float* outbuf) {
 
   int success = 1;
   mp3dec_frame_info_t info;
@@ -1657,24 +1657,24 @@ int cMp3Decoder::decode (const uint8_t* mp3, int mp3_bytes, float* samples) {
   int16_t* pcm = samples16;
 
   int frame_size = 0;
-  if ((mp3_bytes > 4) && (header[0] == 0xff) && (hdr_compare (header, mp3))) {
-    frame_size = hdr_frame_bytes (mp3, free_format_bytes) + hdr_padding(mp3);
-    if ((frame_size != mp3_bytes) &&
-        ((frame_size + HDR_SIZE > mp3_bytes) || !hdr_compare (mp3, mp3 + frame_size)))
+  if ((bytesLeft > 4) && (header[0] == 0xff) && (hdr_compare (header, inbuf))) {
+    frame_size = hdr_frame_bytes (inbuf, free_format_bytes) + hdr_padding(inbuf);
+    if ((frame_size != bytesLeft) &&
+        ((frame_size + HDR_SIZE > bytesLeft) || !hdr_compare (inbuf, inbuf + frame_size)))
       frame_size = 0;
     }
 
   int i = 0;
   if (!frame_size) {
     clear();
-    i = mp3d_find_frame (mp3, mp3_bytes, &free_format_bytes, &frame_size);
-    if (!frame_size || i + frame_size > mp3_bytes) {
+    i = mp3d_find_frame (inbuf, bytesLeft, &free_format_bytes, &frame_size);
+    if (!frame_size || i + frame_size > bytesLeft) {
       info.frame_bytes = i;
       return 0;
       }
     }
 
-  const uint8_t* hdr = mp3 + i;
+  const uint8_t* hdr = inbuf + i;
   memcpy (header, hdr, HDR_SIZE);
   info.frame_bytes = i + frame_size;
   info.channels = HDR_IS_MONO (hdr) ? 1 : 2;
@@ -1732,7 +1732,7 @@ int cMp3Decoder::decode (const uint8_t* mp3, int mp3_bytes, float* samples) {
 
   // !!! temporary convert to float !!!
   int16_t* srcPtr = samples16;
-  float* dstPtr = samples;
+  float* dstPtr = outbuf;
   for (int sample = 0; sample < numSamples * 2; sample++)
     *dstPtr++ = *srcPtr++ / (float)0x8000;
 
