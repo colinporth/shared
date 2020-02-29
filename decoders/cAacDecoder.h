@@ -80,6 +80,15 @@ public:
 
 private:
   //{{{  private members
+  int decodeSingleChannelElement (BitStreamInfo* bsi);
+  int decodeChannelPairElement (BitStreamInfo* bsi);
+  int decodeLFEChannelElement (BitStreamInfo* bsi);
+  int decodeDataStreamElement (BitStreamInfo* bsi);
+  int decodeProgramConfigElement (ProgConfigElement* pce, BitStreamInfo* bsi);
+  int decodeFillElement (BitStreamInfo* bsi);
+  int decodeNextElement (uint8_t** buf, int* bitOffset, int* bitsAvail);
+  int DecodeSBRBitstream (int chBase);
+
   int Dequantize (int ch);
   int DeinterleaveShortBlocks (int ch);
   int PNS (int ch);
@@ -90,15 +99,6 @@ private:
   int GetADTSChannelMapping (uint8_t* buf, int bitOffset, int bitsAvail);
   int IMDCT (int ch, int chOut, float* outbuf);
   int DecodeSBRData (int chBase, float* outbuf);
-
-  int decodeSingleChannelElement (BitStreamInfo* bsi);
-  int decodeChannelPairElement (BitStreamInfo* bsi);
-  int decodeLFEChannelElement (BitStreamInfo* bsi);
-  int decodeDataStreamElement (BitStreamInfo* bsi);
-  int decodeProgramConfigElement (ProgConfigElement* pce, BitStreamInfo* bsi);
-  int decodeFillElement (BitStreamInfo* bsi);
-  int decodeNextElement (uint8_t** buf, int* bitOffset, int* bitsAvail);
-  int DecodeSBRBitstream (int chBase);
   //}}}
   //{{{  private vars
   PSInfoBase* psInfoBase;

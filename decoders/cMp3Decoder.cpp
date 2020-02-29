@@ -1,4 +1,4 @@
-//{{{  miniMp3.c - based on https://github.com/lieff/minimp3
+//{{{  cMp3Decoder.cpp - based on https://github.com/lieff/minimp3
 // To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.
 // This software is distributed without any warranty.
 // See <http://creativecommons.org/publicdomain/zero/1.0/>.
@@ -18,11 +18,11 @@
 #define VSUB    _mm_sub_ps
 #define VMUL    _mm_mul_ps
 
-#define VMAC(a, x, y)  _mm_add_ps(a, _mm_mul_ps(x, y))
-#define VMSB(a, x, y)  _mm_sub_ps(a, _mm_mul_ps(x, y))
-#define VMUL_S(x, s)   _mm_mul_ps(x, _mm_set1_ps(s))
+#define VMAC(a, x, y)  _mm_add_ps (a, _mm_mul_ps(x, y))
+#define VMSB(a, x, y)  _mm_sub_ps (a, _mm_mul_ps(x, y))
+#define VMUL_S(x, s)   _mm_mul_ps (x, _mm_set1_ps(s))
 
-#define VREV(x) _mm_shuffle_ps(x, x, _MM_SHUFFLE(0, 1, 2, 3))
+#define VREV(x) _mm_shuffle_ps (x, x, _MM_SHUFFLE(0, 1, 2, 3))
 
 typedef __m128 f4;
 //}}}
@@ -406,7 +406,7 @@ void bs_init (cMp3Decoder::sBitStream* bs, const uint8_t* data, int bytes) {
   }
 //}}}
 //{{{
-uint32_t get_bits (cMp3Decoder::sBitStream* bs, int n) {
+uint32_t getBits (cMp3Decoder::sBitStream* bs, int n) {
 
   uint32_t s = bs->pos & 7;
   int shl = n + s;
@@ -425,6 +425,10 @@ uint32_t get_bits (cMp3Decoder::sBitStream* bs, int n) {
   return cache | (next >> -shl);
   }
 //}}}
+#define PEEK_BITS(n)  (bs_cache >> (32 - n))
+#define FLUSH_BITS(n) { bs_cache <<= (n); bs_sh += (n); }
+#define CHECK_BITS    while (bs_sh >= 0) { bs_cache |= (uint32_t)*bs_next_ptr++ << bs_sh; bs_sh -= 8; }
+#define BSPOS         ((bs_next_ptr - bs->buf)*8 - 24 + bs_sh)
 
 // header utils
 //{{{
@@ -526,7 +530,7 @@ void L12_read_scalefactors (cMp3Decoder::sBitStream *bs, uint8_t *pba, uint8_t *
     int mask = ba ? 4 + ((19 >> scfcod[i]) & 3) : 0;
     for (int m = 4; m; m >>= 1) {
       if (mask & m) {
-        int b = get_bits(bs, 6);
+        int b = getBits (bs, 6);
         s = g_deq_L12[ba*3 - 6 + b % 3]*(1 << 21 >> b/3);
         }
       *scf++ = s;
@@ -549,15 +553,15 @@ void L12_read_scale_info (const uint8_t* hdr, cMp3Decoder::sBitStream* bs, L12_s
       ba_code_tab = g_bitalloc_code_tab + subband_alloc->tab_offset;
       subband_alloc++;
       }
-    uint8_t ba = ba_code_tab[get_bits(bs, ba_bits)];
+    uint8_t ba = ba_code_tab[getBits (bs, ba_bits)];
     sci->bitalloc[2*i] = ba;
     if (i < sci->stereo_bands)
-      ba = ba_code_tab [get_bits (bs, ba_bits)];
+      ba = ba_code_tab [getBits (bs, ba_bits)];
     sci->bitalloc [2*i + 1] = sci->stereo_bands ? ba : 0;
     }
 
   for (int i = 0; i < 2*sci->total_bands; i++)
-    sci->scfcod[i] = sci->bitalloc[i] ? HDR_IS_LAYER_1(hdr) ? 2 : get_bits(bs, 2) : 6;
+    sci->scfcod[i] = sci->bitalloc[i] ? HDR_IS_LAYER_1(hdr) ? 2 : getBits (bs, 2) : 6;
 
   L12_read_scalefactors (bs, sci->bitalloc, sci->scfcod, sci->total_bands*2, sci->scf);
 
@@ -578,11 +582,11 @@ int L12_dequantize_granule (float* grbuf, cMp3Decoder::sBitStream* bs, L12_scale
         if (ba < 17) {
           int half = (1 << (ba - 1)) - 1;
           for (int k = 0; k < group_size; k++)
-            dst[k] = (float)((int)get_bits(bs, ba) - half);
+            dst[k] = (float)((int)getBits (bs, ba) - half);
           }
         else {
           unsigned mod = (2 << (ba - 17)) + 1;    /* 3, 5, 9 */
-          unsigned code = get_bits(bs, mod + 2 - (mod >> 3));  /* 5, 7, 10 */
+          unsigned code = getBits (bs, mod + 2 - (mod >> 3));  /* 5, 7, 10 */
           for (int k = 0; k < group_size; k++, code /= mod)
             dst[k] = (float)((int)(code % mod - mod/2));
           }
@@ -600,6 +604,7 @@ void L12_apply_scf_384 (L12_scale_info* sci, const float* scf, float* dst) {
 
   memcpy (dst + 576 + sci->stereo_bands*18, dst + sci->stereo_bands*18,
           (sci->total_bands - sci->stereo_bands)*18*sizeof(float));
+
   for (int i = 0; i < sci->total_bands; i++, dst += 18, scf += 6) {
     for (int k = 0; k < 12; k++) {
       dst[k + 0]   *= scf[0];
@@ -620,33 +625,33 @@ int L3_read_side_info (cMp3Decoder::sBitStream* bs, cMp3Decoder::L3_gr_info_t* g
 
   if (HDR_TEST_MPEG1(hdr)) {
     gr_count *= 2;
-    main_data_begin = get_bits (bs, 9);
-    scfsi = get_bits (bs, 7 + gr_count);
+    main_data_begin = getBits (bs, 9);
+    scfsi = getBits (bs, 7 + gr_count);
     }
   else
-    main_data_begin = get_bits (bs, 8 + gr_count) >> gr_count;
+    main_data_begin = getBits (bs, 8 + gr_count) >> gr_count;
 
   do {
     if (HDR_IS_MONO (hdr))
       scfsi <<= 4;
 
-    gr->part_23_length = (uint16_t)get_bits (bs, 12);
+    gr->part_23_length = (uint16_t)getBits (bs, 12);
     part_23_sum += gr->part_23_length;
-    gr->big_values = (uint16_t)get_bits (bs,  9);
+    gr->big_values = (uint16_t)getBits (bs,  9);
     if (gr->big_values > 288)
       return -1;
 
-    gr->global_gain = (uint8_t)get_bits (bs, 8);
-    gr->scalefac_compress = (uint16_t)get_bits (bs, HDR_TEST_MPEG1(hdr) ? 4 : 9);
+    gr->global_gain = (uint8_t)getBits (bs, 8);
+    gr->scalefac_compress = (uint16_t)getBits (bs, HDR_TEST_MPEG1(hdr) ? 4 : 9);
     gr->sfbtab = g_scf_long [sr_idx];
     gr->n_long_sfb  = 22;
     gr->n_short_sfb = 0;
 
-    if (get_bits(bs, 1)) {
-      gr->block_type = (uint8_t)get_bits (bs, 2);
+    if (getBits (bs, 1)) {
+      gr->block_type = (uint8_t)getBits (bs, 2);
       if (!gr->block_type)
         return -1;
-      gr->mixed_block_flag = (uint8_t)get_bits (bs, 1);
+      gr->mixed_block_flag = (uint8_t)getBits (bs, 1);
       gr->region_count[0] = 7;
       gr->region_count[1] = 255;
 
@@ -664,27 +669,27 @@ int L3_read_side_info (cMp3Decoder::sBitStream* bs, cMp3Decoder::L3_gr_info_t* g
           gr->n_short_sfb = 30;
           }
         }
-      tables = get_bits(bs, 10);
+      tables = getBits (bs, 10);
       tables <<= 5;
-      gr->subblock_gain[0] = (uint8_t)get_bits (bs, 3);
-      gr->subblock_gain[1] = (uint8_t)get_bits (bs, 3);
-      gr->subblock_gain[2] = (uint8_t)get_bits (bs, 3);
+      gr->subblock_gain[0] = (uint8_t)getBits (bs, 3);
+      gr->subblock_gain[1] = (uint8_t)getBits (bs, 3);
+      gr->subblock_gain[2] = (uint8_t)getBits (bs, 3);
       }
     else {
       gr->block_type = 0;
       gr->mixed_block_flag = 0;
-      tables = get_bits(bs, 15);
-      gr->region_count[0] = (uint8_t)get_bits (bs, 4);
-      gr->region_count[1] = (uint8_t)get_bits (bs, 3);
+      tables = getBits (bs, 15);
+      gr->region_count[0] = (uint8_t)getBits (bs, 4);
+      gr->region_count[1] = (uint8_t)getBits (bs, 3);
       gr->region_count[2] = 255;
       }
 
     gr->table_select[0] = (uint8_t)(tables >> 10);
     gr->table_select[1] = (uint8_t)((tables >> 5) & 31);
     gr->table_select[2] = (uint8_t)((tables) & 31);
-    gr->preflag = HDR_TEST_MPEG1(hdr) ? get_bits (bs, 1) : (gr->scalefac_compress >= 500);
-    gr->scalefac_scale = (uint8_t)get_bits (bs, 1);
-    gr->count1_table = (uint8_t)get_bits (bs, 1);
+    gr->preflag = HDR_TEST_MPEG1(hdr) ? getBits (bs, 1) : (gr->scalefac_compress >= 500);
+    gr->scalefac_scale = (uint8_t)getBits (bs, 1);
+    gr->count1_table = (uint8_t)getBits (bs, 1);
     gr->scfsi = (uint8_t)((scfsi >> 12) & 15);
     scfsi <<= 4;
     gr++;
@@ -712,7 +717,7 @@ void L3_read_scalefactors (uint8_t* scf, uint8_t* ist_pos, const uint8_t* scf_si
       else {
         int max_scf = (scfsi < 0) ? (1 << bits) - 1 : -1;
         for (int k = 0; k < cnt; k++) {
-          int s = get_bits (bitbuf, bits);
+          int s = getBits (bitbuf, bits);
           ist_pos[k] = (s == max_scf ? -1 : s);
           scf[k] = s;
           }
@@ -806,12 +811,7 @@ float L3_pow_43 (int x) {
 //}}}
 
 //{{{
-void L3_huffman (float *dst, cMp3Decoder::sBitStream *bs, const cMp3Decoder::L3_gr_info_t *gr_info, const float *scf, int layer3gr_limit) {
-
-  #define PEEK_BITS(n)  (bs_cache >> (32 - n))
-  #define FLUSH_BITS(n) { bs_cache <<= (n); bs_sh += (n); }
-  #define CHECK_BITS    while (bs_sh >= 0) { bs_cache |= (uint32_t)*bs_next_ptr++ << bs_sh; bs_sh -= 8; }
-  #define BSPOS         ((bs_next_ptr - bs->buf)*8 - 24 + bs_sh)
+void L3_huffman (float* dst, cMp3Decoder::sBitStream* bs, const cMp3Decoder::L3_gr_info_t* gr_info, const float* scf, int layer3gr_limit) {
 
   float one = 0.0f;
   int ireg = 0, big_val_cnt = gr_info->big_values;
@@ -894,9 +894,11 @@ void L3_huffman (float *dst, cMp3Decoder::sBitStream *bs, const cMp3Decoder::L3_
 
     #define RELOAD_SCALEFACTOR  if (!--np) { np = *sfb++/2; if (!np) break; one = *scf++; }
     #define DEQ_COUNT1(s) if (leaf & (128 >> s)) { dst[s] = ((int32_t)bs_cache < 0) ? -one : one; FLUSH_BITS(1) }
+
     RELOAD_SCALEFACTOR;
     DEQ_COUNT1(0);
     DEQ_COUNT1(1);
+
     RELOAD_SCALEFACTOR;
     DEQ_COUNT1(2);
     DEQ_COUNT1(3);
@@ -1464,24 +1466,6 @@ void mp3d_synth (float* xl, int16_t* dstl, int nch, float* lins) {
   mp3d_synth_pair (dstl + 32*nch, nch, lins + 4*15 + 64);
 
   for (i = 14; i >= 0; i--) {
-    #define VLOAD(k) f4 w0 = VSET (*w++); \
-                     f4 w1 = VSET (*w++); \
-                     f4 vz = VLD (&zlin[4*i - 64*k]); \
-                     f4 vy = VLD (&zlin[4*i - 64*(15 - k)]);
-
-    #define V0(k) { VLOAD (k) \
-                    b = VADD (VMUL (vz, w1), VMUL (vy, w0)); \
-                    a = VSUB (VMUL (vz, w0), VMUL (vy, w1)); }
-
-    #define V1(k) { VLOAD (k) \
-                    b = VADD (b, VADD (VMUL (vz, w1), VMUL (vy, w0)));  \
-                    a = VADD (a, VSUB (VMUL (vz, w0), VMUL (vy, w1))); }
-
-    #define V2(k) { VLOAD (k) \
-                    b = VADD (b, VADD (VMUL (vz, w1), VMUL (vy, w0))); \
-                    a = VADD (a, VSUB (VMUL (vy, w1), VMUL (vz, w0))); }
-
-    f4 a, b;
     zlin [4*i]     = xl [18*(31 - i)];
     zlin [4*i + 1] = xr [18*(31 - i)];
     zlin [4*i + 2] = xl [1 + 18*(31 - i)];
@@ -1491,15 +1475,21 @@ void mp3d_synth (float* xl, int16_t* dstl, int nch, float* lins) {
     zlin [4*i - 64 + 2] = xl [18*(1 + i)];
     zlin [4*i - 64 + 3] = xr [18*(1 + i)];
 
-    V0(0)
-    V2(1)
-    V1(2)
-    V2(3)
-    V1(4)
-    V2(5)
-    V1(6)
-    V2(7)
-
+    #define VLOAD(k) f4 w0 = VSET (*w++); \
+                     f4 w1 = VSET (*w++); \
+                     f4 vz = VLD (&zlin[4*i - 64*k]); \
+                     f4 vy = VLD (&zlin[4*i - 64*(15 - k)]);
+    #define V0(k) { VLOAD (k) \
+                    b = VADD (VMUL (vz, w1), VMUL (vy, w0)); \
+                    a = VSUB (VMUL (vz, w0), VMUL (vy, w1)); }
+    #define V1(k) { VLOAD (k) \
+                    b = VADD (b, VADD (VMUL (vz, w1), VMUL (vy, w0)));  \
+                    a = VADD (a, VSUB (VMUL (vz, w0), VMUL (vy, w1))); }
+    #define V2(k) { VLOAD (k) \
+                    b = VADD (b, VADD (VMUL (vz, w1), VMUL (vy, w0))); \
+                    a = VADD (a, VSUB (VMUL (vy, w1), VMUL (vz, w0))); }
+    f4 a, b;
+    V0(0) V2(1) V1(2) V2(3) V1(4) V2(5) V1(6) V2(7)
       {
       __m128i pcm8 = _mm_packs_epi32 (_mm_cvtps_epi32 (_mm_max_ps (_mm_min_ps (a, g_max), g_min)),
                                       _mm_cvtps_epi32 (_mm_max_ps (_mm_min_ps (b, g_max), g_min)));
@@ -1698,6 +1688,7 @@ int cMp3Decoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf
 
   const uint8_t* hdr = inbuf + i;
   memcpy (header, hdr, HDR_SIZE);
+
   info.frame_bytes = i + frame_size;
   info.channels = HDR_IS_MONO (hdr) ? 1 : 2;
   info.hz = hdr_sample_rate_hz (hdr);
@@ -1707,7 +1698,7 @@ int cMp3Decoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf
   sBitStream bs_frame[1];
   bs_init (bs_frame, hdr + HDR_SIZE, frame_size - HDR_SIZE);
   if (HDR_IS_CRC (hdr))
-    get_bits (bs_frame, 16);
+    getBits (bs_frame, 16);
 
   mp3dec_scratch_t scratch;
   if (info.layer == 3) {
