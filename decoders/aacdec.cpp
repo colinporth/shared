@@ -9,6 +9,38 @@
 #include "../utils/cLog.h"
 //}}}
 
+//{{{  error enum
+enum {
+  ERR_AAC_NONE                          =   0,
+  ERR_AAC_INDATA_UNDERFLOW              =  -1,
+  ERR_AAC_NULL_POINTER                  =  -2,
+  ERR_AAC_INVALID_ADTS_HEADER           =  -3,
+  ERR_AAC_INVALID_ADIF_HEADER           =  -4,
+  ERR_AAC_INVALID_FRAME                 =  -5,
+  ERR_AAC_MPEG4_UNSUPPORTED             =  -6,
+  ERR_AAC_CHANNEL_MAP                   =  -7,
+  ERR_AAC_SYNTAX_ELEMENT                =  -8,
+
+  ERR_AAC_DEQUANT                       =  -9,
+  ERR_AAC_STEREO_PROCESS                = -10,
+  ERR_AAC_PNS                           = -11,
+  ERR_AAC_SHORT_BLOCK_DEINT             = -12,
+  ERR_AAC_TNS                           = -13,
+  ERR_AAC_IMDCT                         = -14,
+  ERR_AAC_NCHANS_TOO_HIGH               = -15,
+
+  ERR_AAC_SBR_INIT                      = -16,
+  ERR_AAC_SBR_BITSTREAM                 = -17,
+  ERR_AAC_SBR_DATA                      = -18,
+  ERR_AAC_SBR_PCM_FORMAT                = -19,
+  ERR_AAC_SBR_NCHANS_TOO_HIGH           = -20,
+  ERR_AAC_SBR_SINGLERATE_UNSUPPORTED    = -21,
+
+  ERR_AAC_RAWBLOCK_PARAMS               = -22,
+
+  ERR_AAC_UNKNOWN           = -9999
+  };
+//}}}
 //{{{  defines, types
 //{{{  defines
 /* 12-bit syncword */
@@ -74,6 +106,43 @@
 #define FBITS_OUT_IMDCT       (FBITS_IN_IMDCT - FBITS_LOST_IMDCT)
 
 #define NUM_IMDCT_SIZES       2
+
+// sbr
+#define NUM_TIME_SLOTS      16
+#define SAMPLES_PER_SLOT    2 /* RATE in spec */
+#define NUM_SAMPLE_RATES_SBR  9 /* downsampled (single-rate) mode unsupported, so only use Fs_sbr >= 16 kHz */
+
+#define MAX_NUM_ENV         5
+#define MAX_NUM_NOISE_FLOORS    2
+#define MAX_NUM_NOISE_FLOOR_BANDS 5 /* max Nq, see 4.6.18.3.6 */
+#define MAX_NUM_PATCHES       5
+#define MAX_NUM_SMOOTH_COEFS    5
+
+#define HF_GEN      8
+#define HF_ADJ      2
+
+#define MAX_QMF_BANDS 48    /* max QMF subbands covered by SBR (4.6.18.3.6) */
+
+#define FBITS_IN_QMFA 14
+#define FBITS_LOST_QMFA (1 + 2 + 3 + 2 + 1) /* 1 from cTab, 2 in premul, 3 in FFT, 2 in postmul, 1 for implicit scaling by 2.0 */
+#define FBITS_OUT_QMFA  (FBITS_IN_QMFA - FBITS_LOST_QMFA)
+
+#define MIN_GBITS_IN_QMFS   2
+#define FBITS_IN_QMFS     FBITS_OUT_QMFA
+#define FBITS_LOST_DCT4_64    (2 + 3 + 2)   /* 2 in premul, 3 in FFT, 2 in postmul */
+
+#define FBITS_OUT_DQ_ENV  29  /* dequantized env scalefactors are Q(29 - envDataDequantScale) */
+#define FBITS_OUT_DQ_NOISE  24  /* range of Q_orig = [2^-24, 2^6] */
+#define NOISE_FLOOR_OFFSET  6
+
+/* see comments in ApplyBoost() */
+#define FBITS_GLIM_BOOST  24
+#define FBITS_QLIM_BOOST  14
+
+#define MAX_HUFF_BITS   20
+#define NUM_QMF_DELAY_BUFS  10
+#define DELAY_SAMPS_QMFA  (NUM_QMF_DELAY_BUFS * 32)
+#define DELAY_SAMPS_QMFS  (NUM_QMF_DELAY_BUFS * 128)
 //}}}
 
 //{{{
@@ -98,6 +167,31 @@ enum {
   AAC_ID_END =  7
   };
 //}}}
+//{{{
+enum {
+  SBR_GRID_FIXFIX = 0,
+  SBR_GRID_FIXVAR = 1,
+  SBR_GRID_VARFIX = 2,
+  SBR_GRID_VARVAR = 3
+  };
+//}}}
+//{{{
+enum {
+  HuffTabSBR_tEnv15 =    0,
+  HuffTabSBR_fEnv15 =    1,
+  HuffTabSBR_tEnv15b =   2,
+  HuffTabSBR_fEnv15b =   3,
+  HuffTabSBR_tEnv30 =    4,
+  HuffTabSBR_fEnv30 =    5,
+  HuffTabSBR_tEnv30b =   6,
+  HuffTabSBR_fEnv30b =   7,
+  HuffTabSBR_tNoise30 =  8,
+  HuffTabSBR_fNoise30 =  5,
+  HuffTabSBR_tNoise30b = 9,
+  HuffTabSBR_fNoise30b = 7
+  };
+//}}}
+
 //{{{
 typedef struct _HuffInfo {
   int maxBits;                                                    /* number of bits in longest codeword */
@@ -173,9 +267,102 @@ typedef struct _ADTSHeader {
   int     crcCheckWord;                   /* 16-bit CRC check word (present if protectBit == 0) */
   } ADTSHeader;
 //}}}
+
+//{{{
+/* need one SBRHeader per element (SCE/CPE), updated only on new header */
+typedef struct _SBRHeader {
+  int     count;
+
+  uint8_t ampRes;
+  uint8_t startFreq;
+  uint8_t stopFreq;
+  uint8_t crossOverBand;
+  uint8_t resBitsHdr;
+  uint8_t hdrExtra1;
+  uint8_t hdrExtra2;
+
+  uint8_t freqScale;
+  uint8_t alterScale;
+  uint8_t noiseBands;
+
+  uint8_t limiterBands;
+  uint8_t limiterGains;
+  uint8_t interpFreq;
+  uint8_t smoothMode;
+  } SBRHeader;
+//}}}
+//{{{
+/* need one SBRGrid per channel, updated every frame */
+typedef struct _SBRGrid {
+  uint8_t frameClass;
+  uint8_t ampResFrame;
+  uint8_t pointer;
+
+  uint8_t numEnv;           /* L_E */
+  uint8_t envTimeBorder[MAX_NUM_ENV+1]; /* t_E */
+  uint8_t freqRes[MAX_NUM_ENV];     /* r */
+
+  uint8_t numNoiseFloors;             /* L_Q */
+  uint8_t noiseTimeBorder[MAX_NUM_NOISE_FLOORS+1];  /* t_Q */
+
+  uint8_t numEnvPrev;
+  uint8_t numNoiseFloorsPrev;
+  uint8_t freqResPrev;
+  } SBRGrid;
+//}}}
+//{{{
+/* need one SBRFreq per element (SCE/CPE/LFE), updated only on header reset */
+typedef struct _SBRFreq {
+  int     kStart;       /* k_x */
+  int     nMaster;
+  int     nHigh;
+  int     nLow;
+  int     nLimiter;       /* N_l */
+  int     numQMFBands;      /* M */
+  int     numNoiseFloorBands; /* Nq */
+
+  int     kStartPrev;
+  int     numQMFBandsPrev;
+
+  uint8_t freqMaster [MAX_QMF_BANDS + 1];  /* not necessary to save this  after derived tables are generated */
+  uint8_t freqHigh [MAX_QMF_BANDS + 1];
+  uint8_t freqLow [MAX_QMF_BANDS / 2 + 1]; /* nLow = nHigh - (nHigh >> 1) */
+  uint8_t freqNoise [MAX_NUM_NOISE_FLOOR_BANDS+1];
+  uint8_t freqLimiter [MAX_QMF_BANDS / 2 + MAX_NUM_PATCHES];   /* max (intermediate) size = nLow + numPatches - 1 */
+
+  uint8_t numPatches;
+  uint8_t patchNumSubbands [MAX_NUM_PATCHES + 1];
+  uint8_t patchStartSubband [MAX_NUM_PATCHES + 1];
+  } SBRFreq;
+//}}}
+//{{{
+typedef struct _SBRChan {
+  int     reset;
+  uint8_t deltaFlagEnv [MAX_NUM_ENV];
+  uint8_t deltaFlagNoise [MAX_NUM_NOISE_FLOORS];
+
+  int8_t  envDataQuant [MAX_NUM_ENV][MAX_QMF_BANDS];   /* range = [0, 127] */
+  int8_t  noiseDataQuant [MAX_NUM_NOISE_FLOORS][MAX_NUM_NOISE_FLOOR_BANDS];
+
+  uint8_t invfMode [2][MAX_NUM_NOISE_FLOOR_BANDS]; /* invfMode[0/1][band] = prev/curr */
+  int     chirpFact [MAX_NUM_NOISE_FLOOR_BANDS];   /* bwArray */
+  uint8_t addHarmonicFlag [2];           /* addHarmonicFlag[0/1] = prev/curr */
+  uint8_t addHarmonic [2][64];           /* addHarmonic[0/1][band] = prev/curr */
+
+  int     gbMask[2];  /* gbMask[0/1] = XBuf[0-31]/XBuf[32-39] */
+  int8_t  laPrev;
+
+  int     noiseTabIndex;
+  int     sinIndex;
+  int     gainNoiseIndex;
+  int     gTemp [MAX_NUM_SMOOTH_COEFS][MAX_QMF_BANDS];
+  int     qTemp [MAX_NUM_SMOOTH_COEFS][MAX_QMF_BANDS];
+  } SBRChan;
+//}}}
+
 //{{{
 /* state info struct for baseline (MPEG-4 LC) decoding */
-typedef struct _PSInfoBase {
+struct PSInfoBase {
   /* header information */
   ADTSHeader      fhADTS;
   cAacDecoder::ProgConfigElement pce [MAX_NUM_PCE_ADIF];
@@ -220,222 +407,68 @@ typedef struct _PSInfoBase {
   int             prevWinShape [AAC_MAX_NCHANS];
   } PSInfoBase;
 //}}}
-
-//{{{  defines
-#define NUM_TIME_SLOTS      16
-#define SAMPLES_PER_SLOT    2 /* RATE in spec */
-#define NUM_SAMPLE_RATES_SBR  9 /* downsampled (single-rate) mode unsupported, so only use Fs_sbr >= 16 kHz */
-
-#define MAX_NUM_ENV         5
-#define MAX_NUM_NOISE_FLOORS    2
-#define MAX_NUM_NOISE_FLOOR_BANDS 5 /* max Nq, see 4.6.18.3.6 */
-#define MAX_NUM_PATCHES       5
-#define MAX_NUM_SMOOTH_COEFS    5
-
-#define HF_GEN      8
-#define HF_ADJ      2
-
-#define MAX_QMF_BANDS 48    /* max QMF subbands covered by SBR (4.6.18.3.6) */
-
-#define FBITS_IN_QMFA 14
-#define FBITS_LOST_QMFA (1 + 2 + 3 + 2 + 1) /* 1 from cTab, 2 in premul, 3 in FFT, 2 in postmul, 1 for implicit scaling by 2.0 */
-#define FBITS_OUT_QMFA  (FBITS_IN_QMFA - FBITS_LOST_QMFA)
-
-#define MIN_GBITS_IN_QMFS   2
-#define FBITS_IN_QMFS     FBITS_OUT_QMFA
-#define FBITS_LOST_DCT4_64    (2 + 3 + 2)   /* 2 in premul, 3 in FFT, 2 in postmul */
-
-#define FBITS_OUT_DQ_ENV  29  /* dequantized env scalefactors are Q(29 - envDataDequantScale) */
-#define FBITS_OUT_DQ_NOISE  24  /* range of Q_orig = [2^-24, 2^6] */
-#define NOISE_FLOOR_OFFSET  6
-
-/* see comments in ApplyBoost() */
-#define FBITS_GLIM_BOOST  24
-#define FBITS_QLIM_BOOST  14
-
-#define MAX_HUFF_BITS   20
-#define NUM_QMF_DELAY_BUFS  10
-#define DELAY_SAMPS_QMFA  (NUM_QMF_DELAY_BUFS * 32)
-#define DELAY_SAMPS_QMFS  (NUM_QMF_DELAY_BUFS * 128)
-//}}}
 //{{{
-enum {
-  SBR_GRID_FIXFIX = 0,
-  SBR_GRID_FIXVAR = 1,
-  SBR_GRID_VARFIX = 2,
-  SBR_GRID_VARVAR = 3
-  };
-//}}}
-//{{{
-enum {
-  HuffTabSBR_tEnv15 =    0,
-  HuffTabSBR_fEnv15 =    1,
-  HuffTabSBR_tEnv15b =   2,
-  HuffTabSBR_fEnv15b =   3,
-  HuffTabSBR_tEnv30 =    4,
-  HuffTabSBR_fEnv30 =    5,
-  HuffTabSBR_tEnv30b =   6,
-  HuffTabSBR_fEnv30b =   7,
-  HuffTabSBR_tNoise30 =  8,
-  HuffTabSBR_fNoise30 =  5,
-  HuffTabSBR_tNoise30b = 9,
-  HuffTabSBR_fNoise30b = 7
-  };
-//}}}
-//{{{
-/* need one SBRHeader per element (SCE/CPE), updated only on new header */
-typedef struct _SBRHeader {
-  int           count;
-
-  uint8_t ampRes;
-  uint8_t startFreq;
-  uint8_t stopFreq;
-  uint8_t crossOverBand;
-  uint8_t resBitsHdr;
-  uint8_t hdrExtra1;
-  uint8_t hdrExtra2;
-
-  uint8_t freqScale;
-  uint8_t alterScale;
-  uint8_t noiseBands;
-
-  uint8_t limiterBands;
-  uint8_t limiterGains;
-  uint8_t interpFreq;
-  uint8_t smoothMode;
-  } SBRHeader;
-//}}}
-//{{{
-/* need one SBRGrid per channel, updated every frame */
-typedef struct _SBRGrid {
-  uint8_t frameClass;
-  uint8_t ampResFrame;
-  uint8_t pointer;
-
-  uint8_t numEnv;           /* L_E */
-  uint8_t envTimeBorder[MAX_NUM_ENV+1]; /* t_E */
-  uint8_t freqRes[MAX_NUM_ENV];     /* r */
-
-  uint8_t numNoiseFloors;             /* L_Q */
-  uint8_t noiseTimeBorder[MAX_NUM_NOISE_FLOORS+1];  /* t_Q */
-
-  uint8_t numEnvPrev;
-  uint8_t numNoiseFloorsPrev;
-  uint8_t freqResPrev;
-  } SBRGrid;
-//}}}
-//{{{
-/* need one SBRFreq per element (SCE/CPE/LFE), updated only on header reset */
-typedef struct _SBRFreq {
-  int           kStart;       /* k_x */
-  int           nMaster;
-  int           nHigh;
-  int           nLow;
-  int           nLimiter;       /* N_l */
-  int           numQMFBands;      /* M */
-  int           numNoiseFloorBands; /* Nq */
-
-  int           kStartPrev;
-  int           numQMFBandsPrev;
-
-  uint8_t freqMaster[MAX_QMF_BANDS + 1];  /* not necessary to save this  after derived tables are generated */
-  uint8_t freqHigh[MAX_QMF_BANDS + 1];
-  uint8_t freqLow[MAX_QMF_BANDS / 2 + 1]; /* nLow = nHigh - (nHigh >> 1) */
-  uint8_t freqNoise[MAX_NUM_NOISE_FLOOR_BANDS+1];
-  uint8_t freqLimiter[MAX_QMF_BANDS / 2 + MAX_NUM_PATCHES];   /* max (intermediate) size = nLow + numPatches - 1 */
-
-  uint8_t numPatches;
-  uint8_t patchNumSubbands[MAX_NUM_PATCHES + 1];
-  uint8_t patchStartSubband[MAX_NUM_PATCHES + 1];
-  } SBRFreq;
-//}}}
-//{{{
-typedef struct _SBRChan {
-  int           reset;
-  uint8_t deltaFlagEnv[MAX_NUM_ENV];
-  uint8_t deltaFlagNoise[MAX_NUM_NOISE_FLOORS];
-
-  int8_t   envDataQuant[MAX_NUM_ENV][MAX_QMF_BANDS];   /* range = [0, 127] */
-  int8_t   noiseDataQuant[MAX_NUM_NOISE_FLOORS][MAX_NUM_NOISE_FLOOR_BANDS];
-
-  uint8_t invfMode[2][MAX_NUM_NOISE_FLOOR_BANDS]; /* invfMode[0/1][band] = prev/curr */
-  int           chirpFact[MAX_NUM_NOISE_FLOOR_BANDS];   /* bwArray */
-  uint8_t addHarmonicFlag[2];           /* addHarmonicFlag[0/1] = prev/curr */
-  uint8_t addHarmonic[2][64];           /* addHarmonic[0/1][band] = prev/curr */
-
-  int           gbMask[2];  /* gbMask[0/1] = XBuf[0-31]/XBuf[32-39] */
-  int8_t   laPrev;
-
-  int           noiseTabIndex;
-  int           sinIndex;
-  int           gainNoiseIndex;
-  int           gTemp[MAX_NUM_SMOOTH_COEFS][MAX_QMF_BANDS];
-  int           qTemp[MAX_NUM_SMOOTH_COEFS][MAX_QMF_BANDS];
-  } SBRChan;
-//}}}
-//{{{
-typedef struct _PSInfoSBR {
-  /* save for entire file */
-  int           sampRateIdx;
+struct PSInfoSBR {
+  int     sampRateIdx;
 
   /* state info that must be saved for each channel */
-  SBRHeader     sbrHdr[AAC_MAX_NCHANS];
-  SBRGrid       sbrGrid[AAC_MAX_NCHANS];
-  SBRFreq       sbrFreq[AAC_MAX_NCHANS];
-  SBRChan       sbrChan[AAC_MAX_NCHANS];
+  SBRHeader sbrHdr [AAC_MAX_NCHANS];
+  SBRGrid sbrGrid [AAC_MAX_NCHANS];
+  SBRFreq sbrFreq [AAC_MAX_NCHANS];
+  SBRChan sbrChan [AAC_MAX_NCHANS];
 
   /* temp variables, no need to save between blocks */
   uint8_t dataExtra;
   uint8_t resBitsData;
   uint8_t extendedDataPresent;
-  int           extendedDataSize;
+  int     extendedDataSize;
 
-  int8_t   envDataDequantScale[MAX_NCHANS_ELEM][MAX_NUM_ENV];
-  int           envDataDequant[MAX_NCHANS_ELEM][MAX_NUM_ENV][MAX_QMF_BANDS];
-  int           noiseDataDequant[MAX_NCHANS_ELEM][MAX_NUM_NOISE_FLOORS][MAX_NUM_NOISE_FLOOR_BANDS];
+  int8_t  envDataDequantScale [MAX_NCHANS_ELEM][MAX_NUM_ENV];
+  int     envDataDequant [MAX_NCHANS_ELEM][MAX_NUM_ENV][MAX_QMF_BANDS];
+  int     noiseDataDequant [MAX_NCHANS_ELEM][MAX_NUM_NOISE_FLOORS][MAX_NUM_NOISE_FLOOR_BANDS];
 
-  int           eCurr[MAX_QMF_BANDS];
-  uint8_t eCurrExp[MAX_QMF_BANDS];
+  int     eCurr [MAX_QMF_BANDS];
+  uint8_t eCurrExp [MAX_QMF_BANDS];
   uint8_t eCurrExpMax;
-  int8_t   la;
+  int8_t  la;
 
-  int           crcCheckWord;
-  int           couplingFlag;
-  int           envBand;
-  int           eOMGainMax;
-  int           gainMax;
-  int           gainMaxFBits;
-  int           noiseFloorBand;
-  int           qp1Inv;
-  int           qqp1Inv;
-  int           sMapped;
-  int           sBand;
-  int           highBand;
+  int     crcCheckWord;
+  int     couplingFlag;
+  int     envBand;
+  int     eOMGainMax;
+  int     gainMax;
+  int     gainMaxFBits;
+  int     noiseFloorBand;
+  int     qp1Inv;
+  int     qqp1Inv;
+  int     sMapped;
+  int     sBand;
+  int     highBand;
 
-  int           sumEOrigMapped;
-  int           sumECurrGLim;
-  int           sumSM;
-  int           sumQM;
-  int           gLimBoost [MAX_QMF_BANDS];
-  int           qmLimBoost [MAX_QMF_BANDS];
-  int           smBoost [MAX_QMF_BANDS];
+  int     sumEOrigMapped;
+  int     sumECurrGLim;
+  int     sumSM;
+  int     sumQM;
+  int     gLimBoost [MAX_QMF_BANDS];
+  int     qmLimBoost [MAX_QMF_BANDS];
+  int     smBoost [MAX_QMF_BANDS];
 
-  int           smBuf [MAX_QMF_BANDS];
-  int           qmLimBuf [MAX_QMF_BANDS];
-  int           gLimBuf [MAX_QMF_BANDS];
-  int           gLimFbits [MAX_QMF_BANDS];
+  int     smBuf [MAX_QMF_BANDS];
+  int     qmLimBuf [MAX_QMF_BANDS];
+  int     gLimBuf [MAX_QMF_BANDS];
+  int     gLimFbits [MAX_QMF_BANDS];
 
-  int           gFiltLast [MAX_QMF_BANDS];
-  int           qFiltLast [MAX_QMF_BANDS];
+  int     gFiltLast [MAX_QMF_BANDS];
+  int     qFiltLast [MAX_QMF_BANDS];
 
   /* large buffers */
-  int           delayIdxQMFA [AAC_MAX_NCHANS];
-  int           delayQMFA [AAC_MAX_NCHANS][DELAY_SAMPS_QMFA];
-  int           delayIdxQMFS [AAC_MAX_NCHANS];
-  int           delayQMFS [AAC_MAX_NCHANS][DELAY_SAMPS_QMFS];
-  int           XBufDelay [AAC_MAX_NCHANS][HF_GEN][64][2];
-  int           XBuf [32+8][64][2];
-  } PSInfoSBR;
+  int     delayIdxQMFA [AAC_MAX_NCHANS];
+  int     delayQMFA [AAC_MAX_NCHANS][DELAY_SAMPS_QMFA];
+  int     delayIdxQMFS [AAC_MAX_NCHANS];
+  int     delayQMFS [AAC_MAX_NCHANS][DELAY_SAMPS_QMFS];
+  int     XBufDelay [AAC_MAX_NCHANS][HF_GEN][64][2];
+  int     XBuf [32+8][64][2];
+  };
 //}}}
 //}}}
 //{{{  speedup
@@ -2533,7 +2566,7 @@ void UnpackPairsEsc (cAacDecoder::BitStreamInfo* bsi, int cb, int nVals, int* co
  *              fills coefficient buffer with zeros in any region not coded with
  *                codebook in range [1, 11] (including sfb's above sfbMax)
  **************************************************************************************/
-void DecodeSpectrumLong (PSInfoBase* psi, cAacDecoder::BitStreamInfo* bsi, int ch)
+void DecodeSpectrumLong (struct PSInfoBase* psi, cAacDecoder::BitStreamInfo* bsi, int ch)
 {
   int i, sfb, cb, nVals, offset;
   const short* sfbTab;
@@ -2604,7 +2637,7 @@ void DecodeSpectrumLong (PSInfoBase* psi, cAacDecoder::BitStreamInfo* bsi, int c
  *                codebook in range [1, 11] (including sfb's above sfbMax)
  *              deinterleaves window groups into 8 windows
  **************************************************************************************/
-void DecodeSpectrumShort (PSInfoBase* psi, cAacDecoder::BitStreamInfo* bsi, int ch)
+void DecodeSpectrumShort (struct PSInfoBase* psi, cAacDecoder::BitStreamInfo* bsi, int ch)
 {
   int gp, cb, nVals=0, win, offset, sfb;
   const short* sfbTab;
@@ -4526,7 +4559,7 @@ void DecodeGainControlInfo (cAacDecoder::BitStreamInfo* bsi, int winSequence, Ga
 }
 //}}}
 //{{{
-void DecodeICS (PSInfoBase* psi, cAacDecoder::BitStreamInfo* bsi, int ch) {
+void DecodeICS (struct PSInfoBase* psi, cAacDecoder::BitStreamInfo* bsi, int ch) {
 /**************************************************************************************
  * Description: decode individual channel stream
  * Inputs:      platform specific info struct
@@ -8259,6 +8292,7 @@ void QMFSynthesis (int* inbuf, int* delay, int* delayIdx, int qmfsBands, float* 
 
 // private members
 //{{{
+int cAacDecoder::Dequantize (int ch) {
 /**************************************************************************************
  * Function:    Dequantize
  * Description: dequantize all transform coefficients for one channel
@@ -8268,32 +8302,29 @@ void QMFSynthesis (int* inbuf, int* delay, int* delayIdx, int qmfsBands, float* 
  *              minimum guard bit count for dequantized coefficients
  * Return:      0 if successful, error code (< 0) if error
  **************************************************************************************/
-int cAacDecoder::Dequantize (int ch) {
 
   int gp, cb, sfb, win, width, nSamps, gbMask;
-  int *coef;
+  int* coef;
   const short* sfbTab;
-  uint8_t *sfbCodeBook;
-  short *scaleFactors;
-  PSInfoBase *psi;
-  ICSInfo *icsInfo;
+  uint8_t* sfbCodeBook;
+  short* scaleFactors;
+  ICSInfo* icsInfo;
 
-  psi = (PSInfoBase*)(psInfoBase);
-  icsInfo = (ch == 1 && psi->commonWin == 1) ? &(psi->icsInfo[0]) : &(psi->icsInfo[ch]);
+  icsInfo = (ch == 1 && psInfoBase->commonWin == 1) ? &(psInfoBase->icsInfo[0]) : &(psInfoBase->icsInfo[ch]);
 
   if (icsInfo->winSequence == 2) {
-    sfbTab = sfBandTabShort + sfBandTabShortOffset[psi->sampRateIdx];
+    sfbTab = sfBandTabShort + sfBandTabShortOffset[psInfoBase->sampRateIdx];
     nSamps = NSAMPS_SHORT;
   } else {
-    sfbTab = sfBandTabLong + sfBandTabLongOffset[psi->sampRateIdx];
+    sfbTab = sfBandTabLong + sfBandTabLongOffset[psInfoBase->sampRateIdx];
     nSamps = NSAMPS_LONG;
   }
-  coef = psi->coef[ch];
-  sfbCodeBook = psi->sfbCodeBook[ch];
-  scaleFactors = psi->scaleFactors[ch];
+  coef = psInfoBase->coef[ch];
+  sfbCodeBook = psInfoBase->sfbCodeBook[ch];
+  scaleFactors = psInfoBase->scaleFactors[ch];
 
-  psi->intensityUsed[ch] = 0;
-  psi->pnsUsed[ch] = 0;
+  psInfoBase->intensityUsed[ch] = 0;
+  psInfoBase->pnsUsed[ch] = 0;
   gbMask = 0;
   for (gp = 0; gp < icsInfo->numWinGroup; gp++) {
     for (win = 0; win < icsInfo->winGroupLen[gp]; win++) {
@@ -8306,9 +8337,9 @@ int cAacDecoder::Dequantize (int ch) {
         if (cb >= 0 && cb <= 11)
           gbMask |= DequantBlock(coef, width, scaleFactors[sfb]);
         else if (cb == 13)
-          psi->pnsUsed[ch] = 1;
+          psInfoBase->pnsUsed[ch] = 1;
         else if (cb == 14 || cb == 15)
-          psi->intensityUsed[ch] = 1; /* should only happen if ch == 1 */
+          psInfoBase->intensityUsed[ch] = 1; /* should only happen if ch == 1 */
         coef += width;
       }
       coef += (nSamps - sfbTab[icsInfo->maxSFB]);
@@ -8316,41 +8347,37 @@ int cAacDecoder::Dequantize (int ch) {
     sfbCodeBook += icsInfo->maxSFB;
     scaleFactors += icsInfo->maxSFB;
   }
-  pnsUsed |= psi->pnsUsed[ch];  /* set flag if PNS used for any channel */
+  pnsUsed |= psInfoBase->pnsUsed[ch];  /* set flag if PNS used for any channel */
 
   /* calculate number of guard bits in dequantized data */
-  psi->gbCurrent[ch] = CLZ (gbMask) - 1;
+  psInfoBase->gbCurrent[ch] = CLZ (gbMask) - 1;
 
   return ERR_AAC_NONE;
 }
 //}}}
 //{{{
+int cAacDecoder::DeinterleaveShortBlocks (int ch) {
 /**************************************************************************************
- * Function:    DeinterleaveShortBlocks
  * Description: deinterleave transform coefficients in short blocks for one channel
  * Inputs:      index of current channel
  * Outputs:     deinterleaved coefficients (window groups into 8 separate windows)
  * Return:      0 if successful, error code (< 0) if error
  * Notes:       only necessary if deinterleaving not part of Huffman decoding
  **************************************************************************************/
-int cAacDecoder::DeinterleaveShortBlocks (int ch) {
 
-  (void)ch;
-  /* not used for this implementation - short block deinterleaving performed during Huffman decoding */
   return ERR_AAC_NONE;
   }
 //}}}
 //{{{
+int cAacDecoder::PNS (int ch) {
 /**************************************************************************************
- * Function:    PNS
  * Description: apply perceptual noise substitution, if enabled (MPEG-4 only)
  * Inputs:      index of current channel
  * Outputs:     shaped noise in scalefactor bands where PNS is active
  *              updated minimum guard bit count for this channel
  * Return:      0 if successful, -1 if error
  **************************************************************************************/
-int cAacDecoder::PNS (int ch)
-{
+
   int gp, sfb, win, width, nSamps, gb, gbMask;
   int *coef;
   const short* sfbTab;
@@ -8359,31 +8386,29 @@ int cAacDecoder::PNS (int ch)
   int msMaskOffset, checkCorr, genNew;
   uint8_t msMask;
   uint8_t *msMaskPtr;
-  PSInfoBase *psi;
   ICSInfo *icsInfo;
 
-  psi = (PSInfoBase *)(psInfoBase);
-  icsInfo = (ch == 1 && psi->commonWin == 1) ? &(psi->icsInfo[0]) : &(psi->icsInfo[ch]);
+  icsInfo = (ch == 1 && psInfoBase->commonWin == 1) ? &(psInfoBase->icsInfo[0]) : &(psInfoBase->icsInfo[ch]);
 
-  if (!psi->pnsUsed[ch])
+  if (!psInfoBase->pnsUsed[ch])
     return 0;
 
   if (icsInfo->winSequence == 2) {
-    sfbTab = sfBandTabShort + sfBandTabShortOffset[psi->sampRateIdx];
+    sfbTab = sfBandTabShort + sfBandTabShortOffset[psInfoBase->sampRateIdx];
     nSamps = NSAMPS_SHORT;
   } else {
-    sfbTab = sfBandTabLong + sfBandTabLongOffset[psi->sampRateIdx];
+    sfbTab = sfBandTabLong + sfBandTabLongOffset[psInfoBase->sampRateIdx];
     nSamps = NSAMPS_LONG;
   }
-  coef = psi->coef[ch];
-  sfbCodeBook = psi->sfbCodeBook[ch];
-  scaleFactors = psi->scaleFactors[ch];
-  checkCorr = (currBlockID == AAC_ID_CPE && psi->commonWin == 1 ? 1 : 0);
+  coef = psInfoBase->coef[ch];
+  sfbCodeBook = psInfoBase->sfbCodeBook[ch];
+  scaleFactors = psInfoBase->scaleFactors[ch];
+  checkCorr = (currBlockID == AAC_ID_CPE && psInfoBase->commonWin == 1 ? 1 : 0);
 
   gbMask = 0;
   for (gp = 0; gp < icsInfo->numWinGroup; gp++) {
     for (win = 0; win < icsInfo->winGroupLen[gp]; win++) {
-      msMaskPtr = psi->msMaskBits + ((gp*icsInfo->maxSFB) >> 3);
+      msMaskPtr = psInfoBase->msMaskBits + ((gp*icsInfo->maxSFB) >> 3);
       msMaskOffset = ((gp*icsInfo->maxSFB) & 0x07);
       msMask = (*msMaskPtr++) >> msMaskOffset;
 
@@ -8395,20 +8420,20 @@ int cAacDecoder::PNS (int ch)
              * if ch 1 has PNS enabled for this SFB but it's uncorrelated (i.e. ms_used == 0),
              *    the copied values will be overwritten when we process ch 1
              */
-            GenerateNoiseVector(coef, &psi->pnsLastVal, width);
-            if (checkCorr && psi->sfbCodeBook[1][gp*icsInfo->maxSFB + sfb] == 13)
-              CopyNoiseVector(coef, psi->coef[1] + (coef - psi->coef[0]), width);
+            GenerateNoiseVector(coef, &psInfoBase->pnsLastVal, width);
+            if (checkCorr && psInfoBase->sfbCodeBook[1][gp*icsInfo->maxSFB + sfb] == 13)
+              CopyNoiseVector(coef, psInfoBase->coef[1] + (coef - psInfoBase->coef[0]), width);
           } else {
             /* generate new vector if no correlation between channels */
             genNew = 1;
-            if (checkCorr && psi->sfbCodeBook[0][gp*icsInfo->maxSFB + sfb] == 13) {
-              if ( (psi->msMaskPresent == 1 && (msMask & 0x01)) || psi->msMaskPresent == 2 )
+            if (checkCorr && psInfoBase->sfbCodeBook[0][gp*icsInfo->maxSFB + sfb] == 13) {
+              if ( (psInfoBase->msMaskPresent == 1 && (msMask & 0x01)) || psInfoBase->msMaskPresent == 2 )
                 genNew = 0;
             }
             if (genNew)
-              GenerateNoiseVector(coef, &psi->pnsLastVal, width);
+              GenerateNoiseVector(coef, &psInfoBase->pnsLastVal, width);
           }
-          gbMask |= ScaleNoiseVector(coef, width, psi->scaleFactors[ch][gp*icsInfo->maxSFB + sfb]);
+          gbMask |= ScaleNoiseVector(coef, width, psInfoBase->scaleFactors[ch][gp*icsInfo->maxSFB + sfb]);
         }
         coef += width;
 
@@ -8427,8 +8452,8 @@ int cAacDecoder::PNS (int ch)
 
   /* update guard bit count if necessary */
   gb = CLZ (gbMask) - 1;
-  if (psi->gbCurrent[ch] > gb)
-    psi->gbCurrent[ch] = gb;
+  if (psInfoBase->gbCurrent[ch] > gb)
+    psInfoBase->gbCurrent[ch] = gb;
 
   return 0;
 }
@@ -8451,9 +8476,8 @@ int cAacDecoder::TNSFilter (int ch) {
   const unsigned /*char*/ int *tnsMaxBandTab;
   const short* sfbTab;
 
-  PSInfoBase* psi = (PSInfoBase *)(psInfoBase);
-  ICSInfo* icsInfo = (ch == 1 && psi->commonWin == 1) ? &(psi->icsInfo[0]) : &(psi->icsInfo[ch]);
-  TNSInfo* ti = &psi->tnsInfo[ch];
+  ICSInfo* icsInfo = (ch == 1 && psInfoBase->commonWin == 1) ? &(psInfoBase->icsInfo[0]) : &(psInfoBase->icsInfo[ch]);
+  TNSInfo* ti = &psInfoBase->tnsInfo[ch];
 
   if (!ti->tnsDataPresent)
     return 0;
@@ -8461,20 +8485,20 @@ int cAacDecoder::TNSFilter (int ch) {
   if (icsInfo->winSequence == 2) {
     nWindows = NWINDOWS_SHORT;
     winLen = NSAMPS_SHORT;
-    nSFB = sfBandTotalShort[psi->sampRateIdx];
+    nSFB = sfBandTotalShort[psInfoBase->sampRateIdx];
     maxOrder = tnsMaxOrderShort[profile];
-    sfbTab = sfBandTabShort + sfBandTabShortOffset[psi->sampRateIdx];
+    sfbTab = sfBandTabShort + sfBandTabShortOffset[psInfoBase->sampRateIdx];
     tnsMaxBandTab = tnsMaxBandsShort + tnsMaxBandsShortOffset[profile];
-    tnsMaxBand = tnsMaxBandTab[psi->sampRateIdx];
+    tnsMaxBand = tnsMaxBandTab[psInfoBase->sampRateIdx];
     }
   else {
     nWindows = NWINDOWS_LONG;
     winLen = NSAMPS_LONG;
-    nSFB = sfBandTotalLong[psi->sampRateIdx];
+    nSFB = sfBandTotalLong[psInfoBase->sampRateIdx];
     maxOrder = tnsMaxOrderLong[profile];
-    sfbTab = sfBandTabLong + sfBandTabLongOffset[psi->sampRateIdx];
+    sfbTab = sfBandTabLong + sfBandTabLongOffset[psInfoBase->sampRateIdx];
     tnsMaxBandTab = tnsMaxBandsLong + tnsMaxBandsLongOffset[profile];
-    tnsMaxBand = tnsMaxBandTab[psi->sampRateIdx];
+    tnsMaxBand = tnsMaxBandTab[psInfoBase->sampRateIdx];
     }
 
   if (tnsMaxBand > icsInfo->maxSFB)
@@ -8487,7 +8511,7 @@ int cAacDecoder::TNSFilter (int ch) {
   filtCoef =   ti->coef;
 
   gbMask = 0;
-  audioCoef =  psi->coef[ch];
+  audioCoef =  psInfoBase->coef[ch];
   for (win = 0; win < nWindows; win++) {
     bottom = nSFB;
     numFilt = ti->numFilt[win];
@@ -8507,8 +8531,8 @@ int cAacDecoder::TNSFilter (int ch) {
           if (dir)
             start = end - 1;
 
-          DecodeLPCCoefs(order, filtRes[win], filtCoef, psi->tnsLPCBuf, psi->tnsWorkBuf);
-          gbMask |= FilterRegion(size, dir, order, audioCoef + start, psi->tnsLPCBuf, psi->tnsWorkBuf);
+          DecodeLPCCoefs(order, filtRes[win], filtCoef, psInfoBase->tnsLPCBuf, psInfoBase->tnsWorkBuf);
+          gbMask |= FilterRegion(size, dir, order, audioCoef + start, psInfoBase->tnsLPCBuf, psInfoBase->tnsWorkBuf);
           }
         filtCoef += order;
         }
@@ -8518,21 +8542,20 @@ int cAacDecoder::TNSFilter (int ch) {
 
   /* update guard bit count if necessary */
   size = CLZ (gbMask) - 1;
-  if (psi->gbCurrent[ch] > size)
-    psi->gbCurrent[ch] = size;
+  if (psInfoBase->gbCurrent[ch] > size)
+    psInfoBase->gbCurrent[ch] = size;
 
   return 0;
   }
 //}}}
 //{{{
+int cAacDecoder::StereoProcess() {
 /**************************************************************************************
- * Function:    StereoProcess
  * Description: apply mid-side and intensity stereo, if enabled
  * Outputs:     updated transform coefficients in Q(FBITS_OUT_DQ_OFF)
  *              updated minimum guard bit count for both channels
  * Return:      0 if successful, -1 if error
  **************************************************************************************/
-int cAacDecoder::StereoProcess() {
 
   ICSInfo* icsInfo;
   int gp, win, nSamps, msMaskOffset;
@@ -8541,33 +8564,32 @@ int cAacDecoder::StereoProcess() {
   const short* sfbTab;
 
   /* mid-side and intensity stereo require common_window == 1 (see MPEG4 spec, Correction 2, 2004) */
-  PSInfoBase* psi = (PSInfoBase *)(psInfoBase);
-  if (psi->commonWin != 1 || currBlockID != AAC_ID_CPE)
+  if (psInfoBase->commonWin != 1 || currBlockID != AAC_ID_CPE)
     return 0;
 
   /* nothing to do */
-  if (!psi->msMaskPresent && !psi->intensityUsed[1])
+  if (!psInfoBase->msMaskPresent && !psInfoBase->intensityUsed[1])
     return 0;
 
-  icsInfo = &(psi->icsInfo[0]);
+  icsInfo = &(psInfoBase->icsInfo[0]);
   if (icsInfo->winSequence == 2) {
-    sfbTab = sfBandTabShort + sfBandTabShortOffset[psi->sampRateIdx];
+    sfbTab = sfBandTabShort + sfBandTabShortOffset[psInfoBase->sampRateIdx];
     nSamps = NSAMPS_SHORT;
   } else {
-    sfbTab = sfBandTabLong + sfBandTabLongOffset[psi->sampRateIdx];
+    sfbTab = sfBandTabLong + sfBandTabLongOffset[psInfoBase->sampRateIdx];
     nSamps = NSAMPS_LONG;
   }
-  coefL = psi->coef[0];
-  coefR = psi->coef[1];
+  coefL = psInfoBase->coef[0];
+  coefR = psInfoBase->coef[1];
 
   /* do fused mid-side/intensity processing for each block (one long or eight short) */
   msMaskOffset = 0;
-  msMaskPtr = psi->msMaskBits;
+  msMaskPtr = psInfoBase->msMaskBits;
   for (gp = 0; gp < icsInfo->numWinGroup; gp++) {
     for (win = 0; win < icsInfo->winGroupLen[gp]; win++) {
-      StereoProcessGroup(coefL, coefR, sfbTab, psi->msMaskPresent,
-        msMaskPtr, msMaskOffset, icsInfo->maxSFB, psi->sfbCodeBook[1] + gp*icsInfo->maxSFB,
-        psi->scaleFactors[1] + gp*icsInfo->maxSFB, psi->gbCurrent);
+      StereoProcessGroup(coefL, coefR, sfbTab, psInfoBase->msMaskPresent,
+        msMaskPtr, msMaskOffset, icsInfo->maxSFB, psInfoBase->sfbCodeBook[1] + gp*icsInfo->maxSFB,
+        psInfoBase->scaleFactors[1] + gp*icsInfo->maxSFB, psInfoBase->gbCurrent);
       coefL += nSamps;
       coefR += nSamps;
     }
@@ -8593,19 +8615,18 @@ int cAacDecoder::DecodeNoiselessData (uint8_t** buf, int* bitOffset, int* bitsAv
  * Return:      0 if successful, error code (< 0) if error
  **************************************************************************************/
 
-  PSInfoBase* psi = (PSInfoBase *)(psInfoBase);
-  ICSInfo* icsInfo = (ch == 1 && psi->commonWin == 1) ? &(psi->icsInfo[0]) : &(psi->icsInfo[ch]);
+  ICSInfo* icsInfo = (ch == 1 && psInfoBase->commonWin == 1) ? &(psInfoBase->icsInfo[0]) : &(psInfoBase->icsInfo[ch]);
 
   cAacDecoder::BitStreamInfo bsi;
   setBitstreamPointer (&bsi, (*bitsAvail+7) >> 3, *buf);
   getBits(&bsi, *bitOffset);
 
-  DecodeICS (psi, &bsi, ch);
+  DecodeICS (psInfoBase, &bsi, ch);
 
   if (icsInfo->winSequence == 2)
-    DecodeSpectrumShort (psi, &bsi, ch);
+    DecodeSpectrumShort (psInfoBase, &bsi, ch);
   else
-    DecodeSpectrumLong (psi, &bsi, ch);
+    DecodeSpectrumLong (psInfoBase, &bsi, ch);
 
   int bitsUsed = calcBitsUsed (&bsi, *buf, *bitOffset);
   *buf += ((bitsUsed + *bitOffset) >> 3);
@@ -8613,7 +8634,197 @@ int cAacDecoder::DecodeNoiselessData (uint8_t** buf, int* bitOffset, int* bitsAv
   *bitsAvail -= bitsUsed;
 
   sbDeinterleaveReqd[ch] = 0;
-  tnsUsed |= psi->tnsInfo[ch].tnsDataPresent; /* set flag if TNS used for any channel */
+  tnsUsed |= psInfoBase->tnsInfo[ch].tnsDataPresent; /* set flag if TNS used for any channel */
+
+  return ERR_AAC_NONE;
+  }
+//}}}
+//{{{
+int cAacDecoder::IMDCT (int ch, int chOut, float* outbuf) {
+/**************************************************************************************
+ * Description: inverse transform and convert to 16-bit PCM
+ * Inputs:      index of current channel (0 for SCE/LFE, 0 or 1 for CPE)
+ *              output channel (range = [0, nChans-1])
+ * Outputs:     complete frame of decoded PCM, if sbr
+ * Return:      0 if successful, -1 if error
+ **************************************************************************************/
+
+  ICSInfo* icsInfo = (ch == 1 && psInfoBase->commonWin == 1) ? &(psInfoBase->icsInfo[0]) : &(psInfoBase->icsInfo[ch]);
+  outbuf += chOut;
+
+  // optimized type-IV DCT (operates inplace)
+  if (icsInfo->winSequence == 2) // 8 short blocks
+    for (int i = 0; i < 8; i++)
+      DCT4 (0, psInfoBase->coef[ch] + i*128, psInfoBase->gbCurrent[ch]);
+  else // 1 long block
+    DCT4 (1, psInfoBase->coef[ch], psInfoBase->gbCurrent[ch]);
+
+  // window, overlap-add, don't clip to short (send to SBR decoder)
+  // store the decoded 32-bit samples in top half (second AAC_MAX_NSAMPS samples) of coef buffer
+  if (icsInfo->winSequence == 0)
+    DecWindowOverlapNoClip (psInfoBase->coef[ch], psInfoBase->overlap[chOut], psInfoBase->sbrWorkBuf[ch],
+                            icsInfo->winShape, psInfoBase->prevWinShape[chOut]);
+  else if (icsInfo->winSequence == 1)
+    DecWindowOverlapLongStartNoClip (psInfoBase->coef[ch], psInfoBase->overlap[chOut], psInfoBase->sbrWorkBuf[ch],
+                                     icsInfo->winShape, psInfoBase->prevWinShape[chOut]);
+  else if (icsInfo->winSequence == 2)
+    DecWindowOverlapShortNoClip (psInfoBase->coef[ch], psInfoBase->overlap[chOut], psInfoBase->sbrWorkBuf[ch],
+                                 icsInfo->winShape, psInfoBase->prevWinShape[chOut]);
+  else if (icsInfo->winSequence == 3)
+    DecWindowOverlapLongStopNoClip (psInfoBase->coef[ch], psInfoBase->overlap[chOut], psInfoBase->sbrWorkBuf[ch],
+                                    icsInfo->winShape, psInfoBase->prevWinShape[chOut]);
+
+  rawSampleBuf[ch] = psInfoBase->sbrWorkBuf[ch];
+
+  if (!sbrEnabled)
+    for (int i = 0; i < AAC_MAX_NSAMPS; i++) {
+      *outbuf = psInfoBase->sbrWorkBuf[ch][i] / (float)0x20000;
+      outbuf += nChans;
+      }
+
+  psInfoBase->prevWinShape[chOut] = icsInfo->winShape;
+  return 0;
+  }
+//}}}
+//{{{
+int cAacDecoder::DecodeSBRData (int chBase, float* outbuf) {
+/**************************************************************************************
+ * Description: apply SBR to one frame of PCM data
+ * Inputs:      1024 samples of decoded 32-bit PCM, before SBR
+ *              size of input PCM samples (must be 4 bytes)
+ *              number of fraction bits in input PCM samples
+ *              base output channel (range = [0, nChans-1])
+ *              initialized state structs (SBRHdr, SBRGrid, SBRFreq, SBRChan)
+ * Outputs:     2048 samples of decoded float PCM, after SBR
+ * Return:      0 if successful, error code (< 0) if error
+ **************************************************************************************/
+
+  int k, l, ch, chBlock, qmfaBands, qmfsBands;
+
+  // same header and freq tables for both channels in CPE
+  SBRHeader* sbrHdr = &(psInfoSBR->sbrHdr[chBase]);
+  SBRFreq* sbrFreq = &(psInfoSBR->sbrFreq[chBase]);
+
+  // upsample only if we haven't received an SBR header yet or if we have an LFE block
+  int upsampleOnly;
+  if (currBlockID == AAC_ID_LFE) {
+    chBlock = 1;
+    upsampleOnly = 1;
+    }
+  else if (currBlockID == AAC_ID_FIL) {
+    if (prevBlockID == AAC_ID_SCE)
+      chBlock = 1;
+    else if (prevBlockID == AAC_ID_CPE)
+      chBlock = 2;
+    else
+      return ERR_AAC_NONE;
+
+    upsampleOnly = sbrHdr->count == 0 ? 1 : 0;
+    if (fillExtType != EXT_SBR_DATA && fillExtType != EXT_SBR_DATA_CRC)
+      return ERR_AAC_NONE;
+    }
+  else // ignore non-SBR blocks
+    return ERR_AAC_NONE;
+
+  if (upsampleOnly) {
+    sbrFreq->kStart = 32;
+    sbrFreq->numQMFBands = 0;
+    }
+
+  for (ch = 0; ch < chBlock; ch++) {
+    SBRGrid* sbrGrid = &(psInfoSBR->sbrGrid[chBase + ch]);
+    SBRChan* sbrChan = &(psInfoSBR->sbrChan[chBase + ch]);
+
+    // restore delay buffers (could use ring buffer or keep in temp buffer for nChans == 1)
+    for (l = 0; l < HF_GEN; l++) {
+      for (k = 0; k < 64; k++) {
+        psInfoSBR->XBuf[l][k][0] = psInfoSBR->XBufDelay[chBase + ch][l][k][0];
+        psInfoSBR->XBuf[l][k][1] = psInfoSBR->XBufDelay[chBase + ch][l][k][1];
+        }
+      }
+
+    int* inbuf = (int*)rawSampleBuf[ch];
+    float* outptr = outbuf + chBase + ch;
+
+    // step 1 - analysis QMF
+    qmfaBands = sbrFreq->kStart;
+    for (l = 0; l < 32; l++) {
+      int gbMask = QMFAnalysis (inbuf + l*32, psInfoSBR->delayQMFA[chBase + ch], psInfoSBR->XBuf[l + HF_GEN][0],
+                                FBITS_OUT_IMDCT, &(psInfoSBR->delayIdxQMFA[chBase + ch]), qmfaBands);
+      int gbIdx = ((l + HF_GEN) >> 5) & 0x01;
+      sbrChan->gbMask[gbIdx] |= gbMask; // gbIdx = (0 if i < 32), (1 if i >= 32)
+      }
+
+    if (upsampleOnly) {
+      // no SBR - just run synthesis QMF to upsample by 2x
+      qmfsBands = 32;
+      for (l = 0; l < 32; l++) {
+        // step 4 - synthesis QMF
+        QMFSynthesis (psInfoSBR->XBuf[l + HF_ADJ][0], psInfoSBR->delayQMFS[chBase + ch], &(psInfoSBR->delayIdxQMFS[chBase + ch]),
+                      qmfsBands, outptr, nChans);
+        outptr += 64*nChans;
+        }
+      }
+    else {
+      // if previous frame had lower SBR starting freq than current, zero out the synthesized QMF
+      //   bands so they aren't used as sources for patching
+      // after patch generation, restore from delay buffer
+      // can only happen after header reset
+      for (k = sbrFreq->kStartPrev; k < sbrFreq->kStart; k++) {
+        for (l = 0; l < sbrGrid->envTimeBorder[0] + HF_ADJ; l++) {
+          psInfoSBR->XBuf[l][k][0] = 0;
+          psInfoSBR->XBuf[l][k][1] = 0;
+          }
+        }
+
+      // step 2 - HF generation
+      GenerateHighFreq(psInfoSBR, sbrGrid, sbrFreq, sbrChan, ch);
+
+      // restore SBR bands that were cleared before patch generation (time slots 0, 1 no longer needed)
+      for (k = sbrFreq->kStartPrev; k < sbrFreq->kStart; k++) {
+        for (l = HF_ADJ; l < sbrGrid->envTimeBorder[0] + HF_ADJ; l++) {
+          psInfoSBR->XBuf[l][k][0] = psInfoSBR->XBufDelay[chBase + ch][l][k][0];
+          psInfoSBR->XBuf[l][k][1] = psInfoSBR->XBufDelay[chBase + ch][l][k][1];
+          }
+        }
+
+      // step 3 - HF adjustment
+      AdjustHighFreq (psInfoSBR, sbrHdr, sbrGrid, sbrFreq, sbrChan, ch);
+
+      // step 4 - synthesis QMF
+      qmfsBands = sbrFreq->kStartPrev + sbrFreq->numQMFBandsPrev;
+      for (l = 0; l < sbrGrid->envTimeBorder[0]; l++) {
+        // if new envelope starts mid-frame, use old settings until start of first envelope in this frame
+        QMFSynthesis (psInfoSBR->XBuf[l + HF_ADJ][0], psInfoSBR->delayQMFS[chBase + ch], &(psInfoSBR->delayIdxQMFS[chBase + ch]),
+                      qmfsBands, outptr, nChans);
+        outptr += 64*nChans;
+        }
+
+      qmfsBands = sbrFreq->kStart + sbrFreq->numQMFBands;
+      for ( ; l < 32; l++) {
+        // use new settings for rest of frame (usually the entire frame, unless the first envelope starts mid-frame)
+        QMFSynthesis (psInfoSBR->XBuf[l + HF_ADJ][0], psInfoSBR->delayQMFS[chBase + ch], &(psInfoSBR->delayIdxQMFS[chBase + ch]),
+                      qmfsBands, outptr, nChans);
+        outptr += 64*nChans;
+        }
+      }
+
+    // save delay
+    for (l = 0; l < HF_GEN; l++) {
+      for (k = 0; k < 64; k++) {
+        psInfoSBR->XBufDelay[chBase + ch][l][k][0] = psInfoSBR->XBuf[l+32][k][0];
+        psInfoSBR->XBufDelay[chBase + ch][l][k][1] = psInfoSBR->XBuf[l+32][k][1];
+        }
+      }
+    sbrChan->gbMask[0] = sbrChan->gbMask[1];
+    sbrChan->gbMask[1] = 0;
+
+    if (sbrHdr->count > 0)
+      sbrChan->reset = 0;
+    }
+
+  sbrFreq->kStartPrev = sbrFreq->kStart;
+  sbrFreq->numQMFBandsPrev = sbrFreq->numQMFBands;
 
   return ERR_AAC_NONE;
   }
@@ -8647,25 +8858,24 @@ int cAacDecoder::decodeChannelPairElement (BitStreamInfo* bsi) {
  * Notes:       doesn't decode individual channel stream (part of DecodeNoiselessData)
  **************************************************************************************/
 
-  PSInfoBase* psi = (PSInfoBase*)(psInfoBase);
-  ICSInfo* icsInfo = psi->icsInfo;
+  ICSInfo* icsInfo = psInfoBase->icsInfo;
 
   // read instance tag
   currInstTag = getBits (bsi, NUM_INST_TAG_BITS);
 
   // read common window flag and mid-side info (if present)
-  // store msMask bits in psi->msMaskBits[] as follows:
+  // store msMask bits in psInfoBase->msMaskBits[] as follows:
   //  long blocks -  pack bits for each SFB in range [0, maxSFB) starting with lsb of msMaskBits[0]
   //  short blocks - pack bits for each SFB in range [0, maxSFB), for each group [0, 7]
   // msMaskPresent = 0 means no M/S coding
-  //               = 1 means psi->msMaskBits contains 1 bit per SFB to toggle M/S coding
-  //               = 2 means all SFB's are M/S coded (so psi->msMaskBits is not needed)
-  psi->commonWin = getBits (bsi, 1);
-  if (psi->commonWin) {
-    DecodeICSInfo(bsi, icsInfo, psi->sampRateIdx);
-    psi->msMaskPresent = getBits (bsi, 2);
-    if (psi->msMaskPresent == 1) {
-      uint8_t* maskPtr = psi->msMaskBits;
+  //               = 1 means psInfoBase->msMaskBits contains 1 bit per SFB to toggle M/S coding
+  //               = 2 means all SFB's are M/S coded (so psInfoBase->msMaskBits is not needed)
+  psInfoBase->commonWin = getBits (bsi, 1);
+  if (psInfoBase->commonWin) {
+    DecodeICSInfo(bsi, icsInfo, psInfoBase->sampRateIdx);
+    psInfoBase->msMaskPresent = getBits (bsi, 2);
+    if (psInfoBase->msMaskPresent == 1) {
+      uint8_t* maskPtr = psInfoBase->msMaskBits;
       *maskPtr = 0;
       int maskOffset = 0;
       for (int gp = 0; gp < icsInfo->numWinGroup; gp++) {
@@ -8718,9 +8928,8 @@ int cAacDecoder::decodeDataStreamElement (BitStreamInfo* bsi) {
   if (byteAlign)
     byteAlignBitstream (bsi);
 
-  PSInfoBase* psi = (PSInfoBase*)(psInfoBase);
-  psi->dataCount = dataCount;
-  uint8_t* dataBuf = psi->dataBuf;
+  psInfoBase->dataCount = dataCount;
+  uint8_t* dataBuf = psInfoBase->dataBuf;
   while (dataCount--)
     *dataBuf++ = getBits (bsi, 8);
 
@@ -8813,9 +9022,8 @@ int cAacDecoder::decodeFillElement (BitStreamInfo* bsi) {
   if (fillCount1 == 15)
     fillCount1 += getBits (bsi, 8) - 1;
 
-  PSInfoBase* psi = (PSInfoBase*)(psInfoBase);
-  psi->fillCount = fillCount1;
-  uint8_t* fillBuf1 = psi->fillBuf;
+  psInfoBase->fillCount = fillCount1;
+  uint8_t* fillBuf1 = psInfoBase->fillBuf;
   while (fillCount1--)
     *fillBuf1++ = getBits (bsi, 8);
 
@@ -8826,14 +9034,14 @@ int cAacDecoder::decodeFillElement (BitStreamInfo* bsi) {
   // aacDecInfo->sbrEnabled is sticky (reset each raw_data_block), so for multichannel
   //    need to verify that all SCE/CPE/ICCE have valid SBR fill element following, and
   //    must upsample by 2 for LFE
-  if (psi->fillCount > 0) {
-    fillExtType = (int)((psi->fillBuf[0] >> 4) & 0x0f);
+  if (psInfoBase->fillCount > 0) {
+    fillExtType = (int)((psInfoBase->fillBuf[0] >> 4) & 0x0f);
     if (fillExtType == EXT_SBR_DATA || fillExtType == EXT_SBR_DATA_CRC)
       sbrEnabled = 1;
     }
 
-  fillBuf = psi->fillBuf;
-  fillCount = psi->fillCount;
+  fillBuf = psInfoBase->fillBuf;
+  fillCount = psInfoBase->fillCount;
 
   return 0;
   }
@@ -8863,8 +9071,7 @@ int cAacDecoder::decodeNextElement (uint8_t** buf, int* bitOffset, int* bitsAvai
   currBlockID = getBits(&bsi, NUM_SYN_ID_BITS);
 
   // set defaults (could be overwritten by DecodeXXXElement(), depending on currBlockID) */
-  PSInfoBase* psi = (PSInfoBase*)(psInfoBase);
-  psi->commonWin = 0;
+  psInfoBase->commonWin = 0;
 
   int err = 0;
   switch (currBlockID) {
@@ -8884,7 +9091,7 @@ int cAacDecoder::decodeNextElement (uint8_t** buf, int* bitOffset, int* bitsAvai
       err = decodeDataStreamElement (&bsi);
       break;
     case AAC_ID_PCE:
-      err = decodeProgramConfigElement (psi->pce + 0, &bsi);
+      err = decodeProgramConfigElement (psInfoBase->pce + 0, &bsi);
       break;
     case AAC_ID_FIL:
       err = decodeFillElement (&bsi);
@@ -8907,53 +9114,67 @@ int cAacDecoder::decodeNextElement (uint8_t** buf, int* bitOffset, int* bitsAvai
   return ERR_AAC_NONE;
   }
 //}}}
-
 //{{{
-int cAacDecoder::IMDCT (int ch, int chOut, float* outbuf) {
+int cAacDecoder::DecodeSBRBitstream (int chBase) {
 /**************************************************************************************
- * Description: inverse transform and convert to 16-bit PCM
- * Inputs:      index of current channel (0 for SCE/LFE, 0 or 1 for CPE)
- *              output channel (range = [0, nChans-1])
- * Outputs:     complete frame of decoded PCM, if sbr
- * Return:      0 if successful, -1 if error
+ * Description: decode sideband information for SBR
+ * Inputs:      fill buffer with SBR extension block
+ *              number of bytes in fill buffer
+ *              base output channel (range = [0, nChans-1])
+ * Outputs:     initialized state structs (SBRHdr, SBRGrid, SBRFreq, SBRChan)
+ * Return:      0 if successful, error code (< 0) if error
+ * Notes:       SBR payload should be in fillBuf
+ *              returns with no error if fill buffer is not an SBR extension block,
+ *                or if current block is not a fill block (e.g. for LFE upsampling)
  **************************************************************************************/
 
-  PSInfoBase* psi = (PSInfoBase *)(psInfoBase);
-  ICSInfo* icsInfo = (ch == 1 && psi->commonWin == 1) ? &(psi->icsInfo[0]) : &(psi->icsInfo[ch]);
-  outbuf += chOut;
+  if (currBlockID != AAC_ID_FIL || (fillExtType != EXT_SBR_DATA && fillExtType != EXT_SBR_DATA_CRC))
+    return ERR_AAC_NONE;
 
-  // optimized type-IV DCT (operates inplace)
-  if (icsInfo->winSequence == 2) // 8 short blocks
-    for (int i = 0; i < 8; i++)
-      DCT4 (0, psi->coef[ch] + i*128, psi->gbCurrent[ch]);
-  else // 1 long block
-    DCT4 (1, psi->coef[ch], psi->gbCurrent[ch]);
+  BitStreamInfo bsi;
+  setBitstreamPointer (&bsi, fillCount, fillBuf);
+  if (getBits (&bsi, 4) != (unsigned int)fillExtType)
+    return ERR_AAC_SBR_BITSTREAM;
 
-  // window, overlap-add, don't clip to short (send to SBR decoder)
-  // store the decoded 32-bit samples in top half (second AAC_MAX_NSAMPS samples) of coef buffer
-  if (icsInfo->winSequence == 0)
-    DecWindowOverlapNoClip (psi->coef[ch], psi->overlap[chOut], psi->sbrWorkBuf[ch],
-                            icsInfo->winShape, psi->prevWinShape[chOut]);
-  else if (icsInfo->winSequence == 1)
-    DecWindowOverlapLongStartNoClip (psi->coef[ch], psi->overlap[chOut], psi->sbrWorkBuf[ch],
-                                     icsInfo->winShape, psi->prevWinShape[chOut]);
-  else if (icsInfo->winSequence == 2)
-    DecWindowOverlapShortNoClip (psi->coef[ch], psi->overlap[chOut], psi->sbrWorkBuf[ch],
-                                 icsInfo->winShape, psi->prevWinShape[chOut]);
-  else if (icsInfo->winSequence == 3)
-    DecWindowOverlapLongStopNoClip (psi->coef[ch], psi->overlap[chOut], psi->sbrWorkBuf[ch],
-                                    icsInfo->winShape, psi->prevWinShape[chOut]);
+  if (fillExtType == EXT_SBR_DATA_CRC)
+    psInfoSBR->crcCheckWord = getBits(&bsi, 10);
 
-  rawSampleBuf[ch] = psi->sbrWorkBuf[ch];
+  int headerFlag = getBits(&bsi, 1);
+  if (headerFlag) {
+    /* get sample rate index for output sample rate (2x base rate) */
+    psInfoSBR->sampRateIdx = GetSampRateIdx(2 * sampRate);
+    if (psInfoSBR->sampRateIdx < 0 || psInfoSBR->sampRateIdx >= NUM_SAMPLE_RATES)
+      return ERR_AAC_SBR_BITSTREAM;
+    else if (psInfoSBR->sampRateIdx >= NUM_SAMPLE_RATES_SBR)
+      return ERR_AAC_SBR_SINGLERATE_UNSUPPORTED;
 
-  if (!sbrEnabled)
-    for (int i = 0; i < AAC_MAX_NSAMPS; i++) {
-      *outbuf = psi->sbrWorkBuf[ch][i] / (float)0x20000;
-      outbuf += nChans;
-      }
+    /* reset flag = 1 if header values changed */
+    if (UnpackSBRHeader(&bsi, &(psInfoSBR->sbrHdr[chBase])))
+      psInfoSBR->sbrChan[chBase].reset = 1;
 
-  psi->prevWinShape[chOut] = icsInfo->winShape;
-  return 0;
+    /* first valid SBR header should always trigger CalcFreqTables(), since psInfoSBR->reset was set in InitSBR() */
+    if (psInfoSBR->sbrChan[chBase].reset)
+      CalcFreqTables(&(psInfoSBR->sbrHdr[chBase+0]), &(psInfoSBR->sbrFreq[chBase]), psInfoSBR->sampRateIdx);
+
+    /* copy and reset state to right channel for CPE */
+    if (prevBlockID == AAC_ID_CPE)
+      psInfoSBR->sbrChan[chBase+1].reset = psInfoSBR->sbrChan[chBase+0].reset;
+    }
+
+  /* if no header has been received, upsample only */
+  if (psInfoSBR->sbrHdr[chBase].count == 0)
+    return ERR_AAC_NONE;
+
+  if (prevBlockID == AAC_ID_SCE)
+    UnpackSBRSingleChannel(&bsi, psInfoSBR, chBase);
+  else if (prevBlockID == AAC_ID_CPE)
+    UnpackSBRChannelPair(&bsi, psInfoSBR, chBase);
+  else
+    return ERR_AAC_SBR_BITSTREAM;
+
+  byteAlignBitstream(&bsi);
+
+  return ERR_AAC_NONE;
   }
 //}}}
 
@@ -8982,8 +9203,7 @@ int cAacDecoder::UnpackADTSHeader (uint8_t** buf, int* bitOffset, int* bitsAvail
     return ERR_AAC_INVALID_ADTS_HEADER;
 
   // fixed fields - should not change from frame to frame
-  PSInfoBase* psi = (PSInfoBase*)(psInfoBase);
-  ADTSHeader* fhADTS = &(psi->fhADTS);
+  ADTSHeader* fhADTS = &(psInfoBase->fhADTS);
   fhADTS->id =               getBits(&bsi, 1);
   fhADTS->layer =            getBits(&bsi, 2);
   fhADTS->protectBit =       getBits(&bsi, 1);
@@ -9014,9 +9234,9 @@ int cAacDecoder::UnpackADTSHeader (uint8_t** buf, int* bitOffset, int* bitsAvail
     return ERR_AAC_INVALID_ADTS_HEADER;
 
   // update codec info
-  psi->sampRateIdx = fhADTS->sampRateIdx;
-  if (!psi->useImpChanMap)
-    psi->nChans = channelMapTab[fhADTS->channelConfig];
+  psInfoBase->sampRateIdx = fhADTS->sampRateIdx;
+  if (!psInfoBase->useImpChanMap)
+    psInfoBase->nChans = channelMapTab[fhADTS->channelConfig];
 
   // syntactic element fields will be read from bitstream for each element
   prevBlockID = AAC_ID_INVALID;
@@ -9025,8 +9245,8 @@ int cAacDecoder::UnpackADTSHeader (uint8_t** buf, int* bitOffset, int* bitsAvail
 
   // fill in user-accessible data (TODO - calc bitrate, handle tricky channel config cases)
   bitRate = 0;
-  nChans = psi->nChans;
-  sampRate = sampRateTab[psi->sampRateIdx];
+  nChans = psInfoBase->nChans;
+  sampRate = sampRateTab[psInfoBase->sampRateIdx];
   profile = fhADTS->profile;
   sbrEnabled = 0;
   adtsBlocksLeft = fhADTS->numRawDataBlocks;
@@ -9055,7 +9275,6 @@ int cAacDecoder::GetADTSChannelMapping (uint8_t* buf, int bitOffset, int bitsAva
  *              does not attempt to deduce speaker geometry
  **************************************************************************************/
 
-  PSInfoBase* psi = (PSInfoBase *)(psInfoBase);
 
   int nChans = 0;
   do {
@@ -9078,228 +9297,19 @@ int cAacDecoder::GetADTSChannelMapping (uint8_t* buf, int bitOffset, int bitsAva
     return ERR_AAC_CHANNEL_MAP;
 
   // update number of channels in codec state and user-accessible info structs
-  psi->nChans = nChans;
-  nChans = psi->nChans;
-  psi->useImpChanMap = 1;
+  psInfoBase->nChans = nChans;
+  nChans = psInfoBase->nChans;
+  psInfoBase->useImpChanMap = 1;
 
   return ERR_AAC_NONE;
   }
 //}}}
 
-//{{{
-int cAacDecoder::DecodeSBRBitstream (int chBase) {
-/**************************************************************************************
- * Description: decode sideband information for SBR
- * Inputs:      fill buffer with SBR extension block
- *              number of bytes in fill buffer
- *              base output channel (range = [0, nChans-1])
- * Outputs:     initialized state structs (SBRHdr, SBRGrid, SBRFreq, SBRChan)
- * Return:      0 if successful, error code (< 0) if error
- * Notes:       SBR payload should be in fillBuf
- *              returns with no error if fill buffer is not an SBR extension block,
- *                or if current block is not a fill block (e.g. for LFE upsampling)
- **************************************************************************************/
-
-  if (currBlockID != AAC_ID_FIL || (fillExtType != EXT_SBR_DATA && fillExtType != EXT_SBR_DATA_CRC))
-    return ERR_AAC_NONE;
-
-  BitStreamInfo bsi;
-  setBitstreamPointer (&bsi, fillCount, fillBuf);
-  if (getBits (&bsi, 4) != (unsigned int)fillExtType)
-    return ERR_AAC_SBR_BITSTREAM;
-
-  PSInfoSBR* psi = (PSInfoSBR*)(psInfoSBR);
-  if (fillExtType == EXT_SBR_DATA_CRC)
-    psi->crcCheckWord = getBits(&bsi, 10);
-
-  int headerFlag = getBits(&bsi, 1);
-  if (headerFlag) {
-    /* get sample rate index for output sample rate (2x base rate) */
-    psi->sampRateIdx = GetSampRateIdx(2 * sampRate);
-    if (psi->sampRateIdx < 0 || psi->sampRateIdx >= NUM_SAMPLE_RATES)
-      return ERR_AAC_SBR_BITSTREAM;
-    else if (psi->sampRateIdx >= NUM_SAMPLE_RATES_SBR)
-      return ERR_AAC_SBR_SINGLERATE_UNSUPPORTED;
-
-    /* reset flag = 1 if header values changed */
-    if (UnpackSBRHeader(&bsi, &(psi->sbrHdr[chBase])))
-      psi->sbrChan[chBase].reset = 1;
-
-    /* first valid SBR header should always trigger CalcFreqTables(), since psi->reset was set in InitSBR() */
-    if (psi->sbrChan[chBase].reset)
-      CalcFreqTables(&(psi->sbrHdr[chBase+0]), &(psi->sbrFreq[chBase]), psi->sampRateIdx);
-
-    /* copy and reset state to right channel for CPE */
-    if (prevBlockID == AAC_ID_CPE)
-      psi->sbrChan[chBase+1].reset = psi->sbrChan[chBase+0].reset;
-    }
-
-  /* if no header has been received, upsample only */
-  if (psi->sbrHdr[chBase].count == 0)
-    return ERR_AAC_NONE;
-
-  if (prevBlockID == AAC_ID_SCE)
-    UnpackSBRSingleChannel(&bsi, psi, chBase);
-  else if (prevBlockID == AAC_ID_CPE)
-    UnpackSBRChannelPair(&bsi, psi, chBase);
-  else
-    return ERR_AAC_SBR_BITSTREAM;
-
-  byteAlignBitstream(&bsi);
-
-  return ERR_AAC_NONE;
-  }
-//}}}
-//{{{
-int cAacDecoder::DecodeSBRData (int chBase, float* outbuf) {
-/**************************************************************************************
- * Description: apply SBR to one frame of PCM data
- * Inputs:      1024 samples of decoded 32-bit PCM, before SBR
- *              size of input PCM samples (must be 4 bytes)
- *              number of fraction bits in input PCM samples
- *              base output channel (range = [0, nChans-1])
- *              initialized state structs (SBRHdr, SBRGrid, SBRFreq, SBRChan)
- * Outputs:     2048 samples of decoded float PCM, after SBR
- * Return:      0 if successful, error code (< 0) if error
- **************************************************************************************/
-
-  int k, l, ch, chBlock, qmfaBands, qmfsBands;
-
-  // same header and freq tables for both channels in CPE
-  PSInfoSBR* psi = (PSInfoSBR*)(psInfoSBR);
-  SBRHeader* sbrHdr = &(psi->sbrHdr[chBase]);
-  SBRFreq* sbrFreq = &(psi->sbrFreq[chBase]);
-
-  // upsample only if we haven't received an SBR header yet or if we have an LFE block
-  int upsampleOnly;
-  if (currBlockID == AAC_ID_LFE) {
-    chBlock = 1;
-    upsampleOnly = 1;
-    }
-  else if (currBlockID == AAC_ID_FIL) {
-    if (prevBlockID == AAC_ID_SCE)
-      chBlock = 1;
-    else if (prevBlockID == AAC_ID_CPE)
-      chBlock = 2;
-    else
-      return ERR_AAC_NONE;
-
-    upsampleOnly = sbrHdr->count == 0 ? 1 : 0;
-    if (fillExtType != EXT_SBR_DATA && fillExtType != EXT_SBR_DATA_CRC)
-      return ERR_AAC_NONE;
-    }
-  else // ignore non-SBR blocks
-    return ERR_AAC_NONE;
-
-  if (upsampleOnly) {
-    sbrFreq->kStart = 32;
-    sbrFreq->numQMFBands = 0;
-    }
-
-  for (ch = 0; ch < chBlock; ch++) {
-    SBRGrid* sbrGrid = &(psi->sbrGrid[chBase + ch]);
-    SBRChan* sbrChan = &(psi->sbrChan[chBase + ch]);
-
-    // restore delay buffers (could use ring buffer or keep in temp buffer for nChans == 1)
-    for (l = 0; l < HF_GEN; l++) {
-      for (k = 0; k < 64; k++) {
-        psi->XBuf[l][k][0] = psi->XBufDelay[chBase + ch][l][k][0];
-        psi->XBuf[l][k][1] = psi->XBufDelay[chBase + ch][l][k][1];
-        }
-      }
-
-    int* inbuf = (int*)rawSampleBuf[ch];
-    float* outptr = outbuf + chBase + ch;
-
-    // step 1 - analysis QMF
-    qmfaBands = sbrFreq->kStart;
-    for (l = 0; l < 32; l++) {
-      int gbMask = QMFAnalysis (inbuf + l*32, psi->delayQMFA[chBase + ch], psi->XBuf[l + HF_GEN][0],
-                                FBITS_OUT_IMDCT, &(psi->delayIdxQMFA[chBase + ch]), qmfaBands);
-      int gbIdx = ((l + HF_GEN) >> 5) & 0x01;
-      sbrChan->gbMask[gbIdx] |= gbMask; // gbIdx = (0 if i < 32), (1 if i >= 32)
-      }
-
-    if (upsampleOnly) {
-      // no SBR - just run synthesis QMF to upsample by 2x
-      qmfsBands = 32;
-      for (l = 0; l < 32; l++) {
-        // step 4 - synthesis QMF
-        QMFSynthesis (psi->XBuf[l + HF_ADJ][0], psi->delayQMFS[chBase + ch], &(psi->delayIdxQMFS[chBase + ch]),
-                      qmfsBands, outptr, nChans);
-        outptr += 64*nChans;
-        }
-      }
-    else {
-      // if previous frame had lower SBR starting freq than current, zero out the synthesized QMF
-      //   bands so they aren't used as sources for patching
-      // after patch generation, restore from delay buffer
-      // can only happen after header reset
-      for (k = sbrFreq->kStartPrev; k < sbrFreq->kStart; k++) {
-        for (l = 0; l < sbrGrid->envTimeBorder[0] + HF_ADJ; l++) {
-          psi->XBuf[l][k][0] = 0;
-          psi->XBuf[l][k][1] = 0;
-          }
-        }
-
-      // step 2 - HF generation
-      GenerateHighFreq(psi, sbrGrid, sbrFreq, sbrChan, ch);
-
-      // restore SBR bands that were cleared before patch generation (time slots 0, 1 no longer needed)
-      for (k = sbrFreq->kStartPrev; k < sbrFreq->kStart; k++) {
-        for (l = HF_ADJ; l < sbrGrid->envTimeBorder[0] + HF_ADJ; l++) {
-          psi->XBuf[l][k][0] = psi->XBufDelay[chBase + ch][l][k][0];
-          psi->XBuf[l][k][1] = psi->XBufDelay[chBase + ch][l][k][1];
-          }
-        }
-
-      // step 3 - HF adjustment
-      AdjustHighFreq (psi, sbrHdr, sbrGrid, sbrFreq, sbrChan, ch);
-
-      // step 4 - synthesis QMF
-      qmfsBands = sbrFreq->kStartPrev + sbrFreq->numQMFBandsPrev;
-      for (l = 0; l < sbrGrid->envTimeBorder[0]; l++) {
-        // if new envelope starts mid-frame, use old settings until start of first envelope in this frame
-        QMFSynthesis (psi->XBuf[l + HF_ADJ][0], psi->delayQMFS[chBase + ch], &(psi->delayIdxQMFS[chBase + ch]),
-                      qmfsBands, outptr, nChans);
-        outptr += 64*nChans;
-        }
-
-      qmfsBands = sbrFreq->kStart + sbrFreq->numQMFBands;
-      for ( ; l < 32; l++) {
-        // use new settings for rest of frame (usually the entire frame, unless the first envelope starts mid-frame)
-        QMFSynthesis (psi->XBuf[l + HF_ADJ][0], psi->delayQMFS[chBase + ch], &(psi->delayIdxQMFS[chBase + ch]),
-                      qmfsBands, outptr, nChans);
-        outptr += 64*nChans;
-        }
-      }
-
-    // save delay
-    for (l = 0; l < HF_GEN; l++) {
-      for (k = 0; k < 64; k++) {
-        psi->XBufDelay[chBase + ch][l][k][0] = psi->XBuf[l+32][k][0];
-        psi->XBufDelay[chBase + ch][l][k][1] = psi->XBuf[l+32][k][1];
-        }
-      }
-    sbrChan->gbMask[0] = sbrChan->gbMask[1];
-    sbrChan->gbMask[1] = 0;
-
-    if (sbrHdr->count > 0)
-      sbrChan->reset = 0;
-    }
-
-  sbrFreq->kStartPrev = sbrFreq->kStart;
-  sbrFreq->numQMFBandsPrev = sbrFreq->numQMFBands;
-
-  return ERR_AAC_NONE;
-  }
-//}}}
-
-// public
+// public members
 //{{{
 cAacDecoder::cAacDecoder() {
 
-  psInfoBase = malloc (sizeof(PSInfoBase));
+  psInfoBase = (struct PSInfoBase*)malloc (sizeof(PSInfoBase));
   memset (psInfoBase, 0, sizeof(PSInfoBase));
 
   PSInfoSBR* psiSbr = (PSInfoSBR*)malloc (sizeof(PSInfoSBR));
@@ -9316,26 +9326,8 @@ cAacDecoder::~cAacDecoder() {
 //}}}
 
 //{{{
-void cAacDecoder::getLastFrameInfo (AACFrameInfo* aacFrameInfo) {
-/**************************************************************************************
- * Description: get info about last AAC frame decoded (number of samples decoded,
- *                sample rate, bit rate, etc.)
- * Inputs:      valid AAC decoder instance pointer (HAACDecoder)
- *              pointer to AACFrameInfo struct
- * Outputs:     filled-in AACFrameInfo struct
- * Return:      none
- * Notes:       call this right after calling AACDecode()
- **************************************************************************************/
-
-  aacFrameInfo->bitRate =       bitRate;
-  aacFrameInfo->nChans =        nChans;
-  aacFrameInfo->sampRateCore =  sampRate;
-  aacFrameInfo->sampRateOut =   sampRate * (sbrEnabled ? 2 : 1);
-  aacFrameInfo->bitsPerSample = 16;
-  aacFrameInfo->outputSamps =   nChans * AAC_MAX_NSAMPS * (sbrEnabled ? 2 : 1);
-  aacFrameInfo->profile =       profile;
-  aacFrameInfo->tnsUsed =       tnsUsed;
-  aacFrameInfo->pnsUsed =       pnsUsed;
+int cAacDecoder::getSampleRate() {
+  return sampRate * (sbrEnabled ? 2 : 1);
   }
 //}}}
 //{{{
@@ -9360,7 +9352,7 @@ int cAacDecoder::flushCodec() {
   pnsUsed = 0;
 
   /* reset internal codec state (flush overlap buffers, etc.) */
-  PSInfoBase* psiInfo = (PSInfoBase*)(psInfoBase);
+  struct PSInfoBase* psiInfo = psInfoBase;
   memset (psiInfo->overlap, 0, AAC_MAX_NCHANS * AAC_MAX_NSAMPS * sizeof(int));
   memset (psiInfo->prevWinShape, 0, AAC_MAX_NCHANS * sizeof(int));
 
@@ -9372,9 +9364,7 @@ int cAacDecoder::flushCodec() {
 //}}}
 
 //{{{
-int cAacDecoder::decode (uint8_t* inbuf, int bytesLeft, float* outbuf, int& sampleRate) {
-
-  sampleRate = 0;
+int cAacDecoder::decode (uint8_t* inbuf, int bytesLeft, float* outbuf) {
 
   int bitOffset = 0;
   int bitsAvail = bytesLeft << 3;
@@ -9472,9 +9462,6 @@ int cAacDecoder::decode (uint8_t* inbuf, int bytesLeft, float* outbuf, int& samp
     baseChan += elementChans;
     } while (currBlockID != AAC_ID_END);
 
-  sampleRate = sampRate * (sbrEnabled ? 2 : 1);
-  int numSamples = nChans * AAC_MAX_NSAMPS * (sbrEnabled ? 2 : 1) / 2;
-
-  return numSamples;
+  return nChans * AAC_MAX_NSAMPS * (sbrEnabled ? 2 : 1) / 2;
   }
 //}}}
