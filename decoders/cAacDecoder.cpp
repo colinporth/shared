@@ -4737,7 +4737,7 @@ int BuildPatches (uint8_t *patchNumSubbands, uint8_t *patchStartSubband, uint8_t
     for (int i = 0; freqMaster[i] < goalSB; i++)
       k = i+1;
     }
-  else 
+  else
     k = nMaster;
 
   int j;
@@ -4761,7 +4761,7 @@ int BuildPatches (uint8_t *patchNumSubbands, uint8_t *patchStartSubband, uint8_t
       msb = sb;
       numPatches++;
       }
-    else 
+    else
       msb = kStart;
 
     if (freqMaster[k] - sb < 3)
@@ -4825,7 +4825,7 @@ int CalcFreqLimiter (uint8_t *freqLimiter, uint8_t *patchNumSubbands, uint8_t *f
         RemoveFreq(freqLimiter, nLimiter + 1, k-1);
         nLimiter--;
         }
-      else 
+      else
         k++;
       }
     else
@@ -4954,105 +4954,96 @@ bool cAacDecoder::decodeSbrBitstream (int chBase) {
 //}}}
 
 //{{{  dequantize utils
+// sqrt(0.5), format = Q31
 #define SF_OFFSET  100
-
-/* sqrt(0.5), format = Q31 */
 #define SQRTHALF 0x5a82799a
+
 //{{{
+int DequantBlock (int* inbuf, int nSamps, int scale) {
 /**************************************************************************************
- * Function:    DequantBlock
- *
  * Description: dequantize one block of transform coefficients (in-place)
- *
  * Inputs:      quantized transform coefficients, range = [0, 8191]
  *              number of samples to dequantize
  *              scalefactor for this block of data, range = [0, 256]
- *
  * Outputs:     dequantized transform coefficients in Q(FBITS_OUT_DQ_OFF)
- *
  * Return:      guard bit mask (OR of abs value of all dequantized coefs)
- *
  * Notes:       applies dequant formula y = pow(x, 4.0/3.0) * pow(2, (scale - 100)/4.0)
  *                * pow(2, FBITS_OUT_DQ_OFF)
  *              clips outputs to Q(FBITS_OUT_DQ_OFF)
  *              output has no minimum number of guard bits
  **************************************************************************************/
-int DequantBlock (int* inbuf, int nSamps, int scale)
-{
-  int iSamp, scalef, scalei, x, y, gbMask, shift, tab4[4];
-  const int *tab16, *coef;
 
   if (nSamps <= 0)
     return 0;
 
   scale -= SF_OFFSET; /* new range = [-100, 156] */
 
-  /* with two's complement numbers, scalei/scalef factorization works for pos and neg values of scale:
-   *  [+4...+7] >> 2 = +1, [ 0...+3] >> 2 = 0, [-4...-1] >> 2 = -1, [-8...-5] >> 2 = -2 ...
-   *  (-1 & 0x3) = 3, (-2 & 0x3) = 2, (-3 & 0x3) = 1, (0 & 0x3) = 0
-   *
-   * Example: 2^(-5/4) = 2^(-1) * 2^(-1/4) = 2^-2 * 2^(3/4)
-   */
-  tab16 = pow43_14[scale & 0x3];
-  scalef = pow14[scale & 0x3];
-  scalei = (scale >> 2) + FBITS_OUT_DQ_OFF;
+  // with two's complement numbers, scalei/scalef factorization works for pos and neg values of scale:
+  //  [+4...+7] >> 2 = +1, [ 0...+3] >> 2 = 0, [-4...-1] >> 2 = -1, [-8...-5] >> 2 = -2 ...
+  //  (-1 & 0x3) = 3, (-2 & 0x3) = 2, (-3 & 0x3) = 1, (0 & 0x3) = 0
+  // Example: 2^(-5/4) = 2^(-1) * 2^(-1/4) = 2^-2 * 2^(3/4)
+  const int* tab16 = pow43_14[scale & 0x3];
+  int scalef = pow14[scale & 0x3];
+  int scalei = (scale >> 2) + FBITS_OUT_DQ_OFF;
 
-  /* cache first 4 values:
-   * tab16[j] = Q28 for j = [0,3]
-   * tab4[x] = x^(4.0/3.0) * 2^(0.25*scale), Q(FBITS_OUT_DQ_OFF)
-   */
-  shift = 28 - scalei;
+  // cache first 4 values:
+  //tab16[j] = Q28 for j = [0,3]
+  //tab4[x] = x^(4.0/3.0) * 2^(0.25*scale), Q(FBITS_OUT_DQ_OFF)
+  int tab4[4];
+  int shift = 28 - scalei;
   if (shift > 31) {
     tab4[0] = tab4[1] = tab4[2] = tab4[3] = 0;
-  } else if (shift <= 0) {
+    }
+  else if (shift <= 0) {
     shift = -shift;
     if (shift > 31)
       shift = 31;
-    for (x = 0; x < 4; x++) {
-      y = tab16[x];
+    for (int x = 0; x < 4; x++) {
+      int y = tab16[x];
       if (y > (0x7fffffff >> shift))
         y = 0x7fffffff;   /* clip (rare) */
       else
         y <<= shift;
       tab4[x] = y;
+      }
     }
-  } else {
+  else {
     tab4[0] = 0;
     tab4[1] = tab16[1] >> shift;
     tab4[2] = tab16[2] >> shift;
     tab4[3] = tab16[3] >> shift;
-  }
+    }
 
-  gbMask = 0;
+  int gbMask = 0;
   do {
-    iSamp = *inbuf;
-    x = FASTABS(iSamp);
-
-    if (x < 4) {
+    int iSamp = *inbuf;
+    int x = FASTABS(iSamp);
+    int y;
+    if (x < 4)
       y = tab4[x];
-    } else  {
-
+    else  {
       if (x < 16) {
-        /* result: y = Q25 (tab16 = Q25) */
+        // result: y = Q25 (tab16 = Q25)
         y = tab16[x];
         shift = 25 - scalei;
-      } else if (x < 64) {
-        /* result: y = Q21 (pow43tab[j] = Q23, scalef = Q30) */
+        }
+      else if (x < 64) {
+        // result: y = Q21 (pow43tab[j] = Q23, scalef = Q30)
         y = pow43[x-16];
         shift = 21 - scalei;
         y = MULSHIFT32(y, scalef);
-      } else {
-        /* normalize to [0x40000000, 0x7fffffff]
-         * input x = [64, 8191] = [64, 2^13-1]
-         * ranges:
-         *  shift = 7:   64 -  127
-         *  shift = 6:  128 -  255
-         *  shift = 5:  256 -  511
-         *  shift = 4:  512 - 1023
-         *  shift = 3: 1024 - 2047
-         *  shift = 2: 2048 - 4095
-         *  shift = 1: 4096 - 8191
-         */
+        }
+      else {
+        // normalize to [0x40000000, 0x7fffffff]
+        // input x = [64, 8191] = [64, 2^13-1]
+        // ranges:
+        //  shift = 7:   64 -  127
+        //  shift = 6:  128 -  255
+        //  shift = 5:  256 -  511
+        //  shift = 4:  512 - 1023
+        //  shift = 3: 1024 - 2047
+        //  shift = 2: 2048 - 4095
+        //  shift = 1: 4096 - 8191
         x <<= 17;
         shift = 0;
         if (x < 0x08000000)
@@ -5062,9 +5053,8 @@ int DequantBlock (int* inbuf, int nSamps, int scale)
         if (x < 0x40000000)
           x <<= 1, shift += 1;
 
-        coef = (x < SQRTHALF) ? poly43lo : poly43hi;
-
-        /* polynomial */
+        // polynomial
+        const int* coef = (x < SQRTHALF) ? poly43lo : poly43hi;
         y = coef[0];
         y = MULSHIFT32(y, x) + coef[1];
         y = MULSHIFT32(y, x) + coef[2];
@@ -5072,14 +5062,12 @@ int DequantBlock (int* inbuf, int nSamps, int scale)
         y = MULSHIFT32(y, x) + coef[4];
         y = MULSHIFT32(y, pow2frac[shift]) << 3;
 
-        /* fractional scale
-         * result: y = Q21 (pow43tab[j] = Q23, scalef = Q30)
-         */
+        // fractional scale result: y = Q21 (pow43tab[j] = Q23, scalef = Q30)
         y = MULSHIFT32(y, scalef);  /* now y is Q24 */
         shift = 24 - scalei - pow2exp[shift];
-      }
+        }
 
-      /* integer scale */
+      // integer scale
       if (shift <= 0) {
         shift = -shift;
         if (shift > 31)
@@ -5089,26 +5077,26 @@ int DequantBlock (int* inbuf, int nSamps, int scale)
           y = 0x7fffffff;   /* clip (rare) */
         else
           y <<= shift;
-      } else {
+        }
+      else {
         if (shift > 31)
           shift = 31;
         y >>= shift;
+        }
       }
-    }
 
-    /* sign and store (gbMask used to count GB's) */
+    // sign and store (gbMask used to count GB's)
     gbMask |= y;
 
-    /* apply sign */
+    // apply sign
     iSamp >>= 31;
     y ^= iSamp;
     y -= iSamp;
-
     *inbuf++ = y;
-  } while (--nSamps);
+    } while (--nSamps);
 
   return gbMask;
-}
+  }
 //}}}
 //}}}
 //{{{
@@ -5169,8 +5157,10 @@ void cAacDecoder::dequantize (int ch) {
 //}}}
 //{{{  applyStereoProcess utils
 //{{{
+void StereoProcessGroup (int* coefL, int* coefR, const short* sfbTab,
+                int msMaskPres, uint8_t *msMaskPtr, int msMaskOffset, int maxSFB,
+                uint8_t *cbRight, short *sfRight, int *gbCurrent) {
 /**************************************************************************************
- * Function:    StereoProcessGroup
  * Description: apply mid-side and intensity stereo to group of transform coefficients
  * Inputs:      dequantized transform coefficients for both channels
  *              pointer to appropriate scalefactor band table
@@ -5182,13 +5172,9 @@ void cAacDecoder::dequantize (int ch) {
  *              buffer of scalefactors for right channel, range = [0, 256]
  * Outputs:     updated transform coefficients in Q(FBITS_OUT_DQ_OFF)
  *              updated minimum guard bit count for both channels
- * Return:      none
  * Notes:       assume no guard bits in input
  *              gains 0 int bits
  **************************************************************************************/
-void StereoProcessGroup (int* coefL, int* coefR, const short* sfbTab,
-                int msMaskPres, uint8_t *msMaskPtr, int msMaskOffset, int maxSFB,
-                uint8_t *cbRight, short *sfRight, int *gbCurrent) {
 
   int sfb, width, cbIdx, sf, cl, cr, scalef, scalei;
   int gbMaskL, gbMaskR;
@@ -5337,98 +5323,72 @@ void cAacDecoder::applyStereoProcess() {
 #define Q26_3   0x0c000000  /* Q26:  3.0 */
 
 //{{{
+int InvRootR (int r) {
 /**************************************************************************************
- * Function:    InvRootR
- *
  * Description: use Newton's method to solve for x = 1/sqrt(r)
- *
  * Inputs:      r in Q30 format, range = [0.25, 1] (normalize inputs to this range)
- *
  * Outputs:     none
- *
  * Return:      x = Q29, range = (1, 2)
- *
  * Notes:       guaranteed to converge and not overflow for any r in this range
  *
  *              xn+1  = xn - f(xn)/f'(xn)
  *              f(x)  = 1/sqrt(r) - x = 0 (find root)
  *                    = 1/x^2 - r
  *              f'(x) = -2/x^3
- *
  *              so xn+1 = xn/2 * (3 - r*xn^2)
- *
  *              NUM_ITER_INVSQRT = 3, maxDiff = 1.3747e-02
  *              NUM_ITER_INVSQRT = 4, maxDiff = 3.9832e-04
  **************************************************************************************/
-int InvRootR (int r)
-{
-  int i, xn, t;
 
-  /* use linear equation for initial guess
-   * x0 = -2*r + 3 (so x0 always >= correct answer in range [0.25, 1))
-   * xn = Q29 (at every step)
-   */
-  xn = (MULSHIFT32(r, X0_COEF_2) << 2) + X0_OFF_2;
+  // use linear equation for initial guess
+  // x0 = -2*r + 3 (so x0 always >= correct answer in range [0.25, 1))
+  //* xn = Q29 (at every step)
+  int xn = (MULSHIFT32(r, X0_COEF_2) << 2) + X0_OFF_2;
 
-  for (i = 0; i < NUM_ITER_INVSQRT; i++) {
-    t = MULSHIFT32(xn, xn);         /* Q26 = Q29*Q29 */
+  for (int i = 0; i < NUM_ITER_INVSQRT; i++) {
+    int t = MULSHIFT32(xn, xn);         /* Q26 = Q29*Q29 */
     t = Q26_3 - (MULSHIFT32(r, t) << 2);  /* Q26 = Q26 - (Q31*Q26 << 1) */
     xn = MULSHIFT32(xn, t) << (6 - 1);    /* Q29 = (Q29*Q26 << 6), and -1 for division by 2 */
-  }
+    }
 
-  /* clip to range (1.0, 2.0)
-   * (because of rounding, this can converge to xn slightly > 2.0 when r is near 0.25)
-   */
+  // clip to range (1.0, 2.0)
+  // (because of rounding, this can converge to xn slightly > 2.0 when r is near 0.25)
   if (xn >> 30)
     xn = (1 << 30) - 1;
 
   return xn;
-}
+  }
 //}}}
 //{{{
+unsigned int Get32BitVal (unsigned int* last) {
 /**************************************************************************************
- * Function:    Get32BitVal
- *
  * Description: generate 32-bit unsigned random number
- *
  * Inputs:      last number calculated (seed, first time through)
- *
  * Outputs:     new number, saved in *last
- *
  * Return:      32-bit number, uniformly distributed between [0, 2^32)
- *
  * Notes:       uses simple linear congruential generator
  **************************************************************************************/
-unsigned int Get32BitVal (unsigned int *last)
-{
-  unsigned int r = *last;
 
-  /* use same coefs as MPEG reference code (classic LCG)
-   * use unsigned multiply to force reliable wraparound behavior in C (mod 2^32)
-   */
+
+  // use same coefs as MPEG reference code (classic LCG)
+  // use unsigned multiply to force reliable wraparound behavior in C (mod 2^32)
+  unsigned int r = *last;
   r = (1664525U * r) + 1013904223U;
   *last = r;
 
   return r;
-}
-
+  }
 //}}}
 //{{{
+int ScaleNoiseVector (int *coef, int nVals, int sf) {
 /**************************************************************************************
- * Function:    ScaleNoiseVector
- *
  * Description: apply scaling to vector of noise coefficients for one scalefactor band
- *
  * Inputs:      unscaled coefficients
  *              number of coefficients in vector (one scalefactor band of coefs)
  *              scalefactor for this band (i.e. noise energy)
- *
  * Outputs:     nVals coefficients in Q(FBITS_OUT_DQ_OFF)
- *
  * Return:      guard bit mask (OR of abs value of all noise coefs)
  **************************************************************************************/
-int ScaleNoiseVector (int *coef, int nVals, int sf)
-{
 
   int i, c, spec, energy, sq, scalef, scalei, invSqrtEnergy, z, gbMask;
   energy = 0;
@@ -5497,47 +5457,31 @@ int ScaleNoiseVector (int *coef, int nVals, int sf)
 }
 //}}}
 //{{{
+void GenerateNoiseVector (int *coef, int *last, int nVals) {
 /**************************************************************************************
- * Function:    GenerateNoiseVector
- *
  * Description: create vector of noise coefficients for one scalefactor band
- *
  * Inputs:      seed for number generator
  *              number of coefficients to generate
- *
  * Outputs:     buffer of nVals coefficients, range = [-2^15, 2^15)
  *              updated seed for number generator
- *
- * Return:      none
  **************************************************************************************/
-void GenerateNoiseVector (int *coef, int *last, int nVals)
-{
-  int i;
 
-  for (i = 0; i < nVals; i++)
-    coef[i] = ((signed int)Get32BitVal((unsigned int *)last)) >> 16;
-}
+  for (int i = 0; i < nVals; i++)
+      coef[i] = ((signed int)Get32BitVal ((unsigned int *)last)) >> 16;
+  }
 //}}}
 //{{{
+void CopyNoiseVector (int *coefL, int *coefR, int nVals) {
 /**************************************************************************************
- * Function:    CopyNoiseVector
- *
  * Description: copy vector of noise coefficients for one scalefactor band from L to R
- *
  * Inputs:      buffer of left coefficients
  *              number of coefficients to copy
- *
  * Outputs:     buffer of right coefficients
- *
- * Return:      none
  **************************************************************************************/
-void CopyNoiseVector (int *coefL, int *coefR, int nVals)
-{
-  int i;
 
-  for (i = 0; i < nVals; i++)
+  for (int i = 0; i < nVals; i++)
     coefR[i] = coefL[i];
-}
+  }
 //}}}
 //}}}
 //{{{
@@ -5680,12 +5624,12 @@ int FilterRegion (int size, int dir, int order, int* audioCoef, int* a, int* his
  **************************************************************************************/
 
   int i, j, y, hi32, inc, gbMask;
-  U64 sum64;
 
   // init history to 0 every time */
   for (i = 0; i < order; i++)
     hist[i] = 0;
 
+  U64 sum64;
   sum64.w64 = 0;     /* avoid warning */
   gbMask = 0;
   inc = (dir ? -1 : 1);
