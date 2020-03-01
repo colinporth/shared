@@ -1,5 +1,6 @@
 // iAudioDecoder.h
 #pragma once
+#include <stdint.h>
 
 class iAudioDecoder {
 public:

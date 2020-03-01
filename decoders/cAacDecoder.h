@@ -1,4 +1,4 @@
-// aacdec.h
+// cAacdecoder.h
 #pragma once
 #include <stdint.h>
 #include <stdlib.h>
@@ -80,25 +80,25 @@ public:
 
 private:
   //{{{  private members
-  int decodeSingleChannelElement (BitStreamInfo* bsi);
-  int decodeChannelPairElement (BitStreamInfo* bsi);
-  int decodeLFEChannelElement (BitStreamInfo* bsi);
-  int decodeDataStreamElement (BitStreamInfo* bsi);
-  int decodeProgramConfigElement (ProgConfigElement* pce, BitStreamInfo* bsi);
-  int decodeFillElement (BitStreamInfo* bsi);
-  int decodeNextElement (uint8_t** buf, int* bitOffset, int* bitsAvail);
-  int DecodeSBRBitstream (int chBase);
+  void decodeSingleChannelElement (BitStreamInfo* bsi);
+  void decodeChannelPairElement (BitStreamInfo* bsi);
+  void decodeLFEChannelElement (BitStreamInfo* bsi);
+  void decodeDataStreamElement (BitStreamInfo* bsi);
+  void decodeProgramConfigElement (ProgConfigElement* pce, BitStreamInfo* bsi);
+  void decodeFillElement (BitStreamInfo* bsi);
+  bool decodeNextElement (uint8_t** buf, int* bitOffset, int* bitsAvail);
+  bool decodeSbrBitstream (int chBase);
 
-  int Dequantize (int ch);
-  int DeinterleaveShortBlocks (int ch);
-  int PNS (int ch);
-  int TNSFilter (int ch);
-  int StereoProcess();
-  int DecodeNoiselessData (uint8_t** buf, int* bitOffset, int* bitsAvail, int ch);
-  int UnpackADTSHeader (uint8_t** buf, int* bitOffset, int* bitsAvail);
-  int GetADTSChannelMapping (uint8_t* buf, int bitOffset, int bitsAvail);
-  int IMDCT (int ch, int chOut, float* outbuf);
-  int DecodeSBRData (int chBase, float* outbuf);
+  void decodeNoiselessData (uint8_t** buf, int* bitOffset, int* bitsAvail, int ch);
+  void dequantize (int ch);
+  void applyStereoProcess();
+  void applyPns (int ch);
+  void applyTns (int ch);
+  void imdct (int ch, int chOut, float* outbuf);
+  void applySbr (int chBase, float* outbuf);
+
+  bool unpackADTSHeader (uint8_t** buf, int* bitOffset, int* bitsAvail);
+  bool getADTSChannelMapping (uint8_t* buf, int bitOffset, int bitsAvail);
   //}}}
   //{{{  private vars
   PSInfoBase* psInfoBase;
