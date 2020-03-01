@@ -167,9 +167,9 @@ enum {
 
 //{{{
 typedef struct _HuffInfo {
-  int maxBits;                                                    /* number of bits in longest codeword */
-  unsigned /*char*/ int count[MAX_HUFF_BITS];         /* count[i] = number of codes with length i+1 bits */
-  int offset;                                                             /* offset into symbol table */
+  int maxBits;                     // number of bits in longest codeword
+  uint32_t count [MAX_HUFF_BITS];  // count[i] = number of codes with length i+1 bits
+  int offset;                      // offset into symbol table
   } HuffInfo;
 //}}}
 //{{{
@@ -177,28 +177,28 @@ typedef struct _PulseInfo {
   uint8_t pulseDataPresent;
   uint8_t numPulse;
   uint8_t startSFB;
-  uint8_t offset[MAX_PULSES];
-  uint8_t amp[MAX_PULSES];
+  uint8_t offset [MAX_PULSES];
+  uint8_t amp [MAX_PULSES];
   } PulseInfo;
 //}}}
 //{{{
 typedef struct _TNSInfo {
   uint8_t tnsDataPresent;
-  uint8_t numFilt[MAX_TNS_FILTERS]; /* max 1 filter each for 8 short windows, or 3 filters for 1 long window */
-  uint8_t coefRes[MAX_TNS_FILTERS];
-  uint8_t length[MAX_TNS_FILTERS];
-  uint8_t order[MAX_TNS_FILTERS];
-  uint8_t dir[MAX_TNS_FILTERS];
-  int8_t  coef[MAX_TNS_COEFS];      /* max 3 filters * 20 coefs for 1 long window, or 1 filter * 7 coefs for each of 8 short windows */
+  uint8_t numFilt [MAX_TNS_FILTERS]; /* max 1 filter each for 8 short windows, or 3 filters for 1 long window */
+  uint8_t coefRes [MAX_TNS_FILTERS];
+  uint8_t length [MAX_TNS_FILTERS];
+  uint8_t order [MAX_TNS_FILTERS];
+  uint8_t dir [MAX_TNS_FILTERS];
+  int8_t  coef [MAX_TNS_COEFS];      /* max 3 filters * 20 coefs for 1 long window, or 1 filter * 7 coefs for each of 8 short windows */
   } TNSInfo;
 //}}}
 //{{{
 typedef struct _GainControlInfo {
   uint8_t gainControlDataPresent;
   uint8_t maxBand;
-  uint8_t adjNum[MAX_GAIN_BANDS][MAX_GAIN_WIN];
-  uint8_t alevCode[MAX_GAIN_BANDS][MAX_GAIN_WIN][MAX_GAIN_ADJUST];
-  uint8_t alocCode[MAX_GAIN_BANDS][MAX_GAIN_WIN][MAX_GAIN_ADJUST];
+  uint8_t adjNum [MAX_GAIN_BANDS][MAX_GAIN_WIN];
+  uint8_t alevCode [MAX_GAIN_BANDS][MAX_GAIN_WIN][MAX_GAIN_ADJUST];
+  uint8_t alocCode [MAX_GAIN_BANDS][MAX_GAIN_WIN][MAX_GAIN_ADJUST];
   } GainControlInfo;
 //}}}
 //{{{
@@ -211,33 +211,33 @@ typedef struct _ICSInfo {
   uint8_t predictorDataPresent;
   uint8_t predictorReset;
   uint8_t predictorResetGroupNum;
-  uint8_t predictionUsed[MAX_PRED_SFB];
+  uint8_t predictionUsed [MAX_PRED_SFB];
   uint8_t numWinGroup;
-  uint8_t winGroupLen[MAX_WIN_GROUPS];
+  uint8_t winGroupLen [MAX_WIN_GROUPS];
   } ICSInfo;
 //}}}
 //{{{
 typedef struct _ADTSHeader {
-  /* fixed */
-  uint8_t id;                             /* MPEG bit - should be 1 */
-  uint8_t layer;                          /* MPEG layer - should be 0 */
-  uint8_t protectBit;                     /* 0 = CRC word follows, 1 = no CRC word */
-  uint8_t profile;                        /* 0 = main, 1 = LC, 2 = SSR, 3 = reserved */
-  uint8_t sampRateIdx;                    /* sample rate index range = [0, 11] */
-  uint8_t privateBit;                     /* ignore */
-  uint8_t channelConfig;                  /* 0 = implicit, >0 = use default table */
-  uint8_t origCopy;                       /* 0 = copy, 1 = original */
-  uint8_t home;                           /* ignore */
+  // fixed
+  uint8_t id;               // MPEG bit - should be 1
+  uint8_t layer;            // MPEG layer - should be 0
+  uint8_t protectBit;       // 0 = CRC word follows, 1 = no CRC word
+  uint8_t profile;          // 0 = main, 1 = LC, 2 = SSR, 3 = reserved
+  uint8_t sampRateIdx;      // sample rate index range = [0, 11]
+  uint8_t privateBit;       // ignore
+  uint8_t channelConfig;    // 0 = implicit, > 0 = use default table
+  uint8_t origCopy;         // 0 = copy, 1 = original
+  uint8_t home;             // ignore
 
-  /* variable */
-  uint8_t copyBit;                        /* 1 bit of the 72-bit copyright ID (transmitted as 1 bit per frame) */
-  uint8_t copyStart;                      /* 1 = this bit starts the 72-bit ID, 0 = it does not */
-  int     frameLength;                    /* length of frame */
-  int     bufferFull;                     /* number of 32-bit words left in enc buffer, 0x7FF = VBR */
-  uint8_t numRawDataBlocks;               /* number of raw data blocks in frame */
+  // variable
+  uint8_t copyBit;          // 1 bit of the 72-bit copyright ID (transmitted as 1 bit per frame)
+  uint8_t copyStart;        // 1 = this bit starts the 72-bit ID, 0 = it does not
+  int     frameLength;      // length of frame
+  int     bufferFull;       // number of 32-bit words left in enc buffer, 0x7FF = VBR
+  uint8_t numRawDataBlocks; // number of raw data blocks in frame
 
-  /* CRC */
-  int     crcCheckWord;                   /* 16-bit CRC check word (present if protectBit == 0) */
+  // CRC
+  int     crcCheckWord;     // 16-bit CRC check word (present if protectBit == 0)
   } ADTSHeader;
 //}}}
 
@@ -334,9 +334,9 @@ typedef struct _SBRChan {
 //}}}
 
 //{{{
-/* state info struct for baseline (MPEG-4 LC) decoding */
+// state info struct for baseline (MPEG-4 LC) decoding
 struct PSInfoBase {
-  /* header information */
+  // header information
   ADTSHeader      fhADTS;
   cAacDecoder::ProgConfigElement pce [MAX_NUM_PCE_ADIF];
   int             dataCount;
@@ -344,12 +344,12 @@ struct PSInfoBase {
   int             fillCount;
   uint8_t         fillBuf [FILL_BUF_SIZE];
 
-  /* state information which is the same throughout whole frame */
+  // state information which is the same throughout whole frame
   int             nChans;
   int             useImpChanMap;
   int             sampRateIdx;
 
-  /* state information which can be overwritten by subsequent elements within frame */
+  // state information which can be overwritten by subsequent elements within frame
   ICSInfo         icsInfo [MAX_NCHANS_ELEM];
 
   int             commonWin;
@@ -375,7 +375,7 @@ struct PSInfoBase {
   int             coef [MAX_NCHANS_ELEM][AAC_MAX_NSAMPS];
   int             sbrWorkBuf [MAX_NCHANS_ELEM][AAC_MAX_NSAMPS];
 
-  /* state information which must be saved for each element and used in next frame */
+  // state information which must be saved for each element and used in next frame
   int             overlap [AAC_MAX_NCHANS][AAC_MAX_NSAMPS];
   int             prevWinShape [AAC_MAX_NCHANS];
   } PSInfoBase;
@@ -384,13 +384,13 @@ struct PSInfoBase {
 struct PSInfoSBR {
   int     sampRateIdx;
 
-  /* state info that must be saved for each channel */
+  // state info that must be saved for each channel
   SBRHeader sbrHdr [AAC_MAX_NCHANS];
   SBRGrid sbrGrid [AAC_MAX_NCHANS];
   SBRFreq sbrFreq [AAC_MAX_NCHANS];
   SBRChan sbrChan [AAC_MAX_NCHANS];
 
-  /* temp variables, no need to save between blocks */
+  // temp variables, no need to save between blocks
   uint8_t dataExtra;
   uint8_t resBitsData;
   uint8_t extendedDataPresent;
@@ -434,7 +434,7 @@ struct PSInfoSBR {
   int     gFiltLast [MAX_QMF_BANDS];
   int     qFiltLast [MAX_QMF_BANDS];
 
-  /* large buffers */
+  // large buffers
   int     delayIdxQMFA [AAC_MAX_NCHANS];
   int     delayQMFA [AAC_MAX_NCHANS][DELAY_SAMPS_QMFA];
   int     delayIdxQMFS [AAC_MAX_NCHANS];
@@ -2222,6 +2222,7 @@ int cAacDecoder::getSampleRate() {
   return sampRate * (sbrEnabled ? 2 : 1);
   }
 //}}}
+
 //{{{
 void cAacDecoder::flushCodec() {
 /**************************************************************************************
@@ -2230,10 +2231,10 @@ void cAacDecoder::flushCodec() {
  * Outputs:     updated state variables in
  * Return:      0 if successful, error code (< 0) if error
  **************************************************************************************/
-// reset common state variables which change per-frame
-// don't touch state variables which are (usually) constant for entire clip
-//  (nChans, sampRate, profile, format, sbrEnabled)
 
+  // reset common state variables which change per-frame
+  // don't touch state variables which are (usually) constant for entire clip
+  //  (nChans, sampRate, profile, format, sbrEnabled)
   prevBlockID = AAC_ID_INVALID;
   currBlockID = AAC_ID_INVALID;
   currInstTag = -1;
@@ -2474,7 +2475,7 @@ int DecodeHuffmanScalar (const int16_t* huffTab, const HuffInfo* huffTabInfo, un
  *                  (since count[nBits] = 0)
  **************************************************************************************/
 
-  const unsigned /*char*/ int* countPtr = huffTabInfo->count;
+  const unsigned int* countPtr = huffTabInfo->count;
   const int16_t* map = huffTab + huffTabInfo->offset;
 
   unsigned int t;
@@ -2531,7 +2532,7 @@ void UnpackQuads (cAacDecoder::BitStreamInfo* bsi, int cb, int nVals, int* coef)
 
   maxBits = huffTabSpecInfo[cb - HUFFTAB_SPEC_OFFSET].maxBits + 4;
   while (nVals > 0) {
-    /* decode quad */
+    // decode quad
     bitBuf = getBitsNoAdvance(bsi, maxBits) << (32 - maxBits);
     nCodeBits = DecodeHuffmanScalar (huffTabSpec, &huffTabSpecInfo[cb - HUFFTAB_SPEC_OFFSET], bitBuf, &val);
 
@@ -2567,29 +2568,35 @@ void UnpackPairsNoEsc (cAacDecoder::BitStreamInfo* bsi, int cb, int nVals, int* 
  *                are a multiple of 4 coefficients long
  **************************************************************************************/
 
-  int y, z, maxBits, nCodeBits, nSignBits, val;
-  unsigned int bitBuf;
 
-  maxBits = huffTabSpecInfo[cb - HUFFTAB_SPEC_OFFSET].maxBits + 2;
+  int maxBits = huffTabSpecInfo[cb - HUFFTAB_SPEC_OFFSET].maxBits + 2;
   while (nVals > 0) {
-    /* decode pair */
-    bitBuf = getBitsNoAdvance(bsi, maxBits) << (32 - maxBits);
-    nCodeBits = DecodeHuffmanScalar (huffTabSpec, &huffTabSpecInfo[cb-HUFFTAB_SPEC_OFFSET], bitBuf, &val);
+    // decode pair
+    int val;
+    unsigned int bitBuf = getBitsNoAdvance (bsi, maxBits) << (32 - maxBits);
+    int nCodeBits = DecodeHuffmanScalar (huffTabSpec, &huffTabSpecInfo[cb-HUFFTAB_SPEC_OFFSET], bitBuf, &val);
 
-    y = GET_PAIR_Y(val);
-    z = GET_PAIR_Z(val);
+    int y = GET_PAIR_Y (val);
+    int z = GET_PAIR_Z (val);
 
     bitBuf <<= nCodeBits;
-    nSignBits = GET_PAIR_SIGNBITS(val);
-    advanceBitstream(bsi, nCodeBits + nSignBits);
+    int nSignBits = GET_PAIR_SIGNBITS (val);
+    advanceBitstream (bsi, nCodeBits + nSignBits);
     if (nSignBits) {
-      if (y)  {APPLY_SIGN(y, bitBuf); bitBuf <<= 1;}
-      if (z)  {APPLY_SIGN(z, bitBuf); bitBuf <<= 1;}
-    }
+      if (y) {
+        APPLY_SIGN (y, bitBuf);
+        bitBuf <<= 1;
+        }
+      if (z) {
+        APPLY_SIGN (z, bitBuf);
+        bitBuf <<= 1;
+        }
+      }
+
     *coef++ = y; *coef++ = z;
     nVals -= 2;
+    }
   }
-}
 //}}}
 //{{{
 void UnpackPairsEsc (cAacDecoder::BitStreamInfo* bsi, int cb, int nVals, int* coef) {
@@ -2604,44 +2611,43 @@ void UnpackPairsEsc (cAacDecoder::BitStreamInfo* bsi, int cb, int nVals, int* co
  *                are a multiple of 4 coefficients long
  **************************************************************************************/
 
-  int y, z, maxBits, nCodeBits, nSignBits, n, val;
-  unsigned int bitBuf;
-
-  maxBits = huffTabSpecInfo[cb - HUFFTAB_SPEC_OFFSET].maxBits + 2;
+  int maxBits = huffTabSpecInfo[cb - HUFFTAB_SPEC_OFFSET].maxBits + 2;
   while (nVals > 0) {
-    /* decode pair with escape value */
-    bitBuf = getBitsNoAdvance(bsi, maxBits) << (32 - maxBits);
-    nCodeBits = DecodeHuffmanScalar (huffTabSpec, &huffTabSpecInfo[cb-HUFFTAB_SPEC_OFFSET], bitBuf, &val);
+    // decode pair with escape value
+    int val;
+    unsigned int bitBuf = getBitsNoAdvance(bsi, maxBits) << (32 - maxBits);
+    int nCodeBits = DecodeHuffmanScalar (huffTabSpec, &huffTabSpecInfo[cb-HUFFTAB_SPEC_OFFSET], bitBuf, &val);
 
-    y = GET_ESC_Y(val);
-    z = GET_ESC_Z(val);
+    int y = GET_ESC_Y(val);
+    int z = GET_ESC_Z(val);
 
     bitBuf <<= nCodeBits;
-    nSignBits = GET_ESC_SIGNBITS(val);
-    advanceBitstream(bsi, nCodeBits + nSignBits);
+    int nSignBits = GET_ESC_SIGNBITS(val);
+    advanceBitstream (bsi, nCodeBits + nSignBits);
 
+    int n;
     if (y == 16) {
       n = 4;
       while (getBits(bsi, 1) == 1)
         n++;
       y = (1 << n) + getBits(bsi, n);
-    }
+      }
     if (z == 16) {
       n = 4;
       while (getBits(bsi, 1) == 1)
         n++;
       z = (1 << n) + getBits(bsi, n);
-    }
+      }
 
     if (nSignBits) {
       if (y)  {APPLY_SIGN(y, bitBuf); bitBuf <<= 1;}
       if (z)  {APPLY_SIGN(z, bitBuf); bitBuf <<= 1;}
-    }
+      }
 
     *coef++ = y; *coef++ = z;
     nVals -= 2;
+    }
   }
-}
 //}}}
 //{{{
 void DecodeSpectrumLong (struct PSInfoBase* psi, cAacDecoder::BitStreamInfo* bsi, int ch) {
@@ -2657,48 +2663,41 @@ void DecodeSpectrumLong (struct PSInfoBase* psi, cAacDecoder::BitStreamInfo* bsi
  *                codebook in range [1, 11] (including sfb's above sfbMax)
  **************************************************************************************/
 
-  int i, sfb, cb, nVals, offset;
+  int* coef = psi->coef[ch];
+  ICSInfo* icsInfo = (ch == 1 && psi->commonWin == 1) ? &(psi->icsInfo[0]) : &(psi->icsInfo[ch]);
 
-  const short* sfbTab;
-  uint8_t *sfbCodeBook;
-  int *coef;
-  ICSInfo *icsInfo;
-  PulseInfo *pi;
-
-  coef = psi->coef[ch];
-  icsInfo = (ch == 1 && psi->commonWin == 1) ? &(psi->icsInfo[0]) : &(psi->icsInfo[ch]);
-
-  /* decode long block */
-  sfbTab = sfBandTabLong + sfBandTabLongOffset[psi->sampRateIdx];
-  sfbCodeBook = psi->sfbCodeBook[ch];
+  // decode long block
+  const short* sfbTab = sfBandTabLong + sfBandTabLongOffset[psi->sampRateIdx];
+  uint8_t* sfbCodeBook = psi->sfbCodeBook[ch];
+  int sfb;
   for (sfb = 0; sfb < icsInfo->maxSFB; sfb++) {
-    cb = *sfbCodeBook++;
-    nVals = sfbTab[sfb+1] - sfbTab[sfb];
+    int cb = *sfbCodeBook++;
+    int nVals = sfbTab[sfb+1] - sfbTab[sfb];
 
     if (cb == 0)
-      UnpackZeros(nVals, coef);
+      UnpackZeros (nVals, coef);
     else if (cb <= 4)
-      UnpackQuads(bsi, cb, nVals, coef);
+      UnpackQuads (bsi, cb, nVals, coef);
     else if (cb <= 10)
-      UnpackPairsNoEsc(bsi, cb, nVals, coef);
+      UnpackPairsNoEsc (bsi, cb, nVals, coef);
     else if (cb == 11)
-      UnpackPairsEsc(bsi, cb, nVals, coef);
+      UnpackPairsEsc (bsi, cb, nVals, coef);
     else
-      UnpackZeros(nVals, coef);
+      UnpackZeros (nVals, coef);
 
     coef += nVals;
-  }
+    }
 
-  /* fill with zeros above maxSFB */
-  nVals = NSAMPS_LONG - sfbTab[sfb];
-  UnpackZeros(nVals, coef);
+  // fill with zeros above maxSFB
+  int nVals = NSAMPS_LONG - sfbTab[sfb];
+  UnpackZeros (nVals, coef);
 
-  /* add pulse data, if present */
-  pi = &psi->pulseInfo[ch];
+  // add pulse data, if present
+  PulseInfo* pi = &psi->pulseInfo[ch];
   if (pi->pulseDataPresent) {
     coef = psi->coef[ch];
-    offset = sfbTab[pi->startSFB];
-    for (i = 0; i < pi->numPulse; i++) {
+    int offset = sfbTab[pi->startSFB];
+    for (int i = 0; i < pi->numPulse; i++) {
       offset += pi->offset[i];
       if (coef[offset] > 0)
         coef[offset] += pi->amp[i];
@@ -2722,25 +2721,21 @@ void DecodeSpectrumShort (struct PSInfoBase* psi, cAacDecoder::BitStreamInfo* bs
  *              deinterleaves window groups into 8 windows
  **************************************************************************************/
 
-  int gp, cb, nVals=0, win, offset, sfb;
-  const short* sfbTab;
-  uint8_t *sfbCodeBook;
-  int *coef;
-  ICSInfo *icsInfo;
+  int* coef = psi->coef[ch];
+  ICSInfo* icsInfo = (ch == 1 && psi->commonWin == 1) ? &(psi->icsInfo[0]) : &(psi->icsInfo[ch]);
 
-  coef = psi->coef[ch];
-  icsInfo = (ch == 1 && psi->commonWin == 1) ? &(psi->icsInfo[0]) : &(psi->icsInfo[ch]);
-
-  /* decode short blocks, deinterleaving in-place */
-  sfbTab = sfBandTabShort + sfBandTabShortOffset[psi->sampRateIdx];
-  sfbCodeBook = psi->sfbCodeBook[ch];
-  for (gp = 0; gp < icsInfo->numWinGroup; gp++) {
+  // decode short blocks, deinterleaving in-place
+  int sfb;
+  int nVals = 0;
+  const short* sfbTab = sfBandTabShort + sfBandTabShortOffset[psi->sampRateIdx];
+  uint8_t* sfbCodeBook = psi->sfbCodeBook[ch];
+  for (int gp = 0; gp < icsInfo->numWinGroup; gp++) {
     for (sfb = 0; sfb < icsInfo->maxSFB; sfb++) {
       nVals = sfbTab[sfb+1] - sfbTab[sfb];
-      cb = *sfbCodeBook++;
+      int cb = *sfbCodeBook++;
 
-      for (win = 0; win < icsInfo->winGroupLen[gp]; win++) {
-        offset = win*NSAMPS_SHORT;
+      for (int win = 0; win < icsInfo->winGroupLen[gp]; win++) {
+        int offset = win*NSAMPS_SHORT;
         if (cb == 0)
           UnpackZeros(nVals, coef + offset);
         else if (cb <= 4)
@@ -2751,21 +2746,20 @@ void DecodeSpectrumShort (struct PSInfoBase* psi, cAacDecoder::BitStreamInfo* bs
           UnpackPairsEsc(bsi, cb, nVals, coef + offset);
         else
           UnpackZeros(nVals, coef + offset);
-      }
+        }
       coef += nVals;
-    }
+      }
 
-    /* fill with zeros above maxSFB */
-    for (win = 0; win < icsInfo->winGroupLen[gp]; win++) {
-      offset = win*NSAMPS_SHORT;
+    // fill with zeros above maxSFB
+    for (int win = 0; win < icsInfo->winGroupLen[gp]; win++) {
+      int offset = win*NSAMPS_SHORT;
       nVals = NSAMPS_SHORT - sfbTab[sfb];
       UnpackZeros(nVals, coef + offset);
-    }
+      }
     coef += nVals;
     coef += (icsInfo->winGroupLen[gp] - 1)*NSAMPS_SHORT;
+    }
   }
-
-}
 //}}}
 
 //{{{
@@ -3081,7 +3075,7 @@ void DecodeICS (struct PSInfoBase* psi, cAacDecoder::BitStreamInfo* bsi, int ch)
 
 // sbrhuff
 //{{{
-int DequantizeEnvelope (int nBands, int ampRes, int8_t *envQuant, int *envDequant) {
+int DequantizeEnvelope (int nBands, int ampRes, int8_t* envQuant, int* envDequant) {
 /**************************************************************************************
  * Description: dequantize envelope scalefactors
  * Inputs:      number of scalefactors to process
@@ -3093,17 +3087,14 @@ int DequantizeEnvelope (int nBands, int ampRes, int8_t *envQuant, int *envDequan
  * Notes:       dequantized scalefactors have at least 2 GB
  **************************************************************************************/
 
-  int exp, expMax, i, scalei;
-
   if (nBands <= 0)
     return 0;
 
-  // scan for largest dequant value (do separately from envelope decoding to keep code cleaner) */
-  expMax = 0;
-  for (i = 0; i < nBands; i++) {
+  // scan for largest dequant value (do separately from envelope decoding to keep code cleaner)
+  int expMax = 0;
+  for (int i = 0; i < nBands; i++)
     if (envQuant[i] > expMax)
       expMax = envQuant[i];
-    }
 
   // dequantized envelope gains
   //   envDequant = 64*2^(envQuant / alpha) = 2^(6 + envQuant / alpha)
@@ -3117,8 +3108,8 @@ int DequantizeEnvelope (int nBands, int ampRes, int8_t *envQuant, int *envDequan
   // reference: 14496-3:2001(E)/4.6.18.3.5 and 14496-4:200X/FPDAM8/5.6.5.1.2.1.5
   if (ampRes) {
     do {
-      exp = *envQuant++;
-      scalei = std::min (expMax - exp, 31);
+      int exp = *envQuant++;
+      int scalei = std::min (expMax - exp, 31);
       *envDequant++ = envDQTab[0] >> scalei;
       } while (--nBands);
     return (6 + expMax);
@@ -3126,8 +3117,8 @@ int DequantizeEnvelope (int nBands, int ampRes, int8_t *envQuant, int *envDequan
   else {
     expMax >>= 1;
     do {
-      exp = *envQuant++;
-      scalei = std::min (expMax - (exp >> 1), 31);
+      int exp = *envQuant++;
+      int scalei = std::min (expMax - (exp >> 1), 31);
       *envDequant++ = envDQTab[exp & 0x01] >> scalei;
       } while (--nBands);
     return (6 + expMax);
@@ -3355,7 +3346,7 @@ bool cAacDecoder::unpackADTSHeader (uint8_t** buf, int* bitOffset, int* bitsAvai
  /**************************************************************************************
  * Description: parse the ADTS frame header and initialize decoder state
  * Inputs:      double pointer to buffer with complete ADTS frame header (byte aligned)
- *                header size = 7 bytes, plus 2 if CRC
+ *              header size = 7 bytes, plus 2 if CRC
  * Outputs:     filled in ADTS struct
  *              updated buffer pointer
  *              updated bit offset
@@ -3373,21 +3364,21 @@ bool cAacDecoder::unpackADTSHeader (uint8_t** buf, int* bitOffset, int* bitsAvai
 
   // fixed fields - should not change from frame to frame
   ADTSHeader* fhADTS = &(psInfoBase->fhADTS);
-  fhADTS->id =               getBits(&bsi, 1);
-  fhADTS->layer =            getBits(&bsi, 2);
-  fhADTS->protectBit =       getBits(&bsi, 1);
-  fhADTS->profile =          getBits(&bsi, 2);
-  fhADTS->sampRateIdx =      getBits(&bsi, 4);
-  fhADTS->privateBit =       getBits(&bsi, 1);
-  fhADTS->channelConfig =    getBits(&bsi, 3);
-  fhADTS->origCopy =         getBits(&bsi, 1);
-  fhADTS->home =             getBits(&bsi, 1);
+  fhADTS->id = getBits(&bsi, 1);
+  fhADTS->layer = getBits(&bsi, 2);
+  fhADTS->protectBit = getBits(&bsi, 1);
+  fhADTS->profile = getBits(&bsi, 2);
+  fhADTS->sampRateIdx =  getBits(&bsi, 4);
+  fhADTS->privateBit = getBits(&bsi, 1);
+  fhADTS->channelConfig = getBits(&bsi, 3);
+  fhADTS->origCopy = getBits(&bsi, 1);
+  fhADTS->home = getBits(&bsi, 1);
 
   // variable fields - can change from frame to frame
-  fhADTS->copyBit =          getBits(&bsi, 1);
-  fhADTS->copyStart =        getBits(&bsi, 1);
-  fhADTS->frameLength =      getBits(&bsi, 13);
-  fhADTS->bufferFull =       getBits(&bsi, 11);
+  fhADTS->copyBit = getBits(&bsi, 1);
+  fhADTS->copyStart = getBits(&bsi, 1);
+  fhADTS->frameLength = getBits(&bsi, 13);
+  fhADTS->bufferFull = getBits(&bsi, 11);
   fhADTS->numRawDataBlocks = getBits(&bsi, 2) + 1;
 
   // note - MPEG4 spec, correction 1 changes how CRC is handled when protectBit == 0 and numRawDataBlocks > 1
@@ -3425,10 +3416,8 @@ bool cAacDecoder::unpackADTSHeader (uint8_t** buf, int* bitOffset, int* bitsAvai
   *buf += (bitsUsed + *bitOffset) >> 3;
   *bitOffset = (bitsUsed + *bitOffset) & 0x07;
   *bitsAvail -= bitsUsed ;
-  if (*bitsAvail < 0)
-    return true;
 
-  return false;
+  return *bitsAvail < 0;
   }
 //}}}
 //{{{
@@ -4154,7 +4143,6 @@ void UnpackSBRSingleChannel (cAacDecoder::BitStreamInfo *bsi, PSInfoSBR *psi, in
  * Outputs:     updated PSInfoSBR struct (SBRGrid and SBRChan)
  **************************************************************************************/
 
-  int bitsLeft;
   SBRHeader* sbrHdr = &(psi->sbrHdr[chBase]);
   SBRGrid* sbrGridL = &(psi->sbrGrid[chBase+0]);
   SBRFreq* sbrFreq =  &(psi->sbrFreq[chBase]);
@@ -4180,7 +4168,7 @@ void UnpackSBRSingleChannel (cAacDecoder::BitStreamInfo *bsi, PSInfoSBR *psi, in
     if (psi->extendedDataSize == 15)
       psi->extendedDataSize += getBits (bsi, 8);
 
-    bitsLeft = 8 * psi->extendedDataSize;
+    int bitsLeft = 8 * psi->extendedDataSize;
 
     /* get ID, unpack extension info, do whatever is necessary with it... */
     while (bitsLeft > 0) {
@@ -4202,7 +4190,6 @@ void UnpackSBRChannelPair (cAacDecoder::BitStreamInfo *bsi, PSInfoSBR *psi, int 
  * Outputs:     updated PSInfoSBR struct (SBRGrid and SBRChan for both channels)
  **************************************************************************************/
 
-  int bitsLeft;
   SBRHeader* sbrHdr = &(psi->sbrHdr[chBase]);
   SBRGrid* sbrGridL = &(psi->sbrGrid[chBase+0]), *sbrGridR = &(psi->sbrGrid[chBase+1]);
   SBRFreq* sbrFreq =  &(psi->sbrFreq[chBase]);
@@ -4260,7 +4247,7 @@ void UnpackSBRChannelPair (cAacDecoder::BitStreamInfo *bsi, PSInfoSBR *psi, int 
     if (psi->extendedDataSize == 15)
       psi->extendedDataSize += getBits(bsi, 8);
 
-    bitsLeft = 8 * psi->extendedDataSize;
+    int bitsLeft = 8 * psi->extendedDataSize;
 
     // get ID, unpack extension info, do whatever is necessary with it... */
     while (bitsLeft > 0) {
@@ -4295,15 +4282,14 @@ int InvRNormalized (int r) {
  *              NUM_ITER_IRN = 5, maxDiff = 3.0034e-08 (precision of about 24 bits)
  **************************************************************************************/
 
-  int i, xn, t;
   // r =   [0.5, 1.0)
   // 1/r = (1.0, 2.0]
   //  so use 1.5 as initial guess
-  xn = Q28_15;
+  int xn = Q28_15;
 
   // xn = xn*(2.0 - r*xn)
-  for (i = NUM_ITER_IRN; i != 0; i--) {
-    t = MULSHIFT32 (r, xn);        /* Q31*Q29 = Q28 */
+  for (int i = NUM_ITER_IRN; i != 0; i--) {
+    int t = MULSHIFT32 (r, xn);        /* Q31*Q29 = Q28 */
     t = Q28_2 - t;                /* Q28 */
     xn = MULSHIFT32(xn, t) << 4;  /* Q29*Q28 << 4 = Q29 */
     }
@@ -4322,23 +4308,24 @@ int RatioPowInv (int a, int b, int c) {
  * Return:      y = Q24, range ~= [0.015625, 64]
  **************************************************************************************/
 
-  int lna, lnb, i, p, t, y;
-
   if (a < 1 || b < 1 || c < 1 || a > 64 || b > 64 || c > 64 || a < b)
     return 0;
 
-  lna = MULSHIFT32(log2Tab[a], LOG2_EXP_INV) << 1;  /* ln(a), Q28 */
-  lnb = MULSHIFT32(log2Tab[b], LOG2_EXP_INV) << 1;  /* ln(b), Q28 */
-  p = (lna - lnb) / c;  /* Q28 */
+  int lna = MULSHIFT32(log2Tab[a], LOG2_EXP_INV) << 1;  /* ln(a), Q28 */
+  int lnb = MULSHIFT32(log2Tab[b], LOG2_EXP_INV) << 1;  /* ln(b), Q28 */
+  int p = (lna - lnb) / c;  /* Q28 */
 
-  /* sum in Q24 */
-  y = (1 << 24);
-  t = p >> 4;   /* t = p^1 * 1/1! (Q24)*/
+  // sum in Q24
+  int y = (1 << 24);
+
+  // t = p^1 * 1/1! (Q24)
+  int t = p >> 4;
   y += t;
 
-  for (i = 2; i <= NUM_TERMS_RPI; i++) {
+  for (int i = 2; i <= NUM_TERMS_RPI; i++) {
     t = MULSHIFT32(invTab[i-1], t) << 2;
-    t = MULSHIFT32(p, t) << 4;  /* t = p^i * 1/i! (Q24) */
+    // t = p^i * 1/i! (Q24)
+    t = MULSHIFT32(p, t) << 4;
     y += t;
     }
 
@@ -4358,33 +4345,31 @@ int SqrtFix (int q, int fBitsIn, int *fBitsOut) {
  *                floor(sqrt(input)), and sets fBitsOut appropriately
  **************************************************************************************/
 
-  int z, lo, hi, mid;
-
   if (q <= 0) {
     *fBitsOut = fBitsIn;
     return 0;
     }
 
-  /* force even fBitsIn */
-  z = fBitsIn & 0x01;
+  // force even fBitsIn
+  int z = fBitsIn & 0x01;
   q >>= z;
   fBitsIn -= z;
 
-  /* for max precision, normalize to [0x20000000, 0x7fffffff] */
+  // for max precision, normalize to [0x20000000, 0x7fffffff]
   z = (countLeadingZeros (q) - 1);
   z >>= 1;
   q <<= (2*z);
 
-  /* choose initial bounds */
-  lo = 1;
+  // choose initial bounds
+  int lo = 1;
   if (q >= 0x10000000)
-    lo = 16384; /* (int)sqrt(0x10000000) */
-  hi = 46340;   /* (int)sqrt(0x7fffffff) */
+    lo = 16384;    /* (int)sqrt(0x10000000) */
+  int hi = 46340;  /* (int)sqrt(0x7fffffff) */
 
-  /* do binary search with 32x32->32 multiply test */
+  // do binary search with 32x32->32 multiply test
   do {
-    mid = (lo + hi) >> 1;
-    if (mid*mid > q)
+    int mid = (lo + hi) >> 1;
+    if (mid * mid > q)
       hi = mid - 1;
     else
       lo = mid + 1;
@@ -4465,8 +4450,7 @@ int CalcFreqMasterScaleZero (uint8_t *freqMaster, int alterScale, int k0, int k2
  * Notes:       assumes k2 - k0 <= 48 and k2 >= k0 (4.6.18.3.6)
  **************************************************************************************/
 
-  int nMaster, k, nBands, k2Achieved, dk, vDk[64], k2Diff;
-
+  int nBands, dk;
   if (alterScale) {
     dk = 2;
     nBands = 2 * ((k2 - k0 + 2) >> 2);
@@ -4479,8 +4463,11 @@ int CalcFreqMasterScaleZero (uint8_t *freqMaster, int alterScale, int k0, int k2
   if (nBands <= 0)
     return 0;
 
-  k2Achieved = k0 + nBands * dk;
-  k2Diff = k2 - k2Achieved;
+  int k2Achieved = k0 + nBands * dk;
+  int k2Diff = k2 - k2Achieved;
+
+  int k;
+  int vDk[64];
   for (k = 0; k < nBands; k++)
     vDk[k] = dk;
 
@@ -4501,7 +4488,7 @@ int CalcFreqMasterScaleZero (uint8_t *freqMaster, int alterScale, int k0, int k2
       }
     }
 
-  nMaster = nBands;
+  int nMaster = nBands;
   freqMaster[0] = k0;
   for (k = 1; k <= nBands; k++)
     freqMaster[k] = freqMaster[k-1] + vDk[k-1];
@@ -4733,13 +4720,10 @@ int BuildPatches (uint8_t *patchNumSubbands, uint8_t *patchStartSubband, uint8_t
  * Return:      number of patches
  **************************************************************************************/
 
-  int i, j, k;
-  int msb, sb, usb, numPatches, goalSB, oddFlag;
-
-  msb = k0;
-  usb = kStart;
-  numPatches = 0;
-  goalSB = goalSBTab[sampRateIdx];
+  int msb = k0;
+  int usb = kStart;
+  int numPatches = 0;
+  int goalSB = goalSBTab[sampRateIdx];
 
   if (nMaster == 0) {
     patchNumSubbands[0] = 0;
@@ -4747,15 +4731,18 @@ int BuildPatches (uint8_t *patchNumSubbands, uint8_t *patchStartSubband, uint8_t
     return 0;
     }
 
+  int k;
   if (goalSB < kStart + numQMFBands) {
     k = 0;
-    for (i = 0; freqMaster[i] < goalSB; i++)
+    for (int i = 0; freqMaster[i] < goalSB; i++)
       k = i+1;
-    } 
-  else {
-    k = nMaster;
     }
+  else 
+    k = nMaster;
 
+  int j;
+  int sb;
+  int oddFlag;
   do {
     j = k+1;
     do {
@@ -4766,23 +4753,19 @@ int BuildPatches (uint8_t *patchNumSubbands, uint8_t *patchStartSubband, uint8_t
 
     patchNumSubbands[numPatches] = std::max (sb - usb, 0);
     patchStartSubband[numPatches] = k0 - oddFlag - patchNumSubbands[numPatches];
-
-    /* from MPEG reference code - slightly different from spec */
+    // from MPEG reference code - slightly different from spec
     if ((patchNumSubbands[numPatches] < 3) && (numPatches > 0))
       break;
-
     if (patchNumSubbands[numPatches] > 0) {
       usb = sb;
       msb = sb;
       numPatches++;
-      } 
-    else {
-      msb = kStart;
       }
+    else 
+      msb = kStart;
 
     if (freqMaster[k] - sb < 3)
       k = nMaster;
-
     } while (sb != (kStart + numQMFBands) && numPatches <= MAX_NUM_PATCHES);
 
   return numPatches;
@@ -4803,7 +4786,6 @@ int CalcFreqLimiter (uint8_t *freqLimiter, uint8_t *patchNumSubbands, uint8_t *f
  * Return:      number of bands in limiter frequency table
  **************************************************************************************/
 
-  int k, bands, nLimiter, nOctaves;
   int limBandsPerOctave[3] = {120, 200, 300};   /* [1.2, 2.0, 3.0] * 100 */
   uint8_t patchBorders[MAX_NUM_PATCHES + 1];
 
@@ -4814,46 +4796,43 @@ int CalcFreqLimiter (uint8_t *freqLimiter, uint8_t *patchNumSubbands, uint8_t *f
     return 1;
     }
 
-  bands = limBandsPerOctave[limiterBands - 1];
+  int bands = limBandsPerOctave[limiterBands - 1];
   patchBorders[0] = kStart;
 
-  /* from MPEG reference code - slightly different from spec (top border) */
+  // from MPEG reference code - slightly different from spec (top border)
+  int k;
   for (k = 1; k < numPatches; k++)
     patchBorders[k] = patchBorders[k-1] + patchNumSubbands[k-1];
   patchBorders[k] = freqLow[nLow];
 
   for (k = 0; k <= nLow; k++)
     freqLimiter[k] = freqLow[k];
-
   for (k = 1; k < numPatches; k++)
     freqLimiter[k+nLow] = patchBorders[k];
 
   k = 1;
-  nLimiter = nLow + numPatches - 1;
-  BubbleSort(freqLimiter, nLimiter + 1);
-
+  int nLimiter = nLow + numPatches - 1;
+  BubbleSort (freqLimiter, nLimiter + 1);
   while (k <= nLimiter) {
-    nOctaves = log2Tab[freqLimiter[k]] - log2Tab[freqLimiter[k-1]]; /* Q28 */
-    nOctaves = (nOctaves >> 9) * bands; /* Q19, max bands = 300 < 2^9 */
-    if (nOctaves < (49 << 19)) {    /* compare with 0.49*100, in Q19 */
+    int nOctaves = log2Tab[freqLimiter[k]] - log2Tab[freqLimiter[k-1]]; // Q28
+    nOctaves = (nOctaves >> 9) * bands; // Q19, max bands = 300 < 2^9
+    if (nOctaves < (49 << 19)) {        // compare with 0.49*100, in Q19
       if (freqLimiter[k] == freqLimiter[k-1] || FindFreq(patchBorders, numPatches + 1, freqLimiter[k]) == 0) {
         RemoveFreq(freqLimiter, nLimiter + 1, k);
         nLimiter--;
-        } 
+        }
       else if (FindFreq(patchBorders, numPatches + 1, freqLimiter[k-1]) == 0) {
         RemoveFreq(freqLimiter, nLimiter + 1, k-1);
         nLimiter--;
-        } 
-      else {
-        k++;
         }
-      } 
-    else {
-      k++;
+      else 
+        k++;
       }
+    else
+      k++;
     }
 
-  /* store limiter boundaries as offsets from kStart */
+  // store limiter boundaries as offsets from kStart
   for (k = 0; k <= nLimiter; k++)
     freqLimiter[k] -= kStart;
 
