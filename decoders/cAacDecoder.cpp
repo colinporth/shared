@@ -1,9 +1,18 @@
 // cAacDecoder.cpp - fixed point aac sbr, based on real networks helix 2005 - single file 10000 lines
 //{{{  includes
+#define _CRT_SECURE_NO_WARNINGS
 #include <algorithm>
 #include "cAacDecoder.h"
+#include "../utils/utils.h"
 #include "../utils/cLog.h"
 //}}}
+#define USE_INTRINSICS
+#ifdef USE_INTRINSICS
+  //{{{  intrinsics
+  #include <intrin.h>
+  #include <immintrin.h>
+  //}}}
+#endif
 
 //{{{  error enum
 enum {
@@ -476,44 +485,11 @@ typedef union _U64 {
     } r;
   } U64;
 
-inline int MULSHIFT32 (int x, int y) { return ((__int64)x * (__int64)y) >> 32; }
-inline __int64 MADD64 (__int64 sum64, int x, int y) { return sum64 + ((__int64)x * (__int64)y); }
-
+inline int32_t MULSHIFT32 (int32_t x, int32_t y) { return ((int64_t)x * (int64_t)y) >> 32; }
+inline int64_t MADD64 (__int64 sum64, int32_t x, int32_t y) { return sum64 + ((int64_t)x * (int64_t)y); }
 //{{{
-inline int CLZ (int x) {
-// count leading zeros with binary search
-
-  if (!x)
-    return 32;
-
-  int numZeros = 1;
-  if (!((unsigned int)x >> 16)) {
-    numZeros += 16;
-    x <<= 16;
-    }
-
-  if (!((unsigned int)x >> 24)) {
-    numZeros +=  8;
-    x <<=  8;
-    }
-
-  if (!((unsigned int)x >> 28)) {
-    numZeros +=  4;
-    x <<=  4;
-    }
-
-  if (!((unsigned int)x >> 30)) {
-    numZeros +=  2;
-    x <<=  2;
-    }
-  numZeros -= ((unsigned int)x >> 31);
-
-  return numZeros;
-  }
-//}}}
-//{{{
-inline int FASTABS (int x) {
-  int sign = x >> (sizeof(int) * 8 - 1);
+inline int FASTABS (int32_t x) {
+  int sign = x >> (sizeof(int32_t) * 8 - 1);
   x ^= sign;
   x -= sign;
   return x;
@@ -528,7 +504,7 @@ inline int FASTABS (int x) {
   }
 //}}}
 //{{{
-#define CLIP_2N_SHIFT(y, n) {   \
+#define CLIP_2N_SHIFT(y, n) {    \
   int sign = (y) >> 31;          \
   if (sign != (y) >> (30 - (n))) \
     (y) = sign ^ (0x3fffffff);   \
@@ -536,6 +512,48 @@ inline int FASTABS (int x) {
     (y) = (y) << (n);            \
   }
 //}}}
+
+#ifdef USE_INTRINSICS
+  //{{{
+   inline int countLeadingZeros (int x) {
+
+    unsigned long index;
+    return _BitScanReverse (&index, (unsigned long)x) ? 31 - index : 0;
+    }
+  //}}}
+#else
+  //{{{
+  inline int countLeadingZeros (int x) {
+  // count leading zeros with binary search
+
+    if (!x)
+      return 32;
+
+    int numZeros = 1;
+    if (!((unsigned int)x >> 16)) {
+      numZeros += 16;
+      x <<= 16;
+      }
+
+    if (!((unsigned int)x >> 24)) {
+      numZeros +=  8;
+      x <<=  8;
+      }
+
+    if (!((unsigned int)x >> 28)) {
+      numZeros +=  4;
+      x <<=  4;
+      }
+
+    if (!((unsigned int)x >> 30)) {
+      numZeros +=  2;
+      x <<=  2;
+      }
+
+    return numZeros - ((unsigned int)x >> 31);
+    }
+  //}}}
+#endif
 //}}}
 //{{{  const tables
 //{{{
@@ -4159,13 +4177,13 @@ int ScaleNoiseVector (int *coef, int nVals, int sf)
    *  2^(15 - z/2) to compensate for implicit 2^(30-z) factor in input
    *  +4 to compensate for implicit 2^-8 factor in input
    */
-  z = CLZ (energy) - 2;          /* energy has at least 2 leading zeros (see acc loop) */
+  z = countLeadingZeros (energy) - 2;          /* energy has at least 2 leading zeros (see acc loop) */
   z &= 0xfffffffe;            /* force even */
   invSqrtEnergy = InvRootR(energy << z);  /* energy << z must be in range [0x10000000, 0x40000000] */
   scalei -= (15 - z/2 + 4);       /* nInt = 1/sqrt(energy) in Q29 */
 
   /* normalize for final scaling */
-  z = CLZ (invSqrtEnergy) - 1;
+  z = countLeadingZeros (invSqrtEnergy) - 1;
   invSqrtEnergy <<= z;
   scalei -= (z - 3 - 2);  /* -2 for scalef, z-3 for invSqrtEnergy */
   scalef = MULSHIFT32(scalef, invSqrtEnergy); /* scalef (input) = Q30, invSqrtEnergy = Q29 * 2^z */
@@ -4343,11 +4361,11 @@ void StereoProcessGroup (int* coefL, int* coefR, const short* sfbTab,
     }
   }
 
-  cl = CLZ (gbMaskL) - 1;
+  cl = countLeadingZeros (gbMaskL) - 1;
   if (gbCurrent[0] > cl)
     gbCurrent[0] = cl;
 
-  cr = CLZ (gbMaskR) - 1;
+  cr = countLeadingZeros (gbMaskR) - 1;
   if (gbCurrent[1] > cr)
     gbCurrent[1] = cr;
 
@@ -4699,7 +4717,7 @@ int SqrtFix (int q, int fBitsIn, int *fBitsOut)
   fBitsIn -= z;
 
   /* for max precision, normalize to [0x20000000, 0x7fffffff] */
-  z = (CLZ (q) - 1);
+  z = (countLeadingZeros (q) - 1);
   z >>= 1;
   q <<= (2*z);
 
@@ -6221,7 +6239,7 @@ void EstimateEnvelope (PSInfoSBR *psi, SBRHeader *sbrHdr, SBRGrid *sbrGrid, SBRF
        */
       nScale = 0;
       if (eCurr.r.hi32) {
-        nScale = (32 - CLZ (eCurr.r.hi32)) + 1;
+        nScale = (32 - countLeadingZeros (eCurr.r.hi32)) + 1;
         t  = (int)(eCurr.r.lo32 >> nScale);   /* logical (unsigned) >> */
         t |= eCurr.r.hi32 << (32 - nScale);
       } else if (eCurr.r.lo32 >> 31) {
@@ -6254,7 +6272,7 @@ void EstimateEnvelope (PSInfoSBR *psi, SBRHeader *sbrHdr, SBRGrid *sbrGrid, SBRF
 
       nScale = 0;
       if (eCurr.r.hi32) {
-        nScale = (32 - CLZ (eCurr.r.hi32)) + 1;
+        nScale = (32 - countLeadingZeros (eCurr.r.hi32)) + 1;
         t  = (int)(eCurr.r.lo32 >> nScale);   /* logical (unsigned) >> */
         t |= eCurr.r.hi32 << (32 - nScale);
       } else if (eCurr.r.lo32 >> 31) {
@@ -6394,7 +6412,7 @@ void CalcMaxGain (PSInfoSBR *psi, SBRHeader *sbrHdr, SBRGrid *sbrGrid, SBRFreq *
     gainMax = limGainTab[sbrHdr->limiterGains];
     if (sbrHdr->limiterGains != 3) {
       q = MULSHIFT32(sumEOrigMapped, gainMax);  /* Q(fbitsDQ - ACC_SCALE - 2), gainMax = Q30  */
-      z = CLZ (sumECurr) - 1;
+      z = countLeadingZeros (sumECurr) - 1;
       r = InvRNormalized(sumECurr << z);  /* in =  Q(z - eCurrExpMax), out = Q(29 + 31 - z + eCurrExpMax) */
       gainMax = MULSHIFT32(q, r);     /* Q(29 + 31 - z + eCurrExpMax + fbitsDQ - ACC_SCALE - 2 - 32) */
       psi->gainMaxFBits = 26 - z + eCurrExpMax + fbitsDQ - ACC_SCALE;
@@ -6423,7 +6441,7 @@ void CalcNoiseDivFactors (int q, int *qp1Inv, int *qqp1Inv)
   /* 1 + Q_orig */
   qp1  = (q >> 1);
   qp1 += (1 << (FBITS_OUT_DQ_NOISE - 1));   /* >> 1 to avoid overflow when adding 1.0 */
-  z = CLZ (qp1) - 1;             /* z <= 31 - FBITS_OUT_DQ_NOISE */
+  z = countLeadingZeros (qp1) - 1;             /* z <= 31 - FBITS_OUT_DQ_NOISE */
   qp1 <<= z;                  /* Q(FBITS_OUT_DQ_NOISE + z) = Q31 * 2^-(31 - (FBITS_OUT_DQ_NOISE + z)) */
   t = InvRNormalized(qp1) << 1;       /* Q30 * 2^(31 - (FBITS_OUT_DQ_NOISE + z)), guaranteed not to overflow */
 
@@ -6530,7 +6548,7 @@ void CalcComponentGains (PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBR
     /* gain, qm, sm = Q(fbitsDQ), gainMax = Q(fbitsGainMax) */
     eCurr = psi->eCurr[m];
     if (eCurr) {
-      z = CLZ (eCurr) - 1;
+      z = countLeadingZeros (eCurr) - 1;
       r = InvRNormalized(eCurr << z);   /* in = Q(z - eCurrExp), out = Q(29 + 31 - z + eCurrExp) */
       gainScale = MULSHIFT32(gain, r);  /* out = Q(29 + 31 - z + eCurrExp + fbitsDQ - 32) */
       fbitsGain = 29 + 31 - z + psi->eCurrExp[m] + fbitsDQ - 32;
@@ -6556,13 +6574,13 @@ void CalcComponentGains (PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBR
       /* gainScale > gainMax, calculate ratio with 32/16 division */
       q = 0;
       r = gainScale;  /* guaranteed > 0, else maxFlag could not have been set */
-      z = CLZ (r);
+      z = countLeadingZeros (r);
       if (z < 16) {
         q = 16 - z;
         r >>= q;  /* out = Q(fbitsGain - q) */
       }
 
-      z = CLZ (gainMax) - 1;
+      z = countLeadingZeros (gainMax) - 1;
       r = (gainMax << z) / r;   /* out = Q((fbitsGainMax + z) - (fbitsGain - q)) */
       q = (gainMaxFBits + z) - (fbitsGain - q); /* r = Q(q) */
       if (q > 30) {
@@ -6641,7 +6659,7 @@ void ApplyBoost (PSInfoSBR *psi, SBRFreq *sbrFreq, int lim, int fbitsDQ)
     z = 0;
   } else {
     /* numerator (sumEOrigMapped) and denominator (r) have same Q format (before << z) */
-    z = CLZ(r) - 1; /* z = [0, 27] */
+    z = countLeadingZeros(r) - 1; /* z = [0, 27] */
     r = InvRNormalized(r << z);
     gBoost = MULSHIFT32(sumEOrigMapped, r);
   }
@@ -7080,12 +7098,12 @@ int CalcCovariance1 (int *XBuf, int *p01reN, int *p01imN, int *p12reN, int *p12i
     s = p12im.r.hi32 >> 31; gbMask |= (p12im.r.lo32 ^ s) - s;
     s = p11re.r.hi32 >> 31; gbMask |= (p11re.r.lo32 ^ s) - s;
     s = p22re.r.hi32 >> 31; gbMask |= (p22re.r.lo32 ^ s) - s;
-    z = 32 + CLZ (gbMask);
+    z = 32 + countLeadingZeros (gbMask);
   } else {
     gbMask  = FASTABS (p01re.r.hi32) | FASTABS (p01im.r.hi32);
     gbMask |= FASTABS (p12re.r.hi32) | FASTABS (p12im.r.hi32);
     gbMask |= FASTABS (p11re.r.hi32) | FASTABS (p22re.r.hi32);
-    z = CLZ (gbMask);
+    z = countLeadingZeros (gbMask);
   }
 
   n = 64 - z; /* number of non-zero bits in bottom of 64-bit word */
@@ -7195,11 +7213,11 @@ int CalcCovariance2 (int *XBuf, int *p02reN, int *p02imN) {
   if (gbMask == 0) {
     s = p02re.r.hi32 >> 31; gbMask  = (p02re.r.lo32 ^ s) - s;
     s = p02im.r.hi32 >> 31; gbMask |= (p02im.r.lo32 ^ s) - s;
-    z = 32 + CLZ (gbMask);
+    z = 32 + countLeadingZeros (gbMask);
     }
   else {
     gbMask  = FASTABS (p02re.r.hi32) | FASTABS (p02im.r.hi32);
-    z = CLZ (gbMask);
+    z = countLeadingZeros (gbMask);
     }
   n = 64 - z; /* number of non-zero bits in bottom of 64-bit word */
 
@@ -7288,7 +7306,7 @@ void CalcLPCoefs (int *XBuf, int *a0re, int *a0im, int *a1re, int *a1im, int gb)
     // so num * inverse = Q(-2*n1 - 32) * Q(29 + 31 + 2*n1 + 32 - nd)
     //                  = Q(29 + 31 - nd), drop low 32 in MULSHIFT32
     //                  = Q(29 + 31 - 32 - nd) = Q(28 - nd)
-    nd = CLZ (d) - 1;
+    nd = countLeadingZeros (d) - 1;
     d <<= nd;
     dInv = InvRNormalized(d);
 
@@ -7315,7 +7333,7 @@ void CalcLPCoefs (int *XBuf, int *a0re, int *a0im, int *a1re, int *a1im, int gb)
     // so num * inverse = Q(-n1 - 3) * Q(29 + 31 + n1 - nd)
     //                  = Q(29 + 31 - 3 - nd), drop low 32 in MULSHIFT32
     //                  = Q(29 + 31 - 3 - 32 - nd) = Q(25 - nd)
-    nd = CLZ (p11re) - 1;  /* assume positive */
+    nd = countLeadingZeros (p11re) - 1;  /* assume positive */
     p11re <<= nd;
     dInv = InvRNormalized(p11re);
 
@@ -7406,7 +7424,7 @@ void GenerateHighFreq (PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRCh
   bwsq = MULSHIFT32 (bw, bw) << 1;
 
   gbMask = (sbrChan->gbMask[0] | sbrChan->gbMask[1]); /* older 32 | newer 8 */
-  gb = CLZ (gbMask) - 1;
+  gb = countLeadingZeros (gbMask) - 1;
 
   for (currPatch = 0; currPatch < sbrFreq->numPatches; currPatch++) {
     for (x = 0; x < sbrFreq->patchNumSubbands[currPatch]; x++) {
@@ -8689,23 +8707,10 @@ int cAacDecoder::Dequantize (int ch) {
   pnsUsed |= psInfoBase->pnsUsed[ch];  // set flag if PNS used for any channel */
 
   // calculate number of guard bits in dequantized data */
-  psInfoBase->gbCurrent[ch] = CLZ (gbMask) - 1;
+  psInfoBase->gbCurrent[ch] = countLeadingZeros (gbMask) - 1;
 
   return ERR_AAC_NONE;
 }
-//}}}
-//{{{
-int cAacDecoder::DeinterleaveShortBlocks (int ch) {
-/**************************************************************************************
- * Description: deinterleave transform coefficients in short blocks for one channel
- * Inputs:      index of current channel
- * Outputs:     deinterleaved coefficients (window groups into 8 separate windows)
- * Return:      0 if successful, error code (< 0) if error
- * Notes:       only necessary if deinterleaving not part of Huffman decoding
- **************************************************************************************/
-
-  return ERR_AAC_NONE;
-  }
 //}}}
 //{{{
 int cAacDecoder::PNS (int ch) {
@@ -8783,7 +8788,7 @@ int cAacDecoder::PNS (int ch) {
     }
 
   // update guard bit count if necessary */
-  int gb = CLZ (gbMask) - 1;
+  int gb = countLeadingZeros (gbMask) - 1;
   if (psInfoBase->gbCurrent[ch] > gb)
     psInfoBase->gbCurrent[ch] = gb;
 
@@ -8867,11 +8872,49 @@ int cAacDecoder::TNSFilter (int ch) {
     }
 
   /* update guard bit count if necessary */
-  int size = CLZ (gbMask) - 1;
+  int size = countLeadingZeros (gbMask) - 1;
   if (psInfoBase->gbCurrent[ch] > size)
     psInfoBase->gbCurrent[ch] = size;
 
   return 0;
+  }
+//}}}
+//{{{
+int cAacDecoder::DecodeNoiselessData (uint8_t** buf, int* bitOffset, int* bitsAvail, int ch) {
+/**************************************************************************************
+ * Description: decode noiseless data (side info and transform coefficients)
+ * Inputs:      double pointer to buffer pointing to start of individual channel stream
+ *                (14496-3, table 4.4.24)
+ *              pointer to bit offset
+ *              pointer to number of valid bits remaining in buf
+ *              index of current channel
+ * Outputs:     updated global gain, section data, scale factor data, pulse data,
+ *                TNS data, gain control data, and spectral data
+ * Return:      0 if successful, error code (< 0) if error
+ **************************************************************************************/
+
+  ICSInfo* icsInfo = (ch == 1 && psInfoBase->commonWin == 1) ? &(psInfoBase->icsInfo[0]) : &(psInfoBase->icsInfo[ch]);
+
+  cAacDecoder::BitStreamInfo bsi;
+  setBitstreamPointer (&bsi, (*bitsAvail+7) >> 3, *buf);
+  getBits(&bsi, *bitOffset);
+
+  DecodeICS (psInfoBase, &bsi, ch);
+
+  if (icsInfo->winSequence == 2)
+    DecodeSpectrumShort (psInfoBase, &bsi, ch);
+  else
+    DecodeSpectrumLong (psInfoBase, &bsi, ch);
+
+  int bitsUsed = calcBitsUsed (&bsi, *buf, *bitOffset);
+  *buf += ((bitsUsed + *bitOffset) >> 3);
+  *bitOffset = ((bitsUsed + *bitOffset) & 0x07);
+  *bitsAvail -= bitsUsed;
+
+  sbDeinterleaveReqd[ch] = 0;
+  tnsUsed |= psInfoBase->tnsInfo[ch].tnsDataPresent; /* set flag if TNS used for any channel */
+
+  return ERR_AAC_NONE;
   }
 //}}}
 //{{{
@@ -8923,44 +8966,6 @@ int cAacDecoder::StereoProcess() {
     }
 
   return 0;
-  }
-//}}}
-//{{{
-int cAacDecoder::DecodeNoiselessData (uint8_t** buf, int* bitOffset, int* bitsAvail, int ch) {
-/**************************************************************************************
- * Description: decode noiseless data (side info and transform coefficients)
- * Inputs:      double pointer to buffer pointing to start of individual channel stream
- *                (14496-3, table 4.4.24)
- *              pointer to bit offset
- *              pointer to number of valid bits remaining in buf
- *              index of current channel
- * Outputs:     updated global gain, section data, scale factor data, pulse data,
- *                TNS data, gain control data, and spectral data
- * Return:      0 if successful, error code (< 0) if error
- **************************************************************************************/
-
-  ICSInfo* icsInfo = (ch == 1 && psInfoBase->commonWin == 1) ? &(psInfoBase->icsInfo[0]) : &(psInfoBase->icsInfo[ch]);
-
-  cAacDecoder::BitStreamInfo bsi;
-  setBitstreamPointer (&bsi, (*bitsAvail+7) >> 3, *buf);
-  getBits(&bsi, *bitOffset);
-
-  DecodeICS (psInfoBase, &bsi, ch);
-
-  if (icsInfo->winSequence == 2)
-    DecodeSpectrumShort (psInfoBase, &bsi, ch);
-  else
-    DecodeSpectrumLong (psInfoBase, &bsi, ch);
-
-  int bitsUsed = calcBitsUsed (&bsi, *buf, *bitOffset);
-  *buf += ((bitsUsed + *bitOffset) >> 3);
-  *bitOffset = ((bitsUsed + *bitOffset) & 0x07);
-  *bitsAvail -= bitsUsed;
-
-  sbDeinterleaveReqd[ch] = 0;
-  tnsUsed |= psInfoBase->tnsInfo[ch].tnsDataPresent; /* set flag if TNS used for any channel */
-
-  return ERR_AAC_NONE;
   }
 //}}}
 //{{{
@@ -9395,9 +9400,7 @@ int cAacDecoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf
         return 0;
 
       if (sbDeinterleaveReqd[ch]) {
-        // deinterleave short blocks, if required
-        if (DeinterleaveShortBlocks (ch))
-          return 0;
+        cLog::log (LOGERROR, "unused cAacDecoder DeinterleaveShortBlocks");
         sbDeinterleaveReqd[ch] = 0;
         }
 
