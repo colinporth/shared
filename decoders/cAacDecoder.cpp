@@ -14,38 +14,6 @@
   //}}}
 #endif
 
-//{{{  error enum
-enum {
-  ERR_AAC_NONE                          =   0,
-  ERR_AAC_INDATA_UNDERFLOW              =  -1,
-  ERR_AAC_NULL_POINTER                  =  -2,
-  ERR_AAC_INVALID_ADTS_HEADER           =  -3,
-  ERR_AAC_INVALID_ADIF_HEADER           =  -4,
-  ERR_AAC_INVALID_FRAME                 =  -5,
-  ERR_AAC_MPEG4_UNSUPPORTED             =  -6,
-  ERR_AAC_CHANNEL_MAP                   =  -7,
-  ERR_AAC_SYNTAX_ELEMENT                =  -8,
-
-  ERR_AAC_DEQUANT                       =  -9,
-  ERR_AAC_STEREO_PROCESS                = -10,
-  ERR_AAC_PNS                           = -11,
-  ERR_AAC_SHORT_BLOCK_DEINT             = -12,
-  ERR_AAC_TNS                           = -13,
-  ERR_AAC_IMDCT                         = -14,
-  ERR_AAC_NCHANS_TOO_HIGH               = -15,
-
-  ERR_AAC_SBR_INIT                      = -16,
-  ERR_AAC_SBR_BITSTREAM                 = -17,
-  ERR_AAC_SBR_DATA                      = -18,
-  ERR_AAC_SBR_PCM_FORMAT                = -19,
-  ERR_AAC_SBR_NCHANS_TOO_HIGH           = -20,
-  ERR_AAC_SBR_SINGLERATE_UNSUPPORTED    = -21,
-
-  ERR_AAC_RAWBLOCK_PARAMS               = -22,
-
-  ERR_AAC_UNKNOWN           = -9999
-  };
-//}}}
 //{{{  defines, types
 //{{{  defines
 /* 12-bit syncword */
@@ -2255,7 +2223,7 @@ int cAacDecoder::getSampleRate() {
   }
 //}}}
 //{{{
-int cAacDecoder::flushCodec() {
+void cAacDecoder::flushCodec() {
 /**************************************************************************************
  * Description: flush internal codec state (after seeking, for example)
  * Inputs:      valid AAC decoder instance pointer (HAACDecoder)
@@ -2281,8 +2249,6 @@ int cAacDecoder::flushCodec() {
   memset (psiInfo->prevWinShape, 0, AAC_MAX_NCHANS * sizeof(int));
 
   InitSBRState (psInfoSBR);
-
-  return ERR_AAC_NONE;
   }
 //}}}
 //{{{
@@ -2293,36 +2259,32 @@ int cAacDecoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf
 
   int bitOffset = 0;
   int bitsAvail = bytesLeft << 3;
-
   if (unpackADTSHeader (&inbuf, &bitOffset, &bitsAvail))
     return 0;
-  if (nChans == -1)
-    if (getADTSChannelMapping (inbuf, bitOffset, bitsAvail))
-      return 0;
   if (nChans > AAC_MAX_NCHANS || nChans <= 0)
     return 0;
 
   tnsUsed = 0;
   pnsUsed = 0;
   bitOffset = 0;
-  int baseChan = 0;
-  int baseChanSBR = 0;
+  int baseChannel = 0;
+  int baseChannelSBR = 0;
   do {
     // parse next syntactic element
     if (decodeNextElement (&inbuf, &bitOffset, &bitsAvail))
       return 0;
-    if (baseChan + elementNumChans[currBlockID] > AAC_MAX_NCHANS)
+    if (baseChannel + elementNumChans[currBlockID] > AAC_MAX_NCHANS)
       return 0;
-    for (int ch = 0; ch < elementNumChans[currBlockID]; ch++) {
-      decodeNoiselessData (&inbuf, &bitOffset, &bitsAvail, ch);
-      dequantize (ch);
+    for (int channel = 0; channel < elementNumChans[currBlockID]; channel++) {
+      decodeNoiselessData (&inbuf, &bitOffset, &bitsAvail, channel);
+      dequantize (channel);
       }
     if (currBlockID == AAC_ID_CPE)
       applyStereoProcess();
-    for (int ch = 0; ch < elementNumChans[currBlockID]; ch++) {
-      applyPns (ch);
-      applyTns (ch);
-      imdct (ch, baseChan + ch, outbuf);
+    for (int channel = 0; channel < elementNumChans[currBlockID]; channel++) {
+      applyPns (channel);
+      applyTns (channel);
+      imdct (channel, baseChannel + channel, outbuf);
       }
     if (sbrEnabled && (currBlockID == AAC_ID_FIL || currBlockID == AAC_ID_LFE)) {
       //{{{  process sbr
@@ -2335,17 +2297,17 @@ int cAacDecoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf
       else
         elementChansSBR = 0;
 
-      if (baseChanSBR + elementChansSBR > AAC_MAX_NCHANS)
+      if (baseChannelSBR + elementChansSBR > AAC_MAX_NCHANS)
         return 0;
 
       // parse SBR extension data if present (contained in a fill element)
-      if (decodeSbrBitstream (baseChanSBR))
+      if (decodeSbrBitstream (baseChannelSBR))
         return 0;
-      applySbr (baseChanSBR, outbuf);
-      baseChanSBR += elementChansSBR;
+      applySbr (baseChannelSBR, outbuf);
+      baseChannelSBR += elementChansSBR;
       }
       //}}}
-    baseChan += elementNumChans[currBlockID];
+    baseChannel += elementNumChans[currBlockID];
     } while (currBlockID != AAC_ID_END);
 
   int numSamples = AAC_MAX_NSAMPS * (sbrEnabled ? 2 : 1);
@@ -2355,7 +2317,7 @@ int cAacDecoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf
   }
 //}}}
 
-// private members and utils
+// private members
 //{{{  bitstream utils
 //{{{
 void setBitstreamPointer (cAacDecoder::BitStreamInfo* bsi, int nBytes, uint8_t* buf) {
@@ -2807,65 +2769,23 @@ void DecodeSpectrumShort (struct PSInfoBase* psi, cAacDecoder::BitStreamInfo* bs
 //}}}
 
 //{{{
-void DecodeSectionData (cAacDecoder::BitStreamInfo* bsi, int winSequence, int numWinGrp, int maxSFB, uint8_t* sfbCodeBook) {
+int DecodeOneScaleFactor (cAacDecoder::BitStreamInfo* bsi) {
 /**************************************************************************************
- * Description: decode section data (scale factor band groupings and
- *                associated Huffman codebooks)
- * Inputs:      BitStreamInfo struct pointing to start of ICS info
- *                (14496-3, table 4.4.25)
- *              window sequence (short or long blocks)
- *              number of window groups (1 for long blocks, 1-8 for short blocks)
- *              max coded scalefactor band
- * Outputs:     index of Huffman codebook for each scalefactor band in each section
- * Notes:       sectCB, sectEnd, sfbCodeBook, ordered by window groups for short blocks
- **************************************************************************************/
-
-  int g, cb, sfb;
-  int sectLen, sectLenBits, sectLenIncr, sectEscapeVal;
-
-  sectLenBits = (winSequence == 2 ? 3 : 5);
-  sectEscapeVal = (1 << sectLenBits) - 1;
-
-  for (g = 0; g < numWinGrp; g++) {
-    sfb = 0;
-    while (sfb < maxSFB) {
-      cb = getBits(bsi, 4); /* next section codebook */
-      sectLen = 0;
-      do {
-        sectLenIncr = getBits(bsi, sectLenBits);
-        sectLen += sectLenIncr;
-      } while (sectLenIncr == sectEscapeVal);
-
-      sfb += sectLen;
-      while (sectLen--)
-        *sfbCodeBook++ = (uint8_t)cb;
-    }
-  }
-}
-//}}}
-//{{{
-/**************************************************************************************
- * Function:    DecodeOneScaleFactor
- *
  * Description: decode one scalefactor using scalefactor Huffman codebook
- *
  * Inputs:      BitStreamInfo struct pointing to start of next coded scalefactor
- *
  * Outputs:     updated BitstreamInfo struct
- *
  * Return:      one decoded scalefactor, including index_offset of -60
  **************************************************************************************/
-int DecodeOneScaleFactor (cAacDecoder::BitStreamInfo* bsi)
-{
-  int nBits, val;
-  unsigned int bitBuf;
 
-  /* decode next scalefactor from bitstream */
-  bitBuf = getBitsNoAdvance(bsi, huffTabScaleFactInfo.maxBits) << (32 - huffTabScaleFactInfo.maxBits);
-  nBits = DecodeHuffmanScalar (huffTabScaleFact, &huffTabScaleFactInfo, bitBuf, &val);
-  advanceBitstream(bsi, nBits);
+  // decode next scalefactor from bitstream */
+  unsigned int bitBuf = getBitsNoAdvance (bsi, huffTabScaleFactInfo.maxBits) << (32 - huffTabScaleFactInfo.maxBits);
+
+  int val;
+  int nBits = DecodeHuffmanScalar (huffTabScaleFact, &huffTabScaleFactInfo, bitBuf, &val);
+
+  advanceBitstream (bsi, nBits);
   return val;
-}
+  }
 //}}}
 //{{{
 void DecodeScaleFactors (cAacDecoder::BitStreamInfo* bsi, int numWinGrp, int maxSFB, int globalGain,
@@ -2886,44 +2806,76 @@ void DecodeScaleFactors (cAacDecoder::BitStreamInfo* bsi, int numWinGrp, int max
  *                stereo weight instead of regular scalefactor
  **************************************************************************************/
 
-  int g, sfbCB, nrg, npf, val, sf, is;
+  // starting values for differential coding
+  int sf = globalGain;
+  int is = 0;
+  int nrg = globalGain - 90 - 256;
+  int npf = 1;
 
-  /* starting values for differential coding */
-  sf = globalGain;
-  is = 0;
-  nrg = globalGain - 90 - 256;
-  npf = 1;
+  for (int g = 0; g < numWinGrp * maxSFB; g++) {
+    int sfbCB = *sfbCodeBook++;
 
-  for (g = 0; g < numWinGrp * maxSFB; g++) {
-    sfbCB = *sfbCodeBook++;
-
+    int val;
     if (sfbCB  == 14 || sfbCB == 15) {
-      /* intensity stereo - differential coding */
+      // intensity stereo - differential coding
       val = DecodeOneScaleFactor(bsi);
       is += val;
       *scaleFactors++ = (short)is;
       }
     else if (sfbCB == 13) {
-      /* PNS - first energy is directly coded, rest are Huffman coded (npf = noise_pcm_flag) */
+      // PNS - first energy is directly coded, rest are Huffman coded (npf = noise_pcm_flag)
       if (npf) {
         val = getBits(bsi, 9);
         npf = 0;
         }
-      else {
-        val = DecodeOneScaleFactor(bsi);
-        }
+      else
+        val = DecodeOneScaleFactor (bsi);
       nrg += val;
       *scaleFactors++ = (short)nrg;
       }
     else if (sfbCB >= 1 && sfbCB <= 11) {
-      /* regular (non-zero) region - differential coding */
-      val = DecodeOneScaleFactor(bsi);
+      // regular (non-zero) region - differential coding
+      val = DecodeOneScaleFactor (bsi);
       sf += val;
       *scaleFactors++ = (short)sf;
       }
-    else {
-      /* inactive scalefactor band if codebook 0 */
+    else // inactive scalefactor band if codebook 0
       *scaleFactors++ = 0;
+    }
+  }
+//}}}
+//{{{
+void DecodeSectionData (cAacDecoder::BitStreamInfo* bsi, int winSequence, int numWinGrp, int maxSFB, uint8_t* sfbCodeBook) {
+/**************************************************************************************
+ * Description: decode section data (scale factor band groupings and
+ *                associated Huffman codebooks)
+ * Inputs:      BitStreamInfo struct pointing to start of ICS info
+ *                (14496-3, table 4.4.25)
+ *              window sequence (short or long blocks)
+ *              number of window groups (1 for long blocks, 1-8 for short blocks)
+ *              max coded scalefactor band
+ * Outputs:     index of Huffman codebook for each scalefactor band in each section
+ * Notes:       sectCB, sectEnd, sfbCodeBook, ordered by window groups for short blocks
+ **************************************************************************************/
+
+  int sectLenBits = (winSequence == 2 ? 3 : 5);
+  int sectEscapeVal = (1 << sectLenBits) - 1;
+
+  for (int g = 0; g < numWinGrp; g++) {
+    int sfb = 0;
+    while (sfb < maxSFB) {
+      int cb = getBits (bsi, 4); /* next section codebook */
+
+      int sectLenIncr;
+      int sectLen = 0;
+      do {
+        sectLenIncr = getBits(bsi, sectLenBits);
+        sectLen += sectLenIncr;
+        } while (sectLenIncr == sectEscapeVal);
+
+      sfb += sectLen;
+      while (sectLen--)
+        *sfbCodeBook++ = (uint8_t)cb;
       }
     }
   }
@@ -2942,10 +2894,9 @@ void DecodePulseInfo (cAacDecoder::BitStreamInfo* bsi, PulseInfo* pi) {
   for (int i = 0; i < pi->numPulse; i++) {
     pi->offset[i] = getBits(bsi, 5);
     pi->amp[i] = getBits(bsi, 4);
+    }
   }
-}
 //}}}
-
 //{{{
 void DecodeTNSInfo (cAacDecoder::BitStreamInfo* bsi, int winSequence, TNSInfo* ti, int8_t* tnsCoef) {
 /**************************************************************************************
@@ -2955,67 +2906,64 @@ void DecodeTNSInfo (cAacDecoder::BitStreamInfo* bsi, int winSequence, TNSInfo* t
  *              window sequence (short or long blocks)
  * Outputs:     updated TNSInfo struct
  *              buffer of decoded (signed) TNS filter coefficients
- * Return:      none
  **************************************************************************************/
 
-  int i, w, f, coefBits, compress;
-  int8_t c, s, n;
-
-  uint8_t *filtLength, *filtOrder, *filtDir;
-
-  filtLength = ti->length;
-  filtOrder =  ti->order;
-  filtDir =    ti->dir;
+  uint8_t* filtLength = ti->length;
+  uint8_t* filtOrder = ti->order;
+  uint8_t* filtDir = ti->dir;
 
   if (winSequence == 2) {
-    /* short blocks */
-    for (w = 0; w < NWINDOWS_SHORT; w++) {
-      ti->numFilt[w] = getBits(bsi, 1);
+    // short blocks
+    for (int w = 0; w < NWINDOWS_SHORT; w++) {
+      ti->numFilt[w] = getBits (bsi, 1);
       if (ti->numFilt[w]) {
-        ti->coefRes[w] = getBits(bsi, 1) + 3;
-        *filtLength =    getBits(bsi, 4);
-        *filtOrder =     getBits(bsi, 3);
+        ti->coefRes[w] = getBits (bsi, 1) + 3;
+        *filtLength = getBits (bsi, 4);
+        *filtOrder =  getBits (bsi, 3);
         if (*filtOrder) {
-          *filtDir++ =      getBits(bsi, 1);
-          compress =        getBits(bsi, 1);
-          coefBits = (int)ti->coefRes[w] - compress;  /* 2, 3, or 4 */
-          s = sgnMask[coefBits - 2];
-          n = negMask[coefBits - 2];
-          for (i = 0; i < *filtOrder; i++) {
-            c = getBits(bsi, coefBits);
-            if (c & s)  c |= n;
+          *filtDir++ = getBits (bsi, 1);
+          int compress = getBits (bsi, 1);
+          int coefBits = (int)ti->coefRes[w] - compress;  /* 2, 3, or 4 */
+          int8_t s = sgnMask[coefBits - 2];
+          int8_t n = negMask[coefBits - 2];
+          for (int i = 0; i < *filtOrder; i++) {
+            int8_t c = getBits(bsi, coefBits);
+            if (c & s)
+              c |= n;
             *tnsCoef++ = c;
+            }
           }
-        }
         filtLength++;
         filtOrder++;
-      }
-    }
-  } else {
-    /* long blocks */
-    ti->numFilt[0] = getBits(bsi, 2);
-    if (ti->numFilt[0])
-      ti->coefRes[0] = getBits(bsi, 1) + 3;
-    for (f = 0; f < ti->numFilt[0]; f++) {
-      *filtLength =      getBits(bsi, 6);
-      *filtOrder =       getBits(bsi, 5);
-      if (*filtOrder) {
-        *filtDir++ =     getBits(bsi, 1);
-        compress =       getBits(bsi, 1);
-        coefBits = (int)ti->coefRes[0] - compress;  /* 2, 3, or 4 */
-        s = sgnMask[coefBits - 2];
-        n = negMask[coefBits - 2];
-        for (i = 0; i < *filtOrder; i++) {
-          c = getBits(bsi, coefBits);
-          if (c & s)  c |= n;
-          *tnsCoef++ = c;
         }
       }
+    }
+  else {
+    // long blocks
+    ti->numFilt[0] = getBits (bsi, 2);
+    if (ti->numFilt[0])
+      ti->coefRes[0] = getBits (bsi, 1) + 3;
+    for (int f = 0; f < ti->numFilt[0]; f++) {
+      *filtLength = getBits (bsi, 6);
+      *filtOrder = getBits( bsi, 5);
+      if (*filtOrder) {
+        *filtDir++ = getBits (bsi, 1);
+        int compress = getBits (bsi, 1);
+        int coefBits = (int)ti->coefRes[0] - compress;  /* 2, 3, or 4 */
+        int8_t s = sgnMask[coefBits - 2];
+        int8_t n = negMask[coefBits - 2];
+        for (int i = 0; i < *filtOrder; i++) {
+          int8_t c = getBits (bsi, coefBits);
+          if (c & s)
+            c |= n;
+          *tnsCoef++ = c;
+          }
+        }
       filtLength++;
       filtOrder++;
+      }
     }
   }
-}
 //}}}
 //{{{
 void DecodeGainControlInfo (cAacDecoder::BitStreamInfo* bsi, int winSequence, GainControlInfo* gi) {
@@ -3025,27 +2973,23 @@ void DecodeGainControlInfo (cAacDecoder::BitStreamInfo* bsi, int winSequence, Ga
  *                (14496-3, table 4.4.12)
  *              window sequence (short or long blocks)
  * Outputs:     updated GainControlInfo struct
- * Return:      none
  **************************************************************************************/
 
-  int bd, wd, ad;
-  int locBits, locBitsZero, maxWin;
-
   gi->maxBand = getBits(bsi, 2);
-  maxWin =      (int)gainBits[winSequence][0];
-  locBitsZero = (int)gainBits[winSequence][1];
-  locBits =     (int)gainBits[winSequence][2];
+  int maxWin =  (int)gainBits[winSequence][0];
+  int locBitsZero = (int)gainBits[winSequence][1];
+  int locBits = (int)gainBits[winSequence][2];
 
-  for (bd = 1; bd <= gi->maxBand; bd++) {
-    for (wd = 0; wd < maxWin; wd++) {
+  for (int bd = 1; bd <= gi->maxBand; bd++) {
+    for (int wd = 0; wd < maxWin; wd++) {
       gi->adjNum[bd][wd] = getBits(bsi, 3);
-      for (ad = 0; ad < gi->adjNum[bd][wd]; ad++) {
+      for (int ad = 0; ad < gi->adjNum[bd][wd]; ad++) {
         gi->alevCode[bd][wd][ad] = getBits(bsi, 4);
         gi->alocCode[bd][wd][ad] = getBits(bsi, (wd == 0 ? locBitsZero : locBits));
+        }
       }
     }
   }
-}
 //}}}
 //{{{
 void DecodeICSInfo (cAacDecoder::BitStreamInfo* bsi, ICSInfo* icsInfo, int sampRateIdx) {
@@ -3056,8 +3000,6 @@ void DecodeICSInfo (cAacDecoder::BitStreamInfo* bsi, ICSInfo* icsInfo, int sampR
  *              sample rate index
  * Outputs:     updated icsInfo struct
  **************************************************************************************/
-
-  int sfb, g, mask;
 
   icsInfo->icsResBit = getBits (bsi, 1);
   icsInfo->winSequence = getBits (bsi, 2);
@@ -3070,8 +3012,8 @@ void DecodeICSInfo (cAacDecoder::BitStreamInfo* bsi, ICSInfo* icsInfo, int sampR
     icsInfo->winGroupLen[0] = 1;
 
     // start with bit 6
-    mask = 0x40;
-    for (g = 0; g < 7; g++) {
+    int mask = 0x40;
+    for (int g = 0; g < 7; g++) {
       if (icsInfo->sfGroup & mask)  {
         icsInfo->winGroupLen[icsInfo->numWinGroup - 1]++;
         }
@@ -3082,6 +3024,7 @@ void DecodeICSInfo (cAacDecoder::BitStreamInfo* bsi, ICSInfo* icsInfo, int sampR
       mask >>= 1;
       }
     }
+
   else {
     // long block
     icsInfo->maxSFB = getBits (bsi, 6);
@@ -3090,7 +3033,7 @@ void DecodeICSInfo (cAacDecoder::BitStreamInfo* bsi, ICSInfo* icsInfo, int sampR
       icsInfo->predictorReset =   getBits (bsi, 1);
       if (icsInfo->predictorReset)
         icsInfo->predictorResetGroupNum = getBits (bsi, 5);
-      for (sfb = 0; sfb < std::min (icsInfo->maxSFB, predSFBMax[sampRateIdx]); sfb++)
+      for (int sfb = 0; sfb < std::min (icsInfo->maxSFB, predSFBMax[sampRateIdx]); sfb++)
         icsInfo->predictionUsed[sfb] = getBits (bsi, 1);
       }
     icsInfo->numWinGroup = 1;
@@ -3108,7 +3051,6 @@ void DecodeICS (struct PSInfoBase* psi, cAacDecoder::BitStreamInfo* bsi, int ch)
  *              index of current channel
  * Outputs:     updated section data, scale factor data, pulse data, TNS data,
  *                and gain control data
- * Return:      none
  **************************************************************************************/
 
   ICSInfo* icsInfo = (ch == 1 && psi->commonWin == 1) ? &(psi->icsInfo[0]) : &(psi->icsInfo[ch]);
@@ -3134,7 +3076,7 @@ void DecodeICS (struct PSInfoBase* psi, cAacDecoder::BitStreamInfo* bsi, int ch)
   gi->gainControlDataPresent = getBits (bsi, 1);
   if (gi->gainControlDataPresent)
     DecodeGainControlInfo (bsi, icsInfo->winSequence, gi);
-}
+  }
 //}}}
 
 // sbrhuff
@@ -3199,24 +3141,19 @@ void DequantizeNoise (int nBands, int8_t *noiseQuant, int *noiseDequant) {
  * Inputs:      number of scalefactors to process
  *              quantized noise scalefactors
  * Outputs:     dequantized noise scalefactors, format = Q(FBITS_OUT_DQ_NOISE)
- * Return:      none
  * Notes:       dequantized scalefactors have at least 2 GB
  **************************************************************************************/
-
-  int exp, scalei;
 
   if (nBands <= 0)
     return;
 
-  /* dequantize noise floor gains (4.6.18.3.5):
-   *   noiseDequant = 2^(NOISE_FLOOR_OFFSET - noiseQuant)
-   *
-   * range of noiseQuant = [0, 30] (see 4.6.18.3.6), NOISE_FLOOR_OFFSET = 6
-   *   so range of noiseDequant = [2^-24, 2^6]
-   */
+  // dequantize noise floor gains (4.6.18.3.5):
+  //   noiseDequant = 2^(NOISE_FLOOR_OFFSET - noiseQuant)
+  // range of noiseQuant = [0, 30] (see 4.6.18.3.6), NOISE_FLOOR_OFFSET = 6
+  //  so range of noiseDequant = [2^-24, 2^6]
   do {
-    exp = *noiseQuant++;
-    scalei = NOISE_FLOOR_OFFSET - exp + FBITS_OUT_DQ_NOISE; /* 6 + 24 - exp, exp = [0,30] */
+    int exp = *noiseQuant++;
+    int scalei = NOISE_FLOOR_OFFSET - exp + FBITS_OUT_DQ_NOISE; /* 6 + 24 - exp, exp = [0,30] */
 
     if (scalei < 0)
       *noiseDequant++ = 0;
@@ -3224,76 +3161,8 @@ void DequantizeNoise (int nBands, int8_t *noiseQuant, int *noiseDequant) {
       *noiseDequant++ = 1 << scalei;
     else
       *noiseDequant++ = 0x3fffffff; /* leave 2 GB */
-
-  } while (--nBands);
-}
-//}}}
-//{{{
-void UncoupleSBREnvelope (PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChanR) {
-/**************************************************************************************
- * Description: scale dequantized envelope scalefactors according to channel
- *                coupling rules
- * Inputs:      initialized PSInfoSBR struct including
- *                dequantized envelope data for left channel
- *              initialized SBRGrid struct for this channel
- *              initialized SBRFreq struct for this SCE/CPE block
- *              initialized SBRChan struct for right channel including
- *                quantized envelope scalefactors
- * Outputs:     dequantized envelope data for left channel (after decoupling)
- *              dequantized envelope data for right channel (after decoupling)
- * Return:      none
- **************************************************************************************/
-
-  int env, band, nBands, scalei, E_1;
-
-  scalei = (sbrGrid->ampResFrame ? 0 : 1);
-  for (env = 0; env < sbrGrid->numEnv; env++) {
-    nBands = (sbrGrid->freqRes[env] ? sbrFreq->nHigh : sbrFreq->nLow);
-    psi->envDataDequantScale[1][env] = psi->envDataDequantScale[0][env]; /* same scalefactor for L and R */
-    for (band = 0; band < nBands; band++) {
-      /* clip E_1 to [0, 24] (scalefactors approach 0 or 2) */
-      E_1 = sbrChanR->envDataQuant[env][band] >> scalei;
-      if (E_1 < 0)  E_1 = 0;
-      if (E_1 > 24) E_1 = 24;
-
-      /* envDataDequant[0] has 1 GB, so << by 2 is okay */
-      psi->envDataDequant[1][env][band] = MULSHIFT32(psi->envDataDequant[0][env][band], dqTabCouple[24 - E_1]) << 2;
-      psi->envDataDequant[0][env][band] = MULSHIFT32(psi->envDataDequant[0][env][band], dqTabCouple[E_1]) << 2;
-    }
+    } while (--nBands);
   }
-}
-//}}}
-//{{{
-void UncoupleSBRNoise (PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChanR) {
-/**************************************************************************************
- * Description: scale dequantized noise floor scalefactors according to channel
- *                coupling rules
- * Inputs:      initialized PSInfoSBR struct including
- *                dequantized noise data for left channel
- *              initialized SBRGrid struct for this channel
- *              initialized SBRFreq struct for this SCE/CPE block
- *              initialized SBRChan struct for this channel including
- *                quantized noise scalefactors
- * Outputs:     dequantized noise data for left channel (after decoupling)
- *              dequantized noise data for right channel (after decoupling)
- * Return:      none
- **************************************************************************************/
-
-  int noiseFloor, band, Q_1;
-
-  for (noiseFloor = 0; noiseFloor < sbrGrid->numNoiseFloors; noiseFloor++) {
-    for (band = 0; band < sbrFreq->numNoiseFloorBands; band++) {
-      /* Q_1 should be in range [0, 24] according to 4.6.18.3.6, but check to make sure */
-      Q_1 = sbrChanR->noiseDataQuant[noiseFloor][band];
-      if (Q_1 < 0)  Q_1 = 0;
-      if (Q_1 > 24) Q_1 = 24;
-
-      /* noiseDataDequant[0] has 1 GB, so << by 2 is okay */
-      psi->noiseDataDequant[1][noiseFloor][band] = MULSHIFT32(psi->noiseDataDequant[0][noiseFloor][band], dqTabCouple[24 - Q_1]) << 2;
-      psi->noiseDataDequant[0][noiseFloor][band] = MULSHIFT32(psi->noiseDataDequant[0][noiseFloor][band], dqTabCouple[Q_1]) << 2;
-    }
-  }
-}
 //}}}
 
 //{{{
@@ -3307,9 +3176,10 @@ int DecodeOneSymbol (cAacDecoder::BitStreamInfo* bsi, int huffTabIndex) {
  * Return:      one decoded symbol
  **************************************************************************************/
 
-  int val;
   const HuffInfo* hi = &(huffTabSBRInfo[huffTabIndex]);
   unsigned int bitBuf = getBitsNoAdvance (bsi, hi->maxBits) << (32 - hi->maxBits);
+
+  int val;
   int nBits = DecodeHuffmanScalar (huffTabSBR, hi, bitBuf, &val);
   advanceBitstream (bsi, nBits);
 
@@ -3329,10 +3199,9 @@ void DecodeSBREnvelope (cAacDecoder::BitStreamInfo *bsi, PSInfoSBR *psi, SBRGrid
  * Outputs:     dequantized env scalefactors for left channel (before decoupling)
  *              dequantized env scalefactors for right channel (if coupling off)
  *                or raw decoded env scalefactors for right channel (if coupling on)
- * Return:      none
  **************************************************************************************/
 
-  int huffIndexTime, huffIndexFreq, env, envStartBits, band, nBands, sf, lastEnv;
+  int huffIndexTime, huffIndexFreq, envStartBits, band, nBands, sf, lastEnv;
   int freqRes, freqResPrev, dShift, i;
 
   if (psi->couplingFlag && ch) {
@@ -3341,26 +3210,29 @@ void DecodeSBREnvelope (cAacDecoder::BitStreamInfo *bsi, PSInfoSBR *psi, SBRGrid
       huffIndexTime = HuffTabSBR_tEnv30b;
       huffIndexFreq = HuffTabSBR_fEnv30b;
       envStartBits = 5;
-    } else {
+      }
+    else {
       huffIndexTime = HuffTabSBR_tEnv15b;
       huffIndexFreq = HuffTabSBR_fEnv15b;
       envStartBits = 6;
+      }
     }
-  } else {
+  else {
     dShift = 0;
     if (sbrGrid->ampResFrame) {
       huffIndexTime = HuffTabSBR_tEnv30;
       huffIndexFreq = HuffTabSBR_fEnv30;
       envStartBits = 6;
-    } else {
+      }
+    else {
       huffIndexTime = HuffTabSBR_tEnv15;
       huffIndexFreq = HuffTabSBR_fEnv15;
       envStartBits = 7;
+      }
     }
-  }
 
-  /* range of envDataQuant[] = [0, 127] (see comments in DequantizeEnvelope() for reference) */
-  for (env = 0; env < sbrGrid->numEnv; env++) {
+  // range of envDataQuant[] = [0, 127] (see comments in DequantizeEnvelope() for reference) */
+  for (int env = 0; env < sbrGrid->numEnv; env++) {
     nBands =      (sbrGrid->freqRes[env] ? sbrFreq->nHigh : sbrFreq->nLow);
     freqRes =     (sbrGrid->freqRes[env]);
     freqResPrev = (env == 0 ? sbrGrid->freqResPrev : sbrGrid->freqRes[env-1]);
@@ -3375,14 +3247,16 @@ void DecodeSBREnvelope (cAacDecoder::BitStreamInfo *bsi, PSInfoSBR *psi, SBRGrid
       for (band = 1; band < nBands; band++) {
         sf = DecodeOneSymbol(bsi, huffIndexFreq) << dShift;
         sbrChan->envDataQuant[env][band] = sf + sbrChan->envDataQuant[env][band-1];
+        }
       }
-    } else if (freqRes == freqResPrev) {
+    else if (freqRes == freqResPrev) {
       /* delta coding in time - same freq resolution for both frames */
       for (band = 0; band < nBands; band++) {
         sf = DecodeOneSymbol(bsi, huffIndexTime) << dShift;
         sbrChan->envDataQuant[env][band] = sf + sbrChan->envDataQuant[lastEnv][band];
+        }
       }
-    } else if (freqRes == 0 && freqResPrev == 1) {
+    else if (freqRes == 0 && freqResPrev == 1) {
       /* delta coding in time - low freq resolution for new frame, high freq resolution for old frame */
       for (band = 0; band < nBands; band++) {
         sf = DecodeOneSymbol(bsi, huffIndexTime) << dShift;
@@ -3391,10 +3265,11 @@ void DecodeSBREnvelope (cAacDecoder::BitStreamInfo *bsi, PSInfoSBR *psi, SBRGrid
           if (sbrFreq->freqHigh[i] == sbrFreq->freqLow[band]) {
             sbrChan->envDataQuant[env][band] += sbrChan->envDataQuant[lastEnv][i];
             break;
+            }
           }
         }
       }
-    } else if (freqRes == 1 && freqResPrev == 0) {
+    else if (freqRes == 1 && freqResPrev == 0) {
       /* delta coding in time - high freq resolution for new frame, low freq resolution for old frame */
       for (band = 0; band < nBands; band++) {
         sf = DecodeOneSymbol(bsi, huffIndexTime) << dShift;
@@ -3403,18 +3278,19 @@ void DecodeSBREnvelope (cAacDecoder::BitStreamInfo *bsi, PSInfoSBR *psi, SBRGrid
           if (sbrFreq->freqLow[i] <= sbrFreq->freqHigh[band] && sbrFreq->freqHigh[band] < sbrFreq->freqLow[i+1] ) {
             sbrChan->envDataQuant[env][band] += sbrChan->envDataQuant[lastEnv][i];
             break;
+            }
           }
         }
       }
-    }
 
     /* skip coupling channel */
     if (ch != 1 || psi->couplingFlag != 1)
       psi->envDataDequantScale[ch][env] = DequantizeEnvelope(nBands, sbrGrid->ampResFrame, sbrChan->envDataQuant[env], psi->envDataDequant[ch][env]);
-  }
+    }
+
   sbrGrid->numEnvPrev = sbrGrid->numEnv;
   sbrGrid->freqResPrev = sbrGrid->freqRes[sbrGrid->numEnv-1];
-}
+  }
 //}}}
 //{{{
 void DecodeSBRNoise (cAacDecoder::BitStreamInfo *bsi, PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChan, int ch) {
@@ -3429,48 +3305,48 @@ void DecodeSBRNoise (cAacDecoder::BitStreamInfo *bsi, PSInfoSBR *psi, SBRGrid *s
  * Outputs:     dequantized noise scalefactors for left channel (before decoupling)
  *              dequantized noise scalefactors for right channel (if coupling off)
  *                or raw decoded noise scalefactors for right channel (if coupling on)
- * Return:      none
  **************************************************************************************/
 
-  int huffIndexTime, huffIndexFreq, noiseFloor, band, dShift, sf, lastNoiseFloor;
-
+  int dShift, huffIndexTime, huffIndexFreq;
   if (psi->couplingFlag && ch) {
     dShift = 1;
     huffIndexTime = HuffTabSBR_tNoise30b;
     huffIndexFreq = HuffTabSBR_fNoise30b;
-  } else {
+    }
+  else {
     dShift = 0;
     huffIndexTime = HuffTabSBR_tNoise30;
     huffIndexFreq = HuffTabSBR_fNoise30;
-  }
+    }
 
-  for (noiseFloor = 0; noiseFloor < sbrGrid->numNoiseFloors; noiseFloor++) {
-    lastNoiseFloor = (noiseFloor == 0 ? sbrGrid->numNoiseFloorsPrev-1 : noiseFloor-1);
+  for (int noiseFloor = 0; noiseFloor < sbrGrid->numNoiseFloors; noiseFloor++) {
+    int lastNoiseFloor = (noiseFloor == 0 ? sbrGrid->numNoiseFloorsPrev-1 : noiseFloor-1);
     if (lastNoiseFloor < 0)
       lastNoiseFloor = 0; /* first frame */
 
     if (sbrChan->deltaFlagNoise[noiseFloor] == 0) {
-      /* delta coding in freq */
+      // delta coding in freq */
       sbrChan->noiseDataQuant[noiseFloor][0] = getBits(bsi, 5) << dShift;
-      for (band = 1; band < sbrFreq->numNoiseFloorBands; band++) {
-        sf = DecodeOneSymbol(bsi, huffIndexFreq) << dShift;
+      for (int band = 1; band < sbrFreq->numNoiseFloorBands; band++) {
+        int sf = DecodeOneSymbol (bsi, huffIndexFreq) << dShift;
         sbrChan->noiseDataQuant[noiseFloor][band] = sf + sbrChan->noiseDataQuant[noiseFloor][band-1];
+        }
       }
-    } else {
-      /* delta coding in time */
-      for (band = 0; band < sbrFreq->numNoiseFloorBands; band++) {
-        sf = DecodeOneSymbol(bsi, huffIndexTime) << dShift;
+    else {
+      // delta coding in time */
+      for (int band = 0; band < sbrFreq->numNoiseFloorBands; band++) {
+        int sf = DecodeOneSymbol (bsi, huffIndexTime) << dShift;
         sbrChan->noiseDataQuant[noiseFloor][band] = sf + sbrChan->noiseDataQuant[lastNoiseFloor][band];
+        }
       }
+
+    // skip coupling channel */
+    if (ch != 1 || psi->couplingFlag != 1)
+      DequantizeNoise (sbrFreq->numNoiseFloorBands, sbrChan->noiseDataQuant[noiseFloor], psi->noiseDataDequant[ch][noiseFloor]);
     }
 
-    /* skip coupling channel */
-    if (ch != 1 || psi->couplingFlag != 1)
-      DequantizeNoise(sbrFreq->numNoiseFloorBands, sbrChan->noiseDataQuant[noiseFloor], psi->noiseDataDequant[ch][noiseFloor]);
-  }
   sbrGrid->numNoiseFloorsPrev = sbrGrid->numNoiseFloors;
-}
-
+  }
 //}}}
 //}}}
 
@@ -3551,43 +3427,6 @@ bool cAacDecoder::unpackADTSHeader (uint8_t** buf, int* bitOffset, int* bitsAvai
   *bitsAvail -= bitsUsed ;
   if (*bitsAvail < 0)
     return true;
-
-  return false;
-  }
-//}}}
-//{{{
-bool cAacDecoder::getADTSChannelMapping (uint8_t* buf, int bitOffset, int bitsAvail) {
-/**************************************************************************************
- * Description: determine the number of channels from implicit mapping rules
- * Inputs:      pointer to start of raw_data_block
- *              bit offset
- *              bits available
- * Outputs:     updated number of channels
- * Return:      false if successful
- * Notes:       calculates total number of channels using rules in 14496-3, 4.5.1.2.1
- *              does not attempt to deduce speaker geometry
- **************************************************************************************/
-
-  int nChans = 0;
-  do {
-    // parse next syntactic element */
-    if (decodeNextElement (&buf, &bitOffset, &bitsAvail))
-      return true;
-
-    int elementChans = elementNumChans[currBlockID];
-    nChans += elementChans;
-
-    for (int ch = 0; ch < elementChans; ch++)
-      decodeNoiselessData (&buf, &bitOffset, &bitsAvail, ch);
-    } while (currBlockID != AAC_ID_END);
-
-  if (nChans <= 0)
-    return true;
-
-  // update number of channels in codec state and user-accessible info structs
-  psInfoBase->nChans = nChans;
-  nChans = psInfoBase->nChans;
-  psInfoBase->useImpChanMap = 1;
 
   return false;
   }
@@ -3737,15 +3576,17 @@ void cAacDecoder::decodeProgramConfigElement (ProgConfigElement* pce, BitStreamI
  *                (otherwise we just skip it in the bitstream, to save memory)
  **************************************************************************************/
 
-  pce->elemInstTag = getBits(bsi, 4);
-  pce->profile = getBits(bsi, 2);
-  pce->sampRateIdx = getBits(bsi, 4);
-  pce->numFCE = getBits(bsi, 4);
-  pce->numSCE = getBits(bsi, 4);
-  pce->numBCE = getBits(bsi, 4);
-  pce->numLCE = getBits(bsi, 2);
-  pce->numADE = getBits(bsi, 3);
-  pce->numCCE = getBits(bsi, 4);
+  cLog::log (LOGERROR, "unexpected cAacDecoder::decodeProgramConfigElement");
+
+  pce->elemInstTag = getBits (bsi, 4);
+  pce->profile = getBits (bsi, 2);
+  pce->sampRateIdx = getBits (bsi, 4);
+  pce->numFCE = getBits (bsi, 4);
+  pce->numSCE = getBits (bsi, 4);
+  pce->numBCE = getBits (bsi, 4);
+  pce->numLCE = getBits (bsi, 2);
+  pce->numADE = getBits (bsi, 3);
+  pce->numCCE = getBits (bsi, 4);
 
   pce->monoMixdown = getBits (bsi, 1) << 4;  /* present flag */
   if (pce->monoMixdown)
@@ -3893,7 +3734,7 @@ bool cAacDecoder::decodeNextElement (uint8_t** buf, int* bitOffset, int* bitsAva
   }
 //}}}
 
-//{{{  decode sbr utils
+//{{{  decodeSbr utils
 //{{{
 int GetSampRateIdx (int sampRate) {
 /**************************************************************************************
@@ -3904,11 +3745,9 @@ int GetSampRateIdx (int sampRate) {
  *              -1 if sample rate not found in table
  **************************************************************************************/
 
-  int idx;
-  for (idx = 0; idx < NUM_SAMPLE_RATES; idx++) {
+  for (int idx = 0; idx < NUM_SAMPLE_RATES; idx++)
     if (sampRate == sampRateTab[idx])
       return idx;
-    }
 
   return -1;
   }
@@ -3944,53 +3783,47 @@ int UnpackSBRHeader (cAacDecoder::BitStreamInfo *bsi, SBRHeader *sbrHdr) {
     sbrHdr->freqScale =    getBits(bsi, 2);
     sbrHdr->alterScale =   getBits(bsi, 1);
     sbrHdr->noiseBands =   getBits(bsi, 2);
-  } else {
+    }
+  else {
     /* defaults */
     sbrHdr->freqScale =    2;
     sbrHdr->alterScale =   1;
     sbrHdr->noiseBands =   2;
-  }
+    }
 
   if (sbrHdr->hdrExtra2) {
     sbrHdr->limiterBands = getBits(bsi, 2);
     sbrHdr->limiterGains = getBits(bsi, 2);
     sbrHdr->interpFreq =   getBits(bsi, 1);
     sbrHdr->smoothMode =   getBits(bsi, 1);
-  } else {
+    }
+  else {
     /* defaults */
     sbrHdr->limiterBands = 2;
     sbrHdr->limiterGains = 2;
     sbrHdr->interpFreq =   1;
     sbrHdr->smoothMode =   1;
-  }
+    }
   sbrHdr->count++;
 
   /* if any of these have changed from previous frame, reset the SBR module */
   if (sbrHdr->startFreq != sbrHdrPrev.startFreq || sbrHdr->stopFreq != sbrHdrPrev.stopFreq ||
     sbrHdr->freqScale != sbrHdrPrev.freqScale || sbrHdr->alterScale != sbrHdrPrev.alterScale ||
-    sbrHdr->crossOverBand != sbrHdrPrev.crossOverBand || sbrHdr->noiseBands != sbrHdrPrev.noiseBands
-    )
+    sbrHdr->crossOverBand != sbrHdrPrev.crossOverBand || sbrHdr->noiseBands != sbrHdrPrev.noiseBands)
     return -1;
   else
     return 0;
-}
+  }
 //}}}
-
 //{{{
+void UnpackSBRGrid (cAacDecoder::BitStreamInfo *bsi, SBRHeader *sbrHdr, SBRGrid *sbrGrid) {
 /**************************************************************************************
- * Function:    UnpackSBRGrid
- *
  * Description: unpack SBR grid (table 4.62)
- *
  * Inputs:      BitStreamInfo struct pointing to start of SBR grid
  *              initialized SBRHeader struct for this SCE/CPE block
- *
  * Outputs:     initialized SBRGrid struct for this channel
- *
- * Return:      none
  **************************************************************************************/
-void UnpackSBRGrid (cAacDecoder::BitStreamInfo *bsi, SBRHeader *sbrHdr, SBRGrid *sbrGrid)
-{
+
   int numEnvRaw, env, rel, pBits, border, middleBorder=0;
   uint8_t relBordLead[MAX_NUM_ENV], relBordTrail[MAX_NUM_ENV];
   uint8_t relBorder0[3], relBorder1[3], relBorder[3];
@@ -4000,121 +3833,125 @@ void UnpackSBRGrid (cAacDecoder::BitStreamInfo *bsi, SBRHeader *sbrHdr, SBRGrid 
   sbrGrid->ampResFrame = sbrHdr->ampRes;
   sbrGrid->frameClass = getBits(bsi, 2);
   switch (sbrGrid->frameClass) {
+    //{{{
+    case SBR_GRID_FIXFIX:
+      numEnvRaw = getBits(bsi, 2);
+      sbrGrid->numEnv = (1 << numEnvRaw);
+      if (sbrGrid->numEnv == 1)
+        sbrGrid->ampResFrame = 0;
 
-  case SBR_GRID_FIXFIX:
-    numEnvRaw = getBits(bsi, 2);
-    sbrGrid->numEnv = (1 << numEnvRaw);
-    if (sbrGrid->numEnv == 1)
-      sbrGrid->ampResFrame = 0;
+      sbrGrid->freqRes[0] = getBits(bsi, 1);
+      for (env = 1; env < sbrGrid->numEnv; env++)
+         sbrGrid->freqRes[env] = sbrGrid->freqRes[0];
 
-    sbrGrid->freqRes[0] = getBits(bsi, 1);
-    for (env = 1; env < sbrGrid->numEnv; env++)
-       sbrGrid->freqRes[env] = sbrGrid->freqRes[0];
+      absBordLead =  0;
+      absBordTrail = NUM_TIME_SLOTS;
+      numRelLead =   sbrGrid->numEnv - 1;
+      numRelTrail =  0;
 
-    absBordLead =  0;
-    absBordTrail = NUM_TIME_SLOTS;
-    numRelLead =   sbrGrid->numEnv - 1;
-    numRelTrail =  0;
+      /* numEnv = 1, 2, or 4 */
+      if (sbrGrid->numEnv == 1)   border = NUM_TIME_SLOTS / 1;
+      else if (sbrGrid->numEnv == 2)  border = NUM_TIME_SLOTS / 2;
+      else              border = NUM_TIME_SLOTS / 4;
 
-    /* numEnv = 1, 2, or 4 */
-    if (sbrGrid->numEnv == 1)   border = NUM_TIME_SLOTS / 1;
-    else if (sbrGrid->numEnv == 2)  border = NUM_TIME_SLOTS / 2;
-    else              border = NUM_TIME_SLOTS / 4;
+      for (rel = 0; rel < numRelLead; rel++)
+        relBordLead[rel] = border;
 
-    for (rel = 0; rel < numRelLead; rel++)
-      relBordLead[rel] = border;
+      middleBorder = (sbrGrid->numEnv >> 1);
 
-    middleBorder = (sbrGrid->numEnv >> 1);
+      break;
+    //}}}
+    //{{{
+    case SBR_GRID_FIXVAR:
+      absBorder = getBits(bsi, 2) + NUM_TIME_SLOTS;
+      numRelBorder = getBits(bsi, 2);
+      sbrGrid->numEnv = numRelBorder + 1;
+      for (rel = 0; rel < numRelBorder; rel++)
+        relBorder[rel] = 2*getBits(bsi, 2) + 2;
 
-    break;
+      pBits = cLog2[sbrGrid->numEnv + 1];
+      sbrGrid->pointer = getBits(bsi, pBits);
 
-  case SBR_GRID_FIXVAR:
-    absBorder = getBits(bsi, 2) + NUM_TIME_SLOTS;
-    numRelBorder = getBits(bsi, 2);
-    sbrGrid->numEnv = numRelBorder + 1;
-    for (rel = 0; rel < numRelBorder; rel++)
-      relBorder[rel] = 2*getBits(bsi, 2) + 2;
+      for (env = sbrGrid->numEnv - 1; env >= 0; env--)
+        sbrGrid->freqRes[env] = getBits(bsi, 1);
 
-    pBits = cLog2[sbrGrid->numEnv + 1];
-    sbrGrid->pointer = getBits(bsi, pBits);
+      absBordLead =  0;
+      absBordTrail = absBorder;
+      numRelLead =   0;
+      numRelTrail =  numRelBorder;
 
-    for (env = sbrGrid->numEnv - 1; env >= 0; env--)
-      sbrGrid->freqRes[env] = getBits(bsi, 1);
+      for (rel = 0; rel < numRelTrail; rel++)
+        relBordTrail[rel] = relBorder[rel];
 
-    absBordLead =  0;
-    absBordTrail = absBorder;
-    numRelLead =   0;
-    numRelTrail =  numRelBorder;
+      if (sbrGrid->pointer > 1)     middleBorder = sbrGrid->numEnv + 1 - sbrGrid->pointer;
+      else                middleBorder = sbrGrid->numEnv - 1;
 
-    for (rel = 0; rel < numRelTrail; rel++)
-      relBordTrail[rel] = relBorder[rel];
+      break;
+    //}}}
+    //{{{
+    case SBR_GRID_VARFIX:
+      absBorder = getBits(bsi, 2);
+      numRelBorder = getBits(bsi, 2);
+      sbrGrid->numEnv = numRelBorder + 1;
+      for (rel = 0; rel < numRelBorder; rel++)
+        relBorder[rel] = 2*getBits(bsi, 2) + 2;
 
-    if (sbrGrid->pointer > 1)     middleBorder = sbrGrid->numEnv + 1 - sbrGrid->pointer;
-    else                middleBorder = sbrGrid->numEnv - 1;
+      pBits = cLog2[sbrGrid->numEnv + 1];
+      sbrGrid->pointer = getBits(bsi, pBits);
 
-    break;
+      for (env = 0; env < sbrGrid->numEnv; env++)
+        sbrGrid->freqRes[env] = getBits(bsi, 1);
 
-  case SBR_GRID_VARFIX:
-    absBorder = getBits(bsi, 2);
-    numRelBorder = getBits(bsi, 2);
-    sbrGrid->numEnv = numRelBorder + 1;
-    for (rel = 0; rel < numRelBorder; rel++)
-      relBorder[rel] = 2*getBits(bsi, 2) + 2;
+      absBordLead =  absBorder;
+      absBordTrail = NUM_TIME_SLOTS;
+      numRelLead =   numRelBorder;
+      numRelTrail =  0;
 
-    pBits = cLog2[sbrGrid->numEnv + 1];
-    sbrGrid->pointer = getBits(bsi, pBits);
+      for (rel = 0; rel < numRelLead; rel++)
+        relBordLead[rel] = relBorder[rel];
 
-    for (env = 0; env < sbrGrid->numEnv; env++)
-      sbrGrid->freqRes[env] = getBits(bsi, 1);
+      if (sbrGrid->pointer == 0)      middleBorder = 1;
+      else if (sbrGrid->pointer == 1)   middleBorder = sbrGrid->numEnv - 1;
+      else                middleBorder = sbrGrid->pointer - 1;
 
-    absBordLead =  absBorder;
-    absBordTrail = NUM_TIME_SLOTS;
-    numRelLead =   numRelBorder;
-    numRelTrail =  0;
+      break;
+    //}}}
+    //{{{
+    case SBR_GRID_VARVAR:
+      absBordLead =   getBits(bsi, 2);  /* absBorder0 */
+      absBordTrail =  getBits(bsi, 2) + NUM_TIME_SLOTS; /* absBorder1 */
+      numRelBorder0 = getBits(bsi, 2);
+      numRelBorder1 = getBits(bsi, 2);
 
-    for (rel = 0; rel < numRelLead; rel++)
-      relBordLead[rel] = relBorder[rel];
+      sbrGrid->numEnv = numRelBorder0 + numRelBorder1 + 1;
 
-    if (sbrGrid->pointer == 0)      middleBorder = 1;
-    else if (sbrGrid->pointer == 1)   middleBorder = sbrGrid->numEnv - 1;
-    else                middleBorder = sbrGrid->pointer - 1;
+      for (rel = 0; rel < numRelBorder0; rel++)
+        relBorder0[rel] = 2*getBits(bsi, 2) + 2;
 
-    break;
+      for (rel = 0; rel < numRelBorder1; rel++)
+        relBorder1[rel] = 2*getBits(bsi, 2) + 2;
 
-  case SBR_GRID_VARVAR:
-    absBordLead =   getBits(bsi, 2);  /* absBorder0 */
-    absBordTrail =  getBits(bsi, 2) + NUM_TIME_SLOTS; /* absBorder1 */
-    numRelBorder0 = getBits(bsi, 2);
-    numRelBorder1 = getBits(bsi, 2);
+      pBits = cLog2[numRelBorder0 + numRelBorder1 + 2];
+      sbrGrid->pointer = getBits(bsi, pBits);
 
-    sbrGrid->numEnv = numRelBorder0 + numRelBorder1 + 1;
+      for (env = 0; env < sbrGrid->numEnv; env++)
+        sbrGrid->freqRes[env] = getBits(bsi, 1);
 
-    for (rel = 0; rel < numRelBorder0; rel++)
-      relBorder0[rel] = 2*getBits(bsi, 2) + 2;
+      numRelLead =  numRelBorder0;
+      numRelTrail = numRelBorder1;
 
-    for (rel = 0; rel < numRelBorder1; rel++)
-      relBorder1[rel] = 2*getBits(bsi, 2) + 2;
+      for (rel = 0; rel < numRelLead; rel++)
+        relBordLead[rel] = relBorder0[rel];
 
-    pBits = cLog2[numRelBorder0 + numRelBorder1 + 2];
-    sbrGrid->pointer = getBits(bsi, pBits);
+      for (rel = 0; rel < numRelTrail; rel++)
+        relBordTrail[rel] = relBorder1[rel];
 
-    for (env = 0; env < sbrGrid->numEnv; env++)
-      sbrGrid->freqRes[env] = getBits(bsi, 1);
+      if (sbrGrid->pointer > 1)     middleBorder = sbrGrid->numEnv + 1 - sbrGrid->pointer;
+      else                middleBorder = sbrGrid->numEnv - 1;
 
-    numRelLead =  numRelBorder0;
-    numRelTrail = numRelBorder1;
-
-    for (rel = 0; rel < numRelLead; rel++)
-      relBordLead[rel] = relBorder0[rel];
-
-    for (rel = 0; rel < numRelTrail; rel++)
-      relBordTrail[rel] = relBorder1[rel];
-
-    if (sbrGrid->pointer > 1)     middleBorder = sbrGrid->numEnv + 1 - sbrGrid->pointer;
-    else                middleBorder = sbrGrid->numEnv - 1;
-
-    break;
-  }
+      break;
+    //}}}
+    }
 
   /* build time border vector */
   sbrGrid->envTimeBorder[0] = absBordLead * SAMPLES_PER_SLOT;
@@ -4124,204 +3961,224 @@ void UnpackSBRGrid (cAacDecoder::BitStreamInfo *bsi, SBRHeader *sbrHdr, SBRGrid 
   for (env = 1; env <= numRelLead; env++) {
     border += relBordLead[rel++];
     sbrGrid->envTimeBorder[env] = border * SAMPLES_PER_SLOT;
-  }
+    }
 
   rel = 0;
   border = absBordTrail;
   for (env = sbrGrid->numEnv - 1; env > numRelLead; env--) {
     border -= relBordTrail[rel++];
     sbrGrid->envTimeBorder[env] = border * SAMPLES_PER_SLOT;
-  }
+    }
 
   sbrGrid->envTimeBorder[sbrGrid->numEnv] = absBordTrail * SAMPLES_PER_SLOT;
-
   if (sbrGrid->numEnv > 1) {
     sbrGrid->numNoiseFloors = 2;
     sbrGrid->noiseTimeBorder[0] = sbrGrid->envTimeBorder[0];
     sbrGrid->noiseTimeBorder[1] = sbrGrid->envTimeBorder[middleBorder];
     sbrGrid->noiseTimeBorder[2] = sbrGrid->envTimeBorder[sbrGrid->numEnv];
-  } else {
+    }
+  else {
     sbrGrid->numNoiseFloors = 1;
     sbrGrid->noiseTimeBorder[0] = sbrGrid->envTimeBorder[0];
     sbrGrid->noiseTimeBorder[1] = sbrGrid->envTimeBorder[1];
+    }
   }
-}
 //}}}
 //{{{
+void UnpackDeltaTimeFreq (cAacDecoder::BitStreamInfo *bsi, int numEnv, uint8_t *deltaFlagEnv,
+                int numNoiseFloors, uint8_t *deltaFlagNoise) {
 /**************************************************************************************
- * Function:    UnpackDeltaTimeFreq
- *
  * Description: unpack time/freq flags for delta coding of SBR envelopes (table 4.63)
- *
  * Inputs:      BitStreamInfo struct pointing to start of dt/df flags
  *              number of envelopes
  *              number of noise floors
- *
  * Outputs:     delta flags for envelope and noise floors
- *
- * Return:      none
  **************************************************************************************/
-void UnpackDeltaTimeFreq (cAacDecoder::BitStreamInfo *bsi, int numEnv, uint8_t *deltaFlagEnv,
-                int numNoiseFloors, uint8_t *deltaFlagNoise)
-{
-  int env, noiseFloor;
 
-  for (env = 0; env < numEnv; env++)
+  for (int env = 0; env < numEnv; env++)
     deltaFlagEnv[env] = getBits(bsi, 1);
 
-  for (noiseFloor = 0; noiseFloor < numNoiseFloors; noiseFloor++)
+  for (int noiseFloor = 0; noiseFloor < numNoiseFloors; noiseFloor++)
     deltaFlagNoise[noiseFloor] = getBits(bsi, 1);
-}
+  }
 //}}}
 //{{{
+void UnpackInverseFilterMode (cAacDecoder::BitStreamInfo *bsi, int numNoiseFloorBands, uint8_t *mode) {
 /**************************************************************************************
- * Function:    UnpackInverseFilterMode
- *
  * Description: unpack invf flags for chirp factor calculation (table 4.64)
- *
  * Inputs:      BitStreamInfo struct pointing to start of invf flags
  *              number of noise floor bands
- *
  * Outputs:     invf flags for noise floor bands
- *
- * Return:      none
  **************************************************************************************/
-void UnpackInverseFilterMode (cAacDecoder::BitStreamInfo *bsi, int numNoiseFloorBands, uint8_t *mode)
-{
-  int n;
 
-  for (n = 0; n < numNoiseFloorBands; n++)
+  for (int n = 0; n < numNoiseFloorBands; n++)
     mode[n] = getBits(bsi, 2);
-}
+  }
 //}}}
 //{{{
+void UnpackSinusoids (cAacDecoder::BitStreamInfo *bsi, int nHigh, int addHarmonicFlag, uint8_t *addHarmonic) {
 /**************************************************************************************
- * Function:    UnpackSinusoids
- *
  * Description: unpack sinusoid (harmonic) flags for each SBR subband (table 4.67)
- *
  * Inputs:      BitStreamInfo struct pointing to start of sinusoid flags
  *              number of high resolution SBR subbands (nHigh)
- *
  * Outputs:     sinusoid flags for each SBR subband, zero-filled above nHigh
- *
- * Return:      none
  **************************************************************************************/
-void UnpackSinusoids (cAacDecoder::BitStreamInfo *bsi, int nHigh, int addHarmonicFlag, uint8_t *addHarmonic)
-{
-  int n;
 
-  n = 0;
+  int n = 0;
   if (addHarmonicFlag) {
     for (  ; n < nHigh; n++)
       addHarmonic[n] = getBits(bsi, 1);
-  }
+    }
 
   /* zero out unused bands */
   for (     ; n < MAX_QMF_BANDS; n++)
     addHarmonic[n] = 0;
-}
+  }
 //}}}
 
 //{{{
+void CopyCouplingGrid (SBRGrid *sbrGridLeft, SBRGrid *sbrGridRight) {
 /**************************************************************************************
- * Function:    CopyCouplingGrid
- *
  * Description: copy grid parameters from left to right for channel coupling
- *
  * Inputs:      initialized SBRGrid struct for left channel
- *
  * Outputs:     initialized SBRGrid struct for right channel
- *
- * Return:      none
  **************************************************************************************/
-void CopyCouplingGrid (SBRGrid *sbrGridLeft, SBRGrid *sbrGridRight)
-{
-  int env, noiseFloor;
 
-  sbrGridRight->frameClass =     sbrGridLeft->frameClass;
-  sbrGridRight->ampResFrame =    sbrGridLeft->ampResFrame;
-  sbrGridRight->pointer =        sbrGridLeft->pointer;
+  sbrGridRight->frameClass = sbrGridLeft->frameClass;
+  sbrGridRight->ampResFrame = sbrGridLeft->ampResFrame;
+  sbrGridRight->pointer = sbrGridLeft->pointer;
 
-  sbrGridRight->numEnv =         sbrGridLeft->numEnv;
+  sbrGridRight->numEnv = sbrGridLeft->numEnv;
+  int env;
   for (env = 0; env < sbrGridLeft->numEnv; env++) {
     sbrGridRight->envTimeBorder[env] = sbrGridLeft->envTimeBorder[env];
     sbrGridRight->freqRes[env] =       sbrGridLeft->freqRes[env];
-  }
+    }
   sbrGridRight->envTimeBorder[env] = sbrGridLeft->envTimeBorder[env]; /* borders are [0, numEnv] inclusive */
 
   sbrGridRight->numNoiseFloors = sbrGridLeft->numNoiseFloors;
-  for (noiseFloor = 0; noiseFloor <= sbrGridLeft->numNoiseFloors; noiseFloor++)
+  for (int noiseFloor = 0; noiseFloor <= sbrGridLeft->numNoiseFloors; noiseFloor++)
     sbrGridRight->noiseTimeBorder[noiseFloor] = sbrGridLeft->noiseTimeBorder[noiseFloor];
 
   /* numEnvPrev, numNoiseFloorsPrev, freqResPrev are updated in DecodeSBREnvelope() and DecodeSBRNoise() */
-}
+  }
 //}}}
 //{{{
+void CopyCouplingInverseFilterMode (int numNoiseFloorBands, uint8_t *modeLeft, uint8_t *modeRight) {
 /**************************************************************************************
- * Function:    CopyCouplingInverseFilterMode
- *
  * Description: copy invf flags from left to right for channel coupling
- *
  * Inputs:      invf flags for left channel
  *              number of noise floor bands
- *
  * Outputs:     invf flags for right channel
- *
- * Return:      none
  **************************************************************************************/
-void CopyCouplingInverseFilterMode (int numNoiseFloorBands, uint8_t *modeLeft, uint8_t *modeRight)
-{
-  int band;
 
-  for (band = 0; band < numNoiseFloorBands; band++)
+  for (int band = 0; band < numNoiseFloorBands; band++)
     modeRight[band] = modeLeft[band];
-}
+  }
+//}}}
+//{{{
+void UncoupleSBREnvelope (PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChanR) {
+/**************************************************************************************
+ * Description: scale dequantized envelope scalefactors according to channel
+ *                coupling rules
+ * Inputs:      initialized PSInfoSBR struct including
+ *                dequantized envelope data for left channel
+ *              initialized SBRGrid struct for this channel
+ *              initialized SBRFreq struct for this SCE/CPE block
+ *              initialized SBRChan struct for right channel including
+ *                quantized envelope scalefactors
+ * Outputs:     dequantized envelope data for left channel (after decoupling)
+ *              dequantized envelope data for right channel (after decoupling)
+ **************************************************************************************/
+
+  int scalei = (sbrGrid->ampResFrame ? 0 : 1);
+  for (int env = 0; env < sbrGrid->numEnv; env++) {
+    int nBands = (sbrGrid->freqRes[env] ? sbrFreq->nHigh : sbrFreq->nLow);
+    psi->envDataDequantScale[1][env] = psi->envDataDequantScale[0][env]; /* same scalefactor for L and R */
+    for (int band = 0; band < nBands; band++) {
+      // clip E_1 to [0, 24] (scalefactors approach 0 or 2)
+      int E_1 = sbrChanR->envDataQuant[env][band] >> scalei;
+      if (E_1 < 0)
+        E_1 = 0;
+      if (E_1 > 24)
+        E_1 = 24;
+
+      // envDataDequant[0] has 1 GB, so << by 2 is okay */
+      psi->envDataDequant[1][env][band] = MULSHIFT32(psi->envDataDequant[0][env][band], dqTabCouple[24 - E_1]) << 2;
+      psi->envDataDequant[0][env][band] = MULSHIFT32(psi->envDataDequant[0][env][band], dqTabCouple[E_1]) << 2;
+      }
+    }
+  }
+//}}}
+//{{{
+void UncoupleSBRNoise (PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChanR) {
+/**************************************************************************************
+ * Description: scale dequantized noise floor scalefactors according to channel
+ *                coupling rules
+ * Inputs:      initialized PSInfoSBR struct including
+ *                dequantized noise data for left channel
+ *              initialized SBRGrid struct for this channel
+ *              initialized SBRFreq struct for this SCE/CPE block
+ *              initialized SBRChan struct for this channel including
+ *                quantized noise scalefactors
+ * Outputs:     dequantized noise data for left channel (after decoupling)
+ *              dequantized noise data for right channel (after decoupling)
+ **************************************************************************************/
+
+  for (int noiseFloor = 0; noiseFloor < sbrGrid->numNoiseFloors; noiseFloor++) {
+    for (int band = 0; band < sbrFreq->numNoiseFloorBands; band++) {
+      // Q_1 should be in range [0, 24] according to 4.6.18.3.6, but check to make sure */
+      int Q_1 = sbrChanR->noiseDataQuant[noiseFloor][band];
+      if (Q_1 < 0)
+        Q_1 = 0;
+      if (Q_1 > 24)
+        Q_1 = 24;
+
+      // noiseDataDequant[0] has 1 GB, so << by 2 is okay */
+      psi->noiseDataDequant[1][noiseFloor][band] = MULSHIFT32(psi->noiseDataDequant[0][noiseFloor][band], dqTabCouple[24 - Q_1]) << 2;
+      psi->noiseDataDequant[0][noiseFloor][band] = MULSHIFT32(psi->noiseDataDequant[0][noiseFloor][band], dqTabCouple[Q_1]) << 2;
+      }
+    }
+  }
 //}}}
 
 //{{{
+void UnpackSBRSingleChannel (cAacDecoder::BitStreamInfo *bsi, PSInfoSBR *psi, int chBase) {
 /**************************************************************************************
- * Function:    UnpackSBRSingleChannel
- *
  * Description: unpack sideband info (grid, delta flags, invf flags, envelope and
  *                noise floor configuration, sinusoids) for a single channel
- *
  * Inputs:      BitStreamInfo struct pointing to start of sideband info
  *              initialized PSInfoSBR struct (after parsing SBR header and building
  *                frequency tables)
  *              base output channel (range = [0, nChans-1])
- *
  * Outputs:     updated PSInfoSBR struct (SBRGrid and SBRChan)
- *
- * Return:      none
  **************************************************************************************/
-void UnpackSBRSingleChannel (cAacDecoder::BitStreamInfo *bsi, PSInfoSBR *psi, int chBase)
-{
+
   int bitsLeft;
-  SBRHeader *sbrHdr = &(psi->sbrHdr[chBase]);
-  SBRGrid *sbrGridL = &(psi->sbrGrid[chBase+0]);
-  SBRFreq *sbrFreq =  &(psi->sbrFreq[chBase]);
-  SBRChan *sbrChanL = &(psi->sbrChan[chBase+0]);
+  SBRHeader* sbrHdr = &(psi->sbrHdr[chBase]);
+  SBRGrid* sbrGridL = &(psi->sbrGrid[chBase+0]);
+  SBRFreq* sbrFreq =  &(psi->sbrFreq[chBase]);
+  SBRChan* sbrChanL = &(psi->sbrChan[chBase+0]);
 
-  psi->dataExtra = getBits(bsi, 1);
+  psi->dataExtra = getBits (bsi, 1);
   if (psi->dataExtra)
-    psi->resBitsData = getBits(bsi, 4);
+    psi->resBitsData = getBits (bsi, 4);
 
-  UnpackSBRGrid(bsi, sbrHdr, sbrGridL);
-  UnpackDeltaTimeFreq(bsi, sbrGridL->numEnv, sbrChanL->deltaFlagEnv, sbrGridL->numNoiseFloors, sbrChanL->deltaFlagNoise);
-  UnpackInverseFilterMode(bsi, sbrFreq->numNoiseFloorBands, sbrChanL->invfMode[1]);
+  UnpackSBRGrid (bsi, sbrHdr, sbrGridL);
+  UnpackDeltaTimeFreq (bsi, sbrGridL->numEnv, sbrChanL->deltaFlagEnv, sbrGridL->numNoiseFloors, sbrChanL->deltaFlagNoise);
+  UnpackInverseFilterMode (bsi, sbrFreq->numNoiseFloorBands, sbrChanL->invfMode[1]);
 
-  DecodeSBREnvelope(bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
-  DecodeSBRNoise(bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
+  DecodeSBREnvelope (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
+  DecodeSBRNoise (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
 
-  sbrChanL->addHarmonicFlag[1] = getBits(bsi, 1);
-  UnpackSinusoids(bsi, sbrFreq->nHigh, sbrChanL->addHarmonicFlag[1], sbrChanL->addHarmonic[1]);
+  sbrChanL->addHarmonicFlag[1] = getBits (bsi, 1);
+  UnpackSinusoids (bsi, sbrFreq->nHigh, sbrChanL->addHarmonicFlag[1], sbrChanL->addHarmonic[1]);
 
-  psi->extendedDataPresent = getBits(bsi, 1);
+  psi->extendedDataPresent = getBits (bsi, 1);
   if (psi->extendedDataPresent) {
-    psi->extendedDataSize = getBits(bsi, 4);
+    psi->extendedDataSize = getBits (bsi, 4);
     if (psi->extendedDataSize == 15)
-      psi->extendedDataSize += getBits(bsi, 8);
+      psi->extendedDataSize += getBits (bsi, 8);
 
     bitsLeft = 8 * psi->extendedDataSize;
 
@@ -4329,79 +4186,73 @@ void UnpackSBRSingleChannel (cAacDecoder::BitStreamInfo *bsi, PSInfoSBR *psi, in
     while (bitsLeft > 0) {
       getBits(bsi, 8);
       bitsLeft -= 8;
+      }
     }
   }
-}
 //}}}
 //{{{
+void UnpackSBRChannelPair (cAacDecoder::BitStreamInfo *bsi, PSInfoSBR *psi, int chBase) {
 /**************************************************************************************
- * Function:    UnpackSBRChannelPair
- *
  * Description: unpack sideband info (grid, delta flags, invf flags, envelope and
  *                noise floor configuration, sinusoids) for a channel pair
- *
  * Inputs:      BitStreamInfo struct pointing to start of sideband info
  *              initialized PSInfoSBR struct (after parsing SBR header and building
  *                frequency tables)
  *              base output channel (range = [0, nChans-1])
- *
  * Outputs:     updated PSInfoSBR struct (SBRGrid and SBRChan for both channels)
- *
- * Return:      none
  **************************************************************************************/
-void UnpackSBRChannelPair (cAacDecoder::BitStreamInfo *bsi, PSInfoSBR *psi, int chBase)
-{
+
   int bitsLeft;
-  SBRHeader *sbrHdr = &(psi->sbrHdr[chBase]);
-  SBRGrid *sbrGridL = &(psi->sbrGrid[chBase+0]), *sbrGridR = &(psi->sbrGrid[chBase+1]);
-  SBRFreq *sbrFreq =  &(psi->sbrFreq[chBase]);
-  SBRChan *sbrChanL = &(psi->sbrChan[chBase+0]), *sbrChanR = &(psi->sbrChan[chBase+1]);
+  SBRHeader* sbrHdr = &(psi->sbrHdr[chBase]);
+  SBRGrid* sbrGridL = &(psi->sbrGrid[chBase+0]), *sbrGridR = &(psi->sbrGrid[chBase+1]);
+  SBRFreq* sbrFreq =  &(psi->sbrFreq[chBase]);
+  SBRChan* sbrChanL = &(psi->sbrChan[chBase+0]), *sbrChanR = &(psi->sbrChan[chBase+1]);
 
-  psi->dataExtra = getBits(bsi, 1);
+  psi->dataExtra = getBits (bsi, 1);
   if (psi->dataExtra) {
-    psi->resBitsData = getBits(bsi, 4);
-    psi->resBitsData = getBits(bsi, 4);
-  }
+    psi->resBitsData = getBits (bsi, 4);
+    psi->resBitsData = getBits (bsi, 4);
+    }
 
-  psi->couplingFlag = getBits(bsi, 1);
+  psi->couplingFlag = getBits (bsi, 1);
   if (psi->couplingFlag) {
-    UnpackSBRGrid(bsi, sbrHdr, sbrGridL);
-    CopyCouplingGrid(sbrGridL, sbrGridR);
+    UnpackSBRGrid (bsi, sbrHdr, sbrGridL);
+    CopyCouplingGrid (sbrGridL, sbrGridR);
 
-    UnpackDeltaTimeFreq(bsi, sbrGridL->numEnv, sbrChanL->deltaFlagEnv, sbrGridL->numNoiseFloors, sbrChanL->deltaFlagNoise);
-    UnpackDeltaTimeFreq(bsi, sbrGridR->numEnv, sbrChanR->deltaFlagEnv, sbrGridR->numNoiseFloors, sbrChanR->deltaFlagNoise);
+    UnpackDeltaTimeFreq (bsi, sbrGridL->numEnv, sbrChanL->deltaFlagEnv, sbrGridL->numNoiseFloors, sbrChanL->deltaFlagNoise);
+    UnpackDeltaTimeFreq (bsi, sbrGridR->numEnv, sbrChanR->deltaFlagEnv, sbrGridR->numNoiseFloors, sbrChanR->deltaFlagNoise);
 
-    UnpackInverseFilterMode(bsi, sbrFreq->numNoiseFloorBands, sbrChanL->invfMode[1]);
-    CopyCouplingInverseFilterMode(sbrFreq->numNoiseFloorBands, sbrChanL->invfMode[1], sbrChanR->invfMode[1]);
+    UnpackInverseFilterMode (bsi, sbrFreq->numNoiseFloorBands, sbrChanL->invfMode[1]);
+    CopyCouplingInverseFilterMode (sbrFreq->numNoiseFloorBands, sbrChanL->invfMode[1], sbrChanR->invfMode[1]);
 
-    DecodeSBREnvelope(bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
-    DecodeSBRNoise(bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
-    DecodeSBREnvelope(bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
-    DecodeSBRNoise(bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
+    DecodeSBREnvelope (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
+    DecodeSBRNoise (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
+    DecodeSBREnvelope (bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
+    DecodeSBRNoise (bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
 
     /* pass RIGHT sbrChan struct */
-    UncoupleSBREnvelope(psi, sbrGridL, sbrFreq, sbrChanR);
-    UncoupleSBRNoise(psi, sbrGridL, sbrFreq, sbrChanR);
+    UncoupleSBREnvelope (psi, sbrGridL, sbrFreq, sbrChanR);
+    UncoupleSBRNoise (psi, sbrGridL, sbrFreq, sbrChanR);
+    }
+  else {
+    UnpackSBRGrid (bsi, sbrHdr, sbrGridL);
+    UnpackSBRGrid (bsi, sbrHdr, sbrGridR);
+    UnpackDeltaTimeFreq (bsi, sbrGridL->numEnv, sbrChanL->deltaFlagEnv, sbrGridL->numNoiseFloors, sbrChanL->deltaFlagNoise);
+    UnpackDeltaTimeFreq (bsi, sbrGridR->numEnv, sbrChanR->deltaFlagEnv, sbrGridR->numNoiseFloors, sbrChanR->deltaFlagNoise);
+    UnpackInverseFilterMode (bsi, sbrFreq->numNoiseFloorBands, sbrChanL->invfMode[1]);
+    UnpackInverseFilterMode (bsi, sbrFreq->numNoiseFloorBands, sbrChanR->invfMode[1]);
 
-  } else {
-    UnpackSBRGrid(bsi, sbrHdr, sbrGridL);
-    UnpackSBRGrid(bsi, sbrHdr, sbrGridR);
-    UnpackDeltaTimeFreq(bsi, sbrGridL->numEnv, sbrChanL->deltaFlagEnv, sbrGridL->numNoiseFloors, sbrChanL->deltaFlagNoise);
-    UnpackDeltaTimeFreq(bsi, sbrGridR->numEnv, sbrChanR->deltaFlagEnv, sbrGridR->numNoiseFloors, sbrChanR->deltaFlagNoise);
-    UnpackInverseFilterMode(bsi, sbrFreq->numNoiseFloorBands, sbrChanL->invfMode[1]);
-    UnpackInverseFilterMode(bsi, sbrFreq->numNoiseFloorBands, sbrChanR->invfMode[1]);
-
-    DecodeSBREnvelope(bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
-    DecodeSBREnvelope(bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
-    DecodeSBRNoise(bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
-    DecodeSBRNoise(bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
-  }
+    DecodeSBREnvelope (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
+    DecodeSBREnvelope (bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
+    DecodeSBRNoise (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
+    DecodeSBRNoise (bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
+    }
 
   sbrChanL->addHarmonicFlag[1] = getBits(bsi, 1);
-  UnpackSinusoids(bsi, sbrFreq->nHigh, sbrChanL->addHarmonicFlag[1], sbrChanL->addHarmonic[1]);
+  UnpackSinusoids (bsi, sbrFreq->nHigh, sbrChanL->addHarmonicFlag[1], sbrChanL->addHarmonic[1]);
 
   sbrChanR->addHarmonicFlag[1] = getBits(bsi, 1);
-  UnpackSinusoids(bsi, sbrFreq->nHigh, sbrChanR->addHarmonicFlag[1], sbrChanR->addHarmonic[1]);
+  UnpackSinusoids (bsi, sbrFreq->nHigh, sbrChanR->addHarmonicFlag[1], sbrChanR->addHarmonic[1]);
 
   psi->extendedDataPresent = getBits(bsi, 1);
   if (psi->extendedDataPresent) {
@@ -4411,22 +4262,21 @@ void UnpackSBRChannelPair (cAacDecoder::BitStreamInfo *bsi, PSInfoSBR *psi, int 
 
     bitsLeft = 8 * psi->extendedDataSize;
 
-    /* get ID, unpack extension info, do whatever is necessary with it... */
+    // get ID, unpack extension info, do whatever is necessary with it... */
     while (bitsLeft > 0) {
-      getBits(bsi, 8);
+      getBits (bsi, 8);
       bitsLeft -= 8;
+      }
     }
   }
-}
 //}}}
 
 // sbrmath
-#define Q28_2 0x20000000  /* Q28: 2.0 */
-#define Q28_15  0x30000000  /* Q28: 1.5 */
-
 #define NUM_ITER_IRN    5
-
+#define Q28_2  0x20000000  /* Q28: 2.0 */
+#define Q28_15 0x30000000  /* Q28: 1.5 */
 //{{{
+int InvRNormalized (int r) {
 /**************************************************************************************
  * Description: use Newton's method to solve for x = 1/r
  * Inputs:      r = Q31, range = [0.5, 1) (normalize your inputs to this range)
@@ -4444,38 +4294,34 @@ void UnpackSBRChannelPair (cAacDecoder::BitStreamInfo *bsi, PSInfoSBR *psi, int 
  *              NUM_ITER_IRN = 4, maxDiff = 1.5288e-05 (precision of about 16 bits)
  *              NUM_ITER_IRN = 5, maxDiff = 3.0034e-08 (precision of about 24 bits)
  **************************************************************************************/
-int InvRNormalized (int r)
-{
-  int i, xn, t;
 
-  /* r =   [0.5, 1.0)
-   * 1/r = (1.0, 2.0]
-   *   so use 1.5 as initial guess
-   */
+  int i, xn, t;
+  // r =   [0.5, 1.0)
+  // 1/r = (1.0, 2.0]
+  //  so use 1.5 as initial guess
   xn = Q28_15;
 
-  /* xn = xn*(2.0 - r*xn) */
+  // xn = xn*(2.0 - r*xn)
   for (i = NUM_ITER_IRN; i != 0; i--) {
-    t = MULSHIFT32(r, xn);      /* Q31*Q29 = Q28 */
-    t = Q28_2 - t;          /* Q28 */
+    t = MULSHIFT32 (r, xn);        /* Q31*Q29 = Q28 */
+    t = Q28_2 - t;                /* Q28 */
     xn = MULSHIFT32(xn, t) << 4;  /* Q29*Q28 << 4 = Q29 */
-  }
+    }
 
   return xn;
-}
+  }
 //}}}
 
 #define LOG2_EXP_INV  0x58b90bfc  /* 1/log2(e), Q31 */
-
 //{{{
+int RatioPowInv (int a, int b, int c) {
 /**************************************************************************************
  * Description: use Taylor (MacLaurin) series expansion to calculate (a/b) ^ (1/c)
  * Inputs:      a = [1, 64], b = [1, 64], c = [1, 64], a >= b
  * Outputs:     none
  * Return:      y = Q24, range ~= [0.015625, 64]
  **************************************************************************************/
-int RatioPowInv (int a, int b, int c)
-{
+
   int lna, lnb, i, p, t, y;
 
   if (a < 1 || b < 1 || c < 1 || a > 64 || b > 64 || c > 64 || a < b)
@@ -4494,12 +4340,13 @@ int RatioPowInv (int a, int b, int c)
     t = MULSHIFT32(invTab[i-1], t) << 2;
     t = MULSHIFT32(p, t) << 4;  /* t = p^i * 1/i! (Q24) */
     y += t;
-  }
+    }
 
   return y;
-}
+  }
 //}}}
 //{{{
+int SqrtFix (int q, int fBitsIn, int *fBitsOut) {
 /**************************************************************************************
  * Description: use binary search to calculate sqrt(q)
  * Inputs:      q = Q30
@@ -4510,14 +4357,13 @@ int RatioPowInv (int a, int b, int c)
  *              normalizes input to range [0x200000000, 0x7fffffff] and takes
  *                floor(sqrt(input)), and sets fBitsOut appropriately
  **************************************************************************************/
-int SqrtFix (int q, int fBitsIn, int *fBitsOut)
-{
+
   int z, lo, hi, mid;
 
   if (q <= 0) {
     *fBitsOut = fBitsIn;
     return 0;
-  }
+    }
 
   /* force even fBitsIn */
   z = fBitsIn & 0x01;
@@ -4542,125 +4388,93 @@ int SqrtFix (int q, int fBitsIn, int *fBitsOut)
       hi = mid - 1;
     else
       lo = mid + 1;
-  } while (hi >= lo);
+    } while (hi >= lo);
   lo--;
 
   *fBitsOut = ((fBitsIn + 2*z) >> 1);
   return lo;
-}
+  }
 //}}}
 
 // sbrfreq
 //{{{
+void BubbleSort (uint8_t *v, int nItems) {
 /**************************************************************************************
- * Function:    BubbleSort
- *
  * Description: in-place sort of uint8_ts
- *
  * Inputs:      buffer of elements to sort
  *              number of elements to sort
- *
  * Outputs:     sorted buffer
- *
- * Return:      none
  **************************************************************************************/
-void BubbleSort (uint8_t *v, int nItems)
-{
-  int i;
-  uint8_t t;
 
   while (nItems >= 2) {
-    for (i = 0; i < nItems-1; i++) {
+    for (int i = 0; i < nItems-1; i++) {
       if (v[i+1] < v[i]) {
-        t = v[i+1];
+        uint8_t t = v[i+1];
         v[i+1] = v[i];
         v[i] = t;
+        }
       }
-    }
     nItems--;
+    }
   }
-}
 //}}}
 //{{{
+uint8_t VMin (uint8_t *v, int nItems) {
 /**************************************************************************************
- * Function:    VMin
- *
  * Description: find smallest element in a buffer of uint8_ts
- *
  * Inputs:      buffer of elements to search
  *              number of elements to search
- *
- * Outputs:     none
- *
  * Return:      smallest element in buffer
  **************************************************************************************/
-uint8_t VMin (uint8_t *v, int nItems)
-{
-  int i;
-  uint8_t vMin;
 
-  vMin = v[0];
-  for (i = 1; i < nItems; i++) {
+  uint8_t vMin = v[0];
+  for (int i = 1; i < nItems; i++)
     if (v[i] < vMin)
       vMin = v[i];
-  }
+
   return vMin;
-}
+  }
 //}}}
 //{{{
+uint8_t VMax (uint8_t *v, int nItems) {
 /**************************************************************************************
- * Function:    VMax
- *
  * Description: find largest element in a buffer of uint8_ts
- *
  * Inputs:      buffer of elements to search
  *              number of elements to search
- *
- * Outputs:     none
- *
  * Return:      largest element in buffer
  **************************************************************************************/
-uint8_t VMax (uint8_t *v, int nItems)
-{
-  int i;
-  uint8_t vMax;
 
-  vMax = v[0];
-  for (i = 1; i < nItems; i++) {
+  uint8_t vMax = v[0];
+  for (int i = 1; i < nItems; i++)
     if (v[i] > vMax)
       vMax = v[i];
-  }
+
   return vMax;
-}
+  }
 //}}}
 //{{{
+int CalcFreqMasterScaleZero (uint8_t *freqMaster, int alterScale, int k0, int k2) {
 /**************************************************************************************
- * Function:    CalcFreqMasterScaleZero
- *
  * Description: calculate master frequency table when freqScale == 0
  *                (4.6.18.3.2.1, figure 4.39)
- *
  * Inputs:      alterScale flag
  *              index of first QMF subband in master freq table (k0)
  *              index of last QMF subband (k2)
- *
  * Outputs:     master frequency table
- *
  * Return:      number of bands in master frequency table
- *
  * Notes:       assumes k2 - k0 <= 48 and k2 >= k0 (4.6.18.3.6)
  **************************************************************************************/
-int CalcFreqMasterScaleZero (uint8_t *freqMaster, int alterScale, int k0, int k2)
-{
+
   int nMaster, k, nBands, k2Achieved, dk, vDk[64], k2Diff;
 
   if (alterScale) {
     dk = 2;
     nBands = 2 * ((k2 - k0 + 2) >> 2);
-  } else {
+    }
+  else {
     dk = 1;
     nBands = 2 * ((k2 - k0) >> 1);
-  }
+    }
 
   if (nBands <= 0)
     return 0;
@@ -4676,15 +4490,16 @@ int CalcFreqMasterScaleZero (uint8_t *freqMaster, int alterScale, int k0, int k2
       vDk[k]++;
       k--;
       k2Diff--;
+      }
     }
-  } else if (k2Diff < 0) {
+  else if (k2Diff < 0) {
     k = 0;
     while (k2Diff) {
       vDk[k]--;
       k++;
       k2Diff++;
+      }
     }
-  }
 
   nMaster = nBands;
   freqMaster[0] = k0;
@@ -4692,29 +4507,23 @@ int CalcFreqMasterScaleZero (uint8_t *freqMaster, int alterScale, int k0, int k2
     freqMaster[k] = freqMaster[k-1] + vDk[k-1];
 
   return nMaster;
-}
+  }
 //}}}
 
 //{{{
+int CalcFreqMaster (uint8_t *freqMaster, int freqScale, int alterScale, int k0, int k2) {
 /**************************************************************************************
- * Function:    CalcFreqMasterScale
- *
  * Description: calculate master frequency table when freqScale > 0
  *                (4.6.18.3.2.1, figure 4.39)
- *
  * Inputs:      alterScale flag
  *              freqScale flag
  *              index of first QMF subband in master freq table (k0)
  *              index of last QMF subband (k2)
- *
  * Outputs:     master frequency table
- *
  * Return:      number of bands in master frequency table
- *
  * Notes:       assumes k2 - k0 <= 48 and k2 >= k0 (4.6.18.3.6)
  **************************************************************************************/
-int CalcFreqMaster (uint8_t *freqMaster, int freqScale, int alterScale, int k0, int k2)
-{
+
   int bands, twoRegions, k, k1, t, vLast, vCurr, pCurr;
   int invWarp, nBands0, nBands1, change;
   uint8_t vDk1Min, vDk0Max;
@@ -4739,11 +4548,10 @@ int CalcFreqMaster (uint8_t *freqMaster, int freqScale, int alterScale, int k0, 
   t = (log2Tab[k1] - log2Tab[k0]) >> 3;       /* log2(k1/k0), Q28 to Q25 */
   nBands0 = 2 * (((bands * t) + (1 << 24)) >> 25);  /* multiply by bands/2, round to nearest int (mBandTab has factor of 1/2 rolled in) */
 
-  /* tested for all valid combinations of k0, k1, nBands (from sampRate, freqScale, alterScale)
-   * roundoff error can be a problem with fixpt (e.g. pCurr = 12.499999 instead of 12.50003)
-   *   because successive multiplication always undershoots a little bit, but this
-   *   doesn't occur in any of the ratios we encounter from the valid k0/k1 bands in the spec
-   */
+  // tested for all valid combinations of k0, k1, nBands (from sampRate, freqScale, alterScale)
+  // roundoff error can be a problem with fixpt (e.g. pCurr = 12.499999 instead of 12.50003)
+  //   because successive multiplication always undershoots a little bit, but this
+  //   doesn't occur in any of the ratios we encounter from the valid k0/k1 bands in the spec
   t = RatioPowInv(k1, k0, nBands0);
   pCurr = k0 << 24;
   vLast = k0;
@@ -4753,27 +4561,27 @@ int CalcFreqMaster (uint8_t *freqMaster, int freqScale, int alterScale, int k0, 
     vCurr = (pCurr + (1 << 23)) >> 24;
     vDelta[k] = (vCurr - vLast);
     vLast = vCurr;
-  }
+    }
 
-  /* sort the deltas and find max delta for first region */
-  BubbleSort(vDelta, nBands0);
-  vDk0Max = VMax(vDelta, nBands0);
+  // sort the deltas and find max delta for first region */
+  BubbleSort (vDelta, nBands0);
+  vDk0Max = VMax (vDelta, nBands0);
 
-  /* fill master frequency table with bands from first region */
+  // fill master frequency table with bands from first region */
   freqMaster[0] = k0;
   for (k = 1; k <= nBands0; k++)
     freqMaster[k] += freqMaster[k-1];
 
-  /* if only one region, then the table is complete */
+  // if only one region, then the table is complete */
   if (!twoRegions)
     return nBands0;
 
-  /* tested for all k1 = [10, 64], k2 = [k0, 64], freqScale = [1,3] */
+  // tested for all k1 = [10, 64], k2 = [k0, 64], freqScale = [1,3] */
   t = (log2Tab[k2] - log2Tab[k1]) >> 3;   /* log2(k1/k0), Q28 to Q25 */
   t = MULSHIFT32(bands * t, invWarp) << 2;  /* multiply by bands/2, divide by warp factor, keep Q25 */
   nBands1 = 2 * ((t + (1 << 24)) >> 25);    /* round to nearest int */
 
-  /* see comments above for calculations in first region */
+  // see comments above for calculations in first region */
   t = RatioPowInv(k2, k1, nBands1);
   pCurr = k1 << 24;
   vLast = k1;
@@ -4783,9 +4591,9 @@ int CalcFreqMaster (uint8_t *freqMaster, int freqScale, int alterScale, int k0, 
     vCurr = (pCurr + (1 << 23)) >> 24;
     vDelta[k] = (vCurr - vLast);
     vLast = vCurr;
-  }
+    }
 
-  /* sort the deltas, adjusting first and last if the second region has smaller deltas than the first */
+  // sort the deltas, adjusting first and last if the second region has smaller deltas than the first */
   vDk1Min = VMin(vDelta, nBands1);
   if (vDk1Min < vDk0Max) {
     BubbleSort(vDelta, nBands1);
@@ -4794,181 +4602,137 @@ int CalcFreqMaster (uint8_t *freqMaster, int freqScale, int alterScale, int k0, 
        change = ((vDelta[nBands1 - 1] - vDelta[0]) >> 1);
     vDelta[0] += change;
     vDelta[nBands1-1] -= change;
-  }
-  BubbleSort(vDelta, nBands1);
+    }
+  BubbleSort (vDelta, nBands1);
 
-  /* fill master frequency table with bands from second region
-   * Note: freqMaster[nBands0] = k1
-   */
+  // fill master frequency table with bands from second region
+  // Note: freqMaster[nBands0] = k1
   for (k = 1; k <= nBands1; k++)
     freqMaster[k + nBands0] += freqMaster[k + nBands0 - 1];
 
   return (nBands0 + nBands1);
-}
+  }
 //}}}
 //{{{
+int CalcFreqHigh (uint8_t *freqHigh, uint8_t *freqMaster, int nMaster, int crossOverBand) {
 /**************************************************************************************
- * Function:    CalcFreqHigh
- *
  * Description: calculate high resolution frequency table (4.6.18.3.2.2)
- *
  * Inputs:      master frequency table
  *              number of bands in master frequency table
  *              crossover band from header
- *
  * Outputs:     high resolution frequency table
- *
  * Return:      number of bands in high resolution frequency table
  **************************************************************************************/
-int CalcFreqHigh (uint8_t *freqHigh, uint8_t *freqMaster, int nMaster, int crossOverBand)
-{
-  int k, nHigh;
 
-  nHigh = nMaster - crossOverBand;
-
-  for (k = 0; k <= nHigh; k++)
+  int nHigh = nMaster - crossOverBand;
+  for (int k = 0; k <= nHigh; k++)
     freqHigh[k] = freqMaster[k + crossOverBand];
 
   return nHigh;
-}
+  }
 //}}}
 //{{{
+int CalcFreqLow (uint8_t *freqLow, uint8_t *freqHigh, int nHigh) {
 /**************************************************************************************
- * Function:    CalcFreqLow
- *
  * Description: calculate low resolution frequency table (4.6.18.3.2.2)
- *
  * Inputs:      high resolution frequency table
  *              number of bands in high resolution frequency table
- *
  * Outputs:     low resolution frequency table
- *
  * Return:      number of bands in low resolution frequency table
  **************************************************************************************/
-int CalcFreqLow (uint8_t *freqLow, uint8_t *freqHigh, int nHigh)
-{
-  int k, nLow, oddFlag;
 
-  nLow = nHigh - (nHigh >> 1);
+  int nLow = nHigh - (nHigh >> 1);
   freqLow[0] = freqHigh[0];
-  oddFlag = nHigh & 0x01;
+  int oddFlag = nHigh & 0x01;
 
-  for (k = 1; k <= nLow; k++)
+  for (int k = 1; k <= nLow; k++)
     freqLow[k] = freqHigh[2*k - oddFlag];
 
   return nLow;
-}
+  }
 //}}}
 //{{{
+int CalcFreqNoise (uint8_t *freqNoise, uint8_t *freqLow, int nLow, int kStart, int k2, int noiseBands) {
 /**************************************************************************************
- * Function:    CalcFreqNoise
- *
  * Description: calculate noise floor frequency table (4.6.18.3.2.2)
- *
  * Inputs:      low resolution frequency table
  *              number of bands in low resolution frequency table
  *              index of starting QMF subband for SBR (kStart)
  *              index of last QMF subband (k2)
  *              number of noise bands
- *
  * Outputs:     noise floor frequency table
- *
  * Return:      number of bands in noise floor frequency table
  **************************************************************************************/
-int CalcFreqNoise (uint8_t *freqNoise, uint8_t *freqLow, int nLow, int kStart, int k2, int noiseBands)
-{
-  int i, iLast, k, nQ, lTop, lBottom;
 
-  lTop = log2Tab[k2];
-  lBottom = log2Tab[kStart];
-  nQ = noiseBands*((lTop - lBottom) >> 2);  /* Q28 to Q26, noiseBands = [0,3] */
+  int lTop = log2Tab[k2];
+  int lBottom = log2Tab[kStart];
+  int nQ = noiseBands*((lTop - lBottom) >> 2);  /* Q28 to Q26, noiseBands = [0,3] */
   nQ = (nQ + (1 << 25)) >> 26;
   if (nQ < 1)
     nQ = 1;
 
-  iLast = 0;
+  int iLast = 0;
   freqNoise[0] = freqLow[0];
-  for (k = 1; k <= nQ; k++) {
-    i = iLast + (nLow - iLast) / (nQ + 1 - k);  /* truncating division */
+  for (int k = 1; k <= nQ; k++) {
+    int i = iLast + (nLow - iLast) / (nQ + 1 - k);  /* truncating division */
     freqNoise[k] = freqLow[i];
     iLast = i;
-  }
+    }
 
   return nQ;
-}
+  }
 //}}}
 //{{{
+int FindFreq (uint8_t *freq, int nFreq, uint8_t val) {
 /**************************************************************************************
- * Function:    FindFreq
- *
  * Description: search buffer of uint8_ts for a specific value
- *
  * Inputs:      buffer of elements to search
  *              number of elements to search
  *              value to search for
- *
  * Outputs:     none
- *
  * Return:      non-zero if the value is found anywhere in the buffer, zero otherwise
  **************************************************************************************/
-int FindFreq (uint8_t *freq, int nFreq, uint8_t val)
-{
-  int k;
 
-  for (k = 0; k < nFreq; k++) {
+  for (int k = 0; k < nFreq; k++)
     if (freq[k] == val)
       return 1;
-  }
 
   return 0;
-}
+  }
 //}}}
 //{{{
+void RemoveFreq (uint8_t *freq, int nFreq, int removeIdx) {
 /**************************************************************************************
- * Function:    RemoveFreq
- *
  * Description: remove one element from a buffer of uint8_ts
- *
  * Inputs:      buffer of elements
  *              number of elements
  *              index of element to remove
- *
  * Outputs:     new buffer of length nFreq-1
- *
- * Return:      none
  **************************************************************************************/
-void RemoveFreq (uint8_t *freq, int nFreq, int removeIdx)
-{
-  int k;
 
   if (removeIdx >= nFreq)
     return;
 
-  for (k = removeIdx; k < nFreq - 1; k++)
+  for (int k = removeIdx; k < nFreq - 1; k++)
     freq[k] = freq[k+1];
-}
+  }
 //}}}
 //{{{
+int BuildPatches (uint8_t *patchNumSubbands, uint8_t *patchStartSubband, uint8_t *freqMaster,
+                  int nMaster, int k0, int kStart, int numQMFBands, int sampRateIdx) {
 /**************************************************************************************
- * Function:    BuildPatches
- *
  * Description: build high frequency patches (4.6.18.6.3)
- *
  * Inputs:      master frequency table
  *              number of bands in low resolution frequency table
  *              index of first QMF subband in master freq table (k0)
  *              index of starting QMF subband for SBR (kStart)
  *              number of QMF bands in high resolution frequency table
  *              sample rate index
- *
  * Outputs:     starting subband for each patch
  *              number of subbands in each patch
- *
  * Return:      number of patches
  **************************************************************************************/
-int BuildPatches (uint8_t *patchNumSubbands, uint8_t *patchStartSubband, uint8_t *freqMaster,
-            int nMaster, int k0, int kStart, int numQMFBands, int sampRateIdx)
-{
+
   int i, j, k;
   int msb, sb, usb, numPatches, goalSB, oddFlag;
 
@@ -4981,15 +4745,16 @@ int BuildPatches (uint8_t *patchNumSubbands, uint8_t *patchStartSubband, uint8_t
     patchNumSubbands[0] = 0;
     patchStartSubband[0] = 0;
     return 0;
-  }
+    }
 
   if (goalSB < kStart + numQMFBands) {
     k = 0;
     for (i = 0; freqMaster[i] < goalSB; i++)
       k = i+1;
-  } else {
+    } 
+  else {
     k = nMaster;
-  }
+    }
 
   do {
     j = k+1;
@@ -4997,7 +4762,7 @@ int BuildPatches (uint8_t *patchNumSubbands, uint8_t *patchStartSubband, uint8_t
       j--;
       sb = freqMaster[j];
       oddFlag = (sb - 2 + k0) & 0x01;
-    } while (sb > k0 - 1 + msb - oddFlag);
+      } while (sb > k0 - 1 + msb - oddFlag);
 
     patchNumSubbands[numPatches] = std::max (sb - usb, 0);
     patchStartSubband[numPatches] = k0 - oddFlag - patchNumSubbands[numPatches];
@@ -5010,38 +4775,34 @@ int BuildPatches (uint8_t *patchNumSubbands, uint8_t *patchStartSubband, uint8_t
       usb = sb;
       msb = sb;
       numPatches++;
-    } else {
+      } 
+    else {
       msb = kStart;
-    }
+      }
 
     if (freqMaster[k] - sb < 3)
       k = nMaster;
 
-  } while (sb != (kStart + numQMFBands) && numPatches <= MAX_NUM_PATCHES);
+    } while (sb != (kStart + numQMFBands) && numPatches <= MAX_NUM_PATCHES);
 
   return numPatches;
-}
+  }
 //}}}
 //{{{
+int CalcFreqLimiter (uint8_t *freqLimiter, uint8_t *patchNumSubbands, uint8_t *freqLow,
+                     int nLow, int kStart, int limiterBands, int numPatches) {
 /**************************************************************************************
- * Function:    CalcFreqLimiter
- *
  * Description: calculate limiter frequency table (4.6.18.3.2.3)
- *
  * Inputs:      number of subbands in each patch
  *              low resolution frequency table
  *              number of bands in low resolution frequency table
  *              index of starting QMF subband for SBR (kStart)
  *              number of limiter bands
  *              number of patches
- *
  * Outputs:     limiter frequency table
- *
  * Return:      number of bands in limiter frequency table
  **************************************************************************************/
-int CalcFreqLimiter (uint8_t *freqLimiter, uint8_t *patchNumSubbands, uint8_t *freqLow,
-               int nLow, int kStart, int limiterBands, int numPatches)
-{
+
   int k, bands, nLimiter, nOctaves;
   int limBandsPerOctave[3] = {120, 200, 300};   /* [1.2, 2.0, 3.0] * 100 */
   uint8_t patchBorders[MAX_NUM_PATCHES + 1];
@@ -5051,7 +4812,7 @@ int CalcFreqLimiter (uint8_t *freqLimiter, uint8_t *patchNumSubbands, uint8_t *f
     freqLimiter[0] = freqLow[0] - kStart;
     freqLimiter[1] = freqLow[nLow] - kStart;
     return 1;
-  }
+    }
 
   bands = limBandsPerOctave[limiterBands - 1];
   patchBorders[0] = kStart;
@@ -5078,44 +4839,41 @@ int CalcFreqLimiter (uint8_t *freqLimiter, uint8_t *patchNumSubbands, uint8_t *f
       if (freqLimiter[k] == freqLimiter[k-1] || FindFreq(patchBorders, numPatches + 1, freqLimiter[k]) == 0) {
         RemoveFreq(freqLimiter, nLimiter + 1, k);
         nLimiter--;
-      } else if (FindFreq(patchBorders, numPatches + 1, freqLimiter[k-1]) == 0) {
+        } 
+      else if (FindFreq(patchBorders, numPatches + 1, freqLimiter[k-1]) == 0) {
         RemoveFreq(freqLimiter, nLimiter + 1, k-1);
         nLimiter--;
-      } else {
+        } 
+      else {
         k++;
-      }
-    } else {
+        }
+      } 
+    else {
       k++;
+      }
     }
-  }
 
   /* store limiter boundaries as offsets from kStart */
   for (k = 0; k <= nLimiter; k++)
     freqLimiter[k] -= kStart;
 
   return nLimiter;
-}
+  }
 //}}}
 //{{{
+int CalcFreqTables (SBRHeader *sbrHdr, SBRFreq *sbrFreq, int sampRateIdx) {
 /**************************************************************************************
- * Function:    CalcFreqTables
- *
  * Description: calulate master and derived frequency tables, and patches
- *
  * Inputs:      initialized SBRHeader struct for this SCE/CPE block
  *              initialized SBRFreq struct for this SCE/CPE block
  *              sample rate index of output sample rate (after SBR)
- *
  * Outputs:     master and derived frequency tables, and patches
- *
  * Return:      non-zero if error, zero otherwise
  **************************************************************************************/
-int CalcFreqTables (SBRHeader *sbrHdr, SBRFreq *sbrFreq, int sampRateIdx)
-{
-  int k0, k2;
 
-  k0 = k0Tab[sampRateIdx][sbrHdr->startFreq];
+  int k0 = k0Tab[sampRateIdx][sbrHdr->startFreq];
 
+  int k2;
   if (sbrHdr->stopFreq == 14)
     k2 = 2*k0;
   else if (sbrHdr->stopFreq == 15)
@@ -5125,31 +4883,31 @@ int CalcFreqTables (SBRHeader *sbrHdr, SBRFreq *sbrFreq, int sampRateIdx)
   if (k2 > 64)
     k2 = 64;
 
-  /* calculate master frequency table */
+  // calculate master frequency table */
   if (sbrHdr->freqScale == 0)
     sbrFreq->nMaster = CalcFreqMasterScaleZero(sbrFreq->freqMaster, sbrHdr->alterScale, k0, k2);
   else
     sbrFreq->nMaster = CalcFreqMaster(sbrFreq->freqMaster, sbrHdr->freqScale, sbrHdr->alterScale, k0, k2);
 
-  /* calculate high frequency table and related parameters */
+  // calculate high frequency table and related parameters */
   sbrFreq->nHigh = CalcFreqHigh(sbrFreq->freqHigh, sbrFreq->freqMaster, sbrFreq->nMaster, sbrHdr->crossOverBand);
   sbrFreq->numQMFBands = sbrFreq->freqHigh[sbrFreq->nHigh] - sbrFreq->freqHigh[0];
   sbrFreq->kStart = sbrFreq->freqHigh[0];
 
-  /* calculate low frequency table */
+  // calculate low frequency table */
   sbrFreq->nLow = CalcFreqLow(sbrFreq->freqLow, sbrFreq->freqHigh, sbrFreq->nHigh);
 
-  /* calculate noise floor frequency table */
+  // calculate noise floor frequency table */
   sbrFreq->numNoiseFloorBands = CalcFreqNoise(sbrFreq->freqNoise, sbrFreq->freqLow, sbrFreq->nLow, sbrFreq->kStart, k2, sbrHdr->noiseBands);
 
-  /* calculate limiter table */
+  // calculate limiter table */
   sbrFreq->numPatches = BuildPatches(sbrFreq->patchNumSubbands, sbrFreq->patchStartSubband, sbrFreq->freqMaster,
     sbrFreq->nMaster, k0, sbrFreq->kStart, sbrFreq->numQMFBands, sampRateIdx);
   sbrFreq->nLimiter = CalcFreqLimiter(sbrFreq->freqLimiter, sbrFreq->patchNumSubbands, sbrFreq->freqLow, sbrFreq->nLow, sbrFreq->kStart,
     sbrHdr->limiterBands, sbrFreq->numPatches);
 
   return 0;
-}
+  }
 //}}}
 //}}}
 //{{{
@@ -5216,7 +4974,7 @@ bool cAacDecoder::decodeSbrBitstream (int chBase) {
   }
 //}}}
 
-//{{{  dequant utils
+//{{{  dequantize utils
 #define SF_OFFSET  100
 
 /* sqrt(0.5), format = Q31 */
@@ -5430,7 +5188,7 @@ void cAacDecoder::dequantize (int ch) {
   psInfoBase->gbCurrent[ch] = countLeadingZeros (gbMask) - 1;
   }
 //}}}
-//{{{  apply stereo utils
+//{{{  applyStereoProcess utils
 //{{{
 /**************************************************************************************
  * Function:    StereoProcessGroup
@@ -5593,7 +5351,7 @@ void cAacDecoder::applyStereoProcess() {
   cLog::log (LOGINFO2, "applyStereo");
   }
 //}}}
-//{{{  apply pns utils
+//{{{  applyPns utils
 #define NUM_ITER_INVSQRT  4
 #define X0_COEF_2 0xc0000000  /* Q29: -2.0 */
 #define X0_OFF_2  0x60000000  /* Q29:  3.0 */
@@ -5885,7 +5643,7 @@ void cAacDecoder::applyPns (int ch) {
   cLog::log (LOGINFO2, "applyPns %d", ch);
   }
 //}}}
-//{{{  apply tns utils
+//{{{  applyTns utils
 #define FBITS_LPC_COEFS 20
 //{{{
 void DecodeLPCCoefs (int order, int res, int8_t* filtCoef, int* a, int* b) {
@@ -7128,7 +6886,7 @@ void cAacDecoder::imdct (int ch, int chOut, float* outbuf) {
   psInfoBase->prevWinShape[chOut] = icsInfo->winShape;
   }
 //}}}
-//{{{  apply sbr utils
+//{{{  applySbr utils
 //{{{
 void PreMultiply64 (int* zbuf1) {
 /**************************************************************************************
@@ -8708,7 +8466,6 @@ void CVKernel1 (int *XBuf, int *accBuf) {
   accBuf[10] = p22re.r.lo32;  accBuf[11] = p22re.r.hi32;
 }
 //}}}
-
 //{{{
 int CalcCovariance1 (int *XBuf, int *p01reN, int *p01imN, int *p12reN, int *p12imN, int *p11reN, int *p22reN) {
 /**************************************************************************************
@@ -8832,7 +8589,6 @@ void CVKernel2 (int *XBuf, int *accBuf) {
   accBuf[3] = p02im.r.hi32;
   }
 //}}}
-
 //{{{
 int CalcCovariance2 (int *XBuf, int *p02reN, int *p02imN) {
 /**************************************************************************************
@@ -8895,6 +8651,7 @@ int CalcCovariance2 (int *XBuf, int *p02reN, int *p02imN) {
   return 0;
   }
 //}}}
+
 //{{{
 void CalcLPCoefs (int *XBuf, int *a0re, int *a0im, int *a1re, int *a1im, int gb) {
 /**************************************************************************************

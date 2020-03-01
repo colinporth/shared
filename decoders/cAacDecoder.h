@@ -77,7 +77,7 @@ public:
   int getNumChannels();
   int getSampleRate();
   int decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf);
-  int flushCodec();
+  void flushCodec();
 
 private:
   //{{{  private members
