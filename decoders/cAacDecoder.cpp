@@ -8295,7 +8295,7 @@ int cAacDecoder::decodeSingleChannelElement (BitStreamInfo* bsi) {
  * Notes:       doesn't decode individual channel stream (part of DecodeNoiselessData)
  **************************************************************************************/
 
-  /* read instance tag */
+  // read instance tag
   currInstTag = getBits (bsi, NUM_INST_TAG_BITS);
   return 0;
   }
@@ -8405,15 +8405,15 @@ int cAacDecoder::decodeProgramConfigElement (ProgConfigElement* pce, BitStreamIn
  *                (otherwise we just skip it in the bitstream, to save memory)
  **************************************************************************************/
 
-  pce->elemInstTag =   getBits(bsi, 4);
-  pce->profile =       getBits(bsi, 2);
-  pce->sampRateIdx =   getBits(bsi, 4);
-  pce->numFCE =        getBits(bsi, 4);
-  pce->numSCE =        getBits(bsi, 4);
-  pce->numBCE =        getBits(bsi, 4);
-  pce->numLCE =        getBits(bsi, 2);
-  pce->numADE =        getBits(bsi, 3);
-  pce->numCCE =        getBits(bsi, 4);
+  pce->elemInstTag = getBits(bsi, 4);
+  pce->profile = getBits(bsi, 2);
+  pce->sampRateIdx = getBits(bsi, 4);
+  pce->numFCE = getBits(bsi, 4);
+  pce->numSCE = getBits(bsi, 4);
+  pce->numBCE = getBits(bsi, 4);
+  pce->numLCE = getBits(bsi, 2);
+  pce->numADE = getBits(bsi, 3);
+  pce->numCCE = getBits(bsi, 4);
 
   pce->monoMixdown = getBits (bsi, 1) << 4;  /* present flag */
   if (pce->monoMixdown)
@@ -8720,7 +8720,7 @@ int cAacDecoder::PNS (int ch) {
   if (!psInfoBase->pnsUsed[ch])
     return 0;
 
-  int  nSamps;
+  int nSamps;
   const short* sfbTab;
   ICSInfo* icsInfo = (ch == 1 && psInfoBase->commonWin == 1) ? &(psInfoBase->icsInfo[0]) : &(psInfoBase->icsInfo[ch]);
   if (icsInfo->winSequence == 2) {
@@ -8897,7 +8897,7 @@ int cAacDecoder::StereoProcess() {
   if (icsInfo->winSequence == 2) {
     sfbTab = sfBandTabShort + sfBandTabShortOffset[psInfoBase->sampRateIdx];
     nSamps = NSAMPS_SHORT;
-    } 
+    }
   else {
     sfbTab = sfBandTabLong + sfBandTabLongOffset[psInfoBase->sampRateIdx];
     nSamps = NSAMPS_LONG;
