@@ -557,6 +557,19 @@ inline int FASTABS (int32_t x) {
 //}}}
 //{{{  const tables
 //{{{
+// channel mapping (table 1.6.3.4) (-1 = unknown, so need to determine mapping based on rules in 8.5.1) */
+static const uint8_t channelMapTab [NUM_DEF_CHAN_MAPS] = {
+  -1, 1, 2, 3, 4, 5, 6, 8
+  };
+//}}}
+//{{{
+// number of channels in each element (SCE, CPE, etc.)
+static const uint8_t elementNumChans [NUM_ELEMENTS] = {
+  1, 2, 0, 1, 0, 0, 0, 0
+  };
+//}}}
+
+//{{{
 static const HuffInfo huffTabSpecInfo [11] = {
   /* table 0 not used */
   {11, {  1,  0,  0,  0,  8,  0, 24,  0, 24,  8, 16,  0,  0,  0,  0,  0,  0,  0,  0,  0},   0},
@@ -775,19 +788,6 @@ static const int sampRateTab [NUM_SAMPLE_RATES] = {
 // max scalefactor band for prediction (main profile only) */
 static const uint8_t predSFBMax [NUM_SAMPLE_RATES] = {
   33, 33, 38, 40, 40, 40, 41, 41, 37, 37, 37, 34
-  };
-//}}}
-
-//{{{
-// channel mapping (table 1.6.3.4) (-1 = unknown, so need to determine mapping based on rules in 8.5.1) */
-static const uint8_t channelMapTab [NUM_DEF_CHAN_MAPS] = {
-  -1, 1, 2, 3, 4, 5, 6, 8
-  };
-//}}}
-//{{{
-// number of channels in each element (SCE, CPE, etc.)
-static const uint8_t elementNumChans [NUM_ELEMENTS] = {
-  1, 2, 0, 1, 0, 0, 0, 0
   };
 //}}}
 
@@ -2207,7 +2207,165 @@ static const int newBWTab [4][4] = {
 //}}}
 //}}}
 
-//{{{  bitstream
+//{{{
+void InitSBRState (PSInfoSBR* psi) {
+/**************************************************************************************
+ * Description: initialize PSInfoSBR struct at start of stream or after flush
+ * Outputs:     PSInfoSBR struct with proper initial state
+ * Return:      none
+ **************************************************************************************/
+
+  memset (psi, 0, sizeof(PSInfoSBR));
+
+  // initialize non-zero state variables
+  for (int ch = 0; ch < AAC_MAX_NCHANS; ch++) {
+    psi->sbrChan[ch].reset = 1;
+    psi->sbrChan[ch].laPrev = -1;
+    }
+  }
+//}}}
+
+// public members
+//{{{
+cAacDecoder::cAacDecoder() {
+
+  psInfoBase = (struct PSInfoBase*)malloc (sizeof(PSInfoBase));
+  memset (psInfoBase, 0, sizeof(PSInfoBase));
+
+  psInfoSBR = (PSInfoSBR*)malloc (sizeof(PSInfoSBR));
+  InitSBRState (psInfoSBR);
+  }
+//}}}
+//{{{
+cAacDecoder::~cAacDecoder() {
+
+  free (psInfoSBR);
+  free (psInfoBase);
+  }
+//}}}
+
+//{{{
+int cAacDecoder::getSampleRate() {
+  return sampRate * (sbrEnabled ? 2 : 1);
+  }
+//}}}
+//{{{
+int cAacDecoder::flushCodec() {
+/**************************************************************************************
+ * Description: flush internal codec state (after seeking, for example)
+ * Inputs:      valid AAC decoder instance pointer (HAACDecoder)
+ * Outputs:     updated state variables in
+ * Return:      0 if successful, error code (< 0) if error
+ **************************************************************************************/
+// reset common state variables which change per-frame
+// don't touch state variables which are (usually) constant for entire clip
+//  (nChans, sampRate, profile, format, sbrEnabled)
+
+  prevBlockID = AAC_ID_INVALID;
+  currBlockID = AAC_ID_INVALID;
+  currInstTag = -1;
+  for (int ch = 0; ch < MAX_NCHANS_ELEM; ch++)
+    sbDeinterleaveReqd[ch] = 0;
+  adtsBlocksLeft = 0;
+  tnsUsed = 0;
+  pnsUsed = 0;
+
+  /* reset internal codec state (flush overlap buffers, etc.) */
+  struct PSInfoBase* psiInfo = psInfoBase;
+  memset (psiInfo->overlap, 0, AAC_MAX_NCHANS * AAC_MAX_NSAMPS * sizeof(int));
+  memset (psiInfo->prevWinShape, 0, AAC_MAX_NCHANS * sizeof(int));
+
+  InitSBRState (psInfoSBR);
+
+  return ERR_AAC_NONE;
+  }
+//}}}
+
+//{{{
+int cAacDecoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf) {
+// return o on any failure
+
+  cLog::log (LOGINFO1, "cAacDecoder::decodeSingleFrame in");
+
+  int bitOffset = 0;
+  int bitsAvail = bytesLeft << 3;
+
+  if (unpackADTSHeader (&inbuf, &bitOffset, &bitsAvail))
+    return 0;
+  if (nChans == -1)
+    if (getADTSChannelMapping (inbuf, bitOffset, bitsAvail))
+      return 0;
+  if (nChans > AAC_MAX_NCHANS || nChans <= 0)
+    return 0;
+
+  tnsUsed = 0;
+  pnsUsed = 0;
+  bitOffset = 0;
+  int baseChan = 0;
+  int baseChanSBR = 0;
+  do {
+    // parse next syntactic element
+    if (decodeNextElement (&inbuf, &bitOffset, &bitsAvail))
+      return 0;
+    if (baseChan + elementNumChans[currBlockID] > AAC_MAX_NCHANS)
+      return 0;
+    for (int ch = 0; ch < elementNumChans[currBlockID]; ch++) {
+      decodeNoiselessData (&inbuf, &bitOffset, &bitsAvail, ch);
+      dequantize (ch);
+      }
+    if (currBlockID == AAC_ID_CPE)
+      applyStereoProcess();
+    for (int ch = 0; ch < elementNumChans[currBlockID]; ch++) {
+      applyPns (ch);
+      applyTns (ch);
+      imdct (ch, baseChan + ch, outbuf);
+      }
+    if (sbrEnabled && (currBlockID == AAC_ID_FIL || currBlockID == AAC_ID_LFE)) {
+      //{{{  process sbr
+      int elementChansSBR;
+      if (currBlockID == AAC_ID_LFE)
+        elementChansSBR = elementNumChans[AAC_ID_LFE];
+      else if (currBlockID == AAC_ID_FIL &&
+               (prevBlockID == AAC_ID_SCE || prevBlockID == AAC_ID_CPE))
+        elementChansSBR = elementNumChans[prevBlockID];
+      else
+        elementChansSBR = 0;
+
+      if (baseChanSBR + elementChansSBR > AAC_MAX_NCHANS)
+        return 0;
+
+      // parse SBR extension data if present (contained in a fill element)
+      if (decodeSbrBitstream (baseChanSBR))
+        return 0;
+      applySbr (baseChanSBR, outbuf);
+      baseChanSBR += elementChansSBR;
+      }
+      //}}}
+    baseChan += elementNumChans[currBlockID];
+    } while (currBlockID != AAC_ID_END);
+
+  cLog::log (LOGINFO1, "cAacDecoder::decodeSingleFrame out");
+  if (nChans == 1) {
+    // fixup stereo
+    int numSamples = AAC_MAX_NSAMPS * (sbrEnabled ? 2 : 1);
+    cLog::log(LOGINFO, "numchans %d fixup %d", nChans, numSamples);
+    //for (int i = numSamples - 1; i >= 0; i--) {
+    //  outbuf[i*2] = outbuf[i];
+    //  outbuf[(i*2)+1] = outbuf[i];
+    //  }
+    return numSamples;
+    }
+  else if (nChans == 2)
+    return AAC_MAX_NSAMPS * (sbrEnabled ? 2 : 1);
+  else {
+    cLog::log (LOGERROR, "unexpected numchans %d", nChans);
+    return 0;
+    }
+  }
+//}}}
+
+// private members and utils
+//{{{  bitstream utils
 //{{{
 void setBitstreamPointer (cAacDecoder::BitStreamInfo* bsi, int nBytes, uint8_t* buf) {
 
@@ -2331,7 +2489,7 @@ int calcBitsUsed (cAacDecoder::BitStreamInfo* bsi, uint8_t *startBuf, int startO
   }
 //}}}
 //}}}
-//{{{  decode, huffman
+//{{{  decode, huffman utils
 #define APPLY_SIGN(v, s)    {(v) ^= ((signed int)(s) >> 31); (v) -= ((signed int)(s) >> 31);}
 
 #define GET_QUAD_SIGNBITS(v)  (((unsigned int)(v) << 17) >> 29) /* bits 14-12, unsigned */
@@ -2798,6 +2956,107 @@ void DecodePulseInfo (cAacDecoder::BitStreamInfo* bsi, PulseInfo* pi) {
 //}}}
 
 //{{{
+void DecodeTNSInfo (cAacDecoder::BitStreamInfo* bsi, int winSequence, TNSInfo* ti, int8_t* tnsCoef) {
+/**************************************************************************************
+ * Description: decode TNS filter information
+ * Inputs:      BitStreamInfo struct pointing to start of TNS info
+ *                (14496-3, table 4.4.27)
+ *              window sequence (short or long blocks)
+ * Outputs:     updated TNSInfo struct
+ *              buffer of decoded (signed) TNS filter coefficients
+ * Return:      none
+ **************************************************************************************/
+
+  int i, w, f, coefBits, compress;
+  int8_t c, s, n;
+
+  uint8_t *filtLength, *filtOrder, *filtDir;
+
+  filtLength = ti->length;
+  filtOrder =  ti->order;
+  filtDir =    ti->dir;
+
+  if (winSequence == 2) {
+    /* short blocks */
+    for (w = 0; w < NWINDOWS_SHORT; w++) {
+      ti->numFilt[w] = getBits(bsi, 1);
+      if (ti->numFilt[w]) {
+        ti->coefRes[w] = getBits(bsi, 1) + 3;
+        *filtLength =    getBits(bsi, 4);
+        *filtOrder =     getBits(bsi, 3);
+        if (*filtOrder) {
+          *filtDir++ =      getBits(bsi, 1);
+          compress =        getBits(bsi, 1);
+          coefBits = (int)ti->coefRes[w] - compress;  /* 2, 3, or 4 */
+          s = sgnMask[coefBits - 2];
+          n = negMask[coefBits - 2];
+          for (i = 0; i < *filtOrder; i++) {
+            c = getBits(bsi, coefBits);
+            if (c & s)  c |= n;
+            *tnsCoef++ = c;
+          }
+        }
+        filtLength++;
+        filtOrder++;
+      }
+    }
+  } else {
+    /* long blocks */
+    ti->numFilt[0] = getBits(bsi, 2);
+    if (ti->numFilt[0])
+      ti->coefRes[0] = getBits(bsi, 1) + 3;
+    for (f = 0; f < ti->numFilt[0]; f++) {
+      *filtLength =      getBits(bsi, 6);
+      *filtOrder =       getBits(bsi, 5);
+      if (*filtOrder) {
+        *filtDir++ =     getBits(bsi, 1);
+        compress =       getBits(bsi, 1);
+        coefBits = (int)ti->coefRes[0] - compress;  /* 2, 3, or 4 */
+        s = sgnMask[coefBits - 2];
+        n = negMask[coefBits - 2];
+        for (i = 0; i < *filtOrder; i++) {
+          c = getBits(bsi, coefBits);
+          if (c & s)  c |= n;
+          *tnsCoef++ = c;
+        }
+      }
+      filtLength++;
+      filtOrder++;
+    }
+  }
+}
+//}}}
+//{{{
+void DecodeGainControlInfo (cAacDecoder::BitStreamInfo* bsi, int winSequence, GainControlInfo* gi) {
+/**************************************************************************************
+ * Description: decode gain control information (SSR profile only)
+ * Inputs:      BitStreamInfo struct pointing to start of gain control info
+ *                (14496-3, table 4.4.12)
+ *              window sequence (short or long blocks)
+ * Outputs:     updated GainControlInfo struct
+ * Return:      none
+ **************************************************************************************/
+
+  int bd, wd, ad;
+  int locBits, locBitsZero, maxWin;
+
+  gi->maxBand = getBits(bsi, 2);
+  maxWin =      (int)gainBits[winSequence][0];
+  locBitsZero = (int)gainBits[winSequence][1];
+  locBits =     (int)gainBits[winSequence][2];
+
+  for (bd = 1; bd <= gi->maxBand; bd++) {
+    for (wd = 0; wd < maxWin; wd++) {
+      gi->adjNum[bd][wd] = getBits(bsi, 3);
+      for (ad = 0; ad < gi->adjNum[bd][wd]; ad++) {
+        gi->alevCode[bd][wd][ad] = getBits(bsi, 4);
+        gi->alocCode[bd][wd][ad] = getBits(bsi, (wd == 0 ? locBitsZero : locBits));
+      }
+    }
+  }
+}
+//}}}
+//{{{
 void DecodeICSInfo (cAacDecoder::BitStreamInfo* bsi, ICSInfo* icsInfo, int sampRateIdx) {
 /**************************************************************************************
  * Description: decode individual channel stream info
@@ -2848,29 +3107,46 @@ void DecodeICSInfo (cAacDecoder::BitStreamInfo* bsi, ICSInfo* icsInfo, int sampR
     }
   }
 //}}}
-//}}}
-//{{{  sbrhuff
 //{{{
-int DecodeOneSymbol (cAacDecoder::BitStreamInfo* bsi, int huffTabIndex) {
+void DecodeICS (struct PSInfoBase* psi, cAacDecoder::BitStreamInfo* bsi, int ch) {
 /**************************************************************************************
- * Description: dequantize one Huffman symbol from bitstream,
- *                using table huffTabSBR[huffTabIndex]
- * Inputs:      BitStreamInfo struct pointing to start of next Huffman codeword
- *              index of Huffman table
- * Outputs:     bitstream advanced by number of bits in codeword
- * Return:      one decoded symbol
+ * Description: decode individual channel stream
+ * Inputs:      platform specific info struct
+ *              BitStreamInfo struct pointing to start of individual channel stream
+ *                (14496-3, table 4.4.24)
+ *              index of current channel
+ * Outputs:     updated section data, scale factor data, pulse data, TNS data,
+ *                and gain control data
+ * Return:      none
  **************************************************************************************/
 
-  int val;
-  const HuffInfo* hi = &(huffTabSBRInfo[huffTabIndex]);
-  unsigned int bitBuf = getBitsNoAdvance (bsi, hi->maxBits) << (32 - hi->maxBits);
-  int nBits = DecodeHuffmanScalar (huffTabSBR, hi, bitBuf, &val);
-  advanceBitstream (bsi, nBits);
+  ICSInfo* icsInfo = (ch == 1 && psi->commonWin == 1) ? &(psi->icsInfo[0]) : &(psi->icsInfo[ch]);
 
-  return val;
-  }
+  int globalGain = getBits (bsi, 8);
+  if (!psi->commonWin)
+    DecodeICSInfo (bsi, icsInfo, psi->sampRateIdx);
+
+  DecodeSectionData (bsi, icsInfo->winSequence, icsInfo->numWinGroup, icsInfo->maxSFB, psi->sfbCodeBook[ch]);
+  DecodeScaleFactors (bsi, icsInfo->numWinGroup, icsInfo->maxSFB, globalGain, psi->sfbCodeBook[ch], psi->scaleFactors[ch]);
+
+  PulseInfo* pi = &psi->pulseInfo[ch];
+  pi->pulseDataPresent = getBits (bsi, 1);
+  if (pi->pulseDataPresent)
+    DecodePulseInfo(bsi, pi);
+
+  TNSInfo* ti = &psi->tnsInfo[ch];
+  ti->tnsDataPresent = getBits (bsi, 1);
+  if (ti->tnsDataPresent)
+    DecodeTNSInfo (bsi, icsInfo->winSequence, ti, ti->coef);
+
+  GainControlInfo* gi = &psi->gainControlInfo[ch];
+  gi->gainControlDataPresent = getBits (bsi, 1);
+  if (gi->gainControlDataPresent)
+    DecodeGainControlInfo (bsi, icsInfo->winSequence, gi);
+}
 //}}}
 
+// sbrhuff
 //{{{
 int DequantizeEnvelope (int nBands, int ampRes, int8_t *envQuant, int *envDequant) {
 /**************************************************************************************
@@ -2961,7 +3237,94 @@ void DequantizeNoise (int nBands, int8_t *noiseQuant, int *noiseDequant) {
   } while (--nBands);
 }
 //}}}
+//{{{
+void UncoupleSBREnvelope (PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChanR) {
+/**************************************************************************************
+ * Description: scale dequantized envelope scalefactors according to channel
+ *                coupling rules
+ * Inputs:      initialized PSInfoSBR struct including
+ *                dequantized envelope data for left channel
+ *              initialized SBRGrid struct for this channel
+ *              initialized SBRFreq struct for this SCE/CPE block
+ *              initialized SBRChan struct for right channel including
+ *                quantized envelope scalefactors
+ * Outputs:     dequantized envelope data for left channel (after decoupling)
+ *              dequantized envelope data for right channel (after decoupling)
+ * Return:      none
+ **************************************************************************************/
 
+  int env, band, nBands, scalei, E_1;
+
+  scalei = (sbrGrid->ampResFrame ? 0 : 1);
+  for (env = 0; env < sbrGrid->numEnv; env++) {
+    nBands = (sbrGrid->freqRes[env] ? sbrFreq->nHigh : sbrFreq->nLow);
+    psi->envDataDequantScale[1][env] = psi->envDataDequantScale[0][env]; /* same scalefactor for L and R */
+    for (band = 0; band < nBands; band++) {
+      /* clip E_1 to [0, 24] (scalefactors approach 0 or 2) */
+      E_1 = sbrChanR->envDataQuant[env][band] >> scalei;
+      if (E_1 < 0)  E_1 = 0;
+      if (E_1 > 24) E_1 = 24;
+
+      /* envDataDequant[0] has 1 GB, so << by 2 is okay */
+      psi->envDataDequant[1][env][band] = MULSHIFT32(psi->envDataDequant[0][env][band], dqTabCouple[24 - E_1]) << 2;
+      psi->envDataDequant[0][env][band] = MULSHIFT32(psi->envDataDequant[0][env][band], dqTabCouple[E_1]) << 2;
+    }
+  }
+}
+//}}}
+//{{{
+void UncoupleSBRNoise (PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChanR) {
+/**************************************************************************************
+ * Description: scale dequantized noise floor scalefactors according to channel
+ *                coupling rules
+ * Inputs:      initialized PSInfoSBR struct including
+ *                dequantized noise data for left channel
+ *              initialized SBRGrid struct for this channel
+ *              initialized SBRFreq struct for this SCE/CPE block
+ *              initialized SBRChan struct for this channel including
+ *                quantized noise scalefactors
+ * Outputs:     dequantized noise data for left channel (after decoupling)
+ *              dequantized noise data for right channel (after decoupling)
+ * Return:      none
+ **************************************************************************************/
+
+  int noiseFloor, band, Q_1;
+
+  for (noiseFloor = 0; noiseFloor < sbrGrid->numNoiseFloors; noiseFloor++) {
+    for (band = 0; band < sbrFreq->numNoiseFloorBands; band++) {
+      /* Q_1 should be in range [0, 24] according to 4.6.18.3.6, but check to make sure */
+      Q_1 = sbrChanR->noiseDataQuant[noiseFloor][band];
+      if (Q_1 < 0)  Q_1 = 0;
+      if (Q_1 > 24) Q_1 = 24;
+
+      /* noiseDataDequant[0] has 1 GB, so << by 2 is okay */
+      psi->noiseDataDequant[1][noiseFloor][band] = MULSHIFT32(psi->noiseDataDequant[0][noiseFloor][band], dqTabCouple[24 - Q_1]) << 2;
+      psi->noiseDataDequant[0][noiseFloor][band] = MULSHIFT32(psi->noiseDataDequant[0][noiseFloor][band], dqTabCouple[Q_1]) << 2;
+    }
+  }
+}
+//}}}
+
+//{{{
+int DecodeOneSymbol (cAacDecoder::BitStreamInfo* bsi, int huffTabIndex) {
+/**************************************************************************************
+ * Description: dequantize one Huffman symbol from bitstream,
+ *                using table huffTabSBR[huffTabIndex]
+ * Inputs:      BitStreamInfo struct pointing to start of next Huffman codeword
+ *              index of Huffman table
+ * Outputs:     bitstream advanced by number of bits in codeword
+ * Return:      one decoded symbol
+ **************************************************************************************/
+
+  int val;
+  const HuffInfo* hi = &(huffTabSBRInfo[huffTabIndex]);
+  unsigned int bitBuf = getBitsNoAdvance (bsi, hi->maxBits) << (32 - hi->maxBits);
+  int nBits = DecodeHuffmanScalar (huffTabSBR, hi, bitBuf, &val);
+  advanceBitstream (bsi, nBits);
+
+  return val;
+  }
+//}}}
 //{{{
 void DecodeSBREnvelope (cAacDecoder::BitStreamInfo *bsi, PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChan, int ch) {
 /**************************************************************************************
@@ -3118,1875 +3481,428 @@ void DecodeSBRNoise (cAacDecoder::BitStreamInfo *bsi, PSInfoSBR *psi, SBRGrid *s
 }
 
 //}}}
+//}}}
 
 //{{{
-void UncoupleSBREnvelope (PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChanR) {
-/**************************************************************************************
- * Description: scale dequantized envelope scalefactors according to channel
- *                coupling rules
- * Inputs:      initialized PSInfoSBR struct including
- *                dequantized envelope data for left channel
- *              initialized SBRGrid struct for this channel
- *              initialized SBRFreq struct for this SCE/CPE block
- *              initialized SBRChan struct for right channel including
- *                quantized envelope scalefactors
- * Outputs:     dequantized envelope data for left channel (after decoupling)
- *              dequantized envelope data for right channel (after decoupling)
- * Return:      none
+bool cAacDecoder::unpackADTSHeader (uint8_t** buf, int* bitOffset, int* bitsAvail) {
+ /**************************************************************************************
+ * Description: parse the ADTS frame header and initialize decoder state
+ * Inputs:      double pointer to buffer with complete ADTS frame header (byte aligned)
+ *                header size = 7 bytes, plus 2 if CRC
+ * Outputs:     filled in ADTS struct
+ *              updated buffer pointer
+ *              updated bit offset
+ *              updated number of available bits
+ * Return:      false if successful
  **************************************************************************************/
 
-  int env, band, nBands, scalei, E_1;
+  BitStreamInfo bsi;
+  setBitstreamPointer (&bsi, (*bitsAvail + 7) >> 3, *buf);
+  getBits (&bsi, *bitOffset);
 
-  scalei = (sbrGrid->ampResFrame ? 0 : 1);
-  for (env = 0; env < sbrGrid->numEnv; env++) {
-    nBands = (sbrGrid->freqRes[env] ? sbrFreq->nHigh : sbrFreq->nLow);
-    psi->envDataDequantScale[1][env] = psi->envDataDequantScale[0][env]; /* same scalefactor for L and R */
-    for (band = 0; band < nBands; band++) {
-      /* clip E_1 to [0, 24] (scalefactors approach 0 or 2) */
-      E_1 = sbrChanR->envDataQuant[env][band] >> scalei;
-      if (E_1 < 0)  E_1 = 0;
-      if (E_1 > 24) E_1 = 24;
+  // verify that first 12 bits of header are syncword
+  if (getBits (&bsi, 12) != 0x0fff)
+    return true;
 
-      /* envDataDequant[0] has 1 GB, so << by 2 is okay */
-      psi->envDataDequant[1][env][band] = MULSHIFT32(psi->envDataDequant[0][env][band], dqTabCouple[24 - E_1]) << 2;
-      psi->envDataDequant[0][env][band] = MULSHIFT32(psi->envDataDequant[0][env][band], dqTabCouple[E_1]) << 2;
-    }
+  // fixed fields - should not change from frame to frame
+  ADTSHeader* fhADTS = &(psInfoBase->fhADTS);
+  fhADTS->id =               getBits(&bsi, 1);
+  fhADTS->layer =            getBits(&bsi, 2);
+  fhADTS->protectBit =       getBits(&bsi, 1);
+  fhADTS->profile =          getBits(&bsi, 2);
+  fhADTS->sampRateIdx =      getBits(&bsi, 4);
+  fhADTS->privateBit =       getBits(&bsi, 1);
+  fhADTS->channelConfig =    getBits(&bsi, 3);
+  fhADTS->origCopy =         getBits(&bsi, 1);
+  fhADTS->home =             getBits(&bsi, 1);
+
+  // variable fields - can change from frame to frame
+  fhADTS->copyBit =          getBits(&bsi, 1);
+  fhADTS->copyStart =        getBits(&bsi, 1);
+  fhADTS->frameLength =      getBits(&bsi, 13);
+  fhADTS->bufferFull =       getBits(&bsi, 11);
+  fhADTS->numRawDataBlocks = getBits(&bsi, 2) + 1;
+
+  // note - MPEG4 spec, correction 1 changes how CRC is handled when protectBit == 0 and numRawDataBlocks > 1
+  if (fhADTS->protectBit == 0)
+    fhADTS->crcCheckWord = getBits (&bsi, 16);
+
+  // byte align
+  byteAlignBitstream (&bsi); // should always be aligned anyway
+
+  // check validity of header
+  if (fhADTS->layer != 0 || fhADTS->profile != AAC_PROFILE_LC ||
+      fhADTS->sampRateIdx >= NUM_SAMPLE_RATES || fhADTS->channelConfig >= NUM_DEF_CHAN_MAPS)
+    return true;
+
+  // update codec info
+  psInfoBase->sampRateIdx = fhADTS->sampRateIdx;
+  if (!psInfoBase->useImpChanMap)
+    psInfoBase->nChans = channelMapTab[fhADTS->channelConfig];
+
+  // syntactic element fields will be read from bitstream for each element
+  prevBlockID = AAC_ID_INVALID;
+  currBlockID = AAC_ID_INVALID;
+  currInstTag = -1;
+
+  // fill in user-accessible data (TODO - calc bitrate, handle tricky channel config cases)
+  bitRate = 0;
+  nChans = psInfoBase->nChans;
+  sampRate = sampRateTab[psInfoBase->sampRateIdx];
+  profile = fhADTS->profile;
+  sbrEnabled = 0;
+  adtsBlocksLeft = fhADTS->numRawDataBlocks;
+
+  // update bitstream reader
+  int bitsUsed = calcBitsUsed (&bsi, *buf, *bitOffset);
+  *buf += (bitsUsed + *bitOffset) >> 3;
+  *bitOffset = (bitsUsed + *bitOffset) & 0x07;
+  *bitsAvail -= bitsUsed ;
+  if (*bitsAvail < 0)
+    return true;
+
+  return false;
   }
-}
 //}}}
 //{{{
-void UncoupleSBRNoise (PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChanR) {
+bool cAacDecoder::getADTSChannelMapping (uint8_t* buf, int bitOffset, int bitsAvail) {
 /**************************************************************************************
- * Description: scale dequantized noise floor scalefactors according to channel
- *                coupling rules
- * Inputs:      initialized PSInfoSBR struct including
- *                dequantized noise data for left channel
- *              initialized SBRGrid struct for this channel
- *              initialized SBRFreq struct for this SCE/CPE block
- *              initialized SBRChan struct for this channel including
- *                quantized noise scalefactors
- * Outputs:     dequantized noise data for left channel (after decoupling)
- *              dequantized noise data for right channel (after decoupling)
- * Return:      none
+ * Description: determine the number of channels from implicit mapping rules
+ * Inputs:      pointer to start of raw_data_block
+ *              bit offset
+ *              bits available
+ * Outputs:     updated number of channels
+ * Return:      false if successful
+ * Notes:       calculates total number of channels using rules in 14496-3, 4.5.1.2.1
+ *              does not attempt to deduce speaker geometry
  **************************************************************************************/
 
-  int noiseFloor, band, Q_1;
-
-  for (noiseFloor = 0; noiseFloor < sbrGrid->numNoiseFloors; noiseFloor++) {
-    for (band = 0; band < sbrFreq->numNoiseFloorBands; band++) {
-      /* Q_1 should be in range [0, 24] according to 4.6.18.3.6, but check to make sure */
-      Q_1 = sbrChanR->noiseDataQuant[noiseFloor][band];
-      if (Q_1 < 0)  Q_1 = 0;
-      if (Q_1 > 24) Q_1 = 24;
-
-      /* noiseDataDequant[0] has 1 GB, so << by 2 is okay */
-      psi->noiseDataDequant[1][noiseFloor][band] = MULSHIFT32(psi->noiseDataDequant[0][noiseFloor][band], dqTabCouple[24 - Q_1]) << 2;
-      psi->noiseDataDequant[0][noiseFloor][band] = MULSHIFT32(psi->noiseDataDequant[0][noiseFloor][band], dqTabCouple[Q_1]) << 2;
-    }
-  }
-}
-//}}}
-//}}}
-//{{{  fft
-#define SQRT1_2 0x5a82799a  /* sqrt(1/2) in Q31 */
-#define swapcplx(p0,p1) t = p0; t1 = *(&(p0)+1); p0 = p1; *(&(p0)+1) = *(&(p1)+1); p1 = t; *(&(p1)+1) = t1
-
-//{{{
-/**************************************************************************************
- * Function:    BitReverse
- *
- * Description: Ken's fast in-place bit reverse, using super-small table
- *
- * Inputs:      buffer of samples
- *              table index (for transform size)
- *
- * Outputs:     bit-reversed samples in same buffer
- *
- * Return:      none
- **************************************************************************************/
- void BitReverse (int* inout, int tabidx)
-{
-  int *part0, *part1;
-  int a,b, t,t1;
-  const uint8_t* tab = bitrevtab + bitrevtabOffset[tabidx];
-  uint8_t nbits = nfftlog2Tab[tabidx];
-
-  part0 = inout;
-  part1 = inout + nfftTab[tabidx];
-
-  while ((a = (*(const uint8_t*)(tab++))) != 0) {
-    b = (*(const uint8_t*)(tab++));
-    swapcplx(part0[4*a+0], part0[4*b+0]); /* 0xxx0 <-> 0yyy0 */
-    swapcplx(part0[4*a+2], part1[4*b+0]); /* 0xxx1 <-> 1yyy0 */
-    swapcplx(part1[4*a+0], part0[4*b+2]); /* 1xxx0 <-> 0yyy1 */
-    swapcplx(part1[4*a+2], part1[4*b+2]); /* 1xxx1 <-> 1yyy1 */
-    }
-
+  int nChans = 0;
   do {
-    swapcplx(part0[4*a+2], part1[4*a+0]); /* 0xxx1 <-> 1xxx0 */
-    } while ((a =(*(const uint8_t*)(tab++))) != 0);
-}
-//}}}
-//{{{
-/**************************************************************************************
- * Function:    R4FirstPass
- *
- * Description: radix-4 trivial pass for decimation-in-time FFT
- *
- * Inputs:      buffer of (bit-reversed) samples
- *              number of R4 butterflies per group (i.e. nfft / 4)
- *
- * Outputs:     processed samples in same buffer
- *
- * Return:      none
- *
- * Notes:       assumes 2 guard bits, gains no integer bits,
- *                guard bits out = guard bits in - 2
- **************************************************************************************/
- void R4FirstPass (int* x, int bg)
-{
-    int ar, ai, br, bi, cr, ci, dr, di;
+    // parse next syntactic element */
+    if (decodeNextElement (&buf, &bitOffset, &bitsAvail))
+      return true;
 
-  for (; bg != 0; bg--) {
+    int elementChans = elementNumChans[currBlockID];
+    nChans += elementChans;
 
-    ar = x[0] + x[2];
-    br = x[0] - x[2];
-    ai = x[1] + x[3];
-    bi = x[1] - x[3];
-    cr = x[4] + x[6];
-    dr = x[4] - x[6];
-    ci = x[5] + x[7];
-    di = x[5] - x[7];
+    for (int ch = 0; ch < elementChans; ch++)
+      decodeNoiselessData (&buf, &bitOffset, &bitsAvail, ch);
+    } while (currBlockID != AAC_ID_END);
 
-    /* max per-sample gain = 4.0 (adding 4 inputs together) */
-    x[0] = ar + cr;
-    x[4] = ar - cr;
-    x[1] = ai + ci;
-    x[5] = ai - ci;
-    x[2] = br + di;
-    x[6] = br - di;
-    x[3] = bi - dr;
-    x[7] = bi + dr;
+  if (nChans <= 0)
+    return true;
 
-    x += 8;
-  }
-}
-//}}}
-//{{{
-/**************************************************************************************
- * Function:    R8FirstPass
- *
- * Description: radix-8 trivial pass for decimation-in-time FFT
- *
- * Inputs:      buffer of (bit-reversed) samples
- *              number of R8 butterflies per group (i.e. nfft / 8)
- *
- * Outputs:     processed samples in same buffer
- *
- * Return:      none
- *
- * Notes:       assumes 3 guard bits, gains 1 integer bit
- *              guard bits out = guard bits in - 3 (if inputs are full scale)
- *                or guard bits in - 2 (if inputs bounded to +/- sqrt(2)/2)
- *              see scaling comments in code
- **************************************************************************************/
- void R8FirstPass (int* x, int bg)
-{
-    int ar, ai, br, bi, cr, ci, dr, di;
-  int sr, si, tr, ti, ur, ui, vr, vi;
-  int wr, wi, xr, xi, yr, yi, zr, zi;
+  // update number of channels in codec state and user-accessible info structs
+  psInfoBase->nChans = nChans;
+  nChans = psInfoBase->nChans;
+  psInfoBase->useImpChanMap = 1;
 
-  for (; bg != 0; bg--) {
-
-    ar = x[0] + x[2];
-    br = x[0] - x[2];
-    ai = x[1] + x[3];
-    bi = x[1] - x[3];
-    cr = x[4] + x[6];
-    dr = x[4] - x[6];
-    ci = x[5] + x[7];
-    di = x[5] - x[7];
-
-    sr = ar + cr;
-    ur = ar - cr;
-    si = ai + ci;
-    ui = ai - ci;
-    tr = br - di;
-    vr = br + di;
-    ti = bi + dr;
-    vi = bi - dr;
-
-    ar = x[ 8] + x[10];
-    br = x[ 8] - x[10];
-    ai = x[ 9] + x[11];
-    bi = x[ 9] - x[11];
-    cr = x[12] + x[14];
-    dr = x[12] - x[14];
-    ci = x[13] + x[15];
-    di = x[13] - x[15];
-
-    /* max gain of wr/wi/yr/yi vs input = 2
-     *  (sum of 4 samples >> 1)
-     */
-    wr = (ar + cr) >> 1;
-    yr = (ar - cr) >> 1;
-    wi = (ai + ci) >> 1;
-    yi = (ai - ci) >> 1;
-
-    /* max gain of output vs input = 4
-     *  (sum of 4 samples >> 1 + sum of 4 samples >> 1)
-     */
-    x[ 0] = (sr >> 1) + wr;
-    x[ 8] = (sr >> 1) - wr;
-    x[ 1] = (si >> 1) + wi;
-    x[ 9] = (si >> 1) - wi;
-    x[ 4] = (ur >> 1) + yi;
-    x[12] = (ur >> 1) - yi;
-    x[ 5] = (ui >> 1) - yr;
-    x[13] = (ui >> 1) + yr;
-
-    ar = br - di;
-    cr = br + di;
-    ai = bi + dr;
-    ci = bi - dr;
-
-    /* max gain of xr/xi/zr/zi vs input = 4*sqrt(2)/2 = 2*sqrt(2)
-     *  (sum of 8 samples, multiply by sqrt(2)/2, implicit >> 1 from Q31)
-     */
-    xr = MULSHIFT32(SQRT1_2, ar - ai);
-    xi = MULSHIFT32(SQRT1_2, ar + ai);
-    zr = MULSHIFT32(SQRT1_2, cr - ci);
-    zi = MULSHIFT32(SQRT1_2, cr + ci);
-
-    /* max gain of output vs input = (2 + 2*sqrt(2) ~= 4.83)
-     *  (sum of 4 samples >> 1, plus xr/xi/zr/zi with gain of 2*sqrt(2))
-     * in absolute terms, we have max gain of appx 9.656 (4 + 0.707*8)
-     *  but we also gain 1 int bit (from MULSHIFT32 or from explicit >> 1)
-     */
-    x[ 6] = (tr >> 1) - xr;
-    x[14] = (tr >> 1) + xr;
-    x[ 7] = (ti >> 1) - xi;
-    x[15] = (ti >> 1) + xi;
-    x[ 2] = (vr >> 1) + zi;
-    x[10] = (vr >> 1) - zi;
-    x[ 3] = (vi >> 1) - zr;
-    x[11] = (vi >> 1) + zr;
-
-    x += 16;
-  }
-}
-//}}}
-//{{{
-/**************************************************************************************
- * Function:    R4Core
- *
- * Description: radix-4 pass for decimation-in-time FFT
- *
- * Inputs:      buffer of samples
- *              number of R4 butterflies per group
- *              number of R4 groups per pass
- *              pointer to twiddle factors tables
- *
- * Outputs:     processed samples in same buffer
- *
- * Return:      none
- *
- * Notes:       gain 2 integer bits per pass (see scaling comments in code)
- *              min 1 GB in
- *              gbOut = gbIn - 1 (short block) or gbIn - 2 (long block)
- *              uses 3-mul, 3-add butterflies instead of 4-mul, 2-add
- **************************************************************************************/
- void R4Core (int* x, int bg, int gp, int* wtab)
-{
-  int ar, ai, br, bi, cr, ci, dr, di, tr, ti;
-  int wd, ws, wi;
-  int i, j, step;
-  int *xptr, *wptr;
-
-  for (; bg != 0; gp <<= 2, bg >>= 2) {
-
-    step = 2*gp;
-    xptr = x;
-
-    /* max per-sample gain, per group < 1 + 3*sqrt(2) ~= 5.25 if inputs x are full-scale
-     * do 3 groups for long block, 2 groups for short block (gain 2 int bits per group)
-     *
-     * very conservative scaling:
-     *   group 1: max gain = 5.25,           int bits gained = 2, gb used = 1 (2^3 = 8)
-     *   group 2: max gain = 5.25^2 = 27.6,  int bits gained = 4, gb used = 1 (2^5 = 32)
-     *   group 3: max gain = 5.25^3 = 144.7, int bits gained = 6, gb used = 2 (2^8 = 256)
-     */
-    for (i = bg; i != 0; i--) {
-
-      wptr = wtab;
-
-      for (j = gp; j != 0; j--) {
-
-        ar = xptr[0];
-        ai = xptr[1];
-        xptr += step;
-
-        /* gain 2 int bits for br/bi, cr/ci, dr/di (MULSHIFT32 by Q30)
-         * gain 1 net GB
-         */
-        ws = wptr[0];
-        wi = wptr[1];
-        br = xptr[0];
-        bi = xptr[1];
-        wd = ws + 2*wi;
-        tr = MULSHIFT32(wi, br + bi);
-        br = MULSHIFT32(wd, br) - tr; /* cos*br + sin*bi */
-        bi = MULSHIFT32(ws, bi) + tr; /* cos*bi - sin*br */
-        xptr += step;
-
-        ws = wptr[2];
-        wi = wptr[3];
-        cr = xptr[0];
-        ci = xptr[1];
-        wd = ws + 2*wi;
-        tr = MULSHIFT32(wi, cr + ci);
-        cr = MULSHIFT32(wd, cr) - tr;
-        ci = MULSHIFT32(ws, ci) + tr;
-        xptr += step;
-
-        ws = wptr[4];
-        wi = wptr[5];
-        dr = xptr[0];
-        di = xptr[1];
-        wd = ws + 2*wi;
-        tr = MULSHIFT32(wi, dr + di);
-        dr = MULSHIFT32(wd, dr) - tr;
-        di = MULSHIFT32(ws, di) + tr;
-        wptr += 6;
-
-        tr = ar;
-        ti = ai;
-        ar = (tr >> 2) - br;
-        ai = (ti >> 2) - bi;
-        br = (tr >> 2) + br;
-        bi = (ti >> 2) + bi;
-
-        tr = cr;
-        ti = ci;
-        cr = tr + dr;
-        ci = di - ti;
-        dr = tr - dr;
-        di = di + ti;
-
-        xptr[0] = ar + ci;
-        xptr[1] = ai + dr;
-        xptr -= step;
-        xptr[0] = br - cr;
-        xptr[1] = bi - di;
-        xptr -= step;
-        xptr[0] = ar - ci;
-        xptr[1] = ai - dr;
-        xptr -= step;
-        xptr[0] = br + cr;
-        xptr[1] = bi + di;
-        xptr += 2;
-      }
-      xptr += 3*step;
-    }
-    wtab += 3*step;
-  }
-}
-//}}}
-
-//{{{
-/**************************************************************************************
- * Function:    R4FFT
- *
- * Description: Ken's very fast in-place radix-4 decimation-in-time FFT
- *
- * Inputs:      table index (for transform size)
- *              buffer of samples (non bit-reversed)
- *
- * Outputs:     processed samples in same buffer
- *
- * Return:      none
- *
- * Notes:       assumes 5 guard bits in for nfft <= 512
- *              gbOut = gbIn - 4 (assuming input is from PreMultiply)
- *              gains log2(nfft) - 2 int bits total
- *                so gain 7 int bits (LONG), 4 int bits (SHORT)
- **************************************************************************************/
-void R4FFT (int tabidx, int* x)
-{
-  int order = nfftlog2Tab[tabidx];
-  int nfft = nfftTab[tabidx];
-
-  /* decimation in time */
-  BitReverse(x, tabidx);
-
-  if (order & 0x1) {
-    /* long block: order = 9, nfft = 512 */
-    R8FirstPass(x, nfft >> 3);            /* gain 1 int bit,  lose 2 GB */
-    R4Core(x, nfft >> 5, 8, (int *)twidTabOdd);   /* gain 6 int bits, lose 2 GB */
-  } else {
-    /* short block: order = 6, nfft = 64 */
-    R4FirstPass(x, nfft >> 2);            /* gain 0 int bits, lose 2 GB */
-    R4Core(x, nfft >> 4, 4, (int *)twidTabEven);  /* gain 4 int bits, lose 1 GB */
-  }
-}
-//}}}
-//}}}
-//{{{  dct4
-//{{{
-/**************************************************************************************
- * Function:    PreMultiply
- *
- * Description: pre-twiddle stage of DCT4
- *
- * Inputs:      table index (for transform size)
- *              buffer of nmdct samples
- *
- * Outputs:     processed samples in same buffer
- *
- * Return:      none
- *
- * Notes:       minimum 1 GB in, 2 GB out, gains 5 (short) or 8 (long) frac bits
- *              i.e. gains 2-7= -5 int bits (short) or 2-10 = -8 int bits (long)
- *              normalization by -1/N is rolled into tables here (see trigtabs.c)
- *              uses 3-mul, 3-add butterflies instead of 4-mul, 2-add
- **************************************************************************************/
-void PreMultiply (int tabidx, int* zbuf1)
-{
-  int i, nmdct, ar1, ai1, ar2, ai2, z1, z2;
-  int t, cms2, cps2a, sin2a, cps2b, sin2b;
-  int *zbuf2;
-  const int *csptr;
-
-  nmdct = nmdctTab[tabidx];
-  zbuf2 = zbuf1 + nmdct - 1;
-  csptr = cos4sin4tab + cos4sin4tabOffset[tabidx];
-
-  /* whole thing should fit in registers - verify that compiler does this */
-  for (i = nmdct >> 2; i != 0; i--) {
-    /* cps2 = (cos+sin), sin2 = sin, cms2 = (cos-sin) */
-    cps2a = *csptr++;
-    sin2a = *csptr++;
-    cps2b = *csptr++;
-    sin2b = *csptr++;
-
-    ar1 = *(zbuf1 + 0);
-    ai2 = *(zbuf1 + 1);
-    ai1 = *(zbuf2 + 0);
-    ar2 = *(zbuf2 - 1);
-
-    /* gain 2 ints bit from MULSHIFT32 by Q30, but drop 7 or 10 int bits from table scaling of 1/M
-     * max per-sample gain (ignoring implicit scaling) = MAX(sin(angle)+cos(angle)) = 1.414
-     * i.e. gain 1 GB since worst case is sin(angle) = cos(angle) = 0.707 (Q30), gain 2 from
-     *   extra sign bits, and eat one in adding
-     */
-    t  = MULSHIFT32(sin2a, ar1 + ai1);
-    z2 = MULSHIFT32(cps2a, ai1) - t;
-    cms2 = cps2a - 2*sin2a;
-    z1 = MULSHIFT32(cms2, ar1) + t;
-    *zbuf1++ = z1;  /* cos*ar1 + sin*ai1 */
-    *zbuf1++ = z2;  /* cos*ai1 - sin*ar1 */
-
-    t  = MULSHIFT32(sin2b, ar2 + ai2);
-    z2 = MULSHIFT32(cps2b, ai2) - t;
-    cms2 = cps2b - 2*sin2b;
-    z1 = MULSHIFT32(cms2, ar2) + t;
-    *zbuf2-- = z2;  /* cos*ai2 - sin*ar2 */
-    *zbuf2-- = z1;  /* cos*ar2 + sin*ai2 */
-  }
-}
-//}}}
-//{{{
-/**************************************************************************************
- * Function:    PostMultiply
- *
- * Description: post-twiddle stage of DCT4
- *
- * Inputs:      table index (for transform size)
- *              buffer of nmdct samples
- *
- * Outputs:     processed samples in same buffer
- *
- * Return:      none
- *
- * Notes:       minimum 1 GB in, 2 GB out - gains 2 int bits
- *              uses 3-mul, 3-add butterflies instead of 4-mul, 2-add
- **************************************************************************************/
-void PostMultiply (int tabidx, int* fft1)
-{
-  int i, nmdct, ar1, ai1, ar2, ai2, skipFactor;
-  int t, cms2, cps2, sin2;
-  int *fft2;
-  const int *csptr;
-
-  nmdct = nmdctTab[tabidx];
-  csptr = cos1sin1tab;
-  skipFactor = postSkip[tabidx];
-  fft2 = fft1 + nmdct - 1;
-
-  /* load coeffs for first pass
-   * cps2 = (cos+sin), sin2 = sin, cms2 = (cos-sin)
-   */
-  cps2 = *csptr++;
-  sin2 = *csptr;
-  csptr += skipFactor;
-  cms2 = cps2 - 2*sin2;
-
-  for (i = nmdct >> 2; i != 0; i--) {
-    ar1 = *(fft1 + 0);
-    ai1 = *(fft1 + 1);
-    ar2 = *(fft2 - 1);
-    ai2 = *(fft2 + 0);
-
-    /* gain 2 ints bit from MULSHIFT32 by Q30
-     * max per-sample gain = MAX(sin(angle)+cos(angle)) = 1.414
-     * i.e. gain 1 GB since worst case is sin(angle) = cos(angle) = 0.707 (Q30), gain 2 from
-     *   extra sign bits, and eat one in adding
-     */
-    t = MULSHIFT32(sin2, ar1 + ai1);
-    *fft2-- = t - MULSHIFT32(cps2, ai1);  /* sin*ar1 - cos*ai1 */
-    *fft1++ = t + MULSHIFT32(cms2, ar1);  /* cos*ar1 + sin*ai1 */
-    cps2 = *csptr++;
-    sin2 = *csptr;
-    csptr += skipFactor;
-
-    ai2 = -ai2;
-    t = MULSHIFT32(sin2, ar2 + ai2);
-    *fft2-- = t - MULSHIFT32(cps2, ai2);  /* sin*ar1 - cos*ai1 */
-    cms2 = cps2 - 2*sin2;
-    *fft1++ = t + MULSHIFT32(cms2, ar2);  /* cos*ar1 + sin*ai1 */
-  }
-}
-//}}}
-
-//{{{
-/**************************************************************************************
- * Function:    PreMultiplyRescale
- *
- * Description: pre-twiddle stage of DCT4, with rescaling for extra guard bits
- *
- * Inputs:      table index (for transform size)
- *              buffer of nmdct samples
- *              number of guard bits to add to input before processing
- *
- * Outputs:     processed samples in same buffer
- *
- * Return:      none
- *
- * Notes:       see notes on PreMultiply(), above
- **************************************************************************************/
- void PreMultiplyRescale (int tabidx, int* zbuf1, int es)
-{
-  int i, nmdct, ar1, ai1, ar2, ai2, z1, z2;
-  int t, cms2, cps2a, sin2a, cps2b, sin2b;
-  int *zbuf2;
-  const int *csptr;
-
-  nmdct = nmdctTab[tabidx];
-  zbuf2 = zbuf1 + nmdct - 1;
-  csptr = cos4sin4tab + cos4sin4tabOffset[tabidx];
-
-  /* whole thing should fit in registers - verify that compiler does this */
-  for (i = nmdct >> 2; i != 0; i--) {
-    /* cps2 = (cos+sin), sin2 = sin, cms2 = (cos-sin) */
-    cps2a = *csptr++;
-    sin2a = *csptr++;
-    cps2b = *csptr++;
-    sin2b = *csptr++;
-
-    ar1 = *(zbuf1 + 0) >> es;
-    ai1 = *(zbuf2 + 0) >> es;
-    ai2 = *(zbuf1 + 1) >> es;
-
-    t  = MULSHIFT32(sin2a, ar1 + ai1);
-    z2 = MULSHIFT32(cps2a, ai1) - t;
-    cms2 = cps2a - 2*sin2a;
-    z1 = MULSHIFT32(cms2, ar1) + t;
-    *zbuf1++ = z1;
-    *zbuf1++ = z2;
-
-    ar2 = *(zbuf2 - 1) >> es; /* do here to free up register used for es */
-
-    t  = MULSHIFT32(sin2b, ar2 + ai2);
-    z2 = MULSHIFT32(cps2b, ai2) - t;
-    cms2 = cps2b - 2*sin2b;
-    z1 = MULSHIFT32(cms2, ar2) + t;
-    *zbuf2-- = z2;
-    *zbuf2-- = z1;
-
-  }
-}
-//}}}
-//{{{
-/**************************************************************************************
- * Function:    PostMultiplyRescale
- *
- * Description: post-twiddle stage of DCT4, with rescaling for extra guard bits
- *
- * Inputs:      table index (for transform size)
- *              buffer of nmdct samples
- *              number of guard bits to remove from output
- *
- * Outputs:     processed samples in same buffer
- *
- * Return:      none
- *
- * Notes:       clips output to [-2^30, 2^30 - 1], guaranteeing at least 1 guard bit
- *              see notes on PostMultiply(), above
- **************************************************************************************/
- void PostMultiplyRescale (int tabidx, int* fft1, int es)
-{
-  int i, nmdct, ar1, ai1, ar2, ai2, skipFactor, z;
-  int t, cs2, sin2;
-  int *fft2;
-  const int *csptr;
-
-  nmdct = nmdctTab[tabidx];
-  csptr = cos1sin1tab;
-  skipFactor = postSkip[tabidx];
-  fft2 = fft1 + nmdct - 1;
-
-  /* load coeffs for first pass
-   * cps2 = (cos+sin), sin2 = sin, cms2 = (cos-sin)
-   */
-  cs2 = *csptr++;
-  sin2 = *csptr;
-  csptr += skipFactor;
-
-  for (i = nmdct >> 2; i != 0; i--) {
-    ar1 = *(fft1 + 0);
-    ai1 = *(fft1 + 1);
-    ai2 = *(fft2 + 0);
-
-    t = MULSHIFT32(sin2, ar1 + ai1);
-    z = t - MULSHIFT32(cs2, ai1);
-    CLIP_2N_SHIFT(z, es);
-    *fft2-- = z;
-    cs2 -= 2*sin2;
-    z = t + MULSHIFT32(cs2, ar1);
-    CLIP_2N_SHIFT(z, es);
-    *fft1++ = z;
-
-    cs2 = *csptr++;
-    sin2 = *csptr;
-    csptr += skipFactor;
-
-    ar2 = *fft2;
-    ai2 = -ai2;
-    t = MULSHIFT32(sin2, ar2 + ai2);
-    z = t - MULSHIFT32(cs2, ai2);
-    CLIP_2N_SHIFT(z, es);
-    *fft2-- = z;
-    cs2 -= 2*sin2;
-    z = t + MULSHIFT32(cs2, ar2);
-    CLIP_2N_SHIFT(z, es);
-    *fft1++ = z;
-    cs2 += 2*sin2;
-  }
-}
-//}}}
-
-//{{{
-/**************************************************************************************
- * Function:    DCT4
- *
- * Description: type-IV DCT
- *
- * Inputs:      table index (for transform size)
- *              buffer of nmdct samples
- *              number of guard bits in the input buffer
- *
- * Outputs:     processed samples in same buffer
- *
- * Return:      none
- *
- * Notes:       operates in-place
- *              if number of guard bits in input is < GBITS_IN_DCT4, the input is
- *                scaled (>>) before the DCT4 and rescaled (<<, with clipping) after
- *                the DCT4 (rare)
- *              the output has FBITS_LOST_DCT4 fewer fraction bits than the input
- *              the output will always have at least 1 guard bit (GBITS_IN_DCT4 >= 4)
- *              int bits gained per stage (PreMul + FFT + PostMul)
- *                 short blocks = (-5 + 4 + 2) = 1 total
- *                 long blocks =  (-8 + 7 + 2) = 1 total
- **************************************************************************************/
-void DCT4 (int tabidx, int *coef, int gb) {
-/* fast in-place DCT-IV - adds guard bits if necessary */
-
-  if (gb < GBITS_IN_DCT4) {
-    int es = GBITS_IN_DCT4 - gb;
-    PreMultiplyRescale (tabidx, coef, es);
-    R4FFT (tabidx, coef);
-    PostMultiplyRescale (tabidx, coef, es);
-   }
- else {
-    PreMultiply (tabidx, coef);
-    R4FFT (tabidx, coef);
-    PostMultiply (tabidx, coef);
-    }
+  return false;
   }
 //}}}
-//}}}
-//{{{  dequant
-#define SF_OFFSET  100
-
-/* sqrt(0.5), format = Q31 */
-#define SQRTHALF 0x5a82799a
 //{{{
+void cAacDecoder::decodeNoiselessData (uint8_t** buf, int* bitOffset, int* bitsAvail, int ch) {
 /**************************************************************************************
- * Function:    DequantBlock
- *
- * Description: dequantize one block of transform coefficients (in-place)
- *
- * Inputs:      quantized transform coefficients, range = [0, 8191]
- *              number of samples to dequantize
- *              scalefactor for this block of data, range = [0, 256]
- *
- * Outputs:     dequantized transform coefficients in Q(FBITS_OUT_DQ_OFF)
- *
- * Return:      guard bit mask (OR of abs value of all dequantized coefs)
- *
- * Notes:       applies dequant formula y = pow(x, 4.0/3.0) * pow(2, (scale - 100)/4.0)
- *                * pow(2, FBITS_OUT_DQ_OFF)
- *              clips outputs to Q(FBITS_OUT_DQ_OFF)
- *              output has no minimum number of guard bits
- **************************************************************************************/
-int DequantBlock (int* inbuf, int nSamps, int scale)
-{
-  int iSamp, scalef, scalei, x, y, gbMask, shift, tab4[4];
-  const int *tab16, *coef;
-
-  if (nSamps <= 0)
-    return 0;
-
-  scale -= SF_OFFSET; /* new range = [-100, 156] */
-
-  /* with two's complement numbers, scalei/scalef factorization works for pos and neg values of scale:
-   *  [+4...+7] >> 2 = +1, [ 0...+3] >> 2 = 0, [-4...-1] >> 2 = -1, [-8...-5] >> 2 = -2 ...
-   *  (-1 & 0x3) = 3, (-2 & 0x3) = 2, (-3 & 0x3) = 1, (0 & 0x3) = 0
-   *
-   * Example: 2^(-5/4) = 2^(-1) * 2^(-1/4) = 2^-2 * 2^(3/4)
-   */
-  tab16 = pow43_14[scale & 0x3];
-  scalef = pow14[scale & 0x3];
-  scalei = (scale >> 2) + FBITS_OUT_DQ_OFF;
-
-  /* cache first 4 values:
-   * tab16[j] = Q28 for j = [0,3]
-   * tab4[x] = x^(4.0/3.0) * 2^(0.25*scale), Q(FBITS_OUT_DQ_OFF)
-   */
-  shift = 28 - scalei;
-  if (shift > 31) {
-    tab4[0] = tab4[1] = tab4[2] = tab4[3] = 0;
-  } else if (shift <= 0) {
-    shift = -shift;
-    if (shift > 31)
-      shift = 31;
-    for (x = 0; x < 4; x++) {
-      y = tab16[x];
-      if (y > (0x7fffffff >> shift))
-        y = 0x7fffffff;   /* clip (rare) */
-      else
-        y <<= shift;
-      tab4[x] = y;
-    }
-  } else {
-    tab4[0] = 0;
-    tab4[1] = tab16[1] >> shift;
-    tab4[2] = tab16[2] >> shift;
-    tab4[3] = tab16[3] >> shift;
-  }
-
-  gbMask = 0;
-  do {
-    iSamp = *inbuf;
-    x = FASTABS(iSamp);
-
-    if (x < 4) {
-      y = tab4[x];
-    } else  {
-
-      if (x < 16) {
-        /* result: y = Q25 (tab16 = Q25) */
-        y = tab16[x];
-        shift = 25 - scalei;
-      } else if (x < 64) {
-        /* result: y = Q21 (pow43tab[j] = Q23, scalef = Q30) */
-        y = pow43[x-16];
-        shift = 21 - scalei;
-        y = MULSHIFT32(y, scalef);
-      } else {
-        /* normalize to [0x40000000, 0x7fffffff]
-         * input x = [64, 8191] = [64, 2^13-1]
-         * ranges:
-         *  shift = 7:   64 -  127
-         *  shift = 6:  128 -  255
-         *  shift = 5:  256 -  511
-         *  shift = 4:  512 - 1023
-         *  shift = 3: 1024 - 2047
-         *  shift = 2: 2048 - 4095
-         *  shift = 1: 4096 - 8191
-         */
-        x <<= 17;
-        shift = 0;
-        if (x < 0x08000000)
-          x <<= 4, shift += 4;
-        if (x < 0x20000000)
-          x <<= 2, shift += 2;
-        if (x < 0x40000000)
-          x <<= 1, shift += 1;
-
-        coef = (x < SQRTHALF) ? poly43lo : poly43hi;
-
-        /* polynomial */
-        y = coef[0];
-        y = MULSHIFT32(y, x) + coef[1];
-        y = MULSHIFT32(y, x) + coef[2];
-        y = MULSHIFT32(y, x) + coef[3];
-        y = MULSHIFT32(y, x) + coef[4];
-        y = MULSHIFT32(y, pow2frac[shift]) << 3;
-
-        /* fractional scale
-         * result: y = Q21 (pow43tab[j] = Q23, scalef = Q30)
-         */
-        y = MULSHIFT32(y, scalef);  /* now y is Q24 */
-        shift = 24 - scalei - pow2exp[shift];
-      }
-
-      /* integer scale */
-      if (shift <= 0) {
-        shift = -shift;
-        if (shift > 31)
-          shift = 31;
-
-        if (y > (0x7fffffff >> shift))
-          y = 0x7fffffff;   /* clip (rare) */
-        else
-          y <<= shift;
-      } else {
-        if (shift > 31)
-          shift = 31;
-        y >>= shift;
-      }
-    }
-
-    /* sign and store (gbMask used to count GB's) */
-    gbMask |= y;
-
-    /* apply sign */
-    iSamp >>= 31;
-    y ^= iSamp;
-    y -= iSamp;
-
-    *inbuf++ = y;
-  } while (--nSamps);
-
-  return gbMask;
-}
-//}}}
-//}}}
-//{{{  pns
-#define NUM_ITER_INVSQRT  4
-#define X0_COEF_2 0xc0000000  /* Q29: -2.0 */
-#define X0_OFF_2  0x60000000  /* Q29:  3.0 */
-#define Q26_3   0x0c000000  /* Q26:  3.0 */
-
-//{{{
-/**************************************************************************************
- * Function:    InvRootR
- *
- * Description: use Newton's method to solve for x = 1/sqrt(r)
- *
- * Inputs:      r in Q30 format, range = [0.25, 1] (normalize inputs to this range)
- *
- * Outputs:     none
- *
- * Return:      x = Q29, range = (1, 2)
- *
- * Notes:       guaranteed to converge and not overflow for any r in this range
- *
- *              xn+1  = xn - f(xn)/f'(xn)
- *              f(x)  = 1/sqrt(r) - x = 0 (find root)
- *                    = 1/x^2 - r
- *              f'(x) = -2/x^3
- *
- *              so xn+1 = xn/2 * (3 - r*xn^2)
- *
- *              NUM_ITER_INVSQRT = 3, maxDiff = 1.3747e-02
- *              NUM_ITER_INVSQRT = 4, maxDiff = 3.9832e-04
- **************************************************************************************/
-int InvRootR (int r)
-{
-  int i, xn, t;
-
-  /* use linear equation for initial guess
-   * x0 = -2*r + 3 (so x0 always >= correct answer in range [0.25, 1))
-   * xn = Q29 (at every step)
-   */
-  xn = (MULSHIFT32(r, X0_COEF_2) << 2) + X0_OFF_2;
-
-  for (i = 0; i < NUM_ITER_INVSQRT; i++) {
-    t = MULSHIFT32(xn, xn);         /* Q26 = Q29*Q29 */
-    t = Q26_3 - (MULSHIFT32(r, t) << 2);  /* Q26 = Q26 - (Q31*Q26 << 1) */
-    xn = MULSHIFT32(xn, t) << (6 - 1);    /* Q29 = (Q29*Q26 << 6), and -1 for division by 2 */
-  }
-
-  /* clip to range (1.0, 2.0)
-   * (because of rounding, this can converge to xn slightly > 2.0 when r is near 0.25)
-   */
-  if (xn >> 30)
-    xn = (1 << 30) - 1;
-
-  return xn;
-}
-//}}}
-//{{{
-/**************************************************************************************
- * Function:    Get32BitVal
- *
- * Description: generate 32-bit unsigned random number
- *
- * Inputs:      last number calculated (seed, first time through)
- *
- * Outputs:     new number, saved in *last
- *
- * Return:      32-bit number, uniformly distributed between [0, 2^32)
- *
- * Notes:       uses simple linear congruential generator
- **************************************************************************************/
-unsigned int Get32BitVal (unsigned int *last)
-{
-  unsigned int r = *last;
-
-  /* use same coefs as MPEG reference code (classic LCG)
-   * use unsigned multiply to force reliable wraparound behavior in C (mod 2^32)
-   */
-  r = (1664525U * r) + 1013904223U;
-  *last = r;
-
-  return r;
-}
-
-//}}}
-//{{{
-/**************************************************************************************
- * Function:    ScaleNoiseVector
- *
- * Description: apply scaling to vector of noise coefficients for one scalefactor band
- *
- * Inputs:      unscaled coefficients
- *              number of coefficients in vector (one scalefactor band of coefs)
- *              scalefactor for this band (i.e. noise energy)
- *
- * Outputs:     nVals coefficients in Q(FBITS_OUT_DQ_OFF)
- *
- * Return:      guard bit mask (OR of abs value of all noise coefs)
- **************************************************************************************/
-int ScaleNoiseVector (int *coef, int nVals, int sf)
-{
-
-  int i, c, spec, energy, sq, scalef, scalei, invSqrtEnergy, z, gbMask;
-  energy = 0;
-  for (i = 0; i < nVals; i++) {
-    spec = coef[i];
-
-    /* max nVals = max SFB width = 96, so energy can gain < 2^7 bits in accumulation */
-    sq = (spec * spec) >> 8;    /* spec*spec range = (-2^30, 2^30) */
-    energy += sq;
-  }
-
-  /* unless nVals == 1 (or the number generator is broken...), this should not happen */
-  if (energy == 0)
-    return 0; /* coef[i] must = 0 for i = [0, nVals-1], so gbMask = 0 */
-
-  /* pow(2, sf/4) * pow(2, FBITS_OUT_DQ_OFF) */
-  scalef = pow14[sf & 0x3];
-  scalei = (sf >> 2) + FBITS_OUT_DQ_OFF;
-
-  /* energy has implied factor of 2^-8 since we shifted the accumulator
-   * normalize energy to range [0.25, 1.0), calculate 1/sqrt(1), and denormalize
-   *   i.e. divide input by 2^(30-z) and convert to Q30
-   *        output of 1/sqrt(i) now has extra factor of 2^((30-z)/2)
-   *        for energy > 0, z is an even number between 0 and 28
-   * final scaling of invSqrtEnergy:
-   *  2^(15 - z/2) to compensate for implicit 2^(30-z) factor in input
-   *  +4 to compensate for implicit 2^-8 factor in input
-   */
-  z = countLeadingZeros (energy) - 2;          /* energy has at least 2 leading zeros (see acc loop) */
-  z &= 0xfffffffe;            /* force even */
-  invSqrtEnergy = InvRootR(energy << z);  /* energy << z must be in range [0x10000000, 0x40000000] */
-  scalei -= (15 - z/2 + 4);       /* nInt = 1/sqrt(energy) in Q29 */
-
-  /* normalize for final scaling */
-  z = countLeadingZeros (invSqrtEnergy) - 1;
-  invSqrtEnergy <<= z;
-  scalei -= (z - 3 - 2);  /* -2 for scalef, z-3 for invSqrtEnergy */
-  scalef = MULSHIFT32(scalef, invSqrtEnergy); /* scalef (input) = Q30, invSqrtEnergy = Q29 * 2^z */
-  gbMask = 0;
-
-  if (scalei < 0) {
-    scalei = -scalei;
-    if (scalei > 31)
-      scalei = 31;
-    for (i = 0; i < nVals; i++) {
-      c = MULSHIFT32(coef[i], scalef) >> scalei;
-      gbMask |= FASTABS (c);
-      coef[i] = c;
-    }
-  } else {
-    /* for scalei <= 16, no clipping possible (coef[i] is < 2^15 before scaling)
-     * for scalei > 16, just saturate exponent (rare)
-     *   scalef is close to full-scale (since we normalized invSqrtEnergy)
-     * remember, we are just producing noise here
-     */
-    if (scalei > 16)
-      scalei = 16;
-    for (i = 0; i < nVals; i++) {
-      c = MULSHIFT32(coef[i] << scalei, scalef);
-      coef[i] = c;
-      gbMask |= FASTABS (c);
-    }
-  }
-
-  return gbMask;
-}
-//}}}
-//{{{
-/**************************************************************************************
- * Function:    GenerateNoiseVector
- *
- * Description: create vector of noise coefficients for one scalefactor band
- *
- * Inputs:      seed for number generator
- *              number of coefficients to generate
- *
- * Outputs:     buffer of nVals coefficients, range = [-2^15, 2^15)
- *              updated seed for number generator
- *
- * Return:      none
- **************************************************************************************/
-void GenerateNoiseVector (int *coef, int *last, int nVals)
-{
-  int i;
-
-  for (i = 0; i < nVals; i++)
-    coef[i] = ((signed int)Get32BitVal((unsigned int *)last)) >> 16;
-}
-//}}}
-//{{{
-/**************************************************************************************
- * Function:    CopyNoiseVector
- *
- * Description: copy vector of noise coefficients for one scalefactor band from L to R
- *
- * Inputs:      buffer of left coefficients
- *              number of coefficients to copy
- *
- * Outputs:     buffer of right coefficients
- *
- * Return:      none
- **************************************************************************************/
-void CopyNoiseVector (int *coefL, int *coefR, int nVals)
-{
-  int i;
-
-  for (i = 0; i < nVals; i++)
-    coefR[i] = coefL[i];
-}
-//}}}
-//}}}
-//{{{  stereo
-//{{{
-/**************************************************************************************
- * Function:    StereoProcessGroup
- * Description: apply mid-side and intensity stereo to group of transform coefficients
- * Inputs:      dequantized transform coefficients for both channels
- *              pointer to appropriate scalefactor band table
- *              mid-side mask enabled flag
- *              buffer with mid-side mask (one bit for each scalefactor band)
- *              bit offset into mid-side mask buffer
- *              max coded scalefactor band
- *              buffer of codebook indices for right channel
- *              buffer of scalefactors for right channel, range = [0, 256]
- * Outputs:     updated transform coefficients in Q(FBITS_OUT_DQ_OFF)
- *              updated minimum guard bit count for both channels
- * Return:      none
- * Notes:       assume no guard bits in input
- *              gains 0 int bits
- **************************************************************************************/
-void StereoProcessGroup (int* coefL, int* coefR, const short* sfbTab,
-                int msMaskPres, uint8_t *msMaskPtr, int msMaskOffset, int maxSFB,
-                uint8_t *cbRight, short *sfRight, int *gbCurrent) {
-
-  int sfb, width, cbIdx, sf, cl, cr, scalef, scalei;
-  int gbMaskL, gbMaskR;
-  uint8_t msMask;
-
-  msMask = (*msMaskPtr++) >> msMaskOffset;
-  gbMaskL = 0;
-  gbMaskR = 0;
-
-  for (sfb = 0; sfb < maxSFB; sfb++) {
-    width = sfbTab[sfb+1] - sfbTab[sfb];  /* assume >= 0 (see sfBandTabLong/sfBandTabShort) */
-    cbIdx = cbRight[sfb];
-
-    if (cbIdx == 14 || cbIdx == 15) {
-      /* intensity stereo */
-      if (msMaskPres == 1 && (msMask & 0x01))
-        cbIdx ^= 0x01;        /* invert_intensity(): 14 becomes 15, or 15 becomes 14 */
-      sf = -sfRight[sfb];     /* negative since we use identity 0.5^(x) = 2^(-x) (see spec) */
-      cbIdx &= 0x01;          /* choose - or + scale factor */
-      scalef = pow142[cbIdx][sf & 0x03];
-      scalei = (sf >> 2) + 2;     /* +2 to compensate for scalef = Q30 */
-
-      if (scalei > 0) {
-        if (scalei > 30)
-          scalei = 30;
-        do {
-          cr = MULSHIFT32(*coefL++, scalef);
-          CLIP_2N(cr, 31-scalei);
-          cr <<= scalei;
-          gbMaskR |= FASTABS (cr);
-          *coefR++ = cr;
-        } while (--width);
-      } else {
-        scalei = -scalei;
-        if (scalei > 31)
-          scalei = 31;
-        do {
-          cr = MULSHIFT32(*coefL++, scalef) >> scalei;
-          gbMaskR |= FASTABS (cr);
-          *coefR++ = cr;
-        } while (--width);
-      }
-    } else if ( cbIdx != 13 && ((msMaskPres == 1 && (msMask & 0x01)) || msMaskPres == 2) ) {
-      /* mid-side stereo (assumes no GB in inputs) */
-      do {
-        cl = *coefL;
-        cr = *coefR;
-
-        if ( (FASTABS (cl) | FASTABS (cr)) >> 30 ) {
-          /* avoid overflow (rare) */
-          cl >>= 1;
-          sf = cl + (cr >> 1);  CLIP_2N(sf, 30);  sf <<= 1;
-          cl = cl - (cr >> 1);  CLIP_2N(cl, 30);  cl <<= 1;
-        } else {
-          /* usual case */
-          sf = cl + cr;
-          cl -= cr;
-        }
-
-        *coefL++ = sf;
-        gbMaskL |= FASTABS (sf);
-        *coefR++ = cl;
-        gbMaskR |= FASTABS (cl);
-      } while (--width);
-
-    } else {
-      /* nothing to do */
-      coefL += width;
-      coefR += width;
-    }
-
-    /* get next mask bit (should be branchless on ARM) */
-    msMask >>= 1;
-    if (++msMaskOffset == 8) {
-      msMask = *msMaskPtr++;
-      msMaskOffset = 0;
-    }
-  }
-
-  cl = countLeadingZeros (gbMaskL) - 1;
-  if (gbCurrent[0] > cl)
-    gbCurrent[0] = cl;
-
-  cr = countLeadingZeros (gbMaskR) - 1;
-  if (gbCurrent[1] > cr)
-    gbCurrent[1] = cr;
-
-  return;
-}
-//}}}
-//}}}
-//{{{  tns, noiseless
-#define FBITS_LPC_COEFS 20
-
-//{{{
-void DecodeLPCCoefs (int order, int res, int8_t* filtCoef, int* a, int* b) {
-/**************************************************************************************
- * Description: decode LPC coefficients for TNS
- * Inputs:      order of TNS filter
- *              resolution of coefficients (3 or 4 bits)
- *              coefficients unpacked from bitstream
- *              scratch buffer (b) of size >= order
- * Outputs:     LPC coefficients in Q(FBITS_LPC_COEFS), in 'a'
- * Return:      none
- * Notes:       assumes no guard bits in input transform coefficients
- *              a[i] = Q(FBITS_LPC_COEFS), don't store a0 = 1.0
- *                (so a[0] = first delay tap, etc.)
- *              max abs(a[i]) < log2(order), so for max order = 20 a[i] < 4.4
- *                (up to 3 bits of gain) so a[i] has at least 31 - FBITS_LPC_COEFS - 3
- *                guard bits
- *              to ensure no intermediate overflow in all-pole filter, set
- *                FBITS_LPC_COEFS such that number of guard bits >= log2(max order)
+ * Description: decode noiseless data (side info and transform coefficients)
+ * Inputs:      double pointer to buffer pointing to start of individual channel stream (14496-3, table 4.4.24)
+ *              pointer to bit offset
+ *              pointer to number of valid bits remaining in buf
+ *              index of current channel
+ * Outputs:     updated global gain, section data, scale factor data, pulse data,
+ *              TNS data, gain control data, and spectral data
  **************************************************************************************/
 
-  const int* invQuantTab;
-  if (res == 3)
-    invQuantTab = invQuant3;
-  else if (res == 4)
-    invQuantTab = invQuant4;
+  ICSInfo* icsInfo = (ch == 1 && psInfoBase->commonWin == 1) ? &(psInfoBase->icsInfo[0]) : &(psInfoBase->icsInfo[ch]);
+
+  BitStreamInfo bsi;
+  setBitstreamPointer (&bsi, (*bitsAvail+7) >> 3, *buf);
+  getBits (&bsi, *bitOffset);
+
+  DecodeICS (psInfoBase, &bsi, ch);
+
+  if (icsInfo->winSequence == 2)
+    DecodeSpectrumShort (psInfoBase, &bsi, ch);
   else
-    return;
+    DecodeSpectrumLong (psInfoBase, &bsi, ch);
 
-  for (int m = 0; m < order; m++) {
-    int t = invQuantTab[filtCoef[m] & 0x0f];  /* t = Q31 */
-    for (int i = 0; i < m; i++)
-      b[i] = a[i] - (MULSHIFT32(t, a[m-i-1]) << 1);
-    for (int i = 0; i < m; i++)
-      a[i] = b[i];
-    a[m] = t >> (31 - FBITS_LPC_COEFS);
-    }
+  int bitsUsed = calcBitsUsed (&bsi, *buf, *bitOffset);
+  *buf += ((bitsUsed + *bitOffset) >> 3);
+  *bitOffset = ((bitsUsed + *bitOffset) & 0x07);
+  *bitsAvail -= bitsUsed;
+
+  sbDeinterleaveReqd[ch] = 0;
+
+  // set flag if TNS used for any channel
+  tnsUsed |= psInfoBase->tnsInfo[ch].tnsDataPresent;
   }
 //}}}
 //{{{
-int FilterRegion (int size, int dir, int order, int* audioCoef, int* a, int* hist) {
+void cAacDecoder::decodeSingleChannelElement (BitStreamInfo* bsi) {
 /**************************************************************************************
- * Description: apply LPC filter to one region of coefficients
- * Inputs:      number of transform coefficients in this region
- *              direction flag (forward = 1, backward = -1)
- *              order of filter
- *              'size' transform coefficients
- *              'order' LPC coefficients in Q(FBITS_LPC_COEFS)
- *              scratch buffer for history (must be >= order samples long)
- * Outputs:     filtered transform coefficients
- * Return:      guard bit mask (OR of abs value of all filtered transform coefs)
- * Notes:       assumes no guard bits in input transform coefficients
- *              gains 0 int bits
- *              history buffer does not need to be preserved between regions
+ * Description: decode one SCE
+ * Inputs:      BitStreamInfo struct pointing to start of SCE (14496-3, table 4.4.4)
+ * Outputs:     updated element instance tag
+ * Notes:       doesn't decode individual channel stream (part of DecodeNoiselessData)
  **************************************************************************************/
 
-  int i, j, y, hi32, inc, gbMask;
-  U64 sum64;
-
-  // init history to 0 every time */
-  for (i = 0; i < order; i++)
-    hist[i] = 0;
-
-  sum64.w64 = 0;     /* avoid warning */
-  gbMask = 0;
-  inc = (dir ? -1 : 1);
-  do {
-    // sum64 = a0*y[n] = 1.0*y[n] */
-    y = *audioCoef;
-    sum64.r.hi32 = y >> (32 - FBITS_LPC_COEFS);
-    sum64.r.lo32 = y << FBITS_LPC_COEFS;
-
-    // sum64 += (a1*y[n-1] + a2*y[n-2] + ... + a[order-1]*y[n-(order-1)]) */
-    for (j = order - 1; j > 0; j--) {
-      sum64.w64 = MADD64(sum64.w64, hist[j], a[j]);
-      hist[j] = hist[j-1];
-      }
-    sum64.w64 = MADD64(sum64.w64, hist[0], a[0]);
-    y = (sum64.r.hi32 << (32 - FBITS_LPC_COEFS)) | (sum64.r.lo32 >> FBITS_LPC_COEFS);
-
-    /* clip output (rare) */
-    hi32 = sum64.r.hi32;
-    if ((hi32 >> 31) != (hi32 >> (FBITS_LPC_COEFS-1)))
-      y = (hi32 >> 31) ^ 0x7fffffff;
-
-    hist[0] = y;
-    *audioCoef = y;
-    audioCoef += inc;
-    gbMask |= FASTABS (y);
-   } while (--size);
-
-  return gbMask;
+  // read instance tag
+  currInstTag = getBits (bsi, NUM_INST_TAG_BITS);
   }
 //}}}
-
 //{{{
-void DecodeTNSInfo (cAacDecoder::BitStreamInfo* bsi, int winSequence, TNSInfo* ti, int8_t* tnsCoef) {
+void cAacDecoder::decodeChannelPairElement (BitStreamInfo* bsi) {
 /**************************************************************************************
- * Description: decode TNS filter information
- * Inputs:      BitStreamInfo struct pointing to start of TNS info
- *                (14496-3, table 4.4.27)
- *              window sequence (short or long blocks)
- * Outputs:     updated TNSInfo struct
- *              buffer of decoded (signed) TNS filter coefficients
- * Return:      none
+ * Description: decode one CPE
+ * Inputs:      BitStreamInfo struct pointing to start of CPE (14496-3, table 4.4.5)
+ * Outputs:     updated element instance tag
+ *              updated commonWin
+ *              updated ICS info, if commonWin == 1
+ *              updated mid-side stereo info, if commonWin == 1
+ * Notes:       doesn't decode individual channel stream (part of DecodeNoiselessData)
  **************************************************************************************/
 
-  int i, w, f, coefBits, compress;
-  int8_t c, s, n;
+  ICSInfo* icsInfo = psInfoBase->icsInfo;
 
-  uint8_t *filtLength, *filtOrder, *filtDir;
+  // read instance tag
+  currInstTag = getBits (bsi, NUM_INST_TAG_BITS);
 
-  filtLength = ti->length;
-  filtOrder =  ti->order;
-  filtDir =    ti->dir;
-
-  if (winSequence == 2) {
-    /* short blocks */
-    for (w = 0; w < NWINDOWS_SHORT; w++) {
-      ti->numFilt[w] = getBits(bsi, 1);
-      if (ti->numFilt[w]) {
-        ti->coefRes[w] = getBits(bsi, 1) + 3;
-        *filtLength =    getBits(bsi, 4);
-        *filtOrder =     getBits(bsi, 3);
-        if (*filtOrder) {
-          *filtDir++ =      getBits(bsi, 1);
-          compress =        getBits(bsi, 1);
-          coefBits = (int)ti->coefRes[w] - compress;  /* 2, 3, or 4 */
-          s = sgnMask[coefBits - 2];
-          n = negMask[coefBits - 2];
-          for (i = 0; i < *filtOrder; i++) {
-            c = getBits(bsi, coefBits);
-            if (c & s)  c |= n;
-            *tnsCoef++ = c;
+  // read common window flag and mid-side info (if present)
+  // store msMask bits in psInfoBase->msMaskBits[] as follows:
+  //  long blocks -  pack bits for each SFB in range [0, maxSFB) starting with lsb of msMaskBits[0]
+  //  short blocks - pack bits for each SFB in range [0, maxSFB), for each group [0, 7]
+  // msMaskPresent = 0 means no M/S coding
+  //               = 1 means psInfoBase->msMaskBits contains 1 bit per SFB to toggle M/S coding
+  //               = 2 means all SFB's are M/S coded (so psInfoBase->msMaskBits is not needed)
+  psInfoBase->commonWin = getBits (bsi, 1);
+  if (psInfoBase->commonWin) {
+    DecodeICSInfo (bsi, icsInfo, psInfoBase->sampRateIdx);
+    psInfoBase->msMaskPresent = getBits (bsi, 2);
+    if (psInfoBase->msMaskPresent == 1) {
+      uint8_t* maskPtr = psInfoBase->msMaskBits;
+      *maskPtr = 0;
+      int maskOffset = 0;
+      for (int gp = 0; gp < icsInfo->numWinGroup; gp++) {
+        for (int sfb = 0; sfb < icsInfo->maxSFB; sfb++) {
+          uint8_t currBit = (uint8_t)getBits(bsi, 1);
+          *maskPtr |= currBit << maskOffset;
+          if (++maskOffset == 8) {
+            maskPtr++;
+            *maskPtr = 0;
+            maskOffset = 0;
+            }
           }
         }
-        filtLength++;
-        filtOrder++;
-      }
-    }
-  } else {
-    /* long blocks */
-    ti->numFilt[0] = getBits(bsi, 2);
-    if (ti->numFilt[0])
-      ti->coefRes[0] = getBits(bsi, 1) + 3;
-    for (f = 0; f < ti->numFilt[0]; f++) {
-      *filtLength =      getBits(bsi, 6);
-      *filtOrder =       getBits(bsi, 5);
-      if (*filtOrder) {
-        *filtDir++ =     getBits(bsi, 1);
-        compress =       getBits(bsi, 1);
-        coefBits = (int)ti->coefRes[0] - compress;  /* 2, 3, or 4 */
-        s = sgnMask[coefBits - 2];
-        n = negMask[coefBits - 2];
-        for (i = 0; i < *filtOrder; i++) {
-          c = getBits(bsi, coefBits);
-          if (c & s)  c |= n;
-          *tnsCoef++ = c;
-        }
-      }
-      filtLength++;
-      filtOrder++;
-    }
-  }
-}
-//}}}
-
-//{{{
-void DecodeGainControlInfo (cAacDecoder::BitStreamInfo* bsi, int winSequence, GainControlInfo* gi) {
-/**************************************************************************************
- * Description: decode gain control information (SSR profile only)
- * Inputs:      BitStreamInfo struct pointing to start of gain control info
- *                (14496-3, table 4.4.12)
- *              window sequence (short or long blocks)
- * Outputs:     updated GainControlInfo struct
- * Return:      none
- **************************************************************************************/
-
-  int bd, wd, ad;
-  int locBits, locBitsZero, maxWin;
-
-  gi->maxBand = getBits(bsi, 2);
-  maxWin =      (int)gainBits[winSequence][0];
-  locBitsZero = (int)gainBits[winSequence][1];
-  locBits =     (int)gainBits[winSequence][2];
-
-  for (bd = 1; bd <= gi->maxBand; bd++) {
-    for (wd = 0; wd < maxWin; wd++) {
-      gi->adjNum[bd][wd] = getBits(bsi, 3);
-      for (ad = 0; ad < gi->adjNum[bd][wd]; ad++) {
-        gi->alevCode[bd][wd][ad] = getBits(bsi, 4);
-        gi->alocCode[bd][wd][ad] = getBits(bsi, (wd == 0 ? locBitsZero : locBits));
       }
     }
   }
-}
 //}}}
 //{{{
-void DecodeICS (struct PSInfoBase* psi, cAacDecoder::BitStreamInfo* bsi, int ch) {
+void cAacDecoder::decodeLFEChannelElement (BitStreamInfo* bsi) {
 /**************************************************************************************
- * Description: decode individual channel stream
- * Inputs:      platform specific info struct
- *              BitStreamInfo struct pointing to start of individual channel stream
- *                (14496-3, table 4.4.24)
- *              index of current channel
- * Outputs:     updated section data, scale factor data, pulse data, TNS data,
- *                and gain control data
- * Return:      none
+ * Description: decode one LFE
+ * Inputs:      BitStreamInfo struct pointing to start of LFE (14496-3, table 4.4.9)
+ * Outputs:     updated element instance tag
+ * Notes:       doesn't decode individual channel stream (part of DecodeNoiselessData)
  **************************************************************************************/
 
-  ICSInfo* icsInfo = (ch == 1 && psi->commonWin == 1) ? &(psi->icsInfo[0]) : &(psi->icsInfo[ch]);
-
-  int globalGain = getBits (bsi, 8);
-  if (!psi->commonWin)
-    DecodeICSInfo (bsi, icsInfo, psi->sampRateIdx);
-
-  DecodeSectionData (bsi, icsInfo->winSequence, icsInfo->numWinGroup, icsInfo->maxSFB, psi->sfbCodeBook[ch]);
-
-  DecodeScaleFactors (bsi, icsInfo->numWinGroup, icsInfo->maxSFB, globalGain, psi->sfbCodeBook[ch], psi->scaleFactors[ch]);
-
-  PulseInfo* pi = &psi->pulseInfo[ch];
-  pi->pulseDataPresent = getBits (bsi, 1);
-  if (pi->pulseDataPresent)
-    DecodePulseInfo(bsi, pi);
-
-  TNSInfo* ti = &psi->tnsInfo[ch];
-  ti->tnsDataPresent = getBits (bsi, 1);
-  if (ti->tnsDataPresent)
-    DecodeTNSInfo (bsi, icsInfo->winSequence, ti, ti->coef);
-
-  GainControlInfo* gi = &psi->gainControlInfo[ch];
-  gi->gainControlDataPresent = getBits (bsi, 1);
-  if (gi->gainControlDataPresent)
-    DecodeGainControlInfo (bsi, icsInfo->winSequence, gi);
-}
-//}}}
-//}}}
-//{{{  sbrmath
-#define Q28_2 0x20000000  /* Q28: 2.0 */
-#define Q28_15  0x30000000  /* Q28: 1.5 */
-
-#define NUM_ITER_IRN    5
-
-//{{{
-/**************************************************************************************
- * Description: use Newton's method to solve for x = 1/r
- * Inputs:      r = Q31, range = [0.5, 1) (normalize your inputs to this range)
- * Outputs:     none
- * Return:      x = Q29, range ~= [1.0, 2.0]
- * Notes:       guaranteed to converge and not overflow for any r in [0.5, 1)
- *              xn+1  = xn - f(xn)/f'(xn)
- *              f(x)  = 1/r - x = 0 (find root)
- *                    = 1/x - r
- *              f'(x) = -1/x^2
- *              so xn+1 = xn - (1/xn - r) / (-1/xn^2)
- *                      = xn * (2 - r*xn)
- *              NUM_ITER_IRN = 2, maxDiff = 6.2500e-02 (precision of about 4 bits)
- *              NUM_ITER_IRN = 3, maxDiff = 3.9063e-03 (precision of about 8 bits)
- *              NUM_ITER_IRN = 4, maxDiff = 1.5288e-05 (precision of about 16 bits)
- *              NUM_ITER_IRN = 5, maxDiff = 3.0034e-08 (precision of about 24 bits)
- **************************************************************************************/
-int InvRNormalized (int r)
-{
-  int i, xn, t;
-
-  /* r =   [0.5, 1.0)
-   * 1/r = (1.0, 2.0]
-   *   so use 1.5 as initial guess
-   */
-  xn = Q28_15;
-
-  /* xn = xn*(2.0 - r*xn) */
-  for (i = NUM_ITER_IRN; i != 0; i--) {
-    t = MULSHIFT32(r, xn);      /* Q31*Q29 = Q28 */
-    t = Q28_2 - t;          /* Q28 */
-    xn = MULSHIFT32(xn, t) << 4;  /* Q29*Q28 << 4 = Q29 */
+  // read instance tag
+  currInstTag = getBits (bsi, NUM_INST_TAG_BITS);
   }
-
-  return xn;
-}
 //}}}
-
-#define LOG2_EXP_INV  0x58b90bfc  /* 1/log2(e), Q31 */
-
 //{{{
+void cAacDecoder::decodeDataStreamElement (BitStreamInfo* bsi) {
 /**************************************************************************************
- * Description: use Taylor (MacLaurin) series expansion to calculate (a/b) ^ (1/c)
- * Inputs:      a = [1, 64], b = [1, 64], c = [1, 64], a >= b
- * Outputs:     none
- * Return:      y = Q24, range ~= [0.015625, 64]
+ * Description: decode one DSE
+ * Inputs:      BitStreamInfo struct pointing to start of DSE (14496-3, table 4.4.10)
+ * Outputs:     updated element instance tag
+ *              filled in data stream buffer
  **************************************************************************************/
-int RatioPowInv (int a, int b, int c)
-{
-  int lna, lnb, i, p, t, y;
 
-  if (a < 1 || b < 1 || c < 1 || a > 64 || b > 64 || c > 64 || a < b)
-    return 0;
+  currInstTag = getBits (bsi, NUM_INST_TAG_BITS);
 
-  lna = MULSHIFT32(log2Tab[a], LOG2_EXP_INV) << 1;  /* ln(a), Q28 */
-  lnb = MULSHIFT32(log2Tab[b], LOG2_EXP_INV) << 1;  /* ln(b), Q28 */
-  p = (lna - lnb) / c;  /* Q28 */
+  unsigned int byteAlign = getBits (bsi, 1);
 
-  /* sum in Q24 */
-  y = (1 << 24);
-  t = p >> 4;   /* t = p^1 * 1/1! (Q24)*/
-  y += t;
+  unsigned int dataCount = getBits (bsi, 8);
+  if (dataCount == 255)
+    dataCount += getBits (bsi, 8);
+  if (byteAlign)
+    byteAlignBitstream (bsi);
 
-  for (i = 2; i <= NUM_TERMS_RPI; i++) {
-    t = MULSHIFT32(invTab[i-1], t) << 2;
-    t = MULSHIFT32(p, t) << 4;  /* t = p^i * 1/i! (Q24) */
-    y += t;
+  psInfoBase->dataCount = dataCount;
+  uint8_t* dataBuf = psInfoBase->dataBuf;
+  while (dataCount--)
+    *dataBuf++ = getBits (bsi, 8);
   }
-
-  return y;
-}
 //}}}
 //{{{
+void cAacDecoder::decodeProgramConfigElement (ProgConfigElement* pce, BitStreamInfo* bsi) {
 /**************************************************************************************
- * Description: use binary search to calculate sqrt(q)
- * Inputs:      q = Q30
- *              number of fraction bits in input
- * Outputs:     number of fraction bits in output
- * Return:      lo = Q(fBitsOut)
- * Notes:       absolute precision varies depending on fBitsIn
- *              normalizes input to range [0x200000000, 0x7fffffff] and takes
- *                floor(sqrt(input)), and sets fBitsOut appropriately
+ * Description: decode one PCE
+ * Inputs:      BitStreamInfo struct pointing to start of PCE (14496-3, table 4.4.2)
+ * Outputs:     filled-in ProgConfigElement struct
+ *              updated BitStreamInfo struct
+ * Notes:       #define KEEP_PCE_COMMENTS to save the comment field of the PCE
+ *                (otherwise we just skip it in the bitstream, to save memory)
  **************************************************************************************/
-int SqrtFix (int q, int fBitsIn, int *fBitsOut)
-{
-  int z, lo, hi, mid;
 
-  if (q <= 0) {
-    *fBitsOut = fBitsIn;
-    return 0;
+  pce->elemInstTag = getBits(bsi, 4);
+  pce->profile = getBits(bsi, 2);
+  pce->sampRateIdx = getBits(bsi, 4);
+  pce->numFCE = getBits(bsi, 4);
+  pce->numSCE = getBits(bsi, 4);
+  pce->numBCE = getBits(bsi, 4);
+  pce->numLCE = getBits(bsi, 2);
+  pce->numADE = getBits(bsi, 3);
+  pce->numCCE = getBits(bsi, 4);
+
+  pce->monoMixdown = getBits (bsi, 1) << 4;  /* present flag */
+  if (pce->monoMixdown)
+    pce->monoMixdown |= getBits (bsi, 4);  /* element number */
+
+  pce->stereoMixdown = getBits (bsi, 1) << 4;  /* present flag */
+  if (pce->stereoMixdown)
+    pce->stereoMixdown  |= getBits (bsi, 4); /* element number */
+
+  pce->matrixMixdown = getBits (bsi, 1) << 4;  /* present flag */
+  if (pce->matrixMixdown) {
+    pce->matrixMixdown  |= getBits (bsi, 2) << 1;  /* index */
+    pce->matrixMixdown  |= getBits (bsi, 1);     /* pseudo-surround enable */
+    }
+
+  for (int i = 0; i < pce->numFCE; i++) {
+    pce->fce[i]  = getBits (bsi, 1) << 4;  /* is_cpe flag */
+    pce->fce[i] |= getBits (bsi, 4);     /* tag select */
+    }
+
+  for (int i = 0; i < pce->numSCE; i++) {
+    pce->sce[i]  = getBits (bsi, 1) << 4;  /* is_cpe flag */
+    pce->sce[i] |= getBits (bsi, 4);     /* tag select */
+    }
+
+  for (int i = 0; i < pce->numBCE; i++) {
+    pce->bce[i]  = getBits (bsi, 1) << 4;  /* is_cpe flag */
+    pce->bce[i] |= getBits (bsi, 4);     /* tag select */
+    }
+
+  for (int i = 0; i < pce->numLCE; i++)
+    pce->lce[i] = getBits (bsi, 4);      /* tag select */
+
+  for (int i = 0; i < pce->numADE; i++)
+    pce->ade[i] = getBits (bsi, 4);      /* tag select */
+
+  for (int i = 0; i < pce->numCCE; i++) {
+    pce->cce[i]  = getBits (bsi, 1) << 4;  /* independent/dependent flag */
+    pce->cce[i] |= getBits (bsi, 4);     /* tag select */
+    }
+
+  byteAlignBitstream (bsi);
+
+  pce->commentBytes = getBits (bsi, 8);
+  for (int i = 0; i < pce->commentBytes; i++)
+    pce->commentField[i] = getBits (bsi, 8);
   }
-
-  /* force even fBitsIn */
-  z = fBitsIn & 0x01;
-  q >>= z;
-  fBitsIn -= z;
-
-  /* for max precision, normalize to [0x20000000, 0x7fffffff] */
-  z = (countLeadingZeros (q) - 1);
-  z >>= 1;
-  q <<= (2*z);
-
-  /* choose initial bounds */
-  lo = 1;
-  if (q >= 0x10000000)
-    lo = 16384; /* (int)sqrt(0x10000000) */
-  hi = 46340;   /* (int)sqrt(0x7fffffff) */
-
-  /* do binary search with 32x32->32 multiply test */
-  do {
-    mid = (lo + hi) >> 1;
-    if (mid*mid > q)
-      hi = mid - 1;
-    else
-      lo = mid + 1;
-  } while (hi >= lo);
-  lo--;
-
-  *fBitsOut = ((fBitsIn + 2*z) >> 1);
-  return lo;
-}
-//}}}
-//}}}
-//{{{  sbrfft
-#define SQRT1_2 0x5a82799a
-
-/* swap RE{p0} with RE{p1} and IM{P0} with IM{P1} */
-#define swapcplx(p0,p1) t = p0; t1 = *(&(p0)+1); p0 = p1; *(&(p0)+1) = *(&(p1)+1); p1 = t; *(&(p1)+1) = t1
-
-//{{{
-/**************************************************************************************
- * Function:    BitReverse32
- *
- * Description: Ken's fast in-place bit reverse
- *
- * Inputs:      buffer of 32 complex samples
- *
- * Outputs:     bit-reversed samples in same buffer
- *
- * Return:      none
-**************************************************************************************/
-void BitReverse32 (int *inout) {
-  int t, t1;
-
-  swapcplx (inout[2],  inout[32]);
-  swapcplx (inout[4],  inout[16]);
-  swapcplx (inout[6],  inout[48]);
-  swapcplx (inout[10], inout[40]);
-  swapcplx (inout[12], inout[24]);
-  swapcplx (inout[14], inout[56]);
-  swapcplx (inout[18], inout[36]);
-  swapcplx (inout[22], inout[52]);
-  swapcplx (inout[26], inout[44]);
-  swapcplx (inout[30], inout[60]);
-  swapcplx (inout[38], inout[50]);
-  swapcplx (inout[46], inout[58]);
-}
 //}}}
 //{{{
+void cAacDecoder::decodeFillElement (BitStreamInfo* bsi) {
 /**************************************************************************************
- * Function:    R8FirstPass32
- *
- * Description: radix-8 trivial pass for decimation-in-time FFT (log2(N) = 5)
- *
- * Inputs:      buffer of (bit-reversed) samples
- *
- * Outputs:     processed samples in same buffer
- *
- * Return:      none
- *
- * Notes:       assumes 3 guard bits, gains 1 integer bit
- *              guard bits out = guard bits in - 3 (if inputs are full scale)
- *                or guard bits in - 2 (if inputs bounded to +/- sqrt(2)/2)
- *              see scaling comments in fft.c for base AAC
- *              should compile with no stack spills on ARM (verify compiled output)
- *              current instruction count (per pass): 16 LDR, 16 STR, 4 SMULL, 61 ALU
+ * Description: decode one fill element
+ * Inputs:      BitStreamInfo struct pointing to start of fill element
+ *                (14496-3, table 4.4.11)
+ * Outputs:     updated element instance tag
+ *              unpacked extension payload
  **************************************************************************************/
-void R8FirstPass32 (int *r0)
-{
-  int r1, r2, r3, r4, r5, r6, r7;
-  int r8, r9, r10, r11, r12, r14;
 
-  /* number of passes = fft size / 8 = 32 / 8 = 4 */
-  r1 = (32 >> 3);
-  do {
+  unsigned int fillCount1 = getBits (bsi, 4);
+  if (fillCount1 == 15)
+    fillCount1 += getBits (bsi, 8) - 1;
 
-    r2 = r0[8];
-    r3 = r0[9];
-    r4 = r0[10];
-    r5 = r0[11];
-    r6 = r0[12];
-    r7 = r0[13];
-    r8 = r0[14];
-    r9 = r0[15];
+  // !!! probable byte aligned copy into fillBuf which is turned into a second bitstream !!!
+  psInfoBase->fillCount = fillCount1;
+  uint8_t* fillBuf1 = psInfoBase->fillBuf;
+  while (fillCount1--)
+    *fillBuf1++ = getBits (bsi, 8);
 
-    r10 = r2 + r4;
-    r11 = r3 + r5;
-    r12 = r6 + r8;
-    r14 = r7 + r9;
+  // fill elements don't have instance tag
+  currInstTag = -1;
+  fillExtType = 0;
 
-    r2 -= r4;
-    r3 -= r5;
-    r6 -= r8;
-    r7 -= r9;
+  // check for SBR, sbrEnabled is sticky (reset each raw_data_block), so for multichannel
+  // need to verify that all SCE/CPE/ICCE have valid SBR fill element following, and must upsample by 2 for LFE
+  if (psInfoBase->fillCount > 0) {
+    fillExtType = (int)((psInfoBase->fillBuf[0] >> 4) & 0x0f);
+    if (fillExtType == EXT_SBR_DATA || fillExtType == EXT_SBR_DATA_CRC)
+      sbrEnabled = 1;
+    }
 
-    r4 = r2 - r7;
-    r5 = r2 + r7;
-    r8 = r3 - r6;
-    r9 = r3 + r6;
-
-    r2 = r4 - r9;
-    r3 = r4 + r9;
-    r6 = r5 - r8;
-    r7 = r5 + r8;
-
-    r2 = MULSHIFT32(SQRT1_2, r2); /* can use r4, r5, r8, or r9 for constant and lo32 scratch reg */
-    r3 = MULSHIFT32(SQRT1_2, r3);
-    r6 = MULSHIFT32(SQRT1_2, r6);
-    r7 = MULSHIFT32(SQRT1_2, r7);
-
-    r4 = r10 + r12;
-    r5 = r10 - r12;
-    r8 = r11 + r14;
-    r9 = r11 - r14;
-
-    r10 = r0[0];
-    r11 = r0[2];
-    r12 = r0[4];
-    r14 = r0[6];
-
-    r10 += r11;
-    r12 += r14;
-
-    r4 >>= 1;
-    r10 += r12;
-    r4 += (r10 >> 1);
-    r0[ 0] = r4;
-    r4 -= (r10 >> 1);
-    r4 = (r10 >> 1) - r4;
-    r0[ 8] = r4;
-
-    r9 >>= 1;
-    r10 -= 2*r12;
-    r4 = (r10 >> 1) + r9;
-    r0[ 4] = r4;
-    r4 = (r10 >> 1) - r9;
-    r0[12] = r4;
-    r10 += r12;
-
-    r10 -= 2*r11;
-    r12 -= 2*r14;
-
-    r4 =  r0[1];
-    r9 =  r0[3];
-    r11 = r0[5];
-    r14 = r0[7];
-
-    r4 += r9;
-    r11 += r14;
-
-    r8 >>= 1;
-    r4 += r11;
-    r8 += (r4 >> 1);
-    r0[ 1] = r8;
-    r8 -= (r4 >> 1);
-    r8 = (r4 >> 1) - r8;
-    r0[ 9] = r8;
-
-    r5 >>= 1;
-    r4 -= 2*r11;
-    r8 = (r4 >> 1) - r5;
-    r0[ 5] = r8;
-    r8 = (r4 >> 1) + r5;
-    r0[13] = r8;
-    r4 += r11;
-
-    r4 -= 2*r9;
-    r11 -= 2*r14;
-
-    r9 = r10 - r11;
-    r10 += r11;
-    r14 = r4 + r12;
-    r4 -= r12;
-
-    r5 = (r10 >> 1) + r7;
-    r8 = (r4 >> 1) - r6;
-    r0[ 2] = r5;
-    r0[ 3] = r8;
-
-    r5 = (r9 >> 1) - r2;
-    r8 = (r14 >> 1) - r3;
-    r0[ 6] = r5;
-    r0[ 7] = r8;
-
-    r5 = (r10 >> 1) - r7;
-    r8 = (r4 >> 1) + r6;
-    r0[10] = r5;
-    r0[11] = r8;
-
-    r5 = (r9 >> 1) + r2;
-    r8 = (r14 >> 1) + r3;
-    r0[14] = r5;
-    r0[15] = r8;
-
-    r0 += 16;
-    r1--;
-  } while (r1 != 0);
-}
+  fillBuf = psInfoBase->fillBuf;
+  fillCount = psInfoBase->fillCount;
+  }
 //}}}
 //{{{
+bool cAacDecoder::decodeNextElement (uint8_t** buf, int* bitOffset, int* bitsAvail) {
 /**************************************************************************************
- * Function:    R4Core32
- *
- * Description: radix-4 pass for 32-point decimation-in-time FFT
- *
- * Inputs:      buffer of samples
- *
- * Outputs:     processed samples in same buffer
- *
- * Return:      none
- *
- * Notes:       gain 2 integer bits
- *              guard bits out = guard bits in - 1 (if inputs are full scale)
- *              see scaling comments in fft.c for base AAC
- *              uses 3-mul, 3-add butterflies instead of 4-mul, 2-add
- *              should compile with no stack spills on ARM (verify compiled output)
- *              current instruction count (per pass): 16 LDR, 16 STR, 4 SMULL, 61 ALU
+ * Description: decode next syntactic element in AAC frame
+ * Inputs:      double pointer to buffer containing next element
+ *              pointer to bit offset
+ *              pointer to number of valid bits remaining in buf
+ * Outputs:     type of element decoded (currBlockID)
+ *              type of element decoded last time (prevBlockID)
+ *              updated aacDecInfo state, depending on which element was decoded
+ *              updated buffer pointer
+ *              updated bit offset
+ *              updated number of available bits
+ * Return:      false if successful,
  **************************************************************************************/
-void R4Core32 (int *r0)
-{
-  int r2, r3, r4, r5, r6, r7;
-  int r8, r9, r10, r12, r14;
-  int *r1;
 
-  r1 = (int *)twidTabOdd32;
-  r10 = 8;
-  do {
-    /* can use r14 for lo32 scratch register in all MULSHIFT32 */
-    r2 = r1[0];
-    r3 = r1[1];
-    r4 = r0[16];
-    r5 = r0[17];
-    r12 = r4 + r5;
-    r12 = MULSHIFT32(r3, r12);
-    r5  = MULSHIFT32(r2, r5) + r12;
-    r2 += 2*r3;
-    r4  = MULSHIFT32(r2, r4) - r12;
+  BitStreamInfo bsi;
+  setBitstreamPointer (&bsi, (*bitsAvail + 7) >> 3, *buf);
+  getBits (&bsi, *bitOffset);
 
-    r2 = r1[2];
-    r3 = r1[3];
-    r6 = r0[32];
-    r7 = r0[33];
-    r12 = r6 + r7;
-    r12 = MULSHIFT32(r3, r12);
-    r7  = MULSHIFT32(r2, r7) + r12;
-    r2 += 2*r3;
-    r6  = MULSHIFT32(r2, r6) - r12;
+  // read element ID (save last ID for SBR purposes) */
+  prevBlockID = currBlockID;
+  currBlockID = getBits(&bsi, NUM_SYN_ID_BITS);
 
-    r2 = r1[4];
-    r3 = r1[5];
-    r8 = r0[48];
-    r9 = r0[49];
-    r12 = r8 + r9;
-    r12 = MULSHIFT32(r3, r12);
-    r9  = MULSHIFT32(r2, r9) + r12;
-    r2 += 2*r3;
-    r8  = MULSHIFT32(r2, r8) - r12;
+  // set defaults (could be overwritten by DecodeXXXElement(), depending on currBlockID) */
+  psInfoBase->commonWin = 0;
 
-    r2 = r0[0];
-    r3 = r0[1];
+  switch (currBlockID) {
+    case AAC_ID_SCE:
+      decodeSingleChannelElement (&bsi);
+      break;
+    case AAC_ID_CPE:
+      decodeChannelPairElement (&bsi);
+      break;
+    case AAC_ID_CCE:
+      /* TODO - implement CCE decoding */
+      break;
+    case AAC_ID_LFE:
+      decodeLFEChannelElement (&bsi);
+      break;
+    case AAC_ID_DSE:
+      decodeDataStreamElement (&bsi);
+      break;
+    case AAC_ID_PCE:
+      decodeProgramConfigElement (psInfoBase->pce + 0, &bsi);
+      break;
+    case AAC_ID_FIL:
+      decodeFillElement (&bsi);
+      break;
+    case AAC_ID_END:
+      break;
+    }
 
-    r12 = r6 + r8;
-    r8  = r6 - r8;
-    r14 = r9 - r7;
-    r9  = r9 + r7;
+  // update bitstream reader
+  int bitsUsed = calcBitsUsed (&bsi, *buf, *bitOffset);
+  *buf += (bitsUsed + *bitOffset) >> 3;
+  *bitOffset = (bitsUsed + *bitOffset) & 0x07;
+  *bitsAvail -= bitsUsed;
 
-    r6 = (r2 >> 2) - r4;
-    r7 = (r3 >> 2) - r5;
-    r4 += (r2 >> 2);
-    r5 += (r3 >> 2);
-
-    r2 = r4 + r12;
-    r3 = r5 + r9;
-    r0[0] = r2;
-    r0[1] = r3;
-    r2 = r6 - r14;
-    r3 = r7 - r8;
-    r0[16] = r2;
-    r0[17] = r3;
-    r2 = r4 - r12;
-    r3 = r5 - r9;
-    r0[32] = r2;
-    r0[33] = r3;
-    r2 = r6 + r14;
-    r3 = r7 + r8;
-    r0[48] = r2;
-    r0[49] = r3;
-
-    r0 += 2;
-    r1 += 6;
-    r10--;
-  } while (r10 != 0);
-}
+  return *bitsAvail < 0;
+  }
 //}}}
 
-//{{{
-/**************************************************************************************
- * Function:    FFT32C
- *
- * Description: Ken's very fast in-place radix-4 decimation-in-time FFT
- *
- * Inputs:      buffer of 32 complex samples (before bit-reversal)
- *
- * Outputs:     processed samples in same buffer
- *
- * Return:      none
- *
- * Notes:       assumes 3 guard bits in, gains 3 integer bits
- *              guard bits out = guard bits in - 2
- *              (guard bit analysis includes assumptions about steps immediately
- *               before and after, i.e. PreMul and PostMul for DCT)
- **************************************************************************************/
-void FFT32C (int *x)
-{
-  /* decimation in time */
-  BitReverse32(x);
-
-  /* 32-point complex FFT */
-  R8FirstPass32(x); /* gain 1 int bit,  lose 2 GB (making assumptions about input) */
-  R4Core32(x);    /* gain 2 int bits, lose 0 GB (making assumptions about input) */
-}
-//}}}
-//}}}
-//{{{  sbrside
+//{{{  decode sbr utils
 //{{{
 int GetSampRateIdx (int sampRate) {
 /**************************************************************************************
@@ -5512,8 +4428,138 @@ void UnpackSBRChannelPair (cAacDecoder::BitStreamInfo *bsi, PSInfoSBR *psi, int 
   }
 }
 //}}}
+
+// sbrmath
+#define Q28_2 0x20000000  /* Q28: 2.0 */
+#define Q28_15  0x30000000  /* Q28: 1.5 */
+
+#define NUM_ITER_IRN    5
+
+//{{{
+/**************************************************************************************
+ * Description: use Newton's method to solve for x = 1/r
+ * Inputs:      r = Q31, range = [0.5, 1) (normalize your inputs to this range)
+ * Outputs:     none
+ * Return:      x = Q29, range ~= [1.0, 2.0]
+ * Notes:       guaranteed to converge and not overflow for any r in [0.5, 1)
+ *              xn+1  = xn - f(xn)/f'(xn)
+ *              f(x)  = 1/r - x = 0 (find root)
+ *                    = 1/x - r
+ *              f'(x) = -1/x^2
+ *              so xn+1 = xn - (1/xn - r) / (-1/xn^2)
+ *                      = xn * (2 - r*xn)
+ *              NUM_ITER_IRN = 2, maxDiff = 6.2500e-02 (precision of about 4 bits)
+ *              NUM_ITER_IRN = 3, maxDiff = 3.9063e-03 (precision of about 8 bits)
+ *              NUM_ITER_IRN = 4, maxDiff = 1.5288e-05 (precision of about 16 bits)
+ *              NUM_ITER_IRN = 5, maxDiff = 3.0034e-08 (precision of about 24 bits)
+ **************************************************************************************/
+int InvRNormalized (int r)
+{
+  int i, xn, t;
+
+  /* r =   [0.5, 1.0)
+   * 1/r = (1.0, 2.0]
+   *   so use 1.5 as initial guess
+   */
+  xn = Q28_15;
+
+  /* xn = xn*(2.0 - r*xn) */
+  for (i = NUM_ITER_IRN; i != 0; i--) {
+    t = MULSHIFT32(r, xn);      /* Q31*Q29 = Q28 */
+    t = Q28_2 - t;          /* Q28 */
+    xn = MULSHIFT32(xn, t) << 4;  /* Q29*Q28 << 4 = Q29 */
+  }
+
+  return xn;
+}
 //}}}
-//{{{  sbrfreq
+
+#define LOG2_EXP_INV  0x58b90bfc  /* 1/log2(e), Q31 */
+
+//{{{
+/**************************************************************************************
+ * Description: use Taylor (MacLaurin) series expansion to calculate (a/b) ^ (1/c)
+ * Inputs:      a = [1, 64], b = [1, 64], c = [1, 64], a >= b
+ * Outputs:     none
+ * Return:      y = Q24, range ~= [0.015625, 64]
+ **************************************************************************************/
+int RatioPowInv (int a, int b, int c)
+{
+  int lna, lnb, i, p, t, y;
+
+  if (a < 1 || b < 1 || c < 1 || a > 64 || b > 64 || c > 64 || a < b)
+    return 0;
+
+  lna = MULSHIFT32(log2Tab[a], LOG2_EXP_INV) << 1;  /* ln(a), Q28 */
+  lnb = MULSHIFT32(log2Tab[b], LOG2_EXP_INV) << 1;  /* ln(b), Q28 */
+  p = (lna - lnb) / c;  /* Q28 */
+
+  /* sum in Q24 */
+  y = (1 << 24);
+  t = p >> 4;   /* t = p^1 * 1/1! (Q24)*/
+  y += t;
+
+  for (i = 2; i <= NUM_TERMS_RPI; i++) {
+    t = MULSHIFT32(invTab[i-1], t) << 2;
+    t = MULSHIFT32(p, t) << 4;  /* t = p^i * 1/i! (Q24) */
+    y += t;
+  }
+
+  return y;
+}
+//}}}
+//{{{
+/**************************************************************************************
+ * Description: use binary search to calculate sqrt(q)
+ * Inputs:      q = Q30
+ *              number of fraction bits in input
+ * Outputs:     number of fraction bits in output
+ * Return:      lo = Q(fBitsOut)
+ * Notes:       absolute precision varies depending on fBitsIn
+ *              normalizes input to range [0x200000000, 0x7fffffff] and takes
+ *                floor(sqrt(input)), and sets fBitsOut appropriately
+ **************************************************************************************/
+int SqrtFix (int q, int fBitsIn, int *fBitsOut)
+{
+  int z, lo, hi, mid;
+
+  if (q <= 0) {
+    *fBitsOut = fBitsIn;
+    return 0;
+  }
+
+  /* force even fBitsIn */
+  z = fBitsIn & 0x01;
+  q >>= z;
+  fBitsIn -= z;
+
+  /* for max precision, normalize to [0x20000000, 0x7fffffff] */
+  z = (countLeadingZeros (q) - 1);
+  z >>= 1;
+  q <<= (2*z);
+
+  /* choose initial bounds */
+  lo = 1;
+  if (q >= 0x10000000)
+    lo = 16384; /* (int)sqrt(0x10000000) */
+  hi = 46340;   /* (int)sqrt(0x7fffffff) */
+
+  /* do binary search with 32x32->32 multiply test */
+  do {
+    mid = (lo + hi) >> 1;
+    if (mid*mid > q)
+      hi = mid - 1;
+    else
+      lo = mid + 1;
+  } while (hi >= lo);
+  lo--;
+
+  *fBitsOut = ((fBitsIn + 2*z) >> 1);
+  return lo;
+}
+//}}}
+
+// sbrfreq
 //{{{
 /**************************************************************************************
  * Function:    BubbleSort
@@ -5860,7 +4906,57 @@ int CalcFreqNoise (uint8_t *freqNoise, uint8_t *freqLow, int nLow, int kStart, i
   return nQ;
 }
 //}}}
+//{{{
+/**************************************************************************************
+ * Function:    FindFreq
+ *
+ * Description: search buffer of uint8_ts for a specific value
+ *
+ * Inputs:      buffer of elements to search
+ *              number of elements to search
+ *              value to search for
+ *
+ * Outputs:     none
+ *
+ * Return:      non-zero if the value is found anywhere in the buffer, zero otherwise
+ **************************************************************************************/
+int FindFreq (uint8_t *freq, int nFreq, uint8_t val)
+{
+  int k;
 
+  for (k = 0; k < nFreq; k++) {
+    if (freq[k] == val)
+      return 1;
+  }
+
+  return 0;
+}
+//}}}
+//{{{
+/**************************************************************************************
+ * Function:    RemoveFreq
+ *
+ * Description: remove one element from a buffer of uint8_ts
+ *
+ * Inputs:      buffer of elements
+ *              number of elements
+ *              index of element to remove
+ *
+ * Outputs:     new buffer of length nFreq-1
+ *
+ * Return:      none
+ **************************************************************************************/
+void RemoveFreq (uint8_t *freq, int nFreq, int removeIdx)
+{
+  int k;
+
+  if (removeIdx >= nFreq)
+    return;
+
+  for (k = removeIdx; k < nFreq - 1; k++)
+    freq[k] = freq[k+1];
+}
+//}}}
 //{{{
 /**************************************************************************************
  * Function:    BuildPatches
@@ -5933,58 +5029,6 @@ int BuildPatches (uint8_t *patchNumSubbands, uint8_t *patchStartSubband, uint8_t
   } while (sb != (kStart + numQMFBands) && numPatches <= MAX_NUM_PATCHES);
 
   return numPatches;
-}
-//}}}
-
-//{{{
-/**************************************************************************************
- * Function:    FindFreq
- *
- * Description: search buffer of uint8_ts for a specific value
- *
- * Inputs:      buffer of elements to search
- *              number of elements to search
- *              value to search for
- *
- * Outputs:     none
- *
- * Return:      non-zero if the value is found anywhere in the buffer, zero otherwise
- **************************************************************************************/
-int FindFreq (uint8_t *freq, int nFreq, uint8_t val)
-{
-  int k;
-
-  for (k = 0; k < nFreq; k++) {
-    if (freq[k] == val)
-      return 1;
-  }
-
-  return 0;
-}
-//}}}
-//{{{
-/**************************************************************************************
- * Function:    RemoveFreq
- *
- * Description: remove one element from a buffer of uint8_ts
- *
- * Inputs:      buffer of elements
- *              number of elements
- *              index of element to remove
- *
- * Outputs:     new buffer of length nFreq-1
- *
- * Return:      none
- **************************************************************************************/
-void RemoveFreq (uint8_t *freq, int nFreq, int removeIdx)
-{
-  int k;
-
-  if (removeIdx >= nFreq)
-    return;
-
-  for (k = removeIdx; k < nFreq - 1; k++)
-    freq[k] = freq[k+1];
 }
 //}}}
 //{{{
@@ -6117,7 +5161,2689 @@ int CalcFreqTables (SBRHeader *sbrHdr, SBRFreq *sbrFreq, int sampRateIdx)
 }
 //}}}
 //}}}
-//{{{  sbrhfadj
+//{{{
+bool cAacDecoder::decodeSbrBitstream (int chBase) {
+/**************************************************************************************
+ * Description: decode sideband information for SBR
+ * Inputs:      fill buffer with SBR extension block
+ *              number of bytes in fill buffer
+ *              base output channel (range = [0, nChans-1])
+ * Outputs:     initialized state structs (SBRHdr, SBRGrid, SBRFreq, SBRChan)
+ * Return:      false if successful
+ * Notes:       SBR payload should be in fillBuf
+ *              returns with no error if fill buffer is not an SBR extension block,
+ *                or if current block is not a fill block (e.g. for LFE upsampling)
+ **************************************************************************************/
+
+  if ((currBlockID != AAC_ID_FIL) ||
+      ((fillExtType != EXT_SBR_DATA) && (fillExtType != EXT_SBR_DATA_CRC)))
+    return false;
+
+  BitStreamInfo bsi;
+  setBitstreamPointer (&bsi, fillCount, fillBuf);
+  if (getBits (&bsi, 4) != (unsigned int)fillExtType)
+    return true;
+
+  if (fillExtType == EXT_SBR_DATA_CRC)
+    psInfoSBR->crcCheckWord = getBits (&bsi, 10);
+
+  int headerFlag = getBits (&bsi, 1);
+  if (headerFlag) {
+    // get sample rate index for output sample rate (2x base rate)
+    psInfoSBR->sampRateIdx = GetSampRateIdx (2 * sampRate);
+    if (psInfoSBR->sampRateIdx < 0 || psInfoSBR->sampRateIdx >= NUM_SAMPLE_RATES)
+      return true;
+    else if (psInfoSBR->sampRateIdx >= NUM_SAMPLE_RATES_SBR)
+      return true;
+
+    // reset flag = 1 if header values changed */
+    if (UnpackSBRHeader (&bsi, &(psInfoSBR->sbrHdr[chBase])))
+      psInfoSBR->sbrChan[chBase].reset = 1;
+
+    // first valid SBR header should always trigger CalcFreqTables(), since psInfoSBR->reset was set in InitSBR()
+    if (psInfoSBR->sbrChan[chBase].reset)
+      CalcFreqTables (&(psInfoSBR->sbrHdr[chBase+0]), &(psInfoSBR->sbrFreq[chBase]), psInfoSBR->sampRateIdx);
+
+    // copy and reset state to right channel for CPE
+    if (prevBlockID == AAC_ID_CPE)
+      psInfoSBR->sbrChan[chBase+1].reset = psInfoSBR->sbrChan[chBase+0].reset;
+    }
+
+  // if no header has been received, upsample only
+  if (psInfoSBR->sbrHdr[chBase].count == 0)
+    return false;
+
+  if (prevBlockID == AAC_ID_SCE)
+    UnpackSBRSingleChannel (&bsi, psInfoSBR, chBase);
+  else if (prevBlockID == AAC_ID_CPE)
+    UnpackSBRChannelPair (&bsi, psInfoSBR, chBase);
+  else
+    return true;
+
+  byteAlignBitstream (&bsi);
+  return false;
+  }
+//}}}
+
+//{{{  dequant utils
+#define SF_OFFSET  100
+
+/* sqrt(0.5), format = Q31 */
+#define SQRTHALF 0x5a82799a
+//{{{
+/**************************************************************************************
+ * Function:    DequantBlock
+ *
+ * Description: dequantize one block of transform coefficients (in-place)
+ *
+ * Inputs:      quantized transform coefficients, range = [0, 8191]
+ *              number of samples to dequantize
+ *              scalefactor for this block of data, range = [0, 256]
+ *
+ * Outputs:     dequantized transform coefficients in Q(FBITS_OUT_DQ_OFF)
+ *
+ * Return:      guard bit mask (OR of abs value of all dequantized coefs)
+ *
+ * Notes:       applies dequant formula y = pow(x, 4.0/3.0) * pow(2, (scale - 100)/4.0)
+ *                * pow(2, FBITS_OUT_DQ_OFF)
+ *              clips outputs to Q(FBITS_OUT_DQ_OFF)
+ *              output has no minimum number of guard bits
+ **************************************************************************************/
+int DequantBlock (int* inbuf, int nSamps, int scale)
+{
+  int iSamp, scalef, scalei, x, y, gbMask, shift, tab4[4];
+  const int *tab16, *coef;
+
+  if (nSamps <= 0)
+    return 0;
+
+  scale -= SF_OFFSET; /* new range = [-100, 156] */
+
+  /* with two's complement numbers, scalei/scalef factorization works for pos and neg values of scale:
+   *  [+4...+7] >> 2 = +1, [ 0...+3] >> 2 = 0, [-4...-1] >> 2 = -1, [-8...-5] >> 2 = -2 ...
+   *  (-1 & 0x3) = 3, (-2 & 0x3) = 2, (-3 & 0x3) = 1, (0 & 0x3) = 0
+   *
+   * Example: 2^(-5/4) = 2^(-1) * 2^(-1/4) = 2^-2 * 2^(3/4)
+   */
+  tab16 = pow43_14[scale & 0x3];
+  scalef = pow14[scale & 0x3];
+  scalei = (scale >> 2) + FBITS_OUT_DQ_OFF;
+
+  /* cache first 4 values:
+   * tab16[j] = Q28 for j = [0,3]
+   * tab4[x] = x^(4.0/3.0) * 2^(0.25*scale), Q(FBITS_OUT_DQ_OFF)
+   */
+  shift = 28 - scalei;
+  if (shift > 31) {
+    tab4[0] = tab4[1] = tab4[2] = tab4[3] = 0;
+  } else if (shift <= 0) {
+    shift = -shift;
+    if (shift > 31)
+      shift = 31;
+    for (x = 0; x < 4; x++) {
+      y = tab16[x];
+      if (y > (0x7fffffff >> shift))
+        y = 0x7fffffff;   /* clip (rare) */
+      else
+        y <<= shift;
+      tab4[x] = y;
+    }
+  } else {
+    tab4[0] = 0;
+    tab4[1] = tab16[1] >> shift;
+    tab4[2] = tab16[2] >> shift;
+    tab4[3] = tab16[3] >> shift;
+  }
+
+  gbMask = 0;
+  do {
+    iSamp = *inbuf;
+    x = FASTABS(iSamp);
+
+    if (x < 4) {
+      y = tab4[x];
+    } else  {
+
+      if (x < 16) {
+        /* result: y = Q25 (tab16 = Q25) */
+        y = tab16[x];
+        shift = 25 - scalei;
+      } else if (x < 64) {
+        /* result: y = Q21 (pow43tab[j] = Q23, scalef = Q30) */
+        y = pow43[x-16];
+        shift = 21 - scalei;
+        y = MULSHIFT32(y, scalef);
+      } else {
+        /* normalize to [0x40000000, 0x7fffffff]
+         * input x = [64, 8191] = [64, 2^13-1]
+         * ranges:
+         *  shift = 7:   64 -  127
+         *  shift = 6:  128 -  255
+         *  shift = 5:  256 -  511
+         *  shift = 4:  512 - 1023
+         *  shift = 3: 1024 - 2047
+         *  shift = 2: 2048 - 4095
+         *  shift = 1: 4096 - 8191
+         */
+        x <<= 17;
+        shift = 0;
+        if (x < 0x08000000)
+          x <<= 4, shift += 4;
+        if (x < 0x20000000)
+          x <<= 2, shift += 2;
+        if (x < 0x40000000)
+          x <<= 1, shift += 1;
+
+        coef = (x < SQRTHALF) ? poly43lo : poly43hi;
+
+        /* polynomial */
+        y = coef[0];
+        y = MULSHIFT32(y, x) + coef[1];
+        y = MULSHIFT32(y, x) + coef[2];
+        y = MULSHIFT32(y, x) + coef[3];
+        y = MULSHIFT32(y, x) + coef[4];
+        y = MULSHIFT32(y, pow2frac[shift]) << 3;
+
+        /* fractional scale
+         * result: y = Q21 (pow43tab[j] = Q23, scalef = Q30)
+         */
+        y = MULSHIFT32(y, scalef);  /* now y is Q24 */
+        shift = 24 - scalei - pow2exp[shift];
+      }
+
+      /* integer scale */
+      if (shift <= 0) {
+        shift = -shift;
+        if (shift > 31)
+          shift = 31;
+
+        if (y > (0x7fffffff >> shift))
+          y = 0x7fffffff;   /* clip (rare) */
+        else
+          y <<= shift;
+      } else {
+        if (shift > 31)
+          shift = 31;
+        y >>= shift;
+      }
+    }
+
+    /* sign and store (gbMask used to count GB's) */
+    gbMask |= y;
+
+    /* apply sign */
+    iSamp >>= 31;
+    y ^= iSamp;
+    y -= iSamp;
+
+    *inbuf++ = y;
+  } while (--nSamps);
+
+  return gbMask;
+}
+//}}}
+//}}}
+//{{{
+void cAacDecoder::dequantize (int ch) {
+/**************************************************************************************
+ * Description: dequantize all transform coefficients for one channel
+ * Inputs:      index of current channel
+ * Outputs:     dequantized coefficients, including short-block deinterleaving
+ *              flags indicating if intensity and/or PNS is active
+ *              minimum guard bit count for dequantized coefficients
+ **************************************************************************************/
+
+  int nSamps;
+  const short* sfbTab;
+  ICSInfo* icsInfo = (ch == 1 && psInfoBase->commonWin == 1) ? &(psInfoBase->icsInfo[0]) : &(psInfoBase->icsInfo[ch]);
+  if (icsInfo->winSequence == 2) {
+    sfbTab = sfBandTabShort + sfBandTabShortOffset[psInfoBase->sampRateIdx];
+    nSamps = NSAMPS_SHORT;
+    }
+  else {
+    sfbTab = sfBandTabLong + sfBandTabLongOffset[psInfoBase->sampRateIdx];
+    nSamps = NSAMPS_LONG;
+    }
+  int* coef = psInfoBase->coef[ch];
+  uint8_t* sfbCodeBook = psInfoBase->sfbCodeBook[ch];
+  short* scaleFactors = psInfoBase->scaleFactors[ch];
+
+  psInfoBase->intensityUsed[ch] = 0;
+  psInfoBase->pnsUsed[ch] = 0;
+  int gbMask = 0;
+  for (int gp = 0; gp < icsInfo->numWinGroup; gp++) {
+    for (int win = 0; win < icsInfo->winGroupLen[gp]; win++) {
+      for (int sfb = 0; sfb < icsInfo->maxSFB; sfb++) {
+        // dequantize one scalefactor band (not necessary if codebook is intensity or PNS)
+        // for zero codebook, still run dequantizer in case non-zero pulse data was added
+        int cb = (int)(sfbCodeBook[sfb]);
+        int width = sfbTab[sfb+1] - sfbTab[sfb];
+        if (cb >= 0 && cb <= 11)
+          gbMask |= DequantBlock(coef, width, scaleFactors[sfb]);
+        else if (cb == 13)
+          psInfoBase->pnsUsed[ch] = 1;
+        else if (cb == 14 || cb == 15)
+          psInfoBase->intensityUsed[ch] = 1; // should only happen if ch == 1
+          coef += width;
+        }
+      coef += (nSamps - sfbTab[icsInfo->maxSFB]);
+      }
+    sfbCodeBook += icsInfo->maxSFB;
+    scaleFactors += icsInfo->maxSFB;
+    }
+
+  // set flag if PNS used for any channel
+  pnsUsed |= psInfoBase->pnsUsed[ch];
+
+  // calculate number of guard bits in dequantized data
+  psInfoBase->gbCurrent[ch] = countLeadingZeros (gbMask) - 1;
+  }
+//}}}
+//{{{  apply stereo utils
+//{{{
+/**************************************************************************************
+ * Function:    StereoProcessGroup
+ * Description: apply mid-side and intensity stereo to group of transform coefficients
+ * Inputs:      dequantized transform coefficients for both channels
+ *              pointer to appropriate scalefactor band table
+ *              mid-side mask enabled flag
+ *              buffer with mid-side mask (one bit for each scalefactor band)
+ *              bit offset into mid-side mask buffer
+ *              max coded scalefactor band
+ *              buffer of codebook indices for right channel
+ *              buffer of scalefactors for right channel, range = [0, 256]
+ * Outputs:     updated transform coefficients in Q(FBITS_OUT_DQ_OFF)
+ *              updated minimum guard bit count for both channels
+ * Return:      none
+ * Notes:       assume no guard bits in input
+ *              gains 0 int bits
+ **************************************************************************************/
+void StereoProcessGroup (int* coefL, int* coefR, const short* sfbTab,
+                int msMaskPres, uint8_t *msMaskPtr, int msMaskOffset, int maxSFB,
+                uint8_t *cbRight, short *sfRight, int *gbCurrent) {
+
+  int sfb, width, cbIdx, sf, cl, cr, scalef, scalei;
+  int gbMaskL, gbMaskR;
+  uint8_t msMask;
+
+  msMask = (*msMaskPtr++) >> msMaskOffset;
+  gbMaskL = 0;
+  gbMaskR = 0;
+
+  for (sfb = 0; sfb < maxSFB; sfb++) {
+    width = sfbTab[sfb+1] - sfbTab[sfb];  /* assume >= 0 (see sfBandTabLong/sfBandTabShort) */
+    cbIdx = cbRight[sfb];
+
+    if (cbIdx == 14 || cbIdx == 15) {
+      /* intensity stereo */
+      if (msMaskPres == 1 && (msMask & 0x01))
+        cbIdx ^= 0x01;        /* invert_intensity(): 14 becomes 15, or 15 becomes 14 */
+      sf = -sfRight[sfb];     /* negative since we use identity 0.5^(x) = 2^(-x) (see spec) */
+      cbIdx &= 0x01;          /* choose - or + scale factor */
+      scalef = pow142[cbIdx][sf & 0x03];
+      scalei = (sf >> 2) + 2;     /* +2 to compensate for scalef = Q30 */
+
+      if (scalei > 0) {
+        if (scalei > 30)
+          scalei = 30;
+        do {
+          cr = MULSHIFT32(*coefL++, scalef);
+          CLIP_2N(cr, 31-scalei);
+          cr <<= scalei;
+          gbMaskR |= FASTABS (cr);
+          *coefR++ = cr;
+        } while (--width);
+      } else {
+        scalei = -scalei;
+        if (scalei > 31)
+          scalei = 31;
+        do {
+          cr = MULSHIFT32(*coefL++, scalef) >> scalei;
+          gbMaskR |= FASTABS (cr);
+          *coefR++ = cr;
+        } while (--width);
+      }
+    } else if ( cbIdx != 13 && ((msMaskPres == 1 && (msMask & 0x01)) || msMaskPres == 2) ) {
+      /* mid-side stereo (assumes no GB in inputs) */
+      do {
+        cl = *coefL;
+        cr = *coefR;
+
+        if ( (FASTABS (cl) | FASTABS (cr)) >> 30 ) {
+          /* avoid overflow (rare) */
+          cl >>= 1;
+          sf = cl + (cr >> 1);  CLIP_2N(sf, 30);  sf <<= 1;
+          cl = cl - (cr >> 1);  CLIP_2N(cl, 30);  cl <<= 1;
+        } else {
+          /* usual case */
+          sf = cl + cr;
+          cl -= cr;
+        }
+
+        *coefL++ = sf;
+        gbMaskL |= FASTABS (sf);
+        *coefR++ = cl;
+        gbMaskR |= FASTABS (cl);
+      } while (--width);
+
+    } else {
+      /* nothing to do */
+      coefL += width;
+      coefR += width;
+    }
+
+    /* get next mask bit (should be branchless on ARM) */
+    msMask >>= 1;
+    if (++msMaskOffset == 8) {
+      msMask = *msMaskPtr++;
+      msMaskOffset = 0;
+    }
+  }
+
+  cl = countLeadingZeros (gbMaskL) - 1;
+  if (gbCurrent[0] > cl)
+    gbCurrent[0] = cl;
+
+  cr = countLeadingZeros (gbMaskR) - 1;
+  if (gbCurrent[1] > cr)
+    gbCurrent[1] = cr;
+
+  return;
+}
+//}}}
+//}}}
+//{{{
+void cAacDecoder::applyStereoProcess() {
+/**************************************************************************************
+ * Description: apply mid-side and intensity stereo, if enabled
+ * Outputs:     updated transform coefficients in Q(FBITS_OUT_DQ_OFF)
+ *              updated minimum guard bit count for both channels
+ **************************************************************************************/
+
+  // mid-side and intensity stereo require common_window == 1 (see MPEG4 spec, Correction 2, 2004)
+  if (psInfoBase->commonWin != 1 || currBlockID != AAC_ID_CPE)
+    return;
+
+  // nothing to do
+  if (!psInfoBase->msMaskPresent && !psInfoBase->intensityUsed[1])
+    return;
+
+  int nSamps;
+  const short* sfbTab;
+  ICSInfo* icsInfo = &(psInfoBase->icsInfo[0]);
+  if (icsInfo->winSequence == 2) {
+    sfbTab = sfBandTabShort + sfBandTabShortOffset[psInfoBase->sampRateIdx];
+    nSamps = NSAMPS_SHORT;
+    }
+  else {
+    sfbTab = sfBandTabLong + sfBandTabLongOffset[psInfoBase->sampRateIdx];
+    nSamps = NSAMPS_LONG;
+    }
+  int* coefL = psInfoBase->coef[0];
+  int* coefR = psInfoBase->coef[1];
+
+  // do fused mid-side/intensity processing for each block (one long or eight short)
+  int msMaskOffset = 0;
+  uint8_t* msMaskPtr = psInfoBase->msMaskBits;
+  for (int gp = 0; gp < icsInfo->numWinGroup; gp++) {
+    for (int win = 0; win < icsInfo->winGroupLen[gp]; win++) {
+      StereoProcessGroup(coefL, coefR, sfbTab, psInfoBase->msMaskPresent,
+        msMaskPtr, msMaskOffset, icsInfo->maxSFB, psInfoBase->sfbCodeBook[1] + gp*icsInfo->maxSFB,
+        psInfoBase->scaleFactors[1] + gp*icsInfo->maxSFB, psInfoBase->gbCurrent);
+      coefL += nSamps;
+      coefR += nSamps;
+      }
+
+    // we use one bit per sfb, so there are maxSFB bits for each window group
+    msMaskPtr += (msMaskOffset + icsInfo->maxSFB) >> 3;
+    msMaskOffset = (msMaskOffset + icsInfo->maxSFB) & 0x07;
+    }
+
+  cLog::log (LOGINFO2, "applyStereo");
+  }
+//}}}
+//{{{  apply pns utils
+#define NUM_ITER_INVSQRT  4
+#define X0_COEF_2 0xc0000000  /* Q29: -2.0 */
+#define X0_OFF_2  0x60000000  /* Q29:  3.0 */
+#define Q26_3   0x0c000000  /* Q26:  3.0 */
+
+//{{{
+/**************************************************************************************
+ * Function:    InvRootR
+ *
+ * Description: use Newton's method to solve for x = 1/sqrt(r)
+ *
+ * Inputs:      r in Q30 format, range = [0.25, 1] (normalize inputs to this range)
+ *
+ * Outputs:     none
+ *
+ * Return:      x = Q29, range = (1, 2)
+ *
+ * Notes:       guaranteed to converge and not overflow for any r in this range
+ *
+ *              xn+1  = xn - f(xn)/f'(xn)
+ *              f(x)  = 1/sqrt(r) - x = 0 (find root)
+ *                    = 1/x^2 - r
+ *              f'(x) = -2/x^3
+ *
+ *              so xn+1 = xn/2 * (3 - r*xn^2)
+ *
+ *              NUM_ITER_INVSQRT = 3, maxDiff = 1.3747e-02
+ *              NUM_ITER_INVSQRT = 4, maxDiff = 3.9832e-04
+ **************************************************************************************/
+int InvRootR (int r)
+{
+  int i, xn, t;
+
+  /* use linear equation for initial guess
+   * x0 = -2*r + 3 (so x0 always >= correct answer in range [0.25, 1))
+   * xn = Q29 (at every step)
+   */
+  xn = (MULSHIFT32(r, X0_COEF_2) << 2) + X0_OFF_2;
+
+  for (i = 0; i < NUM_ITER_INVSQRT; i++) {
+    t = MULSHIFT32(xn, xn);         /* Q26 = Q29*Q29 */
+    t = Q26_3 - (MULSHIFT32(r, t) << 2);  /* Q26 = Q26 - (Q31*Q26 << 1) */
+    xn = MULSHIFT32(xn, t) << (6 - 1);    /* Q29 = (Q29*Q26 << 6), and -1 for division by 2 */
+  }
+
+  /* clip to range (1.0, 2.0)
+   * (because of rounding, this can converge to xn slightly > 2.0 when r is near 0.25)
+   */
+  if (xn >> 30)
+    xn = (1 << 30) - 1;
+
+  return xn;
+}
+//}}}
+//{{{
+/**************************************************************************************
+ * Function:    Get32BitVal
+ *
+ * Description: generate 32-bit unsigned random number
+ *
+ * Inputs:      last number calculated (seed, first time through)
+ *
+ * Outputs:     new number, saved in *last
+ *
+ * Return:      32-bit number, uniformly distributed between [0, 2^32)
+ *
+ * Notes:       uses simple linear congruential generator
+ **************************************************************************************/
+unsigned int Get32BitVal (unsigned int *last)
+{
+  unsigned int r = *last;
+
+  /* use same coefs as MPEG reference code (classic LCG)
+   * use unsigned multiply to force reliable wraparound behavior in C (mod 2^32)
+   */
+  r = (1664525U * r) + 1013904223U;
+  *last = r;
+
+  return r;
+}
+
+//}}}
+//{{{
+/**************************************************************************************
+ * Function:    ScaleNoiseVector
+ *
+ * Description: apply scaling to vector of noise coefficients for one scalefactor band
+ *
+ * Inputs:      unscaled coefficients
+ *              number of coefficients in vector (one scalefactor band of coefs)
+ *              scalefactor for this band (i.e. noise energy)
+ *
+ * Outputs:     nVals coefficients in Q(FBITS_OUT_DQ_OFF)
+ *
+ * Return:      guard bit mask (OR of abs value of all noise coefs)
+ **************************************************************************************/
+int ScaleNoiseVector (int *coef, int nVals, int sf)
+{
+
+  int i, c, spec, energy, sq, scalef, scalei, invSqrtEnergy, z, gbMask;
+  energy = 0;
+  for (i = 0; i < nVals; i++) {
+    spec = coef[i];
+
+    /* max nVals = max SFB width = 96, so energy can gain < 2^7 bits in accumulation */
+    sq = (spec * spec) >> 8;    /* spec*spec range = (-2^30, 2^30) */
+    energy += sq;
+  }
+
+  /* unless nVals == 1 (or the number generator is broken...), this should not happen */
+  if (energy == 0)
+    return 0; /* coef[i] must = 0 for i = [0, nVals-1], so gbMask = 0 */
+
+  /* pow(2, sf/4) * pow(2, FBITS_OUT_DQ_OFF) */
+  scalef = pow14[sf & 0x3];
+  scalei = (sf >> 2) + FBITS_OUT_DQ_OFF;
+
+  /* energy has implied factor of 2^-8 since we shifted the accumulator
+   * normalize energy to range [0.25, 1.0), calculate 1/sqrt(1), and denormalize
+   *   i.e. divide input by 2^(30-z) and convert to Q30
+   *        output of 1/sqrt(i) now has extra factor of 2^((30-z)/2)
+   *        for energy > 0, z is an even number between 0 and 28
+   * final scaling of invSqrtEnergy:
+   *  2^(15 - z/2) to compensate for implicit 2^(30-z) factor in input
+   *  +4 to compensate for implicit 2^-8 factor in input
+   */
+  z = countLeadingZeros (energy) - 2;          /* energy has at least 2 leading zeros (see acc loop) */
+  z &= 0xfffffffe;            /* force even */
+  invSqrtEnergy = InvRootR(energy << z);  /* energy << z must be in range [0x10000000, 0x40000000] */
+  scalei -= (15 - z/2 + 4);       /* nInt = 1/sqrt(energy) in Q29 */
+
+  /* normalize for final scaling */
+  z = countLeadingZeros (invSqrtEnergy) - 1;
+  invSqrtEnergy <<= z;
+  scalei -= (z - 3 - 2);  /* -2 for scalef, z-3 for invSqrtEnergy */
+  scalef = MULSHIFT32(scalef, invSqrtEnergy); /* scalef (input) = Q30, invSqrtEnergy = Q29 * 2^z */
+  gbMask = 0;
+
+  if (scalei < 0) {
+    scalei = -scalei;
+    if (scalei > 31)
+      scalei = 31;
+    for (i = 0; i < nVals; i++) {
+      c = MULSHIFT32(coef[i], scalef) >> scalei;
+      gbMask |= FASTABS (c);
+      coef[i] = c;
+    }
+  } else {
+    /* for scalei <= 16, no clipping possible (coef[i] is < 2^15 before scaling)
+     * for scalei > 16, just saturate exponent (rare)
+     *   scalef is close to full-scale (since we normalized invSqrtEnergy)
+     * remember, we are just producing noise here
+     */
+    if (scalei > 16)
+      scalei = 16;
+    for (i = 0; i < nVals; i++) {
+      c = MULSHIFT32(coef[i] << scalei, scalef);
+      coef[i] = c;
+      gbMask |= FASTABS (c);
+    }
+  }
+
+  return gbMask;
+}
+//}}}
+//{{{
+/**************************************************************************************
+ * Function:    GenerateNoiseVector
+ *
+ * Description: create vector of noise coefficients for one scalefactor band
+ *
+ * Inputs:      seed for number generator
+ *              number of coefficients to generate
+ *
+ * Outputs:     buffer of nVals coefficients, range = [-2^15, 2^15)
+ *              updated seed for number generator
+ *
+ * Return:      none
+ **************************************************************************************/
+void GenerateNoiseVector (int *coef, int *last, int nVals)
+{
+  int i;
+
+  for (i = 0; i < nVals; i++)
+    coef[i] = ((signed int)Get32BitVal((unsigned int *)last)) >> 16;
+}
+//}}}
+//{{{
+/**************************************************************************************
+ * Function:    CopyNoiseVector
+ *
+ * Description: copy vector of noise coefficients for one scalefactor band from L to R
+ *
+ * Inputs:      buffer of left coefficients
+ *              number of coefficients to copy
+ *
+ * Outputs:     buffer of right coefficients
+ *
+ * Return:      none
+ **************************************************************************************/
+void CopyNoiseVector (int *coefL, int *coefR, int nVals)
+{
+  int i;
+
+  for (i = 0; i < nVals; i++)
+    coefR[i] = coefL[i];
+}
+//}}}
+//}}}
+//{{{
+void cAacDecoder::applyPns (int ch) {
+/**************************************************************************************
+ * Description: apply perceptual noise substitution, if enabled (MPEG-4 only)
+ * Inputs:      index of current channel
+ * Outputs:     shaped noise in scalefactor bands where PNS is active
+ *              updated minimum guard bit count for this channel
+ **************************************************************************************/
+
+  if (!psInfoBase->pnsUsed[ch])
+    return;
+
+  int nSamps;
+  const short* sfbTab;
+  ICSInfo* icsInfo = (ch == 1 && psInfoBase->commonWin == 1) ? &(psInfoBase->icsInfo[0]) : &(psInfoBase->icsInfo[ch]);
+  if (icsInfo->winSequence == 2) {
+    sfbTab = sfBandTabShort + sfBandTabShortOffset[psInfoBase->sampRateIdx];
+    nSamps = NSAMPS_SHORT;
+    }
+  else {
+    sfbTab = sfBandTabLong + sfBandTabLongOffset[psInfoBase->sampRateIdx];
+    nSamps = NSAMPS_LONG;
+    }
+  int* coef = psInfoBase->coef[ch];
+
+  uint8_t* sfbCodeBook = psInfoBase->sfbCodeBook[ch];
+  short* scaleFactors = psInfoBase->scaleFactors[ch];
+  int checkCorr = (currBlockID == AAC_ID_CPE && psInfoBase->commonWin == 1 ? 1 : 0);
+
+  int gbMask = 0;
+  for (int gp = 0; gp < icsInfo->numWinGroup; gp++) {
+    for (int win = 0; win < icsInfo->winGroupLen[gp]; win++) {
+      uint8_t* msMaskPtr = psInfoBase->msMaskBits + ((gp*icsInfo->maxSFB) >> 3);
+      int msMaskOffset = ((gp*icsInfo->maxSFB) & 0x07);
+      uint8_t msMask = (*msMaskPtr++) >> msMaskOffset;
+
+      for (int sfb = 0; sfb < icsInfo->maxSFB; sfb++) {
+        int width = sfbTab[sfb+1] - sfbTab[sfb];
+        if (sfbCodeBook[sfb] == 13) {
+          if (ch == 0) {
+            // generate new vector, copy into ch 1 if it's possible that the channels will be correlated
+            // if ch 1 has PNS enabled for this SFB but it's uncorrelated (i.e. ms_used == 0),
+            // the copied values will be overwritten when we process ch 1
+            GenerateNoiseVector (coef, &psInfoBase->pnsLastVal, width);
+            if (checkCorr && psInfoBase->sfbCodeBook[1][gp*icsInfo->maxSFB + sfb] == 13)
+              CopyNoiseVector (coef, psInfoBase->coef[1] + (coef - psInfoBase->coef[0]), width);
+            }
+          else {
+            // generate new vector if no correlation between channels
+            int genNew = 1;
+            if (checkCorr && psInfoBase->sfbCodeBook[0][gp*icsInfo->maxSFB + sfb] == 13) {
+              if ( (psInfoBase->msMaskPresent == 1 && (msMask & 0x01)) || psInfoBase->msMaskPresent == 2 )
+                genNew = 0;
+              }
+            if (genNew)
+              GenerateNoiseVector (coef, &psInfoBase->pnsLastVal, width);
+            }
+          gbMask |= ScaleNoiseVector (coef, width, psInfoBase->scaleFactors[ch][gp*icsInfo->maxSFB + sfb]);
+          }
+        coef += width;
+
+        // get next mask bit (should be branchless on ARM)
+        msMask >>= 1;
+        if (++msMaskOffset == 8) {
+          msMask = *msMaskPtr++;
+          msMaskOffset = 0;
+          }
+        }
+      coef += (nSamps - sfbTab[icsInfo->maxSFB]);
+      }
+    sfbCodeBook += icsInfo->maxSFB;
+    scaleFactors += icsInfo->maxSFB;
+    }
+
+  // update guard bit count if necessary
+  int gb = countLeadingZeros (gbMask) - 1;
+  if (psInfoBase->gbCurrent[ch] > gb)
+    psInfoBase->gbCurrent[ch] = gb;
+
+  cLog::log (LOGINFO2, "applyPns %d", ch);
+  }
+//}}}
+//{{{  apply tns utils
+#define FBITS_LPC_COEFS 20
+//{{{
+void DecodeLPCCoefs (int order, int res, int8_t* filtCoef, int* a, int* b) {
+/**************************************************************************************
+ * Description: decode LPC coefficients for TNS
+ * Inputs:      order of TNS filter
+ *              resolution of coefficients (3 or 4 bits)
+ *              coefficients unpacked from bitstream
+ *              scratch buffer (b) of size >= order
+ * Outputs:     LPC coefficients in Q(FBITS_LPC_COEFS), in 'a'
+ * Return:      none
+ * Notes:       assumes no guard bits in input transform coefficients
+ *              a[i] = Q(FBITS_LPC_COEFS), don't store a0 = 1.0
+ *                (so a[0] = first delay tap, etc.)
+ *              max abs(a[i]) < log2(order), so for max order = 20 a[i] < 4.4
+ *                (up to 3 bits of gain) so a[i] has at least 31 - FBITS_LPC_COEFS - 3
+ *                guard bits
+ *              to ensure no intermediate overflow in all-pole filter, set
+ *                FBITS_LPC_COEFS such that number of guard bits >= log2(max order)
+ **************************************************************************************/
+
+  const int* invQuantTab;
+  if (res == 3)
+    invQuantTab = invQuant3;
+  else if (res == 4)
+    invQuantTab = invQuant4;
+  else
+    return;
+
+  for (int m = 0; m < order; m++) {
+    int t = invQuantTab[filtCoef[m] & 0x0f];  /* t = Q31 */
+    for (int i = 0; i < m; i++)
+      b[i] = a[i] - (MULSHIFT32(t, a[m-i-1]) << 1);
+    for (int i = 0; i < m; i++)
+      a[i] = b[i];
+    a[m] = t >> (31 - FBITS_LPC_COEFS);
+    }
+  }
+//}}}
+//{{{
+int FilterRegion (int size, int dir, int order, int* audioCoef, int* a, int* hist) {
+/**************************************************************************************
+ * Description: apply LPC filter to one region of coefficients
+ * Inputs:      number of transform coefficients in this region
+ *              direction flag (forward = 1, backward = -1)
+ *              order of filter
+ *              'size' transform coefficients
+ *              'order' LPC coefficients in Q(FBITS_LPC_COEFS)
+ *              scratch buffer for history (must be >= order samples long)
+ * Outputs:     filtered transform coefficients
+ * Return:      guard bit mask (OR of abs value of all filtered transform coefs)
+ * Notes:       assumes no guard bits in input transform coefficients
+ *              gains 0 int bits
+ *              history buffer does not need to be preserved between regions
+ **************************************************************************************/
+
+  int i, j, y, hi32, inc, gbMask;
+  U64 sum64;
+
+  // init history to 0 every time */
+  for (i = 0; i < order; i++)
+    hist[i] = 0;
+
+  sum64.w64 = 0;     /* avoid warning */
+  gbMask = 0;
+  inc = (dir ? -1 : 1);
+  do {
+    // sum64 = a0*y[n] = 1.0*y[n] */
+    y = *audioCoef;
+    sum64.r.hi32 = y >> (32 - FBITS_LPC_COEFS);
+    sum64.r.lo32 = y << FBITS_LPC_COEFS;
+
+    // sum64 += (a1*y[n-1] + a2*y[n-2] + ... + a[order-1]*y[n-(order-1)]) */
+    for (j = order - 1; j > 0; j--) {
+      sum64.w64 = MADD64(sum64.w64, hist[j], a[j]);
+      hist[j] = hist[j-1];
+      }
+    sum64.w64 = MADD64(sum64.w64, hist[0], a[0]);
+    y = (sum64.r.hi32 << (32 - FBITS_LPC_COEFS)) | (sum64.r.lo32 >> FBITS_LPC_COEFS);
+
+    /* clip output (rare) */
+    hi32 = sum64.r.hi32;
+    if ((hi32 >> 31) != (hi32 >> (FBITS_LPC_COEFS-1)))
+      y = (hi32 >> 31) ^ 0x7fffffff;
+
+    hist[0] = y;
+    *audioCoef = y;
+    audioCoef += inc;
+    gbMask |= FASTABS (y);
+   } while (--size);
+
+  return gbMask;
+  }
+//}}}
+//}}}
+//{{{
+void cAacDecoder::applyTns (int ch) {
+/**************************************************************************************
+ * Description: apply temporal noise shaping, if enabled
+ * Inputs:       index of current channel
+ * Outputs:     updated transform coefficients
+ *              updated minimum guard bit count for this channel
+ **************************************************************************************/
+
+  ICSInfo* icsInfo = (ch == 1 && psInfoBase->commonWin == 1) ? &(psInfoBase->icsInfo[0]) : &(psInfoBase->icsInfo[ch]);
+  TNSInfo* ti = &psInfoBase->tnsInfo[ch];
+  if (!ti->tnsDataPresent)
+    return;
+
+  const short* sfbTab;
+  const uint8_t* tnsMaxBandTab;
+  int winLen, nWindows, nSFB, maxOrder, tnsMaxBand, numFilt;
+  if (icsInfo->winSequence == 2) {
+    nWindows = NWINDOWS_SHORT;
+    winLen = NSAMPS_SHORT;
+    nSFB = sfBandTotalShort[psInfoBase->sampRateIdx];
+    maxOrder = tnsMaxOrderShort[profile];
+    sfbTab = sfBandTabShort + sfBandTabShortOffset[psInfoBase->sampRateIdx];
+    tnsMaxBandTab = tnsMaxBandsShort + tnsMaxBandsShortOffset[profile];
+    tnsMaxBand = tnsMaxBandTab[psInfoBase->sampRateIdx];
+    }
+  else {
+    nWindows = NWINDOWS_LONG;
+    winLen = NSAMPS_LONG;
+    nSFB = sfBandTotalLong[psInfoBase->sampRateIdx];
+    maxOrder = tnsMaxOrderLong[profile];
+    sfbTab = sfBandTabLong + sfBandTabLongOffset[psInfoBase->sampRateIdx];
+    tnsMaxBandTab = tnsMaxBandsLong + tnsMaxBandsLongOffset[profile];
+    tnsMaxBand = tnsMaxBandTab[psInfoBase->sampRateIdx];
+    }
+
+  if (tnsMaxBand > icsInfo->maxSFB)
+    tnsMaxBand = icsInfo->maxSFB;
+
+  uint8_t* filtRes = ti->coefRes;
+  uint8_t* filtLength = ti->length;
+  uint8_t* filtOrder = ti->order;
+  uint8_t* filtDir = ti->dir;
+  int8_t* filtCoef = ti->coef;
+
+  int gbMask = 0;
+  int* audioCoef = psInfoBase->coef[ch];
+  for (int win = 0; win < nWindows; win++) {
+    int bottom = nSFB;
+    numFilt = ti->numFilt[win];
+    for (int filt = 0; filt < numFilt; filt++) {
+      int top = bottom;
+      bottom = top - *filtLength++;
+      bottom = std::max (bottom, 0);
+      int order = *filtOrder++;
+      order = std::min (order, maxOrder);
+
+      if (order) {
+        int start = sfbTab[std::min (bottom, tnsMaxBand)];
+        int end   = sfbTab[std::min (top, tnsMaxBand)];
+        int size = end - start;
+        if (size > 0) {
+          int dir = *filtDir++;
+          if (dir)
+            start = end - 1;
+
+          DecodeLPCCoefs (order, filtRes[win], filtCoef, psInfoBase->tnsLPCBuf, psInfoBase->tnsWorkBuf);
+          gbMask |= FilterRegion (size, dir, order, audioCoef + start, psInfoBase->tnsLPCBuf, psInfoBase->tnsWorkBuf);
+          }
+        filtCoef += order;
+        }
+      }
+    audioCoef += winLen;
+    }
+
+  // update guard bit count if necessary
+  int size = countLeadingZeros (gbMask) - 1;
+  if (psInfoBase->gbCurrent[ch] > size)
+    psInfoBase->gbCurrent[ch] = size;
+
+  cLog::log (LOGINFO2, "applyTns %d", ch);
+  }
+//}}}
+//{{{  imdct utils
+#define SQRT1_2 0x5a82799a  /* sqrt(1/2) in Q31 */
+#define swapcplx(p0,p1) t = p0; t1 = *(&(p0)+1); p0 = p1; *(&(p0)+1) = *(&(p1)+1); p1 = t; *(&(p1)+1) = t1
+
+//{{{
+/**************************************************************************************
+ * Function:    BitReverse
+ *
+ * Description: Ken's fast in-place bit reverse, using super-small table
+ *
+ * Inputs:      buffer of samples
+ *              table index (for transform size)
+ *
+ * Outputs:     bit-reversed samples in same buffer
+ *
+ * Return:      none
+ **************************************************************************************/
+ void BitReverse (int* inout, int tabidx)
+{
+  int *part0, *part1;
+  int a,b, t,t1;
+  const uint8_t* tab = bitrevtab + bitrevtabOffset[tabidx];
+  uint8_t nbits = nfftlog2Tab[tabidx];
+
+  part0 = inout;
+  part1 = inout + nfftTab[tabidx];
+
+  while ((a = (*(const uint8_t*)(tab++))) != 0) {
+    b = (*(const uint8_t*)(tab++));
+    swapcplx(part0[4*a+0], part0[4*b+0]); /* 0xxx0 <-> 0yyy0 */
+    swapcplx(part0[4*a+2], part1[4*b+0]); /* 0xxx1 <-> 1yyy0 */
+    swapcplx(part1[4*a+0], part0[4*b+2]); /* 1xxx0 <-> 0yyy1 */
+    swapcplx(part1[4*a+2], part1[4*b+2]); /* 1xxx1 <-> 1yyy1 */
+    }
+
+  do {
+    swapcplx(part0[4*a+2], part1[4*a+0]); /* 0xxx1 <-> 1xxx0 */
+    } while ((a =(*(const uint8_t*)(tab++))) != 0);
+}
+//}}}
+//{{{
+/**************************************************************************************
+ * Function:    R4FirstPass
+ *
+ * Description: radix-4 trivial pass for decimation-in-time FFT
+ *
+ * Inputs:      buffer of (bit-reversed) samples
+ *              number of R4 butterflies per group (i.e. nfft / 4)
+ *
+ * Outputs:     processed samples in same buffer
+ *
+ * Return:      none
+ *
+ * Notes:       assumes 2 guard bits, gains no integer bits,
+ *                guard bits out = guard bits in - 2
+ **************************************************************************************/
+ void R4FirstPass (int* x, int bg)
+{
+    int ar, ai, br, bi, cr, ci, dr, di;
+
+  for (; bg != 0; bg--) {
+
+    ar = x[0] + x[2];
+    br = x[0] - x[2];
+    ai = x[1] + x[3];
+    bi = x[1] - x[3];
+    cr = x[4] + x[6];
+    dr = x[4] - x[6];
+    ci = x[5] + x[7];
+    di = x[5] - x[7];
+
+    /* max per-sample gain = 4.0 (adding 4 inputs together) */
+    x[0] = ar + cr;
+    x[4] = ar - cr;
+    x[1] = ai + ci;
+    x[5] = ai - ci;
+    x[2] = br + di;
+    x[6] = br - di;
+    x[3] = bi - dr;
+    x[7] = bi + dr;
+
+    x += 8;
+  }
+}
+//}}}
+//{{{
+/**************************************************************************************
+ * Function:    R8FirstPass
+ *
+ * Description: radix-8 trivial pass for decimation-in-time FFT
+ *
+ * Inputs:      buffer of (bit-reversed) samples
+ *              number of R8 butterflies per group (i.e. nfft / 8)
+ *
+ * Outputs:     processed samples in same buffer
+ *
+ * Return:      none
+ *
+ * Notes:       assumes 3 guard bits, gains 1 integer bit
+ *              guard bits out = guard bits in - 3 (if inputs are full scale)
+ *                or guard bits in - 2 (if inputs bounded to +/- sqrt(2)/2)
+ *              see scaling comments in code
+ **************************************************************************************/
+ void R8FirstPass (int* x, int bg)
+{
+    int ar, ai, br, bi, cr, ci, dr, di;
+  int sr, si, tr, ti, ur, ui, vr, vi;
+  int wr, wi, xr, xi, yr, yi, zr, zi;
+
+  for (; bg != 0; bg--) {
+
+    ar = x[0] + x[2];
+    br = x[0] - x[2];
+    ai = x[1] + x[3];
+    bi = x[1] - x[3];
+    cr = x[4] + x[6];
+    dr = x[4] - x[6];
+    ci = x[5] + x[7];
+    di = x[5] - x[7];
+
+    sr = ar + cr;
+    ur = ar - cr;
+    si = ai + ci;
+    ui = ai - ci;
+    tr = br - di;
+    vr = br + di;
+    ti = bi + dr;
+    vi = bi - dr;
+
+    ar = x[ 8] + x[10];
+    br = x[ 8] - x[10];
+    ai = x[ 9] + x[11];
+    bi = x[ 9] - x[11];
+    cr = x[12] + x[14];
+    dr = x[12] - x[14];
+    ci = x[13] + x[15];
+    di = x[13] - x[15];
+
+    /* max gain of wr/wi/yr/yi vs input = 2
+     *  (sum of 4 samples >> 1)
+     */
+    wr = (ar + cr) >> 1;
+    yr = (ar - cr) >> 1;
+    wi = (ai + ci) >> 1;
+    yi = (ai - ci) >> 1;
+
+    /* max gain of output vs input = 4
+     *  (sum of 4 samples >> 1 + sum of 4 samples >> 1)
+     */
+    x[ 0] = (sr >> 1) + wr;
+    x[ 8] = (sr >> 1) - wr;
+    x[ 1] = (si >> 1) + wi;
+    x[ 9] = (si >> 1) - wi;
+    x[ 4] = (ur >> 1) + yi;
+    x[12] = (ur >> 1) - yi;
+    x[ 5] = (ui >> 1) - yr;
+    x[13] = (ui >> 1) + yr;
+
+    ar = br - di;
+    cr = br + di;
+    ai = bi + dr;
+    ci = bi - dr;
+
+    /* max gain of xr/xi/zr/zi vs input = 4*sqrt(2)/2 = 2*sqrt(2)
+     *  (sum of 8 samples, multiply by sqrt(2)/2, implicit >> 1 from Q31)
+     */
+    xr = MULSHIFT32(SQRT1_2, ar - ai);
+    xi = MULSHIFT32(SQRT1_2, ar + ai);
+    zr = MULSHIFT32(SQRT1_2, cr - ci);
+    zi = MULSHIFT32(SQRT1_2, cr + ci);
+
+    /* max gain of output vs input = (2 + 2*sqrt(2) ~= 4.83)
+     *  (sum of 4 samples >> 1, plus xr/xi/zr/zi with gain of 2*sqrt(2))
+     * in absolute terms, we have max gain of appx 9.656 (4 + 0.707*8)
+     *  but we also gain 1 int bit (from MULSHIFT32 or from explicit >> 1)
+     */
+    x[ 6] = (tr >> 1) - xr;
+    x[14] = (tr >> 1) + xr;
+    x[ 7] = (ti >> 1) - xi;
+    x[15] = (ti >> 1) + xi;
+    x[ 2] = (vr >> 1) + zi;
+    x[10] = (vr >> 1) - zi;
+    x[ 3] = (vi >> 1) - zr;
+    x[11] = (vi >> 1) + zr;
+
+    x += 16;
+  }
+}
+//}}}
+//{{{
+/**************************************************************************************
+ * Function:    R4Core
+ *
+ * Description: radix-4 pass for decimation-in-time FFT
+ *
+ * Inputs:      buffer of samples
+ *              number of R4 butterflies per group
+ *              number of R4 groups per pass
+ *              pointer to twiddle factors tables
+ *
+ * Outputs:     processed samples in same buffer
+ *
+ * Return:      none
+ *
+ * Notes:       gain 2 integer bits per pass (see scaling comments in code)
+ *              min 1 GB in
+ *              gbOut = gbIn - 1 (short block) or gbIn - 2 (long block)
+ *              uses 3-mul, 3-add butterflies instead of 4-mul, 2-add
+ **************************************************************************************/
+ void R4Core (int* x, int bg, int gp, int* wtab)
+{
+  int ar, ai, br, bi, cr, ci, dr, di, tr, ti;
+  int wd, ws, wi;
+  int i, j, step;
+  int *xptr, *wptr;
+
+  for (; bg != 0; gp <<= 2, bg >>= 2) {
+
+    step = 2*gp;
+    xptr = x;
+
+    /* max per-sample gain, per group < 1 + 3*sqrt(2) ~= 5.25 if inputs x are full-scale
+     * do 3 groups for long block, 2 groups for short block (gain 2 int bits per group)
+     *
+     * very conservative scaling:
+     *   group 1: max gain = 5.25,           int bits gained = 2, gb used = 1 (2^3 = 8)
+     *   group 2: max gain = 5.25^2 = 27.6,  int bits gained = 4, gb used = 1 (2^5 = 32)
+     *   group 3: max gain = 5.25^3 = 144.7, int bits gained = 6, gb used = 2 (2^8 = 256)
+     */
+    for (i = bg; i != 0; i--) {
+
+      wptr = wtab;
+
+      for (j = gp; j != 0; j--) {
+
+        ar = xptr[0];
+        ai = xptr[1];
+        xptr += step;
+
+        /* gain 2 int bits for br/bi, cr/ci, dr/di (MULSHIFT32 by Q30)
+         * gain 1 net GB
+         */
+        ws = wptr[0];
+        wi = wptr[1];
+        br = xptr[0];
+        bi = xptr[1];
+        wd = ws + 2*wi;
+        tr = MULSHIFT32(wi, br + bi);
+        br = MULSHIFT32(wd, br) - tr; /* cos*br + sin*bi */
+        bi = MULSHIFT32(ws, bi) + tr; /* cos*bi - sin*br */
+        xptr += step;
+
+        ws = wptr[2];
+        wi = wptr[3];
+        cr = xptr[0];
+        ci = xptr[1];
+        wd = ws + 2*wi;
+        tr = MULSHIFT32(wi, cr + ci);
+        cr = MULSHIFT32(wd, cr) - tr;
+        ci = MULSHIFT32(ws, ci) + tr;
+        xptr += step;
+
+        ws = wptr[4];
+        wi = wptr[5];
+        dr = xptr[0];
+        di = xptr[1];
+        wd = ws + 2*wi;
+        tr = MULSHIFT32(wi, dr + di);
+        dr = MULSHIFT32(wd, dr) - tr;
+        di = MULSHIFT32(ws, di) + tr;
+        wptr += 6;
+
+        tr = ar;
+        ti = ai;
+        ar = (tr >> 2) - br;
+        ai = (ti >> 2) - bi;
+        br = (tr >> 2) + br;
+        bi = (ti >> 2) + bi;
+
+        tr = cr;
+        ti = ci;
+        cr = tr + dr;
+        ci = di - ti;
+        dr = tr - dr;
+        di = di + ti;
+
+        xptr[0] = ar + ci;
+        xptr[1] = ai + dr;
+        xptr -= step;
+        xptr[0] = br - cr;
+        xptr[1] = bi - di;
+        xptr -= step;
+        xptr[0] = ar - ci;
+        xptr[1] = ai - dr;
+        xptr -= step;
+        xptr[0] = br + cr;
+        xptr[1] = bi + di;
+        xptr += 2;
+      }
+      xptr += 3*step;
+    }
+    wtab += 3*step;
+  }
+}
+//}}}
+
+//{{{
+/**************************************************************************************
+ * Function:    R4FFT
+ *
+ * Description: Ken's very fast in-place radix-4 decimation-in-time FFT
+ *
+ * Inputs:      table index (for transform size)
+ *              buffer of samples (non bit-reversed)
+ *
+ * Outputs:     processed samples in same buffer
+ *
+ * Return:      none
+ *
+ * Notes:       assumes 5 guard bits in for nfft <= 512
+ *              gbOut = gbIn - 4 (assuming input is from PreMultiply)
+ *              gains log2(nfft) - 2 int bits total
+ *                so gain 7 int bits (LONG), 4 int bits (SHORT)
+ **************************************************************************************/
+void R4FFT (int tabidx, int* x)
+{
+  int order = nfftlog2Tab[tabidx];
+  int nfft = nfftTab[tabidx];
+
+  /* decimation in time */
+  BitReverse(x, tabidx);
+
+  if (order & 0x1) {
+    /* long block: order = 9, nfft = 512 */
+    R8FirstPass(x, nfft >> 3);            /* gain 1 int bit,  lose 2 GB */
+    R4Core(x, nfft >> 5, 8, (int *)twidTabOdd);   /* gain 6 int bits, lose 2 GB */
+  } else {
+    /* short block: order = 6, nfft = 64 */
+    R4FirstPass(x, nfft >> 2);            /* gain 0 int bits, lose 2 GB */
+    R4Core(x, nfft >> 4, 4, (int *)twidTabEven);  /* gain 4 int bits, lose 1 GB */
+  }
+}
+//}}}
+//{{{
+/**************************************************************************************
+ * Function:    PreMultiply
+ *
+ * Description: pre-twiddle stage of DCT4
+ *
+ * Inputs:      table index (for transform size)
+ *              buffer of nmdct samples
+ *
+ * Outputs:     processed samples in same buffer
+ *
+ * Return:      none
+ *
+ * Notes:       minimum 1 GB in, 2 GB out, gains 5 (short) or 8 (long) frac bits
+ *              i.e. gains 2-7= -5 int bits (short) or 2-10 = -8 int bits (long)
+ *              normalization by -1/N is rolled into tables here (see trigtabs.c)
+ *              uses 3-mul, 3-add butterflies instead of 4-mul, 2-add
+ **************************************************************************************/
+void PreMultiply (int tabidx, int* zbuf1)
+{
+  int i, nmdct, ar1, ai1, ar2, ai2, z1, z2;
+  int t, cms2, cps2a, sin2a, cps2b, sin2b;
+  int *zbuf2;
+  const int *csptr;
+
+  nmdct = nmdctTab[tabidx];
+  zbuf2 = zbuf1 + nmdct - 1;
+  csptr = cos4sin4tab + cos4sin4tabOffset[tabidx];
+
+  /* whole thing should fit in registers - verify that compiler does this */
+  for (i = nmdct >> 2; i != 0; i--) {
+    /* cps2 = (cos+sin), sin2 = sin, cms2 = (cos-sin) */
+    cps2a = *csptr++;
+    sin2a = *csptr++;
+    cps2b = *csptr++;
+    sin2b = *csptr++;
+
+    ar1 = *(zbuf1 + 0);
+    ai2 = *(zbuf1 + 1);
+    ai1 = *(zbuf2 + 0);
+    ar2 = *(zbuf2 - 1);
+
+    /* gain 2 ints bit from MULSHIFT32 by Q30, but drop 7 or 10 int bits from table scaling of 1/M
+     * max per-sample gain (ignoring implicit scaling) = MAX(sin(angle)+cos(angle)) = 1.414
+     * i.e. gain 1 GB since worst case is sin(angle) = cos(angle) = 0.707 (Q30), gain 2 from
+     *   extra sign bits, and eat one in adding
+     */
+    t  = MULSHIFT32(sin2a, ar1 + ai1);
+    z2 = MULSHIFT32(cps2a, ai1) - t;
+    cms2 = cps2a - 2*sin2a;
+    z1 = MULSHIFT32(cms2, ar1) + t;
+    *zbuf1++ = z1;  /* cos*ar1 + sin*ai1 */
+    *zbuf1++ = z2;  /* cos*ai1 - sin*ar1 */
+
+    t  = MULSHIFT32(sin2b, ar2 + ai2);
+    z2 = MULSHIFT32(cps2b, ai2) - t;
+    cms2 = cps2b - 2*sin2b;
+    z1 = MULSHIFT32(cms2, ar2) + t;
+    *zbuf2-- = z2;  /* cos*ai2 - sin*ar2 */
+    *zbuf2-- = z1;  /* cos*ar2 + sin*ai2 */
+  }
+}
+//}}}
+//{{{
+/**************************************************************************************
+ * Function:    PostMultiply
+ *
+ * Description: post-twiddle stage of DCT4
+ *
+ * Inputs:      table index (for transform size)
+ *              buffer of nmdct samples
+ *
+ * Outputs:     processed samples in same buffer
+ *
+ * Return:      none
+ *
+ * Notes:       minimum 1 GB in, 2 GB out - gains 2 int bits
+ *              uses 3-mul, 3-add butterflies instead of 4-mul, 2-add
+ **************************************************************************************/
+void PostMultiply (int tabidx, int* fft1)
+{
+  int i, nmdct, ar1, ai1, ar2, ai2, skipFactor;
+  int t, cms2, cps2, sin2;
+  int *fft2;
+  const int *csptr;
+
+  nmdct = nmdctTab[tabidx];
+  csptr = cos1sin1tab;
+  skipFactor = postSkip[tabidx];
+  fft2 = fft1 + nmdct - 1;
+
+  /* load coeffs for first pass
+   * cps2 = (cos+sin), sin2 = sin, cms2 = (cos-sin)
+   */
+  cps2 = *csptr++;
+  sin2 = *csptr;
+  csptr += skipFactor;
+  cms2 = cps2 - 2*sin2;
+
+  for (i = nmdct >> 2; i != 0; i--) {
+    ar1 = *(fft1 + 0);
+    ai1 = *(fft1 + 1);
+    ar2 = *(fft2 - 1);
+    ai2 = *(fft2 + 0);
+
+    /* gain 2 ints bit from MULSHIFT32 by Q30
+     * max per-sample gain = MAX(sin(angle)+cos(angle)) = 1.414
+     * i.e. gain 1 GB since worst case is sin(angle) = cos(angle) = 0.707 (Q30), gain 2 from
+     *   extra sign bits, and eat one in adding
+     */
+    t = MULSHIFT32(sin2, ar1 + ai1);
+    *fft2-- = t - MULSHIFT32(cps2, ai1);  /* sin*ar1 - cos*ai1 */
+    *fft1++ = t + MULSHIFT32(cms2, ar1);  /* cos*ar1 + sin*ai1 */
+    cps2 = *csptr++;
+    sin2 = *csptr;
+    csptr += skipFactor;
+
+    ai2 = -ai2;
+    t = MULSHIFT32(sin2, ar2 + ai2);
+    *fft2-- = t - MULSHIFT32(cps2, ai2);  /* sin*ar1 - cos*ai1 */
+    cms2 = cps2 - 2*sin2;
+    *fft1++ = t + MULSHIFT32(cms2, ar2);  /* cos*ar1 + sin*ai1 */
+  }
+}
+//}}}
+
+//{{{
+/**************************************************************************************
+ * Function:    PreMultiplyRescale
+ *
+ * Description: pre-twiddle stage of DCT4, with rescaling for extra guard bits
+ *
+ * Inputs:      table index (for transform size)
+ *              buffer of nmdct samples
+ *              number of guard bits to add to input before processing
+ *
+ * Outputs:     processed samples in same buffer
+ *
+ * Return:      none
+ *
+ * Notes:       see notes on PreMultiply(), above
+ **************************************************************************************/
+ void PreMultiplyRescale (int tabidx, int* zbuf1, int es)
+{
+  int i, nmdct, ar1, ai1, ar2, ai2, z1, z2;
+  int t, cms2, cps2a, sin2a, cps2b, sin2b;
+  int *zbuf2;
+  const int *csptr;
+
+  nmdct = nmdctTab[tabidx];
+  zbuf2 = zbuf1 + nmdct - 1;
+  csptr = cos4sin4tab + cos4sin4tabOffset[tabidx];
+
+  /* whole thing should fit in registers - verify that compiler does this */
+  for (i = nmdct >> 2; i != 0; i--) {
+    /* cps2 = (cos+sin), sin2 = sin, cms2 = (cos-sin) */
+    cps2a = *csptr++;
+    sin2a = *csptr++;
+    cps2b = *csptr++;
+    sin2b = *csptr++;
+
+    ar1 = *(zbuf1 + 0) >> es;
+    ai1 = *(zbuf2 + 0) >> es;
+    ai2 = *(zbuf1 + 1) >> es;
+
+    t  = MULSHIFT32(sin2a, ar1 + ai1);
+    z2 = MULSHIFT32(cps2a, ai1) - t;
+    cms2 = cps2a - 2*sin2a;
+    z1 = MULSHIFT32(cms2, ar1) + t;
+    *zbuf1++ = z1;
+    *zbuf1++ = z2;
+
+    ar2 = *(zbuf2 - 1) >> es; /* do here to free up register used for es */
+
+    t  = MULSHIFT32(sin2b, ar2 + ai2);
+    z2 = MULSHIFT32(cps2b, ai2) - t;
+    cms2 = cps2b - 2*sin2b;
+    z1 = MULSHIFT32(cms2, ar2) + t;
+    *zbuf2-- = z2;
+    *zbuf2-- = z1;
+
+  }
+}
+//}}}
+//{{{
+/**************************************************************************************
+ * Function:    PostMultiplyRescale
+ *
+ * Description: post-twiddle stage of DCT4, with rescaling for extra guard bits
+ *
+ * Inputs:      table index (for transform size)
+ *              buffer of nmdct samples
+ *              number of guard bits to remove from output
+ *
+ * Outputs:     processed samples in same buffer
+ *
+ * Return:      none
+ *
+ * Notes:       clips output to [-2^30, 2^30 - 1], guaranteeing at least 1 guard bit
+ *              see notes on PostMultiply(), above
+ **************************************************************************************/
+ void PostMultiplyRescale (int tabidx, int* fft1, int es)
+{
+  int i, nmdct, ar1, ai1, ar2, ai2, skipFactor, z;
+  int t, cs2, sin2;
+  int *fft2;
+  const int *csptr;
+
+  nmdct = nmdctTab[tabidx];
+  csptr = cos1sin1tab;
+  skipFactor = postSkip[tabidx];
+  fft2 = fft1 + nmdct - 1;
+
+  /* load coeffs for first pass
+   * cps2 = (cos+sin), sin2 = sin, cms2 = (cos-sin)
+   */
+  cs2 = *csptr++;
+  sin2 = *csptr;
+  csptr += skipFactor;
+
+  for (i = nmdct >> 2; i != 0; i--) {
+    ar1 = *(fft1 + 0);
+    ai1 = *(fft1 + 1);
+    ai2 = *(fft2 + 0);
+
+    t = MULSHIFT32(sin2, ar1 + ai1);
+    z = t - MULSHIFT32(cs2, ai1);
+    CLIP_2N_SHIFT(z, es);
+    *fft2-- = z;
+    cs2 -= 2*sin2;
+    z = t + MULSHIFT32(cs2, ar1);
+    CLIP_2N_SHIFT(z, es);
+    *fft1++ = z;
+
+    cs2 = *csptr++;
+    sin2 = *csptr;
+    csptr += skipFactor;
+
+    ar2 = *fft2;
+    ai2 = -ai2;
+    t = MULSHIFT32(sin2, ar2 + ai2);
+    z = t - MULSHIFT32(cs2, ai2);
+    CLIP_2N_SHIFT(z, es);
+    *fft2-- = z;
+    cs2 -= 2*sin2;
+    z = t + MULSHIFT32(cs2, ar2);
+    CLIP_2N_SHIFT(z, es);
+    *fft1++ = z;
+    cs2 += 2*sin2;
+  }
+}
+//}}}
+
+//{{{
+/**************************************************************************************
+ * Function:    DCT4
+ *
+ * Description: type-IV DCT
+ *
+ * Inputs:      table index (for transform size)
+ *              buffer of nmdct samples
+ *              number of guard bits in the input buffer
+ *
+ * Outputs:     processed samples in same buffer
+ *
+ * Return:      none
+ *
+ * Notes:       operates in-place
+ *              if number of guard bits in input is < GBITS_IN_DCT4, the input is
+ *                scaled (>>) before the DCT4 and rescaled (<<, with clipping) after
+ *                the DCT4 (rare)
+ *              the output has FBITS_LOST_DCT4 fewer fraction bits than the input
+ *              the output will always have at least 1 guard bit (GBITS_IN_DCT4 >= 4)
+ *              int bits gained per stage (PreMul + FFT + PostMul)
+ *                 short blocks = (-5 + 4 + 2) = 1 total
+ *                 long blocks =  (-8 + 7 + 2) = 1 total
+ **************************************************************************************/
+void DCT4 (int tabidx, int *coef, int gb) {
+/* fast in-place DCT-IV - adds guard bits if necessary */
+
+  if (gb < GBITS_IN_DCT4) {
+    int es = GBITS_IN_DCT4 - gb;
+    PreMultiplyRescale (tabidx, coef, es);
+    R4FFT (tabidx, coef);
+    PostMultiplyRescale (tabidx, coef, es);
+   }
+ else {
+    PreMultiply (tabidx, coef);
+    R4FFT (tabidx, coef);
+    PostMultiply (tabidx, coef);
+    }
+  }
+//}}}
+
+//{{{
+/**************************************************************************************
+ * Function:    DecWindowOverlapNoClip
+ * Description: apply synthesis window, do overlap-add without clipping,
+ *                for winSequence LONG-LONG
+ * Inputs:      input buffer (output of type-IV DCT)
+ *              overlap buffer (saved from last time)
+ *              window type (sin or KBD) for input buffer
+ *              window type (sin or KBD) for overlap buffer
+ * Outputs:     one channel, one frame of 32-bit PCM, non-interleaved
+ * Notes:       use this function when the decoded PCM is going to the SBR decoder
+ **************************************************************************************/
+void DecWindowOverlapNoClip (int* buf0, int* over0, int* out0, int winTypeCurr, int winTypePrev)
+{
+  int in, w0, w1, f0, f1;
+  int *buf1, *over1, *out1;
+  const int *wndPrev, *wndCurr;
+
+  buf0 += (1024 >> 1);
+  buf1  = buf0  - 1;
+  out1  = out0 + 1024 - 1;
+  over1 = over0 + 1024 - 1;
+
+  wndPrev = (winTypePrev == 1 ? kbdWindow + kbdWindowOffset[1] : sinWindow + sinWindowOffset[1]);
+  if (winTypeCurr == winTypePrev) {
+    /* cut window loads in half since current and overlap sections use same symmetric window */
+    do {
+      w0 = *wndPrev++;
+      w1 = *wndPrev++;
+      in = *buf0++;
+
+      f0 = MULSHIFT32(w0, in);
+      f1 = MULSHIFT32(w1, in);
+
+      in = *over0;
+      *out0++ = in - f0;
+
+      in = *over1;
+      *out1-- = in + f1;
+
+      in = *buf1--;
+      *over1-- = MULSHIFT32(w0, in);
+      *over0++ = MULSHIFT32(w1, in);
+    } while (over0 < over1);
+  } else {
+    /* different windows for current and overlap parts - should still fit in registers on ARM w/o stack spill */
+    wndCurr = (winTypeCurr == 1 ? kbdWindow + kbdWindowOffset[1] : sinWindow + sinWindowOffset[1]);
+    do {
+      w0 = *wndPrev++;
+      w1 = *wndPrev++;
+      in = *buf0++;
+
+      f0 = MULSHIFT32(w0, in);
+      f1 = MULSHIFT32(w1, in);
+
+      in = *over0;
+      *out0++ = in - f0;
+
+      in = *over1;
+      *out1-- = in + f1;
+
+      w0 = *wndCurr++;
+      w1 = *wndCurr++;
+      in = *buf1--;
+
+      *over1-- = MULSHIFT32(w0, in);
+      *over0++ = MULSHIFT32(w1, in);
+    } while (over0 < over1);
+  }
+}
+//}}}
+//{{{
+/**************************************************************************************
+ * Function:    DecWindowOverlapLongStart
+ * Description: apply synthesis window, do overlap-add, without clipping
+ *                for winSequence LONG-START
+ * Inputs:      input buffer (output of type-IV DCT)
+ *              overlap buffer (saved from last time)
+ *              window type (sin or KBD) for input buffer
+ *              window type (sin or KBD) for overlap buffer
+ * Outputs:     one channel, one frame of 32-bit PCM, non-interleaved
+ * Notes:       use this function when the decoded PCM is going to the SBR decoder
+ **************************************************************************************/
+void DecWindowOverlapLongStartNoClip (int* buf0, int* over0, int* out0, int winTypeCurr, int winTypePrev)
+{
+  int i,  in, w0, w1, f0, f1;
+  int *buf1, *over1, *out1;
+  const int *wndPrev, *wndCurr;
+
+  buf0 += (1024 >> 1);
+  buf1  = buf0  - 1;
+  out1  = out0 + 1024 - 1;
+  over1 = over0 + 1024 - 1;
+
+  wndPrev = (winTypePrev == 1 ? kbdWindow + kbdWindowOffset[1] : sinWindow + sinWindowOffset[1]);
+  i = 448;  /* 2 outputs, 2 overlaps per loop */
+  do {
+    w0 = *wndPrev++;
+    w1 = *wndPrev++;
+    in = *buf0++;
+
+    f0 = MULSHIFT32(w0, in);
+    f1 = MULSHIFT32(w1, in);
+
+    in = *over0;
+    *out0++ = in - f0;
+
+    in = *over1;
+    *out1-- = in + f1;
+
+    in = *buf1--;
+
+    *over1-- = 0;   /* Wn = 0 for n = (2047, 2046, ... 1600) */
+    *over0++ = in >> 1; /* Wn = 1 for n = (1024, 1025, ... 1471) */
+  } while (--i);
+
+  wndCurr = (winTypeCurr == 1 ? kbdWindow + kbdWindowOffset[0] : sinWindow + sinWindowOffset[0]);
+
+  /* do 64 more loops - 2 outputs, 2 overlaps per loop */
+  do {
+    w0 = *wndPrev++;
+    w1 = *wndPrev++;
+    in = *buf0++;
+
+    f0 = MULSHIFT32(w0, in);
+    f1 = MULSHIFT32(w1, in);
+
+    in = *over0;
+    *out0++ = in - f0;
+
+    in = *over1;
+    *out1-- = in + f1;
+
+    w0 = *wndCurr++;  /* W[0], W[1], ... --> W[255], W[254], ... */
+    w1 = *wndCurr++;  /* W[127], W[126], ... --> W[128], W[129], ... */
+    in = *buf1--;
+
+    *over1-- = MULSHIFT32(w0, in);  /* Wn = short window for n = (1599, 1598, ... , 1536) */
+    *over0++ = MULSHIFT32(w1, in);  /* Wn = short window for n = (1472, 1473, ... , 1535) */
+  } while (over0 < over1);
+}
+
+//}}}
+//{{{
+/**************************************************************************************
+ * Function:    DecWindowOverlapLongStop
+ * Description: apply synthesis window, do overlap-add, without clipping
+ *                for winSequence LONG-STOP
+ * Inputs:      input buffer (output of type-IV DCT)
+ *              overlap buffer (saved from last time)
+ *              window type (sin or KBD) for input buffer
+ *              window type (sin or KBD) for overlap buffer
+ * Outputs:     one channel, one frame of 32-bit PCM, non-interleaved
+ * Notes:       use this function when the decoded PCM is going to the SBR decoder
+ **************************************************************************************/
+void DecWindowOverlapLongStopNoClip (int* buf0, int* over0, int* out0, int winTypeCurr, int winTypePrev)
+{
+  int i, in, w0, w1, f0, f1;
+  int *buf1, *over1, *out1;
+  const int *wndPrev, *wndCurr;
+
+  buf0 += (1024 >> 1);
+  buf1  = buf0  - 1;
+  out1  = out0 + 1024 - 1;
+  over1 = over0 + 1024 - 1;
+
+  wndPrev = (winTypePrev == 1 ? kbdWindow + kbdWindowOffset[0] : sinWindow + sinWindowOffset[0]);
+  wndCurr = (winTypeCurr == 1 ? kbdWindow + kbdWindowOffset[1] : sinWindow + sinWindowOffset[1]);
+
+  i = 448;  /* 2 outputs, 2 overlaps per loop */
+  do {
+    /* Wn = 0 for n = (0, 1, ... 447) */
+    /* Wn = 1 for n = (576, 577, ... 1023) */
+    in = *buf0++;
+    f1 = in >> 1; /* scale since skipping multiply by Q31 */
+
+    in = *over0;
+    *out0++ = in;
+
+    in = *over1;
+    *out1-- = in + f1;
+
+    w0 = *wndCurr++;
+    w1 = *wndCurr++;
+    in = *buf1--;
+
+    *over1-- = MULSHIFT32(w0, in);
+    *over0++ = MULSHIFT32(w1, in);
+  } while (--i);
+
+  /* do 64 more loops - 2 outputs, 2 overlaps per loop */
+  do {
+    w0 = *wndPrev++;  /* W[0], W[1], ...W[63] */
+    w1 = *wndPrev++;  /* W[127], W[126], ... W[64] */
+    in = *buf0++;
+
+    f0 = MULSHIFT32(w0, in);
+    f1 = MULSHIFT32(w1, in);
+
+    in = *over0;
+    *out0++ = in - f0;
+
+    in = *over1;
+    *out1-- = in + f1;
+
+    w0 = *wndCurr++;
+    w1 = *wndCurr++;
+    in = *buf1--;
+
+    *over1-- = MULSHIFT32(w0, in);
+    *over0++ = MULSHIFT32(w1, in);
+  } while (over0 < over1);
+}
+//}}}
+//{{{
+/**************************************************************************************
+ * Function:    DecWindowOverlapShort
+ * Description: apply synthesis window, do overlap-add, without clipping
+ *                for winSequence EIGHT-SHORT (does all 8 short blocks)
+ * Inputs:      input buffer (output of type-IV DCT)
+ *              overlap buffer (saved from last time)
+ *              window type (sin or KBD) for input buffer
+ *              window type (sin or KBD) for overlap buffer
+ * Outputs:     one channel, one frame of 32-bit PCM, non-interleaved
+ * Notes:       use this function when the decoded PCM is going to the SBR decoder
+ **************************************************************************************/
+void DecWindowOverlapShortNoClip (int* buf0, int* over0, int* out0, int winTypeCurr, int winTypePrev)
+{
+  int i, in, w0, w1, f0, f1;
+  int *buf1, *over1, *out1;
+  const int *wndPrev, *wndCurr;
+
+  wndPrev = (winTypePrev == 1 ? kbdWindow + kbdWindowOffset[0] : sinWindow + sinWindowOffset[0]);
+  wndCurr = (winTypeCurr == 1 ? kbdWindow + kbdWindowOffset[0] : sinWindow + sinWindowOffset[0]);
+
+  /* pcm[0-447] = 0 + overlap[0-447] */
+  i = 448;
+  do {
+    f0 = *over0++;
+    f1 = *over0++;
+    *out0++ = f0;
+    *out0++ = f1;
+    i -= 2;
+  } while (i);
+
+  /* pcm[448-575] = Wp[0-127] * block0[0-127] + overlap[448-575] */
+  out1  = out0 + (128 - 1);
+  over1 = over0 + 128 - 1;
+  buf0 += 64;
+  buf1  = buf0  - 1;
+  do {
+    w0 = *wndPrev++;  /* W[0], W[1], ...W[63] */
+    w1 = *wndPrev++;  /* W[127], W[126], ... W[64] */
+    in = *buf0++;
+
+    f0 = MULSHIFT32(w0, in);
+    f1 = MULSHIFT32(w1, in);
+
+    in = *over0;
+    *out0++ = in - f0;
+
+    in = *over1;
+    *out1-- = in + f1;
+
+    w0 = *wndCurr++;
+    w1 = *wndCurr++;
+    in = *buf1--;
+
+    /* save over0/over1 for next short block, in the slots just vacated */
+    *over1-- = MULSHIFT32(w0, in);
+    *over0++ = MULSHIFT32(w1, in);
+  } while (over0 < over1);
+
+  /* pcm[576-703] = Wc[128-255] * block0[128-255] + Wc[0-127] * block1[0-127] + overlap[576-703]
+   * pcm[704-831] = Wc[128-255] * block1[128-255] + Wc[0-127] * block2[0-127] + overlap[704-831]
+   * pcm[832-959] = Wc[128-255] * block2[128-255] + Wc[0-127] * block3[0-127] + overlap[832-959]
+   */
+  for (i = 0; i < 3; i++) {
+    out0 += 64;
+    out1 = out0 + 128 - 1;
+    over0 += 64;
+    over1 = over0 + 128 - 1;
+    buf0 += 64;
+    buf1 = buf0 - 1;
+    wndCurr -= 128;
+
+    do {
+      w0 = *wndCurr++;  /* W[0], W[1], ...W[63] */
+      w1 = *wndCurr++;  /* W[127], W[126], ... W[64] */
+      in = *buf0++;
+
+      f0 = MULSHIFT32(w0, in);
+      f1 = MULSHIFT32(w1, in);
+
+      in  = *(over0 - 128); /* from last short block */
+      in += *(over0 + 0);   /* from last full frame */
+      *out0++ = in - f0;
+
+      in  = *(over1 - 128); /* from last short block */
+      in += *(over1 + 0);   /* from last full frame */
+      *out1-- = in + f1;
+
+      /* save over0/over1 for next short block, in the slots just vacated */
+      in = *buf1--;
+      *over1-- = MULSHIFT32(w0, in);
+      *over0++ = MULSHIFT32(w1, in);
+    } while (over0 < over1);
+  }
+
+  /* pcm[960-1023] = Wc[128-191] * block3[128-191] + Wc[0-63]   * block4[0-63] + overlap[960-1023]
+   * over[0-63]    = Wc[192-255] * block3[192-255] + Wc[64-127] * block4[64-127]
+   */
+  out0 += 64;
+  over0 -= 832;       /* points at overlap[64] */
+  over1 = over0 + 128 - 1;  /* points at overlap[191] */
+  buf0 += 64;
+  buf1 = buf0 - 1;
+  wndCurr -= 128;
+  do {
+    w0 = *wndCurr++;  /* W[0], W[1], ...W[63] */
+    w1 = *wndCurr++;  /* W[127], W[126], ... W[64] */
+    in = *buf0++;
+
+    f0 = MULSHIFT32(w0, in);
+    f1 = MULSHIFT32(w1, in);
+
+    in  = *(over0 + 768); /* from last short block */
+    in += *(over0 + 896); /* from last full frame */
+    *out0++ = in - f0;
+
+    in  = *(over1 + 768); /* from last short block */
+    *(over1 - 128) = in + f1;
+
+    in = *buf1--;
+    *over1-- = MULSHIFT32(w0, in);  /* save in overlap[128-191] */
+    *over0++ = MULSHIFT32(w1, in);  /* save in overlap[64-127] */
+  } while (over0 < over1);
+
+  /* over0 now points at overlap[128] */
+
+  /* over[64-191]   = Wc[128-255] * block4[128-255] + Wc[0-127] * block5[0-127]
+   * over[192-319]  = Wc[128-255] * block5[128-255] + Wc[0-127] * block6[0-127]
+   * over[320-447]  = Wc[128-255] * block6[128-255] + Wc[0-127] * block7[0-127]
+   * over[448-576]  = Wc[128-255] * block7[128-255]
+   */
+  for (i = 0; i < 3; i++) {
+    over0 += 64;
+    over1 = over0 + 128 - 1;
+    buf0 += 64;
+    buf1 = buf0 - 1;
+    wndCurr -= 128;
+    do {
+      w0 = *wndCurr++;  /* W[0], W[1], ...W[63] */
+      w1 = *wndCurr++;  /* W[127], W[126], ... W[64] */
+      in = *buf0++;
+
+      f0 = MULSHIFT32(w0, in);
+      f1 = MULSHIFT32(w1, in);
+
+      /* from last short block */
+      *(over0 - 128) -= f0;
+      *(over1 - 128)+= f1;
+
+      in = *buf1--;
+      *over1-- = MULSHIFT32(w0, in);
+      *over0++ = MULSHIFT32(w1, in);
+    } while (over0 < over1);
+  }
+
+  /* over[576-1024] = 0 */
+  i = 448;
+  over0 += 64;
+  do {
+    *over0++ = 0;
+    *over0++ = 0;
+    *over0++ = 0;
+    *over0++ = 0;
+    i -= 4;
+  } while (i);
+}
+//}}}
+//}}}
+//{{{
+void cAacDecoder::imdct (int ch, int chOut, float* outbuf) {
+/**************************************************************************************
+ * Description: inverse transform and convert to 16-bit PCM
+ * Inputs:      index of current channel (0 for SCE/LFE, 0 or 1 for CPE)
+ *              output channel (range = [0, nChans-1])
+ * Outputs:     complete frame of decoded PCM, if sbr
+ **************************************************************************************/
+
+  ICSInfo* icsInfo = (ch == 1 && psInfoBase->commonWin == 1) ? &(psInfoBase->icsInfo[0]) : &(psInfoBase->icsInfo[ch]);
+  outbuf += chOut;
+
+  // optimized type-IV DCT (operates inplace)
+  if (icsInfo->winSequence == 2) // 8 short blocks
+    for (int i = 0; i < 8; i++)
+      DCT4 (0, psInfoBase->coef[ch] + i*128, psInfoBase->gbCurrent[ch]);
+  else // 1 long block
+    DCT4 (1, psInfoBase->coef[ch], psInfoBase->gbCurrent[ch]);
+
+  // window, overlap-add, don't clip to short (send to SBR decoder)
+  // store the decoded 32-bit samples in top half (second AAC_MAX_NSAMPS samples) of coef buffer
+  if (icsInfo->winSequence == 0)
+    DecWindowOverlapNoClip (psInfoBase->coef[ch], psInfoBase->overlap[chOut], psInfoBase->sbrWorkBuf[ch],
+                            icsInfo->winShape, psInfoBase->prevWinShape[chOut]);
+  else if (icsInfo->winSequence == 1)
+    DecWindowOverlapLongStartNoClip (psInfoBase->coef[ch], psInfoBase->overlap[chOut], psInfoBase->sbrWorkBuf[ch],
+                                     icsInfo->winShape, psInfoBase->prevWinShape[chOut]);
+  else if (icsInfo->winSequence == 2)
+    DecWindowOverlapShortNoClip (psInfoBase->coef[ch], psInfoBase->overlap[chOut], psInfoBase->sbrWorkBuf[ch],
+                                 icsInfo->winShape, psInfoBase->prevWinShape[chOut]);
+  else if (icsInfo->winSequence == 3)
+    DecWindowOverlapLongStopNoClip (psInfoBase->coef[ch], psInfoBase->overlap[chOut], psInfoBase->sbrWorkBuf[ch],
+                                    icsInfo->winShape, psInfoBase->prevWinShape[chOut]);
+
+  rawSampleBuf[ch] = psInfoBase->sbrWorkBuf[ch];
+
+  if (!sbrEnabled)
+    for (int i = 0; i < AAC_MAX_NSAMPS; i++) {
+      *outbuf = psInfoBase->sbrWorkBuf[ch][i] / (float)0x20000;
+      outbuf += nChans;
+      }
+
+  psInfoBase->prevWinShape[chOut] = icsInfo->winShape;
+  }
+//}}}
+//{{{  apply sbr utils
+//{{{
+void PreMultiply64 (int* zbuf1) {
+/**************************************************************************************
+ * Description: pre-twiddle stage of 64-point DCT-IV
+ * Inputs:      buffer of 64 samples
+ * Outputs:     processed samples in same buffer
+ * Notes:       minimum 1 GB in, 2 GB out, gains 2 int bits
+ *              gbOut = gbIn + 1
+ *              output is limited to sqrt(2)/2 plus GB in full GB
+ *              uses 3-mul, 3-add butterflies instead of 4-mul, 2-add
+ **************************************************************************************/
+
+  int i, ar1, ai1, ar2, ai2, z1, z2;
+  int t, cms2, cps2a, sin2a, cps2b, sin2b;
+
+  int* zbuf2 = zbuf1 + 64 - 1;
+  const int* csptr = cos4sin4tab64;
+
+  /* whole thing should fit in registers - verify that compiler does this */
+  for (i = 64 >> 2; i != 0; i--) {
+    /* cps2 = (cos+sin), sin2 = sin, cms2 = (cos-sin) */
+    cps2a = *csptr++;
+    sin2a = *csptr++;
+    cps2b = *csptr++;
+    sin2b = *csptr++;
+
+    ar1 = *(zbuf1 + 0);
+    ai2 = *(zbuf1 + 1);
+    ai1 = *(zbuf2 + 0);
+    ar2 = *(zbuf2 - 1);
+
+    /* gain 2 ints bit from MULSHIFT32 by Q30
+     * max per-sample gain (ignoring implicit scaling) = std::max (sin(angle)+cos(angle)) = 1.414
+     * i.e. gain 1 GB since worst case is sin(angle) = cos(angle) = 0.707 (Q30), gain 2 from
+     *   extra sign bits, and eat one in adding
+     */
+    t  = MULSHIFT32(sin2a, ar1 + ai1);
+    z2 = MULSHIFT32(cps2a, ai1) - t;
+    cms2 = cps2a - 2*sin2a;
+    z1 = MULSHIFT32(cms2, ar1) + t;
+    *zbuf1++ = z1;  /* cos*ar1 + sin*ai1 */
+    *zbuf1++ = z2;  /* cos*ai1 - sin*ar1 */
+
+    t  = MULSHIFT32(sin2b, ar2 + ai2);
+    z2 = MULSHIFT32(cps2b, ai2) - t;
+    cms2 = cps2b - 2*sin2b;
+    z1 = MULSHIFT32(cms2, ar2) + t;
+    *zbuf2-- = z2;  /* cos*ai2 - sin*ar2 */
+    *zbuf2-- = z1;  /* cos*ar2 + sin*ai2 */
+    }
+  }
+//}}}
+//{{{
+void PostMultiply64 (int* fft1, int nSampsOut) {
+/**************************************************************************************
+ * Description: post-twiddle stage of 64-point type-IV DCT
+ * Inputs:      buffer of 64 samples
+ *              number of output samples to calculate
+ * Outputs:     processed samples in same buffer
+ * Notes:       minimum 1 GB in, 2 GB out, gains 2 int bits
+ *              gbOut = gbIn + 1
+ *              output is limited to sqrt(2)/2 plus GB in full GB
+ *              nSampsOut is rounded up to next multiple of 4, since we calculate
+ *                4 samples per loop
+ **************************************************************************************/
+
+  int i, ar1, ai1, ar2, ai2;
+  int t, cms2, cps2, sin2;
+
+  const int* csptr = cos1sin1tab64;
+  int* fft2 = fft1 + 64 - 1;
+
+  // load coeffs for first pass
+  // cps2 = (cos+sin)/2, sin2 = sin/2, cms2 = (cos-sin)/2
+  cps2 = *csptr++;
+  sin2 = *csptr++;
+  cms2 = cps2 - 2*sin2;
+
+  for (i = (nSampsOut + 3) >> 2; i != 0; i--) {
+    ar1 = *(fft1 + 0);
+    ai1 = *(fft1 + 1);
+    ar2 = *(fft2 - 1);
+    ai2 = *(fft2 + 0);
+
+    /* gain 2 int bits (multiplying by Q30), max gain = sqrt(2) */
+    t = MULSHIFT32(sin2, ar1 + ai1);
+    *fft2-- = t - MULSHIFT32(cps2, ai1);
+    *fft1++ = t + MULSHIFT32(cms2, ar1);
+
+    cps2 = *csptr++;
+    sin2 = *csptr++;
+
+    ai2 = -ai2;
+    t = MULSHIFT32(sin2, ar2 + ai2);
+    *fft2-- = t - MULSHIFT32(cps2, ai2);
+    cms2 = cps2 - 2*sin2;
+    *fft1++ = t + MULSHIFT32(cms2, ar2);
+    }
+  }
+//}}}
+
+#define SQRT1_2 0x5a82799a
+/* swap RE{p0} with RE{p1} and IM{P0} with IM{P1} */
+#define swapcplx(p0,p1) t = p0; t1 = *(&(p0)+1); p0 = p1; *(&(p0)+1) = *(&(p1)+1); p1 = t; *(&(p1)+1) = t1
+//{{{
+/**************************************************************************************
+ * Function:    BitReverse32
+ *
+ * Description: Ken's fast in-place bit reverse
+ *
+ * Inputs:      buffer of 32 complex samples
+ *
+ * Outputs:     bit-reversed samples in same buffer
+ *
+ * Return:      none
+**************************************************************************************/
+void BitReverse32 (int *inout) {
+  int t, t1;
+
+  swapcplx (inout[2],  inout[32]);
+  swapcplx (inout[4],  inout[16]);
+  swapcplx (inout[6],  inout[48]);
+  swapcplx (inout[10], inout[40]);
+  swapcplx (inout[12], inout[24]);
+  swapcplx (inout[14], inout[56]);
+  swapcplx (inout[18], inout[36]);
+  swapcplx (inout[22], inout[52]);
+  swapcplx (inout[26], inout[44]);
+  swapcplx (inout[30], inout[60]);
+  swapcplx (inout[38], inout[50]);
+  swapcplx (inout[46], inout[58]);
+}
+//}}}
+//{{{
+/**************************************************************************************
+ * Function:    R8FirstPass32
+ *
+ * Description: radix-8 trivial pass for decimation-in-time FFT (log2(N) = 5)
+ *
+ * Inputs:      buffer of (bit-reversed) samples
+ *
+ * Outputs:     processed samples in same buffer
+ *
+ * Return:      none
+ *
+ * Notes:       assumes 3 guard bits, gains 1 integer bit
+ *              guard bits out = guard bits in - 3 (if inputs are full scale)
+ *                or guard bits in - 2 (if inputs bounded to +/- sqrt(2)/2)
+ *              see scaling comments in fft.c for base AAC
+ *              should compile with no stack spills on ARM (verify compiled output)
+ *              current instruction count (per pass): 16 LDR, 16 STR, 4 SMULL, 61 ALU
+ **************************************************************************************/
+void R8FirstPass32 (int *r0)
+{
+  int r1, r2, r3, r4, r5, r6, r7;
+  int r8, r9, r10, r11, r12, r14;
+
+  /* number of passes = fft size / 8 = 32 / 8 = 4 */
+  r1 = (32 >> 3);
+  do {
+
+    r2 = r0[8];
+    r3 = r0[9];
+    r4 = r0[10];
+    r5 = r0[11];
+    r6 = r0[12];
+    r7 = r0[13];
+    r8 = r0[14];
+    r9 = r0[15];
+
+    r10 = r2 + r4;
+    r11 = r3 + r5;
+    r12 = r6 + r8;
+    r14 = r7 + r9;
+
+    r2 -= r4;
+    r3 -= r5;
+    r6 -= r8;
+    r7 -= r9;
+
+    r4 = r2 - r7;
+    r5 = r2 + r7;
+    r8 = r3 - r6;
+    r9 = r3 + r6;
+
+    r2 = r4 - r9;
+    r3 = r4 + r9;
+    r6 = r5 - r8;
+    r7 = r5 + r8;
+
+    r2 = MULSHIFT32(SQRT1_2, r2); /* can use r4, r5, r8, or r9 for constant and lo32 scratch reg */
+    r3 = MULSHIFT32(SQRT1_2, r3);
+    r6 = MULSHIFT32(SQRT1_2, r6);
+    r7 = MULSHIFT32(SQRT1_2, r7);
+
+    r4 = r10 + r12;
+    r5 = r10 - r12;
+    r8 = r11 + r14;
+    r9 = r11 - r14;
+
+    r10 = r0[0];
+    r11 = r0[2];
+    r12 = r0[4];
+    r14 = r0[6];
+
+    r10 += r11;
+    r12 += r14;
+
+    r4 >>= 1;
+    r10 += r12;
+    r4 += (r10 >> 1);
+    r0[ 0] = r4;
+    r4 -= (r10 >> 1);
+    r4 = (r10 >> 1) - r4;
+    r0[ 8] = r4;
+
+    r9 >>= 1;
+    r10 -= 2*r12;
+    r4 = (r10 >> 1) + r9;
+    r0[ 4] = r4;
+    r4 = (r10 >> 1) - r9;
+    r0[12] = r4;
+    r10 += r12;
+
+    r10 -= 2*r11;
+    r12 -= 2*r14;
+
+    r4 =  r0[1];
+    r9 =  r0[3];
+    r11 = r0[5];
+    r14 = r0[7];
+
+    r4 += r9;
+    r11 += r14;
+
+    r8 >>= 1;
+    r4 += r11;
+    r8 += (r4 >> 1);
+    r0[ 1] = r8;
+    r8 -= (r4 >> 1);
+    r8 = (r4 >> 1) - r8;
+    r0[ 9] = r8;
+
+    r5 >>= 1;
+    r4 -= 2*r11;
+    r8 = (r4 >> 1) - r5;
+    r0[ 5] = r8;
+    r8 = (r4 >> 1) + r5;
+    r0[13] = r8;
+    r4 += r11;
+
+    r4 -= 2*r9;
+    r11 -= 2*r14;
+
+    r9 = r10 - r11;
+    r10 += r11;
+    r14 = r4 + r12;
+    r4 -= r12;
+
+    r5 = (r10 >> 1) + r7;
+    r8 = (r4 >> 1) - r6;
+    r0[ 2] = r5;
+    r0[ 3] = r8;
+
+    r5 = (r9 >> 1) - r2;
+    r8 = (r14 >> 1) - r3;
+    r0[ 6] = r5;
+    r0[ 7] = r8;
+
+    r5 = (r10 >> 1) - r7;
+    r8 = (r4 >> 1) + r6;
+    r0[10] = r5;
+    r0[11] = r8;
+
+    r5 = (r9 >> 1) + r2;
+    r8 = (r14 >> 1) + r3;
+    r0[14] = r5;
+    r0[15] = r8;
+
+    r0 += 16;
+    r1--;
+  } while (r1 != 0);
+}
+//}}}
+//{{{
+/**************************************************************************************
+ * Function:    R4Core32
+ *
+ * Description: radix-4 pass for 32-point decimation-in-time FFT
+ *
+ * Inputs:      buffer of samples
+ *
+ * Outputs:     processed samples in same buffer
+ *
+ * Return:      none
+ *
+ * Notes:       gain 2 integer bits
+ *              guard bits out = guard bits in - 1 (if inputs are full scale)
+ *              see scaling comments in fft.c for base AAC
+ *              uses 3-mul, 3-add butterflies instead of 4-mul, 2-add
+ *              should compile with no stack spills on ARM (verify compiled output)
+ *              current instruction count (per pass): 16 LDR, 16 STR, 4 SMULL, 61 ALU
+ **************************************************************************************/
+void R4Core32 (int *r0)
+{
+  int r2, r3, r4, r5, r6, r7;
+  int r8, r9, r10, r12, r14;
+  int *r1;
+
+  r1 = (int *)twidTabOdd32;
+  r10 = 8;
+  do {
+    /* can use r14 for lo32 scratch register in all MULSHIFT32 */
+    r2 = r1[0];
+    r3 = r1[1];
+    r4 = r0[16];
+    r5 = r0[17];
+    r12 = r4 + r5;
+    r12 = MULSHIFT32(r3, r12);
+    r5  = MULSHIFT32(r2, r5) + r12;
+    r2 += 2*r3;
+    r4  = MULSHIFT32(r2, r4) - r12;
+
+    r2 = r1[2];
+    r3 = r1[3];
+    r6 = r0[32];
+    r7 = r0[33];
+    r12 = r6 + r7;
+    r12 = MULSHIFT32(r3, r12);
+    r7  = MULSHIFT32(r2, r7) + r12;
+    r2 += 2*r3;
+    r6  = MULSHIFT32(r2, r6) - r12;
+
+    r2 = r1[4];
+    r3 = r1[5];
+    r8 = r0[48];
+    r9 = r0[49];
+    r12 = r8 + r9;
+    r12 = MULSHIFT32(r3, r12);
+    r9  = MULSHIFT32(r2, r9) + r12;
+    r2 += 2*r3;
+    r8  = MULSHIFT32(r2, r8) - r12;
+
+    r2 = r0[0];
+    r3 = r0[1];
+
+    r12 = r6 + r8;
+    r8  = r6 - r8;
+    r14 = r9 - r7;
+    r9  = r9 + r7;
+
+    r6 = (r2 >> 2) - r4;
+    r7 = (r3 >> 2) - r5;
+    r4 += (r2 >> 2);
+    r5 += (r3 >> 2);
+
+    r2 = r4 + r12;
+    r3 = r5 + r9;
+    r0[0] = r2;
+    r0[1] = r3;
+    r2 = r6 - r14;
+    r3 = r7 - r8;
+    r0[16] = r2;
+    r0[17] = r3;
+    r2 = r4 - r12;
+    r3 = r5 - r9;
+    r0[32] = r2;
+    r0[33] = r3;
+    r2 = r6 + r14;
+    r3 = r7 + r8;
+    r0[48] = r2;
+    r0[49] = r3;
+
+    r0 += 2;
+    r1 += 6;
+    r10--;
+  } while (r10 != 0);
+}
+//}}}
+//{{{
+/**************************************************************************************
+ * Function:    FFT32C
+ *
+ * Description: Ken's very fast in-place radix-4 decimation-in-time FFT
+ *
+ * Inputs:      buffer of 32 complex samples (before bit-reversal)
+ *
+ * Outputs:     processed samples in same buffer
+ *
+ * Return:      none
+ *
+ * Notes:       assumes 3 guard bits in, gains 3 integer bits
+ *              guard bits out = guard bits in - 2
+ *              (guard bit analysis includes assumptions about steps immediately
+ *               before and after, i.e. PreMul and PostMul for DCT)
+ **************************************************************************************/
+void FFT32C (int *x)
+{
+  /* decimation in time */
+  BitReverse32(x);
+
+  /* 32-point complex FFT */
+  R8FirstPass32(x); /* gain 1 int bit,  lose 2 GB (making assumptions about input) */
+  R4Core32(x);    /* gain 2 int bits, lose 0 GB (making assumptions about input) */
+}
+//}}}
+
+//{{{
+void QMFAnalysisConv (int* cTab, int *delay, int dIdx, int* uBuf) {
+/**************************************************************************************
+ * Description: convolution kernel for analysis QMF
+ * Inputs:      pointer to coefficient table, reordered for sequential access
+ *              delay buffer of size 32*10 = 320 real-valued PCM samples
+ *              index for delay ring buffer (range = [0, 9])
+ * Outputs:     64 consecutive 32-bit samples
+ * Notes:       this is carefully written to be efficient on ARM
+ *              use the assembly code version in sbrqmfak.s when building for ARM!
+ **************************************************************************************/
+
+  int k, dOff;
+  int *cPtr0, *cPtr1;
+  U64 u64lo, u64hi;
+
+  dOff = dIdx*32 + 31;
+  cPtr0 = cTab;
+  cPtr1 = cTab + 33*5 - 1;
+
+  /* special first pass since we need to flip sign to create cTab[384], cTab[512] */
+  u64lo.w64 = 0;
+  u64hi.w64 = 0;
+  u64lo.w64 = MADD64 (u64lo.w64,  *cPtr0++,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
+  u64hi.w64 = MADD64 (u64hi.w64,  *cPtr0++,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
+  u64lo.w64 = MADD64 (u64lo.w64,  *cPtr0++,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
+  u64hi.w64 = MADD64 (u64hi.w64,  *cPtr0++,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
+  u64lo.w64 = MADD64 (u64lo.w64,  *cPtr0++,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
+  u64hi.w64 = MADD64 (u64hi.w64,  *cPtr1--,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
+  u64lo.w64 = MADD64 (u64lo.w64, -(*cPtr1--), delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
+  u64hi.w64 = MADD64 (u64hi.w64,  *cPtr1--,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
+  u64lo.w64 = MADD64 (u64lo.w64, -(*cPtr1--), delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
+  u64hi.w64 = MADD64 (u64hi.w64,  *cPtr1--,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
+
+  uBuf[0]  = u64lo.r.hi32;
+  uBuf[32] = u64hi.r.hi32;
+  uBuf++;
+  dOff--;
+
+  // max gain for any sample in uBuf, after scaling by cTab, ~= 0.99
+  // so we can just sum the uBuf values with no overflow problems
+  for (k = 1; k <= 31; k++) {
+    u64lo.w64 = 0;
+    u64hi.w64 = 0;
+    u64lo.w64 = MADD64 (u64lo.w64, *cPtr0++, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
+    u64hi.w64 = MADD64 (u64hi.w64, *cPtr0++, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
+    u64lo.w64 = MADD64 (u64lo.w64, *cPtr0++, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
+    u64hi.w64 = MADD64 (u64hi.w64, *cPtr0++, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
+    u64lo.w64 = MADD64 (u64lo.w64, *cPtr0++, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
+    u64hi.w64 = MADD64 (u64hi.w64, *cPtr1--, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
+    u64lo.w64 = MADD64 (u64lo.w64, *cPtr1--, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
+    u64hi.w64 = MADD64 (u64hi.w64, *cPtr1--, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
+    u64lo.w64 = MADD64 (u64lo.w64, *cPtr1--, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
+    u64hi.w64 = MADD64 (u64hi.w64, *cPtr1--, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
+
+    uBuf[0]  = u64lo.r.hi32;
+    uBuf[32] = u64hi.r.hi32;
+    uBuf++;
+    dOff--;
+    }
+  }
+//}}}
+//{{{
+int QMFAnalysis (int* inbuf, int* delay, int* XBuf, int fBitsIn, int* delayIdx, int qmfaBands) {
+/**************************************************************************************
+ * Description: 32-subband analysis QMF (4.6.18.4.1)
+ * Inputs:      32 consecutive samples of decoded 32-bit PCM, format = Q(fBitsIn)
+ *              delay buffer of size 32*10 = 320 PCM samples
+ *              number of fraction bits in input PCM
+ *              index for delay ring buffer (range = [0, 9])
+ *              number of subbands to calculate (range = [0, 32])
+ * Outputs:     qmfaBands complex subband samples, format = Q(FBITS_OUT_QMFA)
+ *              updated delay buffer
+ *              updated delay index
+ * Return:      guard bit mask
+ * Notes:       output stored as RE{X0}, IM{X0}, RE{X1}, IM{X1}, ... RE{X31}, IM{X31}
+ *              output stored in int buffer of size 64*2 = 128
+ *                (zero-filled from XBuf[2*qmfaBands] to XBuf[127])
+ **************************************************************************************/
+
+  int n, y, shift, gbMask;
+  int *delayPtr, *uBuf, *tBuf;
+
+  /* use XBuf[128] as temp buffer for reordering */
+  uBuf = XBuf;    /* first 64 samples */
+  tBuf = XBuf + 64; /* second 64 samples */
+
+  /* overwrite oldest PCM with new PCM
+   * delay[n] has 1 GB after shifting (either << or >>)
+   */
+  delayPtr = delay + (*delayIdx * 32);
+  if (fBitsIn > FBITS_IN_QMFA) {
+    shift = std::min (fBitsIn - FBITS_IN_QMFA, 31);
+    for (n = 32; n != 0; n--) {
+      y = (*inbuf) >> shift;
+      inbuf++;
+      *delayPtr++ = y;
+      }
+    }
+  else {
+    shift = std::min (FBITS_IN_QMFA - fBitsIn, 30);
+    for (n = 32; n != 0; n--) {
+      y = *inbuf++;
+      CLIP_2N_SHIFT(y, shift);
+      *delayPtr++ = y;
+      }
+    }
+
+  QMFAnalysisConv ((int *)cTabA, delay, *delayIdx, uBuf);
+
+  // uBuf has at least 2 GB right now (1 from clipping to Q(FBITS_IN_QMFA), one from
+  //   the scaling by cTab (MULSHIFT32(*delayPtr--, *cPtr++), with net gain of < 1.0)
+  // TODO - fuse with QMFAnalysisConv to avoid separate reordering
+  tBuf[2*0 + 0] = uBuf[0];
+  tBuf[2*0 + 1] = uBuf[1];
+  for (n = 1; n < 31; n++) {
+    tBuf[2*n + 0] = -uBuf[64-n];
+    tBuf[2*n + 1] =  uBuf[n+1];
+    }
+  tBuf[2*31 + 1] =  uBuf[32];
+  tBuf[2*31 + 0] = -uBuf[33];
+
+  /* fast in-place DCT-IV - only need 2*qmfaBands output samples */
+  PreMultiply64 (tBuf);  /* 2 GB in, 3 GB out */
+  FFT32C (tBuf);     /* 3 GB in, 1 GB out */
+  PostMultiply64 (tBuf, qmfaBands*2);  /* 1 GB in, 2 GB out */
+
+  /* TODO - roll into PostMultiply (if enough registers) */
+  gbMask = 0;
+  for (n = 0; n < qmfaBands; n++) {
+    XBuf[2*n+0] = tBuf[ n + 0];  /* implicit scaling of 2 in our output Q format */
+    gbMask |= FASTABS (XBuf[2*n+0]);
+    XBuf[2*n+1] = -tBuf[63 - n];
+    gbMask |= FASTABS (XBuf[2*n+1]);
+    }
+
+  /* fill top section with zeros for HF generation */
+  for ( ; n < 64; n++) {
+    XBuf[2*n+0] = 0;
+    XBuf[2*n+1] = 0;
+    }
+
+  *delayIdx = (*delayIdx == NUM_QMF_DELAY_BUFS - 1 ? 0 : *delayIdx + 1);
+
+  /* minimum of 2 GB in output */
+  return gbMask;
+  }
+//}}}
+//{{{
+void QMFSynthesisConv (int* cPtr, int* delay, int dIdx, float* outbuf, int nChans) {
+/**************************************************************************************
+ * Description: final convolution kernel for synthesis QMF
+ * Inputs:      pointer to coefficient table, reordered for sequential access
+ *              delay buffer of size 64*10 = 640 complex samples (1280 ints)
+ *              index for delay ring buffer (range = [0, 9])
+ *              number of QMF subbands to process (range = [0, 64])
+ *              number of channels
+ * Outputs:     64 consecutive float PCM samples, interleaved by factor of nChans
+ * Notes:       this is carefully written to be efficient on ARM
+ *              use the assembly code version in sbrqmfsk.s when building for ARM!
+ **************************************************************************************/
+
+  int dOff0 = (dIdx)*128;
+  int dOff1 = dOff0 - 1;
+  if (dOff1 < 0)
+    dOff1 += 1280;
+
+  /* scaling note: total gain of coefs (cPtr[0]-cPtr[9] for any k) is < 2.0, so 1 GB in delay values is adequate */
+  for (int k = 0; k <= 63; k++) {
+    U64 sum64;
+    sum64.w64 = 0;
+
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]);
+    dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
+
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]);
+    dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
+
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]);
+    dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
+
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]);
+    dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
+
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]);
+    dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
+
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]);
+    dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
+
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]);
+    dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
+
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]);
+    dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
+
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]);
+    dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
+
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]);
+    dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
+
+    dOff0++;
+    dOff1--;
+
+    *outbuf = sum64.r.hi32 / (float)0x40000;
+    outbuf += nChans;
+    }
+  }
+//}}}
+//{{{
+void QMFSynthesis (int* inbuf, int* delay, int* delayIdx, int qmfsBands, float* outbuf, int nChans) {
+/**************************************************************************************
+ * Description: 64-subband synthesis QMF (4.6.18.4.2)
+ * Inputs:      64 consecutive complex subband QMF samples, format = Q(FBITS_IN_QMFS)
+ *              delay buffer of size 64*10 = 640 complex samples (1280 ints)
+ *              index for delay ring buffer (range = [0, 9])
+ *              number of QMF subbands to process (range = [0, 64])
+ *              number of channels
+ * Outputs:     64 consecutive float PCM samples, interleaved by factor of nChans
+ *              updated delay buffer
+ *              updated delay index
+ * Notes:       assumes MIN_GBITS_IN_QMFS guard bits in input, either from
+ *              QMFAnalysis (if upsampling only) or from MapHF (if SBR on)
+ **************************************************************************************/
+
+  int n, a0, a1, b0, b1, dOff0, dOff1;
+
+  int dIdx = *delayIdx;
+  int* tBufLo = delay + dIdx*128 + 0;
+  int* tBufHi = delay + dIdx*128 + 127;
+
+  // reorder inputs to DCT-IV, only use first qmfsBands (complex) samples
+  // TODO - fuse with PreMultiply64 to avoid separate reordering steps
+  for (n = 0; n < qmfsBands >> 1; n++) {
+    a0 = *inbuf++;
+    b0 = *inbuf++;
+    a1 = *inbuf++;
+    b1 = *inbuf++;
+    *tBufLo++ = a0;
+    *tBufLo++ = a1;
+    *tBufHi-- = b0;
+    *tBufHi-- = b1;
+    }
+
+  if (qmfsBands & 0x01) {
+    a0 = *inbuf++;
+    b0 = *inbuf++;
+    *tBufLo++ = a0;
+    *tBufHi-- = b0;
+    *tBufLo++ = 0;
+    *tBufHi-- = 0;
+    n++;
+    }
+
+  for ( ; n < 32; n++) {
+    *tBufLo++ = 0;
+    *tBufHi-- = 0;
+    *tBufLo++ = 0;
+    *tBufHi-- = 0;
+    }
+
+  tBufLo = delay + dIdx*128 + 0;
+  tBufHi = delay + dIdx*128 + 64;
+
+  /* 2 GB in, 3 GB out */
+  PreMultiply64 (tBufLo);
+  PreMultiply64 (tBufHi);
+
+  /* 3 GB in, 1 GB out */
+  FFT32C (tBufLo);
+  FFT32C (tBufHi);
+
+  /* 1 GB in, 2 GB out */
+  PostMultiply64 (tBufLo, 64);
+  PostMultiply64 (tBufHi, 64);
+
+  /* could fuse with PostMultiply64 to avoid separate pass */
+  dOff0 = dIdx*128;
+  dOff1 = dIdx*128 + 64;
+  for (n = 32; n != 0; n--) {
+    a0 =  (*tBufLo++);
+    a1 =  (*tBufLo++);
+    b0 =  (*tBufHi++);
+    b1 = -(*tBufHi++);
+
+    delay[dOff0++] = (b0 - a0);
+    delay[dOff0++] = (b1 - a1);
+    delay[dOff1++] = (b0 + a0);
+    delay[dOff1++] = (b1 + a1);
+    }
+
+  QMFSynthesisConv ((int*)cTabS, delay, dIdx, outbuf, nChans);
+
+  *delayIdx = (*delayIdx == NUM_QMF_DELAY_BUFS - 1 ? 0 : *delayIdx + 1);
+  }
+//}}}
+
+// sbrhfadj
 //{{{
 /**************************************************************************************
  * Function:    EstimateEnvelope
@@ -6916,8 +8642,8 @@ void AdjustHighFreq (PSInfoSBR *psi, SBRHeader *sbrHdr, SBRGrid *sbrGrid, SBRFre
     sbrChan->laPrev = -1;
 }
 //}}}
-//}}}
-//{{{  sbrhfgen
+
+// sbrhfgen
 #define FBITS_LPCOEFS 29  /* Q29 for range of (-4, 4) */
 #define MAG_16  (16 * (1 << (32 - (2*(32-FBITS_LPCOEFS)))))   /* i.e. 16 in Q26 format */
 #define RELAX_COEF 0x7ffff79c  /* 1.0 / (1.0 + 1e-6), Q31 */
@@ -7435,1487 +9161,6 @@ void GenerateHighFreq (PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRCh
   }
 //}}}
 //}}}
-//{{{  sbr
-//{{{
-void InitSBRState (PSInfoSBR* psi) {
-/**************************************************************************************
- * Description: initialize PSInfoSBR struct at start of stream or after flush
- * Outputs:     PSInfoSBR struct with proper initial state
- * Return:      none
- **************************************************************************************/
-
-  memset (psi, 0, sizeof(PSInfoSBR));
-
-  // initialize non-zero state variables
-  for (int ch = 0; ch < AAC_MAX_NCHANS; ch++) {
-    psi->sbrChan[ch].reset = 1;
-    psi->sbrChan[ch].laPrev = -1;
-    }
-  }
-//}}}
-
-//{{{
-/**************************************************************************************
- * Function:    DecWindowOverlapNoClip
- * Description: apply synthesis window, do overlap-add without clipping,
- *                for winSequence LONG-LONG
- * Inputs:      input buffer (output of type-IV DCT)
- *              overlap buffer (saved from last time)
- *              window type (sin or KBD) for input buffer
- *              window type (sin or KBD) for overlap buffer
- * Outputs:     one channel, one frame of 32-bit PCM, non-interleaved
- * Notes:       use this function when the decoded PCM is going to the SBR decoder
- **************************************************************************************/
-void DecWindowOverlapNoClip (int* buf0, int* over0, int* out0, int winTypeCurr, int winTypePrev)
-{
-  int in, w0, w1, f0, f1;
-  int *buf1, *over1, *out1;
-  const int *wndPrev, *wndCurr;
-
-  buf0 += (1024 >> 1);
-  buf1  = buf0  - 1;
-  out1  = out0 + 1024 - 1;
-  over1 = over0 + 1024 - 1;
-
-  wndPrev = (winTypePrev == 1 ? kbdWindow + kbdWindowOffset[1] : sinWindow + sinWindowOffset[1]);
-  if (winTypeCurr == winTypePrev) {
-    /* cut window loads in half since current and overlap sections use same symmetric window */
-    do {
-      w0 = *wndPrev++;
-      w1 = *wndPrev++;
-      in = *buf0++;
-
-      f0 = MULSHIFT32(w0, in);
-      f1 = MULSHIFT32(w1, in);
-
-      in = *over0;
-      *out0++ = in - f0;
-
-      in = *over1;
-      *out1-- = in + f1;
-
-      in = *buf1--;
-      *over1-- = MULSHIFT32(w0, in);
-      *over0++ = MULSHIFT32(w1, in);
-    } while (over0 < over1);
-  } else {
-    /* different windows for current and overlap parts - should still fit in registers on ARM w/o stack spill */
-    wndCurr = (winTypeCurr == 1 ? kbdWindow + kbdWindowOffset[1] : sinWindow + sinWindowOffset[1]);
-    do {
-      w0 = *wndPrev++;
-      w1 = *wndPrev++;
-      in = *buf0++;
-
-      f0 = MULSHIFT32(w0, in);
-      f1 = MULSHIFT32(w1, in);
-
-      in = *over0;
-      *out0++ = in - f0;
-
-      in = *over1;
-      *out1-- = in + f1;
-
-      w0 = *wndCurr++;
-      w1 = *wndCurr++;
-      in = *buf1--;
-
-      *over1-- = MULSHIFT32(w0, in);
-      *over0++ = MULSHIFT32(w1, in);
-    } while (over0 < over1);
-  }
-}
-//}}}
-//{{{
-/**************************************************************************************
- * Function:    DecWindowOverlapLongStart
- * Description: apply synthesis window, do overlap-add, without clipping
- *                for winSequence LONG-START
- * Inputs:      input buffer (output of type-IV DCT)
- *              overlap buffer (saved from last time)
- *              window type (sin or KBD) for input buffer
- *              window type (sin or KBD) for overlap buffer
- * Outputs:     one channel, one frame of 32-bit PCM, non-interleaved
- * Notes:       use this function when the decoded PCM is going to the SBR decoder
- **************************************************************************************/
-void DecWindowOverlapLongStartNoClip (int* buf0, int* over0, int* out0, int winTypeCurr, int winTypePrev)
-{
-  int i,  in, w0, w1, f0, f1;
-  int *buf1, *over1, *out1;
-  const int *wndPrev, *wndCurr;
-
-  buf0 += (1024 >> 1);
-  buf1  = buf0  - 1;
-  out1  = out0 + 1024 - 1;
-  over1 = over0 + 1024 - 1;
-
-  wndPrev = (winTypePrev == 1 ? kbdWindow + kbdWindowOffset[1] : sinWindow + sinWindowOffset[1]);
-  i = 448;  /* 2 outputs, 2 overlaps per loop */
-  do {
-    w0 = *wndPrev++;
-    w1 = *wndPrev++;
-    in = *buf0++;
-
-    f0 = MULSHIFT32(w0, in);
-    f1 = MULSHIFT32(w1, in);
-
-    in = *over0;
-    *out0++ = in - f0;
-
-    in = *over1;
-    *out1-- = in + f1;
-
-    in = *buf1--;
-
-    *over1-- = 0;   /* Wn = 0 for n = (2047, 2046, ... 1600) */
-    *over0++ = in >> 1; /* Wn = 1 for n = (1024, 1025, ... 1471) */
-  } while (--i);
-
-  wndCurr = (winTypeCurr == 1 ? kbdWindow + kbdWindowOffset[0] : sinWindow + sinWindowOffset[0]);
-
-  /* do 64 more loops - 2 outputs, 2 overlaps per loop */
-  do {
-    w0 = *wndPrev++;
-    w1 = *wndPrev++;
-    in = *buf0++;
-
-    f0 = MULSHIFT32(w0, in);
-    f1 = MULSHIFT32(w1, in);
-
-    in = *over0;
-    *out0++ = in - f0;
-
-    in = *over1;
-    *out1-- = in + f1;
-
-    w0 = *wndCurr++;  /* W[0], W[1], ... --> W[255], W[254], ... */
-    w1 = *wndCurr++;  /* W[127], W[126], ... --> W[128], W[129], ... */
-    in = *buf1--;
-
-    *over1-- = MULSHIFT32(w0, in);  /* Wn = short window for n = (1599, 1598, ... , 1536) */
-    *over0++ = MULSHIFT32(w1, in);  /* Wn = short window for n = (1472, 1473, ... , 1535) */
-  } while (over0 < over1);
-}
-
-//}}}
-//{{{
-/**************************************************************************************
- * Function:    DecWindowOverlapLongStop
- * Description: apply synthesis window, do overlap-add, without clipping
- *                for winSequence LONG-STOP
- * Inputs:      input buffer (output of type-IV DCT)
- *              overlap buffer (saved from last time)
- *              window type (sin or KBD) for input buffer
- *              window type (sin or KBD) for overlap buffer
- * Outputs:     one channel, one frame of 32-bit PCM, non-interleaved
- * Notes:       use this function when the decoded PCM is going to the SBR decoder
- **************************************************************************************/
-void DecWindowOverlapLongStopNoClip (int* buf0, int* over0, int* out0, int winTypeCurr, int winTypePrev)
-{
-  int i, in, w0, w1, f0, f1;
-  int *buf1, *over1, *out1;
-  const int *wndPrev, *wndCurr;
-
-  buf0 += (1024 >> 1);
-  buf1  = buf0  - 1;
-  out1  = out0 + 1024 - 1;
-  over1 = over0 + 1024 - 1;
-
-  wndPrev = (winTypePrev == 1 ? kbdWindow + kbdWindowOffset[0] : sinWindow + sinWindowOffset[0]);
-  wndCurr = (winTypeCurr == 1 ? kbdWindow + kbdWindowOffset[1] : sinWindow + sinWindowOffset[1]);
-
-  i = 448;  /* 2 outputs, 2 overlaps per loop */
-  do {
-    /* Wn = 0 for n = (0, 1, ... 447) */
-    /* Wn = 1 for n = (576, 577, ... 1023) */
-    in = *buf0++;
-    f1 = in >> 1; /* scale since skipping multiply by Q31 */
-
-    in = *over0;
-    *out0++ = in;
-
-    in = *over1;
-    *out1-- = in + f1;
-
-    w0 = *wndCurr++;
-    w1 = *wndCurr++;
-    in = *buf1--;
-
-    *over1-- = MULSHIFT32(w0, in);
-    *over0++ = MULSHIFT32(w1, in);
-  } while (--i);
-
-  /* do 64 more loops - 2 outputs, 2 overlaps per loop */
-  do {
-    w0 = *wndPrev++;  /* W[0], W[1], ...W[63] */
-    w1 = *wndPrev++;  /* W[127], W[126], ... W[64] */
-    in = *buf0++;
-
-    f0 = MULSHIFT32(w0, in);
-    f1 = MULSHIFT32(w1, in);
-
-    in = *over0;
-    *out0++ = in - f0;
-
-    in = *over1;
-    *out1-- = in + f1;
-
-    w0 = *wndCurr++;
-    w1 = *wndCurr++;
-    in = *buf1--;
-
-    *over1-- = MULSHIFT32(w0, in);
-    *over0++ = MULSHIFT32(w1, in);
-  } while (over0 < over1);
-}
-//}}}
-//{{{
-/**************************************************************************************
- * Function:    DecWindowOverlapShort
- * Description: apply synthesis window, do overlap-add, without clipping
- *                for winSequence EIGHT-SHORT (does all 8 short blocks)
- * Inputs:      input buffer (output of type-IV DCT)
- *              overlap buffer (saved from last time)
- *              window type (sin or KBD) for input buffer
- *              window type (sin or KBD) for overlap buffer
- * Outputs:     one channel, one frame of 32-bit PCM, non-interleaved
- * Notes:       use this function when the decoded PCM is going to the SBR decoder
- **************************************************************************************/
-void DecWindowOverlapShortNoClip (int* buf0, int* over0, int* out0, int winTypeCurr, int winTypePrev)
-{
-  int i, in, w0, w1, f0, f1;
-  int *buf1, *over1, *out1;
-  const int *wndPrev, *wndCurr;
-
-  wndPrev = (winTypePrev == 1 ? kbdWindow + kbdWindowOffset[0] : sinWindow + sinWindowOffset[0]);
-  wndCurr = (winTypeCurr == 1 ? kbdWindow + kbdWindowOffset[0] : sinWindow + sinWindowOffset[0]);
-
-  /* pcm[0-447] = 0 + overlap[0-447] */
-  i = 448;
-  do {
-    f0 = *over0++;
-    f1 = *over0++;
-    *out0++ = f0;
-    *out0++ = f1;
-    i -= 2;
-  } while (i);
-
-  /* pcm[448-575] = Wp[0-127] * block0[0-127] + overlap[448-575] */
-  out1  = out0 + (128 - 1);
-  over1 = over0 + 128 - 1;
-  buf0 += 64;
-  buf1  = buf0  - 1;
-  do {
-    w0 = *wndPrev++;  /* W[0], W[1], ...W[63] */
-    w1 = *wndPrev++;  /* W[127], W[126], ... W[64] */
-    in = *buf0++;
-
-    f0 = MULSHIFT32(w0, in);
-    f1 = MULSHIFT32(w1, in);
-
-    in = *over0;
-    *out0++ = in - f0;
-
-    in = *over1;
-    *out1-- = in + f1;
-
-    w0 = *wndCurr++;
-    w1 = *wndCurr++;
-    in = *buf1--;
-
-    /* save over0/over1 for next short block, in the slots just vacated */
-    *over1-- = MULSHIFT32(w0, in);
-    *over0++ = MULSHIFT32(w1, in);
-  } while (over0 < over1);
-
-  /* pcm[576-703] = Wc[128-255] * block0[128-255] + Wc[0-127] * block1[0-127] + overlap[576-703]
-   * pcm[704-831] = Wc[128-255] * block1[128-255] + Wc[0-127] * block2[0-127] + overlap[704-831]
-   * pcm[832-959] = Wc[128-255] * block2[128-255] + Wc[0-127] * block3[0-127] + overlap[832-959]
-   */
-  for (i = 0; i < 3; i++) {
-    out0 += 64;
-    out1 = out0 + 128 - 1;
-    over0 += 64;
-    over1 = over0 + 128 - 1;
-    buf0 += 64;
-    buf1 = buf0 - 1;
-    wndCurr -= 128;
-
-    do {
-      w0 = *wndCurr++;  /* W[0], W[1], ...W[63] */
-      w1 = *wndCurr++;  /* W[127], W[126], ... W[64] */
-      in = *buf0++;
-
-      f0 = MULSHIFT32(w0, in);
-      f1 = MULSHIFT32(w1, in);
-
-      in  = *(over0 - 128); /* from last short block */
-      in += *(over0 + 0);   /* from last full frame */
-      *out0++ = in - f0;
-
-      in  = *(over1 - 128); /* from last short block */
-      in += *(over1 + 0);   /* from last full frame */
-      *out1-- = in + f1;
-
-      /* save over0/over1 for next short block, in the slots just vacated */
-      in = *buf1--;
-      *over1-- = MULSHIFT32(w0, in);
-      *over0++ = MULSHIFT32(w1, in);
-    } while (over0 < over1);
-  }
-
-  /* pcm[960-1023] = Wc[128-191] * block3[128-191] + Wc[0-63]   * block4[0-63] + overlap[960-1023]
-   * over[0-63]    = Wc[192-255] * block3[192-255] + Wc[64-127] * block4[64-127]
-   */
-  out0 += 64;
-  over0 -= 832;       /* points at overlap[64] */
-  over1 = over0 + 128 - 1;  /* points at overlap[191] */
-  buf0 += 64;
-  buf1 = buf0 - 1;
-  wndCurr -= 128;
-  do {
-    w0 = *wndCurr++;  /* W[0], W[1], ...W[63] */
-    w1 = *wndCurr++;  /* W[127], W[126], ... W[64] */
-    in = *buf0++;
-
-    f0 = MULSHIFT32(w0, in);
-    f1 = MULSHIFT32(w1, in);
-
-    in  = *(over0 + 768); /* from last short block */
-    in += *(over0 + 896); /* from last full frame */
-    *out0++ = in - f0;
-
-    in  = *(over1 + 768); /* from last short block */
-    *(over1 - 128) = in + f1;
-
-    in = *buf1--;
-    *over1-- = MULSHIFT32(w0, in);  /* save in overlap[128-191] */
-    *over0++ = MULSHIFT32(w1, in);  /* save in overlap[64-127] */
-  } while (over0 < over1);
-
-  /* over0 now points at overlap[128] */
-
-  /* over[64-191]   = Wc[128-255] * block4[128-255] + Wc[0-127] * block5[0-127]
-   * over[192-319]  = Wc[128-255] * block5[128-255] + Wc[0-127] * block6[0-127]
-   * over[320-447]  = Wc[128-255] * block6[128-255] + Wc[0-127] * block7[0-127]
-   * over[448-576]  = Wc[128-255] * block7[128-255]
-   */
-  for (i = 0; i < 3; i++) {
-    over0 += 64;
-    over1 = over0 + 128 - 1;
-    buf0 += 64;
-    buf1 = buf0 - 1;
-    wndCurr -= 128;
-    do {
-      w0 = *wndCurr++;  /* W[0], W[1], ...W[63] */
-      w1 = *wndCurr++;  /* W[127], W[126], ... W[64] */
-      in = *buf0++;
-
-      f0 = MULSHIFT32(w0, in);
-      f1 = MULSHIFT32(w1, in);
-
-      /* from last short block */
-      *(over0 - 128) -= f0;
-      *(over1 - 128)+= f1;
-
-      in = *buf1--;
-      *over1-- = MULSHIFT32(w0, in);
-      *over0++ = MULSHIFT32(w1, in);
-    } while (over0 < over1);
-  }
-
-  /* over[576-1024] = 0 */
-  i = 448;
-  over0 += 64;
-  do {
-    *over0++ = 0;
-    *over0++ = 0;
-    *over0++ = 0;
-    *over0++ = 0;
-    i -= 4;
-  } while (i);
-}
-//}}}
-
-//{{{
-void PreMultiply64 (int* zbuf1) {
-/**************************************************************************************
- * Description: pre-twiddle stage of 64-point DCT-IV
- * Inputs:      buffer of 64 samples
- * Outputs:     processed samples in same buffer
- * Notes:       minimum 1 GB in, 2 GB out, gains 2 int bits
- *              gbOut = gbIn + 1
- *              output is limited to sqrt(2)/2 plus GB in full GB
- *              uses 3-mul, 3-add butterflies instead of 4-mul, 2-add
- **************************************************************************************/
-
-  int i, ar1, ai1, ar2, ai2, z1, z2;
-  int t, cms2, cps2a, sin2a, cps2b, sin2b;
-
-  int* zbuf2 = zbuf1 + 64 - 1;
-  const int* csptr = cos4sin4tab64;
-
-  /* whole thing should fit in registers - verify that compiler does this */
-  for (i = 64 >> 2; i != 0; i--) {
-    /* cps2 = (cos+sin), sin2 = sin, cms2 = (cos-sin) */
-    cps2a = *csptr++;
-    sin2a = *csptr++;
-    cps2b = *csptr++;
-    sin2b = *csptr++;
-
-    ar1 = *(zbuf1 + 0);
-    ai2 = *(zbuf1 + 1);
-    ai1 = *(zbuf2 + 0);
-    ar2 = *(zbuf2 - 1);
-
-    /* gain 2 ints bit from MULSHIFT32 by Q30
-     * max per-sample gain (ignoring implicit scaling) = std::max (sin(angle)+cos(angle)) = 1.414
-     * i.e. gain 1 GB since worst case is sin(angle) = cos(angle) = 0.707 (Q30), gain 2 from
-     *   extra sign bits, and eat one in adding
-     */
-    t  = MULSHIFT32(sin2a, ar1 + ai1);
-    z2 = MULSHIFT32(cps2a, ai1) - t;
-    cms2 = cps2a - 2*sin2a;
-    z1 = MULSHIFT32(cms2, ar1) + t;
-    *zbuf1++ = z1;  /* cos*ar1 + sin*ai1 */
-    *zbuf1++ = z2;  /* cos*ai1 - sin*ar1 */
-
-    t  = MULSHIFT32(sin2b, ar2 + ai2);
-    z2 = MULSHIFT32(cps2b, ai2) - t;
-    cms2 = cps2b - 2*sin2b;
-    z1 = MULSHIFT32(cms2, ar2) + t;
-    *zbuf2-- = z2;  /* cos*ai2 - sin*ar2 */
-    *zbuf2-- = z1;  /* cos*ar2 + sin*ai2 */
-    }
-  }
-//}}}
-//{{{
-void PostMultiply64 (int* fft1, int nSampsOut) {
-/**************************************************************************************
- * Description: post-twiddle stage of 64-point type-IV DCT
- * Inputs:      buffer of 64 samples
- *              number of output samples to calculate
- * Outputs:     processed samples in same buffer
- * Notes:       minimum 1 GB in, 2 GB out, gains 2 int bits
- *              gbOut = gbIn + 1
- *              output is limited to sqrt(2)/2 plus GB in full GB
- *              nSampsOut is rounded up to next multiple of 4, since we calculate
- *                4 samples per loop
- **************************************************************************************/
-
-  int i, ar1, ai1, ar2, ai2;
-  int t, cms2, cps2, sin2;
-
-  const int* csptr = cos1sin1tab64;
-  int* fft2 = fft1 + 64 - 1;
-
-  // load coeffs for first pass
-  // cps2 = (cos+sin)/2, sin2 = sin/2, cms2 = (cos-sin)/2
-  cps2 = *csptr++;
-  sin2 = *csptr++;
-  cms2 = cps2 - 2*sin2;
-
-  for (i = (nSampsOut + 3) >> 2; i != 0; i--) {
-    ar1 = *(fft1 + 0);
-    ai1 = *(fft1 + 1);
-    ar2 = *(fft2 - 1);
-    ai2 = *(fft2 + 0);
-
-    /* gain 2 int bits (multiplying by Q30), max gain = sqrt(2) */
-    t = MULSHIFT32(sin2, ar1 + ai1);
-    *fft2-- = t - MULSHIFT32(cps2, ai1);
-    *fft1++ = t + MULSHIFT32(cms2, ar1);
-
-    cps2 = *csptr++;
-    sin2 = *csptr++;
-
-    ai2 = -ai2;
-    t = MULSHIFT32(sin2, ar2 + ai2);
-    *fft2-- = t - MULSHIFT32(cps2, ai2);
-    cms2 = cps2 - 2*sin2;
-    *fft1++ = t + MULSHIFT32(cms2, ar2);
-    }
-  }
-//}}}
-
-//{{{
-void QMFAnalysisConv (int* cTab, int *delay, int dIdx, int* uBuf) {
-/**************************************************************************************
- * Description: convolution kernel for analysis QMF
- * Inputs:      pointer to coefficient table, reordered for sequential access
- *              delay buffer of size 32*10 = 320 real-valued PCM samples
- *              index for delay ring buffer (range = [0, 9])
- * Outputs:     64 consecutive 32-bit samples
- * Notes:       this is carefully written to be efficient on ARM
- *              use the assembly code version in sbrqmfak.s when building for ARM!
- **************************************************************************************/
-
-  int k, dOff;
-  int *cPtr0, *cPtr1;
-  U64 u64lo, u64hi;
-
-  dOff = dIdx*32 + 31;
-  cPtr0 = cTab;
-  cPtr1 = cTab + 33*5 - 1;
-
-  /* special first pass since we need to flip sign to create cTab[384], cTab[512] */
-  u64lo.w64 = 0;
-  u64hi.w64 = 0;
-  u64lo.w64 = MADD64 (u64lo.w64,  *cPtr0++,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
-  u64hi.w64 = MADD64 (u64hi.w64,  *cPtr0++,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
-  u64lo.w64 = MADD64 (u64lo.w64,  *cPtr0++,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
-  u64hi.w64 = MADD64 (u64hi.w64,  *cPtr0++,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
-  u64lo.w64 = MADD64 (u64lo.w64,  *cPtr0++,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
-  u64hi.w64 = MADD64 (u64hi.w64,  *cPtr1--,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
-  u64lo.w64 = MADD64 (u64lo.w64, -(*cPtr1--), delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
-  u64hi.w64 = MADD64 (u64hi.w64,  *cPtr1--,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
-  u64lo.w64 = MADD64 (u64lo.w64, -(*cPtr1--), delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
-  u64hi.w64 = MADD64 (u64hi.w64,  *cPtr1--,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
-
-  uBuf[0]  = u64lo.r.hi32;
-  uBuf[32] = u64hi.r.hi32;
-  uBuf++;
-  dOff--;
-
-  // max gain for any sample in uBuf, after scaling by cTab, ~= 0.99
-  // so we can just sum the uBuf values with no overflow problems
-  for (k = 1; k <= 31; k++) {
-    u64lo.w64 = 0;
-    u64hi.w64 = 0;
-    u64lo.w64 = MADD64 (u64lo.w64, *cPtr0++, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
-    u64hi.w64 = MADD64 (u64hi.w64, *cPtr0++, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
-    u64lo.w64 = MADD64 (u64lo.w64, *cPtr0++, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
-    u64hi.w64 = MADD64 (u64hi.w64, *cPtr0++, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
-    u64lo.w64 = MADD64 (u64lo.w64, *cPtr0++, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
-    u64hi.w64 = MADD64 (u64hi.w64, *cPtr1--, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
-    u64lo.w64 = MADD64 (u64lo.w64, *cPtr1--, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
-    u64hi.w64 = MADD64 (u64hi.w64, *cPtr1--, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
-    u64lo.w64 = MADD64 (u64lo.w64, *cPtr1--, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
-    u64hi.w64 = MADD64 (u64hi.w64, *cPtr1--, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
-
-    uBuf[0]  = u64lo.r.hi32;
-    uBuf[32] = u64hi.r.hi32;
-    uBuf++;
-    dOff--;
-    }
-  }
-//}}}
-//{{{
-int QMFAnalysis (int* inbuf, int* delay, int* XBuf, int fBitsIn, int* delayIdx, int qmfaBands) {
-/**************************************************************************************
- * Description: 32-subband analysis QMF (4.6.18.4.1)
- * Inputs:      32 consecutive samples of decoded 32-bit PCM, format = Q(fBitsIn)
- *              delay buffer of size 32*10 = 320 PCM samples
- *              number of fraction bits in input PCM
- *              index for delay ring buffer (range = [0, 9])
- *              number of subbands to calculate (range = [0, 32])
- * Outputs:     qmfaBands complex subband samples, format = Q(FBITS_OUT_QMFA)
- *              updated delay buffer
- *              updated delay index
- * Return:      guard bit mask
- * Notes:       output stored as RE{X0}, IM{X0}, RE{X1}, IM{X1}, ... RE{X31}, IM{X31}
- *              output stored in int buffer of size 64*2 = 128
- *                (zero-filled from XBuf[2*qmfaBands] to XBuf[127])
- **************************************************************************************/
-
-  int n, y, shift, gbMask;
-  int *delayPtr, *uBuf, *tBuf;
-
-  /* use XBuf[128] as temp buffer for reordering */
-  uBuf = XBuf;    /* first 64 samples */
-  tBuf = XBuf + 64; /* second 64 samples */
-
-  /* overwrite oldest PCM with new PCM
-   * delay[n] has 1 GB after shifting (either << or >>)
-   */
-  delayPtr = delay + (*delayIdx * 32);
-  if (fBitsIn > FBITS_IN_QMFA) {
-    shift = std::min (fBitsIn - FBITS_IN_QMFA, 31);
-    for (n = 32; n != 0; n--) {
-      y = (*inbuf) >> shift;
-      inbuf++;
-      *delayPtr++ = y;
-      }
-    }
-  else {
-    shift = std::min (FBITS_IN_QMFA - fBitsIn, 30);
-    for (n = 32; n != 0; n--) {
-      y = *inbuf++;
-      CLIP_2N_SHIFT(y, shift);
-      *delayPtr++ = y;
-      }
-    }
-
-  QMFAnalysisConv ((int *)cTabA, delay, *delayIdx, uBuf);
-
-  // uBuf has at least 2 GB right now (1 from clipping to Q(FBITS_IN_QMFA), one from
-  //   the scaling by cTab (MULSHIFT32(*delayPtr--, *cPtr++), with net gain of < 1.0)
-  // TODO - fuse with QMFAnalysisConv to avoid separate reordering
-  tBuf[2*0 + 0] = uBuf[0];
-  tBuf[2*0 + 1] = uBuf[1];
-  for (n = 1; n < 31; n++) {
-    tBuf[2*n + 0] = -uBuf[64-n];
-    tBuf[2*n + 1] =  uBuf[n+1];
-    }
-  tBuf[2*31 + 1] =  uBuf[32];
-  tBuf[2*31 + 0] = -uBuf[33];
-
-  /* fast in-place DCT-IV - only need 2*qmfaBands output samples */
-  PreMultiply64 (tBuf);  /* 2 GB in, 3 GB out */
-  FFT32C (tBuf);     /* 3 GB in, 1 GB out */
-  PostMultiply64 (tBuf, qmfaBands*2);  /* 1 GB in, 2 GB out */
-
-  /* TODO - roll into PostMultiply (if enough registers) */
-  gbMask = 0;
-  for (n = 0; n < qmfaBands; n++) {
-    XBuf[2*n+0] = tBuf[ n + 0];  /* implicit scaling of 2 in our output Q format */
-    gbMask |= FASTABS (XBuf[2*n+0]);
-    XBuf[2*n+1] = -tBuf[63 - n];
-    gbMask |= FASTABS (XBuf[2*n+1]);
-    }
-
-  /* fill top section with zeros for HF generation */
-  for ( ; n < 64; n++) {
-    XBuf[2*n+0] = 0;
-    XBuf[2*n+1] = 0;
-    }
-
-  *delayIdx = (*delayIdx == NUM_QMF_DELAY_BUFS - 1 ? 0 : *delayIdx + 1);
-
-  /* minimum of 2 GB in output */
-  return gbMask;
-  }
-//}}}
-//{{{
-void QMFSynthesisConv (int* cPtr, int* delay, int dIdx, float* outbuf, int nChans) {
-/**************************************************************************************
- * Description: final convolution kernel for synthesis QMF
- * Inputs:      pointer to coefficient table, reordered for sequential access
- *              delay buffer of size 64*10 = 640 complex samples (1280 ints)
- *              index for delay ring buffer (range = [0, 9])
- *              number of QMF subbands to process (range = [0, 64])
- *              number of channels
- * Outputs:     64 consecutive float PCM samples, interleaved by factor of nChans
- * Notes:       this is carefully written to be efficient on ARM
- *              use the assembly code version in sbrqmfsk.s when building for ARM!
- **************************************************************************************/
-
-  int dOff0 = (dIdx)*128;
-  int dOff1 = dOff0 - 1;
-  if (dOff1 < 0)
-    dOff1 += 1280;
-
-  /* scaling note: total gain of coefs (cPtr[0]-cPtr[9] for any k) is < 2.0, so 1 GB in delay values is adequate */
-  for (int k = 0; k <= 63; k++) {
-    U64 sum64;
-    sum64.w64 = 0;
-
-    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]);
-    dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
-
-    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]);
-    dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
-
-    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]);
-    dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
-
-    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]);
-    dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
-
-    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]);
-    dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
-
-    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]);
-    dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
-
-    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]);
-    dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
-
-    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]);
-    dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
-
-    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]);
-    dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
-
-    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]);
-    dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
-
-    dOff0++;
-    dOff1--;
-
-    *outbuf = sum64.r.hi32 / (float)0x40000;
-    outbuf += nChans;
-    }
-  }
-//}}}
-//{{{
-void QMFSynthesis (int* inbuf, int* delay, int* delayIdx, int qmfsBands, float* outbuf, int nChans) {
-/**************************************************************************************
- * Description: 64-subband synthesis QMF (4.6.18.4.2)
- * Inputs:      64 consecutive complex subband QMF samples, format = Q(FBITS_IN_QMFS)
- *              delay buffer of size 64*10 = 640 complex samples (1280 ints)
- *              index for delay ring buffer (range = [0, 9])
- *              number of QMF subbands to process (range = [0, 64])
- *              number of channels
- * Outputs:     64 consecutive float PCM samples, interleaved by factor of nChans
- *              updated delay buffer
- *              updated delay index
- * Notes:       assumes MIN_GBITS_IN_QMFS guard bits in input, either from
- *              QMFAnalysis (if upsampling only) or from MapHF (if SBR on)
- **************************************************************************************/
-
-  int n, a0, a1, b0, b1, dOff0, dOff1;
-
-  int dIdx = *delayIdx;
-  int* tBufLo = delay + dIdx*128 + 0;
-  int* tBufHi = delay + dIdx*128 + 127;
-
-  // reorder inputs to DCT-IV, only use first qmfsBands (complex) samples
-  // TODO - fuse with PreMultiply64 to avoid separate reordering steps
-  for (n = 0; n < qmfsBands >> 1; n++) {
-    a0 = *inbuf++;
-    b0 = *inbuf++;
-    a1 = *inbuf++;
-    b1 = *inbuf++;
-    *tBufLo++ = a0;
-    *tBufLo++ = a1;
-    *tBufHi-- = b0;
-    *tBufHi-- = b1;
-    }
-
-  if (qmfsBands & 0x01) {
-    a0 = *inbuf++;
-    b0 = *inbuf++;
-    *tBufLo++ = a0;
-    *tBufHi-- = b0;
-    *tBufLo++ = 0;
-    *tBufHi-- = 0;
-    n++;
-    }
-
-  for ( ; n < 32; n++) {
-    *tBufLo++ = 0;
-    *tBufHi-- = 0;
-    *tBufLo++ = 0;
-    *tBufHi-- = 0;
-    }
-
-  tBufLo = delay + dIdx*128 + 0;
-  tBufHi = delay + dIdx*128 + 64;
-
-  /* 2 GB in, 3 GB out */
-  PreMultiply64 (tBufLo);
-  PreMultiply64 (tBufHi);
-
-  /* 3 GB in, 1 GB out */
-  FFT32C (tBufLo);
-  FFT32C (tBufHi);
-
-  /* 1 GB in, 2 GB out */
-  PostMultiply64 (tBufLo, 64);
-  PostMultiply64 (tBufHi, 64);
-
-  /* could fuse with PostMultiply64 to avoid separate pass */
-  dOff0 = dIdx*128;
-  dOff1 = dIdx*128 + 64;
-  for (n = 32; n != 0; n--) {
-    a0 =  (*tBufLo++);
-    a1 =  (*tBufLo++);
-    b0 =  (*tBufHi++);
-    b1 = -(*tBufHi++);
-
-    delay[dOff0++] = (b0 - a0);
-    delay[dOff0++] = (b1 - a1);
-    delay[dOff1++] = (b0 + a0);
-    delay[dOff1++] = (b1 + a1);
-    }
-
-  QMFSynthesisConv ((int*)cTabS, delay, dIdx, outbuf, nChans);
-
-  *delayIdx = (*delayIdx == NUM_QMF_DELAY_BUFS - 1 ? 0 : *delayIdx + 1);
-  }
-//}}}
-//}}}
-
-// private members
-//{{{
-void cAacDecoder::decodeSingleChannelElement (BitStreamInfo* bsi) {
-/**************************************************************************************
- * Description: decode one SCE
- * Inputs:      BitStreamInfo struct pointing to start of SCE (14496-3, table 4.4.4)
- * Outputs:     updated element instance tag
- * Notes:       doesn't decode individual channel stream (part of DecodeNoiselessData)
- **************************************************************************************/
-
-  // read instance tag
-  currInstTag = getBits (bsi, NUM_INST_TAG_BITS);
-  }
-//}}}
-//{{{
-void cAacDecoder::decodeChannelPairElement (BitStreamInfo* bsi) {
-/**************************************************************************************
- * Description: decode one CPE
- * Inputs:      BitStreamInfo struct pointing to start of CPE (14496-3, table 4.4.5)
- * Outputs:     updated element instance tag
- *              updated commonWin
- *              updated ICS info, if commonWin == 1
- *              updated mid-side stereo info, if commonWin == 1
- * Notes:       doesn't decode individual channel stream (part of DecodeNoiselessData)
- **************************************************************************************/
-
-  ICSInfo* icsInfo = psInfoBase->icsInfo;
-
-  // read instance tag
-  currInstTag = getBits (bsi, NUM_INST_TAG_BITS);
-
-  // read common window flag and mid-side info (if present)
-  // store msMask bits in psInfoBase->msMaskBits[] as follows:
-  //  long blocks -  pack bits for each SFB in range [0, maxSFB) starting with lsb of msMaskBits[0]
-  //  short blocks - pack bits for each SFB in range [0, maxSFB), for each group [0, 7]
-  // msMaskPresent = 0 means no M/S coding
-  //               = 1 means psInfoBase->msMaskBits contains 1 bit per SFB to toggle M/S coding
-  //               = 2 means all SFB's are M/S coded (so psInfoBase->msMaskBits is not needed)
-  psInfoBase->commonWin = getBits (bsi, 1);
-  if (psInfoBase->commonWin) {
-    DecodeICSInfo(bsi, icsInfo, psInfoBase->sampRateIdx);
-    psInfoBase->msMaskPresent = getBits (bsi, 2);
-    if (psInfoBase->msMaskPresent == 1) {
-      uint8_t* maskPtr = psInfoBase->msMaskBits;
-      *maskPtr = 0;
-      int maskOffset = 0;
-      for (int gp = 0; gp < icsInfo->numWinGroup; gp++) {
-        for (int sfb = 0; sfb < icsInfo->maxSFB; sfb++) {
-          uint8_t currBit = (uint8_t)getBits(bsi, 1);
-          *maskPtr |= currBit << maskOffset;
-          if (++maskOffset == 8) {
-            maskPtr++;
-            *maskPtr = 0;
-            maskOffset = 0;
-            }
-          }
-        }
-      }
-    }
-  }
-//}}}
-//{{{
-void cAacDecoder::decodeLFEChannelElement (BitStreamInfo* bsi) {
-/**************************************************************************************
- * Description: decode one LFE
- * Inputs:      BitStreamInfo struct pointing to start of LFE (14496-3, table 4.4.9)
- * Outputs:     updated element instance tag
- * Notes:       doesn't decode individual channel stream (part of DecodeNoiselessData)
- **************************************************************************************/
-
-  // read instance tag
-  currInstTag = getBits (bsi, NUM_INST_TAG_BITS);
-  }
-//}}}
-//{{{
-void cAacDecoder::decodeDataStreamElement (BitStreamInfo* bsi) {
-/**************************************************************************************
- * Description: decode one DSE
- * Inputs:      BitStreamInfo struct pointing to start of DSE (14496-3, table 4.4.10)
- * Outputs:     updated element instance tag
- *              filled in data stream buffer
- **************************************************************************************/
-
-  currInstTag = getBits (bsi, NUM_INST_TAG_BITS);
-
-  unsigned int byteAlign = getBits (bsi, 1);
-
-  unsigned int dataCount = getBits (bsi, 8);
-  if (dataCount == 255)
-    dataCount += getBits (bsi, 8);
-  if (byteAlign)
-    byteAlignBitstream (bsi);
-
-  psInfoBase->dataCount = dataCount;
-  uint8_t* dataBuf = psInfoBase->dataBuf;
-  while (dataCount--)
-    *dataBuf++ = getBits (bsi, 8);
-  }
-//}}}
-//{{{
-void cAacDecoder::decodeProgramConfigElement (ProgConfigElement* pce, BitStreamInfo* bsi) {
-/**************************************************************************************
- * Description: decode one PCE
- * Inputs:      BitStreamInfo struct pointing to start of PCE (14496-3, table 4.4.2)
- * Outputs:     filled-in ProgConfigElement struct
- *              updated BitStreamInfo struct
- * Notes:       #define KEEP_PCE_COMMENTS to save the comment field of the PCE
- *                (otherwise we just skip it in the bitstream, to save memory)
- **************************************************************************************/
-
-  pce->elemInstTag = getBits(bsi, 4);
-  pce->profile = getBits(bsi, 2);
-  pce->sampRateIdx = getBits(bsi, 4);
-  pce->numFCE = getBits(bsi, 4);
-  pce->numSCE = getBits(bsi, 4);
-  pce->numBCE = getBits(bsi, 4);
-  pce->numLCE = getBits(bsi, 2);
-  pce->numADE = getBits(bsi, 3);
-  pce->numCCE = getBits(bsi, 4);
-
-  pce->monoMixdown = getBits (bsi, 1) << 4;  /* present flag */
-  if (pce->monoMixdown)
-    pce->monoMixdown |= getBits (bsi, 4);  /* element number */
-
-  pce->stereoMixdown = getBits (bsi, 1) << 4;  /* present flag */
-  if (pce->stereoMixdown)
-    pce->stereoMixdown  |= getBits (bsi, 4); /* element number */
-
-  pce->matrixMixdown = getBits (bsi, 1) << 4;  /* present flag */
-  if (pce->matrixMixdown) {
-    pce->matrixMixdown  |= getBits (bsi, 2) << 1;  /* index */
-    pce->matrixMixdown  |= getBits (bsi, 1);     /* pseudo-surround enable */
-    }
-
-  for (int i = 0; i < pce->numFCE; i++) {
-    pce->fce[i]  = getBits (bsi, 1) << 4;  /* is_cpe flag */
-    pce->fce[i] |= getBits (bsi, 4);     /* tag select */
-    }
-
-  for (int i = 0; i < pce->numSCE; i++) {
-    pce->sce[i]  = getBits (bsi, 1) << 4;  /* is_cpe flag */
-    pce->sce[i] |= getBits (bsi, 4);     /* tag select */
-    }
-
-  for (int i = 0; i < pce->numBCE; i++) {
-    pce->bce[i]  = getBits (bsi, 1) << 4;  /* is_cpe flag */
-    pce->bce[i] |= getBits (bsi, 4);     /* tag select */
-    }
-
-  for (int i = 0; i < pce->numLCE; i++)
-    pce->lce[i] = getBits (bsi, 4);      /* tag select */
-
-  for (int i = 0; i < pce->numADE; i++)
-    pce->ade[i] = getBits (bsi, 4);      /* tag select */
-
-  for (int i = 0; i < pce->numCCE; i++) {
-    pce->cce[i]  = getBits (bsi, 1) << 4;  /* independent/dependent flag */
-    pce->cce[i] |= getBits (bsi, 4);     /* tag select */
-    }
-
-  byteAlignBitstream (bsi);
-
-  pce->commentBytes = getBits (bsi, 8);
-  for (int i = 0; i < pce->commentBytes; i++)
-    pce->commentField[i] = getBits (bsi, 8);
-  }
-//}}}
-//{{{
-void cAacDecoder::decodeFillElement (BitStreamInfo* bsi) {
-/**************************************************************************************
- * Description: decode one fill element
- * Inputs:      BitStreamInfo struct pointing to start of fill element
- *                (14496-3, table 4.4.11)
- * Outputs:     updated element instance tag
- *              unpacked extension payload
- **************************************************************************************/
-
-  unsigned int fillCount1 = getBits (bsi, 4);
-  if (fillCount1 == 15)
-    fillCount1 += getBits (bsi, 8) - 1;
-
-  // !!! probable byte aligned copy into fillBuf which is turned into a second bitstream !!!
-  psInfoBase->fillCount = fillCount1;
-  uint8_t* fillBuf1 = psInfoBase->fillBuf;
-  while (fillCount1--)
-    *fillBuf1++ = getBits (bsi, 8);
-
-  // fill elements don't have instance tag
-  currInstTag = -1;
-  fillExtType = 0;
-
-  // check for SBR, sbrEnabled is sticky (reset each raw_data_block), so for multichannel
-  // need to verify that all SCE/CPE/ICCE have valid SBR fill element following, and must upsample by 2 for LFE
-  if (psInfoBase->fillCount > 0) {
-    fillExtType = (int)((psInfoBase->fillBuf[0] >> 4) & 0x0f);
-    if (fillExtType == EXT_SBR_DATA || fillExtType == EXT_SBR_DATA_CRC)
-      sbrEnabled = 1;
-    }
-
-  fillBuf = psInfoBase->fillBuf;
-  fillCount = psInfoBase->fillCount;
-  }
-//}}}
-//{{{
-bool cAacDecoder::decodeNextElement (uint8_t** buf, int* bitOffset, int* bitsAvail) {
-/**************************************************************************************
- * Description: decode next syntactic element in AAC frame
- * Inputs:      double pointer to buffer containing next element
- *              pointer to bit offset
- *              pointer to number of valid bits remaining in buf
- * Outputs:     type of element decoded (currBlockID)
- *              type of element decoded last time (prevBlockID)
- *              updated aacDecInfo state, depending on which element was decoded
- *              updated buffer pointer
- *              updated bit offset
- *              updated number of available bits
- * Return:      false if successful,
- **************************************************************************************/
-
-  BitStreamInfo bsi;
-  setBitstreamPointer (&bsi, (*bitsAvail + 7) >> 3, *buf);
-  getBits (&bsi, *bitOffset);
-
-  // read element ID (save last ID for SBR purposes) */
-  prevBlockID = currBlockID;
-  currBlockID = getBits(&bsi, NUM_SYN_ID_BITS);
-
-  // set defaults (could be overwritten by DecodeXXXElement(), depending on currBlockID) */
-  psInfoBase->commonWin = 0;
-
-  switch (currBlockID) {
-    case AAC_ID_SCE:
-      decodeSingleChannelElement (&bsi);
-    case AAC_ID_CPE:
-      decodeChannelPairElement (&bsi);
-      break;
-    case AAC_ID_CCE:
-      /* TODO - implement CCE decoding */
-      break;
-    case AAC_ID_LFE:
-      decodeLFEChannelElement (&bsi);
-      break;
-    case AAC_ID_DSE:
-      decodeDataStreamElement (&bsi);
-      break;
-    case AAC_ID_PCE:
-      decodeProgramConfigElement (psInfoBase->pce + 0, &bsi);
-      break;
-    case AAC_ID_FIL:
-      decodeFillElement (&bsi);
-      break;
-    case AAC_ID_END:
-      break;
-    }
-
-  // update bitstream reader
-  int bitsUsed = calcBitsUsed (&bsi, *buf, *bitOffset);
-  *buf += (bitsUsed + *bitOffset) >> 3;
-  *bitOffset = (bitsUsed + *bitOffset) & 0x07;
-  *bitsAvail -= bitsUsed;
-
-  return *bitsAvail < 0;
-  }
-//}}}
-//{{{
-bool cAacDecoder::decodeSbrBitstream (int chBase) {
-/**************************************************************************************
- * Description: decode sideband information for SBR
- * Inputs:      fill buffer with SBR extension block
- *              number of bytes in fill buffer
- *              base output channel (range = [0, nChans-1])
- * Outputs:     initialized state structs (SBRHdr, SBRGrid, SBRFreq, SBRChan)
- * Return:      false if successful
- * Notes:       SBR payload should be in fillBuf
- *              returns with no error if fill buffer is not an SBR extension block,
- *                or if current block is not a fill block (e.g. for LFE upsampling)
- **************************************************************************************/
-
-  if ((currBlockID != AAC_ID_FIL) ||
-      ((fillExtType != EXT_SBR_DATA) && (fillExtType != EXT_SBR_DATA_CRC)))
-    return false;
-
-  BitStreamInfo bsi;
-  setBitstreamPointer (&bsi, fillCount, fillBuf);
-  if (getBits (&bsi, 4) != (unsigned int)fillExtType)
-    return true;
-
-  if (fillExtType == EXT_SBR_DATA_CRC)
-    psInfoSBR->crcCheckWord = getBits (&bsi, 10);
-
-  int headerFlag = getBits (&bsi, 1);
-  if (headerFlag) {
-    // get sample rate index for output sample rate (2x base rate)
-    psInfoSBR->sampRateIdx = GetSampRateIdx (2 * sampRate);
-    if (psInfoSBR->sampRateIdx < 0 || psInfoSBR->sampRateIdx >= NUM_SAMPLE_RATES)
-      return true;
-    else if (psInfoSBR->sampRateIdx >= NUM_SAMPLE_RATES_SBR)
-      return true;
-
-    // reset flag = 1 if header values changed */
-    if (UnpackSBRHeader (&bsi, &(psInfoSBR->sbrHdr[chBase])))
-      psInfoSBR->sbrChan[chBase].reset = 1;
-
-    // first valid SBR header should always trigger CalcFreqTables(), since psInfoSBR->reset was set in InitSBR()
-    if (psInfoSBR->sbrChan[chBase].reset)
-      CalcFreqTables (&(psInfoSBR->sbrHdr[chBase+0]), &(psInfoSBR->sbrFreq[chBase]), psInfoSBR->sampRateIdx);
-
-    // copy and reset state to right channel for CPE
-    if (prevBlockID == AAC_ID_CPE)
-      psInfoSBR->sbrChan[chBase+1].reset = psInfoSBR->sbrChan[chBase+0].reset;
-    }
-
-  // if no header has been received, upsample only
-  if (psInfoSBR->sbrHdr[chBase].count == 0)
-    return false;
-
-  if (prevBlockID == AAC_ID_SCE)
-    UnpackSBRSingleChannel (&bsi, psInfoSBR, chBase);
-  else if (prevBlockID == AAC_ID_CPE)
-    UnpackSBRChannelPair (&bsi, psInfoSBR, chBase);
-  else
-    return true;
-
-  byteAlignBitstream (&bsi);
-  return false;
-  }
-//}}}
-
-//{{{
-void cAacDecoder::decodeNoiselessData (uint8_t** buf, int* bitOffset, int* bitsAvail, int ch) {
-/**************************************************************************************
- * Description: decode noiseless data (side info and transform coefficients)
- * Inputs:      double pointer to buffer pointing to start of individual channel stream (14496-3, table 4.4.24)
- *              pointer to bit offset
- *              pointer to number of valid bits remaining in buf
- *              index of current channel
- * Outputs:     updated global gain, section data, scale factor data, pulse data,
- *              TNS data, gain control data, and spectral data
- **************************************************************************************/
-
-  ICSInfo* icsInfo = (ch == 1 && psInfoBase->commonWin == 1) ? &(psInfoBase->icsInfo[0]) : &(psInfoBase->icsInfo[ch]);
-
-  BitStreamInfo bsi;
-  setBitstreamPointer (&bsi, (*bitsAvail+7) >> 3, *buf);
-  getBits (&bsi, *bitOffset);
-
-  DecodeICS (psInfoBase, &bsi, ch);
-
-  if (icsInfo->winSequence == 2)
-    DecodeSpectrumShort (psInfoBase, &bsi, ch);
-  else
-    DecodeSpectrumLong (psInfoBase, &bsi, ch);
-
-  int bitsUsed = calcBitsUsed (&bsi, *buf, *bitOffset);
-  *buf += ((bitsUsed + *bitOffset) >> 3);
-  *bitOffset = ((bitsUsed + *bitOffset) & 0x07);
-  *bitsAvail -= bitsUsed;
-
-  sbDeinterleaveReqd[ch] = 0;
-
-  // set flag if TNS used for any channel
-  tnsUsed |= psInfoBase->tnsInfo[ch].tnsDataPresent;
-  }
-//}}}
-//{{{
-void cAacDecoder::dequantize (int ch) {
-/**************************************************************************************
- * Description: dequantize all transform coefficients for one channel
- * Inputs:      index of current channel
- * Outputs:     dequantized coefficients, including short-block deinterleaving
- *              flags indicating if intensity and/or PNS is active
- *              minimum guard bit count for dequantized coefficients
- **************************************************************************************/
-
-  int nSamps;
-  const short* sfbTab;
-  ICSInfo* icsInfo = (ch == 1 && psInfoBase->commonWin == 1) ? &(psInfoBase->icsInfo[0]) : &(psInfoBase->icsInfo[ch]);
-  if (icsInfo->winSequence == 2) {
-    sfbTab = sfBandTabShort + sfBandTabShortOffset[psInfoBase->sampRateIdx];
-    nSamps = NSAMPS_SHORT;
-    }
-  else {
-    sfbTab = sfBandTabLong + sfBandTabLongOffset[psInfoBase->sampRateIdx];
-    nSamps = NSAMPS_LONG;
-    }
-  int* coef = psInfoBase->coef[ch];
-  uint8_t* sfbCodeBook = psInfoBase->sfbCodeBook[ch];
-  short* scaleFactors = psInfoBase->scaleFactors[ch];
-
-  psInfoBase->intensityUsed[ch] = 0;
-  psInfoBase->pnsUsed[ch] = 0;
-  int gbMask = 0;
-  for (int gp = 0; gp < icsInfo->numWinGroup; gp++) {
-    for (int win = 0; win < icsInfo->winGroupLen[gp]; win++) {
-      for (int sfb = 0; sfb < icsInfo->maxSFB; sfb++) {
-        // dequantize one scalefactor band (not necessary if codebook is intensity or PNS)
-        // for zero codebook, still run dequantizer in case non-zero pulse data was added
-        int cb = (int)(sfbCodeBook[sfb]);
-        int width = sfbTab[sfb+1] - sfbTab[sfb];
-        if (cb >= 0 && cb <= 11)
-          gbMask |= DequantBlock(coef, width, scaleFactors[sfb]);
-        else if (cb == 13)
-          psInfoBase->pnsUsed[ch] = 1;
-        else if (cb == 14 || cb == 15)
-          psInfoBase->intensityUsed[ch] = 1; // should only happen if ch == 1
-          coef += width;
-        }
-      coef += (nSamps - sfbTab[icsInfo->maxSFB]);
-      }
-    sfbCodeBook += icsInfo->maxSFB;
-    scaleFactors += icsInfo->maxSFB;
-    }
-
-  // set flag if PNS used for any channel
-  pnsUsed |= psInfoBase->pnsUsed[ch];
-
-  // calculate number of guard bits in dequantized data
-  psInfoBase->gbCurrent[ch] = countLeadingZeros (gbMask) - 1;
-  }
-//}}}
-//{{{
-void cAacDecoder::applyStereoProcess() {
-/**************************************************************************************
- * Description: apply mid-side and intensity stereo, if enabled
- * Outputs:     updated transform coefficients in Q(FBITS_OUT_DQ_OFF)
- *              updated minimum guard bit count for both channels
- **************************************************************************************/
-
-  // mid-side and intensity stereo require common_window == 1 (see MPEG4 spec, Correction 2, 2004)
-  if (psInfoBase->commonWin != 1 || currBlockID != AAC_ID_CPE)
-    return;
-
-  // nothing to do
-  if (!psInfoBase->msMaskPresent && !psInfoBase->intensityUsed[1])
-    return;
-
-  int nSamps;
-  const short* sfbTab;
-  ICSInfo* icsInfo = &(psInfoBase->icsInfo[0]);
-  if (icsInfo->winSequence == 2) {
-    sfbTab = sfBandTabShort + sfBandTabShortOffset[psInfoBase->sampRateIdx];
-    nSamps = NSAMPS_SHORT;
-    }
-  else {
-    sfbTab = sfBandTabLong + sfBandTabLongOffset[psInfoBase->sampRateIdx];
-    nSamps = NSAMPS_LONG;
-    }
-  int* coefL = psInfoBase->coef[0];
-  int* coefR = psInfoBase->coef[1];
-
-  // do fused mid-side/intensity processing for each block (one long or eight short)
-  int msMaskOffset = 0;
-  uint8_t* msMaskPtr = psInfoBase->msMaskBits;
-  for (int gp = 0; gp < icsInfo->numWinGroup; gp++) {
-    for (int win = 0; win < icsInfo->winGroupLen[gp]; win++) {
-      StereoProcessGroup(coefL, coefR, sfbTab, psInfoBase->msMaskPresent,
-        msMaskPtr, msMaskOffset, icsInfo->maxSFB, psInfoBase->sfbCodeBook[1] + gp*icsInfo->maxSFB,
-        psInfoBase->scaleFactors[1] + gp*icsInfo->maxSFB, psInfoBase->gbCurrent);
-      coefL += nSamps;
-      coefR += nSamps;
-      }
-
-    // we use one bit per sfb, so there are maxSFB bits for each window group
-    msMaskPtr += (msMaskOffset + icsInfo->maxSFB) >> 3;
-    msMaskOffset = (msMaskOffset + icsInfo->maxSFB) & 0x07;
-    }
-
-  cLog::log (LOGINFO2, "applyStereo");
-  }
-//}}}
-//{{{
-void cAacDecoder::applyPns (int ch) {
-/**************************************************************************************
- * Description: apply perceptual noise substitution, if enabled (MPEG-4 only)
- * Inputs:      index of current channel
- * Outputs:     shaped noise in scalefactor bands where PNS is active
- *              updated minimum guard bit count for this channel
- **************************************************************************************/
-
-  if (!psInfoBase->pnsUsed[ch])
-    return;
-
-  int nSamps;
-  const short* sfbTab;
-  ICSInfo* icsInfo = (ch == 1 && psInfoBase->commonWin == 1) ? &(psInfoBase->icsInfo[0]) : &(psInfoBase->icsInfo[ch]);
-  if (icsInfo->winSequence == 2) {
-    sfbTab = sfBandTabShort + sfBandTabShortOffset[psInfoBase->sampRateIdx];
-    nSamps = NSAMPS_SHORT;
-    }
-  else {
-    sfbTab = sfBandTabLong + sfBandTabLongOffset[psInfoBase->sampRateIdx];
-    nSamps = NSAMPS_LONG;
-    }
-  int* coef = psInfoBase->coef[ch];
-
-  uint8_t* sfbCodeBook = psInfoBase->sfbCodeBook[ch];
-  short* scaleFactors = psInfoBase->scaleFactors[ch];
-  int checkCorr = (currBlockID == AAC_ID_CPE && psInfoBase->commonWin == 1 ? 1 : 0);
-
-  int gbMask = 0;
-  for (int gp = 0; gp < icsInfo->numWinGroup; gp++) {
-    for (int win = 0; win < icsInfo->winGroupLen[gp]; win++) {
-      uint8_t* msMaskPtr = psInfoBase->msMaskBits + ((gp*icsInfo->maxSFB) >> 3);
-      int msMaskOffset = ((gp*icsInfo->maxSFB) & 0x07);
-      uint8_t msMask = (*msMaskPtr++) >> msMaskOffset;
-
-      for (int sfb = 0; sfb < icsInfo->maxSFB; sfb++) {
-        int width = sfbTab[sfb+1] - sfbTab[sfb];
-        if (sfbCodeBook[sfb] == 13) {
-          if (ch == 0) {
-            // generate new vector, copy into ch 1 if it's possible that the channels will be correlated
-            // if ch 1 has PNS enabled for this SFB but it's uncorrelated (i.e. ms_used == 0),
-            // the copied values will be overwritten when we process ch 1
-            GenerateNoiseVector (coef, &psInfoBase->pnsLastVal, width);
-            if (checkCorr && psInfoBase->sfbCodeBook[1][gp*icsInfo->maxSFB + sfb] == 13)
-              CopyNoiseVector (coef, psInfoBase->coef[1] + (coef - psInfoBase->coef[0]), width);
-            }
-          else {
-            // generate new vector if no correlation between channels
-            int genNew = 1;
-            if (checkCorr && psInfoBase->sfbCodeBook[0][gp*icsInfo->maxSFB + sfb] == 13) {
-              if ( (psInfoBase->msMaskPresent == 1 && (msMask & 0x01)) || psInfoBase->msMaskPresent == 2 )
-                genNew = 0;
-              }
-            if (genNew)
-              GenerateNoiseVector (coef, &psInfoBase->pnsLastVal, width);
-            }
-          gbMask |= ScaleNoiseVector (coef, width, psInfoBase->scaleFactors[ch][gp*icsInfo->maxSFB + sfb]);
-          }
-        coef += width;
-
-        // get next mask bit (should be branchless on ARM)
-        msMask >>= 1;
-        if (++msMaskOffset == 8) {
-          msMask = *msMaskPtr++;
-          msMaskOffset = 0;
-          }
-        }
-      coef += (nSamps - sfbTab[icsInfo->maxSFB]);
-      }
-    sfbCodeBook += icsInfo->maxSFB;
-    scaleFactors += icsInfo->maxSFB;
-    }
-
-  // update guard bit count if necessary
-  int gb = countLeadingZeros (gbMask) - 1;
-  if (psInfoBase->gbCurrent[ch] > gb)
-    psInfoBase->gbCurrent[ch] = gb;
-
-  cLog::log (LOGINFO2, "applyPns %d", ch);
-  }
-//}}}
-//{{{
-void cAacDecoder::applyTns (int ch) {
-/**************************************************************************************
- * Description: apply temporal noise shaping, if enabled
- * Inputs:       index of current channel
- * Outputs:     updated transform coefficients
- *              updated minimum guard bit count for this channel
- **************************************************************************************/
-
-  ICSInfo* icsInfo = (ch == 1 && psInfoBase->commonWin == 1) ? &(psInfoBase->icsInfo[0]) : &(psInfoBase->icsInfo[ch]);
-  TNSInfo* ti = &psInfoBase->tnsInfo[ch];
-  if (!ti->tnsDataPresent)
-    return;
-
-  const short* sfbTab;
-  const uint8_t* tnsMaxBandTab;
-  int winLen, nWindows, nSFB, maxOrder, tnsMaxBand, numFilt;
-  if (icsInfo->winSequence == 2) {
-    nWindows = NWINDOWS_SHORT;
-    winLen = NSAMPS_SHORT;
-    nSFB = sfBandTotalShort[psInfoBase->sampRateIdx];
-    maxOrder = tnsMaxOrderShort[profile];
-    sfbTab = sfBandTabShort + sfBandTabShortOffset[psInfoBase->sampRateIdx];
-    tnsMaxBandTab = tnsMaxBandsShort + tnsMaxBandsShortOffset[profile];
-    tnsMaxBand = tnsMaxBandTab[psInfoBase->sampRateIdx];
-    }
-  else {
-    nWindows = NWINDOWS_LONG;
-    winLen = NSAMPS_LONG;
-    nSFB = sfBandTotalLong[psInfoBase->sampRateIdx];
-    maxOrder = tnsMaxOrderLong[profile];
-    sfbTab = sfBandTabLong + sfBandTabLongOffset[psInfoBase->sampRateIdx];
-    tnsMaxBandTab = tnsMaxBandsLong + tnsMaxBandsLongOffset[profile];
-    tnsMaxBand = tnsMaxBandTab[psInfoBase->sampRateIdx];
-    }
-
-  if (tnsMaxBand > icsInfo->maxSFB)
-    tnsMaxBand = icsInfo->maxSFB;
-
-  uint8_t* filtRes = ti->coefRes;
-  uint8_t* filtLength = ti->length;
-  uint8_t* filtOrder = ti->order;
-  uint8_t* filtDir = ti->dir;
-  int8_t* filtCoef = ti->coef;
-
-  int gbMask = 0;
-  int* audioCoef = psInfoBase->coef[ch];
-  for (int win = 0; win < nWindows; win++) {
-    int bottom = nSFB;
-    numFilt = ti->numFilt[win];
-    for (int filt = 0; filt < numFilt; filt++) {
-      int top = bottom;
-      bottom = top - *filtLength++;
-      bottom = std::max (bottom, 0);
-      int order = *filtOrder++;
-      order = std::min (order, maxOrder);
-
-      if (order) {
-        int start = sfbTab[std::min (bottom, tnsMaxBand)];
-        int end   = sfbTab[std::min (top, tnsMaxBand)];
-        int size = end - start;
-        if (size > 0) {
-          int dir = *filtDir++;
-          if (dir)
-            start = end - 1;
-
-          DecodeLPCCoefs (order, filtRes[win], filtCoef, psInfoBase->tnsLPCBuf, psInfoBase->tnsWorkBuf);
-          gbMask |= FilterRegion (size, dir, order, audioCoef + start, psInfoBase->tnsLPCBuf, psInfoBase->tnsWorkBuf);
-          }
-        filtCoef += order;
-        }
-      }
-    audioCoef += winLen;
-    }
-
-  // update guard bit count if necessary
-  int size = countLeadingZeros (gbMask) - 1;
-  if (psInfoBase->gbCurrent[ch] > size)
-    psInfoBase->gbCurrent[ch] = size;
-
-  cLog::log (LOGINFO2, "applyTns %d", ch);
-  }
-//}}}
-//{{{
-void cAacDecoder::imdct (int ch, int chOut, float* outbuf) {
-/**************************************************************************************
- * Description: inverse transform and convert to 16-bit PCM
- * Inputs:      index of current channel (0 for SCE/LFE, 0 or 1 for CPE)
- *              output channel (range = [0, nChans-1])
- * Outputs:     complete frame of decoded PCM, if sbr
- **************************************************************************************/
-
-  ICSInfo* icsInfo = (ch == 1 && psInfoBase->commonWin == 1) ? &(psInfoBase->icsInfo[0]) : &(psInfoBase->icsInfo[ch]);
-  outbuf += chOut;
-
-  // optimized type-IV DCT (operates inplace)
-  if (icsInfo->winSequence == 2) // 8 short blocks
-    for (int i = 0; i < 8; i++)
-      DCT4 (0, psInfoBase->coef[ch] + i*128, psInfoBase->gbCurrent[ch]);
-  else // 1 long block
-    DCT4 (1, psInfoBase->coef[ch], psInfoBase->gbCurrent[ch]);
-
-  // window, overlap-add, don't clip to short (send to SBR decoder)
-  // store the decoded 32-bit samples in top half (second AAC_MAX_NSAMPS samples) of coef buffer
-  if (icsInfo->winSequence == 0)
-    DecWindowOverlapNoClip (psInfoBase->coef[ch], psInfoBase->overlap[chOut], psInfoBase->sbrWorkBuf[ch],
-                            icsInfo->winShape, psInfoBase->prevWinShape[chOut]);
-  else if (icsInfo->winSequence == 1)
-    DecWindowOverlapLongStartNoClip (psInfoBase->coef[ch], psInfoBase->overlap[chOut], psInfoBase->sbrWorkBuf[ch],
-                                     icsInfo->winShape, psInfoBase->prevWinShape[chOut]);
-  else if (icsInfo->winSequence == 2)
-    DecWindowOverlapShortNoClip (psInfoBase->coef[ch], psInfoBase->overlap[chOut], psInfoBase->sbrWorkBuf[ch],
-                                 icsInfo->winShape, psInfoBase->prevWinShape[chOut]);
-  else if (icsInfo->winSequence == 3)
-    DecWindowOverlapLongStopNoClip (psInfoBase->coef[ch], psInfoBase->overlap[chOut], psInfoBase->sbrWorkBuf[ch],
-                                    icsInfo->winShape, psInfoBase->prevWinShape[chOut]);
-
-  rawSampleBuf[ch] = psInfoBase->sbrWorkBuf[ch];
-
-  if (!sbrEnabled)
-    for (int i = 0; i < AAC_MAX_NSAMPS; i++) {
-      *outbuf = psInfoBase->sbrWorkBuf[ch][i] / (float)0x20000;
-      outbuf += nChans;
-      }
-
-  psInfoBase->prevWinShape[chOut] = icsInfo->winShape;
-  }
-//}}}
 //{{{
 void cAacDecoder::applySbr (int chBase, float* outbuf) {
 /**************************************************************************************
@@ -9055,258 +9300,5 @@ void cAacDecoder::applySbr (int chBase, float* outbuf) {
   sbrFreq->numQMFBandsPrev = sbrFreq->numQMFBands;
 
   cLog::log (LOGINFO2, "applySbr");
-  }
-//}}}
-
-//{{{
-bool cAacDecoder::unpackADTSHeader (uint8_t** buf, int* bitOffset, int* bitsAvail) {
- /**************************************************************************************
- * Description: parse the ADTS frame header and initialize decoder state
- * Inputs:      double pointer to buffer with complete ADTS frame header (byte aligned)
- *                header size = 7 bytes, plus 2 if CRC
- * Outputs:     filled in ADTS struct
- *              updated buffer pointer
- *              updated bit offset
- *              updated number of available bits
- * Return:      false if successful
- **************************************************************************************/
-
-  BitStreamInfo bsi;
-  setBitstreamPointer (&bsi, (*bitsAvail + 7) >> 3, *buf);
-  getBits (&bsi, *bitOffset);
-
-  // verify that first 12 bits of header are syncword
-  if (getBits (&bsi, 12) != 0x0fff)
-    return true;
-
-  // fixed fields - should not change from frame to frame
-  ADTSHeader* fhADTS = &(psInfoBase->fhADTS);
-  fhADTS->id =               getBits(&bsi, 1);
-  fhADTS->layer =            getBits(&bsi, 2);
-  fhADTS->protectBit =       getBits(&bsi, 1);
-  fhADTS->profile =          getBits(&bsi, 2);
-  fhADTS->sampRateIdx =      getBits(&bsi, 4);
-  fhADTS->privateBit =       getBits(&bsi, 1);
-  fhADTS->channelConfig =    getBits(&bsi, 3);
-  fhADTS->origCopy =         getBits(&bsi, 1);
-  fhADTS->home =             getBits(&bsi, 1);
-
-  // variable fields - can change from frame to frame
-  fhADTS->copyBit =          getBits(&bsi, 1);
-  fhADTS->copyStart =        getBits(&bsi, 1);
-  fhADTS->frameLength =      getBits(&bsi, 13);
-  fhADTS->bufferFull =       getBits(&bsi, 11);
-  fhADTS->numRawDataBlocks = getBits(&bsi, 2) + 1;
-
-  // note - MPEG4 spec, correction 1 changes how CRC is handled when protectBit == 0 and numRawDataBlocks > 1
-  if (fhADTS->protectBit == 0)
-    fhADTS->crcCheckWord = getBits (&bsi, 16);
-
-  // byte align
-  byteAlignBitstream (&bsi); // should always be aligned anyway
-
-  // check validity of header
-  if (fhADTS->layer != 0 || fhADTS->profile != AAC_PROFILE_LC ||
-      fhADTS->sampRateIdx >= NUM_SAMPLE_RATES || fhADTS->channelConfig >= NUM_DEF_CHAN_MAPS)
-    return true;
-
-  // update codec info
-  psInfoBase->sampRateIdx = fhADTS->sampRateIdx;
-  if (!psInfoBase->useImpChanMap)
-    psInfoBase->nChans = channelMapTab[fhADTS->channelConfig];
-
-  // syntactic element fields will be read from bitstream for each element
-  prevBlockID = AAC_ID_INVALID;
-  currBlockID = AAC_ID_INVALID;
-  currInstTag = -1;
-
-  // fill in user-accessible data (TODO - calc bitrate, handle tricky channel config cases)
-  bitRate = 0;
-  nChans = psInfoBase->nChans;
-  sampRate = sampRateTab[psInfoBase->sampRateIdx];
-  profile = fhADTS->profile;
-  sbrEnabled = 0;
-  adtsBlocksLeft = fhADTS->numRawDataBlocks;
-
-  // update bitstream reader
-  int bitsUsed = calcBitsUsed (&bsi, *buf, *bitOffset);
-  *buf += (bitsUsed + *bitOffset) >> 3;
-  *bitOffset = (bitsUsed + *bitOffset) & 0x07;
-  *bitsAvail -= bitsUsed ;
-  if (*bitsAvail < 0)
-    return true;
-
-  return false;
-  }
-//}}}
-//{{{
-bool cAacDecoder::getADTSChannelMapping (uint8_t* buf, int bitOffset, int bitsAvail) {
-/**************************************************************************************
- * Description: determine the number of channels from implicit mapping rules
- * Inputs:      pointer to start of raw_data_block
- *              bit offset
- *              bits available
- * Outputs:     updated number of channels
- * Return:      false if successful
- * Notes:       calculates total number of channels using rules in 14496-3, 4.5.1.2.1
- *              does not attempt to deduce speaker geometry
- **************************************************************************************/
-
-  int nChans = 0;
-  do {
-    // parse next syntactic element */
-    if (decodeNextElement (&buf, &bitOffset, &bitsAvail))
-      return true;
-
-    int elementChans = elementNumChans[currBlockID];
-    nChans += elementChans;
-
-    for (int ch = 0; ch < elementChans; ch++)
-      decodeNoiselessData (&buf, &bitOffset, &bitsAvail, ch);
-    } while (currBlockID != AAC_ID_END);
-
-  if (nChans <= 0)
-    return true;
-
-  // update number of channels in codec state and user-accessible info structs
-  psInfoBase->nChans = nChans;
-  nChans = psInfoBase->nChans;
-  psInfoBase->useImpChanMap = 1;
-
-  return false;
-  }
-//}}}
-
-// public members
-//{{{
-cAacDecoder::cAacDecoder() {
-
-  psInfoBase = (struct PSInfoBase*)malloc (sizeof(PSInfoBase));
-  memset (psInfoBase, 0, sizeof(PSInfoBase));
-
-  psInfoSBR = (PSInfoSBR*)malloc (sizeof(PSInfoSBR));
-  InitSBRState (psInfoSBR);
-  }
-//}}}
-//{{{
-cAacDecoder::~cAacDecoder() {
-
-  free (psInfoSBR);
-  free (psInfoBase);
-  }
-//}}}
-
-//{{{
-int cAacDecoder::getSampleRate() {
-  return sampRate * (sbrEnabled ? 2 : 1);
-  }
-//}}}
-//{{{
-int cAacDecoder::flushCodec() {
-/**************************************************************************************
- * Description: flush internal codec state (after seeking, for example)
- * Inputs:      valid AAC decoder instance pointer (HAACDecoder)
- * Outputs:     updated state variables in
- * Return:      0 if successful, error code (< 0) if error
- **************************************************************************************/
-// reset common state variables which change per-frame
-// don't touch state variables which are (usually) constant for entire clip
-//  (nChans, sampRate, profile, format, sbrEnabled)
-
-  prevBlockID = AAC_ID_INVALID;
-  currBlockID = AAC_ID_INVALID;
-  currInstTag = -1;
-  for (int ch = 0; ch < MAX_NCHANS_ELEM; ch++)
-    sbDeinterleaveReqd[ch] = 0;
-  adtsBlocksLeft = 0;
-  tnsUsed = 0;
-  pnsUsed = 0;
-
-  /* reset internal codec state (flush overlap buffers, etc.) */
-  struct PSInfoBase* psiInfo = psInfoBase;
-  memset (psiInfo->overlap, 0, AAC_MAX_NCHANS * AAC_MAX_NSAMPS * sizeof(int));
-  memset (psiInfo->prevWinShape, 0, AAC_MAX_NCHANS * sizeof(int));
-
-  InitSBRState (psInfoSBR);
-
-  return ERR_AAC_NONE;
-  }
-//}}}
-
-//{{{
-int cAacDecoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf) {
-// return o on any failure
-
-  cLog::log (LOGINFO1, "cAacDecoder::decodeSingleFrame in");
-
-  int bitOffset = 0;
-  int bitsAvail = bytesLeft << 3;
-
-  if (unpackADTSHeader (&inbuf, &bitOffset, &bitsAvail))
-    return 0;
-
-  if (nChans == -1)
-    if (getADTSChannelMapping (inbuf, bitOffset, bitsAvail))
-      return 0;
-
-  // check for valid number of channels */
-  if (nChans > AAC_MAX_NCHANS || nChans <= 0)
-    return 0;
-
-  // will be set later if active in this frame
-  tnsUsed = 0;
-  pnsUsed = 0;
-
-  bitOffset = 0;
-  int baseChan = 0;
-  int baseChanSBR = 0;
-  do {
-    // parse next syntactic element */
-    if (decodeNextElement (&inbuf, &bitOffset, &bitsAvail))
-      return 0;
-
-    int elementChans = elementNumChans[currBlockID];
-    if (baseChan + elementChans > AAC_MAX_NCHANS)
-      return 0;
-
-    for (int ch = 0; ch < elementChans; ch++) {
-      decodeNoiselessData (&inbuf, &bitOffset, &bitsAvail, ch);
-      dequantize (ch);
-      }
-    if (currBlockID == AAC_ID_CPE)
-      applyStereoProcess();
-    for (int ch = 0; ch < elementChans; ch++) {
-      applyPns (ch);
-      applyTns (ch);
-      imdct (ch, baseChan + ch, outbuf);
-      }
-
-    if (sbrEnabled && (currBlockID == AAC_ID_FIL || currBlockID == AAC_ID_LFE)) {
-      // process sbr
-      int elementChansSBR;
-      if (currBlockID == AAC_ID_LFE)
-        elementChansSBR = elementNumChans[AAC_ID_LFE];
-      else if (currBlockID == AAC_ID_FIL &&
-               (prevBlockID == AAC_ID_SCE || prevBlockID == AAC_ID_CPE))
-        elementChansSBR = elementNumChans[prevBlockID];
-      else
-        elementChansSBR = 0;
-
-      if (baseChanSBR + elementChansSBR > AAC_MAX_NCHANS)
-        return 0;
-
-      // parse SBR extension data if present (contained in a fill element)
-      if (decodeSbrBitstream (baseChanSBR))
-        return 0;
-      applySbr (baseChanSBR, outbuf);
-      baseChanSBR += elementChansSBR;
-      }
-
-    baseChan += elementChans;
-    } while (currBlockID != AAC_ID_END);
-
-  cLog::log (LOGINFO1, "cAacDecoder::decodeSingleFrame out");
-
-  return nChans * AAC_MAX_NSAMPS * (sbrEnabled ? 2 : 1) / 2;
   }
 //}}}
