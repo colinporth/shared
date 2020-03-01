@@ -7,25 +7,31 @@
 #include "cMp3decoder.h"
 #include "../utils/cLog.h"
 //}}}
-//{{{  intrinsics
-#include <intrin.h>
-#include <immintrin.h>
+#define USE_INTRINSICS
+#ifdef USE_INTRINSICS
+  //{{{  intrinsics
+  #include <intrin.h>
+  #include <immintrin.h>
 
-#define VSTORE  _mm_storeu_ps
-#define VLD     _mm_loadu_ps
-#define VSET    _mm_set1_ps
-#define VADD    _mm_add_ps
-#define VSUB    _mm_sub_ps
-#define VMUL    _mm_mul_ps
+  #define VSTORE  _mm_storeu_ps
+  #define VLD     _mm_loadu_ps
+  #define VSET    _mm_set1_ps
+  #define VADD    _mm_add_ps
+  #define VSUB    _mm_sub_ps
+  #define VMUL    _mm_mul_ps
 
-#define VMAC(a, x, y)  _mm_add_ps (a, _mm_mul_ps(x, y))
-#define VMSB(a, x, y)  _mm_sub_ps (a, _mm_mul_ps(x, y))
-#define VMUL_S(x, s)   _mm_mul_ps (x, _mm_set1_ps(s))
+  #define VMAC(a, x, y)  _mm_add_ps (a, _mm_mul_ps(x, y))
+  #define VMSB(a, x, y)  _mm_sub_ps (a, _mm_mul_ps(x, y))
+  #define VMUL_S(x, s)   _mm_mul_ps (x, _mm_set1_ps(s))
 
-#define VREV(x) _mm_shuffle_ps (x, x, _MM_SHUFFLE(0, 1, 2, 3))
+  #define VREV(x) _mm_shuffle_ps (x, x, _MM_SHUFFLE(0, 1, 2, 3))
 
-typedef __m128 f4;
-//}}}
+  typedef __m128 f4;
+
+  static const f4 g_max = {  32767.0f,  32767.0f,  32767.0f,  32767.0f };
+  static const f4 g_min = { -32768.0f, -32768.0f, -32768.0f, -32768.0f };
+  //}}}
+#endif
 //{{{  defines
 #define MINIMP3_MAX_SAMPLES_PER_FRAME (1152*2)
 
@@ -388,13 +394,6 @@ static const float g_win[] = {
   -5,6,  -97,111,163,-127,-1498, 1634,185,288,   -9585,9838, -8540,11455, -62684,65290
   };
 //}}}
-
-//{{{
-static const f4 g_max = {  32767.0f,  32767.0f,  32767.0f,  32767.0f };
-//}}}
-//{{{
-static const f4 g_min = { -32768.0f, -32768.0f, -32768.0f, -32768.0f };
-//}}}
 //}}}
 
 // bitstream utils
@@ -615,6 +614,200 @@ void L12_apply_scf_384 (L12_scale_info* sci, const float* scf, float* dst) {
 //}}}
 //}}}
 //{{{  L3 utils
+//{{{
+void L3_dct3_9 (float *y) {
+
+  float s0 = y[0];
+  float s2 = y[2];
+  float s4 = y[4];
+  float s6 = y[6];
+  float s8 = y[8];
+  float t0 = s0 + s6*0.5f;
+  s0 -= s6;
+  float t4 = (s4 + s2) * 0.93969262f;
+  float t2 = (s8 + s2) * 0.76604444f;
+  s6 = (s4 - s8) * 0.17364818f;
+  s4 += s8 - s2;
+
+  s2 = s0 - s4 * 0.5f;
+  y[4] = s4 + s0;
+  s8 = t0 - t2 + s6;
+  s0 = t0 - t4 + t2;
+  s4 = t0 + t4 - s6;
+
+  float s1 = y[1];
+  float s3 = y[3];
+  float s5 = y[5];
+  float s7 = y[7];
+
+  s3 *= 0.86602540f;
+  t0 = (s5 + s1) * 0.98480775f;
+  t4 = (s5 - s7) * 0.34202014f;
+  t2 = (s1 + s7) * 0.64278761f;
+  s1 = (s1 - s5 - s7) * 0.86602540f;
+
+  s5 = t0 - s3 - t2;
+  s7 = t4 - s3 - t0;
+  s3 = t4 + s3 - t2;
+
+  y[0] = s4 - s7;
+  y[1] = s2 + s1;
+  y[2] = s0 - s3;
+  y[3] = s8 + s5;
+  y[5] = s8 - s5;
+  y[6] = s0 + s3;
+  y[7] = s2 - s1;
+  y[8] = s4 + s7;
+  }
+//}}}
+
+#ifdef USE_INTRINSICS
+//{{{
+void L3_midside_stereo (float *left, int n) {
+
+  float* right = left + 576;
+
+  int i = 0;
+  for (; i < n - 3; i += 4) {
+    f4 vl = VLD (left + i);
+    f4 vr = VLD (right + i);
+    VSTORE (left + i, VADD (vl, vr));
+    VSTORE (right + i, VSUB (vl, vr));
+    }
+
+  for (; i < n; i++) {
+    float a = left[i];
+    float b = right[i];
+    left[i] = a + b;
+    right[i] = a - b;
+    }
+  }
+//}}}
+//{{{
+void L3_antialias (float *grbuf, int nbands) {
+
+  for (; nbands > 0; nbands--, grbuf += 18) {
+    int i = 0;
+    for (; i < 8; i += 4) {
+      f4 vu = VLD (grbuf + 18 + i);
+      f4 vd = VLD (grbuf + 14 - i);
+      f4 vc0 = VLD (g_aa[0] + i);
+      f4 vc1 = VLD (g_aa[1] + i);
+      vd = VREV (vd);
+      VSTORE (grbuf + 18 + i, VSUB (VMUL (vu, vc0), VMUL (vd, vc1)));
+      vd = VADD (VMUL (vu, vc1), VMUL (vd, vc0));
+      VSTORE (grbuf + 14 - i, VREV (vd));
+      }
+    }
+  }
+//}}}
+//{{{
+void L3_imdct36 (float *grbuf, float *overlap, const float *window, int nbands) {
+
+  for (int j = 0; j < nbands; j++, grbuf += 18, overlap += 9) {
+    float co[9];
+    float si[9];
+    co[0] = -grbuf[0];
+    si[0] = grbuf[17];
+    for (int i = 0; i < 4; i++) {
+      si[8 - 2*i] =   grbuf[4*i + 1] - grbuf[4*i + 2];
+      co[1 + 2*i] =   grbuf[4*i + 1] + grbuf[4*i + 2];
+      si[7 - 2*i] =   grbuf[4*i + 4] - grbuf[4*i + 3];
+      co[2 + 2*i] = -(grbuf[4*i + 3] + grbuf[4*i + 4]);
+      }
+    L3_dct3_9 (co);
+    L3_dct3_9 (si);
+
+    si[1] = -si[1];
+    si[3] = -si[3];
+    si[5] = -si[5];
+    si[7] = -si[7];
+
+    int i = 0;
+    for (; i < 8; i += 4) {
+      f4 vovl = VLD(overlap + i);
+      f4 vc = VLD(co + i);
+      f4 vs = VLD(si + i);
+      f4 vr0 = VLD(g_twid9 + i);
+      f4 vr1 = VLD(g_twid9 + 9 + i);
+      f4 vw0 = VLD(window + i);
+      f4 vw1 = VLD(window + 9 + i);
+      f4 vsum = VADD(VMUL(vc, vr1), VMUL(vs, vr0));
+      VSTORE(overlap + i, VSUB(VMUL(vc, vr0), VMUL(vs, vr1)));
+      VSTORE(grbuf + i, VSUB(VMUL(vovl, vw0), VMUL(vsum, vw1)));
+      vsum = VADD(VMUL(vovl, vw1), VMUL(vsum, vw0));
+      VSTORE(grbuf + 14 - i, VREV(vsum));
+      }
+
+    for (; i < 9; i++) {
+      float ovl  = overlap[i];
+      float sum  = co[i]*g_twid9[9 + i] + si[i]*g_twid9[0 + i];
+      overlap[i] = co[i]*g_twid9[0 + i] - si[i]*g_twid9[9 + i];
+      grbuf[i]      = ovl*window[0 + i] - sum*window[9 + i];
+      grbuf[17 - i] = ovl*window[9 + i] + sum*window[0 + i];
+      }
+    }
+  }
+//}}}
+#else
+//{{{
+void L3_midside_stereo (float *left, int n) {
+
+  float* right = left + 576;
+  for (int i = 0; i < n; i++) {
+    float a = left[i];
+    float b = right[i];
+    left[i] = a + b;
+    right[i] = a - b;
+    }
+  }
+//}}}
+//{{{
+void L3_antialias (float* grbuf, int nbands) {
+
+  for (; nbands > 0; nbands--, grbuf += 18) {
+    for (int i = 0; i < 8; i++) {
+      float u = grbuf[18 + i];
+      float d = grbuf[17 - i];
+      grbuf[18 + i] = u*g_aa[0][i] - d*g_aa[1][i];
+      grbuf[17 - i] = u*g_aa[1][i] + d*g_aa[0][i];
+      }
+    }
+  }
+//}}}
+//{{{
+void L3_imdct36 (float* grbuf, float* overlap, const float* window, int nbands) {
+
+  for (int j = 0; j < nbands; j++, grbuf += 18, overlap += 9) {
+    float co[9], si[9];
+    co[0] = -grbuf[0];
+    si[0] = grbuf[17];
+    for (int i = 0; i < 4; i++) {
+      si[8 - 2*i] =   grbuf[4*i + 1] - grbuf[4*i + 2];
+      co[1 + 2*i] =   grbuf[4*i + 1] + grbuf[4*i + 2];
+      si[7 - 2*i] =   grbuf[4*i + 4] - grbuf[4*i + 3];
+      co[2 + 2*i] = -(grbuf[4*i + 3] + grbuf[4*i + 4]);
+      }
+    L3_dct3_9(co);
+    L3_dct3_9(si);
+
+    si[1] = -si[1];
+    si[3] = -si[3];
+    si[5] = -si[5];
+    si[7] = -si[7];
+
+    for (int i = 0; i < 9; i++) {
+      float ovl  = overlap[i];
+      float sum  = co[i]*g_twid9[9 + i] + si[i]*g_twid9[0 + i];
+      overlap[i] = co[i]*g_twid9[0 + i] - si[i]*g_twid9[9 + i];
+      grbuf[i]      = ovl*window[0 + i] - sum*window[9 + i];
+      grbuf[17 - i] = ovl*window[9 + i] + sum*window[0 + i];
+      }
+    }
+  }
+//}}}
+#endif
+
 //{{{
 int L3_read_side_info (cMp3Decoder::sBitStream* bs, cMp3Decoder::L3_gr_info_t* gr, const uint8_t* hdr) {
 
@@ -910,27 +1103,6 @@ void L3_huffman (float* dst, cMp3Decoder::sBitStream* bs, const cMp3Decoder::L3_
 //}}}
 
 //{{{
-void L3_midside_stereo (float *left, int n) {
-
-  float* right = left + 576;
-
-  int i = 0;
-  for (; i < n - 3; i += 4) {
-    f4 vl = VLD (left + i);
-    f4 vr = VLD (right + i);
-    VSTORE (left + i, VADD (vl, vr));
-    VSTORE (right + i, VSUB (vl, vr));
-    }
-
-  for (; i < n; i++) {
-    float a = left[i];
-    float b = right[i];
-    left[i] = a + b;
-    right[i] = a - b;
-    }
-  }
-//}}}
-//{{{
 void L3_intensity_stereo_band (float *left, int n, float kl, float kr) {
 
   for (int i = 0; i < n; i++) {
@@ -1024,128 +1196,7 @@ void L3_reorder (float* grbuf, float* scratch, const uint8_t* sfb) {
   memcpy (grbuf, scratch, (dst - scratch)*sizeof(float));
   }
 //}}}
-//{{{
-void L3_antialias (float *grbuf, int nbands) {
-//{{{
-        //for(; i < 8; i++)
-        //{
-            //float u = grbuf[18 + i];
-            //float d = grbuf[17 - i];
-            //grbuf[18 + i] = u*g_aa[0][i] - d*g_aa[1][i];
-            //grbuf[17 - i] = u*g_aa[1][i] + d*g_aa[0][i];
-        //}
-//}}}
 
-  for (; nbands > 0; nbands--, grbuf += 18) {
-    int i = 0;
-    for (; i < 8; i += 4) {
-      f4 vu = VLD (grbuf + 18 + i);
-      f4 vd = VLD (grbuf + 14 - i);
-      f4 vc0 = VLD (g_aa[0] + i);
-      f4 vc1 = VLD (g_aa[1] + i);
-      vd = VREV (vd);
-      VSTORE (grbuf + 18 + i, VSUB (VMUL (vu, vc0), VMUL (vd, vc1)));
-      vd = VADD (VMUL (vu, vc1), VMUL (vd, vc0));
-      VSTORE (grbuf + 14 - i, VREV (vd));
-      }
-    }
-  }
-//}}}
-
-//{{{
-void L3_dct3_9 (float *y) {
-
-  float s0 = y[0];
-  float s2 = y[2];
-  float s4 = y[4];
-  float s6 = y[6];
-  float s8 = y[8];
-  float t0 = s0 + s6*0.5f;
-  s0 -= s6;
-  float t4 = (s4 + s2) * 0.93969262f;
-  float t2 = (s8 + s2) * 0.76604444f;
-  s6 = (s4 - s8) * 0.17364818f;
-  s4 += s8 - s2;
-
-  s2 = s0 - s4 * 0.5f;
-  y[4] = s4 + s0;
-  s8 = t0 - t2 + s6;
-  s0 = t0 - t4 + t2;
-  s4 = t0 + t4 - s6;
-
-  float s1 = y[1];
-  float s3 = y[3];
-  float s5 = y[5];
-  float s7 = y[7];
-
-  s3 *= 0.86602540f;
-  t0 = (s5 + s1) * 0.98480775f;
-  t4 = (s5 - s7) * 0.34202014f;
-  t2 = (s1 + s7) * 0.64278761f;
-  s1 = (s1 - s5 - s7) * 0.86602540f;
-
-  s5 = t0 - s3 - t2;
-  s7 = t4 - s3 - t0;
-  s3 = t4 + s3 - t2;
-
-  y[0] = s4 - s7;
-  y[1] = s2 + s1;
-  y[2] = s0 - s3;
-  y[3] = s8 + s5;
-  y[5] = s8 - s5;
-  y[6] = s0 + s3;
-  y[7] = s2 - s1;
-  y[8] = s4 + s7;
-  }
-//}}}
-//{{{
-void L3_imdct36 (float *grbuf, float *overlap, const float *window, int nbands) {
-
-  for (int j = 0; j < nbands; j++, grbuf += 18, overlap += 9) {
-    float co[9];
-    float si[9];
-    co[0] = -grbuf[0];
-    si[0] = grbuf[17];
-    for (int i = 0; i < 4; i++) {
-      si[8 - 2*i] =   grbuf[4*i + 1] - grbuf[4*i + 2];
-      co[1 + 2*i] =   grbuf[4*i + 1] + grbuf[4*i + 2];
-      si[7 - 2*i] =   grbuf[4*i + 4] - grbuf[4*i + 3];
-      co[2 + 2*i] = -(grbuf[4*i + 3] + grbuf[4*i + 4]);
-      }
-    L3_dct3_9 (co);
-    L3_dct3_9 (si);
-
-    si[1] = -si[1];
-    si[3] = -si[3];
-    si[5] = -si[5];
-    si[7] = -si[7];
-
-    int i = 0;
-    for (; i < 8; i += 4) {
-      f4 vovl = VLD(overlap + i);
-      f4 vc = VLD(co + i);
-      f4 vs = VLD(si + i);
-      f4 vr0 = VLD(g_twid9 + i);
-      f4 vr1 = VLD(g_twid9 + 9 + i);
-      f4 vw0 = VLD(window + i);
-      f4 vw1 = VLD(window + 9 + i);
-      f4 vsum = VADD(VMUL(vc, vr1), VMUL(vs, vr0));
-      VSTORE(overlap + i, VSUB(VMUL(vc, vr0), VMUL(vs, vr1)));
-      VSTORE(grbuf + i, VSUB(VMUL(vovl, vw0), VMUL(vsum, vw1)));
-      vsum = VADD(VMUL(vovl, vw1), VMUL(vsum, vw0));
-      VSTORE(grbuf + 14 - i, VREV(vsum));
-      }
-
-    for (; i < 9; i++) {
-      float ovl  = overlap[i];
-      float sum  = co[i]*g_twid9[9 + i] + si[i]*g_twid9[0 + i];
-      overlap[i] = co[i]*g_twid9[0 + i] - si[i]*g_twid9[9 + i];
-      grbuf[i]      = ovl*window[0 + i] - sum*window[9 + i];
-      grbuf[17 - i] = ovl*window[9 + i] + sum*window[0 + i];
-      }
-    }
-  }
-//}}}
 //{{{
 void L3_idct3 (float x0, float x1, float x2, float *dst) {
 
@@ -1217,161 +1268,6 @@ void L3_imdct_gr (float* grbuf, float* overlap, unsigned block_type, unsigned n_
 //}}}
 
 //{{{
-void mp3d_DCT_II (float* grbuf, int n) {
-//{{{
-    //for (; k < n; k++)
-    //{
-        //float t[4][8], *x, *y = grbuf + k;
-
-        //for (x = t[0], i = 0; i < 8; i++, x++)
-        //{
-            //float x0 = y[i*18];
-            //float x1 = y[(15 - i)*18];
-            //float x2 = y[(16 + i)*18];
-            //float x3 = y[(31 - i)*18];
-            //float t0 = x0 + x3;
-            //float t1 = x1 + x2;
-            //float t2 = (x1 - x2)*g_sec[3*i + 0];
-            //float t3 = (x0 - x3)*g_sec[3*i + 1];
-            //x[0] = t0 + t1;
-            //x[8] = (t0 - t1)*g_sec[3*i + 2];
-            //x[16] = t3 + t2;
-            //x[24] = (t3 - t2)*g_sec[3*i + 2];
-        //}
-        //for (x = t[0], i = 0; i < 4; i++, x += 8)
-        //{
-            //float x0 = x[0], x1 = x[1], x2 = x[2], x3 = x[3], x4 = x[4], x5 = x[5], x6 = x[6], x7 = x[7], xt;
-            //xt = x0 - x7; x0 += x7;
-            //x7 = x1 - x6; x1 += x6;
-            //x6 = x2 - x5; x2 += x5;
-            //x5 = x3 - x4; x3 += x4;
-            //x4 = x0 - x3; x0 += x3;
-            //x3 = x1 - x2; x1 += x2;
-            //x[0] = x0 + x1;
-            //x[4] = (x0 - x1)*0.70710677f;
-            //x5 =  x5 + x6;
-            //x6 = (x6 + x7)*0.70710677f;
-            //x7 =  x7 + xt;
-            //x3 = (x3 + x4)*0.70710677f;
-            //x5 -= x7*0.198912367f;  /* rotate by PI/8 */
-            //x7 += x5*0.382683432f;
-            //x5 -= x7*0.198912367f;
-            //x0 = xt - x6; xt += x6;
-            //x[1] = (xt + x7)*0.50979561f;
-            //x[2] = (x4 + x3)*0.54119611f;
-            //x[3] = (x0 - x5)*0.60134488f;
-            //x[5] = (x0 + x5)*0.89997619f;
-            //x[6] = (x4 - x3)*1.30656302f;
-            //x[7] = (xt - x7)*2.56291556f;
-
-        //}
-        //for (i = 0; i < 7; i++, y += 4*18)
-        //{
-            //y[0*18] = t[0][i];
-            //y[1*18] = t[2][i] + t[3][i] + t[3][i + 1];
-            //y[2*18] = t[1][i] + t[1][i + 1];
-            //y[3*18] = t[2][i + 1] + t[3][i] + t[3][i + 1];
-        //}
-        //y[0*18] = t[0][7];
-        //y[1*18] = t[2][7] + t[3][7];
-        //y[2*18] = t[1][7];
-        //y[3*18] = t[3][7];
-    //}
-//}}}
-
-  int i, k = 0;
-  for (; k < n; k += 4) {
-    f4 t[4][8];
-    f4* x;
-    float* y = grbuf + k;
-
-    for (x = t[0], i = 0; i < 8; i++, x++) {
-      f4 x0 = VLD (&y[i*18]);
-      f4 x1 = VLD (&y[(15 - i)*18]);
-      f4 x2 = VLD (&y[(16 + i)*18]);
-      f4 x3 = VLD (&y[(31 - i)*18]);
-      f4 t0 = VADD (x0, x3);
-      f4 t1 = VADD (x1, x2);
-      f4 t2 = VMUL_S (VSUB (x1, x2), g_sec[3*i + 0]);
-      f4 t3 = VMUL_S (VSUB (x0, x3), g_sec[3*i + 1]);
-      x[0] = VADD (t0, t1);
-      x[8] = VMUL_S (VSUB( t0, t1), g_sec[3*i + 2]);
-      x[16] = VADD (t3, t2);
-      x[24] = VMUL_S (VSUB (t3, t2), g_sec[3*i + 2]);
-      }
-
-    for (x = t[0], i = 0; i < 4; i++, x += 8) {
-      f4 x0 = x[0];
-      f4 x1 = x[1];
-      f4 x2 = x[2];
-      f4 x3 = x[3];
-      f4 x4 = x[4];
-      f4 x5 = x[5];
-      f4 x6 = x[6];
-      f4 x7 = x[7];
-      f4 xt = VSUB (x0, x7); x0 = VADD(x0, x7);
-      x7 = VSUB (x1, x6);
-      x1 = VADD (x1, x6);
-      x6 = VSUB (x2, x5);
-      x2 = VADD (x2, x5);
-      x5 = VSUB (x3, x4);
-      x3 = VADD (x3, x4);
-      x4 = VSUB (x0, x3);
-      x0 = VADD (x0, x3);
-      x3 = VSUB (x1, x2);
-      x1 = VADD (x1, x2);
-      x[0] = VADD (x0, x1);
-      x[4] = VMUL_S (VSUB (x0, x1), 0.70710677f);
-      x5 = VADD (x5, x6);
-      x6 = VMUL_S (VADD (x6, x7), 0.70710677f);
-      x7 = VADD (x7, xt);
-      x3 = VMUL_S (VADD (x3, x4), 0.70710677f);
-      x5 = VSUB (x5, VMUL_S (x7, 0.198912367f)); /* rotate by PI/8 */
-      x7 = VADD (x7, VMUL_S (x5, 0.382683432f));
-      x5 = VSUB (x5, VMUL_S (x7, 0.198912367f));
-      x0 = VSUB (xt, x6);
-      xt = VADD (xt, x6);
-      x[1] = VMUL_S (VADD(xt, x7), 0.50979561f);
-      x[2] = VMUL_S (VADD(x4, x3), 0.54119611f);
-      x[3] = VMUL_S (VSUB(x0, x5), 0.60134488f);
-      x[5] = VMUL_S (VADD(x0, x5), 0.89997619f);
-      x[6] = VMUL_S (VSUB(x4, x3), 1.30656302f);
-      x[7] = VMUL_S (VSUB(xt, x7), 2.56291556f);
-      }
-
-    #define VSAVE2(i, v) _mm_storel_pi ((__m64*)(void*)&y[i*18], v)
-    #define VSAVE4(i, v) VSTORE (&y[i*18], v)
-
-    if (k > n - 3) {
-      for (i = 0; i < 7; i++, y += 4*18) {
-        f4 s = VADD (t[3][i], t[3][i + 1]);
-        VSAVE2 (0, t[0][i]);
-        VSAVE2 (1, VADD (t[2][i], s));
-        VSAVE2 (2, VADD (t[1][i], t[1][i + 1]));
-        VSAVE2 (3, VADD (t[2][1 + i], s));
-        }
-      VSAVE2 (0, t[0][7]);
-      VSAVE2 (1, VADD(t[2][7], t[3][7]));
-      VSAVE2 (2, t[1][7]);
-      VSAVE2 (3, t[3][7]);
-      }
-    else {
-      for (i = 0; i < 7; i++, y += 4*18) {
-        f4 s = VADD (t[3][i], t[3][i + 1]);
-        VSAVE4 (0, t[0][i]);
-        VSAVE4 (1, VADD (t[2][i], s));
-        VSAVE4 (2, VADD (t[1][i], t[1][i + 1]));
-        VSAVE4 (3, VADD (t[2][1 + i], s));
-        }
-      VSAVE4 (0, t[0][7]);
-      VSAVE4 (1, VADD (t[2][7], t[3][7]));
-      VSAVE4 (2, t[1][7]);
-      VSAVE4 (3, t[3][7]);
-      }
-    }
-  }
-//}}}
-//{{{
 int16_t mp3d_scale_pcm (float sample) {
 
   if (sample >=  32766.5)
@@ -1411,51 +1307,118 @@ void mp3d_synth_pair (int16_t* pcm, int nch, const float* z) {
   pcm[16*nch] = mp3d_scale_pcm (a);
   }
 //}}}
+#ifdef USE_INTRINSICS
+//{{{
+void mp3d_DCT_II (float* grbuf, int n) {
+
+  for (int k = 0; k < n; k += 4) {
+    f4 t[4][8];
+
+    f4* x = t[0];
+    float* y = grbuf + k;
+    for (int i = 0; i < 8; i++, x++) {
+      f4 x0 = VLD (&y[i*18]);
+      f4 x1 = VLD (&y[(15 - i)*18]);
+      f4 x2 = VLD (&y[(16 + i)*18]);
+      f4 x3 = VLD (&y[(31 - i)*18]);
+      f4 t0 = VADD (x0, x3);
+      f4 t1 = VADD (x1, x2);
+      f4 t2 = VMUL_S (VSUB (x1, x2), g_sec[3*i + 0]);
+      f4 t3 = VMUL_S (VSUB (x0, x3), g_sec[3*i + 1]);
+      x[0] = VADD (t0, t1);
+      x[8] = VMUL_S (VSUB( t0, t1), g_sec[3*i + 2]);
+      x[16] = VADD (t3, t2);
+      x[24] = VMUL_S (VSUB (t3, t2), g_sec[3*i + 2]);
+      }
+
+    x = t[0];
+    for (int i = 0; i < 4; i++, x += 8) {
+      f4 x0 = x[0];
+      f4 x1 = x[1];
+      f4 x2 = x[2];
+      f4 x3 = x[3];
+      f4 x4 = x[4];
+      f4 x5 = x[5];
+      f4 x6 = x[6];
+      f4 x7 = x[7];
+      f4 xt = VSUB (x0, x7);
+      x0 = VADD(x0, x7);
+      x7 = VSUB (x1, x6);
+      x1 = VADD (x1, x6);
+      x6 = VSUB (x2, x5);
+      x2 = VADD (x2, x5);
+      x5 = VSUB (x3, x4);
+      x3 = VADD (x3, x4);
+      x4 = VSUB (x0, x3);
+      x0 = VADD (x0, x3);
+      x3 = VSUB (x1, x2);
+      x1 = VADD (x1, x2);
+      x[0] = VADD (x0, x1);
+      x[4] = VMUL_S (VSUB (x0, x1), 0.70710677f);
+      x5 = VADD (x5, x6);
+      x6 = VMUL_S (VADD (x6, x7), 0.70710677f);
+      x7 = VADD (x7, xt);
+      x3 = VMUL_S (VADD (x3, x4), 0.70710677f);
+      x5 = VSUB (x5, VMUL_S (x7, 0.198912367f)); /* rotate by PI/8 */
+      x7 = VADD (x7, VMUL_S (x5, 0.382683432f));
+      x5 = VSUB (x5, VMUL_S (x7, 0.198912367f));
+      x0 = VSUB (xt, x6);
+      xt = VADD (xt, x6);
+      x[1] = VMUL_S (VADD(xt, x7), 0.50979561f);
+      x[2] = VMUL_S (VADD(x4, x3), 0.54119611f);
+      x[3] = VMUL_S (VSUB(x0, x5), 0.60134488f);
+      x[5] = VMUL_S (VADD(x0, x5), 0.89997619f);
+      x[6] = VMUL_S (VSUB(x4, x3), 1.30656302f);
+      x[7] = VMUL_S (VSUB(xt, x7), 2.56291556f);
+      }
+
+    #define VSAVE2(i, v) _mm_storel_pi ((__m64*)(void*)&y[i*18], v)
+    #define VSAVE4(i, v) VSTORE (&y[i*18], v)
+
+    if (k > n - 3) {
+      for (int i = 0; i < 7; i++, y += 4*18) {
+        f4 s = VADD (t[3][i], t[3][i + 1]);
+        VSAVE2 (0, t[0][i]);
+        VSAVE2 (1, VADD (t[2][i], s));
+        VSAVE2 (2, VADD (t[1][i], t[1][i + 1]));
+        VSAVE2 (3, VADD (t[2][1 + i], s));
+        }
+      VSAVE2 (0, t[0][7]);
+      VSAVE2 (1, VADD(t[2][7], t[3][7]));
+      VSAVE2 (2, t[1][7]);
+      VSAVE2 (3, t[3][7]);
+      }
+    else {
+      for (int i = 0; i < 7; i++, y += 4*18) {
+        f4 s = VADD (t[3][i], t[3][i + 1]);
+        VSAVE4 (0, t[0][i]);
+        VSAVE4 (1, VADD (t[2][i], s));
+        VSAVE4 (2, VADD (t[1][i], t[1][i + 1]));
+        VSAVE4 (3, VADD (t[2][1 + i], s));
+        }
+      VSAVE4 (0, t[0][7]);
+      VSAVE4 (1, VADD (t[2][7], t[3][7]));
+      VSAVE4 (2, t[1][7]);
+      VSAVE4 (3, t[3][7]);
+      }
+    }
+  }
+//}}}
 //{{{
 void mp3d_synth (float* xl, int16_t* dstl, int nch, float* lins) {
-//{{{
-//for (i = 14; i >= 0; i--) {
-  //#define LOAD(k) float w0 = *w++; float w1 = *w++; float *vz = &zlin[4*i - k*64]; float *vy = &zlin[4*i - (15 - k)*64];
-  //#define S0(k) { int j; LOAD(k); for (j = 0; j < 4; j++) b[j]  = vz[j]*w1 + vy[j]*w0, a[j]  = vz[j]*w0 - vy[j]*w1; }
-  //#define S1(k) { int j; LOAD(k); for (j = 0; j < 4; j++) b[j] += vz[j]*w1 + vy[j]*w0, a[j] += vz[j]*w0 - vy[j]*w1; }
-  //#define S2(k) { int j; LOAD(k); for (j = 0; j < 4; j++) b[j] += vz[j]*w1 + vy[j]*w0, a[j] += vy[j]*w1 - vz[j]*w0; }
-  //float a[4], b[4];
 
-  //zlin[4*i]     = xl[18*(31 - i)];
-  //zlin[4*i + 1] = xr[18*(31 - i)];
-  //zlin[4*i + 2] = xl[1 + 18*(31 - i)];
-  //zlin[4*i + 3] = xr[1 + 18*(31 - i)];
-  //zlin[4*(i + 16)]   = xl[1 + 18*(1 + i)];
-  //zlin[4*(i + 16) + 1] = xr[1 + 18*(1 + i)];
-  //zlin[4*(i - 16) + 2] = xl[18*(1 + i)];
-  //zlin[4*(i - 16) + 3] = xr[18*(1 + i)];
-
-  //S0(0) S2(1) S1(2) S2(3) S1(4) S2(5) S1(6) S2(7)
-
-  //dstr[(15 - i)*nch] = mp3d_scale_pcm(a[1]);
-  //dstr[(17 + i)*nch] = mp3d_scale_pcm(b[1]);
-  //dstl[(15 - i)*nch] = mp3d_scale_pcm(a[0]);
-  //dstl[(17 + i)*nch] = mp3d_scale_pcm(b[0]);
-  //dstr[(47 - i)*nch] = mp3d_scale_pcm(a[3]);
-  //dstr[(49 + i)*nch] = mp3d_scale_pcm(b[3]);
-  //dstl[(47 - i)*nch] = mp3d_scale_pcm(a[2]);
-  //dstl[(49 + i)*nch] = mp3d_scale_pcm(b[2]);
-//}
-//}}}
-
-  int i;
-  float* xr = xl + 576*(nch - 1);
+  float* xr = xl + 576 * (nch - 1);
   int16_t* dstr = dstl + (nch - 1);
 
   float* zlin = lins + 15*64;
   const float* w = g_win;
 
-  zlin [4*15]     = xl[18*16];
+  zlin [4*15] = xl[18*16];
   zlin [4*15 + 1] = xr[18*16];
   zlin [4*15 + 2] = xl[0];
   zlin [4*15 + 3] = xr[0];
 
-  zlin [4*31]     = xl[1 + 18*16];
+  zlin [4*31] = xl[1 + 18*16];
   zlin [4*31 + 1] = xr[1 + 18*16];
   zlin [4*31 + 2] = xl[1];
   zlin [4*31 + 3] = xr[1];
@@ -1465,8 +1428,8 @@ void mp3d_synth (float* xl, int16_t* dstl, int nch, float* lins) {
   mp3d_synth_pair (dstl, nch, lins + 4*15);
   mp3d_synth_pair (dstl + 32*nch, nch, lins + 4*15 + 64);
 
-  for (i = 14; i >= 0; i--) {
-    zlin [4*i]     = xl [18*(31 - i)];
+  for (int i = 14; i >= 0; i--) {
+    zlin [4*i] = xl [18*(31 - i)];
     zlin [4*i + 1] = xr [18*(31 - i)];
     zlin [4*i + 2] = xl [1 + 18*(31 - i)];
     zlin [4*i + 3] = xr [1 + 18*(31 - i)];
@@ -1508,6 +1471,166 @@ void mp3d_synth (float* xl, int16_t* dstl, int nch, float* lins) {
     }
   }
 //}}}
+#else
+//{{{
+void mp3d_DCT_II (float* grbuf, int n) {
+
+  for (int k = 0; k < n; k++) {
+    float t[4][8];
+    float* y = grbuf + k;
+    float* x = t[0];
+    for (int i = 0; i < 8; i++, x++) {
+      float x0 = y[i*18];
+      float x1 = y[(15 - i)*18];
+      float x2 = y[(16 + i)*18];
+      float x3 = y[(31 - i)*18];
+      float t0 = x0 + x3;
+      float t1 = x1 + x2;
+      float t2 = (x1 - x2)*g_sec[3*i + 0];
+      float t3 = (x0 - x3)*g_sec[3*i + 1];
+      x[0] = t0 + t1;
+      x[8] = (t0 - t1)*g_sec[3*i + 2];
+      x[16] = t3 + t2;
+      x[24] = (t3 - t2)*g_sec[3*i + 2];
+      }
+
+    x = t[0];
+    for (int i = 0; i < 4; i++, x += 8) {
+      float x0 = x[0];
+      float x1 = x[1];
+      float x2 = x[2];
+      float x3 = x[3];
+      float x4 = x[4];
+      float x5 = x[5];
+      float x6 = x[6];
+      float x7 = x[7];
+      float  xt = x0 - x7;
+      x0 += x7;
+      x7 = x1 - x6;
+      x1 += x6;
+      x6 = x2 - x5;
+      x2 += x5;
+      x5 = x3 - x4;
+      x3 += x4;
+      x4 = x0 - x3;
+      x0 += x3;
+      x3 = x1 - x2;
+      x1 += x2;
+      x[0] = x0 + x1;
+      x[4] = (x0 - x1) * 0.70710677f;
+      x5 =  x5 + x6;
+      x6 = (x6 + x7) * 0.70710677f;
+      x7 =  x7 + xt;
+      x3 = (x3 + x4) * 0.70710677f;
+      x5 -= x7 * 0.198912367f;  /* rotate by PI/8 */
+      x7 += x5 * 0.382683432f;
+      x5 -= x7 * 0.198912367f;
+      x0 = xt - x6; xt += x6;
+      x[1] = (xt + x7) * 0.50979561f;
+      x[2] = (x4 + x3) * 0.54119611f;
+      x[3] = (x0 - x5) * 0.60134488f;
+      x[5] = (x0 + x5) * 0.89997619f;
+      x[6] = (x4 - x3) * 1.30656302f;
+      x[7] = (xt - x7) * 2.56291556f;
+      }
+
+    for (int i = 0; i < 7; i++, y += 4*18) {
+      y[0*18] = t[0][i];
+      y[1*18] = t[2][i] + t[3][i] + t[3][i + 1];
+      y[2*18] = t[1][i] + t[1][i + 1];
+      y[3*18] = t[2][i + 1] + t[3][i] + t[3][i + 1];
+      }
+
+    y[0*18] = t[0][7];
+    y[1*18] = t[2][7] + t[3][7];
+    y[2*18] = t[1][7];
+    y[3*18] = t[3][7];
+    }
+  }
+//}}}
+//{{{
+void mp3d_synth (float* xl, int16_t* dstl, int nch, float* lins) {
+
+  float* xr = xl + 576*(nch - 1);
+  int16_t* dstr = dstl + (nch - 1);
+
+  float* zlin = lins + 15 * 64;
+  const float* w = g_win;
+
+  zlin [4*15] = xl[18*16];
+  zlin [4*15 + 1] = xr[18 * 16];
+  zlin [4*15 + 2] = xl[0];
+  zlin [4*15 + 3] = xr[0];
+
+  zlin [4*31] = xl[1 + 18 * 16];
+  zlin [4*31 + 1] = xr[1 + 18 * 16];
+  zlin [4*31 + 2] = xl[1];
+  zlin [4*31 + 3] = xr[1];
+
+  mp3d_synth_pair (dstr, nch, lins + 4*15 + 1);
+  mp3d_synth_pair (dstr + 32*nch, nch, lins + 4*15 + 64 + 1);
+  mp3d_synth_pair (dstl, nch, lins + 4*15);
+  mp3d_synth_pair (dstl + 32*nch, nch, lins + 4*15 + 64);
+
+  for (int i = 14; i >= 0; i--) {
+    zlin[4*i] = xl[18*(31 - i)];
+    zlin[4*i + 1] = xr[18*(31 - i)];
+    zlin[4*i + 2] = xl[1 + 18 * (31 - i)];
+    zlin[4*i + 3] = xr[1 + 18 * (31 - i)];
+    zlin[4*(i + 16)]   = xl[1 + 18 * (1 + i)];
+    zlin[4*(i + 16) + 1] = xr[1 + 18 * (1 + i)];
+    zlin[4*(i - 16) + 2] = xl[18 * (1 + i)];
+    zlin[4*(i - 16) + 3] = xr[18 * (1 + i)];
+
+    float a[4], b[4];
+    //{{{
+    #define LOAD(k) \
+      float w0 = *w++; \
+      float w1 = *w++; \
+      float* vz = &zlin [4*i - k*64]; \
+      float* vy = &zlin [4*i - (15 - k)*64];
+    //}}}
+    //{{{
+    #define S0(k) { \
+      LOAD(k); \
+      for (int j = 0; j < 4; j++) {       \
+        b[j]  = vz[j]*w1 + vy[j]*w0;  \
+        a[j]  = vz[j]*w0 - vy[j]*w1;  \
+        }                             \
+      }
+    //}}}
+    //{{{
+    #define S1(k) { \
+      LOAD(k); \
+      for (int j = 0; j < 4; j++) {       \
+        b[j] += vz[j]*w1 + vy[j]*w0;  \
+        a[j] += vz[j]*w0 - vy[j]*w1;  \
+        }                             \
+      }
+    //}}}
+    //{{{
+    #define S2(k) { \
+      LOAD(k); \
+      for (int j = 0; j < 4; j++) {       \
+        b[j] += vz[j]*w1 + vy[j]*w0;  \
+        a[j] += vy[j]*w1 - vz[j]*w0;  \
+        }                             \
+      }
+    //}}}
+    S0(0) S2(1) S1(2) S2(3) S1(4) S2(5) S1(6) S2(7)
+
+    dstr[(15 - i)*nch] = mp3d_scale_pcm (a[1]);
+    dstr[(17 + i)*nch] = mp3d_scale_pcm (b[1]);
+    dstl[(15 - i)*nch] = mp3d_scale_pcm (a[0]);
+    dstl[(17 + i)*nch] = mp3d_scale_pcm (b[0]);
+    dstr[(47 - i)*nch] = mp3d_scale_pcm (a[3]);
+    dstr[(49 + i)*nch] = mp3d_scale_pcm (b[3]);
+    dstl[(47 - i)*nch] = mp3d_scale_pcm (a[2]);
+    dstl[(49 + i)*nch] = mp3d_scale_pcm (b[2]);
+    }
+  }
+//}}}
+#endif
 //{{{
 void mp3d_synth_granule (float* qmf_state, float* grbuf, int nbands, int nch, int16_t* pcm, float* lins) {
 
@@ -1660,6 +1783,7 @@ int cMp3Decoder::getSampleRate() {
 //{{{
 int cMp3Decoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf) {
 
+  cLog::log (LOGINFO1, "decodeSingleFrame in");
   int success = 1;
 
   // keep this around for a while
@@ -1748,6 +1872,8 @@ int cMp3Decoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf
   float* dstPtr = outbuf;
   for (int sample = 0; sample < numSamples * 2; sample++)
     *dstPtr++ = *srcPtr++ / (float)0x8000;
+
+  cLog::log (LOGINFO1, "decodeSingleFrame out");
 
   sampleRate = info.hz;
   return numSamples;
