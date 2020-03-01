@@ -74,6 +74,7 @@ public:
   cAacDecoder();
   ~cAacDecoder();
 
+  int getNumChannels();
   int getSampleRate();
   int decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf);
   int flushCodec();

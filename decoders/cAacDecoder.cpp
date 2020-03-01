@@ -2245,6 +2245,11 @@ cAacDecoder::~cAacDecoder() {
 //}}}
 
 //{{{
+int cAacDecoder::getNumChannels() {
+  return nChans;
+  }
+//}}}
+//{{{
 int cAacDecoder::getSampleRate() {
   return sampRate * (sbrEnabled ? 2 : 1);
   }
@@ -2280,7 +2285,6 @@ int cAacDecoder::flushCodec() {
   return ERR_AAC_NONE;
   }
 //}}}
-
 //{{{
 int cAacDecoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf) {
 // return o on any failure
@@ -2344,23 +2348,10 @@ int cAacDecoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf
     baseChan += elementNumChans[currBlockID];
     } while (currBlockID != AAC_ID_END);
 
-  cLog::log (LOGINFO1, "cAacDecoder::decodeSingleFrame out");
-  if (nChans == 1) {
-    // fixup stereo
-    int numSamples = AAC_MAX_NSAMPS * (sbrEnabled ? 2 : 1);
-    cLog::log(LOGINFO, "numchans %d fixup %d", nChans, numSamples);
-    //for (int i = numSamples - 1; i >= 0; i--) {
-    //  outbuf[i*2] = outbuf[i];
-    //  outbuf[(i*2)+1] = outbuf[i];
-    //  }
-    return numSamples;
-    }
-  else if (nChans == 2)
-    return AAC_MAX_NSAMPS * (sbrEnabled ? 2 : 1);
-  else {
-    cLog::log (LOGERROR, "unexpected numchans %d", nChans);
-    return 0;
-    }
+  int numSamples = AAC_MAX_NSAMPS * (sbrEnabled ? 2 : 1);
+  cLog::log (LOGINFO1, "cAacDecoder::decodeSingleFrame out chans:%d numSamples%d", nChans, numSamples);
+
+  return numSamples;
   }
 //}}}
 

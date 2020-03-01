@@ -1776,6 +1776,11 @@ cMp3Decoder::cMp3Decoder() {
 //}}}
 
 //{{{
+int cMp3Decoder::getNumChannels() {
+  return channels;
+  }
+//}}}
+//{{{
 int cMp3Decoder::getSampleRate() {
   return sampleRate;
   }
@@ -1876,6 +1881,7 @@ int cMp3Decoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf
   cLog::log (LOGINFO1, "decodeSingleFrame out");
 
   sampleRate = info.hz;
+  channels = info.channels;
   return numSamples;
   }
 //}}}

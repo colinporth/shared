@@ -52,6 +52,7 @@ public:
   //}}}
 
   cMp3Decoder();
+  int getNumChannels();
   int getSampleRate();
   int decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf);
 
@@ -74,6 +75,7 @@ private:
   float mdct_overlap[2][9*32];
   float qmf_state[15*2*32];
 
+  int channels = 0;
   int sampleRate = 0;
   //}}}
   };
