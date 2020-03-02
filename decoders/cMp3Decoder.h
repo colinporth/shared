@@ -52,6 +52,7 @@ public:
   //}}}
 
   cMp3Decoder();
+  ~cMp3Decoder();
 
   int getNumChannels() { return channels; }
   int getSampleRate() { return sampleRate; }

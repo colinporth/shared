@@ -1,4 +1,4 @@
-// cAacDecoder.cpp - fixed point aac sbr, based on real networks helix 2005
+// cAacDecoder.cpp - 32bit fixed point aac sbr, based on real networks helix 2005, slow but portable
 //{{{  includes
 #define _CRT_SECURE_NO_WARNINGS
 #include <algorithm>
@@ -2204,7 +2204,6 @@ cAacDecoder::cAacDecoder() {
 //}}}
 //{{{
 cAacDecoder::~cAacDecoder() {
-
   free (psInfoSBR);
   free (psInfoBase);
   }
@@ -2309,7 +2308,23 @@ int cAacDecoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf
 //}}}
 
 // private members
-//{{{  bitstream utils
+//{{{  bitstream, huffman, decode utils
+#define APPLY_SIGN(v, s)    {(v) ^= ((signed int)(s) >> 31); (v) -= ((signed int)(s) >> 31);}
+
+#define GET_QUAD_SIGNBITS(v)  (((unsigned int)(v) << 17) >> 29) /* bits 14-12, unsigned */
+#define GET_QUAD_W(v)     (((signed int)(v) << 20) >>   29) /* bits 11-9, sign-extend */
+#define GET_QUAD_X(v)     (((signed int)(v) << 23) >>   29) /* bits  8-6, sign-extend */
+#define GET_QUAD_Y(v)     (((signed int)(v) << 26) >>   29) /* bits  5-3, sign-extend */
+#define GET_QUAD_Z(v)     (((signed int)(v) << 29) >>   29) /* bits  2-0, sign-extend */
+
+#define GET_PAIR_SIGNBITS(v)  (((unsigned int)(v) << 20) >> 30) /* bits 11-10, unsigned */
+#define GET_PAIR_Y(v)     (((signed int)(v) << 22) >>   27) /* bits  9-5, sign-extend */
+#define GET_PAIR_Z(v)     (((signed int)(v) << 27) >>   27) /* bits  4-0, sign-extend */
+
+#define GET_ESC_SIGNBITS(v)   (((unsigned int)(v) << 18) >> 30) /* bits 13-12, unsigned */
+#define GET_ESC_Y(v)      (((signed int)(v) << 20) >>   26) /* bits 11-6, sign-extend */
+#define GET_ESC_Z(v)      (((signed int)(v) << 26) >>   26) /* bits  5-0, sign-extend */
+
 //{{{
 void setBitstreamPointer (cAacDecoder::BitStreamInfo* bsi, int nBytes, uint8_t* buf) {
 
@@ -2319,7 +2334,6 @@ void setBitstreamPointer (cAacDecoder::BitStreamInfo* bsi, int nBytes, uint8_t* 
   bsi->nBytes = nBytes;
   }
 //}}}
-
 //{{{
 void advanceBitstream (cAacDecoder::BitStreamInfo* bsi, int nBits) {
 
@@ -2346,7 +2360,6 @@ void byteAlignBitstream (cAacDecoder::BitStreamInfo* bsi) {
   advanceBitstream (bsi, offset);
   }
 //}}}
-
 //{{{
 unsigned int getBits (cAacDecoder::BitStreamInfo* bsi, int nBits) {
 /**************************************************************************************
@@ -2432,23 +2445,6 @@ int calcBitsUsed (cAacDecoder::BitStreamInfo* bsi, uint8_t *startBuf, int startO
   return bitsUsed;
   }
 //}}}
-//}}}
-//{{{  decode, huffman utils
-#define APPLY_SIGN(v, s)    {(v) ^= ((signed int)(s) >> 31); (v) -= ((signed int)(s) >> 31);}
-
-#define GET_QUAD_SIGNBITS(v)  (((unsigned int)(v) << 17) >> 29) /* bits 14-12, unsigned */
-#define GET_QUAD_W(v)     (((signed int)(v) << 20) >>   29) /* bits 11-9, sign-extend */
-#define GET_QUAD_X(v)     (((signed int)(v) << 23) >>   29) /* bits  8-6, sign-extend */
-#define GET_QUAD_Y(v)     (((signed int)(v) << 26) >>   29) /* bits  5-3, sign-extend */
-#define GET_QUAD_Z(v)     (((signed int)(v) << 29) >>   29) /* bits  2-0, sign-extend */
-
-#define GET_PAIR_SIGNBITS(v)  (((unsigned int)(v) << 20) >> 30) /* bits 11-10, unsigned */
-#define GET_PAIR_Y(v)     (((signed int)(v) << 22) >>   27) /* bits  9-5, sign-extend */
-#define GET_PAIR_Z(v)     (((signed int)(v) << 27) >>   27) /* bits  4-0, sign-extend */
-
-#define GET_ESC_SIGNBITS(v)   (((unsigned int)(v) << 18) >> 30) /* bits 13-12, unsigned */
-#define GET_ESC_Y(v)      (((signed int)(v) << 20) >>   26) /* bits 11-6, sign-extend */
-#define GET_ESC_Z(v)      (((signed int)(v) << 26) >>   26) /* bits  5-0, sign-extend */
 
 //{{{
 int DecodeHuffmanScalar (const int16_t* huffTab, const HuffInfo* huffTabInfo, unsigned int bitBuf, signed int* val) {
@@ -2481,6 +2477,46 @@ int DecodeHuffmanScalar (const int16_t* huffTab, const HuffInfo* huffTabInfo, un
 
   *val = (signed int)map[t];
   return (int)(countPtr - huffTabInfo->count);
+  }
+//}}}
+//{{{
+int DecodeOneSymbol (cAacDecoder::BitStreamInfo* bsi, int huffTabIndex) {
+/**************************************************************************************
+ * Description: dequantize one Huffman symbol from bitstream,
+ *                using table huffTabSBR[huffTabIndex]
+ * Inputs:      BitStreamInfo struct pointing to start of next Huffman codeword
+ *              index of Huffman table
+ * Outputs:     bitstream advanced by number of bits in codeword
+ * Return:      one decoded symbol
+ **************************************************************************************/
+
+  const HuffInfo* hi = &(huffTabSBRInfo[huffTabIndex]);
+  unsigned int bitBuf = getBitsNoAdvance (bsi, hi->maxBits) << (32 - hi->maxBits);
+
+  int val;
+  int nBits = DecodeHuffmanScalar (huffTabSBR, hi, bitBuf, &val);
+  advanceBitstream (bsi, nBits);
+
+  return val;
+  }
+//}}}
+//{{{
+int DecodeOneScaleFactor (cAacDecoder::BitStreamInfo* bsi) {
+/**************************************************************************************
+ * Description: decode one scalefactor using scalefactor Huffman codebook
+ * Inputs:      BitStreamInfo struct pointing to start of next coded scalefactor
+ * Outputs:     updated BitstreamInfo struct
+ * Return:      one decoded scalefactor, including index_offset of -60
+ **************************************************************************************/
+
+  // decode next scalefactor from bitstream */
+  unsigned int bitBuf = getBitsNoAdvance (bsi, huffTabScaleFactInfo.maxBits) << (32 - huffTabScaleFactInfo.maxBits);
+
+  int val;
+  int nBits = DecodeHuffmanScalar (huffTabScaleFact, &huffTabScaleFactInfo, bitBuf, &val);
+
+  advanceBitstream (bsi, nBits);
+  return val;
   }
 //}}}
 
@@ -2752,26 +2788,6 @@ void DecodeSpectrumShort (struct PSInfoBase* psi, cAacDecoder::BitStreamInfo* bs
     coef += nVals;
     coef += (icsInfo->winGroupLen[gp] - 1)*NSAMPS_SHORT;
     }
-  }
-//}}}
-
-//{{{
-int DecodeOneScaleFactor (cAacDecoder::BitStreamInfo* bsi) {
-/**************************************************************************************
- * Description: decode one scalefactor using scalefactor Huffman codebook
- * Inputs:      BitStreamInfo struct pointing to start of next coded scalefactor
- * Outputs:     updated BitstreamInfo struct
- * Return:      one decoded scalefactor, including index_offset of -60
- **************************************************************************************/
-
-  // decode next scalefactor from bitstream */
-  unsigned int bitBuf = getBitsNoAdvance (bsi, huffTabScaleFactInfo.maxBits) << (32 - huffTabScaleFactInfo.maxBits);
-
-  int val;
-  int nBits = DecodeHuffmanScalar (huffTabScaleFact, &huffTabScaleFactInfo, bitBuf, &val);
-
-  advanceBitstream (bsi, nBits);
-  return val;
   }
 //}}}
 
@@ -3063,28 +3079,6 @@ void DecodeICS (struct PSInfoBase* psi, cAacDecoder::BitStreamInfo* bsi, int ch)
 //}}}
 
 // sbrhuff
-//{{{
-int DecodeOneSymbol (cAacDecoder::BitStreamInfo* bsi, int huffTabIndex) {
-/**************************************************************************************
- * Description: dequantize one Huffman symbol from bitstream,
- *                using table huffTabSBR[huffTabIndex]
- * Inputs:      BitStreamInfo struct pointing to start of next Huffman codeword
- *              index of Huffman table
- * Outputs:     bitstream advanced by number of bits in codeword
- * Return:      one decoded symbol
- **************************************************************************************/
-
-  const HuffInfo* hi = &(huffTabSBRInfo[huffTabIndex]);
-  unsigned int bitBuf = getBitsNoAdvance (bsi, hi->maxBits) << (32 - hi->maxBits);
-
-  int val;
-  int nBits = DecodeHuffmanScalar (huffTabSBR, hi, bitBuf, &val);
-  advanceBitstream (bsi, nBits);
-
-  return val;
-  }
-//}}}
-
 //{{{
 int DequantizeEnvelope (int nBands, int ampRes, int8_t* envQuant, int* envDequant) {
 /**************************************************************************************
@@ -5545,8 +5539,6 @@ void cAacDecoder::applyPns (int ch) {
   int gb = countLeadingZeros (gbMask) - 1;
   if (psInfoBase->gbCurrent[ch] > gb)
     psInfoBase->gbCurrent[ch] = gb;
-
-  cLog::log (LOGINFO2, "aac applyPns %d", ch);
   }
 //}}}
 
@@ -5725,8 +5717,6 @@ void cAacDecoder::applyTns (int ch) {
   int size = countLeadingZeros (gbMask) - 1;
   if (psInfoBase->gbCurrent[ch] > size)
     psInfoBase->gbCurrent[ch] = size;
-
-  cLog::log (LOGINFO2, "aac applyTns %d", ch);
   }
 //}}}
 
@@ -8805,7 +8795,5 @@ void cAacDecoder::applySbr (int chBase, float* outbuf) {
 
   sbrFreq->kStartPrev = sbrFreq->kStart;
   sbrFreq->numQMFBandsPrev = sbrFreq->numQMFBands;
-
-  cLog::log (LOGINFO2, "aac applySbr");
   }
 //}}}

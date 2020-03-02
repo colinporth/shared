@@ -1702,6 +1702,10 @@ cMp3Decoder::cMp3Decoder() {
   }
 //}}}
 //{{{
+cMp3Decoder::~cMp3Decoder() {
+  }
+//}}}
+//{{{
 int cMp3Decoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf) {
 
   auto timePoint = std::chrono::system_clock::now();
