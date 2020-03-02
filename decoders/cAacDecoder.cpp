@@ -2240,15 +2240,15 @@ void cAacDecoder::flushCodec() {
 //}}}
 //{{{
 int cAacDecoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf) {
-// return o on any failure
+// return numSamples, 0 on any failure
 
-  cLog::log (LOGINFO1, "cAacDecoder::decodeSingleFrame in");
+  auto timePoint = std::chrono::system_clock::now();
 
   int bitOffset = 0;
   int bitsAvail = bytesLeft << 3;
   if (unpackADTSHeader (&inbuf, &bitOffset, &bitsAvail))
     return 0;
-  if (numChannels > AAC_MAX_NCHANS || numChannels <= 0)
+  if ((numChannels > AAC_MAX_NCHANS) || (numChannels <= 0))
     return 0;
 
   tnsUsed = 0;
@@ -2298,7 +2298,9 @@ int cAacDecoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf
     } while (currBlockID != AAC_ID_END);
 
   int numSamples = AAC_MAX_NSAMPS * (sbrEnabled ? 2 : 1);
-  cLog::log (LOGINFO1, "cAacDecoder::decodeSingleFrame out chans:%d numSamples%d", numChannels, numSamples);
+
+  auto took = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - timePoint);
+  cLog::log (LOGINFO1, "aac decodeSingleFrame %d:%d %3dus", numChannels, numSamples, took.count());
 
   return numSamples;
   }
@@ -3551,7 +3553,7 @@ void cAacDecoder::decodeProgramConfigElement (ProgConfigElement* pce, BitStreamI
  *                (otherwise we just skip it in the bitstream, to save memory)
  **************************************************************************************/
 
-  cLog::log (LOGERROR, "unexpected cAacDecoder::decodeProgramConfigElement");
+  cLog::log (LOGERROR, "aac unexpected decodeProgramConfigElement");
 
   pce->elemInstTag = getBits (bsi, 4);
   pce->profile = getBits (bsi, 2);
@@ -3680,7 +3682,7 @@ bool cAacDecoder::decodeNextElement (uint8_t** buf, int* bitOffset, int* bitsAva
       decodeChannelPairElement (&bsi);
       break;
     case AAC_ID_CCE:
-      cLog::log (LOGERROR, "unexpected cAacDecoder::decodeNextElement CCE");
+      cLog::log (LOGERROR, "aac unexpected decodeNextElement CCE");
       break;
     case AAC_ID_LFE:
       decodeLFEChannelElement (&bsi);
@@ -5293,7 +5295,7 @@ void cAacDecoder::applyStereoProcess() {
     msMaskOffset = (msMaskOffset + icsInfo->maxSFB) & 0x07;
     }
 
-  cLog::log (LOGINFO2, "applyStereo");
+  cLog::log (LOGINFO2, "aac applyStereo");
   }
 //}}}
 
@@ -5542,7 +5544,7 @@ void cAacDecoder::applyPns (int ch) {
   if (psInfoBase->gbCurrent[ch] > gb)
     psInfoBase->gbCurrent[ch] = gb;
 
-  cLog::log (LOGINFO2, "applyPns %d", ch);
+  cLog::log (LOGINFO2, "aac applyPns %d", ch);
   }
 //}}}
 
@@ -5722,7 +5724,7 @@ void cAacDecoder::applyTns (int ch) {
   if (psInfoBase->gbCurrent[ch] > size)
     psInfoBase->gbCurrent[ch] = size;
 
-  cLog::log (LOGINFO2, "applyTns %d", ch);
+  cLog::log (LOGINFO2, "aac applyTns %d", ch);
   }
 //}}}
 
@@ -8802,6 +8804,6 @@ void cAacDecoder::applySbr (int chBase, float* outbuf) {
   sbrFreq->kStartPrev = sbrFreq->kStart;
   sbrFreq->numQMFBandsPrev = sbrFreq->numQMFBands;
 
-  cLog::log (LOGINFO2, "applySbr");
+  cLog::log (LOGINFO2, "aac applySbr");
   }
 //}}}
