@@ -13,10 +13,14 @@
 //{{{
 cAudioDecode::cAudioDecode (eFrameType frameType) {
 
-  if (frameType == eMp3)
-    mAudioDecoder = new cMp3Decoder();
-  else if (frameType == eAac)
-    mAudioDecoder = new cAacDecoder();
+  switch (frameType) {
+    case eMp3:
+      mAudioDecoder = new cMp3Decoder();
+      break;
+    case eAac:
+      mAudioDecoder = new cAacDecoder();
+      break;
+    }
   }
 //}}}
 //{{{

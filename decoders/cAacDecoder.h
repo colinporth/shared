@@ -91,12 +91,12 @@ private:
   bool decodeNextElement (uint8_t** buf, int* bitOffset, int* bitsAvail);
   bool decodeSbrBitstream (int chBase);
 
-  void decodeNoiselessData (uint8_t** buf, int* bitOffset, int* bitsAvail, int ch);
-  void dequantize (int ch);
+  void decodeNoiselessData (uint8_t** buf, int* bitOffset, int* bitsAvail, int channel);
+  void dequantize (int channel);
   void applyStereoProcess();
-  void applyPns (int ch);
-  void applyTns (int ch);
-  void imdct (int ch, int chOut, float* outbuf);
+  void applyPns (int channel);
+  void applyTns (int channel);
+  void imdct (int channel, int chOut, float* outbuf);
   void applySbr (int chBase, float* outbuf);
 
   bool unpackADTSHeader (uint8_t** buf, int* bitOffset, int* bitsAvail);
