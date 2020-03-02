@@ -1,5 +1,7 @@
 // cMp3Decoder.cpp - based on https://github.com/lieff/minimp3
 //{{{  includes
+#include <algorithm>
+
 #include "cMp3decoder.h"
 
 #include "../utils/cLog.h"
@@ -30,8 +32,8 @@
   //}}}
 #endif
 //{{{  defines
-#define MAX_FREE_FORMAT_FRAME_SIZE  2304  /* more than ISO spec's */
-#define MAX_L3_FRAME_PAYLOAD_BYTES  MAX_FREE_FORMAT_FRAME_SIZE /* MUST be >= 320000/8/32000*1152 = 1440 */
+#define MAX_FREE_FORMAT_FRAME_SIZE  2304  // more than ISO spec's
+#define MAX_L3_FRAME_PAYLOAD_BYTES  MAX_FREE_FORMAT_FRAME_SIZE // MUST be >= 320000/8/32000*1152 = 1440
 #define MAX_BITRESERVOIR_BYTES      511
 
 #define MINIMP3_MAX_SAMPLES_PER_FRAME (1152*2)
@@ -69,9 +71,6 @@
 #define BITS_DEQUANTIZER_OUT        -1
 #define MAX_SCF                     (255 + BITS_DEQUANTIZER_OUT*4 - 210)
 #define MAX_SCFI                    ((MAX_SCF + 3) & ~3)
-
-#define MINIMP3_MIN(a, b)           ((a) > (b) ? (b) : (a))
-#define MINIMP3_MAX(a, b)           ((a) < (b) ? (b) : (a))
 //}}}
 
 //{{{
@@ -565,7 +564,7 @@ const L12_subband_alloc_t* L12_subband_alloc_table (const uint8_t* hdr, L12_scal
     }
 
   sci->total_bands = (uint8_t)nbands;
-  sci->stereo_bands = (uint8_t)MINIMP3_MIN (stereo_bands, nbands);
+  sci->stereo_bands = (uint8_t)std::min (stereo_bands, nbands);
 
   return alloc;
   }
@@ -979,7 +978,7 @@ float L3_ldexp_q2 (float y, int exp_q2) {
 
   int e;
   do {
-    e = MINIMP3_MIN(30*4, exp_q2);
+    e = std::min(30*4, exp_q2);
     y *= g_expfrac[e & 3]*(1 << 30 >> (e >> 2));
     } while ((exp_q2 -= e) > 0);
 
@@ -1073,7 +1072,7 @@ void L3_huffman (float* dst, struct sBitStream* bs, const struct L3_gr_info_t* g
     if (linbits) {
       do {
         np = *sfb++ / 2;
-        pairs_to_decode = MINIMP3_MIN(big_val_cnt, np);
+        pairs_to_decode = std::min (big_val_cnt, np);
         one = *scf++;
         do {
           int j, w = 5;
@@ -1104,7 +1103,7 @@ void L3_huffman (float* dst, struct sBitStream* bs, const struct L3_gr_info_t* g
     else {
       do {
         np = *sfb++ / 2;
-        pairs_to_decode = MINIMP3_MIN(big_val_cnt, np);
+        pairs_to_decode = std::min (big_val_cnt, np);
         one = *scf++;
         do {
           int j, w = 5;
@@ -1216,7 +1215,7 @@ void L3_intensity_stereo (float *left, uint8_t *ist_pos, const struct L3_gr_info
 
   L3_stereo_top_band(left + 576, gr->sfbtab, n_sfb, max_band);
   if (gr->n_long_sfb) {
-    max_band[0] = max_band[1] = max_band[2] = MINIMP3_MAX(MINIMP3_MAX(max_band[0], max_band[1]), max_band[2]);
+    max_band[0] = max_band[1] = max_band[2] = std::max (std::max (max_band[0], max_band[1]), max_band[2]);
     }
 
   for (i = 0; i < max_blocks; i++) {
@@ -1926,10 +1925,9 @@ void cMp3Decoder::L3_save_reservoir (mp3dec_scratch_t* s) {
 int cMp3Decoder::L3_restore_reservoir (struct  sBitStream *bs, struct mp3dec_scratch_t* s, int main_data_begin) {
 
   int frame_bytes = (bs->limit - bs->pos) / 8;
-  int bytes_have = MINIMP3_MIN (reserv, main_data_begin);
+  int bytes_have = std::min (reserv, main_data_begin);
 
-  memcpy (s->maindata, reserv_buf + MINIMP3_MAX (0, reserv - main_data_begin),
-                                                  MINIMP3_MIN (reserv, main_data_begin));
+  memcpy (s->maindata, reserv_buf + std::max (0, reserv - main_data_begin), std::min (reserv, main_data_begin));
   memcpy (s->maindata + bytes_have, bs->buf + bs->pos/8, frame_bytes);
 
   bs_init (&s->bs, s->maindata, bytes_have + frame_bytes);
