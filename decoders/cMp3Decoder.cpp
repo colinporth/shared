@@ -1785,7 +1785,7 @@ int cMp3Decoder::getSampleRate() {
 //{{{
 int cMp3Decoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf) {
 
-  cLog::log (LOGINFO1, "decodeSingleFrame in");
+  auto timePoint = std::chrono::system_clock::now();
   int success = 1;
 
   // keep this around for a while
@@ -1875,10 +1875,12 @@ int cMp3Decoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf
   for (int sample = 0; sample < numSamples * 2; sample++)
     *dstPtr++ = *srcPtr++ / (float)0x8000;
 
-  cLog::log (LOGINFO1, "decodeSingleFrame out");
-
   sampleRate = info.hz;
   channels = info.channels;
+
+  auto took = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - timePoint);
+  cLog::log (LOGINFO1, "mp3 decodeSingleFrame %d:%d %3dus", channels, sampleRate, took.count());
+
   return numSamples;
   }
 //}}}
