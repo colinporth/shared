@@ -2,7 +2,9 @@
 //{{{  includes
 #define _CRT_SECURE_NO_WARNINGS
 #include <algorithm>
+
 #include "cAacDecoder.h"
+
 #include "../utils/utils.h"
 #include "../utils/cLog.h"
 //}}}
@@ -13,12 +15,11 @@
   #include <immintrin.h>
   //}}}
 #endif
-
 //{{{  defines, types
 //{{{  defines
 // 12-bit syncword
-#define SYNCWORDH     0xff
-#define SYNCWORDL     0xf0
+#define SYNCWORDH  0xff
+#define SYNCWORDL  0xf0
 
 #define ADTS_HEADER_BYTES 7
 #define NUM_SAMPLE_RATES  12
@@ -28,7 +29,7 @@
 
 #define MAX_WIN_GROUPS    8
 #define MAX_SFB_SHORT     15
-#define MAX_SF_BANDS    (MAX_SFB_SHORT*MAX_WIN_GROUPS)  // worst case = 15 sfb's * 8 windows for short block
+#define MAX_SF_BANDS      (MAX_SFB_SHORT*MAX_WIN_GROUPS)  // worst case = 15 sfb's * 8 windows for short block
 #define MAX_MS_MASK_BYTES ((MAX_SF_BANDS + 7) >> 3)
 #define MAX_PRED_SFB      41
 #define MAX_TNS_FILTERS   8
@@ -48,7 +49,7 @@
 #define EXT_SBR_DATA      0x0d
 #define EXT_SBR_DATA_CRC  0x0e
 
-#define GET_ELE_ID(p) ((AACElementID)(*(p) >> (8-NUM_SYN_ID_BITS)))
+#define GET_ELE_ID(p)     ((AACElementID)(*(p) >> (8-NUM_SYN_ID_BITS)))
 
 #define NWINDOWS_LONG     1
 #define NWINDOWS_SHORT    8
@@ -57,9 +58,8 @@
 #define FILL_BUF_SIZE     269  // max count = 15 + 255 - 1
 #define ADIF_COPYID_SIZE  9
 
-#define CHAN_ELEM_IS_CPE(x)           (((x) & 0x10) >> 4)  // bit 4 = SCE/CPE flag
+#define CHAN_ELEM_IS_CPE(x)   (((x) & 0x10) >> 4)  // bit 4 = SCE/CPE flag
 #define CHAN_ELEM_GET_TAG(x)  (((x) & 0x0f) >> 0)  // bits 3-0 = instance tag
-
 #define CHAN_ELEM_SET_CPE(x)  (((x) & 0x01) << 4)  // bit 4 = SCE/CPE flag
 #define CHAN_ELEM_SET_TAG(x)  (((x) & 0x0f) << 0)  // bits 3-0 = instance tag
 
@@ -1214,8 +1214,8 @@ static const int pow43 [48] = {
 // pow142[0][i] = -pow(2, i/4.0)
 // pow142[1][i] = +pow(2, i/4.0)
 static const int pow142 [2][4] = {
-  { 0xc0000000, 0xb3e407d7, 0xa57d8666, 0x945d819b },
-  { 0x40000000, 0x4c1bf829, 0x5a82799a, 0x6ba27e65 }
+  { (int)0xc0000000, (int)0xb3e407d7, (int)0xa57d8666, (int)0x945d819b },
+  {      0x40000000,      0x4c1bf829,      0x5a82799a,      0x6ba27e65 }
 };
 //}}}
 //{{{
@@ -2179,7 +2179,6 @@ void InitSBRState (PSInfoSBR* psi) {
 /**************************************************************************************
  * Description: initialize PSInfoSBR struct at start of stream or after flush
  * Outputs:     PSInfoSBR struct with proper initial state
- * Return:      none
  **************************************************************************************/
 
   memset (psi, 0, sizeof(PSInfoSBR));
@@ -2217,7 +2216,6 @@ void cAacDecoder::flushCodec() {
  * Description: flush internal codec state (after seeking, for example)
  * Inputs:      valid AAC decoder instance pointer (HAACDecoder)
  * Outputs:     updated state variables in
- * Return:      0 if successful, error code (< 0) if error
  **************************************************************************************/
 
   // reset common state variables which change per-frame
@@ -2232,7 +2230,7 @@ void cAacDecoder::flushCodec() {
   tnsUsed = 0;
   pnsUsed = 0;
 
-  /* reset internal codec state (flush overlap buffers, etc.) */
+  // reset internal codec state (flush overlap buffers, etc.)
   struct PSInfoBase* psiInfo = psInfoBase;
   memset (psiInfo->overlap, 0, AAC_MAX_NCHANS * AAC_MAX_NSAMPS * sizeof(int));
   memset (psiInfo->prevWinShape, 0, AAC_MAX_NCHANS * sizeof(int));
@@ -3682,7 +3680,7 @@ bool cAacDecoder::decodeNextElement (uint8_t** buf, int* bitOffset, int* bitsAva
       decodeChannelPairElement (&bsi);
       break;
     case AAC_ID_CCE:
-      /* TODO - implement CCE decoding */
+      cLog::log (LOGERROR, "unexpected cAacDecoder::decodeNextElement CCE");
       break;
     case AAC_ID_LFE:
       decodeLFEChannelElement (&bsi);
