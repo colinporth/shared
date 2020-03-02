@@ -2714,11 +2714,11 @@ static void UnpackPairsEsc (sBitStream* bsi, int cb, int nVals, int* coef) {
 
     if (nSignBits) {
       if (y) {
-        APPLY_SIGN(y, bitBuf); 
+        APPLY_SIGN(y, bitBuf);
         bitBuf <<= 1;
         }
       if (z) {
-        APPLY_SIGN(z, bitBuf); 
+        APPLY_SIGN(z, bitBuf);
         bitBuf <<= 1;
         }
       }
@@ -6706,9 +6706,9 @@ static void PreMultiply64 (int* zbuf1) {
   int* zbuf2 = zbuf1 + 64 - 1;
   const int* csptr = cos4sin4tab64;
 
-  /* whole thing should fit in registers - verify that compiler does this */
+  // whole thing should fit in registers - verify that compiler does this */
   for (i = 64 >> 2; i != 0; i--) {
-    /* cps2 = (cos+sin), sin2 = sin, cms2 = (cos-sin) */
+    // cps2 = (cos+sin), sin2 = sin, cms2 = (cos-sin) */
     cps2a = *csptr++;
     sin2a = *csptr++;
     cps2b = *csptr++;
@@ -6719,11 +6719,10 @@ static void PreMultiply64 (int* zbuf1) {
     ai1 = *(zbuf2 + 0);
     ar2 = *(zbuf2 - 1);
 
-    /* gain 2 ints bit from MULSHIFT32 by Q30
-     * max per-sample gain (ignoring implicit scaling) = std::max (sin(angle)+cos(angle)) = 1.414
-     * i.e. gain 1 GB since worst case is sin(angle) = cos(angle) = 0.707 (Q30), gain 2 from
-     *   extra sign bits, and eat one in adding
-     */
+    // gain 2 ints bit from MULSHIFT32 by Q30
+    // max per-sample gain (ignoring implicit scaling) = std::max (sin(angle)+cos(angle)) = 1.414
+    // i.e. gain 1 GB since worst case is sin(angle) = cos(angle) = 0.707 (Q30), gain 2 from
+    //   extra sign bits, and eat one in adding
     t  = MULSHIFT32(sin2a, ar1 + ai1);
     z2 = MULSHIFT32(cps2a, ai1) - t;
     cms2 = cps2a - 2*sin2a;
@@ -6772,7 +6771,7 @@ static void PostMultiply64 (int* fft1, int nSampsOut) {
     ar2 = *(fft2 - 1);
     ai2 = *(fft2 + 0);
 
-    /* gain 2 int bits (multiplying by Q30), max gain = sqrt(2) */
+    // gain 2 int bits (multiplying by Q30), max gain = sqrt(2) */
     t = MULSHIFT32(sin2, ar1 + ai1);
     *fft2-- = t - MULSHIFT32(cps2, ai1);
     *fft1++ = t + MULSHIFT32(cms2, ar1);
@@ -6822,17 +6821,11 @@ static void BitReverse32 (int *inout) {
   }
 //}}}
 //{{{
+static void R8FirstPass32 (int *r0) {
 /**************************************************************************************
- * Function:    R8FirstPass32
- *
  * Description: radix-8 trivial pass for decimation-in-time FFT (log2(N) = 5)
- *
  * Inputs:      buffer of (bit-reversed) samples
- *
  * Outputs:     processed samples in same buffer
- *
- * Return:      none
- *
  * Notes:       assumes 3 guard bits, gains 1 integer bit
  *              guard bits out = guard bits in - 3 (if inputs are full scale)
  *                or guard bits in - 2 (if inputs bounded to +/- sqrt(2)/2)
@@ -6840,12 +6833,11 @@ static void BitReverse32 (int *inout) {
  *              should compile with no stack spills on ARM (verify compiled output)
  *              current instruction count (per pass): 16 LDR, 16 STR, 4 SMULL, 61 ALU
  **************************************************************************************/
-static void R8FirstPass32 (int *r0)
-{
+
   int r1, r2, r3, r4, r5, r6, r7;
   int r8, r9, r10, r11, r12, r14;
 
-  /* number of passes = fft size / 8 = 32 / 8 = 4 */
+  // number of passes = fft size / 8 = 32 / 8 = 4 */
   r1 = (32 >> 3);
   do {
 
@@ -6969,21 +6961,15 @@ static void R8FirstPass32 (int *r0)
 
     r0 += 16;
     r1--;
-  } while (r1 != 0);
-}
+    } while (r1 != 0);
+  }
 //}}}
 //{{{
+static void R4Core32 (int *r0) {
 /**************************************************************************************
- * Function:    R4Core32
- *
  * Description: radix-4 pass for 32-point decimation-in-time FFT
- *
  * Inputs:      buffer of samples
- *
  * Outputs:     processed samples in same buffer
- *
- * Return:      none
- *
  * Notes:       gain 2 integer bits
  *              guard bits out = guard bits in - 1 (if inputs are full scale)
  *              see scaling comments in fft.c for base AAC
@@ -6991,16 +6977,15 @@ static void R8FirstPass32 (int *r0)
  *              should compile with no stack spills on ARM (verify compiled output)
  *              current instruction count (per pass): 16 LDR, 16 STR, 4 SMULL, 61 ALU
  **************************************************************************************/
-static void R4Core32 (int *r0)
-{
+
   int r2, r3, r4, r5, r6, r7;
   int r8, r9, r10, r12, r14;
-  int *r1;
+  int* r1;
 
-  r1 = (int *)twidTabOdd32;
+  r1 = (int*)twidTabOdd32;
   r10 = 8;
   do {
-    /* can use r14 for lo32 scratch register in all MULSHIFT32 */
+    // can use r14 for lo32 scratch register in all MULSHIFT32
     r2 = r1[0];
     r3 = r1[1];
     r4 = r0[16];
@@ -7064,35 +7049,28 @@ static void R4Core32 (int *r0)
     r0 += 2;
     r1 += 6;
     r10--;
-  } while (r10 != 0);
-}
+    } while (r10 != 0);
+  }
 //}}}
 //{{{
+static void FFT32C (int *x) {
 /**************************************************************************************
- * Function:    FFT32C
- *
  * Description: Ken's very fast in-place radix-4 decimation-in-time FFT
- *
  * Inputs:      buffer of 32 complex samples (before bit-reversal)
- *
  * Outputs:     processed samples in same buffer
- *
- * Return:      none
- *
  * Notes:       assumes 3 guard bits in, gains 3 integer bits
  *              guard bits out = guard bits in - 2
  *              (guard bit analysis includes assumptions about steps immediately
  *               before and after, i.e. PreMul and PostMul for DCT)
  **************************************************************************************/
-static void FFT32C (int *x)
-{
-  /* decimation in time */
+
+  // decimation in time
   BitReverse32(x);
 
-  /* 32-point complex FFT */
-  R8FirstPass32(x); /* gain 1 int bit,  lose 2 GB (making assumptions about input) */
-  R4Core32(x);    /* gain 2 int bits, lose 0 GB (making assumptions about input) */
-}
+  // 32-point complex FFT
+  R8FirstPass32(x); // gain 1 int bit,  lose 2 GB (making assumptions about input) */
+  R4Core32(x);      // gain 2 int bits, lose 0 GB (making assumptions about input) */
+  }
 //}}}
 
 //{{{
@@ -7115,7 +7093,7 @@ static void QMFAnalysisConv (int* cTab, int *delay, int dIdx, int* uBuf) {
   cPtr0 = cTab;
   cPtr1 = cTab + 33*5 - 1;
 
-  /* special first pass since we need to flip sign to create cTab[384], cTab[512] */
+  // special first pass since we need to flip sign to create cTab[384], cTab[512] */
   u64lo.w64 = 0;
   u64hi.w64 = 0;
   u64lo.w64 = MADD64 (u64lo.w64,  *cPtr0++,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
@@ -7178,13 +7156,12 @@ static int QMFAnalysis (int* inbuf, int* delay, int* XBuf, int fBitsIn, int* del
   int n, y, shift, gbMask;
   int *delayPtr, *uBuf, *tBuf;
 
-  /* use XBuf[128] as temp buffer for reordering */
+  // use XBuf[128] as temp buffer for reordering */
   uBuf = XBuf;    /* first 64 samples */
   tBuf = XBuf + 64; /* second 64 samples */
 
-  /* overwrite oldest PCM with new PCM
-   * delay[n] has 1 GB after shifting (either << or >>)
-   */
+  // overwrite oldest PCM with new PCM
+  // delay[n] has 1 GB after shifting (either << or >>)
   delayPtr = delay + (*delayIdx * 32);
   if (fBitsIn > FBITS_IN_QMFA) {
     shift = std::min (fBitsIn - FBITS_IN_QMFA, 31);
@@ -7217,12 +7194,12 @@ static int QMFAnalysis (int* inbuf, int* delay, int* XBuf, int fBitsIn, int* del
   tBuf[2*31 + 1] =  uBuf[32];
   tBuf[2*31 + 0] = -uBuf[33];
 
-  /* fast in-place DCT-IV - only need 2*qmfaBands output samples */
+  // fast in-place DCT-IV - only need 2*qmfaBands output samples */
   PreMultiply64 (tBuf);  /* 2 GB in, 3 GB out */
   FFT32C (tBuf);     /* 3 GB in, 1 GB out */
   PostMultiply64 (tBuf, qmfaBands*2);  /* 1 GB in, 2 GB out */
 
-  /* TODO - roll into PostMultiply (if enough registers) */
+  // TODO - roll into PostMultiply (if enough registers) */
   gbMask = 0;
   for (n = 0; n < qmfaBands; n++) {
     XBuf[2*n+0] = tBuf[ n + 0];  /* implicit scaling of 2 in our output Q format */
@@ -7231,7 +7208,7 @@ static int QMFAnalysis (int* inbuf, int* delay, int* XBuf, int fBitsIn, int* del
     gbMask |= FASTABS (XBuf[2*n+1]);
     }
 
-  /* fill top section with zeros for HF generation */
+  // fill top section with zeros for HF generation */
   for ( ; n < 64; n++) {
     XBuf[2*n+0] = 0;
     XBuf[2*n+1] = 0;
@@ -7239,7 +7216,7 @@ static int QMFAnalysis (int* inbuf, int* delay, int* XBuf, int fBitsIn, int* del
 
   *delayIdx = (*delayIdx == NUM_QMF_DELAY_BUFS - 1 ? 0 : *delayIdx + 1);
 
-  /* minimum of 2 GB in output */
+  // minimum of 2 GB in output */
   return gbMask;
   }
 //}}}
@@ -7262,7 +7239,7 @@ static void QMFSynthesisConv (int* cPtr, int* delay, int dIdx, float* outbuf, in
   if (dOff1 < 0)
     dOff1 += 1280;
 
-  /* scaling note: total gain of coefs (cPtr[0]-cPtr[9] for any k) is < 2.0, so 1 GB in delay values is adequate */
+  // scaling note: total gain of coefs (cPtr[0]-cPtr[9] for any k) is < 2.0, so 1 GB in delay values is adequate */
   for (int k = 0; k <= 63; k++) {
     U64 sum64;
     sum64.w64 = 0;
@@ -7360,19 +7337,19 @@ static void QMFSynthesis (int* inbuf, int* delay, int* delayIdx, int qmfsBands, 
   tBufLo = delay + dIdx*128 + 0;
   tBufHi = delay + dIdx*128 + 64;
 
-  /* 2 GB in, 3 GB out */
+  // 2 GB in, 3 GB out */
   PreMultiply64 (tBufLo);
   PreMultiply64 (tBufHi);
 
-  /* 3 GB in, 1 GB out */
+  // 3 GB in, 1 GB out */
   FFT32C (tBufLo);
   FFT32C (tBufHi);
 
-  /* 1 GB in, 2 GB out */
+  // 1 GB in, 2 GB out */
   PostMultiply64 (tBufLo, 64);
   PostMultiply64 (tBufHi, 64);
 
-  /* could fuse with PostMultiply64 to avoid separate pass */
+  // could fuse with PostMultiply64 to avoid separate pass */
   dOff0 = dIdx*128;
   dOff1 = dIdx*128 + 64;
   for (n = 32; n != 0; n--) {
@@ -7393,44 +7370,39 @@ static void QMFSynthesis (int* inbuf, int* delay, int* delayIdx, int qmfsBands, 
   }
 //}}}
 
-// sbrhfadj
 //{{{
+static void EstimateEnvelope (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SBRFreq* sbrFreq, int env) {
 /**************************************************************************************
- * Function:    EstimateEnvelope
- *
  * Description: estimate power of generated HF QMF bands in one time-domain envelope
  *                (4.6.18.7.3)
- *
  * Inputs:      initialized PSInfoSBR struct
  *              initialized SBRHeader struct for this SCE/CPE block
  *              initialized SBRGrid struct for this channel
  *              initialized SBRFreq struct for this SCE/CPE block
  *              index of current envelope
- *
  * Outputs:     power of each QMF subband, stored as integer (Q0) * 2^N, N >= 0
- *
  * Return:      none
  **************************************************************************************/
-static void EstimateEnvelope (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SBRFreq* sbrFreq, int env)
-{
+
   int i, m, iStart, iEnd, xre, xim, nScale, expMax;
   int p, n, mStart, mEnd, invFact, t;
   int *XBuf;
   U64 eCurr;
   uint8_t *freqBandTab;
 
-  /* estimate current envelope */
+  // estimate current envelope */
   iStart = sbrGrid->envTimeBorder[env] + HF_ADJ;
   iEnd =   sbrGrid->envTimeBorder[env+1] + HF_ADJ;
   if (sbrGrid->freqRes[env]) {
     n = sbrFreq->nHigh;
     freqBandTab = sbrFreq->freqHigh;
-  } else {
+    } 
+  else {
     n = sbrFreq->nLow;
     freqBandTab = sbrFreq->freqLow;
-  }
+    }
 
-  /* ADS should inline MADD64 (smlal) properly, but check to make sure */
+  // ADS should inline MADD64 (smlal) properly, but check to make sure */
   expMax = 0;
   if (sbrHdr->interpFreq) {
     for (m = 0; m < sbrFreq->numQMFBands; m++) {
@@ -7444,28 +7416,29 @@ static void EstimateEnvelope (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGr
         eCurr.w64 = MADD64(eCurr.w64, xim, xim);
       }
 
-      /* eCurr.w64 is now Q(64 - 2*FBITS_OUT_QMFA) (64-bit word)
-       * if energy is too big to fit in 32-bit word (> 2^31) scale down by power of 2
-       */
+      // eCurr.w64 is now Q(64 - 2*FBITS_OUT_QMFA) (64-bit word)
+      // if energy is too big to fit in 32-bit word (> 2^31) scale down by power of 2
       nScale = 0;
       if (eCurr.r.hi32) {
         nScale = (32 - countLeadingZeros (eCurr.r.hi32)) + 1;
         t  = (int)(eCurr.r.lo32 >> nScale);   /* logical (unsigned) >> */
         t |= eCurr.r.hi32 << (32 - nScale);
-      } else if (eCurr.r.lo32 >> 31) {
+        } 
+      else if (eCurr.r.lo32 >> 31) {
         nScale = 1;
         t  = (int)(eCurr.r.lo32 >> nScale);   /* logical (unsigned) >> */
-      } else {
+        } 
+     else 
         t  = (int)eCurr.r.lo32;
-      }
 
       invFact = invBandTab[(iEnd - iStart)-1];
       psi->eCurr[m] = MULSHIFT32(t, invFact);
       psi->eCurrExp[m] = nScale + 1;  /* +1 for invFact = Q31 */
       if (psi->eCurrExp[m] > expMax)
         expMax = psi->eCurrExp[m];
-    }
-  } else {
+      }
+    } 
+  else {
     for (p = 0; p < n; p++) {
       mStart = freqBandTab[p];
       mEnd =   freqBandTab[p+1];
@@ -7477,20 +7450,21 @@ static void EstimateEnvelope (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGr
           xim = (*XBuf++) >> FBITS_OUT_QMFA;
           eCurr.w64 = MADD64(eCurr.w64, xre, xre);
           eCurr.w64 = MADD64(eCurr.w64, xim, xim);
+          }
         }
-      }
 
       nScale = 0;
       if (eCurr.r.hi32) {
         nScale = (32 - countLeadingZeros (eCurr.r.hi32)) + 1;
         t  = (int)(eCurr.r.lo32 >> nScale);   /* logical (unsigned) >> */
         t |= eCurr.r.hi32 << (32 - nScale);
-      } else if (eCurr.r.lo32 >> 31) {
+        } 
+      else if (eCurr.r.lo32 >> 31) {
         nScale = 1;
         t  = (int)(eCurr.r.lo32 >> nScale);   /* logical (unsigned) >> */
-      } else {
+        } 
+      else
         t  = (int)eCurr.r.lo32;
-      }
 
       invFact = invBandTab[(iEnd - iStart)-1];
       invFact = MULSHIFT32(invBandTab[(mEnd - mStart)-1], invFact) << 1;
@@ -7499,20 +7473,19 @@ static void EstimateEnvelope (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGr
       for (m = mStart; m < mEnd; m++) {
         psi->eCurr[m - sbrFreq->kStart] = t;
         psi->eCurrExp[m - sbrFreq->kStart] = nScale + 1;  /* +1 for invFact = Q31 */
-      }
+        }
       if (psi->eCurrExp[mStart - sbrFreq->kStart] > expMax)
         expMax = psi->eCurrExp[mStart - sbrFreq->kStart];
+      }
     }
-  }
+
   psi->eCurrExpMax = expMax;
-}
+  }
 //}}}
 //{{{
+static int GetSMapped (SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChan, int env, int band, int la) {
 /**************************************************************************************
- * Function:    GetSMapped
- *
  * Description: calculate SMapped (4.6.18.7.2)
- *
  * Inputs:      initialized PSInfoSBR struct
  *              initialized SBRGrid struct for this channel
  *              initialized SBRFreq struct for this SCE/CPE block
@@ -7520,47 +7493,44 @@ static void EstimateEnvelope (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGr
  *              index of current envelope
  *              index of current QMF band
  *              la flag for this envelope
- *
  * Outputs:     none
- *
  * Return:      1 if a sinusoid is present in this band, 0 if not
  **************************************************************************************/
-static int GetSMapped (SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChan, int env, int band, int la)
-{
+
   int bandStart, bandEnd, oddFlag, r;
 
   if (sbrGrid->freqRes[env]) {
-    /* high resolution */
+    // high resolution */
     bandStart = band;
     bandEnd = band+1;
-  } else {
-    /* low resolution (see CalcFreqLow() for mapping) */
+    } 
+  else {
+    // low resolution (see CalcFreqLow() for mapping) */
     oddFlag = sbrFreq->nHigh & 0x01;
     bandStart = (band > 0 ? 2*band - oddFlag : 0);    /* starting index for freqLow[band] */
     bandEnd = 2*(band+1) - oddFlag;           /* ending index for freqLow[band+1] */
-  }
+    }
 
-  /* sMapped = 1 if sIndexMapped == 1 for any frequency in this band */
+  // sMapped = 1 if sIndexMapped == 1 for any frequency in this band */
   for (band = bandStart; band < bandEnd; band++) {
     if (sbrChan->addHarmonic[1][band]) {
       r = ((sbrFreq->freqHigh[band+1] + sbrFreq->freqHigh[band]) >> 1);
       if (env >= la || sbrChan->addHarmonic[0][r] == 1)
         return 1;
+      }
     }
-  }
+
   return 0;
-}
+  }
 //}}}
 
-#define GBOOST_MAX  0x2830afd3  /* Q28, 1.584893192 squared */
 #define ACC_SCALE 6
-
+#define GBOOST_MAX  0x2830afd3  /* Q28, 1.584893192 squared */
 //{{{
+static void CalcMaxGain (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SBRFreq* sbrFreq, 
+                         int ch, int env, int lim, int fbitsDQ) {
 /**************************************************************************************
- * Function:    CalcMaxGain
- *
  * Description: calculate max gain in one limiter band (4.6.18.7.5)
- *
  * Inputs:      initialized PSInfoSBR struct
  *              initialized SBRHeader struct for this SCE/CPE block
  *              initialized SBRGrid struct for this channel
@@ -7570,13 +7540,9 @@ static int GetSMapped (SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChan, int
  *              index of current limiter band
  *              number of fraction bits in dequantized envelope
  *                (max = Q(FBITS_OUT_DQ_ENV - 6) = Q23, can go negative)
- *
  * Outputs:     updated gainMax, gainMaxFBits, and sumEOrigMapped in PSInfoSBR struct
- *
- * Return:      none
  **************************************************************************************/
-static void CalcMaxGain (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SBRFreq* sbrFreq, int ch, int env, int lim, int fbitsDQ)
-{
+
   int m, mStart, mEnd, q, z, r;
   int sumEOrigMapped, sumECurr, gainMax, eOMGainMax, envBand;
   uint8_t eCurrExpMax;
@@ -7586,88 +7552,84 @@ static void CalcMaxGain (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, S
   mEnd =   sbrFreq->freqLimiter[lim + 1];
   freqBandTab = (sbrGrid->freqRes[env] ? sbrFreq->freqHigh : sbrFreq->freqLow);
 
-  /* calculate max gain to apply to signal in this limiter band */
+  // calculate max gain to apply to signal in this limiter band */
   sumECurr = 0;
   sumEOrigMapped = 0;
   eCurrExpMax = psi->eCurrExpMax;
   eOMGainMax = psi->eOMGainMax;
   envBand = psi->envBand;
   for (m = mStart; m < mEnd; m++) {
-    /* map current QMF band to appropriate envelope band */
+    // map current QMF band to appropriate envelope band */
     if (m == freqBandTab[envBand + 1] - sbrFreq->kStart) {
       envBand++;
       eOMGainMax = psi->envDataDequant[ch][env][envBand] >> ACC_SCALE;  /* summing max 48 bands */
-    }
+      }
     sumEOrigMapped += eOMGainMax;
 
-    /* easy test for overflow on ARM */
+    // easy test for overflow on ARM */
     sumECurr += (psi->eCurr[m] >> (eCurrExpMax - psi->eCurrExp[m]));
     if (sumECurr >> 30) {
       sumECurr >>= 1;
       eCurrExpMax++;
+      }
     }
-  }
   psi->eOMGainMax = eOMGainMax;
   psi->envBand = envBand;
 
-  psi->gainMaxFBits = 30; /* Q30 tables */
+  psi->gainMaxFBits = 30; // Q30 tables */
   if (sumECurr == 0) {
-    /* any non-zero numerator * 1/EPS_0 is > G_MAX */
+    // any non-zero numerator * 1/EPS_0 is > G_MAX */
     gainMax = (sumEOrigMapped == 0 ? (int)limGainTab[sbrHdr->limiterGains] : (int)0x80000000);
-  } else if (sumEOrigMapped == 0) {
-    /* 1/(any non-zero denominator) * EPS_0 * limGainTab[x] is appx. 0 */
+    } 
+  else if (sumEOrigMapped == 0) {
+    // 1/(any non-zero denominator) * EPS_0 * limGainTab[x] is appx. 0 */
     gainMax = 0;
-  } else {
-    /* sumEOrigMapped = Q(fbitsDQ - ACC_SCALE), sumECurr = Q(-eCurrExpMax) */
+    } 
+  else {
+    // sumEOrigMapped = Q(fbitsDQ - ACC_SCALE), sumECurr = Q(-eCurrExpMax) */
     gainMax = limGainTab[sbrHdr->limiterGains];
     if (sbrHdr->limiterGains != 3) {
-      q = MULSHIFT32(sumEOrigMapped, gainMax);  /* Q(fbitsDQ - ACC_SCALE - 2), gainMax = Q30  */
+      q = MULSHIFT32(sumEOrigMapped, gainMax);  // Q(fbitsDQ - ACC_SCALE - 2), gainMax = Q30  */
       z = countLeadingZeros (sumECurr) - 1;
-      r = InvRNormalized(sumECurr << z);  /* in =  Q(z - eCurrExpMax), out = Q(29 + 31 - z + eCurrExpMax) */
-      gainMax = MULSHIFT32(q, r);     /* Q(29 + 31 - z + eCurrExpMax + fbitsDQ - ACC_SCALE - 2 - 32) */
+      r = InvRNormalized(sumECurr << z);  // in =  Q(z - eCurrExpMax), out = Q(29 + 31 - z + eCurrExpMax) */
+      gainMax = MULSHIFT32(q, r);         // Q(29 + 31 - z + eCurrExpMax + fbitsDQ - ACC_SCALE - 2 - 32) */
       psi->gainMaxFBits = 26 - z + eCurrExpMax + fbitsDQ - ACC_SCALE;
+      }
     }
-  }
+
   psi->sumEOrigMapped = sumEOrigMapped;
   psi->gainMax = gainMax;
-}
+  }
 //}}}
 //{{{
+static void CalcNoiseDivFactors (int q, int *qp1Inv, int *qqp1Inv) {
 /**************************************************************************************
- * Function:    CalcNoiseDivFactors
- *
  * Description: calculate 1/(1+Q) and Q/(1+Q) (4.6.18.7.4; 4.6.18.7.5)
- *
  * Inputs:      dequantized noise floor scalefactor
- *
  * Outputs:     1/(1+Q) and Q/(1+Q), format = Q31
- *
- * Return:      none
  **************************************************************************************/
-static void CalcNoiseDivFactors (int q, int *qp1Inv, int *qqp1Inv)
-{
-  int z, qp1, t, s;
 
-  /* 1 + Q_orig */
-  qp1  = (q >> 1);
-  qp1 += (1 << (FBITS_OUT_DQ_NOISE - 1));   /* >> 1 to avoid overflow when adding 1.0 */
-  z = countLeadingZeros (qp1) - 1;             /* z <= 31 - FBITS_OUT_DQ_NOISE */
-  qp1 <<= z;                  /* Q(FBITS_OUT_DQ_NOISE + z) = Q31 * 2^-(31 - (FBITS_OUT_DQ_NOISE + z)) */
-  t = InvRNormalized(qp1) << 1;       /* Q30 * 2^(31 - (FBITS_OUT_DQ_NOISE + z)), guaranteed not to overflow */
+  // 1 + Q_orig */
+  int qp1  = (q >> 1);
+  qp1 += (1 << (FBITS_OUT_DQ_NOISE - 1));  // >> 1 to avoid overflow when adding 1.0 */
 
-  /* normalize to Q31 */
-  s = (31 - (FBITS_OUT_DQ_NOISE - 1) - z - 1);  /* clearly z >= 0, z <= (30 - (FBITS_OUT_DQ_NOISE - 1)) */
+  int z = countLeadingZeros (qp1) - 1;  // z <= 31 - FBITS_OUT_DQ_NOISE */
+  qp1 <<= z;                            // Q(FBITS_OUT_DQ_NOISE + z) = Q31 * 2^-(31 - (FBITS_OUT_DQ_NOISE + z)) */
+  int t = InvRNormalized(qp1) << 1;     // Q30 * 2^(31 - (FBITS_OUT_DQ_NOISE + z)), guaranteed not to overflow */
+
+  // normalize to Q31 */
+  int s = (31 - (FBITS_OUT_DQ_NOISE - 1) - z - 1);  /* clearly z >= 0, z <= (30 - (FBITS_OUT_DQ_NOISE - 1)) */
   *qp1Inv = (t >> s);               /* s = [0, 31 - FBITS_OUT_DQ_NOISE] */
   *qqp1Inv = MULSHIFT32(t, q) << (32 - FBITS_OUT_DQ_NOISE - s);
-}
+  }
 //}}}
 //{{{
+static void CalcComponentGains (sPSInfoSBR* psi, SBRGrid* sbrGrid, SBRFreq* sbrFreq, SBRChan* sbrChan, 
+                                int ch, int env, int lim, int fbitsDQ) {
 /**************************************************************************************
  * Function:    CalcComponentGains
- *
  * Description: calculate gain of envelope, sinusoids, and noise in one limiter band
  *                (4.6.18.7.5)
- *
  * Inputs:      initialized PSInfoSBR struct
  *              initialized SBRHeader struct for this SCE/CPE block
  *              initialized SBRGrid struct for this channel
@@ -7677,16 +7639,12 @@ static void CalcNoiseDivFactors (int q, int *qp1Inv, int *qqp1Inv)
  *              index of current envelope
  *              index of current limiter band
  *              number of fraction bits in dequantized envelope
- *
  * Outputs:     gains for envelope, sinusoids and noise
  *              number of fraction bits for envelope gain
  *              sum of the total gain for each component in this band
  *              other updated state variables
- *
- * Return:      none
  **************************************************************************************/
-static void CalcComponentGains (sPSInfoSBR* psi, SBRGrid* sbrGrid, SBRFreq* sbrFreq, SBRChan* sbrChan, int ch, int env, int lim, int fbitsDQ)
-{
+
   int d, m, mStart, mEnd, q, qm, noiseFloor, sIndexMapped;
   int shift, eCurr, maxFlag, gainMax, gainMaxFBits;
   int gain, sm, z, r, fbitsGain, gainScale;
@@ -7701,7 +7659,7 @@ static void CalcComponentGains (sPSInfoSBR* psi, SBRGrid* sbrGrid, SBRFreq* sbrF
   d = (env == psi->la || env == sbrChan->laPrev ? 0 : 1);
   freqBandTab = (sbrGrid->freqRes[env] ? sbrFreq->freqHigh : sbrFreq->freqLow);
 
-  /* figure out which noise floor this envelope is in (only 1 or 2 noise floors allowed) */
+  // figure out which noise floor this envelope is in (only 1 or 2 noise floors allowed) */
   noiseFloor = 0;
   if (sbrGrid->numNoiseFloors == 2 && sbrGrid->noiseTimeBorder[1] <= sbrGrid->envTimeBorder[env])
     noiseFloor++;
@@ -7709,107 +7667,111 @@ static void CalcComponentGains (sPSInfoSBR* psi, SBRGrid* sbrGrid, SBRFreq* sbrF
   psi->sumECurrGLim = 0;
   psi->sumSM = 0;
   psi->sumQM = 0;
-  /* calculate energy of noise to add in this limiter band */
+
+  // calculate energy of noise to add in this limiter band */
   for (m = mStart; m < mEnd; m++) {
     if (m == sbrFreq->freqNoise[psi->noiseFloorBand + 1] - sbrFreq->kStart) {
-      /* map current QMF band to appropriate noise floor band (NOTE: freqLimiter[0] == freqLow[0] = freqHigh[0]) */
+      // map current QMF band to appropriate noise floor band (NOTE: freqLimiter[0] == freqLow[0] = freqHigh[0]) */
       psi->noiseFloorBand++;
       CalcNoiseDivFactors(psi->noiseDataDequant[ch][noiseFloor][psi->noiseFloorBand], &(psi->qp1Inv), &(psi->qqp1Inv));
-    }
+      }
     if (m == sbrFreq->freqHigh[psi->highBand + 1] - sbrFreq->kStart)
       psi->highBand++;
     if (m == freqBandTab[psi->sBand + 1] - sbrFreq->kStart) {
       psi->sBand++;
       psi->sMapped = GetSMapped(sbrGrid, sbrFreq, sbrChan, env, psi->sBand, psi->la);
-    }
+      }
 
-    /* get sIndexMapped for this QMF subband */
+    // get sIndexMapped for this QMF subband */
     sIndexMapped = 0;
     r = ((sbrFreq->freqHigh[psi->highBand+1] + sbrFreq->freqHigh[psi->highBand]) >> 1);
     if (m + sbrFreq->kStart == r) {
-      /* r = center frequency, deltaStep = (env >= la || sIndexMapped'(r, numEnv'-1) == 1) */
+      // r = center frequency, deltaStep = (env >= la || sIndexMapped'(r, numEnv'-1) == 1) */
       if (env >= psi->la || sbrChan->addHarmonic[0][r] == 1)
         sIndexMapped = sbrChan->addHarmonic[1][psi->highBand];
-    }
+      }
 
-    /* save sine flags from last envelope in this frame:
-     *   addHarmonic[0][0...63] = saved sine present flag from previous frame, for each QMF subband
-     *   addHarmonic[1][0...nHigh-1] = addHarmonic bit from current frame, for each high-res frequency band
-     * from MPEG reference code - slightly different from spec
-     *   (sIndexMapped'(m,LE'-1) can still be 0 when numEnv == psi->la)
-     */
+    // save sine flags from last envelope in this frame:
+    //   addHarmonic[0][0...63] = saved sine present flag from previous frame, for each QMF subband
+    //   addHarmonic[1][0...nHigh-1] = addHarmonic bit from current frame, for each high-res frequency band
+    // from MPEG reference code - slightly different from spec
+    //   (sIndexMapped'(m,LE'-1) can still be 0 when numEnv == psi->la)
     if (env == sbrGrid->numEnv - 1) {
       if (m + sbrFreq->kStart == r)
         sbrChan->addHarmonic[0][m + sbrFreq->kStart] = sbrChan->addHarmonic[1][psi->highBand];
       else
         sbrChan->addHarmonic[0][m + sbrFreq->kStart] = 0;
-    }
+      }
 
     gain = psi->envDataDequant[ch][env][psi->sBand];
     qm = MULSHIFT32(gain, psi->qqp1Inv) << 1;
     sm = (sIndexMapped ? MULSHIFT32(gain, psi->qp1Inv) << 1 : 0);
 
-    /* three cases: (sMapped == 0 && delta == 1), (sMapped == 0 && delta == 0), (sMapped == 1) */
+    // three cases: (sMapped == 0 && delta == 1), (sMapped == 0 && delta == 0), (sMapped == 1) */
     if (d == 1 && psi->sMapped == 0)
       gain = MULSHIFT32(psi->qp1Inv, gain) << 1;
     else if (psi->sMapped != 0)
       gain = MULSHIFT32(psi->qqp1Inv, gain) << 1;
 
-    /* gain, qm, sm = Q(fbitsDQ), gainMax = Q(fbitsGainMax) */
+    // gain, qm, sm = Q(fbitsDQ), gainMax = Q(fbitsGainMax) */
     eCurr = psi->eCurr[m];
     if (eCurr) {
       z = countLeadingZeros (eCurr) - 1;
       r = InvRNormalized(eCurr << z);   /* in = Q(z - eCurrExp), out = Q(29 + 31 - z + eCurrExp) */
       gainScale = MULSHIFT32(gain, r);  /* out = Q(29 + 31 - z + eCurrExp + fbitsDQ - 32) */
       fbitsGain = 29 + 31 - z + psi->eCurrExp[m] + fbitsDQ - 32;
-    } else {
-      /* if eCurr == 0, then gain is unchanged (divide by EPS = 1) */
+      } 
+    else {
+      // if eCurr == 0, then gain is unchanged (divide by EPS = 1) */
       gainScale = gain;
       fbitsGain = fbitsDQ;
-    }
+      }
 
-    /* see if gain for this band exceeds max gain */
+    // see if gain for this band exceeds max gain */
     maxFlag = 0;
     if (gainMax != (int)0x80000000) {
       if (fbitsGain >= gainMaxFBits) {
         shift = std::min (fbitsGain - gainMaxFBits, 31);
         maxFlag = ((gainScale >> shift) > gainMax ? 1 : 0);
-      } else {
+        } 
+      else {
         shift = std::min (gainMaxFBits - fbitsGain, 31);
         maxFlag = (gainScale > (gainMax >> shift) ? 1 : 0);
+        }
       }
-    }
 
     if (maxFlag) {
-      /* gainScale > gainMax, calculate ratio with 32/16 division */
+      // gainScale > gainMax, calculate ratio with 32/16 division */
       q = 0;
-      r = gainScale;  /* guaranteed > 0, else maxFlag could not have been set */
+      r = gainScale;  // guaranteed > 0, else maxFlag could not have been set */
       z = countLeadingZeros (r);
       if (z < 16) {
         q = 16 - z;
-        r >>= q;  /* out = Q(fbitsGain - q) */
-      }
+        r >>= q;  // out = Q(fbitsGain - q) */
+        }
 
       z = countLeadingZeros (gainMax) - 1;
       r = (gainMax << z) / r;   /* out = Q((fbitsGainMax + z) - (fbitsGain - q)) */
       q = (gainMaxFBits + z) - (fbitsGain - q); /* r = Q(q) */
       if (q > 30) {
         r >>= std::min (q - 30, 31);
-      } else {
+        } 
+      else {
         z = std::min (30 - q, 30);
         CLIP_2N_SHIFT(r, z);  /* let r = Q30 since range = [0.0, 1.0) (clip to 0x3fffffff = 0.99999) */
-      }
+        }
 
       qm = MULSHIFT32(qm, r) << 2;
       gain = MULSHIFT32(gain, r) << 2;
       psi->gLimBuf[m] = gainMax;
       psi->gLimFbits[m] = gainMaxFBits;
-    } else {
+      } 
+    else {
       psi->gLimBuf[m] = gainScale;
       psi->gLimFbits[m] = fbitsGain;
-    }
+      }
 
-    /* sumSM, sumQM, sumECurrGLim = Q(fbitsDQ - ACC_SCALE) */
+    // sumSM, sumQM, sumECurrGLim = Q(fbitsDQ - ACC_SCALE) */
     psi->smBuf[m] = sm;
     psi->sumSM += (sm >> ACC_SCALE);
 
@@ -7817,38 +7779,30 @@ static void CalcComponentGains (sPSInfoSBR* psi, SBRGrid* sbrGrid, SBRFreq* sbrF
     if (env != psi->la && env != sbrChan->laPrev && sm == 0)
       psi->sumQM += (qm >> ACC_SCALE);
 
-    /* eCurr * gain^2 same as gain^2, before division by eCurr
-     * (but note that gain != 0 even if eCurr == 0, since it's divided by eps)
-     */
+    // eCurr * gain^2 same as gain^2, before division by eCurr
+    // (but note that gain != 0 even if eCurr == 0, since it's divided by eps)
     if (eCurr)
       psi->sumECurrGLim += (gain >> ACC_SCALE);
+    }
   }
-}
 //}}}
 
 //{{{
+static void ApplyBoost (sPSInfoSBR* psi, SBRFreq* sbrFreq, int lim, int fbitsDQ) {
 /**************************************************************************************
- * Function:    ApplyBoost
- *
  * Description: calculate and apply boost factor for envelope, sinusoids, and noise
  *                in this limiter band (4.6.18.7.5)
- *
  * Inputs:      initialized PSInfoSBR struct
  *              initialized SBRFreq struct for this SCE/CPE block
  *              index of current limiter band
  *              number of fraction bits in dequantized envelope
- *
  * Outputs:     envelope gain, sinusoids and noise after scaling by gBoost
  *              format = Q(FBITS_GLIM_BOOST) for envelope gain,
  *                     = Q(FBITS_QLIM_BOOST) for noise
  *                     = Q(FBITS_OUT_QMFA) for sinusoids
- *
- * Return:      none
- *
  * Notes:       after scaling, each component has at least 1 GB
  **************************************************************************************/
-static void ApplyBoost (sPSInfoSBR* psi, SBRFreq* sbrFreq, int lim, int fbitsDQ)
-{
+
   int m, mStart, mEnd, q, z, r;
   int sumEOrigMapped, gBoost;
 
@@ -7858,80 +7812,80 @@ static void ApplyBoost (sPSInfoSBR* psi, SBRFreq* sbrFreq, int lim, int fbitsDQ)
   sumEOrigMapped = psi->sumEOrigMapped >> 1;
   r = (psi->sumECurrGLim >> 1) + (psi->sumSM >> 1) + (psi->sumQM >> 1); /* 1 GB fine (sm and qm are mutually exclusive in acc) */
   if (r < (1 << (31-28))) {
-    /* any non-zero numerator * 1/EPS_0 is > GBOOST_MAX
-     * round very small r to zero to avoid scaling problems
-     */
+    // any non-zero numerator * 1/EPS_0 is > GBOOST_MAX
+    // round very small r to zero to avoid scaling problems
     gBoost = (sumEOrigMapped == 0 ? (1 << 28) : GBOOST_MAX);
     z = 0;
-  } else if (sumEOrigMapped == 0) {
-    /* 1/(any non-zero denominator) * EPS_0 is appx. 0 */
+    } 
+  else if (sumEOrigMapped == 0) {
+    // 1/(any non-zero denominator) * EPS_0 is appx. 0 */
     gBoost = 0;
     z = 0;
-  } else {
-    /* numerator (sumEOrigMapped) and denominator (r) have same Q format (before << z) */
+    } 
+  else {
+    // numerator (sumEOrigMapped) and denominator (r) have same Q format (before << z) */
     z = countLeadingZeros(r) - 1; /* z = [0, 27] */
     r = InvRNormalized(r << z);
     gBoost = MULSHIFT32(sumEOrigMapped, r);
-  }
+    }
 
-  /* gBoost = Q(28 - z) */
+  // gBoost = Q(28 - z) */
   if (gBoost > (GBOOST_MAX >> z)) {
     gBoost = GBOOST_MAX;
     z = 0;
-  }
-  gBoost <<= z; /* gBoost = Q28, minimum 1 GB */
+    }
+  gBoost <<= z; // gBoost = Q28, minimum 1 GB */
 
-  /* convert gain, noise, sinusoids to fixed Q format, clipping if necessary
-   *   (rare, usually only happens at very low bitrates, introduces slight
-   *    distortion into final HF mapping, but should be inaudible)
-   */
+  // convert gain, noise, sinusoids to fixed Q format, clipping if necessary
+  //   (rare, usually only happens at very low bitrates, introduces slight
+  //    distortion into final HF mapping, but should be inaudible)
   for (m = mStart; m < mEnd; m++) {
-    /* let gLimBoost = Q24, since in practice the max values are usually 16 to 20
-     *   unless limiterGains == 3 (limiter off) and eCurr ~= 0 (i.e. huge gain, but only
-     *   because the envelope has 0 power anyway)
-     */
-    q = MULSHIFT32(psi->gLimBuf[m], gBoost) << 2; /* Q(gLimFbits) * Q(28) --> Q(gLimFbits[m]-2) */
+    // let gLimBoost = Q24, since in practice the max values are usually 16 to 20
+    //   unless limiterGains == 3 (limiter off) and eCurr ~= 0 (i.e. huge gain, but only
+    //   because the envelope has 0 power anyway)
+    q = MULSHIFT32(psi->gLimBuf[m], gBoost) << 2; // Q(gLimFbits) * Q(28) --> Q(gLimFbits[m]-2) */
     r = SqrtFix(q, psi->gLimFbits[m] - 2, &z);
     z -= FBITS_GLIM_BOOST;
     if (z >= 0) {
       psi->gLimBoost[m] = r >> std::min (z, 31);
-    } else {
+      } 
+    else {
       z = std::min (30, -z);
       CLIP_2N_SHIFT(r, z);
       psi->gLimBoost[m] = r;
-    }
+      }
 
-    q = MULSHIFT32(psi->qmLimBuf[m], gBoost) << 2;  /* Q(fbitsDQ) * Q(28) --> Q(fbitsDQ-2) */
+    q = MULSHIFT32(psi->qmLimBuf[m], gBoost) << 2;  // Q(fbitsDQ) * Q(28) --> Q(fbitsDQ-2) */
     r = SqrtFix(q, fbitsDQ - 2, &z);
-    z -= FBITS_QLIM_BOOST;    /* << by 14, since integer sqrt of x < 2^16, and we want to leave 1 GB */
+    z -= FBITS_QLIM_BOOST;    // << by 14, since integer sqrt of x < 2^16, and we want to leave 1 GB */
     if (z >= 0) {
       psi->qmLimBoost[m] = r >> std::min (31, z);
-    } else {
+      } 
+    else {
       z = std::min (30, -z);
       CLIP_2N_SHIFT(r, z);
       psi->qmLimBoost[m] = r;
-    }
+      }
 
-    q = MULSHIFT32(psi->smBuf[m], gBoost) << 2;   /* Q(fbitsDQ) * Q(28) --> Q(fbitsDQ-2) */
+    q = MULSHIFT32(psi->smBuf[m], gBoost) << 2;   // Q(fbitsDQ) * Q(28) --> Q(fbitsDQ-2) */
     r = SqrtFix(q, fbitsDQ - 2, &z);
-    z -= FBITS_OUT_QMFA;    /* justify for adding to signal (xBuf) later */
+    z -= FBITS_OUT_QMFA;    // justify for adding to signal (xBuf) later */
     if (z >= 0) {
       psi->smBoost[m] = r >> std::min (31, z);
-    } else {
+      } 
+    else {
       z = std::min (30, -z);
       CLIP_2N_SHIFT(r, z);
       psi->smBoost[m] = r;
+      }
     }
   }
-}
 //}}}
 //{{{
+static void CalcGain (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SBRFreq* sbrFreq, SBRChan* sbrChan, int ch, int env) {
 /**************************************************************************************
- * Function:    CalcGain
- *
  * Description: calculate and apply proper gain to HF components in one envelope
  *                (4.6.18.7.5)
- *
  * Inputs:      initialized PSInfoSBR struct
  *              initialized SBRHeader struct for this SCE/CPE block
  *              initialized SBRGrid struct for this channel
@@ -7939,36 +7893,30 @@ static void ApplyBoost (sPSInfoSBR* psi, SBRFreq* sbrFreq, int lim, int fbitsDQ)
  *              initialized SBRChan struct for this channel
  *              index of current channel (0 for SCE, 0 or 1 for CPE)
  *              index of current envelope
- *
  * Outputs:     envelope gain, sinusoids and noise after scaling
- *
- * Return:      none
  **************************************************************************************/
-static void CalcGain (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SBRFreq* sbrFreq, SBRChan* sbrChan, int ch, int env) {
-  int lim, fbitsDQ;
 
-  /* initialize to -1 so that mapping limiter bands to env/noise bands works right on first pass */
-  psi->envBand        = -1;
+  // initialize to -1 so that mapping limiter bands to env/noise bands works right on first pass */
+  psi->envBand = -1;
   psi->noiseFloorBand = -1;
-  psi->sBand          = -1;
-  psi->highBand       = -1;
+  psi->sBand = -1;
+  psi->highBand = -1;
 
-  fbitsDQ = (FBITS_OUT_DQ_ENV - psi->envDataDequantScale[ch][env]); /* Q(29 - optional scalefactor) */
-  for (lim = 0; lim < sbrFreq->nLimiter; lim++) {
-    /* the QMF bands are divided into lim regions (consecutive, non-overlapping) */
-    CalcMaxGain(psi, sbrHdr, sbrGrid, sbrFreq, ch, env, lim, fbitsDQ);
-    CalcComponentGains(psi, sbrGrid, sbrFreq, sbrChan, ch, env, lim, fbitsDQ);
-    ApplyBoost(psi, sbrFreq, lim, fbitsDQ);
+  int fbitsDQ = (FBITS_OUT_DQ_ENV - psi->envDataDequantScale[ch][env]); // Q(29 - optional scalefactor) */
+  for (int lim = 0; lim < sbrFreq->nLimiter; lim++) {
+    // the QMF bands are divided into lim regions (consecutive, non-overlapping) */
+    CalcMaxGain (psi, sbrHdr, sbrGrid, sbrFreq, ch, env, lim, fbitsDQ);
+    CalcComponentGains (psi, sbrGrid, sbrFreq, sbrChan, ch, env, lim, fbitsDQ);
+    ApplyBoost (psi, sbrFreq, lim, fbitsDQ);
+    }
   }
-}
 //}}}
 //{{{
+static void MapHF (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SBRFreq* sbrFreq, SBRChan* sbrChan, 
+                   int env, int hfReset) {
 /**************************************************************************************
- * Function:    MapHF
- *
  * Description: map HF components to proper QMF bands, with optional gain smoothing
  *                filter (4.6.18.7.6)
- *
  * Inputs:      initialized PSInfoSBR struct
  *              initialized SBRHeader struct for this SCE/CPE block
  *              initialized SBRGrid struct for this channel
@@ -7976,16 +7924,11 @@ static void CalcGain (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SBRF
  *              initialized SBRChan struct for this channel
  *              index of current envelope
  *              reset flag (can be non-zero for first envelope only)
- *
  * Outputs:     complete reconstructed subband QMF samples for this envelope
- *
- * Return:      none
- *
  * Notes:       ensures that output has >= MIN_GBITS_IN_QMFS guard bits,
  *                so it's not necessary to check anything in the synth QMF
  **************************************************************************************/
-static void MapHF (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SBRFreq* sbrFreq, SBRChan* sbrChan, int env, int hfReset)
-{
+
   int noiseTabIndex, sinIndex, gainNoiseIndex, hSL;
   int i, iStart, iEnd, m, idx, j, s, n, smre, smim;
   int gFilt, qFilt, xre, xim, gbMask, gbIdx;
@@ -8004,68 +7947,69 @@ static void MapHF (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SBRFreq
       for (m = 0; m < sbrFreq->numQMFBands; m++) {
         sbrChan->gTemp[gainNoiseIndex][m] = psi->gLimBoost[m];
         sbrChan->qTemp[gainNoiseIndex][m] = psi->qmLimBoost[m];
-      }
+        }
       gainNoiseIndex++;
       if (gainNoiseIndex == MAX_NUM_SMOOTH_COEFS)
         gainNoiseIndex = 0;
+      }
     }
-  }
 
   iStart = sbrGrid->envTimeBorder[env];
   iEnd =   sbrGrid->envTimeBorder[env+1];
   for (i = iStart; i < iEnd; i++) {
-    /* save new values in temp buffers (delay)
-     * we only store MAX_NUM_SMOOTH_COEFS most recent values,
-     *   so don't keep storing the same value over and over
-     */
+    // save new values in temp buffers (delay)
+    // we only store MAX_NUM_SMOOTH_COEFS most recent values,
+    //  so don't keep storing the same value over and over
     if (i - iStart < MAX_NUM_SMOOTH_COEFS) {
       for (m = 0; m < sbrFreq->numQMFBands; m++) {
         sbrChan->gTemp[gainNoiseIndex][m] = psi->gLimBoost[m];
         sbrChan->qTemp[gainNoiseIndex][m] = psi->qmLimBoost[m];
+        }
       }
-    }
 
-    /* see 4.6.18.7.6 */
+    // see 4.6.18.7.6 */
     XBuf = psi->XBuf[i + HF_ADJ][sbrFreq->kStart];
     gbMask = 0;
     for (m = 0; m < sbrFreq->numQMFBands; m++) {
       if (env == psi->la || env == sbrChan->laPrev) {
-        /* no smoothing filter for gain, and qFilt = 0 (only need to do once) */
+        // no smoothing filter for gain, and qFilt = 0 (only need to do once) */
         if (i == iStart) {
           psi->gFiltLast[m] = sbrChan->gTemp[gainNoiseIndex][m];
           psi->qFiltLast[m] = 0;
-        }
-      } else if (hSL == 0) {
-        /* no smoothing filter for gain, (only need to do once) */
+          }
+        } 
+      else if (hSL == 0) {
+        // no smoothing filter for gain, (only need to do once) */
         if (i == iStart) {
           psi->gFiltLast[m] = sbrChan->gTemp[gainNoiseIndex][m];
           psi->qFiltLast[m] = sbrChan->qTemp[gainNoiseIndex][m];
-        }
-      } else {
-        /* apply smoothing filter to gain and noise (after MAX_NUM_SMOOTH_COEFS, it's always the same) */
+          }
+        } 
+      else {
+        // apply smoothing filter to gain and noise (after MAX_NUM_SMOOTH_COEFS, it's always the same) */
         if (i - iStart < MAX_NUM_SMOOTH_COEFS) {
           gFilt = 0;
           qFilt = 0;
           idx = gainNoiseIndex;
           for (j = 0; j < MAX_NUM_SMOOTH_COEFS; j++) {
-            /* sum(abs(hSmoothCoef[j])) for all j < 1.0 */
+            // sum(abs(hSmoothCoef[j])) for all j < 1.0 */
             gFilt += MULSHIFT32(sbrChan->gTemp[idx][m], hSmoothCoef[j]);
             qFilt += MULSHIFT32(sbrChan->qTemp[idx][m], hSmoothCoef[j]);
             idx--;
             if (idx < 0)
               idx += MAX_NUM_SMOOTH_COEFS;
-          }
+            }
           psi->gFiltLast[m] = gFilt << 1; /* restore to Q(FBITS_GLIM_BOOST) (gain of filter < 1.0, so no overflow) */
           psi->qFiltLast[m] = qFilt << 1; /* restore to Q(FBITS_QLIM_BOOST) */
+          }
         }
-      }
 
       if (psi->smBoost[m] != 0) {
-        /* add scaled signal and sinusoid, don't add noise (qFilt = 0) */
+        // add scaled signal and sinusoid, don't add noise (qFilt = 0) */
         smre = psi->smBoost[m];
         smim = smre;
 
-        /* sinIndex:  [0] xre += sm   [1] xim += sm*s   [2] xre -= sm   [3] xim -= sm*s  */
+        // sinIndex:  [0] xre += sm   [1] xim += sm*s   [2] xre -= sm   [3] xim -= sm*s  */
         s = (sinIndex >> 1);  /* if 2 or 3, flip sign to subtract sm */
         s <<= 31;
         smre ^= (s >> 31);
@@ -8074,22 +8018,23 @@ static void MapHF (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SBRFreq
         smim ^= (s >> 31);
         smim -= (s >> 31);
 
-        /* if sinIndex == 0 or 2, smim = 0; if sinIndex == 1 or 3, smre = 0 */
+        // if sinIndex == 0 or 2, smim = 0; if sinIndex == 1 or 3, smre = 0 */
         s = sinIndex << 31;
         smim &= (s >> 31);
         s ^= 0x80000000;
         smre &= (s >> 31);
 
         noiseTabIndex += 2;   /* noise filtered by 0, but still need to bump index */
-      } else {
-        /* add scaled signal and scaled noise */
+        } 
+      else {
+        // add scaled signal and scaled noise */
         qFilt = psi->qFiltLast[m];
         n = noiseTab[noiseTabIndex++];
         smre = MULSHIFT32(n, qFilt) >> (FBITS_QLIM_BOOST - 1 - FBITS_OUT_QMFA);
 
         n = noiseTab[noiseTabIndex++];
         smim = MULSHIFT32(n, qFilt) >> (FBITS_QLIM_BOOST - 1 - FBITS_OUT_QMFA);
-      }
+        }
       noiseTabIndex &= 1023;  /* 512 complex numbers */
 
       gFilt = psi->gFiltLast[m];
@@ -8113,9 +8058,8 @@ static void MapHF (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SBRFreq
     sinIndex++;
     sinIndex &= 3;
 
-    /* ensure MIN_GBITS_IN_QMFS guard bits in output
-     * almost never occurs in practice, but checking here makes synth QMF logic very simple
-     */
+    // ensure MIN_GBITS_IN_QMFS guard bits in output
+    // almost never occurs in practice, but checking here makes synth QMF logic very simple
     if (gbMask >> (31 - MIN_GBITS_IN_QMFS)) {
       XBuf = psi->XBuf[i + HF_ADJ][sbrFreq->kStart];
       for (m = 0; m < sbrFreq->numQMFBands; m++) {
@@ -8123,44 +8067,40 @@ static void MapHF (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SBRFreq
         CLIP_2N(xre, (31 - MIN_GBITS_IN_QMFS));
         CLIP_2N(xim, (31 - MIN_GBITS_IN_QMFS));
         *XBuf++ = xre;  *XBuf++ = xim;
-      }
+        }
       CLIP_2N(gbMask, (31 - MIN_GBITS_IN_QMFS));
-    }
+      }
     gbIdx = ((i + HF_ADJ) >> 5) & 0x01;
     sbrChan->gbMask[gbIdx] |= gbMask;
-  }
+    }
+
   sbrChan->noiseTabIndex =  noiseTabIndex;
   sbrChan->sinIndex =       sinIndex;
   sbrChan->gainNoiseIndex = gainNoiseIndex;
-}
+  }
 //}}}
-
 //{{{
+static void AdjustHighFreq (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SBRFreq* sbrFreq, SBRChan* sbrChan, 
+                            int ch) {
 /**************************************************************************************
- * Function:    AdjustHighFreq
- *
  * Description: adjust high frequencies and add noise and sinusoids (4.6.18.7)
- *
  * Inputs:      initialized PSInfoSBR struct
  *              initialized SBRHeader struct for this SCE/CPE block
  *              initialized SBRGrid struct for this channel
  *              initialized SBRFreq struct for this SCE/CPE block
  *              initialized SBRChan struct for this channel
  *              index of current channel (0 for SCE, 0 or 1 for CPE)
- *
  * Outputs:     complete reconstructed subband QMF samples for this channel
- *
  * Return:      none
  **************************************************************************************/
-static void AdjustHighFreq (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SBRFreq* sbrFreq, SBRChan* sbrChan, int ch)
-{
+
   int i, env, hfReset;
   uint8_t frameClass, pointer;
 
   frameClass = sbrGrid->frameClass;
   pointer  = sbrGrid->pointer;
 
-  /* derive la from table 4.159 */
+  // derive la from table 4.159 */
   if ((frameClass == SBR_GRID_FIXVAR || frameClass == SBR_GRID_VARVAR) && pointer > 0)
     psi->la = sbrGrid->numEnv + 1 - pointer;
   else if (frameClass == SBR_GRID_VARFIX && pointer > 1)
@@ -8168,35 +8108,33 @@ static void AdjustHighFreq (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid
   else
     psi->la = -1;
 
-  /* for each envelope, estimate gain and adjust SBR QMF bands */
+  // for each envelope, estimate gain and adjust SBR QMF bands
   hfReset = sbrChan->reset;
   for (env = 0; env < sbrGrid->numEnv; env++) {
     EstimateEnvelope(psi, sbrHdr, sbrGrid, sbrFreq, env);
     CalcGain(psi, sbrHdr, sbrGrid, sbrFreq, sbrChan, ch, env);
     MapHF(psi, sbrHdr, sbrGrid, sbrFreq, sbrChan, env, hfReset);
-    hfReset = 0;  /* only set for first envelope after header reset */
-  }
+    hfReset = 0;  // only set for first envelope after header reset
+    }
 
-  /* set saved sine flags to 0 for QMF bands outside of current frequency range */
+  // set saved sine flags to 0 for QMF bands outside of current frequency range
   for (i = 0; i < sbrFreq->freqLimiter[0] + sbrFreq->kStart; i++)
     sbrChan->addHarmonic[0][i] = 0;
   for (i = sbrFreq->freqLimiter[sbrFreq->nLimiter] + sbrFreq->kStart; i < 64; i++)
     sbrChan->addHarmonic[0][i] = 0;
   sbrChan->addHarmonicFlag[0] = sbrChan->addHarmonicFlag[1];
 
-  /* save la for next frame */
+  // save la for next frame
   if (psi->la == sbrGrid->numEnv)
     sbrChan->laPrev = 0;
   else
     sbrChan->laPrev = -1;
-}
+  }
 //}}}
 
-// sbrhfgen
 #define FBITS_LPCOEFS 29  /* Q29 for range of (-4, 4) */
 #define MAG_16  (16 * (1 << (32 - (2*(32-FBITS_LPCOEFS)))))   /* i.e. 16 in Q26 format */
 #define RELAX_COEF 0x7ffff79c  /* 1.0 / (1.0 + 1e-6), Q31 */
-
 //{{{
 static void CVKernel1 (int *XBuf, int *accBuf) {
 /**************************************************************************************
@@ -8205,7 +8143,6 @@ static void CVKernel1 (int *XBuf, int *accBuf) {
  *                freq index = patch subband
  * Outputs:     64-bit accumulators for p01re, p01im, p12re, p12im, p11re, p22re
  *                stored in accBuf
- * Return:      none
  * Notes:       this is carefully written to be efficient on ARM
  *              use the assembly code version in sbrcov.s when building for ARM!
  **************************************************************************************/
@@ -8232,7 +8169,7 @@ static void CVKernel1 (int *XBuf, int *accBuf) {
   p22re.w64 = MADD64(p22re.w64,  x0re, x0re);
   p22re.w64 = MADD64(p22re.w64,  x0im, x0im);
   for (n = (NUM_TIME_SLOTS*SAMPLES_PER_SLOT + 6); n != 0; n--) {
-    /* 4 input, 3*2 acc, 1 ptr, 1 loop counter = 12 registers (use same for x0im, -x0im) */
+    // 4 input, 3*2 acc, 1 ptr, 1 loop counter = 12 registers (use same for x0im, -x0im) */
     x0re = x1re;
     x0im = x1im;
     x1re = XBuf[0];
@@ -8246,8 +8183,9 @@ static void CVKernel1 (int *XBuf, int *accBuf) {
     p11re.w64 = MADD64(p11re.w64,  x0im, x0im);
 
     XBuf += (2*64);
-  }
-  /* these can be derived by slight changes to account for boundary conditions */
+    }
+
+  // these can be derived by slight changes to account for boundary conditions */
   p12re.w64 += p01re.w64;
   p12re.w64 = MADD64(p12re.w64, x1re, -x0re);
   p12re.w64 = MADD64(p12re.w64, x1im, -x0im);
@@ -8264,7 +8202,7 @@ static void CVKernel1 (int *XBuf, int *accBuf) {
   accBuf[6]  = p12re.r.lo32;  accBuf[7]  = p12re.r.hi32;
   accBuf[8]  = p12im.r.lo32;  accBuf[9]  = p12im.r.hi32;
   accBuf[10] = p22re.r.lo32;  accBuf[11] = p22re.r.hi32;
-}
+  }
 //}}}
 //{{{
 static int CalcCovariance1 (int *XBuf, int *p01reN, int *p01imN, int *p12reN, int *p12imN, int *p11reN, int *p22reN) {
@@ -8283,7 +8221,7 @@ static int CalcCovariance1 (int *XBuf, int *p01reN, int *p01imN, int *p12reN, in
   int n, z, s, loShift, hiShift, gbMask;
   U64 p01re, p01im, p12re, p12im, p11re, p22re;
 
-  CVKernel1(XBuf, accBuf);
+  CVKernel1 (XBuf, accBuf);
   p01re.r.lo32 = accBuf[0]; p01re.r.hi32 = accBuf[1];
   p01im.r.lo32 = accBuf[2]; p01im.r.hi32 = accBuf[3];
   p11re.r.lo32 = accBuf[4]; p11re.r.hi32 = accBuf[5];
@@ -8307,12 +8245,13 @@ static int CalcCovariance1 (int *XBuf, int *p01reN, int *p01imN, int *p12reN, in
     s = p11re.r.hi32 >> 31; gbMask |= (p11re.r.lo32 ^ s) - s;
     s = p22re.r.hi32 >> 31; gbMask |= (p22re.r.lo32 ^ s) - s;
     z = 32 + countLeadingZeros (gbMask);
-  } else {
+    } 
+  else {
     gbMask  = FASTABS (p01re.r.hi32) | FASTABS (p01im.r.hi32);
     gbMask |= FASTABS (p12re.r.hi32) | FASTABS (p12im.r.hi32);
     gbMask |= FASTABS (p11re.r.hi32) | FASTABS (p22re.r.hi32);
     z = countLeadingZeros (gbMask);
-  }
+    }
 
   n = 64 - z; /* number of non-zero bits in bottom of 64-bit word */
   if (n <= 30) {
@@ -8321,7 +8260,8 @@ static int CalcCovariance1 (int *XBuf, int *p01reN, int *p01imN, int *p12reN, in
     *p12reN = p12re.r.lo32 << loShift;  *p12imN = p12im.r.lo32 << loShift;
     *p11reN = p11re.r.lo32 << loShift;  *p22reN = p22re.r.lo32 << loShift;
     return -(loShift + 2*FBITS_OUT_QMFA);
-  } else if (n < 32 + 30) {
+    } 
+  else if (n < 32 + 30) {
     loShift = (n - 30);
     hiShift = 32 - loShift;
     *p01reN = (p01re.r.hi32 << hiShift) | (p01re.r.lo32 >> loShift);
@@ -8331,16 +8271,17 @@ static int CalcCovariance1 (int *XBuf, int *p01reN, int *p01imN, int *p12reN, in
     *p11reN = (p11re.r.hi32 << hiShift) | (p11re.r.lo32 >> loShift);
     *p22reN = (p22re.r.hi32 << hiShift) | (p22re.r.lo32 >> loShift);
     return (loShift - 2*FBITS_OUT_QMFA);
-  } else {
+    } 
+  else {
     hiShift = n - (32 + 30);
     *p01reN = p01re.r.hi32 >> hiShift;  *p01imN = p01im.r.hi32 >> hiShift;
     *p12reN = p12re.r.hi32 >> hiShift;  *p12imN = p12im.r.hi32 >> hiShift;
     *p11reN = p11re.r.hi32 >> hiShift;  *p22reN = p22re.r.hi32 >> hiShift;
     return (32 - 2*FBITS_OUT_QMFA - hiShift);
-  }
+    }
 
   return 0;
-}
+  }
 //}}}
 //{{{
 static void CVKernel2 (int *XBuf, int *accBuf) {
@@ -8349,7 +8290,6 @@ static void CVKernel2 (int *XBuf, int *accBuf) {
  * Inputs:      buffer of low-freq samples, starting at time index = 0,
  *                freq index = patch subband
  * Outputs:     64-bit accumulators for p02re, p02im stored in accBuf
- * Return:      none
  * Notes:       this is carefully written to be efficient on ARM
  *              use the assembly code version in sbrcov.s when building for ARM!
  **************************************************************************************/
@@ -8415,7 +8355,6 @@ static int CalcCovariance2 (int *XBuf, int *p02reN, int *p02imN) {
   // want to scale them down to integers (32-bit signed, Q0)
   //   with scale factor of 2^n, n >= 0
   // leave 1 GB for calculating determinant, so take top 30 non-zero bits
-  //
   gbMask = ((p02re.r.hi32) ^ (p02re.r.hi32 >> 31)) | ((p02im.r.hi32) ^ (p02im.r.hi32 >> 31));
   if (gbMask == 0) {
     s = p02re.r.hi32 >> 31; gbMask  = (p02re.r.lo32 ^ s) - s;
@@ -8426,7 +8365,7 @@ static int CalcCovariance2 (int *XBuf, int *p02reN, int *p02imN) {
     gbMask  = FASTABS (p02re.r.hi32) | FASTABS (p02im.r.hi32);
     z = countLeadingZeros (gbMask);
     }
-  n = 64 - z; /* number of non-zero bits in bottom of 64-bit word */
+  n = 64 - z; // number of non-zero bits in bottom of 64-bit word */
 
   if (n <= 30) {
     loShift = (30 - n);
@@ -8460,7 +8399,6 @@ static void CalcLPCoefs (int *XBuf, int *a0re, int *a0im, int *a1re, int *a1im, 
  *                freq index = patch subband
  *              number of guard bits in input sample buffer
  * Outputs:     complex LP coefficients a0re, a0im, a1re, a1im, format = Q29
- * Return:      none
  * Notes:       output coefficients (a0re, a0im, a1re, a1im) clipped to range (-4, 4)
  *              if the comples coefficients have magnitude >= 4.0, they are all
  *                set to 0 (see spec)
@@ -8478,13 +8416,13 @@ static void CalcLPCoefs (int *XBuf, int *a0re, int *a0im, int *a1re, int *a1im, 
     for (n1 = (NUM_TIME_SLOTS*SAMPLES_PER_SLOT + 6 + 2); n1 != 0; n1--) {
       XBuf[0] >>= nd; XBuf[1] >>= nd;
       XBuf += (2*64);
-    }
+      }
     XBuf -= (2*64*(NUM_TIME_SLOTS*SAMPLES_PER_SLOT + 6 + 2));
-  }
+    }
 
-  // calculate covariance elements */
-  n1 = CalcCovariance1(XBuf, &p01re, &p01im, &p12re, &p12im, &p11re, &p22re);
-  n2 = CalcCovariance2(XBuf, &p02re, &p02im);
+  // calculate covariance elements
+  n1 = CalcCovariance1 (XBuf, &p01re, &p01im, &p12re, &p12im, &p11re, &p22re);
+  n2 = CalcCovariance2 (XBuf, &p02re, &p02im);
 
   // normalize everything to larger power of 2 scalefactor, call it n1 */
   if (n1 < n2) {
@@ -8499,10 +8437,10 @@ static void CalcLPCoefs (int *XBuf, int *a0re, int *a0im, int *a1re, int *a1im, 
     p02re >>= nd; p02im >>= nd;
     }
 
-  // calculate determinant of covariance matrix (at least 1 GB in pXX) */
-  d = MULSHIFT32(p12re, p12re) + MULSHIFT32(p12im, p12im);
-  d = MULSHIFT32(d, RELAX_COEF) << 1;
-  d = MULSHIFT32(p11re, p22re) - d;
+  // calculate determinant of covariance matrix (at least 1 GB in pXX)
+  d = MULSHIFT32 (p12re, p12re) + MULSHIFT32 (p12im, p12im);
+  d = MULSHIFT32 (d, RELAX_COEF) << 1;
+  d = MULSHIFT32 (p11re, p22re) - d;
 
   zFlag = 0;
   *a0re = *a0im = 0;
@@ -8519,16 +8457,16 @@ static void CalcLPCoefs (int *XBuf, int *a0re, int *a0im, int *a1re, int *a1im, 
     dInv = InvRNormalized(d);
 
     // 1 GB in pXX */
-    tre = MULSHIFT32(p01re, p12re) - MULSHIFT32(p01im, p12im) - MULSHIFT32(p02re, p11re);
-    tre = MULSHIFT32(tre, dInv);
-    tim = MULSHIFT32(p01re, p12im) + MULSHIFT32(p01im, p12re) - MULSHIFT32(p02im, p11re);
-    tim = MULSHIFT32(tim, dInv);
+    tre = MULSHIFT32 (p01re, p12re) - MULSHIFT32 (p01im, p12im) - MULSHIFT32 (p02re, p11re);
+    tre = MULSHIFT32 (tre, dInv);
+    tim = MULSHIFT32 (p01re, p12im) + MULSHIFT32 (p01im, p12re) - MULSHIFT32 (p02im, p11re);
+    tim = MULSHIFT32 (tim, dInv);
 
     // if d is extremely small, just set coefs to 0 (would have poor precision anyway) */
     if (nd > 28 || (FASTABS (tre) >> (28 - nd)) >= 4 || (FASTABS (tim) >> (28 - nd)) >= 4) {
       zFlag = 1;
-     }
-   else {
+      }
+    else {
       *a1re = tre << (FBITS_LPCOEFS - 28 + nd); /* i.e. convert Q(28 - nd) to Q(29) */
       *a1im = tim << (FBITS_LPCOEFS - 28 + nd);
       }
@@ -8543,7 +8481,7 @@ static void CalcLPCoefs (int *XBuf, int *a0re, int *a0im, int *a1re, int *a1im, 
     //                  = Q(29 + 31 - 3 - 32 - nd) = Q(25 - nd)
     nd = countLeadingZeros (p11re) - 1;  /* assume positive */
     p11re <<= nd;
-    dInv = InvRNormalized(p11re);
+    dInv = InvRNormalized (p11re);
 
     // a1re, a1im = Q29, so scaled by (n1 + 3) */
     tre = (p01re >> 3) + MULSHIFT32(p12re, *a1re) + MULSHIFT32(p12im, *a1im);
@@ -8578,7 +8516,6 @@ static void CalcLPCoefs (int *XBuf, int *a0re, int *a0im, int *a1re, int *a1im, 
     }
   }
 //}}}
-
 //{{{
 static void GenerateHighFreq (sPSInfoSBR* psi, SBRGrid* sbrGrid, SBRFreq* sbrFreq, SBRChan* sbrChan, int ch) {
 /**************************************************************************************
@@ -8589,7 +8526,6 @@ static void GenerateHighFreq (sPSInfoSBR* psi, SBRGrid* sbrGrid, SBRFreq* sbrFre
  *              initialized SBRChan struct for this channel
  *              index of current channel (0 for SCE, 0 or 1 for CPE)
  * Outputs:     new high frequency samples starting at frequency kStart
- * Return:      none
  **************************************************************************************/
 
   int band, newBW, c, t, gb, gbMask, gbIdx;
@@ -8600,24 +8536,24 @@ static void GenerateHighFreq (sPSInfoSBR* psi, SBRGrid* sbrGrid, SBRFreq* sbrFre
   int *XBufLo, *XBufHi;
   (void) ch;
 
-  /* calculate array of chirp factors */
+  // calculate array of chirp factors
   for (band = 0; band < sbrFreq->numNoiseFloorBands; band++) {
-    c = sbrChan->chirpFact[band]; /* previous (bwArray') */
+    c = sbrChan->chirpFact[band]; // previous (bwArray')
     newBW = newBWTab[sbrChan->invfMode[0][band]][sbrChan->invfMode[1][band]];
 
-    /* weighted average of new and old (can't overflow - total gain = 1.0) */
+    // weighted average of new and old (can't overflow - total gain = 1.0)
     if (newBW < c)
-      t = MULSHIFT32 (newBW, 0x60000000) + MULSHIFT32(0x20000000, c);  /* new is smaller: 0.75*new + 0.25*old */
+      t = MULSHIFT32 (newBW, 0x60000000) + MULSHIFT32(0x20000000, c);  // new is smaller: 0.75*new + 0.25*old
     else
-      t = MULSHIFT32 (newBW, 0x74000000) + MULSHIFT32(0x0c000000, c);  /* new is larger: 0.90625*new + 0.09375*old */
+      t = MULSHIFT32 (newBW, 0x74000000) + MULSHIFT32(0x0c000000, c);  // new is larger: 0.90625*new + 0.09375*old
     t <<= 1;
 
-    if (t < 0x02000000) /* below 0.015625, clip to 0 */
+    if (t < 0x02000000) // below 0.015625, clip to 0
       t = 0;
-    if (t > 0x7f800000) /* clip to 0.99609375 */
+    if (t > 0x7f800000) // clip to 0.99609375
       t = 0x7f800000;
 
-    /* save curr as prev for next time */
+    // save curr as prev for next time
     sbrChan->chirpFact[band] = t;
     sbrChan->invfMode[0][band] = sbrChan->invfMode[1][band];
     }
@@ -8625,42 +8561,42 @@ static void GenerateHighFreq (sPSInfoSBR* psi, SBRGrid* sbrGrid, SBRFreq* sbrFre
   iStart = sbrGrid->envTimeBorder[0] + HF_ADJ;
   iEnd = sbrGrid->envTimeBorder[sbrGrid->numEnv] + HF_ADJ;
 
-  /* generate new high freqs from low freqs, patches, and chirp factors */
+  // generate new high freqs from low freqs, patches, and chirp factors
   k = sbrFreq->kStart;
   g = 0;
   bw = sbrChan->chirpFact[g];
   bwsq = MULSHIFT32 (bw, bw) << 1;
 
-  gbMask = (sbrChan->gbMask[0] | sbrChan->gbMask[1]); /* older 32 | newer 8 */
+  gbMask = (sbrChan->gbMask[0] | sbrChan->gbMask[1]); // older 32 | newer 8
   gb = countLeadingZeros (gbMask) - 1;
 
   for (currPatch = 0; currPatch < sbrFreq->numPatches; currPatch++) {
     for (x = 0; x < sbrFreq->patchNumSubbands[currPatch]; x++) {
-      /* map k to corresponding noise floor band */
+      // map k to corresponding noise floor band
       if (k >= sbrFreq->freqNoise[g+1]) {
         g++;
-        bw = sbrChan->chirpFact[g];   /* Q31 */
-        bwsq = MULSHIFT32 (bw, bw) << 1; /* Q31 */
+        bw = sbrChan->chirpFact[g];      // Q31
+        bwsq = MULSHIFT32 (bw, bw) << 1; // Q31
         }
 
-      p = sbrFreq->patchStartSubband[currPatch] + x;  /* low QMF band */
+      p = sbrFreq->patchStartSubband[currPatch] + x;  // low QMF band 
       XBufHi = psi->XBuf[iStart][k];
       if (bw) {
-        CalcLPCoefs(psi->XBuf[0][p], &a0re, &a0im, &a1re, &a1im, gb);
+        CalcLPCoefs (psi->XBuf[0][p], &a0re, &a0im, &a1re, &a1im, gb);
 
-        a0re = MULSHIFT32 (bw, a0re);  /* Q31 * Q29 = Q28 */
+        a0re = MULSHIFT32 (bw, a0re);  // Q31 * Q29 = Q28
         a0im = MULSHIFT32 (bw, a0im);
         a1re = MULSHIFT32 (bwsq, a1re);
         a1im = MULSHIFT32 (bwsq, a1im);
 
         XBufLo = psi->XBuf[iStart-2][p];
 
-        x2re = XBufLo[0]; /* RE{XBuf[n-2]} */
-        x2im = XBufLo[1]; /* IM{XBuf[n-2]} */
+        x2re = XBufLo[0]; // RE{XBuf[n-2]}
+        x2im = XBufLo[1]; // IM{XBuf[n-2]}
         XBufLo += (64*2);
 
-        x1re = XBufLo[0]; /* RE{XBuf[n-1]} */
-        x1im = XBufLo[1]; /* IM{XBuf[n-1]} */
+        x1re = XBufLo[0]; // RE{XBuf[n-1]}
+        x1im = XBufLo[1]; // IM{XBuf[n-1]}
         XBufLo += (64*2);
 
         for (i = iStart; i < iEnd; i++) {
@@ -8673,11 +8609,11 @@ static void GenerateHighFreq (sPSInfoSBR* psi, SBRGrid* sbrGrid, SBRFreq* sbrFre
 
           ACCre += MULSHIFT32 (x1re, a0re) - MULSHIFT32(x1im, a0im);
           ACCim += MULSHIFT32 (x1re, a0im) + MULSHIFT32(x1im, a0re);
-          x1re = XBufLo[0]; /* RE{XBuf[n]} */
-          x1im = XBufLo[1]; /* IM{XBuf[n]} */
+          x1re = XBufLo[0]; // RE{XBuf[n]}
+          x1im = XBufLo[1]; // IM{XBuf[n]}
           XBufLo += (64*2);
 
-          // lost 4 fbits when scaling by a0re/im, a1re/im (Q28) */
+          // lost 4 fbits when scaling by a0re/im, a1re/im (Q28)
           CLIP_2N_SHIFT (ACCre, 4);
           ACCre += x1re;
           CLIP_2N_SHIFT (ACCim, 4);
@@ -8687,10 +8623,10 @@ static void GenerateHighFreq (sPSInfoSBR* psi, SBRGrid* sbrGrid, SBRFreq* sbrFre
           XBufHi[1] = ACCim;
           XBufHi += (64*2);
 
-          // update guard bit masks */
+          // update guard bit masks
           gbMask  = FASTABS (ACCre);
           gbMask |= FASTABS (ACCim);
-          gbIdx = (i >> 5) & 0x01;  /* 0 if i < 32, 1 if i >= 32 */
+          gbIdx = (i >> 5) & 0x01;  // 0 if i < 32, 1 if i >= 32
           sbrChan->gbMask[gbIdx] |= gbMask;
           }
         }
