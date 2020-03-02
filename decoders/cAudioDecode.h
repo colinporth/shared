@@ -1,8 +1,5 @@
 // cAudioDecode.h
 #pragma once
-//extern "C" {
-//  #include "libavcodec/avcodec.h"
-//  }
 #include "iAudioDecoder.h"
 
 class cAudioDecode {
@@ -27,10 +24,11 @@ public:
   bool parseFrame (uint8_t* framePtr, uint8_t* frameLast);
   int decodeSingleFrame (float* samples);
 
-  // statics not quite right but being here picks up eFrameType
+  // !!!! statics not quite right, picks up eFrameType
   static eFrameType parseSomeFrames (uint8_t* framePtr, uint8_t* frameLast, int& sampleRate);
   static eFrameType parseAllFrames (uint8_t* framePtr, uint8_t* frameLast, int& sampleRate);
 
+  // !!!! not right !!!!
   inline static uint8_t* mJpegPtr = nullptr;
   inline static int mJpegLen = 0;
 
@@ -47,7 +45,4 @@ private:
   int mSampleRate = 0;
 
   iAudioDecoder* mAudioDecoder = nullptr;
-  //AVCodecContext* mContext = nullptr;
-  //AVPacket mAvPacket;
-  //AVFrame* mAvFrame = nullptr;
   };

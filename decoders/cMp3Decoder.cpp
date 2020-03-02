@@ -421,10 +421,21 @@ uint32_t getBits (cMp3Decoder::sBitStream* bs, int n) {
   return cache | (next >> -shl);
   }
 //}}}
-#define PEEK_BITS(n)  (bs_cache >> (32 - n))
-#define FLUSH_BITS(n) { bs_cache <<= (n); bs_sh += (n); }
-#define CHECK_BITS    while (bs_sh >= 0) { bs_cache |= (uint32_t)*bs_next_ptr++ << bs_sh; bs_sh -= 8; }
-#define BSPOS         ((bs_next_ptr - bs->buf)*8 - 24 + bs_sh)
+#define PEEK_BITS(n) (bs_cache >> (32 - n))
+#define BSPOS ((bs_next_ptr - bs->buf)*8 - 24 + bs_sh)
+//{{{
+#define FLUSH_BITS(n) { \
+  bs_cache <<= (n); \
+  bs_sh += (n); \
+  }
+//}}}
+//{{{
+#define CHECK_BITS \  
+  while (bs_sh >= 0) {  \
+    bs_cache |= (uint32_t)*bs_next_ptr++ << bs_sh;  \
+    bs_sh -= 8;  \
+    }
+//}}}
 
 // header utils
 //{{{
@@ -1875,10 +1886,11 @@ int cMp3Decoder::L3_restore_reservoir (sBitStream *bs, mp3dec_scratch_t* s, int 
   int bytes_have = MINIMP3_MIN (reserv, main_data_begin);
 
   memcpy (s->maindata, reserv_buf + MINIMP3_MAX (0, reserv - main_data_begin),
-                                                    MINIMP3_MIN (reserv, main_data_begin));
+                                                  MINIMP3_MIN (reserv, main_data_begin));
   memcpy (s->maindata + bytes_have, bs->buf + bs->pos/8, frame_bytes);
 
   bs_init (&s->bs, s->maindata, bytes_have + frame_bytes);
+
   return reserv >= main_data_begin;
   }
 //}}}
