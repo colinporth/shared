@@ -52,8 +52,9 @@ public:
   //}}}
 
   cMp3Decoder();
-  int getNumChannels();
-  int getSampleRate();
+
+  int getNumChannels() { return channels; }
+  int getSampleRate() { return sampleRate; }
   int decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf);
 
 private:

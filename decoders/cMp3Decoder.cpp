@@ -1695,6 +1695,123 @@ int mp3d_find_frame (const uint8_t* mp3, int mp3_bytes, int* free_format_bytes, 
   }
 //}}}
 
+// public members
+//{{{
+cMp3Decoder::cMp3Decoder() {
+  clear();
+  }
+//}}}
+//{{{
+int cMp3Decoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf) {
+
+  auto timePoint = std::chrono::system_clock::now();
+  int success = 1;
+
+  // keep this around for a while
+  mp3dec_frame_info_t info;
+
+  int16_t samples16 [2048*2];
+  int16_t* pcm = samples16;
+
+  int frame_size = 0;
+  if ((bytesLeft > 4) && (header[0] == 0xff) && (hdr_compare (header, inbuf))) {
+    frame_size = hdr_frame_bytes (inbuf, free_format_bytes) + hdr_padding(inbuf);
+    if ((frame_size != bytesLeft) &&
+        ((frame_size + HDR_SIZE > bytesLeft) || !hdr_compare (inbuf, inbuf + frame_size)))
+      frame_size = 0;
+    }
+
+  int i = 0;
+  if (!frame_size) {
+    clear();
+    i = mp3d_find_frame (inbuf, bytesLeft, &free_format_bytes, &frame_size);
+    if (!frame_size || i + frame_size > bytesLeft) {
+      info.frame_bytes = i;
+      return 0;
+      }
+    }
+
+  const uint8_t* hdr = inbuf + i;
+  memcpy (header, hdr, HDR_SIZE);
+
+  info.frame_bytes = i + frame_size;
+  info.channels = HDR_IS_MONO (hdr) ? 1 : 2;
+  info.hz = hdr_sample_rate_hz (hdr);
+  info.layer = 4 - HDR_GET_LAYER (hdr);
+  info.bitrate_kbps = hdr_bitrate_kbps (hdr);
+
+  sBitStream bs_frame[1];
+  bs_init (bs_frame, hdr + HDR_SIZE, frame_size - HDR_SIZE);
+  if (HDR_IS_CRC (hdr))
+    getBits (bs_frame, 16);
+
+  cLog::log (LOGINFO2, "mp3 %d %4d@%3dk %dx%dhz",
+                       info.layer, info.frame_bytes, info.bitrate_kbps, info.channels, info.hz);
+
+  mp3dec_scratch_t scratch;
+  if (info.layer == 3) {
+    //{{{  layer 3
+    int main_data_begin = L3_read_side_info (bs_frame, scratch.gr_info, hdr);
+    if (main_data_begin < 0 || bs_frame->pos > bs_frame->limit) {
+      header[0] = 0;
+      return 0;
+      }
+
+    success = L3_restore_reservoir ( bs_frame, &scratch, main_data_begin);
+
+    if (success) {
+      for (int igr = 0; igr < (HDR_TEST_MPEG1(hdr) ? 2 : 1); igr++, pcm += 576 * info.channels) {
+        memset (scratch.grbuf[0], 0, 576 * 2 * sizeof(float));
+        L3_decode (&scratch, scratch.gr_info + igr*info.channels, info.channels);
+        mp3d_synth_granule (qmf_state, scratch.grbuf[0], 18, info.channels, pcm, scratch.syn[0]);
+        }
+      }
+
+    L3_save_reservoir (&scratch);
+    }
+    //}}}
+  else {
+    //{{{  layer 12
+    cLog::log (LOGINFO2, "mp3 layer12");
+
+    L12_scale_info sci[1];
+    L12_read_scale_info (hdr, bs_frame, sci);
+
+    memset (scratch.grbuf[0], 0, 576 * 2 * sizeof(float));
+    for (int i = 0, igr = 0; igr < 3; igr++) {
+      if (12 == (i += L12_dequantize_granule (scratch.grbuf[0] + i, bs_frame, sci, info.layer | 1))) {
+        i = 0;
+        L12_apply_scf_384 (sci, sci->scf + igr, scratch.grbuf[0]);
+        mp3d_synth_granule (qmf_state, scratch.grbuf[0], 12, info.channels, pcm, scratch.syn[0]);
+        memset (scratch.grbuf[0], 0, 576*2*sizeof(float));
+        pcm += 384 * info.channels;
+        }
+      if (bs_frame->pos > bs_frame->limit) {
+        header[0] = 0;
+        return 0;
+        }
+      }
+    }
+    //}}}
+
+  int numSamples = success * hdr_frame_samples (header);
+
+  // !!! temporary convert to float !!!
+  int16_t* srcPtr = samples16;
+  float* dstPtr = outbuf;
+  for (int sample = 0; sample < numSamples * 2; sample++)
+    *dstPtr++ = *srcPtr++ / (float)0x8000;
+
+  sampleRate = info.hz;
+  channels = info.channels;
+
+  auto took = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - timePoint);
+  cLog::log (LOGINFO1, "mp3 decodeSingleFrame %d:%d %3dus", channels, sampleRate, took.count());
+
+  return numSamples;
+  }
+//}}}
+
 // private members
 //{{{
 void cMp3Decoder::clear() {
@@ -1762,125 +1879,5 @@ int cMp3Decoder::L3_restore_reservoir (sBitStream *bs, mp3dec_scratch_t* s, int 
 
   bs_init (&s->bs, s->maindata, bytes_have + frame_bytes);
   return reserv >= main_data_begin;
-  }
-//}}}
-
-// public members
-//{{{
-cMp3Decoder::cMp3Decoder() {
-  clear();
-  }
-//}}}
-
-//{{{
-int cMp3Decoder::getNumChannels() {
-  return channels;
-  }
-//}}}
-//{{{
-int cMp3Decoder::getSampleRate() {
-  return sampleRate;
-  }
-//}}}
-//{{{
-int cMp3Decoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf) {
-
-  auto timePoint = std::chrono::system_clock::now();
-  int success = 1;
-
-  // keep this around for a while
-  mp3dec_frame_info_t info;
-
-  int16_t samples16 [2048*2];
-  int16_t* pcm = samples16;
-
-  int frame_size = 0;
-  if ((bytesLeft > 4) && (header[0] == 0xff) && (hdr_compare (header, inbuf))) {
-    frame_size = hdr_frame_bytes (inbuf, free_format_bytes) + hdr_padding(inbuf);
-    if ((frame_size != bytesLeft) &&
-        ((frame_size + HDR_SIZE > bytesLeft) || !hdr_compare (inbuf, inbuf + frame_size)))
-      frame_size = 0;
-    }
-
-  int i = 0;
-  if (!frame_size) {
-    clear();
-    i = mp3d_find_frame (inbuf, bytesLeft, &free_format_bytes, &frame_size);
-    if (!frame_size || i + frame_size > bytesLeft) {
-      info.frame_bytes = i;
-      return 0;
-      }
-    }
-
-  const uint8_t* hdr = inbuf + i;
-  memcpy (header, hdr, HDR_SIZE);
-
-  info.frame_bytes = i + frame_size;
-  info.channels = HDR_IS_MONO (hdr) ? 1 : 2;
-  info.hz = hdr_sample_rate_hz (hdr);
-  info.layer = 4 - HDR_GET_LAYER (hdr);
-  info.bitrate_kbps = hdr_bitrate_kbps (hdr);
-
-  sBitStream bs_frame[1];
-  bs_init (bs_frame, hdr + HDR_SIZE, frame_size - HDR_SIZE);
-  if (HDR_IS_CRC (hdr))
-    getBits (bs_frame, 16);
-
-  mp3dec_scratch_t scratch;
-  if (info.layer == 3) {
-    //{{{  layer 3
-    int main_data_begin = L3_read_side_info (bs_frame, scratch.gr_info, hdr);
-    if (main_data_begin < 0 || bs_frame->pos > bs_frame->limit) {
-      header[0] = 0;
-      return 0;
-      }
-    success = L3_restore_reservoir ( bs_frame, &scratch, main_data_begin);
-    if (success) {
-      for (int igr = 0; igr < (HDR_TEST_MPEG1(hdr) ? 2 : 1); igr++, pcm += 576 * info.channels) {
-        memset (scratch.grbuf[0], 0, 576 * 2 * sizeof(float));
-        L3_decode (&scratch, scratch.gr_info + igr*info.channels, info.channels);
-        mp3d_synth_granule (qmf_state, scratch.grbuf[0], 18, info.channels, pcm, scratch.syn[0]);
-        }
-      }
-    L3_save_reservoir (&scratch);
-    }
-    //}}}
-  else {
-    //{{{  layer 12
-    L12_scale_info sci[1];
-    L12_read_scale_info (hdr, bs_frame, sci);
-
-    memset (scratch.grbuf[0], 0, 576 * 2 * sizeof(float));
-    for (int i = 0, igr = 0; igr < 3; igr++) {
-      if (12 == (i += L12_dequantize_granule (scratch.grbuf[0] + i, bs_frame, sci, info.layer | 1))) {
-        i = 0;
-        L12_apply_scf_384 (sci, sci->scf + igr, scratch.grbuf[0]);
-        mp3d_synth_granule (qmf_state, scratch.grbuf[0], 12, info.channels, pcm, scratch.syn[0]);
-        memset (scratch.grbuf[0], 0, 576*2*sizeof(float));
-        pcm += 384 * info.channels;
-        }
-      if (bs_frame->pos > bs_frame->limit) {
-        header[0] = 0;
-        return 0;
-        }
-      }
-    }
-    //}}}
-
-  int numSamples = success * hdr_frame_samples (header);
-
-  // !!! temporary convert to float !!!
-  int16_t* srcPtr = samples16;
-  float* dstPtr = outbuf;
-  for (int sample = 0; sample < numSamples * 2; sample++)
-    *dstPtr++ = *srcPtr++ / (float)0x8000;
-
-  sampleRate = info.hz;
-  channels = info.channels;
-
-  auto took = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - timePoint);
-  cLog::log (LOGINFO1, "mp3 decodeSingleFrame %d:%d %3dus", channels, sampleRate, took.count());
-
-  return numSamples;
   }
 //}}}
