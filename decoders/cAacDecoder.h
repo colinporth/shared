@@ -74,8 +74,9 @@ public:
   cAacDecoder();
   ~cAacDecoder();
 
-  int getNumChannels();
-  int getSampleRate();
+  int cAacDecoder::getNumChannels() { return numChannels; }
+  int cAacDecoder::getSampleRate() { return sampleRate * (sbrEnabled ? 2 : 1); }
+
   int decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf);
   void flushCodec();
 
@@ -122,8 +123,8 @@ private:
 
   //  info
   int bitRate;
-  int nChans;
-  int sampRate;
+  int numChannels;
+  int sampleRate;
   int profile;
   int format;
   int sbrEnabled;
