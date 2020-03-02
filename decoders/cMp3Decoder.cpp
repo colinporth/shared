@@ -1745,9 +1745,6 @@ int cMp3Decoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf
   if (HDR_IS_CRC (hdr))
     getBits (bs_frame, 16);
 
-  cLog::log (LOGINFO2, "mp3 %d %4d@%3dk %dx%dhz",
-                       info.layer, info.frame_bytes, info.bitrate_kbps, info.channels, info.hz);
-
   mp3dec_scratch_t scratch;
   if (info.layer == 3) {
     //{{{  layer 3
@@ -1806,8 +1803,8 @@ int cMp3Decoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf
   channels = info.channels;
 
   auto took = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - timePoint);
-  cLog::log (LOGINFO1, "mp3 decodeSingleFrame %d:%d %3dus", channels, sampleRate, took.count());
-
+  cLog::log (LOGINFO1, "mp3-%d %4d:%3dk %dx%d@%dhz %3dus",
+             info.layer, info.frame_bytes, info.bitrate_kbps, numSamples, info.channels, info.hz, took.count());
   return numSamples;
   }
 //}}}
