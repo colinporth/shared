@@ -76,8 +76,8 @@
 //{{{
 struct sBitStream {
   const uint8_t* buf;
-  int pos;
-  int limit;
+  int32_t pos;
+  int32_t limit;
   } sBitStream;
 //}}}
 //{{{
@@ -162,7 +162,7 @@ static const uint8_t g_halfrate[2][3][15] = {
   };
 //}}}
 //{{{
-static const unsigned g_hz[3] = { 44100, 48000, 32000 };
+static const uint32_t g_hz[3] = { 44100, 48000, 32000 };
 //}}}
 
 //{{{
@@ -425,22 +425,22 @@ static const float g_win[] = {
 //}}}
 //}}}
 
-// bitstream utils
+// bitstream
 //{{{
-void bitStreamInit (struct sBitStream* bs, const uint8_t* data, int bytes) {
-  bs->buf   = data;
-  bs->pos   = 0;
-  bs->limit = bytes * 8;
+void bitStreamInit (struct sBitStream* bitStream, const uint8_t* data, int32_t bytes) {
+  bitStream->buf = data;
+  bitStream->pos = 0;
+  bitStream->limit = bytes * 8;
   }
 //}}}
 //{{{
-uint32_t getBits (struct sBitStream* bs, int n) {
+uint32_t getBits (struct sBitStream* bitStream, int32_t n) {
 
-  uint32_t s = bs->pos & 7;
-  int shl = n + s;
+  uint32_t s = bitStream->pos & 7;
+  int32_t shl = n + s;
 
-  const uint8_t* p = bs->buf + (bs->pos >> 3);
-  if ((bs->pos += n) > bs->limit)
+  const uint8_t* p = bitStream->buf + (bitStream->pos >> 3);
+  if ((bitStream->pos += n) > bitStream->limit)
     return 0;
 
   uint32_t cache = 0;
@@ -453,62 +453,29 @@ uint32_t getBits (struct sBitStream* bs, int n) {
   return cache | (next >> -shl);
   }
 //}}}
-#define PEEK_BITS(n) (bs_cache >> (32 - n))
-#define BSPOS ((bs_next_ptr - bs->buf)*8 - 24 + bs_sh)
-//{{{
-#define FLUSH_BITS(n) { \
-  bs_cache <<= (n); \
-  bs_sh += (n); \
-  }
-//}}}
-//{{{
-#define CHECK_BITS { \
-   while (bs_sh >= 0) {  \
-    bs_cache |= (uint32_t)*bs_next_ptr++ << bs_sh;  \
-    bs_sh -= 8;  \
-    } \
-  }
-//}}}
 
-// header utils
+// header
 //{{{
-int headerValid (const uint8_t* header) {
-  return (header[0] == 0xFF) &&
-        ((header[1] & 0xF0) == 0xf0 || (header[1] & 0xFE) == 0xe2) &&
-        (HDR_GET_LAYER(header) != 0) &&
-        (HDR_GET_BITRATE(header) != 15) &&
-        (HDR_GET_SAMPLE_RATE(header) != 3);
-  }
-//}}}
-//{{{
-int headerCompare (const uint8_t* header1, const uint8_t* header2) {
-  return headerValid(header2) &&
-         ((header1[1] ^ header2[1]) & 0xFE) == 0 &&
-         ((header1[2] ^ header2[2]) & 0x0C) == 0 &&
-         !(HDR_IS_FREE_FORMAT(header1) ^ HDR_IS_FREE_FORMAT(header2));
-  }
-//}}}
-//{{{
-unsigned headerBitrate (const uint8_t* header) {
+uint32_t headerBitrate (const uint8_t* header) {
 
   return 2 * g_halfrate [!!HDR_TEST_MPEG1(header)] [HDR_GET_LAYER(header) - 1] [HDR_GET_BITRATE(header)];
   }
 //}}}
 //{{{
-unsigned headerSampleRate (const uint8_t* header) {
+uint32_t headerSampleRate (const uint8_t* header) {
 
   return g_hz [HDR_GET_SAMPLE_RATE(header)] >> (int)!HDR_TEST_MPEG1(header) >> (int)!HDR_TEST_NOT_MPEG25(header);
   }
 //}}}
 //{{{
-unsigned headerFrameSamples (const uint8_t* header) {
+uint32_t headerFrameSamples (const uint8_t* header) {
   return HDR_IS_LAYER_1(header) ? 384 : (1152 >> (int)HDR_IS_FRAME_576(header));
   }
 //}}}
 //{{{
-int headerFrameBytes (const uint8_t* header, int free_format_size) {
+int32_t headerFrameBytes (const uint8_t* header, int32_t free_format_size) {
 
-  int frame_bytes = headerFrameSamples(header) * headerBitrate(header) * 125 / headerSampleRate(header);
+  int32_t frame_bytes = headerFrameSamples(header) * headerBitrate(header) * 125 / headerSampleRate(header);
   if (HDR_IS_LAYER_1(header))
     frame_bytes &= ~3; /* slot align */
 
@@ -516,7 +483,7 @@ int headerFrameBytes (const uint8_t* header, int free_format_size) {
   }
 //}}}
 //{{{
-int headerPadding (const uint8_t* header) {
+int32_t headerPadding (const uint8_t* header) {
   return HDR_TEST_PADDING(header) ? (HDR_IS_LAYER_1(header) ? 4 : 1) : 0;
   }
 //}}}
@@ -525,12 +492,12 @@ int headerPadding (const uint8_t* header) {
 //{{{
 const L12_subband_alloc_t* L12_subband_alloc_table (const uint8_t* header, L12_scale_info* sci) {
 
-  int mode = HDR_GET_STEREO_MODE (header);
-  int stereo_bands = (mode == MODE_MONO) ?
+  int32_t mode = HDR_GET_STEREO_MODE (header);
+  int32_t stereo_bands = (mode == MODE_MONO) ?
                        0 : (mode == MODE_JOINT_STEREO) ?
                          (HDR_GET_STEREO_MODE_EXT(header) << 2) + 4 : 32;
 
-  int nbands;
+  int32_t nbands;
   const L12_subband_alloc_t* alloc;
   if (HDR_IS_LAYER_1 (header)) {
     alloc = g_alloc_L1;
@@ -541,8 +508,8 @@ const L12_subband_alloc_t* L12_subband_alloc_table (const uint8_t* header, L12_s
     nbands = 30;
     }
   else {
-    int sample_rate_idx = HDR_GET_SAMPLE_RATE (header);
-    unsigned kbps = headerBitrate(header) >> (int)(mode != MODE_MONO);
+    int32_t sample_rate_idx = HDR_GET_SAMPLE_RATE (header);
+    uint32_t kbps = headerBitrate(header) >> (int)(mode != MODE_MONO);
     if (!kbps) /* free-format */
       kbps = 192;
 
@@ -564,15 +531,15 @@ const L12_subband_alloc_t* L12_subband_alloc_table (const uint8_t* header, L12_s
 //}}}
 
 //{{{
-void L12_read_scalefactors (struct sBitStream* bs, uint8_t* pba, uint8_t* scfcod, int bands, float* scf) {
+void L12_read_scalefactors (struct sBitStream* bs, uint8_t* pba, uint8_t* scfcod, int32_t bands, float* scf) {
 
-  for (int i = 0; i < bands; i++) {
+  for (int32_t i = 0; i < bands; i++) {
     float s = 0;
-    int ba = *pba++;
-    int mask = ba ? 4 + ((19 >> scfcod[i]) & 3) : 0;
-    for (int m = 4; m; m >>= 1) {
+    int32_t ba = *pba++;
+    int32_t mask = ba ? 4 + ((19 >> scfcod[i]) & 3) : 0;
+    for (int32_t m = 4; m; m >>= 1) {
       if (mask & m) {
-        int b = getBits (bs, 6);
+        int32_t b = getBits (bs, 6);
         s = g_deq_L12[ba*3 - 6 + b % 3]*(1 << 21 >> b/3);
         }
       *scf++ = s;
@@ -585,10 +552,10 @@ void L12_read_scale_info (const uint8_t* header, struct sBitStream* bs, L12_scal
 
   const L12_subband_alloc_t* subband_alloc = L12_subband_alloc_table (header, sci);
 
-  int k = 0;
-  int ba_bits = 0;
+  int32_t k = 0;
+  int32_t ba_bits = 0;
   const uint8_t* ba_code_tab = g_bitalloc_code_tab;
-  for (int i = 0; i < sci->total_bands; i++) {
+  for (int32_t i = 0; i < sci->total_bands; i++) {
     if (i == k) {
       k += subband_alloc->band_count;
       ba_bits = subband_alloc->code_tab_width;
@@ -602,34 +569,34 @@ void L12_read_scale_info (const uint8_t* header, struct sBitStream* bs, L12_scal
     sci->bitalloc [2*i + 1] = sci->stereo_bands ? ba : 0;
     }
 
-  for (int i = 0; i < 2*sci->total_bands; i++)
+  for (int32_t i = 0; i < 2*sci->total_bands; i++)
     sci->scfcod[i] = sci->bitalloc[i] ? HDR_IS_LAYER_1 (header) ? 2 : getBits (bs, 2) : 6;
 
   L12_read_scalefactors (bs, sci->bitalloc, sci->scfcod, sci->total_bands*2, sci->scf);
 
-  for (int i = sci->stereo_bands; i < sci->total_bands; i++)
+  for (int32_t i = sci->stereo_bands; i < sci->total_bands; i++)
     sci->bitalloc[2*i + 1] = 0;
   }
 //}}}
 
 //{{{
-int L12_dequantize_granule (float* grbuf, struct sBitStream* bs, L12_scale_info* sci, int group_size) {
+int32_t L12_dequantize_granule (float* grbuf, struct sBitStream* bs, L12_scale_info* sci, int32_t group_size) {
 
-  int choff = 576;
-  for (int j = 0; j < 4; j++) {
-    float *dst = grbuf + group_size*j;
-    for (int i = 0; i < 2*sci->total_bands; i++) {
-      int ba = sci->bitalloc[i];
+  int32_t choff = 576;
+  for (int32_t j = 0; j < 4; j++) {
+    float* dst = grbuf + group_size*j;
+    for (int32_t i = 0; i < 2*sci->total_bands; i++) {
+      int32_t ba = sci->bitalloc[i];
       if (ba != 0) {
         if (ba < 17) {
-          int half = (1 << (ba - 1)) - 1;
-          for (int k = 0; k < group_size; k++)
+          int32_t half = (1 << (ba - 1)) - 1;
+          for (int32_t k = 0; k < group_size; k++)
             dst[k] = (float)((int)getBits (bs, ba) - half);
           }
         else {
-          unsigned mod = (2 << (ba - 17)) + 1;    /* 3, 5, 9 */
-          unsigned code = getBits (bs, mod + 2 - (mod >> 3));  /* 5, 7, 10 */
-          for (int k = 0; k < group_size; k++, code /= mod)
+          uint32_t mod = (2 << (ba - 17)) + 1;    /* 3, 5, 9 */
+          uint32_t code = getBits (bs, mod + 2 - (mod >> 3));  /* 5, 7, 10 */
+          for (int32_t k = 0; k < group_size; k++, code /= mod)
             dst[k] = (float)((int)(code % mod - mod/2));
           }
         }
@@ -647,8 +614,8 @@ void L12_apply_scf_384 (L12_scale_info* sci, const float* scf, float* dst) {
   memcpy (dst + 576 + sci->stereo_bands*18, dst + sci->stereo_bands*18,
           (sci->total_bands - sci->stereo_bands)*18*sizeof(float));
 
-  for (int i = 0; i < sci->total_bands; i++, dst += 18, scf += 6) {
-    for (int k = 0; k < 12; k++) {
+  for (int32_t i = 0; i < sci->total_bands; i++, dst += 18, scf += 6) {
+    for (int32_t k = 0; k < 12; k++) {
       dst[k + 0]   *= scf[0];
       dst[k + 576] *= scf[3];
       }
@@ -706,11 +673,11 @@ void L3_dct3_9 (float* y) {
 
 #ifdef USE_INTRINSICS
 //{{{
-void L3_midside_stereo (float* left, int n) {
+void L3_midside_stereo (float* left, int32_t n) {
 
   float* right = left + 576;
 
-  int i = 0;
+  int32_t i = 0;
   for (; i < n - 3; i += 4) {
     f4 vl = VLD (left + i);
     f4 vr = VLD (right + i);
@@ -727,10 +694,10 @@ void L3_midside_stereo (float* left, int n) {
   }
 //}}}
 //{{{
-void L3_antialias (float* grbuf, int nbands) {
+void L3_antialias (float* grbuf, int32_t nbands) {
 
   for (; nbands > 0; nbands--, grbuf += 18) {
-    int i = 0;
+    int32_t i = 0;
     for (; i < 8; i += 4) {
       f4 vu = VLD (grbuf + 18 + i);
       f4 vd = VLD (grbuf + 14 - i);
@@ -745,14 +712,14 @@ void L3_antialias (float* grbuf, int nbands) {
   }
 //}}}
 //{{{
-void L3_imdct36 (float* grbuf, float* overlap, const float* window, int nbands) {
+void L3_imdct36 (float* grbuf, float* overlap, const float* window, int32_t nbands) {
 
-  for (int j = 0; j < nbands; j++, grbuf += 18, overlap += 9) {
+  for (int32_t j = 0; j < nbands; j++, grbuf += 18, overlap += 9) {
     float co[9];
     float si[9];
     co[0] = -grbuf[0];
     si[0] = grbuf[17];
-    for (int i = 0; i < 4; i++) {
+    for (int32_t i = 0; i < 4; i++) {
       si[8 - 2*i] =   grbuf[4*i + 1] - grbuf[4*i + 2];
       co[1 + 2*i] =   grbuf[4*i + 1] + grbuf[4*i + 2];
       si[7 - 2*i] =   grbuf[4*i + 4] - grbuf[4*i + 3];
@@ -766,7 +733,7 @@ void L3_imdct36 (float* grbuf, float* overlap, const float* window, int nbands) 
     si[5] = -si[5];
     si[7] = -si[7];
 
-    int i = 0;
+    int32_t i = 0;
     for (; i < 8; i += 4) {
       f4 vovl = VLD(overlap + i);
       f4 vc = VLD(co + i);
@@ -794,10 +761,10 @@ void L3_imdct36 (float* grbuf, float* overlap, const float* window, int nbands) 
 //}}}
 #else
 //{{{
-void L3_midside_stereo (float *left, int n) {
+void L3_midside_stereo (float *left, int32_t n) {
 
   float* right = left + 576;
-  for (int i = 0; i < n; i++) {
+  for (int32_t i = 0; i < n; i++) {
     float a = left[i];
     float b = right[i];
     left[i] = a + b;
@@ -806,10 +773,10 @@ void L3_midside_stereo (float *left, int n) {
   }
 //}}}
 //{{{
-void L3_antialias (float* grbuf, int nbands) {
+void L3_antialias (float* grbuf, int32_t nbands) {
 
   for (; nbands > 0; nbands--, grbuf += 18) {
-    for (int i = 0; i < 8; i++) {
+    for (int32_t i = 0; i < 8; i++) {
       float u = grbuf[18 + i];
       float d = grbuf[17 - i];
       grbuf[18 + i] = u*g_aa[0][i] - d*g_aa[1][i];
@@ -819,13 +786,13 @@ void L3_antialias (float* grbuf, int nbands) {
   }
 //}}}
 //{{{
-void L3_imdct36 (float* grbuf, float* overlap, const float* window, int nbands) {
+void L3_imdct36 (float* grbuf, float* overlap, const float* window, int32_t nbands) {
 
-  for (int j = 0; j < nbands; j++, grbuf += 18, overlap += 9) {
+  for (int32_t j = 0; j < nbands; j++, grbuf += 18, overlap += 9) {
     float co[9], si[9];
     co[0] = -grbuf[0];
     si[0] = grbuf[17];
-    for (int i = 0; i < 4; i++) {
+    for (int32_t i = 0; i < 4; i++) {
       si[8 - 2*i] =   grbuf[4*i + 1] - grbuf[4*i + 2];
       co[1 + 2*i] =   grbuf[4*i + 1] + grbuf[4*i + 2];
       si[7 - 2*i] =   grbuf[4*i + 4] - grbuf[4*i + 3];
@@ -839,7 +806,7 @@ void L3_imdct36 (float* grbuf, float* overlap, const float* window, int nbands) 
     si[5] = -si[5];
     si[7] = -si[7];
 
-    for (int i = 0; i < 9; i++) {
+    for (int32_t i = 0; i < 9; i++) {
       float ovl  = overlap[i];
       float sum  = co[i]*g_twid9[9 + i] + si[i]*g_twid9[0 + i];
       overlap[i] = co[i]*g_twid9[0 + i] - si[i]*g_twid9[9 + i];
@@ -852,12 +819,12 @@ void L3_imdct36 (float* grbuf, float* overlap, const float* window, int nbands) 
 #endif
 
 //{{{
-int L3_read_side_info (struct sBitStream* bs, struct L3_gr_info_t* gr, const uint8_t* header) {
+int32_t L3_read_side_info (struct sBitStream* bs, struct L3_gr_info_t* gr, const uint8_t* header) {
 
-  unsigned tables, scfsi = 0;
-  int main_data_begin, part_23_sum = 0;
-  int sr_idx = HDR_GET_MY_SAMPLE_RATE (header); sr_idx -= (sr_idx != 0);
-  int gr_count = HDR_IS_MONO (header) ? 1 : 2;
+  uint32_t tables, scfsi = 0;
+  int32_t main_data_begin, part_23_sum = 0;
+  int32_t sr_idx = HDR_GET_MY_SAMPLE_RATE (header); sr_idx -= (sr_idx != 0);
+  int32_t gr_count = HDR_IS_MONO (header) ? 1 : 2;
 
   if (HDR_TEST_MPEG1(header)) {
     gr_count *= 2;
@@ -939,22 +906,22 @@ int L3_read_side_info (struct sBitStream* bs, struct L3_gr_info_t* gr, const uin
 //}}}
 //{{{
 void L3_read_scalefactors (uint8_t* scf, uint8_t* ist_pos, const uint8_t* scf_size, const uint8_t* scf_count,
-                           struct sBitStream* bitbuf, int scfsi) {
+                           struct sBitStream* bitbuf, int32_t scfsi) {
 
-  for (int i = 0; i < 4 && scf_count[i]; i++, scfsi *= 2) {
-    int cnt = scf_count[i];
+  for (int32_t i = 0; i < 4 && scf_count[i]; i++, scfsi *= 2) {
+    int32_t cnt = scf_count[i];
     if (scfsi & 8)
       memcpy (scf, ist_pos, cnt);
     else {
-      int bits = scf_size[i];
+      int32_t bits = scf_size[i];
       if (!bits) {
         memset (scf, 0, cnt);
         memset (ist_pos, 0, cnt);
         }
       else {
-        int max_scf = (scfsi < 0) ? (1 << bits) - 1 : -1;
-        for (int k = 0; k < cnt; k++) {
-          int s = getBits (bitbuf, bits);
+        int32_t max_scf = (scfsi < 0) ? (1 << bits) - 1 : -1;
+        for (int32_t k = 0; k < cnt; k++) {
+          int32_t s = getBits (bitbuf, bits);
           ist_pos[k] = (s == max_scf ? -1 : s);
           scf[k] = s;
           }
@@ -968,9 +935,9 @@ void L3_read_scalefactors (uint8_t* scf, uint8_t* ist_pos, const uint8_t* scf_si
   }
 //}}}
 //{{{
-float L3_ldexp_q2 (float y, int exp_q2) {
+float L3_ldexp_q2 (float y, int32_t exp_q2) {
 
-  int e;
+  int32_t e;
   do {
     e = std::min(30*4, exp_q2);
     y *= g_expfrac[e & 3]*(1 << 30 >> (e >> 2));
@@ -980,23 +947,24 @@ float L3_ldexp_q2 (float y, int exp_q2) {
   }
 //}}}
 //{{{
-void L3_decode_scalefactors (const uint8_t* hdr, uint8_t* ist_pos, struct sBitStream* bs,
-                             const struct L3_gr_info_t* gr, float* scf, int ch) {
+void L3_decode_scalefactors (const uint8_t* header, uint8_t* ist_pos, struct sBitStream* bitStream,
+                             const struct L3_gr_info_t* gr, float* scf, int32_t ch) {
 
   const uint8_t* scf_partition = g_scf_partitions [!!gr->n_short_sfb + !gr->n_long_sfb];
   uint8_t scf_size[4], iscf[40];
-  int i, scf_shift = gr->scalefac_scale + 1, gain_exp, scfsi = gr->scfsi;
-  float gain;
+  int32_t scf_shift = gr->scalefac_scale + 1;
+  int32_t scfsi = gr->scfsi;
 
-  if (HDR_TEST_MPEG1(hdr)) {
-    int part = g_scfc_decode[gr->scalefac_compress];
+  if (HDR_TEST_MPEG1 (header)) {
+    int32_t part = g_scfc_decode[gr->scalefac_compress];
     scf_size[1] = scf_size[0] = (uint8_t)(part >> 2);
     scf_size[3] = scf_size[2] = (uint8_t)(part & 3);
     }
   else {
-    int k, modprod, sfc, ist = HDR_TEST_I_STEREO(hdr) && ch;
+    int32_t k, modprod, sfc, ist = HDR_TEST_I_STEREO(header) && ch;
     sfc = gr->scalefac_compress >> ist;
     for (k = ist*3*4; sfc >= 0; sfc -= modprod, k += 4) {
+      int32_t i;
       for (modprod = 1, i = 3; i >= 0; i--) {
         scf_size[i] = (uint8_t)(sfc / modprod % g_mod[k + i]);
         modprod *= g_mod[k + i];
@@ -1005,33 +973,33 @@ void L3_decode_scalefactors (const uint8_t* hdr, uint8_t* ist_pos, struct sBitSt
     scf_partition += k;
     scfsi = -16;
     }
-  L3_read_scalefactors (iscf, ist_pos, scf_size, scf_partition, bs, scfsi);
+  L3_read_scalefactors (iscf, ist_pos, scf_size, scf_partition, bitStream, scfsi);
 
   if (gr->n_short_sfb) {
-    int sh = 3 - scf_shift;
-    for (i = 0; i < gr->n_short_sfb; i += 3) {
+    int32_t sh = 3 - scf_shift;
+    for (int i = 0; i < gr->n_short_sfb; i += 3) {
       iscf [gr->n_long_sfb + i + 0] += gr->subblock_gain[0] << sh;
       iscf [gr->n_long_sfb + i + 1] += gr->subblock_gain[1] << sh;
       iscf [gr->n_long_sfb + i + 2] += gr->subblock_gain[2] << sh;
       }
     }
   else if (gr->preflag) {
-    for (i = 0; i < 10; i++)
+    for (int32_t i = 0; i < 10; i++)
       iscf[11 + i] += g_preamp[i];
     }
 
-  gain_exp = gr->global_gain + BITS_DEQUANTIZER_OUT*4 - 210 - (HDR_IS_MS_STEREO(hdr) ? 2 : 0);
-  gain = L3_ldexp_q2 (1 << (MAX_SCFI/4),  MAX_SCFI - gain_exp);
-  for (i = 0; i < (int)(gr->n_long_sfb + gr->n_short_sfb); i++)
+  int32_t gain_exp = gr->global_gain + BITS_DEQUANTIZER_OUT*4 - 210 - (HDR_IS_MS_STEREO (header) ? 2 : 0);
+  float gain = L3_ldexp_q2 (1 << (MAX_SCFI/4),  MAX_SCFI - gain_exp);
+  for (int32_t i = 0; i < (int)(gr->n_long_sfb + gr->n_short_sfb); i++)
     scf[i] = L3_ldexp_q2 (gain, iscf[i] << scf_shift);
   }
 //}}}
 
 //{{{
-float L3_pow_43 (int x) {
+float L3_pow_43 (int32_t x) {
 
   float frac;
-  int sign, mult = 256;
+  int32_t sign, mult = 256;
 
   if (x < 129)
     return g_pow43[16 + x];
@@ -1047,32 +1015,51 @@ float L3_pow_43 (int x) {
   return g_pow43[16 + ((x + sign) >> 6)]*(1.f + frac*((4.f/3) + frac*(2.f/9)))*mult;
   }
 //}}}
-
 //{{{
-void L3_huffman (float* dst, struct sBitStream* bs, const struct L3_gr_info_t* gr_info, const float* scf,
-                 int layer3gr_limit) {
+void L3_huffman (float* dst, struct sBitStream* bitStream, const struct L3_gr_info_t* gr_info, const float* scf,
+                 int32_t layer3gr_limit) {
+
+  #define PEEK_BITS(n) (bitStreamCache >> (32 - n))
+  #define BSPOS ((bitStreamNextPtr - bitStream->buf)*8 - 24 + bitStreamSh)
+  //{{{
+  #define FLUSH_BITS(n) { \
+    bitStreamCache <<= (n); \
+    bitStreamSh += (n); \
+    }
+  //}}}
+  //{{{
+  #define CHECK_BITS { \
+     while (bitStreamSh >= 0) {  \
+      bitStreamCache |= (uint32_t)*bitStreamNextPtr++ << bitStreamSh;  \
+      bitStreamSh -= 8;  \
+      } \
+    }
+  //}}}
 
   float one = 0.0f;
-  int ireg = 0, big_val_cnt = gr_info->big_values;
-  const uint8_t *sfb = gr_info->sfbtab;
-  const uint8_t *bs_next_ptr = bs->buf + bs->pos/8;
-  uint32_t bs_cache = (((bs_next_ptr[0]*256u + bs_next_ptr[1])*256u + bs_next_ptr[2])*256u + bs_next_ptr[3]) << (bs->pos & 7);
-  int pairs_to_decode, np, bs_sh = (bs->pos & 7) - 8;
-  bs_next_ptr += 4;
+  int32_t ireg = 0, big_val_cnt = gr_info->big_values;
+  const uint8_t* sfb = gr_info->sfbtab;
+  const uint8_t* bitStreamNextPtr = bitStream->buf + bitStream->pos/8;
+  uint32_t bitStreamCache = (((bitStreamNextPtr[0] * 256u + bitStreamNextPtr[1]) * 256u +
+                               bitStreamNextPtr[2]) * 256u + bitStreamNextPtr[3]) << (bitStream->pos & 7);
+  int32_t pairs_to_decode;
+  int32_t np;
+  int32_t bitStreamSh = (bitStream->pos & 7) - 8;
+  bitStreamNextPtr += 4;
 
   while (big_val_cnt > 0) {
-    int tab_num = gr_info->table_select[ireg];
-    int sfb_cnt = gr_info->region_count[ireg++];
-    const int16_t *codebook = g_tabs + g_tabindex[tab_num];
-    int linbits = g_linbits[tab_num];
+    int32_t tab_num = gr_info->table_select[ireg];
+    int32_t sfb_cnt = gr_info->region_count[ireg++];
+    const int16_t* codebook = g_tabs + g_tabindex[tab_num];
+    int32_t linbits = g_linbits[tab_num];
     if (linbits) {
       do {
         np = *sfb++ / 2;
         pairs_to_decode = std::min (big_val_cnt, np);
         one = *scf++;
         do {
-          int j, w = 5;
-          int leaf = codebook[PEEK_BITS(w)];
+          int32_t j, w = 5;
+          int32_t leaf = codebook[PEEK_BITS(w)];
           while (leaf < 0) {
             FLUSH_BITS(w);
             w = leaf & 7;
@@ -1081,16 +1068,16 @@ void L3_huffman (float* dst, struct sBitStream* bs, const struct L3_gr_info_t* g
           FLUSH_BITS(leaf >> 8);
 
           for (j = 0; j < 2; j++, dst++, leaf >>= 4) {
-            int lsb = leaf & 0x0F;
+            int32_t lsb = leaf & 0x0F;
             if (lsb == 15) {
-              lsb += PEEK_BITS(linbits);
-              FLUSH_BITS(linbits);
+              lsb += PEEK_BITS (linbits);
+              FLUSH_BITS (linbits);
               CHECK_BITS;
-              *dst = one * L3_pow_43 (lsb) * ((int32_t)bs_cache < 0 ? -1: 1);
+              *dst = one * L3_pow_43 (lsb) * ((int32_t)bitStreamCache < 0 ? -1: 1);
               }
             else
-              *dst = g_pow43[16 + lsb - 16*(bs_cache >> 31)]*one;
-            FLUSH_BITS(lsb ? 1 : 0);
+              *dst = g_pow43[16 + lsb - 16*(bitStreamCache >> 31)]*one;
+            FLUSH_BITS (lsb ? 1 : 0);
             }
          CHECK_BITS;
          } while (--pairs_to_decode);
@@ -1102,18 +1089,18 @@ void L3_huffman (float* dst, struct sBitStream* bs, const struct L3_gr_info_t* g
         pairs_to_decode = std::min (big_val_cnt, np);
         one = *scf++;
         do {
-          int j, w = 5;
-          int leaf = codebook[PEEK_BITS(w)];
+          int32_t j, w = 5;
+          int32_t leaf = codebook[PEEK_BITS(w)];
           while (leaf < 0) {
-            FLUSH_BITS(w);
+            FLUSH_BITS (w);
             w = leaf & 7;
             leaf = codebook[PEEK_BITS(w) - (leaf >> 3)];
             }
-          FLUSH_BITS(leaf >> 8);
+          FLUSH_BITS (leaf >> 8);
 
           for (j = 0; j < 2; j++, dst++, leaf >>= 4) {
-            int lsb = leaf & 0x0F;
-            *dst = g_pow43[16 + lsb - 16*(bs_cache >> 31)]*one;
+            int32_t lsb = leaf & 0x0F;
+            *dst = g_pow43[16 + lsb - 16*(bitStreamCache >> 31)]*one;
             FLUSH_BITS(lsb ? 1 : 0);
             }
           CHECK_BITS;
@@ -1123,47 +1110,47 @@ void L3_huffman (float* dst, struct sBitStream* bs, const struct L3_gr_info_t* g
     }
 
   for (np = 1 - big_val_cnt;; dst += 4) {
-    const uint8_t *codebook_count1 = (gr_info->count1_table) ? g_tab33 : g_tab32;
-    int leaf = codebook_count1[PEEK_BITS(4)];
+    const uint8_t* codebook_count1 = (gr_info->count1_table) ? g_tab33 : g_tab32;
+    int32_t leaf = codebook_count1[PEEK_BITS(4)];
     if (!(leaf & 8))
-      leaf = codebook_count1[(leaf >> 3) + (bs_cache << 4 >> (32 - (leaf & 3)))];
+      leaf = codebook_count1[(leaf >> 3) + (bitStreamCache << 4 >> (32 - (leaf & 3)))];
     FLUSH_BITS(leaf & 7);
     if (BSPOS > layer3gr_limit)
       break;
 
     #define RELOAD_SCALEFACTOR  if (!--np) { np = *sfb++/2; if (!np) break; one = *scf++; }
-    #define DEQ_COUNT1(s) if (leaf & (128 >> s)) { dst[s] = ((int32_t)bs_cache < 0) ? -one : one; FLUSH_BITS(1) }
+    #define DEQ_COUNT1(s) if (leaf & (128 >> s)) { dst[s] = ((int32_t)bitStreamCache < 0) ? -one : one; FLUSH_BITS(1) }
 
     RELOAD_SCALEFACTOR;
-    DEQ_COUNT1(0);
-    DEQ_COUNT1(1);
+    DEQ_COUNT1 (0);
+    DEQ_COUNT1 (1);
 
     RELOAD_SCALEFACTOR;
-    DEQ_COUNT1(2);
-    DEQ_COUNT1(3);
+    DEQ_COUNT1 (2);
+    DEQ_COUNT1 (3);
     CHECK_BITS;
     }
 
-  bs->pos = layer3gr_limit;
+  bitStream->pos = layer3gr_limit;
   }
 //}}}
 
 //{{{
-void L3_intensity_stereo_band (float* left, int n, float kl, float kr) {
+void L3_intensity_stereo_band (float* left, int32_t n, float kl, float kr) {
 
-  for (int i = 0; i < n; i++) {
+  for (int32_t i = 0; i < n; i++) {
     left[i + 576] = left[i]*kr;
     left[i] = left[i]*kl;
     }
   }
 //}}}
 //{{{
-void L3_stereo_top_band (const float* right, const uint8_t* sfb, int nbands, int max_band[3]) {
+void L3_stereo_top_band (const float* right, const uint8_t* sfb, int32_t nbands, int32_t max_band[3]) {
 
   max_band[0] = max_band[1] = max_band[2] = -1;
 
-  for (int i = 0; i < nbands; i++) {
-    for (int k = 0; k < sfb[i]; k += 2) {
+  for (int32_t i = 0; i < nbands; i++) {
+    for (int32_t k = 0; k < sfb[i]; k += 2) {
       if (right[k] != 0 || right[k + 1] != 0) {
         max_band[i % 3] = i;
         break;
@@ -1175,13 +1162,13 @@ void L3_stereo_top_band (const float* right, const uint8_t* sfb, int nbands, int
 //}}}
 //{{{
 void L3_stereo_process (float* left, const uint8_t *ist_pos, const uint8_t *sfb, const uint8_t* header,
-                        int max_band[3], int mpeg2_sh) {
+                        int32_t max_band[3], int32_t mpeg2_sh) {
 
 
-  unsigned max_pos = HDR_TEST_MPEG1 (header) ? 7 : 64;
+  uint32_t max_pos = HDR_TEST_MPEG1 (header) ? 7 : 64;
 
-  for (unsigned i = 0; sfb[i]; i++) {
-    unsigned ipos = ist_pos[i];
+  for (uint32_t i = 0; sfb[i]; i++) {
+    uint32_t ipos = ist_pos[i];
     if ((int)i > max_band[i % 3] && ipos < max_pos) {
       float kl, kr, s = HDR_TEST_MS_STEREO (header) ? 1.41421356f : 1;
       if (HDR_TEST_MPEG1 (header)) {
@@ -1208,8 +1195,8 @@ void L3_stereo_process (float* left, const uint8_t *ist_pos, const uint8_t *sfb,
 //{{{
 void L3_intensity_stereo (float* left, uint8_t* ist_pos, const struct L3_gr_info_t* gr, const uint8_t* header) {
 
-  int max_band[3], n_sfb = gr->n_long_sfb + gr->n_short_sfb;
-  int i, max_blocks = gr->n_short_sfb ? 3 : 1;
+  int32_t max_band[3], n_sfb = gr->n_long_sfb + gr->n_short_sfb;
+  int32_t i, max_blocks = gr->n_short_sfb ? 3 : 1;
 
   L3_stereo_top_band(left + 576, gr->sfbtab, n_sfb, max_band);
   if (gr->n_long_sfb) {
@@ -1217,9 +1204,9 @@ void L3_intensity_stereo (float* left, uint8_t* ist_pos, const struct L3_gr_info
     }
 
   for (i = 0; i < max_blocks; i++) {
-    int default_pos = HDR_TEST_MPEG1 (header) ? 3 : 0;
-    int itop = n_sfb - max_blocks + i;
-    int prev = itop - max_blocks;
+    int32_t default_pos = HDR_TEST_MPEG1 (header) ? 3 : 0;
+    int32_t itop = n_sfb - max_blocks + i;
+    int32_t prev = itop - max_blocks;
     ist_pos[itop] = max_band[i] >= prev ? default_pos : ist_pos[prev];
     }
 
@@ -1230,11 +1217,11 @@ void L3_intensity_stereo (float* left, uint8_t* ist_pos, const struct L3_gr_info
 //{{{
 void L3_reorder (float* grbuf, float* scratch, const uint8_t* sfb) {
 
-  int len;
+  int32_t len;
   float* src = grbuf;
   float* dst = scratch;
-  for (;0 != (len = *sfb); sfb += 3, src += 2*len) {
-    for (int i = 0; i < len; i++, src++) {
+  for (; 0 != (len = *sfb); sfb += 3, src += 2*len) {
+    for (int32_t i = 0; i < len; i++, src++) {
       *dst++ = src[0*len];
       *dst++ = src[1*len];
       *dst++ = src[2*len];
@@ -1266,7 +1253,7 @@ void L3_imdct12 (float* x, float* dst, float* overlap) {
   L3_idct3 (x[15], x[12] - x[9], x[6] - x[3], si);
   si[1] = -si[1];
 
-  for (int i = 0; i < 3; i++) {
+  for (int32_t i = 0; i < 3; i++) {
     float ovl = overlap[i];
     float sum = co[i]*g_twid3[3 + i] + si[i]*g_twid3[0 + i];
     overlap[i] = co[i]*g_twid3[0 + i] - si[i]*g_twid3[3 + i];
@@ -1292,14 +1279,14 @@ void L3_imdct_short (float* grbuf, float* overlap, int nbands) {
 //{{{
 void L3_change_sign (float* grbuf) {
 
-  int b;
+  int32_t b;
   for (b = 0, grbuf += 18; b < 32; b += 2, grbuf += 36)
-    for (int i = 1; i < 18; i += 2)
+    for (int32_t i = 1; i < 18; i += 2)
       grbuf[i] = -grbuf[i];
   }
 //}}}
 //{{{
-void L3_imdct_gr (float* grbuf, float* overlap, unsigned block_type, unsigned n_long_bands) {
+void L3_imdct_gr (float* grbuf, float* overlap, uint32_t block_type, uint32_t n_long_bands) {
 
   if (n_long_bands) {
     L3_imdct36 (grbuf, overlap, g_mdct_window[0], n_long_bands);
@@ -1331,7 +1318,7 @@ int16_t scalePcm (float sample) {
   }
 //}}}
 //{{{
-void synthPair (int16_t* pcm, int nch, const float* z) {
+void synthPair (int16_t* pcm, int32_t nch, const float* z) {
 
   float a = (z[14*64] - z[0]) * 29;
   a += (z[ 1*64] + z[13*64]) * 213;
@@ -1357,14 +1344,14 @@ void synthPair (int16_t* pcm, int nch, const float* z) {
 //}}}
 #ifdef USE_INTRINSICS
 //{{{
-void dctII (float* grbuf, int n) {
+void dctII (float* grbuf, int32_t n) {
 
-  for (int k = 0; k < n; k += 4) {
+  for (int32_t k = 0; k < n; k += 4) {
     f4 t[4][8];
 
     f4* x = t[0];
     float* y = grbuf + k;
-    for (int i = 0; i < 8; i++, x++) {
+    for (int32_t i = 0; i < 8; i++, x++) {
       f4 x0 = VLD (&y[i*18]);
       f4 x1 = VLD (&y[(15 - i)*18]);
       f4 x2 = VLD (&y[(16 + i)*18]);
@@ -1380,7 +1367,7 @@ void dctII (float* grbuf, int n) {
       }
 
     x = t[0];
-    for (int i = 0; i < 4; i++, x += 8) {
+    for (int32_t i = 0; i < 4; i++, x += 8) {
       f4 x0 = x[0];
       f4 x1 = x[1];
       f4 x2 = x[2];
@@ -1424,7 +1411,7 @@ void dctII (float* grbuf, int n) {
     #define VSAVE4(i, v) VSTORE (&y[i*18], v)
 
     if (k > n - 3) {
-      for (int i = 0; i < 7; i++, y += 4*18) {
+      for (int32_t i = 0; i < 7; i++, y += 4*18) {
         f4 s = VADD (t[3][i], t[3][i + 1]);
         VSAVE2 (0, t[0][i]);
         VSAVE2 (1, VADD (t[2][i], s));
@@ -1437,7 +1424,7 @@ void dctII (float* grbuf, int n) {
       VSAVE2 (3, t[3][7]);
       }
     else {
-      for (int i = 0; i < 7; i++, y += 4*18) {
+      for (int32_t i = 0; i < 7; i++, y += 4*18) {
         f4 s = VADD (t[3][i], t[3][i + 1]);
         VSAVE4 (0, t[0][i]);
         VSAVE4 (1, VADD (t[2][i], s));
@@ -1453,7 +1440,7 @@ void dctII (float* grbuf, int n) {
   }
 //}}}
 //{{{
-void synth (float* xl, int16_t* dstl, int nch, float* lins) {
+void synth (float* xl, int16_t* dstl, int32_t nch, float* lins) {
 
   float* xr = xl + 576 * (nch - 1);
   int16_t* dstr = dstl + (nch - 1);
@@ -1476,7 +1463,7 @@ void synth (float* xl, int16_t* dstl, int nch, float* lins) {
   synthPair (dstl, nch, lins + 4*15);
   synthPair (dstl + 32*nch, nch, lins + 4*15 + 64);
 
-  for (int i = 14; i >= 0; i--) {
+  for (int32_t i = 14; i >= 0; i--) {
     zlin [4*i] = xl [18*(31 - i)];
     zlin [4*i + 1] = xr [18*(31 - i)];
     zlin [4*i + 2] = xl [1 + 18*(31 - i)];
@@ -1521,13 +1508,13 @@ void synth (float* xl, int16_t* dstl, int nch, float* lins) {
 //}}}
 #else
 //{{{
-void dctII (float* grbuf, int n) {
+void dctII (float* grbuf, int32_t n) {
 
-  for (int k = 0; k < n; k++) {
+  for (int32_t k = 0; k < n; k++) {
     float t[4][8];
     float* y = grbuf + k;
     float* x = t[0];
-    for (int i = 0; i < 8; i++, x++) {
+    for (int32_t i = 0; i < 8; i++, x++) {
       float x0 = y[i*18];
       float x1 = y[(15 - i)*18];
       float x2 = y[(16 + i)*18];
@@ -1543,7 +1530,7 @@ void dctII (float* grbuf, int n) {
       }
 
     x = t[0];
-    for (int i = 0; i < 4; i++, x += 8) {
+    for (int32_t i = 0; i < 4; i++, x += 8) {
       float x0 = x[0];
       float x1 = x[1];
       float x2 = x[2];
@@ -1582,7 +1569,7 @@ void dctII (float* grbuf, int n) {
       x[7] = (xt - x7) * 2.56291556f;
       }
 
-    for (int i = 0; i < 7; i++, y += 4*18) {
+    for (int32_t i = 0; i < 7; i++, y += 4*18) {
       y[0*18] = t[0][i];
       y[1*18] = t[2][i] + t[3][i] + t[3][i + 1];
       y[2*18] = t[1][i] + t[1][i + 1];
@@ -1597,7 +1584,7 @@ void dctII (float* grbuf, int n) {
   }
 //}}}
 //{{{
-void synth (float* xl, int16_t* dstl, int nch, float* lins) {
+void synth (float* xl, int16_t* dstl, int32_t nch, float* lins) {
 
   float* xr = xl + 576*(nch - 1);
   int16_t* dstr = dstl + (nch - 1);
@@ -1620,7 +1607,7 @@ void synth (float* xl, int16_t* dstl, int nch, float* lins) {
   synth_pair (dstl, nch, lins + 4*15);
   synth_pair (dstl + 32*nch, nch, lins + 4*15 + 64);
 
-  for (int i = 14; i >= 0; i--) {
+  for (int32_t i = 14; i >= 0; i--) {
     zlin[4*i] = xl[18*(31 - i)];
     zlin[4*i + 1] = xr[18*(31 - i)];
     zlin[4*i + 2] = xl[1 + 18 * (31 - i)];
@@ -1641,7 +1628,7 @@ void synth (float* xl, int16_t* dstl, int nch, float* lins) {
     //{{{
     #define S0(k) { \
       LOAD(k); \
-      for (int j = 0; j < 4; j++) {       \
+      for (int32_t j = 0; j < 4; j++) {       \
         b[j]  = vz[j]*w1 + vy[j]*w0;  \
         a[j]  = vz[j]*w0 - vy[j]*w1;  \
         }                             \
@@ -1650,7 +1637,7 @@ void synth (float* xl, int16_t* dstl, int nch, float* lins) {
     //{{{
     #define S1(k) { \
       LOAD(k); \
-      for (int j = 0; j < 4; j++) {       \
+      for (int32_t j = 0; j < 4; j++) {       \
         b[j] += vz[j]*w1 + vy[j]*w0;  \
         a[j] += vz[j]*w0 - vy[j]*w1;  \
         }                             \
@@ -1659,7 +1646,7 @@ void synth (float* xl, int16_t* dstl, int nch, float* lins) {
     //{{{
     #define S2(k) { \
       LOAD(k); \
-      for (int j = 0; j < 4; j++) {       \
+      for (int32_t j = 0; j < 4; j++) {       \
         b[j] += vz[j]*w1 + vy[j]*w0;  \
         a[j] += vy[j]*w1 - vz[j]*w0;  \
         }                             \
@@ -1680,14 +1667,14 @@ void synth (float* xl, int16_t* dstl, int nch, float* lins) {
 //}}}
 #endif
 //{{{
-void synthGranule (float* qmf_state, float* grbuf, int nbands, int nch, int16_t* pcm, float* lins) {
+void synthGranule (float* qmf_state, float* grbuf, int32_t nbands, int32_t nch, int16_t* pcm, float* lins) {
 
-  for (int i = 0; i < nch; i++)
+  for (int32_t i = 0; i < nch; i++)
     dctII (grbuf + 576 * i, nbands);
 
   memcpy (lins, qmf_state, sizeof(float) * 15 * 64);
 
-  for (int i = 0; i < nbands; i += 2)
+  for (int32_t i = 0; i < nbands; i += 2)
     synth (grbuf + i, pcm + 32 * nch * i, nch, lins + i * 64);
 
   memcpy (qmf_state, lins + nbands * 64, sizeof(float) * 15 * 64);
@@ -1705,10 +1692,10 @@ cMp3Decoder::~cMp3Decoder() {
   }
 //}}}
 //{{{
-int cMp3Decoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf) {
+int32_t cMp3Decoder::decodeSingleFrame (uint8_t* inbuf, int32_t bytesLeft, float* outbuf) {
 
   auto timePoint = std::chrono::system_clock::now();
-  int success = 1;
+  int32_t success = 1;
 
   int16_t samples16 [2048*2];
   int16_t* pcm = samples16;
@@ -1717,9 +1704,9 @@ int cMp3Decoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf
   struct sBitStream bitStream;
   bitStreamInit (&bitStream, inbuf + HDR_SIZE, bytesLeft - HDR_SIZE);
 
-  int layer = 4 - HDR_GET_LAYER (header);
-  int bitrate_kbps = headerBitrate (header);
-  int numSamples = headerFrameSamples (header);
+  int32_t layer = 4 - HDR_GET_LAYER (header);
+  int32_t bitrate_kbps = headerBitrate (header);
+  int32_t numSamples = headerFrameSamples (header);
   channels = HDR_IS_MONO (header) ? 1 : 2;
   sampleRate = headerSampleRate (header);
 
@@ -1729,14 +1716,13 @@ int cMp3Decoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf
   sScratch scratch;
   if (layer == 3) {
     //{{{  layer 3
-    int main_data_begin = L3_read_side_info (&bitStream, scratch.gr_info, inbuf);
-    if (main_data_begin < 0 || bitStream.pos > bitStream.limit)
+    int32_t main_data_begin = L3_read_side_info (&bitStream, scratch.gr_info, inbuf);
+    if ((main_data_begin < 0) || (bitStream.pos > bitStream.limit))
       return 0;
 
     success = L3_restore_reservoir (&bitStream, &scratch, main_data_begin);
-
     if (success) {
-      for (int igr = 0; igr < (HDR_TEST_MPEG1(inbuf) ? 2 : 1); igr++, pcm += 576 * channels) {
+      for (int32_t igr = 0; igr < (HDR_TEST_MPEG1(inbuf) ? 2 : 1); igr++, pcm += 576 * channels) {
         memset (scratch.grbuf[0], 0, 576 * 2 * sizeof(float));
         L3_decode (&scratch, scratch.gr_info + igr*channels, channels);
         synthGranule (qmf_state, scratch.grbuf[0], 18, channels, pcm, scratch.syn[0]);
@@ -1754,7 +1740,7 @@ int cMp3Decoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf
     L12_read_scale_info (inbuf, &bitStream, sci);
 
     memset (scratch.grbuf[0], 0, 576 * 2 * sizeof(float));
-    for (int i = 0, igr = 0; igr < 3; igr++) {
+    for (int32_t i = 0, igr = 0; igr < 3; igr++) {
       if (12 == (i += L12_dequantize_granule (scratch.grbuf[0] + i, &bitStream, sci, layer | 1))) {
         i = 0;
         L12_apply_scf_384 (sci, sci->scf + igr, scratch.grbuf[0]);
@@ -1770,7 +1756,7 @@ int cMp3Decoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf
 
   int16_t* srcPtr = samples16;
   float* dstPtr = outbuf;
-  for (int sample = 0; sample < numSamples * 2; sample++)
+  for (int32_t sample = 0; sample < numSamples * 2; sample++)
     *dstPtr++ = *srcPtr++ / (float)0x8000;
 
   auto took = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - timePoint);
@@ -1789,10 +1775,10 @@ void cMp3Decoder::clear() {
   };
 //}}}
 //{{{
-void cMp3Decoder::L3_decode (struct sScratch* s, struct L3_gr_info_t* gr_info, int nch) {
+void cMp3Decoder::L3_decode (struct sScratch* s, struct L3_gr_info_t* gr_info, int32_t nch) {
 
-  for (int ch = 0; ch < nch; ch++) {
-    int layer3gr_limit = s->bs.pos + gr_info[ch].part_23_length;
+  for (int32_t ch = 0; ch < nch; ch++) {
+    int32_t layer3gr_limit = s->bs.pos + gr_info[ch].part_23_length;
     L3_decode_scalefactors (header, s->ist_pos[ch], &s->bs, gr_info + ch, s->scf, ch);
     L3_huffman (s->grbuf[ch], &s->bs, gr_info + ch, s->scf, layer3gr_limit);
     }
@@ -1802,9 +1788,9 @@ void cMp3Decoder::L3_decode (struct sScratch* s, struct L3_gr_info_t* gr_info, i
   else if (HDR_IS_MS_STEREO (header))
     L3_midside_stereo (s->grbuf[0], 576);
 
-  for (int ch = 0; ch < nch; ch++, gr_info++) {
-    int aa_bands = 31;
-    int n_long_bands = (gr_info->mixed_block_flag ? 2 : 0) << (int)(HDR_GET_MY_SAMPLE_RATE(header) == 2);
+  for (int32_t ch = 0; ch < nch; ch++, gr_info++) {
+    int32_t aa_bands = 31;
+    int32_t n_long_bands = (gr_info->mixed_block_flag ? 2 : 0) << (int)(HDR_GET_MY_SAMPLE_RATE(header) == 2);
 
     if (gr_info->n_short_sfb) {
       aa_bands = n_long_bands - 1;
@@ -1820,8 +1806,8 @@ void cMp3Decoder::L3_decode (struct sScratch* s, struct L3_gr_info_t* gr_info, i
 //{{{
 void cMp3Decoder::L3_save_reservoir (sScratch* s) {
 
-  int pos = (s->bs.pos + 7) / 8u;
-  int remains = s->bs.limit / 8u - pos;
+  int32_t pos = (s->bs.pos + 7) / 8u;
+  int32_t remains = s->bs.limit / 8u - pos;
 
   if (remains > MAX_BITRESERVOIR_BYTES) {
     pos += remains - MAX_BITRESERVOIR_BYTES;
@@ -1835,10 +1821,10 @@ void cMp3Decoder::L3_save_reservoir (sScratch* s) {
   }
 //}}}
 //{{{
-int cMp3Decoder::L3_restore_reservoir (struct sBitStream* bs, struct sScratch* s, int main_data_begin) {
+int32_t cMp3Decoder::L3_restore_reservoir (struct sBitStream* bs, struct sScratch* s, int32_t main_data_begin) {
 
-  int frame_bytes = (bs->limit - bs->pos) / 8;
-  int bytes_have = std::min (reserv, main_data_begin);
+  int32_t frame_bytes = (bs->limit - bs->pos) / 8;
+  int32_t bytes_have = std::min (reserv, main_data_begin);
 
   memcpy (s->maindata, reserv_buf + std::max (0, reserv - main_data_begin), std::min (reserv, main_data_begin));
   memcpy (s->maindata + bytes_have, bs->buf + bs->pos/8, frame_bytes);
