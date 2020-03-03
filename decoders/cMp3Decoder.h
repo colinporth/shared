@@ -4,7 +4,7 @@
 
 struct sBitStream;
 struct L3_gr_info_t;
-struct mp3dec_scratch_t;
+struct sScratch;
 
 class cMp3Decoder : public iAudioDecoder {
 public:
@@ -19,9 +19,9 @@ private:
   //{{{  private members
   void clear();
 
-  void L3_decode (mp3dec_scratch_t* s, L3_gr_info_t* gr_info, int nch);
-  void L3_save_reservoir (mp3dec_scratch_t* s);
-  int L3_restore_reservoir (sBitStream* bs, mp3dec_scratch_t* s, int main_data_begin);
+  void L3_decode (sScratch* s, L3_gr_info_t* gr_info, int nch);
+  void L3_save_reservoir (sScratch* s);
+  int L3_restore_reservoir (sBitStream* bs, sScratch* s, int main_data_begin);
   //}}}
   //{{{  private vars
   uint8_t header[4] = { 0 };
