@@ -2,7 +2,7 @@
 #pragma once
 #include "iAudioDecoder.h"
 
-struct sBitStream;
+class cBitStream;
 struct sScratch;
 struct sGranule;
 
@@ -21,7 +21,7 @@ private:
 
   void decode (sScratch* s, sGranule* granule, int32_t nch);
   void save_reservoir (sScratch* s);
-  int32_t restore_reservoir (struct sBitStream* bitStream, sScratch* s, int32_t mainDataBegin);
+  int32_t restore_reservoir (class cBitStream* bitStream, sScratch* s, int32_t mainDataBegin);
   //}}}
   //{{{  private vars
   uint8_t header[4] = { 0 };

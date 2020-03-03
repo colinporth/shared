@@ -71,11 +71,12 @@
 #endif
 
 //{{{
-struct sBitStream {
+class cBitStream {
+public:
   const uint8_t* buf;
   int32_t pos;
   int32_t limit;
-  } sBitStream;
+  };
 //}}}
 //{{{
 struct sScaleInfo {
@@ -115,7 +116,7 @@ struct sGranule {
 //}}}
 //{{{
 struct sScratch {
-  struct sBitStream bitStream;
+  cBitStream bitStream;
   uint8_t  maindata [MAX_BITRESERVOIR_BYTES + MAX_L3_FRAME_PAYLOAD_BYTES];
 
   struct sGranule granule [4];
@@ -430,14 +431,14 @@ static const float g_win[] = {
 
 // bitstream
 //{{{
-void bitStreamInit (struct sBitStream* bitStream, const uint8_t* data, int32_t bytes) {
+void bitStreamInit (cBitStream* bitStream, const uint8_t* data, int32_t bytes) {
   bitStream->buf = data;
   bitStream->pos = 0;
   bitStream->limit = bytes * 8;
   }
 //}}}
 //{{{
-uint32_t getBits (struct sBitStream* bitStream, int32_t n) {
+uint32_t getBits (cBitStream* bitStream, int32_t n) {
 
   uint32_t s = bitStream->pos & 7;
   int32_t shl = n + s;
@@ -536,7 +537,7 @@ const struct sSubBandAlloc* subBandAllocTable (const uint8_t* header, struct sSc
   }
 //}}}
 //{{{
-void readScaleFactors (struct sBitStream* bitStream, uint8_t* pba, uint8_t* scfcod, int32_t bands, float* scf) {
+void readScaleFactors (cBitStream* bitStream, uint8_t* pba, uint8_t* scfcod, int32_t bands, float* scf) {
 
   for (int32_t i = 0; i < bands; i++) {
     float s = 0;
@@ -553,7 +554,7 @@ void readScaleFactors (struct sBitStream* bitStream, uint8_t* pba, uint8_t* scfc
   }
 //}}}
 //{{{
-void readScaleInfo (const uint8_t* header, struct sBitStream* bitStream, struct sScaleInfo* scaleInfo) {
+void readScaleInfo (const uint8_t* header, cBitStream* bitStream, struct sScaleInfo* scaleInfo) {
 
   const struct sSubBandAlloc* subBandAlloc = subBandAllocTable (header, scaleInfo);
 
@@ -586,7 +587,7 @@ void readScaleInfo (const uint8_t* header, struct sBitStream* bitStream, struct 
 //}}}
 
 //{{{
-int32_t dequantizeGranule (float* granuleBuffer, struct sBitStream* bitStream, struct sScaleInfo* scaleInfo, int32_t group_size) {
+int32_t dequantizeGranule (float* granuleBuffer, cBitStream* bitStream, struct sScaleInfo* scaleInfo, int32_t group_size) {
 
   int32_t choff = 576;
   for (int32_t j = 0; j < 4; j++) {
@@ -843,7 +844,7 @@ void imdct36 (float* granuleBuffer, float* overlap, const float* window, int32_t
 #endif
 
 //{{{
-int32_t readSideInfo (struct sBitStream* bitStream, struct sGranule* granule, const uint8_t* header) {
+int32_t readSideInfo (cBitStream* bitStream, struct sGranule* granule, const uint8_t* header) {
 
   int32_t sr_idx = HDR_GET_MY_SAMPLE_RATE (header);
   sr_idx -= (sr_idx != 0);
@@ -935,7 +936,7 @@ int32_t readSideInfo (struct sBitStream* bitStream, struct sGranule* granule, co
 //}}}
 //{{{
 void readScaleFactorsL3 (uint8_t* scf, uint8_t* ist_pos, const uint8_t* scf_size, const uint8_t* scf_count,
-                           struct sBitStream* bitbuf, int32_t scfsi) {
+                           cBitStream* bitbuf, int32_t scfsi) {
 
   for (int32_t i = 0; i < 4 && scf_count[i]; i++, scfsi *= 2) {
     int32_t cnt = scf_count[i];
@@ -976,7 +977,7 @@ float ldExpQ2 (float y, int32_t exp_q2) {
   }
 //}}}
 //{{{
-void decodeScaleFactors (const uint8_t* header, uint8_t* ist_pos, struct sBitStream* bitStream,
+void decodeScaleFactors (const uint8_t* header, uint8_t* ist_pos, cBitStream* bitStream,
                          const struct sGranule* gr, float* scf, int32_t ch) {
 
   const uint8_t* scf_partition = g_scf_partitions [!!gr->n_short_sfb + !gr->n_long_sfb];
@@ -1046,7 +1047,7 @@ float pow43 (int32_t x) {
   }
 //}}}
 //{{{
-void huffman (float* dst, struct sBitStream* bitStream, const struct sGranule* granule,
+void huffman (float* dst, cBitStream* bitStream, const struct sGranule* granule,
               const float* scf, int32_t l3granuleLimit) {
 
   #define PEEK_BITS(n) (bitStreamCache >> (32 - n))
@@ -1728,7 +1729,7 @@ int32_t cMp3Decoder::decodeSingleFrame (uint8_t* inBuffer, int32_t bytesLeft, fl
   int16_t* pcm = samples16;
 
   memcpy (header, inBuffer, HDR_SIZE);
-  struct sBitStream bitStream;
+  cBitStream bitStream;
   bitStreamInit (&bitStream, inBuffer + HDR_SIZE, bytesLeft - HDR_SIZE);
 
   int32_t layer = 4 - HDR_GET_LAYER (header);
@@ -1853,7 +1854,7 @@ void cMp3Decoder::save_reservoir (struct sScratch* s) {
   }
 //}}}
 //{{{
-int32_t cMp3Decoder::restore_reservoir (struct sBitStream* bitStream, struct sScratch* s, int32_t mainDataBegin) {
+int32_t cMp3Decoder::restore_reservoir (cBitStream* bitStream, struct sScratch* s, int32_t mainDataBegin) {
 
   int32_t frame_bytes = (bitStream->limit - bitStream->pos) / 8;
   int32_t bytes_have = std::min (reserv, mainDataBegin);
