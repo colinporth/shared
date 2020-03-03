@@ -6700,33 +6700,30 @@ static void PreMultiply64 (int* zbuf1) {
  *              uses 3-mul, 3-add butterflies instead of 4-mul, 2-add
  **************************************************************************************/
 
-  int i, ar1, ai1, ar2, ai2, z1, z2;
-  int t, cms2, cps2a, sin2a, cps2b, sin2b;
-
   int* zbuf2 = zbuf1 + 64 - 1;
   const int* csptr = cos4sin4tab64;
 
   // whole thing should fit in registers - verify that compiler does this */
-  for (i = 64 >> 2; i != 0; i--) {
+  for (int i = 64 >> 2; i != 0; i--) {
     // cps2 = (cos+sin), sin2 = sin, cms2 = (cos-sin) */
-    cps2a = *csptr++;
-    sin2a = *csptr++;
-    cps2b = *csptr++;
-    sin2b = *csptr++;
+    int cps2a = *csptr++;
+    int sin2a = *csptr++;
+    int cps2b = *csptr++;
+    int sin2b = *csptr++;
 
-    ar1 = *(zbuf1 + 0);
-    ai2 = *(zbuf1 + 1);
-    ai1 = *(zbuf2 + 0);
-    ar2 = *(zbuf2 - 1);
+    int ar1 = *(zbuf1 + 0);
+    int ai2 = *(zbuf1 + 1);
+    int ai1 = *(zbuf2 + 0);
+    int ar2 = *(zbuf2 - 1);
 
     // gain 2 ints bit from MULSHIFT32 by Q30
     // max per-sample gain (ignoring implicit scaling) = std::max (sin(angle)+cos(angle)) = 1.414
     // i.e. gain 1 GB since worst case is sin(angle) = cos(angle) = 0.707 (Q30), gain 2 from
     //   extra sign bits, and eat one in adding
-    t  = MULSHIFT32(sin2a, ar1 + ai1);
-    z2 = MULSHIFT32(cps2a, ai1) - t;
-    cms2 = cps2a - 2*sin2a;
-    z1 = MULSHIFT32(cms2, ar1) + t;
+    int t  = MULSHIFT32(sin2a, ar1 + ai1);
+    int z2 = MULSHIFT32(cps2a, ai1) - t;
+    int cms2 = cps2a - 2*sin2a;
+    int z1 = MULSHIFT32(cms2, ar1) + t;
     *zbuf1++ = z1;  /* cos*ar1 + sin*ai1 */
     *zbuf1++ = z2;  /* cos*ai1 - sin*ar1 */
 
@@ -6753,26 +6750,23 @@ static void PostMultiply64 (int* fft1, int nSampsOut) {
  *                4 samples per loop
  **************************************************************************************/
 
-  int i, ar1, ai1, ar2, ai2;
-  int t, cms2, cps2, sin2;
-
   const int* csptr = cos1sin1tab64;
   int* fft2 = fft1 + 64 - 1;
 
   // load coeffs for first pass
   // cps2 = (cos+sin)/2, sin2 = sin/2, cms2 = (cos-sin)/2
-  cps2 = *csptr++;
-  sin2 = *csptr++;
-  cms2 = cps2 - 2*sin2;
+  int cps2 = *csptr++;
+  int sin2 = *csptr++;
+  int cms2 = cps2 - 2*sin2;
 
-  for (i = (nSampsOut + 3) >> 2; i != 0; i--) {
-    ar1 = *(fft1 + 0);
-    ai1 = *(fft1 + 1);
-    ar2 = *(fft2 - 1);
-    ai2 = *(fft2 + 0);
+  for (int i = (nSampsOut + 3) >> 2; i != 0; i--) {
+    int ar1 = *(fft1 + 0);
+    int ai1 = *(fft1 + 1);
+    int ar2 = *(fft2 - 1);
+    int ai2 = *(fft2 + 0);
 
     // gain 2 int bits (multiplying by Q30), max gain = sqrt(2) */
-    t = MULSHIFT32(sin2, ar1 + ai1);
+    int t = MULSHIFT32(sin2, ar1 + ai1);
     *fft2-- = t - MULSHIFT32(cps2, ai1);
     *fft1++ = t + MULSHIFT32(cms2, ar1);
 
@@ -6834,26 +6828,22 @@ static void R8FirstPass32 (int *r0) {
  *              current instruction count (per pass): 16 LDR, 16 STR, 4 SMULL, 61 ALU
  **************************************************************************************/
 
-  int r1, r2, r3, r4, r5, r6, r7;
-  int r8, r9, r10, r11, r12, r14;
-
   // number of passes = fft size / 8 = 32 / 8 = 4 */
-  r1 = (32 >> 3);
+  int r1 = (32 >> 3);
   do {
+    int r2 = r0[8];
+    int r3 = r0[9];
+    int r4 = r0[10];
+    int r5 = r0[11];
+    int r6 = r0[12];
+    int r7 = r0[13];
+    int r8 = r0[14];
+    int r9 = r0[15];
 
-    r2 = r0[8];
-    r3 = r0[9];
-    r4 = r0[10];
-    r5 = r0[11];
-    r6 = r0[12];
-    r7 = r0[13];
-    r8 = r0[14];
-    r9 = r0[15];
-
-    r10 = r2 + r4;
-    r11 = r3 + r5;
-    r12 = r6 + r8;
-    r14 = r7 + r9;
+    int r10 = r2 + r4;
+    int r11 = r3 + r5;
+    int r12 = r6 + r8;
+    int r14 = r7 + r9;
 
     r2 -= r4;
     r3 -= r5;
@@ -6978,19 +6968,15 @@ static void R4Core32 (int *r0) {
  *              current instruction count (per pass): 16 LDR, 16 STR, 4 SMULL, 61 ALU
  **************************************************************************************/
 
-  int r2, r3, r4, r5, r6, r7;
-  int r8, r9, r10, r12, r14;
-  int* r1;
-
-  r1 = (int*)twidTabOdd32;
-  r10 = 8;
+  int* r1 = (int*)twidTabOdd32;
+  int r10 = 8;
   do {
     // can use r14 for lo32 scratch register in all MULSHIFT32
-    r2 = r1[0];
-    r3 = r1[1];
-    r4 = r0[16];
-    r5 = r0[17];
-    r12 = r4 + r5;
+    int r2 = r1[0];
+    int r3 = r1[1];
+    int r4 = r0[16];
+    int r5 = r0[17];
+    int r12 = r4 + r5;
     r12 = MULSHIFT32(r3, r12);
     r5  = MULSHIFT32(r2, r5) + r12;
     r2 += 2*r3;
@@ -6998,8 +6984,8 @@ static void R4Core32 (int *r0) {
 
     r2 = r1[2];
     r3 = r1[3];
-    r6 = r0[32];
-    r7 = r0[33];
+    int r6 = r0[32];
+    int r7 = r0[33];
     r12 = r6 + r7;
     r12 = MULSHIFT32(r3, r12);
     r7  = MULSHIFT32(r2, r7) + r12;
@@ -7008,8 +6994,8 @@ static void R4Core32 (int *r0) {
 
     r2 = r1[4];
     r3 = r1[5];
-    r8 = r0[48];
-    r9 = r0[49];
+    int r8 = r0[48];
+    int r9 = r0[49];
     r12 = r8 + r9;
     r12 = MULSHIFT32(r3, r12);
     r9  = MULSHIFT32(r2, r9) + r12;
@@ -7021,7 +7007,7 @@ static void R4Core32 (int *r0) {
 
     r12 = r6 + r8;
     r8  = r6 - r8;
-    r14 = r9 - r7;
+    int r14 = r9 - r7;
     r9  = r9 + r7;
 
     r6 = (r2 >> 2) - r4;
@@ -7065,11 +7051,11 @@ static void FFT32C (int *x) {
  **************************************************************************************/
 
   // decimation in time
-  BitReverse32(x);
+  BitReverse32 (x);
 
   // 32-point complex FFT
-  R8FirstPass32(x); // gain 1 int bit,  lose 2 GB (making assumptions about input) */
-  R4Core32(x);      // gain 2 int bits, lose 0 GB (making assumptions about input) */
+  R8FirstPass32 (x); // gain 1 int bit,  lose 2 GB (making assumptions about input) */
+  R4Core32 (x);      // gain 2 int bits, lose 0 GB (making assumptions about input) */
   }
 //}}}
 
@@ -7085,15 +7071,12 @@ static void QMFAnalysisConv (int* cTab, int *delay, int dIdx, int* uBuf) {
  *              use the assembly code version in sbrqmfak.s when building for ARM!
  **************************************************************************************/
 
-  int k, dOff;
-  int *cPtr0, *cPtr1;
-  U64 u64lo, u64hi;
-
-  dOff = dIdx*32 + 31;
-  cPtr0 = cTab;
-  cPtr1 = cTab + 33*5 - 1;
+  int dOff = dIdx*32 + 31;
+  int* cPtr0 = cTab;
+  int* cPtr1 = cTab + 33*5 - 1;
 
   // special first pass since we need to flip sign to create cTab[384], cTab[512] */
+  U64 u64lo, u64hi;
   u64lo.w64 = 0;
   u64hi.w64 = 0;
   u64lo.w64 = MADD64 (u64lo.w64,  *cPtr0++,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
@@ -7114,7 +7097,7 @@ static void QMFAnalysisConv (int* cTab, int *delay, int dIdx, int* uBuf) {
 
   // max gain for any sample in uBuf, after scaling by cTab, ~= 0.99
   // so we can just sum the uBuf values with no overflow problems
-  for (k = 1; k <= 31; k++) {
+  for (int k = 1; k <= 31; k++) {
     u64lo.w64 = 0;
     u64hi.w64 = 0;
     u64lo.w64 = MADD64 (u64lo.w64, *cPtr0++, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
@@ -7153,19 +7136,17 @@ static int QMFAnalysis (int* inbuf, int* delay, int* XBuf, int fBitsIn, int* del
  *                (zero-filled from XBuf[2*qmfaBands] to XBuf[127])
  **************************************************************************************/
 
-  int n, y, shift, gbMask;
-  int *delayPtr, *uBuf, *tBuf;
-
   // use XBuf[128] as temp buffer for reordering */
-  uBuf = XBuf;    /* first 64 samples */
-  tBuf = XBuf + 64; /* second 64 samples */
+  int* uBuf = XBuf;    /* first 64 samples */
+  int* tBuf = XBuf + 64; /* second 64 samples */
 
   // overwrite oldest PCM with new PCM
   // delay[n] has 1 GB after shifting (either << or >>)
-  delayPtr = delay + (*delayIdx * 32);
+  int y, shift;
+  int* delayPtr = delay + (*delayIdx * 32);
   if (fBitsIn > FBITS_IN_QMFA) {
     shift = std::min (fBitsIn - FBITS_IN_QMFA, 31);
-    for (n = 32; n != 0; n--) {
+    for (int n = 32; n != 0; n--) {
       y = (*inbuf) >> shift;
       inbuf++;
       *delayPtr++ = y;
@@ -7173,21 +7154,21 @@ static int QMFAnalysis (int* inbuf, int* delay, int* XBuf, int fBitsIn, int* del
     }
   else {
     shift = std::min (FBITS_IN_QMFA - fBitsIn, 30);
-    for (n = 32; n != 0; n--) {
+    for (int n = 32; n != 0; n--) {
       y = *inbuf++;
       CLIP_2N_SHIFT(y, shift);
       *delayPtr++ = y;
       }
     }
 
-  QMFAnalysisConv ((int *)cTabA, delay, *delayIdx, uBuf);
+  QMFAnalysisConv ((int*)cTabA, delay, *delayIdx, uBuf);
 
   // uBuf has at least 2 GB right now (1 from clipping to Q(FBITS_IN_QMFA), one from
   //   the scaling by cTab (MULSHIFT32(*delayPtr--, *cPtr++), with net gain of < 1.0)
   // TODO - fuse with QMFAnalysisConv to avoid separate reordering
   tBuf[2*0 + 0] = uBuf[0];
   tBuf[2*0 + 1] = uBuf[1];
-  for (n = 1; n < 31; n++) {
+  for (int n = 1; n < 31; n++) {
     tBuf[2*n + 0] = -uBuf[64-n];
     tBuf[2*n + 1] =  uBuf[n+1];
     }
@@ -7200,7 +7181,8 @@ static int QMFAnalysis (int* inbuf, int* delay, int* XBuf, int fBitsIn, int* del
   PostMultiply64 (tBuf, qmfaBands*2);  /* 1 GB in, 2 GB out */
 
   // TODO - roll into PostMultiply (if enough registers) */
-  gbMask = 0;
+  int gbMask = 0;
+  int n;
   for (n = 0; n < qmfaBands; n++) {
     XBuf[2*n+0] = tBuf[ n + 0];  /* implicit scaling of 2 in our output Q format */
     gbMask |= FASTABS (XBuf[2*n+0]);
@@ -7298,14 +7280,13 @@ static void QMFSynthesis (int* inbuf, int* delay, int* delayIdx, int qmfsBands, 
  *              QMFAnalysis (if upsampling only) or from MapHF (if SBR on)
  **************************************************************************************/
 
-  int n, a0, a1, b0, b1, dOff0, dOff1;
-
   int dIdx = *delayIdx;
   int* tBufLo = delay + dIdx*128 + 0;
   int* tBufHi = delay + dIdx*128 + 127;
 
   // reorder inputs to DCT-IV, only use first qmfsBands (complex) samples
   // TODO - fuse with PreMultiply64 to avoid separate reordering steps
+  int a0, a1, b0, b1, n;
   for (n = 0; n < qmfsBands >> 1; n++) {
     a0 = *inbuf++;
     b0 = *inbuf++;
@@ -7350,8 +7331,8 @@ static void QMFSynthesis (int* inbuf, int* delay, int* delayIdx, int qmfsBands, 
   PostMultiply64 (tBufHi, 64);
 
   // could fuse with PostMultiply64 to avoid separate pass */
-  dOff0 = dIdx*128;
-  dOff1 = dIdx*128 + 64;
+  int dOff0 = dIdx*128;
+  int dOff1 = dIdx*128 + 64;
   for (n = 32; n != 0; n--) {
     a0 =  (*tBufLo++);
     a1 =  (*tBufLo++);
@@ -7384,95 +7365,96 @@ static void EstimateEnvelope (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGr
  * Return:      none
  **************************************************************************************/
 
-  int i, m, iStart, iEnd, xre, xim, nScale, expMax;
-  int p, n, mStart, mEnd, invFact, t;
-  int *XBuf;
-  U64 eCurr;
-  uint8_t *freqBandTab;
+  // estimate current envelope
+  int iStart = sbrGrid->envTimeBorder[env] + HF_ADJ;
+  int iEnd = sbrGrid->envTimeBorder[env+1] + HF_ADJ;
 
-  // estimate current envelope */
-  iStart = sbrGrid->envTimeBorder[env] + HF_ADJ;
-  iEnd =   sbrGrid->envTimeBorder[env+1] + HF_ADJ;
+  int n;
+  uint8_t* freqBandTab;
   if (sbrGrid->freqRes[env]) {
     n = sbrFreq->nHigh;
     freqBandTab = sbrFreq->freqHigh;
-    } 
+    }
   else {
     n = sbrFreq->nLow;
     freqBandTab = sbrFreq->freqLow;
     }
 
-  // ADS should inline MADD64 (smlal) properly, but check to make sure */
-  expMax = 0;
+  // ADS should inline MADD64 (smlal) properly, but check to make sure
+  int expMax = 0;
   if (sbrHdr->interpFreq) {
-    for (m = 0; m < sbrFreq->numQMFBands; m++) {
+    for (int m = 0; m < sbrFreq->numQMFBands; m++) {
+      U64 eCurr;
       eCurr.w64 = 0;
-      XBuf = psi->XBuf[iStart][sbrFreq->kStart + m];
-      for (i = iStart; i < iEnd; i++) {
-        /* scale to int before calculating power (precision not critical, and avoids overflow) */
-        xre = (*XBuf) >> FBITS_OUT_QMFA;  XBuf += 1;
-        xim = (*XBuf) >> FBITS_OUT_QMFA;  XBuf += (2*64 - 1);
-        eCurr.w64 = MADD64(eCurr.w64, xre, xre);
-        eCurr.w64 = MADD64(eCurr.w64, xim, xim);
+      int* XBuf = psi->XBuf[iStart][sbrFreq->kStart + m];
+      for (int i = iStart; i < iEnd; i++) {
+        // scale to int before calculating power (precision not critical, and avoids overflow)
+        int xre = (*XBuf) >> FBITS_OUT_QMFA;  XBuf += 1;
+        int xim = (*XBuf) >> FBITS_OUT_QMFA;  XBuf += (2*64 - 1);
+        eCurr.w64 = MADD64 (eCurr.w64, xre, xre);
+        eCurr.w64 = MADD64 (eCurr.w64, xim, xim);
       }
 
       // eCurr.w64 is now Q(64 - 2*FBITS_OUT_QMFA) (64-bit word)
       // if energy is too big to fit in 32-bit word (> 2^31) scale down by power of 2
-      nScale = 0;
+      int t;
+      int nScale = 0;
       if (eCurr.r.hi32) {
         nScale = (32 - countLeadingZeros (eCurr.r.hi32)) + 1;
-        t  = (int)(eCurr.r.lo32 >> nScale);   /* logical (unsigned) >> */
+        t  = (int)(eCurr.r.lo32 >> nScale);   // logical (unsigned) >>
         t |= eCurr.r.hi32 << (32 - nScale);
-        } 
+        }
       else if (eCurr.r.lo32 >> 31) {
         nScale = 1;
-        t  = (int)(eCurr.r.lo32 >> nScale);   /* logical (unsigned) >> */
-        } 
-     else 
+        t  = (int)(eCurr.r.lo32 >> nScale);   // logical (unsigned) >>
+        }
+     else
         t  = (int)eCurr.r.lo32;
 
-      invFact = invBandTab[(iEnd - iStart)-1];
-      psi->eCurr[m] = MULSHIFT32(t, invFact);
-      psi->eCurrExp[m] = nScale + 1;  /* +1 for invFact = Q31 */
+      int invFact = invBandTab[(iEnd - iStart)-1];
+      psi->eCurr[m] = MULSHIFT32 (t, invFact);
+      psi->eCurrExp[m] = nScale + 1;  // +1 for invFact = Q31
       if (psi->eCurrExp[m] > expMax)
         expMax = psi->eCurrExp[m];
       }
-    } 
+    }
   else {
-    for (p = 0; p < n; p++) {
-      mStart = freqBandTab[p];
-      mEnd =   freqBandTab[p+1];
+    for (int p = 0; p < n; p++) {
+      int mStart = freqBandTab[p];
+      int mEnd = freqBandTab[p+1];
+      U64 eCurr;
       eCurr.w64 = 0;
-      for (i = iStart; i < iEnd; i++) {
-        XBuf = psi->XBuf[i][mStart];
-        for (m = mStart; m < mEnd; m++) {
-          xre = (*XBuf++) >> FBITS_OUT_QMFA;
-          xim = (*XBuf++) >> FBITS_OUT_QMFA;
-          eCurr.w64 = MADD64(eCurr.w64, xre, xre);
-          eCurr.w64 = MADD64(eCurr.w64, xim, xim);
+      for (int i = iStart; i < iEnd; i++) {
+        int* XBuf = psi->XBuf[i][mStart];
+        for (int m = mStart; m < mEnd; m++) {
+          int xre = (*XBuf++) >> FBITS_OUT_QMFA;
+          int xim = (*XBuf++) >> FBITS_OUT_QMFA;
+          eCurr.w64 = MADD64 (eCurr.w64, xre, xre);
+          eCurr.w64 = MADD64 (eCurr.w64, xim, xim);
           }
         }
 
-      nScale = 0;
+      int t;
+      int nScale = 0;
       if (eCurr.r.hi32) {
         nScale = (32 - countLeadingZeros (eCurr.r.hi32)) + 1;
-        t  = (int)(eCurr.r.lo32 >> nScale);   /* logical (unsigned) >> */
+        t  = (int)(eCurr.r.lo32 >> nScale);   // logical (unsigned) >>
         t |= eCurr.r.hi32 << (32 - nScale);
-        } 
+        }
       else if (eCurr.r.lo32 >> 31) {
         nScale = 1;
-        t  = (int)(eCurr.r.lo32 >> nScale);   /* logical (unsigned) >> */
-        } 
+        t  = (int)(eCurr.r.lo32 >> nScale);   // logical (unsigned) >>
+        }
       else
         t  = (int)eCurr.r.lo32;
 
-      invFact = invBandTab[(iEnd - iStart)-1];
-      invFact = MULSHIFT32(invBandTab[(mEnd - mStart)-1], invFact) << 1;
-      t = MULSHIFT32(t, invFact);
+      int invFact = invBandTab[(iEnd - iStart)-1];
+      invFact = MULSHIFT32 (invBandTab[(mEnd - mStart)-1], invFact) << 1;
+      t = MULSHIFT32 (t, invFact);
 
-      for (m = mStart; m < mEnd; m++) {
+      for (int m = mStart; m < mEnd; m++) {
         psi->eCurr[m - sbrFreq->kStart] = t;
-        psi->eCurrExp[m - sbrFreq->kStart] = nScale + 1;  /* +1 for invFact = Q31 */
+        psi->eCurrExp[m - sbrFreq->kStart] = nScale + 1;  // +1 for invFact = Q31
         }
       if (psi->eCurrExp[mStart - sbrFreq->kStart] > expMax)
         expMax = psi->eCurrExp[mStart - sbrFreq->kStart];
@@ -7497,24 +7479,23 @@ static int GetSMapped (SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChan, int
  * Return:      1 if a sinusoid is present in this band, 0 if not
  **************************************************************************************/
 
-  int bandStart, bandEnd, oddFlag, r;
-
+  int bandStart, bandEnd;
   if (sbrGrid->freqRes[env]) {
-    // high resolution */
+    // high resolution
     bandStart = band;
     bandEnd = band+1;
-    } 
+    }
   else {
-    // low resolution (see CalcFreqLow() for mapping) */
-    oddFlag = sbrFreq->nHigh & 0x01;
-    bandStart = (band > 0 ? 2*band - oddFlag : 0);    /* starting index for freqLow[band] */
-    bandEnd = 2*(band+1) - oddFlag;           /* ending index for freqLow[band+1] */
+    // low resolution (see CalcFreqLow() for mapping)
+    int oddFlag = sbrFreq->nHigh & 0x01;
+    bandStart = (band > 0 ? 2*band - oddFlag : 0);  // starting index for freqLow[band]
+    bandEnd = 2*(band+1) - oddFlag;                 // ending index for freqLow[band+1]
     }
 
-  // sMapped = 1 if sIndexMapped == 1 for any frequency in this band */
+  // sMapped = 1 if sIndexMapped == 1 for any frequency in this band
   for (band = bandStart; band < bandEnd; band++) {
     if (sbrChan->addHarmonic[1][band]) {
-      r = ((sbrFreq->freqHigh[band+1] + sbrFreq->freqHigh[band]) >> 1);
+      int r = ((sbrFreq->freqHigh[band+1] + sbrFreq->freqHigh[band]) >> 1);
       if (env >= la || sbrChan->addHarmonic[0][r] == 1)
         return 1;
       }
@@ -7527,7 +7508,7 @@ static int GetSMapped (SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChan, int
 #define ACC_SCALE 6
 #define GBOOST_MAX  0x2830afd3  /* Q28, 1.584893192 squared */
 //{{{
-static void CalcMaxGain (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SBRFreq* sbrFreq, 
+static void CalcMaxGain (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SBRFreq* sbrFreq,
                          int ch, int env, int lim, int fbitsDQ) {
 /**************************************************************************************
  * Description: calculate max gain in one limiter band (4.6.18.7.5)
@@ -7543,22 +7524,17 @@ static void CalcMaxGain (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, S
  * Outputs:     updated gainMax, gainMaxFBits, and sumEOrigMapped in PSInfoSBR struct
  **************************************************************************************/
 
-  int m, mStart, mEnd, q, z, r;
-  int sumEOrigMapped, sumECurr, gainMax, eOMGainMax, envBand;
-  uint8_t eCurrExpMax;
-  uint8_t *freqBandTab;
-
-  mStart = sbrFreq->freqLimiter[lim];   /* these are offsets from kStart */
-  mEnd =   sbrFreq->freqLimiter[lim + 1];
-  freqBandTab = (sbrGrid->freqRes[env] ? sbrFreq->freqHigh : sbrFreq->freqLow);
+  int mStart = sbrFreq->freqLimiter[lim];   /* these are offsets from kStart */
+  int mEnd = sbrFreq->freqLimiter[lim + 1];
+  uint8_t* freqBandTab = (sbrGrid->freqRes[env] ? sbrFreq->freqHigh : sbrFreq->freqLow);
 
   // calculate max gain to apply to signal in this limiter band */
-  sumECurr = 0;
-  sumEOrigMapped = 0;
-  eCurrExpMax = psi->eCurrExpMax;
-  eOMGainMax = psi->eOMGainMax;
-  envBand = psi->envBand;
-  for (m = mStart; m < mEnd; m++) {
+  int sumECurr = 0;
+  int sumEOrigMapped = 0;
+  uint8_t eCurrExpMax = psi->eCurrExpMax;
+  int eOMGainMax = psi->eOMGainMax;
+  int envBand = psi->envBand;
+  for (int m = mStart; m < mEnd; m++) {
     // map current QMF band to appropriate envelope band */
     if (m == freqBandTab[envBand + 1] - sbrFreq->kStart) {
       envBand++;
@@ -7576,23 +7552,24 @@ static void CalcMaxGain (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, S
   psi->eOMGainMax = eOMGainMax;
   psi->envBand = envBand;
 
+  int gainMax;
   psi->gainMaxFBits = 30; // Q30 tables */
   if (sumECurr == 0) {
     // any non-zero numerator * 1/EPS_0 is > G_MAX */
     gainMax = (sumEOrigMapped == 0 ? (int)limGainTab[sbrHdr->limiterGains] : (int)0x80000000);
-    } 
+    }
   else if (sumEOrigMapped == 0) {
     // 1/(any non-zero denominator) * EPS_0 * limGainTab[x] is appx. 0 */
     gainMax = 0;
-    } 
+    }
   else {
     // sumEOrigMapped = Q(fbitsDQ - ACC_SCALE), sumECurr = Q(-eCurrExpMax) */
     gainMax = limGainTab[sbrHdr->limiterGains];
     if (sbrHdr->limiterGains != 3) {
-      q = MULSHIFT32(sumEOrigMapped, gainMax);  // Q(fbitsDQ - ACC_SCALE - 2), gainMax = Q30  */
-      z = countLeadingZeros (sumECurr) - 1;
-      r = InvRNormalized(sumECurr << z);  // in =  Q(z - eCurrExpMax), out = Q(29 + 31 - z + eCurrExpMax) */
-      gainMax = MULSHIFT32(q, r);         // Q(29 + 31 - z + eCurrExpMax + fbitsDQ - ACC_SCALE - 2 - 32) */
+      int q = MULSHIFT32 (sumEOrigMapped, gainMax);  // Q(fbitsDQ - ACC_SCALE - 2), gainMax = Q30  */
+      int z = countLeadingZeros (sumECurr) - 1;
+      int r = InvRNormalized (sumECurr << z);  // in =  Q(z - eCurrExpMax), out = Q(29 + 31 - z + eCurrExpMax) */
+      gainMax = MULSHIFT32 (q, r);         // Q(29 + 31 - z + eCurrExpMax + fbitsDQ - ACC_SCALE - 2 - 32) */
       psi->gainMaxFBits = 26 - z + eCurrExpMax + fbitsDQ - ACC_SCALE;
       }
     }
@@ -7624,7 +7601,7 @@ static void CalcNoiseDivFactors (int q, int *qp1Inv, int *qqp1Inv) {
   }
 //}}}
 //{{{
-static void CalcComponentGains (sPSInfoSBR* psi, SBRGrid* sbrGrid, SBRFreq* sbrFreq, SBRChan* sbrChan, 
+static void CalcComponentGains (sPSInfoSBR* psi, SBRGrid* sbrGrid, SBRFreq* sbrFreq, SBRChan* sbrChan,
                                 int ch, int env, int lim, int fbitsDQ) {
 /**************************************************************************************
  * Function:    CalcComponentGains
@@ -7645,22 +7622,17 @@ static void CalcComponentGains (sPSInfoSBR* psi, SBRGrid* sbrGrid, SBRFreq* sbrF
  *              other updated state variables
  **************************************************************************************/
 
-  int d, m, mStart, mEnd, q, qm, noiseFloor, sIndexMapped;
-  int shift, eCurr, maxFlag, gainMax, gainMaxFBits;
-  int gain, sm, z, r, fbitsGain, gainScale;
-  uint8_t *freqBandTab;
+  int mStart = sbrFreq->freqLimiter[lim];   // these are offsets from kStart
+  int mEnd =   sbrFreq->freqLimiter[lim + 1];
 
-  mStart = sbrFreq->freqLimiter[lim];   /* these are offsets from kStart */
-  mEnd =   sbrFreq->freqLimiter[lim + 1];
+  int gainMax = psi->gainMax;
+  int gainMaxFBits = psi->gainMaxFBits;
 
-  gainMax = psi->gainMax;
-  gainMaxFBits = psi->gainMaxFBits;
+  int d = (env == psi->la || env == sbrChan->laPrev ? 0 : 1);
+  uint8_t* freqBandTab = (sbrGrid->freqRes[env] ? sbrFreq->freqHigh : sbrFreq->freqLow);
 
-  d = (env == psi->la || env == sbrChan->laPrev ? 0 : 1);
-  freqBandTab = (sbrGrid->freqRes[env] ? sbrFreq->freqHigh : sbrFreq->freqLow);
-
-  // figure out which noise floor this envelope is in (only 1 or 2 noise floors allowed) */
-  noiseFloor = 0;
+  // figure out which noise floor this envelope is in (only 1 or 2 noise floors allowed)
+  int noiseFloor = 0;
   if (sbrGrid->numNoiseFloors == 2 && sbrGrid->noiseTimeBorder[1] <= sbrGrid->envTimeBorder[env])
     noiseFloor++;
 
@@ -7669,9 +7641,9 @@ static void CalcComponentGains (sPSInfoSBR* psi, SBRGrid* sbrGrid, SBRFreq* sbrF
   psi->sumQM = 0;
 
   // calculate energy of noise to add in this limiter band */
-  for (m = mStart; m < mEnd; m++) {
+  for (int m = mStart; m < mEnd; m++) {
     if (m == sbrFreq->freqNoise[psi->noiseFloorBand + 1] - sbrFreq->kStart) {
-      // map current QMF band to appropriate noise floor band (NOTE: freqLimiter[0] == freqLow[0] = freqHigh[0]) */
+      // map current QMF band to appropriate noise floor band (NOTE: freqLimiter[0] == freqLow[0] = freqHigh[0])
       psi->noiseFloorBand++;
       CalcNoiseDivFactors(psi->noiseDataDequant[ch][noiseFloor][psi->noiseFloorBand], &(psi->qp1Inv), &(psi->qqp1Inv));
       }
@@ -7683,13 +7655,12 @@ static void CalcComponentGains (sPSInfoSBR* psi, SBRGrid* sbrGrid, SBRFreq* sbrF
       }
 
     // get sIndexMapped for this QMF subband */
-    sIndexMapped = 0;
-    r = ((sbrFreq->freqHigh[psi->highBand+1] + sbrFreq->freqHigh[psi->highBand]) >> 1);
-    if (m + sbrFreq->kStart == r) {
-      // r = center frequency, deltaStep = (env >= la || sIndexMapped'(r, numEnv'-1) == 1) */
+    int sIndexMapped = 0;
+    int r = ((sbrFreq->freqHigh[psi->highBand+1] + sbrFreq->freqHigh[psi->highBand]) >> 1);
+    if (m + sbrFreq->kStart == r)
+      // r = center frequency, deltaStep = (env >= la || sIndexMapped'(r, numEnv'-1) == 1)
       if (env >= psi->la || sbrChan->addHarmonic[0][r] == 1)
         sIndexMapped = sbrChan->addHarmonic[1][psi->highBand];
-      }
 
     // save sine flags from last envelope in this frame:
     //   addHarmonic[0][0...63] = saved sine present flag from previous frame, for each QMF subband
@@ -7703,37 +7674,40 @@ static void CalcComponentGains (sPSInfoSBR* psi, SBRGrid* sbrGrid, SBRFreq* sbrF
         sbrChan->addHarmonic[0][m + sbrFreq->kStart] = 0;
       }
 
-    gain = psi->envDataDequant[ch][env][psi->sBand];
-    qm = MULSHIFT32(gain, psi->qqp1Inv) << 1;
-    sm = (sIndexMapped ? MULSHIFT32(gain, psi->qp1Inv) << 1 : 0);
+    int gain = psi->envDataDequant[ch][env][psi->sBand];
+    int qm = MULSHIFT32(gain, psi->qqp1Inv) << 1;
+    int sm = (sIndexMapped ? MULSHIFT32(gain, psi->qp1Inv) << 1 : 0);
 
-    // three cases: (sMapped == 0 && delta == 1), (sMapped == 0 && delta == 0), (sMapped == 1) */
+    // three cases: (sMapped == 0 && delta == 1), (sMapped == 0 && delta == 0), (sMapped == 1)
     if (d == 1 && psi->sMapped == 0)
       gain = MULSHIFT32(psi->qp1Inv, gain) << 1;
     else if (psi->sMapped != 0)
       gain = MULSHIFT32(psi->qqp1Inv, gain) << 1;
 
-    // gain, qm, sm = Q(fbitsDQ), gainMax = Q(fbitsGainMax) */
-    eCurr = psi->eCurr[m];
+    // gain, qm, sm = Q(fbitsDQ), gainMax = Q(fbitsGainMax)
+    int gainScale;
+    int fbitsGain;
+    int eCurr = psi->eCurr[m];
     if (eCurr) {
-      z = countLeadingZeros (eCurr) - 1;
-      r = InvRNormalized(eCurr << z);   /* in = Q(z - eCurrExp), out = Q(29 + 31 - z + eCurrExp) */
-      gainScale = MULSHIFT32(gain, r);  /* out = Q(29 + 31 - z + eCurrExp + fbitsDQ - 32) */
+      int z = countLeadingZeros (eCurr) - 1;
+      int r = InvRNormalized(eCurr << z);   // in = Q(z - eCurrExp), out = Q(29 + 31 - z + eCurrExp)
+      gainScale = MULSHIFT32(gain, r);      // out = Q(29 + 31 - z + eCurrExp + fbitsDQ - 32)
       fbitsGain = 29 + 31 - z + psi->eCurrExp[m] + fbitsDQ - 32;
-      } 
+      }
     else {
-      // if eCurr == 0, then gain is unchanged (divide by EPS = 1) */
+      // if eCurr == 0, then gain is unchanged (divide by EPS = 1)
       gainScale = gain;
       fbitsGain = fbitsDQ;
       }
 
-    // see if gain for this band exceeds max gain */
-    maxFlag = 0;
+    // see if gain for this band exceeds max gain
+    int shift;
+    int maxFlag = 0;
     if (gainMax != (int)0x80000000) {
       if (fbitsGain >= gainMaxFBits) {
         shift = std::min (fbitsGain - gainMaxFBits, 31);
         maxFlag = ((gainScale >> shift) > gainMax ? 1 : 0);
-        } 
+        }
       else {
         shift = std::min (gainMaxFBits - fbitsGain, 31);
         maxFlag = (gainScale > (gainMax >> shift) ? 1 : 0);
@@ -7742,36 +7716,35 @@ static void CalcComponentGains (sPSInfoSBR* psi, SBRGrid* sbrGrid, SBRFreq* sbrF
 
     if (maxFlag) {
       // gainScale > gainMax, calculate ratio with 32/16 division */
-      q = 0;
-      r = gainScale;  // guaranteed > 0, else maxFlag could not have been set */
-      z = countLeadingZeros (r);
+      int q = 0;
+      int r = gainScale;  // guaranteed > 0, else maxFlag could not have been set
+      int z = countLeadingZeros (r);
       if (z < 16) {
         q = 16 - z;
         r >>= q;  // out = Q(fbitsGain - q) */
         }
 
       z = countLeadingZeros (gainMax) - 1;
-      r = (gainMax << z) / r;   /* out = Q((fbitsGainMax + z) - (fbitsGain - q)) */
-      q = (gainMaxFBits + z) - (fbitsGain - q); /* r = Q(q) */
-      if (q > 30) {
+      r = (gainMax << z) / r;   // out = Q((fbitsGainMax + z) - (fbitsGain - q))
+      q = (gainMaxFBits + z) - (fbitsGain - q); // r = Q(q)
+      if (q > 30)
         r >>= std::min (q - 30, 31);
-        } 
       else {
         z = std::min (30 - q, 30);
-        CLIP_2N_SHIFT(r, z);  /* let r = Q30 since range = [0.0, 1.0) (clip to 0x3fffffff = 0.99999) */
+        CLIP_2N_SHIFT(r, z);  // let r = Q30 since range = [0.0, 1.0) (clip to 0x3fffffff = 0.99999)
         }
 
       qm = MULSHIFT32(qm, r) << 2;
       gain = MULSHIFT32(gain, r) << 2;
       psi->gLimBuf[m] = gainMax;
       psi->gLimFbits[m] = gainMaxFBits;
-      } 
+      }
     else {
       psi->gLimBuf[m] = gainScale;
       psi->gLimFbits[m] = fbitsGain;
       }
 
-    // sumSM, sumQM, sumECurrGLim = Q(fbitsDQ - ACC_SCALE) */
+    // sumSM, sumQM, sumECurrGLim = Q(fbitsDQ - ACC_SCALE)
     psi->smBuf[m] = sm;
     psi->sumSM += (sm >> ACC_SCALE);
 
@@ -7803,25 +7776,24 @@ static void ApplyBoost (sPSInfoSBR* psi, SBRFreq* sbrFreq, int lim, int fbitsDQ)
  * Notes:       after scaling, each component has at least 1 GB
  **************************************************************************************/
 
-  int m, mStart, mEnd, q, z, r;
-  int sumEOrigMapped, gBoost;
+  int mStart = sbrFreq->freqLimiter[lim];   /* these are offsets from kStart */
+  int mEnd = sbrFreq->freqLimiter[lim + 1];
 
-  mStart = sbrFreq->freqLimiter[lim];   /* these are offsets from kStart */
-  mEnd =   sbrFreq->freqLimiter[lim + 1];
-
-  sumEOrigMapped = psi->sumEOrigMapped >> 1;
-  r = (psi->sumECurrGLim >> 1) + (psi->sumSM >> 1) + (psi->sumQM >> 1); /* 1 GB fine (sm and qm are mutually exclusive in acc) */
+  int z;
+  int gBoost;
+  int sumEOrigMapped = psi->sumEOrigMapped >> 1;
+  int r = (psi->sumECurrGLim >> 1) + (psi->sumSM >> 1) + (psi->sumQM >> 1); /* 1 GB fine (sm and qm are mutually exclusive in acc) */
   if (r < (1 << (31-28))) {
     // any non-zero numerator * 1/EPS_0 is > GBOOST_MAX
     // round very small r to zero to avoid scaling problems
     gBoost = (sumEOrigMapped == 0 ? (1 << 28) : GBOOST_MAX);
     z = 0;
-    } 
+    }
   else if (sumEOrigMapped == 0) {
     // 1/(any non-zero denominator) * EPS_0 is appx. 0 */
     gBoost = 0;
     z = 0;
-    } 
+    }
   else {
     // numerator (sumEOrigMapped) and denominator (r) have same Q format (before << z) */
     z = countLeadingZeros(r) - 1; /* z = [0, 27] */
@@ -7839,43 +7811,40 @@ static void ApplyBoost (sPSInfoSBR* psi, SBRFreq* sbrFreq, int lim, int fbitsDQ)
   // convert gain, noise, sinusoids to fixed Q format, clipping if necessary
   //   (rare, usually only happens at very low bitrates, introduces slight
   //    distortion into final HF mapping, but should be inaudible)
-  for (m = mStart; m < mEnd; m++) {
+  for (int m = mStart; m < mEnd; m++) {
     // let gLimBoost = Q24, since in practice the max values are usually 16 to 20
     //   unless limiterGains == 3 (limiter off) and eCurr ~= 0 (i.e. huge gain, but only
     //   because the envelope has 0 power anyway)
-    q = MULSHIFT32(psi->gLimBuf[m], gBoost) << 2; // Q(gLimFbits) * Q(28) --> Q(gLimFbits[m]-2) */
-    r = SqrtFix(q, psi->gLimFbits[m] - 2, &z);
+    int q = MULSHIFT32 (psi->gLimBuf[m], gBoost) << 2; // Q(gLimFbits) * Q(28) --> Q(gLimFbits[m]-2) */
+    r = SqrtFix (q, psi->gLimFbits[m] - 2, &z);
     z -= FBITS_GLIM_BOOST;
-    if (z >= 0) {
+    if (z >= 0)
       psi->gLimBoost[m] = r >> std::min (z, 31);
-      } 
     else {
       z = std::min (30, -z);
-      CLIP_2N_SHIFT(r, z);
+      CLIP_2N_SHIFT (r, z);
       psi->gLimBoost[m] = r;
       }
 
-    q = MULSHIFT32(psi->qmLimBuf[m], gBoost) << 2;  // Q(fbitsDQ) * Q(28) --> Q(fbitsDQ-2) */
-    r = SqrtFix(q, fbitsDQ - 2, &z);
+    q = MULSHIFT32 (psi->qmLimBuf[m], gBoost) << 2;  // Q(fbitsDQ) * Q(28) --> Q(fbitsDQ-2) */
+    r = SqrtFix (q, fbitsDQ - 2, &z);
     z -= FBITS_QLIM_BOOST;    // << by 14, since integer sqrt of x < 2^16, and we want to leave 1 GB */
-    if (z >= 0) {
+    if (z >= 0)
       psi->qmLimBoost[m] = r >> std::min (31, z);
-      } 
     else {
       z = std::min (30, -z);
-      CLIP_2N_SHIFT(r, z);
+      CLIP_2N_SHIFT (r, z);
       psi->qmLimBoost[m] = r;
       }
 
-    q = MULSHIFT32(psi->smBuf[m], gBoost) << 2;   // Q(fbitsDQ) * Q(28) --> Q(fbitsDQ-2) */
-    r = SqrtFix(q, fbitsDQ - 2, &z);
+    q = MULSHIFT32 (psi->smBuf[m], gBoost) << 2;   // Q(fbitsDQ) * Q(28) --> Q(fbitsDQ-2) */
+    r = SqrtFix (q, fbitsDQ - 2, &z);
     z -= FBITS_OUT_QMFA;    // justify for adding to signal (xBuf) later */
-    if (z >= 0) {
+    if (z >= 0)
       psi->smBoost[m] = r >> std::min (31, z);
-      } 
     else {
       z = std::min (30, -z);
-      CLIP_2N_SHIFT(r, z);
+      CLIP_2N_SHIFT (r, z);
       psi->smBoost[m] = r;
       }
     }
@@ -7912,7 +7881,7 @@ static void CalcGain (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SBRF
   }
 //}}}
 //{{{
-static void MapHF (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SBRFreq* sbrFreq, SBRChan* sbrChan, 
+static void MapHF (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SBRFreq* sbrFreq, SBRChan* sbrChan,
                    int env, int hfReset) {
 /**************************************************************************************
  * Description: map HF components to proper QMF bands, with optional gain smoothing
@@ -7929,22 +7898,17 @@ static void MapHF (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SBRFreq
  *                so it's not necessary to check anything in the synth QMF
  **************************************************************************************/
 
-  int noiseTabIndex, sinIndex, gainNoiseIndex, hSL;
-  int i, iStart, iEnd, m, idx, j, s, n, smre, smim;
-  int gFilt, qFilt, xre, xim, gbMask, gbIdx;
-  int *XBuf;
-
-  noiseTabIndex =   sbrChan->noiseTabIndex;
-  sinIndex =        sbrChan->sinIndex;
-  gainNoiseIndex =  sbrChan->gainNoiseIndex;  /* oldest entries in filter delay buffer */
+  int noiseTabIndex = sbrChan->noiseTabIndex;
+  int sinIndex = sbrChan->sinIndex;
+  int gainNoiseIndex = sbrChan->gainNoiseIndex;  /* oldest entries in filter delay buffer */
 
   if (hfReset)
     noiseTabIndex = 2;  /* starts at 1, double since complex */
-  hSL = (sbrHdr->smoothMode ? 0 : 4);
+  int hSL = (sbrHdr->smoothMode ? 0 : 4);
 
   if (hfReset) {
-    for (i = 0; i < hSL; i++) {
-      for (m = 0; m < sbrFreq->numQMFBands; m++) {
+    for (int i = 0; i < hSL; i++) {
+      for (int m = 0; m < sbrFreq->numQMFBands; m++) {
         sbrChan->gTemp[gainNoiseIndex][m] = psi->gLimBoost[m];
         sbrChan->qTemp[gainNoiseIndex][m] = psi->qmLimBoost[m];
         }
@@ -7954,47 +7918,47 @@ static void MapHF (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SBRFreq
       }
     }
 
-  iStart = sbrGrid->envTimeBorder[env];
-  iEnd =   sbrGrid->envTimeBorder[env+1];
-  for (i = iStart; i < iEnd; i++) {
+  int iStart = sbrGrid->envTimeBorder[env];
+  int iEnd = sbrGrid->envTimeBorder[env+1];
+  for (int i = iStart; i < iEnd; i++) {
     // save new values in temp buffers (delay)
     // we only store MAX_NUM_SMOOTH_COEFS most recent values,
     //  so don't keep storing the same value over and over
     if (i - iStart < MAX_NUM_SMOOTH_COEFS) {
-      for (m = 0; m < sbrFreq->numQMFBands; m++) {
+      for (int m = 0; m < sbrFreq->numQMFBands; m++) {
         sbrChan->gTemp[gainNoiseIndex][m] = psi->gLimBoost[m];
         sbrChan->qTemp[gainNoiseIndex][m] = psi->qmLimBoost[m];
         }
       }
 
     // see 4.6.18.7.6 */
-    XBuf = psi->XBuf[i + HF_ADJ][sbrFreq->kStart];
-    gbMask = 0;
-    for (m = 0; m < sbrFreq->numQMFBands; m++) {
+    int* XBuf = psi->XBuf[i + HF_ADJ][sbrFreq->kStart];
+    int gbMask = 0;
+    for (int m = 0; m < sbrFreq->numQMFBands; m++) {
       if (env == psi->la || env == sbrChan->laPrev) {
         // no smoothing filter for gain, and qFilt = 0 (only need to do once) */
         if (i == iStart) {
           psi->gFiltLast[m] = sbrChan->gTemp[gainNoiseIndex][m];
           psi->qFiltLast[m] = 0;
           }
-        } 
+        }
       else if (hSL == 0) {
         // no smoothing filter for gain, (only need to do once) */
         if (i == iStart) {
           psi->gFiltLast[m] = sbrChan->gTemp[gainNoiseIndex][m];
           psi->qFiltLast[m] = sbrChan->qTemp[gainNoiseIndex][m];
           }
-        } 
+        }
       else {
         // apply smoothing filter to gain and noise (after MAX_NUM_SMOOTH_COEFS, it's always the same) */
         if (i - iStart < MAX_NUM_SMOOTH_COEFS) {
-          gFilt = 0;
-          qFilt = 0;
-          idx = gainNoiseIndex;
-          for (j = 0; j < MAX_NUM_SMOOTH_COEFS; j++) {
+          int gFilt = 0;
+          int qFilt = 0;
+          int idx = gainNoiseIndex;
+          for (int j = 0; j < MAX_NUM_SMOOTH_COEFS; j++) {
             // sum(abs(hSmoothCoef[j])) for all j < 1.0 */
-            gFilt += MULSHIFT32(sbrChan->gTemp[idx][m], hSmoothCoef[j]);
-            qFilt += MULSHIFT32(sbrChan->qTemp[idx][m], hSmoothCoef[j]);
+            gFilt += MULSHIFT32 (sbrChan->gTemp[idx][m], hSmoothCoef[j]);
+            qFilt += MULSHIFT32 (sbrChan->qTemp[idx][m], hSmoothCoef[j]);
             idx--;
             if (idx < 0)
               idx += MAX_NUM_SMOOTH_COEFS;
@@ -8004,13 +7968,15 @@ static void MapHF (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SBRFreq
           }
         }
 
+      int smre;
+      int smim;
       if (psi->smBoost[m] != 0) {
         // add scaled signal and sinusoid, don't add noise (qFilt = 0) */
         smre = psi->smBoost[m];
         smim = smre;
 
         // sinIndex:  [0] xre += sm   [1] xim += sm*s   [2] xre -= sm   [3] xim -= sm*s  */
-        s = (sinIndex >> 1);  /* if 2 or 3, flip sign to subtract sm */
+        int s = (sinIndex >> 1);  /* if 2 or 3, flip sign to subtract sm */
         s <<= 31;
         smre ^= (s >> 31);
         smre -= (s >> 31);
@@ -8025,26 +7991,28 @@ static void MapHF (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SBRFreq
         smre &= (s >> 31);
 
         noiseTabIndex += 2;   /* noise filtered by 0, but still need to bump index */
-        } 
+        }
       else {
         // add scaled signal and scaled noise */
-        qFilt = psi->qFiltLast[m];
-        n = noiseTab[noiseTabIndex++];
-        smre = MULSHIFT32(n, qFilt) >> (FBITS_QLIM_BOOST - 1 - FBITS_OUT_QMFA);
+        int qFilt = psi->qFiltLast[m];
+        int n = noiseTab[noiseTabIndex++];
+        smre = MULSHIFT32 (n, qFilt) >> (FBITS_QLIM_BOOST - 1 - FBITS_OUT_QMFA);
 
         n = noiseTab[noiseTabIndex++];
-        smim = MULSHIFT32(n, qFilt) >> (FBITS_QLIM_BOOST - 1 - FBITS_OUT_QMFA);
+        smim = MULSHIFT32 (n, qFilt) >> (FBITS_QLIM_BOOST - 1 - FBITS_OUT_QMFA);
         }
       noiseTabIndex &= 1023;  /* 512 complex numbers */
 
-      gFilt = psi->gFiltLast[m];
-      xre = MULSHIFT32(gFilt, XBuf[0]);
-      xim = MULSHIFT32(gFilt, XBuf[1]);
-      CLIP_2N_SHIFT(xre, 32 - FBITS_GLIM_BOOST);
-      CLIP_2N_SHIFT(xim, 32 - FBITS_GLIM_BOOST);
+      int gFilt = psi->gFiltLast[m];
+      int xre = MULSHIFT32 (gFilt, XBuf[0]);
+      int xim = MULSHIFT32 (gFilt, XBuf[1]);
+      CLIP_2N_SHIFT (xre, 32 - FBITS_GLIM_BOOST);
+      CLIP_2N_SHIFT (xim, 32 - FBITS_GLIM_BOOST);
 
-      xre += smre;  *XBuf++ = xre;
-      xim += smim;  *XBuf++ = xim;
+      xre += smre;
+      *XBuf++ = xre;
+      xim += smim;
+      *XBuf++ = xim;
 
       gbMask |= FASTABS (xre);
       gbMask |= FASTABS (xim);
@@ -8062,15 +8030,18 @@ static void MapHF (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SBRFreq
     // almost never occurs in practice, but checking here makes synth QMF logic very simple
     if (gbMask >> (31 - MIN_GBITS_IN_QMFS)) {
       XBuf = psi->XBuf[i + HF_ADJ][sbrFreq->kStart];
-      for (m = 0; m < sbrFreq->numQMFBands; m++) {
-        xre = XBuf[0];  xim = XBuf[1];
-        CLIP_2N(xre, (31 - MIN_GBITS_IN_QMFS));
-        CLIP_2N(xim, (31 - MIN_GBITS_IN_QMFS));
-        *XBuf++ = xre;  *XBuf++ = xim;
+      for (int m = 0; m < sbrFreq->numQMFBands; m++) {
+        int xre = XBuf[0];
+        int xim = XBuf[1];
+        CLIP_2N (xre, (31 - MIN_GBITS_IN_QMFS));
+        CLIP_2N (xim, (31 - MIN_GBITS_IN_QMFS));
+        *XBuf++ = xre;
+        *XBuf++ = xim;
         }
       CLIP_2N(gbMask, (31 - MIN_GBITS_IN_QMFS));
       }
-    gbIdx = ((i + HF_ADJ) >> 5) & 0x01;
+
+    int gbIdx = ((i + HF_ADJ) >> 5) & 0x01;
     sbrChan->gbMask[gbIdx] |= gbMask;
     }
 
@@ -8080,7 +8051,7 @@ static void MapHF (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SBRFreq
   }
 //}}}
 //{{{
-static void AdjustHighFreq (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SBRFreq* sbrFreq, SBRChan* sbrChan, 
+static void AdjustHighFreq (sPSInfoSBR* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SBRFreq* sbrFreq, SBRChan* sbrChan,
                             int ch) {
 /**************************************************************************************
  * Description: adjust high frequencies and add noise and sinusoids (4.6.18.7)
@@ -8245,7 +8216,7 @@ static int CalcCovariance1 (int *XBuf, int *p01reN, int *p01imN, int *p12reN, in
     s = p11re.r.hi32 >> 31; gbMask |= (p11re.r.lo32 ^ s) - s;
     s = p22re.r.hi32 >> 31; gbMask |= (p22re.r.lo32 ^ s) - s;
     z = 32 + countLeadingZeros (gbMask);
-    } 
+    }
   else {
     gbMask  = FASTABS (p01re.r.hi32) | FASTABS (p01im.r.hi32);
     gbMask |= FASTABS (p12re.r.hi32) | FASTABS (p12im.r.hi32);
@@ -8260,7 +8231,7 @@ static int CalcCovariance1 (int *XBuf, int *p01reN, int *p01imN, int *p12reN, in
     *p12reN = p12re.r.lo32 << loShift;  *p12imN = p12im.r.lo32 << loShift;
     *p11reN = p11re.r.lo32 << loShift;  *p22reN = p22re.r.lo32 << loShift;
     return -(loShift + 2*FBITS_OUT_QMFA);
-    } 
+    }
   else if (n < 32 + 30) {
     loShift = (n - 30);
     hiShift = 32 - loShift;
@@ -8271,7 +8242,7 @@ static int CalcCovariance1 (int *XBuf, int *p01reN, int *p01imN, int *p12reN, in
     *p11reN = (p11re.r.hi32 << hiShift) | (p11re.r.lo32 >> loShift);
     *p22reN = (p22re.r.hi32 << hiShift) | (p22re.r.lo32 >> loShift);
     return (loShift - 2*FBITS_OUT_QMFA);
-    } 
+    }
   else {
     hiShift = n - (32 + 30);
     *p01reN = p01re.r.hi32 >> hiShift;  *p01imN = p01im.r.hi32 >> hiShift;
@@ -8579,7 +8550,7 @@ static void GenerateHighFreq (sPSInfoSBR* psi, SBRGrid* sbrGrid, SBRFreq* sbrFre
         bwsq = MULSHIFT32 (bw, bw) << 1; // Q31
         }
 
-      p = sbrFreq->patchStartSubband[currPatch] + x;  // low QMF band 
+      p = sbrFreq->patchStartSubband[currPatch] + x;  // low QMF band
       XBufHi = psi->XBuf[iStart][k];
       if (bw) {
         CalcLPCoefs (psi->XBuf[0][p], &a0re, &a0im, &a1re, &a1im, gb);
@@ -8734,7 +8705,7 @@ void cAacDecoder::applySbr (int chBase, float* outbuf) {
         }
 
       // step 2 - HF generation
-      GenerateHighFreq(psInfoSBR, sbrGrid, sbrFreq, sbrChan, ch);
+      GenerateHighFreq (psInfoSBR, sbrGrid, sbrFreq, sbrChan, ch);
 
       // restore SBR bands that were cleared before patch generation (time slots 0, 1 no longer needed)
       for (int k = sbrFreq->kStartPrev; k < sbrFreq->kStart; k++) {
