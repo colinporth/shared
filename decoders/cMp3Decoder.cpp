@@ -1318,7 +1318,7 @@ void L3_imdct_gr (float* grbuf, float* overlap, unsigned block_type, unsigned n_
 //}}}
 
 //{{{
-int16_t mp3d_scale_pcm (float sample) {
+int16_t scalePcm (float sample) {
 
   if (sample >=  32766.5)
     return (int16_t) 32767;
@@ -1333,7 +1333,7 @@ int16_t mp3d_scale_pcm (float sample) {
   }
 //}}}
 //{{{
-void mp3d_synth_pair (int16_t* pcm, int nch, const float* z) {
+void synthPair (int16_t* pcm, int nch, const float* z) {
 
   float a = (z[14*64] - z[0]) * 29;
   a += (z[ 1*64] + z[13*64]) * 213;
@@ -1343,7 +1343,7 @@ void mp3d_synth_pair (int16_t* pcm, int nch, const float* z) {
   a += (z[ 5*64] + z[ 9*64]) * 6574;
   a += (z[ 8*64] - z[ 6*64]) * 37489;
   a +=  z[ 7*64]             * 75038;
-  pcm[0] = mp3d_scale_pcm (a);
+  pcm[0] = scalePcm (a);
 
   z += 2;
   a  = z[14*64] * 104;
@@ -1354,12 +1354,12 @@ void mp3d_synth_pair (int16_t* pcm, int nch, const float* z) {
   a += z[ 4*64] * -45;
   a += z[ 2*64] * 146;
   a += z[ 0*64] * -5;
-  pcm[16*nch] = mp3d_scale_pcm (a);
+  pcm[16*nch] = scalePcm (a);
   }
 //}}}
 #ifdef USE_INTRINSICS
 //{{{
-void mp3d_DCT_II (float* grbuf, int n) {
+void DCT_II (float* grbuf, int n) {
 
   for (int k = 0; k < n; k += 4) {
     f4 t[4][8];
@@ -1455,7 +1455,7 @@ void mp3d_DCT_II (float* grbuf, int n) {
   }
 //}}}
 //{{{
-void mp3d_synth (float* xl, int16_t* dstl, int nch, float* lins) {
+void synth (float* xl, int16_t* dstl, int nch, float* lins) {
 
   float* xr = xl + 576 * (nch - 1);
   int16_t* dstr = dstl + (nch - 1);
@@ -1473,10 +1473,10 @@ void mp3d_synth (float* xl, int16_t* dstl, int nch, float* lins) {
   zlin [4*31 + 2] = xl[1];
   zlin [4*31 + 3] = xr[1];
 
-  mp3d_synth_pair (dstr, nch, lins + 4*15 + 1);
-  mp3d_synth_pair (dstr + 32*nch, nch, lins + 4*15 + 64 + 1);
-  mp3d_synth_pair (dstl, nch, lins + 4*15);
-  mp3d_synth_pair (dstl + 32*nch, nch, lins + 4*15 + 64);
+  synthPair (dstr, nch, lins + 4*15 + 1);
+  synthPair (dstr + 32*nch, nch, lins + 4*15 + 64 + 1);
+  synthPair (dstl, nch, lins + 4*15);
+  synthPair (dstl + 32*nch, nch, lins + 4*15 + 64);
 
   for (int i = 14; i >= 0; i--) {
     zlin [4*i] = xl [18*(31 - i)];
@@ -1523,7 +1523,7 @@ void mp3d_synth (float* xl, int16_t* dstl, int nch, float* lins) {
 //}}}
 #else
 //{{{
-void mp3d_DCT_II (float* grbuf, int n) {
+void DCT_II (float* grbuf, int n) {
 
   for (int k = 0; k < n; k++) {
     float t[4][8];
@@ -1599,7 +1599,7 @@ void mp3d_DCT_II (float* grbuf, int n) {
   }
 //}}}
 //{{{
-void mp3d_synth (float* xl, int16_t* dstl, int nch, float* lins) {
+void synth (float* xl, int16_t* dstl, int nch, float* lins) {
 
   float* xr = xl + 576*(nch - 1);
   int16_t* dstr = dstl + (nch - 1);
@@ -1617,10 +1617,10 @@ void mp3d_synth (float* xl, int16_t* dstl, int nch, float* lins) {
   zlin [4*31 + 2] = xl[1];
   zlin [4*31 + 3] = xr[1];
 
-  mp3d_synth_pair (dstr, nch, lins + 4*15 + 1);
-  mp3d_synth_pair (dstr + 32*nch, nch, lins + 4*15 + 64 + 1);
-  mp3d_synth_pair (dstl, nch, lins + 4*15);
-  mp3d_synth_pair (dstl + 32*nch, nch, lins + 4*15 + 64);
+  synth_pair (dstr, nch, lins + 4*15 + 1);
+  synth_pair (dstr + 32*nch, nch, lins + 4*15 + 64 + 1);
+  synth_pair (dstl, nch, lins + 4*15);
+  synth_pair (dstl + 32*nch, nch, lins + 4*15 + 64);
 
   for (int i = 14; i >= 0; i--) {
     zlin[4*i] = xl[18*(31 - i)];
@@ -1669,35 +1669,35 @@ void mp3d_synth (float* xl, int16_t* dstl, int nch, float* lins) {
     //}}}
     S0(0) S2(1) S1(2) S2(3) S1(4) S2(5) S1(6) S2(7)
 
-    dstr[(15 - i)*nch] = mp3d_scale_pcm (a[1]);
-    dstr[(17 + i)*nch] = mp3d_scale_pcm (b[1]);
-    dstl[(15 - i)*nch] = mp3d_scale_pcm (a[0]);
-    dstl[(17 + i)*nch] = mp3d_scale_pcm (b[0]);
-    dstr[(47 - i)*nch] = mp3d_scale_pcm (a[3]);
-    dstr[(49 + i)*nch] = mp3d_scale_pcm (b[3]);
-    dstl[(47 - i)*nch] = mp3d_scale_pcm (a[2]);
-    dstl[(49 + i)*nch] = mp3d_scale_pcm (b[2]);
+    dstr[(15 - i)*nch] = scale_pcm (a[1]);
+    dstr[(17 + i)*nch] = scale_pcm (b[1]);
+    dstl[(15 - i)*nch] = scale_pcm (a[0]);
+    dstl[(17 + i)*nch] = scale_pcm (b[0]);
+    dstr[(47 - i)*nch] = scale_pcm (a[3]);
+    dstr[(49 + i)*nch] = scale_pcm (b[3]);
+    dstl[(47 - i)*nch] = scale_pcm (a[2]);
+    dstl[(49 + i)*nch] = scale_pcm (b[2]);
     }
   }
 //}}}
 #endif
 //{{{
-void mp3d_synth_granule (float* qmf_state, float* grbuf, int nbands, int nch, int16_t* pcm, float* lins) {
+void synthGranule (float* qmf_state, float* grbuf, int nbands, int nch, int16_t* pcm, float* lins) {
 
   for (int i = 0; i < nch; i++)
-    mp3d_DCT_II (grbuf + 576 * i, nbands);
+    DCT_II (grbuf + 576 * i, nbands);
 
   memcpy (lins, qmf_state, sizeof(float) * 15 * 64);
 
   for (int i = 0; i < nbands; i += 2)
-    mp3d_synth (grbuf + i, pcm + 32 * nch * i, nch, lins + i * 64);
+    synth (grbuf + i, pcm + 32 * nch * i, nch, lins + i * 64);
 
   memcpy (qmf_state, lins + nbands * 64, sizeof(float) * 15 * 64);
   }
 //}}}
 
 //{{{
-int mp3d_match_frame (const uint8_t* hdr, int mp3_bytes, int frame_bytes) {
+int match_frame (const uint8_t* hdr, int mp3_bytes, int frame_bytes) {
 
   int i, nmatch;
   for (i = 0, nmatch = 0; nmatch < MAX_FRAME_SYNC_MATCHES; nmatch++) {
@@ -1712,7 +1712,7 @@ int mp3d_match_frame (const uint8_t* hdr, int mp3_bytes, int frame_bytes) {
   }
 //}}}
 //{{{
-int mp3d_find_frame (const uint8_t* mp3, int mp3_bytes, int* free_format_bytes, int* ptr_frame_bytes) {
+int find_frame (const uint8_t* mp3, int mp3_bytes, int* free_format_bytes, int* ptr_frame_bytes) {
 
   int i;
   for (i = 0; i < mp3_bytes - HDR_SIZE; i++, mp3++) {
@@ -1733,7 +1733,7 @@ int mp3d_find_frame (const uint8_t* mp3, int mp3_bytes, int* free_format_bytes, 
         }
 
       if ((frame_bytes && i + frame_and_padding <= mp3_bytes &&
-          mp3d_match_frame (mp3, mp3_bytes - i, frame_bytes)) ||
+          match_frame (mp3, mp3_bytes - i, frame_bytes)) ||
           (!i && frame_and_padding == mp3_bytes)) {
         *ptr_frame_bytes = frame_and_padding;
         return i;
@@ -1781,7 +1781,7 @@ int cMp3Decoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf
   int i = 0;
   if (!frame_size) {
     clear();
-    i = mp3d_find_frame (inbuf, bytesLeft, &free_format_bytes, &frame_size);
+    i = find_frame (inbuf, bytesLeft, &free_format_bytes, &frame_size);
     if (!frame_size || i + frame_size > bytesLeft) {
       info.frame_bytes = i;
       return 0;
@@ -1817,7 +1817,7 @@ int cMp3Decoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf
       for (int igr = 0; igr < (HDR_TEST_MPEG1(hdr) ? 2 : 1); igr++, pcm += 576 * info.channels) {
         memset (scratch.grbuf[0], 0, 576 * 2 * sizeof(float));
         L3_decode (&scratch, scratch.gr_info + igr*info.channels, info.channels);
-        mp3d_synth_granule (qmf_state, scratch.grbuf[0], 18, info.channels, pcm, scratch.syn[0]);
+        synthGranule (qmf_state, scratch.grbuf[0], 18, info.channels, pcm, scratch.syn[0]);
         }
       }
 
@@ -1836,7 +1836,7 @@ int cMp3Decoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf
       if (12 == (i += L12_dequantize_granule (scratch.grbuf[0] + i, bs_frame, sci, info.layer | 1))) {
         i = 0;
         L12_apply_scf_384 (sci, sci->scf + igr, scratch.grbuf[0]);
-        mp3d_synth_granule (qmf_state, scratch.grbuf[0], 12, info.channels, pcm, scratch.syn[0]);
+        synthGranule (qmf_state, scratch.grbuf[0], 12, info.channels, pcm, scratch.syn[0]);
         memset (scratch.grbuf[0], 0, 576*2*sizeof(float));
         pcm += 384 * info.channels;
         }
