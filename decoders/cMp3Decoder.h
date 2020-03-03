@@ -3,8 +3,8 @@
 #include "iAudioDecoder.h"
 
 struct sBitStream;
-struct L3_gr_info_t;
 struct sScratch;
+struct sL3grInfo;
 
 class cMp3Decoder : public iAudioDecoder {
 public:
@@ -19,13 +19,14 @@ private:
   //{{{  private members
   void clear();
 
-  void L3_decode (sScratch* s, L3_gr_info_t* gr_info, int32_t nch);
+  void L3_decode (sScratch* s, sL3grInfo* gr_info, int32_t nch);
   void L3_save_reservoir (sScratch* s);
-  int32_t L3_restore_reservoir (struct sBitStream* bs, sScratch* s, int32_t main_data_begin);
+  int32_t L3_restore_reservoir (struct sBitStream* bitStream, sScratch* s, int32_t main_data_begin);
   //}}}
   //{{{  private vars
   uint8_t header[4] = { 0 };
-
+  int32_t channels = 0;
+  int32_t sampleRate = 0;
   int32_t free_format_bytes = 0;
 
   int32_t reserv = 0;
@@ -33,8 +34,5 @@ private:
 
   float mdct_overlap[2][9*32];
   float qmf_state[15*2*32];
-
-  int32_t channels = 0;
-  int32_t sampleRate = 0;
   //}}}
   };

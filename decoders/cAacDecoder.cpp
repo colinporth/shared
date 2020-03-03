@@ -2342,9 +2342,9 @@ int cAacDecoder::decodeSingleFrame (uint8_t* inbuf, int bytesLeft, float* outbuf
   int numSamples = AAC_MAX_NSAMPS * (sbrEnabled ? 2 : 1);
 
   auto took = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - timePoint);
-  cLog::log (LOGINFO1, "aac %dx%d %3dus%s%s%s",
+  cLog::log (LOGINFO1, "aac %dx%d %3dus %c%c%c",
              numSamples, numChannels, took.count(),
-             sbrEnabled ? " sbr" : "", pnsUsed ? " pns":"", tnsUsed ? " tns" : "");
+             sbrEnabled ? 's' : ' ', tnsUsed ? 't':' ', pnsUsed ? 'p' : ' ');
 
   return numSamples;
   }
@@ -2416,13 +2416,13 @@ static unsigned int getBits (sBitStream* bsi, int nBits) {
  *              if nBits == 0, returns 0
  **************************************************************************************/
 
-  nBits &= 0x1f;             /* nBits mod 32 to avoid unpredictable results like >> by negative amount */
-  unsigned int data = bsi->iCache >> (31 - nBits);  /* unsigned >> so zero-extend */
-  data >>= 1;                /* do as >> 31, >> 1 so that nBits = 0 works okay (returns 0) */
-  bsi->iCache <<= nBits;     /* left-justify cache */
-  bsi->cachedBits -= nBits;  /* how many bits have we drawn from the cache so far */
+  nBits &= 0x1f;             // nBits mod 32 to avoid unpredictable results like >> by negative amount
+  unsigned int data = bsi->iCache >> (31 - nBits);  // unsigned >> so zero-extend
+  data >>= 1;                // do as >> 31, >> 1 so that nBits = 0 works okay (returns 0)
+  bsi->iCache <<= nBits;     // left-justify cache /
+  bsi->cachedBits -= nBits;  // how many bits have we drawn from the cache so far
 
-  // if we cross an int boundary, refill the cache */
+  // if we cross an int boundary, refill the cache
   if (bsi->cachedBits < 0) {
     unsigned int lowBits = -bsi->cachedBits;
 
@@ -2434,10 +2434,10 @@ static unsigned int getBits (sBitStream* bsi, int nBits) {
     bsi->cachedBits = 32;
     bsi->nBytes -= 4;
 
-    data |= bsi->iCache >> (32 - lowBits);  /* get the low-order bits */
+    data |= bsi->iCache >> (32 - lowBits);  // get the low-order bits
 
-    bsi->cachedBits -= lowBits;  /* how many bits have we drawn from the cache so far */
-    bsi->iCache <<= lowBits;     /* left-justify cache */
+    bsi->cachedBits -= lowBits;  // how many bits have we drawn from the cache so far
+    bsi->iCache <<= lowBits;     // left-justify cache
     }
 
   return data;
@@ -2456,12 +2456,12 @@ static unsigned int getBitsNoAdvance (sBitStream* bsi, int nBits) {
  *              if nBits == 0, returns 0
  **************************************************************************************/
 
-  nBits &= 0x1f;              /* nBits mod 32 to avoid unpredictable results like >> by negative amount */
-  unsigned int data = bsi->iCache >> (31 - nBits);   /* unsigned >> so zero-extend */
-  data >>= 1;               /* do as >> 31, >> 1 so that nBits = 0 works okay (returns 0) */
-  signed int lowBits = nBits - bsi->cachedBits;    /* how many bits do we have left to read */
+  nBits &= 0x1f;              // nBits mod 32 to avoid unpredictable results like >> by negative amount
+  unsigned int data = bsi->iCache >> (31 - nBits);   // unsigned >> so zero-extend
+  data >>= 1;                 // do as >> 31, >> 1 so that nBits = 0 works okay (returns 0)
+  signed int lowBits = nBits - bsi->cachedBits;     // how many bits do we have left to read
 
-  // if we cross an int boundary, read next bytes in buffer */
+  // if we cross an int boundary, read next bytes in buffer
   if (lowBits > 0) {
     unsigned int iCache = 0;
     uint8_t* buf = bsi->bytePtr;
@@ -2552,7 +2552,7 @@ static int DecodeOneScaleFactor (sBitStream* bsi) {
  * Return:      one decoded scalefactor, including index_offset of -60
  **************************************************************************************/
 
-  // decode next scalefactor from bitstream */
+  // decode next scalefactor from bitstream
   unsigned int bitBuf = getBitsNoAdvance (bsi, huffTabScaleFactInfo.maxBits) << (32 - huffTabScaleFactInfo.maxBits);
 
   int val;
@@ -2641,7 +2641,6 @@ static void UnpackPairsNoEsc (sBitStream* bsi, int cb, int nVals, int* coef) {
  * Notes:       assumes nVals is always a multiple of 2 because all scalefactor bands
  *              are a multiple of 4 coefficients long
  **************************************************************************************/
-
 
   int maxBits = huffTabSpecInfo[cb - HUFFTAB_SPEC_OFFSET].maxBits + 2;
   while (nVals > 0) {
@@ -3156,7 +3155,6 @@ static int DequantizeEnvelope (int nBands, int ampRes, int8_t* envQuant, int* en
   //     if ampRes == 1, alpha = 1 and range of envQuant = [0, 63]
   //  also if coupling is on, envDequant is scaled by something in range [0, 2]
   // so range of envDequant = [2^6, 2^69] (no coupling), [2^6, 2^70] (with coupling)
-  //
   // typical range (from observation) of envQuant/alpha = [0, 27] --> largest envQuant ~= 2^33
   // output: Q(29 - (6 + expMax))
   // reference: 14496-3:2001(E)/4.6.18.3.5 and 14496-4:200X/FPDAM8/5.6.5.1.2.1.5
@@ -3300,9 +3298,9 @@ static void DequantizeNoise (int nBands, int8_t *noiseQuant, int *noiseDequant) 
     return;
 
   // dequantize noise floor gains (4.6.18.3.5):
-  //   noiseDequant = 2^(NOISE_FLOOR_OFFSET - noiseQuant)
+  // noiseDequant = 2^(NOISE_FLOOR_OFFSET - noiseQuant)
   // range of noiseQuant = [0, 30] (see 4.6.18.3.6), NOISE_FLOOR_OFFSET = 6
-  //  so range of noiseDequant = [2^-24, 2^6]
+  // so range of noiseDequant = [2^-24, 2^6]
   do {
     int exp = *noiseQuant++;
     int scalei = NOISE_FLOOR_OFFSET - exp + FBITS_OUT_DQ_NOISE; /* 6 + 24 - exp, exp = [0,30] */
@@ -3346,10 +3344,10 @@ static void DecodeSBRNoise (sBitStream *bsi, sPSInfoSBR*psi, SBRGrid *sbrGrid, S
   for (int noiseFloor = 0; noiseFloor < sbrGrid->numNoiseFloors; noiseFloor++) {
     int lastNoiseFloor = (noiseFloor == 0 ? sbrGrid->numNoiseFloorsPrev-1 : noiseFloor-1);
     if (lastNoiseFloor < 0)
-      lastNoiseFloor = 0; /* first frame */
+      lastNoiseFloor = 0; // first frame
 
     if (sbrChan->deltaFlagNoise[noiseFloor] == 0) {
-      // delta coding in freq */
+      // delta coding in freq
       sbrChan->noiseDataQuant[noiseFloor][0] = getBits (bsi, 5) << dShift;
       for (int band = 1; band < sbrFreq->numNoiseFloorBands; band++) {
         int sf = DecodeOneSymbol (bsi, huffIndexFreq) << dShift;
@@ -3357,14 +3355,14 @@ static void DecodeSBRNoise (sBitStream *bsi, sPSInfoSBR*psi, SBRGrid *sbrGrid, S
         }
       }
     else {
-      // delta coding in time */
+      // delta coding in time
       for (int band = 0; band < sbrFreq->numNoiseFloorBands; band++) {
         int sf = DecodeOneSymbol (bsi, huffIndexTime) << dShift;
         sbrChan->noiseDataQuant[noiseFloor][band] = sf + sbrChan->noiseDataQuant[lastNoiseFloor][band];
         }
       }
 
-    // skip coupling channel */
+    // skip coupling channel
     if (ch != 1 || psi->couplingFlag != 1)
       DequantizeNoise (sbrFreq->numNoiseFloorBands, sbrChan->noiseDataQuant[noiseFloor], psi->noiseDataDequant[ch][noiseFloor]);
     }

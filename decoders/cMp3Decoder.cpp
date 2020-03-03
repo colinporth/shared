@@ -35,10 +35,7 @@
 #define MAX_FREE_FORMAT_FRAME_SIZE  2304  // more than ISO spec's
 #define MAX_L3_FRAME_PAYLOAD_BYTES  MAX_FREE_FORMAT_FRAME_SIZE // MUST be >= 320000/8/32000*1152 = 1440
 #define MAX_BITRESERVOIR_BYTES      511
-
 #define MINIMP3_MAX_SAMPLES_PER_FRAME (1152*2)
-
-#define MAX_FRAME_SYNC_MATCHES      10
 
 #define SHORT_BLOCK_TYPE            2
 #define STOP_BLOCK_TYPE             3
@@ -81,7 +78,23 @@ struct sBitStream {
   } sBitStream;
 //}}}
 //{{{
-struct L3_gr_info_t {
+struct sL12scaleInfo {
+  float   scf [3*64];
+  uint8_t total_bands;
+  uint8_t stereo_bands;
+  uint8_t bitalloc [64];
+  uint8_t scfcod [64];
+  };
+//}}}
+//{{{
+struct sL12subbandAlloc {
+  uint8_t tab_offset;
+  uint8_t code_tab_width;
+  uint8_t band_count;
+  };
+//}}}
+//{{{
+struct sL3grInfo {
   const uint8_t* sfbtab;
   uint16_t part_23_length;
   uint16_t big_values;
@@ -102,31 +115,18 @@ struct L3_gr_info_t {
 //}}}
 //{{{
 struct sScratch {
-  struct sBitStream   bs;
-  uint8_t      maindata [MAX_BITRESERVOIR_BYTES + MAX_L3_FRAME_PAYLOAD_BYTES];
-  L3_gr_info_t gr_info [4];
-  float        grbuf [2][576];
-  float        scf [40];
-  float        syn [18 + 15][2*32];
-  uint8_t      ist_pos [2][39];
+  struct sBitStream bitStream;
+  struct sL3grInfo  gr_info [4];
+
+  uint8_t  maindata [MAX_BITRESERVOIR_BYTES + MAX_L3_FRAME_PAYLOAD_BYTES];
+
+  float    grbuf [2][576];
+  float    scf [40];
+  float    syn [18+15][2*32];
+  uint8_t ist_pos [2][39];
   };
 //}}}
-//{{{  struct L12_scale_info
-typedef struct {
-  float   scf [3*64];
-  uint8_t total_bands;
-  uint8_t stereo_bands;
-  uint8_t bitalloc [64];
-  uint8_t scfcod [64];
-  } L12_scale_info;
-//}}}
-//{{{  struct L12_subband_alloc_t
-typedef struct {
-  uint8_t tab_offset;
-  uint8_t code_tab_width;
-  uint8_t band_count;
-  } L12_subband_alloc_t;
-//}}}
+
 //{{{  static const
 //{{{
 static const float g_pow43 [129 + 16] = {
@@ -152,7 +152,7 @@ static const float g_pow43 [129 + 16] = {
   };
 //}}}
 //{{{
-static const uint8_t g_halfrate[2][3][15] = {
+static const uint8_t g_halfrate [2][3][15] = {
   { { 0,4,8,12,16,20,24,28,32,40,48,56,64,72,80 },
     { 0,4,8,12,16,20,24,28,32,40,48,56,64,72,80 },
     { 0,16,24,28,32,40,48,56,64,72,80,88,96,112,128 }     },
@@ -161,21 +161,22 @@ static const uint8_t g_halfrate[2][3][15] = {
     { 0,16,32,48,64,80,96,112,128,144,160,176,192,208,224 } },
   };
 //}}}
+
 //{{{
 static const uint32_t g_hz[3] = { 44100, 48000, 32000 };
 //}}}
 
 //{{{
-static const L12_subband_alloc_t g_alloc_L1[] = { { 76, 4, 32 } };
+static const struct sL12subbandAlloc g_alloc_L1[] = { { 76, 4, 32 } };
 //}}}
 //{{{
-static const L12_subband_alloc_t g_alloc_L2M2[] = { { 60, 4, 4 }, { 44, 3, 7 }, { 44, 2, 19 } };
+static const struct sL12subbandAlloc g_alloc_L2M2[] = { { 60, 4, 4 }, { 44, 3, 7 }, { 44, 2, 19 } };
 //}}}
 //{{{
-static const L12_subband_alloc_t g_alloc_L2M1[] = { { 0, 4, 3 }, { 16, 4, 8 }, { 32, 3, 12 }, { 40, 2, 7 } };
+static const struct sL12subbandAlloc g_alloc_L2M1[] = { { 0, 4, 3 }, { 16, 4, 8 }, { 32, 3, 12 }, { 40, 2, 7 } };
 //}}}
 //{{{
-static const L12_subband_alloc_t g_alloc_L2M1_lowrate[] = { { 44, 4, 2 }, { 44, 3, 10 } };
+static const struct sL12subbandAlloc g_alloc_L2M1_lowrate[] = { { 44, 4, 2 }, { 44, 3, 10 } };
 //}}}
 
 //{{{
@@ -199,7 +200,7 @@ static const uint8_t g_bitalloc_code_tab[] = {
   };
 //}}}
 //{{{
-static const uint8_t g_scf_long[8][23] = {
+static const uint8_t g_scf_long [8][23] = {
   { 6,6,6,6,6,6,8,10,12,14,16,20,24,28,32,38,46,52,60,68,58,54,0 },
   { 12,12,12,12,12,12,16,20,24,28,32,40,48,56,64,76,90,2,2,2,2,2,0 },
   { 6,6,6,6,6,6,8,10,12,14,16,20,24,28,32,38,46,52,60,68,58,54,0 },
@@ -211,7 +212,7 @@ static const uint8_t g_scf_long[8][23] = {
   };
 //}}}
 //{{{
-static const uint8_t g_scf_short[8][40] = {
+static const uint8_t g_scf_short [8][40] = {
   { 4,4,4,4,4,4,4,4,4,6,6,6,8,8,8,10,10,10,12,12,12,14,14,14,18,18,18,24,24,24,30,30,30,40,40,40,18,18,18,0 },
   { 8,8,8,8,8,8,8,8,8,12,12,12,16,16,16,20,20,20,24,24,24,28,28,28,36,36,36,2,2,2,2,2,2,2,2,2,26,26,26,0 },
   { 4,4,4,4,4,4,4,4,4,6,6,6,6,6,6,8,8,8,10,10,10,14,14,14,18,18,18,26,26,26,32,32,32,42,42,42,18,18,18,0 },
@@ -223,7 +224,7 @@ static const uint8_t g_scf_short[8][40] = {
   };
 //}}}
 //{{{
-static const uint8_t g_scf_mixed[8][40] = {
+static const uint8_t g_scf_mixed [8][40] = {
   { 6,6,6,6,6,6,6,6,6,8,8,8,10,10,10,12,12,12,14,14,14,18,18,18,24,24,24,30,30,30,40,40,40,18,18,18,0 },
   { 12,12,12,4,4,4,8,8,8,12,12,12,16,16,16,20,20,20,24,24,24,28,28,28,36,36,36,2,2,2,2,2,2,2,2,2,26,26,26,0 },
   { 6,6,6,6,6,6,6,6,6,6,6,6,8,8,8,10,10,10,14,14,14,18,18,18,26,26,26,32,32,32,42,42,42,18,18,18,0 },
@@ -236,7 +237,7 @@ static const uint8_t g_scf_mixed[8][40] = {
 //}}}
 
 //{{{
-static const float g_expfrac[4] = { 9.31322575e-10f,7.83145814e-10f,6.58544508e-10f,5.53767716e-10f };
+static const float g_expfrac [4] = { 9.31322575e-10f,7.83145814e-10f,6.58544508e-10f,5.53767716e-10f };
 //}}}
 //{{{
 static const uint8_t g_scf_partitions [3][28] = {
@@ -362,43 +363,45 @@ static const uint8_t g_linbits[] =  {
   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,2,3,4,6,8,10,13,4,5,6,7,8,9,11,13 };
 //}}}
 //{{{
-static const float g_pan[7*2] = {
-  0,1,
-  0.21132487f,0.78867513f,
-  0.36602540f,0.63397460f,
-  0.5f,0.5f,
+static const float g_pan [7*2] = {
+            0,           1,
+  0.21132487f, 0.78867513f,
+  0.36602540f, 0.63397460f,
+          0.5f,       0.5f,
   0.63397460f, 0.36602540f,
-  0.78867513f,0.21132487f,
-  1,0 };
+  0.78867513f, 0.21132487f,
+            1,           0 };
 //}}}
 //{{{
-static const float g_aa[2][8] = {
+static const float g_aa [2][8] = {
   {0.85749293f, 0.88174200f, 0.94962865f, 0.98331459f, 0.99551782f, 0.99916056f, 0.99989920f, 0.99999316f},
   {0.51449576f, 0.47173197f, 0.31337745f, 0.18191320f, 0.09457419f, 0.04096558f, 0.01419856f, 0.00369997f}
   };
 //}}}
 //{{{
-static const float g_twid9[18] = {
+static const float g_twid9 [18] = {
   0.73727734f, 0.79335334f, 0.84339145f, 0.88701083f, 0.92387953f, 0.95371695f,
   0.97629601f, 0.99144486f, 0.99904822f, 0.67559021f, 0.60876143f, 0.53729961f,
   0.46174861f, 0.38268343f, 0.30070580f, 0.21643961f, 0.13052619f, 0.04361938f
   };
 //}}}
 //{{{
-static const float g_twid3[6] = { 0.79335334f, 0.92387953f, 0.99144486f, 0.60876143f, 0.38268343f, 0.13052619f };
+static const float g_twid3 [6] = { 0.79335334f, 0.92387953f, 0.99144486f, 0.60876143f, 0.38268343f, 0.13052619f };
 //}}}
 //{{{
-static const float g_mdct_window[2][18] = {
+static const float g_mdct_window [2][18] = {
   { 0.99904822f, 0.99144486f, 0.97629601f, 0.95371695f, 0.92387953f, 0.88701083f,
     0.84339145f, 0.79335334f, 0.73727734f, 0.04361938f, 0.13052619f, 0.21643961f,
     0.30070580f, 0.38268343f, 0.46174861f, 0.53729961f, 0.60876143f, 0.67559021f },
+
   { 1,1,1, 1,1,1,
     0.99144486f, 0.92387953f, 0.79335334f, 0,0,0,
     0,0,0, 0.13052619f, 0.38268343f, 0.60876143f }
+
   };
 //}}}
 //{{{
-static const float g_sec[24] = {
+static const float g_sec [24] = {
   10.19000816f, 0.50060302f, 0.50241929f, 3.40760851f, 0.50547093f, 0.52249861f,
    2.05778098f, 0.51544732f, 0.56694406f, 1.48416460f, 0.53104258f, 0.64682180f,
    1.16943991f, 0.55310392f, 0.78815460f, 0.97256821f, 0.58293498f, 1.06067765f,
@@ -458,24 +461,24 @@ uint32_t getBits (struct sBitStream* bitStream, int32_t n) {
 //{{{
 uint32_t headerBitrate (const uint8_t* header) {
 
-  return 2 * g_halfrate [!!HDR_TEST_MPEG1(header)] [HDR_GET_LAYER(header) - 1] [HDR_GET_BITRATE(header)];
+  return 2 * g_halfrate [!!HDR_TEST_MPEG1 (header)] [HDR_GET_LAYER (header) - 1] [HDR_GET_BITRATE (header)];
   }
 //}}}
 //{{{
 uint32_t headerSampleRate (const uint8_t* header) {
 
-  return g_hz [HDR_GET_SAMPLE_RATE(header)] >> (int)!HDR_TEST_MPEG1(header) >> (int)!HDR_TEST_NOT_MPEG25(header);
+  return g_hz [HDR_GET_SAMPLE_RATE (header)] >> (int)!HDR_TEST_MPEG1 (header) >> (int)!HDR_TEST_NOT_MPEG25 (header);
   }
 //}}}
 //{{{
 uint32_t headerFrameSamples (const uint8_t* header) {
-  return HDR_IS_LAYER_1(header) ? 384 : (1152 >> (int)HDR_IS_FRAME_576(header));
+  return HDR_IS_LAYER_1 (header) ? 384 : (1152 >> (int)HDR_IS_FRAME_576 (header));
   }
 //}}}
 //{{{
 int32_t headerFrameBytes (const uint8_t* header, int32_t free_format_size) {
 
-  int32_t frame_bytes = headerFrameSamples(header) * headerBitrate(header) * 125 / headerSampleRate(header);
+  int32_t frame_bytes = headerFrameSamples (header) * headerBitrate (header) * 125 / headerSampleRate (header);
   if (HDR_IS_LAYER_1(header))
     frame_bytes &= ~3; /* slot align */
 
@@ -484,32 +487,34 @@ int32_t headerFrameBytes (const uint8_t* header, int32_t free_format_size) {
 //}}}
 //{{{
 int32_t headerPadding (const uint8_t* header) {
-  return HDR_TEST_PADDING(header) ? (HDR_IS_LAYER_1(header) ? 4 : 1) : 0;
+  return HDR_TEST_PADDING (header) ? (HDR_IS_LAYER_1 (header) ? 4 : 1) : 0;
   }
 //}}}
 
 //{{{  L12 utils
 //{{{
-const L12_subband_alloc_t* L12_subband_alloc_table (const uint8_t* header, L12_scale_info* sci) {
+const struct sL12subbandAlloc* sL12subbandAllocable (const uint8_t* header, struct sL12scaleInfo* sci) {
 
   int32_t mode = HDR_GET_STEREO_MODE (header);
   int32_t stereo_bands = (mode == MODE_MONO) ?
-                       0 : (mode == MODE_JOINT_STEREO) ?
-                         (HDR_GET_STEREO_MODE_EXT(header) << 2) + 4 : 32;
+                           0 : (mode == MODE_JOINT_STEREO) ?
+                             (HDR_GET_STEREO_MODE_EXT(header) << 2) + 4 : 32;
 
   int32_t nbands;
-  const L12_subband_alloc_t* alloc;
+  const struct sL12subbandAlloc* alloc;
   if (HDR_IS_LAYER_1 (header)) {
     alloc = g_alloc_L1;
     nbands = 32;
     }
+
   else if (!HDR_TEST_MPEG1 (header)) {
     alloc = g_alloc_L2M2;
     nbands = 30;
     }
+
   else {
     int32_t sample_rate_idx = HDR_GET_SAMPLE_RATE (header);
-    uint32_t kbps = headerBitrate(header) >> (int)(mode != MODE_MONO);
+    uint32_t kbps = headerBitrate (header) >> (int)(mode != MODE_MONO);
     if (!kbps) /* free-format */
       kbps = 192;
 
@@ -531,7 +536,7 @@ const L12_subband_alloc_t* L12_subband_alloc_table (const uint8_t* header, L12_s
 //}}}
 
 //{{{
-void L12_read_scalefactors (struct sBitStream* bs, uint8_t* pba, uint8_t* scfcod, int32_t bands, float* scf) {
+void L12_read_scalefactors (struct sBitStream* bitStream, uint8_t* pba, uint8_t* scfcod, int32_t bands, float* scf) {
 
   for (int32_t i = 0; i < bands; i++) {
     float s = 0;
@@ -539,7 +544,7 @@ void L12_read_scalefactors (struct sBitStream* bs, uint8_t* pba, uint8_t* scfcod
     int32_t mask = ba ? 4 + ((19 >> scfcod[i]) & 3) : 0;
     for (int32_t m = 4; m; m >>= 1) {
       if (mask & m) {
-        int32_t b = getBits (bs, 6);
+        int32_t b = getBits (bitStream, 6);
         s = g_deq_L12[ba*3 - 6 + b % 3]*(1 << 21 >> b/3);
         }
       *scf++ = s;
@@ -548,9 +553,9 @@ void L12_read_scalefactors (struct sBitStream* bs, uint8_t* pba, uint8_t* scfcod
   }
 //}}}
 //{{{
-void L12_read_scale_info (const uint8_t* header, struct sBitStream* bs, L12_scale_info* sci) {
+void L12_read_scale_info (const uint8_t* header, struct sBitStream* bitStream, struct sL12scaleInfo* sci) {
 
-  const L12_subband_alloc_t* subband_alloc = L12_subband_alloc_table (header, sci);
+  const struct sL12subbandAlloc* subband_alloc = sL12subbandAllocable (header, sci);
 
   int32_t k = 0;
   int32_t ba_bits = 0;
@@ -562,17 +567,17 @@ void L12_read_scale_info (const uint8_t* header, struct sBitStream* bs, L12_scal
       ba_code_tab = g_bitalloc_code_tab + subband_alloc->tab_offset;
       subband_alloc++;
       }
-    uint8_t ba = ba_code_tab[getBits (bs, ba_bits)];
+    uint8_t ba = ba_code_tab[getBits (bitStream, ba_bits)];
     sci->bitalloc[2*i] = ba;
     if (i < sci->stereo_bands)
-      ba = ba_code_tab [getBits (bs, ba_bits)];
+      ba = ba_code_tab [getBits (bitStream, ba_bits)];
     sci->bitalloc [2*i + 1] = sci->stereo_bands ? ba : 0;
     }
 
   for (int32_t i = 0; i < 2*sci->total_bands; i++)
-    sci->scfcod[i] = sci->bitalloc[i] ? HDR_IS_LAYER_1 (header) ? 2 : getBits (bs, 2) : 6;
+    sci->scfcod[i] = sci->bitalloc[i] ? HDR_IS_LAYER_1 (header) ? 2 : getBits (bitStream, 2) : 6;
 
-  L12_read_scalefactors (bs, sci->bitalloc, sci->scfcod, sci->total_bands*2, sci->scf);
+  L12_read_scalefactors (bitStream, sci->bitalloc, sci->scfcod, sci->total_bands*2, sci->scf);
 
   for (int32_t i = sci->stereo_bands; i < sci->total_bands; i++)
     sci->bitalloc[2*i + 1] = 0;
@@ -580,7 +585,7 @@ void L12_read_scale_info (const uint8_t* header, struct sBitStream* bs, L12_scal
 //}}}
 
 //{{{
-int32_t L12_dequantize_granule (float* grbuf, struct sBitStream* bs, L12_scale_info* sci, int32_t group_size) {
+int32_t L12_dequantize_granule (float* grbuf, struct sBitStream* bitStream, struct sL12scaleInfo* sci, int32_t group_size) {
 
   int32_t choff = 576;
   for (int32_t j = 0; j < 4; j++) {
@@ -591,15 +596,16 @@ int32_t L12_dequantize_granule (float* grbuf, struct sBitStream* bs, L12_scale_i
         if (ba < 17) {
           int32_t half = (1 << (ba - 1)) - 1;
           for (int32_t k = 0; k < group_size; k++)
-            dst[k] = (float)((int)getBits (bs, ba) - half);
+            dst[k] = (float)((int)getBits (bitStream, ba) - half);
           }
         else {
-          uint32_t mod = (2 << (ba - 17)) + 1;    /* 3, 5, 9 */
-          uint32_t code = getBits (bs, mod + 2 - (mod >> 3));  /* 5, 7, 10 */
+          uint32_t mod = (2 << (ba - 17)) + 1;    // 3, 5, 9
+          uint32_t code = getBits (bitStream, mod + 2 - (mod >> 3));  // 5, 7, 10
           for (int32_t k = 0; k < group_size; k++, code /= mod)
             dst[k] = (float)((int)(code % mod - mod/2));
           }
         }
+
       dst += choff;
       choff = 18 - choff;
       }
@@ -609,7 +615,7 @@ int32_t L12_dequantize_granule (float* grbuf, struct sBitStream* bs, L12_scale_i
   }
 //}}}
 //{{{
-void L12_apply_scf_384 (L12_scale_info* sci, const float* scf, float* dst) {
+void L12_apply_scf_384 (sL12scaleInfo* sci, const float* scf, float* dst) {
 
   memcpy (dst + 576 + sci->stereo_bands*18, dst + sci->stereo_bands*18,
           (sci->total_bands - sci->stereo_bands)*18*sizeof(float));
@@ -735,25 +741,25 @@ void L3_imdct36 (float* grbuf, float* overlap, const float* window, int32_t nban
 
     int32_t i = 0;
     for (; i < 8; i += 4) {
-      f4 vovl = VLD(overlap + i);
-      f4 vc = VLD(co + i);
-      f4 vs = VLD(si + i);
-      f4 vr0 = VLD(g_twid9 + i);
-      f4 vr1 = VLD(g_twid9 + 9 + i);
-      f4 vw0 = VLD(window + i);
-      f4 vw1 = VLD(window + 9 + i);
-      f4 vsum = VADD(VMUL(vc, vr1), VMUL(vs, vr0));
-      VSTORE(overlap + i, VSUB(VMUL(vc, vr0), VMUL(vs, vr1)));
-      VSTORE(grbuf + i, VSUB(VMUL(vovl, vw0), VMUL(vsum, vw1)));
-      vsum = VADD(VMUL(vovl, vw1), VMUL(vsum, vw0));
-      VSTORE(grbuf + 14 - i, VREV(vsum));
+      f4 vovl = VLD (overlap + i);
+      f4 vc = VLD (co + i);
+      f4 vs = VLD (si + i);
+      f4 vr0 = VLD (g_twid9 + i);
+      f4 vr1 = VLD (g_twid9 + 9 + i);
+      f4 vw0 = VLD (window + i);
+      f4 vw1 = VLD (window + 9 + i);
+      f4 vsum = VADD(VMUL (vc, vr1), VMUL(vs, vr0));
+      VSTORE (overlap + i, VSUB (VMUL(vc, vr0), VMUL(vs, vr1)));
+      VSTORE (grbuf + i, VSUB (VMUL (vovl, vw0), VMUL(vsum, vw1)));
+      vsum = VADD ( VMUL (vovl, vw1), VMUL (vsum, vw0));
+      VSTORE (grbuf + 14 - i, VREV (vsum));
       }
 
     for (; i < 9; i++) {
-      float ovl  = overlap[i];
-      float sum  = co[i]*g_twid9[9 + i] + si[i]*g_twid9[0 + i];
+      float ovl = overlap[i];
+      float sum = co[i]*g_twid9[9 + i] + si[i]*g_twid9[0 + i];
       overlap[i] = co[i]*g_twid9[0 + i] - si[i]*g_twid9[9 + i];
-      grbuf[i]      = ovl*window[0 + i] - sum*window[9 + i];
+      grbuf[i] = ovl*window[0 + i] - sum*window[9 + i];
       grbuf[17 - i] = ovl*window[9 + i] + sum*window[0 + i];
       }
     }
@@ -793,13 +799,13 @@ void L3_imdct36 (float* grbuf, float* overlap, const float* window, int32_t nban
     co[0] = -grbuf[0];
     si[0] = grbuf[17];
     for (int32_t i = 0; i < 4; i++) {
-      si[8 - 2*i] =   grbuf[4*i + 1] - grbuf[4*i + 2];
-      co[1 + 2*i] =   grbuf[4*i + 1] + grbuf[4*i + 2];
-      si[7 - 2*i] =   grbuf[4*i + 4] - grbuf[4*i + 3];
+      si[8 - 2*i] = grbuf[4*i + 1] - grbuf[4*i + 2];
+      co[1 + 2*i] = grbuf[4*i + 1] + grbuf[4*i + 2];
+      si[7 - 2*i] = grbuf[4*i + 4] - grbuf[4*i + 3];
       co[2 + 2*i] = -(grbuf[4*i + 3] + grbuf[4*i + 4]);
       }
-    L3_dct3_9(co);
-    L3_dct3_9(si);
+    L3_dct3_9 (co);
+    L3_dct3_9 (si);
 
     si[1] = -si[1];
     si[3] = -si[3];
@@ -807,11 +813,11 @@ void L3_imdct36 (float* grbuf, float* overlap, const float* window, int32_t nban
     si[7] = -si[7];
 
     for (int32_t i = 0; i < 9; i++) {
-      float ovl  = overlap[i];
-      float sum  = co[i]*g_twid9[9 + i] + si[i]*g_twid9[0 + i];
-      overlap[i] = co[i]*g_twid9[0 + i] - si[i]*g_twid9[9 + i];
-      grbuf[i]      = ovl*window[0 + i] - sum*window[9 + i];
-      grbuf[17 - i] = ovl*window[9 + i] + sum*window[0 + i];
+      float ovl = overlap[i];
+      float sum = co[i] * g_twid9[9 + i] + si[i] * g_twid9[0 + i];
+      overlap[i] = co[i] * g_twid9[0 + i] - si[i] * g_twid9[9 + i];
+      grbuf[i] = ovl * window[0 + i] - sum * window[9 + i];
+      grbuf[17 - i] = ovl * window[9 + i] + sum * window[0 + i];
       }
     }
   }
@@ -819,42 +825,45 @@ void L3_imdct36 (float* grbuf, float* overlap, const float* window, int32_t nban
 #endif
 
 //{{{
-int32_t L3_read_side_info (struct sBitStream* bs, struct L3_gr_info_t* gr, const uint8_t* header) {
+int32_t L3_read_side_info (struct sBitStream* bitStream, struct sL3grInfo* gr, const uint8_t* header) {
 
-  uint32_t tables, scfsi = 0;
-  int32_t main_data_begin, part_23_sum = 0;
-  int32_t sr_idx = HDR_GET_MY_SAMPLE_RATE (header); sr_idx -= (sr_idx != 0);
+  int32_t sr_idx = HDR_GET_MY_SAMPLE_RATE (header);
+  sr_idx -= (sr_idx != 0);
+
+  uint32_t scfsi = 0;
   int32_t gr_count = HDR_IS_MONO (header) ? 1 : 2;
-
-  if (HDR_TEST_MPEG1(header)) {
+  int32_t main_data_begin;
+  if (HDR_TEST_MPEG1 (header)) {
     gr_count *= 2;
-    main_data_begin = getBits (bs, 9);
-    scfsi = getBits (bs, 7 + gr_count);
+    main_data_begin = getBits (bitStream, 9);
+    scfsi = getBits (bitStream, 7 + gr_count);
     }
   else
-    main_data_begin = getBits (bs, 8 + gr_count) >> gr_count;
+    main_data_begin = getBits (bitStream, 8 + gr_count) >> gr_count;
 
+  int32_t part_23_sum = 0;
   do {
     if (HDR_IS_MONO (header))
       scfsi <<= 4;
 
-    gr->part_23_length = (uint16_t)getBits (bs, 12);
+    gr->part_23_length = (uint16_t)getBits (bitStream, 12);
     part_23_sum += gr->part_23_length;
-    gr->big_values = (uint16_t)getBits (bs,  9);
+    gr->big_values = (uint16_t)getBits (bitStream, 9);
     if (gr->big_values > 288)
       return -1;
 
-    gr->global_gain = (uint8_t)getBits (bs, 8);
-    gr->scalefac_compress = (uint16_t)getBits (bs, HDR_TEST_MPEG1(header) ? 4 : 9);
+    gr->global_gain = (uint8_t)getBits (bitStream, 8);
+    gr->scalefac_compress = (uint16_t)getBits (bitStream, HDR_TEST_MPEG1 (header) ? 4 : 9);
     gr->sfbtab = g_scf_long [sr_idx];
     gr->n_long_sfb  = 22;
     gr->n_short_sfb = 0;
 
-    if (getBits (bs, 1)) {
-      gr->block_type = (uint8_t)getBits (bs, 2);
+    uint32_t tables;
+    if (getBits (bitStream, 1)) {
+      gr->block_type = (uint8_t)getBits (bitStream, 2);
       if (!gr->block_type)
         return -1;
-      gr->mixed_block_flag = (uint8_t)getBits (bs, 1);
+      gr->mixed_block_flag = (uint8_t)getBits (bitStream, 1);
       gr->region_count[0] = 7;
       gr->region_count[1] = 255;
 
@@ -872,33 +881,35 @@ int32_t L3_read_side_info (struct sBitStream* bs, struct L3_gr_info_t* gr, const
           gr->n_short_sfb = 30;
           }
         }
-      tables = getBits (bs, 10);
+
+      tables = getBits (bitStream, 10);
       tables <<= 5;
-      gr->subblock_gain[0] = (uint8_t)getBits (bs, 3);
-      gr->subblock_gain[1] = (uint8_t)getBits (bs, 3);
-      gr->subblock_gain[2] = (uint8_t)getBits (bs, 3);
+      gr->subblock_gain[0] = (uint8_t)getBits (bitStream, 3);
+      gr->subblock_gain[1] = (uint8_t)getBits (bitStream, 3);
+      gr->subblock_gain[2] = (uint8_t)getBits (bitStream, 3);
       }
+
     else {
       gr->block_type = 0;
       gr->mixed_block_flag = 0;
-      tables = getBits (bs, 15);
-      gr->region_count[0] = (uint8_t)getBits (bs, 4);
-      gr->region_count[1] = (uint8_t)getBits (bs, 3);
+      tables = getBits (bitStream, 15);
+      gr->region_count[0] = (uint8_t)getBits (bitStream, 4);
+      gr->region_count[1] = (uint8_t)getBits (bitStream, 3);
       gr->region_count[2] = 255;
       }
 
     gr->table_select[0] = (uint8_t)(tables >> 10);
     gr->table_select[1] = (uint8_t)((tables >> 5) & 31);
     gr->table_select[2] = (uint8_t)((tables) & 31);
-    gr->preflag = HDR_TEST_MPEG1(header) ? getBits (bs, 1) : (gr->scalefac_compress >= 500);
-    gr->scalefac_scale = (uint8_t)getBits (bs, 1);
-    gr->count1_table = (uint8_t)getBits (bs, 1);
+    gr->preflag = HDR_TEST_MPEG1 (header) ? getBits (bitStream, 1) : (gr->scalefac_compress >= 500);
+    gr->scalefac_scale = (uint8_t)getBits (bitStream, 1);
+    gr->count1_table = (uint8_t)getBits (bitStream, 1);
     gr->scfsi = (uint8_t)((scfsi >> 12) & 15);
     scfsi <<= 4;
     gr++;
-    } while(--gr_count);
+    } while (--gr_count);
 
-  if (part_23_sum + bs->pos > bs->limit + main_data_begin*8)
+  if ((part_23_sum + bitStream->pos) > (bitStream->limit + main_data_begin * 8))
     return -1;
 
   return main_data_begin;
@@ -948,7 +959,7 @@ float L3_ldexp_q2 (float y, int32_t exp_q2) {
 //}}}
 //{{{
 void L3_decode_scalefactors (const uint8_t* header, uint8_t* ist_pos, struct sBitStream* bitStream,
-                             const struct L3_gr_info_t* gr, float* scf, int32_t ch) {
+                             const struct sL3grInfo* gr, float* scf, int32_t ch) {
 
   const uint8_t* scf_partition = g_scf_partitions [!!gr->n_short_sfb + !gr->n_long_sfb];
   uint8_t scf_size[4], iscf[40];
@@ -999,7 +1010,8 @@ void L3_decode_scalefactors (const uint8_t* header, uint8_t* ist_pos, struct sBi
 float L3_pow_43 (int32_t x) {
 
   float frac;
-  int32_t sign, mult = 256;
+  int32_t sign;
+  int32_t mult = 256;
 
   if (x < 129)
     return g_pow43[16 + x];
@@ -1012,11 +1024,11 @@ float L3_pow_43 (int32_t x) {
   sign = 2*x & 64;
   frac = (float)((x & 63) - sign) / ((x & ~63) + sign);
 
-  return g_pow43[16 + ((x + sign) >> 6)]*(1.f + frac*((4.f/3) + frac*(2.f/9)))*mult;
+  return g_pow43[16 + ((x + sign) >> 6)] * (1.f + frac * ((4.f/3) + frac * (2.f/9))) * mult;
   }
 //}}}
 //{{{
-void L3_huffman (float* dst, struct sBitStream* bitStream, const struct L3_gr_info_t* gr_info, const float* scf,
+void L3_huffman (float* dst, struct sBitStream* bitStream, const struct sL3grInfo* gr_info, const float* scf,
                  int32_t layer3gr_limit) {
 
   #define PEEK_BITS(n) (bitStreamCache >> (32 - n))
@@ -1037,7 +1049,8 @@ void L3_huffman (float* dst, struct sBitStream* bitStream, const struct L3_gr_in
   //}}}
 
   float one = 0.0f;
-  int32_t ireg = 0, big_val_cnt = gr_info->big_values;
+  int32_t ireg = 0;
+  int32_t big_val_cnt = gr_info->big_values;
   const uint8_t* sfb = gr_info->sfbtab;
   const uint8_t* bitStreamNextPtr = bitStream->buf + bitStream->pos/8;
   uint32_t bitStreamCache = (((bitStreamNextPtr[0] * 256u + bitStreamNextPtr[1]) * 256u +
@@ -1114,13 +1127,28 @@ void L3_huffman (float* dst, struct sBitStream* bitStream, const struct L3_gr_in
     int32_t leaf = codebook_count1[PEEK_BITS(4)];
     if (!(leaf & 8))
       leaf = codebook_count1[(leaf >> 3) + (bitStreamCache << 4 >> (32 - (leaf & 3)))];
-    FLUSH_BITS(leaf & 7);
+    FLUSH_BITS (leaf & 7);
     if (BSPOS > layer3gr_limit)
       break;
 
-    #define RELOAD_SCALEFACTOR  if (!--np) { np = *sfb++/2; if (!np) break; one = *scf++; }
-    #define DEQ_COUNT1(s) if (leaf & (128 >> s)) { dst[s] = ((int32_t)bitStreamCache < 0) ? -one : one; FLUSH_BITS(1) }
-
+    //{{{
+    #define RELOAD_SCALEFACTOR  { \
+      if (!--np) { \
+        np = *sfb++/2; \
+        if (!np) \
+          break; \
+        one = *scf++; \
+        } \
+      }
+    //}}}
+    //{{{
+    #define DEQ_COUNT1(s) { \
+      if (leaf & (128 >> s)) { \
+        dst[s] = ((int32_t)bitStreamCache < 0) ? -one : one;   \
+        FLUSH_BITS(1) \
+        } \
+      }
+    //}}}
     RELOAD_SCALEFACTOR;
     DEQ_COUNT1 (0);
     DEQ_COUNT1 (1);
@@ -1193,7 +1221,7 @@ void L3_stereo_process (float* left, const uint8_t *ist_pos, const uint8_t *sfb,
   }
 //}}}
 //{{{
-void L3_intensity_stereo (float* left, uint8_t* ist_pos, const struct L3_gr_info_t* gr, const uint8_t* header) {
+void L3_intensity_stereo (float* left, uint8_t* ist_pos, const struct sL3grInfo* gr, const uint8_t* header) {
 
   int32_t max_band[3], n_sfb = gr->n_long_sfb + gr->n_short_sfb;
   int32_t i, max_blocks = gr->n_short_sfb ? 3 : 1;
@@ -1305,7 +1333,7 @@ void L3_imdct_gr (float* grbuf, float* overlap, uint32_t block_type, uint32_t n_
 //{{{
 int16_t scalePcm (float sample) {
 
-  if (sample >=  32766.5)
+  if (sample >= 32766.5)
     return (int16_t) 32767;
   if (sample <= -32767.5)
     return (int16_t)-32768;
@@ -1343,328 +1371,328 @@ void synthPair (int16_t* pcm, int32_t nch, const float* z) {
   }
 //}}}
 #ifdef USE_INTRINSICS
-//{{{
-void dctII (float* grbuf, int32_t n) {
+  //{{{
+  void dctII (float* grbuf, int32_t n) {
 
-  for (int32_t k = 0; k < n; k += 4) {
-    f4 t[4][8];
+    for (int32_t k = 0; k < n; k += 4) {
+      f4 t[4][8];
 
-    f4* x = t[0];
-    float* y = grbuf + k;
-    for (int32_t i = 0; i < 8; i++, x++) {
-      f4 x0 = VLD (&y[i*18]);
-      f4 x1 = VLD (&y[(15 - i)*18]);
-      f4 x2 = VLD (&y[(16 + i)*18]);
-      f4 x3 = VLD (&y[(31 - i)*18]);
-      f4 t0 = VADD (x0, x3);
-      f4 t1 = VADD (x1, x2);
-      f4 t2 = VMUL_S (VSUB (x1, x2), g_sec[3*i + 0]);
-      f4 t3 = VMUL_S (VSUB (x0, x3), g_sec[3*i + 1]);
-      x[0] = VADD (t0, t1);
-      x[8] = VMUL_S (VSUB( t0, t1), g_sec[3*i + 2]);
-      x[16] = VADD (t3, t2);
-      x[24] = VMUL_S (VSUB (t3, t2), g_sec[3*i + 2]);
-      }
-
-    x = t[0];
-    for (int32_t i = 0; i < 4; i++, x += 8) {
-      f4 x0 = x[0];
-      f4 x1 = x[1];
-      f4 x2 = x[2];
-      f4 x3 = x[3];
-      f4 x4 = x[4];
-      f4 x5 = x[5];
-      f4 x6 = x[6];
-      f4 x7 = x[7];
-      f4 xt = VSUB (x0, x7);
-      x0 = VADD(x0, x7);
-      x7 = VSUB (x1, x6);
-      x1 = VADD (x1, x6);
-      x6 = VSUB (x2, x5);
-      x2 = VADD (x2, x5);
-      x5 = VSUB (x3, x4);
-      x3 = VADD (x3, x4);
-      x4 = VSUB (x0, x3);
-      x0 = VADD (x0, x3);
-      x3 = VSUB (x1, x2);
-      x1 = VADD (x1, x2);
-      x[0] = VADD (x0, x1);
-      x[4] = VMUL_S (VSUB (x0, x1), 0.70710677f);
-      x5 = VADD (x5, x6);
-      x6 = VMUL_S (VADD (x6, x7), 0.70710677f);
-      x7 = VADD (x7, xt);
-      x3 = VMUL_S (VADD (x3, x4), 0.70710677f);
-      x5 = VSUB (x5, VMUL_S (x7, 0.198912367f)); /* rotate by PI/8 */
-      x7 = VADD (x7, VMUL_S (x5, 0.382683432f));
-      x5 = VSUB (x5, VMUL_S (x7, 0.198912367f));
-      x0 = VSUB (xt, x6);
-      xt = VADD (xt, x6);
-      x[1] = VMUL_S (VADD(xt, x7), 0.50979561f);
-      x[2] = VMUL_S (VADD(x4, x3), 0.54119611f);
-      x[3] = VMUL_S (VSUB(x0, x5), 0.60134488f);
-      x[5] = VMUL_S (VADD(x0, x5), 0.89997619f);
-      x[6] = VMUL_S (VSUB(x4, x3), 1.30656302f);
-      x[7] = VMUL_S (VSUB(xt, x7), 2.56291556f);
-      }
-
-    #define VSAVE2(i, v) _mm_storel_pi ((__m64*)(void*)&y[i*18], v)
-    #define VSAVE4(i, v) VSTORE (&y[i*18], v)
-
-    if (k > n - 3) {
-      for (int32_t i = 0; i < 7; i++, y += 4*18) {
-        f4 s = VADD (t[3][i], t[3][i + 1]);
-        VSAVE2 (0, t[0][i]);
-        VSAVE2 (1, VADD (t[2][i], s));
-        VSAVE2 (2, VADD (t[1][i], t[1][i + 1]));
-        VSAVE2 (3, VADD (t[2][1 + i], s));
+      f4* x = t[0];
+      float* y = grbuf + k;
+      for (int32_t i = 0; i < 8; i++, x++) {
+        f4 x0 = VLD (&y[i*18]);
+        f4 x1 = VLD (&y[(15 - i)*18]);
+        f4 x2 = VLD (&y[(16 + i)*18]);
+        f4 x3 = VLD (&y[(31 - i)*18]);
+        f4 t0 = VADD (x0, x3);
+        f4 t1 = VADD (x1, x2);
+        f4 t2 = VMUL_S (VSUB (x1, x2), g_sec[3*i + 0]);
+        f4 t3 = VMUL_S (VSUB (x0, x3), g_sec[3*i + 1]);
+        x[0] = VADD (t0, t1);
+        x[8] = VMUL_S (VSUB( t0, t1), g_sec[3*i + 2]);
+        x[16] = VADD (t3, t2);
+        x[24] = VMUL_S (VSUB (t3, t2), g_sec[3*i + 2]);
         }
-      VSAVE2 (0, t[0][7]);
-      VSAVE2 (1, VADD(t[2][7], t[3][7]));
-      VSAVE2 (2, t[1][7]);
-      VSAVE2 (3, t[3][7]);
-      }
-    else {
-      for (int32_t i = 0; i < 7; i++, y += 4*18) {
-        f4 s = VADD (t[3][i], t[3][i + 1]);
-        VSAVE4 (0, t[0][i]);
-        VSAVE4 (1, VADD (t[2][i], s));
-        VSAVE4 (2, VADD (t[1][i], t[1][i + 1]));
-        VSAVE4 (3, VADD (t[2][1 + i], s));
+
+      x = t[0];
+      for (int32_t i = 0; i < 4; i++, x += 8) {
+        f4 x0 = x[0];
+        f4 x1 = x[1];
+        f4 x2 = x[2];
+        f4 x3 = x[3];
+        f4 x4 = x[4];
+        f4 x5 = x[5];
+        f4 x6 = x[6];
+        f4 x7 = x[7];
+        f4 xt = VSUB (x0, x7);
+        x0 = VADD(x0, x7);
+        x7 = VSUB (x1, x6);
+        x1 = VADD (x1, x6);
+        x6 = VSUB (x2, x5);
+        x2 = VADD (x2, x5);
+        x5 = VSUB (x3, x4);
+        x3 = VADD (x3, x4);
+        x4 = VSUB (x0, x3);
+        x0 = VADD (x0, x3);
+        x3 = VSUB (x1, x2);
+        x1 = VADD (x1, x2);
+        x[0] = VADD (x0, x1);
+        x[4] = VMUL_S (VSUB (x0, x1), 0.70710677f);
+        x5 = VADD (x5, x6);
+        x6 = VMUL_S (VADD (x6, x7), 0.70710677f);
+        x7 = VADD (x7, xt);
+        x3 = VMUL_S (VADD (x3, x4), 0.70710677f);
+        x5 = VSUB (x5, VMUL_S (x7, 0.198912367f)); /* rotate by PI/8 */
+        x7 = VADD (x7, VMUL_S (x5, 0.382683432f));
+        x5 = VSUB (x5, VMUL_S (x7, 0.198912367f));
+        x0 = VSUB (xt, x6);
+        xt = VADD (xt, x6);
+        x[1] = VMUL_S (VADD(xt, x7), 0.50979561f);
+        x[2] = VMUL_S (VADD(x4, x3), 0.54119611f);
+        x[3] = VMUL_S (VSUB(x0, x5), 0.60134488f);
+        x[5] = VMUL_S (VADD(x0, x5), 0.89997619f);
+        x[6] = VMUL_S (VSUB(x4, x3), 1.30656302f);
+        x[7] = VMUL_S (VSUB(xt, x7), 2.56291556f);
         }
-      VSAVE4 (0, t[0][7]);
-      VSAVE4 (1, VADD (t[2][7], t[3][7]));
-      VSAVE4 (2, t[1][7]);
-      VSAVE4 (3, t[3][7]);
+
+      #define VSAVE2(i, v) _mm_storel_pi ((__m64*)(void*)&y[i*18], v)
+      #define VSAVE4(i, v) VSTORE (&y[i*18], v)
+
+      if (k > n - 3) {
+        for (int32_t i = 0; i < 7; i++, y += 4*18) {
+          f4 s = VADD (t[3][i], t[3][i + 1]);
+          VSAVE2 (0, t[0][i]);
+          VSAVE2 (1, VADD (t[2][i], s));
+          VSAVE2 (2, VADD (t[1][i], t[1][i + 1]));
+          VSAVE2 (3, VADD (t[2][1 + i], s));
+          }
+        VSAVE2 (0, t[0][7]);
+        VSAVE2 (1, VADD(t[2][7], t[3][7]));
+        VSAVE2 (2, t[1][7]);
+        VSAVE2 (3, t[3][7]);
+        }
+      else {
+        for (int32_t i = 0; i < 7; i++, y += 4*18) {
+          f4 s = VADD (t[3][i], t[3][i + 1]);
+          VSAVE4 (0, t[0][i]);
+          VSAVE4 (1, VADD (t[2][i], s));
+          VSAVE4 (2, VADD (t[1][i], t[1][i + 1]));
+          VSAVE4 (3, VADD (t[2][1 + i], s));
+          }
+        VSAVE4 (0, t[0][7]);
+        VSAVE4 (1, VADD (t[2][7], t[3][7]));
+        VSAVE4 (2, t[1][7]);
+        VSAVE4 (3, t[3][7]);
+        }
       }
     }
-  }
-//}}}
-//{{{
-void synth (float* xl, int16_t* dstl, int32_t nch, float* lins) {
+  //}}}
+  //{{{
+  void synth (float* xl, int16_t* dstl, int32_t nch, float* lins) {
 
-  float* xr = xl + 576 * (nch - 1);
-  int16_t* dstr = dstl + (nch - 1);
+    float* xr = xl + 576 * (nch - 1);
+    int16_t* dstr = dstl + (nch - 1);
 
-  float* zlin = lins + 15*64;
-  const float* w = g_win;
+    float* zlin = lins + 15*64;
+    const float* w = g_win;
 
-  zlin [4*15] = xl[18*16];
-  zlin [4*15 + 1] = xr[18*16];
-  zlin [4*15 + 2] = xl[0];
-  zlin [4*15 + 3] = xr[0];
+    zlin [4*15] = xl[18*16];
+    zlin [4*15 + 1] = xr[18*16];
+    zlin [4*15 + 2] = xl[0];
+    zlin [4*15 + 3] = xr[0];
 
-  zlin [4*31] = xl[1 + 18*16];
-  zlin [4*31 + 1] = xr[1 + 18*16];
-  zlin [4*31 + 2] = xl[1];
-  zlin [4*31 + 3] = xr[1];
+    zlin [4*31] = xl[1 + 18*16];
+    zlin [4*31 + 1] = xr[1 + 18*16];
+    zlin [4*31 + 2] = xl[1];
+    zlin [4*31 + 3] = xr[1];
 
-  synthPair (dstr, nch, lins + 4*15 + 1);
-  synthPair (dstr + 32*nch, nch, lins + 4*15 + 64 + 1);
-  synthPair (dstl, nch, lins + 4*15);
-  synthPair (dstl + 32*nch, nch, lins + 4*15 + 64);
+    synthPair (dstr, nch, lins + 4*15 + 1);
+    synthPair (dstr + 32*nch, nch, lins + 4*15 + 64 + 1);
+    synthPair (dstl, nch, lins + 4*15);
+    synthPair (dstl + 32*nch, nch, lins + 4*15 + 64);
 
-  for (int32_t i = 14; i >= 0; i--) {
-    zlin [4*i] = xl [18*(31 - i)];
-    zlin [4*i + 1] = xr [18*(31 - i)];
-    zlin [4*i + 2] = xl [1 + 18*(31 - i)];
-    zlin [4*i + 3] = xr [1 + 18*(31 - i)];
-    zlin [4*i + 64] = xl [1 + 18*(1 + i)];
-    zlin [4*i + 64 + 1] = xr [1 + 18*(1 + i)];
-    zlin [4*i - 64 + 2] = xl [18*(1 + i)];
-    zlin [4*i - 64 + 3] = xr [18*(1 + i)];
+    for (int32_t i = 14; i >= 0; i--) {
+      zlin [4*i] = xl [18*(31 - i)];
+      zlin [4*i + 1] = xr [18*(31 - i)];
+      zlin [4*i + 2] = xl [1 + 18*(31 - i)];
+      zlin [4*i + 3] = xr [1 + 18*(31 - i)];
+      zlin [4*i + 64] = xl [1 + 18*(1 + i)];
+      zlin [4*i + 64 + 1] = xr [1 + 18*(1 + i)];
+      zlin [4*i - 64 + 2] = xl [18*(1 + i)];
+      zlin [4*i - 64 + 3] = xr [18*(1 + i)];
 
-    #define VLOAD(k) f4 w0 = VSET (*w++); \
-                     f4 w1 = VSET (*w++); \
-                     f4 vz = VLD (&zlin[4*i - 64*k]); \
-                     f4 vy = VLD (&zlin[4*i - 64*(15 - k)]);
-    #define V0(k) { VLOAD (k) \
-                    b = VADD (VMUL (vz, w1), VMUL (vy, w0)); \
-                    a = VSUB (VMUL (vz, w0), VMUL (vy, w1)); }
-    #define V1(k) { VLOAD (k) \
-                    b = VADD (b, VADD (VMUL (vz, w1), VMUL (vy, w0)));  \
-                    a = VADD (a, VSUB (VMUL (vz, w0), VMUL (vy, w1))); }
-    #define V2(k) { VLOAD (k) \
-                    b = VADD (b, VADD (VMUL (vz, w1), VMUL (vy, w0))); \
-                    a = VADD (a, VSUB (VMUL (vy, w1), VMUL (vz, w0))); }
-    f4 a, b;
-    V0(0) V2(1) V1(2) V2(3) V1(4) V2(5) V1(6) V2(7)
-      {
-      __m128i pcm8 = _mm_packs_epi32 (_mm_cvtps_epi32 (_mm_max_ps (_mm_min_ps (a, g_max), g_min)),
-                                      _mm_cvtps_epi32 (_mm_max_ps (_mm_min_ps (b, g_max), g_min)));
-      dstr [(15 - i) * nch] = _mm_extract_epi16 (pcm8, 1);
-      dstr [(17 + i) * nch] = _mm_extract_epi16 (pcm8, 5);
+      #define VLOAD(k) f4 w0 = VSET (*w++); \
+                       f4 w1 = VSET (*w++); \
+                       f4 vz = VLD (&zlin[4*i - 64*k]); \
+                       f4 vy = VLD (&zlin[4*i - 64*(15 - k)]);
+      #define V0(k) { VLOAD (k) \
+                      b = VADD (VMUL (vz, w1), VMUL (vy, w0)); \
+                      a = VSUB (VMUL (vz, w0), VMUL (vy, w1)); }
+      #define V1(k) { VLOAD (k) \
+                      b = VADD (b, VADD (VMUL (vz, w1), VMUL (vy, w0)));  \
+                      a = VADD (a, VSUB (VMUL (vz, w0), VMUL (vy, w1))); }
+      #define V2(k) { VLOAD (k) \
+                      b = VADD (b, VADD (VMUL (vz, w1), VMUL (vy, w0))); \
+                      a = VADD (a, VSUB (VMUL (vy, w1), VMUL (vz, w0))); }
+      f4 a, b;
+      V0(0) V2(1) V1(2) V2(3) V1(4) V2(5) V1(6) V2(7)
+        {
+        __m128i pcm8 = _mm_packs_epi32 (_mm_cvtps_epi32 (_mm_max_ps (_mm_min_ps (a, g_max), g_min)),
+                                        _mm_cvtps_epi32 (_mm_max_ps (_mm_min_ps (b, g_max), g_min)));
+        dstr [(15 - i) * nch] = _mm_extract_epi16 (pcm8, 1);
+        dstr [(17 + i) * nch] = _mm_extract_epi16 (pcm8, 5);
 
-      dstl [(15 - i) * nch] = _mm_extract_epi16 (pcm8, 0);
-      dstl [(17 + i) * nch] = _mm_extract_epi16 (pcm8, 4);
+        dstl [(15 - i) * nch] = _mm_extract_epi16 (pcm8, 0);
+        dstl [(17 + i) * nch] = _mm_extract_epi16 (pcm8, 4);
 
-      dstr [(47 - i) * nch] = _mm_extract_epi16 (pcm8, 3);
-      dstr [(49 + i) * nch] = _mm_extract_epi16 (pcm8, 7);
+        dstr [(47 - i) * nch] = _mm_extract_epi16 (pcm8, 3);
+        dstr [(49 + i) * nch] = _mm_extract_epi16 (pcm8, 7);
 
-      dstl [(47 - i) * nch] = _mm_extract_epi16 (pcm8, 2);
-      dstl [(49 + i) * nch] = _mm_extract_epi16 (pcm8, 6);
+        dstl [(47 - i) * nch] = _mm_extract_epi16 (pcm8, 2);
+        dstl [(49 + i) * nch] = _mm_extract_epi16 (pcm8, 6);
+        }
       }
     }
-  }
-//}}}
+  //}}}
 #else
-//{{{
-void dctII (float* grbuf, int32_t n) {
+  //{{{
+  void dctII (float* grbuf, int32_t n) {
 
-  for (int32_t k = 0; k < n; k++) {
-    float t[4][8];
-    float* y = grbuf + k;
-    float* x = t[0];
-    for (int32_t i = 0; i < 8; i++, x++) {
-      float x0 = y[i*18];
-      float x1 = y[(15 - i)*18];
-      float x2 = y[(16 + i)*18];
-      float x3 = y[(31 - i)*18];
-      float t0 = x0 + x3;
-      float t1 = x1 + x2;
-      float t2 = (x1 - x2)*g_sec[3*i + 0];
-      float t3 = (x0 - x3)*g_sec[3*i + 1];
-      x[0] = t0 + t1;
-      x[8] = (t0 - t1)*g_sec[3*i + 2];
-      x[16] = t3 + t2;
-      x[24] = (t3 - t2)*g_sec[3*i + 2];
+    for (int32_t k = 0; k < n; k++) {
+      float t[4][8];
+      float* y = grbuf + k;
+      float* x = t[0];
+      for (int32_t i = 0; i < 8; i++, x++) {
+        float x0 = y[i*18];
+        float x1 = y[(15 - i)*18];
+        float x2 = y[(16 + i)*18];
+        float x3 = y[(31 - i)*18];
+        float t0 = x0 + x3;
+        float t1 = x1 + x2;
+        float t2 = (x1 - x2)*g_sec[3*i + 0];
+        float t3 = (x0 - x3)*g_sec[3*i + 1];
+        x[0] = t0 + t1;
+        x[8] = (t0 - t1)*g_sec[3*i + 2];
+        x[16] = t3 + t2;
+        x[24] = (t3 - t2)*g_sec[3*i + 2];
+        }
+
+      x = t[0];
+      for (int32_t i = 0; i < 4; i++, x += 8) {
+        float x0 = x[0];
+        float x1 = x[1];
+        float x2 = x[2];
+        float x3 = x[3];
+        float x4 = x[4];
+        float x5 = x[5];
+        float x6 = x[6];
+        float x7 = x[7];
+        float  xt = x0 - x7;
+        x0 += x7;
+        x7 = x1 - x6;
+        x1 += x6;
+        x6 = x2 - x5;
+        x2 += x5;
+        x5 = x3 - x4;
+        x3 += x4;
+        x4 = x0 - x3;
+        x0 += x3;
+        x3 = x1 - x2;
+        x1 += x2;
+        x[0] = x0 + x1;
+        x[4] = (x0 - x1) * 0.70710677f;
+        x5 =  x5 + x6;
+        x6 = (x6 + x7) * 0.70710677f;
+        x7 =  x7 + xt;
+        x3 = (x3 + x4) * 0.70710677f;
+        x5 -= x7 * 0.198912367f;  /* rotate by PI/8 */
+        x7 += x5 * 0.382683432f;
+        x5 -= x7 * 0.198912367f;
+        x0 = xt - x6; xt += x6;
+        x[1] = (xt + x7) * 0.50979561f;
+        x[2] = (x4 + x3) * 0.54119611f;
+        x[3] = (x0 - x5) * 0.60134488f;
+        x[5] = (x0 + x5) * 0.89997619f;
+        x[6] = (x4 - x3) * 1.30656302f;
+        x[7] = (xt - x7) * 2.56291556f;
+        }
+
+      for (int32_t i = 0; i < 7; i++, y += 4*18) {
+        y[0*18] = t[0][i];
+        y[1*18] = t[2][i] + t[3][i] + t[3][i + 1];
+        y[2*18] = t[1][i] + t[1][i + 1];
+        y[3*18] = t[2][i + 1] + t[3][i] + t[3][i + 1];
+        }
+
+      y[0*18] = t[0][7];
+      y[1*18] = t[2][7] + t[3][7];
+      y[2*18] = t[1][7];
+      y[3*18] = t[3][7];
       }
-
-    x = t[0];
-    for (int32_t i = 0; i < 4; i++, x += 8) {
-      float x0 = x[0];
-      float x1 = x[1];
-      float x2 = x[2];
-      float x3 = x[3];
-      float x4 = x[4];
-      float x5 = x[5];
-      float x6 = x[6];
-      float x7 = x[7];
-      float  xt = x0 - x7;
-      x0 += x7;
-      x7 = x1 - x6;
-      x1 += x6;
-      x6 = x2 - x5;
-      x2 += x5;
-      x5 = x3 - x4;
-      x3 += x4;
-      x4 = x0 - x3;
-      x0 += x3;
-      x3 = x1 - x2;
-      x1 += x2;
-      x[0] = x0 + x1;
-      x[4] = (x0 - x1) * 0.70710677f;
-      x5 =  x5 + x6;
-      x6 = (x6 + x7) * 0.70710677f;
-      x7 =  x7 + xt;
-      x3 = (x3 + x4) * 0.70710677f;
-      x5 -= x7 * 0.198912367f;  /* rotate by PI/8 */
-      x7 += x5 * 0.382683432f;
-      x5 -= x7 * 0.198912367f;
-      x0 = xt - x6; xt += x6;
-      x[1] = (xt + x7) * 0.50979561f;
-      x[2] = (x4 + x3) * 0.54119611f;
-      x[3] = (x0 - x5) * 0.60134488f;
-      x[5] = (x0 + x5) * 0.89997619f;
-      x[6] = (x4 - x3) * 1.30656302f;
-      x[7] = (xt - x7) * 2.56291556f;
-      }
-
-    for (int32_t i = 0; i < 7; i++, y += 4*18) {
-      y[0*18] = t[0][i];
-      y[1*18] = t[2][i] + t[3][i] + t[3][i + 1];
-      y[2*18] = t[1][i] + t[1][i + 1];
-      y[3*18] = t[2][i + 1] + t[3][i] + t[3][i + 1];
-      }
-
-    y[0*18] = t[0][7];
-    y[1*18] = t[2][7] + t[3][7];
-    y[2*18] = t[1][7];
-    y[3*18] = t[3][7];
     }
-  }
-//}}}
-//{{{
-void synth (float* xl, int16_t* dstl, int32_t nch, float* lins) {
+  //}}}
+  //{{{
+  void synth (float* xl, int16_t* dstl, int32_t nch, float* lins) {
 
-  float* xr = xl + 576*(nch - 1);
-  int16_t* dstr = dstl + (nch - 1);
+    float* xr = xl + 576*(nch - 1);
+    int16_t* dstr = dstl + (nch - 1);
 
-  float* zlin = lins + 15 * 64;
-  const float* w = g_win;
+    float* zlin = lins + 15 * 64;
+    const float* w = g_win;
 
-  zlin [4*15] = xl[18*16];
-  zlin [4*15 + 1] = xr[18 * 16];
-  zlin [4*15 + 2] = xl[0];
-  zlin [4*15 + 3] = xr[0];
+    zlin [4*15] = xl[18*16];
+    zlin [4*15 + 1] = xr[18 * 16];
+    zlin [4*15 + 2] = xl[0];
+    zlin [4*15 + 3] = xr[0];
 
-  zlin [4*31] = xl[1 + 18 * 16];
-  zlin [4*31 + 1] = xr[1 + 18 * 16];
-  zlin [4*31 + 2] = xl[1];
-  zlin [4*31 + 3] = xr[1];
+    zlin [4*31] = xl[1 + 18 * 16];
+    zlin [4*31 + 1] = xr[1 + 18 * 16];
+    zlin [4*31 + 2] = xl[1];
+    zlin [4*31 + 3] = xr[1];
 
-  synth_pair (dstr, nch, lins + 4*15 + 1);
-  synth_pair (dstr + 32*nch, nch, lins + 4*15 + 64 + 1);
-  synth_pair (dstl, nch, lins + 4*15);
-  synth_pair (dstl + 32*nch, nch, lins + 4*15 + 64);
+    synth_pair (dstr, nch, lins + 4*15 + 1);
+    synth_pair (dstr + 32*nch, nch, lins + 4*15 + 64 + 1);
+    synth_pair (dstl, nch, lins + 4*15);
+    synth_pair (dstl + 32*nch, nch, lins + 4*15 + 64);
 
-  for (int32_t i = 14; i >= 0; i--) {
-    zlin[4*i] = xl[18*(31 - i)];
-    zlin[4*i + 1] = xr[18*(31 - i)];
-    zlin[4*i + 2] = xl[1 + 18 * (31 - i)];
-    zlin[4*i + 3] = xr[1 + 18 * (31 - i)];
-    zlin[4*(i + 16)]   = xl[1 + 18 * (1 + i)];
-    zlin[4*(i + 16) + 1] = xr[1 + 18 * (1 + i)];
-    zlin[4*(i - 16) + 2] = xl[18 * (1 + i)];
-    zlin[4*(i - 16) + 3] = xr[18 * (1 + i)];
+    for (int32_t i = 14; i >= 0; i--) {
+      zlin[4*i] = xl[18*(31 - i)];
+      zlin[4*i + 1] = xr[18*(31 - i)];
+      zlin[4*i + 2] = xl[1 + 18 * (31 - i)];
+      zlin[4*i + 3] = xr[1 + 18 * (31 - i)];
+      zlin[4*(i + 16)]   = xl[1 + 18 * (1 + i)];
+      zlin[4*(i + 16) + 1] = xr[1 + 18 * (1 + i)];
+      zlin[4*(i - 16) + 2] = xl[18 * (1 + i)];
+      zlin[4*(i - 16) + 3] = xr[18 * (1 + i)];
 
-    float a[4], b[4];
-    //{{{
-    #define LOAD(k) \
-      float w0 = *w++; \
-      float w1 = *w++; \
-      float* vz = &zlin [4*i - k*64]; \
-      float* vy = &zlin [4*i - (15 - k)*64];
-    //}}}
-    //{{{
-    #define S0(k) { \
-      LOAD(k); \
-      for (int32_t j = 0; j < 4; j++) {       \
-        b[j]  = vz[j]*w1 + vy[j]*w0;  \
-        a[j]  = vz[j]*w0 - vy[j]*w1;  \
-        }                             \
+      float a[4], b[4];
+      //{{{
+      #define LOAD(k) \
+        float w0 = *w++; \
+        float w1 = *w++; \
+        float* vz = &zlin [4*i - k*64]; \
+        float* vy = &zlin [4*i - (15 - k)*64];
+      //}}}
+      //{{{
+      #define S0(k) { \
+        LOAD(k); \
+        for (int32_t j = 0; j < 4; j++) {       \
+          b[j]  = vz[j]*w1 + vy[j]*w0;  \
+          a[j]  = vz[j]*w0 - vy[j]*w1;  \
+          }                             \
+        }
+      //}}}
+      //{{{
+      #define S1(k) { \
+        LOAD(k); \
+        for (int32_t j = 0; j < 4; j++) {       \
+          b[j] += vz[j]*w1 + vy[j]*w0;  \
+          a[j] += vz[j]*w0 - vy[j]*w1;  \
+          }                             \
+        }
+      //}}}
+      //{{{
+      #define S2(k) { \
+        LOAD(k); \
+        for (int32_t j = 0; j < 4; j++) {       \
+          b[j] += vz[j]*w1 + vy[j]*w0;  \
+          a[j] += vy[j]*w1 - vz[j]*w0;  \
+          }                             \
+        }
+      //}}}
+      S0(0) S2(1) S1(2) S2(3) S1(4) S2(5) S1(6) S2(7)
+
+      dstr[(15 - i)*nch] = scale_pcm (a[1]);
+      dstr[(17 + i)*nch] = scale_pcm (b[1]);
+      dstl[(15 - i)*nch] = scale_pcm (a[0]);
+      dstl[(17 + i)*nch] = scale_pcm (b[0]);
+      dstr[(47 - i)*nch] = scale_pcm (a[3]);
+      dstr[(49 + i)*nch] = scale_pcm (b[3]);
+      dstl[(47 - i)*nch] = scale_pcm (a[2]);
+      dstl[(49 + i)*nch] = scale_pcm (b[2]);
       }
-    //}}}
-    //{{{
-    #define S1(k) { \
-      LOAD(k); \
-      for (int32_t j = 0; j < 4; j++) {       \
-        b[j] += vz[j]*w1 + vy[j]*w0;  \
-        a[j] += vz[j]*w0 - vy[j]*w1;  \
-        }                             \
-      }
-    //}}}
-    //{{{
-    #define S2(k) { \
-      LOAD(k); \
-      for (int32_t j = 0; j < 4; j++) {       \
-        b[j] += vz[j]*w1 + vy[j]*w0;  \
-        a[j] += vy[j]*w1 - vz[j]*w0;  \
-        }                             \
-      }
-    //}}}
-    S0(0) S2(1) S1(2) S2(3) S1(4) S2(5) S1(6) S2(7)
-
-    dstr[(15 - i)*nch] = scale_pcm (a[1]);
-    dstr[(17 + i)*nch] = scale_pcm (b[1]);
-    dstl[(15 - i)*nch] = scale_pcm (a[0]);
-    dstl[(17 + i)*nch] = scale_pcm (b[0]);
-    dstr[(47 - i)*nch] = scale_pcm (a[3]);
-    dstr[(49 + i)*nch] = scale_pcm (b[3]);
-    dstl[(47 - i)*nch] = scale_pcm (a[2]);
-    dstl[(49 + i)*nch] = scale_pcm (b[2]);
     }
-  }
-//}}}
+  //}}}
 #endif
 //{{{
 void synthGranule (float* qmf_state, float* grbuf, int32_t nbands, int32_t nch, int16_t* pcm, float* lins) {
@@ -1687,10 +1715,7 @@ cMp3Decoder::cMp3Decoder() {
   clear();
   }
 //}}}
-//{{{
-cMp3Decoder::~cMp3Decoder() {
-  }
-//}}}
+cMp3Decoder::~cMp3Decoder() {}
 //{{{
 int32_t cMp3Decoder::decodeSingleFrame (uint8_t* inbuf, int32_t bytesLeft, float* outbuf) {
 
@@ -1722,7 +1747,7 @@ int32_t cMp3Decoder::decodeSingleFrame (uint8_t* inbuf, int32_t bytesLeft, float
 
     success = L3_restore_reservoir (&bitStream, &scratch, main_data_begin);
     if (success) {
-      for (int32_t igr = 0; igr < (HDR_TEST_MPEG1(inbuf) ? 2 : 1); igr++, pcm += 576 * channels) {
+      for (int32_t igr = 0; igr < (HDR_TEST_MPEG1(header) ? 2 : 1); igr++, pcm += 576 * channels) {
         memset (scratch.grbuf[0], 0, 576 * 2 * sizeof(float));
         L3_decode (&scratch, scratch.gr_info + igr*channels, channels);
         synthGranule (qmf_state, scratch.grbuf[0], 18, channels, pcm, scratch.syn[0]);
@@ -1736,7 +1761,7 @@ int32_t cMp3Decoder::decodeSingleFrame (uint8_t* inbuf, int32_t bytesLeft, float
     //{{{  layer 12
     cLog::log (LOGINFO2, "mp3 layer12");
 
-    L12_scale_info sci[1];
+    sL12scaleInfo sci[1];
     L12_read_scale_info (inbuf, &bitStream, sci);
 
     memset (scratch.grbuf[0], 0, 576 * 2 * sizeof(float));
@@ -1772,15 +1797,19 @@ int32_t cMp3Decoder::decodeSingleFrame (uint8_t* inbuf, int32_t bytesLeft, float
 void cMp3Decoder::clear() {
   free_format_bytes = 0;
   reserv = 0;
+
+  memset (reserv_buf, 0, sizeof (reserv_buf[511]));
+  memset (mdct_overlap, 0, sizeof (mdct_overlap));
+  memset (qmf_state, 0, sizeof (qmf_state));
   };
 //}}}
 //{{{
-void cMp3Decoder::L3_decode (struct sScratch* s, struct L3_gr_info_t* gr_info, int32_t nch) {
+void cMp3Decoder::L3_decode (struct sScratch* s, struct sL3grInfo* gr_info, int32_t nch) {
 
   for (int32_t ch = 0; ch < nch; ch++) {
-    int32_t layer3gr_limit = s->bs.pos + gr_info[ch].part_23_length;
-    L3_decode_scalefactors (header, s->ist_pos[ch], &s->bs, gr_info + ch, s->scf, ch);
-    L3_huffman (s->grbuf[ch], &s->bs, gr_info + ch, s->scf, layer3gr_limit);
+    int32_t layer3gr_limit = s->bitStream.pos + gr_info[ch].part_23_length;
+    L3_decode_scalefactors (header, s->ist_pos[ch], &s->bitStream, gr_info + ch, s->scf, ch);
+    L3_huffman (s->grbuf[ch], &s->bitStream, gr_info + ch, s->scf, layer3gr_limit);
     }
 
   if (HDR_TEST_I_STEREO (header))
@@ -1803,11 +1832,12 @@ void cMp3Decoder::L3_decode (struct sScratch* s, struct L3_gr_info_t* gr_info, i
     }
   }
 //}}}
-//{{{
-void cMp3Decoder::L3_save_reservoir (sScratch* s) {
 
-  int32_t pos = (s->bs.pos + 7) / 8u;
-  int32_t remains = s->bs.limit / 8u - pos;
+//{{{
+void cMp3Decoder::L3_save_reservoir (struct sScratch* s) {
+
+  int32_t pos = (s->bitStream.pos + 7) / 8u;
+  int32_t remains = s->bitStream.limit / 8u - pos;
 
   if (remains > MAX_BITRESERVOIR_BYTES) {
     pos += remains - MAX_BITRESERVOIR_BYTES;
@@ -1821,15 +1851,15 @@ void cMp3Decoder::L3_save_reservoir (sScratch* s) {
   }
 //}}}
 //{{{
-int32_t cMp3Decoder::L3_restore_reservoir (struct sBitStream* bs, struct sScratch* s, int32_t main_data_begin) {
+int32_t cMp3Decoder::L3_restore_reservoir (struct sBitStream* bitStream, struct sScratch* s, int32_t main_data_begin) {
 
-  int32_t frame_bytes = (bs->limit - bs->pos) / 8;
+  int32_t frame_bytes = (bitStream->limit - bitStream->pos) / 8;
   int32_t bytes_have = std::min (reserv, main_data_begin);
 
   memcpy (s->maindata, reserv_buf + std::max (0, reserv - main_data_begin), std::min (reserv, main_data_begin));
-  memcpy (s->maindata + bytes_have, bs->buf + bs->pos/8, frame_bytes);
+  memcpy (s->maindata + bytes_have, bitStream->buf + bitStream->pos/8, frame_bytes);
 
-  bitStreamInit (&s->bs, s->maindata, bytes_have + frame_bytes);
+  bitStreamInit (&s->bitStream, s->maindata, bytes_have + frame_bytes);
 
   return reserv >= main_data_begin;
   }
