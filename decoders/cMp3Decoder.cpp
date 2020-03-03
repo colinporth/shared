@@ -1,36 +1,4 @@
 // cMp3Decoder.cpp - based on https://github.com/lieff/minimp3
-//{{{  includes
-#include <algorithm>
-
-#include "cMp3decoder.h"
-
-#include "../utils/cLog.h"
-//}}}
-#define USE_INTRINSICS
-#ifdef USE_INTRINSICS
-  //{{{  intrinsics
-  #include <intrin.h>
-  #include <immintrin.h>
-
-  #define VSTORE  _mm_storeu_ps
-  #define VLD     _mm_loadu_ps
-  #define VSET    _mm_set1_ps
-  #define VADD    _mm_add_ps
-  #define VSUB    _mm_sub_ps
-  #define VMUL    _mm_mul_ps
-
-  #define VMAC(a, x, y)  _mm_add_ps (a, _mm_mul_ps(x, y))
-  #define VMSB(a, x, y)  _mm_sub_ps (a, _mm_mul_ps(x, y))
-  #define VMUL_S(x, s)   _mm_mul_ps (x, _mm_set1_ps(s))
-
-  #define VREV(x) _mm_shuffle_ps (x, x, _MM_SHUFFLE(0, 1, 2, 3))
-
-  typedef __m128 f4;
-
-  static const f4 g_max = {  32767.0f,  32767.0f,  32767.0f,  32767.0f };
-  static const f4 g_min = { -32768.0f, -32768.0f, -32768.0f, -32768.0f };
-  //}}}
-#endif
 //{{{  defines
 #define MAX_FREE_FORMAT_FRAME_SIZE  2304  // more than ISO spec's
 #define MAX_L3_FRAME_PAYLOAD_BYTES  MAX_FREE_FORMAT_FRAME_SIZE // MUST be >= 320000/8/32000*1152 = 1440
@@ -69,6 +37,38 @@
 #define MAX_SCF                     (255 + BITS_DEQUANTIZER_OUT*4 - 210)
 #define MAX_SCFI                    ((MAX_SCF + 3) & ~3)
 //}}}
+//{{{  includes
+#include <algorithm>
+
+#include "cMp3decoder.h"
+
+#include "../utils/cLog.h"
+//}}}
+#define USE_INTRINSICS
+#ifdef USE_INTRINSICS
+  //{{{  intrinsics
+  #include <intrin.h>
+  #include <immintrin.h>
+
+  #define VSTORE  _mm_storeu_ps
+  #define VLD     _mm_loadu_ps
+  #define VSET    _mm_set1_ps
+  #define VADD    _mm_add_ps
+  #define VSUB    _mm_sub_ps
+  #define VMUL    _mm_mul_ps
+
+  #define VMAC(a, x, y)  _mm_add_ps (a, _mm_mul_ps(x, y))
+  #define VMSB(a, x, y)  _mm_sub_ps (a, _mm_mul_ps(x, y))
+  #define VMUL_S(x, s)   _mm_mul_ps (x, _mm_set1_ps(s))
+
+  #define VREV(x) _mm_shuffle_ps (x, x, _MM_SHUFFLE(0, 1, 2, 3))
+
+  typedef __m128 f4;
+
+  static const f4 g_max = {  32767.0f,  32767.0f,  32767.0f,  32767.0f };
+  static const f4 g_min = { -32768.0f, -32768.0f, -32768.0f, -32768.0f };
+  //}}}
+#endif
 
 //{{{
 struct sBitStream {
@@ -78,23 +78,23 @@ struct sBitStream {
   } sBitStream;
 //}}}
 //{{{
-struct sL12scaleInfo {
+struct sScaleInfo {
   float   scf [3*64];
-  uint8_t total_bands;
-  uint8_t stereo_bands;
+  uint8_t totalBands;
+  uint8_t stereoBands;
   uint8_t bitalloc [64];
   uint8_t scfcod [64];
   };
 //}}}
 //{{{
-struct sL12subbandAlloc {
-  uint8_t tab_offset;
-  uint8_t code_tab_width;
-  uint8_t band_count;
+struct sSubBandAlloc {
+  uint8_t tabOffset;
+  uint8_t codeTableWidth;
+  uint8_t bandCount;
   };
 //}}}
 //{{{
-struct sL3grInfo {
+struct sGranule {
   const uint8_t* sfbtab;
   uint16_t part_23_length;
   uint16_t big_values;
@@ -116,13 +116,13 @@ struct sL3grInfo {
 //{{{
 struct sScratch {
   struct sBitStream bitStream;
-  struct sL3grInfo  gr_info [4];
-
   uint8_t  maindata [MAX_BITRESERVOIR_BYTES + MAX_L3_FRAME_PAYLOAD_BYTES];
 
-  float    grbuf [2][576];
-  float    scf [40];
-  float    syn [18+15][2*32];
+  struct sGranule granule [4];
+  float granuleBuffer [2][576];
+
+  float scf [40];
+  float syn [18+15][2*32];
   uint8_t ist_pos [2][39];
   };
 //}}}
@@ -167,16 +167,16 @@ static const uint32_t g_hz[3] = { 44100, 48000, 32000 };
 //}}}
 
 //{{{
-static const struct sL12subbandAlloc g_alloc_L1[] = { { 76, 4, 32 } };
+static const struct sSubBandAlloc g_alloc_L1[] = { { 76, 4, 32 } };
 //}}}
 //{{{
-static const struct sL12subbandAlloc g_alloc_L2M2[] = { { 60, 4, 4 }, { 44, 3, 7 }, { 44, 2, 19 } };
+static const struct sSubBandAlloc g_alloc_L2M2[] = { { 60, 4, 4 }, { 44, 3, 7 }, { 44, 2, 19 } };
 //}}}
 //{{{
-static const struct sL12subbandAlloc g_alloc_L2M1[] = { { 0, 4, 3 }, { 16, 4, 8 }, { 32, 3, 12 }, { 40, 2, 7 } };
+static const struct sSubBandAlloc g_alloc_L2M1[] = { { 0, 4, 3 }, { 16, 4, 8 }, { 32, 3, 12 }, { 40, 2, 7 } };
 //}}}
 //{{{
-static const struct sL12subbandAlloc g_alloc_L2M1_lowrate[] = { { 44, 4, 2 }, { 44, 3, 10 } };
+static const struct sSubBandAlloc g_alloc_L2M1_lowrate[] = { { 44, 4, 2 }, { 44, 3, 10 } };
 //}}}
 
 //{{{
@@ -479,8 +479,8 @@ uint32_t headerFrameSamples (const uint8_t* header) {
 int32_t headerFrameBytes (const uint8_t* header, int32_t free_format_size) {
 
   int32_t frame_bytes = headerFrameSamples (header) * headerBitrate (header) * 125 / headerSampleRate (header);
-  if (HDR_IS_LAYER_1(header))
-    frame_bytes &= ~3; /* slot align */
+  if (HDR_IS_LAYER_1 (header))
+    frame_bytes &= ~3; // slot align
 
   return frame_bytes ? frame_bytes : free_format_size;
   }
@@ -491,25 +491,26 @@ int32_t headerPadding (const uint8_t* header) {
   }
 //}}}
 
-//{{{  L12 utils
+//{{{  layer utils
+// layer 12
 //{{{
-const struct sL12subbandAlloc* sL12subbandAllocable (const uint8_t* header, struct sL12scaleInfo* sci) {
+const struct sSubBandAlloc* subBandAllocTable (const uint8_t* header, struct sScaleInfo* scaleInfo) {
 
   int32_t mode = HDR_GET_STEREO_MODE (header);
-  int32_t stereo_bands = (mode == MODE_MONO) ?
+  int32_t stereoBands = (mode == MODE_MONO) ?
                            0 : (mode == MODE_JOINT_STEREO) ?
                              (HDR_GET_STEREO_MODE_EXT(header) << 2) + 4 : 32;
 
-  int32_t nbands;
-  const struct sL12subbandAlloc* alloc;
+  int32_t numBands;
+  const struct sSubBandAlloc* alloc;
   if (HDR_IS_LAYER_1 (header)) {
     alloc = g_alloc_L1;
-    nbands = 32;
+    numBands = 32;
     }
 
   else if (!HDR_TEST_MPEG1 (header)) {
     alloc = g_alloc_L2M2;
-    nbands = 30;
+    numBands = 30;
     }
 
   else {
@@ -519,24 +520,23 @@ const struct sL12subbandAlloc* sL12subbandAllocable (const uint8_t* header, stru
       kbps = 192;
 
     alloc = g_alloc_L2M1;
-    nbands = 27;
+    numBands = 27;
     if (kbps < 56) {
       alloc = g_alloc_L2M1_lowrate;
-      nbands = sample_rate_idx == 2 ? 12 : 8;
+      numBands = sample_rate_idx == 2 ? 12 : 8;
       }
     else if (kbps >= 96 && sample_rate_idx != 1)
-      nbands = 30;
+      numBands = 30;
     }
 
-  sci->total_bands = (uint8_t)nbands;
-  sci->stereo_bands = (uint8_t)std::min (stereo_bands, nbands);
+  scaleInfo->totalBands = (uint8_t)numBands;
+  scaleInfo->stereoBands = (uint8_t)std::min (stereoBands, numBands);
 
   return alloc;
   }
 //}}}
-
 //{{{
-void L12_read_scalefactors (struct sBitStream* bitStream, uint8_t* pba, uint8_t* scfcod, int32_t bands, float* scf) {
+void readScaleFactors (struct sBitStream* bitStream, uint8_t* pba, uint8_t* scfcod, int32_t bands, float* scf) {
 
   for (int32_t i = 0; i < bands; i++) {
     float s = 0;
@@ -545,7 +545,7 @@ void L12_read_scalefactors (struct sBitStream* bitStream, uint8_t* pba, uint8_t*
     for (int32_t m = 4; m; m >>= 1) {
       if (mask & m) {
         int32_t b = getBits (bitStream, 6);
-        s = g_deq_L12[ba*3 - 6 + b % 3]*(1 << 21 >> b/3);
+        s = g_deq_L12[ba*3 - 6 + b % 3] * (1 << 21 >> b/3);
         }
       *scf++ = s;
       }
@@ -553,45 +553,46 @@ void L12_read_scalefactors (struct sBitStream* bitStream, uint8_t* pba, uint8_t*
   }
 //}}}
 //{{{
-void L12_read_scale_info (const uint8_t* header, struct sBitStream* bitStream, struct sL12scaleInfo* sci) {
+void readScaleInfo (const uint8_t* header, struct sBitStream* bitStream, struct sScaleInfo* scaleInfo) {
 
-  const struct sL12subbandAlloc* subband_alloc = sL12subbandAllocable (header, sci);
+  const struct sSubBandAlloc* subBandAlloc = subBandAllocTable (header, scaleInfo);
 
   int32_t k = 0;
-  int32_t ba_bits = 0;
-  const uint8_t* ba_code_tab = g_bitalloc_code_tab;
-  for (int32_t i = 0; i < sci->total_bands; i++) {
+  int32_t bitAllocBits = 0;
+  const uint8_t* bitAllocCodeTable = g_bitalloc_code_tab;
+  for (int32_t i = 0; i < scaleInfo->totalBands; i++) {
     if (i == k) {
-      k += subband_alloc->band_count;
-      ba_bits = subband_alloc->code_tab_width;
-      ba_code_tab = g_bitalloc_code_tab + subband_alloc->tab_offset;
-      subband_alloc++;
+      k += subBandAlloc->bandCount;
+      bitAllocBits = subBandAlloc->codeTableWidth;
+      bitAllocCodeTable = g_bitalloc_code_tab + subBandAlloc->tabOffset;
+      subBandAlloc++;
       }
-    uint8_t ba = ba_code_tab[getBits (bitStream, ba_bits)];
-    sci->bitalloc[2*i] = ba;
-    if (i < sci->stereo_bands)
-      ba = ba_code_tab [getBits (bitStream, ba_bits)];
-    sci->bitalloc [2*i + 1] = sci->stereo_bands ? ba : 0;
+
+    uint8_t bitAlloc = bitAllocCodeTable [getBits (bitStream, bitAllocBits)];
+    scaleInfo->bitalloc[2*i] = bitAlloc;
+    if (i < scaleInfo->stereoBands)
+      bitAlloc = bitAllocCodeTable [getBits (bitStream, bitAllocBits)];
+    scaleInfo->bitalloc [2*i + 1] = scaleInfo->stereoBands ? bitAlloc : 0;
     }
 
-  for (int32_t i = 0; i < 2*sci->total_bands; i++)
-    sci->scfcod[i] = sci->bitalloc[i] ? HDR_IS_LAYER_1 (header) ? 2 : getBits (bitStream, 2) : 6;
+  for (int32_t i = 0; i < 2 * scaleInfo->totalBands; i++)
+    scaleInfo->scfcod[i] = scaleInfo->bitalloc[i] ? HDR_IS_LAYER_1 (header) ? 2 : getBits (bitStream, 2) : 6;
 
-  L12_read_scalefactors (bitStream, sci->bitalloc, sci->scfcod, sci->total_bands*2, sci->scf);
+  readScaleFactors (bitStream, scaleInfo->bitalloc, scaleInfo->scfcod, scaleInfo->totalBands*2, scaleInfo->scf);
 
-  for (int32_t i = sci->stereo_bands; i < sci->total_bands; i++)
-    sci->bitalloc[2*i + 1] = 0;
+  for (int32_t i = scaleInfo->stereoBands; i < scaleInfo->totalBands; i++)
+    scaleInfo->bitalloc[2*i + 1] = 0;
   }
 //}}}
 
 //{{{
-int32_t L12_dequantize_granule (float* grbuf, struct sBitStream* bitStream, struct sL12scaleInfo* sci, int32_t group_size) {
+int32_t dequantizeGranule (float* granuleBuffer, struct sBitStream* bitStream, struct sScaleInfo* scaleInfo, int32_t group_size) {
 
   int32_t choff = 576;
   for (int32_t j = 0; j < 4; j++) {
-    float* dst = grbuf + group_size*j;
-    for (int32_t i = 0; i < 2*sci->total_bands; i++) {
-      int32_t ba = sci->bitalloc[i];
+    float* dst = granuleBuffer + group_size*j;
+    for (int32_t i = 0; i < 2 * scaleInfo->totalBands; i++) {
+      int32_t ba = scaleInfo->bitalloc[i];
       if (ba != 0) {
         if (ba < 17) {
           int32_t half = (1 << (ba - 1)) - 1;
@@ -615,23 +616,23 @@ int32_t L12_dequantize_granule (float* grbuf, struct sBitStream* bitStream, stru
   }
 //}}}
 //{{{
-void L12_apply_scf_384 (sL12scaleInfo* sci, const float* scf, float* dst) {
+void applyScf384 (sScaleInfo* scaleInfo, const float* scf, float* dst) {
 
-  memcpy (dst + 576 + sci->stereo_bands*18, dst + sci->stereo_bands*18,
-          (sci->total_bands - sci->stereo_bands)*18*sizeof(float));
+  memcpy (dst + 576 + scaleInfo->stereoBands*18, dst + scaleInfo->stereoBands*18,
+          (scaleInfo->totalBands - scaleInfo->stereoBands)*18*sizeof(float));
 
-  for (int32_t i = 0; i < sci->total_bands; i++, dst += 18, scf += 6) {
+  for (int32_t i = 0; i < scaleInfo->totalBands; i++, dst += 18, scf += 6) {
     for (int32_t k = 0; k < 12; k++) {
-      dst[k + 0]   *= scf[0];
-      dst[k + 576] *= scf[3];
+      dst[k]  *= scf[0];
+      dst[k+576] *= scf[3];
       }
     }
   }
 //}}}
-//}}}
-//{{{  L3 utils
+
+// layer 3
 //{{{
-void L3_dct3_9 (float* y) {
+void dct39 (float* y) {
 
   float s0 = y[0];
   float s2 = y[2];
@@ -676,10 +677,27 @@ void L3_dct3_9 (float* y) {
   y[8] = s4 + s7;
   }
 //}}}
+//{{{
+void reorder (float* granuleBuffer, float* scratch, const uint8_t* sfb) {
+
+  int32_t len;
+  float* src = granuleBuffer;
+  float* dst = scratch;
+  for (; 0 != (len = *sfb); sfb += 3, src += 2*len) {
+    for (int32_t i = 0; i < len; i++, src++) {
+      *dst++ = src[0*len];
+      *dst++ = src[1*len];
+      *dst++ = src[2*len];
+      }
+    }
+
+  memcpy (granuleBuffer, scratch, (dst - scratch)*sizeof(float));
+  }
+//}}}
 
 #ifdef USE_INTRINSICS
 //{{{
-void L3_midside_stereo (float* left, int32_t n) {
+void midsideStereo (float* left, int32_t n) {
 
   float* right = left + 576;
 
@@ -700,39 +718,39 @@ void L3_midside_stereo (float* left, int32_t n) {
   }
 //}}}
 //{{{
-void L3_antialias (float* grbuf, int32_t nbands) {
+void antialias (float* granuleBuffer, int32_t numBands) {
 
-  for (; nbands > 0; nbands--, grbuf += 18) {
+  for (; numBands > 0; numBands--, granuleBuffer += 18) {
     int32_t i = 0;
     for (; i < 8; i += 4) {
-      f4 vu = VLD (grbuf + 18 + i);
-      f4 vd = VLD (grbuf + 14 - i);
+      f4 vu = VLD (granuleBuffer + 18 + i);
+      f4 vd = VLD (granuleBuffer + 14 - i);
       f4 vc0 = VLD (g_aa[0] + i);
       f4 vc1 = VLD (g_aa[1] + i);
       vd = VREV (vd);
-      VSTORE (grbuf + 18 + i, VSUB (VMUL (vu, vc0), VMUL (vd, vc1)));
+      VSTORE (granuleBuffer + 18 + i, VSUB (VMUL (vu, vc0), VMUL (vd, vc1)));
       vd = VADD (VMUL (vu, vc1), VMUL (vd, vc0));
-      VSTORE (grbuf + 14 - i, VREV (vd));
+      VSTORE (granuleBuffer + 14 - i, VREV (vd));
       }
     }
   }
 //}}}
 //{{{
-void L3_imdct36 (float* grbuf, float* overlap, const float* window, int32_t nbands) {
+void imdct36 (float* granuleBuffer, float* overlap, const float* window, int32_t numBands) {
 
-  for (int32_t j = 0; j < nbands; j++, grbuf += 18, overlap += 9) {
+  for (int32_t j = 0; j < numBands; j++, granuleBuffer += 18, overlap += 9) {
     float co[9];
     float si[9];
-    co[0] = -grbuf[0];
-    si[0] = grbuf[17];
+    co[0] = -granuleBuffer[0];
+    si[0] = granuleBuffer[17];
     for (int32_t i = 0; i < 4; i++) {
-      si[8 - 2*i] =   grbuf[4*i + 1] - grbuf[4*i + 2];
-      co[1 + 2*i] =   grbuf[4*i + 1] + grbuf[4*i + 2];
-      si[7 - 2*i] =   grbuf[4*i + 4] - grbuf[4*i + 3];
-      co[2 + 2*i] = -(grbuf[4*i + 3] + grbuf[4*i + 4]);
+      si[8 - 2*i] =   granuleBuffer[4*i + 1] - granuleBuffer[4*i + 2];
+      co[1 + 2*i] =   granuleBuffer[4*i + 1] + granuleBuffer[4*i + 2];
+      si[7 - 2*i] =   granuleBuffer[4*i + 4] - granuleBuffer[4*i + 3];
+      co[2 + 2*i] = -(granuleBuffer[4*i + 3] + granuleBuffer[4*i + 4]);
       }
-    L3_dct3_9 (co);
-    L3_dct3_9 (si);
+    dct39 (co);
+    dct39 (si);
 
     si[1] = -si[1];
     si[3] = -si[3];
@@ -750,24 +768,24 @@ void L3_imdct36 (float* grbuf, float* overlap, const float* window, int32_t nban
       f4 vw1 = VLD (window + 9 + i);
       f4 vsum = VADD(VMUL (vc, vr1), VMUL(vs, vr0));
       VSTORE (overlap + i, VSUB (VMUL(vc, vr0), VMUL(vs, vr1)));
-      VSTORE (grbuf + i, VSUB (VMUL (vovl, vw0), VMUL(vsum, vw1)));
+      VSTORE (granuleBuffer + i, VSUB (VMUL (vovl, vw0), VMUL(vsum, vw1)));
       vsum = VADD ( VMUL (vovl, vw1), VMUL (vsum, vw0));
-      VSTORE (grbuf + 14 - i, VREV (vsum));
+      VSTORE (granuleBuffer + 14 - i, VREV (vsum));
       }
 
     for (; i < 9; i++) {
       float ovl = overlap[i];
-      float sum = co[i]*g_twid9[9 + i] + si[i]*g_twid9[0 + i];
-      overlap[i] = co[i]*g_twid9[0 + i] - si[i]*g_twid9[9 + i];
-      grbuf[i] = ovl*window[0 + i] - sum*window[9 + i];
-      grbuf[17 - i] = ovl*window[9 + i] + sum*window[0 + i];
+      float sum = co[i] * g_twid9[9 + i] + si[i] * g_twid9[i];
+      overlap[i] = co[i] * g_twid9[i] - si[i] * g_twid9[9 + i];
+      granuleBuffer[i] = ovl*window[i] - sum*window[9 + i];
+      granuleBuffer[17 - i] = ovl*window[9 + i] + sum*window[i];
       }
     }
   }
 //}}}
 #else
 //{{{
-void L3_midside_stereo (float *left, int32_t n) {
+void midsideStereo (float* left, int32_t n) {
 
   float* right = left + 576;
   for (int32_t i = 0; i < n; i++) {
@@ -779,33 +797,33 @@ void L3_midside_stereo (float *left, int32_t n) {
   }
 //}}}
 //{{{
-void L3_antialias (float* grbuf, int32_t nbands) {
+void antialias (float* granuleBuffer, int32_t numBands) {
 
-  for (; nbands > 0; nbands--, grbuf += 18) {
+  for (; numBands > 0; numBands--, granuleBuffer += 18) {
     for (int32_t i = 0; i < 8; i++) {
-      float u = grbuf[18 + i];
-      float d = grbuf[17 - i];
-      grbuf[18 + i] = u*g_aa[0][i] - d*g_aa[1][i];
-      grbuf[17 - i] = u*g_aa[1][i] + d*g_aa[0][i];
+      float u = granuleBuffer[18 + i];
+      float d = granuleBuffer[17 - i];
+      granuleBuffer[18 + i] = u*g_aa[0][i] - d*g_aa[1][i];
+      granuleBuffer[17 - i] = u*g_aa[1][i] + d*g_aa[0][i];
       }
     }
   }
 //}}}
 //{{{
-void L3_imdct36 (float* grbuf, float* overlap, const float* window, int32_t nbands) {
+void imdct36 (float* granuleBuffer, float* overlap, const float* window, int32_t numBands) {
 
-  for (int32_t j = 0; j < nbands; j++, grbuf += 18, overlap += 9) {
+  for (int32_t j = 0; j < numBands; j++, granuleBuffer += 18, overlap += 9) {
     float co[9], si[9];
-    co[0] = -grbuf[0];
-    si[0] = grbuf[17];
+    co[0] = -granuleBuffer[0];
+    si[0] = granuleBuffer[17];
     for (int32_t i = 0; i < 4; i++) {
-      si[8 - 2*i] = grbuf[4*i + 1] - grbuf[4*i + 2];
-      co[1 + 2*i] = grbuf[4*i + 1] + grbuf[4*i + 2];
-      si[7 - 2*i] = grbuf[4*i + 4] - grbuf[4*i + 3];
-      co[2 + 2*i] = -(grbuf[4*i + 3] + grbuf[4*i + 4]);
+      si[8 - 2*i] = granuleBuffer[4*i + 1] - granuleBuffer[4*i + 2];
+      co[1 + 2*i] = granuleBuffer[4*i + 1] + granuleBuffer[4*i + 2];
+      si[7 - 2*i] = granuleBuffer[4*i + 4] - granuleBuffer[4*i + 3];
+      co[2 + 2*i] = -(granuleBuffer[4*i + 3] + granuleBuffer[4*i + 4]);
       }
-    L3_dct3_9 (co);
-    L3_dct3_9 (si);
+    dct3_9 (co);
+    dct3_9 (si);
 
     si[1] = -si[1];
     si[3] = -si[3];
@@ -816,8 +834,8 @@ void L3_imdct36 (float* grbuf, float* overlap, const float* window, int32_t nban
       float ovl = overlap[i];
       float sum = co[i] * g_twid9[9 + i] + si[i] * g_twid9[0 + i];
       overlap[i] = co[i] * g_twid9[0 + i] - si[i] * g_twid9[9 + i];
-      grbuf[i] = ovl * window[0 + i] - sum * window[9 + i];
-      grbuf[17 - i] = ovl * window[9 + i] + sum * window[0 + i];
+      granuleBuffer[i] = ovl * window[0 + i] - sum * window[9 + i];
+      granuleBuffer[17 - i] = ovl * window[9 + i] + sum * window[0 + i];
       }
     }
   }
@@ -825,98 +843,98 @@ void L3_imdct36 (float* grbuf, float* overlap, const float* window, int32_t nban
 #endif
 
 //{{{
-int32_t L3_read_side_info (struct sBitStream* bitStream, struct sL3grInfo* gr, const uint8_t* header) {
+int32_t readSideInfo (struct sBitStream* bitStream, struct sGranule* granule, const uint8_t* header) {
 
   int32_t sr_idx = HDR_GET_MY_SAMPLE_RATE (header);
   sr_idx -= (sr_idx != 0);
 
   uint32_t scfsi = 0;
-  int32_t gr_count = HDR_IS_MONO (header) ? 1 : 2;
-  int32_t main_data_begin;
+  int32_t granule_count = HDR_IS_MONO (header) ? 1 : 2;
+  int32_t mainDataBegin;
   if (HDR_TEST_MPEG1 (header)) {
-    gr_count *= 2;
-    main_data_begin = getBits (bitStream, 9);
-    scfsi = getBits (bitStream, 7 + gr_count);
+    granule_count *= 2;
+    mainDataBegin = getBits (bitStream, 9);
+    scfsi = getBits (bitStream, 7 + granule_count);
     }
   else
-    main_data_begin = getBits (bitStream, 8 + gr_count) >> gr_count;
+    mainDataBegin = getBits (bitStream, 8 + granule_count) >> granule_count;
 
   int32_t part_23_sum = 0;
   do {
     if (HDR_IS_MONO (header))
       scfsi <<= 4;
 
-    gr->part_23_length = (uint16_t)getBits (bitStream, 12);
-    part_23_sum += gr->part_23_length;
-    gr->big_values = (uint16_t)getBits (bitStream, 9);
-    if (gr->big_values > 288)
+    granule->part_23_length = (uint16_t)getBits (bitStream, 12);
+    part_23_sum += granule->part_23_length;
+    granule->big_values = (uint16_t)getBits (bitStream, 9);
+    if (granule->big_values > 288)
       return -1;
 
-    gr->global_gain = (uint8_t)getBits (bitStream, 8);
-    gr->scalefac_compress = (uint16_t)getBits (bitStream, HDR_TEST_MPEG1 (header) ? 4 : 9);
-    gr->sfbtab = g_scf_long [sr_idx];
-    gr->n_long_sfb  = 22;
-    gr->n_short_sfb = 0;
+    granule->global_gain = (uint8_t)getBits (bitStream, 8);
+    granule->scalefac_compress = (uint16_t)getBits (bitStream, HDR_TEST_MPEG1 (header) ? 4 : 9);
+    granule->sfbtab = g_scf_long [sr_idx];
+    granule->n_long_sfb  = 22;
+    granule->n_short_sfb = 0;
 
     uint32_t tables;
     if (getBits (bitStream, 1)) {
-      gr->block_type = (uint8_t)getBits (bitStream, 2);
-      if (!gr->block_type)
+      granule->block_type = (uint8_t)getBits (bitStream, 2);
+      if (!granule->block_type)
         return -1;
-      gr->mixed_block_flag = (uint8_t)getBits (bitStream, 1);
-      gr->region_count[0] = 7;
-      gr->region_count[1] = 255;
+      granule->mixed_block_flag = (uint8_t)getBits (bitStream, 1);
+      granule->region_count[0] = 7;
+      granule->region_count[1] = 255;
 
-      if (gr->block_type == SHORT_BLOCK_TYPE) {
+      if (granule->block_type == SHORT_BLOCK_TYPE) {
         scfsi &= 0x0F0F;
-        if (!gr->mixed_block_flag) {
-          gr->region_count[0] = 8;
-          gr->sfbtab = g_scf_short[sr_idx];
-          gr->n_long_sfb = 0;
-          gr->n_short_sfb = 39;
+        if (!granule->mixed_block_flag) {
+          granule->region_count[0] = 8;
+          granule->sfbtab = g_scf_short[sr_idx];
+          granule->n_long_sfb = 0;
+          granule->n_short_sfb = 39;
           }
         else {
-          gr->sfbtab = g_scf_mixed[sr_idx];
-          gr->n_long_sfb = HDR_TEST_MPEG1(header) ? 8 : 6;
-          gr->n_short_sfb = 30;
+          granule->sfbtab = g_scf_mixed[sr_idx];
+          granule->n_long_sfb = HDR_TEST_MPEG1(header) ? 8 : 6;
+          granule->n_short_sfb = 30;
           }
         }
 
       tables = getBits (bitStream, 10);
       tables <<= 5;
-      gr->subblock_gain[0] = (uint8_t)getBits (bitStream, 3);
-      gr->subblock_gain[1] = (uint8_t)getBits (bitStream, 3);
-      gr->subblock_gain[2] = (uint8_t)getBits (bitStream, 3);
+      granule->subblock_gain[0] = (uint8_t)getBits (bitStream, 3);
+      granule->subblock_gain[1] = (uint8_t)getBits (bitStream, 3);
+      granule->subblock_gain[2] = (uint8_t)getBits (bitStream, 3);
       }
 
     else {
-      gr->block_type = 0;
-      gr->mixed_block_flag = 0;
+      granule->block_type = 0;
+      granule->mixed_block_flag = 0;
       tables = getBits (bitStream, 15);
-      gr->region_count[0] = (uint8_t)getBits (bitStream, 4);
-      gr->region_count[1] = (uint8_t)getBits (bitStream, 3);
-      gr->region_count[2] = 255;
+      granule->region_count[0] = (uint8_t)getBits (bitStream, 4);
+      granule->region_count[1] = (uint8_t)getBits (bitStream, 3);
+      granule->region_count[2] = 255;
       }
 
-    gr->table_select[0] = (uint8_t)(tables >> 10);
-    gr->table_select[1] = (uint8_t)((tables >> 5) & 31);
-    gr->table_select[2] = (uint8_t)((tables) & 31);
-    gr->preflag = HDR_TEST_MPEG1 (header) ? getBits (bitStream, 1) : (gr->scalefac_compress >= 500);
-    gr->scalefac_scale = (uint8_t)getBits (bitStream, 1);
-    gr->count1_table = (uint8_t)getBits (bitStream, 1);
-    gr->scfsi = (uint8_t)((scfsi >> 12) & 15);
+    granule->table_select[0] = (uint8_t)(tables >> 10);
+    granule->table_select[1] = (uint8_t)((tables >> 5) & 31);
+    granule->table_select[2] = (uint8_t)((tables) & 31);
+    granule->preflag = HDR_TEST_MPEG1 (header) ? getBits (bitStream, 1) : (granule->scalefac_compress >= 500);
+    granule->scalefac_scale = (uint8_t)getBits (bitStream, 1);
+    granule->count1_table = (uint8_t)getBits (bitStream, 1);
+    granule->scfsi = (uint8_t)((scfsi >> 12) & 15);
     scfsi <<= 4;
-    gr++;
-    } while (--gr_count);
+    granule++;
+    } while (--granule_count);
 
-  if ((part_23_sum + bitStream->pos) > (bitStream->limit + main_data_begin * 8))
+  if ((part_23_sum + bitStream->pos) > (bitStream->limit + mainDataBegin * 8))
     return -1;
 
-  return main_data_begin;
+  return mainDataBegin;
   }
 //}}}
 //{{{
-void L3_read_scalefactors (uint8_t* scf, uint8_t* ist_pos, const uint8_t* scf_size, const uint8_t* scf_count,
+void readScaleFactorsL3 (uint8_t* scf, uint8_t* ist_pos, const uint8_t* scf_size, const uint8_t* scf_count,
                            struct sBitStream* bitbuf, int32_t scfsi) {
 
   for (int32_t i = 0; i < 4 && scf_count[i]; i++, scfsi *= 2) {
@@ -946,11 +964,11 @@ void L3_read_scalefactors (uint8_t* scf, uint8_t* ist_pos, const uint8_t* scf_si
   }
 //}}}
 //{{{
-float L3_ldexp_q2 (float y, int32_t exp_q2) {
+float ldExpQ2 (float y, int32_t exp_q2) {
 
   int32_t e;
   do {
-    e = std::min(30*4, exp_q2);
+    e = std::min (30*4, exp_q2);
     y *= g_expfrac[e & 3]*(1 << 30 >> (e >> 2));
     } while ((exp_q2 -= e) > 0);
 
@@ -958,8 +976,8 @@ float L3_ldexp_q2 (float y, int32_t exp_q2) {
   }
 //}}}
 //{{{
-void L3_decode_scalefactors (const uint8_t* header, uint8_t* ist_pos, struct sBitStream* bitStream,
-                             const struct sL3grInfo* gr, float* scf, int32_t ch) {
+void decodeScaleFactors (const uint8_t* header, uint8_t* ist_pos, struct sBitStream* bitStream,
+                         const struct sGranule* gr, float* scf, int32_t ch) {
 
   const uint8_t* scf_partition = g_scf_partitions [!!gr->n_short_sfb + !gr->n_long_sfb];
   uint8_t scf_size[4], iscf[40];
@@ -984,7 +1002,7 @@ void L3_decode_scalefactors (const uint8_t* header, uint8_t* ist_pos, struct sBi
     scf_partition += k;
     scfsi = -16;
     }
-  L3_read_scalefactors (iscf, ist_pos, scf_size, scf_partition, bitStream, scfsi);
+  readScaleFactorsL3 (iscf, ist_pos, scf_size, scf_partition, bitStream, scfsi);
 
   if (gr->n_short_sfb) {
     int32_t sh = 3 - scf_shift;
@@ -1000,14 +1018,14 @@ void L3_decode_scalefactors (const uint8_t* header, uint8_t* ist_pos, struct sBi
     }
 
   int32_t gain_exp = gr->global_gain + BITS_DEQUANTIZER_OUT*4 - 210 - (HDR_IS_MS_STEREO (header) ? 2 : 0);
-  float gain = L3_ldexp_q2 (1 << (MAX_SCFI/4),  MAX_SCFI - gain_exp);
+  float gain = ldExpQ2 (1 << (MAX_SCFI/4),  MAX_SCFI - gain_exp);
   for (int32_t i = 0; i < (int)(gr->n_long_sfb + gr->n_short_sfb); i++)
-    scf[i] = L3_ldexp_q2 (gain, iscf[i] << scf_shift);
+    scf[i] = ldExpQ2 (gain, iscf[i] << scf_shift);
   }
 //}}}
 
 //{{{
-float L3_pow_43 (int32_t x) {
+float pow43 (int32_t x) {
 
   float frac;
   int32_t sign;
@@ -1028,8 +1046,8 @@ float L3_pow_43 (int32_t x) {
   }
 //}}}
 //{{{
-void L3_huffman (float* dst, struct sBitStream* bitStream, const struct sL3grInfo* gr_info, const float* scf,
-                 int32_t layer3gr_limit) {
+void huffman (float* dst, struct sBitStream* bitStream, const struct sGranule* granule,
+              const float* scf, int32_t l3granuleLimit) {
 
   #define PEEK_BITS(n) (bitStreamCache >> (32 - n))
   #define BSPOS ((bitStreamNextPtr - bitStream->buf)*8 - 24 + bitStreamSh)
@@ -1050,8 +1068,8 @@ void L3_huffman (float* dst, struct sBitStream* bitStream, const struct sL3grInf
 
   float one = 0.0f;
   int32_t ireg = 0;
-  int32_t big_val_cnt = gr_info->big_values;
-  const uint8_t* sfb = gr_info->sfbtab;
+  int32_t big_val_cnt = granule->big_values;
+  const uint8_t* sfb = granule->sfbtab;
   const uint8_t* bitStreamNextPtr = bitStream->buf + bitStream->pos/8;
   uint32_t bitStreamCache = (((bitStreamNextPtr[0] * 256u + bitStreamNextPtr[1]) * 256u +
                                bitStreamNextPtr[2]) * 256u + bitStreamNextPtr[3]) << (bitStream->pos & 7);
@@ -1061,8 +1079,8 @@ void L3_huffman (float* dst, struct sBitStream* bitStream, const struct sL3grInf
   bitStreamNextPtr += 4;
 
   while (big_val_cnt > 0) {
-    int32_t tab_num = gr_info->table_select[ireg];
-    int32_t sfb_cnt = gr_info->region_count[ireg++];
+    int32_t tab_num = granule->table_select[ireg];
+    int32_t sfb_cnt = granule->region_count[ireg++];
     const int16_t* codebook = g_tabs + g_tabindex[tab_num];
     int32_t linbits = g_linbits[tab_num];
     if (linbits) {
@@ -1086,7 +1104,7 @@ void L3_huffman (float* dst, struct sBitStream* bitStream, const struct sL3grInf
               lsb += PEEK_BITS (linbits);
               FLUSH_BITS (linbits);
               CHECK_BITS;
-              *dst = one * L3_pow_43 (lsb) * ((int32_t)bitStreamCache < 0 ? -1: 1);
+              *dst = one * pow43 (lsb) * ((int32_t)bitStreamCache < 0 ? -1: 1);
               }
             else
               *dst = g_pow43[16 + lsb - 16*(bitStreamCache >> 31)]*one;
@@ -1123,12 +1141,12 @@ void L3_huffman (float* dst, struct sBitStream* bitStream, const struct sL3grInf
     }
 
   for (np = 1 - big_val_cnt;; dst += 4) {
-    const uint8_t* codebook_count1 = (gr_info->count1_table) ? g_tab33 : g_tab32;
+    const uint8_t* codebook_count1 = (granule->count1_table) ? g_tab33 : g_tab32;
     int32_t leaf = codebook_count1[PEEK_BITS(4)];
     if (!(leaf & 8))
       leaf = codebook_count1[(leaf >> 3) + (bitStreamCache << 4 >> (32 - (leaf & 3)))];
     FLUSH_BITS (leaf & 7);
-    if (BSPOS > layer3gr_limit)
+    if (BSPOS > l3granuleLimit)
       break;
 
     //{{{
@@ -1159,12 +1177,12 @@ void L3_huffman (float* dst, struct sBitStream* bitStream, const struct sL3grInf
     CHECK_BITS;
     }
 
-  bitStream->pos = layer3gr_limit;
+  bitStream->pos = l3granuleLimit;
   }
 //}}}
 
 //{{{
-void L3_intensity_stereo_band (float* left, int32_t n, float kl, float kr) {
+void intensityStereoBand (float* left, int32_t n, float kl, float kr) {
 
   for (int32_t i = 0; i < n; i++) {
     left[i + 576] = left[i]*kr;
@@ -1173,11 +1191,11 @@ void L3_intensity_stereo_band (float* left, int32_t n, float kl, float kr) {
   }
 //}}}
 //{{{
-void L3_stereo_top_band (const float* right, const uint8_t* sfb, int32_t nbands, int32_t max_band[3]) {
+void stereoTopBand (const float* right, const uint8_t* sfb, int32_t numBands, int32_t max_band[3]) {
 
   max_band[0] = max_band[1] = max_band[2] = -1;
 
-  for (int32_t i = 0; i < nbands; i++) {
+  for (int32_t i = 0; i < numBands; i++) {
     for (int32_t k = 0; k < sfb[i]; k += 2) {
       if (right[k] != 0 || right[k + 1] != 0) {
         max_band[i % 3] = i;
@@ -1189,8 +1207,8 @@ void L3_stereo_top_band (const float* right, const uint8_t* sfb, int32_t nbands,
   }
 //}}}
 //{{{
-void L3_stereo_process (float* left, const uint8_t *ist_pos, const uint8_t *sfb, const uint8_t* header,
-                        int32_t max_band[3], int32_t mpeg2_sh) {
+void stereoProcess (float* left, const uint8_t* ist_pos, const uint8_t* sfb, const uint8_t* header,
+                    int32_t max_band[3], int32_t mpeg2_sh) {
 
 
   uint32_t max_pos = HDR_TEST_MPEG1 (header) ? 7 : 64;
@@ -1205,32 +1223,32 @@ void L3_stereo_process (float* left, const uint8_t *ist_pos, const uint8_t *sfb,
         }
       else {
         kl = 1;
-        kr = L3_ldexp_q2 (1, (ipos + 1) >> 1 << mpeg2_sh);
+        kr = ldExpQ2 (1, (ipos + 1) >> 1 << mpeg2_sh);
         if (ipos & 1) {
           kl = kr;
           kr = 1;
           }
         }
-      L3_intensity_stereo_band (left, sfb[i], kl*s, kr*s);
+      intensityStereoBand (left, sfb[i], kl * s, kr * s);
       }
     else if (HDR_TEST_MS_STEREO (header))
-      L3_midside_stereo(left, sfb[i]);
+      midsideStereo (left, sfb[i]);
 
     left += sfb[i];
     }
   }
 //}}}
 //{{{
-void L3_intensity_stereo (float* left, uint8_t* ist_pos, const struct sL3grInfo* gr, const uint8_t* header) {
+void intensityStereo (float* left, uint8_t* ist_pos, const struct sGranule* granule, const uint8_t* header) {
 
-  int32_t max_band[3], n_sfb = gr->n_long_sfb + gr->n_short_sfb;
-  int32_t i, max_blocks = gr->n_short_sfb ? 3 : 1;
-
-  L3_stereo_top_band(left + 576, gr->sfbtab, n_sfb, max_band);
-  if (gr->n_long_sfb) {
+  int32_t max_band[3], n_sfb = granule->n_long_sfb + granule->n_short_sfb;
+  stereoTopBand (left + 576, granule->sfbtab, n_sfb, max_band);
+  if (granule->n_long_sfb) {
     max_band[0] = max_band[1] = max_band[2] = std::max (std::max (max_band[0], max_band[1]), max_band[2]);
     }
 
+  int32_t i;
+  int32_t max_blocks = granule->n_short_sfb ? 3 : 1;
   for (i = 0; i < max_blocks; i++) {
     int32_t default_pos = HDR_TEST_MPEG1 (header) ? 3 : 0;
     int32_t itop = n_sfb - max_blocks + i;
@@ -1238,30 +1256,12 @@ void L3_intensity_stereo (float* left, uint8_t* ist_pos, const struct sL3grInfo*
     ist_pos[itop] = max_band[i] >= prev ? default_pos : ist_pos[prev];
     }
 
-  L3_stereo_process (left, ist_pos, gr->sfbtab, header, max_band, gr[1].scalefac_compress & 1);
+  stereoProcess (left, ist_pos, granule->sfbtab, header, max_band, granule[1].scalefac_compress & 1);
   }
 //}}}
 
 //{{{
-void L3_reorder (float* grbuf, float* scratch, const uint8_t* sfb) {
-
-  int32_t len;
-  float* src = grbuf;
-  float* dst = scratch;
-  for (; 0 != (len = *sfb); sfb += 3, src += 2*len) {
-    for (int32_t i = 0; i < len; i++, src++) {
-      *dst++ = src[0*len];
-      *dst++ = src[1*len];
-      *dst++ = src[2*len];
-      }
-    }
-
-  memcpy (grbuf, scratch, (dst - scratch)*sizeof(float));
-  }
-//}}}
-
-//{{{
-void L3_idct3 (float x0, float x1, float x2, float *dst) {
+void idct3 (float x0, float x1, float x2, float *dst) {
 
   float m1 = x1 * 0.86602540f;
   float a1 = x0 - x2 * 0.5f;
@@ -1272,13 +1272,13 @@ void L3_idct3 (float x0, float x1, float x2, float *dst) {
   }
 //}}}
 //{{{
-void L3_imdct12 (float* x, float* dst, float* overlap) {
+void imdct12 (float* x, float* dst, float* overlap) {
 
   float co [3];
-  L3_idct3 (-x[0], x[6] + x[3], x[12] + x[9], co);
+  idct3 (-x[0], x[6] + x[3], x[12] + x[9], co);
 
   float si [3];
-  L3_idct3 (x[15], x[12] - x[9], x[6] - x[3], si);
+  idct3 (x[15], x[12] - x[9], x[6] - x[3], si);
   si[1] = -si[1];
 
   for (int32_t i = 0; i < 3; i++) {
@@ -1291,41 +1291,42 @@ void L3_imdct12 (float* x, float* dst, float* overlap) {
   }
 //}}}
 //{{{
-void L3_imdct_short (float* grbuf, float* overlap, int nbands) {
+void imdctShort (float* granuleBuffer, float* overlap, int numBands) {
 
-  for (;nbands > 0; nbands--, overlap += 9, grbuf += 18) {
+  for (;numBands > 0; numBands--, overlap += 9, granuleBuffer += 18) {
     float tmp[18];
-    memcpy (tmp, grbuf, sizeof(tmp));
-    memcpy (grbuf, overlap, 6*sizeof(float));
+    memcpy (tmp, granuleBuffer, sizeof(tmp));
+    memcpy (granuleBuffer, overlap, 6*sizeof(float));
 
-    L3_imdct12 (tmp, grbuf + 6, overlap + 6);
-    L3_imdct12 (tmp + 1, grbuf + 12, overlap + 6);
-    L3_imdct12 (tmp + 2, overlap, overlap + 6);
+    imdct12 (tmp, granuleBuffer + 6, overlap + 6);
+    imdct12 (tmp + 1, granuleBuffer + 12, overlap + 6);
+    imdct12 (tmp + 2, overlap, overlap + 6);
     }
   }
 //}}}
 //{{{
-void L3_change_sign (float* grbuf) {
-
-  int32_t b;
-  for (b = 0, grbuf += 18; b < 32; b += 2, grbuf += 36)
-    for (int32_t i = 1; i < 18; i += 2)
-      grbuf[i] = -grbuf[i];
-  }
-//}}}
-//{{{
-void L3_imdct_gr (float* grbuf, float* overlap, uint32_t block_type, uint32_t n_long_bands) {
+void imdctGranule (float* granuleBuffer, float* overlap, uint32_t block_type, uint32_t n_long_bands) {
 
   if (n_long_bands) {
-    L3_imdct36 (grbuf, overlap, g_mdct_window[0], n_long_bands);
-    grbuf += 18*n_long_bands;
+    imdct36 (granuleBuffer, overlap, g_mdct_window[0], n_long_bands);
+    granuleBuffer += 18*n_long_bands;
     overlap += 9*n_long_bands;
     }
 
   if (block_type == SHORT_BLOCK_TYPE)
-    L3_imdct_short (grbuf, overlap, 32 - n_long_bands);
+    imdctShort (granuleBuffer, overlap, 32 - n_long_bands);
   else
-    L3_imdct36 (grbuf, overlap, g_mdct_window[block_type == STOP_BLOCK_TYPE], 32 - n_long_bands);
+    imdct36 (granuleBuffer, overlap, g_mdct_window[block_type == STOP_BLOCK_TYPE], 32 - n_long_bands);
+  }
+//}}}
+
+//{{{
+void changeSign (float* granuleBuffer) {
+
+  int32_t b;
+  for (b = 0, granuleBuffer += 18; b < 32; b += 2, granuleBuffer += 36)
+    for (int32_t i = 1; i < 18; i += 2)
+      granuleBuffer[i] = -granuleBuffer[i];
   }
 //}}}
 //}}}
@@ -1346,7 +1347,7 @@ int16_t scalePcm (float sample) {
   }
 //}}}
 //{{{
-void synthPair (int16_t* pcm, int32_t nch, const float* z) {
+void synthPair (int16_t* pcm, int32_t numChannels, const float* z) {
 
   float a = (z[14*64] - z[0]) * 29;
   a += (z[ 1*64] + z[13*64]) * 213;
@@ -1367,18 +1368,18 @@ void synthPair (int16_t* pcm, int32_t nch, const float* z) {
   a += z[ 4*64] * -45;
   a += z[ 2*64] * 146;
   a += z[ 0*64] * -5;
-  pcm[16*nch] = scalePcm (a);
+  pcm[16 * numChannels] = scalePcm (a);
   }
 //}}}
 #ifdef USE_INTRINSICS
   //{{{
-  void dctII (float* grbuf, int32_t n) {
+  void dctII (float* granuleBuffer, int32_t n) {
 
     for (int32_t k = 0; k < n; k += 4) {
       f4 t[4][8];
 
       f4* x = t[0];
-      float* y = grbuf + k;
+      float* y = granuleBuffer + k;
       for (int32_t i = 0; i < 8; i++, x++) {
         f4 x0 = VLD (&y[i*18]);
         f4 x1 = VLD (&y[(15 - i)*18]);
@@ -1536,11 +1537,11 @@ void synthPair (int16_t* pcm, int32_t nch, const float* z) {
   //}}}
 #else
   //{{{
-  void dctII (float* grbuf, int32_t n) {
+  void dctII (float* granuleBuffer, int32_t n) {
 
     for (int32_t k = 0; k < n; k++) {
       float t[4][8];
-      float* y = grbuf + k;
+      float* y = granuleBuffer + k;
       float* x = t[0];
       for (int32_t i = 0; i < 8; i++, x++) {
         float x0 = y[i*18];
@@ -1612,10 +1613,10 @@ void synthPair (int16_t* pcm, int32_t nch, const float* z) {
     }
   //}}}
   //{{{
-  void synth (float* xl, int16_t* dstl, int32_t nch, float* lins) {
+  void synth (float* xl, int16_t* dstl, int32_t numChannels, float* lins) {
 
-    float* xr = xl + 576*(nch - 1);
-    int16_t* dstr = dstl + (nch - 1);
+    float* xr = xl + 576 *( numChannels - 1);
+    int16_t* dstr = dstl + (numChannels - 1);
 
     float* zlin = lins + 15 * 64;
     const float* w = g_win;
@@ -1630,10 +1631,10 @@ void synthPair (int16_t* pcm, int32_t nch, const float* z) {
     zlin [4*31 + 2] = xl[1];
     zlin [4*31 + 3] = xr[1];
 
-    synth_pair (dstr, nch, lins + 4*15 + 1);
-    synth_pair (dstr + 32*nch, nch, lins + 4*15 + 64 + 1);
-    synth_pair (dstl, nch, lins + 4*15);
-    synth_pair (dstl + 32*nch, nch, lins + 4*15 + 64);
+    synth_pair (dstr, numChannels, lins + 4*15 + 1);
+    synth_pair (dstr + 32*numChannels, numChannels, lins + 4*15 + 64 + 1);
+    synth_pair (dstl, numChannels, lins + 4*15);
+    synth_pair (dstl + 32*nch, numChannels, lins + 4*15 + 64);
 
     for (int32_t i = 14; i >= 0; i--) {
       zlin[4*i] = xl[18*(31 - i)];
@@ -1682,30 +1683,31 @@ void synthPair (int16_t* pcm, int32_t nch, const float* z) {
       //}}}
       S0(0) S2(1) S1(2) S2(3) S1(4) S2(5) S1(6) S2(7)
 
-      dstr[(15 - i)*nch] = scale_pcm (a[1]);
-      dstr[(17 + i)*nch] = scale_pcm (b[1]);
-      dstl[(15 - i)*nch] = scale_pcm (a[0]);
-      dstl[(17 + i)*nch] = scale_pcm (b[0]);
-      dstr[(47 - i)*nch] = scale_pcm (a[3]);
-      dstr[(49 + i)*nch] = scale_pcm (b[3]);
-      dstl[(47 - i)*nch] = scale_pcm (a[2]);
-      dstl[(49 + i)*nch] = scale_pcm (b[2]);
+      dstr[(15 - i) * numChannels] = scale_pcm (a[1]);
+      dstr[(17 + i) * numChannels] = scale_pcm (b[1]);
+      dstl[(15 - i) * numChannels] = scale_pcm (a[0]);
+      dstl[(17 + i) * numChannels] = scale_pcm (b[0]);
+      dstr[(47 - i) * numChannels] = scale_pcm (a[3]);
+      dstr[(49 + i) * numChannels] = scale_pcm (b[3]);
+      dstl[(47 - i) * numChannels] = scale_pcm (a[2]);
+      dstl[(49 + i) * numChannels] = scale_pcm (b[2]);
       }
     }
   //}}}
 #endif
 //{{{
-void synthGranule (float* qmf_state, float* grbuf, int32_t nbands, int32_t nch, int16_t* pcm, float* lins) {
+void synthGranule (float* qmf_state, float* granuleBuffer, int32_t numBands, int32_t numChannels,
+                   int16_t* pcm, float* lins) {
 
-  for (int32_t i = 0; i < nch; i++)
-    dctII (grbuf + 576 * i, nbands);
+  for (int32_t chan = 0; chan < numChannels; chan++)
+    dctII (granuleBuffer + 576 * chan, numBands);
 
   memcpy (lins, qmf_state, sizeof(float) * 15 * 64);
 
-  for (int32_t i = 0; i < nbands; i += 2)
-    synth (grbuf + i, pcm + 32 * nch * i, nch, lins + i * 64);
+  for (int32_t band = 0; band < numBands; band += 2)
+    synth (granuleBuffer + band, pcm + 32 * numChannels * band, numChannels, lins + band * 64);
 
-  memcpy (qmf_state, lins + nbands * 64, sizeof(float) * 15 * 64);
+  memcpy (qmf_state, lins + numBands * 64, sizeof(float) * 15 * 64);
   }
 //}}}
 
@@ -1717,7 +1719,7 @@ cMp3Decoder::cMp3Decoder() {
 //}}}
 cMp3Decoder::~cMp3Decoder() {}
 //{{{
-int32_t cMp3Decoder::decodeSingleFrame (uint8_t* inbuf, int32_t bytesLeft, float* outbuf) {
+int32_t cMp3Decoder::decodeSingleFrame (uint8_t* inBuffer, int32_t bytesLeft, float* outBuffer) {
 
   auto timePoint = std::chrono::system_clock::now();
   int32_t success = 1;
@@ -1725,9 +1727,9 @@ int32_t cMp3Decoder::decodeSingleFrame (uint8_t* inbuf, int32_t bytesLeft, float
   int16_t samples16 [2048*2];
   int16_t* pcm = samples16;
 
-  memcpy (header, inbuf, HDR_SIZE);
+  memcpy (header, inBuffer, HDR_SIZE);
   struct sBitStream bitStream;
-  bitStreamInit (&bitStream, inbuf + HDR_SIZE, bytesLeft - HDR_SIZE);
+  bitStreamInit (&bitStream, inBuffer + HDR_SIZE, bytesLeft - HDR_SIZE);
 
   int32_t layer = 4 - HDR_GET_LAYER (header);
   int32_t bitrate_kbps = headerBitrate (header);
@@ -1741,36 +1743,36 @@ int32_t cMp3Decoder::decodeSingleFrame (uint8_t* inbuf, int32_t bytesLeft, float
   sScratch scratch;
   if (layer == 3) {
     //{{{  layer 3
-    int32_t main_data_begin = L3_read_side_info (&bitStream, scratch.gr_info, inbuf);
-    if ((main_data_begin < 0) || (bitStream.pos > bitStream.limit))
+    int32_t mainDataBegin = readSideInfo (&bitStream, scratch.granule, inBuffer);
+    if ((mainDataBegin < 0) || (bitStream.pos > bitStream.limit))
       return 0;
 
-    success = L3_restore_reservoir (&bitStream, &scratch, main_data_begin);
+    success = restore_reservoir (&bitStream, &scratch, mainDataBegin);
     if (success) {
       for (int32_t igr = 0; igr < (HDR_TEST_MPEG1(header) ? 2 : 1); igr++, pcm += 576 * channels) {
-        memset (scratch.grbuf[0], 0, 576 * 2 * sizeof(float));
-        L3_decode (&scratch, scratch.gr_info + igr*channels, channels);
-        synthGranule (qmf_state, scratch.grbuf[0], 18, channels, pcm, scratch.syn[0]);
+        memset (scratch.granuleBuffer[0], 0, 576 * 2 * sizeof(float));
+        decode (&scratch, scratch.granule + igr*channels, channels);
+        synthGranule (qmf_state, scratch.granuleBuffer[0], 18, channels, pcm, scratch.syn[0]);
         }
       }
 
-    L3_save_reservoir (&scratch);
+    save_reservoir (&scratch);
     }
     //}}}
   else {
     //{{{  layer 12
     cLog::log (LOGINFO2, "mp3 layer12");
 
-    sL12scaleInfo sci[1];
-    L12_read_scale_info (inbuf, &bitStream, sci);
+    sScaleInfo scaleInfo;
+    readScaleInfo (inBuffer, &bitStream, &scaleInfo);
 
-    memset (scratch.grbuf[0], 0, 576 * 2 * sizeof(float));
+    memset (scratch.granuleBuffer[0], 0, 576 * 2 * sizeof(float));
     for (int32_t i = 0, igr = 0; igr < 3; igr++) {
-      if (12 == (i += L12_dequantize_granule (scratch.grbuf[0] + i, &bitStream, sci, layer | 1))) {
+      if (12 == (i += dequantizeGranule (scratch.granuleBuffer[0] + i, &bitStream, &scaleInfo, layer | 1))) {
         i = 0;
-        L12_apply_scf_384 (sci, sci->scf + igr, scratch.grbuf[0]);
-        synthGranule (qmf_state, scratch.grbuf[0], 12, channels, pcm, scratch.syn[0]);
-        memset (scratch.grbuf[0], 0, 576*2*sizeof(float));
+        applyScf384 (&scaleInfo, scaleInfo.scf + igr, scratch.granuleBuffer[0]);
+        synthGranule (qmf_state, scratch.granuleBuffer[0], 12, channels, pcm, scratch.syn[0]);
+        memset (scratch.granuleBuffer[0], 0, 576*2*sizeof(float));
         pcm += 384 * channels;
         }
       if (bitStream.pos > bitStream.limit)
@@ -1780,7 +1782,7 @@ int32_t cMp3Decoder::decodeSingleFrame (uint8_t* inbuf, int32_t bytesLeft, float
     //}}}
 
   int16_t* srcPtr = samples16;
-  float* dstPtr = outbuf;
+  float* dstPtr = outBuffer;
   for (int32_t sample = 0; sample < numSamples * 2; sample++)
     *dstPtr++ = *srcPtr++ / (float)0x8000;
 
@@ -1804,37 +1806,37 @@ void cMp3Decoder::clear() {
   };
 //}}}
 //{{{
-void cMp3Decoder::L3_decode (struct sScratch* s, struct sL3grInfo* gr_info, int32_t nch) {
+void cMp3Decoder::decode (struct sScratch* s, struct sGranule* granule, int32_t nch) {
 
   for (int32_t ch = 0; ch < nch; ch++) {
-    int32_t layer3gr_limit = s->bitStream.pos + gr_info[ch].part_23_length;
-    L3_decode_scalefactors (header, s->ist_pos[ch], &s->bitStream, gr_info + ch, s->scf, ch);
-    L3_huffman (s->grbuf[ch], &s->bitStream, gr_info + ch, s->scf, layer3gr_limit);
+    int32_t layer3gr_limit = s->bitStream.pos + granule[ch].part_23_length;
+    decodeScaleFactors (header, s->ist_pos[ch], &s->bitStream, granule + ch, s->scf, ch);
+    huffman (s->granuleBuffer[ch], &s->bitStream, granule + ch, s->scf, layer3gr_limit);
     }
 
   if (HDR_TEST_I_STEREO (header))
-    L3_intensity_stereo (s->grbuf[0], s->ist_pos[1], gr_info, header);
+    intensityStereo (s->granuleBuffer[0], s->ist_pos[1], granule, header);
   else if (HDR_IS_MS_STEREO (header))
-    L3_midside_stereo (s->grbuf[0], 576);
+    midsideStereo (s->granuleBuffer[0], 576);
 
-  for (int32_t ch = 0; ch < nch; ch++, gr_info++) {
+  for (int32_t ch = 0; ch < nch; ch++, granule++) {
     int32_t aa_bands = 31;
-    int32_t n_long_bands = (gr_info->mixed_block_flag ? 2 : 0) << (int)(HDR_GET_MY_SAMPLE_RATE(header) == 2);
+    int32_t n_long_bands = (granule->mixed_block_flag ? 2 : 0) << (int)(HDR_GET_MY_SAMPLE_RATE(header) == 2);
 
-    if (gr_info->n_short_sfb) {
+    if (granule->n_short_sfb) {
       aa_bands = n_long_bands - 1;
-      L3_reorder (s->grbuf[ch] + n_long_bands*18, s->syn[0], gr_info->sfbtab + gr_info->n_long_sfb);
+      reorder (s->granuleBuffer[ch] + n_long_bands*18, s->syn[0], granule->sfbtab + granule->n_long_sfb);
       }
 
-    L3_antialias (s->grbuf[ch], aa_bands);
-    L3_imdct_gr (s->grbuf[ch], mdct_overlap[ch], gr_info->block_type, n_long_bands);
-    L3_change_sign (s->grbuf[ch]);
+    antialias (s->granuleBuffer[ch], aa_bands);
+    imdctGranule (s->granuleBuffer[ch], mdct_overlap[ch], granule->block_type, n_long_bands);
+    changeSign (s->granuleBuffer[ch]);
     }
   }
 //}}}
 
 //{{{
-void cMp3Decoder::L3_save_reservoir (struct sScratch* s) {
+void cMp3Decoder::save_reservoir (struct sScratch* s) {
 
   int32_t pos = (s->bitStream.pos + 7) / 8u;
   int32_t remains = s->bitStream.limit / 8u - pos;
@@ -1851,16 +1853,16 @@ void cMp3Decoder::L3_save_reservoir (struct sScratch* s) {
   }
 //}}}
 //{{{
-int32_t cMp3Decoder::L3_restore_reservoir (struct sBitStream* bitStream, struct sScratch* s, int32_t main_data_begin) {
+int32_t cMp3Decoder::restore_reservoir (struct sBitStream* bitStream, struct sScratch* s, int32_t mainDataBegin) {
 
   int32_t frame_bytes = (bitStream->limit - bitStream->pos) / 8;
-  int32_t bytes_have = std::min (reserv, main_data_begin);
+  int32_t bytes_have = std::min (reserv, mainDataBegin);
 
-  memcpy (s->maindata, reserv_buf + std::max (0, reserv - main_data_begin), std::min (reserv, main_data_begin));
+  memcpy (s->maindata, reserv_buf + std::max (0, reserv - mainDataBegin), std::min (reserv, mainDataBegin));
   memcpy (s->maindata + bytes_have, bitStream->buf + bitStream->pos/8, frame_bytes);
 
   bitStreamInit (&s->bitStream, s->maindata, bytes_have + frame_bytes);
 
-  return reserv >= main_data_begin;
+  return reserv >= mainDataBegin;
   }
 //}}}

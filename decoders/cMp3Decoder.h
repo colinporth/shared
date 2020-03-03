@@ -4,7 +4,7 @@
 
 struct sBitStream;
 struct sScratch;
-struct sL3grInfo;
+struct sGranule;
 
 class cMp3Decoder : public iAudioDecoder {
 public:
@@ -13,15 +13,15 @@ public:
 
   int32_t getNumChannels() { return channels; }
   int32_t getSampleRate() { return sampleRate; }
-  int32_t decodeSingleFrame (uint8_t* inbuf, int32_t bytesLeft, float* outbuf);
+  int32_t decodeSingleFrame (uint8_t* inBuffer, int32_t bytesLeft, float* outBuffer);
 
 private:
   //{{{  private members
   void clear();
 
-  void L3_decode (sScratch* s, sL3grInfo* gr_info, int32_t nch);
-  void L3_save_reservoir (sScratch* s);
-  int32_t L3_restore_reservoir (struct sBitStream* bitStream, sScratch* s, int32_t main_data_begin);
+  void decode (sScratch* s, sGranule* granule, int32_t nch);
+  void save_reservoir (sScratch* s);
+  int32_t restore_reservoir (struct sBitStream* bitStream, sScratch* s, int32_t mainDataBegin);
   //}}}
   //{{{  private vars
   uint8_t header[4] = { 0 };
