@@ -119,6 +119,8 @@ public:
     mLimit = bytes * 8;
     }
   //}}}
+
+  // gets
   //{{{
   uint32_t getBits (int32_t n) {
 
@@ -139,10 +141,44 @@ public:
     return cache | (next >> -shl);
     }
   //}}}
+  const uint8_t* getBitStreamBuffer() { return mBuffer; }
+  int32_t getBitStreamPos() { return mPos; }
+  int32_t getBitStreamLimit() { return mLimit; }
 
-  const uint8_t* mBuffer;
-  int32_t mPos;
-  int32_t mLimit;
+  uint32_t getBitStreamCache() { return mCache; }
+  uint32_t peekBits (int32_t n) { return mCache >> (32 - n); }
+  int32_t getBitPos() { return int32_t(mPtr - mBuffer) * 8 - 24 + mShift; }
+
+  void setBitStreamPos (int32_t pos) { mPos = pos; }
+
+  // actions
+  void fillCache() {
+    mPtr = mBuffer + mPos / 8;
+    mCache = ((((((mPtr[0] << 8) + mPtr[1]) << 8) + mPtr[2]) << 8) + mPtr[3]) << (mPos & 7);
+    mPtr += 4;
+    mShift = (mPos & 7) - 8;
+    }
+
+  void flushBits (int32_t n) {
+    mCache <<= n;
+    mShift += n;
+    }
+
+  void checkBits() {
+    while (mShift >= 0) {
+      mCache |= (uint32_t)*mPtr++ << mShift;
+      mShift -= 8;
+      }
+    }
+
+private:
+  const uint8_t* mBuffer = nullptr;
+  int32_t mPos = 0;
+  int32_t mLimit = 0;
+
+  const uint8_t* mPtr = nullptr;
+  uint32_t mCache = 0;
+  int32_t mShift = 0;
   };
 //}}}
 //{{{
@@ -929,7 +965,7 @@ int32_t readSideInfo (cBitStream* bitStream, struct sGranule* granule, const uin
     granule++;
     } while (--granule_count);
 
-  if ((part_23_sum + bitStream->mPos) > (bitStream->mLimit + mainDataBegin * 8))
+  if ((part_23_sum + bitStream->getBitStreamPos()) > (bitStream->getBitStreamLimit() + mainDataBegin * 8))
     return -1;
 
   return mainDataBegin;
@@ -1048,104 +1084,84 @@ float pow43 (int32_t x) {
 void huffman (float* dst, cBitStream* bitStream, const struct sGranule* granule,
               const float* scf, int32_t l3granuleLimit) {
 
-  #define PEEK_BITS(n) (bitStreamCache >> (32 - n))
-  #define BSPOS ((bitStreamNextPtr - bitStream->mBuffer) * 8 - 24 + bitStreamSh)
-  //{{{
-  #define FLUSH_BITS(n) { \
-    bitStreamCache <<= (n); \
-    bitStreamSh += (n); \
-    }
-  //}}}
-  //{{{
-  #define CHECK_BITS { \
-     while (bitStreamSh >= 0) {  \
-      bitStreamCache |= (uint32_t)*bitStreamNextPtr++ << bitStreamSh;  \
-      bitStreamSh -= 8;  \
-      } \
-    }
-  //}}}
-
   float one = 0.0f;
   int32_t ireg = 0;
-  int32_t big_val_cnt = granule->bigValues;
+  int32_t bigValueCount = granule->bigValues;
   const uint8_t* sfb = granule->sfbtab;
-  const uint8_t* bitStreamNextPtr = bitStream->mBuffer + bitStream->mPos / 8;
-  uint32_t bitStreamCache = (((bitStreamNextPtr[0] * 256u + bitStreamNextPtr[1]) * 256u +
-                               bitStreamNextPtr[2]) * 256u + bitStreamNextPtr[3]) << (bitStream->mPos & 7);
+
+  bitStream->fillCache();
 
   int32_t np;
-  int32_t pairs_to_decode;
-  int32_t bitStreamSh = (bitStream->mPos & 7) - 8;
-  bitStreamNextPtr += 4;
-  while (big_val_cnt > 0) {
-    int32_t tab_num = granule->tableSelect[ireg];
+  int32_t pairsToDecode;
+  while (bigValueCount > 0) {
+    int32_t tableNum = granule->tableSelect[ireg];
     int32_t sfb_cnt = granule->regionCount[ireg++];
-    const int16_t* codebook = g_tabs + g_tabindex[tab_num];
-    int32_t linbits = g_linbits[tab_num];
+    const int16_t* codebook = g_tabs + g_tabindex[tableNum];
+    int32_t linbits = g_linbits[tableNum];
     if (linbits) {
       do {
         np = *sfb++ / 2;
-        pairs_to_decode = std::min (big_val_cnt, np);
+        pairsToDecode = std::min (bigValueCount, np);
         one = *scf++;
         do {
-          int32_t j, w = 5;
-          int32_t leaf = codebook[PEEK_BITS(w)];
+          int32_t w = 5;
+          int32_t leaf = codebook[bitStream->peekBits (w)];
           while (leaf < 0) {
-            FLUSH_BITS(w);
+            bitStream->flushBits (w);
             w = leaf & 7;
-            leaf = codebook[PEEK_BITS(w) - (leaf >> 3)];
+            leaf = codebook[bitStream->peekBits (w) - (leaf >> 3)];
             }
-          FLUSH_BITS (leaf >> 8);
+          bitStream->flushBits (leaf >> 8);
 
-          for (j = 0; j < 2; j++, dst++, leaf >>= 4) {
+          for (int32_t j = 0; j < 2; j++, dst++, leaf >>= 4) {
             int32_t lsb = leaf & 0x0F;
             if (lsb == 15) {
-              lsb += PEEK_BITS (linbits);
-              FLUSH_BITS (linbits);
-              CHECK_BITS;
-              *dst = one * pow43 (lsb) * ((int32_t)bitStreamCache < 0 ? -1: 1);
+              lsb += bitStream->peekBits (linbits);
+              bitStream->flushBits (linbits);
+              bitStream->checkBits();
+              *dst = one * pow43 (lsb) * ((int32_t)(bitStream->getBitStreamCache()) < 0 ? -1: 1);
               }
             else
-              *dst = g_pow43[16 + lsb - 16*(bitStreamCache >> 31)]*one;
-            FLUSH_BITS (lsb ? 1 : 0);
+              *dst = g_pow43[16 + lsb - 16*(bitStream->getBitStreamCache() >> 31)]*one;
+            bitStream->flushBits (lsb ? 1 : 0);
             }
-         CHECK_BITS;
-         } while (--pairs_to_decode);
-        } while ((big_val_cnt -= np) > 0 && --sfb_cnt >= 0);
+         bitStream->checkBits();
+         } while (--pairsToDecode);
+        } while ((bigValueCount -= np) > 0 && --sfb_cnt >= 0);
       }
     else {
       do {
         np = *sfb++ / 2;
-        pairs_to_decode = std::min (big_val_cnt, np);
+        pairsToDecode = std::min (bigValueCount, np);
         one = *scf++;
         do {
           int32_t j, w = 5;
-          int32_t leaf = codebook[PEEK_BITS(w)];
+          int32_t leaf = codebook[bitStream->peekBits(w)];
           while (leaf < 0) {
-            FLUSH_BITS (w);
+            bitStream->flushBits (w);
             w = leaf & 7;
-            leaf = codebook[PEEK_BITS(w) - (leaf >> 3)];
+            leaf = codebook[bitStream->peekBits (w) - (leaf >> 3)];
             }
-          FLUSH_BITS (leaf >> 8);
+          bitStream->flushBits(leaf >> 8);
 
           for (j = 0; j < 2; j++, dst++, leaf >>= 4) {
             int32_t lsb = leaf & 0x0F;
-            *dst = g_pow43[16 + lsb - 16*(bitStreamCache >> 31)]*one;
-            FLUSH_BITS(lsb ? 1 : 0);
+            *dst = g_pow43[16 + lsb - 16*(bitStream->getBitStreamCache() >> 31)]*one;
+            bitStream->flushBits(lsb ? 1 : 0);
             }
-          CHECK_BITS;
-          } while (--pairs_to_decode);
-        } while ((big_val_cnt -= np) > 0 && --sfb_cnt >= 0);
+          bitStream->checkBits();
+          } while (--pairsToDecode);
+        } while ((bigValueCount -= np) > 0 && --sfb_cnt >= 0);
       }
     }
 
-  for (np = 1 - big_val_cnt;; dst += 4) {
+  for (np = 1 - bigValueCount;; dst += 4) {
     const uint8_t* codebook_count1 = (granule->count1table) ? g_tab33 : g_tab32;
-    int32_t leaf = codebook_count1[PEEK_BITS(4)];
+    int32_t leaf = codebook_count1[bitStream->peekBits(4)];
     if (!(leaf & 8))
-      leaf = codebook_count1[(leaf >> 3) + (bitStreamCache << 4 >> (32 - (leaf & 3)))];
-    FLUSH_BITS (leaf & 7);
-    if (BSPOS > l3granuleLimit)
+      leaf = codebook_count1[(leaf >> 3) + (bitStream->getBitStreamCache() << 4 >> (32 - (leaf & 3)))];
+    bitStream->flushBits (leaf & 7);
+    if (bitStream->getBitPos() > l3granuleLimit)
       break;
 
     //{{{
@@ -1161,8 +1177,8 @@ void huffman (float* dst, cBitStream* bitStream, const struct sGranule* granule,
     //{{{
     #define DEQ_COUNT1(s) { \
       if (leaf & (128 >> s)) { \
-        dst[s] = ((int32_t)bitStreamCache < 0) ? -one : one;   \
-        FLUSH_BITS (1) \
+        dst[s] = ((int32_t)(bitStream->getBitStreamCache()) < 0) ? -one : one;   \
+        bitStream->flushBits (1); \
         } \
       }
     //}}}
@@ -1173,10 +1189,10 @@ void huffman (float* dst, cBitStream* bitStream, const struct sGranule* granule,
     RELOAD_SCALEFACTOR;
     DEQ_COUNT1 (2);
     DEQ_COUNT1 (3);
-    CHECK_BITS;
+    bitStream->checkBits();
     }
 
-  bitStream->mPos = l3granuleLimit;
+  bitStream->setBitStreamPos (l3granuleLimit);
   }
 //}}}
 
@@ -1741,7 +1757,7 @@ int32_t cMp3Decoder::decodeSingleFrame (uint8_t* inBuffer, int32_t bytesLeft, fl
   if (layer == 3) {
     //{{{  layer 3
     int32_t mainDataBegin = readSideInfo (&bitStream, scratch.granule, inBuffer);
-    if ((mainDataBegin < 0) || (bitStream.mPos > bitStream.mLimit))
+    if ((mainDataBegin < 0) || (bitStream.getBitStreamPos() > bitStream.getBitStreamLimit()))
       return 0;
 
     success = restore_reservoir (&bitStream, &scratch, mainDataBegin);
@@ -1772,7 +1788,7 @@ int32_t cMp3Decoder::decodeSingleFrame (uint8_t* inBuffer, int32_t bytesLeft, fl
         memset (scratch.granuleBuffer[0], 0, 576*2*sizeof(float));
         pcm += 384 * mNumChannels;
         }
-      if (bitStream.mPos > bitStream.mLimit)
+      if (bitStream.getBitStreamPos() > bitStream.getBitStreamLimit())
         return 0;
       }
     }
@@ -1805,7 +1821,7 @@ void cMp3Decoder::clear() {
 void cMp3Decoder::decode (struct sScratch* s, struct sGranule* granule, int32_t numChannels) {
 
   for (int32_t channel = 0; channel < numChannels; channel++) {
-    int32_t layer3gr_limit = s->bitStream.mPos + granule[channel].part23length;
+    int32_t layer3gr_limit = s->bitStream.getBitStreamPos() + granule[channel].part23length;
     decodeScaleFactors (mHeader, s->istPos[channel], &s->bitStream, granule + channel, s->scf, channel);
     huffman (s->granuleBuffer[channel], &s->bitStream, granule + channel, s->scf, layer3gr_limit);
     }
@@ -1834,8 +1850,8 @@ void cMp3Decoder::decode (struct sScratch* s, struct sGranule* granule, int32_t 
 //{{{
 void cMp3Decoder::save_reservoir (struct sScratch* s) {
 
-  int32_t pos = (s->bitStream.mPos + 7) / 8u;
-  int32_t remains = s->bitStream.mLimit / 8u - pos;
+  int32_t pos = (s->bitStream.getBitStreamPos() + 7) / 8u;
+  int32_t remains = s->bitStream.getBitStreamLimit() / 8u - pos;
 
   if (remains > MAX_BITRESERVOIR_BYTES) {
     pos += remains - MAX_BITRESERVOIR_BYTES;
@@ -1851,11 +1867,11 @@ void cMp3Decoder::save_reservoir (struct sScratch* s) {
 //{{{
 int32_t cMp3Decoder::restore_reservoir (cBitStream* bitStream, struct sScratch* s, int32_t mainDataBegin) {
 
-  int32_t frame_bytes = (bitStream->mLimit - bitStream->mPos) / 8;
+  int32_t frame_bytes = (bitStream->getBitStreamLimit() - bitStream->getBitStreamPos()) / 8;
   int32_t bytes_have = std::min (mReservoir, mainDataBegin);
 
   memcpy (s->maindata, mReservoirBuffer + std::max (0, mReservoir - mainDataBegin), std::min (mReservoir, mainDataBegin));
-  memcpy (s->maindata + bytes_have, bitStream->mBuffer + bitStream->mPos / 8, frame_bytes);
+  memcpy (s->maindata + bytes_have, bitStream->getBitStreamBuffer() + bitStream->getBitStreamPos() / 8, frame_bytes);
 
   s->bitStream.bitStreamInit (s->maindata, bytes_have + frame_bytes);
 
