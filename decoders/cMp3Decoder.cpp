@@ -1769,7 +1769,7 @@ int32_t cMp3Decoder::decodeSingleFrame (uint8_t* inBuffer, int32_t bytesLeft, fl
     if (ok) {
       for (int32_t igr = 0; igr < (HDR_TEST_MPEG1(mHeader) ? 2 : 1); igr++, pcm += 576 * mNumChannels) {
         memset (scratch.granuleBuffer[0], 0, 576 * 2 * sizeof(float));
-        decode (&scratch, scratch.granule + igr * mNumChannels, mNumChannels);
+        decodeL3 (&scratch, scratch.granule + igr * mNumChannels, mNumChannels);
         synthGranule (mQmfState, scratch.granuleBuffer[0], 18, mNumChannels, pcm, scratch.syn[0]);
         }
       }
