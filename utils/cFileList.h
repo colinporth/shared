@@ -8,6 +8,7 @@
 #include <shlwapi.h>
 
 #include <vector>
+#include <string>
 #include <chrono>
 #include "../date/date.h"
 
@@ -185,14 +186,51 @@ public:
       }
     }
   //}}}
+  //{{{
+  cFileList (const std::vector<std::string>& names, const std::string& matchString) {
+
+    if (!names.empty()) {
+      mMatchString = matchString;
+
+      for (auto name : names) {
+        auto resolvedFileName = name;
+        if (name.find (".lnk") <= name.size()) {
+          resolvedFileName = resolveShortcut (name);
+          if (resolvedFileName.empty()) {
+            cLog::log (LOGERROR, "cFileList vec - link " + name + " unresolved");
+            return;
+            }
+          }
+
+        if (GetFileAttributesA (resolvedFileName.c_str()) & FILE_ATTRIBUTE_DIRECTORY) {
+          mWatchRootName = resolvedFileName;
+          scanDirectory ("", resolvedFileName);
+          }
+        else if (!resolvedFileName.empty())
+          mFileItemList.push_back (cFileItem ("", resolvedFileName));
+        }
+
+      sort();
+      }
+    }
+  //}}}
   virtual ~cFileList() {}
 
   // gets
-  size_t size() { return mFileItemList.size(); }
   bool empty() { return mFileItemList.empty(); }
+  size_t size() { return mFileItemList.size(); }
 
   bool isCurIndex (unsigned index) { return mItemIndex == index; }
   unsigned getIndex() { return mItemIndex; }
+  //{{{
+  bool ensureItemVisible() {
+    // one shot use
+    bool result = mEnsureItemVisible;
+    mEnsureItemVisible = false;
+    return result;
+    }
+  //}}}
+
   cFileItem getCurFileItem() { return getFileItem (mItemIndex); }
   cFileItem getFileItem (unsigned index) { return mFileItemList[index]; }
 
@@ -202,6 +240,7 @@ public:
   bool prevIndex() {
     if (!empty() && (mItemIndex > 0)) {
       mItemIndex--;
+      mEnsureItemVisible = true;
       return true;
       }
     return false;
@@ -211,6 +250,7 @@ public:
   bool nextIndex() {
     if (!empty() && (mItemIndex < size()-1)) {
       mItemIndex++;
+      mEnsureItemVisible = true;
       return true;
       }
     return false;
@@ -347,5 +387,7 @@ private:
   bool mCompareFieldDescending = false;
 
   concurrency::concurrent_vector <cFileItem> mFileItemList;
+
   unsigned mItemIndex = 0;
+  bool mEnsureItemVisible = false;
   };

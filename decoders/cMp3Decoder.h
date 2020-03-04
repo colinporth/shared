@@ -27,12 +27,11 @@ private:
   uint8_t header[4] = { 0 };
   int32_t channels = 0;
   int32_t sampleRate = 0;
-  int32_t free_format_bytes = 0;
 
-  int32_t reserv = 0;
-  uint8_t reserv_buf[511];
+  int32_t reservoir = 0;
+  uint8_t reservoirBuf[511];
 
-  float mdct_overlap[2][9*32];
-  float qmf_state[15*2*32];
+  float mdctOverlap[2][9*32];
+  float qmfState[15*2*32];
   //}}}
   };
