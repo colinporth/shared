@@ -1,4 +1,11 @@
 // cMp3Decoder.cpp - based on https://github.com/lieff/minimp3
+//{{{  includes
+#include <algorithm>
+
+#include "cMp3decoder.h"
+
+#include "../utils/cLog.h"
+//}}}
 //{{{  defines
 #define MAX_FREE_FORMAT_FRAME_SIZE  2304  // more than ISO spec's
 #define MAX_L3_FRAME_PAYLOAD_BYTES  MAX_FREE_FORMAT_FRAME_SIZE // MUST be >= 320000/8/32000*1152 = 1440
@@ -37,13 +44,7 @@
 #define MAX_SCF                     (255 + BITS_DEQUANTIZER_OUT*4 - 210)
 #define MAX_SCFI                    ((MAX_SCF + 3) & ~3)
 //}}}
-//{{{  includes
-#include <algorithm>
 
-#include "cMp3decoder.h"
-
-#include "../utils/cLog.h"
-//}}}
 #define USE_INTRINSICS
 #ifdef USE_INTRINSICS
   //{{{  intrinsics
@@ -106,7 +107,6 @@ struct sGranule {
   uint8_t  scfsi;
   };
 //}}}
-
 //{{{
 class cBitStream {
 public:
@@ -185,7 +185,7 @@ private:
 //{{{
 struct sScratch {
   cBitStream bitStream;
-  uint8_t  maindata [MAX_BITRESERVOIR_BYTES + MAX_L3_FRAME_PAYLOAD_BYTES];
+  uint8_t maindata [MAX_BITRESERVOIR_BYTES + MAX_L3_FRAME_PAYLOAD_BYTES];
 
   struct sGranule granule [4];
   float granuleBuffer [2][576];
@@ -195,8 +195,7 @@ struct sScratch {
   uint8_t istPos [2][39];
   };
 //}}}
-
-//{{{  static const
+//{{{  static const tables
 //{{{
 static const float g_pow43 [129 + 16] = {
   0, -1, -2.519842f, -4.326749f, -6.349604f, -8.549880f, -10.902724f, -13.390518f,- 16.000000f,
@@ -220,6 +219,10 @@ static const float g_pow43 [129 + 16] = {
   645.079578f
   };
 //}}}
+
+//{{{
+static const uint32_t g_hz[3] = { 44100, 48000, 32000 };
+//}}}
 //{{{
 static const uint8_t g_halfrate [2][3][15] = {
   { { 0,4,8,12,16,20,24,28,32,40,48,56,64,72,80 },
@@ -229,10 +232,6 @@ static const uint8_t g_halfrate [2][3][15] = {
     { 0,16,24,28,32,40,48,56,64,80,96,112,128,160,192 },
     { 0,16,32,48,64,80,96,112,128,144,160,176,192,208,224 } },
   };
-//}}}
-
-//{{{
-static const uint32_t g_hz[3] = { 44100, 48000, 32000 };
 //}}}
 
 //{{{
@@ -447,6 +446,7 @@ static const float g_aa [2][8] = {
   {0.51449576f, 0.47173197f, 0.31337745f, 0.18191320f, 0.09457419f, 0.04096558f, 0.01419856f, 0.00369997f}
   };
 //}}}
+
 //{{{
 static const float g_twid9 [18] = {
   0.73727734f, 0.79335334f, 0.84339145f, 0.88701083f, 0.92387953f, 0.95371695f,
@@ -457,6 +457,7 @@ static const float g_twid9 [18] = {
 //{{{
 static const float g_twid3 [6] = { 0.79335334f, 0.92387953f, 0.99144486f, 0.60876143f, 0.38268343f, 0.13052619f };
 //}}}
+
 //{{{
 static const float g_mdct_window [2][18] = {
   { 0.99904822f, 0.99144486f, 0.97629601f, 0.95371695f, 0.92387953f, 0.88701083f,
@@ -970,6 +971,7 @@ int32_t readSideInfo (cBitStream* bitStream, struct sGranule* granule, const uin
   return mainDataBegin;
   }
 //}}}
+
 //{{{
 void readScaleFactorsL3 (uint8_t* scf, uint8_t* istPos, const uint8_t* scf_size, const uint8_t* scf_count,
                            cBitStream* bitbuf, int32_t scfsi) {
@@ -1013,14 +1015,13 @@ float ldExpQ2 (float y, int32_t exp_q2) {
   }
 //}}}
 //{{{
-void decodeScaleFactors (const uint8_t* header, uint8_t* istPos, cBitStream* bitStream,
+void decodeScaleFactorsL3 (const uint8_t* header, uint8_t* istPos, cBitStream* bitStream,
                          const struct sGranule* gr, float* scf, int32_t ch) {
 
   const uint8_t* scf_partition = g_scf_partitions [!!gr->numShortSfb + !gr->numLongSfb];
-  uint8_t scf_size[4], iscf[40];
+  uint8_t scf_size[4];
   int32_t scf_shift = gr->scaleFactorScale + 1;
   int32_t scfsi = gr->scfsi;
-
   if (HDR_TEST_MPEG1 (header)) {
     int32_t part = g_scfc_decode[gr->scalefac_compress];
     scf_size[1] = scf_size[0] = (uint8_t)(part >> 2);
@@ -1039,6 +1040,8 @@ void decodeScaleFactors (const uint8_t* header, uint8_t* istPos, cBitStream* bit
     scf_partition += k;
     scfsi = -16;
     }
+
+  uint8_t iscf[40];
   readScaleFactorsL3 (iscf, istPos, scf_size, scf_partition, bitStream, scfsi);
 
   if (gr->numShortSfb) {
@@ -1363,24 +1366,24 @@ int16_t scalePcm (float sample) {
 void synthPair (int16_t* pcm, int32_t numChannels, const float* z) {
 
   float a = (z[14*64] - z[0]) * 29;
-  a += (z[ 1*64] + z[13*64]) * 213;
-  a += (z[12*64] - z[ 2*64]) * 459;
-  a += (z[ 3*64] + z[11*64]) * 2037;
-  a += (z[10*64] - z[ 4*64]) * 5153;
-  a += (z[ 5*64] + z[ 9*64]) * 6574;
-  a += (z[ 8*64] - z[ 6*64]) * 37489;
-  a +=  z[ 7*64]             * 75038;
+  a += (z[1*64] + z[13*64]) * 213;
+  a += (z[12*64] - z[2*64]) * 459;
+  a += (z[3*64] + z[11*64]) * 2037;
+  a += (z[10*64] - z[4*64]) * 5153;
+  a += (z[5*64] + z[9*64]) * 6574;
+  a += (z[8*64] - z[6*64]) * 37489;
+  a +=  z[7*64] * 75038;
   pcm[0] = scalePcm (a);
 
   z += 2;
   a  = z[14*64] * 104;
   a += z[12*64] * 1567;
   a += z[10*64] * 9727;
-  a += z[ 8*64] * 64019;
-  a += z[ 6*64] * -9975;
-  a += z[ 4*64] * -45;
-  a += z[ 2*64] * 146;
-  a += z[ 0*64] * -5;
+  a += z[8*64] * 64019;
+  a += z[6*64] * -9975;
+  a += z[4*64] * -45;
+  a += z[2*64] * 146;
+  a += z[0*64] * -5;
   pcm[16 * numChannels] = scalePcm (a);
   }
 //}}}
@@ -1558,9 +1561,9 @@ void synthPair (int16_t* pcm, int32_t numChannels, const float* z) {
       float* x = t[0];
       for (int32_t i = 0; i < 8; i++, x++) {
         float x0 = y[i*18];
-        float x1 = y[(15 - i)*18];
-        float x2 = y[(16 + i)*18];
-        float x3 = y[(31 - i)*18];
+        float x1 = y[(15-i)*18];
+        float x2 = y[(16+i)*18];
+        float x3 = y[(31-i)*18];
         float t0 = x0 + x3;
         float t1 = x1 + x2;
         float t2 = (x1 - x2)*g_sec[3*i + 0];
@@ -1628,7 +1631,7 @@ void synthPair (int16_t* pcm, int32_t numChannels, const float* z) {
   //{{{
   void synth (float* xl, int16_t* dstl, int32_t numChannels, float* lins) {
 
-    float* xr = xl + 576 *( numChannels - 1);
+    float* xr = xl + 576 * (numChannels - 1);
     int16_t* dstr = dstl + (numChannels - 1);
 
     float* zlin = lins + 15 * 64;
@@ -1650,14 +1653,14 @@ void synthPair (int16_t* pcm, int32_t numChannels, const float* z) {
     synth_pair (dstl + 32*nch, numChannels, lins + 4*15 + 64);
 
     for (int32_t i = 14; i >= 0; i--) {
-      zlin[4*i] = xl[18*(31 - i)];
-      zlin[4*i + 1] = xr[18*(31 - i)];
+      zlin[4*i] = xl[18 * (31 - i)];
+      zlin[4*i + 1] = xr[18 * (31 - i)];
       zlin[4*i + 2] = xl[1 + 18 * (31 - i)];
       zlin[4*i + 3] = xr[1 + 18 * (31 - i)];
-      zlin[4*(i + 16)]   = xl[1 + 18 * (1 + i)];
-      zlin[4*(i + 16) + 1] = xr[1 + 18 * (1 + i)];
-      zlin[4*(i - 16) + 2] = xl[18 * (1 + i)];
-      zlin[4*(i - 16) + 3] = xr[18 * (1 + i)];
+      zlin[4*(i+16)]   = xl[1 + 18 * (1 + i)];
+      zlin[4*(i+16) + 1] = xr[1 + 18 * (1 + i)];
+      zlin[4*(i-16) + 2] = xl[18 * (1 + i)];
+      zlin[4*(i-16) + 3] = xr[18 * (1 + i)];
 
       float a[4], b[4];
       //{{{
@@ -1754,28 +1757,28 @@ int32_t cMp3Decoder::decodeSingleFrame (uint8_t* inBuffer, int32_t bytesLeft, fl
 
   sScratch scratch;
   if (layer == 3) {
-    //{{{  layer 3
+    // layer 3
     int32_t mainDataBegin = readSideInfo (&bitStream, scratch.granule, inBuffer);
     if ((mainDataBegin < 0) || (bitStream.getBitStreamPosition() > bitStream.getBitStreamLimit())) {
+      mHeader[0] = 0;
       cLog::log (LOGERROR, "mp3 decode failed");
       return 0;
       }
 
-    if (restoreReservoir (&bitStream, &scratch, mainDataBegin)) {
+    bool ok = restoreReservoir (&bitStream, &scratch, mainDataBegin);
+    if (ok) {
       for (int32_t igr = 0; igr < (HDR_TEST_MPEG1(mHeader) ? 2 : 1); igr++, pcm += 576 * mNumChannels) {
         memset (scratch.granuleBuffer[0], 0, 576 * 2 * sizeof(float));
         decode (&scratch, scratch.granule + igr * mNumChannels, mNumChannels);
         synthGranule (mQmfState, scratch.granuleBuffer[0], 18, mNumChannels, pcm, scratch.syn[0]);
         }
       }
-    else {
+    else
       cLog::log (LOGERROR, "mp3 decode restoreReservoir failed");
-      return 0;
-      }
-
     saveReservoir (&scratch);
+    if (!ok)
+      return 0;
     }
-    //}}}
   else {
     //{{{  layer 12
     cLog::log (LOGINFO2, "mp3 layer12");
@@ -1793,6 +1796,7 @@ int32_t cMp3Decoder::decodeSingleFrame (uint8_t* inBuffer, int32_t bytesLeft, fl
         pcm += 384 * mNumChannels;
         }
       if (bitStream.getBitStreamPosition() > bitStream.getBitStreamLimit()) {
+        mHeader[0] = 0;
         cLog::log (LOGERROR, "mp3 decode layer 12 failed");
         return 0;
         }
@@ -1807,8 +1811,8 @@ int32_t cMp3Decoder::decodeSingleFrame (uint8_t* inBuffer, int32_t bytesLeft, fl
     *dstPtr++ = *srcPtr++ / (float)0x8000;
 
   auto took = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - timePoint);
-  cLog::log (LOGINFO1, "mp3:%d %4d:%3dk %dx%d@%dhz %3dus",
-             layer, bytesLeft, bitrate_kbps, numSamples, mNumChannels, mSampleRate, took.count());
+  cLog::log (LOGINFO1, "mp3:%d %4d:%3dk %dx%d@%dhz %3d %3dus",
+             layer, bytesLeft, bitrate_kbps, numSamples, mNumChannels, mSampleRate, mReservoir, took.count());
 
   return numSamples;
   }
@@ -1825,11 +1829,11 @@ void cMp3Decoder::clear() {
   };
 //}}}
 //{{{
-void cMp3Decoder::decode (struct sScratch* s, struct sGranule* granule, int32_t numChannels) {
+void cMp3Decoder::decodeL3 (struct sScratch* s, struct sGranule* granule, int32_t numChannels) {
 
   for (int32_t channel = 0; channel < numChannels; channel++) {
     int32_t layer3gr_limit = s->bitStream.getBitStreamPosition() + granule[channel].part23length;
-    decodeScaleFactors (mHeader, s->istPos[channel], &s->bitStream, granule + channel, s->scf, channel);
+    decodeScaleFactorsL3 (mHeader, s->istPos[channel], &s->bitStream, granule + channel, s->scf, channel);
     huffman (s->granuleBuffer[channel], &s->bitStream, granule + channel, s->scf, layer3gr_limit);
     }
 
@@ -1869,6 +1873,8 @@ void cMp3Decoder::saveReservoir (struct sScratch* s) {
     memmove (mReservoirBuffer, s->maindata + pos, remains);
 
   mReservoir = remains;
+
+  cLog::log (LOGINFO2, "saveReservoir Reservoir:%d pos:%d", mReservoir, pos);
   }
 //}}}
 //{{{
@@ -1885,8 +1891,10 @@ bool cMp3Decoder::restoreReservoir (cBitStream* bitStream, struct sScratch* scra
           bitStream->getBitStreamBuffer() + bitStream->getBitStreamPosition() / 8,
           frameBytes);
 
-  scratch->bitStream.bitStreamInit (scratch->maindata, bytesHave + frameBytes);
 
+  cLog::log (LOGINFO2, "restoreReservoir %d mdb:%d fb:%d bh:%d", mReservoir, mainDataBegin, frameBytes, bytesHave);
+
+  scratch->bitStream.bitStreamInit (scratch->maindata, bytesHave + frameBytes);
   return mReservoir >= mainDataBegin;
   }
 //}}}

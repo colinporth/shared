@@ -18,7 +18,7 @@ public:
 private:
   // private members
   void clear();
-  void decode (sScratch* s, sGranule* granule, int32_t nch);
+  void decodeL3 (sScratch* s, sGranule* granule, int32_t nch);
   void saveReservoir (sScratch* s);
   bool restoreReservoir (class cBitStream* bitStream, sScratch* scratch, int32_t mainDataBegin);
 
