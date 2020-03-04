@@ -110,23 +110,23 @@ struct sGranule {
 class cBitStream {
 public:
    cBitStream() {}
-   cBitStream (const uint8_t* data, int32_t bytes) : buf(data), pos (0), limit (bytes * 8) {}
+   cBitStream (const uint8_t* data, int32_t bytes) : mBuffer(data), mPos(0), mLimit(bytes * 8) {}
 
   //{{{
   void bitStreamInit (const uint8_t* data, int32_t bytes) {
-    buf = data;
-    pos = 0;
-    limit = bytes * 8;
+    mBuffer = data;
+    mPos = 0;
+    mLimit = bytes * 8;
     }
   //}}}
   //{{{
   uint32_t getBits (int32_t n) {
 
-    uint32_t s = pos & 7;
+    uint32_t s = mPos & 7;
     int32_t shl = n + s;
 
-    const uint8_t* p = buf + (pos >> 3);
-    if ((pos += n) > limit)
+    const uint8_t* p = mBuffer + (mPos >> 3);
+    if ((mPos += n) > mLimit)
       return 0;
 
     uint32_t cache = 0;
@@ -140,9 +140,9 @@ public:
     }
   //}}}
 
-  const uint8_t* buf;
-  int32_t pos;
-  int32_t limit;
+  const uint8_t* mBuffer;
+  int32_t mPos;
+  int32_t mLimit;
   };
 //}}}
 //{{{
@@ -929,7 +929,7 @@ int32_t readSideInfo (cBitStream* bitStream, struct sGranule* granule, const uin
     granule++;
     } while (--granule_count);
 
-  if ((part_23_sum + bitStream->pos) > (bitStream->limit + mainDataBegin * 8))
+  if ((part_23_sum + bitStream->mPos) > (bitStream->mLimit + mainDataBegin * 8))
     return -1;
 
   return mainDataBegin;
@@ -1049,7 +1049,7 @@ void huffman (float* dst, cBitStream* bitStream, const struct sGranule* granule,
               const float* scf, int32_t l3granuleLimit) {
 
   #define PEEK_BITS(n) (bitStreamCache >> (32 - n))
-  #define BSPOS ((bitStreamNextPtr - bitStream->buf)*8 - 24 + bitStreamSh)
+  #define BSPOS ((bitStreamNextPtr - bitStream->mBuffer) * 8 - 24 + bitStreamSh)
   //{{{
   #define FLUSH_BITS(n) { \
     bitStreamCache <<= (n); \
@@ -1069,13 +1069,13 @@ void huffman (float* dst, cBitStream* bitStream, const struct sGranule* granule,
   int32_t ireg = 0;
   int32_t big_val_cnt = granule->bigValues;
   const uint8_t* sfb = granule->sfbtab;
-  const uint8_t* bitStreamNextPtr = bitStream->buf + bitStream->pos/8;
+  const uint8_t* bitStreamNextPtr = bitStream->mBuffer + bitStream->mPos / 8;
   uint32_t bitStreamCache = (((bitStreamNextPtr[0] * 256u + bitStreamNextPtr[1]) * 256u +
-                               bitStreamNextPtr[2]) * 256u + bitStreamNextPtr[3]) << (bitStream->pos & 7);
+                               bitStreamNextPtr[2]) * 256u + bitStreamNextPtr[3]) << (bitStream->mPos & 7);
 
   int32_t np;
   int32_t pairs_to_decode;
-  int32_t bitStreamSh = (bitStream->pos & 7) - 8;
+  int32_t bitStreamSh = (bitStream->mPos & 7) - 8;
   bitStreamNextPtr += 4;
   while (big_val_cnt > 0) {
     int32_t tab_num = granule->tableSelect[ireg];
@@ -1176,7 +1176,7 @@ void huffman (float* dst, cBitStream* bitStream, const struct sGranule* granule,
     CHECK_BITS;
     }
 
-  bitStream->pos = l3granuleLimit;
+  bitStream->mPos = l3granuleLimit;
   }
 //}}}
 
@@ -1725,31 +1725,31 @@ int32_t cMp3Decoder::decodeSingleFrame (uint8_t* inBuffer, int32_t bytesLeft, fl
   int16_t samples16 [2048*2];
   int16_t* pcm = samples16;
 
-  memcpy (header, inBuffer, HDR_SIZE);
+  memcpy (mHeader, inBuffer, HDR_SIZE);
   cBitStream bitStream (inBuffer + HDR_SIZE, bytesLeft - HDR_SIZE);
 
-  int32_t layer = 4 - HDR_GET_LAYER (header);
-  int32_t bitrate_kbps = headerBitrate (header);
-  int32_t numSamples = headerFrameSamples (header);
-  channels = HDR_IS_MONO (header) ? 1 : 2;
-  sampleRate = headerSampleRate (header);
+  int32_t layer = 4 - HDR_GET_LAYER (mHeader);
+  int32_t bitrate_kbps = headerBitrate (mHeader);
+  int32_t numSamples = headerFrameSamples (mHeader);
+  mNumChannels = HDR_IS_MONO (mHeader) ? 1 : 2;
+  mSampleRate = headerSampleRate (mHeader);
 
-  if (HDR_IS_CRC (header))
+  if (HDR_IS_CRC (mHeader))
     bitStream.getBits (16);
 
   sScratch scratch;
   if (layer == 3) {
     //{{{  layer 3
     int32_t mainDataBegin = readSideInfo (&bitStream, scratch.granule, inBuffer);
-    if ((mainDataBegin < 0) || (bitStream.pos > bitStream.limit))
+    if ((mainDataBegin < 0) || (bitStream.mPos > bitStream.mLimit))
       return 0;
 
     success = restore_reservoir (&bitStream, &scratch, mainDataBegin);
     if (success) {
-      for (int32_t igr = 0; igr < (HDR_TEST_MPEG1(header) ? 2 : 1); igr++, pcm += 576 * channels) {
+      for (int32_t igr = 0; igr < (HDR_TEST_MPEG1(mHeader) ? 2 : 1); igr++, pcm += 576 * mNumChannels) {
         memset (scratch.granuleBuffer[0], 0, 576 * 2 * sizeof(float));
-        decode (&scratch, scratch.granule + igr * channels, channels);
-        synthGranule (qmfState, scratch.granuleBuffer[0], 18, channels, pcm, scratch.syn[0]);
+        decode (&scratch, scratch.granule + igr * mNumChannels, mNumChannels);
+        synthGranule (mQmfState, scratch.granuleBuffer[0], 18, mNumChannels, pcm, scratch.syn[0]);
         }
       }
 
@@ -1768,11 +1768,11 @@ int32_t cMp3Decoder::decodeSingleFrame (uint8_t* inBuffer, int32_t bytesLeft, fl
       if (12 == (i += dequantizeGranule (scratch.granuleBuffer[0] + i, &bitStream, &scaleInfo, layer | 1))) {
         i = 0;
         applyScf384 (&scaleInfo, scaleInfo.scf + igr, scratch.granuleBuffer[0]);
-        synthGranule (qmfState, scratch.granuleBuffer[0], 12, channels, pcm, scratch.syn[0]);
+        synthGranule (mQmfState, scratch.granuleBuffer[0], 12, mNumChannels, pcm, scratch.syn[0]);
         memset (scratch.granuleBuffer[0], 0, 576*2*sizeof(float));
-        pcm += 384 * channels;
+        pcm += 384 * mNumChannels;
         }
-      if (bitStream.pos > bitStream.limit)
+      if (bitStream.mPos > bitStream.mLimit)
         return 0;
       }
     }
@@ -1785,7 +1785,7 @@ int32_t cMp3Decoder::decodeSingleFrame (uint8_t* inBuffer, int32_t bytesLeft, fl
 
   auto took = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - timePoint);
   cLog::log (LOGINFO1, "mp3:%d %4d:%3dk %dx%d@%dhz %3dus",
-             layer, bytesLeft, bitrate_kbps, numSamples, channels, sampleRate, took.count());
+             layer, bytesLeft, bitrate_kbps, numSamples, mNumChannels, mSampleRate, took.count());
 
   return numSamples;
   }
@@ -1795,29 +1795,29 @@ int32_t cMp3Decoder::decodeSingleFrame (uint8_t* inBuffer, int32_t bytesLeft, fl
 //{{{
 void cMp3Decoder::clear() {
 
-  reservoir = 0;
-  memset (reservoirBuf, 0, sizeof (reservoirBuf[511]));
-  memset (mdctOverlap, 0, sizeof (mdctOverlap));
-  memset (qmfState, 0, sizeof (qmfState));
+  mReservoir = 0;
+  memset (mReservoirBuffer, 0, sizeof (mReservoirBuffer[511]));
+  memset (mMdctOverlap, 0, sizeof (mMdctOverlap));
+  memset (mQmfState, 0, sizeof (mQmfState));
   };
 //}}}
 //{{{
 void cMp3Decoder::decode (struct sScratch* s, struct sGranule* granule, int32_t numChannels) {
 
   for (int32_t channel = 0; channel < numChannels; channel++) {
-    int32_t layer3gr_limit = s->bitStream.pos + granule[channel].part23length;
-    decodeScaleFactors (header, s->istPos[channel], &s->bitStream, granule + channel, s->scf, channel);
+    int32_t layer3gr_limit = s->bitStream.mPos + granule[channel].part23length;
+    decodeScaleFactors (mHeader, s->istPos[channel], &s->bitStream, granule + channel, s->scf, channel);
     huffman (s->granuleBuffer[channel], &s->bitStream, granule + channel, s->scf, layer3gr_limit);
     }
 
-  if (HDR_TEST_I_STEREO (header))
-    intensityStereo (s->granuleBuffer[0], s->istPos[1], granule, header);
-  else if (HDR_IS_MS_STEREO (header))
+  if (HDR_TEST_I_STEREO (mHeader))
+    intensityStereo (s->granuleBuffer[0], s->istPos[1], granule, mHeader);
+  else if (HDR_IS_MS_STEREO (mHeader))
     midsideStereo (s->granuleBuffer[0], 576);
 
   for (int32_t channel = 0; channel < numChannels; channel++, granule++) {
     int32_t aa_bands = 31;
-    int32_t numLongBands = (granule->mixedBlockFlag ? 2 : 0) << (int)(HDR_GET_MY_SAMPLE_RATE(header) == 2);
+    int32_t numLongBands = (granule->mixedBlockFlag ? 2 : 0) << (int)(HDR_GET_MY_SAMPLE_RATE(mHeader) == 2);
 
     if (granule->numShortSfb) {
       aa_bands = numLongBands - 1;
@@ -1825,7 +1825,7 @@ void cMp3Decoder::decode (struct sScratch* s, struct sGranule* granule, int32_t 
       }
 
     antialias (s->granuleBuffer[channel], aa_bands);
-    imdctGranule (s->granuleBuffer[channel], mdctOverlap[channel], granule->blockType, numLongBands);
+    imdctGranule (s->granuleBuffer[channel], mMdctOverlap[channel], granule->blockType, numLongBands);
     changeSign (s->granuleBuffer[channel]);
     }
   }
@@ -1834,8 +1834,8 @@ void cMp3Decoder::decode (struct sScratch* s, struct sGranule* granule, int32_t 
 //{{{
 void cMp3Decoder::save_reservoir (struct sScratch* s) {
 
-  int32_t pos = (s->bitStream.pos + 7) / 8u;
-  int32_t remains = s->bitStream.limit / 8u - pos;
+  int32_t pos = (s->bitStream.mPos + 7) / 8u;
+  int32_t remains = s->bitStream.mLimit / 8u - pos;
 
   if (remains > MAX_BITRESERVOIR_BYTES) {
     pos += remains - MAX_BITRESERVOIR_BYTES;
@@ -1843,22 +1843,22 @@ void cMp3Decoder::save_reservoir (struct sScratch* s) {
     }
 
   if (remains > 0)
-    memmove (reservoirBuf, s->maindata + pos, remains);
+    memmove (mReservoirBuffer, s->maindata + pos, remains);
 
-  reservoir = remains;
+  mReservoir = remains;
   }
 //}}}
 //{{{
 int32_t cMp3Decoder::restore_reservoir (cBitStream* bitStream, struct sScratch* s, int32_t mainDataBegin) {
 
-  int32_t frame_bytes = (bitStream->limit - bitStream->pos) / 8;
-  int32_t bytes_have = std::min (reservoir, mainDataBegin);
+  int32_t frame_bytes = (bitStream->mLimit - bitStream->mPos) / 8;
+  int32_t bytes_have = std::min (mReservoir, mainDataBegin);
 
-  memcpy (s->maindata, reservoirBuf + std::max (0, reservoir - mainDataBegin), std::min (reservoir, mainDataBegin));
-  memcpy (s->maindata + bytes_have, bitStream->buf + bitStream->pos/8, frame_bytes);
+  memcpy (s->maindata, mReservoirBuffer + std::max (0, mReservoir - mainDataBegin), std::min (mReservoir, mainDataBegin));
+  memcpy (s->maindata + bytes_have, bitStream->mBuffer + bitStream->mPos / 8, frame_bytes);
 
   s->bitStream.bitStreamInit (s->maindata, bytes_have + frame_bytes);
 
-  return reservoir >= mainDataBegin;
+  return mReservoir >= mainDataBegin;
   }
 //}}}

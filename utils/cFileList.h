@@ -188,6 +188,7 @@ public:
   //}}}
   //{{{
   cFileList (const std::vector<std::string>& names, const std::string& matchString) {
+  // parse vector of names
 
     if (!names.empty()) {
       mMatchString = matchString;
