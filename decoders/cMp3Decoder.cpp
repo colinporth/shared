@@ -71,14 +71,6 @@
 #endif
 
 //{{{
-class cBitStream {
-public:
-  const uint8_t* buf;
-  int32_t pos;
-  int32_t limit;
-  };
-//}}}
-//{{{
 struct sScaleInfo {
   float   scf [3*64];
   uint8_t totalBands;
@@ -103,8 +95,8 @@ struct sGranule {
   uint8_t  global_gain;
   uint8_t  block_type;
   uint8_t  mixed_block_flag;
-  uint8_t  n_long_sfb;
-  uint8_t  n_short_sfb;
+  uint8_t  numLongSfb;
+  uint8_t  numShortSfb;
   uint8_t  table_select [3];
   uint8_t  region_count [3];
   uint8_t  subblock_gain [3];
@@ -112,6 +104,45 @@ struct sGranule {
   uint8_t  scalefac_scale;
   uint8_t  count1_table;
   uint8_t  scfsi;
+  };
+//}}}
+//{{{
+class cBitStream {
+public:
+   cBitStream() {}
+   cBitStream (const uint8_t* data, int32_t bytes) : buf(data), pos (0), limit (bytes * 8) {}
+
+  //{{{
+  void bitStreamInit (const uint8_t* data, int32_t bytes) {
+    buf = data;
+    pos = 0;
+    limit = bytes * 8;
+    }
+  //}}}
+  //{{{
+  uint32_t getBits (int32_t n) {
+
+    uint32_t s = pos & 7;
+    int32_t shl = n + s;
+
+    const uint8_t* p = buf + (pos >> 3);
+    if ((pos += n) > limit)
+      return 0;
+
+    uint32_t cache = 0;
+    uint32_t next = *p++ & (255 >> s);
+    while ((shl -= 8) > 0) {
+      cache |= next << shl;
+      next = *p++;
+      }
+
+    return cache | (next >> -shl);
+    }
+  //}}}
+
+  const uint8_t* buf;
+  int32_t pos;
+  int32_t limit;
   };
 //}}}
 //{{{
@@ -429,35 +460,6 @@ static const float g_win[] = {
 //}}}
 //}}}
 
-// bitstream
-//{{{
-void bitStreamInit (cBitStream* bitStream, const uint8_t* data, int32_t bytes) {
-  bitStream->buf = data;
-  bitStream->pos = 0;
-  bitStream->limit = bytes * 8;
-  }
-//}}}
-//{{{
-uint32_t getBits (cBitStream* bitStream, int32_t n) {
-
-  uint32_t s = bitStream->pos & 7;
-  int32_t shl = n + s;
-
-  const uint8_t* p = bitStream->buf + (bitStream->pos >> 3);
-  if ((bitStream->pos += n) > bitStream->limit)
-    return 0;
-
-  uint32_t cache = 0;
-  uint32_t next = *p++ & (255 >> s);
-  while ((shl -= 8) > 0) {
-    cache |= next << shl;
-    next = *p++;
-    }
-
-  return cache | (next >> -shl);
-  }
-//}}}
-
 // header
 //{{{
 uint32_t headerBitrate (const uint8_t* header) {
@@ -545,7 +547,7 @@ void readScaleFactors (cBitStream* bitStream, uint8_t* pba, uint8_t* scfcod, int
     int32_t mask = ba ? 4 + ((19 >> scfcod[i]) & 3) : 0;
     for (int32_t m = 4; m; m >>= 1) {
       if (mask & m) {
-        int32_t b = getBits (bitStream, 6);
+        int32_t b = bitStream->getBits (6);
         s = g_deq_L12[ba*3 - 6 + b % 3] * (1 << 21 >> b/3);
         }
       *scf++ = s;
@@ -569,15 +571,15 @@ void readScaleInfo (const uint8_t* header, cBitStream* bitStream, struct sScaleI
       subBandAlloc++;
       }
 
-    uint8_t bitAlloc = bitAllocCodeTable [getBits (bitStream, bitAllocBits)];
+    uint8_t bitAlloc = bitAllocCodeTable [bitStream->getBits (bitAllocBits)];
     scaleInfo->bitalloc[2*i] = bitAlloc;
     if (i < scaleInfo->stereoBands)
-      bitAlloc = bitAllocCodeTable [getBits (bitStream, bitAllocBits)];
+      bitAlloc = bitAllocCodeTable [bitStream->getBits (bitAllocBits)];
     scaleInfo->bitalloc [2*i + 1] = scaleInfo->stereoBands ? bitAlloc : 0;
     }
 
   for (int32_t i = 0; i < 2 * scaleInfo->totalBands; i++)
-    scaleInfo->scfcod[i] = scaleInfo->bitalloc[i] ? HDR_IS_LAYER_1 (header) ? 2 : getBits (bitStream, 2) : 6;
+    scaleInfo->scfcod[i] = scaleInfo->bitalloc[i] ? HDR_IS_LAYER_1 (header) ? 2 : bitStream->getBits (2) : 6;
 
   readScaleFactors (bitStream, scaleInfo->bitalloc, scaleInfo->scfcod, scaleInfo->totalBands*2, scaleInfo->scf);
 
@@ -598,11 +600,11 @@ int32_t dequantizeGranule (float* granuleBuffer, cBitStream* bitStream, struct s
         if (ba < 17) {
           int32_t half = (1 << (ba - 1)) - 1;
           for (int32_t k = 0; k < group_size; k++)
-            dst[k] = (float)((int)getBits (bitStream, ba) - half);
+            dst[k] = (float)((int)bitStream->getBits (ba) - half);
           }
         else {
           uint32_t mod = (2 << (ba - 17)) + 1;    // 3, 5, 9
-          uint32_t code = getBits (bitStream, mod + 2 - (mod >> 3));  // 5, 7, 10
+          uint32_t code = bitStream->getBits (mod + 2 - (mod >> 3));  // 5, 7, 10
           for (int32_t k = 0; k < group_size; k++, code /= mod)
             dst[k] = (float)((int)(code % mod - mod/2));
           }
@@ -722,8 +724,7 @@ void midsideStereo (float* left, int32_t n) {
 void antialias (float* granuleBuffer, int32_t numBands) {
 
   for (; numBands > 0; numBands--, granuleBuffer += 18) {
-    int32_t i = 0;
-    for (; i < 8; i += 4) {
+    for (int32_t i = 0; i < 8; i += 4) {
       f4 vu = VLD (granuleBuffer + 18 + i);
       f4 vd = VLD (granuleBuffer + 14 - i);
       f4 vc0 = VLD (g_aa[0] + i);
@@ -833,10 +834,10 @@ void imdct36 (float* granuleBuffer, float* overlap, const float* window, int32_t
 
     for (int32_t i = 0; i < 9; i++) {
       float ovl = overlap[i];
-      float sum = co[i] * g_twid9[9 + i] + si[i] * g_twid9[0 + i];
-      overlap[i] = co[i] * g_twid9[0 + i] - si[i] * g_twid9[9 + i];
-      granuleBuffer[i] = ovl * window[0 + i] - sum * window[9 + i];
-      granuleBuffer[17 - i] = ovl * window[9 + i] + sum * window[0 + i];
+      float sum = co[i] * g_twid9[9 + i] + si[i] * g_twid9[i];
+      overlap[i] = co[i] * g_twid9[i] - si[i] * g_twid9[9 + i];
+      granuleBuffer[i] = ovl * window[i] - sum * window[9 + i];
+      granuleBuffer[17 - i] = ovl * window[9 + i] + sum * window[i];
       }
     }
   }
@@ -854,35 +855,35 @@ int32_t readSideInfo (cBitStream* bitStream, struct sGranule* granule, const uin
   int32_t mainDataBegin;
   if (HDR_TEST_MPEG1 (header)) {
     granule_count *= 2;
-    mainDataBegin = getBits (bitStream, 9);
-    scfsi = getBits (bitStream, 7 + granule_count);
+    mainDataBegin = bitStream->getBits (9);
+    scfsi = bitStream->getBits (7 + granule_count);
     }
   else
-    mainDataBegin = getBits (bitStream, 8 + granule_count) >> granule_count;
+    mainDataBegin = bitStream->getBits (8 + granule_count) >> granule_count;
 
   int32_t part_23_sum = 0;
   do {
     if (HDR_IS_MONO (header))
       scfsi <<= 4;
 
-    granule->part_23_length = (uint16_t)getBits (bitStream, 12);
+    granule->part_23_length = (uint16_t)(bitStream->getBits (12));
     part_23_sum += granule->part_23_length;
-    granule->big_values = (uint16_t)getBits (bitStream, 9);
+    granule->big_values = (uint16_t)(bitStream->getBits (9));
     if (granule->big_values > 288)
       return -1;
 
-    granule->global_gain = (uint8_t)getBits (bitStream, 8);
-    granule->scalefac_compress = (uint16_t)getBits (bitStream, HDR_TEST_MPEG1 (header) ? 4 : 9);
+    granule->global_gain = (uint8_t)(bitStream->getBits (8));
+    granule->scalefac_compress = (uint16_t)(bitStream->getBits (HDR_TEST_MPEG1 (header) ? 4 : 9));
     granule->sfbtab = g_scf_long [sr_idx];
-    granule->n_long_sfb  = 22;
-    granule->n_short_sfb = 0;
+    granule->numLongSfb  = 22;
+    granule->numShortSfb = 0;
 
     uint32_t tables;
-    if (getBits (bitStream, 1)) {
-      granule->block_type = (uint8_t)getBits (bitStream, 2);
+    if (bitStream->getBits (1)) {
+      granule->block_type = (uint8_t)(bitStream->getBits (2));
       if (!granule->block_type)
         return -1;
-      granule->mixed_block_flag = (uint8_t)getBits (bitStream, 1);
+      granule->mixed_block_flag = (uint8_t)(bitStream->getBits (1));
       granule->region_count[0] = 7;
       granule->region_count[1] = 255;
 
@@ -891,38 +892,38 @@ int32_t readSideInfo (cBitStream* bitStream, struct sGranule* granule, const uin
         if (!granule->mixed_block_flag) {
           granule->region_count[0] = 8;
           granule->sfbtab = g_scf_short[sr_idx];
-          granule->n_long_sfb = 0;
-          granule->n_short_sfb = 39;
+          granule->numLongSfb = 0;
+          granule->numShortSfb = 39;
           }
         else {
           granule->sfbtab = g_scf_mixed[sr_idx];
-          granule->n_long_sfb = HDR_TEST_MPEG1(header) ? 8 : 6;
-          granule->n_short_sfb = 30;
+          granule->numLongSfb = HDR_TEST_MPEG1(header) ? 8 : 6;
+          granule->numShortSfb = 30;
           }
         }
 
-      tables = getBits (bitStream, 10);
+      tables = bitStream->getBits (10);
       tables <<= 5;
-      granule->subblock_gain[0] = (uint8_t)getBits (bitStream, 3);
-      granule->subblock_gain[1] = (uint8_t)getBits (bitStream, 3);
-      granule->subblock_gain[2] = (uint8_t)getBits (bitStream, 3);
+      granule->subblock_gain[0] = (uint8_t)bitStream->getBits (3);
+      granule->subblock_gain[1] = (uint8_t)bitStream->getBits (3);
+      granule->subblock_gain[2] = (uint8_t)bitStream->getBits (3);
       }
 
     else {
       granule->block_type = 0;
       granule->mixed_block_flag = 0;
-      tables = getBits (bitStream, 15);
-      granule->region_count[0] = (uint8_t)getBits (bitStream, 4);
-      granule->region_count[1] = (uint8_t)getBits (bitStream, 3);
+      tables = bitStream->getBits (15);
+      granule->region_count[0] = (uint8_t)bitStream->getBits (4);
+      granule->region_count[1] = (uint8_t)bitStream->getBits (3);
       granule->region_count[2] = 255;
       }
 
     granule->table_select[0] = (uint8_t)(tables >> 10);
     granule->table_select[1] = (uint8_t)((tables >> 5) & 31);
     granule->table_select[2] = (uint8_t)((tables) & 31);
-    granule->preflag = HDR_TEST_MPEG1 (header) ? getBits (bitStream, 1) : (granule->scalefac_compress >= 500);
-    granule->scalefac_scale = (uint8_t)getBits (bitStream, 1);
-    granule->count1_table = (uint8_t)getBits (bitStream, 1);
+    granule->preflag = HDR_TEST_MPEG1 (header) ? bitStream->getBits (1) : (granule->scalefac_compress >= 500);
+    granule->scalefac_scale = (uint8_t)(bitStream->getBits (1));
+    granule->count1_table = (uint8_t)(bitStream->getBits (1));
     granule->scfsi = (uint8_t)((scfsi >> 12) & 15);
     scfsi <<= 4;
     granule++;
@@ -951,7 +952,7 @@ void readScaleFactorsL3 (uint8_t* scf, uint8_t* ist_pos, const uint8_t* scf_size
       else {
         int32_t max_scf = (scfsi < 0) ? (1 << bits) - 1 : -1;
         for (int32_t k = 0; k < cnt; k++) {
-          int32_t s = getBits (bitbuf, bits);
+          int32_t s = bitbuf->getBits (bits);
           ist_pos[k] = (s == max_scf ? -1 : s);
           scf[k] = s;
           }
@@ -980,7 +981,7 @@ float ldExpQ2 (float y, int32_t exp_q2) {
 void decodeScaleFactors (const uint8_t* header, uint8_t* ist_pos, cBitStream* bitStream,
                          const struct sGranule* gr, float* scf, int32_t ch) {
 
-  const uint8_t* scf_partition = g_scf_partitions [!!gr->n_short_sfb + !gr->n_long_sfb];
+  const uint8_t* scf_partition = g_scf_partitions [!!gr->numShortSfb + !gr->numLongSfb];
   uint8_t scf_size[4], iscf[40];
   int32_t scf_shift = gr->scalefac_scale + 1;
   int32_t scfsi = gr->scfsi;
@@ -1005,12 +1006,12 @@ void decodeScaleFactors (const uint8_t* header, uint8_t* ist_pos, cBitStream* bi
     }
   readScaleFactorsL3 (iscf, ist_pos, scf_size, scf_partition, bitStream, scfsi);
 
-  if (gr->n_short_sfb) {
+  if (gr->numShortSfb) {
     int32_t sh = 3 - scf_shift;
-    for (int i = 0; i < gr->n_short_sfb; i += 3) {
-      iscf [gr->n_long_sfb + i + 0] += gr->subblock_gain[0] << sh;
-      iscf [gr->n_long_sfb + i + 1] += gr->subblock_gain[1] << sh;
-      iscf [gr->n_long_sfb + i + 2] += gr->subblock_gain[2] << sh;
+    for (int i = 0; i < gr->numShortSfb; i += 3) {
+      iscf [gr->numLongSfb + i] += gr->subblock_gain[0] << sh;
+      iscf [gr->numLongSfb + i + 1] += gr->subblock_gain[1] << sh;
+      iscf [gr->numLongSfb + i + 2] += gr->subblock_gain[2] << sh;
       }
     }
   else if (gr->preflag) {
@@ -1020,7 +1021,7 @@ void decodeScaleFactors (const uint8_t* header, uint8_t* ist_pos, cBitStream* bi
 
   int32_t gain_exp = gr->global_gain + BITS_DEQUANTIZER_OUT*4 - 210 - (HDR_IS_MS_STEREO (header) ? 2 : 0);
   float gain = ldExpQ2 (1 << (MAX_SCFI/4),  MAX_SCFI - gain_exp);
-  for (int32_t i = 0; i < (int)(gr->n_long_sfb + gr->n_short_sfb); i++)
+  for (int32_t i = 0; i < (int)(gr->numLongSfb + gr->numShortSfb); i++)
     scf[i] = ldExpQ2 (gain, iscf[i] << scf_shift);
   }
 //}}}
@@ -1242,14 +1243,14 @@ void stereoProcess (float* left, const uint8_t* ist_pos, const uint8_t* sfb, con
 //{{{
 void intensityStereo (float* left, uint8_t* ist_pos, const struct sGranule* granule, const uint8_t* header) {
 
-  int32_t max_band[3], n_sfb = granule->n_long_sfb + granule->n_short_sfb;
+  int32_t max_band[3], n_sfb = granule->numLongSfb + granule->numShortSfb;
   stereoTopBand (left + 576, granule->sfbtab, n_sfb, max_band);
-  if (granule->n_long_sfb) {
+  if (granule->numLongSfb) {
     max_band[0] = max_band[1] = max_band[2] = std::max (std::max (max_band[0], max_band[1]), max_band[2]);
     }
 
   int32_t i;
-  int32_t max_blocks = granule->n_short_sfb ? 3 : 1;
+  int32_t max_blocks = granule->numShortSfb ? 3 : 1;
   for (i = 0; i < max_blocks; i++) {
     int32_t default_pos = HDR_TEST_MPEG1 (header) ? 3 : 0;
     int32_t itop = n_sfb - max_blocks + i;
@@ -1262,7 +1263,7 @@ void intensityStereo (float* left, uint8_t* ist_pos, const struct sGranule* gran
 //}}}
 
 //{{{
-void idct3 (float x0, float x1, float x2, float *dst) {
+void idct3 (float x0, float x1, float x2, float* dst) {
 
   float m1 = x1 * 0.86602540f;
   float a1 = x0 - x2 * 0.5f;
@@ -1284,10 +1285,10 @@ void imdct12 (float* x, float* dst, float* overlap) {
 
   for (int32_t i = 0; i < 3; i++) {
     float ovl = overlap[i];
-    float sum = co[i]*g_twid3[3 + i] + si[i]*g_twid3[0 + i];
-    overlap[i] = co[i]*g_twid3[0 + i] - si[i]*g_twid3[3 + i];
-    dst[i]     = ovl*g_twid3[2 - i] - sum*g_twid3[5 - i];
-    dst[5 - i] = ovl*g_twid3[5 - i] + sum*g_twid3[2 - i];
+    float sum = co [i] * g_twid3 [3+i] + si [i] * g_twid3 [i];
+    overlap [i] = co [i] * g_twid3 [i] - si [i] * g_twid3 [3+i];
+    dst [i] = ovl * g_twid3 [2-i] - sum * g_twid3 [5-i];
+    dst [5-i] = ovl * g_twid3 [5-i] + sum * g_twid3 [2-i];
     }
   }
 //}}}
@@ -1297,7 +1298,7 @@ void imdctShort (float* granuleBuffer, float* overlap, int numBands) {
   for (;numBands > 0; numBands--, overlap += 9, granuleBuffer += 18) {
     float tmp[18];
     memcpy (tmp, granuleBuffer, sizeof(tmp));
-    memcpy (granuleBuffer, overlap, 6*sizeof(float));
+    memcpy (granuleBuffer, overlap, 6 * sizeof(float));
 
     imdct12 (tmp, granuleBuffer + 6, overlap + 6);
     imdct12 (tmp + 1, granuleBuffer + 12, overlap + 6);
@@ -1306,18 +1307,18 @@ void imdctShort (float* granuleBuffer, float* overlap, int numBands) {
   }
 //}}}
 //{{{
-void imdctGranule (float* granuleBuffer, float* overlap, uint32_t block_type, uint32_t n_long_bands) {
+void imdctGranule (float* granuleBuffer, float* overlap, uint32_t block_type, uint32_t numLongBands) {
 
-  if (n_long_bands) {
-    imdct36 (granuleBuffer, overlap, g_mdct_window[0], n_long_bands);
-    granuleBuffer += 18*n_long_bands;
-    overlap += 9*n_long_bands;
+  if (numLongBands) {
+    imdct36 (granuleBuffer, overlap, g_mdct_window[0], numLongBands);
+    granuleBuffer += 18 * numLongBands;
+    overlap += 9 * numLongBands;
     }
 
   if (block_type == SHORT_BLOCK_TYPE)
-    imdctShort (granuleBuffer, overlap, 32 - n_long_bands);
+    imdctShort (granuleBuffer, overlap, 32 - numLongBands);
   else
-    imdct36 (granuleBuffer, overlap, g_mdct_window[block_type == STOP_BLOCK_TYPE], 32 - n_long_bands);
+    imdct36 (granuleBuffer, overlap, g_mdct_window [block_type == STOP_BLOCK_TYPE], 32 - numLongBands);
   }
 //}}}
 
@@ -1729,8 +1730,7 @@ int32_t cMp3Decoder::decodeSingleFrame (uint8_t* inBuffer, int32_t bytesLeft, fl
   int16_t* pcm = samples16;
 
   memcpy (header, inBuffer, HDR_SIZE);
-  cBitStream bitStream;
-  bitStreamInit (&bitStream, inBuffer + HDR_SIZE, bytesLeft - HDR_SIZE);
+  cBitStream bitStream (inBuffer + HDR_SIZE, bytesLeft - HDR_SIZE);
 
   int32_t layer = 4 - HDR_GET_LAYER (header);
   int32_t bitrate_kbps = headerBitrate (header);
@@ -1739,7 +1739,7 @@ int32_t cMp3Decoder::decodeSingleFrame (uint8_t* inBuffer, int32_t bytesLeft, fl
   sampleRate = headerSampleRate (header);
 
   if (HDR_IS_CRC (header))
-    getBits (&bitStream, 16);
+    bitStream.getBits (16);
 
   sScratch scratch;
   if (layer == 3) {
@@ -1752,7 +1752,7 @@ int32_t cMp3Decoder::decodeSingleFrame (uint8_t* inBuffer, int32_t bytesLeft, fl
     if (success) {
       for (int32_t igr = 0; igr < (HDR_TEST_MPEG1(header) ? 2 : 1); igr++, pcm += 576 * channels) {
         memset (scratch.granuleBuffer[0], 0, 576 * 2 * sizeof(float));
-        decode (&scratch, scratch.granule + igr*channels, channels);
+        decode (&scratch, scratch.granule + igr * channels, channels);
         synthGranule (qmf_state, scratch.granuleBuffer[0], 18, channels, pcm, scratch.syn[0]);
         }
       }
@@ -1822,15 +1822,15 @@ void cMp3Decoder::decode (struct sScratch* s, struct sGranule* granule, int32_t 
 
   for (int32_t ch = 0; ch < nch; ch++, granule++) {
     int32_t aa_bands = 31;
-    int32_t n_long_bands = (granule->mixed_block_flag ? 2 : 0) << (int)(HDR_GET_MY_SAMPLE_RATE(header) == 2);
+    int32_t numLongBands = (granule->mixed_block_flag ? 2 : 0) << (int)(HDR_GET_MY_SAMPLE_RATE(header) == 2);
 
-    if (granule->n_short_sfb) {
-      aa_bands = n_long_bands - 1;
-      reorder (s->granuleBuffer[ch] + n_long_bands*18, s->syn[0], granule->sfbtab + granule->n_long_sfb);
+    if (granule->numShortSfb) {
+      aa_bands = numLongBands - 1;
+      reorder (s->granuleBuffer[ch] + numLongBands*18, s->syn[0], granule->sfbtab + granule->numLongSfb);
       }
 
     antialias (s->granuleBuffer[ch], aa_bands);
-    imdctGranule (s->granuleBuffer[ch], mdct_overlap[ch], granule->block_type, n_long_bands);
+    imdctGranule (s->granuleBuffer[ch], mdct_overlap[ch], granule->block_type, numLongBands);
     changeSign (s->granuleBuffer[ch]);
     }
   }
@@ -1862,7 +1862,7 @@ int32_t cMp3Decoder::restore_reservoir (cBitStream* bitStream, struct sScratch* 
   memcpy (s->maindata, reserv_buf + std::max (0, reserv - mainDataBegin), std::min (reserv, mainDataBegin));
   memcpy (s->maindata + bytes_have, bitStream->buf + bitStream->pos/8, frame_bytes);
 
-  bitStreamInit (&s->bitStream, s->maindata, bytes_have + frame_bytes);
+  s->bitStream.bitStreamInit (s->maindata, bytes_have + frame_bytes);
 
   return reserv >= mainDataBegin;
   }
