@@ -236,7 +236,12 @@ public:
   cFileItem getFileItem (unsigned index) { return mFileItemList[index]; }
 
   // actions
-  void setIndex (unsigned index) { mItemIndex = index; }
+  //{{{
+  void setIndex (unsigned index) { 
+    mItemIndex = index; 
+    mEnsureItemVisible = true;
+    }
+  //}}}
   //{{{
   bool prevIndex() {
     if (!empty() && (mItemIndex > 0)) {
@@ -257,6 +262,7 @@ public:
     return false;
     }
   //}}}
+
   //{{{
   void nextSort() {
     mCompareField = (mCompareField + 1) % cFileItem::kFields;

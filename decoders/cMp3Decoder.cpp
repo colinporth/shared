@@ -1254,22 +1254,22 @@ void stereoProcess (float* left, const uint8_t* istPos, const uint8_t* sfb, cons
 //{{{
 void intensityStereo (float* left, uint8_t* istPos, const struct sGranule* granule, const uint8_t* header) {
 
-  int32_t max_band[3];
-  int32_t n_sfb = granule->numLongSfb + granule->numShortSfb;
-  stereoTopBand (left + 576, granule->sfbtab, n_sfb, max_band);
+  int32_t maxBand[3];
+  int32_t numSfb = granule->numLongSfb + granule->numShortSfb;
+  stereoTopBand (left + 576, granule->sfbtab, numSfb, maxBand);
   if (granule->numLongSfb) {
-    max_band[0] = max_band[1] = max_band[2] = std::max (std::max (max_band[0], max_band[1]), max_band[2]);
+    maxBand[0] = maxBand[1] = maxBand[2] = std::max (std::max (maxBand[0], maxBand[1]), maxBand[2]);
     }
 
-  int32_t max_blocks = granule->numShortSfb ? 3 : 1;
-  for (int32_t i = 0; i < max_blocks; i++) {
-    int32_t default_pos = HDR_TEST_MPEG1 (header) ? 3 : 0;
-    int32_t itop = n_sfb - max_blocks + i;
-    int32_t prev = itop - max_blocks;
-    istPos[itop] = max_band[i] >= prev ? default_pos : istPos[prev];
+  int32_t maxBlocks = granule->numShortSfb ? 3 : 1;
+  for (int32_t i = 0; i < maxBlocks; i++) {
+    int32_t defaultPos = HDR_TEST_MPEG1 (header) ? 3 : 0;
+    int32_t itop = numSfb - maxBlocks + i;
+    int32_t prev = itop - maxBlocks;
+    istPos[itop] = maxBand[i] >= prev ? defaultPos : istPos[prev];
     }
 
-  stereoProcess (left, istPos, granule->sfbtab, header, max_band, granule[1].scalefac_compress & 1);
+  stereoProcess (left, istPos, granule->sfbtab, header, maxBand, granule[1].scalefac_compress & 1);
   }
 //}}}
 
@@ -1709,18 +1709,18 @@ void synthPair (int16_t* pcm, int32_t numChannels, const float* z) {
   //}}}
 #endif
 //{{{
-void synthGranule (float* qmf_state, float* granuleBuffer, int32_t numBands, int32_t numChannels,
+void synthGranule (float* qmfState, float* granuleBuffer, int32_t numBands, int32_t numChannels,
                    int16_t* pcm, float* lins) {
 
   for (int32_t chan = 0; chan < numChannels; chan++)
     dctII (granuleBuffer + 576 * chan, numBands);
 
-  memcpy (lins, qmf_state, sizeof(float) * 15 * 64);
+  memcpy (lins, qmfState, sizeof(float) * 15 * 64);
 
   for (int32_t band = 0; band < numBands; band += 2)
     synth (granuleBuffer + band, pcm + 32 * numChannels * band, numChannels, lins + band * 64);
 
-  memcpy (qmf_state, lins + numBands * 64, sizeof(float) * 15 * 64);
+  memcpy (qmfState, lins + numBands * 64, sizeof(float) * 15 * 64);
   }
 //}}}
 
