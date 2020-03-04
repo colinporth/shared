@@ -106,16 +106,17 @@ struct sGranule {
   uint8_t  scfsi;
   };
 //}}}
+
 //{{{
 class cBitStream {
 public:
    cBitStream() {}
-   cBitStream (const uint8_t* data, int32_t bytes) : mBuffer(data), mPos(0), mLimit(bytes * 8) {}
+   cBitStream (const uint8_t* buffer, int32_t bytes) : mBuffer(buffer), mPosition(0), mLimit(bytes * 8) {}
 
   //{{{
-  void bitStreamInit (const uint8_t* data, int32_t bytes) {
-    mBuffer = data;
-    mPos = 0;
+  void bitStreamInit (const uint8_t* buffer, int32_t bytes) {
+    mBuffer = buffer;
+    mPosition = 0;
     mLimit = bytes * 8;
     }
   //}}}
@@ -124,11 +125,11 @@ public:
   //{{{
   uint32_t getBits (int32_t n) {
 
-    uint32_t s = mPos & 7;
+    uint32_t s = mPosition & 7;
     int32_t shl = n + s;
 
-    const uint8_t* p = mBuffer + (mPos >> 3);
-    if ((mPos += n) > mLimit)
+    const uint8_t* p = mBuffer + (mPosition >> 3);
+    if ((mPosition += n) > mLimit)
       return 0;
 
     uint32_t cache = 0;
@@ -142,21 +143,21 @@ public:
     }
   //}}}
   const uint8_t* getBitStreamBuffer() { return mBuffer; }
-  int32_t getBitStreamPos() { return mPos; }
+  int32_t getBitStreamPosition() { return mPosition; }
   int32_t getBitStreamLimit() { return mLimit; }
 
   uint32_t getBitStreamCache() { return mCache; }
   uint32_t peekBits (int32_t n) { return mCache >> (32 - n); }
-  int32_t getBitPos() { return int32_t(mPtr - mBuffer) * 8 - 24 + mShift; }
-
-  void setBitStreamPos (int32_t pos) { mPos = pos; }
+  int32_t getBitPosition() { return int32_t(mPtr - mBuffer) * 8 - 24 + mShift; }
 
   // actions
+  void setBitStreamPos (int32_t position) { mPosition = position; }
+
   void fillCache() {
-    mPtr = mBuffer + mPos / 8;
-    mCache = ((((((mPtr[0] << 8) + mPtr[1]) << 8) + mPtr[2]) << 8) + mPtr[3]) << (mPos & 7);
+    mPtr = mBuffer + mPosition / 8;
+    mCache = ((((((mPtr[0] << 8) + mPtr[1]) << 8) + mPtr[2]) << 8) + mPtr[3]) << (mPosition & 7);
     mPtr += 4;
-    mShift = (mPos & 7) - 8;
+    mShift = (mPosition & 7) - 8;
     }
 
   void flushBits (int32_t n) {
@@ -173,7 +174,7 @@ public:
 
 private:
   const uint8_t* mBuffer = nullptr;
-  int32_t mPos = 0;
+  int32_t mPosition = 0;
   int32_t mLimit = 0;
 
   const uint8_t* mPtr = nullptr;
@@ -499,13 +500,11 @@ static const float g_win[] = {
 // header
 //{{{
 uint32_t headerBitrate (const uint8_t* header) {
-
   return 2 * g_halfrate [!!HDR_TEST_MPEG1 (header)] [HDR_GET_LAYER (header) - 1] [HDR_GET_BITRATE (header)];
   }
 //}}}
 //{{{
 uint32_t headerSampleRate (const uint8_t* header) {
-
   return g_hz [HDR_GET_SAMPLE_RATE (header)] >> (int)!HDR_TEST_MPEG1 (header) >> (int)!HDR_TEST_NOT_MPEG25 (header);
   }
 //}}}
@@ -965,7 +964,7 @@ int32_t readSideInfo (cBitStream* bitStream, struct sGranule* granule, const uin
     granule++;
     } while (--granule_count);
 
-  if ((part_23_sum + bitStream->getBitStreamPos()) > (bitStream->getBitStreamLimit() + mainDataBegin * 8))
+  if ((part_23_sum + bitStream->getBitStreamPosition()) > (bitStream->getBitStreamLimit() + mainDataBegin * 8))
     return -1;
 
   return mainDataBegin;
@@ -1161,7 +1160,7 @@ void huffman (float* dst, cBitStream* bitStream, const struct sGranule* granule,
     if (!(leaf & 8))
       leaf = codebook_count1[(leaf >> 3) + (bitStream->getBitStreamCache() << 4 >> (32 - (leaf & 3)))];
     bitStream->flushBits (leaf & 7);
-    if (bitStream->getBitPos() > l3granuleLimit)
+    if (bitStream->getBitPosition() > l3granuleLimit)
       break;
 
     //{{{
@@ -1736,10 +1735,6 @@ cMp3Decoder::~cMp3Decoder() {}
 int32_t cMp3Decoder::decodeSingleFrame (uint8_t* inBuffer, int32_t bytesLeft, float* outBuffer) {
 
   auto timePoint = std::chrono::system_clock::now();
-  int32_t success = 1;
-
-  int16_t samples16 [2048*2];
-  int16_t* pcm = samples16;
 
   memcpy (mHeader, inBuffer, HDR_SIZE);
   cBitStream bitStream (inBuffer + HDR_SIZE, bytesLeft - HDR_SIZE);
@@ -1753,23 +1748,32 @@ int32_t cMp3Decoder::decodeSingleFrame (uint8_t* inBuffer, int32_t bytesLeft, fl
   if (HDR_IS_CRC (mHeader))
     bitStream.getBits (16);
 
+  // allocate 16bit sample buffer, convert to float later
+  int16_t samples16 [2048*2];
+  int16_t* pcm = samples16;
+
   sScratch scratch;
   if (layer == 3) {
     //{{{  layer 3
     int32_t mainDataBegin = readSideInfo (&bitStream, scratch.granule, inBuffer);
-    if ((mainDataBegin < 0) || (bitStream.getBitStreamPos() > bitStream.getBitStreamLimit()))
+    if ((mainDataBegin < 0) || (bitStream.getBitStreamPosition() > bitStream.getBitStreamLimit())) {
+      cLog::log (LOGERROR, "mp3 decode failed");
       return 0;
+      }
 
-    success = restore_reservoir (&bitStream, &scratch, mainDataBegin);
-    if (success) {
+    if (restoreReservoir (&bitStream, &scratch, mainDataBegin)) {
       for (int32_t igr = 0; igr < (HDR_TEST_MPEG1(mHeader) ? 2 : 1); igr++, pcm += 576 * mNumChannels) {
         memset (scratch.granuleBuffer[0], 0, 576 * 2 * sizeof(float));
         decode (&scratch, scratch.granule + igr * mNumChannels, mNumChannels);
         synthGranule (mQmfState, scratch.granuleBuffer[0], 18, mNumChannels, pcm, scratch.syn[0]);
         }
       }
+    else {
+      cLog::log (LOGERROR, "mp3 decode restoreReservoir failed");
+      return 0;
+      }
 
-    save_reservoir (&scratch);
+    saveReservoir (&scratch);
     }
     //}}}
   else {
@@ -1788,12 +1792,15 @@ int32_t cMp3Decoder::decodeSingleFrame (uint8_t* inBuffer, int32_t bytesLeft, fl
         memset (scratch.granuleBuffer[0], 0, 576*2*sizeof(float));
         pcm += 384 * mNumChannels;
         }
-      if (bitStream.getBitStreamPos() > bitStream.getBitStreamLimit())
+      if (bitStream.getBitStreamPosition() > bitStream.getBitStreamLimit()) {
+        cLog::log (LOGERROR, "mp3 decode layer 12 failed");
         return 0;
+        }
       }
     }
     //}}}
 
+  // convert 16bit sample buffer to float
   int16_t* srcPtr = samples16;
   float* dstPtr = outBuffer;
   for (int32_t sample = 0; sample < numSamples * 2; sample++)
@@ -1821,7 +1828,7 @@ void cMp3Decoder::clear() {
 void cMp3Decoder::decode (struct sScratch* s, struct sGranule* granule, int32_t numChannels) {
 
   for (int32_t channel = 0; channel < numChannels; channel++) {
-    int32_t layer3gr_limit = s->bitStream.getBitStreamPos() + granule[channel].part23length;
+    int32_t layer3gr_limit = s->bitStream.getBitStreamPosition() + granule[channel].part23length;
     decodeScaleFactors (mHeader, s->istPos[channel], &s->bitStream, granule + channel, s->scf, channel);
     huffman (s->granuleBuffer[channel], &s->bitStream, granule + channel, s->scf, layer3gr_limit);
     }
@@ -1848,9 +1855,9 @@ void cMp3Decoder::decode (struct sScratch* s, struct sGranule* granule, int32_t 
 //}}}
 
 //{{{
-void cMp3Decoder::save_reservoir (struct sScratch* s) {
+void cMp3Decoder::saveReservoir (struct sScratch* s) {
 
-  int32_t pos = (s->bitStream.getBitStreamPos() + 7) / 8u;
+  int32_t pos = (s->bitStream.getBitStreamPosition() + 7) / 8u;
   int32_t remains = s->bitStream.getBitStreamLimit() / 8u - pos;
 
   if (remains > MAX_BITRESERVOIR_BYTES) {
@@ -1865,15 +1872,20 @@ void cMp3Decoder::save_reservoir (struct sScratch* s) {
   }
 //}}}
 //{{{
-int32_t cMp3Decoder::restore_reservoir (cBitStream* bitStream, struct sScratch* s, int32_t mainDataBegin) {
+bool cMp3Decoder::restoreReservoir (cBitStream* bitStream, struct sScratch* scratch, int32_t mainDataBegin) {
 
-  int32_t frame_bytes = (bitStream->getBitStreamLimit() - bitStream->getBitStreamPos()) / 8;
-  int32_t bytes_have = std::min (mReservoir, mainDataBegin);
+  int32_t frameBytes = (bitStream->getBitStreamLimit() - bitStream->getBitStreamPosition()) / 8;
+  int32_t bytesHave = std::min (mReservoir, mainDataBegin);
 
-  memcpy (s->maindata, mReservoirBuffer + std::max (0, mReservoir - mainDataBegin), std::min (mReservoir, mainDataBegin));
-  memcpy (s->maindata + bytes_have, bitStream->getBitStreamBuffer() + bitStream->getBitStreamPos() / 8, frame_bytes);
+  memcpy (scratch->maindata,
+          mReservoirBuffer + std::max (0, mReservoir - mainDataBegin),
+          std::min (mReservoir, mainDataBegin));
 
-  s->bitStream.bitStreamInit (s->maindata, bytes_have + frame_bytes);
+  memcpy (scratch->maindata + bytesHave,
+          bitStream->getBitStreamBuffer() + bitStream->getBitStreamPosition() / 8,
+          frameBytes);
+
+  scratch->bitStream.bitStreamInit (scratch->maindata, bytesHave + frameBytes);
 
   return mReservoir >= mainDataBegin;
   }
