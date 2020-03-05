@@ -1648,15 +1648,19 @@ int32_t cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* o
     // readSideInfo from frameBitStream
     int32_t reservoirBytesNeeded = readSideInfo (&frameBitStream, mGranules, inBuffer);
     if ((reservoirBytesNeeded < 0) || (frameBitStream.getBitStreamPosition() > frameBitStream.getBitStreamLimit())) {
-      mHeader[0] = 0;
       cLog::log (LOGERROR, "mp3 decode readSideInfo problem %d %d %d",
                  reservoirBytesNeeded, frameBitStream.getBitStreamPosition(), frameBitStream.getBitStreamLimit());
       return 0;
       }
 
-    if (restoreReservoir (&frameBitStream, reservoirBytesNeeded)) {
+    if (jumped) {
+      saveReservoir();
+      cLog::log (LOGINFO, "mp3 decode jumped");
+      return 0;
+      }
+    else if (restoreReservoir (&frameBitStream, reservoirBytesNeeded)) {
       // use bitStream constructed from reservoir and rest of frameBitStream
-      for (int32_t granuleIndex = 0; granuleIndex < (HDR_TEST_MPEG1(mHeader) ? 2 : 1); granuleIndex++) {
+      for (int32_t granuleIndex = 0; granuleIndex < (HDR_TEST_MPEG1 (mHeader) ? 2 : 1); granuleIndex++) {
         struct sGranule* granule = mGranules + (granuleIndex * mNumChannels);
         memset (mGranuleBuffer[0], 0, 576 * 2 * sizeof(float));
         for (int32_t channel = 0; channel < mNumChannels; channel++) {
@@ -1687,14 +1691,14 @@ int32_t cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* o
         pcm += 576 * mNumChannels;
         }
 
-      // save rest of bitstream to reservoir
+      // save unused bitStream to reservoir
       saveReservoir();
       }
 
     else {
       // unable to retore reservoir, try to get next frame right
-      saveReservoir();
       cLog::log (LOGERROR, "mp3 decode restoreReservoir failed");
+      saveReservoir();
       return 0;
       }
     }
@@ -1732,7 +1736,7 @@ int32_t cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* o
 
   auto took = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - timePoint);
   cLog::log (LOGINFO1, "mp3:%d %4d:%3dk %dx%d@%dhz %3d %3dus %s",
-             layer, bytesLeft, bitrate_kbps, numSamples, mNumChannels, mSampleRate, mReservoir, 
+             layer, bytesLeft, bitrate_kbps, numSamples, mNumChannels, mSampleRate, mReservoir,
              took.count(), jumped ? "jump":"");
 
   return numSamples;

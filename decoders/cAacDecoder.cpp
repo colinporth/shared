@@ -2253,38 +2253,13 @@ cAacDecoder::~cAacDecoder() {
 //}}}
 
 //{{{
-void cAacDecoder::flushCodec() {
-/**************************************************************************************
- * Description: flush internal codec state (after seeking, for example)
- * Inputs:      valid AAC decoder instance pointer (HAACDecoder)
- * Outputs:     updated state variables in
- **************************************************************************************/
-
-  // reset common state variables which change per-frame
-  // don't touch state variables which are (usually) constant for entire clip
-  //  (nChans, sampRate, profile, format, sbrEnabled)
-  prevBlockID = AAC_ID_INVALID;
-  currBlockID = AAC_ID_INVALID;
-  currInstTag = -1;
-  for (int ch = 0; ch < MAX_NCHANS_ELEM; ch++)
-    sbDeinterleaveReqd[ch] = 0;
-  adtsBlocksLeft = 0;
-  tnsUsed = 0;
-  pnsUsed = 0;
-
-  // reset internal codec state (flush overlap buffers, etc.)
-  struct sPSInfoBase* psiInfo = psInfoBase;
-  memset (psiInfo->overlap, 0, AAC_MAX_NCHANS * AAC_MAX_NSAMPS * sizeof(int));
-  memset (psiInfo->prevWinShape, 0, AAC_MAX_NCHANS * sizeof(int));
-
-  InitSBRState (psInfoSBR);
-  }
-//}}}
-//{{{
 int cAacDecoder::decodeFrame (uint8_t* inbuf, int bytesLeft, float* outbuf, bool jumped) {
 // return numSamples, 0 on any failure
 
   auto timePoint = std::chrono::system_clock::now();
+
+  if (jumped)
+    flush();
 
   int bitOffset = 0;
   int bitsAvail = bytesLeft << 3;
@@ -3372,6 +3347,34 @@ static void DecodeSBRNoise (sBitStream *bsi, sPSInfoSBR*psi, SBRGrid *sbrGrid, S
 //}}}
 //}}}
 
+//{{{
+void cAacDecoder::flush() {
+/**************************************************************************************
+ * Description: flush internal codec state (after seeking, for example)
+ * Inputs:      valid AAC decoder instance pointer (HAACDecoder)
+ * Outputs:     updated state variables in
+ **************************************************************************************/
+
+  // reset common state variables which change per-frame
+  // don't touch state variables which are (usually) constant for entire clip
+  //  (nChans, sampRate, profile, format, sbrEnabled)
+  prevBlockID = AAC_ID_INVALID;
+  currBlockID = AAC_ID_INVALID;
+  currInstTag = -1;
+  for (int ch = 0; ch < MAX_NCHANS_ELEM; ch++)
+    sbDeinterleaveReqd[ch] = 0;
+  adtsBlocksLeft = 0;
+  tnsUsed = 0;
+  pnsUsed = 0;
+
+  // reset internal codec state (flush overlap buffers, etc.)
+  struct sPSInfoBase* psiInfo = psInfoBase;
+  memset (psiInfo->overlap, 0, AAC_MAX_NCHANS * AAC_MAX_NSAMPS * sizeof(int));
+  memset (psiInfo->prevWinShape, 0, AAC_MAX_NCHANS * sizeof(int));
+
+  InitSBRState (psInfoSBR);
+  }
+//}}}
 //{{{
 bool cAacDecoder::unpackADTSHeader (uint8_t** buf, int* bitOffset, int* bitsAvail) {
  /**************************************************************************************

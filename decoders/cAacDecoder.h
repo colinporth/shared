@@ -34,10 +34,11 @@ public:
   int cAacDecoder::getSampleRate() { return sampleRate * (sbrEnabled ? 2 : 1); }
 
   int decodeFrame (uint8_t* inbuf, int bytesLeft, float* outbuf, bool jumped);
-  void flushCodec();
 
 private:
   //{{{  private members
+  void flush();
+
   void decodeSingleChannelElement (sBitStream* bsi);
   void decodeChannelPairElement (sBitStream* bsi);
   void decodeLFEChannelElement (sBitStream* bsi);
