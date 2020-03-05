@@ -107,7 +107,7 @@ public:
   //}}}
 
   cMp3Decoder();
-  ~cMp3Decoder();
+  ~cMp3Decoder() {}
 
   int32_t getNumChannels() { return mNumChannels; }
   int32_t getSampleRate() { return mSampleRate; }
