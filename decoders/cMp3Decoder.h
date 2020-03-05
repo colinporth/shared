@@ -111,7 +111,7 @@ public:
 
   int32_t getNumChannels() { return mNumChannels; }
   int32_t getSampleRate() { return mSampleRate; }
-  int32_t decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* outBuffer, bool jumped);
+  int32_t decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* outBuffer, int frameNum);
 
 private:
   // private members
@@ -140,4 +140,6 @@ private:
 
   cBitStream mBitStream;
   uint8_t mBitStreamData [MAX_BITRESERVOIR_BYTES + MAX_L3_FRAME_PAYLOAD_BYTES];
+
+  int mLastFrameNum = -1;
   };

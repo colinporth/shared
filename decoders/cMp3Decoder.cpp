@@ -1623,7 +1623,7 @@ cMp3Decoder::cMp3Decoder() {
 //}}}
 cMp3Decoder::~cMp3Decoder() {}
 //{{{
-int32_t cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* outBuffer, bool jumped) {
+int32_t cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* outBuffer, int frameNum) {
 
   auto timePoint = std::chrono::system_clock::now();
 
@@ -1643,6 +1643,7 @@ int32_t cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* o
   int16_t samples16 [2048*2];
   int16_t* pcm = samples16;
 
+  bool jumped = false;
   if (layer == 3) {
     //{{{  layer 3
     // readSideInfo from frameBitStream
@@ -1653,7 +1654,9 @@ int32_t cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* o
       return 0;
       }
 
+    jumped = frameNum && (frameNum != mLastFrameNum + 1);
     if (jumped) {
+      mLastFrameNum = frameNum;
       saveReservoir();
       cLog::log (LOGINFO, "mp3 decode jumped");
       return 0;
@@ -1692,12 +1695,14 @@ int32_t cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* o
         }
 
       // save unused bitStream to reservoir
+      mLastFrameNum = frameNum;
       saveReservoir();
       }
 
     else {
       // unable to retore reservoir, try to get next frame right
       cLog::log (LOGERROR, "mp3 decode restoreReservoir failed");
+      mLastFrameNum = frameNum;
       saveReservoir();
       return 0;
       }

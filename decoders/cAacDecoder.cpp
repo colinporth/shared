@@ -2253,13 +2253,15 @@ cAacDecoder::~cAacDecoder() {
 //}}}
 
 //{{{
-int cAacDecoder::decodeFrame (uint8_t* inbuf, int bytesLeft, float* outbuf, bool jumped) {
+int cAacDecoder::decodeFrame (uint8_t* inbuf, int bytesLeft, float* outbuf, int frameNum) {
 // return numSamples, 0 on any failure
 
   auto timePoint = std::chrono::system_clock::now();
 
-  if (jumped)
+  bool jumped = frameNum && (frameNum != mLastFrameNum  + 1);
+  if (jumped) 
     flush();
+  mLastFrameNum = frameNum;
 
   int bitOffset = 0;
   int bitsAvail = bytesLeft << 3;

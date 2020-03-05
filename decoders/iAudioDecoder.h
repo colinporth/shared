@@ -8,5 +8,5 @@ public:
 
   virtual int getNumChannels() = 0;
   virtual int getSampleRate() = 0;
-  virtual int decodeFrame (uint8_t* inbuf, int bytesLeft, float* outbuf, bool jumped) = 0;
+  virtual int decodeFrame (uint8_t* inbuf, int bytesLeft, float* outbuf, int frameNum) = 0;
   };
