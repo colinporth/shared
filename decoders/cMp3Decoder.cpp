@@ -1757,7 +1757,7 @@ int32_t cMp3Decoder::decodeSingleFrame (uint8_t* inBuffer, int32_t bytesLeft, fl
 
   sScratch scratch;
   if (layer == 3) {
-    // layer 3
+    //{{{  layer 3
     int32_t mainDataBegin = readSideInfo (&bitStream, scratch.granule, inBuffer);
     if ((mainDataBegin < 0) || (bitStream.getBitStreamPosition() > bitStream.getBitStreamLimit())) {
       mHeader[0] = 0;
@@ -1769,16 +1769,48 @@ int32_t cMp3Decoder::decodeSingleFrame (uint8_t* inBuffer, int32_t bytesLeft, fl
     if (ok) {
       for (int32_t igr = 0; igr < (HDR_TEST_MPEG1(mHeader) ? 2 : 1); igr++, pcm += 576 * mNumChannels) {
         memset (scratch.granuleBuffer[0], 0, 576 * 2 * sizeof(float));
-        decodeL3 (&scratch, scratch.granule + igr * mNumChannels, mNumChannels);
+
+        struct sGranule* granule = scratch.granule + igr * mNumChannels;
+        for (int32_t channel = 0; channel < mNumChannels; channel++) {
+          int32_t layer3gr_limit = scratch.bitStream.getBitStreamPosition() + granule[channel].part23length;
+          decodeScaleFactorsL3 (mHeader, scratch.istPos[channel], &scratch.bitStream, granule + channel,
+                                scratch.scf, channel);
+          huffman (scratch.granuleBuffer[channel], &scratch.bitStream, granule + channel,
+                   scratch.scf, layer3gr_limit);
+          }
+
+        if (HDR_TEST_I_STEREO (mHeader))
+          intensityStereo (scratch.granuleBuffer[0], scratch.istPos[1], granule, mHeader);
+        else if (HDR_IS_MS_STEREO (mHeader))
+          midsideStereo (scratch.granuleBuffer[0], 576);
+
+        for (int32_t channel = 0; channel < mNumChannels; channel++, granule++) {
+          int32_t aaBands = 31;
+          int32_t numLongBands = (granule->mixedBlockFlag ? 2 : 0) << (int)(HDR_GET_MY_SAMPLE_RATE (mHeader) == 2);
+
+          if (granule->numShortSfb) {
+            aaBands = numLongBands - 1;
+            reorder (scratch.granuleBuffer[channel] + numLongBands * 18, scratch.syn[0],
+                     granule->sfbtab + granule->numLongSfb);
+            }
+
+          antialias (scratch.granuleBuffer[channel], aaBands);
+          imdctGranule (scratch.granuleBuffer[channel], mMdctOverlap[channel], granule->blockType, numLongBands);
+          changeSign (scratch.granuleBuffer[channel]);
+          }
+
         synthGranule (mQmfState, scratch.granuleBuffer[0], 18, mNumChannels, pcm, scratch.syn[0]);
         }
       }
     else
       cLog::log (LOGERROR, "mp3 decode restoreReservoir failed");
+
     saveReservoir (&scratch);
+
     if (!ok)
       return 0;
     }
+    //}}}
   else {
     //{{{  layer 12
     cLog::log (LOGINFO2, "mp3 layer12");
@@ -1827,35 +1859,6 @@ void cMp3Decoder::clear() {
   memset (mMdctOverlap, 0, sizeof (mMdctOverlap));
   memset (mQmfState, 0, sizeof (mQmfState));
   };
-//}}}
-//{{{
-void cMp3Decoder::decodeL3 (struct sScratch* s, struct sGranule* granule, int32_t numChannels) {
-
-  for (int32_t channel = 0; channel < numChannels; channel++) {
-    int32_t layer3gr_limit = s->bitStream.getBitStreamPosition() + granule[channel].part23length;
-    decodeScaleFactorsL3 (mHeader, s->istPos[channel], &s->bitStream, granule + channel, s->scf, channel);
-    huffman (s->granuleBuffer[channel], &s->bitStream, granule + channel, s->scf, layer3gr_limit);
-    }
-
-  if (HDR_TEST_I_STEREO (mHeader))
-    intensityStereo (s->granuleBuffer[0], s->istPos[1], granule, mHeader);
-  else if (HDR_IS_MS_STEREO (mHeader))
-    midsideStereo (s->granuleBuffer[0], 576);
-
-  for (int32_t channel = 0; channel < numChannels; channel++, granule++) {
-    int32_t aa_bands = 31;
-    int32_t numLongBands = (granule->mixedBlockFlag ? 2 : 0) << (int)(HDR_GET_MY_SAMPLE_RATE(mHeader) == 2);
-
-    if (granule->numShortSfb) {
-      aa_bands = numLongBands - 1;
-      reorder (s->granuleBuffer[channel] + numLongBands * 18, s->syn[0], granule->sfbtab + granule->numLongSfb);
-      }
-
-    antialias (s->granuleBuffer[channel], aa_bands);
-    imdctGranule (s->granuleBuffer[channel], mMdctOverlap[channel], granule->blockType, numLongBands);
-    changeSign (s->granuleBuffer[channel]);
-    }
-  }
 //}}}
 
 //{{{
