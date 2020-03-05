@@ -61,14 +61,14 @@
 
   typedef __m128 f4;
 
-  static const f4 g_max = {  32767.0f,  32767.0f,  32767.0f,  32767.0f };
-  static const f4 g_min = { -32768.0f, -32768.0f, -32768.0f, -32768.0f };
+  static const f4 kMax = {  32767.0f,  32767.0f,  32767.0f,  32767.0f };
+  static const f4 kMin = { -32768.0f, -32768.0f, -32768.0f, -32768.0f };
   //}}}
 #endif
 
 //{{{
 struct sScaleInfo {
-  float   scf [3*64];
+  float scf [3*64];
   uint8_t totalBands;
   uint8_t stereoBands;
   uint8_t bitalloc [64];
@@ -84,7 +84,7 @@ struct sSubBandAlloc {
 //}}}
 //{{{  static const tables
 //{{{
-static const float g_pow43 [129 + 16] = {
+static const float kpow43 [129 + 16] = {
   0, -1, -2.519842f, -4.326749f, -6.349604f, -8.549880f, -10.902724f, -13.390518f,- 16.000000f,
   -18.720754f, -21.544347f, -24.463781f, -27.473142f, -30.567351f, -33.741992f, -36.993181f,
 
@@ -108,10 +108,10 @@ static const float g_pow43 [129 + 16] = {
 //}}}
 
 //{{{
-static const uint32_t g_hz[3] = { 44100, 48000, 32000 };
+static const uint32_t kHz[3] = { 44100, 48000, 32000 };
 //}}}
 //{{{
-static const uint8_t g_halfrate [2][3][15] = {
+static const uint8_t kHalfRate [2][3][15] = {
   { { 0,4,8,12,16,20,24,28,32,40,48,56,64,72,80 },
     { 0,4,8,12,16,20,24,28,32,40,48,56,64,72,80 },
     { 0,16,24,28,32,40,48,56,64,72,80,88,96,112,128 }     },
@@ -122,20 +122,20 @@ static const uint8_t g_halfrate [2][3][15] = {
 //}}}
 
 //{{{
-static const struct sSubBandAlloc g_alloc_L1[] = { { 76, 4, 32 } };
+static const struct sSubBandAlloc kalloc_L1[] = { { 76, 4, 32 } };
 //}}}
 //{{{
-static const struct sSubBandAlloc g_alloc_L2M2[] = { { 60, 4, 4 }, { 44, 3, 7 }, { 44, 2, 19 } };
+static const struct sSubBandAlloc kalloc_L2M2[] = { { 60, 4, 4 }, { 44, 3, 7 }, { 44, 2, 19 } };
 //}}}
 //{{{
-static const struct sSubBandAlloc g_alloc_L2M1[] = { { 0, 4, 3 }, { 16, 4, 8 }, { 32, 3, 12 }, { 40, 2, 7 } };
+static const struct sSubBandAlloc kalloc_L2M1[] = { { 0, 4, 3 }, { 16, 4, 8 }, { 32, 3, 12 }, { 40, 2, 7 } };
 //}}}
 //{{{
-static const struct sSubBandAlloc g_alloc_L2M1_lowrate[] = { { 44, 4, 2 }, { 44, 3, 10 } };
+static const struct sSubBandAlloc kalloc_L2M1_lowrate[] = { { 44, 4, 2 }, { 44, 3, 10 } };
 //}}}
 
 //{{{
-static const float g_deq_L12[18*3] = {
+static const float kdeq_L12[18*3] = {
   #define DQ(x) 9.53674316e-07f/x, 7.56931807e-07f/x, 6.00777173e-07f/x
 
   DQ(3),     DQ(7),     DQ(15),    DQ(31),   DQ(63),   DQ(127),
@@ -144,7 +144,7 @@ static const float g_deq_L12[18*3] = {
   };
 //}}}
 //{{{
-static const uint8_t g_bitalloc_code_tab[] = {
+static const uint8_t kbitalloc_code_tab[] = {
   0,17, 3, 4, 5,6,7, 8,9,10,11,12,13,14,15,16,
   0,17,18, 3,19,4,5, 6,7, 8, 9,10,11,12,13,16,
   0,17,18, 3,19,4,5,16,
@@ -155,7 +155,7 @@ static const uint8_t g_bitalloc_code_tab[] = {
   };
 //}}}
 //{{{
-static const uint8_t g_scf_long [8][23] = {
+static const uint8_t kscf_long [8][23] = {
   { 6,6,6,6,6,6,8,10,12,14,16,20,24,28,32,38,46,52,60,68,58,54,0 },
   { 12,12,12,12,12,12,16,20,24,28,32,40,48,56,64,76,90,2,2,2,2,2,0 },
   { 6,6,6,6,6,6,8,10,12,14,16,20,24,28,32,38,46,52,60,68,58,54,0 },
@@ -167,7 +167,7 @@ static const uint8_t g_scf_long [8][23] = {
   };
 //}}}
 //{{{
-static const uint8_t g_scf_short [8][40] = {
+static const uint8_t kscf_short [8][40] = {
   { 4,4,4,4,4,4,4,4,4,6,6,6,8,8,8,10,10,10,12,12,12,14,14,14,18,18,18,24,24,24,30,30,30,40,40,40,18,18,18,0 },
   { 8,8,8,8,8,8,8,8,8,12,12,12,16,16,16,20,20,20,24,24,24,28,28,28,36,36,36,2,2,2,2,2,2,2,2,2,26,26,26,0 },
   { 4,4,4,4,4,4,4,4,4,6,6,6,6,6,6,8,8,8,10,10,10,14,14,14,18,18,18,26,26,26,32,32,32,42,42,42,18,18,18,0 },
@@ -179,7 +179,7 @@ static const uint8_t g_scf_short [8][40] = {
   };
 //}}}
 //{{{
-static const uint8_t g_scf_mixed [8][40] = {
+static const uint8_t kscf_mixed [8][40] = {
   { 6,6,6,6,6,6,6,6,6,8,8,8,10,10,10,12,12,12,14,14,14,18,18,18,24,24,24,30,30,30,40,40,40,18,18,18,0 },
   { 12,12,12,4,4,4,8,8,8,12,12,12,16,16,16,20,20,20,24,24,24,28,28,28,36,36,36,2,2,2,2,2,2,2,2,2,26,26,26,0 },
   { 6,6,6,6,6,6,6,6,6,6,6,6,8,8,8,10,10,10,14,14,14,18,18,18,26,26,26,32,32,32,42,42,42,18,18,18,0 },
@@ -192,28 +192,28 @@ static const uint8_t g_scf_mixed [8][40] = {
 //}}}
 
 //{{{
-static const float g_expfrac [4] = { 9.31322575e-10f,7.83145814e-10f,6.58544508e-10f,5.53767716e-10f };
+static const float kexpfrac [4] = { 9.31322575e-10f,7.83145814e-10f,6.58544508e-10f,5.53767716e-10f };
 //}}}
 //{{{
-static const uint8_t g_scf_partitions [3][28] = {
+static const uint8_t kscf_partitions [3][28] = {
   { 6,5,5, 5,6,5,5,5,6,5, 7,3,11,10,0,0, 7, 7, 7,0, 6, 6,6,3, 8, 8,5,0 },
   { 8,9,6,12,6,9,9,9,6,9,12,6,15,18,0,0, 6,15,12,0, 6,12,9,6, 6,18,9,0 },
   { 9,9,6,12,9,9,9,9,9,9,12,6,18,18,0,0,12,12,12,0,12, 9,9,6,15,12,9,0 }
   };
 //}}}
 //{{{
-static const uint8_t g_scfc_decode [16] = { 0,1,2,3, 12,5,6,7, 9,10,11,13, 14,15,18,19 };
+static const uint8_t kscfc_decode [16] = { 0,1,2,3, 12,5,6,7, 9,10,11,13, 14,15,18,19 };
 //}}}
 
 //{{{
-static const uint8_t g_mod [6*4] = { 5,5,4,4,5,5,4,1,4,3,1,1,5,6,6,1,4,4,4,1,4,3,1,1 };
+static const uint8_t kmod [6*4] = { 5,5,4,4,5,5,4,1,4,3,1,1,5,6,6,1,4,4,4,1,4,3,1,1 };
 //}}}
 //{{{
-static const uint8_t g_preamp [10] = { 1,1,1,1,2,2,3,3,3,2 };
+static const uint8_t kpreamp [10] = { 1,1,1,1,2,2,3,3,3,2 };
 //}}}
 
 //{{{
-static const int16_t g_tabs[] = {
+static const int16_t ktabs[] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     785,785,785,785,784,784,784,784,513,513,513,513,513,513,513,513,256,256,256,256,256,256,256,256,256,256,256,
     256,256,256,256,256,
@@ -299,26 +299,26 @@ static const int16_t g_tabs[] = {
     547,547,305,275,560,515,290,290,288,258 };
 //}}}
 //{{{
-static const uint8_t g_tab32[] = {
+static const uint8_t ktab32[] = {
   130,162,193,209,44,28,76,140,9,9,9,9,9,9,9,9,190,254,222,238,126, 94,157,157,109,61,173,205 };
 //}}}
 //{{{
-static const uint8_t g_tab33[] = {
+static const uint8_t ktab33[] = {
   252,236,220,204,188,172,156,140,124,108,92,76,60,44,28,12 };
 //}}}
 //{{{
-static const int16_t g_tabindex[2*16] = {
+static const int16_t ktabindex[2*16] = {
   0, 32, 64, 98, 0, 132, 180, 218, 292, 364, 426, 538, 648, 746, 0, 1126,
   1460,1460,1460,1460,1460,1460,1460,1460, 1842,1842,1842,1842,1842,1842,1842,1842
   };
 //}}}
 
 //{{{
-static const uint8_t g_linbits[] =  {
+static const uint8_t klinbits[] =  {
   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,2,3,4,6,8,10,13,4,5,6,7,8,9,11,13 };
 //}}}
 //{{{
-static const float g_pan [7*2] = {
+static const float kpan [7*2] = {
             0,           1,
   0.21132487f, 0.78867513f,
   0.36602540f, 0.63397460f,
@@ -328,25 +328,25 @@ static const float g_pan [7*2] = {
             1,           0 };
 //}}}
 //{{{
-static const float g_aa [2][8] = {
+static const float kaa [2][8] = {
   {0.85749293f, 0.88174200f, 0.94962865f, 0.98331459f, 0.99551782f, 0.99916056f, 0.99989920f, 0.99999316f},
   {0.51449576f, 0.47173197f, 0.31337745f, 0.18191320f, 0.09457419f, 0.04096558f, 0.01419856f, 0.00369997f}
   };
 //}}}
 
 //{{{
-static const float g_twid9 [18] = {
+static const float ktwid9 [18] = {
   0.73727734f, 0.79335334f, 0.84339145f, 0.88701083f, 0.92387953f, 0.95371695f,
   0.97629601f, 0.99144486f, 0.99904822f, 0.67559021f, 0.60876143f, 0.53729961f,
   0.46174861f, 0.38268343f, 0.30070580f, 0.21643961f, 0.13052619f, 0.04361938f
   };
 //}}}
 //{{{
-static const float g_twid3 [6] = { 0.79335334f, 0.92387953f, 0.99144486f, 0.60876143f, 0.38268343f, 0.13052619f };
+static const float ktwid3 [6] = { 0.79335334f, 0.92387953f, 0.99144486f, 0.60876143f, 0.38268343f, 0.13052619f };
 //}}}
 
 //{{{
-static const float g_mdct_window [2][18] = {
+static const float kmdct_window [2][18] = {
   { 0.99904822f, 0.99144486f, 0.97629601f, 0.95371695f, 0.92387953f, 0.88701083f,
     0.84339145f, 0.79335334f, 0.73727734f, 0.04361938f, 0.13052619f, 0.21643961f,
     0.30070580f, 0.38268343f, 0.46174861f, 0.53729961f, 0.60876143f, 0.67559021f },
@@ -358,14 +358,14 @@ static const float g_mdct_window [2][18] = {
   };
 //}}}
 //{{{
-static const float g_sec [24] = {
+static const float ksec [24] = {
   10.19000816f, 0.50060302f, 0.50241929f, 3.40760851f, 0.50547093f, 0.52249861f,
    2.05778098f, 0.51544732f, 0.56694406f, 1.48416460f, 0.53104258f, 0.64682180f,
    1.16943991f, 0.55310392f, 0.78815460f, 0.97256821f, 0.58293498f, 1.06067765f,
    0.83934963f, 0.62250412f, 1.72244716f, 0.74453628f, 0.67480832f, 5.10114861f };
 //}}}
 //{{{
-static const float g_win[] = {
+static const float kwin[] = {
   -1,26, -31,208,218,401,-519,   2063,2000,4788, -5517,7134,  5959,35640, -39336,74992,
   -1,24, -35,202,222,347,-581,   2080,1952,4425, -5879,7640,  5288,33791, -41176,74856,
   -1,21, -38,196,225,294,-645,   2087,1893,4063, -6237,8092,  4561,31947, -43006,74630,
@@ -388,12 +388,12 @@ static const float g_win[] = {
 // header
 //{{{
 uint32_t headerBitrate (const uint8_t* header) {
-  return 2 * g_halfrate [!!HDR_TEST_MPEG1 (header)] [HDR_GET_LAYER (header) - 1] [HDR_GET_BITRATE (header)];
+  return 2 * kHalfRate [!!HDR_TEST_MPEG1 (header)] [HDR_GET_LAYER (header) - 1] [HDR_GET_BITRATE (header)];
   }
 //}}}
 //{{{
 uint32_t headerSampleRate (const uint8_t* header) {
-  return g_hz [HDR_GET_SAMPLE_RATE (header)] >> (int)!HDR_TEST_MPEG1 (header) >> (int)!HDR_TEST_NOT_MPEG25 (header);
+  return kHz [HDR_GET_SAMPLE_RATE (header)] >> (int)!HDR_TEST_MPEG1 (header) >> (int)!HDR_TEST_NOT_MPEG25 (header);
   }
 //}}}
 //{{{
@@ -431,12 +431,12 @@ const struct sSubBandAlloc* subBandAllocTable (const uint8_t* header, struct sSc
   const struct sSubBandAlloc* alloc;
   if (HDR_IS_LAYER_1 (header)) {
     numBands = 32;
-    alloc = g_alloc_L1;
+    alloc = kalloc_L1;
     }
 
   else if (!HDR_TEST_MPEG1 (header)) {
     numBands = 30;
-    alloc = g_alloc_L2M2;
+    alloc = kalloc_L2M2;
     }
 
   else {
@@ -446,9 +446,9 @@ const struct sSubBandAlloc* subBandAllocTable (const uint8_t* header, struct sSc
       kbps = 192;
 
     numBands = 27;
-    alloc = g_alloc_L2M1;
+    alloc = kalloc_L2M1;
     if (kbps < 56) {
-      alloc = g_alloc_L2M1_lowrate;
+      alloc = kalloc_L2M1_lowrate;
       numBands = (sample_rate_idx == 2) ? 12 : 8;
       }
     else if ((kbps >= 96) && (sample_rate_idx != 1))
@@ -471,7 +471,7 @@ void readScaleFactors (cMp3Decoder::cBitStream* bitStream, uint8_t* pba, uint8_t
     for (int32_t m = 4; m; m >>= 1) {
       if (mask & m) {
         int32_t b = bitStream->getBits (6);
-        s = g_deq_L12[ba*3 - 6 + b % 3] * (1 << 21 >> b/3);
+        s = kdeq_L12[ba*3 - 6 + b % 3] * (1 << 21 >> b/3);
         }
       *scf++ = s;
       }
@@ -485,12 +485,12 @@ void readScaleInfo (const uint8_t* header, cMp3Decoder::cBitStream* bitStream, s
 
   int32_t k = 0;
   int32_t bitAllocBits = 0;
-  const uint8_t* bitAllocCodeTable = g_bitalloc_code_tab;
+  const uint8_t* bitAllocCodeTable = kbitalloc_code_tab;
   for (int32_t i = 0; i < scaleInfo->totalBands; i++) {
     if (i == k) {
       k += subBandAlloc->bandCount;
       bitAllocBits = subBandAlloc->codeTableWidth;
-      bitAllocCodeTable = g_bitalloc_code_tab + subBandAlloc->tabOffset;
+      bitAllocCodeTable = kbitalloc_code_tab + subBandAlloc->tabOffset;
       subBandAlloc++;
       }
 
@@ -652,8 +652,8 @@ void reorder (float* granuleBuffer, float* scratch, const uint8_t* sfb) {
       for (int32_t i = 0; i < 8; i += 4) {
         f4 vu = VLD (granuleBuffer + 18 + i);
         f4 vd = VLD (granuleBuffer + 14 - i);
-        f4 vc0 = VLD (g_aa[0] + i);
-        f4 vc1 = VLD (g_aa[1] + i);
+        f4 vc0 = VLD (kaa[0] + i);
+        f4 vc1 = VLD (kaa[1] + i);
         vd = VREV (vd);
         VSTORE (granuleBuffer + 18 + i, VSUB (VMUL (vu, vc0), VMUL (vd, vc1)));
         vd = VADD (VMUL (vu, vc1), VMUL (vd, vc0));
@@ -689,8 +689,8 @@ void reorder (float* granuleBuffer, float* scratch, const uint8_t* sfb) {
         f4 vovl = VLD (overlap + i);
         f4 vc = VLD (co + i);
         f4 vs = VLD (si + i);
-        f4 vr0 = VLD (g_twid9 + i);
-        f4 vr1 = VLD (g_twid9 + 9 + i);
+        f4 vr0 = VLD (ktwid9 + i);
+        f4 vr1 = VLD (ktwid9 + 9 + i);
         f4 vw0 = VLD (window + i);
         f4 vw1 = VLD (window + 9 + i);
         f4 vsum = VADD(VMUL (vc, vr1), VMUL(vs, vr0));
@@ -702,8 +702,8 @@ void reorder (float* granuleBuffer, float* scratch, const uint8_t* sfb) {
 
       for (; i < 9; i++) {
         float ovl = overlap[i];
-        float sum = co[i] * g_twid9[9 + i] + si[i] * g_twid9[i];
-        overlap[i] = co[i] * g_twid9[i] - si[i] * g_twid9[9 + i];
+        float sum = co[i] * ktwid9[9 + i] + si[i] * ktwid9[i];
+        overlap[i] = co[i] * ktwid9[i] - si[i] * ktwid9[9 + i];
         granuleBuffer[i] = ovl*window[i] - sum*window[9 + i];
         granuleBuffer[17 - i] = ovl*window[9 + i] + sum*window[i];
         }
@@ -730,8 +730,8 @@ void reorder (float* granuleBuffer, float* scratch, const uint8_t* sfb) {
       for (int32_t i = 0; i < 8; i++) {
         float u = granuleBuffer [18+i];
         float d = granuleBuffer [17-i];
-        granuleBuffer [18+i] = u*g_aa [0][i] - d*g_aa [1][i];
-        granuleBuffer [17-i] = u*g_aa [1][i] + d*g_aa [0][i];
+        granuleBuffer [18+i] = u*kaa [0][i] - d*kaa [1][i];
+        granuleBuffer [17-i] = u*kaa [1][i] + d*kaa [0][i];
         }
       }
     }
@@ -759,8 +759,8 @@ void reorder (float* granuleBuffer, float* scratch, const uint8_t* sfb) {
 
       for (int32_t i = 0; i < 9; i++) {
         float ovl = overlap[i];
-        float sum = co[i] * g_twid9[9+i] + si[i] * g_twid9[i];
-        overlap[i] = co[i] * g_twid9[i] - si[i] * g_twid9[9+i];
+        float sum = co[i] * ktwid9[9+i] + si[i] * ktwid9[i];
+        overlap[i] = co[i] * ktwid9[i] - si[i] * ktwid9[9+i];
         granuleBuffer[i] = ovl * window[i] - sum * window[9+i];
         granuleBuffer[17-i] = ovl * window[9+i] + sum * window[i];
         }
@@ -800,7 +800,7 @@ int32_t readSideInfo (cMp3Decoder::cBitStream* bitStream, struct cMp3Decoder::sG
 
     granule->globalGain = (uint8_t)(bitStream->getBits (8));
     granule->scalefac_compress = (uint16_t)(bitStream->getBits (HDR_TEST_MPEG1 (header) ? 4 : 9));
-    granule->sfbtab = g_scf_long [sr_idx];
+    granule->sfbtab = kscf_long [sr_idx];
     granule->numLongSfb  = 22;
     granule->numShortSfb = 0;
 
@@ -817,12 +817,12 @@ int32_t readSideInfo (cMp3Decoder::cBitStream* bitStream, struct cMp3Decoder::sG
         scfsi &= 0x0F0F;
         if (!granule->mixedBlockFlag) {
           granule->regionCount[0] = 8;
-          granule->sfbtab = g_scf_short[sr_idx];
+          granule->sfbtab = kscf_short[sr_idx];
           granule->numLongSfb = 0;
           granule->numShortSfb = 39;
           }
         else {
-          granule->sfbtab = g_scf_mixed[sr_idx];
+          granule->sfbtab = kscf_mixed[sr_idx];
           granule->numLongSfb = HDR_TEST_MPEG1(header) ? 8 : 6;
           granule->numShortSfb = 30;
           }
@@ -898,7 +898,7 @@ float ldExpQ2 (float y, int32_t exp_q2) {
   int32_t e;
   do {
     e = std::min (30*4, exp_q2);
-    y *= g_expfrac[e & 3]*(1 << 30 >> (e >> 2));
+    y *= kexpfrac[e & 3]*(1 << 30 >> (e >> 2));
     } while ((exp_q2 -= e) > 0);
 
   return y;
@@ -908,12 +908,12 @@ float ldExpQ2 (float y, int32_t exp_q2) {
 void decodeScaleFactorsL3 (const uint8_t* header, uint8_t* istPos, cMp3Decoder::cBitStream* bitStream,
                            const struct cMp3Decoder::sGranule* gr, float* scf, int32_t ch) {
 
-  const uint8_t* scf_partition = g_scf_partitions [!!gr->numShortSfb + !gr->numLongSfb];
+  const uint8_t* scf_partition = kscf_partitions [!!gr->numShortSfb + !gr->numLongSfb];
   uint8_t scf_size[4];
   int32_t scf_shift = gr->scaleFactorScale + 1;
   int32_t scfsi = gr->scfsi;
   if (HDR_TEST_MPEG1 (header)) {
-    int32_t part = g_scfc_decode[gr->scalefac_compress];
+    int32_t part = kscfc_decode[gr->scalefac_compress];
     scf_size[1] = scf_size[0] = (uint8_t)(part >> 2);
     scf_size[3] = scf_size[2] = (uint8_t)(part & 3);
     }
@@ -923,8 +923,8 @@ void decodeScaleFactorsL3 (const uint8_t* header, uint8_t* istPos, cMp3Decoder::
     for (k = ist*3*4; sfc >= 0; sfc -= modprod, k += 4) {
       int32_t i;
       for (modprod = 1, i = 3; i >= 0; i--) {
-        scf_size[i] = (uint8_t)(sfc / modprod % g_mod[k + i]);
-        modprod *= g_mod[k + i];
+        scf_size[i] = (uint8_t)(sfc / modprod % kmod[k + i]);
+        modprod *= kmod[k + i];
         }
       }
     scf_partition += k;
@@ -944,7 +944,7 @@ void decodeScaleFactorsL3 (const uint8_t* header, uint8_t* istPos, cMp3Decoder::
     }
   else if (gr->preflag) {
     for (int32_t i = 0; i < 10; i++)
-      iscf[11 + i] += g_preamp[i];
+      iscf[11 + i] += kpreamp[i];
     }
 
   int32_t gain_exp = gr->globalGain + BITS_DEQUANTIZER_OUT*4 - 210 - (HDR_IS_MS_STEREO (header) ? 2 : 0);
@@ -958,7 +958,7 @@ void decodeScaleFactorsL3 (const uint8_t* header, uint8_t* istPos, cMp3Decoder::
 float pow43 (int32_t x) {
 
   if (x < 129)
-    return g_pow43[16 + x];
+    return kpow43[16 + x];
 
   int32_t mult = 256;
   if (x < 1024) {
@@ -969,7 +969,7 @@ float pow43 (int32_t x) {
   int32_t sign = 2*x & 64;
   float frac = (float)((x & 63) - sign) / ((x & ~63) + sign);
 
-  return g_pow43[16 + ((x + sign) >> 6)] * (1.f + frac * ((4.f/3) + frac * (2.f/9))) * mult;
+  return kpow43[16 + ((x + sign) >> 6)] * (1.f + frac * ((4.f/3) + frac * (2.f/9))) * mult;
   }
 //}}}
 //{{{
@@ -988,8 +988,8 @@ void huffman (float* dst, cMp3Decoder::cBitStream* bitStream, const struct cMp3D
   while (bigValueCount > 0) {
     int32_t tableNum = granule->tableSelect[ireg];
     int32_t sfb_cnt = granule->regionCount[ireg++];
-    const int16_t* codebook = g_tabs + g_tabindex[tableNum];
-    int32_t linbits = g_linbits[tableNum];
+    const int16_t* codebook = ktabs + ktabindex[tableNum];
+    int32_t linbits = klinbits[tableNum];
     if (linbits) {
       do {
         np = *sfb++ / 2;
@@ -1014,7 +1014,7 @@ void huffman (float* dst, cMp3Decoder::cBitStream* bitStream, const struct cMp3D
               *dst = one * pow43 (lsb) * ((int32_t)(bitStream->getCache()) < 0 ? -1: 1);
               }
             else
-              *dst = g_pow43[16 + lsb - 16*(bitStream->getCache() >> 31)]*one;
+              *dst = kpow43[16 + lsb - 16*(bitStream->getCache() >> 31)]*one;
             bitStream->flushBits (lsb ? 1 : 0);
             }
          bitStream->checkBits();
@@ -1038,7 +1038,7 @@ void huffman (float* dst, cMp3Decoder::cBitStream* bitStream, const struct cMp3D
 
           for (j = 0; j < 2; j++, dst++, leaf >>= 4) {
             int32_t lsb = leaf & 0x0F;
-            *dst = g_pow43[16 + lsb - 16*(bitStream->getCache() >> 31)]*one;
+            *dst = kpow43[16 + lsb - 16*(bitStream->getCache() >> 31)]*one;
             bitStream->flushBits(lsb ? 1 : 0);
             }
           bitStream->checkBits();
@@ -1048,7 +1048,7 @@ void huffman (float* dst, cMp3Decoder::cBitStream* bitStream, const struct cMp3D
     }
 
   for (np = 1 - bigValueCount;; dst += 4) {
-    const uint8_t* codebook_count1 = (granule->count1table) ? g_tab33 : g_tab32;
+    const uint8_t* codebook_count1 = (granule->count1table) ? ktab33 : ktab32;
     int32_t leaf = codebook_count1[bitStream->peekBits(4)];
     if (!(leaf & 8))
       leaf = codebook_count1[(leaf >> 3) + (bitStream->getCache() << 4 >> (32 - (leaf & 3)))];
@@ -1124,8 +1124,8 @@ void stereoProcess (float* left, const uint8_t* istPos, const uint8_t* sfb, cons
     if ((int)i > max_band[i % 3] && ipos < max_pos) {
       float kl, kr, s = HDR_TEST_MS_STEREO (header) ? 1.41421356f : 1;
       if (HDR_TEST_MPEG1 (header)) {
-        kl = g_pan[2*ipos];
-        kr = g_pan[2*ipos + 1];
+        kl = kpan[2*ipos];
+        kr = kpan[2*ipos + 1];
         }
       else {
         kl = 1;
@@ -1189,10 +1189,10 @@ void imdct12 (float* x, float* dst, float* overlap) {
 
   for (int32_t i = 0; i < 3; i++) {
     float ovl = overlap[i];
-    float sum = co[i] * g_twid3[3+i] + si[i] * g_twid3[i];
-    overlap[i] = co[i] * g_twid3[i] - si[i] * g_twid3[3+i];
-    dst[i] = ovl * g_twid3[2-i] - sum * g_twid3[5-i];
-    dst[5-i] = ovl * g_twid3[5-i] + sum * g_twid3[2-i];
+    float sum = co[i] * ktwid3[3+i] + si[i] * ktwid3[i];
+    overlap[i] = co[i] * ktwid3[i] - si[i] * ktwid3[3+i];
+    dst[i] = ovl * ktwid3[2-i] - sum * ktwid3[5-i];
+    dst[5-i] = ovl * ktwid3[5-i] + sum * ktwid3[2-i];
     }
   }
 //}}}
@@ -1214,7 +1214,7 @@ void imdctShort (float* granuleBuffer, float* overlap, int numBands) {
 void imdctGranule (float* granuleBuffer, float* overlap, uint32_t blockType, uint32_t numLongBands) {
 
   if (numLongBands) {
-    imdct36 (granuleBuffer, overlap, g_mdct_window[0], numLongBands);
+    imdct36 (granuleBuffer, overlap, kmdct_window[0], numLongBands);
     granuleBuffer += 18 * numLongBands;
     overlap += 9 * numLongBands;
     }
@@ -1222,7 +1222,7 @@ void imdctGranule (float* granuleBuffer, float* overlap, uint32_t blockType, uin
   if (blockType == SHORT_blockType)
     imdctShort (granuleBuffer, overlap, 32 - numLongBands);
   else
-    imdct36 (granuleBuffer, overlap, g_mdct_window[blockType == STOP_blockType], 32 - numLongBands);
+    imdct36 (granuleBuffer, overlap, kmdct_window[blockType == STOP_blockType], 32 - numLongBands);
   }
 //}}}
 
@@ -1293,12 +1293,12 @@ void synthPair (int16_t* pcm, int32_t numChannels, const float* z) {
         f4 x3 = VLD (&y[(31 - i)*18]);
         f4 t0 = VADD (x0, x3);
         f4 t1 = VADD (x1, x2);
-        f4 t2 = VMUL_S (VSUB (x1, x2), g_sec[3*i + 0]);
-        f4 t3 = VMUL_S (VSUB (x0, x3), g_sec[3*i + 1]);
+        f4 t2 = VMUL_S (VSUB (x1, x2), ksec[3*i + 0]);
+        f4 t3 = VMUL_S (VSUB (x0, x3), ksec[3*i + 1]);
         x[0] = VADD (t0, t1);
-        x[8] = VMUL_S (VSUB( t0, t1), g_sec[3*i + 2]);
+        x[8] = VMUL_S (VSUB( t0, t1), ksec[3*i + 2]);
         x[16] = VADD (t3, t2);
-        x[24] = VMUL_S (VSUB (t3, t2), g_sec[3*i + 2]);
+        x[24] = VMUL_S (VSUB (t3, t2), ksec[3*i + 2]);
         }
 
       x = t[0];
@@ -1381,7 +1381,7 @@ void synthPair (int16_t* pcm, int32_t numChannels, const float* z) {
     int16_t* dstr = dstl + (nch - 1);
 
     float* zlin = lins + 15*64;
-    const float* w = g_win;
+    const float* w = kwin;
 
     zlin [4*15] = xl[18*16];
     zlin [4*15 + 1] = xr[18*16];
@@ -1401,17 +1401,17 @@ void synthPair (int16_t* pcm, int32_t numChannels, const float* z) {
     for (int32_t i = 14; i >= 0; i--) {
       zlin [4*i] = xl [18*(31 - i)];
       zlin [4*i + 1] = xr [18*(31 - i)];
-      zlin [4*i + 2] = xl [1 + 18*(31 - i)];
-      zlin [4*i + 3] = xr [1 + 18*(31 - i)];
-      zlin [4*i + 64] = xl [1 + 18*(1 + i)];
-      zlin [4*i + 64 + 1] = xr [1 + 18*(1 + i)];
-      zlin [4*i - 64 + 2] = xl [18*(1 + i)];
-      zlin [4*i - 64 + 3] = xr [18*(1 + i)];
+      zlin [4*i + 2] = xl [1 + 18*(31-i)];
+      zlin [4*i + 3] = xr [1 + 18*(31-i)];
+      zlin [4*i + 64] = xl [1 + 18*(1+i)];
+      zlin [4*i + 64 + 1] = xr [1+18*(1+i)];
+      zlin [4*i - 64 + 2] = xl [18*(1+i)];
+      zlin [4*i - 64 + 3] = xr [18*(1+i)];
 
       #define VLOAD(k) f4 w0 = VSET (*w++); \
                        f4 w1 = VSET (*w++); \
                        f4 vz = VLD (&zlin[4*i - 64*k]); \
-                       f4 vy = VLD (&zlin[4*i - 64*(15 - k)]);
+                       f4 vy = VLD (&zlin[4*i - 64*(15-k)]);
       #define V0(k) { VLOAD (k) \
                       b = VADD (VMUL (vz, w1), VMUL (vy, w0)); \
                       a = VSUB (VMUL (vz, w0), VMUL (vy, w1)); }
@@ -1424,8 +1424,8 @@ void synthPair (int16_t* pcm, int32_t numChannels, const float* z) {
       f4 a, b;
       V0(0) V2(1) V1(2) V2(3) V1(4) V2(5) V1(6) V2(7)
         {
-        __m128i pcm8 = _mm_packs_epi32 (_mm_cvtps_epi32 (_mm_max_ps (_mm_min_ps (a, g_max), g_min)),
-                                        _mm_cvtps_epi32 (_mm_max_ps (_mm_min_ps (b, g_max), g_min)));
+        __m128i pcm8 = _mm_packs_epi32 (_mm_cvtps_epi32 (_mm_max_ps (_mm_min_ps (a, kMax), kMin)),
+                                        _mm_cvtps_epi32 (_mm_max_ps (_mm_min_ps (b, kMax), kMin)));
         dstr [(15 - i) * nch] = _mm_extract_epi16 (pcm8, 1);
         dstr [(17 + i) * nch] = _mm_extract_epi16 (pcm8, 5);
 
@@ -1456,12 +1456,12 @@ void synthPair (int16_t* pcm, int32_t numChannels, const float* z) {
         float x3 = y[(31-i)*18];
         float t0 = x0 + x3;
         float t1 = x1 + x2;
-        float t2 = (x1 - x2)*g_sec[3*i + 0];
-        float t3 = (x0 - x3)*g_sec[3*i + 1];
+        float t2 = (x1 - x2)*ksec[3*i + 0];
+        float t3 = (x0 - x3)*ksec[3*i + 1];
         x[0] = t0 + t1;
-        x[8] = (t0 - t1)*g_sec[3*i + 2];
+        x[8] = (t0 - t1)*ksec[3*i + 2];
         x[16] = t3 + t2;
-        x[24] = (t3 - t2)*g_sec[3*i + 2];
+        x[24] = (t3 - t2)*ksec[3*i + 2];
         }
 
       x = t[0];
@@ -1525,7 +1525,7 @@ void synthPair (int16_t* pcm, int32_t numChannels, const float* z) {
     int16_t* dstr = dstl + (numChannels - 1);
 
     float* zlin = lins + 15 * 64;
-    const float* w = g_win;
+    const float* w = kwin;
 
     zlin [4*15] = xl[18*16];
     zlin [4*15 + 1] = xr[18 * 16];
@@ -1633,9 +1633,9 @@ int32_t cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* o
 
   int32_t layer = 4 - HDR_GET_LAYER (mHeader);
   int32_t bitrate_kbps = headerBitrate (mHeader);
-  int32_t numSamples = headerFrameSamples (mHeader);
   mNumChannels = HDR_IS_MONO (mHeader) ? 1 : 2;
   mSampleRate = headerSampleRate (mHeader);
+  int32_t numSamples = headerFrameSamples (mHeader);
 
   if (HDR_IS_CRC (mHeader))
     frameBitStream.getBits (16);
@@ -1649,24 +1649,15 @@ int32_t cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* o
     //{{{  layer 3 decode
     // parse fixed readSideInfo from frameBitStream
     int32_t reservoirBytesNeeded = readSideInfo (&frameBitStream, mGranules, inBuffer);
-    if ((reservoirBytesNeeded < 0) || (frameBitStream.getPosition() > frameBitStream.getLimit())) {
-      cLog::log (LOGERROR, "mp3 decode readSideInfo problem %d %d %d",
-                 reservoirBytesNeeded, frameBitStream.getPosition(), frameBitStream.getLimit());
-      return 0;
+
+    if (frameNum && (frameNum != mLastFrameNum + 1)) {
+      // jump, no decode unless reservoirBytesNeeded = 0 ???
+      cLog::log (LOGINFO, "mp3 jump %d to %d", mLastFrameNum, frameNum);
+      numSamples = 0;
       }
 
-    jumped = frameNum && (frameNum != mLastFrameNum + 1);
-    if (jumped || !restoreReservoir (&frameBitStream, reservoirBytesNeeded)) {
-      // unable to decode, return 0 samples
-      if (jumped) // report jump, reservoir failure already reported
-        cLog::log (LOGINFO, "mp3 jumped %d to %d", mLastFrameNum, frameNum);
-      saveReservoir();
-      memset (mMdctOverlap, 0, sizeof (mMdctOverlap));
-      mLastFrameNum = frameNum;
-      return 0;
-      }
-    else {
-      // use bitStream constructed from reservoir and rest of frameBitStream
+    else if (restoreReservoir (&frameBitStream, reservoirBytesNeeded)) {
+      // use bitStream from reservoir + remainder frameBitStream
       for (int32_t granuleIndex = 0; granuleIndex < (HDR_TEST_MPEG1 (mHeader) ? 2 : 1); granuleIndex++) {
         struct sGranule* granule = mGranules + (granuleIndex * mNumChannels);
         memset (mGranuleBuffer[0], 0, 576 * 2 * sizeof(float));
@@ -1697,11 +1688,14 @@ int32_t cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* o
         synthGranule (mQmfState, mGranuleBuffer[0], 18, mNumChannels, pcm, mSyn[0]);
         pcm += 576 * mNumChannels;
         }
-
-      // save unused bitStream to reservoir
-      mLastFrameNum = frameNum;
-      saveReservoir();
       }
+
+    else // not enough bytes in reservoir to decode
+      numSamples = 0;
+
+    // save unused bitStream to reservoir
+    saveReservoir();
+    mLastFrameNum = frameNum;
     }
     //}}}
   else {
@@ -1728,16 +1722,17 @@ int32_t cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* o
     }
     //}}}
 
-  // convert 16bit sample buffer to float
-  int16_t* srcPtr = samples16;
-  float* dstPtr = outBuffer;
-  for (int32_t sample = 0; sample < numSamples * 2; sample++)
-    *dstPtr++ = *srcPtr++ / (float)0x8000;
+  if (numSamples > 0) {
+    // convert 16bit sample buffer to float
+    int16_t* srcPtr = samples16;
+    float* dstPtr = outBuffer;
+    for (int32_t sample = 0; sample < numSamples * 2; sample++)
+      *dstPtr++ = *srcPtr++ / (float)0x8000;
 
-  auto took = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - timePoint);
-  cLog::log (numSamples ? LOGINFO1 : LOGERROR, "mp3:%d %4d:%3dk %dx%d@%dhz %3d %3dus %s",
-             layer, bytesLeft, bitrate_kbps, numSamples, mNumChannels, mSampleRate, mReservoir,
-             took.count(), jumped ? "jump":"");
+    auto took = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - timePoint);
+    cLog::log (numSamples ? LOGINFO1 : LOGERROR, "mp3:%d %4d:%3dk %dx%d@%dhz %3d %3dus",
+               layer, bytesLeft, bitrate_kbps, numSamples, mNumChannels, mSampleRate, mReservoir, took.count());
+    }
 
   return numSamples;
   }
@@ -1786,8 +1781,8 @@ bool cMp3Decoder::restoreReservoir (cBitStream* bitStream, int32_t reservoirByte
   int32_t frameBytes = (bitStream->getLimit() - bitStream->getPosition()) / 8;
   memcpy (mBitStreamBuffer + bytesHave, bitStream->getBuffer() + bitStream->getPosition() / 8, frameBytes);
 
-  cLog::log (ok ? LOGINFO2 : LOGERROR, "restoreReservoir bytes:%d need:%d frame:%d",
-             mReservoir, reservoirBytesNeeded, frameBytes);
+  cLog::log (ok ? LOGINFO2 : LOGERROR, "restoreReservoir bytes:%d need:%d frame:%d %d:%d",
+             mReservoir, reservoirBytesNeeded, frameBytes, bitStream->getPosition(), bitStream->getLimit());
 
   mBitStream.bitStreamInit (mBitStreamBuffer, bytesHave + frameBytes);
   return ok;
