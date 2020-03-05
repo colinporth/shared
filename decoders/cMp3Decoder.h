@@ -16,18 +16,18 @@ public:
     uint16_t part23length;
     uint16_t bigValues;
     uint16_t scalefac_compress;
-    uint8_t  globalGain;
-    uint8_t  blockType;
-    uint8_t  mixedBlockFlag;
-    uint8_t  numLongSfb;
-    uint8_t  numShortSfb;
-    uint8_t  tableSelect [3];
-    uint8_t  regionCount [3];
-    uint8_t  subBlockGain [3];
-    uint8_t  preflag;
-    uint8_t  scaleFactorScale;
-    uint8_t  count1table;
-    uint8_t  scfsi;
+    uint8_t globalGain;
+    uint8_t blockType;
+    uint8_t mixedBlockFlag;
+    uint8_t numLongSfb;
+    uint8_t numShortSfb;
+    uint8_t tableSelect [3];
+    uint8_t regionCount [3];
+    uint8_t subBlockGain [3];
+    uint8_t preflag;
+    uint8_t scaleFactorScale;
+    uint8_t count1table;
+    uint8_t scfsi;
     };
   //}}}
   //{{{
@@ -65,11 +65,11 @@ public:
       return cache | (next >> -shl);
       }
     //}}}
-    inline const uint8_t* getBitStreamBuffer() { return mBuffer; }
-    inline int32_t getBitStreamPosition() { return mPosition; }
-    inline int32_t getBitStreamLimit() { return mLimit; }
+    inline const uint8_t* getBuffer() { return mBuffer; }
+    inline int32_t getPosition() { return mPosition; }
+    inline int32_t getLimit() { return mLimit; }
 
-    inline uint32_t getBitStreamCache() { return mCache; }
+    inline uint32_t getCache() { return mCache; }
     inline uint32_t peekBits (int32_t n) { return mCache >> (32 - n); }
     inline int32_t getBitPosition() { return int32_t(mPtr - mBuffer) * 8 - 24 + mShift; }
 
@@ -129,7 +129,7 @@ private:
   float mQmfState [15*2*32];
   float mMdctOverlap [2][9*32];
 
-  float mScf [40] = { 0.f };
+  float mScf [40];
   float mSyn [18+15][2*32];
   uint8_t mIstPos [2][39];
 
@@ -139,7 +139,7 @@ private:
   uint8_t mReservoirBuffer [511];
 
   cBitStream mBitStream;
-  uint8_t mBitStreamData [MAX_BITRESERVOIR_BYTES + MAX_L3_FRAME_PAYLOAD_BYTES];
+  uint8_t mBitStreamBuffer [MAX_BITRESERVOIR_BYTES + MAX_L3_FRAME_PAYLOAD_BYTES];
 
   int mLastFrameNum = -1;
   };
