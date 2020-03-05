@@ -22,7 +22,7 @@ public:
   void setFrame (uint8_t* framePtr, int frameLen);
 
   bool parseFrame (uint8_t* framePtr, uint8_t* frameLast);
-  int decodeSingleFrame (float* samples);
+  int decodeFrame (float* samples);
 
   // !!!! statics not quite right, picks up eFrameType
   static eFrameType parseSomeFrames (uint8_t* framePtr, uint8_t* frameLast, int& sampleRate);

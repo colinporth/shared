@@ -7,11 +7,6 @@
 #include "../utils/cLog.h"
 //}}}
 //{{{  defines
-#define MAX_FREE_FORMAT_FRAME_SIZE  2304  // more than ISO spec's
-#define MAX_L3_FRAME_PAYLOAD_BYTES  MAX_FREE_FORMAT_FRAME_SIZE // MUST be >= 320000/8/32000*1152 = 1440
-#define MAX_BITRESERVOIR_BYTES      511
-#define MINIMP3_MAX_SAMPLES_PER_FRAME (1152*2)
-
 #define SHORT_blockType             2
 #define STOP_blockType              3
 
@@ -85,114 +80,6 @@ struct sSubBandAlloc {
   uint8_t tabOffset;
   uint8_t codeTableWidth;
   uint8_t bandCount;
-  };
-//}}}
-//{{{
-struct sGranule {
-  const uint8_t* sfbtab;
-  uint16_t part23length;
-  uint16_t bigValues;
-  uint16_t scalefac_compress;
-  uint8_t  globalGain;
-  uint8_t  blockType;
-  uint8_t  mixedBlockFlag;
-  uint8_t  numLongSfb;
-  uint8_t  numShortSfb;
-  uint8_t  tableSelect [3];
-  uint8_t  regionCount [3];
-  uint8_t  subBlockGain [3];
-  uint8_t  preflag;
-  uint8_t  scaleFactorScale;
-  uint8_t  count1table;
-  uint8_t  scfsi;
-  };
-//}}}
-//{{{
-class cBitStream {
-public:
-   cBitStream() {}
-   cBitStream (const uint8_t* buffer, int32_t bytes) : mBuffer(buffer), mPosition(0), mLimit(bytes * 8) {}
-
-  //{{{
-  void bitStreamInit (const uint8_t* buffer, int32_t bytes) {
-    mBuffer = buffer;
-    mPosition = 0;
-    mLimit = bytes * 8;
-    }
-  //}}}
-
-  // gets
-  //{{{
-  uint32_t getBits (int32_t n) {
-
-    uint32_t s = mPosition & 7;
-    int32_t shl = n + s;
-
-    const uint8_t* p = mBuffer + (mPosition >> 3);
-    if ((mPosition += n) > mLimit)
-      return 0;
-
-    uint32_t cache = 0;
-    uint32_t next = *p++ & (255 >> s);
-    while ((shl -= 8) > 0) {
-      cache |= next << shl;
-      next = *p++;
-      }
-
-    return cache | (next >> -shl);
-    }
-  //}}}
-  const uint8_t* getBitStreamBuffer() { return mBuffer; }
-  int32_t getBitStreamPosition() { return mPosition; }
-  int32_t getBitStreamLimit() { return mLimit; }
-
-  uint32_t getBitStreamCache() { return mCache; }
-  uint32_t peekBits (int32_t n) { return mCache >> (32 - n); }
-  int32_t getBitPosition() { return int32_t(mPtr - mBuffer) * 8 - 24 + mShift; }
-
-  // actions
-  void setBitStreamPos (int32_t position) { mPosition = position; }
-
-  void fillCache() {
-    mPtr = mBuffer + mPosition / 8;
-    mCache = ((((((mPtr[0] << 8) + mPtr[1]) << 8) + mPtr[2]) << 8) + mPtr[3]) << (mPosition & 7);
-    mPtr += 4;
-    mShift = (mPosition & 7) - 8;
-    }
-
-  void flushBits (int32_t n) {
-    mCache <<= n;
-    mShift += n;
-    }
-
-  void checkBits() {
-    while (mShift >= 0) {
-      mCache |= (uint32_t)*mPtr++ << mShift;
-      mShift -= 8;
-      }
-    }
-
-private:
-  const uint8_t* mBuffer = nullptr;
-  int32_t mPosition = 0;
-  int32_t mLimit = 0;
-
-  const uint8_t* mPtr = nullptr;
-  uint32_t mCache = 0;
-  int32_t mShift = 0;
-  };
-//}}}
-//{{{
-struct sScratch {
-  cBitStream bitStream;
-  uint8_t maindata [MAX_BITRESERVOIR_BYTES + MAX_L3_FRAME_PAYLOAD_BYTES];
-
-  struct sGranule granule [4];
-  float granuleBuffer [2][576];
-
-  float scf [40];
-  float syn [18+15][2*32];
-  uint8_t istPos [2][39];
   };
 //}}}
 //{{{  static const tables
@@ -575,7 +462,7 @@ const struct sSubBandAlloc* subBandAllocTable (const uint8_t* header, struct sSc
   }
 //}}}
 //{{{
-void readScaleFactors (cBitStream* bitStream, uint8_t* pba, uint8_t* scfcod, int32_t bands, float* scf) {
+void readScaleFactors (cMp3Decoder::cBitStream* bitStream, uint8_t* pba, uint8_t* scfcod, int32_t bands, float* scf) {
 
   for (int32_t i = 0; i < bands; i++) {
     float s = 0;
@@ -592,7 +479,7 @@ void readScaleFactors (cBitStream* bitStream, uint8_t* pba, uint8_t* scfcod, int
   }
 //}}}
 //{{{
-void readScaleInfo (const uint8_t* header, cBitStream* bitStream, struct sScaleInfo* scaleInfo) {
+void readScaleInfo (const uint8_t* header, cMp3Decoder::cBitStream* bitStream, struct sScaleInfo* scaleInfo) {
 
   const struct sSubBandAlloc* subBandAlloc = subBandAllocTable (header, scaleInfo);
 
@@ -625,7 +512,7 @@ void readScaleInfo (const uint8_t* header, cBitStream* bitStream, struct sScaleI
 //}}}
 
 //{{{
-int32_t dequantizeGranule (float* granuleBuffer, cBitStream* bitStream, struct sScaleInfo* scaleInfo, int32_t group_size) {
+int32_t dequantizeGranule (float* granuleBuffer, cMp3Decoder::cBitStream* bitStream, struct sScaleInfo* scaleInfo, int32_t group_size) {
 
   int32_t choff = 576;
   for (int32_t j = 0; j < 4; j++) {
@@ -881,7 +768,7 @@ void reorder (float* granuleBuffer, float* scratch, const uint8_t* sfb) {
 #endif
 
 //{{{
-int32_t readSideInfo (cBitStream* bitStream, struct sGranule* granule, const uint8_t* header) {
+int32_t readSideInfo (cMp3Decoder::cBitStream* bitStream, struct cMp3Decoder::sGranule* granule, const uint8_t* header) {
 
   int32_t sr_idx = HDR_GET_MY_SAMPLE_RATE (header);
   sr_idx -= (sr_idx != 0);
@@ -974,7 +861,7 @@ int32_t readSideInfo (cBitStream* bitStream, struct sGranule* granule, const uin
 
 //{{{
 void readScaleFactorsL3 (uint8_t* scf, uint8_t* istPos, const uint8_t* scf_size, const uint8_t* scf_count,
-                           cBitStream* bitbuf, int32_t scfsi) {
+                         cMp3Decoder::cBitStream* bitbuf, int32_t scfsi) {
 
   for (int32_t i = 0; i < 4 && scf_count[i]; i++, scfsi *= 2) {
     int32_t cnt = scf_count[i];
@@ -1015,8 +902,8 @@ float ldExpQ2 (float y, int32_t exp_q2) {
   }
 //}}}
 //{{{
-void decodeScaleFactorsL3 (const uint8_t* header, uint8_t* istPos, cBitStream* bitStream,
-                         const struct sGranule* gr, float* scf, int32_t ch) {
+void decodeScaleFactorsL3 (const uint8_t* header, uint8_t* istPos, cMp3Decoder::cBitStream* bitStream,
+                           const struct cMp3Decoder::sGranule* gr, float* scf, int32_t ch) {
 
   const uint8_t* scf_partition = g_scf_partitions [!!gr->numShortSfb + !gr->numLongSfb];
   uint8_t scf_size[4];
@@ -1083,7 +970,7 @@ float pow43 (int32_t x) {
   }
 //}}}
 //{{{
-void huffman (float* dst, cBitStream* bitStream, const struct sGranule* granule,
+void huffman (float* dst, cMp3Decoder::cBitStream* bitStream, const struct cMp3Decoder::sGranule* granule,
               const float* scf, int32_t l3granuleLimit) {
 
   float one = 0.0f;
@@ -1255,7 +1142,7 @@ void stereoProcess (float* left, const uint8_t* istPos, const uint8_t* sfb, cons
   }
 //}}}
 //{{{
-void intensityStereo (float* left, uint8_t* istPos, const struct sGranule* granule, const uint8_t* header) {
+void intensityStereo (float* left, uint8_t* istPos, const struct cMp3Decoder::sGranule* granule, const uint8_t* header) {
 
   int32_t maxBand[3];
   int32_t numSfb = granule->numLongSfb + granule->numShortSfb;
@@ -1735,12 +1622,12 @@ cMp3Decoder::cMp3Decoder() {
 //}}}
 cMp3Decoder::~cMp3Decoder() {}
 //{{{
-int32_t cMp3Decoder::decodeSingleFrame (uint8_t* inBuffer, int32_t bytesLeft, float* outBuffer) {
+int32_t cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* outBuffer) {
 
   auto timePoint = std::chrono::system_clock::now();
 
   memcpy (mHeader, inBuffer, HDR_SIZE);
-  cBitStream bitStream (inBuffer + HDR_SIZE, bytesLeft - HDR_SIZE);
+  cBitStream frameBitStream (inBuffer + HDR_SIZE, bytesLeft - HDR_SIZE);
 
   int32_t layer = 4 - HDR_GET_LAYER (mHeader);
   int32_t bitrate_kbps = headerBitrate (mHeader);
@@ -1749,63 +1636,58 @@ int32_t cMp3Decoder::decodeSingleFrame (uint8_t* inBuffer, int32_t bytesLeft, fl
   mSampleRate = headerSampleRate (mHeader);
 
   if (HDR_IS_CRC (mHeader))
-    bitStream.getBits (16);
+    frameBitStream.getBits (16);
 
   // allocate 16bit sample buffer, convert to float later
   int16_t samples16 [2048*2];
   int16_t* pcm = samples16;
 
-  sScratch scratch;
   if (layer == 3) {
     //{{{  layer 3
-    int32_t mainDataBegin = readSideInfo (&bitStream, scratch.granule, inBuffer);
-    if ((mainDataBegin < 0) || (bitStream.getBitStreamPosition() > bitStream.getBitStreamLimit())) {
+    int32_t mainDataBegin = readSideInfo (&frameBitStream, mGranules, inBuffer);
+    if ((mainDataBegin < 0) || (frameBitStream.getBitStreamPosition() > frameBitStream.getBitStreamLimit())) {
       mHeader[0] = 0;
       cLog::log (LOGERROR, "mp3 decode failed");
       return 0;
       }
 
-    bool ok = restoreReservoir (&bitStream, &scratch, mainDataBegin);
+    bool ok = restoreReservoir (&frameBitStream, mainDataBegin);
     if (ok) {
-      for (int32_t igr = 0; igr < (HDR_TEST_MPEG1(mHeader) ? 2 : 1); igr++, pcm += 576 * mNumChannels) {
-        memset (scratch.granuleBuffer[0], 0, 576 * 2 * sizeof(float));
-
-        struct sGranule* granule = scratch.granule + igr * mNumChannels;
+      for (int32_t granuleIndex = 0; granuleIndex < (HDR_TEST_MPEG1(mHeader) ? 2 : 1); granuleIndex++) {
+        struct sGranule* granule = mGranules + (granuleIndex * mNumChannels);
+        memset (mGranuleBuffer[0], 0, 576 * 2 * sizeof(float));
         for (int32_t channel = 0; channel < mNumChannels; channel++) {
-          int32_t layer3gr_limit = scratch.bitStream.getBitStreamPosition() + granule[channel].part23length;
-          decodeScaleFactorsL3 (mHeader, scratch.istPos[channel], &scratch.bitStream, granule + channel,
-                                scratch.scf, channel);
-          huffman (scratch.granuleBuffer[channel], &scratch.bitStream, granule + channel,
-                   scratch.scf, layer3gr_limit);
+          int32_t layer3gr_limit = mBitStream.getBitStreamPosition() + granule[channel].part23length;
+          decodeScaleFactorsL3 (mHeader, mIstPos[channel], &mBitStream, granule + channel, mScf, channel);
+          huffman (mGranuleBuffer[channel], &mBitStream, granule + channel, mScf, layer3gr_limit);
           }
 
         if (HDR_TEST_I_STEREO (mHeader))
-          intensityStereo (scratch.granuleBuffer[0], scratch.istPos[1], granule, mHeader);
+          intensityStereo (mGranuleBuffer[0], mIstPos[1], granule, mHeader);
         else if (HDR_IS_MS_STEREO (mHeader))
-          midsideStereo (scratch.granuleBuffer[0], 576);
+          midsideStereo (mGranuleBuffer[0], 576);
 
         for (int32_t channel = 0; channel < mNumChannels; channel++, granule++) {
           int32_t aaBands = 31;
           int32_t numLongBands = (granule->mixedBlockFlag ? 2 : 0) << (int)(HDR_GET_MY_SAMPLE_RATE (mHeader) == 2);
-
           if (granule->numShortSfb) {
             aaBands = numLongBands - 1;
-            reorder (scratch.granuleBuffer[channel] + numLongBands * 18, scratch.syn[0],
-                     granule->sfbtab + granule->numLongSfb);
+            reorder (mGranuleBuffer[channel] + numLongBands * 18, mSyn[0], granule->sfbtab + granule->numLongSfb);
             }
 
-          antialias (scratch.granuleBuffer[channel], aaBands);
-          imdctGranule (scratch.granuleBuffer[channel], mMdctOverlap[channel], granule->blockType, numLongBands);
-          changeSign (scratch.granuleBuffer[channel]);
+          antialias (mGranuleBuffer[channel], aaBands);
+          imdctGranule (mGranuleBuffer[channel], mMdctOverlap[channel], granule->blockType, numLongBands);
+          changeSign (mGranuleBuffer[channel]);
           }
 
-        synthGranule (mQmfState, scratch.granuleBuffer[0], 18, mNumChannels, pcm, scratch.syn[0]);
+        synthGranule (mQmfState, mGranuleBuffer[0], 18, mNumChannels, pcm, mSyn[0]);
+        pcm += 576 * mNumChannels;
         }
       }
     else
       cLog::log (LOGERROR, "mp3 decode restoreReservoir failed");
 
-    saveReservoir (&scratch);
+    saveReservoir();
 
     if (!ok)
       return 0;
@@ -1816,18 +1698,18 @@ int32_t cMp3Decoder::decodeSingleFrame (uint8_t* inBuffer, int32_t bytesLeft, fl
     cLog::log (LOGINFO2, "mp3 layer12");
 
     sScaleInfo scaleInfo;
-    readScaleInfo (inBuffer, &bitStream, &scaleInfo);
+    readScaleInfo (inBuffer, &frameBitStream, &scaleInfo);
 
-    memset (scratch.granuleBuffer[0], 0, 576 * 2 * sizeof(float));
-    for (int32_t i = 0, igr = 0; igr < 3; igr++) {
-      if (12 == (i += dequantizeGranule (scratch.granuleBuffer[0] + i, &bitStream, &scaleInfo, layer | 1))) {
+    memset (mGranuleBuffer[0], 0, 576 * 2 * sizeof(float));
+    for (int32_t i = 0, granuleIndex = 0; granuleIndex < 3; granuleIndex++) {
+      if (12 == (i += dequantizeGranule (mGranuleBuffer[0] + i, &frameBitStream, &scaleInfo, layer | 1))) {
         i = 0;
-        applyScf384 (&scaleInfo, scaleInfo.scf + igr, scratch.granuleBuffer[0]);
-        synthGranule (mQmfState, scratch.granuleBuffer[0], 12, mNumChannels, pcm, scratch.syn[0]);
-        memset (scratch.granuleBuffer[0], 0, 576*2*sizeof(float));
+        applyScf384 (&scaleInfo, scaleInfo.scf + granuleIndex, mGranuleBuffer[0]);
+        synthGranule (mQmfState, mGranuleBuffer[0], 12, mNumChannels, pcm, mSyn[0]);
+        memset (mGranuleBuffer[0], 0, 576*2*sizeof(float));
         pcm += 384 * mNumChannels;
         }
-      if (bitStream.getBitStreamPosition() > bitStream.getBitStreamLimit()) {
+      if (frameBitStream.getBitStreamPosition() > frameBitStream.getBitStreamLimit()) {
         mHeader[0] = 0;
         cLog::log (LOGERROR, "mp3 decode layer 12 failed");
         return 0;
@@ -1862,10 +1744,10 @@ void cMp3Decoder::clear() {
 //}}}
 
 //{{{
-void cMp3Decoder::saveReservoir (struct sScratch* s) {
+void cMp3Decoder::saveReservoir() {
 
-  int32_t pos = (s->bitStream.getBitStreamPosition() + 7) / 8u;
-  int32_t remains = s->bitStream.getBitStreamLimit() / 8u - pos;
+  int32_t pos = (mBitStream.getBitStreamPosition() + 7) / 8u;
+  int32_t remains = mBitStream.getBitStreamLimit() / 8u - pos;
 
   if (remains > MAX_BITRESERVOIR_BYTES) {
     pos += remains - MAX_BITRESERVOIR_BYTES;
@@ -1873,7 +1755,7 @@ void cMp3Decoder::saveReservoir (struct sScratch* s) {
     }
 
   if (remains > 0)
-    memmove (mReservoirBuffer, s->maindata + pos, remains);
+    memmove (mReservoirBuffer, mMaindata + pos, remains);
 
   mReservoir = remains;
 
@@ -1881,23 +1763,17 @@ void cMp3Decoder::saveReservoir (struct sScratch* s) {
   }
 //}}}
 //{{{
-bool cMp3Decoder::restoreReservoir (cBitStream* bitStream, struct sScratch* scratch, int32_t mainDataBegin) {
+bool cMp3Decoder::restoreReservoir (cBitStream* bitStream, int32_t mainDataBegin) {
 
   int32_t frameBytes = (bitStream->getBitStreamLimit() - bitStream->getBitStreamPosition()) / 8;
   int32_t bytesHave = std::min (mReservoir, mainDataBegin);
 
-  memcpy (scratch->maindata,
-          mReservoirBuffer + std::max (0, mReservoir - mainDataBegin),
-          std::min (mReservoir, mainDataBegin));
-
-  memcpy (scratch->maindata + bytesHave,
-          bitStream->getBitStreamBuffer() + bitStream->getBitStreamPosition() / 8,
-          frameBytes);
-
+  memcpy (mMaindata, mReservoirBuffer + std::max (0, mReservoir - mainDataBegin), bytesHave);
+  memcpy (mMaindata + bytesHave, bitStream->getBitStreamBuffer() + bitStream->getBitStreamPosition() / 8, frameBytes);
 
   cLog::log (LOGINFO2, "restoreReservoir %d mdb:%d fb:%d bh:%d", mReservoir, mainDataBegin, frameBytes, bytesHave);
 
-  scratch->bitStream.bitStreamInit (scratch->maindata, bytesHave + frameBytes);
+  mBitStream.bitStreamInit (mMaindata, bytesHave + frameBytes);
   return mReservoir >= mainDataBegin;
   }
 //}}}
