@@ -138,5 +138,5 @@ private:
   uint8_t mReservoirBuffer [511] = { 0 };
 
   cBitStream mBitStream;
-  uint8_t mMaindata [MAX_BITRESERVOIR_BYTES + MAX_L3_FRAME_PAYLOAD_BYTES] = { 0 };
+  uint8_t mBitStreamData [MAX_BITRESERVOIR_BYTES + MAX_L3_FRAME_PAYLOAD_BYTES] = { 0 };
   };

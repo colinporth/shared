@@ -769,20 +769,21 @@ void reorder (float* granuleBuffer, float* scratch, const uint8_t* sfb) {
 
 //{{{
 int32_t readSideInfo (cMp3Decoder::cBitStream* bitStream, struct cMp3Decoder::sGranule* granule, const uint8_t* header) {
+// return offset of main data
 
   int32_t sr_idx = HDR_GET_MY_SAMPLE_RATE (header);
   sr_idx -= (sr_idx != 0);
 
   uint32_t scfsi = 0;
   int32_t granule_count = HDR_IS_MONO (header) ? 1 : 2;
-  int32_t mainDataBegin;
+  int32_t reservoirBytesNeeded;
   if (HDR_TEST_MPEG1 (header)) {
     granule_count *= 2;
-    mainDataBegin = bitStream->getBits (9);
+    reservoirBytesNeeded = bitStream->getBits (9);
     scfsi = bitStream->getBits (7 + granule_count);
     }
   else
-    mainDataBegin = bitStream->getBits (8 + granule_count) >> granule_count;
+    reservoirBytesNeeded = bitStream->getBits (8 + granule_count) >> granule_count;
 
   int32_t part_23_sum = 0;
   do {
@@ -852,10 +853,10 @@ int32_t readSideInfo (cMp3Decoder::cBitStream* bitStream, struct cMp3Decoder::sG
     granule++;
     } while (--granule_count);
 
-  if ((part_23_sum + bitStream->getBitStreamPosition()) > (bitStream->getBitStreamLimit() + mainDataBegin * 8))
+  if ((part_23_sum + bitStream->getBitStreamPosition()) > (bitStream->getBitStreamLimit() + reservoirBytesNeeded * 8))
     return -1;
 
-  return mainDataBegin;
+  return reservoirBytesNeeded;
   }
 //}}}
 
@@ -1644,15 +1645,17 @@ int32_t cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* o
 
   if (layer == 3) {
     //{{{  layer 3
-    int32_t mainDataBegin = readSideInfo (&frameBitStream, mGranules, inBuffer);
-    if ((mainDataBegin < 0) || (frameBitStream.getBitStreamPosition() > frameBitStream.getBitStreamLimit())) {
+    // readSideInfo from frameBitStream
+    int32_t reservoirBytesNeeded = readSideInfo (&frameBitStream, mGranules, inBuffer);
+    if ((reservoirBytesNeeded < 0) || (frameBitStream.getBitStreamPosition() > frameBitStream.getBitStreamLimit())) {
       mHeader[0] = 0;
-      cLog::log (LOGERROR, "mp3 decode failed");
+      cLog::log (LOGERROR, "mp3 decode readSideInfo problem %d %d %d",
+                 reservoirBytesNeeded, frameBitStream.getBitStreamPosition(), frameBitStream.getBitStreamLimit());
       return 0;
       }
 
-    bool ok = restoreReservoir (&frameBitStream, mainDataBegin);
-    if (ok) {
+    if (restoreReservoir (&frameBitStream, reservoirBytesNeeded)) {
+      // use bitStream constructed from reservoir and rest of frameBitStream
       for (int32_t granuleIndex = 0; granuleIndex < (HDR_TEST_MPEG1(mHeader) ? 2 : 1); granuleIndex++) {
         struct sGranule* granule = mGranules + (granuleIndex * mNumChannels);
         memset (mGranuleBuffer[0], 0, 576 * 2 * sizeof(float));
@@ -1683,14 +1686,17 @@ int32_t cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* o
         synthGranule (mQmfState, mGranuleBuffer[0], 18, mNumChannels, pcm, mSyn[0]);
         pcm += 576 * mNumChannels;
         }
+
+      // save rest of bitstream to reservoir
+      saveReservoir();
       }
-    else
+
+    else {
+      // unable to retore reservoir, try to get next frame right
+      saveReservoir();
       cLog::log (LOGERROR, "mp3 decode restoreReservoir failed");
-
-    saveReservoir();
-
-    if (!ok)
       return 0;
+      }
     }
     //}}}
   else {
@@ -1745,17 +1751,16 @@ void cMp3Decoder::clear() {
 
 //{{{
 void cMp3Decoder::saveReservoir() {
+// save rest of bitStream to reservoir clipped by reservoir size
 
   int32_t pos = (mBitStream.getBitStreamPosition() + 7) / 8u;
-  int32_t remains = mBitStream.getBitStreamLimit() / 8u - pos;
-
+  int32_t remains = (mBitStream.getBitStreamLimit() / 8u) - pos;
   if (remains > MAX_BITRESERVOIR_BYTES) {
     pos += remains - MAX_BITRESERVOIR_BYTES;
     remains = MAX_BITRESERVOIR_BYTES;
     }
-
   if (remains > 0)
-    memmove (mReservoirBuffer, mMaindata + pos, remains);
+    memmove (mReservoirBuffer, mBitStreamData + pos, remains);
 
   mReservoir = remains;
 
@@ -1763,17 +1768,20 @@ void cMp3Decoder::saveReservoir() {
   }
 //}}}
 //{{{
-bool cMp3Decoder::restoreReservoir (cBitStream* bitStream, int32_t mainDataBegin) {
+bool cMp3Decoder::restoreReservoir (cBitStream* bitStream, int32_t reservoirBytesNeeded) {
 
+  // copy required mainDataBegin bytes of reservoir to maindata
+  int32_t bytesHave = std::min (mReservoir, reservoirBytesNeeded);
+  memcpy (mBitStreamData, mReservoirBuffer + std::max (0, mReservoir - reservoirBytesNeeded), bytesHave);
+
+  // copy rest of frame bitStream to mainData
   int32_t frameBytes = (bitStream->getBitStreamLimit() - bitStream->getBitStreamPosition()) / 8;
-  int32_t bytesHave = std::min (mReservoir, mainDataBegin);
+  memcpy (mBitStreamData + bytesHave, bitStream->getBitStreamBuffer() + bitStream->getBitStreamPosition() / 8, frameBytes);
 
-  memcpy (mMaindata, mReservoirBuffer + std::max (0, mReservoir - mainDataBegin), bytesHave);
-  memcpy (mMaindata + bytesHave, bitStream->getBitStreamBuffer() + bitStream->getBitStreamPosition() / 8, frameBytes);
+  cLog::log (LOGINFO2, "restoreReservoir %d mdb:%d fb:%d bh:%d", mReservoir, reservoirBytesNeeded, frameBytes, bytesHave);
 
-  cLog::log (LOGINFO2, "restoreReservoir %d mdb:%d fb:%d bh:%d", mReservoir, mainDataBegin, frameBytes, bytesHave);
-
-  mBitStream.bitStreamInit (mMaindata, bytesHave + frameBytes);
-  return mReservoir >= mainDataBegin;
+  // use mainData as bitstream
+  mBitStream.bitStreamInit (mBitStreamData, bytesHave + frameBytes);
+  return mReservoir >= reservoirBytesNeeded;
   }
 //}}}
