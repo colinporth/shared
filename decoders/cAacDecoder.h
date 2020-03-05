@@ -33,7 +33,7 @@ public:
   int cAacDecoder::getNumChannels() { return numChannels; }
   int cAacDecoder::getSampleRate() { return sampleRate * (sbrEnabled ? 2 : 1); }
 
-  int decodeFrame (uint8_t* inbuf, int bytesLeft, float* outbuf);
+  int decodeFrame (uint8_t* inbuf, int bytesLeft, float* outbuf, bool jumped);
   void flushCodec();
 
 private:

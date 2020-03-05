@@ -2281,7 +2281,7 @@ void cAacDecoder::flushCodec() {
   }
 //}}}
 //{{{
-int cAacDecoder::decodeFrame (uint8_t* inbuf, int bytesLeft, float* outbuf) {
+int cAacDecoder::decodeFrame (uint8_t* inbuf, int bytesLeft, float* outbuf, bool jumped) {
 // return numSamples, 0 on any failure
 
   auto timePoint = std::chrono::system_clock::now();

@@ -1623,7 +1623,7 @@ cMp3Decoder::cMp3Decoder() {
 //}}}
 cMp3Decoder::~cMp3Decoder() {}
 //{{{
-int32_t cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* outBuffer) {
+int32_t cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* outBuffer, bool jumped) {
 
   auto timePoint = std::chrono::system_clock::now();
 
@@ -1731,8 +1731,9 @@ int32_t cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* o
     *dstPtr++ = *srcPtr++ / (float)0x8000;
 
   auto took = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - timePoint);
-  cLog::log (LOGINFO1, "mp3:%d %4d:%3dk %dx%d@%dhz %3d %3dus",
-             layer, bytesLeft, bitrate_kbps, numSamples, mNumChannels, mSampleRate, mReservoir, took.count());
+  cLog::log (LOGINFO1, "mp3:%d %4d:%3dk %dx%d@%dhz %3d %3dus %s",
+             layer, bytesLeft, bitrate_kbps, numSamples, mNumChannels, mSampleRate, mReservoir, 
+             took.count(), jumped ? "jump":"");
 
   return numSamples;
   }

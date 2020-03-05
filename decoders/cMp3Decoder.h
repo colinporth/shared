@@ -111,7 +111,7 @@ public:
 
   int32_t getNumChannels() { return mNumChannels; }
   int32_t getSampleRate() { return mSampleRate; }
-  int32_t decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* outBuffer);
+  int32_t decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* outBuffer, bool jumped);
 
 private:
   // private members
