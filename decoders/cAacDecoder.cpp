@@ -2317,9 +2317,9 @@ int cAacDecoder::decodeFrame (uint8_t* inbuf, int bytesLeft, float* outbuf, bool
   int numSamples = AAC_MAX_NSAMPS * (sbrEnabled ? 2 : 1);
 
   auto took = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - timePoint);
-  cLog::log (LOGINFO1, "aac %dx%d %3dus %c%c%c",
+  cLog::log (LOGINFO1, "aac %dx%d %3dus %c%c%c%c",
              numSamples, numChannels, took.count(),
-             sbrEnabled ? 's' : ' ', tnsUsed ? 't':' ', pnsUsed ? 'p' : ' ');
+             jumped ? 'j':' ', sbrEnabled ? 's':' ', tnsUsed ? 't':' ', pnsUsed ? 'p':' ');
 
   return numSamples;
   }

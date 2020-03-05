@@ -1769,7 +1769,7 @@ void cMp3Decoder::saveReservoir() {
 
   mReservoir = remains;
 
-  cLog::log (LOGINFO2, "saveReservoir Reservoir:%d pos:%d", mReservoir, pos);
+  cLog::log (LOGINFO2, "saveReservoir bytes:%d", mReservoir);
   }
 //}}}
 //{{{
@@ -1783,7 +1783,7 @@ bool cMp3Decoder::restoreReservoir (cBitStream* bitStream, int32_t reservoirByte
   int32_t frameBytes = (bitStream->getBitStreamLimit() - bitStream->getBitStreamPosition()) / 8;
   memcpy (mBitStreamData + bytesHave, bitStream->getBitStreamBuffer() + bitStream->getBitStreamPosition() / 8, frameBytes);
 
-  cLog::log (LOGINFO2, "restoreReservoir %d mdb:%d fb:%d bh:%d", mReservoir, reservoirBytesNeeded, frameBytes, bytesHave);
+  cLog::log (LOGINFO2, "restoreReservoir bytes:%d need:%d frame:%d", mReservoir, reservoirBytesNeeded, frameBytes);
 
   // use mainData as bitstream
   mBitStream.bitStreamInit (mBitStreamData, bytesHave + frameBytes);
