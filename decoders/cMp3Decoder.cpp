@@ -1731,7 +1731,7 @@ int32_t cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* o
 
     auto took = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - timePoint);
     cLog::log (numSamples ? LOGINFO1 : LOGERROR, "mp3:%d %4d:%3dk %dx%d@%dhz %3d %3dus",
-               layer, bytesLeft, bitrate_kbps, numSamples, mNumChannels, mSampleRate, mReservoir, took.count());
+               layer, bytesLeft, bitrate_kbps, numSamples, mNumChannels, mSampleRate, mReservoirBytes, took.count());
     }
 
   return numSamples;
@@ -1742,7 +1742,7 @@ int32_t cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* o
 //{{{
 void cMp3Decoder::clear() {
 
-  mReservoir = 0;
+  mReservoirBytes = 0;
   memset (mReservoirBuffer, 0, sizeof (mReservoirBuffer[511]));
   memset (mMdctOverlap, 0, sizeof (mMdctOverlap));
   memset (mQmfState, 0, sizeof (mQmfState));
@@ -1762,27 +1762,27 @@ void cMp3Decoder::saveReservoir() {
   if (remains > 0)
     memmove (mReservoirBuffer, mBitStreamBuffer + pos, remains);
 
-  mReservoir = remains;
+  mReservoirBytes = remains;
 
-  cLog::log (LOGINFO2, "saveReservoir bytes:%d", mReservoir);
+  cLog::log (LOGINFO2, "saveReservoir bytes:%d", mReservoirBytes);
   }
 //}}}
 //{{{
 bool cMp3Decoder::restoreReservoir (cBitStream* bitStream, int32_t reservoirBytesNeeded) {
 
   // are there enough bytes for this frame
-  bool ok = mReservoir >= reservoirBytesNeeded;
+  bool ok = mReservoirBytes >= reservoirBytesNeeded;
 
   // copy as many bytes as possible of reservoirBytesNeeded of reservoir to mBitStreamBuffer
-  int32_t bytesHave = std::min (mReservoir, reservoirBytesNeeded);
-  memcpy (mBitStreamBuffer, mReservoirBuffer + std::max (0, mReservoir - reservoirBytesNeeded), bytesHave);
+  int32_t bytesHave = std::min (mReservoirBytes, reservoirBytesNeeded);
+  memcpy (mBitStreamBuffer, mReservoirBuffer + std::max (0, mReservoirBytes - reservoirBytesNeeded), bytesHave);
 
   // copy rest of frame bitStream to mBitStreamBuffer
   int32_t frameBytes = (bitStream->getLimit() - bitStream->getPosition()) / 8;
   memcpy (mBitStreamBuffer + bytesHave, bitStream->getBuffer() + bitStream->getPosition() / 8, frameBytes);
 
   cLog::log (ok ? LOGINFO2 : LOGERROR, "restoreReservoir bytes:%d need:%d frame:%d %d:%d",
-             mReservoir, reservoirBytesNeeded, frameBytes, bitStream->getPosition(), bitStream->getLimit());
+             mReservoirBytes, reservoirBytesNeeded, frameBytes, bitStream->getPosition(), bitStream->getLimit());
 
   mBitStream.bitStreamInit (mBitStreamBuffer, bytesHave + frameBytes);
   return ok;
