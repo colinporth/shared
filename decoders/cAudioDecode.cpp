@@ -285,11 +285,11 @@ bool cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast) {
 float* cAudioDecode::decodeFrame (int frameNum) {
 // decode parser frame to samples using codec context, fixup song samplerate and samplesPerFrame
 
-  auto samples = mAudioDecoder->decodeFrame ((uint8_t*)mFramePtr, mFrameLen, frameNum);
+  auto samples = mAudioDecoder->decodeFrame (mFramePtr, mFrameLen, frameNum);
 
-  mNumChannels =  mAudioDecoder->getNumChannels();
+  mNumChannels = mAudioDecoder->getNumChannels();
   mSampleRate = mAudioDecoder->getSampleRate();
-  mNumSamples =  mAudioDecoder->getNumSamples();
+  mNumSamples = mAudioDecoder->getNumSamples();
 
   return samples;
   }

@@ -2256,7 +2256,8 @@ cAacDecoder::~cAacDecoder() {
 float* cAacDecoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, int frameNum) {
 
   auto timePoint = std::chrono::system_clock::now();
-  float* outBuffer = nullptr;
+  numChannels = 0;
+  numSamples = 0;
 
   bool jumped = frameNum && (frameNum != mLastFrameNum  + 1);
   if (jumped)
@@ -2266,9 +2267,11 @@ float* cAacDecoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, int frame
   int bitOffset = 0;
   int bitsAvail = bytesLeft << 3;
   if (unpackADTSHeader (&inBuffer, &bitOffset, &bitsAvail))
-    return 0;
+    return nullptr;
   if ((numChannels > AAC_MAX_NCHANS) || (numChannels <= 0))
-    return 0;
+    return nullptr;
+
+  float* outBuffer = (float*)malloc (AAC_MAX_NSAMPS * 2 * sizeof(float) * numChannels);
 
   tnsUsed = 0;
   pnsUsed = 0;
@@ -2285,9 +2288,6 @@ float* cAacDecoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, int frame
       decodeNoiselessData (&inBuffer, &bitOffset, &bitsAvail, channel);
       dequantize (channel);
       }
-
-    numSamples = AAC_MAX_NSAMPS * (sbrEnabled ? 2 : 1);
-    outBuffer = (float*)malloc (numSamples * 4 * numChannels);
 
     if (currBlockID == AAC_ID_CPE)
       applyStereoProcess();
@@ -2320,6 +2320,7 @@ float* cAacDecoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, int frame
     baseChannel += elementNumChans[currBlockID];
     } while (currBlockID != AAC_ID_END);
 
+  numSamples = AAC_MAX_NSAMPS * (sbrEnabled ? 2 : 1);
 
   auto took = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - timePoint);
   cLog::log (LOGINFO1, "aac %dx%d %3dus %c%c%c%c",

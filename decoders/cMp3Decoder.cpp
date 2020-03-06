@@ -1633,10 +1633,10 @@ float* cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, int frame
 
   int32_t layer = 4 - HDR_GET_LAYER (mHeader);
   int32_t bitrate_kbps = headerBitrate (mHeader);
+
   mNumChannels = HDR_IS_MONO (mHeader) ? 1 : 2;
   mSampleRate = headerSampleRate (mHeader);
   mNumSamples = headerFrameSamples (mHeader);
-
 
   if (HDR_IS_CRC (mHeader))
     frameBitStream.getBits (16);
@@ -1719,14 +1719,14 @@ float* cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, int frame
       if (frameBitStream.getPosition() > frameBitStream.getLimit()) {
         cLog::log (LOGERROR, "mp3 decode layer 12 failed");
         mNumSamples = 0;
-        return 0;
+        return nullptr;
         }
       }
     }
     //}}}
 
   if (mNumSamples > 0) {
-    // convert 16bit sample buffer to float
+    // convert 16bit samples to alloc float*
     float* outBuffer = (float*)malloc (mNumSamples * 4 * mNumChannels);
     float* dstPtr = outBuffer;
 
