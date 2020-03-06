@@ -420,7 +420,7 @@ int32_t headerPadding (const uint8_t* header) {
 //{{{  layer utils
 // layer 12
 //{{{
-const struct sSubBandAlloc* subBandAllocTable (const uint8_t* header, struct sScaleInfo* scaleInfo) {
+const struct sSubBandAlloc* subBandAllocTableL12 (const uint8_t* header, struct sScaleInfo* scaleInfo) {
 
   int32_t mode = HDR_GET_STEREO_MODE (header);
   int32_t stereoBands = (mode == MODE_MONO) ?
@@ -462,7 +462,7 @@ const struct sSubBandAlloc* subBandAllocTable (const uint8_t* header, struct sSc
   }
 //}}}
 //{{{
-void readScaleFactors (cMp3Decoder::cBitStream* bitStream, uint8_t* pba, uint8_t* scfcod, int32_t bands, float* scf) {
+void readScaleFactorsL12 (cMp3Decoder::cBitStream* bitStream, uint8_t* pba, uint8_t* scfcod, int32_t bands, float* scf) {
 
   for (int32_t i = 0; i < bands; i++) {
     float s = 0;
@@ -478,10 +478,11 @@ void readScaleFactors (cMp3Decoder::cBitStream* bitStream, uint8_t* pba, uint8_t
     }
   }
 //}}}
-//{{{
-void readScaleInfo (const uint8_t* header, cMp3Decoder::cBitStream* bitStream, struct sScaleInfo* scaleInfo) {
 
-  const struct sSubBandAlloc* subBandAlloc = subBandAllocTable (header, scaleInfo);
+//{{{
+void readScaleInfoL12 (const uint8_t* header, cMp3Decoder::cBitStream* bitStream, struct sScaleInfo* scaleInfo) {
+
+  const struct sSubBandAlloc* subBandAlloc = subBandAllocTableL12 (header, scaleInfo);
 
   int32_t k = 0;
   int32_t bitAllocBits = 0;
@@ -504,15 +505,14 @@ void readScaleInfo (const uint8_t* header, cMp3Decoder::cBitStream* bitStream, s
   for (int32_t i = 0; i < 2 * scaleInfo->totalBands; i++)
     scaleInfo->scfcod[i] = scaleInfo->bitalloc[i] ? HDR_IS_LAYER_1 (header) ? 2 : bitStream->getBits (2) : 6;
 
-  readScaleFactors (bitStream, scaleInfo->bitalloc, scaleInfo->scfcod, scaleInfo->totalBands*2, scaleInfo->scf);
+  readScaleFactorsL12 (bitStream, scaleInfo->bitalloc, scaleInfo->scfcod, scaleInfo->totalBands*2, scaleInfo->scf);
 
   for (int32_t i = scaleInfo->stereoBands; i < scaleInfo->totalBands; i++)
     scaleInfo->bitalloc[2*i + 1] = 0;
   }
 //}}}
-
 //{{{
-int32_t dequantizeGranule (float* granuleBuffer, cMp3Decoder::cBitStream* bitStream, struct sScaleInfo* scaleInfo, int32_t group_size) {
+int32_t dequantizeGranuleL12 (cMp3Decoder::cBitStream* bitStream, float* granuleBuffer, struct sScaleInfo* scaleInfo, int32_t group_size) {
 
   int32_t choff = 576;
   for (int32_t j = 0; j < 4; j++) {
@@ -542,7 +542,7 @@ int32_t dequantizeGranule (float* granuleBuffer, cMp3Decoder::cBitStream* bitStr
   }
 //}}}
 //{{{
-void applyScf384 (sScaleInfo* scaleInfo, const float* scf, float* dst) {
+void applyScf384L12 (sScaleInfo* scaleInfo, const float* scf, float* dst) {
 
   memcpy (dst + 576 + scaleInfo->stereoBands * 18, dst + scaleInfo->stereoBands * 18,
           (scaleInfo->totalBands - scaleInfo->stereoBands)*18*sizeof(float));
@@ -560,7 +560,7 @@ void applyScf384 (sScaleInfo* scaleInfo, const float* scf, float* dst) {
 
 // layer 3
 //{{{
-void dct39 (float* y) {
+void dct39L3 (float* y) {
 
   float s0 = y[0];
   float s2 = y[2];
@@ -606,7 +606,7 @@ void dct39 (float* y) {
   }
 //}}}
 //{{{
-void reorder (float* granuleBuffer, float* scratch, const uint8_t* sfb) {
+void reorderL3 (float* granuleBuffer, float* scratch, const uint8_t* sfb) {
 
   int32_t len;
   float* src = granuleBuffer;
@@ -625,7 +625,7 @@ void reorder (float* granuleBuffer, float* scratch, const uint8_t* sfb) {
 
 #ifdef USE_INTRINSICS
   //{{{
-  void midsideStereo (float* left, int32_t n) {
+  void midsideStereoL3 (float* left, int32_t n) {
 
     float* right = left + 576;
 
@@ -646,7 +646,7 @@ void reorder (float* granuleBuffer, float* scratch, const uint8_t* sfb) {
     }
   //}}}
   //{{{
-  void antialias (float* granuleBuffer, int32_t numBands) {
+  void antialiasL3 (float* granuleBuffer, int32_t numBands) {
 
     for (; numBands > 0; numBands--, granuleBuffer += 18) {
       for (int32_t i = 0; i < 8; i += 4) {
@@ -663,7 +663,7 @@ void reorder (float* granuleBuffer, float* scratch, const uint8_t* sfb) {
     }
   //}}}
   //{{{
-  void imdct36 (float* granuleBuffer, float* overlap, const float* window, int32_t numBands) {
+  void imdct36L3 (float* granuleBuffer, float* overlap, const float* window, int32_t numBands) {
 
     for (int32_t j = 0; j < numBands; j++, granuleBuffer += 18, overlap += 9) {
       float co[9];
@@ -676,8 +676,8 @@ void reorder (float* granuleBuffer, float* scratch, const uint8_t* sfb) {
         si[7 - 2*i] = granuleBuffer[4*i + 4] - granuleBuffer[4*i + 3];
         co[2 + 2*i] = -(granuleBuffer[4*i + 3] + granuleBuffer[4*i + 4]);
         }
-      dct39 (co);
-      dct39 (si);
+      dct39L3 (co);
+      dct39L3 (si);
 
       si[1] = -si[1];
       si[3] = -si[3];
@@ -712,7 +712,7 @@ void reorder (float* granuleBuffer, float* scratch, const uint8_t* sfb) {
   //}}}
 #else
   //{{{
-  void midsideStereo (float* left, int32_t n) {
+  void midsideStereoL3 (float* left, int32_t n) {
 
     float* right = left + 576;
     for (int32_t i = 0; i < n; i++) {
@@ -724,7 +724,7 @@ void reorder (float* granuleBuffer, float* scratch, const uint8_t* sfb) {
     }
   //}}}
   //{{{
-  void antialias (float* granuleBuffer, int32_t numBands) {
+  void antialiasL3 (float* granuleBuffer, int32_t numBands) {
 
     for (; numBands > 0; numBands--, granuleBuffer += 18) {
       for (int32_t i = 0; i < 8; i++) {
@@ -737,7 +737,7 @@ void reorder (float* granuleBuffer, float* scratch, const uint8_t* sfb) {
     }
   //}}}
   //{{{
-  void imdct36 (float* granuleBuffer, float* overlap, const float* window, int32_t numBands) {
+  void imdct36L3 (float* granuleBuffer, float* overlap, const float* window, int32_t numBands) {
 
     for (int32_t j = 0; j < numBands; j++, granuleBuffer += 18, overlap += 9) {
       float co[9], si[9];
@@ -770,7 +770,7 @@ void reorder (float* granuleBuffer, float* scratch, const uint8_t* sfb) {
 #endif
 
 //{{{
-int32_t readSideInfo (cMp3Decoder::cBitStream* bitStream, struct cMp3Decoder::sGranule* granule, const uint8_t* header) {
+int32_t readSideInfoL3 (const uint8_t* header, cMp3Decoder::cBitStream* bitStream, struct cMp3Decoder::sGranule* granule) {
 // return needReservoirBytes required from reservoir
 
   int32_t sr_idx = HDR_GET_MY_SAMPLE_RATE (header);
@@ -973,7 +973,7 @@ float pow43 (int32_t x) {
   }
 //}}}
 //{{{
-void huffman (float* dst, cMp3Decoder::cBitStream* bitStream, const struct cMp3Decoder::sGranule* granule,
+void huffmanL3 (float* dst, cMp3Decoder::cBitStream* bitStream, const struct cMp3Decoder::sGranule* granule,
               const float* scf, int32_t l3granuleLimit) {
 
   float one = 0.0f;
@@ -1089,7 +1089,7 @@ void huffman (float* dst, cMp3Decoder::cBitStream* bitStream, const struct cMp3D
 //}}}
 
 //{{{
-void intensityStereoBand (float* left, int32_t n, float kl, float kr) {
+void intensityStereoBandL3 (float* left, int32_t n, float kl, float kr) {
 
   for (int32_t i = 0; i < n; i++) {
     left[i + 576] = left[i] * kr;
@@ -1098,7 +1098,7 @@ void intensityStereoBand (float* left, int32_t n, float kl, float kr) {
   }
 //}}}
 //{{{
-void stereoTopBand (const float* right, const uint8_t* sfb, int32_t numBands, int32_t max_band[3]) {
+void stereoTopBandL3 (const float* right, const uint8_t* sfb, int32_t numBands, int32_t max_band[3]) {
 
   max_band[0] = max_band[1] = max_band[2] = -1;
 
@@ -1114,7 +1114,7 @@ void stereoTopBand (const float* right, const uint8_t* sfb, int32_t numBands, in
   }
 //}}}
 //{{{
-void stereoProcess (float* left, const uint8_t* istPos, const uint8_t* sfb, const uint8_t* header,
+void stereoProcessL3 (float* left, const uint8_t* istPos, const uint8_t* sfb, const uint8_t* header,
                     int32_t max_band[3], int32_t mpeg2_sh) {
 
   uint32_t max_pos = HDR_TEST_MPEG1 (header) ? 7 : 64;
@@ -1135,21 +1135,21 @@ void stereoProcess (float* left, const uint8_t* istPos, const uint8_t* sfb, cons
           kr = 1;
           }
         }
-      intensityStereoBand (left, sfb[i], kl * s, kr * s);
+      intensityStereoBandL3 (left, sfb[i], kl * s, kr * s);
       }
     else if (HDR_TEST_MS_STEREO (header))
-      midsideStereo (left, sfb[i]);
+      midsideStereoL3 (left, sfb[i]);
 
     left += sfb[i];
     }
   }
 //}}}
 //{{{
-void intensityStereo (float* left, uint8_t* istPos, const struct cMp3Decoder::sGranule* granule, const uint8_t* header) {
+void intensityStereoL3 (float* left, uint8_t* istPos, const struct cMp3Decoder::sGranule* granule, const uint8_t* header) {
 
   int32_t maxBand[3];
   int32_t numSfb = granule->numLongSfb + granule->numShortSfb;
-  stereoTopBand (left + 576, granule->sfbtab, numSfb, maxBand);
+  stereoTopBandL3 (left + 576, granule->sfbtab, numSfb, maxBand);
   if (granule->numLongSfb) {
     maxBand[0] = maxBand[1] = maxBand[2] = std::max (std::max (maxBand[0], maxBand[1]), maxBand[2]);
     }
@@ -1162,12 +1162,12 @@ void intensityStereo (float* left, uint8_t* istPos, const struct cMp3Decoder::sG
     istPos[itop] = maxBand[i] >= prev ? defaultPos : istPos[prev];
     }
 
-  stereoProcess (left, istPos, granule->sfbtab, header, maxBand, granule[1].scalefac_compress & 1);
+  stereoProcessL3 (left, istPos, granule->sfbtab, header, maxBand, granule[1].scalefac_compress & 1);
   }
 //}}}
 
 //{{{
-void idct3 (float x0, float x1, float x2, float* dst) {
+void idct3L3 (float x0, float x1, float x2, float* dst) {
 
   float m1 = x1 * 0.86602540f;
   float a1 = x0 - x2 * 0.5f;
@@ -1178,13 +1178,13 @@ void idct3 (float x0, float x1, float x2, float* dst) {
   }
 //}}}
 //{{{
-void imdct12 (float* x, float* dst, float* overlap) {
+void imdct12L3 (float* x, float* dst, float* overlap) {
 
   float co [3];
-  idct3 (-x[0], x[6] + x[3], x[12] + x[9], co);
+  idct3L3 (-x[0], x[6] + x[3], x[12] + x[9], co);
 
   float si [3];
-  idct3 (x[15], x[12] - x[9], x[6] - x[3], si);
+  idct3L3 (x[15], x[12] - x[9], x[6] - x[3], si);
   si[1] = -si[1];
 
   for (int32_t i = 0; i < 3; i++) {
@@ -1197,37 +1197,37 @@ void imdct12 (float* x, float* dst, float* overlap) {
   }
 //}}}
 //{{{
-void imdctShort (float* granuleBuffer, float* overlap, int numBands) {
+void imdctShortL3 (float* granuleBuffer, float* overlap, int numBands) {
 
   for (;numBands > 0; numBands--, overlap += 9, granuleBuffer += 18) {
     float tmp[18];
     memcpy (tmp, granuleBuffer, sizeof(tmp));
     memcpy (granuleBuffer, overlap, 6 * sizeof(float));
 
-    imdct12 (tmp, granuleBuffer + 6, overlap + 6);
-    imdct12 (tmp + 1, granuleBuffer + 12, overlap + 6);
-    imdct12 (tmp + 2, overlap, overlap + 6);
+    imdct12L3 (tmp, granuleBuffer + 6, overlap + 6);
+    imdct12L3 (tmp + 1, granuleBuffer + 12, overlap + 6);
+    imdct12L3 (tmp + 2, overlap, overlap + 6);
     }
   }
 //}}}
 //{{{
-void imdctGranule (float* granuleBuffer, float* overlap, uint32_t blockType, uint32_t numLongBands) {
+void imdctGranuleL3 (float* granuleBuffer, float* overlap, uint32_t blockType, uint32_t numLongBands) {
 
   if (numLongBands) {
-    imdct36 (granuleBuffer, overlap, kmdct_window[0], numLongBands);
+    imdct36L3 (granuleBuffer, overlap, kmdct_window[0], numLongBands);
     granuleBuffer += 18 * numLongBands;
     overlap += 9 * numLongBands;
     }
 
   if (blockType == SHORT_blockType)
-    imdctShort (granuleBuffer, overlap, 32 - numLongBands);
+    imdctShortL3 (granuleBuffer, overlap, 32 - numLongBands);
   else
-    imdct36 (granuleBuffer, overlap, kmdct_window[blockType == STOP_blockType], 32 - numLongBands);
+    imdct36L3 (granuleBuffer, overlap, kmdct_window[blockType == STOP_blockType], 32 - numLongBands);
   }
 //}}}
 
 //{{{
-void changeSign (float* granuleBuffer) {
+void changeSignL3 (float* granuleBuffer) {
 
   granuleBuffer += 18;
   for (int32_t b = 0; b < 32; b += 2, granuleBuffer += 36)
@@ -1648,7 +1648,7 @@ int32_t cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* o
   if (layer == 3) {
     //{{{  layer 3 decode
     // parse fixed readSideInfo from frameBitStream
-    int32_t needReservoirBytes = readSideInfo (&frameBitStream, mGranules, inBuffer);
+    int32_t needReservoirBytes = readSideInfoL3 (mHeader, &frameBitStream, mGranules);
 
     if (frameNum && (frameNum != mLastFrameNum + 1)) {
       // jump, no decode unless reservoirBytesNeeded = 0 ???
@@ -1664,25 +1664,25 @@ int32_t cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* o
         for (int32_t channel = 0; channel < mNumChannels; channel++) {
           int32_t layer3gr_limit = mBitStream.getPosition() + granule[channel].part23length;
           decodeScaleFactorsL3 (mHeader, mIstPos[channel], &mBitStream, granule + channel, mScf, channel);
-          huffman (mGranuleBuffer[channel], &mBitStream, granule + channel, mScf, layer3gr_limit);
+          huffmanL3 (mGranuleBuffer[channel], &mBitStream, granule + channel, mScf, layer3gr_limit);
           }
 
         if (HDR_TEST_I_STEREO (mHeader))
-          intensityStereo (mGranuleBuffer[0], mIstPos[1], granule, mHeader);
+          intensityStereoL3 (mGranuleBuffer[0], mIstPos[1], granule, mHeader);
         else if (HDR_IS_MS_STEREO (mHeader))
-          midsideStereo (mGranuleBuffer[0], 576);
+          midsideStereoL3 (mGranuleBuffer[0], 576);
 
         for (int32_t channel = 0; channel < mNumChannels; channel++, granule++) {
           int32_t aaBands = 31;
           int32_t numLongBands = (granule->mixedBlockFlag ? 2 : 0) << (int)(HDR_GET_MY_SAMPLE_RATE (mHeader) == 2);
           if (granule->numShortSfb) {
             aaBands = numLongBands - 1;
-            reorder (mGranuleBuffer[channel] + numLongBands * 18, mSyn[0], granule->sfbtab + granule->numLongSfb);
+            reorderL3 (mGranuleBuffer[channel] + numLongBands * 18, mSyn[0], granule->sfbtab + granule->numLongSfb);
             }
 
-          antialias (mGranuleBuffer[channel], aaBands);
-          imdctGranule (mGranuleBuffer[channel], mMdctOverlap[channel], granule->blockType, numLongBands);
-          changeSign (mGranuleBuffer[channel]);
+          antialiasL3 (mGranuleBuffer[channel], aaBands);
+          imdctGranuleL3 (mGranuleBuffer[channel], mMdctOverlap[channel], granule->blockType, numLongBands);
+          changeSignL3 (mGranuleBuffer[channel]);
           }
 
         synthGranule (mQmfState, mGranuleBuffer[0], 18, mNumChannels, pcm, mSyn[0]);
@@ -1702,20 +1702,19 @@ int32_t cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* o
   else {
     //{{{  layer 12 decode
     sScaleInfo scaleInfo;
-    readScaleInfo (inBuffer, &frameBitStream, &scaleInfo);
+    readScaleInfoL12 (mHeader, &frameBitStream, &scaleInfo);
 
     memset (mGranuleBuffer[0], 0, 576 * 2 * sizeof(float));
     for (int32_t i = 0, granuleIndex = 0; granuleIndex < 3; granuleIndex++) {
-      if (12 == (i += dequantizeGranule (mGranuleBuffer[0] + i, &frameBitStream, &scaleInfo, layer | 1))) {
+      if (12 == (i += dequantizeGranuleL12 (&frameBitStream, mGranuleBuffer[0] + i, &scaleInfo, layer | 1))) {
         i = 0;
-        applyScf384 (&scaleInfo, scaleInfo.scf + granuleIndex, mGranuleBuffer[0]);
+        applyScf384L12 (&scaleInfo, scaleInfo.scf + granuleIndex, mGranuleBuffer[0]);
         synthGranule (mQmfState, mGranuleBuffer[0], 12, mNumChannels, pcm, mSyn[0]);
         memset (mGranuleBuffer[0], 0, 576*2*sizeof(float));
         pcm += 384 * mNumChannels;
         }
 
       if (frameBitStream.getPosition() > frameBitStream.getLimit()) {
-        mHeader[0] = 0;
         cLog::log (LOGERROR, "mp3 decode layer 12 failed");
         return 0;
         }
