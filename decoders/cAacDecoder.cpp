@@ -2253,19 +2253,19 @@ cAacDecoder::~cAacDecoder() {
 //}}}
 
 //{{{
-int cAacDecoder::decodeFrame (uint8_t* inbuf, int bytesLeft, float* outbuf, int frameNum) {
-// return numSamples, 0 on any failure
+float* cAacDecoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, int frameNum) {
 
   auto timePoint = std::chrono::system_clock::now();
+  float* outBuffer = nullptr;
 
   bool jumped = frameNum && (frameNum != mLastFrameNum  + 1);
-  if (jumped) 
+  if (jumped)
     flush();
   mLastFrameNum = frameNum;
 
   int bitOffset = 0;
   int bitsAvail = bytesLeft << 3;
-  if (unpackADTSHeader (&inbuf, &bitOffset, &bitsAvail))
+  if (unpackADTSHeader (&inBuffer, &bitOffset, &bitsAvail))
     return 0;
   if ((numChannels > AAC_MAX_NCHANS) || (numChannels <= 0))
     return 0;
@@ -2277,20 +2277,24 @@ int cAacDecoder::decodeFrame (uint8_t* inbuf, int bytesLeft, float* outbuf, int 
   int baseChannelSBR = 0;
   do {
     // parse next syntactic element
-    if (decodeNextElement (&inbuf, &bitOffset, &bitsAvail))
+    if (decodeNextElement (&inBuffer, &bitOffset, &bitsAvail))
       return 0;
     if (baseChannel + elementNumChans[currBlockID] > AAC_MAX_NCHANS)
       return 0;
     for (int channel = 0; channel < elementNumChans[currBlockID]; channel++) {
-      decodeNoiselessData (&inbuf, &bitOffset, &bitsAvail, channel);
+      decodeNoiselessData (&inBuffer, &bitOffset, &bitsAvail, channel);
       dequantize (channel);
       }
+
+    numSamples = AAC_MAX_NSAMPS * (sbrEnabled ? 2 : 1);
+    outBuffer = (float*)malloc (numSamples * 4 * numChannels);
+
     if (currBlockID == AAC_ID_CPE)
       applyStereoProcess();
     for (int channel = 0; channel < elementNumChans[currBlockID]; channel++) {
       applyPns (channel);
       applyTns (channel);
-      imdct (channel, baseChannel + channel, outbuf);
+      imdct (channel, baseChannel + channel, outBuffer);
       }
     if (sbrEnabled && (currBlockID == AAC_ID_FIL || currBlockID == AAC_ID_LFE)) {
       //{{{  process sbr
@@ -2309,21 +2313,20 @@ int cAacDecoder::decodeFrame (uint8_t* inbuf, int bytesLeft, float* outbuf, int 
       // parse SBR extension data if present (contained in a fill element)
       if (decodeSbrBitstream (baseChannelSBR))
         return 0;
-      applySbr (baseChannelSBR, outbuf);
+      applySbr (baseChannelSBR, outBuffer);
       baseChannelSBR += elementChansSBR;
       }
       //}}}
     baseChannel += elementNumChans[currBlockID];
     } while (currBlockID != AAC_ID_END);
 
-  int numSamples = AAC_MAX_NSAMPS * (sbrEnabled ? 2 : 1);
 
   auto took = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - timePoint);
   cLog::log (LOGINFO1, "aac %dx%d %3dus %c%c%c%c",
              numSamples, numChannels, took.count(),
              jumped ? 'j':' ', sbrEnabled ? 's':' ', tnsUsed ? 't':' ', pnsUsed ? 'p':' ');
 
-  return numSamples;
+  return outBuffer;
   }
 //}}}
 

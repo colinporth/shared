@@ -973,7 +973,7 @@ float pow43 (int32_t x) {
   }
 //}}}
 //{{{
-void huffmanL3 (float* dst, cMp3Decoder::cBitStream* bitStream, const struct cMp3Decoder::sGranule* granule,
+void huffmanL3 (cMp3Decoder::cBitStream* bitStream, float* dst, const struct cMp3Decoder::sGranule* granule,
               const float* scf, int32_t l3granuleLimit) {
 
   float one = 0.0f;
@@ -1624,7 +1624,7 @@ cMp3Decoder::cMp3Decoder() {
   }
 //}}}
 //{{{
-int32_t cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* outBuffer, int frameNum) {
+float* cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, int frameNum) {
 
   auto timePoint = std::chrono::system_clock::now();
 
@@ -1635,14 +1635,14 @@ int32_t cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* o
   int32_t bitrate_kbps = headerBitrate (mHeader);
   mNumChannels = HDR_IS_MONO (mHeader) ? 1 : 2;
   mSampleRate = headerSampleRate (mHeader);
-  int32_t numSamples = headerFrameSamples (mHeader);
+  mNumSamples = headerFrameSamples (mHeader);
+
 
   if (HDR_IS_CRC (mHeader))
     frameBitStream.getBits (16);
 
   // allocate 16bit sample buffer, convert to float later
   int16_t samples16 [2048*2];
-  int16_t* pcm = samples16;
 
   bool jumped = false;
   if (layer == 3) {
@@ -1653,18 +1653,19 @@ int32_t cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* o
     if (frameNum && (frameNum != mLastFrameNum + 1)) {
       // jump, no decode unless reservoirBytesNeeded = 0 ???
       cLog::log (LOGINFO, "mp3 jump %d to %d", mLastFrameNum, frameNum);
-      numSamples = 0;
+      mNumSamples = 0;
       }
 
     else if (restoreReservoir (&frameBitStream, needReservoirBytes)) {
       // use bitStream from reservoir + remainder frameBitStream
+      int16_t* pcm = samples16;
       for (int32_t granuleIndex = 0; granuleIndex < (HDR_TEST_MPEG1 (mHeader) ? 2 : 1); granuleIndex++) {
         struct sGranule* granule = mGranules + (granuleIndex * mNumChannels);
         memset (mGranuleBuffer[0], 0, 576 * 2 * sizeof(float));
         for (int32_t channel = 0; channel < mNumChannels; channel++) {
           int32_t layer3gr_limit = mBitStream.getPosition() + granule[channel].part23length;
           decodeScaleFactorsL3 (mHeader, mIstPos[channel], &mBitStream, granule + channel, mScf, channel);
-          huffmanL3 (mGranuleBuffer[channel], &mBitStream, granule + channel, mScf, layer3gr_limit);
+          huffmanL3 (&mBitStream, mGranuleBuffer[channel], granule + channel, mScf, layer3gr_limit);
           }
 
         if (HDR_TEST_I_STEREO (mHeader))
@@ -1691,7 +1692,7 @@ int32_t cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* o
       }
 
     else // not enough bytes in reservoir to decode
-      numSamples = 0;
+      mNumSamples = 0;
 
     // save unused bitStream to reservoir, if decode abandoned far too much but gets lost on restore
     // - needs reservoir size = maxReservoir + maxPacket
@@ -1704,6 +1705,7 @@ int32_t cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* o
     sScaleInfo scaleInfo;
     readScaleInfoL12 (mHeader, &frameBitStream, &scaleInfo);
 
+    int16_t* pcm = samples16;
     memset (mGranuleBuffer[0], 0, 576 * 2 * sizeof(float));
     for (int32_t i = 0, granuleIndex = 0; granuleIndex < 3; granuleIndex++) {
       if (12 == (i += dequantizeGranuleL12 (&frameBitStream, mGranuleBuffer[0] + i, &scaleInfo, layer | 1))) {
@@ -1716,25 +1718,29 @@ int32_t cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* o
 
       if (frameBitStream.getPosition() > frameBitStream.getLimit()) {
         cLog::log (LOGERROR, "mp3 decode layer 12 failed");
+        mNumSamples = 0;
         return 0;
         }
       }
     }
     //}}}
 
-  if (numSamples > 0) {
+  if (mNumSamples > 0) {
     // convert 16bit sample buffer to float
-    int16_t* srcPtr = samples16;
+    float* outBuffer = (float*)malloc (mNumSamples * 4 * mNumChannels);
     float* dstPtr = outBuffer;
-    for (int32_t sample = 0; sample < numSamples * 2; sample++)
+
+    int16_t* srcPtr = samples16;
+    for (int32_t sample = 0; sample < mNumSamples * 2; sample++)
       *dstPtr++ = *srcPtr++ / (float)0x8000;
 
     auto took = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - timePoint);
-    cLog::log (numSamples ? LOGINFO1 : LOGERROR, "mp3:%d %4d:%3dk %dx%d@%dhz %3d %3dus",
-               layer, bytesLeft, bitrate_kbps, numSamples, mNumChannels, mSampleRate, mSavedReservoirBytes, took.count());
+    cLog::log (mNumSamples ? LOGINFO1 : LOGERROR, "mp3:%d %4d:%3dk %dx%d@%dhz %3d %3dus",
+               layer, bytesLeft, bitrate_kbps, mNumSamples, mNumChannels, mSampleRate, mSavedReservoirBytes, took.count());
+    return outBuffer;
     }
-
-  return numSamples;
+  else
+    return nullptr;
   }
 //}}}
 

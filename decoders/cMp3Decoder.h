@@ -111,17 +111,20 @@ public:
 
   int32_t getNumChannels() { return mNumChannels; }
   int32_t getSampleRate() { return mSampleRate; }
-  int32_t decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* outBuffer, int frameNum);
+  int32_t getNumSamples() { return mNumSamples; }
+
+  float* decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, int frameNum);
 
 private:
   // private members
   void clear();
   void saveReservoir();
-  bool restoreReservoir (class cBitStream* bitStream, int32_t mainDataBegin);
+  bool restoreReservoir (class cBitStream* bitStream, int32_t needReservoirBytes);
 
   // private vars
   int32_t mNumChannels = 0;
   int32_t mSampleRate = 0;
+  int32_t mNumSamples = 0;
 
   struct sGranule mGranules [4];
   float mGranuleBuffer [2][576];

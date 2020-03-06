@@ -14,6 +14,7 @@ public:
   eFrameType getFrameType() { return mFrameType; }
   int getNumChannels() { return mNumChannels; }
   int getSampleRate() { return mSampleRate; }
+  int getNumSamples() { return mNumSamples; }
 
   uint8_t* getFramePtr() { return mFramePtr; }
   int getFrameLen() { return mFrameLen; }
@@ -22,7 +23,7 @@ public:
   void setFrame (uint8_t* framePtr, int frameLen);
 
   bool parseFrame (uint8_t* framePtr, uint8_t* frameLast);
-  int decodeFrame (float* samples, int frameNum);
+  float* decodeFrame (int frameNum);
 
   // !!!! statics not quite right, picks up eFrameType
   static eFrameType parseSomeFrames (uint8_t* framePtr, uint8_t* frameLast, int& sampleRate);
@@ -43,6 +44,7 @@ private:
   eFrameType mFrameType = eUnknown;
   int mNumChannels = 0;
   int mSampleRate = 0;
+  int mNumSamples = 0;
 
   iAudioDecoder* mAudioDecoder = nullptr;
   };

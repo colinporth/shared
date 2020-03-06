@@ -30,10 +30,11 @@ public:
   cAacDecoder();
   ~cAacDecoder();
 
-  int cAacDecoder::getNumChannels() { return numChannels; }
-  int cAacDecoder::getSampleRate() { return sampleRate * (sbrEnabled ? 2 : 1); }
+  int32_t getNumChannels() { return numChannels; }
+  int32_t getSampleRate() { return sampleRate * (sbrEnabled ? 2 : 1); }
+  int32_t getNumSamples() { return numSamples; }
 
-  int decodeFrame (uint8_t* inbuf, int bytesLeft, float* outbuf, int frameNum);
+  float* decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, int frameNum);
 
 private:
   //{{{  private members
@@ -87,6 +88,8 @@ private:
   int sbrEnabled;
   int tnsUsed;
   int pnsUsed;
+
+  int32_t numSamples;
 
   int mLastFrameNum = -1;
   //}}}
