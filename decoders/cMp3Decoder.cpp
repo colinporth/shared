@@ -1760,7 +1760,7 @@ void cMp3Decoder::saveReservoir() {
     remains = MAX_BITRESERVOIR_BYTES;
     }
   if (remains > 0)
-    memmove (mReservoirBuffer, mBitStreamBuffer + pos, remains);
+    memmove (mReservoirBuffer, mReservoirBuffer + pos, remains);
 
   mReservoirBytes = remains;
 
@@ -1775,16 +1775,16 @@ bool cMp3Decoder::restoreReservoir (cBitStream* bitStream, int32_t reservoirByte
 
   // copy as many bytes as possible of reservoirBytesNeeded of reservoir to mBitStreamBuffer
   int32_t bytesHave = std::min (mReservoirBytes, reservoirBytesNeeded);
-  memcpy (mBitStreamBuffer, mReservoirBuffer + std::max (0, mReservoirBytes - reservoirBytesNeeded), bytesHave);
+  memcpy (mReservoirBuffer, mReservoirBuffer + std::max (0, mReservoirBytes - reservoirBytesNeeded), bytesHave);
 
   // copy rest of frame bitStream to mBitStreamBuffer
   int32_t frameBytes = (bitStream->getLimit() - bitStream->getPosition()) / 8;
-  memcpy (mBitStreamBuffer + bytesHave, bitStream->getBuffer() + bitStream->getPosition() / 8, frameBytes);
+  memcpy (mReservoirBuffer + bytesHave, bitStream->getBuffer() + bitStream->getPosition() / 8, frameBytes);
 
   cLog::log (ok ? LOGINFO2 : LOGERROR, "restoreReservoir bytes:%d need:%d frame:%d %d:%d",
              mReservoirBytes, reservoirBytesNeeded, frameBytes, bitStream->getPosition(), bitStream->getLimit());
 
-  mBitStream.bitStreamInit (mBitStreamBuffer, bytesHave + frameBytes);
+  mBitStream.bitStreamInit (mReservoirBuffer, bytesHave + frameBytes);
   return ok;
   }
 //}}}
