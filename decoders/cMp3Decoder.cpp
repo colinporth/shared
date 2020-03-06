@@ -1693,7 +1693,8 @@ int32_t cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, float* o
     else // not enough bytes in reservoir to decode
       numSamples = 0;
 
-    // save unused bitStream to reservoir
+    // save unused bitStream to reservoir, if decode abandoned far too much but gets lost on restore
+    // - needs reservoir size = maxReservoir + maxPacket
     saveReservoir();
     mLastFrameNum = frameNum;
     }
@@ -1778,7 +1779,7 @@ bool cMp3Decoder::restoreReservoir (cBitStream* frameBitStream, int32_t needRese
   bool ok = mSavedReservoirBytes >= needReservoirBytes;
   cLog::log (ok ? LOGINFO2 : LOGERROR, "restoreReservoir need:%d have:%d frame:%d has %s",
              needReservoirBytes, mSavedReservoirBytes, frameBytes,
-             mSavedReservoirBytes > needReservoirBytes ? "more" : 
+             mSavedReservoirBytes > needReservoirBytes ? "more" :
                mSavedReservoirBytes < needReservoirBytes ? "less" : "equal");
   return ok;
   }
