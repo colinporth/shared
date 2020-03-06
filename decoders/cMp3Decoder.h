@@ -136,7 +136,7 @@ private:
   uint8_t mHeader[4];
 
   cBitStream mBitStream;
-  int32_t mReservoirBytes = 0;
+  int32_t mSavedReservoirBytes = 0;
   uint8_t mReservoirBuffer [MAX_BITRESERVOIR_BYTES + MAX_L3_FRAME_PAYLOAD_BYTES];
 
   int mLastFrameNum = -1;
