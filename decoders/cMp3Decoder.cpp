@@ -1751,7 +1751,7 @@ void cMp3Decoder::clear() {
 
 //{{{
 void cMp3Decoder::saveReservoir() {
-// save rest of bitStream bytes to reservoir
+// move unused bitStream bytes to front of reservoir
 
   int32_t bytePosition = (mBitStream.getPosition() + 7) / 8u;
   mSavedReservoirBytes = (mBitStream.getLimit() / 8u) - bytePosition;
@@ -1761,24 +1761,25 @@ void cMp3Decoder::saveReservoir() {
   }
 //}}}
 //{{{
-bool cMp3Decoder::restoreReservoir (cBitStream* bitStream, int32_t needReservoirBytes) {
+bool cMp3Decoder::restoreReservoir (cBitStream* frameBitStream, int32_t needReservoirBytes) {
 
   // are there enough bytes for this frame
-  bool ok = mSavedReservoirBytes >= needReservoirBytes;
   int32_t bytesHave = std::min (mSavedReservoirBytes, needReservoirBytes);
-  int32_t bytesToLose = std::max (0, mSavedReservoirBytes - needReservoirBytes);
-  int32_t frameBytes = (bitStream->getLimit() - bitStream->getPosition()) / 8;
 
-  // copy as many bytes as possible of reservoirBytesNeeded of reservoir to mBitStreamBuffer
-  memcpy (mReservoirBuffer, mReservoirBuffer + bytesToLose, bytesHave);
+  // lose any extra leading reservoir bytes, rares case only after jumps
+  if (mSavedReservoirBytes > needReservoirBytes)
+    memcpy (mReservoirBuffer, mReservoirBuffer + (mSavedReservoirBytes - needReservoirBytes), bytesHave);
 
-  // copy rest of frame bitStream to mBitStreamBuffer
-  memcpy (mReservoirBuffer + bytesHave, bitStream->getBuffer() + bitStream->getPosition() / 8, frameBytes);
-
-  cLog::log (ok ? LOGINFO2 : LOGERROR, "restoreReservoir need:%d have:%d frame:%d",
-             needReservoirBytes, mSavedReservoirBytes, frameBytes);
-
+  // copy remainder of frameBitStream to reservoir, main bitStream uses all the valid reservoir
+  int32_t frameBytes = (frameBitStream->getLimit() - frameBitStream->getPosition()) / 8;
+  memcpy (mReservoirBuffer + bytesHave, frameBitStream->getBuffer() + (frameBitStream->getPosition()/8), frameBytes);
   mBitStream.bitStreamInit (mReservoirBuffer, bytesHave + frameBytes);
+
+  bool ok = mSavedReservoirBytes >= needReservoirBytes;
+  cLog::log (ok ? LOGINFO2 : LOGERROR, "restoreReservoir need:%d have:%d frame:%d has %s",
+             needReservoirBytes, mSavedReservoirBytes, frameBytes,
+             mSavedReservoirBytes > needReservoirBytes ? "more" : 
+               mSavedReservoirBytes < needReservoirBytes ? "less" : "equal");
   return ok;
   }
 //}}}
