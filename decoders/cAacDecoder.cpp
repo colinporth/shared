@@ -2271,7 +2271,8 @@ float* cAacDecoder::decodeFrame (uint8_t* framePtr, int32_t frameLen, int frameN
   if ((numChannels > AAC_MAX_NCHANS) || (numChannels <= 0))
     return nullptr;
 
-  float* outBuffer = (float*)malloc (AAC_MAX_NSAMPS * 2 * sizeof(float) * numChannels);
+  // !!! must allocate for sbr, FIXME !!!
+  float* outBuffer = (float*)malloc (AAC_MAX_NSAMPS * 2 * numChannels * sizeof(float));
 
   tnsUsed = 0;
   pnsUsed = 0;
@@ -2313,6 +2314,7 @@ float* cAacDecoder::decodeFrame (uint8_t* framePtr, int32_t frameLen, int frameN
       // parse SBR extension data if present (contained in a fill element)
       if (decodeSbrBitstream (baseChannelSBR))
         return 0;
+
       applySbr (baseChannelSBR, outBuffer);
       baseChannelSBR += elementChansSBR;
       }
@@ -8695,8 +8697,8 @@ void cAacDecoder::applySbr (int chBase, float* outbuf) {
       int qmfsBands = 32;
       for (int l = 0; l < 32; l++) {
         // step 4 - synthesis QMF
-        QMFSynthesis (psInfoSBR->XBuf[l + HF_ADJ][0], psInfoSBR->delayQMFS[chBase + ch], &(psInfoSBR->delayIdxQMFS[chBase + ch]),
-                      qmfsBands, outptr, numChannels);
+        QMFSynthesis (psInfoSBR->XBuf[l + HF_ADJ][0], psInfoSBR->delayQMFS[chBase + ch], 
+                      &(psInfoSBR->delayIdxQMFS[chBase + ch]), qmfsBands, outptr, numChannels);
         outptr += 64 * numChannels;
         }
       }

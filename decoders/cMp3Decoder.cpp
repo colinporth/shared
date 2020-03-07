@@ -1445,8 +1445,8 @@ void changeSignL3 (float* granuleBuffer) {
   void synthGranule (float* qmfState, float* granuleBuffer, int32_t numBands, int32_t numChannels,
                      int16_t* pcm, float* lins) {
 
-    for (int32_t chan = 0; chan < numChannels; chan++)
-      dctII (granuleBuffer + 576 * chan, numBands);
+    for (int32_t channel = 0; channel < numChannels; channel++)
+      dctII (granuleBuffer + 576 * channel, numBands);
 
     memcpy (lins, qmfState, sizeof(float) * 15 * 64);
 
@@ -1644,8 +1644,8 @@ void changeSignL3 (float* granuleBuffer) {
   void synthGranule (float* qmfState, float* granuleBuffer, int32_t numBands, int32_t numChannels,
                      float* pcm, float* lins) {
 
-    for (int32_t chan = 0; chan < numChannels; chan++)
-      dctII (granuleBuffer + 576 * chan, numBands);
+    for (int32_t channel = 0; channel < numChannels; chan++)
+      dctII (granuleBuffer + 576 * channel, numBands);
 
     memcpy (lins, qmfState, sizeof(float) * 15 * 64);
 
