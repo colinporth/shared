@@ -1624,12 +1624,12 @@ cMp3Decoder::cMp3Decoder() {
   }
 //}}}
 //{{{
-float* cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, int frameNum) {
+float* cMp3Decoder::decodeFrame (uint8_t* framePtr, int32_t frameLen, int frameNum) {
 
   auto timePoint = std::chrono::system_clock::now();
 
-  memcpy (mHeader, inBuffer, HDR_SIZE);
-  cBitStream frameBitStream (inBuffer + HDR_SIZE, bytesLeft - HDR_SIZE);
+  memcpy (mHeader, framePtr, HDR_SIZE);
+  cBitStream frameBitStream (framePtr + HDR_SIZE, frameLen - HDR_SIZE);
 
   int32_t layer = 4 - HDR_GET_LAYER (mHeader);
   int32_t bitrate_kbps = headerBitrate (mHeader);
@@ -1736,7 +1736,7 @@ float* cMp3Decoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, int frame
 
     auto took = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - timePoint);
     cLog::log (mNumSamples ? LOGINFO1 : LOGERROR, "mp3:%d %4d:%3dk %dx%d@%dhz %3d %3dus",
-               layer, bytesLeft, bitrate_kbps, mNumSamples, mNumChannels, mSampleRate, mSavedReservoirBytes, took.count());
+               layer, frameLen, bitrate_kbps, mNumSamples, mNumChannels, mSampleRate, mSavedReservoirBytes, took.count());
     return outBuffer;
     }
   else

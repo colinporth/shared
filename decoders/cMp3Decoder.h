@@ -113,7 +113,7 @@ public:
   int32_t getSampleRate() { return mSampleRate; }
   int32_t getNumSamples() { return mNumSamples; }
 
-  float* decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, int frameNum);
+  float* decodeFrame (uint8_t* framePtr, int32_t frameLen, int frameNum);
 
 private:
   // private members

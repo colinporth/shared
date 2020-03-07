@@ -2253,7 +2253,7 @@ cAacDecoder::~cAacDecoder() {
 //}}}
 
 //{{{
-float* cAacDecoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, int frameNum) {
+float* cAacDecoder::decodeFrame (uint8_t* framePtr, int32_t frameLen, int frameNum) {
 
   auto timePoint = std::chrono::system_clock::now();
   numChannels = 0;
@@ -2265,8 +2265,8 @@ float* cAacDecoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, int frame
   mLastFrameNum = frameNum;
 
   int bitOffset = 0;
-  int bitsAvail = bytesLeft << 3;
-  if (unpackADTSHeader (&inBuffer, &bitOffset, &bitsAvail))
+  int bitsAvail = frameLen << 3;
+  if (unpackADTSHeader (&framePtr, &bitOffset, &bitsAvail))
     return nullptr;
   if ((numChannels > AAC_MAX_NCHANS) || (numChannels <= 0))
     return nullptr;
@@ -2280,12 +2280,12 @@ float* cAacDecoder::decodeFrame (uint8_t* inBuffer, int32_t bytesLeft, int frame
   int baseChannelSBR = 0;
   do {
     // parse next syntactic element
-    if (decodeNextElement (&inBuffer, &bitOffset, &bitsAvail))
+    if (decodeNextElement (&framePtr, &bitOffset, &bitsAvail))
       return 0;
     if (baseChannel + elementNumChans[currBlockID] > AAC_MAX_NCHANS)
       return 0;
     for (int channel = 0; channel < elementNumChans[currBlockID]; channel++) {
-      decodeNoiselessData (&inBuffer, &bitOffset, &bitsAvail, channel);
+      decodeNoiselessData (&framePtr, &bitOffset, &bitsAvail, channel);
       dequantize (channel);
       }
 
