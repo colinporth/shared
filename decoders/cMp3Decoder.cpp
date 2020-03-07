@@ -1653,6 +1653,8 @@ float* cMp3Decoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int 
 
   memcpy (mHeader, framePtr, HDR_SIZE);
   cBitStream frameBitStream (framePtr + HDR_SIZE, frameLen - HDR_SIZE);
+  if (HDR_IS_CRC (mHeader))
+    frameBitStream.getBits (16);
 
   int32_t layer = 4 - HDR_GET_LAYER (mHeader);
   int32_t bitrate_kbps = headerBitrate (mHeader);
@@ -1660,9 +1662,6 @@ float* cMp3Decoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int 
   mNumChannels = HDR_IS_MONO (mHeader) ? 1 : 2;
   mSampleRate = headerSampleRate (mHeader);
   mNumSamples = headerFrameSamples (mHeader);
-
-  if (HDR_IS_CRC (mHeader))
-    frameBitStream.getBits (16);
 
   float* outBuffer = nullptr;
   bool jumped = false;
