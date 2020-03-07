@@ -749,8 +749,8 @@ void reorderL3 (float* granuleBuffer, float* scratch, const uint8_t* sfb) {
         si[7 - 2*i] = granuleBuffer[4*i + 4] - granuleBuffer[4*i + 3];
         co[2 + 2*i] = -(granuleBuffer[4*i + 3] + granuleBuffer[4*i + 4]);
         }
-      dct3_9 (co);
-      dct3_9 (si);
+      dct39L3 (co);
+      dct39L3 (si);
 
       si[1] = -si[1];
       si[3] = -si[3];
@@ -1237,47 +1237,114 @@ void changeSignL3 (float* granuleBuffer) {
 //}}}
 //}}}
 
-//{{{
-int16_t scalePcm (float sample) {
-
-  if (sample >= 32766.5)
-    return (int16_t) 32767;
-  if (sample <= -32767.5)
-    return (int16_t)-32768;
-
-  // away from zero, to be compliant
-  int16_t s = (int16_t)(sample + .5f);
-  s -= (s < 0);
-
-  return s;
-  }
-//}}}
-//{{{
-void synthPair (int16_t* pcm, int32_t numChannels, const float* z) {
-
-  float a = (z[14*64] - z[0]) * 29;
-  a += (z[1*64] + z[13*64]) * 213;
-  a += (z[12*64] - z[2*64]) * 459;
-  a += (z[3*64] + z[11*64]) * 2037;
-  a += (z[10*64] - z[4*64]) * 5153;
-  a += (z[5*64] + z[9*64]) * 6574;
-  a += (z[8*64] - z[6*64]) * 37489;
-  a +=  z[7*64] * 75038;
-  pcm[0] = scalePcm (a);
-
-  z += 2;
-  a  = z[14*64] * 104;
-  a += z[12*64] * 1567;
-  a += z[10*64] * 9727;
-  a += z[8*64] * 64019;
-  a += z[6*64] * -9975;
-  a += z[4*64] * -45;
-  a += z[2*64] * 146;
-  a += z[0*64] * -5;
-  pcm[16 * numChannels] = scalePcm (a);
-  }
-//}}}
 #ifdef USE_INTRINSICS
+  //{{{
+  int16_t scaleSample (float sample) {
+
+    if (sample >= 32766.5)
+      return (int16_t) 32767;
+    if (sample <= -32767.5)
+      return (int16_t)-32768;
+
+    // away from zero, to be compliant
+    int16_t s = (int16_t)(sample + .5f);
+    s -= (s < 0);
+
+    return s;
+    }
+  //}}}
+  //{{{
+  void synthPair (int16_t* pcm, int32_t numChannels, const float* z) {
+
+    float a = (z[14*64] - z[0]) * 29;
+    a += (z[1*64] + z[13*64]) * 213;
+    a += (z[12*64] - z[2*64]) * 459;
+    a += (z[3*64] + z[11*64]) * 2037;
+    a += (z[10*64] - z[4*64]) * 5153;
+    a += (z[5*64] + z[9*64]) * 6574;
+    a += (z[8*64] - z[6*64]) * 37489;
+    a +=  z[7*64] * 75038;
+    pcm[0] = scaleSample (a);
+
+    z += 2;
+    a  = z[14*64] * 104;
+    a += z[12*64] * 1567;
+    a += z[10*64] * 9727;
+    a += z[8*64] * 64019;
+    a += z[6*64] * -9975;
+    a += z[4*64] * -45;
+    a += z[2*64] * 146;
+    a += z[0*64] * -5;
+    pcm[16 * numChannels] = scaleSample (a);
+    }
+  //}}}
+  //{{{
+  void synth (float* xl, int16_t* dstl, int32_t nch, float* lins) {
+
+    float* xr = xl + 576 * (nch - 1);
+    int16_t* dstr = dstl + (nch - 1);
+
+    float* zlin = lins + 15*64;
+    const float* w = kwin;
+
+    zlin [4*15] = xl[18*16];
+    zlin [4*15 + 1] = xr[18*16];
+    zlin [4*15 + 2] = xl[0];
+    zlin [4*15 + 3] = xr[0];
+
+    zlin [4*31] = xl[1 + 18*16];
+    zlin [4*31 + 1] = xr[1 + 18*16];
+    zlin [4*31 + 2] = xl[1];
+    zlin [4*31 + 3] = xr[1];
+
+    synthPair (dstr, nch, lins + 4*15 + 1);
+    synthPair (dstr + 32*nch, nch, lins + 4*15 + 64 + 1);
+    synthPair (dstl, nch, lins + 4*15);
+    synthPair (dstl + 32*nch, nch, lins + 4*15 + 64);
+
+    for (int32_t i = 14; i >= 0; i--) {
+      zlin [4*i] = xl [18*(31 - i)];
+      zlin [4*i + 1] = xr [18*(31 - i)];
+      zlin [4*i + 2] = xl [1 + 18*(31-i)];
+      zlin [4*i + 3] = xr [1 + 18*(31-i)];
+      zlin [4*i + 64] = xl [1 + 18*(1+i)];
+      zlin [4*i + 64 + 1] = xr [1+18*(1+i)];
+      zlin [4*i - 64 + 2] = xl [18*(1+i)];
+      zlin [4*i - 64 + 3] = xr [18*(1+i)];
+
+      #define VLOAD(k) f4 w0 = VSET (*w++); \
+                       f4 w1 = VSET (*w++); \
+                       f4 vz = VLD (&zlin[4*i - 64*k]); \
+                       f4 vy = VLD (&zlin[4*i - 64*(15-k)]);
+      #define V0(k) { VLOAD (k) \
+                      b = VADD (VMUL (vz, w1), VMUL (vy, w0)); \
+                      a = VSUB (VMUL (vz, w0), VMUL (vy, w1)); }
+      #define V1(k) { VLOAD (k) \
+                      b = VADD (b, VADD (VMUL (vz, w1), VMUL (vy, w0)));  \
+                      a = VADD (a, VSUB (VMUL (vz, w0), VMUL (vy, w1))); }
+      #define V2(k) { VLOAD (k) \
+                      b = VADD (b, VADD (VMUL (vz, w1), VMUL (vy, w0))); \
+                      a = VADD (a, VSUB (VMUL (vy, w1), VMUL (vz, w0))); }
+      f4 a, b;
+      V0(0) V2(1) V1(2) V2(3) V1(4) V2(5) V1(6) V2(7)
+        {
+        __m128i pcm8 = _mm_packs_epi32 (_mm_cvtps_epi32 (_mm_max_ps (_mm_min_ps (a, kMax), kMin)),
+                                        _mm_cvtps_epi32 (_mm_max_ps (_mm_min_ps (b, kMax), kMin)));
+        dstr [(15 - i) * nch] = _mm_extract_epi16 (pcm8, 1);
+        dstr [(17 + i) * nch] = _mm_extract_epi16 (pcm8, 5);
+
+        dstl [(15 - i) * nch] = _mm_extract_epi16 (pcm8, 0);
+        dstl [(17 + i) * nch] = _mm_extract_epi16 (pcm8, 4);
+
+        dstr [(47 - i) * nch] = _mm_extract_epi16 (pcm8, 3);
+        dstr [(49 + i) * nch] = _mm_extract_epi16 (pcm8, 7);
+
+        dstl [(47 - i) * nch] = _mm_extract_epi16 (pcm8, 2);
+        dstl [(49 + i) * nch] = _mm_extract_epi16 (pcm8, 6);
+        }
+      }
+    }
+  //}}}
   //{{{
   void dctII (float* granuleBuffer, int32_t n) {
 
@@ -1375,73 +1442,128 @@ void synthPair (int16_t* pcm, int32_t numChannels, const float* z) {
     }
   //}}}
   //{{{
-  void synth (float* xl, int16_t* dstl, int32_t nch, float* lins) {
+  void synthGranule (float* qmfState, float* granuleBuffer, int32_t numBands, int32_t numChannels,
+                     int16_t* pcm, float* lins) {
 
-    float* xr = xl + 576 * (nch - 1);
-    int16_t* dstr = dstl + (nch - 1);
+    for (int32_t chan = 0; chan < numChannels; chan++)
+      dctII (granuleBuffer + 576 * chan, numBands);
 
-    float* zlin = lins + 15*64;
-    const float* w = kwin;
+    memcpy (lins, qmfState, sizeof(float) * 15 * 64);
 
-    zlin [4*15] = xl[18*16];
-    zlin [4*15 + 1] = xr[18*16];
-    zlin [4*15 + 2] = xl[0];
-    zlin [4*15 + 3] = xr[0];
+    for (int32_t band = 0; band < numBands; band += 2)
+      synth (granuleBuffer + band, pcm + 32 * numChannels * band, numChannels, lins + band * 64);
 
-    zlin [4*31] = xl[1 + 18*16];
-    zlin [4*31 + 1] = xr[1 + 18*16];
-    zlin [4*31 + 2] = xl[1];
-    zlin [4*31 + 3] = xr[1];
-
-    synthPair (dstr, nch, lins + 4*15 + 1);
-    synthPair (dstr + 32*nch, nch, lins + 4*15 + 64 + 1);
-    synthPair (dstl, nch, lins + 4*15);
-    synthPair (dstl + 32*nch, nch, lins + 4*15 + 64);
-
-    for (int32_t i = 14; i >= 0; i--) {
-      zlin [4*i] = xl [18*(31 - i)];
-      zlin [4*i + 1] = xr [18*(31 - i)];
-      zlin [4*i + 2] = xl [1 + 18*(31-i)];
-      zlin [4*i + 3] = xr [1 + 18*(31-i)];
-      zlin [4*i + 64] = xl [1 + 18*(1+i)];
-      zlin [4*i + 64 + 1] = xr [1+18*(1+i)];
-      zlin [4*i - 64 + 2] = xl [18*(1+i)];
-      zlin [4*i - 64 + 3] = xr [18*(1+i)];
-
-      #define VLOAD(k) f4 w0 = VSET (*w++); \
-                       f4 w1 = VSET (*w++); \
-                       f4 vz = VLD (&zlin[4*i - 64*k]); \
-                       f4 vy = VLD (&zlin[4*i - 64*(15-k)]);
-      #define V0(k) { VLOAD (k) \
-                      b = VADD (VMUL (vz, w1), VMUL (vy, w0)); \
-                      a = VSUB (VMUL (vz, w0), VMUL (vy, w1)); }
-      #define V1(k) { VLOAD (k) \
-                      b = VADD (b, VADD (VMUL (vz, w1), VMUL (vy, w0)));  \
-                      a = VADD (a, VSUB (VMUL (vz, w0), VMUL (vy, w1))); }
-      #define V2(k) { VLOAD (k) \
-                      b = VADD (b, VADD (VMUL (vz, w1), VMUL (vy, w0))); \
-                      a = VADD (a, VSUB (VMUL (vy, w1), VMUL (vz, w0))); }
-      f4 a, b;
-      V0(0) V2(1) V1(2) V2(3) V1(4) V2(5) V1(6) V2(7)
-        {
-        __m128i pcm8 = _mm_packs_epi32 (_mm_cvtps_epi32 (_mm_max_ps (_mm_min_ps (a, kMax), kMin)),
-                                        _mm_cvtps_epi32 (_mm_max_ps (_mm_min_ps (b, kMax), kMin)));
-        dstr [(15 - i) * nch] = _mm_extract_epi16 (pcm8, 1);
-        dstr [(17 + i) * nch] = _mm_extract_epi16 (pcm8, 5);
-
-        dstl [(15 - i) * nch] = _mm_extract_epi16 (pcm8, 0);
-        dstl [(17 + i) * nch] = _mm_extract_epi16 (pcm8, 4);
-
-        dstr [(47 - i) * nch] = _mm_extract_epi16 (pcm8, 3);
-        dstr [(49 + i) * nch] = _mm_extract_epi16 (pcm8, 7);
-
-        dstl [(47 - i) * nch] = _mm_extract_epi16 (pcm8, 2);
-        dstl [(49 + i) * nch] = _mm_extract_epi16 (pcm8, 6);
-        }
-      }
+    memcpy (qmfState, lins + numBands * 64, sizeof(float) * 15 * 64);
     }
   //}}}
 #else
+  //{{{
+  void synthPair (float* pcm, int32_t numChannels, const float* z) {
+
+    float a = (z[14*64] - z[0]) * 29;
+    a += (z[1*64] + z[13*64]) * 213;
+    a += (z[12*64] - z[2*64]) * 459;
+    a += (z[3*64] + z[11*64]) * 2037;
+    a += (z[10*64] - z[4*64]) * 5153;
+    a += (z[5*64] + z[9*64]) * 6574;
+    a += (z[8*64] - z[6*64]) * 37489;
+    a +=  z[7*64] * 75038;
+    pcm[0] = a / 0x8000;
+
+    z += 2;
+    a  = z[14*64] * 104;
+    a += z[12*64] * 1567;
+    a += z[10*64] * 9727;
+    a += z[8*64] * 64019;
+    a += z[6*64] * -9975;
+    a += z[4*64] * -45;
+    a += z[2*64] * 146;
+    a += z[0*64] * -5;
+    pcm[16 * numChannels] = a / 0x8000;
+    }
+  //}}}
+  //{{{
+  void synth (float* xl, float* dstl, int32_t numChannels, float* lins) {
+
+    float* xr = xl + 576 * (numChannels - 1);
+    float* dstr = dstl + (numChannels - 1);
+
+    float* zlin = lins + 15 * 64;
+    const float* w = kwin;
+
+    zlin [4*15] = xl[18*16];
+    zlin [4*15 + 1] = xr[18 * 16];
+    zlin [4*15 + 2] = xl[0];
+    zlin [4*15 + 3] = xr[0];
+
+    zlin [4*31] = xl[1 + 18 * 16];
+    zlin [4*31 + 1] = xr[1 + 18 * 16];
+    zlin [4*31 + 2] = xl[1];
+    zlin [4*31 + 3] = xr[1];
+
+    synthPair (dstr, numChannels, lins + 4*15 + 1);
+    synthPair (dstr + 32*numChannels, numChannels, lins + 4*15 + 64 + 1);
+    synthPair (dstl, numChannels, lins + 4*15);
+    synthPair (dstl + 32* numChannels, numChannels, lins + 4*15 + 64);
+
+    for (int32_t i = 14; i >= 0; i--) {
+      zlin[4*i] = xl[18 * (31 - i)];
+      zlin[4*i + 1] = xr[18 * (31 - i)];
+      zlin[4*i + 2] = xl[1 + 18 * (31 - i)];
+      zlin[4*i + 3] = xr[1 + 18 * (31 - i)];
+      zlin[4*(i+16)]   = xl[1 + 18 * (1 + i)];
+      zlin[4*(i+16) + 1] = xr[1 + 18 * (1 + i)];
+      zlin[4*(i-16) + 2] = xl[18 * (1 + i)];
+      zlin[4*(i-16) + 3] = xr[18 * (1 + i)];
+
+      float a[4], b[4];
+      //{{{
+      #define LOAD(k) \
+        float w0 = *w++; \
+        float w1 = *w++; \
+        float* vz = &zlin [4*i - k*64]; \
+        float* vy = &zlin [4*i - (15 - k)*64];
+      //}}}
+      //{{{
+      #define S0(k) { \
+        LOAD(k); \
+        for (int32_t j = 0; j < 4; j++) {       \
+          b[j]  = vz[j]*w1 + vy[j]*w0;  \
+          a[j]  = vz[j]*w0 - vy[j]*w1;  \
+          }                             \
+        }
+      //}}}
+      //{{{
+      #define S1(k) { \
+        LOAD(k); \
+        for (int32_t j = 0; j < 4; j++) {       \
+          b[j] += vz[j]*w1 + vy[j]*w0;  \
+          a[j] += vz[j]*w0 - vy[j]*w1;  \
+          }                             \
+        }
+      //}}}
+      //{{{
+      #define S2(k) { \
+        LOAD(k); \
+        for (int32_t j = 0; j < 4; j++) {       \
+          b[j] += vz[j]*w1 + vy[j]*w0;  \
+          a[j] += vy[j]*w1 - vz[j]*w0;  \
+          }                             \
+        }
+      //}}}
+      S0(0) S2(1) S1(2) S2(3) S1(4) S2(5) S1(6) S2(7)
+
+      dstr[(15 - i) * numChannels] = a[1] / 0x8000;
+      dstr[(17 + i) * numChannels] = b[1] / 0x8000;
+      dstl[(15 - i) * numChannels] = a[0] / 0x8000;
+      dstl[(17 + i) * numChannels] = b[0] / 0x8000;
+      dstr[(47 - i) * numChannels] = a[3] / 0x8000;
+      dstr[(49 + i) * numChannels] = b[3] / 0x8000;
+      dstl[(47 - i) * numChannels] = a[2] / 0x8000;
+      dstl[(49 + i) * numChannels] = b[2] / 0x8000;
+      }
+    }
+  //}}}
   //{{{
   void dctII (float* granuleBuffer, int32_t n) {
 
@@ -1519,103 +1641,21 @@ void synthPair (int16_t* pcm, int32_t numChannels, const float* z) {
     }
   //}}}
   //{{{
-  void synth (float* xl, int16_t* dstl, int32_t numChannels, float* lins) {
+  void synthGranule (float* qmfState, float* granuleBuffer, int32_t numBands, int32_t numChannels,
+                     float* pcm, float* lins) {
 
-    float* xr = xl + 576 * (numChannels - 1);
-    int16_t* dstr = dstl + (numChannels - 1);
+    for (int32_t chan = 0; chan < numChannels; chan++)
+      dctII (granuleBuffer + 576 * chan, numBands);
 
-    float* zlin = lins + 15 * 64;
-    const float* w = kwin;
+    memcpy (lins, qmfState, sizeof(float) * 15 * 64);
 
-    zlin [4*15] = xl[18*16];
-    zlin [4*15 + 1] = xr[18 * 16];
-    zlin [4*15 + 2] = xl[0];
-    zlin [4*15 + 3] = xr[0];
+    for (int32_t band = 0; band < numBands; band += 2)
+      synth (granuleBuffer + band, pcm + 32 * numChannels * band, numChannels, lins + band * 64);
 
-    zlin [4*31] = xl[1 + 18 * 16];
-    zlin [4*31 + 1] = xr[1 + 18 * 16];
-    zlin [4*31 + 2] = xl[1];
-    zlin [4*31 + 3] = xr[1];
-
-    synth_pair (dstr, numChannels, lins + 4*15 + 1);
-    synth_pair (dstr + 32*numChannels, numChannels, lins + 4*15 + 64 + 1);
-    synth_pair (dstl, numChannels, lins + 4*15);
-    synth_pair (dstl + 32*nch, numChannels, lins + 4*15 + 64);
-
-    for (int32_t i = 14; i >= 0; i--) {
-      zlin[4*i] = xl[18 * (31 - i)];
-      zlin[4*i + 1] = xr[18 * (31 - i)];
-      zlin[4*i + 2] = xl[1 + 18 * (31 - i)];
-      zlin[4*i + 3] = xr[1 + 18 * (31 - i)];
-      zlin[4*(i+16)]   = xl[1 + 18 * (1 + i)];
-      zlin[4*(i+16) + 1] = xr[1 + 18 * (1 + i)];
-      zlin[4*(i-16) + 2] = xl[18 * (1 + i)];
-      zlin[4*(i-16) + 3] = xr[18 * (1 + i)];
-
-      float a[4], b[4];
-      //{{{
-      #define LOAD(k) \
-        float w0 = *w++; \
-        float w1 = *w++; \
-        float* vz = &zlin [4*i - k*64]; \
-        float* vy = &zlin [4*i - (15 - k)*64];
-      //}}}
-      //{{{
-      #define S0(k) { \
-        LOAD(k); \
-        for (int32_t j = 0; j < 4; j++) {       \
-          b[j]  = vz[j]*w1 + vy[j]*w0;  \
-          a[j]  = vz[j]*w0 - vy[j]*w1;  \
-          }                             \
-        }
-      //}}}
-      //{{{
-      #define S1(k) { \
-        LOAD(k); \
-        for (int32_t j = 0; j < 4; j++) {       \
-          b[j] += vz[j]*w1 + vy[j]*w0;  \
-          a[j] += vz[j]*w0 - vy[j]*w1;  \
-          }                             \
-        }
-      //}}}
-      //{{{
-      #define S2(k) { \
-        LOAD(k); \
-        for (int32_t j = 0; j < 4; j++) {       \
-          b[j] += vz[j]*w1 + vy[j]*w0;  \
-          a[j] += vy[j]*w1 - vz[j]*w0;  \
-          }                             \
-        }
-      //}}}
-      S0(0) S2(1) S1(2) S2(3) S1(4) S2(5) S1(6) S2(7)
-
-      dstr[(15 - i) * numChannels] = scale_pcm (a[1]);
-      dstr[(17 + i) * numChannels] = scale_pcm (b[1]);
-      dstl[(15 - i) * numChannels] = scale_pcm (a[0]);
-      dstl[(17 + i) * numChannels] = scale_pcm (b[0]);
-      dstr[(47 - i) * numChannels] = scale_pcm (a[3]);
-      dstr[(49 + i) * numChannels] = scale_pcm (b[3]);
-      dstl[(47 - i) * numChannels] = scale_pcm (a[2]);
-      dstl[(49 + i) * numChannels] = scale_pcm (b[2]);
-      }
+    memcpy (qmfState, lins + numBands * 64, sizeof(float) * 15 * 64);
     }
   //}}}
 #endif
-//{{{
-void synthGranule (float* qmfState, float* granuleBuffer, int32_t numBands, int32_t numChannels,
-                   int16_t* pcm, float* lins) {
-
-  for (int32_t chan = 0; chan < numChannels; chan++)
-    dctII (granuleBuffer + 576 * chan, numBands);
-
-  memcpy (lins, qmfState, sizeof(float) * 15 * 64);
-
-  for (int32_t band = 0; band < numBands; band += 2)
-    synth (granuleBuffer + band, pcm + 32 * numChannels * band, numChannels, lins + band * 64);
-
-  memcpy (qmfState, lins + numBands * 64, sizeof(float) * 15 * 64);
-  }
-//}}}
 
 // public members
 //{{{
@@ -1641,9 +1681,7 @@ float* cMp3Decoder::decodeFrame (uint8_t* framePtr, int32_t frameLen, int frameN
   if (HDR_IS_CRC (mHeader))
     frameBitStream.getBits (16);
 
-  // allocate 16bit sample buffer, convert to float later
-  int16_t samples16 [2048*2];
-
+  float* outBuffer = nullptr;
   bool jumped = false;
   if (layer == 3) {
     //{{{  layer 3 decode
@@ -1657,8 +1695,14 @@ float* cMp3Decoder::decodeFrame (uint8_t* framePtr, int32_t frameLen, int frameN
       }
 
     else if (restoreReservoir (&frameBitStream, needReservoirBytes)) {
-      // use bitStream from reservoir + remainder frameBitStream
-      int16_t* pcm = samples16;
+      outBuffer = (float*)malloc (mNumSamples * mNumChannels * sizeof(float));
+      #ifdef USE_INTRINSICS
+        int16_t samples16 [2048*2];
+        int16_t* pcm = samples16;
+      #else
+        float* pcm = outBuffer;
+      #endif
+
       for (int32_t granuleIndex = 0; granuleIndex < (HDR_TEST_MPEG1 (mHeader) ? 2 : 1); granuleIndex++) {
         struct sGranule* granule = mGranules + (granuleIndex * mNumChannels);
         memset (mGranuleBuffer[0], 0, 576 * 2 * sizeof(float));
@@ -1689,6 +1733,13 @@ float* cMp3Decoder::decodeFrame (uint8_t* framePtr, int32_t frameLen, int frameN
         synthGranule (mQmfState, mGranuleBuffer[0], 18, mNumChannels, pcm, mSyn[0]);
         pcm += 576 * mNumChannels;
         }
+
+      #ifdef USE_INTRINSICS
+        float* dstPtr = outBuffer;
+        int16_t* srcPtr = samples16;
+        for (int32_t sample = 0; sample < mNumSamples * mNumChannels; sample++)
+          *dstPtr++ = *srcPtr++ / (float)0x8000;
+      #endif
       }
 
     else // not enough bytes in reservoir to decode
@@ -1702,10 +1753,17 @@ float* cMp3Decoder::decodeFrame (uint8_t* framePtr, int32_t frameLen, int frameN
     //}}}
   else {
     //{{{  layer 12 decode
+    outBuffer = (float*)malloc (mNumSamples * 4 * mNumChannels);
+    #ifdef USE_INTRINSICS
+      int16_t samples16 [2048*2];
+      int16_t* pcm = samples16;
+    #else
+      float* pcm = outBuffer;
+    #endif
+
     sScaleInfo scaleInfo;
     readScaleInfoL12 (mHeader, &frameBitStream, &scaleInfo);
 
-    int16_t* pcm = samples16;
     memset (mGranuleBuffer[0], 0, 576 * 2 * sizeof(float));
     for (int32_t i = 0, granuleIndex = 0; granuleIndex < 3; granuleIndex++) {
       if (12 == (i += dequantizeGranuleL12 (&frameBitStream, mGranuleBuffer[0] + i, &scaleInfo, layer | 1))) {
@@ -1719,28 +1777,27 @@ float* cMp3Decoder::decodeFrame (uint8_t* framePtr, int32_t frameLen, int frameN
       if (frameBitStream.getPosition() > frameBitStream.getLimit()) {
         cLog::log (LOGERROR, "mp3 decode layer 12 failed");
         mNumSamples = 0;
+        free (outBuffer);
         return nullptr;
         }
       }
+
+    #ifdef USE_INTRINSICS
+      float* dstPtr = outBuffer;
+      int16_t* srcPtr = samples16;
+      for (int32_t sample = 0; sample < mNumSamples * 2; sample++)
+        *dstPtr++ = *srcPtr++ / (float)0x8000;
+    #endif
     }
     //}}}
 
-  if (mNumSamples > 0) {
-    // convert 16bit samples to alloc float*
-    float* outBuffer = (float*)malloc (mNumSamples * 4 * mNumChannels);
-    float* dstPtr = outBuffer;
-
-    int16_t* srcPtr = samples16;
-    for (int32_t sample = 0; sample < mNumSamples * 2; sample++)
-      *dstPtr++ = *srcPtr++ / (float)0x8000;
-
+  if (outBuffer) {
     auto took = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - timePoint);
     cLog::log (mNumSamples ? LOGINFO1 : LOGERROR, "mp3:%d %4d:%3dk %dx%d@%dhz %3d %3dus",
                layer, frameLen, bitrate_kbps, mNumSamples, mNumChannels, mSampleRate, mSavedReservoirBytes, took.count());
-    return outBuffer;
-    }
-  else
-    return nullptr;
+   }
+
+  return outBuffer;
   }
 //}}}
 
