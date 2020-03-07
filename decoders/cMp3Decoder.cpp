@@ -401,21 +401,6 @@ uint32_t headerFrameSamples (const uint8_t* header) {
   return HDR_IS_LAYER_1 (header) ? 384 : (1152 >> (int)HDR_IS_FRAME_576 (header));
   }
 //}}}
-//{{{
-int32_t headerFrameBytes (const uint8_t* header, int32_t free_format_size) {
-
-  int32_t frame_bytes = headerFrameSamples (header) * headerBitrate (header) * 125 / headerSampleRate (header);
-  if (HDR_IS_LAYER_1 (header))
-    frame_bytes &= ~3; // slot align
-
-  return frame_bytes ? frame_bytes : free_format_size;
-  }
-//}}}
-//{{{
-int32_t headerPadding (const uint8_t* header) {
-  return HDR_TEST_PADDING (header) ? (HDR_IS_LAYER_1 (header) ? 4 : 1) : 0;
-  }
-//}}}
 
 //{{{  layer utils
 // layer 12
@@ -1279,10 +1264,10 @@ void changeSignL3 (float* granuleBuffer) {
     }
   //}}}
   //{{{
-  void synth (float* xl, int16_t* dstl, int32_t nch, float* lins) {
+  void synthBand (float* xl, int16_t* dstl, int32_t numChannels, float* lins) {
 
-    float* xr = xl + 576 * (nch - 1);
-    int16_t* dstr = dstl + (nch - 1);
+    float* xr = xl + 576 * (numChannels - 1);
+    int16_t* dstr = dstl + (numChannels - 1);
 
     float* zlin = lins + 15*64;
     const float* w = kwin;
@@ -1297,10 +1282,10 @@ void changeSignL3 (float* granuleBuffer) {
     zlin [4*31 + 2] = xl[1];
     zlin [4*31 + 3] = xr[1];
 
-    synthPair (dstr, nch, lins + 4*15 + 1);
-    synthPair (dstr + 32*nch, nch, lins + 4*15 + 64 + 1);
-    synthPair (dstl, nch, lins + 4*15);
-    synthPair (dstl + 32*nch, nch, lins + 4*15 + 64);
+    synthPair (dstr, numChannels, lins + 4*15 + 1);
+    synthPair (dstr + 32*numChannels, numChannels, lins + 4*15 + 64 + 1);
+    synthPair (dstl, numChannels, lins + 4*15);
+    synthPair (dstl + 32*numChannels, numChannels, lins + 4*15 + 64);
 
     for (int32_t i = 14; i >= 0; i--) {
       zlin [4*i] = xl [18*(31 - i)];
@@ -1330,17 +1315,17 @@ void changeSignL3 (float* granuleBuffer) {
         {
         __m128i pcm8 = _mm_packs_epi32 (_mm_cvtps_epi32 (_mm_max_ps (_mm_min_ps (a, kMax), kMin)),
                                         _mm_cvtps_epi32 (_mm_max_ps (_mm_min_ps (b, kMax), kMin)));
-        dstr [(15 - i) * nch] = _mm_extract_epi16 (pcm8, 1);
-        dstr [(17 + i) * nch] = _mm_extract_epi16 (pcm8, 5);
+        dstr [(15 - i) * numChannels] = _mm_extract_epi16 (pcm8, 1);
+        dstr [(17 + i) * numChannels] = _mm_extract_epi16 (pcm8, 5);
 
-        dstl [(15 - i) * nch] = _mm_extract_epi16 (pcm8, 0);
-        dstl [(17 + i) * nch] = _mm_extract_epi16 (pcm8, 4);
+        dstl [(15 - i) * numChannels] = _mm_extract_epi16 (pcm8, 0);
+        dstl [(17 + i) * numChannels] = _mm_extract_epi16 (pcm8, 4);
 
-        dstr [(47 - i) * nch] = _mm_extract_epi16 (pcm8, 3);
-        dstr [(49 + i) * nch] = _mm_extract_epi16 (pcm8, 7);
+        dstr [(47 - i) * numChannels] = _mm_extract_epi16 (pcm8, 3);
+        dstr [(49 + i) * numChannels] = _mm_extract_epi16 (pcm8, 7);
 
-        dstl [(47 - i) * nch] = _mm_extract_epi16 (pcm8, 2);
-        dstl [(49 + i) * nch] = _mm_extract_epi16 (pcm8, 6);
+        dstl [(47 - i) * numChannels] = _mm_extract_epi16 (pcm8, 2);
+        dstl [(49 + i) * numChannels] = _mm_extract_epi16 (pcm8, 6);
         }
       }
     }
@@ -1442,16 +1427,15 @@ void changeSignL3 (float* granuleBuffer) {
     }
   //}}}
   //{{{
-  void synthGranule (float* qmfState, float* granuleBuffer, int32_t numBands, int32_t numChannels,
-                     int16_t* pcm, float* lins) {
+  void synth (float* qmfState, float* granuleBuf, int32_t numBands, int32_t numChannels, int16_t* pcm, float* lins) {
 
     for (int32_t channel = 0; channel < numChannels; channel++)
-      dctII (granuleBuffer + 576 * channel, numBands);
+      dctII (granuleBuf + 576 * channel, numBands);
 
     memcpy (lins, qmfState, sizeof(float) * 15 * 64);
 
     for (int32_t band = 0; band < numBands; band += 2)
-      synth (granuleBuffer + band, pcm + 32 * numChannels * band, numChannels, lins + band * 64);
+      synthBand (granuleBuf + band, pcm + 32 * numChannels * band, numChannels, lins + band * 64);
 
     memcpy (qmfState, lins + numBands * 64, sizeof(float) * 15 * 64);
     }
@@ -1483,7 +1467,7 @@ void changeSignL3 (float* granuleBuffer) {
     }
   //}}}
   //{{{
-  void synth (float* xl, float* dstl, int32_t numChannels, float* lins) {
+  void synthBand (float* xl, float* dstl, int32_t numChannels, float* lins) {
 
     float* xr = xl + 576 * (numChannels - 1);
     float* dstr = dstl + (numChannels - 1);
@@ -1641,16 +1625,15 @@ void changeSignL3 (float* granuleBuffer) {
     }
   //}}}
   //{{{
-  void synthGranule (float* qmfState, float* granuleBuffer, int32_t numBands, int32_t numChannels,
-                     float* pcm, float* lins) {
+  void synth (float* qmfState, float* granuleBuf, int32_t numBands, int32_t numChannels, float* pcm, float* lins) {
 
     for (int32_t channel = 0; channel < numChannels; chan++)
-      dctII (granuleBuffer + 576 * channel, numBands);
+      dctII (granuleBuf + 576 * channel, numBands);
 
     memcpy (lins, qmfState, sizeof(float) * 15 * 64);
 
     for (int32_t band = 0; band < numBands; band += 2)
-      synth (granuleBuffer + band, pcm + 32 * numChannels * band, numChannels, lins + band * 64);
+      synthBand (granuleBuf + band, pcm + 32 * numChannels * band, numChannels, lins + band * 64);
 
     memcpy (qmfState, lins + numBands * 64, sizeof(float) * 15 * 64);
     }
@@ -1730,7 +1713,7 @@ float* cMp3Decoder::decodeFrame (uint8_t* framePtr, int32_t frameLen, int frameN
           changeSignL3 (mGranuleBuffer[channel]);
           }
 
-        synthGranule (mQmfState, mGranuleBuffer[0], 18, mNumChannels, pcm, mSyn[0]);
+        synth (mQmfState, mGranuleBuffer[0], 18, mNumChannels, pcm, mSyn[0]);
         pcm += 576 * mNumChannels;
         }
 
@@ -1769,7 +1752,7 @@ float* cMp3Decoder::decodeFrame (uint8_t* framePtr, int32_t frameLen, int frameN
       if (12 == (i += dequantizeGranuleL12 (&frameBitStream, mGranuleBuffer[0] + i, &scaleInfo, layer | 1))) {
         i = 0;
         applyScf384L12 (&scaleInfo, scaleInfo.scf + granuleIndex, mGranuleBuffer[0]);
-        synthGranule (mQmfState, mGranuleBuffer[0], 12, mNumChannels, pcm, mSyn[0]);
+        synth (mQmfState, mGranuleBuffer[0], 12, mNumChannels, pcm, mSyn[0]);
         memset (mGranuleBuffer[0], 0, 576*2*sizeof(float));
         pcm += 384 * mNumChannels;
         }
