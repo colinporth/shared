@@ -1672,11 +1672,11 @@ float* cMp3Decoder::decodeFrame (uint8_t* framePtr, int32_t frameLen, int frameN
     int32_t needReservoirBytes = readSideInfoL3 (mHeader, &frameBitStream, mGranules);
 
     if (frameNum && (frameNum != mLastFrameNum + 1)) {
-      // jump, no decode unless reservoirBytesNeeded = 0 ???
+      //{{{  jump, no decode unless reservoirBytesNeeded = 0 ???
       cLog::log (LOGINFO, "mp3 jump %d to %d", mLastFrameNum, frameNum);
       mNumSamples = 0;
       }
-
+      //}}}
     else if (restoreReservoir (&frameBitStream, needReservoirBytes)) {
       outBuffer = (float*)malloc (mNumSamples * mNumChannels * sizeof(float));
       #ifdef USE_INTRINSICS
@@ -1718,13 +1718,14 @@ float* cMp3Decoder::decodeFrame (uint8_t* framePtr, int32_t frameLen, int frameN
         }
 
       #ifdef USE_INTRINSICS
+        //{{{  convert 16bit to 32bit float
         float* dstPtr = outBuffer;
         int16_t* srcPtr = samples16;
         for (int32_t sample = 0; sample < mNumSamples * mNumChannels; sample++)
           *dstPtr++ = *srcPtr++ / (float)0x8000;
+        //}}}
       #endif
       }
-
     else // not enough bytes in reservoir to decode
       mNumSamples = 0;
 
