@@ -2253,7 +2253,7 @@ cAacDecoder::~cAacDecoder() {
 //}}}
 
 //{{{
-float* cAacDecoder::decodeFrame (uint8_t* framePtr, int32_t frameLen, int frameNum) {
+float* cAacDecoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int frameNum) {
 
   auto timePoint = std::chrono::system_clock::now();
   numChannels = 0;
@@ -2264,9 +2264,10 @@ float* cAacDecoder::decodeFrame (uint8_t* framePtr, int32_t frameLen, int frameN
     flush();
   mLastFrameNum = frameNum;
 
+  uint8_t* inPtr = (uint8_t*)framePtr;
   int bitOffset = 0;
   int bitsAvail = frameLen << 3;
-  if (unpackADTSHeader (&framePtr, &bitOffset, &bitsAvail))
+  if (unpackADTSHeader (&inPtr, &bitOffset, &bitsAvail))
     return nullptr;
   if ((numChannels > AAC_MAX_NCHANS) || (numChannels <= 0))
     return nullptr;
@@ -2281,12 +2282,12 @@ float* cAacDecoder::decodeFrame (uint8_t* framePtr, int32_t frameLen, int frameN
   int baseChannelSBR = 0;
   do {
     // parse next syntactic element
-    if (decodeNextElement (&framePtr, &bitOffset, &bitsAvail))
+    if (decodeNextElement (&inPtr, &bitOffset, &bitsAvail))
       return 0;
     if (baseChannel + elementNumChans[currBlockID] > AAC_MAX_NCHANS)
       return 0;
     for (int channel = 0; channel < elementNumChans[currBlockID]; channel++) {
-      decodeNoiselessData (&framePtr, &bitOffset, &bitsAvail, channel);
+      decodeNoiselessData (&inPtr, &bitOffset, &bitsAvail, channel);
       dequantize (channel);
       }
 
@@ -8697,7 +8698,7 @@ void cAacDecoder::applySbr (int chBase, float* outbuf) {
       int qmfsBands = 32;
       for (int l = 0; l < 32; l++) {
         // step 4 - synthesis QMF
-        QMFSynthesis (psInfoSBR->XBuf[l + HF_ADJ][0], psInfoSBR->delayQMFS[chBase + ch], 
+        QMFSynthesis (psInfoSBR->XBuf[l + HF_ADJ][0], psInfoSBR->delayQMFS[chBase + ch],
                       &(psInfoSBR->delayIdxQMFS[chBase + ch]), qmfsBands, outptr, numChannels);
         outptr += 64 * numChannels;
         }

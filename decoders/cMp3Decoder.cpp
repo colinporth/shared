@@ -1331,13 +1331,13 @@ void changeSignL3 (float* granuleBuffer) {
     }
   //}}}
   //{{{
-  void dctII (float* granuleBuffer, int32_t n) {
+  void dctII (float* granuleBuf, int32_t n) {
 
     for (int32_t k = 0; k < n; k += 4) {
       f4 t[4][8];
 
       f4* x = t[0];
-      float* y = granuleBuffer + k;
+      float* y = granuleBuf + k;
       for (int32_t i = 0; i < 8; i++, x++) {
         f4 x0 = VLD (&y[i*18]);
         f4 x1 = VLD (&y[(15 - i)*18]);
@@ -1549,11 +1549,11 @@ void changeSignL3 (float* granuleBuffer) {
     }
   //}}}
   //{{{
-  void dctII (float* granuleBuffer, int32_t n) {
+  void dctII (float* granuleBuf, int32_t n) {
 
     for (int32_t k = 0; k < n; k++) {
       float t[4][8];
-      float* y = granuleBuffer + k;
+      float* y = granuleBuf + k;
       float* x = t[0];
       for (int32_t i = 0; i < 8; i++, x++) {
         float x0 = y[i*18];
@@ -1647,7 +1647,7 @@ cMp3Decoder::cMp3Decoder() {
   }
 //}}}
 //{{{
-float* cMp3Decoder::decodeFrame (uint8_t* framePtr, int32_t frameLen, int frameNum) {
+float* cMp3Decoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int frameNum) {
 
   auto timePoint = std::chrono::system_clock::now();
 
@@ -1688,32 +1688,32 @@ float* cMp3Decoder::decodeFrame (uint8_t* framePtr, int32_t frameLen, int frameN
 
       for (int32_t granuleIndex = 0; granuleIndex < (HDR_TEST_MPEG1 (mHeader) ? 2 : 1); granuleIndex++) {
         struct sGranule* granule = mGranules + (granuleIndex * mNumChannels);
-        memset (mGranuleBuffer[0], 0, 576 * 2 * sizeof(float));
+        memset (mGranuleBuf[0], 0, 576 * 2 * sizeof(float));
         for (int32_t channel = 0; channel < mNumChannels; channel++) {
           int32_t layer3gr_limit = mBitStream.getPosition() + granule[channel].part23length;
           decodeScaleFactorsL3 (mHeader, mIstPos[channel], &mBitStream, granule + channel, mScf, channel);
-          huffmanL3 (&mBitStream, mGranuleBuffer[channel], granule + channel, mScf, layer3gr_limit);
+          huffmanL3 (&mBitStream, mGranuleBuf[channel], granule + channel, mScf, layer3gr_limit);
           }
 
         if (HDR_TEST_I_STEREO (mHeader))
-          intensityStereoL3 (mGranuleBuffer[0], mIstPos[1], granule, mHeader);
+          intensityStereoL3 (mGranuleBuf[0], mIstPos[1], granule, mHeader);
         else if (HDR_IS_MS_STEREO (mHeader))
-          midsideStereoL3 (mGranuleBuffer[0], 576);
+          midsideStereoL3 (mGranuleBuf[0], 576);
 
         for (int32_t channel = 0; channel < mNumChannels; channel++, granule++) {
           int32_t aaBands = 31;
           int32_t numLongBands = (granule->mixedBlockFlag ? 2 : 0) << (int)(HDR_GET_MY_SAMPLE_RATE (mHeader) == 2);
           if (granule->numShortSfb) {
             aaBands = numLongBands - 1;
-            reorderL3 (mGranuleBuffer[channel] + numLongBands * 18, mSyn[0], granule->sfbtab + granule->numLongSfb);
+            reorderL3 (mGranuleBuf[channel] + numLongBands * 18, mSyn[0], granule->sfbtab + granule->numLongSfb);
             }
 
-          antialiasL3 (mGranuleBuffer[channel], aaBands);
-          imdctGranuleL3 (mGranuleBuffer[channel], mMdctOverlap[channel], granule->blockType, numLongBands);
-          changeSignL3 (mGranuleBuffer[channel]);
+          antialiasL3 (mGranuleBuf[channel], aaBands);
+          imdctGranuleL3 (mGranuleBuf[channel], mMdctOverlap[channel], granule->blockType, numLongBands);
+          changeSignL3 (mGranuleBuf[channel]);
           }
 
-        synth (mQmfState, mGranuleBuffer[0], 18, mNumChannels, pcm, mSyn[0]);
+        synth (mQmfState, mGranuleBuf[0], 18, mNumChannels, pcm, mSyn[0]);
         pcm += 576 * mNumChannels;
         }
 
@@ -1748,13 +1748,13 @@ float* cMp3Decoder::decodeFrame (uint8_t* framePtr, int32_t frameLen, int frameN
     sScaleInfo scaleInfo;
     readScaleInfoL12 (mHeader, &frameBitStream, &scaleInfo);
 
-    memset (mGranuleBuffer[0], 0, 576 * 2 * sizeof(float));
+    memset (mGranuleBuf[0], 0, 576 * 2 * sizeof(float));
     for (int32_t i = 0, granuleIndex = 0; granuleIndex < 3; granuleIndex++) {
-      if (12 == (i += dequantizeGranuleL12 (&frameBitStream, mGranuleBuffer[0] + i, &scaleInfo, layer | 1))) {
+      if (12 == (i += dequantizeGranuleL12 (&frameBitStream, mGranuleBuf[0] + i, &scaleInfo, layer | 1))) {
         i = 0;
-        applyScf384L12 (&scaleInfo, scaleInfo.scf + granuleIndex, mGranuleBuffer[0]);
-        synth (mQmfState, mGranuleBuffer[0], 12, mNumChannels, pcm, mSyn[0]);
-        memset (mGranuleBuffer[0], 0, 576*2*sizeof(float));
+        applyScf384L12 (&scaleInfo, scaleInfo.scf + granuleIndex, mGranuleBuf[0]);
+        synth (mQmfState, mGranuleBuf[0], 12, mNumChannels, pcm, mSyn[0]);
+        memset (mGranuleBuf[0], 0, 576*2*sizeof(float));
         pcm += 384 * mNumChannels;
         }
 
@@ -1790,7 +1790,7 @@ float* cMp3Decoder::decodeFrame (uint8_t* framePtr, int32_t frameLen, int frameN
 void cMp3Decoder::clear() {
 
   mSavedReservoirBytes = 0;
-  memset (mReservoirBuffer, 0, sizeof (mReservoirBuffer[511]));
+  memset (mReservoirBuf, 0, sizeof (mReservoirBuf[511]));
   memset (mMdctOverlap, 0, sizeof (mMdctOverlap));
   memset (mQmfState, 0, sizeof (mQmfState));
   };
@@ -1802,7 +1802,7 @@ void cMp3Decoder::saveReservoir() {
 
   int32_t bytePosition = (mBitStream.getPosition() + 7) / 8u;
   mSavedReservoirBytes = (mBitStream.getLimit() / 8u) - bytePosition;
-  memmove (mReservoirBuffer, mReservoirBuffer + bytePosition, mSavedReservoirBytes);
+  memmove (mReservoirBuf, mReservoirBuf + bytePosition, mSavedReservoirBytes);
 
   cLog::log (LOGINFO2, "saveReservoir bytes:%d", mSavedReservoirBytes);
   }
@@ -1815,12 +1815,12 @@ bool cMp3Decoder::restoreReservoir (cBitStream* frameBitStream, int32_t needRese
 
   // lose any extra leading reservoir bytes, rares case only after jumps
   if (mSavedReservoirBytes > needReservoirBytes)
-    memcpy (mReservoirBuffer, mReservoirBuffer + (mSavedReservoirBytes - needReservoirBytes), bytesHave);
+    memcpy (mReservoirBuf, mReservoirBuf + (mSavedReservoirBytes - needReservoirBytes), bytesHave);
 
   // copy remainder of frameBitStream to reservoir, main bitStream uses all the valid reservoir
   int32_t frameBytes = (frameBitStream->getLimit() - frameBitStream->getPosition()) / 8;
-  memcpy (mReservoirBuffer + bytesHave, frameBitStream->getBuffer() + (frameBitStream->getPosition()/8), frameBytes);
-  mBitStream.bitStreamInit (mReservoirBuffer, bytesHave + frameBytes);
+  memcpy (mReservoirBuf + bytesHave, frameBitStream->getBuffer() + (frameBitStream->getPosition()/8), frameBytes);
+  mBitStream.bitStreamInit (mReservoirBuf, bytesHave + frameBytes);
 
   bool ok = mSavedReservoirBytes >= needReservoirBytes;
   cLog::log (ok ? LOGINFO2 : LOGERROR, "restoreReservoir need:%d have:%d frame:%d has %s",

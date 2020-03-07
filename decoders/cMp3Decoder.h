@@ -113,7 +113,7 @@ public:
   int32_t getSampleRate() { return mSampleRate; }
   int32_t getNumSamples() { return mNumSamples; }
 
-  float* decodeFrame (uint8_t* framePtr, int32_t frameLen, int frameNum);
+  float* decodeFrame (const uint8_t* framePtr, int32_t frameLen, int frameNum);
 
 private:
   // private members
@@ -127,7 +127,7 @@ private:
   int32_t mNumSamples = 0;
 
   struct sGranule mGranules [4];
-  float mGranuleBuffer [2][576];
+  float mGranuleBuf [2][576];
 
   float mQmfState [15*2*32];
   float mMdctOverlap [2][9*32];
@@ -140,7 +140,7 @@ private:
 
   cBitStream mBitStream;
   int32_t mSavedReservoirBytes = 0;
-  uint8_t mReservoirBuffer [MAX_BITRESERVOIR_BYTES + MAX_L3_FRAME_PAYLOAD_BYTES];
+  uint8_t mReservoirBuf [MAX_BITRESERVOIR_BYTES + MAX_L3_FRAME_PAYLOAD_BYTES];
 
   int mLastFrameNum = -1;
   };
