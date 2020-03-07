@@ -40,32 +40,6 @@
 #define MAX_SCFI                    ((MAX_SCF + 3) & ~3)
 //}}}
 
-#define USE_INTRINSICS
-#ifdef USE_INTRINSICS
-  //{{{  intrinsics
-  #include <intrin.h>
-  #include <immintrin.h>
-
-  #define VSTORE  _mm_storeu_ps
-  #define VLD     _mm_loadu_ps
-  #define VSET    _mm_set1_ps
-  #define VADD    _mm_add_ps
-  #define VSUB    _mm_sub_ps
-  #define VMUL    _mm_mul_ps
-
-  #define VMAC(a, x, y)  _mm_add_ps (a, _mm_mul_ps(x, y))
-  #define VMSB(a, x, y)  _mm_sub_ps (a, _mm_mul_ps(x, y))
-  #define VMUL_S(x, s)   _mm_mul_ps (x, _mm_set1_ps(s))
-
-  #define VREV(x) _mm_shuffle_ps (x, x, _MM_SHUFFLE(0, 1, 2, 3))
-
-  typedef __m128 f4;
-
-  static const f4 kMax = {  32767.0f,  32767.0f,  32767.0f,  32767.0f };
-  static const f4 kMin = { -32768.0f, -32768.0f, -32768.0f, -32768.0f };
-  //}}}
-#endif
-
 //{{{
 struct sScaleInfo {
   float scf [3*64];
@@ -385,7 +359,6 @@ static const float kwin[] = {
 //}}}
 //}}}
 
-// header
 //{{{
 uint32_t headerBitrate (const uint8_t* header) {
   return 2 * kHalfRate [!!HDR_TEST_MPEG1 (header)] [HDR_GET_LAYER (header) - 1] [HDR_GET_BITRATE (header)];
@@ -405,48 +378,6 @@ uint32_t headerFrameSamples (const uint8_t* header) {
 //{{{  layer utils
 // layer 12
 //{{{
-const struct sSubBandAlloc* subBandAllocTableL12 (const uint8_t* header, struct sScaleInfo* scaleInfo) {
-
-  int32_t mode = HDR_GET_STEREO_MODE (header);
-  int32_t stereoBands = (mode == MODE_MONO) ?
-                           0 : (mode == MODE_JOINT_STEREO) ?
-                             (HDR_GET_STEREO_MODE_EXT(header) << 2) + 4 : 32;
-
-  int32_t numBands;
-  const struct sSubBandAlloc* alloc;
-  if (HDR_IS_LAYER_1 (header)) {
-    numBands = 32;
-    alloc = kalloc_L1;
-    }
-
-  else if (!HDR_TEST_MPEG1 (header)) {
-    numBands = 30;
-    alloc = kalloc_L2M2;
-    }
-
-  else {
-    int32_t sample_rate_idx = HDR_GET_SAMPLE_RATE (header);
-    uint32_t kbps = headerBitrate (header) >> (int)(mode != MODE_MONO);
-    if (!kbps) /* free-format */
-      kbps = 192;
-
-    numBands = 27;
-    alloc = kalloc_L2M1;
-    if (kbps < 56) {
-      alloc = kalloc_L2M1_lowrate;
-      numBands = (sample_rate_idx == 2) ? 12 : 8;
-      }
-    else if ((kbps >= 96) && (sample_rate_idx != 1))
-      numBands = 30;
-    }
-
-  scaleInfo->totalBands = (uint8_t)numBands;
-  scaleInfo->stereoBands = (uint8_t)std::min (stereoBands, numBands);
-
-  return alloc;
-  }
-//}}}
-//{{{
 void readScaleFactorsL12 (cMp3Decoder::cBitStream* bitStream, uint8_t* pba, uint8_t* scfcod, int32_t bands, float* scf) {
 
   for (int32_t i = 0; i < bands; i++) {
@@ -463,11 +394,41 @@ void readScaleFactorsL12 (cMp3Decoder::cBitStream* bitStream, uint8_t* pba, uint
     }
   }
 //}}}
-
 //{{{
 void readScaleInfoL12 (const uint8_t* header, cMp3Decoder::cBitStream* bitStream, struct sScaleInfo* scaleInfo) {
 
-  const struct sSubBandAlloc* subBandAlloc = subBandAllocTableL12 (header, scaleInfo);
+  int32_t mode = HDR_GET_STEREO_MODE (header);
+  int32_t stereoBands = (mode == MODE_MONO) ?
+                           0 : (mode == MODE_JOINT_STEREO) ?
+                             (HDR_GET_STEREO_MODE_EXT(header) << 2) + 4 : 32;
+  int32_t numBands;
+  const struct sSubBandAlloc* subBandAlloc;
+  if (HDR_IS_LAYER_1 (header)) {
+    numBands = 32;
+    subBandAlloc = kalloc_L1;
+    }
+  else if (!HDR_TEST_MPEG1 (header)) {
+    numBands = 30;
+    subBandAlloc = kalloc_L2M2;
+    }
+  else {
+    int32_t sample_rate_idx = HDR_GET_SAMPLE_RATE (header);
+    uint32_t kbps = headerBitrate (header) >> (int)(mode != MODE_MONO);
+    if (!kbps) // free-format
+      kbps = 192;
+
+    numBands = 27;
+    subBandAlloc = kalloc_L2M1;
+    if (kbps < 56) {
+      subBandAlloc = kalloc_L2M1_lowrate;
+      numBands = (sample_rate_idx == 2) ? 12 : 8;
+      }
+    else if ((kbps >= 96) && (sample_rate_idx != 1))
+      numBands = 30;
+    }
+
+  scaleInfo->totalBands = (uint8_t)numBands;
+  scaleInfo->stereoBands = (uint8_t)std::min (stereoBands, numBands);
 
   int32_t k = 0;
   int32_t bitAllocBits = 0;
@@ -524,22 +485,6 @@ int32_t dequantizeGranuleL12 (cMp3Decoder::cBitStream* bitStream, float* granule
     }
 
   return group_size * 4;
-  }
-//}}}
-//{{{
-void applyScf384L12 (sScaleInfo* scaleInfo, const float* scf, float* dst) {
-
-  memcpy (dst + 576 + scaleInfo->stereoBands * 18, dst + scaleInfo->stereoBands * 18,
-          (scaleInfo->totalBands - scaleInfo->stereoBands)*18*sizeof(float));
-
-  for (int32_t i = 0; i < scaleInfo->totalBands; i++) {
-    for (int32_t k = 0; k < 12; k++) {
-      dst[k] *= scf[0];
-      dst[k+576] *= scf[3];
-      }
-    dst += 18;
-    scf += 6;
-    }
   }
 //}}}
 
@@ -1222,7 +1167,30 @@ void changeSignL3 (float* granuleBuffer) {
 //}}}
 //}}}
 
+#define USE_INTRINSICS
 #ifdef USE_INTRINSICS
+  //{{{  intrinsics defines
+  #include <intrin.h>
+  #include <immintrin.h>
+
+  #define VSTORE  _mm_storeu_ps
+  #define VLD     _mm_loadu_ps
+  #define VSET    _mm_set1_ps
+  #define VADD    _mm_add_ps
+  #define VSUB    _mm_sub_ps
+  #define VMUL    _mm_mul_ps
+
+  #define VMAC(a, x, y)  _mm_add_ps (a, _mm_mul_ps(x, y))
+  #define VMSB(a, x, y)  _mm_sub_ps (a, _mm_mul_ps(x, y))
+  #define VMUL_S(x, s)   _mm_mul_ps (x, _mm_set1_ps(s))
+
+  #define VREV(x) _mm_shuffle_ps (x, x, _MM_SHUFFLE(0, 1, 2, 3))
+
+  typedef __m128 f4;
+
+  static const f4 kMax = {  32767.0f,  32767.0f,  32767.0f,  32767.0f };
+  static const f4 kMin = { -32768.0f, -32768.0f, -32768.0f, -32768.0f };
+  //}}}
   //{{{
   int16_t scaleSample (float sample) {
 
@@ -1751,9 +1719,23 @@ float* cMp3Decoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int 
     for (int32_t i = 0, granuleIndex = 0; granuleIndex < 3; granuleIndex++) {
       if (12 == (i += dequantizeGranuleL12 (&frameBitStream, mGranuleBuf[0] + i, &scaleInfo, layer | 1))) {
         i = 0;
-        applyScf384L12 (&scaleInfo, scaleInfo.scf + granuleIndex, mGranuleBuf[0]);
+
+        // appply scf
+        const float* scf = scaleInfo.scf + granuleIndex; 
+        float* dst = mGranuleBuf[0];
+        memcpy (dst + 576 + scaleInfo.stereoBands * 18, dst + scaleInfo.stereoBands * 18,
+                (scaleInfo.totalBands - scaleInfo.stereoBands) * 18 * sizeof(float));
+        for (int32_t j = 0; j < scaleInfo.totalBands; j++) {
+          for (int32_t k = 0; k < 12; k++) {
+            dst[k] *= scf[0];
+            dst[k+576] *= scf[3];
+            }
+          dst += 18;
+          scf += 6;
+          }
+
         synth (mQmfState, mGranuleBuf[0], 12, mNumChannels, pcm, mSyn[0]);
-        memset (mGranuleBuf[0], 0, 576*2*sizeof(float));
+        memset (mGranuleBuf[0], 0, 576 * 2 * sizeof(float));
         pcm += 384 * mNumChannels;
         }
 
@@ -1776,8 +1758,9 @@ float* cMp3Decoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int 
 
   if (outBuffer) {
     auto took = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - timePoint);
-    cLog::log (mNumSamples ? LOGINFO1 : LOGERROR, "mp3:%d %4d:%3dk %dx%d@%dhz %3d %3dus",
-               layer, frameLen, bitrate_kbps, mNumSamples, mNumChannels, mSampleRate, mSavedReservoirBytes, took.count());
+    cLog::log (mNumSamples ? LOGINFO1 : LOGERROR, "mp3:%d %4d:%3dk %dx%d@%dhz rsvr:%3d %3dus",
+               layer, frameLen, bitrate_kbps, mNumSamples, mNumChannels, mSampleRate,
+               mSavedReservoirBytes, took.count());
    }
 
   return outBuffer;
