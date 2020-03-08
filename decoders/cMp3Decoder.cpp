@@ -866,7 +866,7 @@ void decodeScaleFactorsL3 (const uint8_t* header, uint8_t* istPos, cMp3Decoder::
 
   if (gr->numShortSfb) {
     int32_t sh = 3 - scf_shift;
-    for (int i = 0; i < gr->numShortSfb; i += 3) {
+    for (int32_t i = 0; i < gr->numShortSfb; i += 3) {
       iscf [gr->numLongSfb + i] += gr->subBlockGain[0] << sh;
       iscf [gr->numLongSfb + i + 1] += gr->subBlockGain[1] << sh;
       iscf [gr->numLongSfb + i + 2] += gr->subBlockGain[2] << sh;
@@ -1127,7 +1127,7 @@ void imdct12L3 (float* x, float* dst, float* overlap) {
   }
 //}}}
 //{{{
-void imdctShortL3 (float* granuleBuffer, float* overlap, int numBands) {
+void imdctShortL3 (float* granuleBuffer, float* overlap, int32_t numBands) {
 
   for (;numBands > 0; numBands--, overlap += 9, granuleBuffer += 18) {
     float tmp[18];
@@ -1615,7 +1615,7 @@ cMp3Decoder::cMp3Decoder() {
   }
 //}}}
 //{{{
-float* cMp3Decoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int frameNum) {
+float* cMp3Decoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int32_t frameNum) {
 
   auto timePoint = std::chrono::system_clock::now();
 
