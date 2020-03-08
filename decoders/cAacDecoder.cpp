@@ -2216,23 +2216,23 @@ public:
   cBitStream (uint8_t* buf, int32_t numBytes) : mCache(0), mCachedBits(0), mBytePtr(buf), mNumBytes(numBytes) {}
 
   //{{{
-  uint32_t getBits (int32_t nBits) {
+  uint32_t getBits (int32_t numBits) {
   /**************************************************************************************
    * Description: get bits from bitstream, advance bitstream pointer
    * Inputs:      number of bits to get from bitstream
    * Outputs:     updated bitstream info struct
-   * Return:      the next nBits bits of data from bitstream buffer
-   * Notes:       nBits must be in range [0, 31], nBits outside this range masked by 0x1f
+   * Return:      the next numBits of data from bitstream buffer
+   * Notes:       numBits must be in range [0, 31], numBits outside this range masked by 0x1f
    *              for speed, does not indicate error if you overrun bit buffer
-   *              if nBits == 0, returns 0
+   *              if numBits == 0, returns 0
    **************************************************************************************/
 
-    nBits &= 0x1f;                           // nBits mod 32 to avoid unpredictable results like >> by negative amount
+    numBits &= 0x1f;                           // numBits mod 32 to avoid unpredictable results like >> by negative amount
 
-    uint32_t data = mCache >> (31 - nBits);  // unsigned >> so zero-extend
-    data >>= 1;                              // do as >> 31, >> 1 so that nBits = 0 works okay (returns 0)
-    mCache <<= nBits;                        // left-justify cache
-    mCachedBits -= nBits;                    // how many bits have we drawn from the cache so far
+    uint32_t data = mCache >> (31 - numBits);  // unsigned >> so zero-extend
+    data >>= 1;                              // do as >> 31, >> 1 so that numBits = 0 works okay (returns 0)
+    mCache <<= numBits;                        // left-justify cache
+    mCachedBits -= numBits;                    // how many bits have we drawn from the cache so far
 
     // if we cross an int boundary, refill the cache
     if (mCachedBits < 0) {
@@ -2257,22 +2257,22 @@ public:
     }
   //}}}
   //{{{
-  uint32_t getBitsNoAdvance (int32_t nBits) {
+  uint32_t getBitsNoAdvance (int32_t numBits) {
   /**************************************************************************************
    * Description: get bits from bitstream, do not advance bitstream pointer
    * Inputs:      number of bits to get from bitstream
    * Outputs:     none (state of cBitStream struct left unchanged)
-   * Return:      the next nBits bits of data from bitstream buffer
-   * Notes:       nBits must be in range [0, 31], nBits outside this range masked by 0x1f
+   * Return:      the next numBits bits of data from bitstream buffer
+   * Notes:       numBits must be in range [0, 31], numBits outside this range masked by 0x1f
    *              for speed, does not indicate error if you overrun bit buffer
-   *              if nBits == 0, returns 0
+   *              if numBits == 0, returns 0
    **************************************************************************************/
 
-    nBits &= 0x1f;                          // nBits mod 32 to avoid unpredictable results like >> by negative amount
+    numBits &= 0x1f;                          // numBits mod 32 to avoid unpredictable results like >> by negative amount
 
-    uint32_t data = mCache >> (31 - nBits); // unsigned >> so zero-extend
-    data >>= 1;                             // do as >> 31, >> 1 so that nBits = 0 works okay (returns 0)
-    int32_t lowBits = nBits - mCachedBits;  // how many bits do we have left to read
+    uint32_t data = mCache >> (31 - numBits); // unsigned >> so zero-extend
+    data >>= 1;                             // do as >> 31, >> 1 so that numBits = 0 works okay (returns 0)
+    int32_t lowBits = numBits - mCachedBits;  // how many bits do we have left to read
 
     // if we cross an int boundary, read next bytes in buffer
     if (lowBits > 0) {
@@ -2299,11 +2299,11 @@ public:
   //}}}
 
   //{{{
-  void advanceBitstream (int32_t nBits) {
+  void advanceBitstream (int32_t numBits) {
 
-    nBits &= 0x1f;
-    if (nBits > mCachedBits) {
-      nBits -= mCachedBits;
+    numBits &= 0x1f;
+    if (numBits > mCachedBits) {
+      numBits -= mCachedBits;
       // assumes always 4 more bytes
       mCache  = (*mBytePtr++) << 24;
       mCache |= (*mBytePtr++) << 16;
@@ -2313,8 +2313,8 @@ public:
       mNumBytes -= 4;
       }
 
-    mCache <<= nBits;
-    mCachedBits -= nBits;
+    mCache <<= numBits;
+    mCachedBits -= numBits;
     }
   //}}}
   //{{{
@@ -2451,7 +2451,7 @@ float* cAacDecoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int3
 //}}}
 
 // private members
-//{{{  bitstream, huffman, decode utils
+//{{{  huffman, decode utils
 #define APPLY_SIGN(v, s)    {(v) ^= ((signed int)(s) >> 31); (v) -= ((signed int)(s) >> 31);}
 
 #define GET_QUAD_SIGNBITS(v)  (((uint32_t)(v) << 17) >> 29) /* bits 14-12, unsigned */
