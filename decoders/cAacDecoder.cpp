@@ -2216,7 +2216,7 @@ public:
   cBitStream (uint8_t* buf, int32_t numBytes) : mCache(0), mCachedBits(0), mBytePtr(buf), mNumBytes(numBytes) {}
 
   //{{{
-  uint32_t getBits (int32_t numBits) {
+  inline uint32_t getBits (int32_t numBits) {
   /**************************************************************************************
    * Description: get bits from bitstream, advance bitstream pointer
    * Inputs:      number of bits to get from bitstream
@@ -2230,7 +2230,7 @@ public:
     numBits &= 0x1f;                           // numBits mod 32 to avoid unpredictable results like >> by negative amount
 
     uint32_t data = mCache >> (31 - numBits);  // unsigned >> so zero-extend
-    data >>= 1;                              // do as >> 31, >> 1 so that numBits = 0 works okay (returns 0)
+    data >>= 1;                                // do as >> 31, >> 1 so that numBits = 0 works okay (returns 0)
     mCache <<= numBits;                        // left-justify cache
     mCachedBits -= numBits;                    // how many bits have we drawn from the cache so far
 
@@ -2257,7 +2257,7 @@ public:
     }
   //}}}
   //{{{
-  uint32_t getBitsNoAdvance (int32_t numBits) {
+  inline uint32_t getBitsNoAdvance (int32_t numBits) {
   /**************************************************************************************
    * Description: get bits from bitstream, do not advance bitstream pointer
    * Inputs:      number of bits to get from bitstream
@@ -2271,7 +2271,7 @@ public:
     numBits &= 0x1f;                          // numBits mod 32 to avoid unpredictable results like >> by negative amount
 
     uint32_t data = mCache >> (31 - numBits); // unsigned >> so zero-extend
-    data >>= 1;                             // do as >> 31, >> 1 so that numBits = 0 works okay (returns 0)
+    data >>= 1;                               // do as >> 31, >> 1 so that numBits = 0 works okay (returns 0)
     int32_t lowBits = numBits - mCachedBits;  // how many bits do we have left to read
 
     // if we cross an int boundary, read next bytes in buffer
@@ -2292,11 +2292,9 @@ public:
     return data;
     }
   //}}}
-  //{{{
   int32_t getBitsUsed (uint8_t* startBuf, int32_t startOffset) {
     return ((int32_t)(mBytePtr - startBuf) * 8) - mCachedBits - startOffset;
     }
-  //}}}
 
   //{{{
   void advanceBitstream (int32_t numBits) {
@@ -2317,13 +2315,7 @@ public:
     mCachedBits -= numBits;
     }
   //}}}
-  //{{{
-  void byteAlignBitstream() {
-
-    int32_t offset = mCachedBits & 0x07;
-    advanceBitstream (offset);
-    }
-  //}}}
+  void byteAlignBitstream() { advanceBitstream (mCachedBits & 0x07); }
 
 private:
   uint32_t mCache;
