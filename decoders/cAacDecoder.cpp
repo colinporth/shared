@@ -2528,8 +2528,8 @@ static int32_t DecodeOneScaleFactor (cBitStream* bsi) {
 
   int32_t val;
   int32_t nBits = DecodeHuffmanScalar (huffTabScaleFact, &huffTabScaleFactInfo, bitBuf, &val);
-
   bsi->advanceBitstream (nBits);
+
   return val;
   }
 //}}}
@@ -3414,8 +3414,8 @@ bool cAacDecoder::unpackADTSHeader (uint8_t** buf, int32_t* bitOffset, int32_t* 
   if (fhADTS->protectBit == 0)
     fhADTS->crcCheckWord = bsi.getBits (16);
 
-  // byte align
-  bsi.byteAlignBitstream(); // should always be aligned anyway
+  // byte align - should be aligned anyway
+  bsi.byteAlignBitstream(); 
 
   // check validity of header
   if (fhADTS->layer != 0 || fhADTS->profile != AAC_PROFILE_LC ||
