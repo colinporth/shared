@@ -57,7 +57,7 @@ private:
   void imdct (int32_t channel, int32_t chOut, float* outbuf);
   void applySbr (int32_t chBase, float* outbuf);
 
-  bool unpackADTSHeader (uint8_t** buf, int32_t* bitOffset, int32_t* bitsAvail);
+  bool unpackADTSHeader (uint8_t*& buf, int32_t& bitOffset, int32_t& bitsAvail);
   //}}}
   //{{{  private vars
   sPSInfoBase* psInfoBase;

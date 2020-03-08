@@ -2377,7 +2377,7 @@ float* cAacDecoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int3
   uint8_t* inPtr = (uint8_t*)framePtr;
   int32_t bitOffset = 0;
   int32_t bitsAvail = frameLen << 3;
-  if (unpackADTSHeader (&inPtr, &bitOffset, &bitsAvail))
+  if (unpackADTSHeader (inPtr, bitOffset, bitsAvail))
     return nullptr;
   if ((numChannels > AAC_MAX_NCHANS) || (numChannels <= 0))
     return nullptr;
@@ -3374,7 +3374,7 @@ void cAacDecoder::flush() {
   }
 //}}}
 //{{{
-bool cAacDecoder::unpackADTSHeader (uint8_t** buf, int32_t* bitOffset, int32_t* bitsAvail) {
+bool cAacDecoder::unpackADTSHeader (uint8_t*& buf, int32_t& bitOffset, int32_t& bitsAvail) {
  /**************************************************************************************
  * Description: parse the ADTS frame header and initialize decoder state
  * Inputs:      double pointer to buffer with complete ADTS frame header (byte aligned)
@@ -3386,8 +3386,8 @@ bool cAacDecoder::unpackADTSHeader (uint8_t** buf, int32_t* bitOffset, int32_t* 
  * Return:      false if successful
  **************************************************************************************/
 
-  cBitStream bsi (*buf, (*bitsAvail + 7) >> 3);
-  bsi.getBits (*bitOffset);
+  cBitStream bsi (buf, (bitsAvail + 7) >> 3);
+  bsi.getBits (bitOffset);
 
   // verify that first 12 bits of header are syncword
   if (bsi.getBits (12) != 0x0fff)
@@ -3443,12 +3443,12 @@ bool cAacDecoder::unpackADTSHeader (uint8_t** buf, int32_t* bitOffset, int32_t* 
   adtsBlocksLeft = adtsHeader->numRawDataBlocks;
 
   // update bitstream reader
-  int32_t bitsUsed = bsi.getBitsUsed (*buf, *bitOffset);
-  *buf += (bitsUsed + *bitOffset) >> 3;
-  *bitOffset = (bitsUsed + *bitOffset) & 0x07;
-  *bitsAvail -= bitsUsed ;
+  int32_t bitsUsed = bsi.getBitsUsed (buf, bitOffset);
+  buf += (bitsUsed + bitOffset) >> 3;
+  bitOffset = (bitsUsed + bitOffset) & 0x07;
+  bitsAvail -= bitsUsed ;
 
-  return *bitsAvail < 0;
+  return bitsAvail < 0;
   }
 //}}}
 //{{{
