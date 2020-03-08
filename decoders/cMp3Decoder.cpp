@@ -370,7 +370,7 @@ uint32_t headerSampleRate (const uint8_t* header) {
   }
 //}}}
 //{{{
-uint32_t headerFrameSamples (const uint8_t* header) {
+uint32_t headerNumSamples (const uint8_t* header) {
   return HDR_IS_LAYER_1 (header) ? 384 : (1152 >> (int)HDR_IS_FRAME_576 (header));
   }
 //}}}
@@ -1598,12 +1598,12 @@ void changeSignL3 (float* granuleBuffer) {
     for (int32_t channel = 0; channel < numChannels; chan++)
       dctII (granuleBuf + 576 * channel, numBands);
 
-    memcpy (lins, qmfState, sizeof(float) * 15 * 64);
+    memcpy (lins, qmfState, 15 * 64 * sizeof(float));
 
     for (int32_t band = 0; band < numBands; band += 2)
       synthBand (granuleBuf + band, pcm + 32 * numChannels * band, numChannels, lins + band * 64);
 
-    memcpy (qmfState, lins + numBands * 64, sizeof(float) * 15 * 64);
+    memcpy (qmfState, lins + numBands * 64, 15 * 64 * sizeof(float));
     }
   //}}}
 #endif
@@ -1629,10 +1629,10 @@ float* cMp3Decoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int 
 
   mNumChannels = HDR_IS_MONO (mHeader) ? 1 : 2;
   mSampleRate = headerSampleRate (mHeader);
-  mNumSamples = headerFrameSamples (mHeader);
+  mNumSamples = headerNumSamples (mHeader);
 
-  float* outBuffer = nullptr;
   bool jumped = false;
+  float* outBuffer = nullptr;
   if (layer == 3) {
     //{{{  layer 3 decode
     // parse fixed readSideInfo from frameBitStream
@@ -1704,7 +1704,7 @@ float* cMp3Decoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int 
     //}}}
   else {
     //{{{  layer 12 decode
-    outBuffer = (float*)malloc (mNumSamples * 4 * mNumChannels);
+    outBuffer = (float*)malloc (mNumSamples * mNumChannels * sizeof(float));
     #ifdef USE_INTRINSICS
       int16_t samples16 [2048*2];
       int16_t* pcm = samples16;
@@ -1721,7 +1721,7 @@ float* cMp3Decoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int 
         i = 0;
 
         // appply scf
-        const float* scf = scaleInfo.scf + granuleIndex; 
+        const float* scf = scaleInfo.scf + granuleIndex;
         float* dst = mGranuleBuf[0];
         memcpy (dst + 576 + scaleInfo.stereoBands * 18, dst + scaleInfo.stereoBands * 18,
                 (scaleInfo.totalBands - scaleInfo.stereoBands) * 18 * sizeof(float));
@@ -1805,7 +1805,7 @@ bool cMp3Decoder::restoreReservoir (cBitStream* frameBitStream, int32_t needRese
   mBitStream.bitStreamInit (mReservoirBuf, bytesHave + frameBytes);
 
   bool ok = mSavedReservoirBytes >= needReservoirBytes;
-  cLog::log (ok ? LOGINFO2 : LOGERROR, "restoreReservoir need:%d have:%d frame:%d has %s",
+  cLog::log (ok ? LOGINFO2 : LOGERROR, "restoreReservoir need:%d have:%d frame:%d %s",
              needReservoirBytes, mSavedReservoirBytes, frameBytes,
              mSavedReservoirBytes > needReservoirBytes ? "more" :
                mSavedReservoirBytes < needReservoirBytes ? "less" : "equal");

@@ -3,7 +3,7 @@
 #include "iAudioDecoder.h"
 
 // forward declarations for private data
-struct sBitStream;
+class cBitStream;
 struct sProgConfigElement;
 struct sPSInfoBase;
 struct sPSInfoSBR;
@@ -40,12 +40,12 @@ private:
   //{{{  private members
   void flush();
 
-  void decodeSingleChannelElement (sBitStream* bsi);
-  void decodeChannelPairElement (sBitStream* bsi);
-  void decodeLFEChannelElement (sBitStream* bsi);
-  void decodeDataStreamElement (sBitStream* bsi);
-  void decodeProgramConfigElement (sProgConfigElement* pce, sBitStream* bsi);
-  void decodeFillElement (sBitStream* bsi);
+  void decodeSingleChannelElement (cBitStream* bsi);
+  void decodeChannelPairElement (cBitStream* bsi);
+  void decodeLFEChannelElement (cBitStream* bsi);
+  void decodeDataStreamElement (cBitStream* bsi);
+  void decodeProgramConfigElement (sProgConfigElement* pce, cBitStream* bsi);
+  void decodeFillElement (cBitStream* bsi);
   bool decodeNextElement (uint8_t** buf, int* bitOffset, int* bitsAvail);
   bool decodeSbrBitstream (int chBase);
 
