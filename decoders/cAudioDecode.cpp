@@ -32,7 +32,7 @@ cAudioDecode::~cAudioDecode() {
 //}}}
 
 //{{{
-void cAudioDecode::setFrame (uint8_t* framePtr, int frameLen) {
+void cAudioDecode::setFrame (uint8_t* framePtr, int32_t frameLen) {
 
   mFramePtr = framePtr;
   mFrameLen = frameLen;
@@ -282,7 +282,7 @@ bool cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast) {
   }
 //}}}
 //{{{
-float* cAudioDecode::decodeFrame (int frameNum) {
+float* cAudioDecode::decodeFrame (int32_t frameNum) {
 // decode parser frame to samples using codec context, fixup song samplerate and samplesPerFrame
 
   auto samples = mAudioDecoder->decodeFrame (mFramePtr, mFrameLen, frameNum);
@@ -297,7 +297,7 @@ float* cAudioDecode::decodeFrame (int frameNum) {
 
 // static
 //{{{
-cAudioDecode::eFrameType cAudioDecode::parseSomeFrames (uint8_t* framePtr, uint8_t* frameEnd, int& sampleRate) {
+cAudioDecode::eFrameType cAudioDecode::parseSomeFrames (uint8_t* framePtr, uint8_t* frameEnd, int32_t& sampleRate) {
 // return fameType
 
   eFrameType frameType = eUnknown;
@@ -324,7 +324,7 @@ cAudioDecode::eFrameType cAudioDecode::parseSomeFrames (uint8_t* framePtr, uint8
   }
 //}}}
 //{{{
-cAudioDecode::eFrameType cAudioDecode::parseAllFrames (uint8_t* framePtr, uint8_t* frameEnd, int& sampleRate) {
+cAudioDecode::eFrameType cAudioDecode::parseAllFrames (uint8_t* framePtr, uint8_t* frameEnd, int32_t& sampleRate) {
 // return frameType
 
   eFrameType frameType = eUnknown;

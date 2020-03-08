@@ -2369,7 +2369,7 @@ cAacDecoder::~cAacDecoder() {
 //}}}
 
 //{{{
-float* cAacDecoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int frameNum) {
+float* cAacDecoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int32_t frameNum) {
 
   auto timePoint = std::chrono::system_clock::now();
   numChannels = 0;
@@ -3592,7 +3592,7 @@ void cAacDecoder::decodeDataStreamElement (cBitStream* bsi) {
   }
 //}}}
 //{{{
-void cAacDecoder::decodeProgramConfigElement (sProgConfigElement* pce, cBitStream* bsi) {
+void cAacDecoder::decodeProgramConfigElement (cBitStream* bsi, sProgConfigElement* pce) {
 /**************************************************************************************
  * Description: decode one PCE
  * Inputs:      cBitStream struct pointing to start of PCE (14496-3, table 4.4.2)
@@ -3739,7 +3739,7 @@ bool cAacDecoder::decodeNextElement (uint8_t** buf, int32_t* bitOffset, int32_t*
       decodeDataStreamElement (&bsi);
       break;
     case AAC_ID_PCE:
-      decodeProgramConfigElement (psInfoBase->pce + 0, &bsi);
+      decodeProgramConfigElement (&bsi, psInfoBase->pce + 0);
       break;
     case AAC_ID_FIL:
       decodeFillElement (&bsi);

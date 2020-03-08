@@ -44,7 +44,7 @@ private:
   void decodeChannelPairElement (cBitStream* bsi);
   void decodeLFEChannelElement (cBitStream* bsi);
   void decodeDataStreamElement (cBitStream* bsi);
-  void decodeProgramConfigElement (sProgConfigElement* pce, cBitStream* bsi);
+  void decodeProgramConfigElement (cBitStream* bsi, sProgConfigElement* pce);
   void decodeFillElement (cBitStream* bsi);
   bool decodeNextElement (uint8_t** buf, int32_t* bitOffset, int32_t* bitsAvail);
   bool decodeSbrBitstream (int32_t chBase);
@@ -58,7 +58,6 @@ private:
   void applySbr (int32_t chBase, float* outbuf);
 
   bool unpackADTSHeader (uint8_t** buf, int32_t* bitOffset, int32_t* bitsAvail);
-  bool getADTSChannelMapping (uint8_t* buf, int32_t bitOffset, int32_t bitsAvail);
   //}}}
   //{{{  private vars
   sPSInfoBase* psInfoBase;

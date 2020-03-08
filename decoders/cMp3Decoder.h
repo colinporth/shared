@@ -142,5 +142,5 @@ private:
   int32_t mSavedReservoirBytes = 0;
   uint8_t mReservoirBuf [MAX_BITRESERVOIR_BYTES + MAX_L3_FRAME_PAYLOAD_BYTES];
 
-  int mLastFrameNum = -1;
+  int32_t mLastFrameNum = -1;
   };

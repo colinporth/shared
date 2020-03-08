@@ -12,22 +12,22 @@ public:
 
   // gets
   eFrameType getFrameType() { return mFrameType; }
-  int getNumChannels() { return mNumChannels; }
-  int getSampleRate() { return mSampleRate; }
-  int getNumSamples() { return mNumSamples; }
+  int32_t getNumChannels() { return mNumChannels; }
+  int32_t getSampleRate() { return mSampleRate; }
+  int32_t getNumSamples() { return mNumSamples; }
 
   uint8_t* getFramePtr() { return mFramePtr; }
-  int getFrameLen() { return mFrameLen; }
-  int getNextFrameOffset() { return mFrameLen + mSkip; }
+  int32_t getFrameLen() { return mFrameLen; }
+  int32_t getNextFrameOffset() { return mFrameLen + mSkip; }
 
-  void setFrame (uint8_t* framePtr, int frameLen);
+  void setFrame (uint8_t* framePtr, int32_t frameLen);
 
   bool parseFrame (uint8_t* framePtr, uint8_t* frameLast);
   float* decodeFrame (int frameNum);
 
   // !!!! statics not quite right, picks up eFrameType
-  static eFrameType parseSomeFrames (uint8_t* framePtr, uint8_t* frameLast, int& sampleRate);
-  static eFrameType parseAllFrames (uint8_t* framePtr, uint8_t* frameLast, int& sampleRate);
+  static eFrameType parseSomeFrames (uint8_t* framePtr, uint8_t* frameLast, int32_t& sampleRate);
+  static eFrameType parseAllFrames (uint8_t* framePtr, uint8_t* frameLast, int32_t& sampleRate);
 
   // !!!! not right !!!!
   inline static uint8_t* mJpegPtr = nullptr;
@@ -38,13 +38,13 @@ private:
 
   // vars
   uint8_t* mFramePtr = nullptr;
-  int mFrameLen = 0;
-  int mSkip = 0;
+  int32_t mFrameLen = 0;
+  int32_t mSkip = 0;
 
   eFrameType mFrameType = eUnknown;
-  int mNumChannels = 0;
-  int mSampleRate = 0;
-  int mNumSamples = 0;
+  int32_t mNumChannels = 0;
+  int32_t mSampleRate = 0;
+  int32_t mNumSamples = 0;
 
   iAudioDecoder* mAudioDecoder = nullptr;
   };
