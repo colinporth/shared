@@ -1232,38 +1232,38 @@ void changeSignL3 (float* granuleBuffer) {
     }
   //}}}
   //{{{
-  void synthBand (float* xl, int16_t* dstl, int32_t numChannels, float* lins) {
+  void synthBand (float* xLeft, int16_t* dstLeft, int32_t numChannels, float* lins) {
 
-    float* xr = xl + 576 * (numChannels - 1);
-    int16_t* dstr = dstl + (numChannels - 1);
+    float* xRight = xLeft + 576 * (numChannels - 1);
+    int16_t* dstRight = dstLeft + (numChannels - 1);
 
     float* zlin = lins + 15*64;
     const float* w = kwin;
 
-    zlin [4*15] = xl[18*16];
-    zlin [4*15 + 1] = xr[18*16];
-    zlin [4*15 + 2] = xl[0];
-    zlin [4*15 + 3] = xr[0];
+    zlin [4*15] = xLeft[18*16];
+    zlin [4*15 + 1] = xRight[18*16];
+    zlin [4*15 + 2] = xLeft[0];
+    zlin [4*15 + 3] = xRight[0];
 
-    zlin [4*31] = xl[1 + 18*16];
-    zlin [4*31 + 1] = xr[1 + 18*16];
-    zlin [4*31 + 2] = xl[1];
-    zlin [4*31 + 3] = xr[1];
+    zlin [4*31] = xLeft[1 + 18*16];
+    zlin [4*31 + 1] = xRight[1 + 18*16];
+    zlin [4*31 + 2] = xLeft[1];
+    zlin [4*31 + 3] = xRight[1];
 
-    synthPair (dstr, numChannels, lins + 4*15 + 1);
-    synthPair (dstr + 32*numChannels, numChannels, lins + 4*15 + 64 + 1);
-    synthPair (dstl, numChannels, lins + 4*15);
-    synthPair (dstl + 32*numChannels, numChannels, lins + 4*15 + 64);
+    synthPair (dstRight, numChannels, lins + 4*15 + 1);
+    synthPair (dstRight + 32*numChannels, numChannels, lins + 4*15 + 64 + 1);
+    synthPair (dstLeft, numChannels, lins + 4*15);
+    synthPair (dstLeft + 32*numChannels, numChannels, lins + 4*15 + 64);
 
     for (int32_t i = 14; i >= 0; i--) {
-      zlin [4*i] = xl [18*(31 - i)];
-      zlin [4*i + 1] = xr [18*(31 - i)];
-      zlin [4*i + 2] = xl [1 + 18*(31-i)];
-      zlin [4*i + 3] = xr [1 + 18*(31-i)];
-      zlin [4*i + 64] = xl [1 + 18*(1+i)];
-      zlin [4*i + 64 + 1] = xr [1+18*(1+i)];
-      zlin [4*i - 64 + 2] = xl [18*(1+i)];
-      zlin [4*i - 64 + 3] = xr [18*(1+i)];
+      zlin [4*i] = xLeft[18*(31 - i)];
+      zlin [4*i + 1] = xRight[18*(31 - i)];
+      zlin [4*i + 2] = xLeft[1 + 18*(31-i)];
+      zlin [4*i + 3] = xRight[1 + 18*(31-i)];
+      zlin [4*i + 64] = xLeft[1 + 18*(1+i)];
+      zlin [4*i + 64 + 1] = xRight[1+18*(1+i)];
+      zlin [4*i - 64 + 2] = xLeft[18*(1+i)];
+      zlin [4*i - 64 + 3] = xRight[18*(1+i)];
 
       #define VLOAD(k) f4 w0 = VSET (*w++); \
                        f4 w1 = VSET (*w++); \
@@ -1283,25 +1283,25 @@ void changeSignL3 (float* granuleBuffer) {
         {
         __m128i pcm8 = _mm_packs_epi32 (_mm_cvtps_epi32 (_mm_max_ps (_mm_min_ps (a, kMax), kMin)),
                                         _mm_cvtps_epi32 (_mm_max_ps (_mm_min_ps (b, kMax), kMin)));
-        dstr [(15 - i) * numChannels] = _mm_extract_epi16 (pcm8, 1);
-        dstr [(17 + i) * numChannels] = _mm_extract_epi16 (pcm8, 5);
+        dstRight [(15 - i) * numChannels] = _mm_extract_epi16 (pcm8, 1);
+        dstRight [(17 + i) * numChannels] = _mm_extract_epi16 (pcm8, 5);
 
-        dstl [(15 - i) * numChannels] = _mm_extract_epi16 (pcm8, 0);
-        dstl [(17 + i) * numChannels] = _mm_extract_epi16 (pcm8, 4);
+        dstLeft [(15 - i) * numChannels] = _mm_extract_epi16 (pcm8, 0);
+        dstLeft [(17 + i) * numChannels] = _mm_extract_epi16 (pcm8, 4);
 
-        dstr [(47 - i) * numChannels] = _mm_extract_epi16 (pcm8, 3);
-        dstr [(49 + i) * numChannels] = _mm_extract_epi16 (pcm8, 7);
+        dstRight [(47 - i) * numChannels] = _mm_extract_epi16 (pcm8, 3);
+        dstRight [(49 + i) * numChannels] = _mm_extract_epi16 (pcm8, 7);
 
-        dstl [(47 - i) * numChannels] = _mm_extract_epi16 (pcm8, 2);
-        dstl [(49 + i) * numChannels] = _mm_extract_epi16 (pcm8, 6);
+        dstLeft [(47 - i) * numChannels] = _mm_extract_epi16 (pcm8, 2);
+        dstLeft [(49 + i) * numChannels] = _mm_extract_epi16 (pcm8, 6);
         }
       }
     }
   //}}}
   //{{{
-  void dctII (float* granuleBuf, int32_t n) {
+  void dctII (float* granuleBuf, int32_t numBands) {
 
-    for (int32_t k = 0; k < n; k += 4) {
+    for (int32_t k = 0; k < numBands; k += 4) {
       f4 t[4][8];
 
       f4* x = t[0];
@@ -1365,7 +1365,7 @@ void changeSignL3 (float* granuleBuffer) {
       #define VSAVE2(i, v) _mm_storel_pi ((__m64*)(void*)&y[i*18], v)
       #define VSAVE4(i, v) VSTORE (&y[i*18], v)
 
-      if (k > n - 3) {
+      if (k > numBands - 3) {
         for (int32_t i = 0; i < 7; i++, y += 4*18) {
           f4 s = VADD (t[3][i], t[3][i + 1]);
           VSAVE2 (0, t[0][i]);
@@ -1435,23 +1435,23 @@ void changeSignL3 (float* granuleBuffer) {
     }
   //}}}
   //{{{
-  void synthBand (float* xl, float* dstl, int32_t numChannels, float* lins) {
+  void synthBand (float* xLeft, float* dstLeft, int32_t numChannels, float* lins) {
 
-    float* xr = xl + 576 * (numChannels - 1);
-    float* dstr = dstl + (numChannels - 1);
+    float* xRight = xLeft + 576 * (numChannels - 1);
+    float* dstRight = dstLeft + (numChannels - 1);
 
     float* zlin = lins + 15 * 64;
     const float* w = kwin;
 
-    zlin [4*15] = xl[18*16];
-    zlin [4*15 + 1] = xr[18 * 16];
-    zlin [4*15 + 2] = xl[0];
-    zlin [4*15 + 3] = xr[0];
+    zlin [4*15] = xLeft[18*16];
+    zlin [4*15 + 1] = xRight[18 * 16];
+    zlin [4*15 + 2] = xLeft[0];
+    zlin [4*15 + 3] = xRight[0];
 
     zlin [4*31] = xl[1 + 18 * 16];
-    zlin [4*31 + 1] = xr[1 + 18 * 16];
-    zlin [4*31 + 2] = xl[1];
-    zlin [4*31 + 3] = xr[1];
+    zlin [4*31 + 1] = xRight[1 + 18 * 16];
+    zlin [4*31 + 2] = xLeft[1];
+    zlin [4*31 + 3] = xRight[1];
 
     synthPair (dstr, numChannels, lins + 4*15 + 1);
     synthPair (dstr + 32*numChannels, numChannels, lins + 4*15 + 64 + 1);
@@ -1460,13 +1460,13 @@ void changeSignL3 (float* granuleBuffer) {
 
     for (int32_t i = 14; i >= 0; i--) {
       zlin[4*i] = xl[18 * (31 - i)];
-      zlin[4*i + 1] = xr[18 * (31 - i)];
+      zlin[4*i + 1] = xRight[18 * (31 - i)];
       zlin[4*i + 2] = xl[1 + 18 * (31 - i)];
-      zlin[4*i + 3] = xr[1 + 18 * (31 - i)];
+      zlin[4*i + 3] = xRight[1 + 18 * (31 - i)];
       zlin[4*(i+16)]   = xl[1 + 18 * (1 + i)];
-      zlin[4*(i+16) + 1] = xr[1 + 18 * (1 + i)];
+      zlin[4*(i+16) + 1] = xRight[1 + 18 * (1 + i)];
       zlin[4*(i-16) + 2] = xl[18 * (1 + i)];
-      zlin[4*(i-16) + 3] = xr[18 * (1 + i)];
+      zlin[4*(i-16) + 3] = xRight[18 * (1 + i)];
 
       float a[4], b[4];
       //{{{
@@ -1505,21 +1505,21 @@ void changeSignL3 (float* granuleBuffer) {
       //}}}
       S0(0) S2(1) S1(2) S2(3) S1(4) S2(5) S1(6) S2(7)
 
-      dstr[(15 - i) * numChannels] = a[1] / 0x8000;
-      dstr[(17 + i) * numChannels] = b[1] / 0x8000;
-      dstl[(15 - i) * numChannels] = a[0] / 0x8000;
-      dstl[(17 + i) * numChannels] = b[0] / 0x8000;
-      dstr[(47 - i) * numChannels] = a[3] / 0x8000;
-      dstr[(49 + i) * numChannels] = b[3] / 0x8000;
-      dstl[(47 - i) * numChannels] = a[2] / 0x8000;
-      dstl[(49 + i) * numChannels] = b[2] / 0x8000;
+      dstRight[(15 - i) * numChannels] = a[1] / 0x8000;
+      dstRight[(17 + i) * numChannels] = b[1] / 0x8000;
+      dstLeft[(15 - i) * numChannels] = a[0] / 0x8000;
+      dstLeft[(17 + i) * numChannels] = b[0] / 0x8000;
+      dstRight[(47 - i) * numChannels] = a[3] / 0x8000;
+      dstRight[(49 + i) * numChannels] = b[3] / 0x8000;
+      dstLeft[(47 - i) * numChannels] = a[2] / 0x8000;
+      dstLeft[(49 + i) * numChannels] = b[2] / 0x8000;
       }
     }
   //}}}
   //{{{
-  void dctII (float* granuleBuf, int32_t n) {
+  void dctII (float* granuleBuf, int32_t numBands) {
 
-    for (int32_t k = 0; k < n; k++) {
+    for (int32_t k = 0; k < numBands; k++) {
       float t[4][8];
       float* y = granuleBuf + k;
       float* x = t[0];

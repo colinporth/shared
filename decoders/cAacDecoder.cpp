@@ -280,7 +280,7 @@ struct sProgConfigElement {
 // state info struct for baseline (MPEG-4 LC) decoding
 struct sPSInfoBase {
   // header information
-  ADTSHeader fhADTS;
+  ADTSHeader adtsHeader;
   sProgConfigElement pce [MAX_NUM_PCE_ADIF];
   int32_t dataCount;
   uint8_t dataBuf [DATA_BUF_SIZE];
@@ -489,7 +489,7 @@ typedef union _U64 {
   } U64;
 
 inline int32_t MULSHIFT32 (int32_t x, int32_t y) { return ((int64_t)x * (int64_t)y) >> 32; }
-inline int64_t MADD64 (__int64 sum64, int32_t x, int32_t y) { return sum64 + ((int64_t)x * (int64_t)y); }
+inline int64_t MADD64 (int64_t sum64, int32_t x, int32_t y) { return sum64 + ((int64_t)x * (int64_t)y); }
 //{{{
 inline int32_t FASTABS (int32_t x) {
   int32_t sign = x >> (sizeof(int32_t) * 8 - 1);
@@ -501,14 +501,14 @@ inline int32_t FASTABS (int32_t x) {
 
 //{{{
 #define CLIP_2N(y, n) {            \
-  int32_t sign = (y) >> 31;            \
+  int32_t sign = (y) >> 31;        \
   if (sign != (y) >> (n))          \
     (y) = sign ^ ((1 << (n)) - 1); \
   }
 //}}}
 //{{{
 #define CLIP_2N_SHIFT(y, n) {    \
-  int32_t sign = (y) >> 31;          \
+  int32_t sign = (y) >> 31;      \
   if (sign != (y) >> (30 - (n))) \
     (y) = sign ^ (0x3fffffff);   \
   else                           \
@@ -2213,7 +2213,7 @@ static const int32_t newBWTab [4][4] = {
 //{{{
 class cBitStream {
 public:
-  cBitStream (uint8_t* buf, int32_t numBytes) : mCache(0), mCachedBits(0), mBytePtr(buf), mNumBytes(numBytes) {}
+  cBitStream (uint8_t* buffer, int32_t numBytes) : mCache(0), mCacheBits(0), mBytePtr(buffer), mNumBytes(numBytes) {}
 
   //{{{
   inline uint32_t getBits (int32_t numBits) {
@@ -2232,24 +2232,24 @@ public:
     uint32_t data = mCache >> (31 - numBits);  // unsigned >> so zero-extend
     data >>= 1;                                // do as >> 31, >> 1 so that numBits = 0 works okay (returns 0)
     mCache <<= numBits;                        // left-justify cache
-    mCachedBits -= numBits;                    // how many bits have we drawn from the cache so far
+    mCacheBits -= numBits;                     // how many bits have we drawn from the cache so far
 
     // if we cross an int boundary, refill the cache
-    if (mCachedBits < 0) {
-      uint32_t lowBits = -mCachedBits;
+    if (mCacheBits < 0) {
+      uint32_t lowBits = -mCacheBits;
 
       // assumes always 4 more bytes
       mCache  = (*mBytePtr++) << 24;
       mCache |= (*mBytePtr++) << 16;
       mCache |= (*mBytePtr++) <<  8;
       mCache |= (*mBytePtr++);
-      mCachedBits = 32;
+      mCacheBits = 32;
       mNumBytes -= 4;
 
       // get the low-order bits
       data |= mCache >> (32 - lowBits);
 
-      mCachedBits -= lowBits;  // how many bits have we drawn from the cache so far
+      mCacheBits -= lowBits;  // how many bits have we drawn from the cache so far
       mCache <<= lowBits;      // left-justify cache
       }
 
@@ -2272,7 +2272,7 @@ public:
 
     uint32_t data = mCache >> (31 - numBits); // unsigned >> so zero-extend
     data >>= 1;                               // do as >> 31, >> 1 so that numBits = 0 works okay (returns 0)
-    int32_t lowBits = numBits - mCachedBits;  // how many bits do we have left to read
+    int32_t lowBits = numBits - mCacheBits;   // how many bits do we have left to read
 
     // if we cross an int boundary, read next bytes in buffer
     if (lowBits > 0) {
@@ -2292,34 +2292,36 @@ public:
     return data;
     }
   //}}}
-  int32_t getBitsUsed (uint8_t* startBuf, int32_t startOffset) {
-    return ((int32_t)(mBytePtr - startBuf) * 8) - mCachedBits - startOffset;
+  //{{{
+  int32_t getBitsUsed (uint8_t* startBuffer, int32_t startOffset) {
+    return ((int32_t)(mBytePtr - startBuffer) * 8) - mCacheBits - startOffset;
     }
+  //}}}
 
   //{{{
   void advanceBitstream (int32_t numBits) {
 
     numBits &= 0x1f;
-    if (numBits > mCachedBits) {
-      numBits -= mCachedBits;
+    if (numBits > mCacheBits) {
+      numBits -= mCacheBits;
       // assumes always 4 more bytes
       mCache  = (*mBytePtr++) << 24;
       mCache |= (*mBytePtr++) << 16;
       mCache |= (*mBytePtr++) <<  8;
       mCache |= (*mBytePtr++);
-      mCachedBits = 32;
+      mCacheBits = 32;
       mNumBytes -= 4;
       }
 
     mCache <<= numBits;
-    mCachedBits -= numBits;
+    mCacheBits -= numBits;
     }
   //}}}
-  void byteAlignBitstream() { advanceBitstream (mCachedBits & 0x07); }
+  void byteAlignBitstream() { advanceBitstream (mCacheBits & 0x07); }
 
 private:
   uint32_t mCache;
-  int32_t  mCachedBits;
+  int32_t  mCacheBits;
   uint8_t* mBytePtr;
   int32_t  mNumBytes;
   };
@@ -2444,21 +2446,26 @@ float* cAacDecoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int3
 
 // private members
 //{{{  huffman, decode utils
-#define APPLY_SIGN(v, s)    {(v) ^= ((signed int)(s) >> 31); (v) -= ((signed int)(s) >> 31);}
+//{{{
+#define APPLY_SIGN(v, s)  {    \
+  (v) ^= ((int32_t)(s) >> 31); \
+  (v) -= ((int32_t)(s) >> 31); \
+  }
+//}}}
 
-#define GET_QUAD_SIGNBITS(v)  (((uint32_t)(v) << 17) >> 29) /* bits 14-12, unsigned */
-#define GET_QUAD_W(v)     (((signed int)(v) << 20) >>   29) /* bits 11-9, sign-extend */
-#define GET_QUAD_X(v)     (((signed int)(v) << 23) >>   29) /* bits  8-6, sign-extend */
-#define GET_QUAD_Y(v)     (((signed int)(v) << 26) >>   29) /* bits  5-3, sign-extend */
-#define GET_QUAD_Z(v)     (((signed int)(v) << 29) >>   29) /* bits  2-0, sign-extend */
+#define GET_QUAD_SIGNBITS(v)  (((uint32_t)(v) << 17) >> 29) // bits 14-12, unsigned
+#define GET_QUAD_W(v)  (((int32_t)(v) << 20) >>   29) // bits 11-9, sign-extend
+#define GET_QUAD_X(v)  (((int32_t)(v) << 23) >>   29) // bits  8-6, sign-extend
+#define GET_QUAD_Y(v)  (((int32_t)(v) << 26) >>   29) // bits  5-3, sign-extend
+#define GET_QUAD_Z(v)  (((int32_t)(v) << 29) >>   29) // bits  2-0, sign-extend
 
-#define GET_PAIR_SIGNBITS(v)  (((uint32_t)(v) << 20) >> 30) /* bits 11-10, unsigned */
-#define GET_PAIR_Y(v)     (((signed int)(v) << 22) >>   27) /* bits  9-5, sign-extend */
-#define GET_PAIR_Z(v)     (((signed int)(v) << 27) >>   27) /* bits  4-0, sign-extend */
+#define GET_PAIR_SIGNBITS(v)  (((uint32_t)(v) << 20) >> 30) // bits 11-10, unsigned
+#define GET_PAIR_Y(v)  (((int32_t)(v) << 22) >>   27) // bits  9-5, sign-extend
+#define GET_PAIR_Z(v)  (((int32_t)(v) << 27) >>   27) // bits  4-0, sign-extend
 
-#define GET_ESC_SIGNBITS(v)   (((uint32_t)(v) << 18) >> 30) /* bits 13-12, unsigned */
-#define GET_ESC_Y(v)      (((signed int)(v) << 20) >>   26) /* bits 11-6, sign-extend */
-#define GET_ESC_Z(v)      (((signed int)(v) << 26) >>   26) /* bits  5-0, sign-extend */
+#define GET_ESC_SIGNBITS(v)  (((uint32_t)(v) << 18) >> 30) // bits 13-12, unsigned
+#define GET_ESC_Y(v)  (((int32_t)(v) << 20) >>   26) // bits 11-6, sign-extend
+#define GET_ESC_Z(v)  (((int32_t)(v) << 26) >>   26) // bits  5-0, sign-extend
 
 //{{{
 static int32_t DecodeHuffmanScalar (const int16_t* huffTab, const HuffInfo* huffTabInfo, uint32_t bitBuf, int32_t* val) {
@@ -2489,7 +2496,7 @@ static int32_t DecodeHuffmanScalar (const int16_t* huffTab, const HuffInfo* huff
     t = (bitBuf >> shift) - start;
     } while (t >= count);
 
-  *val = (signed int)map[t];
+  *val = (int32_t)map[t];
   return (int)(countPtr - huffTabInfo->count);
   }
 //}}}
@@ -2508,8 +2515,8 @@ static int32_t DecodeOneSymbol (cBitStream* bsi, int32_t huffTabIndex) {
   uint32_t bitBuf = bsi->getBitsNoAdvance (hi->maxBits) << (32 - hi->maxBits);
 
   int32_t val;
-  int32_t nBits = DecodeHuffmanScalar (huffTabSBR, hi, bitBuf, &val);
-  bsi->advanceBitstream (nBits);
+  int32_t numBits = DecodeHuffmanScalar (huffTabSBR, hi, bitBuf, &val);
+  bsi->advanceBitstream (numBits);
 
   return val;
   }
@@ -2527,21 +2534,21 @@ static int32_t DecodeOneScaleFactor (cBitStream* bsi) {
   uint32_t bitBuf = bsi->getBitsNoAdvance (huffTabScaleFactInfo.maxBits) << (32 - huffTabScaleFactInfo.maxBits);
 
   int32_t val;
-  int32_t nBits = DecodeHuffmanScalar (huffTabScaleFact, &huffTabScaleFactInfo, bitBuf, &val);
-  bsi->advanceBitstream (nBits);
+  int32_t numBits = DecodeHuffmanScalar (huffTabScaleFact, &huffTabScaleFactInfo, bitBuf, &val);
+  bsi->advanceBitstream (numBits);
 
   return val;
   }
 //}}}
 
 //{{{
-static void UnpackZeros (int32_t nVals, int32_t* coef) {
+static void unpackZeros (int32_t nVals, int32_t* coef) {
 /**************************************************************************************
  * Description: fill a section of coefficients with zeros
  * Inputs:      number of coefficients
  * Outputs:     nVals zeros, starting at coef
  * Notes:       assumes nVals is always a multiple of 4 because all scalefactor bands
- *                are a multiple of 4 coefficients long
+ *              are a multiple of 4 coefficients long
  **************************************************************************************/
 
   while (nVals > 0) {
@@ -2554,7 +2561,7 @@ static void UnpackZeros (int32_t nVals, int32_t* coef) {
   }
 //}}}
 //{{{
-static void UnpackQuads (cBitStream* bsi, int32_t cb, int32_t nVals, int32_t* coef) {
+static void unpackQuads (cBitStream* bsi, int32_t cb, int32_t nVals, int32_t* coef) {
 /**************************************************************************************
  * Description: decode a section of 4-way vector Huffman coded coefficients
  * Inputs       cBitStream struct pointing to start of codewords for this section index of Huffman codebook
@@ -2603,7 +2610,7 @@ static void UnpackQuads (cBitStream* bsi, int32_t cb, int32_t nVals, int32_t* co
   }
 //}}}
 //{{{
-static void UnpackPairsNoEsc (cBitStream* bsi, int32_t cb, int32_t nVals, int32_t* coef) {
+static void unpackPairsNoEsc (cBitStream* bsi, int32_t cb, int32_t nVals, int32_t* coef) {
 /**************************************************************************************
  * Description: decode a section of 2-way vector Huffman coded coefficients, using non-esc tables (5 through 10)
  * Inputs       cBitStream struct pointing to start of codewords for this section
@@ -2624,9 +2631,9 @@ static void UnpackPairsNoEsc (cBitStream* bsi, int32_t cb, int32_t nVals, int32_
     int32_t z = GET_PAIR_Z (val);
 
     bitBuf <<= nCodeBits;
-    int32_t nSignBits = GET_PAIR_SIGNBITS (val);
-    bsi->advanceBitstream (nCodeBits + nSignBits);
-    if (nSignBits) {
+    int32_t numSignBits = GET_PAIR_SIGNBITS (val);
+    bsi->advanceBitstream (nCodeBits + numSignBits);
+    if (numSignBits) {
       if (y) {
         APPLY_SIGN (y, bitBuf);
         bitBuf <<= 1;
@@ -2643,7 +2650,7 @@ static void UnpackPairsNoEsc (cBitStream* bsi, int32_t cb, int32_t nVals, int32_
   }
 //}}}
 //{{{
-static void UnpackPairsEsc (cBitStream* bsi, int32_t cb, int32_t nVals, int32_t* coef) {
+static void unpackPairsEsc (cBitStream* bsi, int32_t cb, int32_t nVals, int32_t* coef) {
 /**************************************************************************************
  * Description: decode a section of 2-way vector Huffman coded coefficients,  using esc table (11)
  * Inputs       cBitStream struct pointing to start of codewords for this section
@@ -2665,8 +2672,8 @@ static void UnpackPairsEsc (cBitStream* bsi, int32_t cb, int32_t nVals, int32_t*
     int32_t z = GET_ESC_Z(val);
 
     bitBuf <<= nCodeBits;
-    int32_t nSignBits = GET_ESC_SIGNBITS(val);
-    bsi->advanceBitstream (nCodeBits + nSignBits);
+    int32_t numSignBits = GET_ESC_SIGNBITS (val);
+    bsi->advanceBitstream (nCodeBits + numSignBits);
 
     int32_t n;
     if (y == 16) {
@@ -2682,13 +2689,13 @@ static void UnpackPairsEsc (cBitStream* bsi, int32_t cb, int32_t nVals, int32_t*
       z = (1 << n) + bsi->getBits (n);
       }
 
-    if (nSignBits) {
+    if (numSignBits) {
       if (y) {
-        APPLY_SIGN(y, bitBuf);
+        APPLY_SIGN (y, bitBuf);
         bitBuf <<= 1;
         }
       if (z) {
-        APPLY_SIGN(z, bitBuf);
+        APPLY_SIGN (z, bitBuf);
         bitBuf <<= 1;
         }
       }
@@ -2723,22 +2730,22 @@ static void DecodeSpectrumLong (struct sPSInfoBase* psi, cBitStream* bsi, int32_
     int32_t nVals = sfbTab[sfb+1] - sfbTab[sfb];
 
     if (cb == 0)
-      UnpackZeros (nVals, coef);
+      unpackZeros (nVals, coef);
     else if (cb <= 4)
-      UnpackQuads (bsi, cb, nVals, coef);
+      unpackQuads (bsi, cb, nVals, coef);
     else if (cb <= 10)
-      UnpackPairsNoEsc (bsi, cb, nVals, coef);
+      unpackPairsNoEsc (bsi, cb, nVals, coef);
     else if (cb == 11)
-      UnpackPairsEsc (bsi, cb, nVals, coef);
+      unpackPairsEsc (bsi, cb, nVals, coef);
     else
-      UnpackZeros (nVals, coef);
+      unpackZeros (nVals, coef);
 
     coef += nVals;
     }
 
   // fill with zeros above maxSFB
   int32_t nVals = NSAMPS_LONG - sfbTab[sfb];
-  UnpackZeros (nVals, coef);
+  unpackZeros (nVals, coef);
 
   // add pulse data, if present
   PulseInfo* pi = &psi->pulseInfo[ch];
@@ -2760,12 +2767,11 @@ static void DecodeSpectrumShort (struct sPSInfoBase* psi, cBitStream* bsi, int32
 /**************************************************************************************
  * Description: decode transform coefficients for frame with eight short blocks
  * Inputs:      platform specific info struct
- *              cBitStream struct pointing to start of spectral data
- *                (14496-3, table 4.4.29)
+ *              cBitStream struct pointing to start of spectral data (14496-3, table 4.4.29)
  *              index of current channel
  * Outputs:     decoded, quantized coefficients for this channel
  * Notes:       fills coefficient buffer with zeros in any region not coded with
- *                codebook in range [1, 11] (including sfb's above sfbMax)
+ *              codebook in range [1, 11] (including sfb's above sfbMax)
  *              deinterleaves window groups into 8 windows
  **************************************************************************************/
 
@@ -2785,15 +2791,15 @@ static void DecodeSpectrumShort (struct sPSInfoBase* psi, cBitStream* bsi, int32
       for (int32_t win = 0; win < icsInfo->winGroupLen[gp]; win++) {
         int32_t offset = win*NSAMPS_SHORT;
         if (cb == 0)
-          UnpackZeros (nVals, coef + offset);
+          unpackZeros (nVals, coef + offset);
         else if (cb <= 4)
-          UnpackQuads (bsi, cb, nVals, coef + offset);
+          unpackQuads (bsi, cb, nVals, coef + offset);
         else if (cb <= 10)
-          UnpackPairsNoEsc (bsi, cb, nVals, coef + offset);
+          unpackPairsNoEsc (bsi, cb, nVals, coef + offset);
         else if (cb == 11)
-          UnpackPairsEsc (bsi, cb, nVals, coef + offset);
+          unpackPairsEsc (bsi, cb, nVals, coef + offset);
         else
-          UnpackZeros (nVals, coef + offset);
+          unpackZeros (nVals, coef + offset);
         }
       coef += nVals;
       }
@@ -2802,7 +2808,7 @@ static void DecodeSpectrumShort (struct sPSInfoBase* psi, cBitStream* bsi, int32
     for (int32_t win = 0; win < icsInfo->winGroupLen[gp]; win++) {
       int32_t offset = win*NSAMPS_SHORT;
       nVals = NSAMPS_SHORT - sfbTab[sfb];
-      UnpackZeros(nVals, coef + offset);
+      unpackZeros (nVals, coef + offset);
       }
     coef += nVals;
     coef += (icsInfo->winGroupLen[gp] - 1)*NSAMPS_SHORT;
@@ -2814,8 +2820,7 @@ static void DecodeSpectrumShort (struct sPSInfoBase* psi, cBitStream* bsi, int32
 static void DecodeICSInfo (cBitStream* bsi, ICSInfo* icsInfo, uint8_t sampRateIdx) {
 /**************************************************************************************
  * Description: decode individual channel stream info
- * Inputs:      cBitStream struct pointing to start of ICS info
- *                (14496-3, table 4.4.6)
+ * Inputs:      cBitStream struct pointing to start of ICS info (14496-3, table 4.4.6)
  *              sample rate index
  * Outputs:     updated icsInfo struct
  **************************************************************************************/
@@ -2863,10 +2868,8 @@ static void DecodeICSInfo (cBitStream* bsi, ICSInfo* icsInfo, uint8_t sampRateId
 //{{{
 static void DecodeSectionData (cBitStream* bsi, int32_t winSequence, int32_t numWinGrp, int32_t maxSFB, uint8_t* sfbCodeBook) {
 /**************************************************************************************
- * Description: decode section data (scale factor band groupings and
- *                associated Huffman codebooks)
- * Inputs:      cBitStream struct pointing to start of ICS info
- *                (14496-3, table 4.4.25)
+ * Description: decode section data (scale factor band groupings and associated Huffman codebooks)
+ * Inputs:      cBitStream struct pointing to start of ICS info (14496-3, table 4.4.25)
  *              window sequence (short or long blocks)
  *              number of window groups (1 for long blocks, 1-8 for short blocks)
  *              max coded scalefactor band
@@ -2901,8 +2904,7 @@ static void DecodeScaleFactors (cBitStream* bsi, int32_t numWinGrp, int32_t maxS
                                 uint8_t* sfbCodeBook, short* scaleFactors) {
 /**************************************************************************************
  * Description: decode scalefactors, PNS energy, and intensity stereo weights
- * Inputs:      cBitStream struct pointing to start of ICS info
- *                (14496-3, table 4.4.26)
+ * Inputs:      cBitStream struct pointing to start of ICS info (14496-3, table 4.4.26)
  *              number of window groups (1 for long blocks, 1-8 for short blocks)
  *              max coded scalefactor band
  *              global gain (starting value for differential scalefactor coding)
@@ -2910,9 +2912,9 @@ static void DecodeScaleFactors (cBitStream* bsi, int32_t numWinGrp, int32_t maxS
  * Outputs:     decoded scalefactor for each section
  * Notes:       sfbCodeBook, scaleFactors ordered by window groups for short blocks
  *              for section with codebook 13, scaleFactors buffer has decoded PNS
- *                energy instead of regular scalefactor
+ *              energy instead of regular scalefactor
  *              for section with codebook 14 or 15, scaleFactors buffer has intensity
- *                stereo weight instead of regular scalefactor
+ *              stereo weight instead of regular scalefactor
  **************************************************************************************/
 
   // starting values for differential coding
@@ -3392,40 +3394,40 @@ bool cAacDecoder::unpackADTSHeader (uint8_t** buf, int32_t* bitOffset, int32_t* 
     return true;
 
   // fixed fields - should not change from frame to frame
-  ADTSHeader* fhADTS = &(psInfoBase->fhADTS);
-  fhADTS->id = bsi.getBits (1);
-  fhADTS->layer = bsi.getBits (2);
-  fhADTS->protectBit = bsi.getBits (1);
-  fhADTS->profile = bsi.getBits (2);
-  fhADTS->sampRateIdx =  bsi.getBits (4);
-  fhADTS->privateBit = bsi.getBits (1);
-  fhADTS->channelConfig = bsi.getBits (3);
-  fhADTS->origCopy = bsi.getBits (1);
-  fhADTS->home = bsi.getBits (1);
+  ADTSHeader* adtsHeader = &(psInfoBase->adtsHeader);
+  adtsHeader->id = bsi.getBits (1);
+  adtsHeader->layer = bsi.getBits (2);
+  adtsHeader->protectBit = bsi.getBits (1);
+  adtsHeader->profile = bsi.getBits (2);
+  adtsHeader->sampRateIdx =  bsi.getBits (4);
+  adtsHeader->privateBit = bsi.getBits (1);
+  adtsHeader->channelConfig = bsi.getBits (3);
+  adtsHeader->origCopy = bsi.getBits (1);
+  adtsHeader->home = bsi.getBits (1);
 
   // variable fields - can change from frame to frame
-  fhADTS->copyBit = bsi.getBits (1);
-  fhADTS->copyStart = bsi.getBits (1);
-  fhADTS->frameLength = bsi.getBits (13);
-  fhADTS->bufferFull = bsi.getBits (11);
-  fhADTS->numRawDataBlocks = bsi.getBits (2) + 1;
+  adtsHeader->copyBit = bsi.getBits (1);
+  adtsHeader->copyStart = bsi.getBits (1);
+  adtsHeader->frameLength = bsi.getBits (13);
+  adtsHeader->bufferFull = bsi.getBits (11);
+  adtsHeader->numRawDataBlocks = bsi.getBits (2) + 1;
 
   // note - MPEG4 spec, correction 1 changes how CRC is handled when protectBit == 0 and numRawDataBlocks > 1
-  if (fhADTS->protectBit == 0)
-    fhADTS->crcCheckWord = bsi.getBits (16);
+  if (adtsHeader->protectBit == 0)
+    adtsHeader->crcCheckWord = bsi.getBits (16);
 
   // byte align - should be aligned anyway
-  bsi.byteAlignBitstream(); 
+  bsi.byteAlignBitstream();
 
   // check validity of header
-  if (fhADTS->layer != 0 || fhADTS->profile != AAC_PROFILE_LC ||
-      fhADTS->sampRateIdx >= NUM_SAMPLE_RATES || fhADTS->channelConfig >= NUM_DEF_CHAN_MAPS)
+  if (adtsHeader->layer != 0 || adtsHeader->profile != AAC_PROFILE_LC ||
+      adtsHeader->sampRateIdx >= NUM_SAMPLE_RATES || adtsHeader->channelConfig >= NUM_DEF_CHAN_MAPS)
     return true;
 
   // update codec info
-  psInfoBase->sampRateIdx = fhADTS->sampRateIdx;
+  psInfoBase->sampRateIdx = adtsHeader->sampRateIdx;
   if (!psInfoBase->useImpChanMap)
-    psInfoBase->nChans = channelMapTab[fhADTS->channelConfig];
+    psInfoBase->nChans = channelMapTab[adtsHeader->channelConfig];
 
   // syntactic element fields will be read from bitstream for each element
   prevBlockID = AAC_ID_INVALID;
@@ -3436,9 +3438,9 @@ bool cAacDecoder::unpackADTSHeader (uint8_t** buf, int32_t* bitOffset, int32_t* 
   bitRate = 0;
   numChannels = psInfoBase->nChans;
   sampleRate = sampRateTab[psInfoBase->sampRateIdx];
-  profile = fhADTS->profile;
+  profile = adtsHeader->profile;
   sbrEnabled = 0;
-  adtsBlocksLeft = fhADTS->numRawDataBlocks;
+  adtsBlocksLeft = adtsHeader->numRawDataBlocks;
 
   // update bitstream reader
   int32_t bitsUsed = bsi.getBitsUsed (*buf, *bitOffset);
@@ -3770,7 +3772,7 @@ static int32_t GetSampRateIdx (int32_t sampRate) {
 //}}}
 
 //{{{
-static int32_t UnpackSBRHeader (cBitStream* bsi, SBRHeader* sbrHdr) {
+static int32_t unpackSBRHeader (cBitStream* bsi, SBRHeader* sbrHdr) {
 /**************************************************************************************
  * Description: unpack SBR header (table 4.56)
  * Inputs:      cBitStream struct pointing to start of SBR header
@@ -3778,7 +3780,7 @@ static int32_t UnpackSBRHeader (cBitStream* bsi, SBRHeader* sbrHdr) {
  * Return:      non-zero if frame reset is triggered, zero otherwise
  **************************************************************************************/
 
-  // save previous values so we know whether to reset decoder */
+  // save previous values so we know whether to reset decoder
   SBRHeader sbrHdrPrev;
   sbrHdrPrev.startFreq = sbrHdr->startFreq;
   sbrHdrPrev.stopFreq = sbrHdr->stopFreq;
@@ -3801,7 +3803,7 @@ static int32_t UnpackSBRHeader (cBitStream* bsi, SBRHeader* sbrHdr) {
     sbrHdr->noiseBands = bsi->getBits (2);
     }
   else {
-    // defaults */
+    // defaults
     sbrHdr->freqScale = 2;
     sbrHdr->alterScale = 1;
     sbrHdr->noiseBands = 2;
@@ -3814,7 +3816,7 @@ static int32_t UnpackSBRHeader (cBitStream* bsi, SBRHeader* sbrHdr) {
     sbrHdr->smoothMode = bsi->getBits (1);
     }
   else {
-    // defaults */
+    // defaults
     sbrHdr->limiterBands = 2;
     sbrHdr->limiterGains = 2;
     sbrHdr->interpFreq = 1;
@@ -3822,7 +3824,7 @@ static int32_t UnpackSBRHeader (cBitStream* bsi, SBRHeader* sbrHdr) {
     }
   sbrHdr->count++;
 
-  // if any of these have changed from previous frame, reset the SBR module */
+  // if any of these have changed from previous frame, reset the SBR module
   if (sbrHdr->startFreq != sbrHdrPrev.startFreq || sbrHdr->stopFreq != sbrHdrPrev.stopFreq ||
     sbrHdr->freqScale != sbrHdrPrev.freqScale || sbrHdr->alterScale != sbrHdrPrev.alterScale ||
     sbrHdr->crossOverBand != sbrHdrPrev.crossOverBand || sbrHdr->noiseBands != sbrHdrPrev.noiseBands)
@@ -3832,7 +3834,7 @@ static int32_t UnpackSBRHeader (cBitStream* bsi, SBRHeader* sbrHdr) {
   }
 //}}}
 //{{{
-static void UnpackSBRGrid (cBitStream* bsi, SBRHeader* sbrHdr, SBRGrid* sbrGrid) {
+static void unpackSBRGrid (cBitStream* bsi, SBRHeader* sbrHdr, SBRGrid* sbrGrid) {
 /**************************************************************************************
  * Description: unpack SBR grid (table 4.62)
  * Inputs:      cBitStream struct pointing to start of SBR grid
@@ -3865,7 +3867,7 @@ static void UnpackSBRGrid (cBitStream* bsi, SBRHeader* sbrHdr, SBRGrid* sbrGrid)
       numRelLead =   sbrGrid->numEnv - 1;
       numRelTrail =  0;
 
-      /* numEnv = 1, 2, or 4 */
+      // numEnv = 1, 2, or 4
       if (sbrGrid->numEnv == 1)   border = NUM_TIME_SLOTS / 1;
       else if (sbrGrid->numEnv == 2)  border = NUM_TIME_SLOTS / 2;
       else              border = NUM_TIME_SLOTS / 4;
@@ -4001,7 +4003,7 @@ static void UnpackSBRGrid (cBitStream* bsi, SBRHeader* sbrHdr, SBRGrid* sbrGrid)
   }
 //}}}
 //{{{
-static void UnpackDeltaTimeFreq (cBitStream* bsi, int32_t numEnv, uint8_t* deltaFlagEnv,
+static void unpackDeltaTimeFreq (cBitStream* bsi, int32_t numEnv, uint8_t* deltaFlagEnv,
                                  int32_t numNoiseFloors, uint8_t *deltaFlagNoise) {
 /**************************************************************************************
  * Description: unpack time/freq flags for delta coding of SBR envelopes (table 4.63)
@@ -4019,7 +4021,7 @@ static void UnpackDeltaTimeFreq (cBitStream* bsi, int32_t numEnv, uint8_t* delta
   }
 //}}}
 //{{{
-static void UnpackInverseFilterMode (cBitStream* bsi, int32_t numNoiseFloorBands, uint8_t *mode) {
+static void unpackInverseFilterMode (cBitStream* bsi, int32_t numNoiseFloorBands, uint8_t *mode) {
 /**************************************************************************************
  * Description: unpack invf flags for chirp factor calculation (table 4.64)
  * Inputs:      cBitStream struct pointing to start of invf flags
@@ -4032,7 +4034,7 @@ static void UnpackInverseFilterMode (cBitStream* bsi, int32_t numNoiseFloorBands
   }
 //}}}
 //{{{
-static void UnpackSinusoids (cBitStream* bsi, int32_t nHigh, int32_t addHarmonicFlag, uint8_t* addHarmonic) {
+static void unpackSinusoids (cBitStream* bsi, int32_t nHigh, int32_t addHarmonicFlag, uint8_t* addHarmonic) {
 /**************************************************************************************
  * Description: unpack sinusoid (harmonic) flags for each SBR subband (table 4.67)
  * Inputs:      cBitStream struct pointing to start of sinusoid flags
@@ -4045,7 +4047,7 @@ static void UnpackSinusoids (cBitStream* bsi, int32_t nHigh, int32_t addHarmonic
     for (  ; n < nHigh; n++)
       addHarmonic[n] = bsi->getBits (1);
 
-  /* zero out unused bands */
+  // zero out unused bands
   for (     ; n < MAX_QMF_BANDS; n++)
     addHarmonic[n] = 0;
   }
@@ -4118,7 +4120,7 @@ static void UncoupleSBREnvelope (sPSInfoSBR* psi, SBRGrid* sbrGrid, SBRFreq* sbr
       if (E_1 > 24)
         E_1 = 24;
 
-      // envDataDequant[0] has 1 GB, so << by 2 is okay */
+      // envDataDequant[0] has 1 GB, so << by 2 is okay
       psi->envDataDequant[1][env][band] = MULSHIFT32(psi->envDataDequant[0][env][band], dqTabCouple[24 - E_1]) << 2;
       psi->envDataDequant[0][env][band] = MULSHIFT32(psi->envDataDequant[0][env][band], dqTabCouple[E_1]) << 2;
       }
@@ -4142,14 +4144,14 @@ static void UncoupleSBRNoise (sPSInfoSBR* psi, SBRGrid* sbrGrid, SBRFreq* sbrFre
 
   for (int32_t noiseFloor = 0; noiseFloor < sbrGrid->numNoiseFloors; noiseFloor++) {
     for (int32_t band = 0; band < sbrFreq->numNoiseFloorBands; band++) {
-      // Q_1 should be in range [0, 24] according to 4.6.18.3.6, but check to make sure */
+      // Q_1 should be in range [0, 24] according to 4.6.18.3.6, but check to make sure
       int32_t Q_1 = sbrChanR->noiseDataQuant[noiseFloor][band];
       if (Q_1 < 0)
         Q_1 = 0;
       if (Q_1 > 24)
         Q_1 = 24;
 
-      // noiseDataDequant[0] has 1 GB, so << by 2 is okay */
+      // noiseDataDequant[0] has 1 GB, so << by 2 is okay
       psi->noiseDataDequant[1][noiseFloor][band] = MULSHIFT32(psi->noiseDataDequant[0][noiseFloor][band], dqTabCouple[24 - Q_1]) << 2;
       psi->noiseDataDequant[0][noiseFloor][band] = MULSHIFT32(psi->noiseDataDequant[0][noiseFloor][band], dqTabCouple[Q_1]) << 2;
       }
@@ -4158,7 +4160,7 @@ static void UncoupleSBRNoise (sPSInfoSBR* psi, SBRGrid* sbrGrid, SBRFreq* sbrFre
 //}}}
 
 //{{{
-static void UnpackSBRSingleChannel (cBitStream* bsi, sPSInfoSBR* psi, int32_t chBase) {
+static void unpackSBRSingleChannel (cBitStream* bsi, sPSInfoSBR* psi, int32_t chBase) {
 /**************************************************************************************
  * Description: unpack sideband info (grid, delta flags, invf flags, envelope and
  *                noise floor configuration, sinusoids) for a single channel
@@ -4178,15 +4180,15 @@ static void UnpackSBRSingleChannel (cBitStream* bsi, sPSInfoSBR* psi, int32_t ch
   if (psi->dataExtra)
     psi->resBitsData = bsi->getBits (4);
 
-  UnpackSBRGrid (bsi, sbrHdr, sbrGridL);
-  UnpackDeltaTimeFreq (bsi, sbrGridL->numEnv, sbrChanL->deltaFlagEnv, sbrGridL->numNoiseFloors, sbrChanL->deltaFlagNoise);
-  UnpackInverseFilterMode (bsi, sbrFreq->numNoiseFloorBands, sbrChanL->invfMode[1]);
+  unpackSBRGrid (bsi, sbrHdr, sbrGridL);
+  unpackDeltaTimeFreq (bsi, sbrGridL->numEnv, sbrChanL->deltaFlagEnv, sbrGridL->numNoiseFloors, sbrChanL->deltaFlagNoise);
+  unpackInverseFilterMode (bsi, sbrFreq->numNoiseFloorBands, sbrChanL->invfMode[1]);
 
   DecodeSBREnvelope (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
   DecodeSBRNoise (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
 
   sbrChanL->addHarmonicFlag[1] = bsi->getBits (1);
-  UnpackSinusoids (bsi, sbrFreq->nHigh, sbrChanL->addHarmonicFlag[1], sbrChanL->addHarmonic[1]);
+  unpackSinusoids (bsi, sbrFreq->nHigh, sbrChanL->addHarmonicFlag[1], sbrChanL->addHarmonic[1]);
 
   psi->extendedDataPresent = bsi->getBits (1);
   if (psi->extendedDataPresent) {
@@ -4196,7 +4198,7 @@ static void UnpackSBRSingleChannel (cBitStream* bsi, sPSInfoSBR* psi, int32_t ch
 
     int32_t bitsLeft = 8 * psi->extendedDataSize;
 
-    // get ID, unpack extension info, do whatever is necessary with it... */
+    // get ID, unpack extension info, do whatever is necessary with it...
     while (bitsLeft > 0) {
       bsi->getBits (8);
       bitsLeft -= 8;
@@ -4205,7 +4207,7 @@ static void UnpackSBRSingleChannel (cBitStream* bsi, sPSInfoSBR* psi, int32_t ch
   }
 //}}}
 //{{{
-static void UnpackSBRChannelPair (cBitStream* bsi, sPSInfoSBR* psi, int32_t chBase) {
+static void unpackSBRChannelPair (cBitStream* bsi, sPSInfoSBR* psi, int32_t chBase) {
 /**************************************************************************************
  * Description: unpack sideband info (grid, delta flags, invf flags, envelope and
  *              noise floor configuration, sinusoids) for a channel pair
@@ -4228,13 +4230,13 @@ static void UnpackSBRChannelPair (cBitStream* bsi, sPSInfoSBR* psi, int32_t chBa
 
   psi->couplingFlag = bsi->getBits (1);
   if (psi->couplingFlag) {
-    UnpackSBRGrid (bsi, sbrHdr, sbrGridL);
+    unpackSBRGrid (bsi, sbrHdr, sbrGridL);
     CopyCouplingGrid (sbrGridL, sbrGridR);
 
-    UnpackDeltaTimeFreq (bsi, sbrGridL->numEnv, sbrChanL->deltaFlagEnv, sbrGridL->numNoiseFloors, sbrChanL->deltaFlagNoise);
-    UnpackDeltaTimeFreq (bsi, sbrGridR->numEnv, sbrChanR->deltaFlagEnv, sbrGridR->numNoiseFloors, sbrChanR->deltaFlagNoise);
+    unpackDeltaTimeFreq (bsi, sbrGridL->numEnv, sbrChanL->deltaFlagEnv, sbrGridL->numNoiseFloors, sbrChanL->deltaFlagNoise);
+    unpackDeltaTimeFreq (bsi, sbrGridR->numEnv, sbrChanR->deltaFlagEnv, sbrGridR->numNoiseFloors, sbrChanR->deltaFlagNoise);
 
-    UnpackInverseFilterMode (bsi, sbrFreq->numNoiseFloorBands, sbrChanL->invfMode[1]);
+    unpackInverseFilterMode (bsi, sbrFreq->numNoiseFloorBands, sbrChanL->invfMode[1]);
     CopyCouplingInverseFilterMode (sbrFreq->numNoiseFloorBands, sbrChanL->invfMode[1], sbrChanR->invfMode[1]);
 
     DecodeSBREnvelope (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
@@ -4242,17 +4244,17 @@ static void UnpackSBRChannelPair (cBitStream* bsi, sPSInfoSBR* psi, int32_t chBa
     DecodeSBREnvelope (bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
     DecodeSBRNoise (bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
 
-    /* pass RIGHT sbrChan struct */
+    // pass RIGHT sbrChan struct
     UncoupleSBREnvelope (psi, sbrGridL, sbrFreq, sbrChanR);
     UncoupleSBRNoise (psi, sbrGridL, sbrFreq, sbrChanR);
     }
   else {
-    UnpackSBRGrid (bsi, sbrHdr, sbrGridL);
-    UnpackSBRGrid (bsi, sbrHdr, sbrGridR);
-    UnpackDeltaTimeFreq (bsi, sbrGridL->numEnv, sbrChanL->deltaFlagEnv, sbrGridL->numNoiseFloors, sbrChanL->deltaFlagNoise);
-    UnpackDeltaTimeFreq (bsi, sbrGridR->numEnv, sbrChanR->deltaFlagEnv, sbrGridR->numNoiseFloors, sbrChanR->deltaFlagNoise);
-    UnpackInverseFilterMode (bsi, sbrFreq->numNoiseFloorBands, sbrChanL->invfMode[1]);
-    UnpackInverseFilterMode (bsi, sbrFreq->numNoiseFloorBands, sbrChanR->invfMode[1]);
+    unpackSBRGrid (bsi, sbrHdr, sbrGridL);
+    unpackSBRGrid (bsi, sbrHdr, sbrGridR);
+    unpackDeltaTimeFreq (bsi, sbrGridL->numEnv, sbrChanL->deltaFlagEnv, sbrGridL->numNoiseFloors, sbrChanL->deltaFlagNoise);
+    unpackDeltaTimeFreq (bsi, sbrGridR->numEnv, sbrChanR->deltaFlagEnv, sbrGridR->numNoiseFloors, sbrChanR->deltaFlagNoise);
+    unpackInverseFilterMode (bsi, sbrFreq->numNoiseFloorBands, sbrChanL->invfMode[1]);
+    unpackInverseFilterMode (bsi, sbrFreq->numNoiseFloorBands, sbrChanR->invfMode[1]);
 
     DecodeSBREnvelope (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
     DecodeSBREnvelope (bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
@@ -4261,10 +4263,10 @@ static void UnpackSBRChannelPair (cBitStream* bsi, sPSInfoSBR* psi, int32_t chBa
     }
 
   sbrChanL->addHarmonicFlag[1] = bsi->getBits (1);
-  UnpackSinusoids (bsi, sbrFreq->nHigh, sbrChanL->addHarmonicFlag[1], sbrChanL->addHarmonic[1]);
+  unpackSinusoids (bsi, sbrFreq->nHigh, sbrChanL->addHarmonicFlag[1], sbrChanL->addHarmonic[1]);
 
   sbrChanR->addHarmonicFlag[1] = bsi->getBits (1);
-  UnpackSinusoids (bsi, sbrFreq->nHigh, sbrChanR->addHarmonicFlag[1], sbrChanR->addHarmonic[1]);
+  unpackSinusoids (bsi, sbrFreq->nHigh, sbrChanR->addHarmonicFlag[1], sbrChanR->addHarmonic[1]);
 
   psi->extendedDataPresent = bsi->getBits (1);
   if (psi->extendedDataPresent) {
@@ -4274,7 +4276,7 @@ static void UnpackSBRChannelPair (cBitStream* bsi, sPSInfoSBR* psi, int32_t chBa
 
     int32_t bitsLeft = 8 * psi->extendedDataSize;
 
-    // get ID, unpack extension info, do whatever is necessary with it... */
+    // get ID, unpack extension info, do whatever is necessary with it...
     while (bitsLeft > 0) {
       bsi->getBits (8);
       bitsLeft -= 8;
@@ -4540,7 +4542,7 @@ static int32_t CalcFreqMaster (uint8_t* freqMaster, int32_t freqScale, int32_t a
   int32_t bands = mBandTab[freqScale - 1];
   int32_t invWarp = invWarpTab[alterScale];
 
-  // tested for all k0 = [5, 64], k2 = [k0, 64] */
+  // tested for all k0 = [5, 64], k2 = [k0, 64]
   int32_t twoRegions;
   int32_t k1;
   if (k2*10000 > 22449*k0) {
@@ -4552,7 +4554,7 @@ static int32_t CalcFreqMaster (uint8_t* freqMaster, int32_t freqScale, int32_t a
     k1 = k2;
     }
 
-  // tested for all k0 = [5, 64], k1 = [k0, 64], freqScale = [1,3] */
+  // tested for all k0 = [5, 64], k1 = [k0, 64], freqScale = [1,3]
   int32_t t = (log2Tab[k1] - log2Tab[k0]) >> 3;       /* log2(k1/k0), Q28 to Q25 */
   int32_t nBands0 = 2 * (((bands * t) + (1 << 24)) >> 25);  /* multiply by bands/2, round to nearest int32_t (mBandTab has factor of 1/2 rolled in) */
 
@@ -4571,25 +4573,25 @@ static int32_t CalcFreqMaster (uint8_t* freqMaster, int32_t freqScale, int32_t a
     vLast = vCurr;
     }
 
-  // sort the deltas and find max delta for first region */
+  // sort the deltas and find max delta for first region
   BubbleSort (vDelta, nBands0);
   uint8_t vDk0Max = VMax (vDelta, nBands0);
 
-  // fill master frequency table with bands from first region */
+  // fill master frequency table with bands from first region
   freqMaster[0] = k0;
   for (int32_t k = 1; k <= nBands0; k++)
     freqMaster[k] += freqMaster[k-1];
 
-  // if only one region, then the table is complete */
+  // if only one region, then the table is complete
   if (!twoRegions)
     return nBands0;
 
-  // tested for all k1 = [10, 64], k2 = [k0, 64], freqScale = [1,3] */
+  // tested for all k1 = [10, 64], k2 = [k0, 64], freqScale = [1,3]
   t = (log2Tab[k2] - log2Tab[k1]) >> 3;   /* log2(k1/k0), Q28 to Q25 */
   t = MULSHIFT32(bands * t, invWarp) << 2;  /* multiply by bands/2, divide by warp factor, keep Q25 */
   int32_t nBands1 = 2 * ((t + (1 << 24)) >> 25);    /* round to nearest int32_t */
 
-  // see comments above for calculations in first region */
+  // see comments above for calculations in first region
   t = RatioPowInv(k2, k1, nBands1);
   pCurr = k1 << 24;
   vLast = k1;
@@ -4601,7 +4603,7 @@ static int32_t CalcFreqMaster (uint8_t* freqMaster, int32_t freqScale, int32_t a
     vLast = vCurr;
     }
 
-  // sort the deltas, adjusting first and last if the second region has smaller deltas than the first */
+  // sort the deltas, adjusting first and last if the second region has smaller deltas than the first
   uint8_t vDk1Min = VMin(vDelta, nBands1);
   if (vDk1Min < vDk0Max) {
     BubbleSort(vDelta, nBands1);
@@ -4921,7 +4923,7 @@ bool cAacDecoder::decodeSbrBitstream (int32_t chBase) {
  * Return:      false if successful
  * Notes:       SBR payload should be in fillBuf
  *              returns with no error if fill buffer is not an SBR extension block,
- *                or if current block is not a fill block (e.g. for LFE upsampling)
+ *              or if current block is not a fill block (e.g. for LFE upsampling)
  **************************************************************************************/
 
   if ((currBlockID != AAC_ID_FIL) ||
@@ -4945,7 +4947,7 @@ bool cAacDecoder::decodeSbrBitstream (int32_t chBase) {
       return true;
 
     // reset flag = 1 if header values changed */
-    if (UnpackSBRHeader (&bsi, &(psInfoSBR->sbrHdr[chBase])))
+    if (unpackSBRHeader (&bsi, &(psInfoSBR->sbrHdr[chBase])))
       psInfoSBR->sbrChan[chBase].reset = 1;
 
     // first valid SBR header should always trigger CalcFreqTables(), since psInfoSBR->reset was set in InitSBR()
@@ -4962,9 +4964,9 @@ bool cAacDecoder::decodeSbrBitstream (int32_t chBase) {
     return false;
 
   if (prevBlockID == AAC_ID_SCE)
-    UnpackSBRSingleChannel (&bsi, psInfoSBR, chBase);
+    unpackSBRSingleChannel (&bsi, psInfoSBR, chBase);
   else if (prevBlockID == AAC_ID_CPE)
-    UnpackSBRChannelPair (&bsi, psInfoSBR, chBase);
+    unpackSBRChannelPair (&bsi, psInfoSBR, chBase);
   else
     return true;
 
@@ -5351,7 +5353,6 @@ static int32_t InvRootR (int32_t r) {
  * Outputs:     none
  * Return:      x = Q29, range = (1, 2)
  * Notes:       guaranteed to converge and not overflow for any r in this range
- *
  *              xn+1  = xn - f(xn)/f'(xn)
  *              f(x)  = 1/sqrt(r) - x = 0 (find root)
  *                    = 1/x^2 - r
@@ -5389,7 +5390,6 @@ static uint32_t Get32BitVal (uint32_t* last) {
  * Return:      32-bit number, uniformly distributed between [0, 2^32)
  * Notes:       uses simple linear congruential generator
  **************************************************************************************/
-
 
   // use same coefs as MPEG reference code (classic LCG)
   // use unsigned multiply to force reliable wraparound behavior in C (mod 2^32)
@@ -5486,7 +5486,7 @@ static void GenerateNoiseVector (int32_t* coef, int32_t* last, int32_t nVals) {
  **************************************************************************************/
 
   for (int32_t i = 0; i < nVals; i++)
-     coef[i] = ((signed int)Get32BitVal ((uint32_t *)last)) >> 16;
+     coef[i] = ((int32_t)Get32BitVal ((uint32_t *)last)) >> 16;
   }
 //}}}
 //{{{
@@ -5596,7 +5596,6 @@ static void DecodeLPCCoefs (int32_t order, int32_t res, int8_t* filtCoef, int32_
  *              coefficients unpacked from bitstream
  *              scratch buffer (b) of size >= order
  * Outputs:     LPC coefficients in Q(FBITS_LPC_COEFS), in 'a'
- * Return:      none
  * Notes:       assumes no guard bits in input transform coefficients
  *              a[i] = Q(FBITS_LPC_COEFS), don't store a0 = 1.0
  *                (so a[0] = first delay tap, etc.)
@@ -5784,22 +5783,20 @@ void cAacDecoder::applyTns (int32_t channel) {
     *(&(p1)+1) = t1
 
   const uint8_t* tab = bitrevtab + bitrevtabOffset[tabidx];
-  uint8_t nbits = nfftlog2Tab[tabidx];
-
   int32_t* part0 = inout;
   int32_t* part1 = inout + nfftTab[tabidx];
 
-  int32_t a, t,t1;
+  int32_t a, t, t1;
   while ((a = (*(const uint8_t*)(tab++))) != 0) {
     int32_t b = (*(const uint8_t*)(tab++));
-    swapcplx (part0[4*a+0], part0[4*b+0]); /* 0xxx0 <-> 0yyy0 */
-    swapcplx (part0[4*a+2], part1[4*b+0]); /* 0xxx1 <-> 1yyy0 */
-    swapcplx (part1[4*a+0], part0[4*b+2]); /* 1xxx0 <-> 0yyy1 */
-    swapcplx (part1[4*a+2], part1[4*b+2]); /* 1xxx1 <-> 1yyy1 */
+    swapcplx (part0[4*a+0], part0[4*b+0]); // 0xxx0 <-> 0yyy0
+    swapcplx (part0[4*a+2], part1[4*b+0]); // 0xxx1 <-> 1yyy0
+    swapcplx (part1[4*a+0], part0[4*b+2]); // 1xxx0 <-> 0yyy1
+    swapcplx (part1[4*a+2], part1[4*b+2]); // 1xxx1 <-> 1yyy1
     }
 
   do {
-    swapcplx (part0[4*a+2], part1[4*a+0]); /* 0xxx1 <-> 1xxx0 */
+    swapcplx (part0[4*a+2], part1[4*a+0]); // 0xxx1 <-> 1xxx0
     } while ((a =(*(const uint8_t*)(tab++))) != 0);
 }
 //}}}
@@ -5811,7 +5808,7 @@ void cAacDecoder::applyTns (int32_t channel) {
  *              number of R4 butterflies per group (i.e. nfft / 4)
  * Outputs:     processed samples in same buffer
  * Notes:       assumes 2 guard bits, gains no integer bits,
- *                guard bits out = guard bits in - 2
+ *              guard bits out = guard bits in - 2
  **************************************************************************************/
 
   for (; bg != 0; bg--) {
@@ -6032,24 +6029,23 @@ static void R4FFT (int32_t tabidx, int32_t* x) {
  * Notes:       assumes 5 guard bits in for nfft <= 512
  *              gbOut = gbIn - 4 (assuming input is from PreMultiply)
  *              gains log2(nfft) - 2 int32_t bits total
- *                so gain 7 int32_t bits (LONG), 4 int32_t bits (SHORT)
+ *              so gain 7 int32_t bits (LONG), 4 int32_t bits (SHORT)
  **************************************************************************************/
-
-  int32_t order = nfftlog2Tab[tabidx];
-  int32_t nfft = nfftTab[tabidx];
 
   // decimation in time
   BitReverse (x, tabidx);
 
+  int32_t nfft = nfftTab[tabidx];
+  int32_t order = nfftlog2Tab[tabidx];
   if (order & 0x1) {
     // long block: order = 9, nfft = 512
-    R8FirstPass (x, nfft >> 3);                    // gain 1 int32_t bit,  lose 2 GB
-    R4Core (x, nfft >> 5, 8, (int32_t *)twidTabOdd);   // gain 6 int32_t bits, lose 2 GB
+    R8FirstPass (x, nfft >> 3);                       // gain 1 int32_t bit,  lose 2 GB
+    R4Core (x, nfft >> 5, 8, (int32_t *)twidTabOdd);  // gain 6 int32_t bits, lose 2 GB
     }
   else {
     // short block: order = 6, nfft = 64 */
-    R4FirstPass (x, nfft >> 2);                   // gain 0 int32_t bits, lose 2 GB
-    R4Core (x, nfft >> 4, 4, (int32_t *)twidTabEven);  // gain 4 int32_t bits, lose 1 GB
+    R4FirstPass (x, nfft >> 2);                       // gain 0 int32_t bits, lose 2 GB
+    R4Core (x, nfft >> 4, 4, (int32_t *)twidTabEven); // gain 4 int32_t bits, lose 1 GB
     }
   }
 //}}}
@@ -6070,9 +6066,8 @@ static void PreMultiply (int32_t tabidx, int32_t* zbuf1) {
   int32_t* zbuf2 = zbuf1 + nmdct - 1;
   const int32_t* csptr = cos4sin4tab + cos4sin4tabOffset[tabidx];
 
-  /* whole thing should fit in registers - verify that compiler does this */
   for (int32_t i = nmdct >> 2; i != 0; i--) {
-    /* cps2 = (cos+sin), sin2 = sin, cms2 = (cos-sin) */
+    // cps2 = (cos+sin), sin2 = sin, cms2 = (cos-sin)
     int32_t cps2a = *csptr++;
     int32_t sin2a = *csptr++;
     int32_t cps2b = *csptr++;
@@ -6137,17 +6132,17 @@ static void PostMultiply (int32_t tabidx, int32_t* fft1) {
     // i.e. gain 1 GB since worst case is sin(angle) = cos(angle) = 0.707 (Q30), gain 2 from
     //   extra sign bits, and eat one in adding
     int32_t t = MULSHIFT32(sin2, ar1 + ai1);
-    *fft2-- = t - MULSHIFT32(cps2, ai1);  /* sin*ar1 - cos*ai1 */
-    *fft1++ = t + MULSHIFT32(cms2, ar1);  /* cos*ar1 + sin*ai1 */
+    *fft2-- = t - MULSHIFT32(cps2, ai1);  // sin*ar1 - cos*ai1
+    *fft1++ = t + MULSHIFT32(cms2, ar1);  // cos*ar1 + sin*ai1
     cps2 = *csptr++;
     sin2 = *csptr;
     csptr += skipFactor;
 
     ai2 = -ai2;
     t = MULSHIFT32(sin2, ar2 + ai2);
-    *fft2-- = t - MULSHIFT32(cps2, ai2);  /* sin*ar1 - cos*ai1 */
+    *fft2-- = t - MULSHIFT32(cps2, ai2);  // sin*ar1 - cos*ai1
     cms2 = cps2 - 2*sin2;
-    *fft1++ = t + MULSHIFT32(cms2, ar2);  /* cos*ar1 + sin*ai1 */
+    *fft1++ = t + MULSHIFT32(cms2, ar2);  // cos*ar1 + sin*ai1
     }
   }
 //}}}
@@ -6166,7 +6161,7 @@ static void PostMultiply (int32_t tabidx, int32_t* fft1) {
   int32_t* zbuf2 = zbuf1 + nmdct - 1;
   const int32_t* csptr = cos4sin4tab + cos4sin4tabOffset[tabidx];
 
-  // whole thing should fit in registers - verify that compiler does this */
+  // whole thing should fit in registers - verify that compiler does this
   for (int32_t i = nmdct >> 2; i != 0; i--) {
     // cps2 = (cos+sin), sin2 = sin, cms2 = (cos-sin) */
     int32_t cps2a = *csptr++;
@@ -6185,7 +6180,7 @@ static void PostMultiply (int32_t tabidx, int32_t* fft1) {
     *zbuf1++ = z1;
     *zbuf1++ = z2;
 
-    int32_t ar2 = *(zbuf2 - 1) >> es; /* do here to free up register used for es */
+    int32_t ar2 = *(zbuf2 - 1) >> es; // do here to free up register used for es
 
     t  = MULSHIFT32(sin2b, ar2 + ai2);
     z2 = MULSHIFT32(cps2b, ai2) - t;
@@ -6286,9 +6281,8 @@ static void DCT4 (int32_t tabidx, int32_t* coef, int32_t gb) {
 //}}}
 
 //{{{
-static void DecWindowOverlapNoClip (int32_t* buf0, int32_t* over0, int32_t* out0, int32_t winTypeCurr, int32_t winTypePrev) {
+static void DecWindowOverlap (int32_t* buf0, int32_t* over0, int32_t* out0, int32_t winTypeCurr, int32_t winTypePrev) {
 /**************************************************************************************
- * Function:    DecWindowOverlapNoClip
  * Description: apply synthesis window, do overlap-add without clipping,
  *                for winSequence LONG-LONG
  * Inputs:      input buffer (output of type-IV DCT)
@@ -6354,9 +6348,8 @@ static void DecWindowOverlapNoClip (int32_t* buf0, int32_t* over0, int32_t* out0
   }
 //}}}
 //{{{
-static void DecWindowOverlapLongStartNoClip (int32_t* buf0, int32_t* over0, int32_t* out0, int32_t winTypeCurr, int32_t winTypePrev) {
+static void DecWindowOverlapLongStart (int32_t* buf0, int32_t* over0, int32_t* out0, int32_t winTypeCurr, int32_t winTypePrev) {
 /**************************************************************************************
- * Function:    DecWindowOverlapLongStart
  * Description: apply synthesis window, do overlap-add, without clipping
  *                for winSequence LONG-START
  * Inputs:      input buffer (output of type-IV DCT)
@@ -6413,9 +6406,8 @@ static void DecWindowOverlapLongStartNoClip (int32_t* buf0, int32_t* over0, int3
   }
 //}}}
 //{{{
-static void DecWindowOverlapLongStopNoClip (int32_t* buf0, int32_t* over0, int32_t* out0, int32_t winTypeCurr, int32_t winTypePrev) {
+static void DecWindowOverlapLongStop (int32_t* buf0, int32_t* over0, int32_t* out0, int32_t winTypeCurr, int32_t winTypePrev) {
 /**************************************************************************************
- * Function:    DecWindowOverlapLongStop
  * Description: apply synthesis window, do overlap-add, without clipping
  *                for winSequence LONG-STOP
  * Inputs:      input buffer (output of type-IV DCT)
@@ -6450,7 +6442,7 @@ static void DecWindowOverlapLongStopNoClip (int32_t* buf0, int32_t* over0, int32
     *over0++ = MULSHIFT32(w1, in);
     } while (--i);
 
-  /* do 64 more loops - 2 outputs, 2 overlaps per loop */
+  // do 64 more loops - 2 outputs, 2 overlaps per loop
   const int32_t* wndPrev = (winTypePrev == 1 ? kbdWindow + kbdWindowOffset[0] : sinWindow + sinWindowOffset[0]);
   do {
     int32_t w0 = *wndPrev++;  /* W[0], W[1], ...W[63] */
@@ -6473,9 +6465,8 @@ static void DecWindowOverlapLongStopNoClip (int32_t* buf0, int32_t* over0, int32
   }
 //}}}
 //{{{
-static void DecWindowOverlapShortNoClip (int32_t* buf0, int32_t* over0, int32_t* out0, int32_t winTypeCurr, int32_t winTypePrev) {
+static void DecWindowOverlapShort (int32_t* buf0, int32_t* over0, int32_t* out0, int32_t winTypeCurr, int32_t winTypePrev) {
 /**************************************************************************************
- * Function:    DecWindowOverlapShort
  * Description: apply synthesis window, do overlap-add, without clipping
  *                for winSequence EIGHT-SHORT (does all 8 short blocks)
  * Inputs:      input buffer (output of type-IV DCT)
@@ -6656,17 +6647,17 @@ void cAacDecoder::imdct (int32_t channel, int32_t chOut, float* outbuf) {
   // window, overlap-add, don't clip to short (send to SBR decoder)
   // store the decoded 32-bit samples in top half (second AAC_MAX_NSAMPS samples) of coef buffer
   if (icsInfo->winSequence == 0)
-    DecWindowOverlapNoClip (psInfoBase->coef[channel], psInfoBase->overlap[chOut], psInfoBase->sbrWorkBuf[channel],
-                            icsInfo->winShape, psInfoBase->prevWinShape[chOut]);
+    DecWindowOverlap (psInfoBase->coef[channel], psInfoBase->overlap[chOut], psInfoBase->sbrWorkBuf[channel],
+                      icsInfo->winShape, psInfoBase->prevWinShape[chOut]);
   else if (icsInfo->winSequence == 1)
-    DecWindowOverlapLongStartNoClip (psInfoBase->coef[channel], psInfoBase->overlap[chOut], psInfoBase->sbrWorkBuf[channel],
-                                     icsInfo->winShape, psInfoBase->prevWinShape[chOut]);
+    DecWindowOverlapLongStart (psInfoBase->coef[channel], psInfoBase->overlap[chOut], psInfoBase->sbrWorkBuf[channel],
+                               icsInfo->winShape, psInfoBase->prevWinShape[chOut]);
   else if (icsInfo->winSequence == 2)
-    DecWindowOverlapShortNoClip (psInfoBase->coef[channel], psInfoBase->overlap[chOut], psInfoBase->sbrWorkBuf[channel],
-                                 icsInfo->winShape, psInfoBase->prevWinShape[chOut]);
+    DecWindowOverlapShort (psInfoBase->coef[channel], psInfoBase->overlap[chOut], psInfoBase->sbrWorkBuf[channel],
+                           icsInfo->winShape, psInfoBase->prevWinShape[chOut]);
   else if (icsInfo->winSequence == 3)
-    DecWindowOverlapLongStopNoClip (psInfoBase->coef[channel], psInfoBase->overlap[chOut], psInfoBase->sbrWorkBuf[channel],
-                                    icsInfo->winShape, psInfoBase->prevWinShape[chOut]);
+    DecWindowOverlapLongStop (psInfoBase->coef[channel], psInfoBase->overlap[chOut], psInfoBase->sbrWorkBuf[channel],
+                              icsInfo->winShape, psInfoBase->prevWinShape[chOut]);
 
   rawSampleBuf[channel] = psInfoBase->sbrWorkBuf[channel];
 
