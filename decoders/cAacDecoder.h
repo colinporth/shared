@@ -34,7 +34,7 @@ public:
   int32_t getSampleRate() { return sampleRate * (sbrEnabled ? 2 : 1); }
   int32_t getNumSamples() { return numSamples; }
 
-  float* decodeFrame (const uint8_t* framePtr, int32_t frameLen, int frameNum);
+  float* decodeFrame (const uint8_t* framePtr, int32_t frameLen, int32_t frameNum);
 
 private:
   //{{{  private members
@@ -46,19 +46,19 @@ private:
   void decodeDataStreamElement (cBitStream* bsi);
   void decodeProgramConfigElement (sProgConfigElement* pce, cBitStream* bsi);
   void decodeFillElement (cBitStream* bsi);
-  bool decodeNextElement (uint8_t** buf, int* bitOffset, int* bitsAvail);
-  bool decodeSbrBitstream (int chBase);
+  bool decodeNextElement (uint8_t** buf, int32_t* bitOffset, int32_t* bitsAvail);
+  bool decodeSbrBitstream (int32_t chBase);
 
-  void decodeNoiselessData (uint8_t** buf, int* bitOffset, int* bitsAvail, int channel);
-  void dequantize (int channel);
+  void decodeNoiselessData (uint8_t** buf, int32_t* bitOffset, int32_t* bitsAvail, int32_t channel);
+  void dequantize (int32_t channel);
   void applyStereoProcess();
-  void applyPns (int channel);
-  void applyTns (int channel);
-  void imdct (int channel, int chOut, float* outbuf);
-  void applySbr (int chBase, float* outbuf);
+  void applyPns (int32_t channel);
+  void applyTns (int32_t channel);
+  void imdct (int32_t channel, int32_t chOut, float* outbuf);
+  void applySbr (int32_t chBase, float* outbuf);
 
-  bool unpackADTSHeader (uint8_t** buf, int* bitOffset, int* bitsAvail);
-  bool getADTSChannelMapping (uint8_t* buf, int bitOffset, int bitsAvail);
+  bool unpackADTSHeader (uint8_t** buf, int32_t* bitOffset, int32_t* bitsAvail);
+  bool getADTSChannelMapping (uint8_t* buf, int32_t bitOffset, int32_t bitsAvail);
   //}}}
   //{{{  private vars
   sPSInfoBase* psInfoBase;
@@ -69,28 +69,28 @@ private:
 
   // fill data (can be used for processing SBR or other extensions)
   uint8_t* fillBuf;
-  int fillCount;
-  int fillExtType;
+  int32_t fillCount;
+  int32_t fillExtType;
 
   // block information
-  int prevBlockID;
-  int currBlockID;
-  int currInstTag;
-  int sbDeinterleaveReqd [MAX_NCHANS_ELEM];
-  int adtsBlocksLeft;
+  int32_t prevBlockID;
+  int32_t currBlockID;
+  int32_t currInstTag;
+  int32_t sbDeinterleaveReqd [MAX_NCHANS_ELEM];
+  int32_t adtsBlocksLeft;
 
   //  info
-  int bitRate;
-  int numChannels;
-  int sampleRate;
-  int profile;
-  int format;
-  int sbrEnabled;
-  int tnsUsed;
-  int pnsUsed;
+  int32_t bitRate;
+  int32_t numChannels;
+  int32_t sampleRate;
+  int32_t profile;
+  int32_t format;
+  int32_t sbrEnabled;
+  int32_t tnsUsed;
+  int32_t pnsUsed;
 
   int32_t numSamples;
 
-  int mLastFrameNum = -1;
+  int32_t mLastFrameNum = -1;
   //}}}
   };
