@@ -1647,6 +1647,7 @@ float* cMp3Decoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int3
     else if (restoreReservoir (&frameBitStream, needReservoirBytes)) {
       outBuffer = (float*)malloc (mNumSamples * mNumChannels * sizeof(float));
       #ifdef USE_INTRINSICS
+        // !!!! remove int16_t !!!
         int16_t samples16 [2048*2];
         int16_t* pcm = samples16;
       #else

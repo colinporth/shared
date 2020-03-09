@@ -241,88 +241,6 @@ typedef struct _ICSInfo {
   uint8_t winGroupLen [MAX_WIN_GROUPS];
   } ICSInfo;
 //}}}
-//{{{
-/* sizeof(ProgConfigElement) = 82 bytes (if KEEP_PCE_COMMENTS not defined) */
-struct sProgConfigElement {
-  #define MAX_NUM_FCE        15
-  #define MAX_NUM_SCE        15
-  #define MAX_NUM_BCE        15
-  #define MAX_NUM_LCE        3
-  #define MAX_NUM_ADE        7
-  #define MAX_NUM_CCE        15
-  #define MAX_COMMENT_BYTES  255
-
-  uint8_t elemInstTag;        /* element instance tag */
-  uint8_t profile;            /* 0 = main, 1 = LC, 2 = SSR, 3 = reserved */
-  uint8_t sampRateIdx;        /* sample rate index range = [0, 11] */
-  uint8_t numFCE;             /* number of front channel elements (max = 15) */
-  uint8_t numSCE;             /* number of side channel elements (max = 15) */
-  uint8_t numBCE;             /* number of back channel elements (max = 15) */
-  uint8_t numLCE;             /* number of LFE channel elements (max = 3) */
-  uint8_t numADE;             /* number of associated data elements (max = 7) */
-  uint8_t numCCE;             /* number of valid channel coupling elements (max = 15) */
-  uint8_t monoMixdown;        /* mono mixdown: bit 4 = present flag, bits 3-0 = element number */
-  uint8_t stereoMixdown;      /* stereo mixdown: bit 4 = present flag, bits 3-0 = element number */
-  uint8_t matrixMixdown;      /* matrix mixdown: bit 4 = present flag, bit 3 = unused,
-                                       bits 2-1 = index, bit 0 = pseudo-surround enable */
-  uint8_t fce [MAX_NUM_FCE];  /* front element channel pair: bit 4 = SCE/CPE flag, bits 3-0 = inst tag */
-  uint8_t sce [MAX_NUM_SCE];  /* side element channel pair: bit 4 = SCE/CPE flag, bits 3-0 = inst tag */
-  uint8_t bce [MAX_NUM_BCE];  /* back element channel pair: bit 4 = SCE/CPE flag, bits 3-0 = inst tag */
-  uint8_t lce [MAX_NUM_LCE];  /* instance tag for LFE elements */
-  uint8_t ade [MAX_NUM_ADE];  /* instance tag for ADE elements */
-  uint8_t cce [MAX_NUM_BCE];  /* channel coupling elements: bit 4 = switching flag, bits 3-0 = inst tag */
-
-  uint8_t commentBytes;
-  uint8_t commentField [MAX_COMMENT_BYTES];
-  };
-//}}}
-//{{{
-// state info struct for baseline (MPEG-4 LC) decoding
-struct sInfoBase {
-  // header information
-  ADTSHeader adtsHeader;
-  sProgConfigElement pce [MAX_NUM_PCE_ADIF];
-  int32_t dataCount;
-  uint8_t dataBuf [DATA_BUF_SIZE];
-  int32_t fillCount;
-  uint8_t fillBuf [FILL_BUF_SIZE];
-
-  // state information which is the same throughout whole frame
-  int32_t nChans;
-  int32_t useImpChanMap;
-  int32_t sampRateIdx;
-
-  // state information which can be overwritten by subsequent elements within frame
-  ICSInfo icsInfo [MAX_NCHANS_ELEM];
-
-  int32_t commonWin;
-  int16_t scaleFactors [MAX_NCHANS_ELEM][MAX_SF_BANDS];
-  uint8_t sfbCodeBook [MAX_NCHANS_ELEM][MAX_SF_BANDS];
-
-  int32_t msMaskPresent;
-  uint8_t msMaskBits [MAX_MS_MASK_BYTES];
-
-  int32_t pnsUsed [MAX_NCHANS_ELEM];
-  int32_t pnsLastVal;
-  int32_t intensityUsed [MAX_NCHANS_ELEM];
-
-  PulseInfo pulseInfo [MAX_NCHANS_ELEM];
-
-  TNSInfo tnsInfo [MAX_NCHANS_ELEM];
-  int32_t tnsLPCBuf [MAX_TNS_ORDER];
-  int32_t tnsWorkBuf [MAX_TNS_ORDER];
-
-  GainControlInfo gainControlInfo [MAX_NCHANS_ELEM];
-
-  int32_t gbCurrent [MAX_NCHANS_ELEM];
-  int32_t coef [MAX_NCHANS_ELEM][AAC_MAX_NSAMPS];
-  int32_t sbrWorkBuf [MAX_NCHANS_ELEM][AAC_MAX_NSAMPS];
-
-  // state information which must be saved for each element and used in next frame
-  int32_t overlap [AAC_MAX_NCHANS][AAC_MAX_NSAMPS];
-  int32_t prevWinShape [AAC_MAX_NCHANS];
-  };
-//}}}
 
 //{{{
 /* need one SBRHeader per element (SCE/CPE), updated only on new header */
@@ -414,6 +332,89 @@ typedef struct _SBRChan {
   int32_t gTemp [MAX_NUM_SMOOTH_COEFS][MAX_QMF_BANDS];
   int32_t qTemp [MAX_NUM_SMOOTH_COEFS][MAX_QMF_BANDS];
   } SBRChan;
+//}}}
+
+//{{{
+/* sizeof(ProgConfigElement) = 82 bytes (if KEEP_PCE_COMMENTS not defined) */
+struct sProgConfigElement {
+  #define MAX_NUM_FCE        15
+  #define MAX_NUM_SCE        15
+  #define MAX_NUM_BCE        15
+  #define MAX_NUM_LCE        3
+  #define MAX_NUM_ADE        7
+  #define MAX_NUM_CCE        15
+  #define MAX_COMMENT_BYTES  255
+
+  uint8_t elemInstTag;        /* element instance tag */
+  uint8_t profile;            /* 0 = main, 1 = LC, 2 = SSR, 3 = reserved */
+  uint8_t sampRateIdx;        /* sample rate index range = [0, 11] */
+  uint8_t numFCE;             /* number of front channel elements (max = 15) */
+  uint8_t numSCE;             /* number of side channel elements (max = 15) */
+  uint8_t numBCE;             /* number of back channel elements (max = 15) */
+  uint8_t numLCE;             /* number of LFE channel elements (max = 3) */
+  uint8_t numADE;             /* number of associated data elements (max = 7) */
+  uint8_t numCCE;             /* number of valid channel coupling elements (max = 15) */
+  uint8_t monoMixdown;        /* mono mixdown: bit 4 = present flag, bits 3-0 = element number */
+  uint8_t stereoMixdown;      /* stereo mixdown: bit 4 = present flag, bits 3-0 = element number */
+  uint8_t matrixMixdown;      /* matrix mixdown: bit 4 = present flag, bit 3 = unused,
+                                       bits 2-1 = index, bit 0 = pseudo-surround enable */
+  uint8_t fce [MAX_NUM_FCE];  /* front element channel pair: bit 4 = SCE/CPE flag, bits 3-0 = inst tag */
+  uint8_t sce [MAX_NUM_SCE];  /* side element channel pair: bit 4 = SCE/CPE flag, bits 3-0 = inst tag */
+  uint8_t bce [MAX_NUM_BCE];  /* back element channel pair: bit 4 = SCE/CPE flag, bits 3-0 = inst tag */
+  uint8_t lce [MAX_NUM_LCE];  /* instance tag for LFE elements */
+  uint8_t ade [MAX_NUM_ADE];  /* instance tag for ADE elements */
+  uint8_t cce [MAX_NUM_BCE];  /* channel coupling elements: bit 4 = switching flag, bits 3-0 = inst tag */
+
+  uint8_t commentBytes;
+  uint8_t commentField [MAX_COMMENT_BYTES];
+  };
+//}}}
+//{{{
+// state info struct for baseline (MPEG-4 LC) decoding
+struct sInfoBase {
+  // header information
+  ADTSHeader adtsHeader;
+  sProgConfigElement pce [MAX_NUM_PCE_ADIF];
+  int32_t dataCount;
+  uint8_t dataBuf [DATA_BUF_SIZE];
+  int32_t fillCount;
+  uint8_t fillBuf [FILL_BUF_SIZE];
+
+  // state information which is the same throughout whole frame
+  int32_t nChans;
+  int32_t useImpChanMap;
+  int32_t sampRateIdx;
+
+  // state information which can be overwritten by subsequent elements within frame
+  ICSInfo icsInfo [MAX_NCHANS_ELEM];
+
+  int32_t commonWin;
+  int16_t scaleFactors [MAX_NCHANS_ELEM][MAX_SF_BANDS];
+  uint8_t sfbCodeBook [MAX_NCHANS_ELEM][MAX_SF_BANDS];
+
+  int32_t msMaskPresent;
+  uint8_t msMaskBits [MAX_MS_MASK_BYTES];
+
+  int32_t pnsUsed [MAX_NCHANS_ELEM];
+  int32_t pnsLastVal;
+  int32_t intensityUsed [MAX_NCHANS_ELEM];
+
+  PulseInfo pulseInfo [MAX_NCHANS_ELEM];
+
+  TNSInfo tnsInfo [MAX_NCHANS_ELEM];
+  int32_t tnsLPCBuf [MAX_TNS_ORDER];
+  int32_t tnsWorkBuf [MAX_TNS_ORDER];
+
+  GainControlInfo gainControlInfo [MAX_NCHANS_ELEM];
+
+  int32_t gbCurrent [MAX_NCHANS_ELEM];
+  int32_t coef [MAX_NCHANS_ELEM][AAC_MAX_NSAMPS];
+  int32_t sbrWorkBuf [MAX_NCHANS_ELEM][AAC_MAX_NSAMPS];
+
+  // state information which must be saved for each element and used in next frame
+  int32_t overlap [AAC_MAX_NCHANS][AAC_MAX_NSAMPS];
+  int32_t prevWinShape [AAC_MAX_NCHANS];
+  };
 //}}}
 //{{{
 struct sInfoSbr {
@@ -2406,16 +2407,14 @@ float* cAacDecoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int3
       }
     if (mSbrEnabled && (mCurrBlockID == AAC_ID_FIL || mCurrBlockID == AAC_ID_LFE)) {
       //{{{  process sbr
-      int32_t elementChansSBR;
+      int32_t elementChannelsSbr = 0;
       if (mCurrBlockID == AAC_ID_LFE)
-        elementChansSBR = elementNumChans[AAC_ID_LFE];
+        elementChannelsSbr = elementNumChans[AAC_ID_LFE];
       else if (mCurrBlockID == AAC_ID_FIL &&
-               (mPrevBlockID == AAC_ID_SCE || mPrevBlockID == AAC_ID_CPE))
-        elementChansSBR = elementNumChans[mPrevBlockID];
-      else
-        elementChansSBR = 0;
+               ((mPrevBlockID == AAC_ID_SCE) || (mPrevBlockID == AAC_ID_CPE)))
+        elementChannelsSbr = elementNumChans[mPrevBlockID];
 
-      if (baseChannelSBR + elementChansSBR > AAC_MAX_NCHANS)
+      if (baseChannelSBR + elementChannelsSbr > AAC_MAX_NCHANS)
         return 0;
 
       // parse SBR extension data if present (contained in a fill element)
@@ -2423,7 +2422,7 @@ float* cAacDecoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int3
         return 0;
 
       applySbr (baseChannelSBR, outBuffer);
-      baseChannelSBR += elementChansSBR;
+      baseChannelSBR += elementChannelsSbr;
       }
       //}}}
     baseChannel += elementNumChans[mCurrBlockID];
@@ -4926,7 +4925,7 @@ bool cAacDecoder::decodeSbrBitstream (int32_t chBase) {
     else if (mInfoSbr->sampRateIdx >= NUM_SAMPLE_RATES_SBR)
       return true;
 
-    // reset flag = 1 if header values changed */
+    // reset flag = 1 if header values changed
     if (unpackSBRHeader (&bsi, &(mInfoSbr->sbrHdr[chBase])))
       mInfoSbr->sbrChan[chBase].reset = 1;
 
