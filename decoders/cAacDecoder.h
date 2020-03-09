@@ -47,11 +47,11 @@ private:
   void decodeProgramConfigElement (cBitStream* bsi, sProgConfigElement* pce);
   void decodeFillElement (cBitStream* bsi);
 
-  bool unpackADTSHeader (uint8_t*& buf, int32_t& bitOffset, int32_t& bitsAvail);
-  bool decodeNextElement (uint8_t*& buf, int32_t& bitOffset, int32_t& bitsAvail);
+  bool unpackADTSHeader (uint8_t*& buffer, int32_t& bitOffset, int32_t& bitsAvail);
+  bool decodeNextElement (uint8_t*& buffer, int32_t& bitOffset, int32_t& bitsAvail);
+  void decodeNoiselessData (uint8_t*& buffer, int32_t& bitOffset, int32_t& bitsAvail, int32_t channel);
   bool decodeSbrBitstream (int32_t chBase);
 
-  void decodeNoiselessData (uint8_t*& buf, int32_t& bitOffset, int32_t& bitsAvail, int32_t channel);
   void dequantize (int32_t channel);
   void applyStereoProcess();
   void applyPns (int32_t channel);

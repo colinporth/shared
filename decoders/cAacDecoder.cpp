@@ -526,13 +526,13 @@ inline int32_t FASTABS (int32_t x) {
   //}}}
 #else
   //{{{
-  inline int32_tcountLeadingZeros (int32_tx) {
+  inline int32_tcountLeadingZeros (int32_t x) {
   // count leading zeros with binary search
 
     if (!x)
       return 32;
 
-    int32_tnumZeros = 1;
+    int32_t numZeros = 1;
     if (!((uint32_t)x >> 16)) {
       numZeros += 16;
       x <<= 16;
@@ -1095,6 +1095,7 @@ static const int32_t twidTabEven [4*6 + 16*6 + 64*6] = {
 //{{{  tns
 // TNS max bands (table 4.139) and max order (table 4.138) */
 static const uint8_t tnsMaxBandsShortOffset [AAC_NUM_PROFILES] = { 0, 0, 12 };
+static const uint8_t tnsMaxOrderShort [AAC_NUM_PROFILES] = { 7, 7, 7 };
 //{{{
 static const uint8_t tnsMaxBandsShort [2*NUM_SAMPLE_RATES]  = {
   9,  9, 10, 14, 14, 14, 14, 14, 14, 14, 14, 14,   /* short block, Main/LC */
@@ -1103,8 +1104,6 @@ static const uint8_t tnsMaxBandsShort [2*NUM_SAMPLE_RATES]  = {
 //}}}
 
 static const uint8_t tnsMaxBandsLongOffset[AAC_NUM_PROFILES] = { 0, 0, 12 };
-static const uint8_t tnsMaxOrderShort [AAC_NUM_PROFILES] = { 7, 7, 7 };
-
 static const uint8_t tnsMaxOrderLong [AAC_NUM_PROFILES] = { 20, 12, 12 };
 //{{{
 static const uint8_t tnsMaxBandsLong [2*NUM_SAMPLE_RATES] = {
@@ -1118,11 +1117,6 @@ static const uint8_t tnsMaxBandsLong [2*NUM_SAMPLE_RATES] = {
 /* total number of scale factor bands in one window */
 static const uint8_t sfBandTotalShort [NUM_SAMPLE_RATES] = {
   12, 12, 12, 14, 14, 14, 15, 15, 15, 15, 15, 15
-  };
-//}}}
-//{{{
-static const uint8_t sfBandTotalLong [NUM_SAMPLE_RATES] = {
-  41, 41, 47, 49, 49, 51, 47, 47, 43, 43, 43, 40
   };
 //}}}
 //{{{
@@ -1146,6 +1140,12 @@ static const int16_t sfBandTabShort [76] = {
 
   /* short block 8 kHz [16] (table 4.5.18) */
   0,   4,   8,  12,  16,  20,  24,  28,  36,  44,  52,  60,  72,  88, 108, 128
+  };
+//}}}
+
+//{{{
+static const uint8_t sfBandTotalLong [NUM_SAMPLE_RATES] = {
+  41, 41, 47, 49, 49, 51, 47, 47, 43, 43, 43, 40
   };
 //}}}
 //{{{
@@ -1820,7 +1820,7 @@ static const int32_t kbdWindow [128 + 1024] = {
 #define NUM_TERMS_RPI 5
 static const int32_t invTab [NUM_TERMS_RPI]  = {
   0x40000000, 0x20000000, 0x15555555, 0x10000000, 0x0ccccccd
-};
+  };
 //}}}
 
 //{{{
@@ -3574,9 +3574,9 @@ void cAacDecoder::decodeFillElement (cBitStream* bsi) {
 //}}}
 
 //{{{
-bool cAacDecoder::unpackADTSHeader (uint8_t*& buf, int32_t& bitOffset, int32_t& bitsAvail) {
+bool cAacDecoder::unpackADTSHeader (uint8_t*& buffer, int32_t& bitOffset, int32_t& bitsAvail) {
 
-  cBitStream bsi (buf, (bitsAvail + 7) >> 3);
+  cBitStream bsi (buffer, (bitsAvail + 7) >> 3);
   bsi.getBits (bitOffset);
 
   // verify that first 12 bits of header are syncword
@@ -3633,8 +3633,8 @@ bool cAacDecoder::unpackADTSHeader (uint8_t*& buf, int32_t& bitOffset, int32_t& 
   mAdtsBlocksLeft = adtsHeader->numRawDataBlocks;
 
   // update bitstream reader
-  int32_t bitsUsed = bsi.getBitsUsed (buf, bitOffset);
-  buf += (bitsUsed + bitOffset) >> 3;
+  int32_t bitsUsed = bsi.getBitsUsed (buffer, bitOffset);
+  buffer += (bitsUsed + bitOffset) >> 3;
   bitOffset = (bitsUsed + bitOffset) & 0x07;
   bitsAvail -= bitsUsed ;
 
@@ -3642,9 +3642,9 @@ bool cAacDecoder::unpackADTSHeader (uint8_t*& buf, int32_t& bitOffset, int32_t& 
   }
 //}}}
 //{{{
-bool cAacDecoder::decodeNextElement (uint8_t*& buf, int32_t& bitOffset, int32_t& bitsAvail) {
+bool cAacDecoder::decodeNextElement (uint8_t*& buffer, int32_t& bitOffset, int32_t& bitsAvail) {
 
-  cBitStream bsi (buf, (bitsAvail + 7) >> 3);
+  cBitStream bsi (buffer, (bitsAvail + 7) >> 3);
   bsi.getBits (bitOffset);
 
   // read element ID (save last ID for SBR purposes)
@@ -3694,12 +3694,41 @@ bool cAacDecoder::decodeNextElement (uint8_t*& buf, int32_t& bitOffset, int32_t&
     }
 
   // update bitstream reader
-  int32_t bitsUsed = bsi.getBitsUsed (buf, bitOffset);
-  buf += (bitsUsed + bitOffset) >> 3;
+  int32_t bitsUsed = bsi.getBitsUsed (buffer, bitOffset);
+  buffer += (bitsUsed + bitOffset) >> 3;
   bitOffset = (bitsUsed + bitOffset) & 0x07;
   bitsAvail -= bitsUsed;
 
   return bitsAvail < 0;
+  }
+//}}}
+//{{{
+void cAacDecoder::decodeNoiselessData (uint8_t*& buffer, int32_t& bitOffset, int32_t& bitsAvail, int32_t channel) {
+
+  cLog::log (LOGINFO3, "decodeNoiselessData %d", channel);
+
+  cBitStream bsi (buffer, (bitsAvail+7) >> 3);
+  bsi.getBits (bitOffset);
+
+  DecodeICS (mInfoBase, &bsi, channel);
+
+  ICSInfo* icsInfo = (channel == 1 && mInfoBase->commonWin == 1) ?
+                       &(mInfoBase->icsInfo[0]) : &(mInfoBase->icsInfo[channel]);
+
+  if (icsInfo->winSequence == 2)
+    DecodeSpectrumShort (mInfoBase, &bsi, channel);
+  else
+    DecodeSpectrumLong (mInfoBase, &bsi, channel);
+
+  int32_t bitsUsed = bsi.getBitsUsed (buffer, bitOffset);
+  buffer += ((bitsUsed + bitOffset) >> 3);
+  bitOffset = ((bitsUsed + bitOffset) & 0x07);
+  bitsAvail -= bitsUsed;
+
+  mSbDeinterleaveReqd[channel] = 0;
+
+  // set flag if TNS used for any channel
+  mTnsUsed |= mInfoBase->tnsInfo[channel].tnsDataPresent;
   }
 //}}}
 
@@ -4923,36 +4952,6 @@ bool cAacDecoder::decodeSbrBitstream (int32_t chBase) {
 
   bsi.byteAlignBitstream();
   return false;
-  }
-//}}}
-
-//{{{
-void cAacDecoder::decodeNoiselessData (uint8_t*& buf, int32_t& bitOffset, int32_t& bitsAvail, int32_t channel) {
-
-  cLog::log (LOGINFO3, "decodeNoiselessData %d", channel);
-
-  cBitStream bsi (buf, (bitsAvail+7) >> 3);
-  bsi.getBits (bitOffset);
-
-  DecodeICS (mInfoBase, &bsi, channel);
-
-  ICSInfo* icsInfo = (channel == 1 && mInfoBase->commonWin == 1) ?
-                       &(mInfoBase->icsInfo[0]) : &(mInfoBase->icsInfo[channel]);
-
-  if (icsInfo->winSequence == 2)
-    DecodeSpectrumShort (mInfoBase, &bsi, channel);
-  else
-    DecodeSpectrumLong (mInfoBase, &bsi, channel);
-
-  int32_t bitsUsed = bsi.getBitsUsed (buf, bitOffset);
-  buf += ((bitsUsed + bitOffset) >> 3);
-  bitOffset = ((bitsUsed + bitOffset) & 0x07);
-  bitsAvail -= bitsUsed;
-
-  mSbDeinterleaveReqd[channel] = 0;
-
-  // set flag if TNS used for any channel
-  mTnsUsed |= mInfoBase->tnsInfo[channel].tnsDataPresent;
   }
 //}}}
 
