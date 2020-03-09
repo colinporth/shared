@@ -46,6 +46,8 @@ private:
   void decodeDataStreamElement (cBitStream* bsi);
   void decodeProgramConfigElement (cBitStream* bsi, sProgConfigElement* pce);
   void decodeFillElement (cBitStream* bsi);
+
+  bool unpackADTSHeader (uint8_t*& buf, int32_t& bitOffset, int32_t& bitsAvail);
   bool decodeNextElement (uint8_t*& buf, int32_t& bitOffset, int32_t& bitsAvail);
   bool decodeSbrBitstream (int32_t chBase);
 
@@ -56,25 +58,23 @@ private:
   void applyTns (int32_t channel);
   void imdct (int32_t channel, int32_t chOut, float* outbuf);
   void applySbr (int32_t chBase, float* outbuf);
-
-  bool unpackADTSHeader (uint8_t*& buf, int32_t& bitOffset, int32_t& bitsAvail);
   //}}}
   //{{{  private vars
   struct sInfoBase* mInfoBase;
   struct sInfoSbr* mInfoSbr;
 
   // raw decoded data
-  void* rawSampleBuf [AAC_MAX_NCHANS];
+  void* mRawSampleBuf [AAC_MAX_NCHANS];
 
   // fill data (can be used for processing SBR or other extensions)
-  uint8_t* fillBuf;
-  int32_t fillCount;
-  int32_t fillExtType;
+  uint8_t* mFillBuf;
+  int32_t mFillCount;
+  int32_t mFillExtType;
 
   // block information
-  int32_t prevBlockID;
-  int32_t currBlockID;
-  int32_t currInstTag;
+  int32_t mPrevBlockID;
+  int32_t mCurrBlockID;
+  int32_t mCurrInstTag;
   int32_t sbDeinterleaveReqd [MAX_NCHANS_ELEM];
   int32_t adtsBlocksLeft;
 
