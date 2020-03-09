@@ -2362,8 +2362,8 @@ cAacDecoder::~cAacDecoder() {
 float* cAacDecoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int32_t frameNum) {
 
   auto timePoint = std::chrono::system_clock::now();
-  numChannels = 0;
-  numSamples = 0;
+  mNumChannels = 0;
+  mNumSamples = 0;
 
   bool jumped = frameNum && (frameNum != mLastFrameNum  + 1);
   if (jumped)
@@ -2375,14 +2375,14 @@ float* cAacDecoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int3
   int32_t bitsAvail = frameLen << 3;
   if (unpackADTSHeader (inPtr, bitOffset, bitsAvail))
     return nullptr;
-  if ((numChannels > AAC_MAX_NCHANS) || (numChannels <= 0))
+  if ((mNumChannels > AAC_MAX_NCHANS) || (mNumChannels <= 0))
     return nullptr;
 
   // !!! must allocate for sbr, FIXME !!!
-  float* outBuffer = (float*)malloc (AAC_MAX_NSAMPS * 2 * numChannels * sizeof(float));
+  float* outBuffer = (float*)malloc (AAC_MAX_NSAMPS * 2 * mNumChannels * sizeof(float));
 
-  tnsUsed = 0;
-  pnsUsed = 0;
+  mTnsUsed = 0;
+  mPnsUsed = 0;
   bitOffset = 0;
   int32_t baseChannel = 0;
   int32_t baseChannelSBR = 0;
@@ -2404,7 +2404,7 @@ float* cAacDecoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int3
       applyTns (channel);
       imdct (channel, baseChannel + channel, outBuffer);
       }
-    if (sbrEnabled && (mCurrBlockID == AAC_ID_FIL || mCurrBlockID == AAC_ID_LFE)) {
+    if (mSbrEnabled && (mCurrBlockID == AAC_ID_FIL || mCurrBlockID == AAC_ID_LFE)) {
       //{{{  process sbr
       int32_t elementChansSBR;
       if (mCurrBlockID == AAC_ID_LFE)
@@ -2429,12 +2429,12 @@ float* cAacDecoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int3
     baseChannel += elementNumChans[mCurrBlockID];
     } while (mCurrBlockID != AAC_ID_END);
 
-  numSamples = AAC_MAX_NSAMPS * (sbrEnabled ? 2 : 1);
+  mNumSamples = AAC_MAX_NSAMPS * (mSbrEnabled ? 2 : 1);
 
   auto took = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - timePoint);
   cLog::log (LOGINFO1, "aac %dx%d %3dus %c%c%c%c",
-             numSamples, numChannels, took.count(),
-             jumped ? 'j':' ', sbrEnabled ? 's':' ', tnsUsed ? 't':' ', pnsUsed ? 'p':' ');
+             mNumSamples, mNumChannels, took.count(),
+             jumped ? 'j':' ', mSbrEnabled ? 's':' ', mTnsUsed ? 't':' ', mPnsUsed ? 'p':' ');
 
   return outBuffer;
   }
@@ -3356,10 +3356,10 @@ void cAacDecoder::flush() {
   mCurrBlockID = AAC_ID_INVALID;
   mCurrInstTag = -1;
   for (int32_t ch = 0; ch < MAX_NCHANS_ELEM; ch++)
-    sbDeinterleaveReqd[ch] = 0;
-  adtsBlocksLeft = 0;
-  tnsUsed = 0;
-  pnsUsed = 0;
+    mSbDeinterleaveReqd[ch] = 0;
+  mAdtsBlocksLeft = 0;
+  mTnsUsed = 0;
+  mPnsUsed = 0;
 
   // reset internal codec state (flush overlap buffers, etc.)
   struct sInfoBase* psiInfo = mInfoBase;
@@ -3546,15 +3546,15 @@ void cAacDecoder::decodeFillElement (cBitStream* bsi) {
  *              unpacked extension payload
  **************************************************************************************/
 
-  uint32_t fillCount1 = bsi->getBits (4);
-  if (fillCount1 == 15)
-    fillCount1 += bsi->getBits (8) - 1;
+  uint32_t fillCount = bsi->getBits (4);
+  if (fillCount == 15)
+    fillCount += bsi->getBits (8) - 1;
 
   // !!! probable byte aligned copy into fillBuf which is turned into a second bitstream !!!
-  mInfoBase->fillCount = fillCount1;
-  uint8_t* fillBuf1 = mInfoBase->fillBuf;
-  while (fillCount1--)
-    *fillBuf1++ = bsi->getBits (8);
+  mInfoBase->fillCount = fillCount;
+  uint8_t* fillBuf = mInfoBase->fillBuf;
+  while (fillCount--)
+    *fillBuf++ = bsi->getBits (8);
 
   // fill elements don't have instance tag
   mCurrInstTag = -1;
@@ -3565,7 +3565,7 @@ void cAacDecoder::decodeFillElement (cBitStream* bsi) {
   if (mInfoBase->fillCount > 0) {
     mFillExtType = (int)((mInfoBase->fillBuf[0] >> 4) & 0x0f);
     if (mFillExtType == EXT_SBR_DATA || mFillExtType == EXT_SBR_DATA_CRC)
-      sbrEnabled = 1;
+      mSbrEnabled = 1;
     }
 
   mFillBuf = mInfoBase->fillBuf;
@@ -3625,12 +3625,12 @@ bool cAacDecoder::unpackADTSHeader (uint8_t*& buf, int32_t& bitOffset, int32_t& 
   mCurrInstTag = -1;
 
   // fill in user-accessible data (TODO - calc bitrate, handle tricky channel config cases)
-  bitRate = 0;
-  numChannels = mInfoBase->nChans;
-  sampleRate = sampRateTab[mInfoBase->sampRateIdx];
-  profile = adtsHeader->profile;
-  sbrEnabled = 0;
-  adtsBlocksLeft = adtsHeader->numRawDataBlocks;
+  mBitRate = 0;
+  mNumChannels = mInfoBase->nChans;
+  mSampleRate = sampRateTab[mInfoBase->sampRateIdx];
+  mProfile = adtsHeader->profile;
+  mSbrEnabled = 0;
+  mAdtsBlocksLeft = adtsHeader->numRawDataBlocks;
 
   // update bitstream reader
   int32_t bitsUsed = bsi.getBitsUsed (buf, bitOffset);
@@ -4891,7 +4891,7 @@ bool cAacDecoder::decodeSbrBitstream (int32_t chBase) {
   int32_t headerFlag = bsi.getBits (1);
   if (headerFlag) {
     // get sample rate index for output sample rate (2x base rate)
-    mInfoSbr->sampRateIdx = GetSampRateIdx (2 * sampleRate);
+    mInfoSbr->sampRateIdx = GetSampRateIdx (2 * mSampleRate);
     if (mInfoSbr->sampRateIdx < 0 || mInfoSbr->sampRateIdx >= NUM_SAMPLE_RATES)
       return true;
     else if (mInfoSbr->sampRateIdx >= NUM_SAMPLE_RATES_SBR)
@@ -4949,10 +4949,10 @@ void cAacDecoder::decodeNoiselessData (uint8_t*& buf, int32_t& bitOffset, int32_
   bitOffset = ((bitsUsed + bitOffset) & 0x07);
   bitsAvail -= bitsUsed;
 
-  sbDeinterleaveReqd[channel] = 0;
+  mSbDeinterleaveReqd[channel] = 0;
 
   // set flag if TNS used for any channel
-  tnsUsed |= mInfoBase->tnsInfo[channel].tnsDataPresent;
+  mTnsUsed |= mInfoBase->tnsInfo[channel].tnsDataPresent;
   }
 //}}}
 
@@ -5155,7 +5155,7 @@ void cAacDecoder::dequantize (int32_t channel) {
     }
 
   // set flag if PNS used for any channel
-  pnsUsed |= mInfoBase->pnsUsed[channel];
+  mPnsUsed |= mInfoBase->pnsUsed[channel];
 
   // calculate number of guard bits in dequantized data
   mInfoBase->gbCurrent[channel] = countLeadingZeros (gbMask) - 1;
@@ -5691,18 +5691,18 @@ void cAacDecoder::applyTns (int32_t channel) {
     nWindows = NWINDOWS_SHORT;
     winLen = NSAMPS_SHORT;
     nSFB = sfBandTotalShort[mInfoBase->sampRateIdx];
-    maxOrder = tnsMaxOrderShort[profile];
+    maxOrder = tnsMaxOrderShort[mProfile];
     sfbTab = sfBandTabShort + sfBandTabShortOffset[mInfoBase->sampRateIdx];
-    tnsMaxBandTab = tnsMaxBandsShort + tnsMaxBandsShortOffset[profile];
+    tnsMaxBandTab = tnsMaxBandsShort + tnsMaxBandsShortOffset[mProfile];
     tnsMaxBand = tnsMaxBandTab[mInfoBase->sampRateIdx];
     }
   else {
     nWindows = NWINDOWS_LONG;
     winLen = NSAMPS_LONG;
     nSFB = sfBandTotalLong[mInfoBase->sampRateIdx];
-    maxOrder = tnsMaxOrderLong[profile];
+    maxOrder = tnsMaxOrderLong[mProfile];
     sfbTab = sfBandTabLong + sfBandTabLongOffset[mInfoBase->sampRateIdx];
-    tnsMaxBandTab = tnsMaxBandsLong + tnsMaxBandsLongOffset[profile];
+    tnsMaxBandTab = tnsMaxBandsLong + tnsMaxBandsLongOffset[mProfile];
     tnsMaxBand = tnsMaxBandTab[mInfoBase->sampRateIdx];
     }
 
@@ -6652,10 +6652,10 @@ void cAacDecoder::imdct (int32_t channel, int32_t chOut, float* outbuf) {
 
   mRawSampleBuf[channel] = mInfoBase->sbrWorkBuf[channel];
 
-  if (!sbrEnabled)
+  if (!mSbrEnabled)
     for (int32_t i = 0; i < AAC_MAX_NSAMPS; i++) {
       *outbuf = mInfoBase->sbrWorkBuf[channel][i] / (float)0x40000;
-      outbuf += numChannels;
+      outbuf += mNumChannels;
       }
 
   mInfoBase->prevWinShape[chOut] = icsInfo->winShape;
@@ -8667,8 +8667,8 @@ void cAacDecoder::applySbr (int32_t chBase, float* outbuf) {
       for (int32_t l = 0; l < 32; l++) {
         // step 4 - synthesis QMF
         QMFSynthesis (mInfoSbr->XBuf[l + HF_ADJ][0], mInfoSbr->delayQMFS[chBase + ch],
-                      &(mInfoSbr->delayIdxQMFS[chBase + ch]), qmfsBands, outptr, numChannels);
-        outptr += 64 * numChannels;
+                      &(mInfoSbr->delayIdxQMFS[chBase + ch]), qmfsBands, outptr, mNumChannels);
+        outptr += 64 * mNumChannels;
         }
       }
     else {
@@ -8702,16 +8702,16 @@ void cAacDecoder::applySbr (int32_t chBase, float* outbuf) {
       for (l = 0; l < sbrGrid->envTimeBorder[0]; l++) {
         // if new envelope starts mid-frame, use old settings until start of first envelope in this frame
         QMFSynthesis (mInfoSbr->XBuf[l + HF_ADJ][0], mInfoSbr->delayQMFS[chBase + ch], &(mInfoSbr->delayIdxQMFS[chBase + ch]),
-                      qmfsBands, outptr, numChannels);
-        outptr += 64 * numChannels;
+                      qmfsBands, outptr, mNumChannels);
+        outptr += 64 * mNumChannels;
         }
 
       qmfsBands = sbrFreq->kStart + sbrFreq->numQMFBands;
       for ( ; l < 32; l++) {
         // use new settings for rest of frame (usually the entire frame, unless the first envelope starts mid-frame)
         QMFSynthesis (mInfoSbr->XBuf[l + HF_ADJ][0], mInfoSbr->delayQMFS[chBase + ch], &(mInfoSbr->delayIdxQMFS[chBase + ch]),
-                      qmfsBands, outptr, numChannels);
-        outptr += 64 * numChannels;
+                      qmfsBands, outptr, mNumChannels);
+        outptr += 64 * mNumChannels;
         }
       }
 

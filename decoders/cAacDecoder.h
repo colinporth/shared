@@ -30,9 +30,9 @@ public:
   cAacDecoder();
   ~cAacDecoder();
 
-  int32_t getNumChannels() { return numChannels; }
-  int32_t getSampleRate() { return sampleRate * (sbrEnabled ? 2 : 1); }
-  int32_t getNumSamples() { return numSamples; }
+  int32_t getNumChannels() { return mNumChannels; }
+  int32_t getSampleRate() { return mSampleRate * (mSbrEnabled ? 2 : 1); }
+  int32_t getNumSamples() { return mNumSamples; }
 
   float* decodeFrame (const uint8_t* framePtr, int32_t frameLen, int32_t frameNum);
 
@@ -75,20 +75,20 @@ private:
   int32_t mPrevBlockID;
   int32_t mCurrBlockID;
   int32_t mCurrInstTag;
-  int32_t sbDeinterleaveReqd [MAX_NCHANS_ELEM];
-  int32_t adtsBlocksLeft;
+  int32_t mSbDeinterleaveReqd [MAX_NCHANS_ELEM];
+  int32_t mAdtsBlocksLeft;
 
   //  info
-  int32_t bitRate;
-  int32_t numChannels;
-  int32_t sampleRate;
-  int32_t profile;
-  int32_t format;
-  int32_t sbrEnabled;
-  int32_t tnsUsed;
-  int32_t pnsUsed;
+  int32_t mBitRate;
+  int32_t mNumChannels;
+  int32_t mSampleRate;
+  int32_t mProfile;
+  int32_t mFormat;
+  int32_t mSbrEnabled;
+  int32_t mTnsUsed;
+  int32_t mPnsUsed;
 
-  int32_t numSamples;
+  int32_t mNumSamples;
 
   int32_t mLastFrameNum = -1;
   //}}}
