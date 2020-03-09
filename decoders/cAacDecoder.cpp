@@ -2329,10 +2329,6 @@ private:
 
 //{{{
 void InitSBRState (sPSInfoSBR* psi) {
-/**************************************************************************************
- * Description: initialize PSInfoSBR struct at start of stream or after flush
- * Outputs:     PSInfoSBR struct with proper initial state
- **************************************************************************************/
 
   memset (psi, 0, sizeof(sPSInfoSBR));
 
@@ -2392,12 +2388,12 @@ float* cAacDecoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int3
   int32_t baseChannelSBR = 0;
   do {
     // parse next syntactic element
-    if (decodeNextElement (&inPtr, &bitOffset, &bitsAvail))
+    if (decodeNextElement (inPtr, bitOffset, bitsAvail))
       return 0;
     if (baseChannel + elementNumChans[currBlockID] > AAC_MAX_NCHANS)
       return 0;
     for (int32_t channel = 0; channel < elementNumChans[currBlockID]; channel++) {
-      decodeNoiselessData (&inPtr, &bitOffset, &bitsAvail, channel);
+      decodeNoiselessData (inPtr, bitOffset, bitsAvail, channel);
       dequantize (channel);
       }
 
@@ -3452,42 +3448,6 @@ bool cAacDecoder::unpackADTSHeader (uint8_t*& buf, int32_t& bitOffset, int32_t& 
   }
 //}}}
 //{{{
-void cAacDecoder::decodeNoiselessData (uint8_t** buf, int32_t* bitOffset, int32_t* bitsAvail, int32_t channel) {
-/**************************************************************************************
- * Description: decode noiseless data (side info and transform coefficients)
- * Inputs:      double pointer to buffer pointing to start of individual channel stream (14496-3, table 4.4.24)
- *              pointer to bit offset
- *              pointer to number of valid bits remaining in buf
- *              index of current channel
- * Outputs:     updated global gain, section data, scale factor data, pulse data,
- *              TNS data, gain control data, and spectral data
- **************************************************************************************/
-
-  ICSInfo* icsInfo = (channel == 1 && psInfoBase->commonWin == 1) ?
-                       &(psInfoBase->icsInfo[0]) : &(psInfoBase->icsInfo[channel]);
-
-  cBitStream bsi (*buf, (*bitsAvail+7) >> 3);
-  bsi.getBits (*bitOffset);
-
-  DecodeICS (psInfoBase, &bsi, channel);
-
-  if (icsInfo->winSequence == 2)
-    DecodeSpectrumShort (psInfoBase, &bsi, channel);
-  else
-    DecodeSpectrumLong (psInfoBase, &bsi, channel);
-
-  int32_t bitsUsed = bsi.getBitsUsed (*buf, *bitOffset);
-  *buf += ((bitsUsed + *bitOffset) >> 3);
-  *bitOffset = ((bitsUsed + *bitOffset) & 0x07);
-  *bitsAvail -= bitsUsed;
-
-  sbDeinterleaveReqd[channel] = 0;
-
-  // set flag if TNS used for any channel
-  tnsUsed |= psInfoBase->tnsInfo[channel].tnsDataPresent;
-  }
-//}}}
-//{{{
 void cAacDecoder::decodeSingleChannelElement (cBitStream* bsi) {
 /**************************************************************************************
  * Description: decode one SCE
@@ -3691,7 +3651,7 @@ void cAacDecoder::decodeFillElement (cBitStream* bsi) {
   }
 //}}}
 //{{{
-bool cAacDecoder::decodeNextElement (uint8_t** buf, int32_t* bitOffset, int32_t* bitsAvail) {
+bool cAacDecoder::decodeNextElement (uint8_t*& buf, int32_t& bitOffset, int32_t& bitsAvail) {
 /**************************************************************************************
  * Description: decode next syntactic element in AAC frame
  * Inputs:      double pointer to buffer containing next element
@@ -3706,8 +3666,8 @@ bool cAacDecoder::decodeNextElement (uint8_t** buf, int32_t* bitOffset, int32_t*
  * Return:      false if successful,
  **************************************************************************************/
 
-  cBitStream bsi (*buf, (*bitsAvail + 7) >> 3);
-  bsi.getBits (*bitOffset);
+  cBitStream bsi (buf, (bitsAvail + 7) >> 3);
+  bsi.getBits (bitOffset);
 
   // read element ID (save last ID for SBR purposes) */
   prevBlockID = currBlockID;
@@ -3743,12 +3703,49 @@ bool cAacDecoder::decodeNextElement (uint8_t** buf, int32_t* bitOffset, int32_t*
     }
 
   // update bitstream reader
-  int32_t bitsUsed = bsi.getBitsUsed (*buf, *bitOffset);
-  *buf += (bitsUsed + *bitOffset) >> 3;
-  *bitOffset = (bitsUsed + *bitOffset) & 0x07;
-  *bitsAvail -= bitsUsed;
+  int32_t bitsUsed = bsi.getBitsUsed (buf, bitOffset);
+  buf += (bitsUsed + bitOffset) >> 3;
+  bitOffset = (bitsUsed + bitOffset) & 0x07;
+  bitsAvail -= bitsUsed;
 
-  return *bitsAvail < 0;
+  return bitsAvail < 0;
+  }
+//}}}
+
+//{{{
+void cAacDecoder::decodeNoiselessData (uint8_t*& buf, int32_t& bitOffset, int32_t& bitsAvail, int32_t channel) {
+/**************************************************************************************
+ * Description: decode noiseless data (side info and transform coefficients)
+ * Inputs:      double pointer to buffer pointing to start of individual channel stream (14496-3, table 4.4.24)
+ *              pointer to bit offset
+ *              pointer to number of valid bits remaining in buf
+ *              index of current channel
+ * Outputs:     updated global gain, section data, scale factor data, pulse data,
+ *              TNS data, gain control data, and spectral data
+ **************************************************************************************/
+
+  ICSInfo* icsInfo = (channel == 1 && psInfoBase->commonWin == 1) ?
+                       &(psInfoBase->icsInfo[0]) : &(psInfoBase->icsInfo[channel]);
+
+  cBitStream bsi (buf, (bitsAvail+7) >> 3);
+  bsi.getBits (bitOffset);
+
+  DecodeICS (psInfoBase, &bsi, channel);
+
+  if (icsInfo->winSequence == 2)
+    DecodeSpectrumShort (psInfoBase, &bsi, channel);
+  else
+    DecodeSpectrumLong (psInfoBase, &bsi, channel);
+
+  int32_t bitsUsed = bsi.getBitsUsed (buf, bitOffset);
+  buf += ((bitsUsed + bitOffset) >> 3);
+  bitOffset = ((bitsUsed + bitOffset) & 0x07);
+  bitsAvail -= bitsUsed;
+
+  sbDeinterleaveReqd[channel] = 0;
+
+  // set flag if TNS used for any channel
+  tnsUsed |= psInfoBase->tnsInfo[channel].tnsDataPresent;
   }
 //}}}
 

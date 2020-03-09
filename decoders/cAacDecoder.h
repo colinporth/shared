@@ -46,10 +46,10 @@ private:
   void decodeDataStreamElement (cBitStream* bsi);
   void decodeProgramConfigElement (cBitStream* bsi, sProgConfigElement* pce);
   void decodeFillElement (cBitStream* bsi);
-  bool decodeNextElement (uint8_t** buf, int32_t* bitOffset, int32_t* bitsAvail);
+  bool decodeNextElement (uint8_t*& buf, int32_t& bitOffset, int32_t& bitsAvail);
   bool decodeSbrBitstream (int32_t chBase);
 
-  void decodeNoiselessData (uint8_t** buf, int32_t* bitOffset, int32_t* bitsAvail, int32_t channel);
+  void decodeNoiselessData (uint8_t*& buf, int32_t& bitOffset, int32_t& bitsAvail, int32_t channel);
   void dequantize (int32_t channel);
   void applyStereoProcess();
   void applyPns (int32_t channel);
