@@ -5,8 +5,8 @@
 // forward declarations for private data
 class cBitStream;
 struct sProgConfigElement;
-struct sPSInfoBase;
-struct sPSInfoSBR;
+struct sInfoBase;
+struct sInfoSbr;
 
 class cAacDecoder : public iAudioDecoder {
 public:
@@ -60,8 +60,8 @@ private:
   bool unpackADTSHeader (uint8_t*& buf, int32_t& bitOffset, int32_t& bitsAvail);
   //}}}
   //{{{  private vars
-  sPSInfoBase* psInfoBase;
-  sPSInfoSBR* psInfoSBR;
+  struct sInfoBase* mInfoBase;
+  struct sInfoSbr* mInfoSbr;
 
   // raw decoded data
   void* rawSampleBuf [AAC_MAX_NCHANS];
