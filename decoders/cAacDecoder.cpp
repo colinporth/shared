@@ -16,7 +16,6 @@
   //}}}
 #endif
 
-//{{{  defines, types
 //{{{  defines
 // 12-bit syncword
 #define SYNCWORDH  0xff
@@ -118,7 +117,7 @@
 #define DELAY_SAMPS_QMFA  (NUM_QMF_DELAY_BUFS * 32)
 #define DELAY_SAMPS_QMFS  (NUM_QMF_DELAY_BUFS * 128)
 //}}}
-
+//{{{  types
 //{{{
 enum {
   AAC_FF_Unknown = 0,   /* should be 0 on init */
@@ -167,47 +166,23 @@ enum {
 //}}}
 
 //{{{
-typedef struct _ADTSHeader {
-  // fixed
-  uint8_t id;               // MPEG bit - should be 1
-  uint8_t layer;            // MPEG layer - should be 0
-  uint8_t protectBit;       // 0 = CRC word follows, 1 = no CRC word
-  uint8_t profile;          // 0 = main, 1 = LC, 2 = SSR, 3 = reserved
-  uint8_t sampRateIdx;      // sample rate index range = [0, 11]
-  uint8_t privateBit;       // ignore
-  uint8_t channelConfig;    // 0 = implicit, > 0 = use default table
-  uint8_t origCopy;         // 0 = copy, 1 = original
-  uint8_t home;             // ignore
-
-  // variable
-  uint8_t copyBit;          // 1 bit of the 72-bit copyright ID (transmitted as 1 bit per frame)
-  uint8_t copyStart;        // 1 = this bit starts the 72-bit ID, 0 = it does not
-  int32_t frameLength;      // length of frame
-  int32_t bufferFull;       // number of 32-bit words left in enc buffer, 0x7FF = VBR
-  uint8_t numRawDataBlocks; // number of raw data blocks in frame
-
-  // CRC
-  int32_t crcCheckWord;     // 16-bit CRC check word (present if protectBit == 0)
-  } ADTSHeader;
-//}}}
-//{{{
-typedef struct _HuffInfo {
+struct sHuffInfo {
   int32_t  maxBits;                // number of bits in longest codeword
   uint32_t count [MAX_HUFF_BITS];  // count[i] = number of codes with length i+1 bits
   int32_t  offset;                 // offset into symbol table
-  } HuffInfo;
+  };
 //}}}
 //{{{
-typedef struct _PulseInfo {
+struct sPulseInfo {
   uint8_t pulseDataPresent;
   uint8_t numPulse;
   uint8_t startSFB;
   uint8_t offset [MAX_PULSES];
   uint8_t amp [MAX_PULSES];
-  } PulseInfo;
+  };
 //}}}
 //{{{
-typedef struct _TNSInfo {
+struct sTnsInfo {
   uint8_t tnsDataPresent;
   uint8_t numFilt [MAX_TNS_FILTERS]; /* max 1 filter each for 8 short windows, or 3 filters for 1 long window */
   uint8_t coefRes [MAX_TNS_FILTERS];
@@ -215,19 +190,19 @@ typedef struct _TNSInfo {
   uint8_t order [MAX_TNS_FILTERS];
   uint8_t dir [MAX_TNS_FILTERS];
   int8_t  coef [MAX_TNS_COEFS];      /* max 3 filters * 20 coefs for 1 long window, or 1 filter * 7 coefs for each of 8 short windows */
-  } TNSInfo;
+  };
 //}}}
 //{{{
-typedef struct _GainControlInfo {
+struct sGainControlInfo {
   uint8_t gainControlDataPresent;
   uint8_t maxBand;
   uint8_t adjNum [MAX_GAIN_BANDS][MAX_GAIN_WIN];
   uint8_t alevCode [MAX_GAIN_BANDS][MAX_GAIN_WIN][MAX_GAIN_ADJUST];
   uint8_t alocCode [MAX_GAIN_BANDS][MAX_GAIN_WIN][MAX_GAIN_ADJUST];
-  } GainControlInfo;
+  };
 //}}}
 //{{{
-typedef struct _ICSInfo {
+struct sIcsInfo {
   uint8_t icsResBit;
   uint8_t winSequence;
   uint8_t winShape;
@@ -239,12 +214,12 @@ typedef struct _ICSInfo {
   uint8_t predictionUsed [MAX_PRED_SFB];
   uint8_t numWinGroup;
   uint8_t winGroupLen [MAX_WIN_GROUPS];
-  } ICSInfo;
+  };
 //}}}
 
 //{{{
-/* need one SBRHeader per element (SCE/CPE), updated only on new header */
-typedef struct _SBRHeader {
+/* need one sSbrHeader per element (SCE/CPE), updated only on new header */
+struct sSbrHeader {
   int32_t count;
 
   uint8_t ampRes;
@@ -263,11 +238,11 @@ typedef struct _SBRHeader {
   uint8_t limiterGains;
   uint8_t interpFreq;
   uint8_t smoothMode;
-  } SBRHeader;
+  };
 //}}}
 //{{{
-/* need one SBRGrid per channel, updated every frame */
-typedef struct _SBRGrid {
+/* need one sSbrGrid per channel, updated every frame */
+struct sSbrGrid {
   uint8_t frameClass;
   uint8_t ampResFrame;
   uint8_t pointer;
@@ -282,11 +257,11 @@ typedef struct _SBRGrid {
   uint8_t numEnvPrev;
   uint8_t numNoiseFloorsPrev;
   uint8_t freqResPrev;
-  } SBRGrid;
+  };
 //}}}
 //{{{
-/* need one SBRFreq per element (SCE/CPE/LFE), updated only on header reset */
-typedef struct _SBRFreq {
+/* need one sSbrFreq per element (SCE/CPE/LFE), updated only on header reset */
+struct sSbrFreq {
   int32_t kStart;       /* k_x */
   int32_t nMaster;
   int32_t nHigh;
@@ -307,10 +282,10 @@ typedef struct _SBRFreq {
   uint8_t numPatches;
   uint8_t patchNumSubbands [MAX_NUM_PATCHES + 1];
   uint8_t patchStartSubband [MAX_NUM_PATCHES + 1];
-  } SBRFreq;
+  };
 //}}}
 //{{{
-typedef struct _SBRChan {
+struct sSbrChan {
   int32_t reset;
   uint8_t deltaFlagEnv [MAX_NUM_ENV];
   uint8_t deltaFlagNoise [MAX_NUM_NOISE_FLOORS];
@@ -331,9 +306,33 @@ typedef struct _SBRChan {
   int32_t gainNoiseIndex;
   int32_t gTemp [MAX_NUM_SMOOTH_COEFS][MAX_QMF_BANDS];
   int32_t qTemp [MAX_NUM_SMOOTH_COEFS][MAX_QMF_BANDS];
-  } SBRChan;
+  };
 //}}}
 
+//{{{
+struct sAdtsHeader {
+  // fixed
+  uint8_t id;               // MPEG bit - should be 1
+  uint8_t layer;            // MPEG layer - should be 0
+  uint8_t protectBit;       // 0 = CRC word follows, 1 = no CRC word
+  uint8_t profile;          // 0 = main, 1 = LC, 2 = SSR, 3 = reserved
+  uint8_t sampRateIdx;      // sample rate index range = [0, 11]
+  uint8_t privateBit;       // ignore
+  uint8_t channelConfig;    // 0 = implicit, > 0 = use default table
+  uint8_t origCopy;         // 0 = copy, 1 = original
+  uint8_t home;             // ignore
+
+  // variable
+  uint8_t copyBit;          // 1 bit of the 72-bit copyright ID (transmitted as 1 bit per frame)
+  uint8_t copyStart;        // 1 = this bit starts the 72-bit ID, 0 = it does not
+  int32_t frameLength;      // length of frame
+  int32_t bufferFull;       // number of 32-bit words left in enc buffer, 0x7FF = VBR
+  uint8_t numRawDataBlocks; // number of raw data blocks in frame
+
+  // CRC
+  int32_t crcCheckWord;     // 16-bit CRC check word (present if protectBit == 0)
+  };
+//}}}
 //{{{
 /* sizeof(ProgConfigElement) = 82 bytes (if KEEP_PCE_COMMENTS not defined) */
 struct sProgConfigElement {
@@ -373,7 +372,7 @@ struct sProgConfigElement {
 // state info struct for baseline (MPEG-4 LC) decoding
 struct sInfoBase {
   // header information
-  ADTSHeader adtsHeader;
+  sAdtsHeader adtsHeader;
   sProgConfigElement pce [MAX_NUM_PCE_ADIF];
   int32_t dataCount;
   uint8_t dataBuf [DATA_BUF_SIZE];
@@ -386,7 +385,7 @@ struct sInfoBase {
   int32_t sampRateIdx;
 
   // state information which can be overwritten by subsequent elements within frame
-  ICSInfo icsInfo [MAX_NCHANS_ELEM];
+  sIcsInfo icsInfo [MAX_NCHANS_ELEM];
 
   int32_t commonWin;
   int16_t scaleFactors [MAX_NCHANS_ELEM][MAX_SF_BANDS];
@@ -399,13 +398,13 @@ struct sInfoBase {
   int32_t pnsLastVal;
   int32_t intensityUsed [MAX_NCHANS_ELEM];
 
-  PulseInfo pulseInfo [MAX_NCHANS_ELEM];
+  sPulseInfo pulseInfo [MAX_NCHANS_ELEM];
 
-  TNSInfo tnsInfo [MAX_NCHANS_ELEM];
+  sTnsInfo tnsInfo [MAX_NCHANS_ELEM];
   int32_t tnsLPCBuf [MAX_TNS_ORDER];
   int32_t tnsWorkBuf [MAX_TNS_ORDER];
 
-  GainControlInfo gainControlInfo [MAX_NCHANS_ELEM];
+  sGainControlInfo gainControlInfo [MAX_NCHANS_ELEM];
 
   int32_t gbCurrent [MAX_NCHANS_ELEM];
   int32_t coef [MAX_NCHANS_ELEM][AAC_MAX_NSAMPS];
@@ -421,10 +420,10 @@ struct sInfoSbr {
   int32_t sampRateIdx;
 
   // state info that must be saved for each channel
-  SBRHeader sbrHdr [AAC_MAX_NCHANS];
-  SBRGrid sbrGrid [AAC_MAX_NCHANS];
-  SBRFreq sbrFreq [AAC_MAX_NCHANS];
-  SBRChan sbrChan [AAC_MAX_NCHANS];
+  sSbrHeader sbrHdr [AAC_MAX_NCHANS];
+  sSbrGrid sbrGrid [AAC_MAX_NCHANS];
+  sSbrFreq sbrFreq [AAC_MAX_NCHANS];
+  sSbrChan sbrChan [AAC_MAX_NCHANS];
 
   // temp variables, no need to save between blocks
   uint8_t dataExtra;
@@ -574,7 +573,7 @@ static const uint8_t elementNumChans [NUM_ELEMENTS] = {
 //}}}
 
 //{{{
-static const HuffInfo huffTabSpecInfo [11] = {
+static const sHuffInfo huffTabSpecInfo [11] = {
   /* table 0 not used */
   {11, {  1,  0,  0,  0,  8,  0, 24,  0, 24,  8, 16,  0,  0,  0,  0,  0,  0,  0,  0,  0},   0},
   { 9, {  0,  0,  1,  1,  7, 24, 15, 19, 14,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},  81},
@@ -691,7 +690,7 @@ static const int16_t huffTabSpec [1241] = {
 //}}}
 
 //{{{
-static const HuffInfo huffTabScaleFactInfo  =
+static const sHuffInfo huffTabScaleFactInfo  =
   {19, { 1,  0,  1,  3,  2,  4,  3,  5,  4,  6,  6,  6,  5,  8,  4,  7,  3,  7, 46,  0},   0};
 //}}}
 //{{{
@@ -710,7 +709,7 @@ static const int16_t huffTabScaleFact [121] = {
 //}}}
 
 //{{{
-static const HuffInfo huffTabSBRInfo [10] = {
+static const sHuffInfo huffTabSBRInfo [10] = {
   {19, { 0,  2,  2,  2,  2,  2,  2,  2,  2,  2,  1,  2,  3,  4,  2,  7,  4,  8, 72,  0},   0},
   {20, { 0,  2,  2,  2,  2,  2,  1,  3,  3,  2,  4,  4,  4,  3,  2,  5,  6, 13, 15, 46}, 121},
   {17, { 1,  1,  1,  1,  1,  1,  1,  1,  1,  0,  2,  2,  0,  0,  1, 25, 10,  0,  0,  0}, 242},
@@ -2463,7 +2462,8 @@ float* cAacDecoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int3
 #define GET_ESC_Z(v)  (((int32_t)(v) << 26) >>   26) // bits  5-0, sign-extend
 
 //{{{
-static int32_t DecodeHuffmanScalar (const int16_t* huffTab, const HuffInfo* huffTabInfo, uint32_t bitBuf, int32_t* val) {
+static int32_t DecodeHuffmanScalar (const int16_t* huffTab, const sHuffInfo* huffTabInfo, 
+                                    uint32_t bitBuf, int32_t* val) {
 /**************************************************************************************
  * Description: decode one Huffman symbol from bitstream
  * Inputs:      pointers to Huffman table and info struct
@@ -2506,7 +2506,7 @@ static int32_t DecodeOneSymbol (cBitStream* bsi, int32_t huffTabIndex) {
  * Return:      one decoded symbol
  **************************************************************************************/
 
-  const HuffInfo* hi = &(huffTabSBRInfo[huffTabIndex]);
+  const sHuffInfo* hi = &(huffTabSBRInfo[huffTabIndex]);
   uint32_t bitBuf = bsi->getBitsNoAdvance (hi->maxBits) << (32 - hi->maxBits);
 
   int32_t val;
@@ -2537,7 +2537,7 @@ static int32_t DecodeOneScaleFactor (cBitStream* bsi) {
 //}}}
 
 //{{{
-static void unpackZeros (int32_t nVals, int32_t* coef) {
+static void unpackZeros (int32_t numVals, int32_t* coef) {
 /**************************************************************************************
  * Description: fill a section of coefficients with zeros
  * Inputs:      number of coefficients
@@ -2546,12 +2546,12 @@ static void unpackZeros (int32_t nVals, int32_t* coef) {
  *              are a multiple of 4 coefficients long
  **************************************************************************************/
 
-  while (nVals > 0) {
+  while (numVals > 0) {
     *coef++ = 0;
     *coef++ = 0;
     *coef++ = 0;
     *coef++ = 0;
-    nVals -= 4;
+    numVals -= 4;
     }
   }
 //}}}
@@ -2714,7 +2714,7 @@ static void DecodeSpectrumLong (struct sInfoBase* psi, cBitStream* bsi, int32_t 
  **************************************************************************************/
 
   int32_t* coef = psi->coef[ch];
-  ICSInfo* icsInfo = (ch == 1 && psi->commonWin == 1) ? &(psi->icsInfo[0]) : &(psi->icsInfo[ch]);
+  sIcsInfo* icsInfo = (ch == 1 && psi->commonWin == 1) ? &(psi->icsInfo[0]) : &(psi->icsInfo[ch]);
 
   // decode long block
   const short* sfbTab = sfBandTabLong + sfBandTabLongOffset[psi->sampRateIdx];
@@ -2743,7 +2743,7 @@ static void DecodeSpectrumLong (struct sInfoBase* psi, cBitStream* bsi, int32_t 
   unpackZeros (nVals, coef);
 
   // add pulse data, if present
-  PulseInfo* pi = &psi->pulseInfo[ch];
+  sPulseInfo* pi = &psi->pulseInfo[ch];
   if (pi->pulseDataPresent) {
     coef = psi->coef[ch];
     int32_t offset = sfbTab[pi->startSFB];
@@ -2771,7 +2771,7 @@ static void DecodeSpectrumShort (struct sInfoBase* psi, cBitStream* bsi, int32_t
  **************************************************************************************/
 
   int32_t* coef = psi->coef[ch];
-  ICSInfo* icsInfo = (ch == 1 && psi->commonWin == 1) ? &(psi->icsInfo[0]) : &(psi->icsInfo[ch]);
+  sIcsInfo* icsInfo = (ch == 1 && psi->commonWin == 1) ? &(psi->icsInfo[0]) : &(psi->icsInfo[ch]);
 
   // decode short blocks, deinterleaving in-place
   int32_t sfb;
@@ -2812,12 +2812,12 @@ static void DecodeSpectrumShort (struct sInfoBase* psi, cBitStream* bsi, int32_t
 //}}}
 
 //{{{
-static void DecodeICSInfo (cBitStream* bsi, ICSInfo* icsInfo, uint8_t sampRateIdx) {
+static void DecodeICSInfo (cBitStream* bsi, sIcsInfo* icsInfo, uint8_t sampRateIdx) {
 /**************************************************************************************
  * Description: decode individual channel stream info
  * Inputs:      cBitStream struct pointing to start of ICS info (14496-3, table 4.4.6)
  *              sample rate index
- * Outputs:     updated icsInfo struct
+ * Outputs:     updated sIcsInfo struct
  **************************************************************************************/
 
   icsInfo->icsResBit = bsi->getBits (1);
@@ -2861,7 +2861,8 @@ static void DecodeICSInfo (cBitStream* bsi, ICSInfo* icsInfo, uint8_t sampRateId
   }
 //}}}
 //{{{
-static void DecodeSectionData (cBitStream* bsi, int32_t winSequence, int32_t numWinGrp, int32_t maxSFB, uint8_t* sfbCodeBook) {
+static void DecodeSectionData (cBitStream* bsi, int32_t winSequence, int32_t numWinGrp, 
+                               int32_t maxSFB, uint8_t* sfbCodeBook) {
 /**************************************************************************************
  * Description: decode section data (scale factor band groupings and associated Huffman codebooks)
  * Inputs:      cBitStream struct pointing to start of ICS info (14496-3, table 4.4.25)
@@ -2951,11 +2952,11 @@ static void DecodeScaleFactors (cBitStream* bsi, int32_t numWinGrp, int32_t maxS
   }
 //}}}
 //{{{
-static void DecodePulseInfo (cBitStream* bsi, PulseInfo* pi) {
+static void DecodePulseInfo (cBitStream* bsi, sPulseInfo* pi) {
 /**************************************************************************************
  * Description: decode pulse information
  * Inputs:      cBitStream struct pointing to start of pulse info (14496-3, table 4.4.7)
- * Outputs:     updated PulseInfo struct
+ * Outputs:     updated sPulseInfo struct
  **************************************************************************************/
 
   pi->numPulse = bsi->getBits (2) + 1;   /* add 1 here */
@@ -2967,12 +2968,12 @@ static void DecodePulseInfo (cBitStream* bsi, PulseInfo* pi) {
   }
 //}}}
 //{{{
-static void DecodeTNSInfo (cBitStream* bsi, int32_t winSequence, TNSInfo* ti, int8_t* tnsCoef) {
+static void DecodeTNSInfo (cBitStream* bsi, int32_t winSequence, sTnsInfo* ti, int8_t* tnsCoef) {
 /**************************************************************************************
  * Description: decode TNS filter information
  * Inputs:      cBitStream struct pointing to start of TNS info (14496-3, table 4.4.27)
  *              window sequence (short or long blocks)
- * Outputs:     updated TNSInfo struct
+ * Outputs:     updated sTnsInfo struct
  *              buffer of decoded (signed) TNS filter coefficients
  **************************************************************************************/
 
@@ -3034,12 +3035,12 @@ static void DecodeTNSInfo (cBitStream* bsi, int32_t winSequence, TNSInfo* ti, in
   }
 //}}}
 //{{{
-static void DecodeGainControlInfo (cBitStream* bsi, int32_t winSequence, GainControlInfo* gi) {
+static void DecodeGainControlInfo (cBitStream* bsi, int32_t winSequence, sGainControlInfo* gi) {
 /**************************************************************************************
  * Description: decode gain control information (SSR profile only)
  * Inputs:      cBitStream struct pointing to start of gain control info  (14496-3, table 4.4.12)
  *              window sequence (short or long blocks)
- * Outputs:     updated GainControlInfo struct
+ * Outputs:     updated sGainControlInfo struct
  **************************************************************************************/
 
   gi->maxBand = bsi->getBits (2);
@@ -3068,7 +3069,7 @@ static void DecodeICS (sInfoBase* psi, cBitStream* bsi, int32_t ch) {
  * Outputs:     updated section data, scale factor data, pulse data, TNS data and gain control data
  **************************************************************************************/
 
-  ICSInfo* icsInfo = (ch == 1 && psi->commonWin == 1) ? &(psi->icsInfo[0]) : &(psi->icsInfo[ch]);
+  sIcsInfo* icsInfo = (ch == 1 && psi->commonWin == 1) ? &(psi->icsInfo[0]) : &(psi->icsInfo[ch]);
 
   int32_t globalGain = bsi->getBits (8);
   if (!psi->commonWin)
@@ -3077,17 +3078,17 @@ static void DecodeICS (sInfoBase* psi, cBitStream* bsi, int32_t ch) {
   DecodeSectionData (bsi, icsInfo->winSequence, icsInfo->numWinGroup, icsInfo->maxSFB, psi->sfbCodeBook[ch]);
   DecodeScaleFactors (bsi, icsInfo->numWinGroup, icsInfo->maxSFB, globalGain, psi->sfbCodeBook[ch], psi->scaleFactors[ch]);
 
-  PulseInfo* pi = &psi->pulseInfo[ch];
+  sPulseInfo* pi = &psi->pulseInfo[ch];
   pi->pulseDataPresent = bsi->getBits (1);
   if (pi->pulseDataPresent)
     DecodePulseInfo (bsi, pi);
 
-  TNSInfo* ti = &psi->tnsInfo[ch];
+  sTnsInfo* ti = &psi->tnsInfo[ch];
   ti->tnsDataPresent = bsi->getBits (1);
   if (ti->tnsDataPresent)
     DecodeTNSInfo (bsi, icsInfo->winSequence, ti, ti->coef);
 
-  GainControlInfo* gi = &psi->gainControlInfo[ch];
+  sGainControlInfo* gi = &psi->gainControlInfo[ch];
   gi->gainControlDataPresent = bsi->getBits (1);
   if (gi->gainControlDataPresent)
     DecodeGainControlInfo (bsi, icsInfo->winSequence, gi);
@@ -3146,15 +3147,15 @@ static int32_t DequantizeEnvelope (int32_t nBands, int32_t ampRes, int8_t* envQu
   }
 //}}}
 //{{{
-static void DecodeSBREnvelope (cBitStream* bsi, struct sInfoSbr* psi, SBRGrid* sbrGrid, SBRFreq* sbrFreq,
-                        SBRChan* sbrChan, int32_t ch) {
+static void DecodeSBREnvelope (cBitStream* bsi, struct sInfoSbr* psi, sSbrGrid* sbrGrid, sSbrFreq* sbrFreq,
+                               sSbrChan* sbrChan, int32_t ch) {
 /**************************************************************************************
  * Description: decode delta Huffman coded envelope scalefactors from bitstream
  * Inputs:      cBitStream struct pointing to start of env data
  *              initialized mInfoSbr struct
- *              initialized SBRGrid struct for this channel
- *              initialized SBRFreq struct for this SCE/CPE block
- *              initialized SBRChan struct for this channel
+ *              initialized sSbrGrid struct for this channel
+ *              initialized sSbrFreq struct for this SCE/CPE block
+ *              initialized sSbrChan struct for this channel
  *              index of current channel (0 for SCE, 0 or 1 for CPE)
  * Outputs:     dequantized env scalefactors for left channel (before decoupling)
  *              dequantized env scalefactors for right channel (if coupling off)
@@ -3244,7 +3245,7 @@ static void DecodeSBREnvelope (cBitStream* bsi, struct sInfoSbr* psi, SBRGrid* s
 
     // skip coupling channel
     if (ch != 1 || psi->couplingFlag != 1)
-      psi->envDataDequantScale[ch][env] = DequantizeEnvelope(nBands, sbrGrid->ampResFrame, sbrChan->envDataQuant[env], psi->envDataDequant[ch][env]);
+      psi->envDataDequantScale[ch][env] = DequantizeEnvelope (nBands, sbrGrid->ampResFrame, sbrChan->envDataQuant[env], psi->envDataDequant[ch][env]);
     }
 
   sbrGrid->numEnvPrev = sbrGrid->numEnv;
@@ -3283,14 +3284,15 @@ static void DequantizeNoise (int32_t nBands, int8_t* noiseQuant, int32_t* noiseD
   }
 //}}}
 //{{{
-static void DecodeSBRNoise (cBitStream* bsi, struct sInfoSbr* psi, SBRGrid* sbrGrid, SBRFreq* sbrFreq, SBRChan* sbrChan, int32_t ch) {
+static void DecodeSBRNoise (cBitStream* bsi, struct sInfoSbr* psi,
+                            sSbrGrid* sbrGrid, sSbrFreq* sbrFreq, sSbrChan* sbrChan, int32_t ch) {
 /**************************************************************************************
  * Description: decode delta Huffman coded noise scalefactors from bitstream
  * Inputs:      cBitStream struct pointing to start of noise data
  *              initialized mInfoSbr struct
- *              initialized SBRGrid struct for this channel
- *              initialized SBRFreq struct for this SCE/CPE block
- *              initialized SBRChan struct for this channel
+ *              initialized sSbrGrid struct for this channel
+ *              initialized sSbrFreq struct for this SCE/CPE block
+ *              initialized sSbrChan struct for this channel
  *              index of current channel (0 for SCE, 0 or 1 for CPE)
  * Outputs:     dequantized noise scalefactors for left channel (before decoupling)
  *              dequantized noise scalefactors for right channel (if coupling off)
@@ -3393,7 +3395,7 @@ void cAacDecoder::decodeChannelPairElement (cBitStream* bsi) {
  * Notes:       doesn't decode individual channel stream (part of DecodeNoiselessData)
  **************************************************************************************/
 
-  ICSInfo* icsInfo = mInfoBase->icsInfo;
+  sIcsInfo* icsInfo = mInfoBase->icsInfo;
 
   // read instance tag
   mCurrInstTag = bsi->getBits (NUM_INST_TAG_BITS);
@@ -3583,7 +3585,7 @@ bool cAacDecoder::unpackADTSHeader (uint8_t*& buffer, int32_t& bitOffset, int32_
     return true;
 
   // fixed fields - should not change from frame to frame
-  ADTSHeader* adtsHeader = &(mInfoBase->adtsHeader);
+  sAdtsHeader* adtsHeader = &(mInfoBase->adtsHeader);
   adtsHeader->id = bsi.getBits (1);
   adtsHeader->layer = bsi.getBits (2);
   adtsHeader->protectBit = bsi.getBits (1);
@@ -3711,7 +3713,7 @@ void cAacDecoder::decodeNoiselessData (uint8_t*& buffer, int32_t& bitOffset, int
 
   DecodeICS (mInfoBase, &bsi, channel);
 
-  ICSInfo* icsInfo = (channel == 1 && mInfoBase->commonWin == 1) ?
+  sIcsInfo* icsInfo = (channel == 1 && mInfoBase->commonWin == 1) ?
                        &(mInfoBase->icsInfo[0]) : &(mInfoBase->icsInfo[channel]);
 
   if (icsInfo->winSequence == 2)
@@ -3751,16 +3753,16 @@ static int32_t GetSampRateIdx (int32_t sampRate) {
 //}}}
 
 //{{{
-static int32_t unpackSBRHeader (cBitStream* bsi, SBRHeader* sbrHdr) {
+static int32_t unpackSBRHeader (cBitStream* bsi, sSbrHeader* sbrHdr) {
 /**************************************************************************************
  * Description: unpack SBR header (table 4.56)
  * Inputs:      cBitStream struct pointing to start of SBR header
- * Outputs:     initialized SBRHeader struct for this SCE/CPE block
+ * Outputs:     initialized sSbrHeader struct for this SCE/CPE block
  * Return:      non-zero if frame reset is triggered, zero otherwise
  **************************************************************************************/
 
   // save previous values so we know whether to reset decoder
-  SBRHeader sbrHdrPrev;
+  sSbrHeader sbrHdrPrev;
   sbrHdrPrev.startFreq = sbrHdr->startFreq;
   sbrHdrPrev.stopFreq = sbrHdr->stopFreq;
   sbrHdrPrev.freqScale = sbrHdr->freqScale;
@@ -3813,12 +3815,12 @@ static int32_t unpackSBRHeader (cBitStream* bsi, SBRHeader* sbrHdr) {
   }
 //}}}
 //{{{
-static void unpackSBRGrid (cBitStream* bsi, SBRHeader* sbrHdr, SBRGrid* sbrGrid) {
+static void unpackSBRGrid (cBitStream* bsi, sSbrHeader* sbrHdr, sSbrGrid* sbrGrid) {
 /**************************************************************************************
  * Description: unpack SBR grid (table 4.62)
  * Inputs:      cBitStream struct pointing to start of SBR grid
  *              initialized SBRHeader struct for this SCE/CPE block
- * Outputs:     initialized SBRGrid struct for this channel
+ * Outputs:     initialized sSbrGrid struct for this channel
  **************************************************************************************/
 
   int32_t numEnvRaw, env, rel, pBits, border, middleBorder=0;
@@ -4033,7 +4035,7 @@ static void unpackSinusoids (cBitStream* bsi, int32_t nHigh, int32_t addHarmonic
 //}}}
 
 //{{{
-static void CopyCouplingGrid (SBRGrid* sbrGridLeft, SBRGrid* sbrGridRight) {
+static void CopyCouplingGrid (sSbrGrid* sbrGridLeft, sSbrGrid* sbrGridRight) {
 /**************************************************************************************
  * Description: copy grid parameters from left to right for channel coupling
  * Inputs:      initialized SBRGrid struct for left channel
@@ -4073,15 +4075,15 @@ static void CopyCouplingInverseFilterMode (int32_t numNoiseFloorBands, uint8_t* 
   }
 //}}}
 //{{{
-static void UncoupleSBREnvelope (struct sInfoSbr* psi, SBRGrid* sbrGrid, SBRFreq* sbrFreq, SBRChan* sbrChanR) {
+static void UncoupleSBREnvelope (struct sInfoSbr* psi, sSbrGrid* sbrGrid, sSbrFreq* sbrFreq, sSbrChan* sbrChanR) {
 /**************************************************************************************
  * Description: scale dequantized envelope scalefactors according to channel
  *                coupling rules
  * Inputs:      initialized mInfoSbr struct including
  *                dequantized envelope data for left channel
- *              initialized SBRGrid struct for this channel
- *              initialized SBRFreq struct for this SCE/CPE block
- *              initialized SBRChan struct for right channel including
+ *              initialized sSbrGrid struct for this channel
+ *              initialized sSbrFreq struct for this SCE/CPE block
+ *              initialized sSbrChan struct for right channel including
  *                quantized envelope scalefactors
  * Outputs:     dequantized envelope data for left channel (after decoupling)
  *              dequantized envelope data for right channel (after decoupling)
@@ -4107,7 +4109,7 @@ static void UncoupleSBREnvelope (struct sInfoSbr* psi, SBRGrid* sbrGrid, SBRFreq
   }
 //}}}
 //{{{
-static void UncoupleSBRNoise (struct sInfoSbr* psi, SBRGrid* sbrGrid, SBRFreq* sbrFreq, SBRChan* sbrChanR) {
+static void UncoupleSBRNoise (struct sInfoSbr* psi, sSbrGrid* sbrGrid, sSbrFreq* sbrFreq, sSbrChan* sbrChanR) {
 /**************************************************************************************
  * Description: scale dequantized noise floor scalefactors according to channel
  *                coupling rules
@@ -4147,13 +4149,13 @@ static void unpackSBRSingleChannel (cBitStream* bsi, struct sInfoSbr* psi, int32
  *              initialized mInfoSbr struct (after parsing SBR header and building
  *                frequency tables)
  *              base output channel (range = [0, nChans-1])
- * Outputs:     updated mInfoSbr struct (SBRGrid and SBRChan)
+ * Outputs:     updated mInfoSbr struct (sSbrGrid and sSbrChan)
  **************************************************************************************/
 
-  SBRHeader* sbrHdr = &(psi->sbrHdr[chBase]);
-  SBRGrid* sbrGridL = &(psi->sbrGrid[chBase+0]);
-  SBRFreq* sbrFreq =  &(psi->sbrFreq[chBase]);
-  SBRChan* sbrChanL = &(psi->sbrChan[chBase+0]);
+  sSbrHeader* sbrHdr = &(psi->sbrHdr[chBase]);
+  sSbrGrid* sbrGridL = &(psi->sbrGrid[chBase+0]);
+  sSbrFreq* sbrFreq =  &(psi->sbrFreq[chBase]);
+  sSbrChan* sbrChanL = &(psi->sbrChan[chBase+0]);
 
   psi->dataExtra = bsi->getBits (1);
   if (psi->dataExtra)
@@ -4193,13 +4195,13 @@ static void unpackSBRChannelPair (cBitStream* bsi, struct sInfoSbr* psi, int32_t
  * Inputs:      cBitStream struct pointing to start of sideband info
  *              initialized mInfoSbr struct (after parsing SBR header and building frequency tables)
  *              base output channel (range = [0, nChans-1])
- * Outputs:     updated mInfoSbr struct (SBRGrid and SBRChan for both channels)
+ * Outputs:     updated mInfoSbr struct (ssSbrGrid and sSbrChan for both channels)
  **************************************************************************************/
 
-  SBRHeader* sbrHdr = &(psi->sbrHdr[chBase]);
-  SBRGrid* sbrGridL = &(psi->sbrGrid[chBase+0]), *sbrGridR = &(psi->sbrGrid[chBase+1]);
-  SBRFreq* sbrFreq =  &(psi->sbrFreq[chBase]);
-  SBRChan* sbrChanL = &(psi->sbrChan[chBase+0]), *sbrChanR = &(psi->sbrChan[chBase+1]);
+  sSbrHeader* sbrHdr = &(psi->sbrHdr[chBase]);
+  sSbrGrid* sbrGridL = &(psi->sbrGrid[chBase+0]), *sbrGridR = &(psi->sbrGrid[chBase+1]);
+  sSbrFreq* sbrFreq =  &(psi->sbrFreq[chBase]);
+  sSbrChan* sbrChanL = &(psi->sbrChan[chBase+0]), *sbrChanR = &(psi->sbrChan[chBase+1]);
 
   psi->dataExtra = bsi->getBits (1);
   if (psi->dataExtra) {
@@ -4502,7 +4504,8 @@ static int32_t CalcFreqMasterScaleZero (uint8_t* freqMaster, int32_t alterScale,
   }
 //}}}
 //{{{
-static int32_t CalcFreqMaster (uint8_t* freqMaster, int32_t freqScale, int32_t alterScale, int32_t k0, int32_t k2) {
+static int32_t CalcFreqMaster (uint8_t* freqMaster, int32_t freqScale, int32_t alterScale, 
+                               int32_t k0, int32_t k2) {
 /**************************************************************************************
  * Description: calculate master frequency table when freqScale > 0
  *                (4.6.18.3.2.1, figure 4.39)
@@ -4641,7 +4644,8 @@ static int32_t CalcFreqLow (uint8_t* freqLow, uint8_t* freqHigh, int32_t nHigh) 
   }
 //}}}
 //{{{
-static int32_t CalcFreqNoise (uint8_t* freqNoise, uint8_t* freqLow, int32_t nLow, int32_t kStart, int32_t k2, int32_t noiseBands) {
+static int32_t CalcFreqNoise (uint8_t* freqNoise, uint8_t* freqLow, int32_t nLow, 
+                              int32_t kStart, int32_t k2, int32_t noiseBands) {
 /**************************************************************************************
  * Description: calculate noise floor frequency table (4.6.18.3.2.2)
  * Inputs:      low resolution frequency table
@@ -4842,10 +4846,10 @@ static int32_t CalcFreqLimiter (uint8_t* freqLimiter, uint8_t* patchNumSubbands,
   }
 //}}}
 //{{{
-static int32_t CalcFreqTables (SBRHeader* sbrHdr, SBRFreq* sbrFreq, int32_t sampRateIdx) {
+static int32_t CalcFreqTables (sSbrHeader* sbrHdr, sSbrFreq* sbrFreq, int32_t sampRateIdx) {
 /**************************************************************************************
  * Description: calulate master and derived frequency tables, and patches
- * Inputs:      initialized SBRHeader struct for this SCE/CPE block
+ * Inputs:      initialized sSbrHeader struct for this SCE/CPE block
  *              initialized SBRFreq struct for this SCE/CPE block
  *              sample rate index of output sample rate (after SBR)
  * Outputs:     master and derived frequency tables, and patches
@@ -4898,7 +4902,7 @@ bool cAacDecoder::decodeSbrBitstream (int32_t chBase) {
  * Inputs:      fill buffer with SBR extension block
  *              number of bytes in fill buffer
  *              base output channel (range = [0, nChans-1])
- * Outputs:     initialized state structs (SBRHdr, SBRGrid, SBRFreq, SBRChan)
+ * Outputs:     initialized state structs (SBRHdr, SBRGrid, sSbrFreq, sSbrChan)
  * Return:      false if successful
  * Notes:       SBR payload should be in fillBuf
  *              returns with no error if fill buffer is not an SBR extension block,
@@ -5114,7 +5118,7 @@ void cAacDecoder::dequantize (int32_t channel) {
 
   int32_t nSamps;
   const short* sfbTab;
-  ICSInfo* icsInfo = (channel == 1 && mInfoBase->commonWin == 1) ?
+  sIcsInfo* icsInfo = (channel == 1 && mInfoBase->commonWin == 1) ?
                        &(mInfoBase->icsInfo[0]) : &(mInfoBase->icsInfo[channel]);
   if (icsInfo->winSequence == 2) {
     sfbTab = sfBandTabShort + sfBandTabShortOffset[mInfoBase->sampRateIdx];
@@ -5291,7 +5295,7 @@ void cAacDecoder::applyStereoProcess() {
 
   int32_t nSamps;
   const short* sfbTab;
-  ICSInfo* icsInfo = &(mInfoBase->icsInfo[0]);
+  sIcsInfo* icsInfo = &(mInfoBase->icsInfo[0]);
   if (icsInfo->winSequence == 2) {
     sfbTab = sfBandTabShort + sfBandTabShortOffset[mInfoBase->sampRateIdx];
     nSamps = NSAMPS_SHORT;
@@ -5502,7 +5506,7 @@ void cAacDecoder::applyPns (int32_t channel) {
 
   int32_t nSamps;
   const short* sfbTab;
-  ICSInfo* icsInfo = (channel == 1 && mInfoBase->commonWin == 1) ?
+  sIcsInfo* icsInfo = (channel == 1 && mInfoBase->commonWin == 1) ?
                        &(mInfoBase->icsInfo[0]) : &(mInfoBase->icsInfo[channel]);
   if (icsInfo->winSequence == 2) {
     sfbTab = sfBandTabShort + sfBandTabShortOffset[mInfoBase->sampRateIdx];
@@ -5610,7 +5614,8 @@ static void DecodeLPCCoefs (int32_t order, int32_t res, int8_t* filtCoef, int32_
   }
 //}}}
 //{{{
-static int32_t FilterRegion (int32_t size, int32_t dir, int32_t order, int32_t* audioCoef, int32_t* a, int32_t* hist) {
+static int32_t FilterRegion (int32_t size, int32_t dir, int32_t order, int32_t* audioCoef, 
+                             int32_t* a, int32_t* hist) {
 /**************************************************************************************
  * Description: apply LPC filter to one region of coefficients
  * Inputs:      number of transform coefficients in this region
@@ -5628,7 +5633,7 @@ static int32_t FilterRegion (int32_t size, int32_t dir, int32_t order, int32_t* 
 
   int32_t i, j, y, hi32, inc, gbMask;
 
-  // init history to 0 every time */
+  // init history to 0 every time
   for (i = 0; i < order; i++)
     hist[i] = 0;
 
@@ -5637,12 +5642,12 @@ static int32_t FilterRegion (int32_t size, int32_t dir, int32_t order, int32_t* 
   gbMask = 0;
   inc = (dir ? -1 : 1);
   do {
-    // sum64 = a0*y[n] = 1.0*y[n] */
+    // sum64 = a0*y[n] = 1.0*y[n]
     y = *audioCoef;
     sum64.r.hi32 = y >> (32 - FBITS_LPC_COEFS);
     sum64.r.lo32 = y << FBITS_LPC_COEFS;
 
-    // sum64 += (a1*y[n-1] + a2*y[n-2] + ... + a[order-1]*y[n-(order-1)]) */
+    // sum64 += (a1*y[n-1] + a2*y[n-2] + ... + a[order-1]*y[n-(order-1)])
     for (j = order - 1; j > 0; j--) {
       sum64.w64 = MADD64(sum64.w64, hist[j], a[j]);
       hist[j] = hist[j-1];
@@ -5650,7 +5655,7 @@ static int32_t FilterRegion (int32_t size, int32_t dir, int32_t order, int32_t* 
     sum64.w64 = MADD64(sum64.w64, hist[0], a[0]);
     y = (sum64.r.hi32 << (32 - FBITS_LPC_COEFS)) | (sum64.r.lo32 >> FBITS_LPC_COEFS);
 
-    /* clip output (rare) */
+    // clip output (rare)
     hi32 = sum64.r.hi32;
     if ((hi32 >> 31) != (hi32 >> (FBITS_LPC_COEFS-1)))
       y = (hi32 >> 31) ^ 0x7fffffff;
@@ -5674,9 +5679,9 @@ void cAacDecoder::applyTns (int32_t channel) {
  *              updated minimum guard bit count for this channel
  **************************************************************************************/
 
-  ICSInfo* icsInfo = (channel == 1 && mInfoBase->commonWin == 1) ?
+  sIcsInfo* icsInfo = (channel == 1 && mInfoBase->commonWin == 1) ?
                        &(mInfoBase->icsInfo[0]) : &(mInfoBase->icsInfo[channel]);
-  TNSInfo* ti = &mInfoBase->tnsInfo[channel];
+  sTnsInfo* ti = &mInfoBase->tnsInfo[channel];
   if (!ti->tnsDataPresent)
     return;
 
@@ -5808,7 +5813,7 @@ void cAacDecoder::applyTns (int32_t channel) {
     int32_t ci = x[5] + x[7];
     int32_t di = x[5] - x[7];
 
-    /* max per-sample gain = 4.0 (adding 4 inputs together) */
+    // max per-sample gain = 4.0 (adding 4 inputs together)
     x[0] = ar + cr;
     x[4] = ar - cr;
     x[1] = ai + ci;
@@ -6252,7 +6257,7 @@ static void DCT4 (int32_t tabidx, int32_t* coef, int32_t gb) {
  *                 long blocks =  (-8 + 7 + 2) = 1 total
  **************************************************************************************/
 
-  // fast in-place DCT-IV - adds guard bits if necessary */
+  // fast in-place DCT-IV - adds guard bits if necessary
   if (gb < GBITS_IN_DCT4) {
     int32_t es = GBITS_IN_DCT4 - gb;
     PreMultiplyRescale (tabidx, coef, es);
@@ -6268,7 +6273,8 @@ static void DCT4 (int32_t tabidx, int32_t* coef, int32_t gb) {
 //}}}
 
 //{{{
-static void DecWindowOverlap (int32_t* buf0, int32_t* over0, int32_t* out0, int32_t winTypeCurr, int32_t winTypePrev) {
+static void DecWindowOverlap (int32_t* buf0, int32_t* over0, int32_t* out0, 
+                              int32_t winTypeCurr, int32_t winTypePrev) {
 /**************************************************************************************
  * Description: apply synthesis window, do overlap-add without clipping,
  *                for winSequence LONG-LONG
@@ -6287,7 +6293,7 @@ static void DecWindowOverlap (int32_t* buf0, int32_t* over0, int32_t* out0, int3
 
   const int32_t* wndPrev = (winTypePrev == 1 ? kbdWindow + kbdWindowOffset[1] : sinWindow + sinWindowOffset[1]);
   if (winTypeCurr == winTypePrev) {
-    // cut window loads in half since current and overlap sections use same symmetric window */
+    // cut window loads in half since current and overlap sections use same symmetric window
     do {
       int32_t w0 = *wndPrev++;
       int32_t w1 = *wndPrev++;
@@ -6308,7 +6314,7 @@ static void DecWindowOverlap (int32_t* buf0, int32_t* over0, int32_t* out0, int3
       } while (over0 < over1);
     }
   else {
-    // different windows for current and overlap parts - should still fit in registers on ARM w/o stack spill */
+    // different windows for current and overlap parts - should still fit in registers on ARM w/o stack spill
     const int32_t* wndCurr = (winTypeCurr == 1 ? kbdWindow + kbdWindowOffset[1] : sinWindow + sinWindowOffset[1]);
     do {
       int32_t w0 = *wndPrev++;
@@ -6335,7 +6341,8 @@ static void DecWindowOverlap (int32_t* buf0, int32_t* over0, int32_t* out0, int3
   }
 //}}}
 //{{{
-static void DecWindowOverlapLongStart (int32_t* buf0, int32_t* over0, int32_t* out0, int32_t winTypeCurr, int32_t winTypePrev) {
+static void DecWindowOverlapLongStart (int32_t* buf0, int32_t* over0, int32_t* out0, 
+                                       int32_t winTypeCurr, int32_t winTypePrev) {
 /**************************************************************************************
  * Description: apply synthesis window, do overlap-add, without clipping
  *                for winSequence LONG-START
@@ -6370,7 +6377,7 @@ static void DecWindowOverlapLongStart (int32_t* buf0, int32_t* over0, int32_t* o
     *over0++ = in >> 1; /* Wn = 1 for n = (1024, 1025, ... 1471) */
     } while (--i);
 
-  // do 64 more loops - 2 outputs, 2 overlaps per loop */
+  // do 64 more loops - 2 outputs, 2 overlaps per loop
   const int32_t* wndCurr = (winTypeCurr == 1 ? kbdWindow + kbdWindowOffset[0] : sinWindow + sinWindowOffset[0]);
   do {
     int32_t w0 = *wndPrev++;
@@ -6393,10 +6400,10 @@ static void DecWindowOverlapLongStart (int32_t* buf0, int32_t* over0, int32_t* o
   }
 //}}}
 //{{{
-static void DecWindowOverlapLongStop (int32_t* buf0, int32_t* over0, int32_t* out0, int32_t winTypeCurr, int32_t winTypePrev) {
+static void DecWindowOverlapLongStop (int32_t* buf0, int32_t* over0, int32_t* out0, 
+                                      int32_t winTypeCurr, int32_t winTypePrev) {
 /**************************************************************************************
- * Description: apply synthesis window, do overlap-add, without clipping
- *                for winSequence LONG-STOP
+ * Description: apply synthesis window, do overlap-add, without clipping for winSequence LONG-STOP
  * Inputs:      input buffer (output of type-IV DCT)
  *              overlap buffer (saved from last time)
  *              window type (sin or KBD) for input buffer
@@ -6413,8 +6420,8 @@ static void DecWindowOverlapLongStop (int32_t* buf0, int32_t* over0, int32_t* ou
   const int32_t* wndCurr = (winTypeCurr == 1 ? kbdWindow + kbdWindowOffset[1] : sinWindow + sinWindowOffset[1]);
   int32_t i = 448;  /* 2 outputs, 2 overlaps per loop */
   do {
-    // Wn = 0 for n = (0, 1, ... 447) */
-    // Wn = 1 for n = (576, 577, ... 1023) */
+    // Wn = 0 for n = (0, 1, ... 447)
+    // Wn = 1 for n = (576, 577, ... 1023)
     int32_t in = *buf0++;
     int32_t f1 = in >> 1; /* scale since skipping multiply by Q31 */
 
@@ -6452,10 +6459,11 @@ static void DecWindowOverlapLongStop (int32_t* buf0, int32_t* over0, int32_t* ou
   }
 //}}}
 //{{{
-static void DecWindowOverlapShort (int32_t* buf0, int32_t* over0, int32_t* out0, int32_t winTypeCurr, int32_t winTypePrev) {
+static void DecWindowOverlapShort (int32_t* buf0, int32_t* over0, int32_t* out0, 
+                                   int32_t winTypeCurr, int32_t winTypePrev) {
 /**************************************************************************************
  * Description: apply synthesis window, do overlap-add, without clipping
- *                for winSequence EIGHT-SHORT (does all 8 short blocks)
+ *              for winSequence EIGHT-SHORT (does all 8 short blocks)
  * Inputs:      input buffer (output of type-IV DCT)
  *              overlap buffer (saved from last time)
  *              window type (sin or KBD) for input buffer
@@ -6622,7 +6630,7 @@ void cAacDecoder::imdct (int32_t channel, int32_t chOut, float* outbuf) {
 
   cLog::log (LOGINFO3, "imdct %d", channel);
 
-  ICSInfo* icsInfo = (channel == 1 && mInfoBase->commonWin == 1) ?
+  sIcsInfo* icsInfo = (channel == 1 && mInfoBase->commonWin == 1) ?
                        &(mInfoBase->icsInfo[0]) : &(mInfoBase->icsInfo[channel]);
   outbuf += chOut;
 
@@ -7092,7 +7100,8 @@ static void QMFAnalysisConv (int32_t* cTab, int32_t *delay, int32_t dIdx, int32_
   }
 //}}}
 //{{{
-static int32_t QMFAnalysis (int32_t* inbuf, int32_t* delay, int32_t* XBuf, int32_t fBitsIn, int32_t* delayIdx, int32_t qmfaBands) {
+static int32_t QMFAnalysis (int32_t* inbuf, int32_t* delay, int32_t* XBuf, 
+                            int32_t fBitsIn, int32_t* delayIdx, int32_t qmfaBands) {
 /**************************************************************************************
  * Description: 32-subband analysis QMF (4.6.18.4.1)
  * Inputs:      32 consecutive samples of decoded 32-bit PCM, format = Q(fBitsIn)
@@ -7238,7 +7247,8 @@ static void QMFSynthesisConv (int32_t* cPtr, int32_t* delay, int32_t dIdx, float
   }
 //}}}
 //{{{
-static void QMFSynthesis (int32_t* inbuf, int32_t* delay, int32_t* delayIdx, int32_t qmfsBands, float* outbuf, int32_t nChans) {
+static void QMFSynthesis (int32_t* inbuf, int32_t* delay, int32_t* delayIdx, 
+                          int32_t qmfsBands, float* outbuf, int32_t nChans) {
 /**************************************************************************************
  * Description: 64-subband synthesis QMF (4.6.18.4.2)
  * Inputs:      64 consecutive complex subband QMF samples, format = Q(FBITS_IN_QMFS)
@@ -7325,12 +7335,13 @@ static void QMFSynthesis (int32_t* inbuf, int32_t* delay, int32_t* delayIdx, int
 //}}}
 
 //{{{
-static void EstimateEnvelope (struct sInfoSbr* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SBRFreq* sbrFreq, int32_t env) {
+static void EstimateEnvelope (struct sInfoSbr* psi, sSbrHeader* sbrHdr, 
+                              sSbrGrid* sbrGrid, sSbrFreq* sbrFreq, int32_t env) {
 /**************************************************************************************
  * Description: estimate power of generated HF QMF bands in one time-domain envelope
  *                (4.6.18.7.3)
  * Inputs:      initialized mInfoSbr struct
- *              initialized SBRHeader struct for this SCE/CPE block
+ *              initialized sSbrHeader struct for this SCE/CPE block
  *              initialized SBRGrid struct for this channel
  *              initialized SBRFreq struct for this SCE/CPE block
  *              index of current envelope
@@ -7438,7 +7449,8 @@ static void EstimateEnvelope (struct sInfoSbr* psi, SBRHeader* sbrHdr, SBRGrid* 
   }
 //}}}
 //{{{
-static int32_t GetSMapped (SBRGrid *sbrGrid, SBRFreq* sbrFreq, SBRChan* sbrChan, int32_t env, int32_t band, int32_t la) {
+static int32_t GetSMapped (sSbrGrid*sbrGrid, sSbrFreq* sbrFreq, sSbrChan* sbrChan, 
+                           int32_t env, int32_t band, int32_t la) {
 /**************************************************************************************
  * Description: calculate SMapped (4.6.18.7.2)
  * Inputs:      initialized mInfoSbr struct
@@ -7481,12 +7493,12 @@ static int32_t GetSMapped (SBRGrid *sbrGrid, SBRFreq* sbrFreq, SBRChan* sbrChan,
 #define ACC_SCALE 6
 #define GBOOST_MAX  0x2830afd3  /* Q28, 1.584893192 squared */
 //{{{
-static void CalcMaxGain (struct sInfoSbr* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SBRFreq* sbrFreq,
+static void CalcMaxGain (struct sInfoSbr* psi, sSbrHeader* sbrHdr, sSbrGrid* sbrGrid, sSbrFreq* sbrFreq,
                          int32_t ch, int32_t env, int32_t lim, int32_t fbitsDQ) {
 /**************************************************************************************
  * Description: calculate max gain in one limiter band (4.6.18.7.5)
  * Inputs:      initialized mInfoSbr struct
- *              initialized SBRHeader struct for this SCE/CPE block
+ *              initialized sSbrHeader struct for this SCE/CPE block
  *              initialized SBRGrid struct for this channel
  *              initialized SBRFreq struct for this SCE/CPE block
  *              index of current channel (0 for SCE, 0 or 1 for CPE)
@@ -7574,14 +7586,14 @@ static void CalcNoiseDivFactors (int32_t q, int32_t* qp1Inv, int32_t* qqp1Inv) {
   }
 //}}}
 //{{{
-static void CalcComponentGains (struct sInfoSbr* psi, SBRGrid* sbrGrid, SBRFreq* sbrFreq, SBRChan* sbrChan,
+static void CalcComponentGains (struct sInfoSbr* psi, sSbrGrid* sbrGrid, sSbrFreq* sbrFreq, sSbrChan* sbrChan,
                                 int32_t ch, int32_t env, int32_t lim, int32_t fbitsDQ) {
 /**************************************************************************************
  * Function:    CalcComponentGains
  * Description: calculate gain of envelope, sinusoids, and noise in one limiter band
  *                (4.6.18.7.5)
  * Inputs:      initialized mInfoSbr struct
- *              initialized SBRHeader struct for this SCE/CPE block
+ *              initialized sSbrHeader struct for this SCE/CPE block
  *              initialized SBRGrid struct for this channel
  *              initialized SBRFreq struct for this SCE/CPE block
  *              initialized SBRChan struct for this channel
@@ -7734,7 +7746,7 @@ static void CalcComponentGains (struct sInfoSbr* psi, SBRGrid* sbrGrid, SBRFreq*
 //}}}
 
 //{{{
-static void ApplyBoost (struct sInfoSbr* psi, SBRFreq* sbrFreq, int32_t lim, int32_t fbitsDQ) {
+static void ApplyBoost (struct sInfoSbr* psi, sSbrFreq* sbrFreq, int32_t lim, int32_t fbitsDQ) {
 /**************************************************************************************
  * Description: calculate and apply boost factor for envelope, sinusoids, and noise
  *                in this limiter band (4.6.18.7.5)
@@ -7824,15 +7836,16 @@ static void ApplyBoost (struct sInfoSbr* psi, SBRFreq* sbrFreq, int32_t lim, int
   }
 //}}}
 //{{{
-static void CalcGain (struct sInfoSbr* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SBRFreq* sbrFreq, SBRChan* sbrChan, int32_t ch, int32_t env) {
+static void CalcGain (struct sInfoSbr* psi, sSbrHeader* sbrHdr,
+                      sSbrGrid* sbrGrid, sSbrFreq* sbrFreq, sSbrChan* sbrChan, int32_t ch, int32_t env) {
 /**************************************************************************************
  * Description: calculate and apply proper gain to HF components in one envelope
  *                (4.6.18.7.5)
  * Inputs:      initialized mInfoSbr struct
- *              initialized SBRHeader struct for this SCE/CPE block
- *              initialized SBRGrid struct for this channel
- *              initialized SBRFreq struct for this SCE/CPE block
- *              initialized SBRChan struct for this channel
+ *              initialized sSbrHeader struct for this SCE/CPE block
+ *              initialized sSbrGrid struct for this channel
+ *              initialized sSbrFreq struct for this SCE/CPE block
+ *              initialized sSbrChan struct for this channel
  *              index of current channel (0 for SCE, 0 or 1 for CPE)
  *              index of current envelope
  * Outputs:     envelope gain, sinusoids and noise after scaling
@@ -7854,16 +7867,16 @@ static void CalcGain (struct sInfoSbr* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid,
   }
 //}}}
 //{{{
-static void MapHF (struct sInfoSbr* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SBRFreq* sbrFreq, SBRChan* sbrChan,
-                   int32_t env, int32_t hfReset) {
+static void MapHF (struct sInfoSbr* psi, sSbrHeader* sbrHdr, 
+                   sSbrGrid* sbrGrid, sSbrFreq* sbrFreq, sSbrChan* sbrChan, int32_t env, int32_t hfReset) {
 /**************************************************************************************
  * Description: map HF components to proper QMF bands, with optional gain smoothing
  *                filter (4.6.18.7.6)
  * Inputs:      initialized mInfoSbr struct
- *              initialized SBRHeader struct for this SCE/CPE block
- *              initialized SBRGrid struct for this channel
- *              initialized SBRFreq struct for this SCE/CPE block
- *              initialized SBRChan struct for this channel
+ *              initialized sSbrHeader struct for this SCE/CPE block
+ *              initialized sSbrGrid struct for this channel
+ *              initialized sSbrFreq struct for this SCE/CPE block
+ *              initialized sSbrChan struct for this channel
  *              index of current envelope
  *              reset flag (can be non-zero for first envelope only)
  * Outputs:     complete reconstructed subband QMF samples for this envelope
@@ -8024,12 +8037,12 @@ static void MapHF (struct sInfoSbr* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SB
   }
 //}}}
 //{{{
-static void AdjustHighFreq (struct sInfoSbr* psi, SBRHeader* sbrHdr, SBRGrid* sbrGrid, SBRFreq* sbrFreq, SBRChan* sbrChan,
-                            int32_t ch) {
+static void AdjustHighFreq (struct sInfoSbr* psi, sSbrHeader* sbrHdr, 
+                            sSbrGrid* sbrGrid, sSbrFreq* sbrFreq, sSbrChan* sbrChan, int32_t ch) {
 /**************************************************************************************
  * Description: adjust high frequencies and add noise and sinusoids (4.6.18.7)
  * Inputs:      initialized mInfoSbr struct
- *              initialized SBRHeader struct for this SCE/CPE block
+ *              initialized sSbrHeader struct for this SCE/CPE block
  *              initialized SBRGrid struct for this channel
  *              initialized SBRFreq struct for this SCE/CPE block
  *              initialized SBRChan struct for this channel
@@ -8462,12 +8475,13 @@ static void CalcLPCoefs (int32_t* XBuf, int32_t* a0re, int32_t* a0im, int32_t* a
   }
 //}}}
 //{{{
-static void GenerateHighFreq (struct sInfoSbr* psi, SBRGrid* sbrGrid, SBRFreq* sbrFreq, SBRChan* sbrChan, int32_t ch) {
+static void GenerateHighFreq (struct sInfoSbr* psi, sSbrGrid* sbrGrid, 
+                              sSbrFreq* sbrFreq, sSbrChan* sbrChan, int32_t ch) {
 /**************************************************************************************
  * Description: generate high frequencies with SBR (4.6.18.6)
  * Inputs:      initialized mInfoSbr struct
- *              initialized SBRGrid struct for this channel
- *              initialized SBRFreq struct for this SCE/CPE block
+ *              initialized sSbrGrid struct for this channel
+ *              initialized sSbrFreq struct for this SCE/CPE block
  *              initialized SBRChan struct for this channel
  *              index of current channel (0 for SCE, 0 or 1 for CPE)
  * Outputs:     new high frequency samples starting at frequency kStart
@@ -8598,15 +8612,15 @@ void cAacDecoder::applySbr (int32_t chBase, float* outbuf) {
  *              size of input PCM samples (must be 4 bytes)
  *              number of fraction bits in input PCM samples
  *              base output channel (range = [0, nChans-1])
- *              initialized state structs (SBRHdr, SBRGrid, SBRFreq, SBRChan)
+ *              initialized state structs (SBRHdr, SBRGrid, sSbrFreq, sSbrChan)
  * Outputs:     2048 samples of decoded float PCM, after SBR
  **************************************************************************************/
 
   cLog::log (LOGINFO3, "applySbr");
 
   // same header and freq tables for both channels in CPE
-  SBRHeader* sbrHdr = &(mInfoSbr->sbrHdr[chBase]);
-  SBRFreq* sbrFreq = &(mInfoSbr->sbrFreq[chBase]);
+  sSbrHeader* sbrHdr = &(mInfoSbr->sbrHdr[chBase]);
+  sSbrFreq* sbrFreq = &(mInfoSbr->sbrFreq[chBase]);
 
   // upsample only if we haven't received an SBR header yet or if we have an LFE block
   int32_t chBlock;
@@ -8636,8 +8650,8 @@ void cAacDecoder::applySbr (int32_t chBase, float* outbuf) {
     }
 
   for (int32_t ch = 0; ch < chBlock; ch++) {
-    SBRGrid* sbrGrid = &(mInfoSbr->sbrGrid[chBase + ch]);
-    SBRChan* sbrChan = &(mInfoSbr->sbrChan[chBase + ch]);
+    sSbrGrid* sbrGrid = &(mInfoSbr->sbrGrid[chBase + ch]);
+    sSbrChan* sbrChan = &(mInfoSbr->sbrChan[chBase + ch]);
 
     // restore delay buffers (could use ring buffer or keep in temp buffer for nChans == 1)
     for (int32_t l = 0; l < HF_GEN; l++) {
