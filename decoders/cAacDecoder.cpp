@@ -2219,7 +2219,7 @@ public:
   /**************************************************************************************
    * Description: get bits from bitstream, advance bitstream pointer
    * Inputs:      number of bits to get from bitstream
-   * Outputs:     updated bitstream info struct
+   * Outputs:     updated bitstream info
    * Return:      the next numBits of data from bitstream buffer
    * Notes:       numBits must be in range [0, 31], numBits outside this range masked by 0x1f
    *              for speed, does not indicate error if you overrun bit buffer
@@ -2468,7 +2468,7 @@ static int32_t decodeHuffmanScalar (const int16_t* huffTab, const sHuffInfo* huf
                                     uint32_t bitBuf, int32_t* val) {
 /**************************************************************************************
  * Description: decode one Huffman symbol from bitstream
- * Inputs:      pointers to Huffman table and info struct
+ * Inputs:      pointers to Huffman table and info
  * Outputs:     decoded symbol in *val
  * Return:      number of bits in symbol
  * Notes:       assumes canonical Huffman codes:
@@ -2521,7 +2521,7 @@ static int32_t decodeOneScaleFactor (cBitStream* bsi) {
 /**************************************************************************************
  * Description: decode one scalefactor using scalefactor Huffman codebook
  * Inputs:      cBitStream pointing to start of next coded scalefactor
- * Outputs:     updated cBitStream struct
+ * Outputs:     updated cBitStream
  * Return:      one decoded scalefactor, including index_offset of -60
  **************************************************************************************/
 
@@ -2704,7 +2704,7 @@ static void unpackPairsEsc (cBitStream* bsi, int32_t cb, int32_t nVals, int32_t*
 static void decodeSpectrumLong (sInfoBase* psi, cBitStream* bsi, int32_t ch) {
 /**************************************************************************************
  * Description: decode transform coefficients for frame with one long block
- * Inputs:      platform specific info struct
+ * Inputs:      platform specific info
  *              cBitStream pointing to start of spectral data (14496-3, table 4.4.29)
  *              index of current channel
  * Outputs:     decoded, quantized coefficients for this channel
@@ -2761,7 +2761,7 @@ static void decodeSpectrumLong (sInfoBase* psi, cBitStream* bsi, int32_t ch) {
 static void decodeSpectrumShort (sInfoBase* psi, cBitStream* bsi, int32_t ch) {
 /**************************************************************************************
  * Description: decode transform coefficients for frame with eight short blocks
- * Inputs:      platform specific info struct
+ * Inputs:      platform specific info
  *              cBitStream pointing to start of spectral data (14496-3, table 4.4.29)
  *              index of current channel
  * Outputs:     decoded, quantized coefficients for this channel
@@ -2817,7 +2817,7 @@ static void decodeICSInfo (cBitStream* bsi, sIcsInfo* icsInfo, uint8_t sampRateI
  * Description: decode individual channel stream info
  * Inputs:      cBitStream pointing to start of ICS info (14496-3, table 4.4.6)
  *              sample rate index
- * Outputs:     updated sIcsInfo struct
+ * Outputs:     updated sIcsInfo
  **************************************************************************************/
 
   icsInfo->icsResBit = bsi->getBits (1);
@@ -2956,7 +2956,7 @@ static void decodePulseInfo (cBitStream* bsi, sPulseInfo* pi) {
 /**************************************************************************************
  * Description: decode pulse information
  * Inputs:      cBitStream pointing to start of pulse info (14496-3, table 4.4.7)
- * Outputs:     updated sPulseInfo struct
+ * Outputs:     updated sPulseInfo
  **************************************************************************************/
 
   pi->numPulse = bsi->getBits (2) + 1;   /* add 1 here */
@@ -2973,7 +2973,7 @@ static void decodeTNSInfo (cBitStream* bsi, int32_t winSequence, sTnsInfo* ti, i
  * Description: decode TNS filter information
  * Inputs:      cBitStream pointing to start of TNS info (14496-3, table 4.4.27)
  *              window sequence (short or long blocks)
- * Outputs:     updated sTnsInfo struct
+ * Outputs:     updated sTnsInfo
  *              buffer of decoded (signed) TNS filter coefficients
  **************************************************************************************/
 
@@ -3040,7 +3040,7 @@ static void decodeGainControlInfo (cBitStream* bsi, int32_t winSequence, sGainCo
  * Description: decode gain control information (SSR profile only)
  * Inputs:      cBitStream pointing to start of gain control info  (14496-3, table 4.4.12)
  *              window sequence (short or long blocks)
- * Outputs:     updated sGainControlInfo struct
+ * Outputs:     updated sGainControlInfo
  **************************************************************************************/
 
   gi->maxBand = bsi->getBits (2);
@@ -3063,7 +3063,7 @@ static void decodeGainControlInfo (cBitStream* bsi, int32_t winSequence, sGainCo
 static void decodeICS (sInfoBase* psi, cBitStream* bsi, int32_t ch) {
 /**************************************************************************************
  * Description: decode individual channel stream
- * Inputs:      platform specific info struct
+ * Inputs:      platform specific info
  *              cBitStream pointing to start of individual channel stream (14496-3, table 4.4.24)
  *              index of current channel
  * Outputs:     updated section data, scale factor data, pulse data, TNS data and gain control data
@@ -3152,7 +3152,7 @@ static void decodeSBREnvelope (cBitStream* bsi, sInfoSbr* psi, sSbrGrid* sbrGrid
 /**************************************************************************************
  * Description: decode delta Huffman coded envelope scalefactors from bitstream
  * Inputs:      cBitStream pointing to start of env data
- *              initialized mInfoSbr struct
+ *              initialized mInfoSbr
  *              initialized sSbrGrid for this channel
  *              initialized sSbrFreq for this SCE/CPE block
  *              initialized sSbrChan for this channel
@@ -3289,7 +3289,7 @@ static void decodeSBRNoise (cBitStream* bsi, sInfoSbr* psi,
 /**************************************************************************************
  * Description: decode delta Huffman coded noise scalefactors from bitstream
  * Inputs:      cBitStream pointing to start of noise data
- *              initialized mInfoSbr struct
+ *              initialized mInfoSbr
  *              initialized sSbrGrid for this channel
  *              initialized sSbrFreq for this SCE/CPE block
  *              initialized sSbrChan for this channel
@@ -3479,8 +3479,8 @@ void cAacDecoder::decodeProgramConfigElement (cBitStream* bsi, sProgConfigElemen
 /**************************************************************************************
  * Description: decode one PCE
  * Inputs:      cBitStream pointing to start of PCE (14496-3, table 4.4.2)
- * Outputs:     filled-in ProgConfigElement struct
- *              updated cBitStream struct
+ * Outputs:     filled-in ProgConfigElement
+ *              updated cBitStream
  * Notes:       #define KEEP_PCE_COMMENTS to save the comment field of the PCE
  *              (otherwise we just skip it in the bitstream, to save memory)
  **************************************************************************************/
@@ -4856,7 +4856,7 @@ static void unpackSBRChannelPair (cBitStream* bsi, sInfoSbr* psi, int32_t channe
     decodeSBREnvelope (bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
     decodeSBRNoise (bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
 
-    // pass RIGHT sbrChan struct
+    // pass RIGHT sbrChan
     uncoupleSBREnvelope (psi, sbrGridL, sbrFreq, sbrChanR);
     uncoupleSBRNoise (psi, sbrGridL, sbrFreq, sbrChanR);
     }
@@ -4904,7 +4904,7 @@ bool cAacDecoder::decodeSbrBitstream (int32_t channelBase) {
  * Inputs:      fill buffer with SBR extension block
  *              number of bytes in fill buffer
  *              base output channel (range = [0, nChans-1])
- * Outputs:     initialized state structs (SBRHdr, SBRGrid, sSbrFreq, sSbrChan)
+ * Outputs:     initialized state (SBRHdr, SBRGrid, sSbrFreq, sSbrChan)
  * Return:      false if successful
  * Notes:       SBR payload should be in fillBuf
  *              returns with no error if fill buffer is not an SBR extension block,
@@ -4966,7 +4966,7 @@ bool cAacDecoder::decodeSbrBitstream (int32_t channelBase) {
 #define SQRTHALF 0x5a82799a
 
 //{{{
-static int32_t dequantBlock (int32_t* inbuf, int32_t nSamps, int32_t scale) {
+static int32_t dequantizeBlock (int32_t* inbuf, int32_t numSamples, int32_t scale) {
 /**************************************************************************************
  * Description: dequantize one block of transform coefficients (in-place)
  * Inputs:      quantized transform coefficients, range = [0, 8191]
@@ -4980,7 +4980,7 @@ static int32_t dequantBlock (int32_t* inbuf, int32_t nSamps, int32_t scale) {
  *              output has no minimum number of guard bits
  **************************************************************************************/
 
-  if (nSamps <= 0)
+  if (numSamples <= 0)
     return 0;
 
   scale -= SF_OFFSET; /* new range = [-100, 156] */
@@ -5100,7 +5100,7 @@ static int32_t dequantBlock (int32_t* inbuf, int32_t nSamps, int32_t scale) {
     y ^= iSamp;
     y -= iSamp;
     *inbuf++ = y;
-    } while (--nSamps);
+    } while (--numSamples);
 
   return gbMask;
   }
@@ -5118,17 +5118,17 @@ void cAacDecoder::dequantize (int32_t channel) {
 
   cLog::log (LOGINFO3, "dequantize %d", channel);
 
-  int32_t nSamps;
-  const short* sfbTab;
   auto icsInfo = (channel == 1 && mInfoBase->commonWin == 1) ?
                    &(mInfoBase->icsInfo[0]) : &(mInfoBase->icsInfo[channel]);
+  const short* sfbTab;
+  int32_t numSamples;
   if (icsInfo->winSequence == 2) {
     sfbTab = sfBandTabShort + sfBandTabShortOffset[mInfoBase->sampRateIdx];
-    nSamps = NSAMPS_SHORT;
+    numSamples = NSAMPS_SHORT;
     }
   else {
     sfbTab = sfBandTabLong + sfBandTabLongOffset[mInfoBase->sampRateIdx];
-    nSamps = NSAMPS_LONG;
+    numSamples = NSAMPS_LONG;
     }
   int32_t* coef = mInfoBase->coef[channel];
   uint8_t* sfbCodeBook = mInfoBase->sfbCodeBook[channel];
@@ -5145,14 +5145,14 @@ void cAacDecoder::dequantize (int32_t channel) {
         int32_t cb = (int)(sfbCodeBook[sfb]);
         int32_t width = sfbTab[sfb+1] - sfbTab[sfb];
         if (cb >= 0 && cb <= 11)
-          gbMask |= dequantBlock(coef, width, scaleFactors[sfb]);
+          gbMask |= dequantizeBlock (coef, width, scaleFactors[sfb]);
         else if (cb == 13)
           mInfoBase->pnsUsed[channel] = 1;
         else if (cb == 14 || cb == 15)
           mInfoBase->intensityUsed[channel] = 1; // should only happen if ch == 1
           coef += width;
         }
-      coef += (nSamps - sfbTab[icsInfo->maxSFB]);
+      coef += (numSamples - sfbTab[icsInfo->maxSFB]);
       }
     sfbCodeBook += icsInfo->maxSFB;
     scaleFactors += icsInfo->maxSFB;
@@ -5295,16 +5295,16 @@ void cAacDecoder::applyStereoProcess() {
 
   cLog::log (LOGINFO3, "applyStereoProcess");
 
-  int32_t nSamps;
+  int32_t numSamples;
   const short* sfbTab;
   auto icsInfo = &(mInfoBase->icsInfo[0]);
   if (icsInfo->winSequence == 2) {
     sfbTab = sfBandTabShort + sfBandTabShortOffset[mInfoBase->sampRateIdx];
-    nSamps = NSAMPS_SHORT;
+    numSamples = NSAMPS_SHORT;
     }
   else {
     sfbTab = sfBandTabLong + sfBandTabLongOffset[mInfoBase->sampRateIdx];
-    nSamps = NSAMPS_LONG;
+    numSamples = NSAMPS_LONG;
     }
   int32_t* coefL = mInfoBase->coef[0];
   int32_t* coefR = mInfoBase->coef[1];
@@ -5317,8 +5317,8 @@ void cAacDecoder::applyStereoProcess() {
       stereoProcessGroup (coefL, coefR, sfbTab, mInfoBase->msMaskPresent,
         msMaskPtr, msMaskOffset, icsInfo->maxSFB, mInfoBase->sfbCodeBook[1] + gp*icsInfo->maxSFB,
         mInfoBase->scaleFactors[1] + gp*icsInfo->maxSFB, mInfoBase->gbCurrent);
-      coefL += nSamps;
-      coefR += nSamps;
+      coefL += numSamples;
+      coefR += numSamples;
       }
 
     // we use one bit per sfb, so there are maxSFB bits for each window group
@@ -5506,17 +5506,17 @@ void cAacDecoder::applyPns (int32_t channel) {
 
   cLog::log (LOGINFO3, "applyPns %d", channel);
 
-  int32_t nSamps;
+  int32_t numSamples;
   const short* sfbTab;
   auto icsInfo = (channel == 1 && mInfoBase->commonWin == 1) ?
                    &(mInfoBase->icsInfo[0]) : &(mInfoBase->icsInfo[channel]);
   if (icsInfo->winSequence == 2) {
     sfbTab = sfBandTabShort + sfBandTabShortOffset[mInfoBase->sampRateIdx];
-    nSamps = NSAMPS_SHORT;
+    numSamples = NSAMPS_SHORT;
     }
   else {
     sfbTab = sfBandTabLong + sfBandTabLongOffset[mInfoBase->sampRateIdx];
-    nSamps = NSAMPS_LONG;
+    numSamples = NSAMPS_LONG;
     }
   int32_t* coef = mInfoBase->coef[channel];
 
@@ -5563,7 +5563,7 @@ void cAacDecoder::applyPns (int32_t channel) {
           msMaskOffset = 0;
           }
         }
-      coef += (nSamps - sfbTab[icsInfo->maxSFB]);
+      coef += (numSamples - sfbTab[icsInfo->maxSFB]);
       }
     sfbCodeBook += icsInfo->maxSFB;
     scaleFactors += icsInfo->maxSFB;
@@ -5758,7 +5758,7 @@ void cAacDecoder::applyTns (int32_t channel) {
 //}}}
 
 //{{{  imdct utils
-#define SQRT1_2 0x5a82799a  /* sqrt(1/2) in Q31 */
+#define SQRT1_2 0x5a82799a  // sqrt(1/2) in Q31
 //{{{
  static void bitReverse (int32_t* inout, int32_t tabidx) {
 /**************************************************************************************
@@ -5838,7 +5838,7 @@ void cAacDecoder::applyTns (int32_t channel) {
  * Outputs:     processed samples in same buffer
  * Notes:       assumes 3 guard bits, gains 1 integer bit
  *              guard bits out = guard bits in - 3 (if inputs are full scale)
- *                or guard bits in - 2 (if inputs bounded to +/- sqrt(2)/2)
+ *              or guard bits in - 2 (if inputs bounded to +/- sqrt(2)/2)
  *              see scaling comments in code
  **************************************************************************************/
 
@@ -6036,11 +6036,13 @@ static void r4FFT (int32_t tabidx, int32_t* x) {
     r8FirstPass (x, nfft >> 3);                       // gain 1 int32_t bit,  lose 2 GB
     r4Core (x, nfft >> 5, 8, (int32_t *)twidTabOdd);  // gain 6 int32_t bits, lose 2 GB
     }
+
   else {
     // short block: order = 6, nfft = 64 */
     r4FirstPass (x, nfft >> 2);                       // gain 0 int32_t bits, lose 2 GB
     r4Core (x, nfft >> 4, 4, (int32_t *)twidTabEven); // gain 4 int32_t bits, lose 1 GB
     }
+
   }
 //}}}
 //{{{
@@ -6265,11 +6267,13 @@ static void dct4 (int32_t tabidx, int32_t* coef, int32_t gb) {
     r4FFT (tabidx, coef);
     postMultiplyRescale (tabidx, coef, es);
    }
+
  else {
     preMultiply (tabidx, coef);
     r4FFT (tabidx, coef);
     postMultiply (tabidx, coef);
     }
+
   }
 //}}}
 
@@ -6284,7 +6288,6 @@ static void decWindowOverlap (int32_t* buf0, int32_t* over0, int32_t* out0,
  *              window type (sin or KBD) for input buffer
  *              window type (sin or KBD) for overlap buffer
  * Outputs:     one channel, one frame of 32-bit PCM, non-interleaved
- * Notes:       use this function when the decoded PCM is going to the SBR decoder
  **************************************************************************************/
 
   buf0 += (1024 >> 1);
@@ -6351,7 +6354,6 @@ static void decWindowOverlapLongStart (int32_t* buf0, int32_t* over0, int32_t* o
  *              window type (sin or KBD) for input buffer
  *              window type (sin or KBD) for overlap buffer
  * Outputs:     one channel, one frame of 32-bit PCM, non-interleaved
- * Notes:       use this function when the decoded PCM is going to the SBR decoder
  **************************************************************************************/
 
   buf0 += (1024 >> 1);
@@ -6409,7 +6411,6 @@ static void decWindowOverlapLongStop (int32_t* buf0, int32_t* over0, int32_t* ou
  *              window type (sin or KBD) for input buffer
  *              window type (sin or KBD) for overlap buffer
  * Outputs:     one channel, one frame of 32-bit PCM, non-interleaved
- * Notes:       use this function when the decoded PCM is going to the SBR decoder
  **************************************************************************************/
 
   buf0 += (1024 >> 1);
@@ -6469,7 +6470,6 @@ static void decWindowOverlapShort (int32_t* buf0, int32_t* over0, int32_t* out0,
  *              window type (sin or KBD) for input buffer
  *              window type (sin or KBD) for overlap buffer
  * Outputs:     one channel, one frame of 32-bit PCM, non-interleaved
- * Notes:       use this function when the decoded PCM is going to the SBR decoder
  **************************************************************************************/
 
   const int32_t* wndPrev = (winTypePrev == 1 ? kbdWindow + kbdWindowOffset[0] : sinWindow + sinWindowOffset[0]);
@@ -6620,7 +6620,7 @@ static void decWindowOverlapShort (int32_t* buf0, int32_t* over0, int32_t* out0,
 //}}}
 //}}}
 //{{{
-void cAacDecoder::imdct (int32_t channel, int32_t chOut, float* outBuffer) {
+void cAacDecoder::imdct (int32_t channel, int32_t channelOut, float* outBuffer) {
 /**************************************************************************************
  * Description: inverse transform and convert to 16-bit PCM
  * Inputs:      index of current channel (0 for SCE/LFE, 0 or 1 for CPE)
@@ -6632,9 +6632,9 @@ void cAacDecoder::imdct (int32_t channel, int32_t chOut, float* outBuffer) {
 
   auto icsInfo = (channel == 1 && mInfoBase->commonWin == 1) ?
                    &(mInfoBase->icsInfo[0]) : &(mInfoBase->icsInfo[channel]);
-  outBuffer += chOut;
+  outBuffer += channelOut;
 
-  // optimized type-IV DCT (operates inplace)
+  // optimized type-IV DCT operates inplace
   if (icsInfo->winSequence == 2) // 8 short blocks
     for (auto i = 0; i < 8; i++)
       dct4 (0, mInfoBase->coef[channel] + i*128, mInfoBase->gbCurrent[channel]);
@@ -6644,17 +6644,17 @@ void cAacDecoder::imdct (int32_t channel, int32_t chOut, float* outBuffer) {
   // window, overlap-add, don't clip to short (send to SBR decoder)
   // store the decoded 32-bit samples in top half (second AAC_MAX_NSAMPS samples) of coef buffer
   if (icsInfo->winSequence == 0)
-    decWindowOverlap (mInfoBase->coef[channel], mInfoBase->overlap[chOut], mInfoBase->sbrWorkBuf[channel],
-                      icsInfo->winShape, mInfoBase->prevWinShape[chOut]);
+    decWindowOverlap (mInfoBase->coef[channel], mInfoBase->overlap[channelOut], mInfoBase->sbrWorkBuf[channel],
+                      icsInfo->winShape, mInfoBase->prevWinShape[channelOut]);
   else if (icsInfo->winSequence == 1)
-    decWindowOverlapLongStart (mInfoBase->coef[channel], mInfoBase->overlap[chOut], mInfoBase->sbrWorkBuf[channel],
-                               icsInfo->winShape, mInfoBase->prevWinShape[chOut]);
+    decWindowOverlapLongStart (mInfoBase->coef[channel], mInfoBase->overlap[channelOut], mInfoBase->sbrWorkBuf[channel],
+                               icsInfo->winShape, mInfoBase->prevWinShape[channelOut]);
   else if (icsInfo->winSequence == 2)
-    decWindowOverlapShort (mInfoBase->coef[channel], mInfoBase->overlap[chOut], mInfoBase->sbrWorkBuf[channel],
-                           icsInfo->winShape, mInfoBase->prevWinShape[chOut]);
+    decWindowOverlapShort (mInfoBase->coef[channel], mInfoBase->overlap[channelOut], mInfoBase->sbrWorkBuf[channel],
+                           icsInfo->winShape, mInfoBase->prevWinShape[channelOut]);
   else if (icsInfo->winSequence == 3)
-    decWindowOverlapLongStop (mInfoBase->coef[channel], mInfoBase->overlap[chOut], mInfoBase->sbrWorkBuf[channel],
-                              icsInfo->winShape, mInfoBase->prevWinShape[chOut]);
+    decWindowOverlapLongStop (mInfoBase->coef[channel], mInfoBase->overlap[channelOut], mInfoBase->sbrWorkBuf[channel],
+                              icsInfo->winShape, mInfoBase->prevWinShape[channelOut]);
 
   mRawSampleBuf[channel] = mInfoBase->sbrWorkBuf[channel];
 
@@ -6664,683 +6664,18 @@ void cAacDecoder::imdct (int32_t channel, int32_t chOut, float* outBuffer) {
       outBuffer += mNumChannels;
       }
 
-  mInfoBase->prevWinShape[chOut] = icsInfo->winShape;
+  mInfoBase->prevWinShape[channelOut] = icsInfo->winShape;
   }
 //}}}
 
 //{{{  applySbr utils
-//{{{
-static void preMultiply64 (int32_t* zbuf1) {
-/**************************************************************************************
- * Description: pre-twiddle stage of 64-point32_t DCT-IV
- * Inputs:      buffer of 64 samples
- * Outputs:     processed samples in same buffer
- * Notes:       minimum 1 GB in, 2 GB out, gains 2 int32_t bits
- *              gbOut = gbIn + 1
- *              output is limited to sqrt(2)/2 plus GB in full GB
- *              uses 3-mul, 3-add butterflies instead of 4-mul, 2-add
- **************************************************************************************/
-
-  int32_t* zbuf2 = zbuf1 + 64 - 1;
-  const int32_t* csptr = cos4sin4tab64;
-
-  // whole thing should fit in registers - verify that compiler does this */
-  for (auto i = 64 >> 2; i != 0; i--) {
-    // cps2 = (cos+sin), sin2 = sin, cms2 = (cos-sin) */
-    int32_t cps2a = *csptr++;
-    int32_t sin2a = *csptr++;
-    int32_t cps2b = *csptr++;
-    int32_t sin2b = *csptr++;
-
-    int32_t ar1 = *(zbuf1 + 0);
-    int32_t ai2 = *(zbuf1 + 1);
-    int32_t ai1 = *(zbuf2 + 0);
-    int32_t ar2 = *(zbuf2 - 1);
-
-    // gain 2 ints bit from MULSHIFT32 by Q30
-    // max per-sample gain (ignoring implicit scaling) = max (sin(angle)+cos(angle)) = 1.414
-    // i.e. gain 1 GB since worst case is sin(angle) = cos(angle) = 0.707 (Q30), gain 2 from
-    //   extra sign bits, and eat one in adding
-    int32_t t  = MULSHIFT32(sin2a, ar1 + ai1);
-    int32_t z2 = MULSHIFT32(cps2a, ai1) - t;
-    int32_t cms2 = cps2a - 2*sin2a;
-    int32_t z1 = MULSHIFT32(cms2, ar1) + t;
-    *zbuf1++ = z1;  /* cos*ar1 + sin*ai1 */
-    *zbuf1++ = z2;  /* cos*ai1 - sin*ar1 */
-
-    t  = MULSHIFT32(sin2b, ar2 + ai2);
-    z2 = MULSHIFT32(cps2b, ai2) - t;
-    cms2 = cps2b - 2*sin2b;
-    z1 = MULSHIFT32(cms2, ar2) + t;
-    *zbuf2-- = z2;  /* cos*ai2 - sin*ar2 */
-    *zbuf2-- = z1;  /* cos*ar2 + sin*ai2 */
-    }
-  }
-//}}}
-//{{{
-static void postMultiply64 (int32_t* fft1, int32_t nSampsOut) {
-/**************************************************************************************
- * Description: post-twiddle stage of 64-point32_t type-IV DCT
- * Inputs:      buffer of 64 samples
- *              number of output samples to calculate
- * Outputs:     processed samples in same buffer
- * Notes:       minimum 1 GB in, 2 GB out, gains 2 int32_t bits
- *              gbOut = gbIn + 1
- *              output is limited to sqrt(2)/2 plus GB in full GB
- *              nSampsOut is rounded up to next multiple of 4, since we calculate
- *                4 samples per loop
- **************************************************************************************/
-
-  const int32_t* csptr = cos1sin1tab64;
-  int32_t* fft2 = fft1 + 64 - 1;
-
-  // load coeffs for first pass
-  // cps2 = (cos+sin)/2, sin2 = sin/2, cms2 = (cos-sin)/2
-  int32_t cps2 = *csptr++;
-  int32_t sin2 = *csptr++;
-  int32_t cms2 = cps2 - 2*sin2;
-
-  for (auto i = (nSampsOut + 3) >> 2; i != 0; i--) {
-    int32_t ar1 = *(fft1 + 0);
-    int32_t ai1 = *(fft1 + 1);
-    int32_t ar2 = *(fft2 - 1);
-    int ai2 = *(fft2 + 0);
-
-    // gain 2 int32_t bits (multiplying by Q30), max gain = sqrt(2) */
-    int32_t t = MULSHIFT32(sin2, ar1 + ai1);
-    *fft2-- = t - MULSHIFT32(cps2, ai1);
-    *fft1++ = t + MULSHIFT32(cms2, ar1);
-
-    cps2 = *csptr++;
-    sin2 = *csptr++;
-
-    ai2 = -ai2;
-    t = MULSHIFT32(sin2, ar2 + ai2);
-    *fft2-- = t - MULSHIFT32(cps2, ai2);
-    cms2 = cps2 - 2*sin2;
-    *fft1++ = t + MULSHIFT32(cms2, ar2);
-    }
-  }
-//}}}
-
-#define SQRT1_2 0x5a82799a
-//{{{
-static void bitReverse32 (int32_t *inout) {
-/**************************************************************************************
- * Description: Ken's fast in-place bit reverse
- * Inputs:      buffer of 32 complex samples
- * Outputs:     bit-reversed samples in same buffer
-**************************************************************************************/
-
-  // swap RE{p0} with RE{p1} and IM{P0} with IM{P1}
-  #define swapcplx(p0,p1) \
-    t = p0;  \
-    t1 = *(&(p0)+1); \
-    p0 = p1; *(&(p0)+1) = *(&(p1)+1);  \
-    p1 = t; \
-    *(&(p1)+1) = t1
-
-  int32_t t, t1;
-  swapcplx (inout[2],  inout[32]);
-  swapcplx (inout[4],  inout[16]);
-  swapcplx (inout[6],  inout[48]);
-  swapcplx (inout[10], inout[40]);
-  swapcplx (inout[12], inout[24]);
-  swapcplx (inout[14], inout[56]);
-  swapcplx (inout[18], inout[36]);
-  swapcplx (inout[22], inout[52]);
-  swapcplx (inout[26], inout[44]);
-  swapcplx (inout[30], inout[60]);
-  swapcplx (inout[38], inout[50]);
-  swapcplx (inout[46], inout[58]);
-  }
-//}}}
-//{{{
-static void r8FirstPass32 (int32_t *r0) {
-/**************************************************************************************
- * Description: radix-8 trivial pass for decimation-in-time FFT (log2(N) = 5)
- * Inputs:      buffer of (bit-reversed) samples
- * Outputs:     processed samples in same buffer
- * Notes:       assumes 3 guard bits, gains 1 integer bit
- *              guard bits out = guard bits in - 3 (if inputs are full scale)
- *                or guard bits in - 2 (if inputs bounded to +/- sqrt(2)/2)
- *              see scaling comments in fft.c for base AAC
- *              should compile with no stack spills on ARM (verify compiled output)
- *              current instruction count (per pass): 16 LDR, 16 STR, 4 SMULL, 61 ALU
- **************************************************************************************/
-
-  // number of passes = fft size / 8 = 32 / 8 = 4 */
-  int32_t r1 = (32 >> 3);
-  do {
-    int32_t r2 = r0[8];
-    int32_t r3 = r0[9];
-    int32_t r4 = r0[10];
-    int32_t r5 = r0[11];
-    int32_t r6 = r0[12];
-    int32_t r7 = r0[13];
-    int32_t r8 = r0[14];
-    int32_t r9 = r0[15];
-
-    int32_t r10 = r2 + r4;
-    int32_t r11 = r3 + r5;
-    int32_t r12 = r6 + r8;
-    int32_t r14 = r7 + r9;
-
-    r2 -= r4;
-    r3 -= r5;
-    r6 -= r8;
-    r7 -= r9;
-
-    r4 = r2 - r7;
-    r5 = r2 + r7;
-    r8 = r3 - r6;
-    r9 = r3 + r6;
-
-    r2 = r4 - r9;
-    r3 = r4 + r9;
-    r6 = r5 - r8;
-    r7 = r5 + r8;
-
-    r2 = MULSHIFT32(SQRT1_2, r2); /* can use r4, r5, r8, or r9 for constant and lo32 scratch reg */
-    r3 = MULSHIFT32(SQRT1_2, r3);
-    r6 = MULSHIFT32(SQRT1_2, r6);
-    r7 = MULSHIFT32(SQRT1_2, r7);
-
-    r4 = r10 + r12;
-    r5 = r10 - r12;
-    r8 = r11 + r14;
-    r9 = r11 - r14;
-
-    r10 = r0[0];
-    r11 = r0[2];
-    r12 = r0[4];
-    r14 = r0[6];
-
-    r10 += r11;
-    r12 += r14;
-
-    r4 >>= 1;
-    r10 += r12;
-    r4 += (r10 >> 1);
-    r0[ 0] = r4;
-    r4 -= (r10 >> 1);
-    r4 = (r10 >> 1) - r4;
-    r0[ 8] = r4;
-
-    r9 >>= 1;
-    r10 -= 2*r12;
-    r4 = (r10 >> 1) + r9;
-    r0[ 4] = r4;
-    r4 = (r10 >> 1) - r9;
-    r0[12] = r4;
-    r10 += r12;
-
-    r10 -= 2*r11;
-    r12 -= 2*r14;
-
-    r4 =  r0[1];
-    r9 =  r0[3];
-    r11 = r0[5];
-    r14 = r0[7];
-
-    r4 += r9;
-    r11 += r14;
-
-    r8 >>= 1;
-    r4 += r11;
-    r8 += (r4 >> 1);
-    r0[ 1] = r8;
-    r8 -= (r4 >> 1);
-    r8 = (r4 >> 1) - r8;
-    r0[ 9] = r8;
-
-    r5 >>= 1;
-    r4 -= 2*r11;
-    r8 = (r4 >> 1) - r5;
-    r0[ 5] = r8;
-    r8 = (r4 >> 1) + r5;
-    r0[13] = r8;
-    r4 += r11;
-
-    r4 -= 2*r9;
-    r11 -= 2*r14;
-
-    r9 = r10 - r11;
-    r10 += r11;
-    r14 = r4 + r12;
-    r4 -= r12;
-
-    r5 = (r10 >> 1) + r7;
-    r8 = (r4 >> 1) - r6;
-    r0[ 2] = r5;
-    r0[ 3] = r8;
-
-    r5 = (r9 >> 1) - r2;
-    r8 = (r14 >> 1) - r3;
-    r0[ 6] = r5;
-    r0[ 7] = r8;
-
-    r5 = (r10 >> 1) - r7;
-    r8 = (r4 >> 1) + r6;
-    r0[10] = r5;
-    r0[11] = r8;
-
-    r5 = (r9 >> 1) + r2;
-    r8 = (r14 >> 1) + r3;
-    r0[14] = r5;
-    r0[15] = r8;
-
-    r0 += 16;
-    r1--;
-    } while (r1 != 0);
-  }
-//}}}
-//{{{
-static void r4Core32 (int32_t *r0) {
-/**************************************************************************************
- * Description: radix-4 pass for 32-point32_t decimation-in-time FFT
- * Inputs:      buffer of samples
- * Outputs:     processed samples in same buffer
- * Notes:       gain 2 integer bits
- *              guard bits out = guard bits in - 1 (if inputs are full scale)
- *              see scaling comments in fft.c for base AAC
- *              uses 3-mul, 3-add butterflies instead of 4-mul, 2-add
- *              should compile with no stack spills on ARM (verify compiled output)
- *              current instruction count (per pass): 16 LDR, 16 STR, 4 SMULL, 61 ALU
- **************************************************************************************/
-
-  int32_t* r1 = (int*)twidTabOdd32;
-  int32_t r10 = 8;
-  do {
-    // can use r14 for lo32 scratch register in all MULSHIFT32
-    int32_t r2 = r1[0];
-    int32_t r3 = r1[1];
-    int32_t r4 = r0[16];
-    int32_t r5 = r0[17];
-    int32_t r12 = r4 + r5;
-    r12 = MULSHIFT32(r3, r12);
-    r5  = MULSHIFT32(r2, r5) + r12;
-    r2 += 2*r3;
-    r4  = MULSHIFT32(r2, r4) - r12;
-
-    r2 = r1[2];
-    r3 = r1[3];
-    int32_t r6 = r0[32];
-    int32_t r7 = r0[33];
-    r12 = r6 + r7;
-    r12 = MULSHIFT32(r3, r12);
-    r7  = MULSHIFT32(r2, r7) + r12;
-    r2 += 2*r3;
-    r6  = MULSHIFT32(r2, r6) - r12;
-
-    r2 = r1[4];
-    r3 = r1[5];
-    int32_t r8 = r0[48];
-    int32_t r9 = r0[49];
-    r12 = r8 + r9;
-    r12 = MULSHIFT32(r3, r12);
-    r9  = MULSHIFT32(r2, r9) + r12;
-    r2 += 2*r3;
-    r8  = MULSHIFT32(r2, r8) - r12;
-
-    r2 = r0[0];
-    r3 = r0[1];
-
-    r12 = r6 + r8;
-    r8  = r6 - r8;
-    int32_t r14 = r9 - r7;
-    r9  = r9 + r7;
-
-    r6 = (r2 >> 2) - r4;
-    r7 = (r3 >> 2) - r5;
-    r4 += (r2 >> 2);
-    r5 += (r3 >> 2);
-
-    r2 = r4 + r12;
-    r3 = r5 + r9;
-    r0[0] = r2;
-    r0[1] = r3;
-    r2 = r6 - r14;
-    r3 = r7 - r8;
-    r0[16] = r2;
-    r0[17] = r3;
-    r2 = r4 - r12;
-    r3 = r5 - r9;
-    r0[32] = r2;
-    r0[33] = r3;
-    r2 = r6 + r14;
-    r3 = r7 + r8;
-    r0[48] = r2;
-    r0[49] = r3;
-
-    r0 += 2;
-    r1 += 6;
-    r10--;
-    } while (r10 != 0);
-  }
-//}}}
-//{{{
-static void fft32C (int32_t *x) {
-/**************************************************************************************
- * Description: Ken's very fast in-place radix-4 decimation-in-time FFT
- * Inputs:      buffer of 32 complex samples (before bit-reversal)
- * Outputs:     processed samples in same buffer
- * Notes:       assumes 3 guard bits in, gains 3 integer bits
- *              guard bits out = guard bits in - 2
- *              (guard bit analysis includes assumptions about steps immediately
- *               before and after, i.e. PreMul and PostMul for DCT)
- **************************************************************************************/
-
-  // decimation in time
-  bitReverse32 (x);
-
-  // 32-point32_t complex FFT
-  r8FirstPass32 (x); // gain 1 int32_t bit,  lose 2 GB (making assumptions about input) */
-  r4Core32 (x);      // gain 2 int32_t bits, lose 0 GB (making assumptions about input) */
-  }
-//}}}
-
-//{{{
-static void qmfAnalysisConv (int32_t* cTab, int32_t *delay, int32_t dIdx, int32_t* uBuf) {
-/**************************************************************************************
- * Description: convolution kernel for analysis QMF
- * Inputs:      pointer to coefficient table, reordered for sequential access
- *              delay buffer of size 32*10 = 320 real-valued PCM samples
- *              index for delay ring buffer (range = [0, 9])
- * Outputs:     64 consecutive 32-bit samples
- * Notes:       this is carefully written to be efficient on ARM
- *              use the assembly code version in sbrqmfak.s when building for ARM!
- **************************************************************************************/
-
-  int32_t dOff = dIdx*32 + 31;
-  int32_t* cPtr0 = cTab;
-  int32_t* cPtr1 = cTab + 33*5 - 1;
-
-  // special first pass since we need to flip sign to create cTab[384], cTab[512] */
-  U64 u64lo, u64hi;
-  u64lo.w64 = 0;
-  u64hi.w64 = 0;
-  u64lo.w64 = MADD64 (u64lo.w64,  *cPtr0++,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
-  u64hi.w64 = MADD64 (u64hi.w64,  *cPtr0++,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
-  u64lo.w64 = MADD64 (u64lo.w64,  *cPtr0++,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
-  u64hi.w64 = MADD64 (u64hi.w64,  *cPtr0++,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
-  u64lo.w64 = MADD64 (u64lo.w64,  *cPtr0++,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
-  u64hi.w64 = MADD64 (u64hi.w64,  *cPtr1--,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
-  u64lo.w64 = MADD64 (u64lo.w64, -(*cPtr1--), delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
-  u64hi.w64 = MADD64 (u64hi.w64,  *cPtr1--,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
-  u64lo.w64 = MADD64 (u64lo.w64, -(*cPtr1--), delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
-  u64hi.w64 = MADD64 (u64hi.w64,  *cPtr1--,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
-
-  uBuf[0]  = u64lo.r.hi32;
-  uBuf[32] = u64hi.r.hi32;
-  uBuf++;
-  dOff--;
-
-  // max gain for any sample in uBuf, after scaling by cTab, ~= 0.99
-  // so we can just sum the uBuf values with no overflow problems
-  for (auto k = 1; k <= 31; k++) {
-    u64lo.w64 = 0;
-    u64hi.w64 = 0;
-    u64lo.w64 = MADD64 (u64lo.w64, *cPtr0++, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
-    u64hi.w64 = MADD64 (u64hi.w64, *cPtr0++, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
-    u64lo.w64 = MADD64 (u64lo.w64, *cPtr0++, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
-    u64hi.w64 = MADD64 (u64hi.w64, *cPtr0++, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
-    u64lo.w64 = MADD64 (u64lo.w64, *cPtr0++, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
-    u64hi.w64 = MADD64 (u64hi.w64, *cPtr1--, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
-    u64lo.w64 = MADD64 (u64lo.w64, *cPtr1--, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
-    u64hi.w64 = MADD64 (u64hi.w64, *cPtr1--, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
-    u64lo.w64 = MADD64 (u64lo.w64, *cPtr1--, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
-    u64hi.w64 = MADD64 (u64hi.w64, *cPtr1--, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
-
-    uBuf[0]  = u64lo.r.hi32;
-    uBuf[32] = u64hi.r.hi32;
-    uBuf++;
-    dOff--;
-    }
-  }
-//}}}
-//{{{
-static int32_t qmfAnalysis (int32_t* inbuf, int32_t* delay, int32_t* XBuf,
-                            int32_t fBitsIn, int32_t* delayIdx, int32_t qmfaBands) {
-/**************************************************************************************
- * Description: 32-subband analysis QMF (4.6.18.4.1)
- * Inputs:      32 consecutive samples of decoded 32-bit PCM, format = Q(fBitsIn)
- *              delay buffer of size 32*10 = 320 PCM samples
- *              number of fraction bits in input PCM
- *              index for delay ring buffer (range = [0, 9])
- *              number of subbands to calculate (range = [0, 32])
- * Outputs:     qmfaBands complex subband samples, format = Q(FBITS_OUT_QMFA)
- *              updated delay buffer
- *              updated delay index
- * Return:      guard bit mask
- * Notes:       output stored as RE{X0}, IM{X0}, RE{X1}, IM{X1}, ... RE{X31}, IM{X31}
- *              output stored in int32_t buffer of size 64*2 = 128
- *                (zero-filled from XBuf[2*qmfaBands] to XBuf[127])
- **************************************************************************************/
-
-  // use XBuf[128] as temp buffer for reordering */
-  int32_t* uBuf = XBuf;    /* first 64 samples */
-  int32_t* tBuf = XBuf + 64; /* second 64 samples */
-
-  // overwrite oldest PCM with new PCM
-  // delay[n] has 1 GB after shifting (either << or >>)
-  int32_t y, shift;
-  int32_t* delayPtr = delay + (*delayIdx * 32);
-  if (fBitsIn > FBITS_IN_QMFA) {
-    shift = min (fBitsIn - FBITS_IN_QMFA, 31);
-    for (auto n = 32; n != 0; n--) {
-      y = (*inbuf) >> shift;
-      inbuf++;
-      *delayPtr++ = y;
-      }
-    }
-  else {
-    shift = min (FBITS_IN_QMFA - fBitsIn, 30);
-    for (auto n = 32; n != 0; n--) {
-      y = *inbuf++;
-      CLIP_2N_SHIFT(y, shift);
-      *delayPtr++ = y;
-      }
-    }
-
-  qmfAnalysisConv ((int*)cTabA, delay, *delayIdx, uBuf);
-
-  // uBuf has at least 2 GB right now (1 from clipping to Q(FBITS_IN_QMFA), one from
-  //   the scaling by cTab (MULSHIFT32(*delayPtr--, *cPtr++), with net gain of < 1.0)
-  // TODO - fuse with QMFAnalysisConv to avoid separate reordering
-  tBuf[2*0 + 0] = uBuf[0];
-  tBuf[2*0 + 1] = uBuf[1];
-  for (auto n = 1; n < 31; n++) {
-    tBuf[2*n + 0] = -uBuf[64-n];
-    tBuf[2*n + 1] =  uBuf[n+1];
-    }
-  tBuf[2*31 + 1] =  uBuf[32];
-  tBuf[2*31 + 0] = -uBuf[33];
-
-  // fast in-place DCT-IV - only need 2*qmfaBands output samples */
-  preMultiply64 (tBuf);  /* 2 GB in, 3 GB out */
-  fft32C (tBuf);     /* 3 GB in, 1 GB out */
-  postMultiply64 (tBuf, qmfaBands*2);  /* 1 GB in, 2 GB out */
-
-  // TODO - roll into PostMultiply (if enough registers) */
-  int32_t gbMask = 0;
-  int32_t n;
-  for (n = 0; n < qmfaBands; n++) {
-    XBuf[2*n+0] = tBuf[ n + 0];  /* implicit scaling of 2 in our output Q format */
-    gbMask |= FASTABS (XBuf[2*n+0]);
-    XBuf[2*n+1] = -tBuf[63 - n];
-    gbMask |= FASTABS (XBuf[2*n+1]);
-    }
-
-  // fill top section with zeros for HF generation */
-  for ( ; n < 64; n++) {
-    XBuf[2*n+0] = 0;
-    XBuf[2*n+1] = 0;
-    }
-
-  *delayIdx = (*delayIdx == NUM_QMF_DELAY_BUFS - 1 ? 0 : *delayIdx + 1);
-
-  // minimum of 2 GB in output */
-  return gbMask;
-  }
-//}}}
-//{{{
-static void qmfSynthesisConv (int32_t* cPtr, int32_t* delay, int32_t dIdx, float* outBuffer, int32_t numChans) {
-/**************************************************************************************
- * Description: final convolution kernel for synthesis QMF
- * Inputs:      pointer to coefficient table, reordered for sequential access
- *              delay buffer of size 64*10 = 640 complex samples (1280 ints)
- *              index for delay ring buffer (range = [0, 9])
- *              number of QMF subbands to process (range = [0, 64])
- *              number of channels
- * Outputs:     64 consecutive float PCM samples, interleaved by factor of numChans
- * Notes:       this is carefully written to be efficient on ARM
- *              use the assembly code version in sbrqmfsk.s when building for ARM!
- **************************************************************************************/
-
-  int32_t dOff0 = (dIdx)*128;
-  int32_t dOff1 = dOff0 - 1;
-  if (dOff1 < 0)
-    dOff1 += 1280;
-
-  // scaling note: total gain of coefs (cPtr[0]-cPtr[9] for any k) is < 2.0, so 1 GB in delay values is adequate */
-  for (auto k = 0; k <= 63; k++) {
-    U64 sum64;
-    sum64.w64 = 0;
-
-    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]);
-    dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
-
-    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]);
-    dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
-
-    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]);
-    dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
-
-    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]);
-    dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
-
-    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]);
-    dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
-
-    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]);
-    dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
-
-    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]);
-    dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
-
-    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]);
-    dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
-
-    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]);
-    dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
-
-    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]);
-    dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
-
-    dOff0++;
-    dOff1--;
-
-    *outBuffer = sum64.r.hi32 / (float)0x40000;
-    outBuffer += numChans;
-    }
-  }
-//}}}
-//{{{
-static void qmfSynthesis (int32_t* inbuf, int32_t* delay, int32_t* delayIdx,
-                          int32_t qmfsBands, float* outBuffer, int32_t numChans) {
-/**************************************************************************************
- * Description: 64-subband synthesis QMF (4.6.18.4.2)
- * Inputs:      64 consecutive complex subband QMF samples, format = Q(FBITS_IN_QMFS)
- *              delay buffer of size 64*10 = 640 complex samples (1280 ints)
- *              index for delay ring buffer (range = [0, 9])
- *              number of QMF subbands to process (range = [0, 64])
- *              number of channels
- * Outputs:     64 consecutive float PCM samples, interleaved by factor of numChans
- *              updated delay buffer
- *              updated delay index
- * Notes:       assumes MIN_GBITS_IN_QMFS guard bits in input, either from
- *              QMFAnalysis (if upsampling only) or from MapHF (if SBR on)
- **************************************************************************************/
-
-  int32_t dIdx = *delayIdx;
-  int32_t* tBufLo = delay + dIdx*128 + 0;
-  int32_t* tBufHi = delay + dIdx*128 + 127;
-
-  // reorder inputs to DCT-IV, only use first qmfsBands (complex) samples
-  // TODO - fuse with PreMultiply64 to avoid separate reordering steps
-  int32_t a0, a1, b0, b1, n;
-  for (n = 0; n < qmfsBands >> 1; n++) {
-    a0 = *inbuf++;
-    b0 = *inbuf++;
-    a1 = *inbuf++;
-    b1 = *inbuf++;
-    *tBufLo++ = a0;
-    *tBufLo++ = a1;
-    *tBufHi-- = b0;
-    *tBufHi-- = b1;
-    }
-
-  if (qmfsBands & 0x01) {
-    a0 = *inbuf++;
-    b0 = *inbuf++;
-    *tBufLo++ = a0;
-    *tBufHi-- = b0;
-    *tBufLo++ = 0;
-    *tBufHi-- = 0;
-    n++;
-    }
-
-  for ( ; n < 32; n++) {
-    *tBufLo++ = 0;
-    *tBufHi-- = 0;
-    *tBufLo++ = 0;
-    *tBufHi-- = 0;
-    }
-
-  tBufLo = delay + dIdx*128 + 0;
-  tBufHi = delay + dIdx*128 + 64;
-
-  // 2 GB in, 3 GB out */
-  preMultiply64 (tBufLo);
-  preMultiply64 (tBufHi);
-
-  // 3 GB in, 1 GB out */
-  fft32C (tBufLo);
-  fft32C (tBufHi);
-
-  // 1 GB in, 2 GB out */
-  postMultiply64 (tBufLo, 64);
-  postMultiply64 (tBufHi, 64);
-
-  // could fuse with PostMultiply64 to avoid separate pass */
-  int32_t dOff0 = dIdx*128;
-  int32_t dOff1 = dIdx*128 + 64;
-  for (n = 32; n != 0; n--) {
-    a0 =  (*tBufLo++);
-    a1 =  (*tBufLo++);
-    b0 =  (*tBufHi++);
-    b1 = -(*tBufHi++);
-
-    delay[dOff0++] = (b0 - a0);
-    delay[dOff0++] = (b1 - a1);
-    delay[dOff1++] = (b0 + a0);
-    delay[dOff1++] = (b1 + a1);
-    }
-
-  qmfSynthesisConv ((int*)cTabS, delay, dIdx, outBuffer, numChans);
-
-  *delayIdx = (*delayIdx == NUM_QMF_DELAY_BUFS - 1 ? 0 : *delayIdx + 1);
-  }
-//}}}
-
 //{{{
 static void estimateEnvelope (sInfoSbr* psi, sSbrHeader* sbrHdr,
                               sSbrGrid* sbrGrid, sSbrFreq* sbrFreq, int32_t env) {
 /**************************************************************************************
  * Description: estimate power of generated HF QMF bands in one time-domain envelope
  *                (4.6.18.7.3)
- * Inputs:      initialized mInfoSbr struct
+ * Inputs:      initialized mInfoSbr
  *              initialized sSbrHeader for this SCE/CPE block
  *              initialized SBRGrid for this channel
  *              initialized SBRFreq for this SCE/CPE block
@@ -7453,7 +6788,7 @@ static int32_t getSMapped (sSbrGrid*sbrGrid, sSbrFreq* sbrFreq, sSbrChan* sbrCha
                            int32_t env, int32_t band, int32_t la) {
 /**************************************************************************************
  * Description: calculate SMapped (4.6.18.7.2)
- * Inputs:      initialized mInfoSbr struct
+ * Inputs:      initialized mInfoSbr
  *              initialized SBRGrid for this channel
  *              initialized SBRFreq for this SCE/CPE block
  *              initialized SBRChan for this channel
@@ -7497,7 +6832,7 @@ static void calcMaxGain (sInfoSbr* psi, sSbrHeader* sbrHdr, sSbrGrid* sbrGrid, s
                          int32_t ch, int32_t env, int32_t lim, int32_t fbitsDQ) {
 /**************************************************************************************
  * Description: calculate max gain in one limiter band (4.6.18.7.5)
- * Inputs:      initialized mInfoSbr struct
+ * Inputs:      initialized mInfoSbr
  *              initialized sSbrHeader for this SCE/CPE block
  *              initialized SBRGrid for this channel
  *              initialized SBRFreq for this SCE/CPE block
@@ -7506,7 +6841,7 @@ static void calcMaxGain (sInfoSbr* psi, sSbrHeader* sbrHdr, sSbrGrid* sbrGrid, s
  *              index of current limiter band
  *              number of fraction bits in dequantized envelope
  *                (max = Q(FBITS_OUT_DQ_ENV - 6) = Q23, can go negative)
- * Outputs:     updated gainMax, gainMaxFBits, and sumEOrigMapped in mInfoSbr struct
+ * Outputs:     updated gainMax, gainMaxFBits, and sumEOrigMapped in mInfoSbr
  **************************************************************************************/
 
   int32_t mStart = sbrFreq->freqLimiter[lim];   /* these are offsets from kStart */
@@ -7588,7 +6923,7 @@ static void calcComponentGains (sInfoSbr* psi, sSbrGrid* sbrGrid, sSbrFreq* sbrF
                                 int32_t ch, int32_t env, int32_t lim, int32_t fbitsDQ) {
 /**************************************************************************************
  * Description: calculate gain of envelope, sinusoids, and noise in one limiter band (4.6.18.7.5)
- * Inputs:      initialized mInfoSbr struct
+ * Inputs:      initialized mInfoSbr
  *              initialized sSbrHeader for this SCE/CPE block
  *              initialized SBRGrid for this channel
  *              initialized SBRFreq for this SCE/CPE block
@@ -7746,7 +7081,7 @@ static void applyBoost (sInfoSbr* psi, sSbrFreq* sbrFreq, int32_t lim, int32_t f
 /**************************************************************************************
  * Description: calculate and apply boost factor for envelope, sinusoids, and noise
  *                in this limiter band (4.6.18.7.5)
- * Inputs:      initialized mInfoSbr struct
+ * Inputs:      initialized mInfoSbr
  *              initialized SBRFreq for this SCE/CPE block
  *              index of current limiter band
  *              number of fraction bits in dequantized envelope
@@ -7837,7 +7172,7 @@ static void calcGain (sInfoSbr* psi, sSbrHeader* sbrHdr,
 /**************************************************************************************
  * Description: calculate and apply proper gain to HF components in one envelope
  *                (4.6.18.7.5)
- * Inputs:      initialized mInfoSbr struct
+ * Inputs:      initialized mInfoSbr
  *              initialized sSbrHeader for this SCE/CPE block
  *              initialized sSbrGrid for this channel
  *              initialized sSbrFreq for this SCE/CPE block
@@ -7868,7 +7203,7 @@ static void mapHF (sInfoSbr* psi, sSbrHeader* sbrHdr,
 /**************************************************************************************
  * Description: map HF components to proper QMF bands, with optional gain smoothing
  *                filter (4.6.18.7.6)
- * Inputs:      initialized mInfoSbr struct
+ * Inputs:      initialized mInfoSbr
  *              initialized sSbrHeader for this SCE/CPE block
  *              initialized sSbrGrid for this channel
  *              initialized sSbrFreq for this SCE/CPE block
@@ -8037,7 +7372,7 @@ static void adjustHighFreq (sInfoSbr* psi, sSbrHeader* sbrHdr,
                             sSbrGrid* sbrGrid, sSbrFreq* sbrFreq, sSbrChan* sbrChan, int32_t ch) {
 /**************************************************************************************
  * Description: adjust high frequencies and add noise and sinusoids (4.6.18.7)
- * Inputs:      initialized mInfoSbr struct
+ * Inputs:      initialized mInfoSbr
  *              initialized sSbrHeader for this SCE/CPE block
  *              initialized SBRGrid for this channel
  *              initialized SBRFreq for this SCE/CPE block
@@ -8599,6 +7934,672 @@ static void generateHighFreq (sInfoSbr* psi, sSbrGrid* sbrGrid,
     }
   }
 //}}}
+
+//{{{
+static void preMultiply64 (int32_t* zbuf1) {
+/**************************************************************************************
+ * Description: pre-twiddle stage of 64-point32_t DCT-IV
+ * Inputs:      buffer of 64 samples
+ * Outputs:     processed samples in same buffer
+ * Notes:       minimum 1 GB in, 2 GB out, gains 2 int32_t bits
+ *              gbOut = gbIn + 1
+ *              output is limited to sqrt(2)/2 plus GB in full GB
+ *              uses 3-mul, 3-add butterflies instead of 4-mul, 2-add
+ **************************************************************************************/
+
+  int32_t* zbuf2 = zbuf1 + 64 - 1;
+  const int32_t* csptr = cos4sin4tab64;
+
+  // whole thing should fit in registers - verify that compiler does this */
+  for (auto i = 64 >> 2; i != 0; i--) {
+    // cps2 = (cos+sin), sin2 = sin, cms2 = (cos-sin) */
+    int32_t cps2a = *csptr++;
+    int32_t sin2a = *csptr++;
+    int32_t cps2b = *csptr++;
+    int32_t sin2b = *csptr++;
+
+    int32_t ar1 = *(zbuf1 + 0);
+    int32_t ai2 = *(zbuf1 + 1);
+    int32_t ai1 = *(zbuf2 + 0);
+    int32_t ar2 = *(zbuf2 - 1);
+
+    // gain 2 ints bit from MULSHIFT32 by Q30
+    // max per-sample gain (ignoring implicit scaling) = max (sin(angle)+cos(angle)) = 1.414
+    // i.e. gain 1 GB since worst case is sin(angle) = cos(angle) = 0.707 (Q30), gain 2 from
+    //   extra sign bits, and eat one in adding
+    int32_t t  = MULSHIFT32(sin2a, ar1 + ai1);
+    int32_t z2 = MULSHIFT32(cps2a, ai1) - t;
+    int32_t cms2 = cps2a - 2*sin2a;
+    int32_t z1 = MULSHIFT32(cms2, ar1) + t;
+    *zbuf1++ = z1;  /* cos*ar1 + sin*ai1 */
+    *zbuf1++ = z2;  /* cos*ai1 - sin*ar1 */
+
+    t  = MULSHIFT32(sin2b, ar2 + ai2);
+    z2 = MULSHIFT32(cps2b, ai2) - t;
+    cms2 = cps2b - 2*sin2b;
+    z1 = MULSHIFT32(cms2, ar2) + t;
+    *zbuf2-- = z2;  /* cos*ai2 - sin*ar2 */
+    *zbuf2-- = z1;  /* cos*ar2 + sin*ai2 */
+    }
+  }
+//}}}
+//{{{
+static void postMultiply64 (int32_t* fft1, int32_t numSamplesOut) {
+/**************************************************************************************
+ * Description: post-twiddle stage of 64-point32_t type-IV DCT
+ * Inputs:      buffer of 64 samples
+ *              number of output samples to calculate
+ * Outputs:     processed samples in same buffer
+ * Notes:       minimum 1 GB in, 2 GB out, gains 2 int32_t bits
+ *              gbOut = gbIn + 1
+ *              output is limited to sqrt(2)/2 plus GB in full GB
+ *              numSamplesOut is rounded up to next multiple of 4, since we calculate
+ *                4 samples per loop
+ **************************************************************************************/
+
+  const int32_t* csptr = cos1sin1tab64;
+  int32_t* fft2 = fft1 + 64 - 1;
+
+  // load coeffs for first pass
+  // cps2 = (cos+sin)/2, sin2 = sin/2, cms2 = (cos-sin)/2
+  int32_t cps2 = *csptr++;
+  int32_t sin2 = *csptr++;
+  int32_t cms2 = cps2 - 2*sin2;
+
+  for (auto i = (numSamplesOut + 3) >> 2; i != 0; i--) {
+    int32_t ar1 = *(fft1 + 0);
+    int32_t ai1 = *(fft1 + 1);
+    int32_t ar2 = *(fft2 - 1);
+    int ai2 = *(fft2 + 0);
+
+    // gain 2 int32_t bits (multiplying by Q30), max gain = sqrt(2) */
+    int32_t t = MULSHIFT32(sin2, ar1 + ai1);
+    *fft2-- = t - MULSHIFT32(cps2, ai1);
+    *fft1++ = t + MULSHIFT32(cms2, ar1);
+
+    cps2 = *csptr++;
+    sin2 = *csptr++;
+
+    ai2 = -ai2;
+    t = MULSHIFT32(sin2, ar2 + ai2);
+    *fft2-- = t - MULSHIFT32(cps2, ai2);
+    cms2 = cps2 - 2*sin2;
+    *fft1++ = t + MULSHIFT32(cms2, ar2);
+    }
+  }
+//}}}
+
+#define SQRT1_2 0x5a82799a
+//{{{
+static void bitReverse32 (int32_t *inout) {
+/**************************************************************************************
+ * Description: Ken's fast in-place bit reverse
+ * Inputs:      buffer of 32 complex samples
+ * Outputs:     bit-reversed samples in same buffer
+**************************************************************************************/
+
+  // swap RE{p0} with RE{p1} and IM{P0} with IM{P1}
+  #define swapcplx(p0,p1) \
+    t = p0;  \
+    t1 = *(&(p0)+1); \
+    p0 = p1; *(&(p0)+1) = *(&(p1)+1);  \
+    p1 = t; \
+    *(&(p1)+1) = t1
+
+  int32_t t, t1;
+  swapcplx (inout[2],  inout[32]);
+  swapcplx (inout[4],  inout[16]);
+  swapcplx (inout[6],  inout[48]);
+  swapcplx (inout[10], inout[40]);
+  swapcplx (inout[12], inout[24]);
+  swapcplx (inout[14], inout[56]);
+  swapcplx (inout[18], inout[36]);
+  swapcplx (inout[22], inout[52]);
+  swapcplx (inout[26], inout[44]);
+  swapcplx (inout[30], inout[60]);
+  swapcplx (inout[38], inout[50]);
+  swapcplx (inout[46], inout[58]);
+  }
+//}}}
+//{{{
+static void r8FirstPass32 (int32_t *r0) {
+/**************************************************************************************
+ * Description: radix-8 trivial pass for decimation-in-time FFT (log2(N) = 5)
+ * Inputs:      buffer of (bit-reversed) samples
+ * Outputs:     processed samples in same buffer
+ * Notes:       assumes 3 guard bits, gains 1 integer bit
+ *              guard bits out = guard bits in - 3 (if inputs are full scale)
+ *                or guard bits in - 2 (if inputs bounded to +/- sqrt(2)/2)
+ *              see scaling comments in fft.c for base AAC
+ *              should compile with no stack spills on ARM (verify compiled output)
+ *              current instruction count (per pass): 16 LDR, 16 STR, 4 SMULL, 61 ALU
+ **************************************************************************************/
+
+  // number of passes = fft size / 8 = 32 / 8 = 4 */
+  int32_t r1 = (32 >> 3);
+  do {
+    int32_t r2 = r0[8];
+    int32_t r3 = r0[9];
+    int32_t r4 = r0[10];
+    int32_t r5 = r0[11];
+    int32_t r6 = r0[12];
+    int32_t r7 = r0[13];
+    int32_t r8 = r0[14];
+    int32_t r9 = r0[15];
+
+    int32_t r10 = r2 + r4;
+    int32_t r11 = r3 + r5;
+    int32_t r12 = r6 + r8;
+    int32_t r14 = r7 + r9;
+
+    r2 -= r4;
+    r3 -= r5;
+    r6 -= r8;
+    r7 -= r9;
+
+    r4 = r2 - r7;
+    r5 = r2 + r7;
+    r8 = r3 - r6;
+    r9 = r3 + r6;
+
+    r2 = r4 - r9;
+    r3 = r4 + r9;
+    r6 = r5 - r8;
+    r7 = r5 + r8;
+
+    r2 = MULSHIFT32(SQRT1_2, r2); /* can use r4, r5, r8, or r9 for constant and lo32 scratch reg */
+    r3 = MULSHIFT32(SQRT1_2, r3);
+    r6 = MULSHIFT32(SQRT1_2, r6);
+    r7 = MULSHIFT32(SQRT1_2, r7);
+
+    r4 = r10 + r12;
+    r5 = r10 - r12;
+    r8 = r11 + r14;
+    r9 = r11 - r14;
+
+    r10 = r0[0];
+    r11 = r0[2];
+    r12 = r0[4];
+    r14 = r0[6];
+
+    r10 += r11;
+    r12 += r14;
+
+    r4 >>= 1;
+    r10 += r12;
+    r4 += (r10 >> 1);
+    r0[ 0] = r4;
+    r4 -= (r10 >> 1);
+    r4 = (r10 >> 1) - r4;
+    r0[ 8] = r4;
+
+    r9 >>= 1;
+    r10 -= 2*r12;
+    r4 = (r10 >> 1) + r9;
+    r0[ 4] = r4;
+    r4 = (r10 >> 1) - r9;
+    r0[12] = r4;
+    r10 += r12;
+
+    r10 -= 2*r11;
+    r12 -= 2*r14;
+
+    r4 =  r0[1];
+    r9 =  r0[3];
+    r11 = r0[5];
+    r14 = r0[7];
+
+    r4 += r9;
+    r11 += r14;
+
+    r8 >>= 1;
+    r4 += r11;
+    r8 += (r4 >> 1);
+    r0[ 1] = r8;
+    r8 -= (r4 >> 1);
+    r8 = (r4 >> 1) - r8;
+    r0[ 9] = r8;
+
+    r5 >>= 1;
+    r4 -= 2*r11;
+    r8 = (r4 >> 1) - r5;
+    r0[ 5] = r8;
+    r8 = (r4 >> 1) + r5;
+    r0[13] = r8;
+    r4 += r11;
+
+    r4 -= 2*r9;
+    r11 -= 2*r14;
+
+    r9 = r10 - r11;
+    r10 += r11;
+    r14 = r4 + r12;
+    r4 -= r12;
+
+    r5 = (r10 >> 1) + r7;
+    r8 = (r4 >> 1) - r6;
+    r0[ 2] = r5;
+    r0[ 3] = r8;
+
+    r5 = (r9 >> 1) - r2;
+    r8 = (r14 >> 1) - r3;
+    r0[ 6] = r5;
+    r0[ 7] = r8;
+
+    r5 = (r10 >> 1) - r7;
+    r8 = (r4 >> 1) + r6;
+    r0[10] = r5;
+    r0[11] = r8;
+
+    r5 = (r9 >> 1) + r2;
+    r8 = (r14 >> 1) + r3;
+    r0[14] = r5;
+    r0[15] = r8;
+
+    r0 += 16;
+    r1--;
+    } while (r1 != 0);
+  }
+//}}}
+//{{{
+static void r4Core32 (int32_t *r0) {
+/**************************************************************************************
+ * Description: radix-4 pass for 32-point32_t decimation-in-time FFT
+ * Inputs:      buffer of samples
+ * Outputs:     processed samples in same buffer
+ * Notes:       gain 2 integer bits
+ *              guard bits out = guard bits in - 1 (if inputs are full scale)
+ *              see scaling comments in fft.c for base AAC
+ *              uses 3-mul, 3-add butterflies instead of 4-mul, 2-add
+ *              should compile with no stack spills on ARM (verify compiled output)
+ *              current instruction count (per pass): 16 LDR, 16 STR, 4 SMULL, 61 ALU
+ **************************************************************************************/
+
+  int32_t* r1 = (int*)twidTabOdd32;
+  int32_t r10 = 8;
+  do {
+    // can use r14 for lo32 scratch register in all MULSHIFT32
+    int32_t r2 = r1[0];
+    int32_t r3 = r1[1];
+    int32_t r4 = r0[16];
+    int32_t r5 = r0[17];
+    int32_t r12 = r4 + r5;
+    r12 = MULSHIFT32(r3, r12);
+    r5  = MULSHIFT32(r2, r5) + r12;
+    r2 += 2*r3;
+    r4  = MULSHIFT32(r2, r4) - r12;
+
+    r2 = r1[2];
+    r3 = r1[3];
+    int32_t r6 = r0[32];
+    int32_t r7 = r0[33];
+    r12 = r6 + r7;
+    r12 = MULSHIFT32(r3, r12);
+    r7  = MULSHIFT32(r2, r7) + r12;
+    r2 += 2*r3;
+    r6  = MULSHIFT32(r2, r6) - r12;
+
+    r2 = r1[4];
+    r3 = r1[5];
+    int32_t r8 = r0[48];
+    int32_t r9 = r0[49];
+    r12 = r8 + r9;
+    r12 = MULSHIFT32(r3, r12);
+    r9  = MULSHIFT32(r2, r9) + r12;
+    r2 += 2*r3;
+    r8  = MULSHIFT32(r2, r8) - r12;
+
+    r2 = r0[0];
+    r3 = r0[1];
+
+    r12 = r6 + r8;
+    r8  = r6 - r8;
+    int32_t r14 = r9 - r7;
+    r9  = r9 + r7;
+
+    r6 = (r2 >> 2) - r4;
+    r7 = (r3 >> 2) - r5;
+    r4 += (r2 >> 2);
+    r5 += (r3 >> 2);
+
+    r2 = r4 + r12;
+    r3 = r5 + r9;
+    r0[0] = r2;
+    r0[1] = r3;
+    r2 = r6 - r14;
+    r3 = r7 - r8;
+    r0[16] = r2;
+    r0[17] = r3;
+    r2 = r4 - r12;
+    r3 = r5 - r9;
+    r0[32] = r2;
+    r0[33] = r3;
+    r2 = r6 + r14;
+    r3 = r7 + r8;
+    r0[48] = r2;
+    r0[49] = r3;
+
+    r0 += 2;
+    r1 += 6;
+    r10--;
+    } while (r10 != 0);
+  }
+//}}}
+//{{{
+static void fft32C (int32_t *x) {
+/**************************************************************************************
+ * Description: Ken's very fast in-place radix-4 decimation-in-time FFT
+ * Inputs:      buffer of 32 complex samples (before bit-reversal)
+ * Outputs:     processed samples in same buffer
+ * Notes:       assumes 3 guard bits in, gains 3 integer bits
+ *              guard bits out = guard bits in - 2
+ *              (guard bit analysis includes assumptions about steps immediately
+ *               before and after, i.e. PreMul and PostMul for DCT)
+ **************************************************************************************/
+
+  // decimation in time
+  bitReverse32 (x);
+
+  // 32-point32_t complex FFT
+  r8FirstPass32 (x); // gain 1 int32_t bit,  lose 2 GB (making assumptions about input) */
+  r4Core32 (x);      // gain 2 int32_t bits, lose 0 GB (making assumptions about input) */
+  }
+//}}}
+
+//{{{
+static void qmfAnalysisConv (int32_t* cTab, int32_t *delay, int32_t dIdx, int32_t* uBuf) {
+/**************************************************************************************
+ * Description: convolution kernel for analysis QMF
+ * Inputs:      pointer to coefficient table, reordered for sequential access
+ *              delay buffer of size 32*10 = 320 real-valued PCM samples
+ *              index for delay ring buffer (range = [0, 9])
+ * Outputs:     64 consecutive 32-bit samples
+ * Notes:       this is carefully written to be efficient on ARM
+ *              use the assembly code version in sbrqmfak.s when building for ARM!
+ **************************************************************************************/
+
+  int32_t dOff = dIdx*32 + 31;
+  int32_t* cPtr0 = cTab;
+  int32_t* cPtr1 = cTab + 33*5 - 1;
+
+  // special first pass since we need to flip sign to create cTab[384], cTab[512] */
+  U64 u64lo, u64hi;
+  u64lo.w64 = 0;
+  u64hi.w64 = 0;
+  u64lo.w64 = MADD64 (u64lo.w64,  *cPtr0++,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
+  u64hi.w64 = MADD64 (u64hi.w64,  *cPtr0++,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
+  u64lo.w64 = MADD64 (u64lo.w64,  *cPtr0++,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
+  u64hi.w64 = MADD64 (u64hi.w64,  *cPtr0++,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
+  u64lo.w64 = MADD64 (u64lo.w64,  *cPtr0++,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
+  u64hi.w64 = MADD64 (u64hi.w64,  *cPtr1--,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
+  u64lo.w64 = MADD64 (u64lo.w64, -(*cPtr1--), delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
+  u64hi.w64 = MADD64 (u64hi.w64,  *cPtr1--,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
+  u64lo.w64 = MADD64 (u64lo.w64, -(*cPtr1--), delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
+  u64hi.w64 = MADD64 (u64hi.w64,  *cPtr1--,   delay[dOff]);  dOff -= 32; if (dOff < 0) {dOff += 320;}
+
+  uBuf[0]  = u64lo.r.hi32;
+  uBuf[32] = u64hi.r.hi32;
+  uBuf++;
+  dOff--;
+
+  // max gain for any sample in uBuf, after scaling by cTab, ~= 0.99
+  // so we can just sum the uBuf values with no overflow problems
+  for (auto k = 1; k <= 31; k++) {
+    u64lo.w64 = 0;
+    u64hi.w64 = 0;
+    u64lo.w64 = MADD64 (u64lo.w64, *cPtr0++, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
+    u64hi.w64 = MADD64 (u64hi.w64, *cPtr0++, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
+    u64lo.w64 = MADD64 (u64lo.w64, *cPtr0++, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
+    u64hi.w64 = MADD64 (u64hi.w64, *cPtr0++, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
+    u64lo.w64 = MADD64 (u64lo.w64, *cPtr0++, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
+    u64hi.w64 = MADD64 (u64hi.w64, *cPtr1--, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
+    u64lo.w64 = MADD64 (u64lo.w64, *cPtr1--, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
+    u64hi.w64 = MADD64 (u64hi.w64, *cPtr1--, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
+    u64lo.w64 = MADD64 (u64lo.w64, *cPtr1--, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
+    u64hi.w64 = MADD64 (u64hi.w64, *cPtr1--, delay[dOff]); dOff -= 32; if (dOff < 0) {dOff += 320;}
+
+    uBuf[0]  = u64lo.r.hi32;
+    uBuf[32] = u64hi.r.hi32;
+    uBuf++;
+    dOff--;
+    }
+  }
+//}}}
+//{{{
+static int32_t qmfAnalysis (int32_t* inbuf, int32_t* delay, int32_t* XBuf,
+                            int32_t fBitsIn, int32_t* delayIdx, int32_t qmfaBands) {
+/**************************************************************************************
+ * Description: 32-subband analysis QMF (4.6.18.4.1)
+ * Inputs:      32 consecutive samples of decoded 32-bit PCM, format = Q(fBitsIn)
+ *              delay buffer of size 32*10 = 320 PCM samples
+ *              number of fraction bits in input PCM
+ *              index for delay ring buffer (range = [0, 9])
+ *              number of subbands to calculate (range = [0, 32])
+ * Outputs:     qmfaBands complex subband samples, format = Q(FBITS_OUT_QMFA)
+ *              updated delay buffer
+ *              updated delay index
+ * Return:      guard bit mask
+ * Notes:       output stored as RE{X0}, IM{X0}, RE{X1}, IM{X1}, ... RE{X31}, IM{X31}
+ *              output stored in int32_t buffer of size 64*2 = 128
+ *                (zero-filled from XBuf[2*qmfaBands] to XBuf[127])
+ **************************************************************************************/
+
+  // use XBuf[128] as temp buffer for reordering */
+  int32_t* uBuf = XBuf;    /* first 64 samples */
+  int32_t* tBuf = XBuf + 64; /* second 64 samples */
+
+  // overwrite oldest PCM with new PCM
+  // delay[n] has 1 GB after shifting (either << or >>)
+  int32_t y, shift;
+  int32_t* delayPtr = delay + (*delayIdx * 32);
+  if (fBitsIn > FBITS_IN_QMFA) {
+    shift = min (fBitsIn - FBITS_IN_QMFA, 31);
+    for (auto n = 32; n != 0; n--) {
+      y = (*inbuf) >> shift;
+      inbuf++;
+      *delayPtr++ = y;
+      }
+    }
+  else {
+    shift = min (FBITS_IN_QMFA - fBitsIn, 30);
+    for (auto n = 32; n != 0; n--) {
+      y = *inbuf++;
+      CLIP_2N_SHIFT(y, shift);
+      *delayPtr++ = y;
+      }
+    }
+
+  qmfAnalysisConv ((int*)cTabA, delay, *delayIdx, uBuf);
+
+  // uBuf has at least 2 GB right now (1 from clipping to Q(FBITS_IN_QMFA), one from
+  //   the scaling by cTab (MULSHIFT32(*delayPtr--, *cPtr++), with net gain of < 1.0)
+  // TODO - fuse with QMFAnalysisConv to avoid separate reordering
+  tBuf[2*0 + 0] = uBuf[0];
+  tBuf[2*0 + 1] = uBuf[1];
+  for (auto n = 1; n < 31; n++) {
+    tBuf[2*n + 0] = -uBuf[64-n];
+    tBuf[2*n + 1] =  uBuf[n+1];
+    }
+  tBuf[2*31 + 1] =  uBuf[32];
+  tBuf[2*31 + 0] = -uBuf[33];
+
+  // fast in-place DCT-IV - only need 2*qmfaBands output samples */
+  preMultiply64 (tBuf);  /* 2 GB in, 3 GB out */
+  fft32C (tBuf);     /* 3 GB in, 1 GB out */
+  postMultiply64 (tBuf, qmfaBands*2);  /* 1 GB in, 2 GB out */
+
+  // TODO - roll into PostMultiply (if enough registers) */
+  int32_t gbMask = 0;
+  int32_t n;
+  for (n = 0; n < qmfaBands; n++) {
+    XBuf[2*n+0] = tBuf[ n + 0];  /* implicit scaling of 2 in our output Q format */
+    gbMask |= FASTABS (XBuf[2*n+0]);
+    XBuf[2*n+1] = -tBuf[63 - n];
+    gbMask |= FASTABS (XBuf[2*n+1]);
+    }
+
+  // fill top section with zeros for HF generation */
+  for ( ; n < 64; n++) {
+    XBuf[2*n+0] = 0;
+    XBuf[2*n+1] = 0;
+    }
+
+  *delayIdx = (*delayIdx == NUM_QMF_DELAY_BUFS - 1 ? 0 : *delayIdx + 1);
+
+  // minimum of 2 GB in output */
+  return gbMask;
+  }
+//}}}
+
+//{{{
+static void qmfSynthesisConv (int32_t* cPtr, int32_t* delay, int32_t dIdx, float* outBuffer, int32_t numChans) {
+/**************************************************************************************
+ * Description: final convolution kernel for synthesis QMF
+ * Inputs:      pointer to coefficient table, reordered for sequential access
+ *              delay buffer of size 64*10 = 640 complex samples (1280 ints)
+ *              index for delay ring buffer (range = [0, 9])
+ *              number of QMF subbands to process (range = [0, 64])
+ *              number of channels
+ * Outputs:     64 consecutive float PCM samples, interleaved by factor of numChans
+ * Notes:       this is carefully written to be efficient on ARM
+ *              use the assembly code version in sbrqmfsk.s when building for ARM!
+ **************************************************************************************/
+
+  int32_t dOff0 = (dIdx)*128;
+  int32_t dOff1 = dOff0 - 1;
+  if (dOff1 < 0)
+    dOff1 += 1280;
+
+  // scaling note: total gain of coefs (cPtr[0]-cPtr[9] for any k) is < 2.0, so 1 GB in delay values is adequate */
+  for (auto k = 0; k <= 63; k++) {
+    U64 sum64;
+    sum64.w64 = 0;
+
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]);
+    dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
+
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]);
+    dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
+
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]);
+    dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
+
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]);
+    dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
+
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]);
+    dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
+
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]);
+    dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
+
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]);
+    dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
+
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]);
+    dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
+
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff0]);
+    dOff0 -= 256; if (dOff0 < 0) {dOff0 += 1280;}
+
+    sum64.w64 = MADD64 (sum64.w64, *cPtr++, delay[dOff1]);
+    dOff1 -= 256; if (dOff1 < 0) {dOff1 += 1280;}
+
+    dOff0++;
+    dOff1--;
+
+    *outBuffer = sum64.r.hi32 / (float)0x40000;
+    outBuffer += numChans;
+    }
+  }
+//}}}
+//{{{
+static void qmfSynthesis (int32_t* inbuf, int32_t* delay, int32_t* delayIdx, int32_t qmfsBands,
+                          float* outBuffer, int32_t numChans) {
+/**************************************************************************************
+ * Description: 64-subband synthesis QMF (4.6.18.4.2)
+ * Inputs:      64 consecutive complex subband QMF samples, format = Q(FBITS_IN_QMFS)
+ *              delay buffer of size 64*10 = 640 complex samples (1280 ints)
+ *              index for delay ring buffer (range = [0, 9])
+ *              number of QMF subbands to process (range = [0, 64])
+ *              number of channels
+ * Outputs:     64 consecutive float PCM samples, interleaved by factor of numChans
+ *              updated delay buffer
+ *              updated delay index
+ * Notes:       assumes MIN_GBITS_IN_QMFS guard bits in input, either from
+ *              QMFAnalysis (if upsampling only) or from MapHF (if SBR on)
+ **************************************************************************************/
+
+  int32_t dIdx = *delayIdx;
+  int32_t* tBufLo = delay + dIdx*128 + 0;
+  int32_t* tBufHi = delay + dIdx*128 + 127;
+
+  // reorder inputs to DCT-IV, only use first qmfsBands (complex) samples
+  // TODO - fuse with PreMultiply64 to avoid separate reordering steps
+  int32_t a0, a1, b0, b1, n;
+  for (n = 0; n < qmfsBands >> 1; n++) {
+    a0 = *inbuf++;
+    b0 = *inbuf++;
+    a1 = *inbuf++;
+    b1 = *inbuf++;
+    *tBufLo++ = a0;
+    *tBufLo++ = a1;
+    *tBufHi-- = b0;
+    *tBufHi-- = b1;
+    }
+
+  if (qmfsBands & 0x01) {
+    a0 = *inbuf++;
+    b0 = *inbuf++;
+    *tBufLo++ = a0;
+    *tBufHi-- = b0;
+    *tBufLo++ = 0;
+    *tBufHi-- = 0;
+    n++;
+    }
+
+  for ( ; n < 32; n++) {
+    *tBufLo++ = 0;
+    *tBufHi-- = 0;
+    *tBufLo++ = 0;
+    *tBufHi-- = 0;
+    }
+
+  tBufLo = delay + dIdx*128 + 0;
+  tBufHi = delay + dIdx*128 + 64;
+
+  // 2 GB in, 3 GB out */
+  preMultiply64 (tBufLo);
+  preMultiply64 (tBufHi);
+
+  // 3 GB in, 1 GB out */
+  fft32C (tBufLo);
+  fft32C (tBufHi);
+
+  // 1 GB in, 2 GB out */
+  postMultiply64 (tBufLo, 64);
+  postMultiply64 (tBufHi, 64);
+
+  // could fuse with PostMultiply64 to avoid separate pass */
+  int32_t dOff0 = dIdx*128;
+  int32_t dOff1 = dIdx*128 + 64;
+  for (n = 32; n != 0; n--) {
+    a0 =  (*tBufLo++);
+    a1 =  (*tBufLo++);
+    b0 =  (*tBufHi++);
+    b1 = -(*tBufHi++);
+
+    delay[dOff0++] = (b0 - a0);
+    delay[dOff0++] = (b1 - a1);
+    delay[dOff1++] = (b0 + a0);
+    delay[dOff1++] = (b1 + a1);
+    }
+
+  qmfSynthesisConv ((int*)cTabS, delay, dIdx, outBuffer, numChans);
+
+  *delayIdx = (*delayIdx == NUM_QMF_DELAY_BUFS - 1 ? 0 : *delayIdx + 1);
+  }
+//}}}
 //}}}
 //{{{
 void cAacDecoder::applySbr (int32_t channelBase, float* outBuffer) {
@@ -8608,7 +8609,7 @@ void cAacDecoder::applySbr (int32_t channelBase, float* outBuffer) {
  *              size of input PCM samples (must be 4 bytes)
  *              number of fraction bits in input PCM samples
  *              base output channel (range = [0, numChans-1])
- *              initialized state structs (SBRHdr, SBRGrid, sSbrFreq, sSbrChan)
+ *              initialized state (SBRHdr, SBRGrid, sSbrFreq, sSbrChan)
  * Outputs:     2048 samples of decoded float PCM, after SBR
  **************************************************************************************/
 
