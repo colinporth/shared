@@ -66,17 +66,13 @@ private:
   // raw decoded data
   void* mRawSampleBuf [AAC_MAX_NCHANS];
 
-  // fill data (can be used for processing SBR or other extensions)
-  uint8_t* mFillBuf;
-  int32_t mFillCount;
-  int32_t mFillExtType;
-
   // block information
   int32_t mPrevBlockID;
   int32_t mCurrBlockID;
   int32_t mCurrInstTag;
-  int32_t mSbDeinterleaveReqd [MAX_NCHANS_ELEM];
-  int32_t mAdtsBlocksLeft;
+  uint8_t* mFillBuf;
+  int32_t mFillCount;
+  int32_t mFillExtType;
 
   //  info
   int32_t mBitRate;

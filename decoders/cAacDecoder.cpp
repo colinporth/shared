@@ -3369,9 +3369,6 @@ void cAacDecoder::flush() {
   mPrevBlockID = AAC_ID_INVALID;
   mCurrBlockID = AAC_ID_INVALID;
   mCurrInstTag = -1;
-  for (auto ch = 0; ch < MAX_NCHANS_ELEM; ch++)
-    mSbDeinterleaveReqd[ch] = 0;
-  mAdtsBlocksLeft = 0;
   mTnsUsed = 0;
   mPnsUsed = 0;
 
@@ -3644,7 +3641,6 @@ bool cAacDecoder::unpackADTSHeader (uint8_t*& buffer, int32_t& bitOffset, int32_
   mSampleRate = sampRateTab[mInfoBase->sampRateIdx];
   mProfile = adtsHeader->profile;
   mSbrEnabled = 0;
-  mAdtsBlocksLeft = adtsHeader->numRawDataBlocks;
 
   // update bitstream reader
   int32_t bitsUsed = bsi.getBitsUsed (buffer, bitOffset);
@@ -3728,7 +3724,7 @@ void cAacDecoder::decodeNoiselessData (uint8_t*& buffer, int32_t& bitOffset, int
   DecodeICS (mInfoBase, &bsi, channel);
 
   auto icsInfo = (channel == 1 && mInfoBase->commonWin == 1) ?
-                       &(mInfoBase->icsInfo[0]) : &(mInfoBase->icsInfo[channel]);
+                   &(mInfoBase->icsInfo[0]) : &(mInfoBase->icsInfo[channel]);
 
   if (icsInfo->winSequence == 2)
     DecodeSpectrumShort (mInfoBase, &bsi, channel);
@@ -3739,8 +3735,6 @@ void cAacDecoder::decodeNoiselessData (uint8_t*& buffer, int32_t& bitOffset, int
   buffer += ((bitsUsed + bitOffset) >> 3);
   bitOffset = ((bitsUsed + bitOffset) & 0x07);
   bitsAvail -= bitsUsed;
-
-  mSbDeinterleaveReqd[channel] = 0;
 
   // set flag if TNS used for any channel
   mTnsUsed |= mInfoBase->tnsInfo[channel].tnsDataPresent;
@@ -5131,7 +5125,7 @@ void cAacDecoder::dequantize (int32_t channel) {
   int32_t nSamps;
   const short* sfbTab;
   auto icsInfo = (channel == 1 && mInfoBase->commonWin == 1) ?
-                       &(mInfoBase->icsInfo[0]) : &(mInfoBase->icsInfo[channel]);
+                   &(mInfoBase->icsInfo[0]) : &(mInfoBase->icsInfo[channel]);
   if (icsInfo->winSequence == 2) {
     sfbTab = sfBandTabShort + sfBandTabShortOffset[mInfoBase->sampRateIdx];
     nSamps = NSAMPS_SHORT;
@@ -5519,7 +5513,7 @@ void cAacDecoder::applyPns (int32_t channel) {
   int32_t nSamps;
   const short* sfbTab;
   auto icsInfo = (channel == 1 && mInfoBase->commonWin == 1) ?
-                       &(mInfoBase->icsInfo[0]) : &(mInfoBase->icsInfo[channel]);
+                   &(mInfoBase->icsInfo[0]) : &(mInfoBase->icsInfo[channel]);
   if (icsInfo->winSequence == 2) {
     sfbTab = sfBandTabShort + sfBandTabShortOffset[mInfoBase->sampRateIdx];
     nSamps = NSAMPS_SHORT;
@@ -5692,7 +5686,7 @@ void cAacDecoder::applyTns (int32_t channel) {
  **************************************************************************************/
 
   auto icsInfo = (channel == 1 && mInfoBase->commonWin == 1) ?
-                       &(mInfoBase->icsInfo[0]) : &(mInfoBase->icsInfo[channel]);
+                   &(mInfoBase->icsInfo[0]) : &(mInfoBase->icsInfo[channel]);
   auto ti = &mInfoBase->tnsInfo[channel];
   if (!ti->tnsDataPresent)
     return;
@@ -6641,7 +6635,7 @@ void cAacDecoder::imdct (int32_t channel, int32_t chOut, float* outbuf) {
   cLog::log (LOGINFO3, "imdct %d", channel);
 
   auto icsInfo = (channel == 1 && mInfoBase->commonWin == 1) ?
-                       &(mInfoBase->icsInfo[0]) : &(mInfoBase->icsInfo[channel]);
+                   &(mInfoBase->icsInfo[0]) : &(mInfoBase->icsInfo[channel]);
   outbuf += chOut;
 
   // optimized type-IV DCT (operates inplace)
