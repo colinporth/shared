@@ -38,6 +38,7 @@ public:
 
 private:
   //{{{  private members
+  void initSbrState();
   void flush();
 
   void decodeSingleChannelElement (cBitStream* bsi);
@@ -56,8 +57,8 @@ private:
   void applyStereoProcess();
   void applyPns (int32_t channel);
   void applyTns (int32_t channel);
-  void imdct (int32_t channel, int32_t chOut, float* outbuf);
-  void applySbr (int32_t chBase, float* outbuf);
+  void imdct (int32_t channel, int32_t chOut, float* outBuffer);
+  void applySbr (int32_t chBase, float* outBuffer);
   //}}}
   //{{{  private vars
   sInfoBase* mInfoBase;

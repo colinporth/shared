@@ -2326,19 +2326,6 @@ private:
   };
 //}}}
 
-//{{{
-void InitSBRState (sInfoSbr* psi) {
-
-  memset (psi, 0, sizeof(sInfoSbr));
-
-  // initialize non-zero state variables
-  for (auto ch = 0; ch < AAC_MAX_NCHANS; ch++) {
-    psi->sbrChan[ch].reset = 1;
-    psi->sbrChan[ch].laPrev = -1;
-    }
-  }
-//}}}
-
 // public members
 //{{{
 cAacDecoder::cAacDecoder() {
@@ -2347,7 +2334,7 @@ cAacDecoder::cAacDecoder() {
   memset (mInfoBase, 0, sizeof(sInfoBase));
 
   mInfoSbr = (sInfoSbr*)malloc (sizeof(sInfoSbr));
-  InitSBRState (mInfoSbr);
+  initSbrState();
   }
 //}}}
 //{{{
@@ -3356,6 +3343,18 @@ static void decodeSBRNoise (cBitStream* bsi, sInfoSbr* psi,
 //}}}
 
 //{{{
+void cAacDecoder::initSbrState() {
+
+  memset (mInfoSbr, 0, sizeof(sInfoSbr));
+
+  // initialize non-zero state variables
+  for (auto ch = 0; ch < AAC_MAX_NCHANS; ch++) {
+    mInfoSbr->sbrChan[ch].reset = 1;
+    mInfoSbr->sbrChan[ch].laPrev = -1;
+    }
+  }
+//}}}
+//{{{
 void cAacDecoder::flush() {
 /**************************************************************************************
  * Description: flush internal codec state (after seeking, for example)
@@ -3364,8 +3363,6 @@ void cAacDecoder::flush() {
  **************************************************************************************/
 
   // reset common state variables which change per-frame
-  // don't touch state variables which are (usually) constant for entire clip
-  //  (nChans, sampRate, profile, format, sbrEnabled)
   mPrevBlockID = AAC_ID_INVALID;
   mCurrBlockID = AAC_ID_INVALID;
   mCurrInstTag = -1;
@@ -3373,11 +3370,10 @@ void cAacDecoder::flush() {
   mPnsUsed = 0;
 
   // reset internal codec state (flush overlap buffers, etc.)
-  sInfoBase* psiInfo = mInfoBase;
-  memset (psiInfo->overlap, 0, AAC_MAX_NCHANS * AAC_MAX_NSAMPS * sizeof(int));
-  memset (psiInfo->prevWinShape, 0, AAC_MAX_NCHANS * sizeof(int));
+  memset (mInfoBase->overlap, 0, AAC_MAX_NCHANS * AAC_MAX_NSAMPS * sizeof(int));
+  memset (mInfoBase->prevWinShape, 0, AAC_MAX_NCHANS * sizeof(int));
 
-  InitSBRState (mInfoSbr);
+  initSbrState();
   }
 //}}}
 //{{{
@@ -3595,40 +3591,39 @@ bool cAacDecoder::unpackADTSHeader (uint8_t*& buffer, int32_t& bitOffset, int32_
     return true;
 
   // fixed fields - should not change from frame to frame
-  sAdtsHeader* adtsHeader = &(mInfoBase->adtsHeader);
-  adtsHeader->id = bsi.getBits (1);
-  adtsHeader->layer = bsi.getBits (2);
-  adtsHeader->protectBit = bsi.getBits (1);
-  adtsHeader->profile = bsi.getBits (2);
-  adtsHeader->sampRateIdx =  bsi.getBits (4);
-  adtsHeader->privateBit = bsi.getBits (1);
-  adtsHeader->channelConfig = bsi.getBits (3);
-  adtsHeader->origCopy = bsi.getBits (1);
-  adtsHeader->home = bsi.getBits (1);
+  mInfoBase->adtsHeader.id = bsi.getBits (1);
+  mInfoBase->adtsHeader.layer = bsi.getBits (2);
+  mInfoBase->adtsHeader.protectBit = bsi.getBits (1);
+  mInfoBase->adtsHeader.profile = bsi.getBits (2);
+  mInfoBase->adtsHeader.sampRateIdx =  bsi.getBits (4);
+  mInfoBase->adtsHeader.privateBit = bsi.getBits (1);
+  mInfoBase->adtsHeader.channelConfig = bsi.getBits (3);
+  mInfoBase->adtsHeader.origCopy = bsi.getBits (1);
+  mInfoBase->adtsHeader.home = bsi.getBits (1);
 
   // variable fields - can change from frame to frame
-  adtsHeader->copyBit = bsi.getBits (1);
-  adtsHeader->copyStart = bsi.getBits (1);
-  adtsHeader->frameLength = bsi.getBits (13);
-  adtsHeader->bufferFull = bsi.getBits (11);
-  adtsHeader->numRawDataBlocks = bsi.getBits (2) + 1;
+  mInfoBase->adtsHeader.copyBit = bsi.getBits (1);
+  mInfoBase->adtsHeader.copyStart = bsi.getBits (1);
+  mInfoBase->adtsHeader.frameLength = bsi.getBits (13);
+  mInfoBase->adtsHeader.bufferFull = bsi.getBits (11);
+  mInfoBase->adtsHeader.numRawDataBlocks = bsi.getBits (2) + 1;
 
   // note - MPEG4 spec, correction 1 changes how CRC is handled when protectBit == 0 and numRawDataBlocks > 1
-  if (adtsHeader->protectBit == 0)
-    adtsHeader->crcCheckWord = bsi.getBits (16);
+  if (mInfoBase->adtsHeader.protectBit == 0)
+    mInfoBase->adtsHeader.crcCheckWord = bsi.getBits (16);
 
   // byte align - should be aligned anyway
   bsi.byteAlignBitstream();
 
   // check validity of header
-  if (adtsHeader->layer != 0 || adtsHeader->profile != AAC_PROFILE_LC ||
-      adtsHeader->sampRateIdx >= NUM_SAMPLE_RATES || adtsHeader->channelConfig >= NUM_DEF_CHAN_MAPS)
+  if (mInfoBase->adtsHeader.layer != 0 || mInfoBase->adtsHeader.profile != AAC_PROFILE_LC ||
+      mInfoBase->adtsHeader.sampRateIdx >= NUM_SAMPLE_RATES || mInfoBase->adtsHeader.channelConfig >= NUM_DEF_CHAN_MAPS)
     return true;
 
   // update codec info
-  mInfoBase->sampRateIdx = adtsHeader->sampRateIdx;
+  mInfoBase->sampRateIdx = mInfoBase->adtsHeader.sampRateIdx;
   if (!mInfoBase->useImpChanMap)
-    mInfoBase->nChans = channelMapTab[adtsHeader->channelConfig];
+    mInfoBase->nChans = channelMapTab[mInfoBase->adtsHeader.channelConfig];
 
   // syntactic element fields will be read from bitstream for each element
   mPrevBlockID = AAC_ID_INVALID;
@@ -3639,7 +3634,7 @@ bool cAacDecoder::unpackADTSHeader (uint8_t*& buffer, int32_t& bitOffset, int32_
   mBitRate = 0;
   mNumChannels = mInfoBase->nChans;
   mSampleRate = sampRateTab[mInfoBase->sampRateIdx];
-  mProfile = adtsHeader->profile;
+  mProfile = mInfoBase->adtsHeader.profile;
   mSbrEnabled = 0;
 
   // update bitstream reader
@@ -3946,7 +3941,7 @@ static int32_t sqrtFix (int32_t q, int32_t fBitsIn, int32_t *fBitsOut) {
 //}}}
 
 //{{{
-static void bubbleSort (uint8_t *v, int32_t nItems) {
+static void bubbleSort (uint8_t* v, int32_t numItems) {
 /**************************************************************************************
  * Description: in-place sort of uint8_ts
  * Inputs:      buffer of elements to sort
@@ -3954,20 +3949,20 @@ static void bubbleSort (uint8_t *v, int32_t nItems) {
  * Outputs:     sorted buffer
  **************************************************************************************/
 
-  while (nItems >= 2) {
-    for (auto i = 0; i < nItems-1; i++) {
+  while (numItems >= 2) {
+    for (auto i = 0; i < numItems-1; i++) {
       if (v[i+1] < v[i]) {
         uint8_t t = v[i+1];
         v[i+1] = v[i];
         v[i] = t;
         }
       }
-    nItems--;
+    numItems--;
     }
   }
 //}}}
 //{{{
-static uint8_t vMin (uint8_t *v, int32_t nItems) {
+static uint8_t vMin (uint8_t* v, int32_t numItems) {
 /**************************************************************************************
  * Description: find smallest element in a buffer of uint8_ts
  * Inputs:      buffer of elements to search
@@ -3976,7 +3971,7 @@ static uint8_t vMin (uint8_t *v, int32_t nItems) {
  **************************************************************************************/
 
   uint8_t vMin = v[0];
-  for (auto i = 1; i < nItems; i++)
+  for (auto i = 1; i < numItems; i++)
     if (v[i] < vMin)
       vMin = v[i];
 
@@ -3984,7 +3979,7 @@ static uint8_t vMin (uint8_t *v, int32_t nItems) {
   }
 //}}}
 //{{{
-static uint8_t vMax (uint8_t *v, int32_t nItems) {
+static uint8_t vMax (uint8_t* v, int32_t numItems) {
 /**************************************************************************************
  * Description: find largest element in a buffer of uint8_ts
  * Inputs:      buffer of elements to search
@@ -3993,7 +3988,7 @@ static uint8_t vMax (uint8_t *v, int32_t nItems) {
  **************************************************************************************/
 
   uint8_t vMax = v[0];
-  for (auto i = 1; i < nItems; i++)
+  for (auto i = 1; i < numItems; i++)
     if (v[i] > vMax)
       vMax = v[i];
 
@@ -4940,7 +4935,7 @@ bool cAacDecoder::decodeSbrBitstream (int32_t channelBase) {
     if (unpackSBRHeader (&bsi, &(mInfoSbr->sbrHdr[channelBase])))
       mInfoSbr->sbrChan[channelBase].reset = 1;
 
-    // first valid SBR header should always trigger CalcFreqTables(), since mInfoSbr->reset was set in InitSBR()
+    // first valid SBR header should always trigger CalcFreqTables(), since mInfoSbr->reset was set in InitSbr()
     if (mInfoSbr->sbrChan[channelBase].reset)
       calcFreqTables (&(mInfoSbr->sbrHdr[channelBase+0]), &(mInfoSbr->sbrFreq[channelBase]), mInfoSbr->sampRateIdx);
 
@@ -6625,7 +6620,7 @@ static void decWindowOverlapShort (int32_t* buf0, int32_t* over0, int32_t* out0,
 //}}}
 //}}}
 //{{{
-void cAacDecoder::imdct (int32_t channel, int32_t chOut, float* outbuf) {
+void cAacDecoder::imdct (int32_t channel, int32_t chOut, float* outBuffer) {
 /**************************************************************************************
  * Description: inverse transform and convert to 16-bit PCM
  * Inputs:      index of current channel (0 for SCE/LFE, 0 or 1 for CPE)
@@ -6637,7 +6632,7 @@ void cAacDecoder::imdct (int32_t channel, int32_t chOut, float* outbuf) {
 
   auto icsInfo = (channel == 1 && mInfoBase->commonWin == 1) ?
                    &(mInfoBase->icsInfo[0]) : &(mInfoBase->icsInfo[channel]);
-  outbuf += chOut;
+  outBuffer += chOut;
 
   // optimized type-IV DCT (operates inplace)
   if (icsInfo->winSequence == 2) // 8 short blocks
@@ -6665,8 +6660,8 @@ void cAacDecoder::imdct (int32_t channel, int32_t chOut, float* outbuf) {
 
   if (!mSbrEnabled)
     for (auto i = 0; i < AAC_MAX_NSAMPS; i++) {
-      *outbuf = mInfoBase->sbrWorkBuf[channel][i] / (float)0x40000;
-      outbuf += mNumChannels;
+      *outBuffer = mInfoBase->sbrWorkBuf[channel][i] / (float)0x40000;
+      outBuffer += mNumChannels;
       }
 
   mInfoBase->prevWinShape[chOut] = icsInfo->winShape;
@@ -7190,7 +7185,7 @@ static int32_t qmfAnalysis (int32_t* inbuf, int32_t* delay, int32_t* XBuf,
   }
 //}}}
 //{{{
-static void qmfSynthesisConv (int32_t* cPtr, int32_t* delay, int32_t dIdx, float* outbuf, int32_t numChans) {
+static void qmfSynthesisConv (int32_t* cPtr, int32_t* delay, int32_t dIdx, float* outBuffer, int32_t numChans) {
 /**************************************************************************************
  * Description: final convolution kernel for synthesis QMF
  * Inputs:      pointer to coefficient table, reordered for sequential access
@@ -7246,14 +7241,14 @@ static void qmfSynthesisConv (int32_t* cPtr, int32_t* delay, int32_t dIdx, float
     dOff0++;
     dOff1--;
 
-    *outbuf = sum64.r.hi32 / (float)0x40000;
-    outbuf += numChans;
+    *outBuffer = sum64.r.hi32 / (float)0x40000;
+    outBuffer += numChans;
     }
   }
 //}}}
 //{{{
 static void qmfSynthesis (int32_t* inbuf, int32_t* delay, int32_t* delayIdx,
-                          int32_t qmfsBands, float* outbuf, int32_t numChans) {
+                          int32_t qmfsBands, float* outBuffer, int32_t numChans) {
 /**************************************************************************************
  * Description: 64-subband synthesis QMF (4.6.18.4.2)
  * Inputs:      64 consecutive complex subband QMF samples, format = Q(FBITS_IN_QMFS)
@@ -7333,7 +7328,7 @@ static void qmfSynthesis (int32_t* inbuf, int32_t* delay, int32_t* delayIdx,
     delay[dOff1++] = (b1 + a1);
     }
 
-  qmfSynthesisConv ((int*)cTabS, delay, dIdx, outbuf, numChans);
+  qmfSynthesisConv ((int*)cTabS, delay, dIdx, outBuffer, numChans);
 
   *delayIdx = (*delayIdx == NUM_QMF_DELAY_BUFS - 1 ? 0 : *delayIdx + 1);
   }
@@ -8606,7 +8601,7 @@ static void generateHighFreq (sInfoSbr* psi, sSbrGrid* sbrGrid,
 //}}}
 //}}}
 //{{{
-void cAacDecoder::applySbr (int32_t channelBase, float* outbuf) {
+void cAacDecoder::applySbr (int32_t channelBase, float* outBuffer) {
 /**************************************************************************************
  * Description: apply SBR to one frame of PCM data
  * Inputs:      1024 samples of decoded 32-bit PCM, before SBR
@@ -8663,7 +8658,7 @@ void cAacDecoder::applySbr (int32_t channelBase, float* outbuf) {
       }
 
     int32_t* inbuf = (int*)mRawSampleBuf[ch];
-    float* outptr = outbuf + channelBase + ch;
+    float* outptr = outBuffer + channelBase + ch;
 
     // step 1 - analysis QMF
     int32_t qmfaBands = sbrFreq->kStart;
