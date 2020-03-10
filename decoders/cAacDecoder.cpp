@@ -2477,7 +2477,7 @@ float* cAacDecoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int3
 #define GET_ESC_Z(v)  (((int32_t)(v) << 26) >>   26) // bits  5-0, sign-extend
 
 //{{{
-static int32_t DecodeHuffmanScalar (const int16_t* huffTab, const sHuffInfo* huffTabInfo,
+static int32_t decodeHuffmanScalar (const int16_t* huffTab, const sHuffInfo* huffTabInfo,
                                     uint32_t bitBuf, int32_t* val) {
 /**************************************************************************************
  * Description: decode one Huffman symbol from bitstream
@@ -2511,7 +2511,7 @@ static int32_t DecodeHuffmanScalar (const int16_t* huffTab, const sHuffInfo* huf
   }
 //}}}
 //{{{
-static int32_t DecodeOneSymbol (cBitStream* bsi, int32_t huffTabIndex) {
+static int32_t decodeOneSymbol (cBitStream* bsi, int32_t huffTabIndex) {
 /**************************************************************************************
  * Description: dequantize one Huffman symbol from bitstream,  using table huffTabSBR[huffTabIndex]
  * Inputs:      cBitStream pointing to start of next Huffman codeword index of Huffman table
@@ -2523,14 +2523,14 @@ static int32_t DecodeOneSymbol (cBitStream* bsi, int32_t huffTabIndex) {
   uint32_t bitBuf = bsi->getBitsNoAdvance (hi->maxBits) << (32 - hi->maxBits);
 
   int32_t val;
-  int32_t numBits = DecodeHuffmanScalar (huffTabSBR, hi, bitBuf, &val);
+  int32_t numBits = decodeHuffmanScalar (huffTabSBR, hi, bitBuf, &val);
   bsi->advanceBitstream (numBits);
 
   return val;
   }
 //}}}
 //{{{
-static int32_t DecodeOneScaleFactor (cBitStream* bsi) {
+static int32_t decodeOneScaleFactor (cBitStream* bsi) {
 /**************************************************************************************
  * Description: decode one scalefactor using scalefactor Huffman codebook
  * Inputs:      cBitStream pointing to start of next coded scalefactor
@@ -2542,7 +2542,7 @@ static int32_t DecodeOneScaleFactor (cBitStream* bsi) {
   uint32_t bitBuf = bsi->getBitsNoAdvance (huffTabScaleFactInfo.maxBits) << (32 - huffTabScaleFactInfo.maxBits);
 
   int32_t val;
-  int32_t numBits = DecodeHuffmanScalar (huffTabScaleFact, &huffTabScaleFactInfo, bitBuf, &val);
+  int32_t numBits = decodeHuffmanScalar (huffTabScaleFact, &huffTabScaleFactInfo, bitBuf, &val);
   bsi->advanceBitstream (numBits);
 
   return val;
@@ -2583,7 +2583,7 @@ static void unpackQuads (cBitStream* bsi, int32_t cb, int32_t nVals, int32_t* co
     // decode quad
     uint32_t bitBuf = bsi->getBitsNoAdvance (maxBits) << (32 - maxBits);
     int32_t val;
-    int32_t nCodeBits = DecodeHuffmanScalar (huffTabSpec, &huffTabSpecInfo[cb - HUFFTAB_SPEC_OFFSET], bitBuf, &val);
+    int32_t nCodeBits = decodeHuffmanScalar (huffTabSpec, &huffTabSpecInfo[cb - HUFFTAB_SPEC_OFFSET], bitBuf, &val);
 
     int32_t w = GET_QUAD_W (val);
     int32_t x = GET_QUAD_X (val);
@@ -2633,7 +2633,7 @@ static void unpackPairsNoEsc (cBitStream* bsi, int32_t cb, int32_t nVals, int32_
     // decode pair
     int32_t val;
     uint32_t bitBuf = bsi->getBitsNoAdvance (maxBits) << (32 - maxBits);
-    int32_t nCodeBits = DecodeHuffmanScalar (huffTabSpec, &huffTabSpecInfo[cb-HUFFTAB_SPEC_OFFSET], bitBuf, &val);
+    int32_t nCodeBits = decodeHuffmanScalar (huffTabSpec, &huffTabSpecInfo[cb-HUFFTAB_SPEC_OFFSET], bitBuf, &val);
 
     int32_t y = GET_PAIR_Y (val);
     int32_t z = GET_PAIR_Z (val);
@@ -2674,7 +2674,7 @@ static void unpackPairsEsc (cBitStream* bsi, int32_t cb, int32_t nVals, int32_t*
     // decode pair with escape value
     int32_t val;
     uint32_t bitBuf = bsi->getBitsNoAdvance(maxBits) << (32 - maxBits);
-    int32_t nCodeBits = DecodeHuffmanScalar (huffTabSpec, &huffTabSpecInfo[cb-HUFFTAB_SPEC_OFFSET], bitBuf, &val);
+    int32_t nCodeBits = decodeHuffmanScalar (huffTabSpec, &huffTabSpecInfo[cb-HUFFTAB_SPEC_OFFSET], bitBuf, &val);
 
     int32_t y = GET_ESC_Y(val);
     int32_t z = GET_ESC_Z(val);
@@ -2714,7 +2714,7 @@ static void unpackPairsEsc (cBitStream* bsi, int32_t cb, int32_t nVals, int32_t*
   }
 //}}}
 //{{{
-static void DecodeSpectrumLong (sInfoBase* psi, cBitStream* bsi, int32_t ch) {
+static void decodeSpectrumLong (sInfoBase* psi, cBitStream* bsi, int32_t ch) {
 /**************************************************************************************
  * Description: decode transform coefficients for frame with one long block
  * Inputs:      platform specific info struct
@@ -2771,7 +2771,7 @@ static void DecodeSpectrumLong (sInfoBase* psi, cBitStream* bsi, int32_t ch) {
 }
 //}}}
 //{{{
-static void DecodeSpectrumShort (sInfoBase* psi, cBitStream* bsi, int32_t ch) {
+static void decodeSpectrumShort (sInfoBase* psi, cBitStream* bsi, int32_t ch) {
 /**************************************************************************************
  * Description: decode transform coefficients for frame with eight short blocks
  * Inputs:      platform specific info struct
@@ -2825,7 +2825,7 @@ static void DecodeSpectrumShort (sInfoBase* psi, cBitStream* bsi, int32_t ch) {
 //}}}
 
 //{{{
-static void DecodeICSInfo (cBitStream* bsi, sIcsInfo* icsInfo, uint8_t sampRateIdx) {
+static void decodeICSInfo (cBitStream* bsi, sIcsInfo* icsInfo, uint8_t sampRateIdx) {
 /**************************************************************************************
  * Description: decode individual channel stream info
  * Inputs:      cBitStream pointing to start of ICS info (14496-3, table 4.4.6)
@@ -2874,7 +2874,7 @@ static void DecodeICSInfo (cBitStream* bsi, sIcsInfo* icsInfo, uint8_t sampRateI
   }
 //}}}
 //{{{
-static void DecodeSectionData (cBitStream* bsi, int32_t winSequence, int32_t numWinGrp,
+static void decodeSectionData (cBitStream* bsi, int32_t winSequence, int32_t numWinGrp,
                                int32_t maxSFB, uint8_t* sfbCodeBook) {
 /**************************************************************************************
  * Description: decode section data (scale factor band groupings and associated Huffman codebooks)
@@ -2909,7 +2909,7 @@ static void DecodeSectionData (cBitStream* bsi, int32_t winSequence, int32_t num
   }
 //}}}
 //{{{
-static void DecodeScaleFactors (cBitStream* bsi, int32_t numWinGrp, int32_t maxSFB, int32_t globalGain,
+static void decodeScaleFactors (cBitStream* bsi, int32_t numWinGrp, int32_t maxSFB, int32_t globalGain,
                                 uint8_t* sfbCodeBook, short* scaleFactors) {
 /**************************************************************************************
  * Description: decode scalefactors, PNS energy, and intensity stereo weights
@@ -2938,7 +2938,7 @@ static void DecodeScaleFactors (cBitStream* bsi, int32_t numWinGrp, int32_t maxS
     int32_t val;
     if (sfbCB  == 14 || sfbCB == 15) {
       // intensity stereo - differential coding
-      val = DecodeOneScaleFactor (bsi);
+      val = decodeOneScaleFactor (bsi);
       is += val;
       *scaleFactors++ = (short)is;
       }
@@ -2949,13 +2949,13 @@ static void DecodeScaleFactors (cBitStream* bsi, int32_t numWinGrp, int32_t maxS
         npf = 0;
         }
       else
-        val = DecodeOneScaleFactor (bsi);
+        val = decodeOneScaleFactor (bsi);
       nrg += val;
       *scaleFactors++ = (short)nrg;
       }
     else if (sfbCB >= 1 && sfbCB <= 11) {
       // regular (non-zero) region - differential coding
-      val = DecodeOneScaleFactor (bsi);
+      val = decodeOneScaleFactor (bsi);
       sf += val;
       *scaleFactors++ = (short)sf;
       }
@@ -2965,7 +2965,7 @@ static void DecodeScaleFactors (cBitStream* bsi, int32_t numWinGrp, int32_t maxS
   }
 //}}}
 //{{{
-static void DecodePulseInfo (cBitStream* bsi, sPulseInfo* pi) {
+static void decodePulseInfo (cBitStream* bsi, sPulseInfo* pi) {
 /**************************************************************************************
  * Description: decode pulse information
  * Inputs:      cBitStream pointing to start of pulse info (14496-3, table 4.4.7)
@@ -2981,7 +2981,7 @@ static void DecodePulseInfo (cBitStream* bsi, sPulseInfo* pi) {
   }
 //}}}
 //{{{
-static void DecodeTNSInfo (cBitStream* bsi, int32_t winSequence, sTnsInfo* ti, int8_t* tnsCoef) {
+static void decodeTNSInfo (cBitStream* bsi, int32_t winSequence, sTnsInfo* ti, int8_t* tnsCoef) {
 /**************************************************************************************
  * Description: decode TNS filter information
  * Inputs:      cBitStream pointing to start of TNS info (14496-3, table 4.4.27)
@@ -3048,7 +3048,7 @@ static void DecodeTNSInfo (cBitStream* bsi, int32_t winSequence, sTnsInfo* ti, i
   }
 //}}}
 //{{{
-static void DecodeGainControlInfo (cBitStream* bsi, int32_t winSequence, sGainControlInfo* gi) {
+static void decodeGainControlInfo (cBitStream* bsi, int32_t winSequence, sGainControlInfo* gi) {
 /**************************************************************************************
  * Description: decode gain control information (SSR profile only)
  * Inputs:      cBitStream pointing to start of gain control info  (14496-3, table 4.4.12)
@@ -3073,7 +3073,7 @@ static void DecodeGainControlInfo (cBitStream* bsi, int32_t winSequence, sGainCo
   }
 //}}}
 //{{{
-static void DecodeICS (sInfoBase* psi, cBitStream* bsi, int32_t ch) {
+static void decodeICS (sInfoBase* psi, cBitStream* bsi, int32_t ch) {
 /**************************************************************************************
  * Description: decode individual channel stream
  * Inputs:      platform specific info struct
@@ -3086,31 +3086,31 @@ static void DecodeICS (sInfoBase* psi, cBitStream* bsi, int32_t ch) {
 
   int32_t globalGain = bsi->getBits (8);
   if (!psi->commonWin)
-    DecodeICSInfo (bsi, icsInfo, psi->sampRateIdx);
+    decodeICSInfo (bsi, icsInfo, psi->sampRateIdx);
 
-  DecodeSectionData (bsi, icsInfo->winSequence, icsInfo->numWinGroup, icsInfo->maxSFB, psi->sfbCodeBook[ch]);
-  DecodeScaleFactors (bsi, icsInfo->numWinGroup, icsInfo->maxSFB, globalGain, psi->sfbCodeBook[ch], psi->scaleFactors[ch]);
+  decodeSectionData (bsi, icsInfo->winSequence, icsInfo->numWinGroup, icsInfo->maxSFB, psi->sfbCodeBook[ch]);
+  decodeScaleFactors (bsi, icsInfo->numWinGroup, icsInfo->maxSFB, globalGain, psi->sfbCodeBook[ch], psi->scaleFactors[ch]);
 
   sPulseInfo* pi = &psi->pulseInfo[ch];
   pi->pulseDataPresent = bsi->getBits (1);
   if (pi->pulseDataPresent)
-    DecodePulseInfo (bsi, pi);
+    decodePulseInfo (bsi, pi);
 
   auto ti = &psi->tnsInfo[ch];
   ti->tnsDataPresent = bsi->getBits (1);
   if (ti->tnsDataPresent)
-    DecodeTNSInfo (bsi, icsInfo->winSequence, ti, ti->coef);
+    decodeTNSInfo (bsi, icsInfo->winSequence, ti, ti->coef);
 
   sGainControlInfo* gi = &psi->gainControlInfo[ch];
   gi->gainControlDataPresent = bsi->getBits (1);
   if (gi->gainControlDataPresent)
-    DecodeGainControlInfo (bsi, icsInfo->winSequence, gi);
+    decodeGainControlInfo (bsi, icsInfo->winSequence, gi);
   }
 //}}}
 
 // sbrhuff
 //{{{
-static int32_t DequantizeEnvelope (int32_t numBands, int32_t ampRes, int8_t* envQuant, int32_t* envDequant) {
+static int32_t dequantizeEnvelope (int32_t numBands, int32_t ampRes, int8_t* envQuant, int32_t* envDequant) {
 /**************************************************************************************
  * Description: dequantize envelope scalefactors
  * Inputs:      number of scalefactors to process
@@ -3160,7 +3160,7 @@ static int32_t DequantizeEnvelope (int32_t numBands, int32_t ampRes, int8_t* env
   }
 //}}}
 //{{{
-static void DecodeSBREnvelope (cBitStream* bsi, sInfoSbr* psi, sSbrGrid* sbrGrid, sSbrFreq* sbrFreq,
+static void decodeSBREnvelope (cBitStream* bsi, sInfoSbr* psi, sSbrGrid* sbrGrid, sSbrFreq* sbrFreq,
                                sSbrChan* sbrChan, int32_t ch) {
 /**************************************************************************************
  * Description: decode delta Huffman coded envelope scalefactors from bitstream
@@ -3218,21 +3218,21 @@ static void DecodeSBREnvelope (cBitStream* bsi, sInfoSbr* psi, sSbrGrid* sbrGrid
       int32_t sf = bsi->getBits (envStartBits) << dShift;
       sbrChan->envDataQuant[env][0] = sf;
       for (auto band = 1; band < numBands; band++) {
-        sf = DecodeOneSymbol (bsi, huffIndexFreq) << dShift;
+        sf = decodeOneSymbol (bsi, huffIndexFreq) << dShift;
         sbrChan->envDataQuant[env][band] = sf + sbrChan->envDataQuant[env][band-1];
         }
       }
     else if (freqRes == freqResPrev) {
       // delta coding in time - same freq resolution for both frames
       for (auto band = 0; band < numBands; band++) {
-        int32_t sf = DecodeOneSymbol (bsi, huffIndexTime) << dShift;
+        int32_t sf = decodeOneSymbol (bsi, huffIndexTime) << dShift;
         sbrChan->envDataQuant[env][band] = sf + sbrChan->envDataQuant[lastEnv][band];
         }
       }
     else if (freqRes == 0 && freqResPrev == 1) {
       // delta coding in time - low freq resolution for new frame, high freq resolution for old frame
       for (auto band = 0; band < numBands; band++) {
-        int32_t sf = DecodeOneSymbol (bsi, huffIndexTime) << dShift;
+        int32_t sf = decodeOneSymbol (bsi, huffIndexTime) << dShift;
         sbrChan->envDataQuant[env][band] = sf;
         for (auto i = 0; i < sbrFreq->nHigh; i++) {
           if (sbrFreq->freqHigh[i] == sbrFreq->freqLow[band]) {
@@ -3245,7 +3245,7 @@ static void DecodeSBREnvelope (cBitStream* bsi, sInfoSbr* psi, sSbrGrid* sbrGrid
     else if (freqRes == 1 && freqResPrev == 0) {
       // delta coding in time - high freq resolution for new frame, low freq resolution for old frame
       for (auto band = 0; band < numBands; band++) {
-        int32_t sf = DecodeOneSymbol (bsi, huffIndexTime) << dShift;
+        int32_t sf = decodeOneSymbol (bsi, huffIndexTime) << dShift;
         sbrChan->envDataQuant[env][band] = sf;
         for (auto i = 0; i < sbrFreq->nLow; i++) {
           if (sbrFreq->freqLow[i] <= sbrFreq->freqHigh[band] && sbrFreq->freqHigh[band] < sbrFreq->freqLow[i+1] ) {
@@ -3258,7 +3258,7 @@ static void DecodeSBREnvelope (cBitStream* bsi, sInfoSbr* psi, sSbrGrid* sbrGrid
 
     // skip coupling channel
     if (ch != 1 || psi->couplingFlag != 1)
-      psi->envDataDequantScale[ch][env] = DequantizeEnvelope (numBands, sbrGrid->ampResFrame, sbrChan->envDataQuant[env], psi->envDataDequant[ch][env]);
+      psi->envDataDequantScale[ch][env] = dequantizeEnvelope (numBands, sbrGrid->ampResFrame, sbrChan->envDataQuant[env], psi->envDataDequant[ch][env]);
     }
 
   sbrGrid->numEnvPrev = sbrGrid->numEnv;
@@ -3267,7 +3267,7 @@ static void DecodeSBREnvelope (cBitStream* bsi, sInfoSbr* psi, sSbrGrid* sbrGrid
 //}}}
 
 //{{{
-static void DequantizeNoise (int32_t numBands, int8_t* noiseQuant, int32_t* noiseDequant) {
+static void dequantizeNoise (int32_t numBands, int8_t* noiseQuant, int32_t* noiseDequant) {
 /**************************************************************************************
  * Description: dequantize noise scalefactors
  * Inputs:      number of scalefactors to process
@@ -3297,7 +3297,7 @@ static void DequantizeNoise (int32_t numBands, int8_t* noiseQuant, int32_t* nois
   }
 //}}}
 //{{{
-static void DecodeSBRNoise (cBitStream* bsi, sInfoSbr* psi,
+static void decodeSBRNoise (cBitStream* bsi, sInfoSbr* psi,
                             sSbrGrid* sbrGrid, sSbrFreq* sbrFreq, sSbrChan* sbrChan, int32_t ch) {
 /**************************************************************************************
  * Description: decode delta Huffman coded noise scalefactors from bitstream
@@ -3333,21 +3333,21 @@ static void DecodeSBRNoise (cBitStream* bsi, sInfoSbr* psi,
       // delta coding in freq
       sbrChan->noiseDataQuant[noiseFloor][0] = bsi->getBits (5) << dShift;
       for (auto band = 1; band < sbrFreq->numNoiseFloorBands; band++) {
-        int32_t sf = DecodeOneSymbol (bsi, huffIndexFreq) << dShift;
+        int32_t sf = decodeOneSymbol (bsi, huffIndexFreq) << dShift;
         sbrChan->noiseDataQuant[noiseFloor][band] = sf + sbrChan->noiseDataQuant[noiseFloor][band-1];
         }
       }
     else {
       // delta coding in time
       for (auto band = 0; band < sbrFreq->numNoiseFloorBands; band++) {
-        int32_t sf = DecodeOneSymbol (bsi, huffIndexTime) << dShift;
+        int32_t sf = decodeOneSymbol (bsi, huffIndexTime) << dShift;
         sbrChan->noiseDataQuant[noiseFloor][band] = sf + sbrChan->noiseDataQuant[lastNoiseFloor][band];
         }
       }
 
     // skip coupling channel
     if (ch != 1 || psi->couplingFlag != 1)
-      DequantizeNoise (sbrFreq->numNoiseFloorBands, sbrChan->noiseDataQuant[noiseFloor], psi->noiseDataDequant[ch][noiseFloor]);
+      dequantizeNoise (sbrFreq->numNoiseFloorBands, sbrChan->noiseDataQuant[noiseFloor], psi->noiseDataDequant[ch][noiseFloor]);
     }
 
   sbrGrid->numNoiseFloorsPrev = sbrGrid->numNoiseFloors;
@@ -3419,7 +3419,7 @@ void cAacDecoder::decodeChannelPairElement (cBitStream* bsi) {
   //               = 2 means all SFB's are M/S coded (so mInfoBase->msMaskBits is not needed)
   mInfoBase->commonWin = bsi->getBits (1);
   if (mInfoBase->commonWin) {
-    DecodeICSInfo (bsi, icsInfo, mInfoBase->sampRateIdx);
+    decodeICSInfo (bsi, icsInfo, mInfoBase->sampRateIdx);
     mInfoBase->msMaskPresent = bsi->getBits (2);
     if (mInfoBase->msMaskPresent == 1) {
       uint8_t* maskPtr = mInfoBase->msMaskBits;
@@ -3721,15 +3721,15 @@ void cAacDecoder::decodeNoiselessData (uint8_t*& buffer, int32_t& bitOffset, int
   cBitStream bsi (buffer, (bitsAvail+7) >> 3);
   bsi.getBits (bitOffset);
 
-  DecodeICS (mInfoBase, &bsi, channel);
+  decodeICS (mInfoBase, &bsi, channel);
 
   auto icsInfo = (channel == 1 && mInfoBase->commonWin == 1) ?
                    &(mInfoBase->icsInfo[0]) : &(mInfoBase->icsInfo[channel]);
 
   if (icsInfo->winSequence == 2)
-    DecodeSpectrumShort (mInfoBase, &bsi, channel);
+    decodeSpectrumShort (mInfoBase, &bsi, channel);
   else
-    DecodeSpectrumLong (mInfoBase, &bsi, channel);
+    decodeSpectrumLong (mInfoBase, &bsi, channel);
 
   int32_t bitsUsed = bsi.getBitsUsed (buffer, bitOffset);
   buffer += ((bitsUsed + bitOffset) >> 3);
@@ -3743,7 +3743,7 @@ void cAacDecoder::decodeNoiselessData (uint8_t*& buffer, int32_t& bitOffset, int
 
 //{{{  decodeSbr utils
 //{{{
-static int32_t GetSampRateIdx (int32_t sampRate) {
+static int32_t getSampRateIdx (int32_t sampRate) {
 /**************************************************************************************
  * Description: get index of given sample rate
  * Inputs:      sample rate (in Hz)
@@ -4043,7 +4043,7 @@ static void unpackSinusoids (cBitStream* bsi, int32_t nHigh, int32_t addHarmonic
 //}}}
 
 //{{{
-static void CopyCouplingGrid (sSbrGrid* sbrGridLeft, sSbrGrid* sbrGridRight) {
+static void copyCouplingGrid (sSbrGrid* sbrGridLeft, sSbrGrid* sbrGridRight) {
 /**************************************************************************************
  * Description: copy grid parameters from left to right for channel coupling
  * Inputs:      initialized SBRGrid for left channel
@@ -4070,7 +4070,7 @@ static void CopyCouplingGrid (sSbrGrid* sbrGridLeft, sSbrGrid* sbrGridRight) {
   }
 //}}}
 //{{{
-static void CopyCouplingInverseFilterMode (int32_t numNoiseFloorBands, uint8_t* modeLeft, uint8_t* modeRight) {
+static void copyCouplingInverseFilterMode (int32_t numNoiseFloorBands, uint8_t* modeLeft, uint8_t* modeRight) {
 /**************************************************************************************
  * Description: copy invf flags from left to right for channel coupling
  * Inputs:      invf flags for left channel
@@ -4083,7 +4083,7 @@ static void CopyCouplingInverseFilterMode (int32_t numNoiseFloorBands, uint8_t* 
   }
 //}}}
 //{{{
-static void UncoupleSBREnvelope (sInfoSbr* psi, sSbrGrid* sbrGrid, sSbrFreq* sbrFreq, sSbrChan* sbrChanR) {
+static void uncoupleSBREnvelope (sInfoSbr* psi, sSbrGrid* sbrGrid, sSbrFreq* sbrFreq, sSbrChan* sbrChanR) {
 /**************************************************************************************
  * Description: scale dequantized envelope scalefactors according to channel coupling rules
  * Inputs:      initialized mInfoSbr including dequantized envelope data for left channel
@@ -4114,7 +4114,7 @@ static void UncoupleSBREnvelope (sInfoSbr* psi, sSbrGrid* sbrGrid, sSbrFreq* sbr
   }
 //}}}
 //{{{
-static void UncoupleSBRNoise (sInfoSbr* psi, sSbrGrid* sbrGrid, sSbrFreq* sbrFreq, sSbrChan* sbrChanR) {
+static void uncoupleSBRNoise (sInfoSbr* psi, sSbrGrid* sbrGrid, sSbrFreq* sbrFreq, sSbrChan* sbrChanR) {
 /**************************************************************************************
  * Description: scale dequantized noise floor scalefactors according to channel
  *                coupling rules
@@ -4169,8 +4169,8 @@ static void unpackSBRSingleChannel (cBitStream* bsi, sInfoSbr* psi, int32_t chan
   unpackDeltaTimeFreq (bsi, sbrGridL->numEnv, sbrChanL->deltaFlagEnv, sbrGridL->numNoiseFloors, sbrChanL->deltaFlagNoise);
   unpackInverseFilterMode (bsi, sbrFreq->numNoiseFloorBands, sbrChanL->invfMode[1]);
 
-  DecodeSBREnvelope (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
-  DecodeSBRNoise (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
+  decodeSBREnvelope (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
+  decodeSBRNoise (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
 
   sbrChanL->addHarmonicFlag[1] = bsi->getBits (1);
   unpackSinusoids (bsi, sbrFreq->nHigh, sbrChanL->addHarmonicFlag[1], sbrChanL->addHarmonic[1]);
@@ -4218,22 +4218,22 @@ static void unpackSBRChannelPair (cBitStream* bsi, sInfoSbr* psi, int32_t channe
   psi->couplingFlag = bsi->getBits (1);
   if (psi->couplingFlag) {
     unpackSBRGrid (bsi, sbrHdr, sbrGridL);
-    CopyCouplingGrid (sbrGridL, sbrGridR);
+    copyCouplingGrid (sbrGridL, sbrGridR);
 
     unpackDeltaTimeFreq (bsi, sbrGridL->numEnv, sbrChanL->deltaFlagEnv, sbrGridL->numNoiseFloors, sbrChanL->deltaFlagNoise);
     unpackDeltaTimeFreq (bsi, sbrGridR->numEnv, sbrChanR->deltaFlagEnv, sbrGridR->numNoiseFloors, sbrChanR->deltaFlagNoise);
 
     unpackInverseFilterMode (bsi, sbrFreq->numNoiseFloorBands, sbrChanL->invfMode[1]);
-    CopyCouplingInverseFilterMode (sbrFreq->numNoiseFloorBands, sbrChanL->invfMode[1], sbrChanR->invfMode[1]);
+    copyCouplingInverseFilterMode (sbrFreq->numNoiseFloorBands, sbrChanL->invfMode[1], sbrChanR->invfMode[1]);
 
-    DecodeSBREnvelope (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
-    DecodeSBRNoise (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
-    DecodeSBREnvelope (bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
-    DecodeSBRNoise (bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
+    decodeSBREnvelope (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
+    decodeSBRNoise (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
+    decodeSBREnvelope (bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
+    decodeSBRNoise (bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
 
     // pass RIGHT sbrChan struct
-    UncoupleSBREnvelope (psi, sbrGridL, sbrFreq, sbrChanR);
-    UncoupleSBRNoise (psi, sbrGridL, sbrFreq, sbrChanR);
+    uncoupleSBREnvelope (psi, sbrGridL, sbrFreq, sbrChanR);
+    uncoupleSBRNoise (psi, sbrGridL, sbrFreq, sbrChanR);
     }
   else {
     unpackSBRGrid (bsi, sbrHdr, sbrGridL);
@@ -4243,10 +4243,10 @@ static void unpackSBRChannelPair (cBitStream* bsi, sInfoSbr* psi, int32_t channe
     unpackInverseFilterMode (bsi, sbrFreq->numNoiseFloorBands, sbrChanL->invfMode[1]);
     unpackInverseFilterMode (bsi, sbrFreq->numNoiseFloorBands, sbrChanR->invfMode[1]);
 
-    DecodeSBREnvelope (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
-    DecodeSBREnvelope (bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
-    DecodeSBRNoise (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
-    DecodeSBRNoise (bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
+    decodeSBREnvelope (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
+    decodeSBREnvelope (bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
+    decodeSBRNoise (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
+    decodeSBRNoise (bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
     }
 
   sbrChanL->addHarmonicFlag[1] = bsi->getBits (1);
@@ -4313,7 +4313,7 @@ static int32_t InvRNormalized (int32_t r) {
 
 #define LOG2_EXP_INV  0x58b90bfc  // 1/log2(e), Q31
 //{{{
-static int32_t RatioPowInv (int32_t a, int32_t b, int32_t c) {
+static int32_t ratioPowInv (int32_t a, int32_t b, int32_t c) {
 /**************************************************************************************
  * Description: use Taylor (MacLaurin) series expansion to calculate (a/b) ^ (1/c)
  * Inputs:      a = [1, 64], b = [1, 64], c = [1, 64], a >= b
@@ -4346,7 +4346,7 @@ static int32_t RatioPowInv (int32_t a, int32_t b, int32_t c) {
   }
 //}}}
 //{{{
-static int32_t SqrtFix (int32_t q, int32_t fBitsIn, int32_t *fBitsOut) {
+static int32_t sqrtFix (int32_t q, int32_t fBitsIn, int32_t *fBitsOut) {
 /**************************************************************************************
  * Description: use binary search to calculate sqrt(q)
  * Inputs:      q = Q30
@@ -4395,7 +4395,7 @@ static int32_t SqrtFix (int32_t q, int32_t fBitsIn, int32_t *fBitsOut) {
 //}}}
 
 //{{{
-static void BubbleSort (uint8_t *v, int32_t nItems) {
+static void bubbleSort (uint8_t *v, int32_t nItems) {
 /**************************************************************************************
  * Description: in-place sort of uint8_ts
  * Inputs:      buffer of elements to sort
@@ -4416,7 +4416,7 @@ static void BubbleSort (uint8_t *v, int32_t nItems) {
   }
 //}}}
 //{{{
-static uint8_t VMin (uint8_t *v, int32_t nItems) {
+static uint8_t vMin (uint8_t *v, int32_t nItems) {
 /**************************************************************************************
  * Description: find smallest element in a buffer of uint8_ts
  * Inputs:      buffer of elements to search
@@ -4433,7 +4433,7 @@ static uint8_t VMin (uint8_t *v, int32_t nItems) {
   }
 //}}}
 //{{{
-static uint8_t VMax (uint8_t *v, int32_t nItems) {
+static uint8_t vMax (uint8_t *v, int32_t nItems) {
 /**************************************************************************************
  * Description: find largest element in a buffer of uint8_ts
  * Inputs:      buffer of elements to search
@@ -4451,7 +4451,7 @@ static uint8_t VMax (uint8_t *v, int32_t nItems) {
 //}}}
 
 //{{{
-static int32_t CalcFreqMasterScaleZero (uint8_t* freqMaster, int32_t alterScale, int32_t k0, int32_t k2) {
+static int32_t calcFreqMasterScaleZero (uint8_t* freqMaster, int32_t alterScale, int32_t k0, int32_t k2) {
 /**************************************************************************************
  * Description: calculate master frequency table when freqScale == 0
  *                (4.6.18.3.2.1, figure 4.39)
@@ -4510,7 +4510,7 @@ static int32_t CalcFreqMasterScaleZero (uint8_t* freqMaster, int32_t alterScale,
   }
 //}}}
 //{{{
-static int32_t CalcFreqMaster (uint8_t* freqMaster, int32_t freqScale, int32_t alterScale,
+static int32_t calcFreqMaster (uint8_t* freqMaster, int32_t freqScale, int32_t alterScale,
                                int32_t k0, int32_t k2) {
 /**************************************************************************************
  * Description: calculate master frequency table when freqScale > 0
@@ -4550,7 +4550,7 @@ static int32_t CalcFreqMaster (uint8_t* freqMaster, int32_t freqScale, int32_t a
   // roundoff error can be a problem with fixpt (e.g. pCurr = 12.499999 instead of 12.50003)
   //   because successive multiplication always undershoots a little bit, but this
   //   doesn't occur in any of the ratios we encounter from the valid k0/k1 bands in the spec
-  t = RatioPowInv(k1, k0, numBands0);
+  t = ratioPowInv(k1, k0, numBands0);
   int32_t pCurr = k0 << 24;
   int32_t vLast = k0;
   uint8_t* vDelta = freqMaster + 1;  /* operate in-place */
@@ -4562,8 +4562,8 @@ static int32_t CalcFreqMaster (uint8_t* freqMaster, int32_t freqScale, int32_t a
     }
 
   // sort the deltas and find max delta for first region
-  BubbleSort (vDelta, numBands0);
-  uint8_t vDk0Max = VMax (vDelta, numBands0);
+  bubbleSort (vDelta, numBands0);
+  uint8_t vDk0Max = vMax (vDelta, numBands0);
 
   // fill master frequency table with bands from first region
   freqMaster[0] = k0;
@@ -4580,7 +4580,7 @@ static int32_t CalcFreqMaster (uint8_t* freqMaster, int32_t freqScale, int32_t a
   int32_t numBands1 = 2 * ((t + (1 << 24)) >> 25);    /* round to nearest int32_t */
 
   // see comments above for calculations in first region
-  t = RatioPowInv(k2, k1, numBands1);
+  t = ratioPowInv(k2, k1, numBands1);
   pCurr = k1 << 24;
   vLast = k1;
   vDelta = freqMaster + numBands0 + 1;  /* operate in-place */
@@ -4592,16 +4592,16 @@ static int32_t CalcFreqMaster (uint8_t* freqMaster, int32_t freqScale, int32_t a
     }
 
   // sort the deltas, adjusting first and last if the second region has smaller deltas than the first
-  uint8_t vDk1Min = VMin(vDelta, numBands1);
+  uint8_t vDk1Min = vMin(vDelta, numBands1);
   if (vDk1Min < vDk0Max) {
-    BubbleSort(vDelta, numBands1);
+    bubbleSort(vDelta, numBands1);
     int32_t change = vDk0Max - vDelta[0];
     if (change > ((vDelta[numBands1 - 1] - vDelta[0]) >> 1))
        change = ((vDelta[numBands1 - 1] - vDelta[0]) >> 1);
     vDelta[0] += change;
     vDelta[numBands1-1] -= change;
     }
-  BubbleSort (vDelta, numBands1);
+  bubbleSort (vDelta, numBands1);
 
   // fill master frequency table with bands from second region
   // Note: freqMaster[numBands0] = k1
@@ -4612,7 +4612,7 @@ static int32_t CalcFreqMaster (uint8_t* freqMaster, int32_t freqScale, int32_t a
   }
 //}}}
 //{{{
-static int32_t CalcFreqHigh (uint8_t* freqHigh, uint8_t* freqMaster, int32_t nMaster, int32_t crossOverBand) {
+static int32_t calcFreqHigh (uint8_t* freqHigh, uint8_t* freqMaster, int32_t nMaster, int32_t crossOverBand) {
 /**************************************************************************************
  * Description: calculate high resolution frequency table (4.6.18.3.2.2)
  * Inputs:      master frequency table
@@ -4630,7 +4630,7 @@ static int32_t CalcFreqHigh (uint8_t* freqHigh, uint8_t* freqMaster, int32_t nMa
   }
 //}}}
 //{{{
-static int32_t CalcFreqLow (uint8_t* freqLow, uint8_t* freqHigh, int32_t nHigh) {
+static int32_t calcFreqLow (uint8_t* freqLow, uint8_t* freqHigh, int32_t nHigh) {
 /**************************************************************************************
  * Description: calculate low resolution frequency table (4.6.18.3.2.2)
  * Inputs:      high resolution frequency table
@@ -4650,7 +4650,7 @@ static int32_t CalcFreqLow (uint8_t* freqLow, uint8_t* freqHigh, int32_t nHigh) 
   }
 //}}}
 //{{{
-static int32_t CalcFreqNoise (uint8_t* freqNoise, uint8_t* freqLow, int32_t nLow,
+static int32_t calcFreqNoise (uint8_t* freqNoise, uint8_t* freqLow, int32_t nLow,
                               int32_t kStart, int32_t k2, int32_t noiseBands) {
 /**************************************************************************************
  * Description: calculate noise floor frequency table (4.6.18.3.2.2)
@@ -4682,7 +4682,7 @@ static int32_t CalcFreqNoise (uint8_t* freqNoise, uint8_t* freqLow, int32_t nLow
   }
 //}}}
 //{{{
-static int32_t FindFreq (uint8_t* freq, int32_t nFreq, uint8_t val) {
+static int32_t findFreq (uint8_t* freq, int32_t nFreq, uint8_t val) {
 /**************************************************************************************
  * Description: search buffer of uint8_ts for a specific value
  * Inputs:      buffer of elements to search
@@ -4700,7 +4700,7 @@ static int32_t FindFreq (uint8_t* freq, int32_t nFreq, uint8_t val) {
   }
 //}}}
 //{{{
-static void RemoveFreq (uint8_t* freq, int32_t nFreq, int32_t removeIdx) {
+static void removeFreq (uint8_t* freq, int32_t nFreq, int32_t removeIdx) {
 /**************************************************************************************
  * Description: remove one element from a buffer of uint8_ts
  * Inputs:      buffer of elements
@@ -4717,7 +4717,7 @@ static void RemoveFreq (uint8_t* freq, int32_t nFreq, int32_t removeIdx) {
   }
 //}}}
 //{{{
-static int32_t BuildPatches (uint8_t* patchNumSubbands, uint8_t* patchStartSubband, uint8_t* freqMaster,
+static int32_t buildPatches (uint8_t* patchNumSubbands, uint8_t* patchStartSubband, uint8_t* freqMaster,
                              int32_t nMaster, int32_t k0, int32_t kStart, int32_t numQMFBands, int32_t sampRateIdx) {
 /**************************************************************************************
  * Description: build high frequency patches (4.6.18.6.3)
@@ -4784,7 +4784,7 @@ static int32_t BuildPatches (uint8_t* patchNumSubbands, uint8_t* patchStartSubba
   }
 //}}}
 //{{{
-static int32_t CalcFreqLimiter (uint8_t* freqLimiter, uint8_t* patchNumSubbands, uint8_t* freqLow,
+static int32_t calcFreqLimiter (uint8_t* freqLimiter, uint8_t* patchNumSubbands, uint8_t* freqLow,
                                 int32_t nLow, int32_t kStart, int32_t limiterBands, int32_t numPatches) {
 /**************************************************************************************
  * Description: calculate limiter frequency table (4.6.18.3.2.3)
@@ -4824,17 +4824,17 @@ static int32_t CalcFreqLimiter (uint8_t* freqLimiter, uint8_t* patchNumSubbands,
 
   k = 1;
   int32_t nLimiter = nLow + numPatches - 1;
-  BubbleSort (freqLimiter, nLimiter + 1);
+  bubbleSort (freqLimiter, nLimiter + 1);
   while (k <= nLimiter) {
     int32_t nOctaves = log2Tab[freqLimiter[k]] - log2Tab[freqLimiter[k-1]]; // Q28
     nOctaves = (nOctaves >> 9) * bands; // Q19, max bands = 300 < 2^9
     if (nOctaves < (49 << 19)) {        // compare with 0.49*100, in Q19
-      if (freqLimiter[k] == freqLimiter[k-1] || FindFreq (patchBorders, numPatches + 1, freqLimiter[k]) == 0) {
-        RemoveFreq(freqLimiter, nLimiter + 1, k);
+      if (freqLimiter[k] == freqLimiter[k-1] || findFreq (patchBorders, numPatches + 1, freqLimiter[k]) == 0) {
+        removeFreq(freqLimiter, nLimiter + 1, k);
         nLimiter--;
         }
-      else if (FindFreq (patchBorders, numPatches + 1, freqLimiter[k-1]) == 0) {
-        RemoveFreq (freqLimiter, nLimiter + 1, k-1);
+      else if (findFreq (patchBorders, numPatches + 1, freqLimiter[k-1]) == 0) {
+        removeFreq (freqLimiter, nLimiter + 1, k-1);
         nLimiter--;
         }
       else
@@ -4852,7 +4852,7 @@ static int32_t CalcFreqLimiter (uint8_t* freqLimiter, uint8_t* patchNumSubbands,
   }
 //}}}
 //{{{
-static int32_t CalcFreqTables (sSbrHeader* sbrHdr, sSbrFreq* sbrFreq, int32_t sampRateIdx) {
+static int32_t calcFreqTables (sSbrHeader* sbrHdr, sSbrFreq* sbrFreq, int32_t sampRateIdx) {
 /**************************************************************************************
  * Description: calulate master and derived frequency tables, and patches
  * Inputs:      initialized sSbrHeader for this SCE/CPE block
@@ -4876,25 +4876,25 @@ static int32_t CalcFreqTables (sSbrHeader* sbrHdr, sSbrFreq* sbrFreq, int32_t sa
 
   // calculate master frequency table */
   if (sbrHdr->freqScale == 0)
-    sbrFreq->nMaster = CalcFreqMasterScaleZero (sbrFreq->freqMaster, sbrHdr->alterScale, k0, k2);
+    sbrFreq->nMaster = calcFreqMasterScaleZero (sbrFreq->freqMaster, sbrHdr->alterScale, k0, k2);
   else
-    sbrFreq->nMaster = CalcFreqMaster (sbrFreq->freqMaster, sbrHdr->freqScale, sbrHdr->alterScale, k0, k2);
+    sbrFreq->nMaster = calcFreqMaster (sbrFreq->freqMaster, sbrHdr->freqScale, sbrHdr->alterScale, k0, k2);
 
   // calculate high frequency table and related parameters */
-  sbrFreq->nHigh = CalcFreqHigh(sbrFreq->freqHigh, sbrFreq->freqMaster, sbrFreq->nMaster, sbrHdr->crossOverBand);
+  sbrFreq->nHigh = calcFreqHigh(sbrFreq->freqHigh, sbrFreq->freqMaster, sbrFreq->nMaster, sbrHdr->crossOverBand);
   sbrFreq->numQMFBands = sbrFreq->freqHigh[sbrFreq->nHigh] - sbrFreq->freqHigh[0];
   sbrFreq->kStart = sbrFreq->freqHigh[0];
 
   // calculate low frequency table */
-  sbrFreq->nLow = CalcFreqLow (sbrFreq->freqLow, sbrFreq->freqHigh, sbrFreq->nHigh);
+  sbrFreq->nLow = calcFreqLow (sbrFreq->freqLow, sbrFreq->freqHigh, sbrFreq->nHigh);
 
   // calculate noise floor frequency table */
-  sbrFreq->numNoiseFloorBands = CalcFreqNoise (sbrFreq->freqNoise, sbrFreq->freqLow, sbrFreq->nLow, sbrFreq->kStart, k2, sbrHdr->noiseBands);
+  sbrFreq->numNoiseFloorBands = calcFreqNoise (sbrFreq->freqNoise, sbrFreq->freqLow, sbrFreq->nLow, sbrFreq->kStart, k2, sbrHdr->noiseBands);
 
   // calculate limiter table */
-  sbrFreq->numPatches = BuildPatches (sbrFreq->patchNumSubbands, sbrFreq->patchStartSubband, sbrFreq->freqMaster,
+  sbrFreq->numPatches = buildPatches (sbrFreq->patchNumSubbands, sbrFreq->patchStartSubband, sbrFreq->freqMaster,
     sbrFreq->nMaster, k0, sbrFreq->kStart, sbrFreq->numQMFBands, sampRateIdx);
-  sbrFreq->nLimiter = CalcFreqLimiter (sbrFreq->freqLimiter, sbrFreq->patchNumSubbands, sbrFreq->freqLow, sbrFreq->nLow, sbrFreq->kStart,
+  sbrFreq->nLimiter = calcFreqLimiter (sbrFreq->freqLimiter, sbrFreq->patchNumSubbands, sbrFreq->freqLow, sbrFreq->nLow, sbrFreq->kStart,
     sbrHdr->limiterBands, sbrFreq->numPatches);
 
   return 0;
@@ -4929,7 +4929,7 @@ bool cAacDecoder::decodeSbrBitstream (int32_t channelBase) {
   int32_t headerFlag = bsi.getBits (1);
   if (headerFlag) {
     // get sample rate index for output sample rate (2x base rate)
-    mInfoSbr->sampRateIdx = GetSampRateIdx (2 * mSampleRate);
+    mInfoSbr->sampRateIdx = getSampRateIdx (2 * mSampleRate);
     if (mInfoSbr->sampRateIdx < 0 || mInfoSbr->sampRateIdx >= NUM_SAMPLE_RATES)
       return true;
     else if (mInfoSbr->sampRateIdx >= NUM_SAMPLE_RATES_SBR)
@@ -4941,7 +4941,7 @@ bool cAacDecoder::decodeSbrBitstream (int32_t channelBase) {
 
     // first valid SBR header should always trigger CalcFreqTables(), since mInfoSbr->reset was set in InitSBR()
     if (mInfoSbr->sbrChan[channelBase].reset)
-      CalcFreqTables (&(mInfoSbr->sbrHdr[channelBase+0]), &(mInfoSbr->sbrFreq[channelBase]), mInfoSbr->sampRateIdx);
+      calcFreqTables (&(mInfoSbr->sbrHdr[channelBase+0]), &(mInfoSbr->sbrFreq[channelBase]), mInfoSbr->sampRateIdx);
 
     // copy and reset state to right channel for CPE
     if (mPrevBlockID == AAC_ID_CPE)
@@ -4970,7 +4970,7 @@ bool cAacDecoder::decodeSbrBitstream (int32_t channelBase) {
 #define SQRTHALF 0x5a82799a
 
 //{{{
-static int32_t DequantBlock (int32_t* inbuf, int32_t nSamps, int32_t scale) {
+static int32_t dequantBlock (int32_t* inbuf, int32_t nSamps, int32_t scale) {
 /**************************************************************************************
  * Description: dequantize one block of transform coefficients (in-place)
  * Inputs:      quantized transform coefficients, range = [0, 8191]
@@ -5149,7 +5149,7 @@ void cAacDecoder::dequantize (int32_t channel) {
         int32_t cb = (int)(sfbCodeBook[sfb]);
         int32_t width = sfbTab[sfb+1] - sfbTab[sfb];
         if (cb >= 0 && cb <= 11)
-          gbMask |= DequantBlock(coef, width, scaleFactors[sfb]);
+          gbMask |= dequantBlock(coef, width, scaleFactors[sfb]);
         else if (cb == 13)
           mInfoBase->pnsUsed[channel] = 1;
         else if (cb == 14 || cb == 15)
@@ -5172,7 +5172,7 @@ void cAacDecoder::dequantize (int32_t channel) {
 
 //{{{  applyStereoProcess utils
 //{{{
-static void StereoProcessGroup (int32_t* coefL, int32_t* coefR, const short* sfbTab,
+static void stereoProcessGroup (int32_t* coefL, int32_t* coefR, const short* sfbTab,
                                 int32_t msMaskPres, uint8_t* msMaskPtr, int32_t msMaskOffset, int32_t maxSFB,
                                 uint8_t* cbRight, short* sfRight, int32_t* gbCurrent) {
 /**************************************************************************************
@@ -5318,7 +5318,7 @@ void cAacDecoder::applyStereoProcess() {
   uint8_t* msMaskPtr = mInfoBase->msMaskBits;
   for (auto gp = 0; gp < icsInfo->numWinGroup; gp++) {
     for (auto win = 0; win < icsInfo->winGroupLen[gp]; win++) {
-      StereoProcessGroup (coefL, coefR, sfbTab, mInfoBase->msMaskPresent,
+      stereoProcessGroup (coefL, coefR, sfbTab, mInfoBase->msMaskPresent,
         msMaskPtr, msMaskOffset, icsInfo->maxSFB, mInfoBase->sfbCodeBook[1] + gp*icsInfo->maxSFB,
         mInfoBase->scaleFactors[1] + gp*icsInfo->maxSFB, mInfoBase->gbCurrent);
       coefL += nSamps;
@@ -5339,7 +5339,7 @@ void cAacDecoder::applyStereoProcess() {
 #define Q26_3     0x0c000000  // Q26:  3.0
 
 //{{{
-static int32_t InvRootR (int32_t r) {
+static int32_t invRootR (int32_t r) {
 /**************************************************************************************
  * Description: use Newton's method to solve for x = 1/sqrt(r)
  * Inputs:      r in Q30 format, range = [0.25, 1] (normalize inputs to this range)
@@ -5375,7 +5375,7 @@ static int32_t InvRootR (int32_t r) {
   }
 //}}}
 //{{{
-static uint32_t Get32BitVal (uint32_t* last) {
+static uint32_t get32BitVal (uint32_t* last) {
 /**************************************************************************************
  * Description: generate 32-bit unsigned random number
  * Inputs:      last number calculated (seed, first time through)
@@ -5395,7 +5395,7 @@ static uint32_t Get32BitVal (uint32_t* last) {
 //}}}
 
 //{{{
-static int32_t ScaleNoiseVector (int32_t* coef, int32_t nVals, int32_t sf) {
+static int32_t scaleNoiseVector (int32_t* coef, int32_t nVals, int32_t sf) {
 /**************************************************************************************
  * Description: apply scaling to vector of noise coefficients for one scalefactor band
  * Inputs:      unscaled coefficients
@@ -5432,7 +5432,7 @@ static int32_t ScaleNoiseVector (int32_t* coef, int32_t nVals, int32_t sf) {
   //  +4 to compensate for implicit 2^-8 factor in input
   int32_t z = countLeadingZeros (energy) - 2;          /* energy has at least 2 leading zeros (see acc loop) */
   z &= 0xfffffffe;            /* force even */
-  int32_t invSqrtEnergy = InvRootR(energy << z);  /* energy << z must be in range [0x10000000, 0x40000000] */
+  int32_t invSqrtEnergy = invRootR(energy << z);  /* energy << z must be in range [0x10000000, 0x40000000] */
   scalei -= (15 - z/2 + 4);       /* nint32_t = 1/sqrt(energy) in Q29 */
 
   /* normalize for final scaling */
@@ -5469,7 +5469,7 @@ static int32_t ScaleNoiseVector (int32_t* coef, int32_t nVals, int32_t sf) {
   }
 //}}}
 //{{{
-static void GenerateNoiseVector (int32_t* coef, int32_t* last, int32_t nVals) {
+static void generateNoiseVector (int32_t* coef, int32_t* last, int32_t nVals) {
 /**************************************************************************************
  * Description: create vector of noise coefficients for one scalefactor band
  * Inputs:      seed for number generator
@@ -5479,11 +5479,11 @@ static void GenerateNoiseVector (int32_t* coef, int32_t* last, int32_t nVals) {
  **************************************************************************************/
 
   for (auto i = 0; i < nVals; i++)
-     coef[i] = ((int32_t)Get32BitVal ((uint32_t *)last)) >> 16;
+     coef[i] = ((int32_t)get32BitVal ((uint32_t *)last)) >> 16;
   }
 //}}}
 //{{{
-static void CopyNoiseVector (int32_t* coefL, int32_t* coefR, int32_t nVals) {
+static void copyNoiseVector (int32_t* coefL, int32_t* coefR, int32_t nVals) {
 /**************************************************************************************
  * Description: copy vector of noise coefficients for one scalefactor band from L to R
  * Inputs:      buffer of left coefficients
@@ -5542,9 +5542,9 @@ void cAacDecoder::applyPns (int32_t channel) {
             // generate new vector, copy into ch 1 if it's possible that the channels will be correlated
             // if ch 1 has PNS enabled for this SFB but it's uncorrelated (i.e. ms_used == 0),
             // the copied values will be overwritten when we process ch 1
-            GenerateNoiseVector (coef, &mInfoBase->pnsLastVal, width);
+            generateNoiseVector (coef, &mInfoBase->pnsLastVal, width);
             if (checkCorr && mInfoBase->sfbCodeBook[1][gp*icsInfo->maxSFB + sfb] == 13)
-              CopyNoiseVector (coef, mInfoBase->coef[1] + (coef - mInfoBase->coef[0]), width);
+              copyNoiseVector (coef, mInfoBase->coef[1] + (coef - mInfoBase->coef[0]), width);
             }
           else {
             // generate new vector if no correlation between channels
@@ -5554,9 +5554,9 @@ void cAacDecoder::applyPns (int32_t channel) {
                 genNew = 0;
               }
             if (genNew)
-              GenerateNoiseVector (coef, &mInfoBase->pnsLastVal, width);
+              generateNoiseVector (coef, &mInfoBase->pnsLastVal, width);
             }
-          gbMask |= ScaleNoiseVector (coef, width, mInfoBase->scaleFactors[channel][gp*icsInfo->maxSFB + sfb]);
+          gbMask |= scaleNoiseVector (coef, width, mInfoBase->scaleFactors[channel][gp*icsInfo->maxSFB + sfb]);
           }
         coef += width;
 
@@ -5583,7 +5583,7 @@ void cAacDecoder::applyPns (int32_t channel) {
 //{{{  applyTns utils
 #define FBITS_LPC_COEFS 20
 //{{{
-static void DecodeLPCCoefs (int32_t order, int32_t res, int8_t* filtCoef, int32_t* a, int32_t* b) {
+static void decodeLPCCoefs (int32_t order, int32_t res, int8_t* filtCoef, int32_t* a, int32_t* b) {
 /**************************************************************************************
  * Description: decode LPC coefficients for TNS
  * Inputs:      order of TNS filter
@@ -5620,7 +5620,7 @@ static void DecodeLPCCoefs (int32_t order, int32_t res, int8_t* filtCoef, int32_
   }
 //}}}
 //{{{
-static int32_t FilterRegion (int32_t size, int32_t dir, int32_t order, int32_t* audioCoef,
+static int32_t filterRegion (int32_t size, int32_t dir, int32_t order, int32_t* audioCoef,
                              int32_t* a, int32_t* hist) {
 /**************************************************************************************
  * Description: apply LPC filter to one region of coefficients
@@ -5745,8 +5745,8 @@ void cAacDecoder::applyTns (int32_t channel) {
           if (dir)
             start = end - 1;
 
-          DecodeLPCCoefs (order, filtRes[win], filtCoef, mInfoBase->tnsLPCBuf, mInfoBase->tnsWorkBuf);
-          gbMask |= FilterRegion (size, dir, order, audioCoef + start, mInfoBase->tnsLPCBuf, mInfoBase->tnsWorkBuf);
+          decodeLPCCoefs (order, filtRes[win], filtCoef, mInfoBase->tnsLPCBuf, mInfoBase->tnsWorkBuf);
+          gbMask |= filterRegion (size, dir, order, audioCoef + start, mInfoBase->tnsLPCBuf, mInfoBase->tnsWorkBuf);
           }
         filtCoef += order;
         }
@@ -5764,7 +5764,7 @@ void cAacDecoder::applyTns (int32_t channel) {
 //{{{  imdct utils
 #define SQRT1_2 0x5a82799a  /* sqrt(1/2) in Q31 */
 //{{{
- static void BitReverse (int32_t* inout, int32_t tabidx) {
+ static void bitReverse (int32_t* inout, int32_t tabidx) {
 /**************************************************************************************
  * Description: Ken's fast in-place bit reverse, using super-small table
  * Inputs:      buffer of samples
@@ -5799,7 +5799,7 @@ void cAacDecoder::applyTns (int32_t channel) {
 }
 //}}}
 //{{{
- static void R4FirstPass (int32_t* x, int32_t bg) {
+ static void r4FirstPass (int32_t* x, int32_t bg) {
 /**************************************************************************************
  * Description: radix-4 trivial pass for decimation-in-time FFT
  * Inputs:      buffer of (bit-reversed) samples
@@ -5834,7 +5834,7 @@ void cAacDecoder::applyTns (int32_t channel) {
   }
 //}}}
 //{{{
- static void R8FirstPass (int32_t* x, int32_t bg) {
+ static void r8FirstPass (int32_t* x, int32_t bg) {
 /**************************************************************************************
  * Description: radix-8 trivial pass for decimation-in-time FFT
  * Inputs:      buffer of (bit-reversed) samples
@@ -5921,7 +5921,7 @@ void cAacDecoder::applyTns (int32_t channel) {
   }
 //}}}
 //{{{
- static void R4Core (int32_t* x, int32_t bg, int32_t gp, int32_t* wtab) {
+ static void r4Core (int32_t* x, int32_t bg, int32_t gp, int32_t* wtab) {
 /**************************************************************************************
  * Description: radix-4 pass for decimation-in-time FFT
  * Inputs:      buffer of samples
@@ -6018,7 +6018,7 @@ void cAacDecoder::applyTns (int32_t channel) {
 //}}}
 
 //{{{
-static void R4FFT (int32_t tabidx, int32_t* x) {
+static void r4FFT (int32_t tabidx, int32_t* x) {
 /**************************************************************************************
  * Description: Ken's very fast in-place radix-4 decimation-in-time FFT
  * Inputs:      table index (for transform size)
@@ -6031,24 +6031,24 @@ static void R4FFT (int32_t tabidx, int32_t* x) {
  **************************************************************************************/
 
   // decimation in time
-  BitReverse (x, tabidx);
+  bitReverse (x, tabidx);
 
   int32_t nfft = nfftTab[tabidx];
   int32_t order = nfftlog2Tab[tabidx];
   if (order & 0x1) {
     // long block: order = 9, nfft = 512
-    R8FirstPass (x, nfft >> 3);                       // gain 1 int32_t bit,  lose 2 GB
-    R4Core (x, nfft >> 5, 8, (int32_t *)twidTabOdd);  // gain 6 int32_t bits, lose 2 GB
+    r8FirstPass (x, nfft >> 3);                       // gain 1 int32_t bit,  lose 2 GB
+    r4Core (x, nfft >> 5, 8, (int32_t *)twidTabOdd);  // gain 6 int32_t bits, lose 2 GB
     }
   else {
     // short block: order = 6, nfft = 64 */
-    R4FirstPass (x, nfft >> 2);                       // gain 0 int32_t bits, lose 2 GB
-    R4Core (x, nfft >> 4, 4, (int32_t *)twidTabEven); // gain 4 int32_t bits, lose 1 GB
+    r4FirstPass (x, nfft >> 2);                       // gain 0 int32_t bits, lose 2 GB
+    r4Core (x, nfft >> 4, 4, (int32_t *)twidTabEven); // gain 4 int32_t bits, lose 1 GB
     }
   }
 //}}}
 //{{{
-static void PreMultiply (int32_t tabidx, int32_t* zbuf1) {
+static void preMultiply (int32_t tabidx, int32_t* zbuf1) {
 /**************************************************************************************
  * Description: pre-twiddle stage of DCT4
  * Inputs:      table index (for transform size)
@@ -6097,7 +6097,7 @@ static void PreMultiply (int32_t tabidx, int32_t* zbuf1) {
   }
 //}}}
 //{{{
-static void PostMultiply (int32_t tabidx, int32_t* fft1) {
+static void postMultiply (int32_t tabidx, int32_t* fft1) {
 /**************************************************************************************
  * Description: post-twiddle stage of DCT4
  * Inputs:      table index (for transform size)
@@ -6145,7 +6145,7 @@ static void PostMultiply (int32_t tabidx, int32_t* fft1) {
   }
 //}}}
 //{{{
- static void PreMultiplyRescale (int32_t tabidx, int32_t* zbuf1, int32_t es) {
+ static void preMultiplyRescale (int32_t tabidx, int32_t* zbuf1, int32_t es) {
 /**************************************************************************************
  * Description: pre-twiddle stage of DCT4, with rescaling for extra guard bits
  * Inputs:      table index (for transform size)
@@ -6190,7 +6190,7 @@ static void PostMultiply (int32_t tabidx, int32_t* fft1) {
   }
 //}}}
 //{{{
- static void PostMultiplyRescale (int32_t tabidx, int32_t* fft1, int32_t es) {
+ static void postMultiplyRescale (int32_t tabidx, int32_t* fft1, int32_t es) {
 /**************************************************************************************
  * Description: post-twiddle stage of DCT4, with rescaling for extra guard bits
  * Inputs:      table index (for transform size)
@@ -6245,7 +6245,7 @@ static void PostMultiply (int32_t tabidx, int32_t* fft1) {
   }
 //}}}
 //{{{
-static void DCT4 (int32_t tabidx, int32_t* coef, int32_t gb) {
+static void dct4 (int32_t tabidx, int32_t* coef, int32_t gb) {
 /**************************************************************************************
  * Description: type-IV DCT
  * Inputs:      table index (for transform size)
@@ -6265,20 +6265,20 @@ static void DCT4 (int32_t tabidx, int32_t* coef, int32_t gb) {
   // fast in-place DCT-IV - adds guard bits if necessary
   if (gb < GBITS_IN_DCT4) {
     int32_t es = GBITS_IN_DCT4 - gb;
-    PreMultiplyRescale (tabidx, coef, es);
-    R4FFT (tabidx, coef);
-    PostMultiplyRescale (tabidx, coef, es);
+    preMultiplyRescale (tabidx, coef, es);
+    r4FFT (tabidx, coef);
+    postMultiplyRescale (tabidx, coef, es);
    }
  else {
-    PreMultiply (tabidx, coef);
-    R4FFT (tabidx, coef);
-    PostMultiply (tabidx, coef);
+    preMultiply (tabidx, coef);
+    r4FFT (tabidx, coef);
+    postMultiply (tabidx, coef);
     }
   }
 //}}}
 
 //{{{
-static void DecWindowOverlap (int32_t* buf0, int32_t* over0, int32_t* out0,
+static void decWindowOverlap (int32_t* buf0, int32_t* over0, int32_t* out0,
                               int32_t winTypeCurr, int32_t winTypePrev) {
 /**************************************************************************************
  * Description: apply synthesis window, do overlap-add without clipping,
@@ -6346,7 +6346,7 @@ static void DecWindowOverlap (int32_t* buf0, int32_t* over0, int32_t* out0,
   }
 //}}}
 //{{{
-static void DecWindowOverlapLongStart (int32_t* buf0, int32_t* over0, int32_t* out0,
+static void decWindowOverlapLongStart (int32_t* buf0, int32_t* over0, int32_t* out0,
                                        int32_t winTypeCurr, int32_t winTypePrev) {
 /**************************************************************************************
  * Description: apply synthesis window, do overlap-add, without clipping for winSequence LONG-START
@@ -6404,7 +6404,7 @@ static void DecWindowOverlapLongStart (int32_t* buf0, int32_t* over0, int32_t* o
   }
 //}}}
 //{{{
-static void DecWindowOverlapLongStop (int32_t* buf0, int32_t* over0, int32_t* out0,
+static void decWindowOverlapLongStop (int32_t* buf0, int32_t* over0, int32_t* out0,
                                       int32_t winTypeCurr, int32_t winTypePrev) {
 /**************************************************************************************
  * Description: apply synthesis window, do overlap-add, without clipping for winSequence LONG-STOP
@@ -6463,7 +6463,7 @@ static void DecWindowOverlapLongStop (int32_t* buf0, int32_t* over0, int32_t* ou
   }
 //}}}
 //{{{
-static void DecWindowOverlapShort (int32_t* buf0, int32_t* over0, int32_t* out0,
+static void decWindowOverlapShort (int32_t* buf0, int32_t* over0, int32_t* out0,
                                    int32_t winTypeCurr, int32_t winTypePrev) {
 /**************************************************************************************
  * Description: apply synthesis window, do overlap-add, without clipping
@@ -6641,23 +6641,23 @@ void cAacDecoder::imdct (int32_t channel, int32_t chOut, float* outbuf) {
   // optimized type-IV DCT (operates inplace)
   if (icsInfo->winSequence == 2) // 8 short blocks
     for (auto i = 0; i < 8; i++)
-      DCT4 (0, mInfoBase->coef[channel] + i*128, mInfoBase->gbCurrent[channel]);
+      dct4 (0, mInfoBase->coef[channel] + i*128, mInfoBase->gbCurrent[channel]);
   else // 1 long block
-    DCT4 (1, mInfoBase->coef[channel], mInfoBase->gbCurrent[channel]);
+    dct4 (1, mInfoBase->coef[channel], mInfoBase->gbCurrent[channel]);
 
   // window, overlap-add, don't clip to short (send to SBR decoder)
   // store the decoded 32-bit samples in top half (second AAC_MAX_NSAMPS samples) of coef buffer
   if (icsInfo->winSequence == 0)
-    DecWindowOverlap (mInfoBase->coef[channel], mInfoBase->overlap[chOut], mInfoBase->sbrWorkBuf[channel],
+    decWindowOverlap (mInfoBase->coef[channel], mInfoBase->overlap[chOut], mInfoBase->sbrWorkBuf[channel],
                       icsInfo->winShape, mInfoBase->prevWinShape[chOut]);
   else if (icsInfo->winSequence == 1)
-    DecWindowOverlapLongStart (mInfoBase->coef[channel], mInfoBase->overlap[chOut], mInfoBase->sbrWorkBuf[channel],
+    decWindowOverlapLongStart (mInfoBase->coef[channel], mInfoBase->overlap[chOut], mInfoBase->sbrWorkBuf[channel],
                                icsInfo->winShape, mInfoBase->prevWinShape[chOut]);
   else if (icsInfo->winSequence == 2)
-    DecWindowOverlapShort (mInfoBase->coef[channel], mInfoBase->overlap[chOut], mInfoBase->sbrWorkBuf[channel],
+    decWindowOverlapShort (mInfoBase->coef[channel], mInfoBase->overlap[chOut], mInfoBase->sbrWorkBuf[channel],
                            icsInfo->winShape, mInfoBase->prevWinShape[chOut]);
   else if (icsInfo->winSequence == 3)
-    DecWindowOverlapLongStop (mInfoBase->coef[channel], mInfoBase->overlap[chOut], mInfoBase->sbrWorkBuf[channel],
+    decWindowOverlapLongStop (mInfoBase->coef[channel], mInfoBase->overlap[chOut], mInfoBase->sbrWorkBuf[channel],
                               icsInfo->winShape, mInfoBase->prevWinShape[chOut]);
 
   mRawSampleBuf[channel] = mInfoBase->sbrWorkBuf[channel];
@@ -6674,7 +6674,7 @@ void cAacDecoder::imdct (int32_t channel, int32_t chOut, float* outbuf) {
 
 //{{{  applySbr utils
 //{{{
-static void PreMultiply64 (int32_t* zbuf1) {
+static void preMultiply64 (int32_t* zbuf1) {
 /**************************************************************************************
  * Description: pre-twiddle stage of 64-point32_t DCT-IV
  * Inputs:      buffer of 64 samples
@@ -6722,7 +6722,7 @@ static void PreMultiply64 (int32_t* zbuf1) {
   }
 //}}}
 //{{{
-static void PostMultiply64 (int32_t* fft1, int32_t nSampsOut) {
+static void postMultiply64 (int32_t* fft1, int32_t nSampsOut) {
 /**************************************************************************************
  * Description: post-twiddle stage of 64-point32_t type-IV DCT
  * Inputs:      buffer of 64 samples
@@ -6769,7 +6769,7 @@ static void PostMultiply64 (int32_t* fft1, int32_t nSampsOut) {
 
 #define SQRT1_2 0x5a82799a
 //{{{
-static void BitReverse32 (int32_t *inout) {
+static void bitReverse32 (int32_t *inout) {
 /**************************************************************************************
  * Description: Ken's fast in-place bit reverse
  * Inputs:      buffer of 32 complex samples
@@ -6800,7 +6800,7 @@ static void BitReverse32 (int32_t *inout) {
   }
 //}}}
 //{{{
-static void R8FirstPass32 (int32_t *r0) {
+static void r8FirstPass32 (int32_t *r0) {
 /**************************************************************************************
  * Description: radix-8 trivial pass for decimation-in-time FFT (log2(N) = 5)
  * Inputs:      buffer of (bit-reversed) samples
@@ -6940,7 +6940,7 @@ static void R8FirstPass32 (int32_t *r0) {
   }
 //}}}
 //{{{
-static void R4Core32 (int32_t *r0) {
+static void r4Core32 (int32_t *r0) {
 /**************************************************************************************
  * Description: radix-4 pass for 32-point32_t decimation-in-time FFT
  * Inputs:      buffer of samples
@@ -7024,7 +7024,7 @@ static void R4Core32 (int32_t *r0) {
   }
 //}}}
 //{{{
-static void FFT32C (int32_t *x) {
+static void fft32C (int32_t *x) {
 /**************************************************************************************
  * Description: Ken's very fast in-place radix-4 decimation-in-time FFT
  * Inputs:      buffer of 32 complex samples (before bit-reversal)
@@ -7036,16 +7036,16 @@ static void FFT32C (int32_t *x) {
  **************************************************************************************/
 
   // decimation in time
-  BitReverse32 (x);
+  bitReverse32 (x);
 
   // 32-point32_t complex FFT
-  R8FirstPass32 (x); // gain 1 int32_t bit,  lose 2 GB (making assumptions about input) */
-  R4Core32 (x);      // gain 2 int32_t bits, lose 0 GB (making assumptions about input) */
+  r8FirstPass32 (x); // gain 1 int32_t bit,  lose 2 GB (making assumptions about input) */
+  r4Core32 (x);      // gain 2 int32_t bits, lose 0 GB (making assumptions about input) */
   }
 //}}}
 
 //{{{
-static void QMFAnalysisConv (int32_t* cTab, int32_t *delay, int32_t dIdx, int32_t* uBuf) {
+static void qmfAnalysisConv (int32_t* cTab, int32_t *delay, int32_t dIdx, int32_t* uBuf) {
 /**************************************************************************************
  * Description: convolution kernel for analysis QMF
  * Inputs:      pointer to coefficient table, reordered for sequential access
@@ -7104,7 +7104,7 @@ static void QMFAnalysisConv (int32_t* cTab, int32_t *delay, int32_t dIdx, int32_
   }
 //}}}
 //{{{
-static int32_t QMFAnalysis (int32_t* inbuf, int32_t* delay, int32_t* XBuf,
+static int32_t qmfAnalysis (int32_t* inbuf, int32_t* delay, int32_t* XBuf,
                             int32_t fBitsIn, int32_t* delayIdx, int32_t qmfaBands) {
 /**************************************************************************************
  * Description: 32-subband analysis QMF (4.6.18.4.1)
@@ -7147,7 +7147,7 @@ static int32_t QMFAnalysis (int32_t* inbuf, int32_t* delay, int32_t* XBuf,
       }
     }
 
-  QMFAnalysisConv ((int*)cTabA, delay, *delayIdx, uBuf);
+  qmfAnalysisConv ((int*)cTabA, delay, *delayIdx, uBuf);
 
   // uBuf has at least 2 GB right now (1 from clipping to Q(FBITS_IN_QMFA), one from
   //   the scaling by cTab (MULSHIFT32(*delayPtr--, *cPtr++), with net gain of < 1.0)
@@ -7162,9 +7162,9 @@ static int32_t QMFAnalysis (int32_t* inbuf, int32_t* delay, int32_t* XBuf,
   tBuf[2*31 + 0] = -uBuf[33];
 
   // fast in-place DCT-IV - only need 2*qmfaBands output samples */
-  PreMultiply64 (tBuf);  /* 2 GB in, 3 GB out */
-  FFT32C (tBuf);     /* 3 GB in, 1 GB out */
-  PostMultiply64 (tBuf, qmfaBands*2);  /* 1 GB in, 2 GB out */
+  preMultiply64 (tBuf);  /* 2 GB in, 3 GB out */
+  fft32C (tBuf);     /* 3 GB in, 1 GB out */
+  postMultiply64 (tBuf, qmfaBands*2);  /* 1 GB in, 2 GB out */
 
   // TODO - roll into PostMultiply (if enough registers) */
   int32_t gbMask = 0;
@@ -7189,7 +7189,7 @@ static int32_t QMFAnalysis (int32_t* inbuf, int32_t* delay, int32_t* XBuf,
   }
 //}}}
 //{{{
-static void QMFSynthesisConv (int32_t* cPtr, int32_t* delay, int32_t dIdx, float* outbuf, int32_t numChans) {
+static void qmfSynthesisConv (int32_t* cPtr, int32_t* delay, int32_t dIdx, float* outbuf, int32_t numChans) {
 /**************************************************************************************
  * Description: final convolution kernel for synthesis QMF
  * Inputs:      pointer to coefficient table, reordered for sequential access
@@ -7251,7 +7251,7 @@ static void QMFSynthesisConv (int32_t* cPtr, int32_t* delay, int32_t dIdx, float
   }
 //}}}
 //{{{
-static void QMFSynthesis (int32_t* inbuf, int32_t* delay, int32_t* delayIdx,
+static void qmfSynthesis (int32_t* inbuf, int32_t* delay, int32_t* delayIdx,
                           int32_t qmfsBands, float* outbuf, int32_t numChans) {
 /**************************************************************************************
  * Description: 64-subband synthesis QMF (4.6.18.4.2)
@@ -7306,16 +7306,16 @@ static void QMFSynthesis (int32_t* inbuf, int32_t* delay, int32_t* delayIdx,
   tBufHi = delay + dIdx*128 + 64;
 
   // 2 GB in, 3 GB out */
-  PreMultiply64 (tBufLo);
-  PreMultiply64 (tBufHi);
+  preMultiply64 (tBufLo);
+  preMultiply64 (tBufHi);
 
   // 3 GB in, 1 GB out */
-  FFT32C (tBufLo);
-  FFT32C (tBufHi);
+  fft32C (tBufLo);
+  fft32C (tBufHi);
 
   // 1 GB in, 2 GB out */
-  PostMultiply64 (tBufLo, 64);
-  PostMultiply64 (tBufHi, 64);
+  postMultiply64 (tBufLo, 64);
+  postMultiply64 (tBufHi, 64);
 
   // could fuse with PostMultiply64 to avoid separate pass */
   int32_t dOff0 = dIdx*128;
@@ -7332,14 +7332,14 @@ static void QMFSynthesis (int32_t* inbuf, int32_t* delay, int32_t* delayIdx,
     delay[dOff1++] = (b1 + a1);
     }
 
-  QMFSynthesisConv ((int*)cTabS, delay, dIdx, outbuf, numChans);
+  qmfSynthesisConv ((int*)cTabS, delay, dIdx, outbuf, numChans);
 
   *delayIdx = (*delayIdx == NUM_QMF_DELAY_BUFS - 1 ? 0 : *delayIdx + 1);
   }
 //}}}
 
 //{{{
-static void EstimateEnvelope (sInfoSbr* psi, sSbrHeader* sbrHdr,
+static void estimateEnvelope (sInfoSbr* psi, sSbrHeader* sbrHdr,
                               sSbrGrid* sbrGrid, sSbrFreq* sbrFreq, int32_t env) {
 /**************************************************************************************
  * Description: estimate power of generated HF QMF bands in one time-domain envelope
@@ -7453,7 +7453,7 @@ static void EstimateEnvelope (sInfoSbr* psi, sSbrHeader* sbrHdr,
   }
 //}}}
 //{{{
-static int32_t GetSMapped (sSbrGrid*sbrGrid, sSbrFreq* sbrFreq, sSbrChan* sbrChan,
+static int32_t getSMapped (sSbrGrid*sbrGrid, sSbrFreq* sbrFreq, sSbrChan* sbrChan,
                            int32_t env, int32_t band, int32_t la) {
 /**************************************************************************************
  * Description: calculate SMapped (4.6.18.7.2)
@@ -7497,7 +7497,7 @@ static int32_t GetSMapped (sSbrGrid*sbrGrid, sSbrFreq* sbrFreq, sSbrChan* sbrCha
 #define ACC_SCALE 6
 #define GBOOST_MAX  0x2830afd3  /* Q28, 1.584893192 squared */
 //{{{
-static void CalcMaxGain (sInfoSbr* psi, sSbrHeader* sbrHdr, sSbrGrid* sbrGrid, sSbrFreq* sbrFreq,
+static void calcMaxGain (sInfoSbr* psi, sSbrHeader* sbrHdr, sSbrGrid* sbrGrid, sSbrFreq* sbrFreq,
                          int32_t ch, int32_t env, int32_t lim, int32_t fbitsDQ) {
 /**************************************************************************************
  * Description: calculate max gain in one limiter band (4.6.18.7.5)
@@ -7566,7 +7566,7 @@ static void CalcMaxGain (sInfoSbr* psi, sSbrHeader* sbrHdr, sSbrGrid* sbrGrid, s
   }
 //}}}
 //{{{
-static void CalcNoiseDivFactors (int32_t q, int32_t* qp1Inv, int32_t* qqp1Inv) {
+static void calcNoiseDivFactors (int32_t q, int32_t* qp1Inv, int32_t* qqp1Inv) {
 /**************************************************************************************
  * Description: calculate 1/(1+Q) and Q/(1+Q) (4.6.18.7.4; 4.6.18.7.5)
  * Inputs:      dequantized noise floor scalefactor
@@ -7588,7 +7588,7 @@ static void CalcNoiseDivFactors (int32_t q, int32_t* qp1Inv, int32_t* qqp1Inv) {
   }
 //}}}
 //{{{
-static void CalcComponentGains (sInfoSbr* psi, sSbrGrid* sbrGrid, sSbrFreq* sbrFreq, sSbrChan* sbrChan,
+static void calcComponentGains (sInfoSbr* psi, sSbrGrid* sbrGrid, sSbrFreq* sbrFreq, sSbrChan* sbrChan,
                                 int32_t ch, int32_t env, int32_t lim, int32_t fbitsDQ) {
 /**************************************************************************************
  * Description: calculate gain of envelope, sinusoids, and noise in one limiter band (4.6.18.7.5)
@@ -7630,13 +7630,13 @@ static void CalcComponentGains (sInfoSbr* psi, sSbrGrid* sbrGrid, sSbrFreq* sbrF
     if (m == sbrFreq->freqNoise[psi->noiseFloorBand + 1] - sbrFreq->kStart) {
       // map current QMF band to appropriate noise floor band (NOTE: freqLimiter[0] == freqLow[0] = freqHigh[0])
       psi->noiseFloorBand++;
-      CalcNoiseDivFactors(psi->noiseDataDequant[ch][noiseFloor][psi->noiseFloorBand], &(psi->qp1Inv), &(psi->qqp1Inv));
+      calcNoiseDivFactors(psi->noiseDataDequant[ch][noiseFloor][psi->noiseFloorBand], &(psi->qp1Inv), &(psi->qqp1Inv));
       }
     if (m == sbrFreq->freqHigh[psi->highBand + 1] - sbrFreq->kStart)
       psi->highBand++;
     if (m == freqBandTab[psi->sBand + 1] - sbrFreq->kStart) {
       psi->sBand++;
-      psi->sMapped = GetSMapped(sbrGrid, sbrFreq, sbrChan, env, psi->sBand, psi->la);
+      psi->sMapped = getSMapped (sbrGrid, sbrFreq, sbrChan, env, psi->sBand, psi->la);
       }
 
     // get sIndexMapped for this QMF subband */
@@ -7746,7 +7746,7 @@ static void CalcComponentGains (sInfoSbr* psi, sSbrGrid* sbrGrid, sSbrFreq* sbrF
 //}}}
 
 //{{{
-static void ApplyBoost (sInfoSbr* psi, sSbrFreq* sbrFreq, int32_t lim, int32_t fbitsDQ) {
+static void applyBoost (sInfoSbr* psi, sSbrFreq* sbrFreq, int32_t lim, int32_t fbitsDQ) {
 /**************************************************************************************
  * Description: calculate and apply boost factor for envelope, sinusoids, and noise
  *                in this limiter band (4.6.18.7.5)
@@ -7801,7 +7801,7 @@ static void ApplyBoost (sInfoSbr* psi, sSbrFreq* sbrFreq, int32_t lim, int32_t f
     //   unless limiterGains == 3 (limiter off) and eCurr ~= 0 (i.e. huge gain, but only
     //   because the envelope has 0 power anyway)
     int32_t q = MULSHIFT32 (psi->gLimBuf[m], gBoost) << 2; // Q(gLimFbits) * Q(28) --> Q(gLimFbits[m]-2) */
-    r = SqrtFix (q, psi->gLimFbits[m] - 2, &z);
+    r = sqrtFix (q, psi->gLimFbits[m] - 2, &z);
     z -= FBITS_GLIM_BOOST;
     if (z >= 0)
       psi->gLimBoost[m] = r >> min (z, 31);
@@ -7812,7 +7812,7 @@ static void ApplyBoost (sInfoSbr* psi, sSbrFreq* sbrFreq, int32_t lim, int32_t f
       }
 
     q = MULSHIFT32 (psi->qmLimBuf[m], gBoost) << 2;  // Q(fbitsDQ) * Q(28) --> Q(fbitsDQ-2) */
-    r = SqrtFix (q, fbitsDQ - 2, &z);
+    r = sqrtFix (q, fbitsDQ - 2, &z);
     z -= FBITS_QLIM_BOOST;    // << by 14, since integer sqrt of x < 2^16, and we want to leave 1 GB */
     if (z >= 0)
       psi->qmLimBoost[m] = r >> min (31, z);
@@ -7823,7 +7823,7 @@ static void ApplyBoost (sInfoSbr* psi, sSbrFreq* sbrFreq, int32_t lim, int32_t f
       }
 
     q = MULSHIFT32 (psi->smBuf[m], gBoost) << 2;   // Q(fbitsDQ) * Q(28) --> Q(fbitsDQ-2) */
-    r = SqrtFix (q, fbitsDQ - 2, &z);
+    r = sqrtFix (q, fbitsDQ - 2, &z);
     z -= FBITS_OUT_QMFA;    // justify for adding to signal (xBuf) later */
     if (z >= 0)
       psi->smBoost[m] = r >> min (31, z);
@@ -7836,7 +7836,7 @@ static void ApplyBoost (sInfoSbr* psi, sSbrFreq* sbrFreq, int32_t lim, int32_t f
   }
 //}}}
 //{{{
-static void CalcGain (sInfoSbr* psi, sSbrHeader* sbrHdr,
+static void calcGain (sInfoSbr* psi, sSbrHeader* sbrHdr,
                       sSbrGrid* sbrGrid, sSbrFreq* sbrFreq, sSbrChan* sbrChan, int32_t ch, int32_t env) {
 /**************************************************************************************
  * Description: calculate and apply proper gain to HF components in one envelope
@@ -7860,14 +7860,14 @@ static void CalcGain (sInfoSbr* psi, sSbrHeader* sbrHdr,
   int32_t fbitsDQ = (FBITS_OUT_DQ_ENV - psi->envDataDequantScale[ch][env]); // Q(29 - optional scalefactor)
   for (auto lim = 0; lim < sbrFreq->nLimiter; lim++) {
     // the QMF bands are divided into lim regions (consecutive, non-overlapping)
-    CalcMaxGain (psi, sbrHdr, sbrGrid, sbrFreq, ch, env, lim, fbitsDQ);
-    CalcComponentGains (psi, sbrGrid, sbrFreq, sbrChan, ch, env, lim, fbitsDQ);
-    ApplyBoost (psi, sbrFreq, lim, fbitsDQ);
+    calcMaxGain (psi, sbrHdr, sbrGrid, sbrFreq, ch, env, lim, fbitsDQ);
+    calcComponentGains (psi, sbrGrid, sbrFreq, sbrChan, ch, env, lim, fbitsDQ);
+    applyBoost (psi, sbrFreq, lim, fbitsDQ);
     }
   }
 //}}}
 //{{{
-static void MapHF (sInfoSbr* psi, sSbrHeader* sbrHdr,
+static void mapHF (sInfoSbr* psi, sSbrHeader* sbrHdr,
                    sSbrGrid* sbrGrid, sSbrFreq* sbrFreq, sSbrChan* sbrChan, int32_t env, int32_t hfReset) {
 /**************************************************************************************
  * Description: map HF components to proper QMF bands, with optional gain smoothing
@@ -8037,7 +8037,7 @@ static void MapHF (sInfoSbr* psi, sSbrHeader* sbrHdr,
   }
 //}}}
 //{{{
-static void AdjustHighFreq (sInfoSbr* psi, sSbrHeader* sbrHdr,
+static void adjustHighFreq (sInfoSbr* psi, sSbrHeader* sbrHdr,
                             sSbrGrid* sbrGrid, sSbrFreq* sbrFreq, sSbrChan* sbrChan, int32_t ch) {
 /**************************************************************************************
  * Description: adjust high frequencies and add noise and sinusoids (4.6.18.7)
@@ -8068,9 +8068,9 @@ static void AdjustHighFreq (sInfoSbr* psi, sSbrHeader* sbrHdr,
   // for each envelope, estimate gain and adjust SBR QMF bands
   hfReset = sbrChan->reset;
   for (env = 0; env < sbrGrid->numEnv; env++) {
-    EstimateEnvelope(psi, sbrHdr, sbrGrid, sbrFreq, env);
-    CalcGain(psi, sbrHdr, sbrGrid, sbrFreq, sbrChan, ch, env);
-    MapHF(psi, sbrHdr, sbrGrid, sbrFreq, sbrChan, env, hfReset);
+    estimateEnvelope (psi, sbrHdr, sbrGrid, sbrFreq, env);
+    calcGain (psi, sbrHdr, sbrGrid, sbrFreq, sbrChan, ch, env);
+    mapHF (psi, sbrHdr, sbrGrid, sbrFreq, sbrChan, env, hfReset);
     hfReset = 0;  // only set for first envelope after header reset
     }
 
@@ -8093,7 +8093,7 @@ static void AdjustHighFreq (sInfoSbr* psi, sSbrHeader* sbrHdr,
 #define MAG_16  (16 * (1 << (32 - (2*(32-FBITS_LPCOEFS)))))   /* i.e. 16 in Q26 format */
 #define RELAX_COEF 0x7ffff79c  /* 1.0 / (1.0 + 1e-6), Q31 */
 //{{{
-static void CVKernel1 (int32_t* XBuf, int32_t* accBuf) {
+static void cvKernel1 (int32_t* XBuf, int32_t* accBuf) {
 /**************************************************************************************
  * Description: kernel of covariance matrix calculation for p01, p11, p12, p22
  * Inputs:      buffer of low-freq samples, starting at time index = 0,
@@ -8162,7 +8162,7 @@ static void CVKernel1 (int32_t* XBuf, int32_t* accBuf) {
   }
 //}}}
 //{{{
-static int32_t CalcCovariance1 (int32_t* XBuf, int32_t* p01reN, int32_t* p01imN, int32_t* p12reN,
+static int32_t calcCovariance1 (int32_t* XBuf, int32_t* p01reN, int32_t* p01imN, int32_t* p12reN,
                             int32_t* p12imN, int32_t* p11reN, int32_t* p22reN) {
 /**************************************************************************************
  * Description: calculate covariance matrix for p01, p12, p11, p22 (4.6.18.6.2)
@@ -8179,7 +8179,7 @@ static int32_t CalcCovariance1 (int32_t* XBuf, int32_t* p01reN, int32_t* p01imN,
   int32_t n, z, s, loShift, hiShift, gbMask;
   U64 p01re, p01im, p12re, p12im, p11re, p22re;
 
-  CVKernel1 (XBuf, accBuf);
+  cvKernel1 (XBuf, accBuf);
   p01re.r.lo32 = accBuf[0]; p01re.r.hi32 = accBuf[1];
   p01im.r.lo32 = accBuf[2]; p01im.r.hi32 = accBuf[3];
   p11re.r.lo32 = accBuf[4]; p11re.r.hi32 = accBuf[5];
@@ -8242,7 +8242,7 @@ static int32_t CalcCovariance1 (int32_t* XBuf, int32_t* p01reN, int32_t* p01imN,
   }
 //}}}
 //{{{
-static void CVKernel2 (int32_t *XBuf, int32_t* accBuf) {
+static void cvKernel2 (int32_t *XBuf, int32_t* accBuf) {
 /**************************************************************************************
  * Description: kernel of covariance matrix calculation for p02
  * Inputs:      buffer of low-freq samples, starting at time index = 0,
@@ -8288,7 +8288,7 @@ static void CVKernel2 (int32_t *XBuf, int32_t* accBuf) {
   }
 //}}}
 //{{{
-static int32_t CalcCovariance2 (int32_t* XBuf, int32_t* p02reN, int32_t* p02imN) {
+static int32_t calcCovariance2 (int32_t* XBuf, int32_t* p02reN, int32_t* p02imN) {
 /**************************************************************************************
  * Description: calculate covariance matrix for p02 (4.6.18.6.2)
  * Inputs:      buffer of low-freq samples, starting at time index = 0,
@@ -8303,7 +8303,7 @@ static int32_t CalcCovariance2 (int32_t* XBuf, int32_t* p02reN, int32_t* p02imN)
   int32_t n, z, s, loShift, hiShift, gbMask;
   int32_t accBuf[2*2];
 
-  CVKernel2 (XBuf, accBuf);
+  cvKernel2 (XBuf, accBuf);
   p02re.r.lo32 = accBuf[0];
   p02re.r.hi32 = accBuf[1];
   p02im.r.lo32 = accBuf[2];
@@ -8350,7 +8350,7 @@ static int32_t CalcCovariance2 (int32_t* XBuf, int32_t* p02reN, int32_t* p02imN)
 //}}}
 
 //{{{
-static void CalcLPCoefs (int32_t* XBuf, int32_t* a0re, int32_t* a0im, int32_t* a1re, int32_t* a1im, int32_t gb) {
+static void calcLPCoefs (int32_t* XBuf, int32_t* a0re, int32_t* a0im, int32_t* a1re, int32_t* a1im, int32_t gb) {
 /**************************************************************************************
  * Description: calculate linear prediction coefficients for one subband (4.6.18.6.2)
  * Inputs:      buffer of low-freq samples, starting at time index = 0,
@@ -8379,8 +8379,8 @@ static void CalcLPCoefs (int32_t* XBuf, int32_t* a0re, int32_t* a0im, int32_t* a
     }
 
   // calculate covariance elements
-  n1 = CalcCovariance1 (XBuf, &p01re, &p01im, &p12re, &p12im, &p11re, &p22re);
-  n2 = CalcCovariance2 (XBuf, &p02re, &p02im);
+  n1 = calcCovariance1 (XBuf, &p01re, &p01im, &p12re, &p12im, &p11re, &p22re);
+  n2 = calcCovariance2 (XBuf, &p02re, &p02im);
 
   // normalize everything to larger power of 2 scalefactor, call it n1 */
   if (n1 < n2) {
@@ -8475,7 +8475,7 @@ static void CalcLPCoefs (int32_t* XBuf, int32_t* a0re, int32_t* a0im, int32_t* a
   }
 //}}}
 //{{{
-static void GenerateHighFreq (sInfoSbr* psi, sSbrGrid* sbrGrid,
+static void generateHighFreq (sInfoSbr* psi, sSbrGrid* sbrGrid,
                               sSbrFreq* sbrFreq, sSbrChan* sbrChan, int32_t ch) {
 /**************************************************************************************
  * Description: generate high frequencies with SBR (4.6.18.6)
@@ -8541,7 +8541,7 @@ static void GenerateHighFreq (sInfoSbr* psi, sSbrGrid* sbrGrid,
       p = sbrFreq->patchStartSubband[currPatch] + x;  // low QMF band
       XBufHi = psi->XBuf[iStart][k];
       if (bw) {
-        CalcLPCoefs (psi->XBuf[0][p], &a0re, &a0im, &a1re, &a1im, gb);
+        calcLPCoefs (psi->XBuf[0][p], &a0re, &a0im, &a1re, &a1im, gb);
 
         a0re = MULSHIFT32 (bw, a0re);  // Q31 * Q29 = Q28
         a0im = MULSHIFT32 (bw, a0im);
@@ -8667,8 +8667,8 @@ void cAacDecoder::applySbr (int32_t channelBase, float* outbuf) {
     // step 1 - analysis QMF
     int32_t qmfaBands = sbrFreq->kStart;
     for (auto l = 0; l < 32; l++) {
-      int32_t gbMask = QMFAnalysis (inbuf + l*32, mInfoSbr->delayQMFA[channelBase + ch], mInfoSbr->XBuf[l + HF_GEN][0],
-                                FBITS_OUT_IMDCT, &(mInfoSbr->delayIdxQMFA[channelBase + ch]), qmfaBands);
+      int32_t gbMask = qmfAnalysis (inbuf + l*32, mInfoSbr->delayQMFA[channelBase + ch], mInfoSbr->XBuf[l + HF_GEN][0],
+                                    FBITS_OUT_IMDCT, &(mInfoSbr->delayIdxQMFA[channelBase + ch]), qmfaBands);
       int32_t gbIdx = ((l + HF_GEN) >> 5) & 0x01;
       sbrChan->gbMask[gbIdx] |= gbMask; // gbIdx = (0 if i < 32), (1 if i >= 32)
       }
@@ -8678,7 +8678,7 @@ void cAacDecoder::applySbr (int32_t channelBase, float* outbuf) {
       int32_t qmfsBands = 32;
       for (auto l = 0; l < 32; l++) {
         // step 4 - synthesis QMF
-        QMFSynthesis (mInfoSbr->XBuf[l + HF_ADJ][0], mInfoSbr->delayQMFS[channelBase + ch],
+        qmfSynthesis (mInfoSbr->XBuf[l + HF_ADJ][0], mInfoSbr->delayQMFS[channelBase + ch],
                       &(mInfoSbr->delayIdxQMFS[channelBase + ch]), qmfsBands, outptr, mNumChannels);
         outptr += 64 * mNumChannels;
         }
@@ -8695,7 +8695,7 @@ void cAacDecoder::applySbr (int32_t channelBase, float* outbuf) {
         }
 
       // step 2 - HF generation
-      GenerateHighFreq (mInfoSbr, sbrGrid, sbrFreq, sbrChan, ch);
+      generateHighFreq (mInfoSbr, sbrGrid, sbrFreq, sbrChan, ch);
 
       // restore SBR bands that were cleared before patch generation (time slots 0, 1 no longer needed)
       for (auto k = sbrFreq->kStartPrev; k < sbrFreq->kStart; k++) {
@@ -8706,14 +8706,14 @@ void cAacDecoder::applySbr (int32_t channelBase, float* outbuf) {
         }
 
       // step 3 - HF adjustment
-      AdjustHighFreq (mInfoSbr, sbrHdr, sbrGrid, sbrFreq, sbrChan, ch);
+      adjustHighFreq (mInfoSbr, sbrHdr, sbrGrid, sbrFreq, sbrChan, ch);
 
       // step 4 - synthesis QMF
       int32_t qmfsBands = sbrFreq->kStartPrev + sbrFreq->numQMFBandsPrev;
       int32_t l;
       for (l = 0; l < sbrGrid->envTimeBorder[0]; l++) {
         // if new envelope starts mid-frame, use old settings until start of first envelope in this frame
-        QMFSynthesis (mInfoSbr->XBuf[l + HF_ADJ][0], mInfoSbr->delayQMFS[channelBase + ch],
+        qmfSynthesis (mInfoSbr->XBuf[l + HF_ADJ][0], mInfoSbr->delayQMFS[channelBase + ch],
                       &(mInfoSbr->delayIdxQMFS[channelBase + ch]), qmfsBands, outptr, mNumChannels);
         outptr += 64 * mNumChannels;
         }
@@ -8721,7 +8721,7 @@ void cAacDecoder::applySbr (int32_t channelBase, float* outbuf) {
       qmfsBands = sbrFreq->kStart + sbrFreq->numQMFBands;
       for ( ; l < 32; l++) {
         // use new settings for rest of frame (usually the entire frame, unless the first envelope starts mid-frame)
-        QMFSynthesis (mInfoSbr->XBuf[l + HF_ADJ][0], mInfoSbr->delayQMFS[channelBase + ch],
+        qmfSynthesis (mInfoSbr->XBuf[l + HF_ADJ][0], mInfoSbr->delayQMFS[channelBase + ch],
                       &(mInfoSbr->delayIdxQMFS[channelBase + ch]), qmfsBands, outptr, mNumChannels);
         outptr += 64 * mNumChannels;
         }
