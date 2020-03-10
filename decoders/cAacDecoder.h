@@ -60,8 +60,8 @@ private:
   void applySbr (int32_t chBase, float* outbuf);
   //}}}
   //{{{  private vars
-  struct sInfoBase* mInfoBase;
-  struct sInfoSbr* mInfoSbr;
+  sInfoBase* mInfoBase;
+  sInfoSbr* mInfoSbr;
 
   // raw decoded data
   void* mRawSampleBuf [AAC_MAX_NCHANS];
