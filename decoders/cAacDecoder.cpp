@@ -3822,455 +3822,6 @@ static int32_t unpackSBRHeader (cBitStream* bsi, sSbrHeader* sbrHdr) {
     return 0;
   }
 //}}}
-//{{{
-static void unpackSBRGrid (cBitStream* bsi, sSbrHeader* sbrHdr, sSbrGrid* sbrGrid) {
-/**************************************************************************************
- * Description: unpack SBR grid (table 4.62)
- * Inputs:      cBitStream pointing to start of SBR grid
- *              initialized SBRHeader for this SCE/CPE block
- * Outputs:     initialized sSbrGrid for this channel
- **************************************************************************************/
-
-  int32_t numEnvRaw, env, rel, pBits, border, middleBorder=0;
-  uint8_t relBordLead[MAX_NUM_ENV], relBordTrail[MAX_NUM_ENV];
-  uint8_t relBorder0[3], relBorder1[3], relBorder[3];
-  uint8_t numRelBorder0, numRelBorder1, numRelBorder, numRelLead=0, numRelTrail;
-  uint8_t absBordLead=0, absBordTrail=0, absBorder;
-
-  sbrGrid->ampResFrame = sbrHdr->ampRes;
-  sbrGrid->frameClass = bsi->getBits (2);
-  switch (sbrGrid->frameClass) {
-    //{{{
-    case SBR_GRID_FIXFIX:
-      numEnvRaw = bsi->getBits (2);
-      sbrGrid->numEnv = (1 << numEnvRaw);
-      if (sbrGrid->numEnv == 1)
-        sbrGrid->ampResFrame = 0;
-
-      sbrGrid->freqRes[0] = bsi->getBits (1);
-      for (env = 1; env < sbrGrid->numEnv; env++)
-         sbrGrid->freqRes[env] = sbrGrid->freqRes[0];
-
-      absBordLead =  0;
-      absBordTrail = NUM_TIME_SLOTS;
-      numRelLead =   sbrGrid->numEnv - 1;
-      numRelTrail =  0;
-
-      // numEnv = 1, 2, or 4
-      if (sbrGrid->numEnv == 1)   border = NUM_TIME_SLOTS / 1;
-      else if (sbrGrid->numEnv == 2)  border = NUM_TIME_SLOTS / 2;
-      else              border = NUM_TIME_SLOTS / 4;
-
-      for (rel = 0; rel < numRelLead; rel++)
-        relBordLead[rel] = border;
-
-      middleBorder = (sbrGrid->numEnv >> 1);
-
-      break;
-    //}}}
-    //{{{
-    case SBR_GRID_FIXVAR:
-      absBorder = bsi->getBits (2) + NUM_TIME_SLOTS;
-      numRelBorder = bsi->getBits (2);
-      sbrGrid->numEnv = numRelBorder + 1;
-      for (rel = 0; rel < numRelBorder; rel++)
-        relBorder[rel] = 2*bsi->getBits (2) + 2;
-
-      pBits = cLog2[sbrGrid->numEnv + 1];
-      sbrGrid->pointer = bsi->getBits (pBits);
-
-      for (env = sbrGrid->numEnv - 1; env >= 0; env--)
-        sbrGrid->freqRes[env] = bsi->getBits (1);
-
-      absBordLead =  0;
-      absBordTrail = absBorder;
-      numRelLead =   0;
-      numRelTrail =  numRelBorder;
-
-      for (rel = 0; rel < numRelTrail; rel++)
-        relBordTrail[rel] = relBorder[rel];
-
-      if (sbrGrid->pointer > 1)     middleBorder = sbrGrid->numEnv + 1 - sbrGrid->pointer;
-      else                middleBorder = sbrGrid->numEnv - 1;
-
-      break;
-    //}}}
-    //{{{
-    case SBR_GRID_VARFIX:
-      absBorder = bsi->getBits (2);
-      numRelBorder = bsi->getBits (2);
-      sbrGrid->numEnv = numRelBorder + 1;
-      for (rel = 0; rel < numRelBorder; rel++)
-        relBorder[rel] = 2*bsi->getBits (2) + 2;
-
-      pBits = cLog2[sbrGrid->numEnv + 1];
-      sbrGrid->pointer = bsi->getBits (pBits);
-
-      for (env = 0; env < sbrGrid->numEnv; env++)
-        sbrGrid->freqRes[env] = bsi->getBits (1);
-
-      absBordLead =  absBorder;
-      absBordTrail = NUM_TIME_SLOTS;
-      numRelLead =   numRelBorder;
-      numRelTrail =  0;
-
-      for (rel = 0; rel < numRelLead; rel++)
-        relBordLead[rel] = relBorder[rel];
-
-      if (sbrGrid->pointer == 0)      middleBorder = 1;
-      else if (sbrGrid->pointer == 1)   middleBorder = sbrGrid->numEnv - 1;
-      else                middleBorder = sbrGrid->pointer - 1;
-
-      break;
-    //}}}
-    //{{{
-    case SBR_GRID_VARVAR:
-      absBordLead = bsi->getBits (2);  /* absBorder0 */
-      absBordTrail = bsi->getBits (2) + NUM_TIME_SLOTS; /* absBorder1 */
-      numRelBorder0 = bsi->getBits (2);
-      numRelBorder1 = bsi->getBits (2);
-
-      sbrGrid->numEnv = numRelBorder0 + numRelBorder1 + 1;
-
-      for (rel = 0; rel < numRelBorder0; rel++)
-        relBorder0[rel] = 2*bsi->getBits ( 2) + 2;
-
-      for (rel = 0; rel < numRelBorder1; rel++)
-        relBorder1[rel] = 2*bsi->getBits (2) + 2;
-
-      pBits = cLog2[numRelBorder0 + numRelBorder1 + 2];
-      sbrGrid->pointer = bsi->getBits (pBits);
-
-      for (env = 0; env < sbrGrid->numEnv; env++)
-        sbrGrid->freqRes[env] = bsi->getBits (1);
-
-      numRelLead = numRelBorder0;
-      numRelTrail = numRelBorder1;
-
-      for (rel = 0; rel < numRelLead; rel++)
-        relBordLead[rel] = relBorder0[rel];
-
-      for (rel = 0; rel < numRelTrail; rel++)
-        relBordTrail[rel] = relBorder1[rel];
-
-      if (sbrGrid->pointer > 1)     middleBorder = sbrGrid->numEnv + 1 - sbrGrid->pointer;
-      else                middleBorder = sbrGrid->numEnv - 1;
-
-      break;
-    //}}}
-    }
-
-  // build time border vector
-  sbrGrid->envTimeBorder[0] = absBordLead * SAMPLES_PER_SLOT;
-
-  rel = 0;
-  border = absBordLead;
-  for (env = 1; env <= numRelLead; env++) {
-    border += relBordLead[rel++];
-    sbrGrid->envTimeBorder[env] = border * SAMPLES_PER_SLOT;
-    }
-
-  rel = 0;
-  border = absBordTrail;
-  for (env = sbrGrid->numEnv - 1; env > numRelLead; env--) {
-    border -= relBordTrail[rel++];
-    sbrGrid->envTimeBorder[env] = border * SAMPLES_PER_SLOT;
-    }
-
-  sbrGrid->envTimeBorder[sbrGrid->numEnv] = absBordTrail * SAMPLES_PER_SLOT;
-  if (sbrGrid->numEnv > 1) {
-    sbrGrid->numNoiseFloors = 2;
-    sbrGrid->noiseTimeBorder[0] = sbrGrid->envTimeBorder[0];
-    sbrGrid->noiseTimeBorder[1] = sbrGrid->envTimeBorder[middleBorder];
-    sbrGrid->noiseTimeBorder[2] = sbrGrid->envTimeBorder[sbrGrid->numEnv];
-    }
-  else {
-    sbrGrid->numNoiseFloors = 1;
-    sbrGrid->noiseTimeBorder[0] = sbrGrid->envTimeBorder[0];
-    sbrGrid->noiseTimeBorder[1] = sbrGrid->envTimeBorder[1];
-    }
-  }
-//}}}
-//{{{
-static void unpackDeltaTimeFreq (cBitStream* bsi, int32_t numEnv, uint8_t* deltaFlagEnv,
-                                 int32_t numNoiseFloors, uint8_t *deltaFlagNoise) {
-/**************************************************************************************
- * Description: unpack time/freq flags for delta coding of SBR envelopes (table 4.63)
- * Inputs:      cBitStream pointing to start of dt/df flags
- *              number of envelopes
- *              number of noise floors
- * Outputs:     delta flags for envelope and noise floors
- **************************************************************************************/
-
-  for (auto env = 0; env < numEnv; env++)
-    deltaFlagEnv[env] = bsi->getBits (1);
-
-  for (auto noiseFloor = 0; noiseFloor < numNoiseFloors; noiseFloor++)
-    deltaFlagNoise[noiseFloor] = bsi->getBits (1);
-  }
-//}}}
-//{{{
-static void unpackInverseFilterMode (cBitStream* bsi, int32_t numNoiseFloorBands, uint8_t *mode) {
-/**************************************************************************************
- * Description: unpack invf flags for chirp factor calculation (table 4.64)
- * Inputs:      cBitStream pointing to start of invf flags
- *              number of noise floor bands
- * Outputs:     invf flags for noise floor bands
- **************************************************************************************/
-
-  for (auto n = 0; n < numNoiseFloorBands; n++)
-    mode[n] = bsi->getBits (2);
-  }
-//}}}
-//{{{
-static void unpackSinusoids (cBitStream* bsi, int32_t nHigh, int32_t addHarmonicFlag, uint8_t* addHarmonic) {
-/**************************************************************************************
- * Description: unpack sinusoid (harmonic) flags for each SBR subband (table 4.67)
- * Inputs:      cBitStream ointing to start of sinusoid flags
- *              number of high resolution SBR subbands (nHigh)
- * Outputs:     sinusoid flags for each SBR subband, zero-filled above nHigh
- **************************************************************************************/
-
-  int32_t n = 0;
-  if (addHarmonicFlag)
-    for (  ; n < nHigh; n++)
-      addHarmonic[n] = bsi->getBits (1);
-
-  // zero out unused bands
-  for (     ; n < MAX_QMF_BANDS; n++)
-    addHarmonic[n] = 0;
-  }
-//}}}
-
-//{{{
-static void copyCouplingGrid (sSbrGrid* sbrGridLeft, sSbrGrid* sbrGridRight) {
-/**************************************************************************************
- * Description: copy grid parameters from left to right for channel coupling
- * Inputs:      initialized SBRGrid for left channel
- * Outputs:     initialized SBRGrid for right channel
- **************************************************************************************/
-
-  sbrGridRight->frameClass = sbrGridLeft->frameClass;
-  sbrGridRight->ampResFrame = sbrGridLeft->ampResFrame;
-  sbrGridRight->pointer = sbrGridLeft->pointer;
-
-  sbrGridRight->numEnv = sbrGridLeft->numEnv;
-  int32_t env;
-  for (env = 0; env < sbrGridLeft->numEnv; env++) {
-    sbrGridRight->envTimeBorder[env] = sbrGridLeft->envTimeBorder[env];
-    sbrGridRight->freqRes[env] =       sbrGridLeft->freqRes[env];
-    }
-  sbrGridRight->envTimeBorder[env] = sbrGridLeft->envTimeBorder[env]; /* borders are [0, numEnv] inclusive */
-
-  sbrGridRight->numNoiseFloors = sbrGridLeft->numNoiseFloors;
-  for (auto noiseFloor = 0; noiseFloor <= sbrGridLeft->numNoiseFloors; noiseFloor++)
-    sbrGridRight->noiseTimeBorder[noiseFloor] = sbrGridLeft->noiseTimeBorder[noiseFloor];
-
-  /* numEnvPrev, numNoiseFloorsPrev, freqResPrev are updated in DecodeSBREnvelope() and DecodeSBRNoise() */
-  }
-//}}}
-//{{{
-static void copyCouplingInverseFilterMode (int32_t numNoiseFloorBands, uint8_t* modeLeft, uint8_t* modeRight) {
-/**************************************************************************************
- * Description: copy invf flags from left to right for channel coupling
- * Inputs:      invf flags for left channel
- *              number of noise floor bands
- * Outputs:     invf flags for right channel
- **************************************************************************************/
-
-  for (auto band = 0; band < numNoiseFloorBands; band++)
-    modeRight[band] = modeLeft[band];
-  }
-//}}}
-//{{{
-static void uncoupleSBREnvelope (sInfoSbr* psi, sSbrGrid* sbrGrid, sSbrFreq* sbrFreq, sSbrChan* sbrChanR) {
-/**************************************************************************************
- * Description: scale dequantized envelope scalefactors according to channel coupling rules
- * Inputs:      initialized mInfoSbr including dequantized envelope data for left channel
- *              initialized sSbrGrid for this channel
- *              initialized sSbrFreq for this SCE/CPE block
- *              initialized sSbrChan for right channel including quantized envelope scalefactors
- * Outputs:     dequantized envelope data for left channel (after decoupling)
- *              dequantized envelope data for right channel (after decoupling)
- **************************************************************************************/
-
-  int32_t scalei = (sbrGrid->ampResFrame ? 0 : 1);
-  for (auto env = 0; env < sbrGrid->numEnv; env++) {
-    int32_t numBands = (sbrGrid->freqRes[env] ? sbrFreq->nHigh : sbrFreq->nLow);
-    psi->envDataDequantScale[1][env] = psi->envDataDequantScale[0][env]; /* same scalefactor for L and R */
-    for (auto band = 0; band < numBands; band++) {
-      // clip E_1 to [0, 24] (scalefactors approach 0 or 2)
-      int32_t E_1 = sbrChanR->envDataQuant[env][band] >> scalei;
-      if (E_1 < 0)
-        E_1 = 0;
-      if (E_1 > 24)
-        E_1 = 24;
-
-      // envDataDequant[0] has 1 GB, so << by 2 is okay
-      psi->envDataDequant[1][env][band] = MULSHIFT32(psi->envDataDequant[0][env][band], dqTabCouple[24 - E_1]) << 2;
-      psi->envDataDequant[0][env][band] = MULSHIFT32(psi->envDataDequant[0][env][band], dqTabCouple[E_1]) << 2;
-      }
-    }
-  }
-//}}}
-//{{{
-static void uncoupleSBRNoise (sInfoSbr* psi, sSbrGrid* sbrGrid, sSbrFreq* sbrFreq, sSbrChan* sbrChanR) {
-/**************************************************************************************
- * Description: scale dequantized noise floor scalefactors according to channel
- *                coupling rules
- * Inputs:      initialized mInfoSbr including
- *                dequantized noise data for left channel
- *              initialized SBRGrid for this channel
- *              initialized SBRFreq for this SCE/CPE block
- *              initialized SBRChan for this channel including
- *                quantized noise scalefactors
- * Outputs:     dequantized noise data for left channel (after decoupling)
- *              dequantized noise data for right channel (after decoupling)
- **************************************************************************************/
-
-  for (auto noiseFloor = 0; noiseFloor < sbrGrid->numNoiseFloors; noiseFloor++) {
-    for (auto band = 0; band < sbrFreq->numNoiseFloorBands; band++) {
-      // Q_1 should be in range [0, 24] according to 4.6.18.3.6, but check to make sure
-      int32_t Q_1 = sbrChanR->noiseDataQuant[noiseFloor][band];
-      if (Q_1 < 0)
-        Q_1 = 0;
-      if (Q_1 > 24)
-        Q_1 = 24;
-
-      // noiseDataDequant[0] has 1 GB, so << by 2 is okay
-      psi->noiseDataDequant[1][noiseFloor][band] = MULSHIFT32(psi->noiseDataDequant[0][noiseFloor][band], dqTabCouple[24 - Q_1]) << 2;
-      psi->noiseDataDequant[0][noiseFloor][band] = MULSHIFT32(psi->noiseDataDequant[0][noiseFloor][band], dqTabCouple[Q_1]) << 2;
-      }
-    }
-  }
-//}}}
-
-//{{{
-static void unpackSBRSingleChannel (cBitStream* bsi, sInfoSbr* psi, int32_t channelBase) {
-/**************************************************************************************
- * Description: unpack sideband info (grid, delta flags, invf flags, envelope and
- *                noise floor configuration, sinusoids) for a single channel
- * Inputs:      cBitStream pointing to start of sideband info
- *              initialized mInfoSbr (after parsing SBR header and building frequency tables)
- *              base output channel (range = [0, nChans-1])
- * Outputs:     updated mInfoSbr (sSbrGrid and sSbrChan)
- **************************************************************************************/
-
-  auto sbrHdr = &(psi->sbrHdr[channelBase]);
-  auto sbrGridL = &(psi->sbrGrid[channelBase+0]);
-  auto sbrFreq =  &(psi->sbrFreq[channelBase]);
-  auto sbrChanL = &(psi->sbrChan[channelBase+0]);
-
-  psi->dataExtra = bsi->getBits (1);
-  if (psi->dataExtra)
-    psi->resBitsData = bsi->getBits (4);
-
-  unpackSBRGrid (bsi, sbrHdr, sbrGridL);
-  unpackDeltaTimeFreq (bsi, sbrGridL->numEnv, sbrChanL->deltaFlagEnv, sbrGridL->numNoiseFloors, sbrChanL->deltaFlagNoise);
-  unpackInverseFilterMode (bsi, sbrFreq->numNoiseFloorBands, sbrChanL->invfMode[1]);
-
-  decodeSBREnvelope (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
-  decodeSBRNoise (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
-
-  sbrChanL->addHarmonicFlag[1] = bsi->getBits (1);
-  unpackSinusoids (bsi, sbrFreq->nHigh, sbrChanL->addHarmonicFlag[1], sbrChanL->addHarmonic[1]);
-
-  psi->extendedDataPresent = bsi->getBits (1);
-  if (psi->extendedDataPresent) {
-    psi->extendedDataSize = bsi->getBits (4);
-    if (psi->extendedDataSize == 15)
-      psi->extendedDataSize += bsi->getBits (8);
-
-    int32_t bitsLeft = 8 * psi->extendedDataSize;
-
-    // get ID, unpack extension info, do whatever is necessary with it...
-    while (bitsLeft > 0) {
-      bsi->getBits (8);
-      bitsLeft -= 8;
-      }
-    }
-  }
-//}}}
-//{{{
-static void unpackSBRChannelPair (cBitStream* bsi, sInfoSbr* psi, int32_t channelBase) {
-/**************************************************************************************
- * Description: unpack sideband info (grid, delta flags, invf flags, envelope and
- *              noise floor configuration, sinusoids) for a channel pair
- * Inputs:      cBitStream pointing to start of sideband info
- *              initialized mInfoSbr (after parsing SBR header and building frequency tables)
- *              base output channel (range = [0, nChans-1])
- * Outputs:     updated mInfoSbr (ssSbrGrid and sSbrChan for both channels)
- **************************************************************************************/
-
-  auto sbrHdr = &(psi->sbrHdr[channelBase]);
-  auto sbrGridL = &(psi->sbrGrid[channelBase+0]);
-  auto sbrGridR = &(psi->sbrGrid[channelBase+1]);
-  auto sbrFreq =  &(psi->sbrFreq[channelBase]);
-  auto sbrChanL = &(psi->sbrChan[channelBase+0]);
-  auto sbrChanR = &(psi->sbrChan[channelBase+1]);
-
-  psi->dataExtra = bsi->getBits (1);
-  if (psi->dataExtra) {
-    psi->resBitsData = bsi->getBits (4);
-    psi->resBitsData = bsi->getBits (4);
-    }
-
-  psi->couplingFlag = bsi->getBits (1);
-  if (psi->couplingFlag) {
-    unpackSBRGrid (bsi, sbrHdr, sbrGridL);
-    copyCouplingGrid (sbrGridL, sbrGridR);
-
-    unpackDeltaTimeFreq (bsi, sbrGridL->numEnv, sbrChanL->deltaFlagEnv, sbrGridL->numNoiseFloors, sbrChanL->deltaFlagNoise);
-    unpackDeltaTimeFreq (bsi, sbrGridR->numEnv, sbrChanR->deltaFlagEnv, sbrGridR->numNoiseFloors, sbrChanR->deltaFlagNoise);
-
-    unpackInverseFilterMode (bsi, sbrFreq->numNoiseFloorBands, sbrChanL->invfMode[1]);
-    copyCouplingInverseFilterMode (sbrFreq->numNoiseFloorBands, sbrChanL->invfMode[1], sbrChanR->invfMode[1]);
-
-    decodeSBREnvelope (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
-    decodeSBRNoise (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
-    decodeSBREnvelope (bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
-    decodeSBRNoise (bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
-
-    // pass RIGHT sbrChan struct
-    uncoupleSBREnvelope (psi, sbrGridL, sbrFreq, sbrChanR);
-    uncoupleSBRNoise (psi, sbrGridL, sbrFreq, sbrChanR);
-    }
-  else {
-    unpackSBRGrid (bsi, sbrHdr, sbrGridL);
-    unpackSBRGrid (bsi, sbrHdr, sbrGridR);
-    unpackDeltaTimeFreq (bsi, sbrGridL->numEnv, sbrChanL->deltaFlagEnv, sbrGridL->numNoiseFloors, sbrChanL->deltaFlagNoise);
-    unpackDeltaTimeFreq (bsi, sbrGridR->numEnv, sbrChanR->deltaFlagEnv, sbrGridR->numNoiseFloors, sbrChanR->deltaFlagNoise);
-    unpackInverseFilterMode (bsi, sbrFreq->numNoiseFloorBands, sbrChanL->invfMode[1]);
-    unpackInverseFilterMode (bsi, sbrFreq->numNoiseFloorBands, sbrChanR->invfMode[1]);
-
-    decodeSBREnvelope (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
-    decodeSBREnvelope (bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
-    decodeSBRNoise (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
-    decodeSBRNoise (bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
-    }
-
-  sbrChanL->addHarmonicFlag[1] = bsi->getBits (1);
-  unpackSinusoids (bsi, sbrFreq->nHigh, sbrChanL->addHarmonicFlag[1], sbrChanL->addHarmonic[1]);
-
-  sbrChanR->addHarmonicFlag[1] = bsi->getBits (1);
-  unpackSinusoids (bsi, sbrFreq->nHigh, sbrChanR->addHarmonicFlag[1], sbrChanR->addHarmonic[1]);
-
-  psi->extendedDataPresent = bsi->getBits (1);
-  if (psi->extendedDataPresent) {
-    psi->extendedDataSize = bsi->getBits (4);
-    if (psi->extendedDataSize == 15)
-      psi->extendedDataSize += bsi->getBits (8);
-
-    int32_t bitsLeft = 8 * psi->extendedDataSize;
-
-    // get ID, unpack extension info, do whatever is necessary with it...
-    while (bitsLeft > 0) {
-      bsi->getBits (8);
-      bitsLeft -= 8;
-      }
-    }
-  }
-//}}}
 
 #define NUM_ITER_IRN  5
 #define Q28_2  0x20000000  // Q28: 2.0
@@ -4898,6 +4449,456 @@ static int32_t calcFreqTables (sSbrHeader* sbrHdr, sSbrFreq* sbrFreq, int32_t sa
     sbrHdr->limiterBands, sbrFreq->numPatches);
 
   return 0;
+  }
+//}}}
+
+//{{{
+static void unpackSBRGrid (cBitStream* bsi, sSbrHeader* sbrHdr, sSbrGrid* sbrGrid) {
+/**************************************************************************************
+ * Description: unpack SBR grid (table 4.62)
+ * Inputs:      cBitStream pointing to start of SBR grid
+ *              initialized SBRHeader for this SCE/CPE block
+ * Outputs:     initialized sSbrGrid for this channel
+ **************************************************************************************/
+
+  int32_t numEnvRaw, env, rel, pBits, border, middleBorder=0;
+  uint8_t relBordLead[MAX_NUM_ENV], relBordTrail[MAX_NUM_ENV];
+  uint8_t relBorder0[3], relBorder1[3], relBorder[3];
+  uint8_t numRelBorder0, numRelBorder1, numRelBorder, numRelLead=0, numRelTrail;
+  uint8_t absBordLead=0, absBordTrail=0, absBorder;
+
+  sbrGrid->ampResFrame = sbrHdr->ampRes;
+  sbrGrid->frameClass = bsi->getBits (2);
+  switch (sbrGrid->frameClass) {
+    //{{{
+    case SBR_GRID_FIXFIX:
+      numEnvRaw = bsi->getBits (2);
+      sbrGrid->numEnv = (1 << numEnvRaw);
+      if (sbrGrid->numEnv == 1)
+        sbrGrid->ampResFrame = 0;
+
+      sbrGrid->freqRes[0] = bsi->getBits (1);
+      for (env = 1; env < sbrGrid->numEnv; env++)
+         sbrGrid->freqRes[env] = sbrGrid->freqRes[0];
+
+      absBordLead =  0;
+      absBordTrail = NUM_TIME_SLOTS;
+      numRelLead =   sbrGrid->numEnv - 1;
+      numRelTrail =  0;
+
+      // numEnv = 1, 2, or 4
+      if (sbrGrid->numEnv == 1)   border = NUM_TIME_SLOTS / 1;
+      else if (sbrGrid->numEnv == 2)  border = NUM_TIME_SLOTS / 2;
+      else              border = NUM_TIME_SLOTS / 4;
+
+      for (rel = 0; rel < numRelLead; rel++)
+        relBordLead[rel] = border;
+
+      middleBorder = (sbrGrid->numEnv >> 1);
+
+      break;
+    //}}}
+    //{{{
+    case SBR_GRID_FIXVAR:
+      absBorder = bsi->getBits (2) + NUM_TIME_SLOTS;
+      numRelBorder = bsi->getBits (2);
+      sbrGrid->numEnv = numRelBorder + 1;
+      for (rel = 0; rel < numRelBorder; rel++)
+        relBorder[rel] = 2*bsi->getBits (2) + 2;
+
+      pBits = cLog2[sbrGrid->numEnv + 1];
+      sbrGrid->pointer = bsi->getBits (pBits);
+
+      for (env = sbrGrid->numEnv - 1; env >= 0; env--)
+        sbrGrid->freqRes[env] = bsi->getBits (1);
+
+      absBordLead =  0;
+      absBordTrail = absBorder;
+      numRelLead =   0;
+      numRelTrail =  numRelBorder;
+
+      for (rel = 0; rel < numRelTrail; rel++)
+        relBordTrail[rel] = relBorder[rel];
+
+      if (sbrGrid->pointer > 1)     middleBorder = sbrGrid->numEnv + 1 - sbrGrid->pointer;
+      else                middleBorder = sbrGrid->numEnv - 1;
+
+      break;
+    //}}}
+    //{{{
+    case SBR_GRID_VARFIX:
+      absBorder = bsi->getBits (2);
+      numRelBorder = bsi->getBits (2);
+      sbrGrid->numEnv = numRelBorder + 1;
+      for (rel = 0; rel < numRelBorder; rel++)
+        relBorder[rel] = 2*bsi->getBits (2) + 2;
+
+      pBits = cLog2[sbrGrid->numEnv + 1];
+      sbrGrid->pointer = bsi->getBits (pBits);
+
+      for (env = 0; env < sbrGrid->numEnv; env++)
+        sbrGrid->freqRes[env] = bsi->getBits (1);
+
+      absBordLead =  absBorder;
+      absBordTrail = NUM_TIME_SLOTS;
+      numRelLead =   numRelBorder;
+      numRelTrail =  0;
+
+      for (rel = 0; rel < numRelLead; rel++)
+        relBordLead[rel] = relBorder[rel];
+
+      if (sbrGrid->pointer == 0)      middleBorder = 1;
+      else if (sbrGrid->pointer == 1)   middleBorder = sbrGrid->numEnv - 1;
+      else                middleBorder = sbrGrid->pointer - 1;
+
+      break;
+    //}}}
+    //{{{
+    case SBR_GRID_VARVAR:
+      absBordLead = bsi->getBits (2);  /* absBorder0 */
+      absBordTrail = bsi->getBits (2) + NUM_TIME_SLOTS; /* absBorder1 */
+      numRelBorder0 = bsi->getBits (2);
+      numRelBorder1 = bsi->getBits (2);
+
+      sbrGrid->numEnv = numRelBorder0 + numRelBorder1 + 1;
+
+      for (rel = 0; rel < numRelBorder0; rel++)
+        relBorder0[rel] = 2*bsi->getBits ( 2) + 2;
+
+      for (rel = 0; rel < numRelBorder1; rel++)
+        relBorder1[rel] = 2*bsi->getBits (2) + 2;
+
+      pBits = cLog2[numRelBorder0 + numRelBorder1 + 2];
+      sbrGrid->pointer = bsi->getBits (pBits);
+
+      for (env = 0; env < sbrGrid->numEnv; env++)
+        sbrGrid->freqRes[env] = bsi->getBits (1);
+
+      numRelLead = numRelBorder0;
+      numRelTrail = numRelBorder1;
+
+      for (rel = 0; rel < numRelLead; rel++)
+        relBordLead[rel] = relBorder0[rel];
+
+      for (rel = 0; rel < numRelTrail; rel++)
+        relBordTrail[rel] = relBorder1[rel];
+
+      if (sbrGrid->pointer > 1)     middleBorder = sbrGrid->numEnv + 1 - sbrGrid->pointer;
+      else                middleBorder = sbrGrid->numEnv - 1;
+
+      break;
+    //}}}
+    }
+
+  // build time border vector
+  sbrGrid->envTimeBorder[0] = absBordLead * SAMPLES_PER_SLOT;
+
+  rel = 0;
+  border = absBordLead;
+  for (env = 1; env <= numRelLead; env++) {
+    border += relBordLead[rel++];
+    sbrGrid->envTimeBorder[env] = border * SAMPLES_PER_SLOT;
+    }
+
+  rel = 0;
+  border = absBordTrail;
+  for (env = sbrGrid->numEnv - 1; env > numRelLead; env--) {
+    border -= relBordTrail[rel++];
+    sbrGrid->envTimeBorder[env] = border * SAMPLES_PER_SLOT;
+    }
+
+  sbrGrid->envTimeBorder[sbrGrid->numEnv] = absBordTrail * SAMPLES_PER_SLOT;
+  if (sbrGrid->numEnv > 1) {
+    sbrGrid->numNoiseFloors = 2;
+    sbrGrid->noiseTimeBorder[0] = sbrGrid->envTimeBorder[0];
+    sbrGrid->noiseTimeBorder[1] = sbrGrid->envTimeBorder[middleBorder];
+    sbrGrid->noiseTimeBorder[2] = sbrGrid->envTimeBorder[sbrGrid->numEnv];
+    }
+  else {
+    sbrGrid->numNoiseFloors = 1;
+    sbrGrid->noiseTimeBorder[0] = sbrGrid->envTimeBorder[0];
+    sbrGrid->noiseTimeBorder[1] = sbrGrid->envTimeBorder[1];
+    }
+  }
+//}}}
+//{{{
+static void unpackDeltaTimeFreq (cBitStream* bsi, int32_t numEnv, uint8_t* deltaFlagEnv,
+                                 int32_t numNoiseFloors, uint8_t *deltaFlagNoise) {
+/**************************************************************************************
+ * Description: unpack time/freq flags for delta coding of SBR envelopes (table 4.63)
+ * Inputs:      cBitStream pointing to start of dt/df flags
+ *              number of envelopes
+ *              number of noise floors
+ * Outputs:     delta flags for envelope and noise floors
+ **************************************************************************************/
+
+  for (auto env = 0; env < numEnv; env++)
+    deltaFlagEnv[env] = bsi->getBits (1);
+
+  for (auto noiseFloor = 0; noiseFloor < numNoiseFloors; noiseFloor++)
+    deltaFlagNoise[noiseFloor] = bsi->getBits (1);
+  }
+//}}}
+//{{{
+static void unpackInverseFilterMode (cBitStream* bsi, int32_t numNoiseFloorBands, uint8_t *mode) {
+/**************************************************************************************
+ * Description: unpack invf flags for chirp factor calculation (table 4.64)
+ * Inputs:      cBitStream pointing to start of invf flags
+ *              number of noise floor bands
+ * Outputs:     invf flags for noise floor bands
+ **************************************************************************************/
+
+  for (auto n = 0; n < numNoiseFloorBands; n++)
+    mode[n] = bsi->getBits (2);
+  }
+//}}}
+//{{{
+static void unpackSinusoids (cBitStream* bsi, int32_t nHigh, int32_t addHarmonicFlag, uint8_t* addHarmonic) {
+/**************************************************************************************
+ * Description: unpack sinusoid (harmonic) flags for each SBR subband (table 4.67)
+ * Inputs:      cBitStream ointing to start of sinusoid flags
+ *              number of high resolution SBR subbands (nHigh)
+ * Outputs:     sinusoid flags for each SBR subband, zero-filled above nHigh
+ **************************************************************************************/
+
+  int32_t n = 0;
+  if (addHarmonicFlag)
+    for (  ; n < nHigh; n++)
+      addHarmonic[n] = bsi->getBits (1);
+
+  // zero out unused bands
+  for (     ; n < MAX_QMF_BANDS; n++)
+    addHarmonic[n] = 0;
+  }
+//}}}
+
+//{{{
+static void copyCouplingGrid (sSbrGrid* sbrGridLeft, sSbrGrid* sbrGridRight) {
+/**************************************************************************************
+ * Description: copy grid parameters from left to right for channel coupling
+ * Inputs:      initialized SBRGrid for left channel
+ * Outputs:     initialized SBRGrid for right channel
+ **************************************************************************************/
+
+  sbrGridRight->frameClass = sbrGridLeft->frameClass;
+  sbrGridRight->ampResFrame = sbrGridLeft->ampResFrame;
+  sbrGridRight->pointer = sbrGridLeft->pointer;
+
+  sbrGridRight->numEnv = sbrGridLeft->numEnv;
+  int32_t env;
+  for (env = 0; env < sbrGridLeft->numEnv; env++) {
+    sbrGridRight->envTimeBorder[env] = sbrGridLeft->envTimeBorder[env];
+    sbrGridRight->freqRes[env] =       sbrGridLeft->freqRes[env];
+    }
+  sbrGridRight->envTimeBorder[env] = sbrGridLeft->envTimeBorder[env]; /* borders are [0, numEnv] inclusive */
+
+  sbrGridRight->numNoiseFloors = sbrGridLeft->numNoiseFloors;
+  for (auto noiseFloor = 0; noiseFloor <= sbrGridLeft->numNoiseFloors; noiseFloor++)
+    sbrGridRight->noiseTimeBorder[noiseFloor] = sbrGridLeft->noiseTimeBorder[noiseFloor];
+
+  /* numEnvPrev, numNoiseFloorsPrev, freqResPrev are updated in DecodeSBREnvelope() and DecodeSBRNoise() */
+  }
+//}}}
+//{{{
+static void copyCouplingInverseFilterMode (int32_t numNoiseFloorBands, uint8_t* modeLeft, uint8_t* modeRight) {
+/**************************************************************************************
+ * Description: copy invf flags from left to right for channel coupling
+ * Inputs:      invf flags for left channel
+ *              number of noise floor bands
+ * Outputs:     invf flags for right channel
+ **************************************************************************************/
+
+  for (auto band = 0; band < numNoiseFloorBands; band++)
+    modeRight[band] = modeLeft[band];
+  }
+//}}}
+//{{{
+static void uncoupleSBREnvelope (sInfoSbr* psi, sSbrGrid* sbrGrid, sSbrFreq* sbrFreq, sSbrChan* sbrChanR) {
+/**************************************************************************************
+ * Description: scale dequantized envelope scalefactors according to channel coupling rules
+ * Inputs:      initialized mInfoSbr including dequantized envelope data for left channel
+ *              initialized sSbrGrid for this channel
+ *              initialized sSbrFreq for this SCE/CPE block
+ *              initialized sSbrChan for right channel including quantized envelope scalefactors
+ * Outputs:     dequantized envelope data for left channel (after decoupling)
+ *              dequantized envelope data for right channel (after decoupling)
+ **************************************************************************************/
+
+  int32_t scalei = (sbrGrid->ampResFrame ? 0 : 1);
+  for (auto env = 0; env < sbrGrid->numEnv; env++) {
+    int32_t numBands = (sbrGrid->freqRes[env] ? sbrFreq->nHigh : sbrFreq->nLow);
+    psi->envDataDequantScale[1][env] = psi->envDataDequantScale[0][env]; /* same scalefactor for L and R */
+    for (auto band = 0; band < numBands; band++) {
+      // clip E_1 to [0, 24] (scalefactors approach 0 or 2)
+      int32_t E_1 = sbrChanR->envDataQuant[env][band] >> scalei;
+      if (E_1 < 0)
+        E_1 = 0;
+      if (E_1 > 24)
+        E_1 = 24;
+
+      // envDataDequant[0] has 1 GB, so << by 2 is okay
+      psi->envDataDequant[1][env][band] = MULSHIFT32(psi->envDataDequant[0][env][band], dqTabCouple[24 - E_1]) << 2;
+      psi->envDataDequant[0][env][band] = MULSHIFT32(psi->envDataDequant[0][env][band], dqTabCouple[E_1]) << 2;
+      }
+    }
+  }
+//}}}
+//{{{
+static void uncoupleSBRNoise (sInfoSbr* psi, sSbrGrid* sbrGrid, sSbrFreq* sbrFreq, sSbrChan* sbrChanR) {
+/**************************************************************************************
+ * Description: scale dequantized noise floor scalefactors according to channel
+ *                coupling rules
+ * Inputs:      initialized mInfoSbr including
+ *                dequantized noise data for left channel
+ *              initialized SBRGrid for this channel
+ *              initialized SBRFreq for this SCE/CPE block
+ *              initialized SBRChan for this channel including
+ *                quantized noise scalefactors
+ * Outputs:     dequantized noise data for left channel (after decoupling)
+ *              dequantized noise data for right channel (after decoupling)
+ **************************************************************************************/
+
+  for (auto noiseFloor = 0; noiseFloor < sbrGrid->numNoiseFloors; noiseFloor++) {
+    for (auto band = 0; band < sbrFreq->numNoiseFloorBands; band++) {
+      // Q_1 should be in range [0, 24] according to 4.6.18.3.6, but check to make sure
+      int32_t Q_1 = sbrChanR->noiseDataQuant[noiseFloor][band];
+      if (Q_1 < 0)
+        Q_1 = 0;
+      if (Q_1 > 24)
+        Q_1 = 24;
+
+      // noiseDataDequant[0] has 1 GB, so << by 2 is okay
+      psi->noiseDataDequant[1][noiseFloor][band] = MULSHIFT32(psi->noiseDataDequant[0][noiseFloor][band], dqTabCouple[24 - Q_1]) << 2;
+      psi->noiseDataDequant[0][noiseFloor][band] = MULSHIFT32(psi->noiseDataDequant[0][noiseFloor][band], dqTabCouple[Q_1]) << 2;
+      }
+    }
+  }
+//}}}
+
+//{{{
+static void unpackSBRSingleChannel (cBitStream* bsi, sInfoSbr* psi, int32_t channelBase) {
+/**************************************************************************************
+ * Description: unpack sideband info (grid, delta flags, invf flags, envelope and
+ *                noise floor configuration, sinusoids) for a single channel
+ * Inputs:      cBitStream pointing to start of sideband info
+ *              initialized mInfoSbr (after parsing SBR header and building frequency tables)
+ *              base output channel (range = [0, nChans-1])
+ * Outputs:     updated mInfoSbr (sSbrGrid and sSbrChan)
+ **************************************************************************************/
+
+  auto sbrHdr = &(psi->sbrHdr[channelBase]);
+  auto sbrGridL = &(psi->sbrGrid[channelBase+0]);
+  auto sbrFreq =  &(psi->sbrFreq[channelBase]);
+  auto sbrChanL = &(psi->sbrChan[channelBase+0]);
+
+  psi->dataExtra = bsi->getBits (1);
+  if (psi->dataExtra)
+    psi->resBitsData = bsi->getBits (4);
+
+  unpackSBRGrid (bsi, sbrHdr, sbrGridL);
+  unpackDeltaTimeFreq (bsi, sbrGridL->numEnv, sbrChanL->deltaFlagEnv, sbrGridL->numNoiseFloors, sbrChanL->deltaFlagNoise);
+  unpackInverseFilterMode (bsi, sbrFreq->numNoiseFloorBands, sbrChanL->invfMode[1]);
+
+  decodeSBREnvelope (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
+  decodeSBRNoise (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
+
+  sbrChanL->addHarmonicFlag[1] = bsi->getBits (1);
+  unpackSinusoids (bsi, sbrFreq->nHigh, sbrChanL->addHarmonicFlag[1], sbrChanL->addHarmonic[1]);
+
+  psi->extendedDataPresent = bsi->getBits (1);
+  if (psi->extendedDataPresent) {
+    psi->extendedDataSize = bsi->getBits (4);
+    if (psi->extendedDataSize == 15)
+      psi->extendedDataSize += bsi->getBits (8);
+
+    int32_t bitsLeft = 8 * psi->extendedDataSize;
+
+    // get ID, unpack extension info, do whatever is necessary with it...
+    while (bitsLeft > 0) {
+      bsi->getBits (8);
+      bitsLeft -= 8;
+      }
+    }
+  }
+//}}}
+//{{{
+static void unpackSBRChannelPair (cBitStream* bsi, sInfoSbr* psi, int32_t channelBase) {
+/**************************************************************************************
+ * Description: unpack sideband info (grid, delta flags, invf flags, envelope and
+ *              noise floor configuration, sinusoids) for a channel pair
+ * Inputs:      cBitStream pointing to start of sideband info
+ *              initialized mInfoSbr (after parsing SBR header and building frequency tables)
+ *              base output channel (range = [0, nChans-1])
+ * Outputs:     updated mInfoSbr (ssSbrGrid and sSbrChan for both channels)
+ **************************************************************************************/
+
+  auto sbrHdr = &(psi->sbrHdr[channelBase]);
+  auto sbrGridL = &(psi->sbrGrid[channelBase+0]);
+  auto sbrGridR = &(psi->sbrGrid[channelBase+1]);
+  auto sbrFreq =  &(psi->sbrFreq[channelBase]);
+  auto sbrChanL = &(psi->sbrChan[channelBase+0]);
+  auto sbrChanR = &(psi->sbrChan[channelBase+1]);
+
+  psi->dataExtra = bsi->getBits (1);
+  if (psi->dataExtra) {
+    psi->resBitsData = bsi->getBits (4);
+    psi->resBitsData = bsi->getBits (4);
+    }
+
+  psi->couplingFlag = bsi->getBits (1);
+  if (psi->couplingFlag) {
+    unpackSBRGrid (bsi, sbrHdr, sbrGridL);
+    copyCouplingGrid (sbrGridL, sbrGridR);
+
+    unpackDeltaTimeFreq (bsi, sbrGridL->numEnv, sbrChanL->deltaFlagEnv, sbrGridL->numNoiseFloors, sbrChanL->deltaFlagNoise);
+    unpackDeltaTimeFreq (bsi, sbrGridR->numEnv, sbrChanR->deltaFlagEnv, sbrGridR->numNoiseFloors, sbrChanR->deltaFlagNoise);
+
+    unpackInverseFilterMode (bsi, sbrFreq->numNoiseFloorBands, sbrChanL->invfMode[1]);
+    copyCouplingInverseFilterMode (sbrFreq->numNoiseFloorBands, sbrChanL->invfMode[1], sbrChanR->invfMode[1]);
+
+    decodeSBREnvelope (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
+    decodeSBRNoise (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
+    decodeSBREnvelope (bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
+    decodeSBRNoise (bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
+
+    // pass RIGHT sbrChan struct
+    uncoupleSBREnvelope (psi, sbrGridL, sbrFreq, sbrChanR);
+    uncoupleSBRNoise (psi, sbrGridL, sbrFreq, sbrChanR);
+    }
+  else {
+    unpackSBRGrid (bsi, sbrHdr, sbrGridL);
+    unpackSBRGrid (bsi, sbrHdr, sbrGridR);
+    unpackDeltaTimeFreq (bsi, sbrGridL->numEnv, sbrChanL->deltaFlagEnv, sbrGridL->numNoiseFloors, sbrChanL->deltaFlagNoise);
+    unpackDeltaTimeFreq (bsi, sbrGridR->numEnv, sbrChanR->deltaFlagEnv, sbrGridR->numNoiseFloors, sbrChanR->deltaFlagNoise);
+    unpackInverseFilterMode (bsi, sbrFreq->numNoiseFloorBands, sbrChanL->invfMode[1]);
+    unpackInverseFilterMode (bsi, sbrFreq->numNoiseFloorBands, sbrChanR->invfMode[1]);
+
+    decodeSBREnvelope (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
+    decodeSBREnvelope (bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
+    decodeSBRNoise (bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
+    decodeSBRNoise (bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
+    }
+
+  sbrChanL->addHarmonicFlag[1] = bsi->getBits (1);
+  unpackSinusoids (bsi, sbrFreq->nHigh, sbrChanL->addHarmonicFlag[1], sbrChanL->addHarmonic[1]);
+
+  sbrChanR->addHarmonicFlag[1] = bsi->getBits (1);
+  unpackSinusoids (bsi, sbrFreq->nHigh, sbrChanR->addHarmonicFlag[1], sbrChanR->addHarmonic[1]);
+
+  psi->extendedDataPresent = bsi->getBits (1);
+  if (psi->extendedDataPresent) {
+    psi->extendedDataSize = bsi->getBits (4);
+    if (psi->extendedDataSize == 15)
+      psi->extendedDataSize += bsi->getBits (8);
+
+    int32_t bitsLeft = 8 * psi->extendedDataSize;
+
+    // get ID, unpack extension info, do whatever is necessary with it...
+    while (bitsLeft > 0) {
+      bsi->getBits (8);
+      bitsLeft -= 8;
+      }
+    }
   }
 //}}}
 //}}}
