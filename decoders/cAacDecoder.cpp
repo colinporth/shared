@@ -3486,7 +3486,7 @@ void cAacDecoder::decodeProgramConfigElement (cBitStream* bsi, sProgConfigElemen
  * Outputs:     filled-in ProgConfigElement struct
  *              updated cBitStream struct
  * Notes:       #define KEEP_PCE_COMMENTS to save the comment field of the PCE
- *                (otherwise we just skip it in the bitstream, to save memory)
+ *              (otherwise we just skip it in the bitstream, to save memory)
  **************************************************************************************/
 
   cLog::log (LOGERROR, "aac unexpected decodeProgramConfigElement");
