@@ -482,13 +482,13 @@ struct sInfoSbr {
 //}}}
 //}}}
 //{{{  speedup routines
-typedef union _U64 {
+union U64 {
   int64_t w64;
   struct {
     uint32_t lo32;
     int32_t  hi32;
     } r;
-  } U64;
+  };
 
 inline int32_t MULSHIFT32 (int32_t x, int32_t y) { return ((int64_t)x * (int64_t)y) >> 32; }
 inline int64_t MADD64 (int64_t sum64, int32_t x, int32_t y) { return sum64 + ((int64_t)x * (int64_t)y); }
