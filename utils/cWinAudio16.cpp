@@ -2,7 +2,7 @@
 //{{{  includes
 #define _SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING
 
-#include "cWinAudio.h"
+#include "cWinAudio16.h"
 
 #include <stdio.h>
 #include "utils.h"

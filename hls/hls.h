@@ -264,6 +264,7 @@ public:
   void player (iAudio& audio, iChange* change) {
 
     cLog::setThreadName ("play");
+    SetThreadPriority (GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
 
     uint16_t scrubCount = 0;
     double scrubSample = 0;
