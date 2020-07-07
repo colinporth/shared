@@ -2,7 +2,6 @@
 #pragma once
 //{{{  includes
 #include <stdint.h>
-#include <string.h>
 #include <string>
 #include <sstream>
 #include <iomanip>
@@ -71,7 +70,7 @@ public:
 
     // Copy the scheme to the storage
     scheme = (char*)malloc (len+1);
-    strncpy_s (scheme, len+1, curstr, len);
+    strncpy (scheme, curstr, len);
     scheme[len] = '\0';
 
     // Make the character to lower if it is upper case.
@@ -118,7 +117,7 @@ public:
 
       len = tmpstr - curstr;
       username = (char*)malloc(len+1);
-      strncpy_s (username, len+1, curstr, len);
+      strncpy (username, curstr, len);
       username[len] = '\0';
       //}}}
       // Proceed current pointer
@@ -133,7 +132,7 @@ public:
 
         len = tmpstr - curstr;
         password = (char*)malloc(len+1);
-        strncpy_s (password, len+1, curstr, len);
+        strncpy (password, curstr, len);
         password[len] = '\0';
         curstr = tmpstr;
         }
@@ -163,7 +162,7 @@ public:
 
     len = tmpstr - curstr;
     host = (char*)malloc(len+1);
-    strncpy_s (host, len+1, curstr, len);
+    strncpy (host, curstr, len);
     host[len] = '\0';
     curstr = tmpstr;
     //}}}
@@ -178,7 +177,7 @@ public:
 
       len = tmpstr - curstr;
       port = (char*)malloc(len+1);
-      strncpy_s (port, len+1, curstr, len);
+      strncpy (port, curstr, len);
       port[len] = '\0';
       curstr = tmpstr;
       }
@@ -201,7 +200,7 @@ public:
 
     len = tmpstr - curstr;
     path = (char*)malloc(len+1);
-    strncpy_s (path, len+1, curstr, len);
+    strncpy (path, curstr, len);
     path[len] = '\0';
     curstr = tmpstr;
     //}}}
@@ -217,7 +216,7 @@ public:
       len = tmpstr - curstr;
 
       query = (char*)malloc(len+1);
-      strncpy_s (query, len+1, curstr, len);
+      strncpy (query, curstr, len);
       query[len] = '\0';
       curstr = tmpstr;
       }
@@ -234,7 +233,7 @@ public:
       len = tmpstr - curstr;
 
       fragment = (char*)malloc(len+1);
-      strncpy_s (fragment, len+1, curstr, len);
+      strncpy (fragment, curstr, len);
       fragment[len] = '\0';
 
       curstr = tmpstr;
