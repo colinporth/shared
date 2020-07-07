@@ -321,6 +321,8 @@ public:
   std::chrono::system_clock::time_point mPlayTimePoint;
 
   int mChan = 0;
+  int mBitrate = 0;
+
   bool mChanChanged = true;
 
   float mVolume = kDefaultVolume;
@@ -648,7 +650,6 @@ private:
   cChunk mChunks[kMaxChunks];
 
   cAacDecoder* mDecoder = nullptr;
-  int mBitrate = 0;
 
   int mDaylightSeconds = 0;
   std::string mDateTime;

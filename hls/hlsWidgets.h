@@ -1,6 +1,6 @@
 // hls.h
-#pragma once
 //{{{  includes
+#pragma once
 #include "../widgets/cDecodePicWidget.h"
 
 #include "../utils/utils.h"
@@ -312,7 +312,6 @@ void hlsMenu (cRootContainer* root, cHls* hls) {
   root->add (new cDecodePicWidget (r5x80, sizeof(r5x80), 3, 3, 5, hls->mChan,  hls->mChanChanged));
   root->add (new cDecodePicWidget (r6x80, sizeof(r6x80), 3, 3, 6, hls->mChan,  hls->mChanChanged));
 
-  //root->add (new cHlsPicWidget (hls, 16/3.0f, 3));
   root->add (new cHlsDotsBox (hls, 1, 3));
   root->addAt (new cHlsPeakWidget (hls, 0, -4), 0, 4);
   root->addAt (new cHlsTextWidget (hls, 0, 3), 0, 3);
