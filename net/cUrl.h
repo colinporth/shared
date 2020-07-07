@@ -2,6 +2,7 @@
 #pragma once
 //{{{  includes
 #include <stdint.h>
+#include <string.h>
 #include <string>
 #include <sstream>
 #include <iomanip>
