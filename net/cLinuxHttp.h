@@ -101,4 +101,5 @@ protected:
 
 private:
   int mSocket = -1;
+  std::string mLastHost;
   };
