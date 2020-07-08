@@ -16,11 +16,11 @@
 #include "../utils/cLog.h"
 //}}}
 
-class cLinuxHttp : public cHttp {
+class cPlatformHttp : public cHttp {
 public:
-  cLinuxHttp() : cHttp() {}
+  cPlatformHttp() : cHttp() {}
   //{{{
-  virtual ~cLinuxHttp() {
+  virtual ~cPlatformHttp() {
     if (mSocket >= 0)
       close (mSocket);
     }

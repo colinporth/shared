@@ -2,10 +2,10 @@
 #pragma once
 #include "cHttp.h"
 
-class cLwipHttp : public cHttp {
+class cPlatformHttp : public cHttp {
 public:
-  cLwipHttp() : cHttp() {}
-  virtual ~cLwipHttp() {}
+  cPlatformHttp() : cHttp() {}
+  virtual ~cPlatformHttp() {}
 
   virtual void initialise() {}
 

@@ -2,7 +2,7 @@
 #pragma once
 #include "cHttp.h"
 
-class cEsp8266Http : public cHttp {
+class cPlatformHttp : public cHttp {
 public:
   //{{{
   virtual void initialise() {

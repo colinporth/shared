@@ -20,7 +20,7 @@ public:
   // parseUrl, see RFC 1738, 3986
 
     auto url = urlString.c_str();
-    int urlLen = (int)urlString.size();
+    size_t urlLen = urlString.size();
     auto curstr = url;
     //{{{  parse scheme
     // <scheme>:<scheme-specific-part>
@@ -40,7 +40,7 @@ public:
     mScheme = std::string (curstr, len);
 
     // Make the character to lower if it is upper case.
-    for (auto i = 0; i < mScheme.size(); i++)
+    for (unsigned int i = 0; i < mScheme.size(); i++)
       mScheme[i] = tolower (mScheme[i]);
     //}}}
 

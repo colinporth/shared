@@ -10,10 +10,10 @@
 #include "iAudio.h"
 //}}}
 
-class cLinuxAudio : public iAudio {
+class cAudio16 : public iAudio {
 public:
   //{{{
-  cLinuxAudio (int srcChannels, int srcSampleRate) {
+  cAudio16 (int srcChannels, int srcSampleRate) {
 
     mSilence = (int16_t*)malloc (2048*4);
     memset (mSilence, 0, 2048*4);
@@ -22,7 +22,7 @@ public:
     }
   //}}}
   //{{{
-  virtual ~cLinuxAudio() {
+  virtual ~cAudio16() {
     free (mSilence);
     close();
     }

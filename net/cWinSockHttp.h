@@ -5,15 +5,15 @@
 #include <winsock2.h>
 #include <WS2tcpip.h>
 
-class cWinSockHttp : public cHttp {
+class cPlatformHttp : public cHttp {
 public:
   //{{{
-  cWinSockHttp() : cHttp() {
+  cPlatformHttp() : cHttp() {
     WSAStartup (MAKEWORD(2,2), &wsaData);
     }
   //}}}
   //{{{
-  virtual ~cWinSockHttp() {
+  virtual ~cPlatformHttp() {
     if (mSocket != -1)
       closesocket (mSocket);
     }

@@ -10,10 +10,10 @@
 #include "iAudio.h"
 //}}}
 
-class cWinAudio32 : public iAudio {
+class cAudio32 : public iAudio {
 public:
-  cWinAudio32 (int srcChannels, int srcSampleRate);
-  virtual ~cWinAudio32();
+  cAudio32 (int srcChannels, int srcSampleRate);
+  virtual ~cAudio32();
 
   int getDstChannels() { return mDstChannels; }
   int getDstSampleRate() { return mDstSampleRate; }

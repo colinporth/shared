@@ -1,4 +1,4 @@
-// cWinAudio.h
+// cWinAudio16.h
 #pragma once
 //{{{  includes
 #define _CRT_SECURE_NO_WARNINGS
@@ -9,10 +9,10 @@
 #include "iAudio.h"
 //}}}
 
-class cWinAudio : public iAudio {
+class cAudio16 : public iAudio {
 public:
-  cWinAudio (int srcChannels, int srcSampleRate);
-  virtual ~cWinAudio();
+  cAudio16 (int srcChannels, int srcSampleRate);
+  virtual ~cAudio16();
 
   int getDstChannels() { return mDstChannels; }
   int getDstSampleRate() { return mDstSampleRate; }
