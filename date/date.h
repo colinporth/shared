@@ -71,7 +71,7 @@
 
 #ifdef __GNUC__
 # pragma GCC diagnostic push
-# if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR > 7)
+# if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ > 7)
 #  pragma GCC diagnostic ignored "-Wpedantic"
 # endif
 # if __GNUC__ < 5
@@ -1564,7 +1564,7 @@ inline
 month
 operator+(const month& x, const months& y) NOEXCEPT
 {
-    auto const mu = static_cast<long long>(static_cast<unsigned>(x)) + (y.count() - 1);
+    auto const mu = static_cast<long long>(static_cast<unsigned>(x)) + y.count() - 1;
     auto const yr = (mu >= 0 ? mu : mu-11) / 12;
     return month{static_cast<unsigned>(mu - yr * 12 + 1)};
 }
@@ -1719,7 +1719,7 @@ operator<<(std::basic_ostream<CharT, Traits>& os, const year& y)
     os.fill('0');
     os.flags(std::ios::dec | std::ios::internal);
     os.width(4 + (y < year{0}));
-	os.imbue(std::locale::classic());
+    os.imbue(std::locale::classic());
     os << static_cast<int>(y);
     if (!y.ok())
         os << " is not a valid year";
@@ -2845,6 +2845,7 @@ operator<<(std::basic_ostream<CharT, Traits>& os, const year_month_day& ymd)
     detail::save_ostream<CharT, Traits> _(os);
     os.fill('0');
     os.flags(std::ios::dec | std::ios::right);
+    os.imbue(std::locale::classic());
     os << ymd.year() << '-';
     os.width(2);
     os << static_cast<unsigned>(ymd.month()) << '-';
@@ -3714,7 +3715,7 @@ class decimal_format_seconds
     using CT = typename std::common_type<Duration, std::chrono::seconds>::type;
     using rep = typename CT::rep;
 public:
-    static unsigned constexpr width = detail::width<CT::period::den>::value < 19 ?
+    static unsigned CONSTDATA width = detail::width<CT::period::den>::value < 19 ?
                                       detail::width<CT::period::den>::value : 6u;
     using precision = std::chrono::duration<rep,
                                             std::ratio<1, static_pow10<width>::value>>;
@@ -3731,8 +3732,7 @@ public:
 
     CONSTCD11 explicit decimal_format_seconds(const Duration& d) NOEXCEPT
         : s_(std::chrono::duration_cast<std::chrono::seconds>(d))
-        , sub_s_(std::chrono::treat_as_floating_point<rep>::value ? d - s_ :
-                     std::chrono::duration_cast<precision>(d - s_))
+        , sub_s_(std::chrono::duration_cast<precision>(d - s_))
         {}
 
     CONSTCD14 std::chrono::seconds& seconds() NOEXCEPT {return s_;}
@@ -3785,6 +3785,8 @@ public:
 #else
             os << '.';
 #endif
+            date::detail::save_ostream<CharT, Traits> _s(os);
+            os.imbue(std::locale::classic());
             os.width(width);
             os << sub_s_.count();
         }
@@ -4146,10 +4148,10 @@ operator+(std::basic_string<CharT, Traits, Alloc> x, const string_literal<CharT,
                            && (!defined(__SUNPRO_CC) || __SUNPRO_CC > 0x5150)
 
 template <class CharT,
-          class = std::enable_if_t<std::is_same<CharT, char>{} ||
-                                   std::is_same<CharT, wchar_t>{} ||
-                                   std::is_same<CharT, char16_t>{} ||
-                                   std::is_same<CharT, char32_t>{}>>
+          class = std::enable_if_t<std::is_same<CharT, char>::value ||
+                                   std::is_same<CharT, wchar_t>::value ||
+                                   std::is_same<CharT, char16_t>::value ||
+                                   std::is_same<CharT, char32_t>::value>>
 CONSTCD14
 inline
 string_literal<CharT, 2>
@@ -5074,6 +5076,7 @@ to_stream(std::basic_ostream<CharT, Traits>& os, const CharT* fmt,
                         os.setstate(std::ios::failbit);
                     auto const& ymd = fds.ymd;
                     save_ostream<CharT, Traits> _(os);
+                    os.imbue(std::locale::classic());
                     os.fill('0');
                     os.flags(std::ios::dec | std::ios::right);
                     os.width(4);
@@ -5748,6 +5751,8 @@ to_stream(std::basic_ostream<CharT, Traits>& os, const CharT* fmt,
                     if (modified == CharT{})
 #endif
                     {
+                        save_ostream<CharT, Traits> _(os);
+                        os.imbue(std::locale::classic());
                         os << y;
                     }
 #if !ONLY_C_LOCALE

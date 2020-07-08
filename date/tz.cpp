@@ -48,7 +48,6 @@
 #  ifndef _CRT_SECURE_NO_WARNINGS
 #    define _CRT_SECURE_NO_WARNINGS
 #  endif
-#define _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS 
 
    // None of this happens with the MS SDK (at least VS14 which I tested), but:
    // Compiling with mingw, we get "error: 'KF_FLAG_DEFAULT' was not declared in this scope."
@@ -84,12 +83,13 @@
 #  include <windows.h>
 #endif  // _WIN32
 
-#include "tz_private.h"
+#include "date/tz_private.h"
 
 #ifdef __APPLE__
 #  include "date/ios.h"
 #else
 #  define TARGET_OS_IPHONE 0
+#  define TARGET_OS_SIMULATOR 0
 #endif
 
 #if USE_OS_TZDB
@@ -362,7 +362,11 @@ discover_tz_dir()
         throw runtime_error("discover_tz_dir failed to find zoneinfo\n");
 #  else  // __APPLE__
 #      if TARGET_OS_IPHONE
+#          if TARGET_OS_SIMULATOR
+    return "/usr/share/zoneinfo";
+#          else
     return "/var/db/timezone/zoneinfo";
+#          endif
 #      else
     CONSTDATA auto timezone = "/etc/localtime";
     if (!(lstat(timezone, &sb) == 0 && S_ISLNK(sb.st_mode) && sb.st_size > 0))
@@ -3674,6 +3678,56 @@ tzdb::current_zone() const
 
 #else  // !_WIN32
 
+#if HAS_STRING_VIEW
+
+static
+std::string_view
+extract_tz_name(char const* rp)
+{
+    using namespace std;
+    string_view result = rp;
+    CONSTDATA string_view zoneinfo = "zoneinfo";
+    size_t pos = result.rfind(zoneinfo);
+    if (pos == result.npos)
+        throw runtime_error(
+            "current_zone() failed to find \"zoneinfo\" in " + string(result));
+    pos = result.find('/', pos);
+    result.remove_prefix(pos + 1);
+    return result;
+}
+
+#else  // !HAS_STRING_VIEW
+
+static
+std::string
+extract_tz_name(char const* rp)
+{
+    using namespace std;
+    string result = rp;
+    CONSTDATA char zoneinfo[] = "zoneinfo";
+    size_t pos = result.rfind(zoneinfo);
+    if (pos == result.npos)
+        throw runtime_error(
+            "current_zone() failed to find \"zoneinfo\" in " + result);
+    pos = result.find('/', pos);
+    result.erase(0, pos + 1);
+    return result;
+}
+
+#endif  // HAS_STRING_VIEW
+
+static
+bool
+sniff_realpath(const char* timezone)
+{
+    using namespace std;
+    char rp[PATH_MAX+1] = {};
+    if (realpath(timezone, rp) == nullptr)
+        throw system_error(errno, system_category(), "realpath() failed");
+    auto result = extract_tz_name(rp);
+    return result != "posixrules";
+}
+
 const time_zone*
 tzdb::current_zone() const
 {
@@ -3693,31 +3747,22 @@ tzdb::current_zone() const
     {
         struct stat sb;
         CONSTDATA auto timezone = "/etc/localtime";
-        if (lstat(timezone, &sb) == 0 && S_ISLNK(sb.st_mode) && sb.st_size > 0) {
+        if (lstat(timezone, &sb) == 0 && S_ISLNK(sb.st_mode) && sb.st_size > 0)
+        {
             using namespace std;
+            static const bool use_realpath = sniff_realpath(timezone);
             char rp[PATH_MAX+1] = {};
-            if (realpath(timezone, rp) == nullptr)
-                throw system_error(errno, system_category(), "realpath() failed");
-#if HAS_STRING_VIEW
-            string_view result = rp;
-            CONSTDATA string_view zoneinfo = "zoneinfo";
-            size_t pos = result.rfind(zoneinfo);
-            if (pos == result.npos)
-                throw runtime_error(
-                    "current_zone() failed to find \"zoneinfo\" in " + string(result));
-            pos = result.find('/', pos);
-            result.remove_prefix(pos + 1);
-#else
-            string result = rp;
-            CONSTDATA char zoneinfo[] = "zoneinfo";
-            size_t pos = result.rfind(zoneinfo);
-            if (pos == result.npos)
-                throw runtime_error(
-                    "current_zone() failed to find \"zoneinfo\" in " + result);
-            pos = result.find('/', pos);
-            result.erase(0, pos + 1);
-#endif
-            return locate_zone(result);
+            if (use_realpath)
+            {
+                if (realpath(timezone, rp) == nullptr)
+                    throw system_error(errno, system_category(), "realpath() failed");
+            }
+            else
+            {
+                if (readlink(timezone, rp, sizeof(rp)-1) <= 0)
+                    throw system_error(errno, system_category(), "readlink() failed");
+            }
+            return locate_zone(extract_tz_name(rp));
         }
     }
     // On embedded systems e.g. buildroot with uclibc the timezone is linked
