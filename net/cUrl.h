@@ -1,11 +1,9 @@
-// cHttp.h - http base class based on tinyHttp parser
+// cUrl.h - url parser
 #pragma once
-//{{{  includes
 #include <stdint.h>
 #include <string>
-#include <sstream>
-#include <iomanip>
-//}}}
+//#include <sstream>
+//#include <iomanip>
 
 class cUrl {
 public:
