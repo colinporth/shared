@@ -9,47 +9,17 @@
 
 class cUrl {
 public:
-  ~cUrl() { clear(); }
-  //{{{
-  void clear() {
-    free (scheme);
-    scheme = nullptr;
+  std::string getScheme() { return mScheme; }
+  std::string getHost() { return mHost; }
+  std::string getPath() { return mPath; }
+  std::string getPort() { return mPort; }
+  std::string getUsername() { return mUsername; }
+  std::string getPassword() { return mPassword; }
+  std::string getQuery() { return mQuery; }
+  std::string getFragment() { return mFragment; }
 
-    free (host);
-    host = nullptr;
-
-    free (port);
-    port = nullptr;
-
-    free (query);
-    query = nullptr;
-
-    free (fragment);
-    fragment = nullptr;
-
-    free (username);
-    username = nullptr;
-
-    free (password);
-    password = nullptr;
-    }
-  //}}}
-
-  std::string getScheme() { return scheme; }
-  std::string getHost() { return host; }
-  std::string getPath() { return path; }
-  std::string getPort() { return port; }
-  std::string getUsername() { return username; }
-  std::string getPassword() { return password; }
-  std::string getQuery() { return query; }
-  std::string getFragment() { return fragment; }
-
-  //{{{
   void parse (const std::string& urlString) {
   // parseUrl, see RFC 1738, 3986
-  // !!! keep converting to string !!!
-
-    clear();
 
     auto url = urlString.c_str();
     int urlLen = (int)urlString.size();
@@ -69,13 +39,11 @@ public:
         return;
 
     // Copy the scheme to the storage
-    scheme = (char*)malloc (len+1);
-    strncpy (scheme, curstr, len);
-    scheme[len] = '\0';
+    mScheme = std::string (curstr, len);
 
     // Make the character to lower if it is upper case.
-    for (auto i = 0; i < len; i++)
-      scheme[i] = tolower (scheme[i]);
+    for (auto i = 0; i < mScheme.size(); i++)
+      mScheme[i] = tolower (mScheme[i]);
     //}}}
 
     // skip ':'
@@ -115,10 +83,7 @@ public:
       while ((tmpstr < url + urlLen) && (':' != *tmpstr) && ('@' != *tmpstr))
          tmpstr++;
 
-      len = tmpstr - curstr;
-      username = (char*)malloc(len+1);
-      strncpy (username, curstr, len);
-      username[len] = '\0';
+      mUsername = std::string (curstr, tmpstr - curstr);
       //}}}
       // Proceed current pointer
       curstr = tmpstr;
@@ -130,10 +95,7 @@ public:
         while ((tmpstr < url + urlLen) && ('@' != *tmpstr))
           tmpstr++;
 
-        len = tmpstr - curstr;
-        password = (char*)malloc(len+1);
-        strncpy (password, curstr, len);
-        password[len] = '\0';
+        mPassword  = std::string (curstr, tmpstr - curstr);
         curstr = tmpstr;
         }
         //}}}
@@ -160,10 +122,7 @@ public:
       tmpstr++;
       }
 
-    len = tmpstr - curstr;
-    host = (char*)malloc(len+1);
-    strncpy (host, curstr, len);
-    host[len] = '\0';
+    mHost  = std::string (curstr, tmpstr - curstr);
     curstr = tmpstr;
     //}}}
     //{{{  parse port number
@@ -175,15 +134,12 @@ public:
       while ((tmpstr < url + urlLen) && ('/' != *tmpstr))
         tmpstr++;
 
-      len = tmpstr - curstr;
-      port = (char*)malloc(len+1);
-      strncpy (port, curstr, len);
-      port[len] = '\0';
+      mPort = std::string (curstr, tmpstr - curstr);
       curstr = tmpstr;
       }
     //}}}
 
-    // end of string ?
+    // end of string?
     if (curstr >= url + urlLen)
       return;
 
@@ -198,10 +154,7 @@ public:
     while ((tmpstr < url + urlLen) && ('#' != *tmpstr) && ('?' != *tmpstr))
       tmpstr++;
 
-    len = tmpstr - curstr;
-    path = (char*)malloc(len+1);
-    strncpy (path, curstr, len);
-    path[len] = '\0';
+    mPath = std::string (curstr, tmpstr - curstr);
     curstr = tmpstr;
     //}}}
     //{{{  parse query
@@ -213,11 +166,8 @@ public:
       tmpstr = curstr;
       while ((tmpstr < url + urlLen) && ('#' != *tmpstr))
         tmpstr++;
-      len = tmpstr - curstr;
 
-      query = (char*)malloc(len+1);
-      strncpy (query, curstr, len);
-      query[len] = '\0';
+      mQuery  = std::string (curstr, tmpstr - curstr);
       curstr = tmpstr;
       }
     //}}}
@@ -226,29 +176,23 @@ public:
       // Skip '#'
       curstr++;
 
-      /* Read fragment */
+      // Read fragment
       tmpstr = curstr;
       while (tmpstr < url + urlLen)
         tmpstr++;
-      len = tmpstr - curstr;
-
-      fragment = (char*)malloc(len+1);
-      strncpy (fragment, curstr, len);
-      fragment[len] = '\0';
-
+      mFragment  = std::string (curstr, tmpstr - curstr);
       curstr = tmpstr;
       }
     //}}}
     }
-  //}}}
 
 private:
-  char* scheme = nullptr;    // mandatory
-  char* host = nullptr;      // mandatory
-  char* path = nullptr;      // optional
-  char* port = nullptr;      // optional
-  char* username = nullptr;  // optional
-  char* password = nullptr;  // optional
-  char* query = nullptr;     // optional
-  char* fragment = nullptr;  // optional
+  std::string mScheme;    // mandatory
+  std::string mHost;      // mandatory
+  std::string mPath;      // optional
+  std::string mPort;      // optional
+  std::string mUsername;  // optional
+  std::string mPassword;  // optional
+  std::string mQuery;     // optional
+  std::string mFragment;  // optional
   };

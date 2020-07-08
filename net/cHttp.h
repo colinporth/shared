@@ -25,7 +25,6 @@ public:
 
     free (mContent);
     free (mScratch);
-    mRedirectUrl.clear();
     }
   //}}}
   virtual void initialise() = 0;
