@@ -18,7 +18,7 @@ public:
   void wait() {
 
     if (!mName.empty())
-      cLog::log (LOGINFO, mName + " - wait");
+      cLog::log (LOGINFO1, mName + " - wait");
 
     std::unique_lock<std::mutex> lock (mMutex);
     while (mCount == 0)
@@ -26,14 +26,14 @@ public:
     mCount--;
 
     if (!mName.empty())
-      cLog::log (LOGINFO, mName + " - signalled");
+      cLog::log (LOGINFO1, mName + " - signalled");
     }
   //}}}
   //{{{
   void notify() {
 
     if (!mName.empty())
-      cLog::log (LOGINFO,  mName + " - notify");
+      cLog::log (LOGINFO1,  mName + " - notify");
 
     std::unique_lock<std::mutex> lock (mMutex);
     mCount++;
@@ -44,7 +44,7 @@ public:
   void notifyAll() {
 
     if (!mName.empty())
-      cLog::log (LOGINFO,  mName + " - notifyAll");
+      cLog::log (LOGINFO1,  mName + " - notifyAll");
 
     std::unique_lock<std::mutex> lock (mMutex);
     mCount++;

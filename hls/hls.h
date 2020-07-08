@@ -42,8 +42,8 @@ class cHls {
 public:
   enum ePlaying { ePause, eScrub, ePlay };
   //{{{
-  cHls (int chan, int bitrate, int daylightSeconds) :
-      mChan(chan), mLoadSem("hlsLoad"), mBitrate(bitrate), mDaylightSeconds(daylightSeconds) {
+  cHls (int chan, int bitrate, int daylightSeconds) : 
+      mChan(chan), mBitrate(bitrate), mDaylightSeconds(daylightSeconds) {
     mDecoder = new cAacDecoder();
     }
   //}}}
@@ -327,7 +327,7 @@ public:
   float mVolume = kDefaultVolume;
   bool mVolumeChanged = true;
 
-  cSemaphore mLoadSem;
+  cSemaphore mLoadSem = "loadSem";
   //}}}
 
 private:
