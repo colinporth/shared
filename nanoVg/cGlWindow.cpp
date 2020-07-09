@@ -17,7 +17,6 @@ cGlWindow::~cGlWindow() {
   glfwTerminate();
   }
 //}}}
-
 //{{{  static var inits
 cGlWindow* cGlWindow::mGlWindow = NULL;
 
@@ -34,12 +33,12 @@ bool cGlWindow::mShifted = false;
 bool cGlWindow::mControlled = false;
 //}}}
 
-//{{{  iWindow
+// iWindow
 cVg* cGlWindow::getContext() { return this; }
 uint16_t cGlWindow::getWidthPix() { return mRoot->getPixWidth(); }
 uint16_t cGlWindow::getHeightPix() { return mRoot->getPixHeight(); }
-//}}}
-//{{{  iDraw
+
+// iDraw
 //{{{
 void cGlWindow::pixel (uint32_t colour, int16_t x, int16_t y) {
   rectClipped (colour, x, y, 1, 1);
@@ -77,7 +76,6 @@ void cGlWindow::ellipseSolid (uint32_t colour, int16_t x, int16_t y, uint16_t xr
   fillColor (nvgRGBA ((colour & 0xFF0000) >> 16, (colour & 0xFF00) >> 8, colour & 0xFF,255));
   fill();
   }
-//}}}
 //}}}
 
 // protected

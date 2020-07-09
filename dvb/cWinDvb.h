@@ -40,13 +40,11 @@ public:
   virtual ~cDvb() {}
 
   void tune (int frequency);
-  void pause();
-  void stop();
 
   void grabThread();
   void signalThread();
 
-  // vars - public for widget
+  // public for widget
   std::string mTuneStr = "untuned";
   std::string mSignalStr = "signal";
   std::string mErrorStr = "ok";

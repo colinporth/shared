@@ -87,27 +87,6 @@ void cDvb::tune (int frequency) {
   //}}}
   }
 //}}}
-//{{{
-void cDvb::pause() {
-
-  auto hr = mMediaControl->Pause();
-  if (hr != S_OK)
-    cLog::log (LOGERROR, "pause graph failed " + dec(hr));
-
-  mGrabberCB.clear();
-  }
-//}}}
-//{{{
-void cDvb::stop() {
-
-  auto hr = mMediaControl->Stop();
-  if (hr != S_OK)
-    cLog::log (LOGERROR, "stop graph failed " + dec(hr));
-
-  mGrabberCB.clear();
-  clear();
-  }
-//}}}
 
 //{{{
 void cDvb::grabThread() {
@@ -124,7 +103,9 @@ void cDvb::grabThread() {
         streamPos += demux (ptr, blockSize, streamPos, false, -1);
         releaseBlock (blockSize);
         if (getDiscontinuity())
-          mErrorStr = "errors " + dec (getDiscontinuity());
+          mErrorStr = "errors " + dec (getDiscontinuity()) + " of " + dec(streamPos/1000000) + "m";
+        else
+          mErrorStr = dec(streamPos/1000000) + "m";
         }
       else
         Sleep (1);
