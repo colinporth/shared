@@ -42,12 +42,11 @@ public:
   void tune (int frequency);
 
   void grabThread();
-  void signalThread();
 
   // public for widget
+  std::string mErrorStr = "waiting";
   std::string mTuneStr = "untuned";
   std::string mSignalStr = "signal";
-  std::string mErrorStr = "ok";
 
 private:
   //{{{

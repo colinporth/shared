@@ -25,7 +25,7 @@ using namespace std;
 
 // public:
 //{{{
-cDvb::cDvb (int frequency, const std::string& root, bool recordAll) : cDumpTransportStream (root, recordAll) {
+cDvb::cDvb (int frequency, const string& root, bool recordAll) : cDumpTransportStream (root, recordAll) {
 
   mBipBuffer = new cBipBuffer();
   mBipBuffer->allocateBuffer (2048 * 128 * 188); // 50m - T2 5m a second
@@ -258,6 +258,7 @@ void cDvb::tune (int frequency) {
 
       updateSignalString();
       monitorFe();
+
       mTuneStr = string(fe_info.name) + " " + dec(frequency/1000000) + "Mhz";
       return;
       }
@@ -286,19 +287,6 @@ void cDvb::captureThread() {
       }
     else
       cLog::log (LOGERROR, "bipBuffer.reserve failed " + dec(bytesAllocated));
-    }
-
-  cLog::log (LOGERROR, "exit");
-  }
-//}}}
-//{{{
-void cDvb::signalThread() {
-
-  cLog::setThreadName ("sign");
-
-  while (true) {
-    updateSignalString();
-    uSleep (1000);
     }
 
   cLog::log (LOGERROR, "exit");
@@ -337,39 +325,6 @@ void cDvb::grabThread() {
 
   cLog::log (LOGERROR, "exit");
   }
-//}}}
-//{{{
-//void cDvb::readThread (const std::string& inTs) {
-
-  //cLog::setThreadName ("read");
-
-  //auto file = fopen (inTs.c_str(), "rb");
-  //if (!file) {
-    //{{{  error, return
-    //cLog::log (LOGERROR, "no file " + inTs);
-    //return;
-    //}
-    //}}}
-
-  //uint64_t streamPos = 0;
-  //auto blockSize = 188 * 8;
-  //auto buffer = (uint8_t*)malloc (blockSize);
-
-  //bool run = true;
-  //while (run) {
-    //int bytesRead = fread (buffer, 1, blockSize, file);
-    //if (bytesRead > 0)
-      //streamPos += demux (buffer, bytesRead, streamPos, false, -1);
-    //else
-      //break;
-    //mErrorStr = dec (getDiscontinuity());
-    //}
-
-  //fclose (file);
-  //free (buffer);
-
-  //cLog::log (LOGERROR, "exit");
-  //}
 //}}}
 
 // private
@@ -450,10 +405,7 @@ void cDvb::monitorFe() {
     for (int i = 0; i < 8; i++) {
       auto uvalue = getProps[i].u.st.stat[0].uvalue;
       cLog::log (LOGINFO, "stats %d len:%d scale:%d uvalue:%d",
-                 i,
-                 getProps[i].u.st.len,
-                 getProps[i].u.st.stat[0].scale,
-                 int(uvalue));
+                 i, getProps[i].u.st.len, getProps[i].u.st.stat[0].scale, int(uvalue));
       }
     //__s64 svalue;
   }

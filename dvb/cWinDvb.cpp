@@ -25,18 +25,20 @@ DEFINE_GUID (CLSID_BDAtif, 0xFC772ab0, 0x0c7f, 0x11d3, 0x8F,0xf2, 0x00,0xa0,0xc9
 DEFINE_GUID (CLSID_Dump, 0x36a5f770, 0xfe4c, 0x11ce, 0xa8, 0xed, 0x00, 0xaa, 0x00, 0x2f, 0xea, 0xb5);
 
 #pragma comment (lib,"strmiids")
+
+using namespace std;
 //}}}
 
 //{{{
-inline std::string wstrToStr (const std::wstring& wstr) {
-  std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converter;
+inline string wstrToStr (const wstring& wstr) {
+  wstring_convert<codecvt_utf8<wchar_t>, wchar_t> converter;
   return converter.to_bytes (wstr);
   }
 //}}}
 
 // public:
 //{{{
-cDvb::cDvb (int frequency, const std::string& root, bool recordAll) : cDumpTransportStream (root, recordAll) {
+cDvb::cDvb (int frequency, const string& root, bool recordAll) : cDumpTransportStream (root, recordAll) {
   createGraph (frequency);
   };
 //}}}
@@ -108,28 +110,17 @@ void cDvb::grabThread() {
           mErrorStr = dec(streamPos/1000000) + "m";
         }
       else
-        Sleep (1);
+        this_thread::sleep_for (1ms);
+
+      if (mScanningTuner) {
+        long signal = 0;
+        mScanningTuner->get_SignalStrength (&signal);
+        mSignalStr = "signal " + dec(signal / 0x10000, 3);
+        }
       }
     }
   else
     cLog::log (LOGERROR, "run graph failed " + dec(hr));
-
-  cLog::log (LOGINFO, "exit");
-  }
-//}}}
-//{{{
-void cDvb::signalThread() {
-
-  cLog::setThreadName ("sign");
-
-  while (true) {
-    if (mScanningTuner) {
-      long signal = 0;
-      mScanningTuner->get_SignalStrength (&signal);
-      mSignalStr = "signal " + dec(signal / 0x10000, 3);
-      }
-    Sleep (100);
-    }
 
   cLog::log (LOGINFO, "exit");
   }

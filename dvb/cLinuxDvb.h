@@ -20,13 +20,12 @@ public:
   void tune (int frequency);
 
   void captureThread();
-  void signalThread();
   void grabThread();
 
   // public for widgets
+  std::string mErrorStr = "waiting";
   std::string mTuneStr = "untuned";
   std::string mSignalStr = "signal";
-  std::string mErrorStr = "";
 
 private:
   void setTsFilter (uint16_t pid, dmx_pes_type_t pestype);
