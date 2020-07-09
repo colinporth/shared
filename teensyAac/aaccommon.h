@@ -3,18 +3,6 @@
 
 #define AAC_ENABLE_SBR
 
-#ifdef _WIN32
-  #define bigMalloc(size,tag)   malloc (size)
-  #define bigFree               free
-#elif __linux__
-  #define bigMalloc(size,tag)   malloc (size)
-  #define bigFree               free
-#else
-  #include "FreeRtos.h"
-  #define bigMalloc(size,tag)   pvPortMalloc(size)
-  #define bigFree               vPortFree
-#endif
-
 //{{{  defines
 #define MAX_NCHANS_ELEM   2
 #define NUM_TERMS_RPI 5

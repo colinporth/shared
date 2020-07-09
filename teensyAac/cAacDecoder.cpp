@@ -1991,11 +1991,11 @@ void DecodeICS (cBitStream& bitStream, PSInfoBase* psInfoBase, int ch) {
 cAacDecoder::cAacDecoder() {
 
   memset (this, 0, sizeof(cAacDecoder));
-  psInfoBase = (PSInfoBase*)bigMalloc (sizeof(PSInfoBase), "aacPsInfoBase");
+  psInfoBase = (PSInfoBase*)malloc (sizeof(PSInfoBase));
   memset (psInfoBase, 0, sizeof(PSInfoBase));
 
 #ifdef AAC_ENABLE_SBR
-  psInfoSBR = (PSInfoSBR*)bigMalloc(sizeof(PSInfoSBR), "aacPsInfoSBR");
+  psInfoSBR = (PSInfoSBR*)malloc(sizeof(PSInfoSBR));
   InitSBRState (psInfoSBR);
 #endif
   }
@@ -2004,10 +2004,10 @@ cAacDecoder::cAacDecoder() {
 cAacDecoder::~cAacDecoder() {
 
 #ifdef AAC_ENABLE_SBR
-  bigFree (psInfoSBR);
+  free (psInfoSBR);
 #endif
 
-  bigFree (psInfoBase);
+  free (psInfoBase);
   }
 //}}}
 

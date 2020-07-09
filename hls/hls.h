@@ -52,8 +52,8 @@ public:
     free (mDecoder);
     }
   //}}}
-  void* operator new (size_t size) { return bigMalloc (size, "cHls"); }
-  void operator delete (void *ptr) { bigFree (ptr); }
+  void* operator new (size_t size) { return malloc (size); }
+  void operator delete (void *ptr) { free (ptr); }
 
   //{{{
   void getChunkInfo (int chunk, bool& loaded, bool& loading, int& offset) {
@@ -331,23 +331,23 @@ public:
   cSemaphore mLoadSem = cSemaphore ("loadSem");
   //}}}
 
-private:
+  private:
   //{{{
   class cChunk {
   public:
     //{{{
     cChunk() {
-      mSamples = (int16_t*)bigMalloc ((kFramesPerChunk+1) * 1024 * 2 * 2, "chunkSamples"); // 300 frames * 1024 samples * 2 chans * 2 bytes
+      mSamples = (int16_t*)malloc ((kFramesPerChunk+1) * 1024 * 2 * 2); // 300 frames * 1024 samples * 2 chans * 2 bytes
       memset (mSamples, 0, (kFramesPerChunk+1) * 1024 * 2 * 2);
 
-      mPeakSamples = (uint8_t*)bigMalloc (kMaxZoom * kFramesPerChunk * 2, "chunkPeak"); // 300 frames of L,R uint8_t peak
+      mPeakSamples = (uint8_t*)malloc (kMaxZoom * kFramesPerChunk * 2); // 300 frames of L,R uint8_t peak
       memset (mPeakSamples, 0, kMaxZoom * kFramesPerChunk * 2);
       }
     //}}}
     //{{{
     ~cChunk() {
-      bigFree (mSamples);
-      bigFree (mPeakSamples);
+      free (mSamples);
+      free (mPeakSamples);
       }
     //}}}
 
@@ -661,3 +661,4 @@ private:
   bool mScrubbing = false;
   //}}}
   };
+  //}}}

@@ -1,5 +1,4 @@
 // hls.h
-//includes
 #pragma once
 #include "../widgets/cDecodePicWidget.h"
 
@@ -204,7 +203,6 @@ private:
   };
 //}}}
 
-//{{{
 void hlsMenu (cRootContainer* root, cHls* hls) {
 
   root->addTopLeft (new cDecodePicWidget (r1x80, sizeof(r1x80), 3, 3, 1, hls->mChan, hls->mChanChanged));
@@ -220,4 +218,3 @@ void hlsMenu (cRootContainer* root, cHls* hls) {
 
   root->addTopRight (new cValueBox (hls->mVolume, hls->mVolumeChanged, COL_YELLOW, 0.5, 0))->setOverPick (1.5);
   }
-//}}}
