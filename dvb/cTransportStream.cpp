@@ -6,7 +6,7 @@
 //{{{  includes
 #define _CRT_SECURE_NO_WARNINGS
 #define WIN32_LEAN_AND_MEAN
-#define _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS 
+#define _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS
 
 #include "cTransportStream.h"
 
@@ -6846,7 +6846,7 @@ char cTransportStream::getFrameType (uint8_t* pesBuf, int64_t pesBufSize, int st
 
       // find next start code
       auto offset = startOffset;
-      uint32_t nalSize;
+      uint32_t nalSize = offset;
       uint32_t val = 0xffffffff;
       while (offset++ < bufSize - 3) {
         val = (val << 8) | *buf++;
