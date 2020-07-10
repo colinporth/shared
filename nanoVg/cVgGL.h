@@ -743,18 +743,33 @@ private:
       "attribute vec2 tcoord;"
       "varying vec2 ftcoord;"
       "varying vec2 fpos;"
+
       "void main() {"
         "ftcoord = tcoord;"
         "fpos = vertex;"
         "gl_Position = vec4(2.0*vertex.x/viewSize.x - 1.0, 1.0 - 2.0*vertex.y/viewSize.y, 0, 1);"
         "}";
-
+      "\n";
     //{{{
     const char* kFragShader =
       //  precision
       "precision mediump float;\n"
 
       // vars
+      "#define scissorMatrix mat3(frag[0].xyz, frag[1].xyz, frag[2].xyz)\n"
+      "#define paintMatrix mat3(frag[3].xyz, frag[4].xyz, frag[5].xyz)\n"
+      "#define innerColor frag[6]\n"
+      "#define outerColor frag[7]\n"
+      "#define scissorExt frag[8].xy\n"
+      "#define scissorScale frag[8].zw\n"
+      "#define extent frag[9].xy\n"
+      "#define radius frag[9].z\n"
+      "#define feather frag[9].w\n"
+      "#define strokeMult frag[10].x\n"
+      "#define strokeThreshold frag[10].y\n"
+      "#define texType int(frag[10].z)\n"
+      "#define type int(frag[10].w)\n"
+
       "float sdroundrect(vec2 pt, vec2 ext, float rad) {"
         "vec2 ext2 = ext - vec2(rad,rad);"
         "vec2 d = abs(pt) - ext2;"
@@ -825,6 +840,7 @@ private:
 
       "if (strokeAlpha < strokeThreshold) discard;\n"
       "gl_FragColor = result;\n"
+
       "}\n";
     //}}}
 
