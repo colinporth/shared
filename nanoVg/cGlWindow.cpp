@@ -1,16 +1,10 @@
 // cGlWindow.cpp
-//{{{  includes
 #define _CRT_SECURE_NO_WARNINGS
-#define _SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING
-#define WIN32_LEAN_AND_MEAN
-
 #include "../utils/utils.h"
 #include "../utils/cLog.h"
-
 #include "cGlWindow.h"
 
 using namespace std;
-//}}}
 
 //{{{
 cGlWindow::~cGlWindow() {
@@ -93,15 +87,15 @@ cRootContainer* cGlWindow::initialise (string title, int width, int height, unsi
     //}}}
 
   // glfw hints
-#if NANOVG_GLES3
-  glfwWindowHint (GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-  glfwWindowHint (GLFW_CONTEXT_VERSION_MAJOR, 3);
-  glfwWindowHint (GLFW_CONTEXT_VERSION_MINOR, 0);
-#else
-  glfwWindowHint (GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-  glfwWindowHint (GLFW_CONTEXT_VERSION_MAJOR, 2);
-  glfwWindowHint (GLFW_CONTEXT_VERSION_MINOR, 0);
-#endif
+  #if NANOVG_GLES3
+    glfwWindowHint (GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
+    glfwWindowHint (GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint (GLFW_CONTEXT_VERSION_MINOR, 0);
+  #else
+    glfwWindowHint (GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
+    glfwWindowHint (GLFW_CONTEXT_VERSION_MAJOR, 2);
+    glfwWindowHint (GLFW_CONTEXT_VERSION_MINOR, 0);
+  #endif
 
   mWindow = glfwCreateWindow (width, height, title.c_str(), NULL, NULL);
   if (!mWindow) {

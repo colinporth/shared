@@ -1,10 +1,7 @@
 // cVgGL.h - based on Mikko Mononen memon@inside.org nanoVg
-//{{{  includes
 #pragma once
-
 #include <stdio.h>
 #include "cVg.h"
-//}}}
 
 class cVgGL : public cVg {
 public:
@@ -863,13 +860,8 @@ private:
     #ifdef NANOVG_GLES2
       "#version 100\n"
       "#define NANOVG_GL2 1\n"
-    #elif NANOVG_GLES3
+    #else NANOVG_GLES3
       "#version 300 es\n"
-      "#define NANOVG_GL3 1\n"
-    #elif NANOVG_GL2
-      "#define NANOVG_GL2 1\n"
-    #else
-      "#version 150 core\n"
       "#define NANOVG_GL3 1\n"
     #endif
 

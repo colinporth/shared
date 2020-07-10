@@ -1,14 +1,11 @@
 // cVg.cpp - based on Mikko Mononen memon@inside.org nanoVg
-//{{{  includes
 #define _CRT_SECURE_NO_WARNINGS
-
 #include "cVg.h"
-
 #include "fontStash.h"
 #include "stb_image.h"
 
 using namespace std;
-//}}}
+
 //{{{  defines
 #define KAPPA90 0.5522847493f // Length proportional to radius of a cubic bezier handle for 90deg arcs.
 
