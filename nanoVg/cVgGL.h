@@ -731,112 +731,30 @@ private:
     //}}}
 
   private:
-    //{{{
-        const char* kShaderHeader =
+    const char* kShaderHeader =
+      "#version 100\n"
+      "#define NANOVG_GL2 1\n"
+      "#define UNIFORMARRAY_SIZE 11\n"
+      "\n";
 
-        #ifdef NANOVG_GLES2
-          "#version 100\n"
-          "#define NANOVG_GL2 1\n"
-        #elif NANOVG_GLES3
-          "#version 300 es\n"
-          "#define NANOVG_GL3 1\n"
-        #elif NANOVG_GL2
-          "#define NANOVG_GL2 1\n"
-        #else
-          "#version 150 core\n"
-          "#define NANOVG_GL3 1\n"
-        #endif
-
-        #ifdef NANOVG_UNIFORMBUFFER
-          "#define USE_UNIFORMBUFFER 1\n"
-        #else
-          "#define UNIFORMARRAY_SIZE 11\n"
-        #endif
-          "\n";
-        //}}}
-    //{{{
     const char* kVertShader =
-
       "uniform vec2 viewSize;"
-
-    #ifdef NANOVG_GL3
-      "in vec2 vertex;"
-      "in vec2 tcoord;"
-      "out vec2 ftcoord;"
-      "out vec2 fpos;"
-    #else
       "attribute vec2 vertex;"
       "attribute vec2 tcoord;"
       "varying vec2 ftcoord;"
       "varying vec2 fpos;"
-    #endif
-
       "void main() {"
         "ftcoord = tcoord;"
         "fpos = vertex;"
         "gl_Position = vec4(2.0*vertex.x/viewSize.x - 1.0, 1.0 - 2.0*vertex.y/viewSize.y, 0, 1);"
         "}";
-    //}}}
+
     //{{{
     const char* kFragShader =
       //  precision
-      "#ifdef GL_ES\n"
-        "#if defined(GL_FRAGMENT_PRECISION_HIGH) || defined(NANOVG_GL3)\n"
-          "precision highp float;\n"
-        "#else\n"
-          "precision mediump float;\n"
-        "#endif\n"
-      "#endif\n"
+      "precision mediump float;\n"
 
       // vars
-      "#ifdef NANOVG_GL3\n"
-        "#ifdef USE_UNIFORMBUFFER\n"
-          "layout(std140) uniform frag {\n"
-            "mat3 scissorMatrix;\n"
-            "mat3 paintMatrix;\n"
-            "vec4 innerColor;\n"
-            "vec4 outerColor;\n"
-            "vec2 scissorExt;\n"
-            "vec2 scissorScale;\n"
-            "vec2 extent;\n"
-            "float radius;\n"
-            "float feather;\n"
-            "float strokeMult;\n"
-            "float strokeThreshold;\n"
-            "int texType;\n"
-            "int type;\n"
-            "};\n"
-        "#else\n"
-          "uniform vec4 frag[UNIFORMARRAY_SIZE];\n"
-        "#endif\n"
-
-        "uniform sampler2D tex;\n"
-        "in vec2 ftcoord;\n"
-        "in vec2 fpos;\n"
-        "out vec4 outColor;\n"
-      "#else\n"
-        "uniform vec4 frag[UNIFORMARRAY_SIZE];\n"
-        "uniform sampler2D tex;\n"
-        "varying vec2 ftcoord;\n"
-        "varying vec2 fpos;\n"
-      "#endif\n"
-
-      "#ifndef USE_UNIFORMBUFFER\n"
-        "#define scissorMatrix mat3(frag[0].xyz, frag[1].xyz, frag[2].xyz)\n"
-        "#define paintMatrix mat3(frag[3].xyz, frag[4].xyz, frag[5].xyz)\n"
-        "#define innerColor frag[6]\n"
-        "#define outerColor frag[7]\n"
-        "#define scissorExt frag[8].xy\n"
-        "#define scissorScale frag[8].zw\n"
-        "#define extent frag[9].xy\n"
-        "#define radius frag[9].z\n"
-        "#define feather frag[9].w\n"
-        "#define strokeMult frag[10].x\n"
-        "#define strokeThreshold frag[10].y\n"
-        "#define texType int(frag[10].z)\n"
-        "#define type int(frag[10].w)\n"
-      "#endif\n"
-
       "float sdroundrect(vec2 pt, vec2 ext, float rad) {"
         "vec2 ext2 = ext - vec2(rad,rad);"
         "vec2 d = abs(pt) - ext2;"
@@ -906,13 +824,7 @@ private:
         "}\n"
 
       "if (strokeAlpha < strokeThreshold) discard;\n"
-
-      "#ifdef NANOVG_GL3\n"
-        "outColor = result;\n"
-      "#else\n"
-        "gl_FragColor = result;\n"
-      "#endif\n"
-
+      "gl_FragColor = result;\n"
       "}\n";
     //}}}
 
