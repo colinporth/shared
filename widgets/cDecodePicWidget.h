@@ -28,15 +28,9 @@ public:
 
   //{{{
   void setPic (const uint8_t* buffer, int size) {
-    #ifdef NANOVG
       int width, height, components;
       uint8_t* pic = stbi_load_from_memory ((uint8_t* const*)buffer, size, &width, &height, &components, 4);
       cPicWidget::setPic (pic, width, height, components);
-    #else
-      cDecodePic decodePic;
-      decodePic.setPic (buffer, size, 3);
-      cPicWidget::setPic (decodePic.getPic(), decodePic.getWidth(), decodePic.getHeight(), decodePic.getComponents());
-    #endif
     }
   //}}}
   //{{{

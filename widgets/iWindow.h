@@ -5,9 +5,7 @@ class iWindow {
 public:
   virtual ~iWindow() {}
 
-  #ifdef NANOVG
-    virtual cVg* getContext() = 0;
-  #endif
+  virtual cVg* getContext() = 0;
 
   virtual uint16_t getWidthPix() = 0;
   virtual uint16_t getHeightPix() = 0;

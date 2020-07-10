@@ -8,28 +8,10 @@ class cContainer;
 
 class cWidget {
 public:
-  //{{{
-  #ifdef NANOVG
-    static uint16_t getBoxHeight()       { return 19; }
-    static uint16_t getSmallFontHeight() { return 16; }
-    static uint16_t getFontHeight()      { return 18; }
-    static uint16_t getBigFontHeight()   { return 40; }
-  //}}}
-  //{{{
-  #elif STM32F769I_DISCO
-    static uint16_t getBoxHeight()       { return 30; }
-    static uint16_t getSmallFontHeight() { return 20; }
-    static uint16_t getFontHeight()      { return 26; }
-    static uint16_t getBigFontHeight()   { return 52; }
-  //}}}
-  //{{{
-  #else // STM32F746G_DISCO
-    static uint16_t getBoxHeight()       { return 19; }
-    static uint16_t getSmallFontHeight() { return 12; }
-    static uint16_t getFontHeight()      { return 16; }
-    static uint16_t getBigFontHeight()   { return 32; }
-  #endif
-  //}}}
+  static uint16_t getBoxHeight()       { return 19; }
+  static uint16_t getSmallFontHeight() { return 16; }
+  static uint16_t getFontHeight()      { return 18; }
+  static uint16_t getBigFontHeight()   { return 40; }
 
   static float getPixel() { return 1.0f / getBoxHeight(); }
 

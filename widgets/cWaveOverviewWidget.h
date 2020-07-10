@@ -86,8 +86,6 @@ protected:
     auto centreY = getCentreY();
     auto scale = getMaxValue() * 2;
 
-  #ifdef NANOVG
-    //{{{  draw wave
     auto context = draw->getContext();
 
     context->beginPath();
@@ -117,24 +115,6 @@ protected:
 
     context->fillColor (nvgRGB32 (mColourAfter));
     context->triangleFill();
-    //}}}
-  #else
-    //{{{  draw wave
-    for (auto x = firstX; x <= lastX; x++) {
-      if (x == curFrameX) {
-        auto wave = mWave + 1 + (mCurFrame * 2);
-        auto valueL = (*wave++ * mHeight) / scale;
-        auto valueR = (*wave++ * mHeight) / scale;
-        draw->rectClipped (COL_YELLOW, mX+x, centreY - valueL-2, 1, valueL + valueR + 4);
-        colour = mColourAfter;
-        }
-      else {
-        auto valueL = *summedWavePtr++;
-        auto valueR = *summedWavePtr++;
-        draw->rectClipped (colour, mX+x, centreY - valueL-2, 1, valueL + valueR + 4);
-        }
-      }
-    //}}}
   #endif
     }
   //}}}

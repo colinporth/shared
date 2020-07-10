@@ -45,16 +45,12 @@
 #define COL_DARKORANGE    0xFFC07800
 #define COL_DARKERORANGE  0xFF805000
 //}}}
-#ifdef NANOVG
-  //{{{  nanoVG colours
-  const sVgColour kWhite      = { 1.0f, 1.0f, 1.0f, 1.0f };
-  const sVgColour kGrey       = { 0.5f, 0.5f, 0.5f, 1.0f };
-  const sVgColour kDarkGrey   = { 0.25f, 0.25f, 0.25f, 1.0f };
-  const sVgColour kDarkerGrey = { 0.125f, 0.125f, 0.125f, 1.0f };
-  const sVgColour kBlack      = { 0.0f, 0.0f, 0.0f, 1.0f };
-  const sVgColour kYellow     = { 1.0f, 1.0f, 0.0f, 1.0f };
-  //}}}
-#endif
+const sVgColour kWhite      = { 1.0f, 1.0f, 1.0f, 1.0f };
+const sVgColour kGrey       = { 0.5f, 0.5f, 0.5f, 1.0f };
+const sVgColour kDarkGrey   = { 0.25f, 0.25f, 0.25f, 1.0f };
+const sVgColour kDarkerGrey = { 0.125f, 0.125f, 0.125f, 1.0f };
+const sVgColour kBlack      = { 0.0f, 0.0f, 0.0f, 1.0f };
+const sVgColour kYellow     = { 1.0f, 1.0f, 0.0f, 1.0f };
 
 class iDraw : public iWindow {
 public:
