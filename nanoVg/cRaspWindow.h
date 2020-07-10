@@ -1,6 +1,4 @@
 // cRaspWindow.h
-#define NANOVG
-#define NANOVG_GLES2 1
 //{{{  includes
 #pragma once
 

@@ -387,17 +387,8 @@ protected:
 
     glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
 
-  #ifndef NANOVG_GLES2
-    glPixelStorei (GL_UNPACK_ROW_LENGTH, 0);
-    glPixelStorei (GL_UNPACK_SKIP_PIXELS, 0);
-    glPixelStorei (GL_UNPACK_SKIP_ROWS, 0);
-  #endif
-
-    // The new way to build mipmaps on GLES and GL3
-  #ifndef NANOVG_GL2
-    if (imageFlags &  cVg::IMAGE_GENERATE_MIPMAPS)
+    if (imageFlags & cVg::IMAGE_GENERATE_MIPMAPS)
       glGenerateMipmap (GL_TEXTURE_2D);
-  #endif
 
     setBindTexture (0);
 
@@ -414,11 +405,6 @@ protected:
 
     glPixelStorei (GL_UNPACK_ALIGNMENT, 1);
 
-  #ifndef NANOVG_GLES2
-    glPixelStorei (GL_UNPACK_ROW_LENGTH, texture->width);
-    glPixelStorei (GL_UNPACK_SKIP_PIXELS, x);
-    glPixelStorei (GL_UNPACK_SKIP_ROWS, y);
-  #else
     // No support for all of skip, need to update a whole row at a time.
     if (texture->type == TEXTURE_RGBA)
       data += y * texture->width * 4;
@@ -426,7 +412,6 @@ protected:
       data += y * texture->width;
     x = 0;
     w = texture->width;
-  #endif
 
     if (texture->type == TEXTURE_RGBA)
       glTexSubImage2D (GL_TEXTURE_2D, 0, x,y, w,h, GL_RGBA, GL_UNSIGNED_BYTE, data);
@@ -434,12 +419,6 @@ protected:
       glTexSubImage2D (GL_TEXTURE_2D, 0, x,y, w,h, GL_LUMINANCE, GL_UNSIGNED_BYTE, data);
 
     glPixelStorei (GL_UNPACK_ALIGNMENT, 4);
-
-  #ifndef NANOVG_GLES2
-    glPixelStorei (GL_UNPACK_ROW_LENGTH, 0);
-    glPixelStorei (GL_UNPACK_SKIP_PIXELS, 0);
-    glPixelStorei (GL_UNPACK_SKIP_ROWS, 0);
-  #endif
 
     setBindTexture (0);
     return true;
@@ -775,15 +754,6 @@ private:
     //}}}
     //{{{
     const char* kFragShader =
-      //{{{  precision
-      "#ifdef GL_ES\n"
-        "#if defined(GL_FRAGMENT_PRECISION_HIGH) || defined(NANOVG_GL3)\n"
-          "precision highp float;\n"
-        "#else\n"
-          "precision mediump float;\n"
-        "#endif\n"
-      "#endif\n"
-      //}}}
       //{{{  vars
         "uniform vec4 frag[UNIFORMARRAY_SIZE];\n"
         "uniform sampler2D tex;\n"
@@ -844,12 +814,7 @@ private:
         "} else if (type == 1) {\n"
           //{{{  SHADER_FILL_IMAGE - image calc color fron texture
           "vec2 pt = (paintMatrix * vec3(fpos,1.0)).xy / extent;\n"
-
-          "#ifdef NANOVG_GL3\n"
-            "vec4 color = texture(tex, pt);\n"
-          "#else\n"
-            "vec4 color = texture2D(tex, pt);\n"
-          "#endif\n"
+          "vec4 color = texture2D(tex, pt);\n"
 
           "if (texType == 1) color = vec4(color.xyz*color.w,color.w);"
           "if (texType == 2) color = vec4(color.x);"
@@ -864,11 +829,7 @@ private:
           //}}}
         "} else if (type == 3) {\n"
           //{{{  SHADER_IMAGE - textured tris
-          "#ifdef NANOVG_GL3\n"
-            "vec4 color = texture(tex, ftcoord);\n"
-          "#else\n"
-            "vec4 color = texture2D(tex, ftcoord);\n"
-          "#endif\n"
+          "vec4 color = texture2D(tex, ftcoord);\n"
 
           "if (texType == 1) color = vec4(color.xyz*color.w,color.w);"
           "if (texType == 2) color = vec4(color.x);"
@@ -879,13 +840,7 @@ private:
         "}\n"
 
       "if (strokeAlpha < strokeThreshold) discard;\n"
-
-      "#ifdef NANOVG_GL3\n"
-        "outColor = result;\n"
-      "#else\n"
-        "gl_FragColor = result;\n"
-      "#endif\n"
-
+      "gl_FragColor = result;\n"
       "}\n";
     //}}}
 
