@@ -75,8 +75,8 @@ public:
   cPngPic() {}
   cPngPic (const uint8_t* buffer) : mSrcBuffer(buffer) {}
   virtual ~cPngPic() {}
-  void* operator new (std::size_t size) { return smallMalloc (size, "cPngPic"); }
-  void operator delete (void *ptr) { smallFree (ptr); }
+  void* operator new (std::size_t size) { return malloc (size); }
+  void operator delete (void *ptr) { free (ptr); }
 
   // iPic
   virtual uint16_t getWidth() { return mWidth; }
@@ -177,7 +177,7 @@ public:
       }
     //}}}
 
-    auto compressed = (uint8_t*)bigMalloc (compressed_size, "pngCompressed");
+    auto compressed = (uint8_t*)malloc (compressed_size);
     if (compressed == NULL) {
       //{{{  error
       mError = PNG_ENOMEM;
@@ -206,10 +206,10 @@ public:
 
     // allocate inflated,filtered image
     uint32_t inflated_size = ((mWidth * (mHeight * getBpp() + 7)) / 8) + mHeight;
-    auto inflated = (uint8_t*)bigMalloc (inflated_size, "pngInflated");
+    auto inflated = (uint8_t*)malloc (inflated_size);
     if (inflated == NULL) {
       //{{{  error
-      bigFree (compressed);
+      free (compressed);
       mError = PNG_ENOMEM;
       return nullptr;
       }
@@ -218,19 +218,19 @@ public:
     // decompress image data
     mError = uzInflate (inflated, inflated_size, compressed, compressed_size);
     if (mError != PNG_EOK) {
-      bigFree (compressed);
-      bigFree (inflated);
+      free (compressed);
+      free (inflated);
       return nullptr;
       }
     // free compressed image
-    bigFree (compressed);
+    free (compressed);
 
     // allocate final image
     mPicSize = (mHeight * mWidth * getBpp() + 7) / 8;
-    mPicBuf = (uint8_t*)bigMalloc (mPicSize, "pngPic");
+    mPicBuf = (uint8_t*)malloc (mPicSize);
     if (mPicBuf == NULL) {
       //{{{  error
-      bigFree (inflated);
+      free (inflated);
       mPicSize = 0;
       mError = PNG_ENOMEM;
       return nullptr;
@@ -239,10 +239,10 @@ public:
 
     // unfilter scanlines
     postProcessScanlines (mPicBuf, inflated);
-    bigFree (inflated);
+    free (inflated);
 
     if (mError != PNG_EOK) {
-      bigFree (mPicBuf);
+      free (mPicBuf);
       mPicBuf = NULL;
       mPicSize = 0;
       }

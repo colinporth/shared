@@ -8,8 +8,8 @@ class cDecodePic : public iPic {
 public:
   cDecodePic()  {}
   virtual ~cDecodePic() {}
-  void* operator new (std::size_t size) { return smallMalloc (size, "cDecodePic"); }
-  void operator delete (void *ptr) { smallFree (ptr); }
+  void* operator new (std::size_t size) { return malloc (size); }
+  void operator delete (void *ptr) { free (ptr); }
 
   // iPic
   virtual uint16_t getWidth() { return mWidth; }

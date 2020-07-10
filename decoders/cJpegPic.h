@@ -312,18 +312,18 @@ public:
     memset (mHuffData, 0, 2 * 2);
     memset (mHuffCode, 0, 2 * 2 * sizeof(uint16_t));
 
-    mPoolBuffer = (uint8_t*)bigMalloc(kPoolBufferSize, "jpegPool");
-    mInputBuffer = (uint8_t*)bigMalloc (kInputBufferSize, "jpegInputBuffer");
+    mPoolBuffer = (uint8_t*)malloc (kPoolBufferSize);
+    mInputBuffer = (uint8_t*)malloc (kInputBufferSize);
     }
   //}}}
   //{{{
   virtual ~cJpegPic() {
-    bigFree (mPoolBuffer);
-    bigFree (mInputBuffer);
+    free (mPoolBuffer);
+    free (mInputBuffer);
     }
   //}}}
-  void* operator new (std::size_t size) { return smallMalloc (size, "cJpegPic"); }
-  void operator delete (void *ptr) { smallFree (ptr); }
+  void* operator new (std::size_t size) { return malloc (size); }
+  void operator delete (void *ptr) { free (ptr); }
 
   // iPic
   virtual uint16_t getWidth() { return mWidth; }
@@ -416,7 +416,7 @@ public:
     mScaleShift = scaleShift;
     mFrameWidth = mWidth >> scaleShift;
     mFrameHeight = mHeight >> scaleShift;
-    mFrameBuffer = (uint8_t*)bigMalloc (mFrameWidth * mFrameHeight * mBytesPerPixel, "jpegFrame");
+    mFrameBuffer = (uint8_t*)malloc (mFrameWidth * mFrameHeight * mBytesPerPixel);
 
     // Initialize DC values
     mDcValue[0] = 0;
@@ -432,7 +432,7 @@ public:
         if (mNumRst && restartInterval++ == mNumRst) {
           // process restart interval if DRI header found
           if (!restart (restartCount++))  {
-            bigFree (mFrameBuffer);
+            free (mFrameBuffer);
             return nullptr;
             }
           restartInterval = 1;
@@ -440,13 +440,13 @@ public:
 
         // load MCU, decompress huffman coded stream and apply IDCT
         if (!mcuLoad()) {
-          bigFree (mFrameBuffer);
+          free (mFrameBuffer);
           return nullptr;
           }
 
         // process MCU, color space conversion, scaling and output
         if (!mcuProcess (x, y)) {
-          bigFree (mFrameBuffer);
+          free (mFrameBuffer);
           return nullptr;
           }
         }

@@ -42,18 +42,18 @@ public:
   cGifPic() {}
   //{{{
   ~cGifPic() {
-    bigFree (mFrames);
+    free (mFrames);
     mFrames = NULL;
 
-    bigFree (mlocal_colour_table);
+    free (mlocal_colour_table);
     mlocal_colour_table = NULL;
 
-    bigFree (mGlobal_colour_table);
+    free (mGlobal_colour_table);
     mGlobal_colour_table = NULL;
     }
   //}}}
-  void* operator new (std::size_t size) { return smallMalloc (size, "cGifPic"); }
-  void operator delete (void *ptr) { smallFree (ptr); }
+  void* operator new (std::size_t size) { return malloc (size); }
+  void operator delete (void *ptr) { free (ptr); }
 
   //{{{  enum eGifResult
   enum eGifResult {
@@ -154,8 +154,8 @@ public:
       /*  Allocate some data irrespective of whether we've got any colour tables. We
           always get the maximum size in case a GIF is lying to us. It's far better
           to give the wrong colours than to trample over some memory somewhere. */
-      mGlobal_colour_table = (unsigned int*)bigMalloc(GIF_MAX_COLOURS * sizeof(unsigned int), "GIFglobal");
-      mlocal_colour_table = (unsigned int*)bigMalloc(GIF_MAX_COLOURS * sizeof(unsigned int), "GIFlocal");
+      mGlobal_colour_table = (unsigned int*)malloc(GIF_MAX_COLOURS * sizeof(unsigned int));
+      mlocal_colour_table = (unsigned int*)malloc(GIF_MAX_COLOURS * sizeof(unsigned int));
       if ((mGlobal_colour_table == NULL) || (mlocal_colour_table == NULL))
         return GIF_INSUFFICIENT_MEMORY;
 
@@ -171,11 +171,11 @@ public:
           return GIF_INSUFFICIENT_DATA;
         }
 
-      if ((mFrames = (tGifFrame*)bigMalloc(sizeof(tGifFrame), "GIFframes")) == NULL)
+      if ((mFrames = (tGifFrame*)malloc(sizeof(tGifFrame))) == NULL)
         return GIF_INSUFFICIENT_MEMORY;
       mFrame_holders = 1;
 
-      mPicBuffer = bigMalloc (mWidth*mHeight*4, "GIFimage");
+      mPicBuffer = malloc (mWidth*mHeight*4);
       buffer_position = (unsigned int)(gifData - mGifData);
       }
 
@@ -512,7 +512,7 @@ private:
     max_height = (height > mHeight) ? height : mHeight;
 
     /*  Allocate some more memory */
-    mPicBuffer = bigMalloc ((max_width * max_height * 4), "GIFbuffer");
+    mPicBuffer = malloc ((max_width * max_height * 4));
     mWidth = max_width;
     mHeight = max_height;
 

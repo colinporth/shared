@@ -22,7 +22,7 @@ public:
   //{{{
   void setPic (uint8_t* pic, uint16_t picWidth, uint16_t picHeight, uint16_t components) {
 
-    bigFree (mPic);
+    free (mPic);
 
     mPic = pic;
     mPicWidth = picWidth;
