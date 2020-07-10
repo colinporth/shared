@@ -87,15 +87,9 @@ cRootContainer* cGlWindow::initialise (string title, int width, int height, unsi
     //}}}
 
   // glfw hints
-  #if NANOVG_GLES3
-    glfwWindowHint (GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-    glfwWindowHint (GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint (GLFW_CONTEXT_VERSION_MINOR, 0);
-  #else
-    glfwWindowHint (GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-    glfwWindowHint (GLFW_CONTEXT_VERSION_MAJOR, 2);
-    glfwWindowHint (GLFW_CONTEXT_VERSION_MINOR, 0);
-  #endif
+  glfwWindowHint (GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
+  glfwWindowHint (GLFW_CONTEXT_VERSION_MAJOR, 2);
+  glfwWindowHint (GLFW_CONTEXT_VERSION_MINOR, 0);
 
   mWindow = glfwCreateWindow (width, height, title.c_str(), NULL, NULL);
   if (!mWindow) {

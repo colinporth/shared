@@ -1,8 +1,6 @@
 // cRaspWindow.h
 #define NANOVG
 #define NANOVG_GLES2 1
-//#define NANOVG_GL3 1
-//#define NANOVG_UNIFORMBUFFER
 //{{{  includes
 #pragma once
 

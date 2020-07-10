@@ -13,18 +13,6 @@ public:
     glDisableVertexAttribArray (0);
     glDisableVertexAttribArray (1);
 
-    #ifdef NANOVG_GL3
-      glBindVertexArray (0);
-
-      #ifdef NANOVG_UNIFORMBUFFER
-        if (mFragBuffer)
-          glDeleteBuffers (1, &mFragBuffer);
-      #endif
-
-      if (mVertexArray)
-        glDeleteVertexArrays (1, &mVertexArray);
-    #endif
-
     if (mVertexBuffer)
       glDeleteBuffers (1, &mVertexBuffer);
 
@@ -49,20 +37,7 @@ public:
     mShader.create ("#define EDGE_AA 1\n");
     mShader.getUniforms();
 
-    // Create dynamic vertex array
-  #ifdef NANOVG_GL3
-    glGenVertexArrays (1, &mVertexArray);
-  #endif
-
     glGenBuffers (1, &mVertexBuffer);
-
-  #ifdef NANOVG_UNIFORMBUFFER
-    // Create UBOs
-    mShader.bindUniformBlock();
-    glGenBuffers (1, &mFragBuffer);
-    int align = 4;
-    glGetIntegerv (GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &align);
-  #endif
 
     // removed because of strange startup time
     //glFinish();
@@ -201,19 +176,8 @@ protected:
     //{{{  init gl uniforms
     mShader.setTex (0);
     mShader.setViewport (mViewport);
-
-    #ifdef NANOVG_UNIFORMBUFFER
-      // Upload ubo for frag shaders
-      glBindBuffer (GL_UNIFORM_BUFFER, mFragBuffer);
-      glBufferData (GL_UNIFORM_BUFFER, mNumFrags * sizeof(cFrag), mFrags, GL_STREAM_DRAW);
-    #endif
     //}}}
     //{{{  init gl vertices
-    #ifdef NANOVG_GL3
-      // Upload vertex data
-      glBindVertexArray (mVertexArray);
-    #endif
-
     glBindBuffer (GL_ARRAY_BUFFER, mVertexBuffer);
     glBufferData (GL_ARRAY_BUFFER, vertices.getNumVertices() * sizeof(c2dVertex), vertices.getVertexPtr(0), GL_STREAM_DRAW);
 
@@ -385,7 +349,6 @@ protected:
     if (texture == nullptr)
       return 0;
 
-  #ifdef NANOVG_GLES2
     // Check for non-power of 2.
     if (nearestPow2 (w) != (unsigned int)w || nearestPow2(h) != (unsigned int)h) {
       if ((imageFlags & IMAGE_REPEATX) != 0 || (imageFlags & IMAGE_REPEATY) != 0) {
@@ -398,7 +361,6 @@ protected:
         imageFlags &= ~IMAGE_GENERATE_MIPMAPS;
         }
       }
-  #endif
 
     glGenTextures (1, &texture->tex);
     texture->width = w;
@@ -409,28 +371,10 @@ protected:
 
     glPixelStorei (GL_UNPACK_ALIGNMENT,1);
 
-  #ifndef NANOVG_GLES2
-    glPixelStorei (GL_UNPACK_ROW_LENGTH, texture->width);
-    glPixelStorei (GL_UNPACK_SKIP_PIXELS, 0);
-    glPixelStorei (GL_UNPACK_SKIP_ROWS, 0);
-  #endif
-
-  #ifdef NANOVG_GL2
-    // GL 1.4 and later has support for generating mipmaps using a tex parameter.
-    if (imageFlags & IMAGE_GENERATE_MIPMAPS)
-      glTexParameteri (GL_TEXTURE_2D, GL_GENERATE_MIPMAP, GL_TRUE);
-  #endif
-
     if (type == TEXTURE_RGBA)
       glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
     else
-    #ifdef NANOVG_GLES2
       glTexImage2D (GL_TEXTURE_2D, 0, GL_LUMINANCE, w, h, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, data);
-    #elif NANOVG_GLES3
-      glTexImage2D (GL_TEXTURE_2D, 0, GL_R8, w, h, 0, GL_RED, GL_UNSIGNED_BYTE, data);
-    #else
-      glTexImage2D (GL_TEXTURE_2D, 0, GL_RED, w, h, 0, GL_RED, GL_UNSIGNED_BYTE, data);
-    #endif
 
     if (imageFlags & cVg::IMAGE_GENERATE_MIPMAPS)
       glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
@@ -487,11 +431,7 @@ protected:
     if (texture->type == TEXTURE_RGBA)
       glTexSubImage2D (GL_TEXTURE_2D, 0, x,y, w,h, GL_RGBA, GL_UNSIGNED_BYTE, data);
     else
-    #ifdef NANOVG_GLES2
       glTexSubImage2D (GL_TEXTURE_2D, 0, x,y, w,h, GL_LUMINANCE, GL_UNSIGNED_BYTE, data);
-    #else
-      glTexSubImage2D (GL_TEXTURE_2D, 0, x,y, w,h, GL_RED, GL_UNSIGNED_BYTE, data);
-    #endif
 
     glPixelStorei (GL_UNPACK_ALIGNMENT, 4);
 
@@ -633,17 +573,10 @@ private:
         else
           paint->mTransform.getInverse (inverse);
 
-      #ifdef NANOVG_UNIFORMBUFFER
-        if (tex->type == TEXTURE_RGBA)
-          texType = (tex->flags & cVg::IMAGE_PREMULTIPLIED) ? 0 : 1;
-        else
-          texType = 2;
-      #else
         if (tex->type == TEXTURE_RGBA)
           texType = (tex->flags & cVg::IMAGE_PREMULTIPLIED) ? 0.f : 1.f;
         else
           texType = 2.f;
-      #endif
         }
       else {
         type = SHADER_FILL_GRADIENT;
@@ -682,17 +615,10 @@ private:
       strokeThreshold = -1.0f;
 
       type = SHADER_IMAGE;
-    #ifdef NANOVG_UNIFORMBUFFER
-      if (tex->type == TEXTURE_RGBA)
-        texType = (tex->flags & cVg::IMAGE_PREMULTIPLIED) ? 0 : 1;
-      else
-        texType = 2;
-    #else
       if (tex->type == TEXTURE_RGBA)
         texType = (tex->flags & cVg::IMAGE_PREMULTIPLIED) ? 0.f : 1.f;
       else
         texType = 2.f;
-    #endif
 
       cTransform inverse;
       paint->mTransform.getInverse (inverse);
@@ -707,21 +633,6 @@ private:
     //}}}
 
   private:
-  #ifdef NANOVG_UNIFORMBUFFER
-    float scissorMatrix[12]; // 3vec4's
-    float paintMatrix[12];   // 3vec4's
-    struct sVgColour innerColor;
-    struct sVgColour outerColor;
-    float scissorExt[2];
-    float scissorScale[2];
-    float extent[2];
-    float radius;
-    float feather;
-    float strokeMult;
-    float strokeThreshold;
-    int texType;
-    int type;
-  #else
     union {
       struct {
         float scissorMatrix[12]; // 3vec4's
@@ -741,7 +652,6 @@ private:
       #define NANOVG_GL_UNIFORMARRAY_SIZE 11
       float uniformArray[NANOVG_GL_UNIFORMARRAY_SIZE][4];
       };
-  #endif
     };
   //}}}
   //{{{
@@ -820,11 +730,7 @@ private:
       location[LOCATION_VIEWSIZE] = glGetUniformLocation (prog, "viewSize");
       location[LOCATION_TEX] = glGetUniformLocation (prog, "tex");
 
-    #ifdef NANOVG_UNIFORMBUFFER
-      location[LOCATION_FRAG] = glGetUniformBlockIndex (prog, "frag");
-    #else
       location[LOCATION_FRAG] = glGetUniformLocation (prog, "frag");
-    #endif
       }
     //}}}
 
@@ -839,56 +745,28 @@ private:
       }
     //}}}
 
-  #ifdef NANOVG_UNIFORMBUFFER
-    //{{{
-    void bindUniformBlock() {
-      glUniformBlockBinding (prog, location[LOCATION_FRAG], FRAG_BINDING);
-      }
-    //}}}
-  #else
     //{{{
     void setFrags (float* frags) {
       glUniform4fv (location[LOCATION_FRAG], NANOVG_GL_UNIFORMARRAY_SIZE, frags);
       }
     //}}}
-  #endif
 
   private:
     //{{{
     const char* kShaderHeader =
 
-    #ifdef NANOVG_GLES2
       "#version 100\n"
       "#define NANOVG_GL2 1\n"
-    #else NANOVG_GLES3
-      "#version 300 es\n"
-      "#define NANOVG_GL3 1\n"
-    #endif
-
-    #ifdef NANOVG_UNIFORMBUFFER
-      "#define USE_UNIFORMBUFFER 1\n"
-    #else
       "#define UNIFORMARRAY_SIZE 11\n"
-    #endif
       "\n";
     //}}}
     //{{{
     const char* kVertShader =
-
       "uniform vec2 viewSize;"
-
-    #ifdef NANOVG_GL3
-      "in vec2 vertex;"
-      "in vec2 tcoord;"
-      "out vec2 ftcoord;"
-      "out vec2 fpos;"
-    #else
       "attribute vec2 vertex;"
       "attribute vec2 tcoord;"
       "varying vec2 ftcoord;"
       "varying vec2 fpos;"
-    #endif
-
       "void main() {"
         "ftcoord = tcoord;"
         "fpos = vertex;"
@@ -907,39 +785,16 @@ private:
       "#endif\n"
       //}}}
       //{{{  vars
-      "#ifdef NANOVG_GL3\n"
-        "#ifdef USE_UNIFORMBUFFER\n"
-          "layout(std140) uniform frag {\n"
-            "mat3 scissorMatrix;\n"
-            "mat3 paintMatrix;\n"
-            "vec4 innerColor;\n"
-            "vec4 outerColor;\n"
-            "vec2 scissorExt;\n"
-            "vec2 scissorScale;\n"
-            "vec2 extent;\n"
-            "float radius;\n"
-            "float feather;\n"
-            "float strokeMult;\n"
-            "float strokeThreshold;\n"
-            "int texType;\n"
-            "int type;\n"
-            "};\n"
-        "#else\n"
-          "uniform vec4 frag[UNIFORMARRAY_SIZE];\n"
-        "#endif\n"
-
+        "uniform vec4 frag[UNIFORMARRAY_SIZE];\n"
         "uniform sampler2D tex;\n"
         "in vec2 ftcoord;\n"
         "in vec2 fpos;\n"
         "out vec4 outColor;\n"
-      "#else\n"
-        "uniform vec4 frag[UNIFORMARRAY_SIZE];\n"
-        "uniform sampler2D tex;\n"
-        "varying vec2 ftcoord;\n"
-        "varying vec2 fpos;\n"
-      "#endif\n"
+        //"uniform vec4 frag[UNIFORMARRAY_SIZE];\n"
+        //"uniform sampler2D tex;\n"
+        //"varying vec2 ftcoord;\n"
+        //"varying vec2 fpos;\n"
 
-      "#ifndef USE_UNIFORMBUFFER\n"
         "#define scissorMatrix mat3(frag[0].xyz, frag[1].xyz, frag[2].xyz)\n"
         "#define paintMatrix mat3(frag[3].xyz, frag[4].xyz, frag[5].xyz)\n"
         "#define innerColor frag[6]\n"
@@ -953,7 +808,6 @@ private:
         "#define strokeThreshold frag[10].y\n"
         "#define texType int(frag[10].z)\n"
         "#define type int(frag[10].w)\n"
-      "#endif\n"
       //}}}
 
       "float sdroundrect(vec2 pt, vec2 ext, float rad) {"
@@ -1179,11 +1033,7 @@ private:
   //{{{
   void setUniforms (int firstFragIndex, int image) {
 
-  #ifdef NANOVG_UNIFORMBUFFER
-    glBindBufferRange (GL_UNIFORM_BUFFER, FRAG_BINDING, mFragBuffer, firstFragIndex * sizeof(cFrag), sizeof(cFrag));
-  #else
     mShader.setFrags ((float*)(&mFrags[firstFragIndex]));
-  #endif
 
     if (image) {
       auto tex = findTexture (image);
