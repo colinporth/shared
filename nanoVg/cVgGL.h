@@ -752,16 +752,6 @@ private:
 
     //{{{
     const char* kFragShader =
-      //{{{  precision
-      //"#ifdef GL_ES\n"
-        //"#if defined(GL_FRAGMENT_PRECISION_HIGH) || defined(NANOVG_GL3)\n"
-          //"precision highp float;\n"
-        //"#else\n"
-          //"precision mediump float;\n"
-        //"#endif\n"
-      //"#endif\n"
-      //}}}
-
       // vars
       "uniform vec4 frag[UNIFORMARRAY_SIZE];\n"
       "uniform sampler2D tex;\n"
@@ -793,66 +783,66 @@ private:
         "vec2 sc = (abs((scissorMatrix * vec3(p,1.0)).xy) - scissorExt);"
         "sc = vec2(0.5,0.5) - sc * scissorScale;"
         "return clamp(sc.x,0.0,1.0) * clamp(sc.y,0.0,1.0);"
-        "}\n"
+        "}"
 
       // EDGE_AA Stroke - from [0..1] to clipped pyramid, where the slope is 1px
-      "float strokeMask() { return min(1.0, (1.0-abs(ftcoord.x*2.0-1.0))*strokeMult) * min(1.0, ftcoord.y); }\n"
+      "float strokeMask() { return min(1.0, (1.0-abs(ftcoord.x*2.0-1.0))*strokeMult) * min(1.0, ftcoord.y); }"
 
-      "void main() {\n"
-        "vec4 result;\n"
-        "float scissor = scissorMask(fpos);\n"
-        "float strokeAlpha = strokeMask();\n"
+      "void main() {"
+        "vec4 result;"
+        "float scissor = scissorMask(fpos);"
+        "float strokeAlpha = strokeMask();"
 
-        "if (type == 0) {\n"
+        "if (type == 0) {"
           //{{{  SHADER_FILL_GRADIENT - calc grad color using box grad
-          "vec2 pt = (paintMatrix * vec3(fpos,1.0)).xy;\n"
-          "float d = clamp((sdroundrect(pt, extent, radius) + feather*0.5) / feather, 0.0, 1.0);\n"
-          "vec4 color = mix(innerColor,outerColor,d);\n"
+          "vec2 pt = (paintMatrix * vec3(fpos,1.0)).xy;"
+          "float d = clamp((sdroundrect(pt, extent, radius) + feather*0.5) / feather, 0.0, 1.0);"
+          "vec4 color = mix(innerColor,outerColor,d);"
 
           // Combine alpha
-          "color *= strokeAlpha * scissor;\n"
-          "result = color;\n"
+          "color *= strokeAlpha * scissor;"
+          "result = color;"
           //}}}
-        "} else if (type == 1) {\n"
+        "} else if (type == 1) {"
           //{{{  SHADER_FILL_IMAGE - image calc color fron texture
-          "vec2 pt = (paintMatrix * vec3(fpos,1.0)).xy / extent;\n"
+          "vec2 pt = (paintMatrix * vec3(fpos,1.0)).xy / extent;"
 
-          "#ifdef NANOVG_GL3\n"
-            "vec4 color = texture(tex, pt);\n"
-          "#else\n"
-            "vec4 color = texture2D(tex, pt);\n"
-          "#endif\n"
+          "#ifdef NANOVG_GL3"
+            "vec4 color = texture(tex, pt);"
+          "#else"
+            "vec4 color = texture2D(tex, pt);"
+          "#endif"
 
           "if (texType == 1) color = vec4(color.xyz*color.w,color.w);"
           "if (texType == 2) color = vec4(color.x);"
 
-          "color *= innerColor;\n"            // apply color tint and alpha
-          "color *= strokeAlpha * scissor;\n" // combine alpha
-          "result = color;\n"
+          "color *= innerColor;"            // apply color tint and alpha
+          "color *= strokeAlpha * scissor;" // combine alpha
+          "result = color;"
           //}}}
-        "} else if (type == 2) {\n"
+        "} else if (type == 2) {"
           //{{{  SHADER_SIMPLE - stencil fill
-          "result = vec4(1,1,1,1);\n"
+          "result = vec4(1,1,1,1);"
           //}}}
-        "} else if (type == 3) {\n"
+        "} else if (type == 3) {"
           //{{{  SHADER_IMAGE - textured tris
-          "#ifdef NANOVG_GL3\n"
-            "vec4 color = texture(tex, ftcoord);\n"
-          "#else\n"
-            "vec4 color = texture2D(tex, ftcoord);\n"
-          "#endif\n"
+          "#ifdef NANOVG_GL3"
+            "vec4 color = texture(tex, ftcoord);"
+          "#else"
+            "vec4 color = texture2D(tex, ftcoord);"
+          "#endif"
 
           "if (texType == 1) color = vec4(color.xyz*color.w,color.w);"
           "if (texType == 2) color = vec4(color.x);"
 
-          "color *= scissor;\n"
-          "result = color * innerColor;\n"
+          "color *= scissor;"
+          "result = color * innerColor;"
           //}}}
-        "}\n"
+        "}"
 
-      "if (strokeAlpha < strokeThreshold) discard;\n"
-      "gl_FragColor = result;\n"
-      "}\n";
+      "if (strokeAlpha < strokeThreshold) discard;"
+      "gl_FragColor = result;"
+      "}";
     //}}}
 
     //{{{
