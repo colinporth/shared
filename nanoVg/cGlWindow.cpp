@@ -1,5 +1,6 @@
 // cGlWindow.cpp
 #define _CRT_SECURE_NO_WARNINGS
+
 #include "../utils/utils.h"
 #include "../utils/cLog.h"
 #include "cGlWindow.h"
@@ -111,7 +112,7 @@ cRootContainer* cGlWindow::initialise (string title, int width, int height, unsi
 
   glfwSwapInterval (1);
 
-  cVgGL::initialise();
+  cVg::initialise();
   createFontMem ("sans", (unsigned char*)sansFont, sizeof(sansFont), 0);
   fontFace ("sans");
 

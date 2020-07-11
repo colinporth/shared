@@ -1,16 +1,16 @@
 // cVg.cpp - based on Mikko Mononen memon@inside.org nanoVg
+//{{{  includes
 #define _CRT_SECURE_NO_WARNINGS
+
 #include "cVg.h"
 #include "fontStash.h"
 #include "stb_image.h"
 
 using namespace std;
-
-//{{{  defines
-#define KAPPA90 0.5522847493f // Length proportional to radius of a cubic bezier handle for 90deg arcs.
-
-#define MAX_FONTIMAGE_SIZE  2048
 //}}}
+
+#define KAPPA90 0.5522847493f // Length proportional to radius of a cubic bezier handle for 90deg arcs.
+#define MAX_FONTIMAGE_SIZE  2048
 const float kDistanceTolerance = 0.01f;
 //{{{  maths
 //{{{
@@ -73,20 +73,6 @@ void intersectRects (float* dst, float ax, float ay, float aw, float ah, float b
 //}}}
 
 float quantize (float a, float d) { return ((int)(a / d + 0.5f)) * d; }
-//{{{
-unsigned int nearestPow2 (unsigned int num) {
-
-  unsigned n = num > 0 ? num - 1 : 0;
-  n |= n >> 1;
-  n |= n >> 2;
-  n |= n >> 4;
-  n |= n >> 8;
-  n |= n >> 16;
-  n++;
-
-  return n;
-  }
-//}}}
 
 //{{{
 float hue (float h, float m1, float m2) {
@@ -106,9 +92,6 @@ float hue (float h, float m1, float m2) {
   return m1;
   }
 //}}}
-
-float degToRad (float deg) { return deg / 180.0f * PI; }
-float radToDeg (float rad) { return rad / PI * 180.0f; }
 //}}}
 //{{{  NVGcolour
 //{{{
@@ -242,10 +225,39 @@ cVg::~cVg() {
 
   if (fonsContext)
     fonsDeleteInternal (fonsContext);
+
+  glDisableVertexAttribArray (0);
+  glDisableVertexAttribArray (1);
+
+  if (mVertexBuffer)
+    glDeleteBuffers (1, &mVertexBuffer);
+
+  glDisable (GL_CULL_FACE);
+  glBindBuffer (GL_ARRAY_BUFFER, 0);
+  glUseProgram (0);
+  setBindTexture (0);
+
+  for (int i = 0; i < mNumTextures; i++)
+    if (mTextures[i].tex && (mTextures[i].flags & IMAGE_NODELETE) == 0)
+      glDeleteTextures (1, &mTextures[i].tex);
+
+  free (mTextures);
+  free (mPathVertices);
+  free (mFrags);
+  free (mDraws);
   }
 //}}}
 //{{{
 void cVg::initialise() {
+
+  mShader.create ("#define EDGE_AA 1\n");
+  mShader.getUniforms();
+
+  glGenBuffers (1, &mVertexBuffer);
+
+  // removed because of strange startup time
+  //glFinish();
+
   fontImages[0] = renderCreateTexture (TEXTURE_ALPHA,
                                        NVG_INIT_FONTIMAGE_SIZE, NVG_INIT_FONTIMAGE_SIZE, 0, NULL);
   }
@@ -1490,7 +1502,400 @@ string cVg::getFrameStats() {
 //}}}
 //}}}
 
+//{{{
+GLuint cVg::imageHandle (int image) {
+  return findTexture (image)->tex;
+  }
+//}}}
+//{{{
+int cVg::createImageFromHandle (GLuint textureId, int w, int h, int imageFlags) {
+
+  auto texture = allocTexture();
+  if (texture == nullptr)
+    return 0;
+
+  texture->type = TEXTURE_RGBA;
+  texture->tex = textureId;
+  texture->flags = imageFlags;
+  texture->width = w;
+  texture->height = h;
+
+  return texture->id;
+  }
+//}}}
+
 // private
+//{{{
+void cVg::renderViewport (int width, int height, float devicePixelRatio) {
+  mViewport[0] = (float)width;
+  mViewport[1] = (float)height;
+  }
+//}}}
+//{{{
+void cVg::renderText (int firstVertexIndex, int numVertices, cPaint& paint, cScissor& scissor) {
+
+  auto draw = allocDraw();
+  draw->set (cDraw::TEXT, paint.image, 0, 0, allocFrags (1), firstVertexIndex, numVertices);
+  mFrags[draw->mFirstFragIndex].setImage (&paint, &scissor, findTexture (paint.image));
+  }
+//}}}
+//{{{
+void cVg::renderTriangles (int firstVertexIndex, int numVertices, cPaint& paint, cScissor& scissor) {
+
+  auto draw = allocDraw();
+  draw->set (cDraw::TRIANGLE, paint.image, 0, 0, allocFrags (1), firstVertexIndex, numVertices);
+  mFrags[draw->mFirstFragIndex].setFill (&paint, &scissor, 1.0f, 1.0f, -1.0f, findTexture (paint.image));
+  }
+//}}}
+//{{{
+void cVg::renderFill (cShape& shape, cPaint& paint, cScissor& scissor, float fringe) {
+
+  auto draw = allocDraw();
+  if ((shape.mNumPaths == 1) && shape.mPaths[0].mConvex) {
+    // convex
+    draw->set (cDraw::CONVEX_FILL, paint.image, allocPathVertices (shape.mNumPaths), shape.mNumPaths,
+               allocFrags (1), 0,0);
+    mFrags[draw->mFirstFragIndex].setFill (&paint, &scissor, fringe, fringe, -1.0f, findTexture (paint.image));
+    }
+  else {
+    // stencil
+    draw->set (cDraw::STENCIL_FILL, paint.image, allocPathVertices (shape.mNumPaths), shape.mNumPaths,
+               allocFrags (2), shape.mBoundsVertexIndex, 4);
+    mFrags[draw->mFirstFragIndex].setSimple();
+    mFrags[draw->mFirstFragIndex+1].setFill (&paint, &scissor, fringe, fringe, -1.0f, findTexture (paint.image));
+    }
+
+  auto fromPath = shape.mPaths;
+  auto toPathVertices = &mPathVertices[draw->mFirstPathVerticesIndex];
+  while (fromPath < shape.mPaths + shape.mNumPaths)
+    *toPathVertices++ = fromPath++->mPathVertices;
+  }
+//}}}
+//{{{
+void cVg::renderStroke (cShape& shape, cPaint& paint, cScissor& scissor, float fringe, float strokeWidth) {
+// only uses toPathVertices firstStrokeVertexIndex, strokeVertexCount, no fill
+
+  auto draw = allocDraw();
+  draw->set (cDraw::STROKE, paint.image, allocPathVertices (shape.mNumPaths), shape.mNumPaths, allocFrags (2), 0,0);
+  mFrags[draw->mFirstFragIndex].setFill (&paint, &scissor, strokeWidth, fringe, -1.0f, findTexture (paint.image));
+  mFrags[draw->mFirstFragIndex+1].setFill (&paint, &scissor, strokeWidth, fringe, 1.0f - 0.5f/255.0f, findTexture (paint.image));
+
+  auto fromPath = shape.mPaths;
+  auto toPathVertices = &mPathVertices[draw->mFirstPathVerticesIndex];
+  while (fromPath < shape.mPaths + shape.mNumPaths)
+    *toPathVertices++ = fromPath++->mPathVertices;
+  }
+//}}}
+//{{{
+void cVg::renderFrame (c2dVertices& vertices, cCompositeOpState compositeOp) {
+
+  mDrawArrays = 0;
+  //{{{  init gl blendFunc
+  GLenum srcRGB = convertBlendFuncFactor (compositeOp.srcRGB);
+  GLenum dstRGB = convertBlendFuncFactor (compositeOp.dstRGB);
+  GLenum srcAlpha = convertBlendFuncFactor (compositeOp.srcAlpha);
+  GLenum dstAlpha = convertBlendFuncFactor (compositeOp.dstAlpha);
+
+  if (srcRGB == GL_INVALID_ENUM || dstRGB == GL_INVALID_ENUM ||
+      srcAlpha == GL_INVALID_ENUM || dstAlpha == GL_INVALID_ENUM)
+    glBlendFunc (GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+  else
+    glBlendFuncSeparate (srcRGB, dstRGB, srcAlpha, dstAlpha);
+  //}}}
+  //{{{  init gl draw style
+  glEnable (GL_CULL_FACE);
+  glCullFace (GL_BACK);
+
+  glFrontFace (GL_CCW);
+  glEnable (GL_BLEND);
+
+  glDisable (GL_DEPTH_TEST);
+  glDisable (GL_SCISSOR_TEST);
+  //}}}
+  //{{{  init gl stencil buffer
+  mStencilMask = 0xFF;
+  glStencilMask (mStencilMask);
+
+  mStencilFunc = GL_ALWAYS;
+  mStencilFuncRef = 0;
+  mStencilFuncMask = 0xFF;
+  glStencilFunc (mStencilFunc, mStencilFuncRef, mStencilFuncMask);
+
+  glStencilOp (GL_KEEP, GL_KEEP, GL_KEEP);
+  glColorMask (GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+  //}}}
+  //{{{  init gl texture
+  glActiveTexture (GL_TEXTURE0);
+  glBindTexture (GL_TEXTURE_2D, 0);
+  mBindTexture = 0;
+  //}}}
+  //{{{  init gl uniforms
+  mShader.setTex (0);
+  mShader.setViewport (mViewport);
+  //}}}
+  //{{{  init gl vertices
+  glBindBuffer (GL_ARRAY_BUFFER, mVertexBuffer);
+  glBufferData (GL_ARRAY_BUFFER, vertices.getNumVertices() * sizeof(c2dVertex), vertices.getVertexPtr(0), GL_STREAM_DRAW);
+
+  glEnableVertexAttribArray (0);
+  glVertexAttribPointer (0, 2, GL_FLOAT, GL_FALSE, sizeof(c2dVertex), (const GLvoid*)(size_t)0);
+
+  glEnableVertexAttribArray (1);
+  glVertexAttribPointer (1, 2, GL_FLOAT, GL_FALSE, sizeof(c2dVertex), (const GLvoid*)(0 + 2*sizeof(float)));
+  //}}}
+
+  for (auto draw = mDraws; draw < mDraws + mNumDraws; draw++)
+    switch (draw->mType) {
+      case cDraw::TEXT:
+        //{{{  text triangles
+        if (mDrawTriangles) {
+          setUniforms (draw->mFirstFragIndex, draw->mImage);
+          glDrawArrays (GL_TRIANGLES, draw->mTriangleFirstVertexIndex, draw->mNumTriangleVertices);
+          mDrawArrays++;
+          }
+        break;
+        //}}}
+      case cDraw::TRIANGLE:
+        //{{{  fill triangles
+        if (mDrawSolid) {
+          setUniforms (draw->mFirstFragIndex, draw->mImage);
+          glDrawArrays (GL_TRIANGLES, draw->mTriangleFirstVertexIndex, draw->mNumTriangleVertices);
+          mDrawArrays++;
+          }
+        break;
+        //}}}
+      case cDraw::CONVEX_FILL: {
+        //{{{  convexFill
+        setUniforms (draw->mFirstFragIndex, draw->mImage);
+
+        auto pathVertices = &mPathVertices[draw->mFirstPathVerticesIndex];
+
+        if (mDrawSolid)
+          for (int i = 0; i < draw->mNumPaths; i++) {
+            glDrawArrays (GL_TRIANGLE_FAN, pathVertices[i].mFirstFillVertexIndex, pathVertices[i].mNumFillVertices);
+            mDrawArrays++;
+            }
+
+        if (mDrawEdges)
+          for (int i = 0; i < draw->mNumPaths; i++)
+            if (pathVertices[i].mNumStrokeVertices) {
+              glDrawArrays (GL_TRIANGLE_STRIP, pathVertices[i].mFirstStrokeVertexIndex, pathVertices[i].mNumStrokeVertices);
+              mDrawArrays++;
+              }
+
+        break;
+        }
+        //}}}
+      case cDraw::STENCIL_FILL: {
+        //{{{  stencilFill
+        glEnable (GL_STENCIL_TEST);
+
+        auto pathVertices = &mPathVertices[draw->mFirstPathVerticesIndex];
+
+        if (mDrawSolid) {
+          glDisable (GL_CULL_FACE);
+
+          glStencilOpSeparate (GL_FRONT, GL_KEEP, GL_KEEP, GL_INCR_WRAP);
+          glStencilOpSeparate (GL_BACK, GL_KEEP, GL_KEEP, GL_DECR_WRAP);
+          glColorMask (GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+
+          setStencilFunc (GL_ALWAYS, 0x00, 0xFF);
+          setUniforms (draw->mFirstFragIndex, 0);
+          for (int i = 0; i < draw->mNumPaths; i++) {
+            glDrawArrays (GL_TRIANGLE_FAN, pathVertices[i].mFirstFillVertexIndex, pathVertices[i].mNumFillVertices);
+            mDrawArrays++;
+            }
+
+          glEnable (GL_CULL_FACE);
+          glColorMask (GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+          }
+
+        setUniforms (draw->mFirstFragIndex + 1, draw->mImage);
+        if (mDrawEdges) {
+          glStencilOp (GL_KEEP, GL_KEEP, GL_KEEP);
+          setStencilFunc (GL_EQUAL, 0x00, 0xFF);
+          for (int i = 0; i < draw->mNumPaths; i++)
+            if (pathVertices[i].mNumStrokeVertices) {
+              glDrawArrays (GL_TRIANGLE_STRIP, pathVertices[i].mFirstStrokeVertexIndex, pathVertices[i].mNumStrokeVertices);
+              mDrawArrays++;
+              }
+          }
+
+        // draw bounding rect as triangleStrip
+        if (mDrawSolid || mDrawEdges) {
+          glStencilOp (GL_ZERO, GL_ZERO, GL_ZERO);
+          setStencilFunc (GL_NOTEQUAL, 0x00, 0xFF);
+          glDrawArrays (GL_TRIANGLE_STRIP, draw->mTriangleFirstVertexIndex, draw->mNumTriangleVertices);
+          mDrawArrays++;
+          }
+
+        glDisable (GL_STENCIL_TEST);
+        break;
+        }
+        //}}}
+      case cDraw::STROKE: {
+        //{{{  stroke
+        glEnable (GL_STENCIL_TEST);
+
+        auto pathVertices = &mPathVertices[draw->mFirstPathVerticesIndex];
+
+        // fill stroke base without overlap
+        if (mDrawSolid) {
+          glStencilOp (GL_KEEP, GL_KEEP, GL_INCR);
+          setStencilFunc (GL_EQUAL, 0x00, 0xFF);
+          setUniforms (draw->mFirstFragIndex + 1, draw->mImage);
+          for (int i = 0; i < draw->mNumPaths; i++) {
+            glDrawArrays (GL_TRIANGLE_STRIP, pathVertices[i].mFirstStrokeVertexIndex, pathVertices[i].mNumStrokeVertices);
+            mDrawArrays++;
+            }
+          }
+
+        setUniforms (draw->mFirstFragIndex, draw->mImage);
+        if (mDrawEdges) {
+          glStencilOp (GL_KEEP, GL_KEEP, GL_KEEP);
+          setStencilFunc (GL_EQUAL, 0x00, 0xFF);
+          for (int i = 0; i < draw->mNumPaths; i++)  {
+            glDrawArrays (GL_TRIANGLE_STRIP, pathVertices[i].mFirstStrokeVertexIndex, pathVertices[i].mNumStrokeVertices);
+            mDrawArrays++;
+            }
+          }
+
+        // clear stencilBuffer
+        if (mDrawSolid || mDrawEdges) {
+          glColorMask (GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+          glStencilOp (GL_ZERO, GL_ZERO, GL_ZERO);
+          setStencilFunc (GL_ALWAYS, 0x00, 0xFF);
+          for (int i = 0; i < draw->mNumPaths; i++) {
+            glDrawArrays (GL_TRIANGLE_STRIP, pathVertices[i].mFirstStrokeVertexIndex, pathVertices[i].mNumStrokeVertices);
+            mDrawArrays++;
+            }
+          glColorMask (GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+          }
+
+        glDisable (GL_STENCIL_TEST);
+        break;
+        }
+        //}}}
+      }
+
+  // reset counts
+  mNumDraws = 0;
+  mNumPathVertices = 0;
+  mNumFrags = 0;
+  }
+//}}}
+
+//{{{
+bool cVg::renderGetTextureSize (int image, int* w, int* h) {
+
+  auto texture = findTexture (image);
+  if (texture == nullptr)
+    return false;
+
+  *w = texture->width;
+  *h = texture->height;
+
+  return true;
+  }
+//}}}
+//{{{
+int cVg::renderCreateTexture (int type, int w, int h, int imageFlags, const unsigned char* data) {
+
+  auto texture = allocTexture();
+  if (texture == nullptr)
+    return 0;
+
+  // Check for non-power of 2.
+  if (nearestPow2 (w) != (unsigned int)w || nearestPow2(h) != (unsigned int)h) {
+    if ((imageFlags & IMAGE_REPEATX) != 0 || (imageFlags & IMAGE_REPEATY) != 0) {
+      printf ("Repeat X/Y is not supported for non power-of-two textures (%d x %d)\n", w, h);
+      imageFlags &= ~(IMAGE_REPEATX | IMAGE_REPEATY);
+      }
+
+    if (imageFlags & IMAGE_GENERATE_MIPMAPS) {
+      printf ("Mip-maps is not support for non power-of-two textures (%d x %d)\n", w, h);
+      imageFlags &= ~IMAGE_GENERATE_MIPMAPS;
+      }
+    }
+
+  glGenTextures (1, &texture->tex);
+  texture->width = w;
+  texture->height = h;
+  texture->type = type;
+  texture->flags = imageFlags;
+  setBindTexture (texture->tex);
+
+  glPixelStorei (GL_UNPACK_ALIGNMENT,1);
+
+  if (type == TEXTURE_RGBA)
+    glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+  else
+    glTexImage2D (GL_TEXTURE_2D, 0, GL_LUMINANCE, w, h, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, data);
+
+  if (imageFlags & cVg::IMAGE_GENERATE_MIPMAPS)
+    glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+     imageFlags & cVg::IMAGE_NEAREST ? GL_NEAREST_MIPMAP_NEAREST : GL_LINEAR_MIPMAP_LINEAR);
+
+  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, imageFlags &  cVg::IMAGE_NEAREST ? GL_NEAREST : GL_LINEAR);
+  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, imageFlags &  cVg::IMAGE_NEAREST ? GL_NEAREST : GL_LINEAR);
+  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, imageFlags &  cVg::IMAGE_REPEATX ? GL_REPEAT : GL_CLAMP_TO_EDGE);
+  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, imageFlags &  cVg::IMAGE_REPEATY ? GL_REPEAT : GL_CLAMP_TO_EDGE);
+
+  glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+
+  if (imageFlags & cVg::IMAGE_GENERATE_MIPMAPS)
+    glGenerateMipmap (GL_TEXTURE_2D);
+
+  setBindTexture (0);
+
+  return texture->id;
+  }
+//}}}
+//{{{
+bool cVg::renderUpdateTexture (int image, int x, int y, int w, int h, const unsigned char* data) {
+
+  auto texture = findTexture (image);
+  if (texture == nullptr)
+    return false;
+  setBindTexture (texture->tex);
+
+  glPixelStorei (GL_UNPACK_ALIGNMENT, 1);
+
+  // No support for all of skip, need to update a whole row at a time.
+  if (texture->type == TEXTURE_RGBA)
+    data += y * texture->width * 4;
+  else
+    data += y * texture->width;
+  x = 0;
+  w = texture->width;
+
+  if (texture->type == TEXTURE_RGBA)
+    glTexSubImage2D (GL_TEXTURE_2D, 0, x,y, w,h, GL_RGBA, GL_UNSIGNED_BYTE, data);
+  else
+    glTexSubImage2D (GL_TEXTURE_2D, 0, x,y, w,h, GL_LUMINANCE, GL_UNSIGNED_BYTE, data);
+
+  glPixelStorei (GL_UNPACK_ALIGNMENT, 4);
+
+  setBindTexture (0);
+  return true;
+  }
+//}}}
+//{{{
+bool cVg::renderDeleteTexture (int image) {
+
+  for (int i = 0; i < mNumTextures; i++) {
+    if (mTextures[i].id == image) {
+      if (mTextures[i].tex != 0 && (mTextures[i].flags & IMAGE_NODELETE) == 0)
+        glDeleteTextures (1, &mTextures[i].tex);
+      mTextures[i].reset();
+      return true;
+      }
+    }
+
+  return false;
+  }
+//}}}
+
 //{{{
 void cVg::setDevicePixelRatio (float ratio) {
 
@@ -1558,7 +1963,158 @@ cVg::cCompositeOpState cVg::compositeOpState (eCompositeOp op) {
   }
 //}}}
 
-//{{{  text
+//{{{
+cVg::cDraw* cVg::allocDraw() {
+// allocate a draw, return pointer to it
+
+  if (mNumDraws + 1 > mNumAllocatedDraws) {
+    mNumAllocatedDraws = maxi (mNumDraws + 1, 128) + mNumAllocatedDraws / 2; // 1.5x Overallocate
+    mDraws = (cDraw*)realloc (mDraws, sizeof(cDraw) * mNumAllocatedDraws);
+    }
+  return &mDraws[mNumDraws++];
+  }
+//}}}
+//{{{
+int cVg::allocFrags (int numFrags) {
+// allocate numFrags, return index of first
+
+  if (mNumFrags + numFrags > mNumAllocatedFrags) {
+    mNumAllocatedFrags = maxi (mNumFrags + numFrags, 128) + mNumAllocatedFrags / 2; // 1.5x Overallocate
+    mFrags = (cFrag*)realloc (mFrags, mNumAllocatedFrags * sizeof(cFrag));
+    }
+
+  int firstFragIndex = mNumFrags;
+  mNumFrags += numFrags;
+  return firstFragIndex;
+  }
+//}}}
+//{{{
+int cVg::allocPathVertices (int numPaths) {
+// allocate numPaths pathVertices, return index of first
+
+  if (mNumPathVertices + numPaths > mNumAllocatedPathVertices) {
+    mNumAllocatedPathVertices = maxi (mNumPathVertices + numPaths, 128) + mNumAllocatedPathVertices / 2; // 1.5x Overallocate
+    mPathVertices = (cPathVertices*)realloc (mPathVertices, mNumAllocatedPathVertices * sizeof(cPathVertices));
+    }
+
+  int firstPathVerticeIndex = mNumPathVertices;
+  mNumPathVertices += numPaths;
+  return firstPathVerticeIndex;
+  }
+//}}}
+//{{{
+cVg::cTexture* cVg::allocTexture() {
+
+  cTexture* texture = nullptr;
+  for (int i = 0; i < mNumTextures; i++) {
+    if (mTextures[i].id == 0) {
+      texture = &mTextures[i];
+      break;
+      }
+    }
+
+  if (texture == nullptr) {
+    if (mNumTextures + 1 > mNumAllocatedTextures) {
+      mNumAllocatedTextures = maxi (mNumTextures + 1, 4) +  mNumAllocatedTextures / 2; // 1.5x Overallocate
+      mTextures = (cTexture*)realloc (mTextures, mNumAllocatedTextures * sizeof(cTexture));
+      if (mTextures == nullptr)
+        return nullptr;
+      }
+    texture = &mTextures[mNumTextures++];
+    }
+
+  texture->reset();
+  texture->id = ++mTextureId;
+  return texture;
+  }
+//}}}
+//{{{
+cVg::cTexture* cVg::findTexture (int textureId) {
+
+  for (int i = 0; i < mNumTextures; i++)
+    if (mTextures[i].id == textureId)
+      return &mTextures[i];
+
+  return nullptr;
+  }
+//}}}
+
+//{{{
+void cVg::setStencilMask (GLuint mask) {
+
+  if (mStencilMask != mask) {
+    mStencilMask = mask;
+    glStencilMask (mask);
+    }
+  }
+//}}}
+//{{{
+void cVg::setStencilFunc (GLenum func, GLint ref, GLuint mask) {
+
+  if ((mStencilFunc != func) || (mStencilFuncRef != ref) || (mStencilFuncMask != mask)) {
+    mStencilFunc = func;
+    mStencilFuncRef = ref;
+    mStencilFuncMask = mask;
+    glStencilFunc (func, ref, mask);
+    }
+  }
+//}}}
+//{{{
+void cVg::setBindTexture (GLuint texture) {
+
+  if (mBindTexture != texture) {
+    mBindTexture = texture;
+    glBindTexture (GL_TEXTURE_2D, texture);
+    }
+  }
+//}}}
+//{{{
+void cVg::setUniforms (int firstFragIndex, int image) {
+
+  mShader.setFrags ((float*)(&mFrags[firstFragIndex]));
+
+  if (image) {
+    auto tex = findTexture (image);
+    setBindTexture (tex ? tex->tex : 0);
+    }
+  else
+    setBindTexture (0);
+  }
+//}}}
+
+//{{{
+GLenum cVg::convertBlendFuncFactor (eBlendFactor factor) {
+
+  switch (factor) {
+    case NVG_ZERO:
+      return GL_ZERO;
+    case NVG_ONE:
+      return GL_ONE;
+    case NVG_SRC_COLOR:
+      return GL_SRC_COLOR;
+    case NVG_ONE_MINUS_SRC_COLOR:
+      return GL_ONE_MINUS_SRC_COLOR;
+    case NVG_DST_COLOR:
+      return GL_DST_COLOR;
+    case NVG_ONE_MINUS_DST_COLOR:
+      return GL_ONE_MINUS_DST_COLOR;
+    case NVG_SRC_ALPHA:
+      return GL_SRC_ALPHA;
+    case  NVG_ONE_MINUS_SRC_ALPHA:
+      return GL_ONE_MINUS_SRC_ALPHA;
+    case NVG_DST_ALPHA:
+      return GL_DST_ALPHA;
+    case NVG_ONE_MINUS_DST_ALPHA:
+      return GL_ONE_MINUS_DST_ALPHA;
+    case NVG_SRC_ALPHA_SATURATE:
+      return GL_SRC_ALPHA_SATURATE;
+    default:
+      return GL_INVALID_ENUM;
+      }
+  }
+//}}}
+
+// text
 //{{{
 float cVg::getFontScale (cState* state) {
   return minf (quantize (state->mTransform.getAverageScale(), 0.01f), 4.0f);
@@ -1610,5 +2166,4 @@ int cVg::allocTextAtlas() {
   fonsResetAtlas (fonsContext, iw, ih);
   return 1;
   }
-//}}}
 //}}}

@@ -1,20 +1,13 @@
 // cGlWindow.h
 //{{{  includes
 #pragma once
-
-#include <string>
-
-#include "../glad/glad.h"
-#include <GLFW/glfw3.h>
-
-#include "cVgGL.h"
+#include "cVg.h"
 #include "cPerfGraph.h"
-
 #include "../utils/iChange.h"
 #include "../widgets/cRootContainer.h"
 //}}}
 
-class cGlWindow : public cVgGL, public iChange, public iDraw {
+class cGlWindow : public cVg, public iChange, public iDraw {
 public:
   cGlWindow() {};
   virtual ~cGlWindow();
