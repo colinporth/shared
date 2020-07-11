@@ -25,34 +25,15 @@
 #define PI 3.14159265358979323846264338327f
 
 inline int mini (int a, int b) { return a < b ? a : b; }
-inline int maxi (int a, int b) { return a > b ? a : b; }
-inline int clampi (int a, int mn, int mx) { return a < mn ? mn : (a > mx ? mx : a); }
-
 inline float minf (float a, float b) { return a < b ? a : b; }
+
+inline int maxi (int a, int b) { return a > b ? a : b; }
 inline float maxf (float a, float b) { return a > b ? a : b; }
-inline float absf (float a) { return a >= 0.0f ? a : -a; }
-inline float signf (float a) { return a >= 0.0f ? 1.0f : -1.0f; }
+
+inline int clampi (int a, int mn, int mx) { return a < mn ? mn : (a > mx ? mx : a); }
 inline float clampf (float a, float mn, float mx) { return a < mn ? mn : (a > mx ? mx : a); }
 
-inline float cross (float dx0, float dy0, float dx1, float dy1) { return dx1*dy0 - dx0*dy1; }
-
-//{{{
-inline unsigned int nearestPow2 (unsigned int num) {
-
-  unsigned n = num > 0 ? num - 1 : 0;
-  n |= n >> 1;
-  n |= n >> 2;
-  n |= n >> 4;
-  n |= n >> 8;
-  n |= n >> 16;
-  n++;
-
-  return n;
-  }
-//}}}
-
-inline float degToRad (float deg) { return deg / 180.0f * PI; }
-inline float radToDeg (float rad) { return rad / PI * 180.0f; }
+inline float absf (float a) { return a >= 0.0f ? a : -a; }
 //}}}
 //{{{  sVgColour
 struct sVgColour {

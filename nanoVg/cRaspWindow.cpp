@@ -166,7 +166,7 @@ cRootContainer* cRaspWindow::initialise (float scale, uint32_t alpha) {
   // set
   setVsync (true);
 
-  cVgGL::initialise();
+  cVg::initialise();
 
   //createFontMem ("sans", (unsigned char*)freeSansBold, sizeof(freeSansBold), 0);
   createFontMem ("sans", (unsigned char*)droidSansMono, sizeof(droidSansMono), 0);

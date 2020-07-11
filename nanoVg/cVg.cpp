@@ -13,6 +13,7 @@ using namespace std;
 #define MAX_FONTIMAGE_SIZE  2048
 const float kDistanceTolerance = 0.01f;
 //{{{  maths
+float quantize (float a, float d) { return ((int)(a / d + 0.5f)) * d; }
 //{{{
 float normalize (float& x, float& y) {
 
@@ -24,6 +25,25 @@ float normalize (float& x, float& y) {
     }
 
   return d;
+  }
+//}}}
+inline float signf (float a) { return a >= 0.0f ? 1.0f : -1.0f; }
+inline float cross (float dx0, float dy0, float dx1, float dy1) { return dx1*dy0 - dx0*dy1; }
+
+inline float degToRad (float deg) { return deg / 180.0f * PI; }
+inline float radToDeg (float rad) { return rad / PI * 180.0f; }
+//{{{
+inline unsigned int nearestPow2 (unsigned int num) {
+
+  unsigned n = num > 0 ? num - 1 : 0;
+  n |= n >> 1;
+  n |= n >> 2;
+  n |= n >> 4;
+  n |= n >> 8;
+  n |= n >> 16;
+  n++;
+
+  return n;
   }
 //}}}
 
@@ -71,8 +91,6 @@ void intersectRects (float* dst, float ax, float ay, float aw, float ah, float b
   dst[3] = maxf (0.0f, maxy - miny);
   }
 //}}}
-
-float quantize (float a, float d) { return ((int)(a / d + 0.5f)) * d; }
 
 //{{{
 float hue (float h, float m1, float m2) {

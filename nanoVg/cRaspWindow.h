@@ -15,7 +15,7 @@
 #include "../widgets/cRootContainer.h"
 //}}}
 
-class cRaspWindow : public cVgGL, public iChange, public iDraw {
+class cRaspWindow : public cVg, public iChange, public iDraw {
 public:
   cRaspWindow();
   ~cRaspWindow();
