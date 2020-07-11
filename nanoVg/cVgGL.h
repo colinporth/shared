@@ -733,36 +733,26 @@ private:
   private:
     const char* kShaderHeader =
       "#version 100\n"
-      "#define NANOVG_GL2 1\n"
       "#define UNIFORMARRAY_SIZE 11\n"
       "\n";
 
     const char* kVertShader =
-      "uniform vec2 viewSize;"
-      "attribute vec2 vertex;"
-      "attribute vec2 tcoord;"
-      "varying vec2 ftcoord;"
-      "varying vec2 fpos;"
+      "uniform vec2 viewSize;\n"
+      "attribute vec2 vertex;\n"
+      "attribute vec2 tcoord;\n"
+      "varying vec2 ftcoord;\n"
+      "varying vec2 fpos;\n"
 
-      "void main() {"
-        "ftcoord = tcoord;"
-        "fpos = vertex;"
-        "gl_Position = vec4(2.0*vertex.x/viewSize.x - 1.0, 1.0 - 2.0*vertex.y/viewSize.y, 0, 1);"
-        "}";
+      "void main() {\n"
+        "ftcoord = tcoord;\n"
+        "fpos = vertex;\n"
+        "gl_Position = vec4(2.0*vertex.x/viewSize.x - 1.0, 1.0 - 2.0*vertex.y/viewSize.y, 0, 1);\n"
+        "}\n";
 
     //{{{
     const char* kFragShader =
-      //{{{  precision
-      //"#ifdef GL_ES\n"
-        //"#if defined(GL_FRAGMENT_PRECISION_HIGH) || defined(NANOVG_GL3)\n"
-          //"precision highp float;\n"
-        //"#else\n"
-          //"precision mediump float;\n"
-        //"#endif\n"
-      //"#endif\n"
-      //}}}
-
       // vars
+      "precision mediump float;\n"
       "uniform vec4 frag[UNIFORMARRAY_SIZE];\n"
       "uniform sampler2D tex;\n"
       "varying vec2 ftcoord;\n"
@@ -782,17 +772,17 @@ private:
       "#define texType int(frag[10].z)\n"
       "#define type int(frag[10].w)\n"
 
-      "float sdroundrect(vec2 pt, vec2 ext, float rad) {"
-        "vec2 ext2 = ext - vec2(rad,rad);"
-        "vec2 d = abs(pt) - ext2;"
-        "return min(max(d.x,d.y),0.0) + length(max(d,0.0)) - rad;"
-        "}"
+      "float sdroundrect(vec2 pt, vec2 ext, float rad) {\n"
+        "vec2 ext2 = ext - vec2(rad,rad);\n"
+        "vec2 d = abs(pt) - ext2;\n"
+        "return min (max (d.x,d.y),0.0) + length(max(d,0.0)) - rad;\n"
+        "}\n"
 
       // Scissoring
-      "float scissorMask(vec2 p) {"
-        "vec2 sc = (abs((scissorMatrix * vec3(p,1.0)).xy) - scissorExt);"
-        "sc = vec2(0.5,0.5) - sc * scissorScale;"
-        "return clamp(sc.x,0.0,1.0) * clamp(sc.y,0.0,1.0);"
+      "float scissorMask(vec2 p) {\n"
+        "vec2 sc = (abs((scissorMatrix * vec3(p,1.0)).xy) - scissorExt);\n"
+        "sc = vec2(0.5,0.5) - sc * scissorScale;\n"
+        "return clamp(sc.x,0.0,1.0) * clamp(sc.y,0.0,1.0);\n"
         "}\n"
 
       // EDGE_AA Stroke - from [0..1] to clipped pyramid, where the slope is 1px
@@ -804,50 +794,32 @@ private:
         "float strokeAlpha = strokeMask();\n"
 
         "if (type == 0) {\n"
-          //{{{  SHADER_FILL_GRADIENT - calc grad color using box grad
+          //  SHADER_FILL_GRADIENT - calc grad color using box grad
           "vec2 pt = (paintMatrix * vec3(fpos,1.0)).xy;\n"
           "float d = clamp((sdroundrect(pt, extent, radius) + feather*0.5) / feather, 0.0, 1.0);\n"
           "vec4 color = mix(innerColor,outerColor,d);\n"
-
           // Combine alpha
           "color *= strokeAlpha * scissor;\n"
           "result = color;\n"
-          //}}}
         "} else if (type == 1) {\n"
-          //{{{  SHADER_FILL_IMAGE - image calc color fron texture
+          // SHADER_FILL_IMAGE - image calc color fron texture
           "vec2 pt = (paintMatrix * vec3(fpos,1.0)).xy / extent;\n"
-
-          "#ifdef NANOVG_GL3\n"
-            "vec4 color = texture(tex, pt);\n"
-          "#else\n"
-            "vec4 color = texture2D(tex, pt);\n"
-          "#endif\n"
-
+          "vec4 color = texture2D(tex, pt);\n"
           "if (texType == 1) color = vec4(color.xyz*color.w,color.w);"
           "if (texType == 2) color = vec4(color.x);"
-
           "color *= innerColor;\n"            // apply color tint and alpha
           "color *= strokeAlpha * scissor;\n" // combine alpha
           "result = color;\n"
-          //}}}
         "} else if (type == 2) {\n"
-          //{{{  SHADER_SIMPLE - stencil fill
+          //  SHADER_SIMPLE - stencil fill
           "result = vec4(1,1,1,1);\n"
-          //}}}
         "} else if (type == 3) {\n"
-          //{{{  SHADER_IMAGE - textured tris
-          "#ifdef NANOVG_GL3\n"
-            "vec4 color = texture(tex, ftcoord);\n"
-          "#else\n"
-            "vec4 color = texture2D(tex, ftcoord);\n"
-          "#endif\n"
-
+           // SHADER_IMAGE - textured tris
+          "vec4 color = texture2D(tex, ftcoord);\n"
           "if (texType == 1) color = vec4(color.xyz*color.w,color.w);"
           "if (texType == 2) color = vec4(color.x);"
-
           "color *= scissor;\n"
           "result = color * innerColor;\n"
-          //}}}
         "}\n"
 
       "if (strokeAlpha < strokeThreshold) discard;\n"
