@@ -1,13 +1,17 @@
 // cVg.h - based on Mikko Mononen memon@inside.org nanoVg
-#pragma once
 //{{{  includes
+#pragma once
+
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <string>
+
 #include <math.h>
 
-#include <string>
+#include "../utils/cLog.h"
+
 #include "../glad/glad.h"
 #include <GLFW/glfw3.h>
 
@@ -513,17 +517,16 @@ public:
   //}}}
   enum eTexture { TEXTURE_ALPHA = 0x01, TEXTURE_RGBA  = 0x02 };
 
+  GLuint imageHandle (int image);
+
   int createImage (const char* filename, eImageFlags imageFlags);
   int createImageMem (int imageFlags, unsigned char* data, int ndata);
   int createImageRGBA (int w, int h, int imageFlags, const unsigned char* data);
+  int createImageFromHandle (GLuint textureId, int w, int h, int imageFlags);
 
   void updateImage (int image, const unsigned char* data);
-  void imageSize (int image, int* w, int* h);
 
-  void deleteImage (int image);
-
-  GLuint imageHandle (int image);
-  int createImageFromHandle (GLuint textureId, int w, int h, int imageFlags);
+  bool deleteImage (int image);
   //}}}
   //{{{  scissor
   void scissor (float x, float y, float w, float h);
@@ -735,15 +738,23 @@ private:
         for (int i = 0; i < numValues;) {
           switch ((int)values[i++]) {
             case eMOVETO:
-            case eLINETO:
-              transform.point (values[i], values[i+1]);
+            case eLINETO: 
+              if (i+1 < numValues) // ensure enough values supplied for command type
+                transform.point (values[i], values[i+1]);
+              else
+                cLog::log (LOGERROR, "not enough values in addCommand");
               i += 2;
               break;
 
             case eBEZIERTO:
-              transform.point (values[i], values[i+1]);
-              transform.point (values[i+2], values[i+3]);
-              transform.point (values[i+4], values[i+5]);
+              if (i+5 < numValues) { // ensure enough values supplied for command type
+                transform.point (values[i], values[i+1]);
+                transform.point (values[i+2], values[i+3]);
+                transform.point (values[i+4], values[i+5]);
+                }
+              else
+                cLog::log (LOGERROR, "not enough values in addCommand");
+
               i += 6;
               break;
 
@@ -2088,7 +2099,6 @@ private:
   bool renderGetTextureSize (int image, int* w, int* h);
   int renderCreateTexture (int type, int w, int h, int imageFlags, const unsigned char* data);
   bool renderUpdateTexture (int image, int x, int y, int w, int h, const unsigned char* data);
-  bool renderDeleteTexture (int image);
 
   cDraw* allocDraw();
   int allocFrags (int numFrags);

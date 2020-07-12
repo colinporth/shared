@@ -276,8 +276,7 @@ void cVg::initialise() {
   // removed because of strange startup time
   //glFinish();
 
-  fontImages[0] = renderCreateTexture (TEXTURE_ALPHA,
-                                       NVG_INIT_FONTIMAGE_SIZE, NVG_INIT_FONTIMAGE_SIZE, 0, NULL);
+  fontImages[0] = renderCreateTexture (TEXTURE_ALPHA, NVG_INIT_FONTIMAGE_SIZE, NVG_INIT_FONTIMAGE_SIZE, 0, NULL);
   }
 //}}}
 
@@ -1326,6 +1325,12 @@ int cVg::textBreakLines (const char* string, const char* end, float breakRowWidt
 //}}}
 //{{{  image
 //{{{
+GLuint cVg::imageHandle (int image) {
+  return findTexture (image)->tex;
+  }
+//}}}
+
+//{{{
 int cVg::createImage (const char* filename, eImageFlags imageFlags) {
 
   stbi_set_unpremultiply_on_load (1);
@@ -1363,23 +1368,46 @@ int cVg::createImageRGBA (int w, int h, int imageFlags, const unsigned char* dat
   return renderCreateTexture (TEXTURE_RGBA, w, h, imageFlags, data);
   }
 //}}}
+//{{{
+int cVg::createImageFromHandle (GLuint textureId, int w, int h, int imageFlags) {
+
+  auto texture = allocTexture();
+  if (texture == nullptr)
+    return 0;
+
+  texture->type = TEXTURE_RGBA;
+  texture->tex = textureId;
+  texture->flags = imageFlags;
+  texture->width = w;
+  texture->height = h;
+
+  return texture->id;
+  }
+//}}}
 
 //{{{
 void cVg::updateImage (int image, const unsigned char* data) {
-  int w, h;
+
+  int w = 0;
+  int h = 0;
   renderGetTextureSize (image, &w, &h);
   renderUpdateTexture (image, 0,0, w,h, data);
   }
 //}}}
-//{{{
-void cVg::imageSize (int image, int* w, int* h) {
-  renderGetTextureSize (image, w, h);
-  }
-//}}}
 
 //{{{
-void cVg::deleteImage (int image) {
-  renderDeleteTexture (image);
+bool cVg::deleteImage (int image) {
+
+  for (int i = 0; i < mNumTextures; i++) {
+    if (mTextures[i].id == image) {
+      if (mTextures[i].tex != 0 && (mTextures[i].flags & IMAGE_NODELETE) == 0)
+        glDeleteTextures (1, &mTextures[i].tex);
+      mTextures[i].reset();
+      return true;
+      }
+    }
+
+  return false;
   }
 //}}}
 //}}}
@@ -1481,18 +1509,21 @@ void cVg::endFrame() {
 
   if (fontImageIdx) {
     int fontImage = fontImages[fontImageIdx];
-    int i, j, iw, ih;
+    int i, j;
+    int iw = 0;
+    int ih = 0;
     // delete images that smaller than current one
     if (fontImage == 0)
       return;
 
-    imageSize (fontImage, &iw, &ih);
+    renderGetTextureSize (fontImage, &iw, &ih);
     for (i = j = 0; i < fontImageIdx; i++) {
       if (fontImages[i] != 0) {
-        int nw, nh;
-        imageSize (fontImages[i], &nw, &nh);
+        int nw = 0;
+        int nh = 0;
+        renderGetTextureSize (fontImages[i], &nw, &nh);
         if (nw < iw || nh < ih)
-          renderDeleteTexture (fontImages[i]);
+          deleteImage (fontImages[i]);
         else
           fontImages[j++] = fontImages[i];
         }
@@ -1518,28 +1549,6 @@ string cVg::getFrameStats() {
          " d:" + to_string (mDrawArrays);
   }
 //}}}
-//}}}
-
-//{{{
-GLuint cVg::imageHandle (int image) {
-  return findTexture (image)->tex;
-  }
-//}}}
-//{{{
-int cVg::createImageFromHandle (GLuint textureId, int w, int h, int imageFlags) {
-
-  auto texture = allocTexture();
-  if (texture == nullptr)
-    return 0;
-
-  texture->type = TEXTURE_RGBA;
-  texture->tex = textureId;
-  texture->flags = imageFlags;
-  texture->width = w;
-  texture->height = h;
-
-  return texture->id;
-  }
 //}}}
 
 // private
@@ -1898,21 +1907,6 @@ bool cVg::renderUpdateTexture (int image, int x, int y, int w, int h, const unsi
   return true;
   }
 //}}}
-//{{{
-bool cVg::renderDeleteTexture (int image) {
-
-  for (int i = 0; i < mNumTextures; i++) {
-    if (mTextures[i].id == image) {
-      if (mTextures[i].tex != 0 && (mTextures[i].flags & IMAGE_NODELETE) == 0)
-        glDeleteTextures (1, &mTextures[i].tex);
-      mTextures[i].reset();
-      return true;
-      }
-    }
-
-  return false;
-  }
-//}}}
 
 //{{{
 void cVg::setDevicePixelRatio (float ratio) {
@@ -2165,12 +2159,13 @@ int cVg::allocTextAtlas() {
     return 0;
 
   // if next fontImage already have a texture
-  int iw, ih;
+  int iw = 0;
+  int ih = 0;
   if (fontImages[fontImageIdx+1] != 0)
-    imageSize (fontImages[fontImageIdx+1], &iw, &ih);
+    renderGetTextureSize (fontImages[fontImageIdx+1], &iw, &ih);
   else {
     // calculate the new font image size and create it.
-    imageSize (fontImages[fontImageIdx], &iw, &ih);
+    renderGetTextureSize (fontImages[fontImageIdx], &iw, &ih);
     if (iw > ih)
       ih *= 2;
     else
