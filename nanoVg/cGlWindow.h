@@ -70,10 +70,10 @@ private:
   void onUp (bool right, bool mouseMoved, int x, int y);
   void onWheel (int delta);
 
-  void drawSpinner (float cx, float cy, float r, float t);
   void drawEyes (float x, float y, float w, float h, float cursorX, float cursorY, float t);
   void drawLines (float x, float y, float w, float h, float t);
-  void drawStats (float x, float y, std::string str);
+  void drawStats (float x, float y, const std::string& str);
+  void drawSpinner (float cx, float cy, float r, float t);
 
   static void glfwKey (struct GLFWwindow* window, int key, int scancode, int action, int mods);
   static void glfwCharMods (struct GLFWwindow* window, unsigned int ch, int mods);

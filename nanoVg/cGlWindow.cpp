@@ -41,6 +41,7 @@ void cGlWindow::pixel (uint32_t colour, int16_t x, int16_t y) {
 //}}}
 //{{{
 void cGlWindow::drawRect (uint32_t colour, int16_t x, int16_t y, uint16_t width, uint16_t height) {
+
   beginPath();
   rect (x, y, width, height);
   fillColor (nvgRGBA ((colour & 0xFF0000) >> 16, (colour & 0xFF00) >> 8, colour & 0xFF,255));
@@ -66,6 +67,7 @@ int cGlWindow::drawText (uint32_t colour, uint16_t fontHeight, string str, int16
 //}}}
 //{{{
 void cGlWindow::ellipseSolid (uint32_t colour, int16_t x, int16_t y, uint16_t xradius, uint16_t yradius) {
+
   beginPath();
   ellipse (x, y, xradius, yradius);
   fillColor (nvgRGBA ((colour & 0xFF0000) >> 16, (colour & 0xFF00) >> 8, colour & 0xFF,255));
@@ -227,33 +229,6 @@ void cGlWindow::onWheel (int delta) {
 //}}}
 
 //{{{
-void cGlWindow::drawSpinner (float cx, float cy, float r, float t) {
-
-  float a0 = 0.0f + t*6;
-  float a1 = PI + t*6;
-  float r0 = r;
-  float r1 = r * 0.75f;
-
-  saveState();
-
-  beginPath();
-  arc (cx,cy, r0, a0, a1, cVg::eHOLE);
-  arc (cx,cy, r1, a1, a0, cVg::eSOLID);
-  closePath();
-
-  float ax = cx + cosf(a0) * (r0+r1)*0.5f;
-  float ay = cy + sinf(a0) * (r0+r1)*0.5f;
-  float bx = cx + cosf(a1) * (r0+r1)*0.5f;
-  float by = cy + sinf(a1) * (r0+r1)*0.5f;
-
-  auto paint = linearGradient (ax,ay, bx,by, nvgRGBA(0,0,0,0), nvgRGBA(255,255,255,128));
-  fillPaint ( paint);
-  fill();
-
-  restoreState();
-  }
-//}}}
-//{{{
 void cGlWindow::drawEyes (float x, float y, float w, float h, float cursorX, float cursorY, float t) {
 
   float ex = w *0.23f;
@@ -377,12 +352,39 @@ void cGlWindow::drawLines (float x, float y, float w, float h, float t) {
   }
 //}}}
 //{{{
-void cGlWindow::drawStats (float x, float y, string str) {
+void cGlWindow::drawStats (float x, float y, const string& str) {
 
   fontSize (12.0f);
   textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_BOTTOM);
   fillColor (nvgRGBA(255, 255, 255, 255));
   text (0.0f, y, str);
+  }
+//}}}
+//{{{
+void cGlWindow::drawSpinner (float cx, float cy, float r, float t) {
+
+  float a0 = 0.0f + t*6;
+  float a1 = PI + t*6;
+  float r0 = r;
+  float r1 = r * 0.75f;
+
+  saveState();
+
+  beginPath();
+  arc (cx,cy, r0, a0, a1, cVg::eHOLE);
+  arc (cx,cy, r1, a1, a0, cVg::eSOLID);
+  closePath();
+
+  float ax = cx + cosf(a0) * (r0+r1)*0.5f;
+  float ay = cy + sinf(a0) * (r0+r1)*0.5f;
+  float bx = cx + cosf(a1) * (r0+r1)*0.5f;
+  float by = cy + sinf(a1) * (r0+r1)*0.5f;
+
+  auto paint = linearGradient (ax,ay, bx,by, nvgRGBA(0,0,0,0), nvgRGBA(255,255,255,128));
+  fillPaint ( paint);
+  fill();
+
+  restoreState();
   }
 //}}}
 

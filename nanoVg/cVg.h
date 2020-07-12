@@ -635,15 +635,13 @@ public:
     };
   //}}}
   //{{{
-  struct NVGtextRow {
+  struct sVgTextRow {
     const char* start; // Pointer to the input text where the row starts.
     const char* end;   // Pointer to the input text where the row ends (one past the last character).
     const char* next;  // Pointer to the beginning of the next row.
     float width;       // Logical width of the row.
     float minx, maxx;  // Actual bounds of the row. Logical with and bounds can differ because of kerning and some parts over extending.
     };
-
-  typedef struct NVGtextRow NVGtextRow;
   //}}}
   //{{{
   struct NVGglyphPosition {
@@ -676,10 +674,9 @@ public:
   int textGlyphPositions (float x, float y, std::string str, NVGglyphPosition* positions, int maxPositions);
 
   void textBoxBounds (float x, float y, float breakRowWidth, const char* string, const char* end, float* bounds);
-  int textBreakLines (const char* string, const char* end, float breakRowWidth, NVGtextRow* rows, int maxRows);
+  int textBreakLines (const char* string, const char* end, float breakRowWidth, sVgTextRow* rows, int maxRows);
   //}}}
   //{{{  image
-  //{{{
   enum eImageFlags {
     IMAGE_GENERATE_MIPMAPS = 1<<0, // Generate mipmaps during creation of the image.
     IMAGE_REPEATX          = 1<<1, // Repeat image in X direction.
@@ -688,8 +685,11 @@ public:
     IMAGE_PREMULTIPLIED    = 1<<4, // Image data has premultiplied alpha.
     IMAGE_NEAREST          = 1<<5, // Image interpolation is Nearest instead Linear
     };
-  //}}}
-  enum eTexture { TEXTURE_ALPHA = 0x01, TEXTURE_RGBA  = 0x02 };
+
+  enum eTexture {
+    TEXTURE_ALPHA = 0x01,
+    TEXTURE_RGBA  = 0x02
+    };
 
   GLuint imageHandle (int image);
 
@@ -2260,11 +2260,12 @@ private:
   void setBindTexture (GLuint texture);
   void setUniforms (int firstFragIndex, int image);
 
-  void setDevicePixelRatio (float ratio);
+  void setDevicePixelRatio (float ratio) { devicePixelRatio = ratio; }
+
   cCompositeOpState compositeOpState (eCompositeOp op);
   GLenum convertBlendFuncFactor (eBlendFactor factor);
 
-  bool renderGetTextureSize (int image, int* w, int* h);
+  bool renderGetTextureSize (int image, int& w, int& h);
   int renderCreateTexture (int type, int w, int h, int imageFlags, const unsigned char* data);
   bool renderUpdateTexture (int image, int x, int y, int w, int h, const unsigned char* data);
 

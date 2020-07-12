@@ -65,6 +65,7 @@ cVg::~cVg() {
   free (mDraws);
   }
 //}}}
+
 //{{{
 void cVg::initialise() {
 
@@ -108,9 +109,9 @@ void cVg::resetState() {
   state->fontId = 0;
   }
 //}}}
-
 //{{{
 void cVg::saveState() {
+
   if (mNumStates >= MAX_STATES)
     return;
   if (mNumStates > 0)
@@ -120,6 +121,7 @@ void cVg::saveState() {
 //}}}
 //{{{
 void cVg::restoreState() {
+
   if (mNumStates <= 1)
     return;
   mNumStates--;
@@ -138,7 +140,6 @@ void cVg::transform (float a, float b, float c, float d, float e, float f) {
   mStates[mNumStates - 1].mTransform.premultiply (transform);
   }
 //}}}
-
 //{{{
 void cVg::translate (float x, float y) {
   cTransform transform;
@@ -162,7 +163,6 @@ void cVg::rotate (float angle) {
 //}}}
 //}}}
 //{{{  shape
-
 void cVg::fillColor (sVgColour color) { mStates[mNumStates-1].fillPaint.setColor (color); }
 void cVg::strokeColor (sVgColour color) { mStates[mNumStates-1].strokePaint.setColor (color); }
 void cVg::globalAlpha (float alpha) { mStates[mNumStates-1].alpha = alpha; }
@@ -269,11 +269,7 @@ void cVg::strokePaint (cPaint paint) {
   }
 //}}}
 
-//{{{
-void cVg::beginPath() {
-  mShape.beginPath();
-  }
-//}}}
+void cVg::beginPath() { mShape.beginPath(); }
 //{{{
 void cVg::pathWinding (eWinding dir) {
   float values[] = { eWINDING, (float)dir };
@@ -294,10 +290,8 @@ void cVg::lineTo (float x, float y) {
 //}}}
 //{{{
 void cVg::bezierTo (float c1x, float c1y, float c2x, float c2y, float x, float y) {
-  float values[] = { eBEZIERTO,
-                     c1x, c1y,
-                     c2x, c2y,
-                       x,   y };
+
+  float values[] = { eBEZIERTO, c1x, c1y, c2x, c2y, x,   y };
   mShape.addCommand (values, 7, mStates[mNumStates-1].mTransform);
   }
 //}}}
@@ -309,7 +303,7 @@ void cVg::quadTo (float cx, float cy, float x, float y) {
 
   float values[] = { eBEZIERTO,
                      x0 + 2.0f / 3.0f * (cx - x0), y0 + 2.0f / 3.0f * (cy - y0),
-                       x + 2.0f / 3.0f * (cx - x),   y + 2.0f / 3.0f * (cy - y),
+                      x + 2.0f / 3.0f * (cx - x),   y + 2.0f / 3.0f * (cy - y),
                      x, y };
   mShape.addCommand (values, 7, mStates[mNumStates-1].mTransform);
   }
@@ -437,14 +431,11 @@ void cVg::arc (float cx, float cy, float r, float a0, float a1, int dir) {
 //{{{
 void cVg::rect (float x, float y, float w, float h) {
 
-  float values[] = { eMOVETO,   x,   y,
-                     eLINETO,   x, y+h,
-                     eLINETO, x+w, y+h,
-                     eLINETO, x+w,   y,
-                     eCLOSE };
+  float values[] = { eMOVETO, x, y, eLINETO, x, y+h, eLINETO, x+w, y+h, eLINETO, x+w, y, eCLOSE };
   mShape.addCommand (values, 13, mStates[mNumStates-1].mTransform);
   }
 //}}}
+
 //{{{
 void cVg::roundedRectVarying (float x, float y, float w, float h,
                               float radTopLeft, float radTopRight, float radBottomRight, float radBottomLeft) {
@@ -480,11 +471,8 @@ void cVg::roundedRectVarying (float x, float y, float w, float h,
     }
   }
 //}}}
-//{{{
-void cVg::roundedRect (float x, float y, float w, float h, float r) {
-  roundedRectVarying (x, y, w, h, r, r, r, r);
-  }
-//}}}
+void cVg::roundedRect (float x, float y, float w, float h, float r) { roundedRectVarying (x, y, w, h, r, r, r, r); }
+
 //{{{
 void cVg::ellipse (float cx, float cy, float rx, float ry) {
 
@@ -499,11 +487,8 @@ void cVg::ellipse (float cx, float cy, float rx, float ry) {
   mShape.addCommand (values, 32, mStates[mNumStates-1].mTransform);
   }
 //}}}
-//{{{
-void cVg::circle (float cx, float cy, float r) {
-  ellipse (cx,cy, r,r);
-  }
-//}}}
+void cVg::circle (float cx, float cy, float r) { ellipse (cx,cy, r,r); }
+
 //{{{
 void cVg::closePath() {
   float values[] = { eCLOSE };
@@ -584,6 +569,7 @@ int cVg::createFontMem (string name, unsigned char* data, int ndata, int freeDat
 //}}}
 //{{{
 int cVg::findFont (string name) {
+
   if (name.empty())
     return -1;
   return fonsGetFontByName (fonsContext, name.c_str());
@@ -705,7 +691,7 @@ void cVg::textBox (float x, float y, float breakRowWidth, const char* string, co
   textMetrics (NULL, NULL, &lineh);
   state->textAlign = vAlign | ALIGN_LEFT;
 
-  NVGtextRow rows[2];
+  sVgTextRow rows[2];
   int nrows = 0;
   while ((nrows = textBreakLines (string, end, breakRowWidth, rows, 2))) {
     for (int i = 0; i < nrows; i++) {
@@ -860,7 +846,7 @@ void cVg::textBoxBounds (float x, float y, float breakRowWidth, const char* stri
   rmaxy *= inverseScale;
 
   int nrows = 0;
-  NVGtextRow rows[2];
+  sVgTextRow rows[2];
   while ((nrows = textBreakLines (string, end, breakRowWidth, rows, 2))) {
     for (int i = 0; i < nrows; i++) {
       auto row = &rows[i];
@@ -895,7 +881,7 @@ void cVg::textBoxBounds (float x, float y, float breakRowWidth, const char* stri
   }
 //}}}
 //{{{
-int cVg::textBreakLines (const char* string, const char* end, float breakRowWidth, NVGtextRow* rows, int maxRows) {
+int cVg::textBreakLines (const char* string, const char* end, float breakRowWidth, sVgTextRow* rows, int maxRows) {
 
   if (maxRows == 0)
     return 0;
@@ -1190,7 +1176,7 @@ void cVg::updateImage (int image, const unsigned char* data) {
 
   int w = 0;
   int h = 0;
-  renderGetTextureSize (image, &w, &h);
+  renderGetTextureSize (image, w, h);
   renderUpdateTexture (image, 0,0, w,h, data);
   }
 //}}}
@@ -1322,12 +1308,12 @@ void cVg::endFrame() {
     if (fontImage == 0)
       return;
 
-    renderGetTextureSize (fontImage, &iw, &ih);
+    renderGetTextureSize (fontImage, iw, ih);
     for (i = j = 0; i < fontImageIdx; i++) {
       if (fontImages[i] != 0) {
         int nw = 0;
         int nh = 0;
-        renderGetTextureSize (fontImages[i], &nw, &nh);
+        renderGetTextureSize (fontImages[i], nw, nh);
         if (nw < iw || nh < ih)
           deleteImage (fontImages[i]);
         else
@@ -1469,12 +1455,6 @@ void cVg::setUniforms (int firstFragIndex, int image) {
     setBindTexture (0);
   }
 //}}}
-//{{{
-void cVg::setDevicePixelRatio (float ratio) {
-
-  devicePixelRatio = ratio;
-  }
-//}}}
 
 //{{{
 cVg::cCompositeOpState cVg::compositeOpState (eCompositeOp op) {
@@ -1569,14 +1549,14 @@ GLenum cVg::convertBlendFuncFactor (eBlendFactor factor) {
 //}}}
 
 //{{{
-bool cVg::renderGetTextureSize (int image, int* w, int* h) {
+bool cVg::renderGetTextureSize (int image, int& w, int& h) {
 
   auto texture = findTexture (image);
   if (texture == nullptr)
     return false;
 
-  *w = texture->width;
-  *h = texture->height;
+  w = texture->width;
+  h = texture->height;
 
   return true;
   }
@@ -1960,10 +1940,10 @@ int cVg::allocTextAtlas() {
   int iw = 0;
   int ih = 0;
   if (fontImages[fontImageIdx+1] != 0)
-    renderGetTextureSize (fontImages[fontImageIdx+1], &iw, &ih);
+    renderGetTextureSize (fontImages[fontImageIdx+1], iw, ih);
   else {
     // calculate the new font image size and create it.
-    renderGetTextureSize (fontImages[fontImageIdx], &iw, &ih);
+    renderGetTextureSize (fontImages[fontImageIdx], iw, ih);
     if (iw > ih)
       ih *= 2;
     else
