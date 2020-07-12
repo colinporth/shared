@@ -12,208 +12,8 @@ using namespace std;
 #define KAPPA90 0.5522847493f // Length proportional to radius of a cubic bezier handle for 90deg arcs.
 #define MAX_FONTIMAGE_SIZE  2048
 const float kDistanceTolerance = 0.01f;
-//{{{  maths
-float quantize (float a, float d) { return ((int)(a / d + 0.5f)) * d; }
-//{{{
-float normalize (float& x, float& y) {
 
-  float d = sqrtf(x*x + y*y);
-  if (d > 1e-6f) {
-    float id = 1.0f / d;
-    x *= id;
-    y *= id;
-    }
-
-  return d;
-  }
-//}}}
-inline float signf (float a) { return a >= 0.0f ? 1.0f : -1.0f; }
-inline float cross (float dx0, float dy0, float dx1, float dy1) { return dx1*dy0 - dx0*dy1; }
-
-inline float degToRad (float deg) { return deg / 180.0f * PI; }
-inline float radToDeg (float rad) { return rad / PI * 180.0f; }
-//{{{
-inline unsigned int nearestPow2 (unsigned int num) {
-
-  unsigned n = num > 0 ? num - 1 : 0;
-  n |= n >> 1;
-  n |= n >> 2;
-  n |= n >> 4;
-  n |= n >> 8;
-  n |= n >> 16;
-  n++;
-
-  return n;
-  }
-//}}}
-
-//{{{
-int pointEquals (float x1, float y1, float x2, float y2, float tol) {
-  float dx = x2 - x1;
-  float dy = y2 - y1;
-  return dx*dx + dy*dy < tol*tol;
-  }
-//}}}
-//{{{
-float distPointSeg (float x, float y, float px, float py, float qx, float qy) {
-
-  float pqx = qx-px;
-  float pqy = qy-py;
-  float dx = x-px;
-  float dy = y-py;
-
-  float d = pqx*pqx + pqy*pqy;
-  float t = pqx*dx + pqy*dy;
-  if (d > 0)
-    t /= d;
-  if (t < 0)
-    t = 0;
-  else if (t > 1)
-    t = 1;
-
-  dx = px + t*pqx - x;
-  dy = py + t*pqy - y;
-
-  return dx*dx + dy*dy;
-  }
-//}}}
-//{{{
-void intersectRects (float* dst, float ax, float ay, float aw, float ah, float bx, float by, float bw, float bh) {
-
-  float minx = maxf (ax, bx);
-  float miny = maxf (ay, by);
-  float maxx = minf (ax+aw, bx+bw);
-  float maxy = minf (ay+ah, by+bh);
-
-  dst[0] = minx;
-  dst[1] = miny;
-  dst[2] = maxf (0.0f, maxx - minx);
-  dst[3] = maxf (0.0f, maxy - miny);
-  }
-//}}}
-
-//{{{
-float hue (float h, float m1, float m2) {
-
-  if (h < 0)
-    h += 1;
-  if (h > 1)
-    h -= 1;
-
-  if (h < 1.0f/6.0f)
-    return m1 + (m2 - m1) * h * 6.0f;
-  else if (h < 3.0f/6.0f)
-    return m2;
-  else if (h < 4.0f/6.0f)
-    return m1 + (m2 - m1) * (2.0f/3.0f - h) * 6.0f;
-
-  return m1;
-  }
-//}}}
-//}}}
-//{{{  NVGcolour
-//{{{
-sVgColour nvgRGB (unsigned char r, unsigned char g, unsigned char b) {
-  return nvgRGBA (r,g,b,255);
-  }
-//}}}
-//{{{
-sVgColour nvgRGBf (float r, float g, float b) {
-  return nvgRGBAf (r,g,b,1.0f);
-  }
-//}}}
-//{{{
-sVgColour nvgRGBA (unsigned char r, unsigned char g, unsigned char b, unsigned char a) {
-
-  sVgColour color;
-  color.r = r / 255.0f;
-  color.g = g / 255.0f;
-  color.b = b / 255.0f;
-  color.a = a / 255.0f;
-  return color;
-  }
-//}}}
-//{{{
-sVgColour nvgRGBAf (float r, float g, float b, float a) {
-  sVgColour color;
-  color.r = r;
-  color.g = g;
-  color.b = b;
-  color.a = a;
-  return color;
-  }
-//}}}
-//{{{
-sVgColour nvgRGB32 (uint32_t colour) {
-  sVgColour color;
-  color.r = ((colour & 0xFF0000) >> 16) / 255.0f;
-  color.g = ((colour & 0xFF00) >> 8) / 255.0f;
-  color.b = (colour & 0xFF) / 255.0f;
-  color.a = (colour >> 24) / 255.0f;
-  return color;
-  }
-//}}}
-
-//{{{
-sVgColour nvgTransRGBA (sVgColour c, unsigned char a) {
-  c.a = a / 255.0f;
-  return c;
-  }
-//}}}
-//{{{
-sVgColour nvgTransRGBAf (sVgColour c, float a) {
-  c.a = a;
-  return c;
-  }
-//}}}
-//{{{
-sVgColour nvgLerpRGBA (sVgColour c0, sVgColour c1, float u) {
-
-  sVgColour cint = {{{0}}};
-  u = clampf(u, 0.0f, 1.0f);
-  float oneminu = 1.0f - u;
-  for (int i = 0; i <4; i++ )
-    cint.rgba[i] = c0.rgba[i] * oneminu + c1.rgba[i] * u;
-  return cint;
-  }
-//}}}
-
-//{{{
-sVgColour nvgHSL (float h, float s, float l) {
-  return nvgHSLA (h,s,l,255);
-  }
-//}}}
-//{{{
-sVgColour nvgHSLA (float h, float s, float l, unsigned char a) {
-
-  h = fmodf (h, 1.0f);
-  if (h < 0.0f)
-    h += 1.0f;
-  s = clampf (s, 0.0f, 1.0f);
-  l = clampf (l, 0.0f, 1.0f);
-
-  float m2 = l <= 0.5f ? (l * (1 + s)) : (l + s - l * s);
-  float m1 = 2 * l - m2;
-
-  sVgColour col;
-  col.r = clampf (hue (h + 1.0f/3.0f, m1, m2), 0.0f, 1.0f);
-  col.g = clampf (hue (h, m1, m2), 0.0f, 1.0f);
-  col.b = clampf (hue (h - 1.0f/3.0f, m1, m2), 0.0f, 1.0f);
-  col.a = a / 255.0f;
-  return col;
-  }
-//}}}
-
-//{{{
-sVgColour nvgPremulColor (sVgColour c) {
-  c.r *= c.a;
-  c.g *= c.a;
-  c.b *= c.a;
-  return c;
-  }
-//}}}
-//}}}
-
+// public
 //{{{
 cVg::cVg (int flags) :
     mDrawEdges(!(flags & DRAW_NOEDGES)), mDrawSolid(!(flags & DRAW_NOSOLID)), mDrawTriangles(true) {
@@ -1491,6 +1291,12 @@ void cVg::globalCompositeBlendFunc (eBlendFactor sfactor, eBlendFactor dfactor) 
 //}}}
 //{{{  frame
 //{{{
+string cVg::getFrameStats() {
+  return "v:" + to_string(mVertices.getNumVertices()) + " d:" + to_string (mDrawArrays);
+  }
+//}}}
+
+//{{{
 void cVg::beginFrame (int windowWidth, int windowHeight, float devicePixelRatio) {
 
   mNumStates = 0;
@@ -1542,16 +1348,322 @@ void cVg::endFrame() {
   mVertices.reset();
   }
 //}}}
-
-//{{{
-string cVg::getFrameStats() {
-  return "v:" + to_string(mVertices.getNumVertices()) +
-         " d:" + to_string (mDrawArrays);
-  }
-//}}}
 //}}}
 
 // private
+//{{{
+cVg::cDraw* cVg::allocDraw() {
+// allocate a draw, return pointer to it
+
+  if (mNumDraws + 1 > mNumAllocatedDraws) {
+    mNumAllocatedDraws = maxi (mNumDraws + 1, 128) + mNumAllocatedDraws / 2; // 1.5x Overallocate
+    mDraws = (cDraw*)realloc (mDraws, sizeof(cDraw) * mNumAllocatedDraws);
+    }
+  return &mDraws[mNumDraws++];
+  }
+//}}}
+//{{{
+int cVg::allocFrags (int numFrags) {
+// allocate numFrags, return index of first
+
+  if (mNumFrags + numFrags > mNumAllocatedFrags) {
+    mNumAllocatedFrags = maxi (mNumFrags + numFrags, 128) + mNumAllocatedFrags / 2; // 1.5x Overallocate
+    mFrags = (cFrag*)realloc (mFrags, mNumAllocatedFrags * sizeof(cFrag));
+    }
+
+  int firstFragIndex = mNumFrags;
+  mNumFrags += numFrags;
+  return firstFragIndex;
+  }
+//}}}
+//{{{
+int cVg::allocPathVertices (int numPaths) {
+// allocate numPaths pathVertices, return index of first
+
+  if (mNumPathVertices + numPaths > mNumAllocatedPathVertices) {
+    mNumAllocatedPathVertices = maxi (mNumPathVertices + numPaths, 128) + mNumAllocatedPathVertices / 2; // 1.5x Overallocate
+    mPathVertices = (cPathVertices*)realloc (mPathVertices, mNumAllocatedPathVertices * sizeof(cPathVertices));
+    }
+
+  int firstPathVerticeIndex = mNumPathVertices;
+  mNumPathVertices += numPaths;
+  return firstPathVerticeIndex;
+  }
+//}}}
+//{{{
+cVg::cTexture* cVg::allocTexture() {
+
+  cTexture* texture = nullptr;
+  for (int i = 0; i < mNumTextures; i++) {
+    if (mTextures[i].id == 0) {
+      texture = &mTextures[i];
+      break;
+      }
+    }
+
+  if (texture == nullptr) {
+    if (mNumTextures + 1 > mNumAllocatedTextures) {
+      mNumAllocatedTextures = maxi (mNumTextures + 1, 4) +  mNumAllocatedTextures / 2; // 1.5x Overallocate
+      mTextures = (cTexture*)realloc (mTextures, mNumAllocatedTextures * sizeof(cTexture));
+      if (mTextures == nullptr)
+        return nullptr;
+      }
+    texture = &mTextures[mNumTextures++];
+    }
+
+  texture->reset();
+  texture->id = ++mTextureId;
+  return texture;
+  }
+//}}}
+//{{{
+cVg::cTexture* cVg::findTexture (int textureId) {
+
+  for (int i = 0; i < mNumTextures; i++)
+    if (mTextures[i].id == textureId)
+      return &mTextures[i];
+
+  return nullptr;
+  }
+//}}}
+
+//{{{
+void cVg::setStencilMask (GLuint mask) {
+
+  if (mStencilMask != mask) {
+    mStencilMask = mask;
+    glStencilMask (mask);
+    }
+  }
+//}}}
+//{{{
+void cVg::setStencilFunc (GLenum func, GLint ref, GLuint mask) {
+
+  if ((mStencilFunc != func) || (mStencilFuncRef != ref) || (mStencilFuncMask != mask)) {
+    mStencilFunc = func;
+    mStencilFuncRef = ref;
+    mStencilFuncMask = mask;
+    glStencilFunc (func, ref, mask);
+    }
+  }
+//}}}
+//{{{
+void cVg::setBindTexture (GLuint texture) {
+
+  if (mBindTexture != texture) {
+    mBindTexture = texture;
+    glBindTexture (GL_TEXTURE_2D, texture);
+    }
+  }
+//}}}
+//{{{
+void cVg::setUniforms (int firstFragIndex, int image) {
+
+  mShader.setFrags ((float*)(&mFrags[firstFragIndex]));
+
+  if (image) {
+    auto tex = findTexture (image);
+    setBindTexture (tex ? tex->tex : 0);
+    }
+  else
+    setBindTexture (0);
+  }
+//}}}
+//{{{
+void cVg::setDevicePixelRatio (float ratio) {
+
+  devicePixelRatio = ratio;
+  }
+//}}}
+
+//{{{
+cVg::cCompositeOpState cVg::compositeOpState (eCompositeOp op) {
+
+  cCompositeOpState compositeOpState;
+  switch (op) {
+    case NVG_SOURCE_OVER :
+      compositeOpState.srcRGB = NVG_ONE;
+      compositeOpState.dstRGB = NVG_ONE_MINUS_SRC_ALPHA;
+      break;
+    case NVG_SOURCE_IN:
+      compositeOpState.srcRGB = NVG_DST_ALPHA;
+      compositeOpState.dstRGB = NVG_ZERO;
+      break;
+    case NVG_SOURCE_OUT:
+      compositeOpState.srcRGB = NVG_ONE_MINUS_DST_ALPHA;
+      compositeOpState.dstRGB = NVG_ZERO;
+      break;
+    case NVG_ATOP:
+      compositeOpState.srcRGB = NVG_DST_ALPHA;
+      compositeOpState.dstRGB = NVG_ONE_MINUS_SRC_ALPHA;
+      break;
+    case NVG_DESTINATION_OVER:
+      compositeOpState.srcRGB = NVG_ONE_MINUS_DST_ALPHA;
+      compositeOpState.dstRGB = NVG_ONE;
+      break;
+    case NVG_DESTINATION_IN:
+      compositeOpState.srcRGB = NVG_ZERO;
+      compositeOpState.dstRGB = NVG_SRC_ALPHA;
+      break;
+    case NVG_DESTINATION_OUT:
+      compositeOpState.srcRGB = NVG_ZERO;
+      compositeOpState.dstRGB = NVG_ONE_MINUS_SRC_ALPHA;
+      break;
+    case NVG_DESTINATION_ATOP:
+      compositeOpState.srcRGB = NVG_ONE_MINUS_DST_ALPHA;
+      compositeOpState.dstRGB = NVG_SRC_ALPHA;
+      break;
+    case NVG_LIGHTER:
+      compositeOpState.srcRGB = NVG_ONE;
+      compositeOpState.dstRGB = NVG_ONE;
+      break;
+    case NVG_COPY:
+      compositeOpState.srcRGB = NVG_ONE;
+      compositeOpState.dstRGB = NVG_ZERO;
+      break;
+    case NVG_XOR:
+      compositeOpState.srcRGB = NVG_ONE_MINUS_DST_ALPHA;
+      compositeOpState.dstRGB = NVG_ONE_MINUS_SRC_ALPHA;
+      break;
+    default:
+      compositeOpState.srcRGB = NVG_ONE;
+      compositeOpState.dstRGB = NVG_ZERO;
+      break;
+    }
+
+  compositeOpState.srcAlpha = compositeOpState.srcRGB;
+  compositeOpState.dstAlpha = compositeOpState.dstRGB;
+  return compositeOpState;
+  }
+//}}}
+//{{{
+GLenum cVg::convertBlendFuncFactor (eBlendFactor factor) {
+
+  switch (factor) {
+    case NVG_ZERO:
+      return GL_ZERO;
+    case NVG_ONE:
+      return GL_ONE;
+    case NVG_SRC_COLOR:
+      return GL_SRC_COLOR;
+    case NVG_ONE_MINUS_SRC_COLOR:
+      return GL_ONE_MINUS_SRC_COLOR;
+    case NVG_DST_COLOR:
+      return GL_DST_COLOR;
+    case NVG_ONE_MINUS_DST_COLOR:
+      return GL_ONE_MINUS_DST_COLOR;
+    case NVG_SRC_ALPHA:
+      return GL_SRC_ALPHA;
+    case  NVG_ONE_MINUS_SRC_ALPHA:
+      return GL_ONE_MINUS_SRC_ALPHA;
+    case NVG_DST_ALPHA:
+      return GL_DST_ALPHA;
+    case NVG_ONE_MINUS_DST_ALPHA:
+      return GL_ONE_MINUS_DST_ALPHA;
+    case NVG_SRC_ALPHA_SATURATE:
+      return GL_SRC_ALPHA_SATURATE;
+    default:
+      return GL_INVALID_ENUM;
+      }
+  }
+//}}}
+
+//{{{
+bool cVg::renderGetTextureSize (int image, int* w, int* h) {
+
+  auto texture = findTexture (image);
+  if (texture == nullptr)
+    return false;
+
+  *w = texture->width;
+  *h = texture->height;
+
+  return true;
+  }
+//}}}
+//{{{
+int cVg::renderCreateTexture (int type, int w, int h, int imageFlags, const unsigned char* data) {
+
+  auto texture = allocTexture();
+  if (texture == nullptr)
+    return 0;
+
+  // Check for non-power of 2.
+  if (nearestPow2 (w) != (unsigned int)w || nearestPow2(h) != (unsigned int)h) {
+    if ((imageFlags & IMAGE_REPEATX) != 0 || (imageFlags & IMAGE_REPEATY) != 0) {
+      printf ("Repeat X/Y is not supported for non power-of-two textures (%d x %d)\n", w, h);
+      imageFlags &= ~(IMAGE_REPEATX | IMAGE_REPEATY);
+      }
+
+    if (imageFlags & IMAGE_GENERATE_MIPMAPS) {
+      printf ("Mip-maps is not support for non power-of-two textures (%d x %d)\n", w, h);
+      imageFlags &= ~IMAGE_GENERATE_MIPMAPS;
+      }
+    }
+
+  glGenTextures (1, &texture->tex);
+  texture->width = w;
+  texture->height = h;
+  texture->type = type;
+  texture->flags = imageFlags;
+  setBindTexture (texture->tex);
+
+  glPixelStorei (GL_UNPACK_ALIGNMENT,1);
+
+  if (type == TEXTURE_RGBA)
+    glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+  else
+    glTexImage2D (GL_TEXTURE_2D, 0, GL_LUMINANCE, w, h, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, data);
+
+  if (imageFlags & cVg::IMAGE_GENERATE_MIPMAPS)
+    glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+     imageFlags & cVg::IMAGE_NEAREST ? GL_NEAREST_MIPMAP_NEAREST : GL_LINEAR_MIPMAP_LINEAR);
+
+  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, imageFlags &  cVg::IMAGE_NEAREST ? GL_NEAREST : GL_LINEAR);
+  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, imageFlags &  cVg::IMAGE_NEAREST ? GL_NEAREST : GL_LINEAR);
+  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, imageFlags &  cVg::IMAGE_REPEATX ? GL_REPEAT : GL_CLAMP_TO_EDGE);
+  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, imageFlags &  cVg::IMAGE_REPEATY ? GL_REPEAT : GL_CLAMP_TO_EDGE);
+
+  glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+
+  if (imageFlags & cVg::IMAGE_GENERATE_MIPMAPS)
+    glGenerateMipmap (GL_TEXTURE_2D);
+
+  setBindTexture (0);
+
+  return texture->id;
+  }
+//}}}
+//{{{
+bool cVg::renderUpdateTexture (int image, int x, int y, int w, int h, const unsigned char* data) {
+
+  auto texture = findTexture (image);
+  if (texture == nullptr)
+    return false;
+  setBindTexture (texture->tex);
+
+  glPixelStorei (GL_UNPACK_ALIGNMENT, 1);
+
+  // No support for all of skip, need to update a whole row at a time.
+  if (texture->type == TEXTURE_RGBA)
+    data += y * texture->width * 4;
+  else
+    data += y * texture->width;
+  x = 0;
+  w = texture->width;
+
+  if (texture->type == TEXTURE_RGBA)
+    glTexSubImage2D (GL_TEXTURE_2D, 0, x,y, w,h, GL_RGBA, GL_UNSIGNED_BYTE, data);
+  else
+    glTexSubImage2D (GL_TEXTURE_2D, 0, x,y, w,h, GL_LUMINANCE, GL_UNSIGNED_BYTE, data);
+
+  glPixelStorei (GL_UNPACK_ALIGNMENT, 4);
+
+  setBindTexture (0);
+  return true;
+  }
+//}}}
+
 //{{{
 void cVg::renderViewport (int width, int height, float devicePixelRatio) {
   mViewport[0] = (float)width;
@@ -1809,320 +1921,6 @@ void cVg::renderFrame (c2dVertices& vertices, cCompositeOpState compositeOp) {
   mNumDraws = 0;
   mNumPathVertices = 0;
   mNumFrags = 0;
-  }
-//}}}
-
-//{{{
-bool cVg::renderGetTextureSize (int image, int* w, int* h) {
-
-  auto texture = findTexture (image);
-  if (texture == nullptr)
-    return false;
-
-  *w = texture->width;
-  *h = texture->height;
-
-  return true;
-  }
-//}}}
-//{{{
-int cVg::renderCreateTexture (int type, int w, int h, int imageFlags, const unsigned char* data) {
-
-  auto texture = allocTexture();
-  if (texture == nullptr)
-    return 0;
-
-  // Check for non-power of 2.
-  if (nearestPow2 (w) != (unsigned int)w || nearestPow2(h) != (unsigned int)h) {
-    if ((imageFlags & IMAGE_REPEATX) != 0 || (imageFlags & IMAGE_REPEATY) != 0) {
-      printf ("Repeat X/Y is not supported for non power-of-two textures (%d x %d)\n", w, h);
-      imageFlags &= ~(IMAGE_REPEATX | IMAGE_REPEATY);
-      }
-
-    if (imageFlags & IMAGE_GENERATE_MIPMAPS) {
-      printf ("Mip-maps is not support for non power-of-two textures (%d x %d)\n", w, h);
-      imageFlags &= ~IMAGE_GENERATE_MIPMAPS;
-      }
-    }
-
-  glGenTextures (1, &texture->tex);
-  texture->width = w;
-  texture->height = h;
-  texture->type = type;
-  texture->flags = imageFlags;
-  setBindTexture (texture->tex);
-
-  glPixelStorei (GL_UNPACK_ALIGNMENT,1);
-
-  if (type == TEXTURE_RGBA)
-    glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-  else
-    glTexImage2D (GL_TEXTURE_2D, 0, GL_LUMINANCE, w, h, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, data);
-
-  if (imageFlags & cVg::IMAGE_GENERATE_MIPMAPS)
-    glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
-     imageFlags & cVg::IMAGE_NEAREST ? GL_NEAREST_MIPMAP_NEAREST : GL_LINEAR_MIPMAP_LINEAR);
-
-  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, imageFlags &  cVg::IMAGE_NEAREST ? GL_NEAREST : GL_LINEAR);
-  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, imageFlags &  cVg::IMAGE_NEAREST ? GL_NEAREST : GL_LINEAR);
-  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, imageFlags &  cVg::IMAGE_REPEATX ? GL_REPEAT : GL_CLAMP_TO_EDGE);
-  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, imageFlags &  cVg::IMAGE_REPEATY ? GL_REPEAT : GL_CLAMP_TO_EDGE);
-
-  glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-
-  if (imageFlags & cVg::IMAGE_GENERATE_MIPMAPS)
-    glGenerateMipmap (GL_TEXTURE_2D);
-
-  setBindTexture (0);
-
-  return texture->id;
-  }
-//}}}
-//{{{
-bool cVg::renderUpdateTexture (int image, int x, int y, int w, int h, const unsigned char* data) {
-
-  auto texture = findTexture (image);
-  if (texture == nullptr)
-    return false;
-  setBindTexture (texture->tex);
-
-  glPixelStorei (GL_UNPACK_ALIGNMENT, 1);
-
-  // No support for all of skip, need to update a whole row at a time.
-  if (texture->type == TEXTURE_RGBA)
-    data += y * texture->width * 4;
-  else
-    data += y * texture->width;
-  x = 0;
-  w = texture->width;
-
-  if (texture->type == TEXTURE_RGBA)
-    glTexSubImage2D (GL_TEXTURE_2D, 0, x,y, w,h, GL_RGBA, GL_UNSIGNED_BYTE, data);
-  else
-    glTexSubImage2D (GL_TEXTURE_2D, 0, x,y, w,h, GL_LUMINANCE, GL_UNSIGNED_BYTE, data);
-
-  glPixelStorei (GL_UNPACK_ALIGNMENT, 4);
-
-  setBindTexture (0);
-  return true;
-  }
-//}}}
-
-//{{{
-void cVg::setDevicePixelRatio (float ratio) {
-
-  devicePixelRatio = ratio;
-  }
-//}}}
-//{{{
-cVg::cCompositeOpState cVg::compositeOpState (eCompositeOp op) {
-
-  cCompositeOpState compositeOpState;
-  switch (op) {
-    case NVG_SOURCE_OVER :
-      compositeOpState.srcRGB = NVG_ONE;
-      compositeOpState.dstRGB = NVG_ONE_MINUS_SRC_ALPHA;
-      break;
-    case NVG_SOURCE_IN:
-      compositeOpState.srcRGB = NVG_DST_ALPHA;
-      compositeOpState.dstRGB = NVG_ZERO;
-      break;
-    case NVG_SOURCE_OUT:
-      compositeOpState.srcRGB = NVG_ONE_MINUS_DST_ALPHA;
-      compositeOpState.dstRGB = NVG_ZERO;
-      break;
-    case NVG_ATOP:
-      compositeOpState.srcRGB = NVG_DST_ALPHA;
-      compositeOpState.dstRGB = NVG_ONE_MINUS_SRC_ALPHA;
-      break;
-    case NVG_DESTINATION_OVER:
-      compositeOpState.srcRGB = NVG_ONE_MINUS_DST_ALPHA;
-      compositeOpState.dstRGB = NVG_ONE;
-      break;
-    case NVG_DESTINATION_IN:
-      compositeOpState.srcRGB = NVG_ZERO;
-      compositeOpState.dstRGB = NVG_SRC_ALPHA;
-      break;
-    case NVG_DESTINATION_OUT:
-      compositeOpState.srcRGB = NVG_ZERO;
-      compositeOpState.dstRGB = NVG_ONE_MINUS_SRC_ALPHA;
-      break;
-    case NVG_DESTINATION_ATOP:
-      compositeOpState.srcRGB = NVG_ONE_MINUS_DST_ALPHA;
-      compositeOpState.dstRGB = NVG_SRC_ALPHA;
-      break;
-    case NVG_LIGHTER:
-      compositeOpState.srcRGB = NVG_ONE;
-      compositeOpState.dstRGB = NVG_ONE;
-      break;
-    case NVG_COPY:
-      compositeOpState.srcRGB = NVG_ONE;
-      compositeOpState.dstRGB = NVG_ZERO;
-      break;
-    case NVG_XOR:
-      compositeOpState.srcRGB = NVG_ONE_MINUS_DST_ALPHA;
-      compositeOpState.dstRGB = NVG_ONE_MINUS_SRC_ALPHA;
-      break;
-    default:
-      compositeOpState.srcRGB = NVG_ONE;
-      compositeOpState.dstRGB = NVG_ZERO;
-      break;
-    }
-
-  compositeOpState.srcAlpha = compositeOpState.srcRGB;
-  compositeOpState.dstAlpha = compositeOpState.dstRGB;
-  return compositeOpState;
-  }
-//}}}
-
-//{{{
-cVg::cDraw* cVg::allocDraw() {
-// allocate a draw, return pointer to it
-
-  if (mNumDraws + 1 > mNumAllocatedDraws) {
-    mNumAllocatedDraws = maxi (mNumDraws + 1, 128) + mNumAllocatedDraws / 2; // 1.5x Overallocate
-    mDraws = (cDraw*)realloc (mDraws, sizeof(cDraw) * mNumAllocatedDraws);
-    }
-  return &mDraws[mNumDraws++];
-  }
-//}}}
-//{{{
-int cVg::allocFrags (int numFrags) {
-// allocate numFrags, return index of first
-
-  if (mNumFrags + numFrags > mNumAllocatedFrags) {
-    mNumAllocatedFrags = maxi (mNumFrags + numFrags, 128) + mNumAllocatedFrags / 2; // 1.5x Overallocate
-    mFrags = (cFrag*)realloc (mFrags, mNumAllocatedFrags * sizeof(cFrag));
-    }
-
-  int firstFragIndex = mNumFrags;
-  mNumFrags += numFrags;
-  return firstFragIndex;
-  }
-//}}}
-//{{{
-int cVg::allocPathVertices (int numPaths) {
-// allocate numPaths pathVertices, return index of first
-
-  if (mNumPathVertices + numPaths > mNumAllocatedPathVertices) {
-    mNumAllocatedPathVertices = maxi (mNumPathVertices + numPaths, 128) + mNumAllocatedPathVertices / 2; // 1.5x Overallocate
-    mPathVertices = (cPathVertices*)realloc (mPathVertices, mNumAllocatedPathVertices * sizeof(cPathVertices));
-    }
-
-  int firstPathVerticeIndex = mNumPathVertices;
-  mNumPathVertices += numPaths;
-  return firstPathVerticeIndex;
-  }
-//}}}
-//{{{
-cVg::cTexture* cVg::allocTexture() {
-
-  cTexture* texture = nullptr;
-  for (int i = 0; i < mNumTextures; i++) {
-    if (mTextures[i].id == 0) {
-      texture = &mTextures[i];
-      break;
-      }
-    }
-
-  if (texture == nullptr) {
-    if (mNumTextures + 1 > mNumAllocatedTextures) {
-      mNumAllocatedTextures = maxi (mNumTextures + 1, 4) +  mNumAllocatedTextures / 2; // 1.5x Overallocate
-      mTextures = (cTexture*)realloc (mTextures, mNumAllocatedTextures * sizeof(cTexture));
-      if (mTextures == nullptr)
-        return nullptr;
-      }
-    texture = &mTextures[mNumTextures++];
-    }
-
-  texture->reset();
-  texture->id = ++mTextureId;
-  return texture;
-  }
-//}}}
-//{{{
-cVg::cTexture* cVg::findTexture (int textureId) {
-
-  for (int i = 0; i < mNumTextures; i++)
-    if (mTextures[i].id == textureId)
-      return &mTextures[i];
-
-  return nullptr;
-  }
-//}}}
-
-//{{{
-void cVg::setStencilMask (GLuint mask) {
-
-  if (mStencilMask != mask) {
-    mStencilMask = mask;
-    glStencilMask (mask);
-    }
-  }
-//}}}
-//{{{
-void cVg::setStencilFunc (GLenum func, GLint ref, GLuint mask) {
-
-  if ((mStencilFunc != func) || (mStencilFuncRef != ref) || (mStencilFuncMask != mask)) {
-    mStencilFunc = func;
-    mStencilFuncRef = ref;
-    mStencilFuncMask = mask;
-    glStencilFunc (func, ref, mask);
-    }
-  }
-//}}}
-//{{{
-void cVg::setBindTexture (GLuint texture) {
-
-  if (mBindTexture != texture) {
-    mBindTexture = texture;
-    glBindTexture (GL_TEXTURE_2D, texture);
-    }
-  }
-//}}}
-//{{{
-void cVg::setUniforms (int firstFragIndex, int image) {
-
-  mShader.setFrags ((float*)(&mFrags[firstFragIndex]));
-
-  if (image) {
-    auto tex = findTexture (image);
-    setBindTexture (tex ? tex->tex : 0);
-    }
-  else
-    setBindTexture (0);
-  }
-//}}}
-
-//{{{
-GLenum cVg::convertBlendFuncFactor (eBlendFactor factor) {
-
-  switch (factor) {
-    case NVG_ZERO:
-      return GL_ZERO;
-    case NVG_ONE:
-      return GL_ONE;
-    case NVG_SRC_COLOR:
-      return GL_SRC_COLOR;
-    case NVG_ONE_MINUS_SRC_COLOR:
-      return GL_ONE_MINUS_SRC_COLOR;
-    case NVG_DST_COLOR:
-      return GL_DST_COLOR;
-    case NVG_ONE_MINUS_DST_COLOR:
-      return GL_ONE_MINUS_DST_COLOR;
-    case NVG_SRC_ALPHA:
-      return GL_SRC_ALPHA;
-    case  NVG_ONE_MINUS_SRC_ALPHA:
-      return GL_ONE_MINUS_SRC_ALPHA;
-    case NVG_DST_ALPHA:
-      return GL_DST_ALPHA;
-    case NVG_ONE_MINUS_DST_ALPHA:
-      return GL_ONE_MINUS_DST_ALPHA;
-    case NVG_SRC_ALPHA_SATURATE:
-      return GL_SRC_ALPHA_SATURATE;
-    default:
-      return GL_INVALID_ENUM;
-      }
   }
 //}}}
 

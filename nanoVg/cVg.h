@@ -25,21 +25,116 @@
 #define NVG_INIT_PATHS_SIZE      16
 //}}}
 
-//{{{  maths
+//{{{  math utils
 #define PI 3.14159265358979323846264338327f
 
 inline int mini (int a, int b) { return a < b ? a : b; }
 inline float minf (float a, float b) { return a < b ? a : b; }
-
 inline int maxi (int a, int b) { return a > b ? a : b; }
 inline float maxf (float a, float b) { return a > b ? a : b; }
-
 inline int clampi (int a, int mn, int mx) { return a < mn ? mn : (a > mx ? mx : a); }
 inline float clampf (float a, float mn, float mx) { return a < mn ? mn : (a > mx ? mx : a); }
-
 inline float absf (float a) { return a >= 0.0f ? a : -a; }
+
+inline float quantize (float a, float d) { return ((int)(a / d + 0.5f)) * d; }
+//{{{
+inline float normalize (float& x, float& y) {
+
+  float d = sqrtf(x*x + y*y);
+  if (d > 1e-6f) {
+    float id = 1.0f / d;
+    x *= id;
+    y *= id;
+    }
+
+  return d;
+  }
 //}}}
-//{{{  sVgColour
+inline float signf (float a) { return a >= 0.0f ? 1.0f : -1.0f; }
+inline float cross (float dx0, float dy0, float dx1, float dy1) { return dx1*dy0 - dx0*dy1; }
+
+inline float degToRad (float deg) { return deg / 180.0f * PI; }
+inline float radToDeg (float rad) { return rad / PI * 180.0f; }
+//{{{
+inline unsigned int nearestPow2 (unsigned int num) {
+
+  unsigned n = num > 0 ? num - 1 : 0;
+  n |= n >> 1;
+  n |= n >> 2;
+  n |= n >> 4;
+  n |= n >> 8;
+  n |= n >> 16;
+  n++;
+
+  return n;
+  }
+//}}}
+
+//{{{
+inline int pointEquals (float x1, float y1, float x2, float y2, float tol) {
+  float dx = x2 - x1;
+  float dy = y2 - y1;
+  return dx*dx + dy*dy < tol*tol;
+  }
+//}}}
+//{{{
+inline float distPointSeg (float x, float y, float px, float py, float qx, float qy) {
+
+  float pqx = qx-px;
+  float pqy = qy-py;
+  float dx = x-px;
+  float dy = y-py;
+
+  float d = pqx*pqx + pqy*pqy;
+  float t = pqx*dx + pqy*dy;
+  if (d > 0)
+    t /= d;
+  if (t < 0)
+    t = 0;
+  else if (t > 1)
+    t = 1;
+
+  dx = px + t*pqx - x;
+  dy = py + t*pqy - y;
+
+  return dx*dx + dy*dy;
+  }
+//}}}
+//{{{
+inline void intersectRects (float* dst, float ax, float ay, float aw, float ah, float bx, float by, float bw, float bh) {
+
+  float minx = maxf (ax, bx);
+  float miny = maxf (ay, by);
+  float maxx = minf (ax+aw, bx+bw);
+  float maxy = minf (ay+ah, by+bh);
+
+  dst[0] = minx;
+  dst[1] = miny;
+  dst[2] = maxf (0.0f, maxx - minx);
+  dst[3] = maxf (0.0f, maxy - miny);
+  }
+//}}}
+
+//{{{
+inline float hue (float h, float m1, float m2) {
+
+  if (h < 0)
+    h += 1;
+  if (h > 1)
+    h -= 1;
+
+  if (h < 1.0f/6.0f)
+    return m1 + (m2 - m1) * h * 6.0f;
+  else if (h < 3.0f/6.0f)
+    return m2;
+  else if (h < 4.0f/6.0f)
+    return m1 + (m2 - m1) * (2.0f/3.0f - h) * 6.0f;
+
+  return m1;
+  }
+//}}}
+//}}}
+//{{{  sVgColour utils
 struct sVgColour {
   union {
     float rgba[4];
@@ -52,26 +147,106 @@ struct sVgColour {
     };
   };
 
-typedef struct sVgColour sVgColour;
+//{{{
+inline sVgColour nvgRGBA (unsigned char r, unsigned char g, unsigned char b, unsigned char a) {
 
-sVgColour nvgRGB (unsigned char r, unsigned char g, unsigned char b);
-sVgColour nvgRGBf (float r, float g, float b);
-sVgColour nvgRGBA (unsigned char r, unsigned char g, unsigned char b, unsigned char a);
-sVgColour nvgRGBAf (float r, float g, float b, float a);
-sVgColour nvgRGB32 (uint32_t colour);
+  sVgColour color;
+  color.r = r / 255.0f;
+  color.g = g / 255.0f;
+  color.b = b / 255.0f;
+  color.a = a / 255.0f;
+  return color;
+  }
+//}}}
+//{{{
+inline sVgColour nvgRGBAf (float r, float g, float b, float a) {
+  sVgColour color;
+  color.r = r;
+  color.g = g;
+  color.b = b;
+  color.a = a;
+  return color;
+  }
+//}}}
+//{{{
+inline sVgColour nvgRGB32 (uint32_t colour) {
+  sVgColour color;
+  color.r = ((colour & 0xFF0000) >> 16) / 255.0f;
+  color.g = ((colour & 0xFF00) >> 8) / 255.0f;
+  color.b = (colour & 0xFF) / 255.0f;
+  color.a = (colour >> 24) / 255.0f;
+  return color;
+  }
+//}}}
+//{{{
+inline sVgColour nvgRGB (unsigned char r, unsigned char g, unsigned char b) {
+  return nvgRGBA (r,g,b,255);
+  }
+//}}}
+//{{{
+inline sVgColour nvgRGBf (float r, float g, float b) {
+  return nvgRGBAf (r,g,b,1.0f);
+  }
+//}}}
 
-sVgColour nvgLerpRGBA (sVgColour c0, sVgColour c1, float u);
+//{{{
+inline sVgColour nvgTransRGBA (sVgColour c, unsigned char a) {
+  c.a = a / 255.0f;
+  return c;
+  }
+//}}}
+//{{{
+inline sVgColour nvgTransRGBAf (sVgColour c, float a) {
+  c.a = a;
+  return c;
+  }
+//}}}
+//{{{
+inline sVgColour nvgLerpRGBA (sVgColour c0, sVgColour c1, float u) {
 
-sVgColour nvgTransRGBA (sVgColour c0, unsigned char a);
-sVgColour nvgTransRGBAf (sVgColour c0, float a);
+  sVgColour cint = {{{0}}};
+  u = clampf(u, 0.0f, 1.0f);
+  float oneminu = 1.0f - u;
+  for (int i = 0; i <4; i++ )
+    cint.rgba[i] = c0.rgba[i] * oneminu + c1.rgba[i] * u;
+  return cint;
+  }
+//}}}
 
-// Returns color value specified by hue, saturation and lightness, values range [0..1], alpha set to 255.
-sVgColour nvgHSL (float h, float s, float l);
+//{{{
+inline sVgColour nvgHSLA (float h, float s, float l, unsigned char a) {
 
-// Returns color value specified by hue, saturation and lightness and alpha, values ange [0..1], alpha [0..255]
-sVgColour nvgHSLA (float h, float s, float l, unsigned char a);
+  h = fmodf (h, 1.0f);
+  if (h < 0.0f)
+    h += 1.0f;
+  s = clampf (s, 0.0f, 1.0f);
+  l = clampf (l, 0.0f, 1.0f);
 
-sVgColour nvgPremulColor (sVgColour c);
+  float m2 = l <= 0.5f ? (l * (1 + s)) : (l + s - l * s);
+  float m1 = 2 * l - m2;
+
+  sVgColour col;
+  col.r = clampf (hue (h + 1.0f/3.0f, m1, m2), 0.0f, 1.0f);
+  col.g = clampf (hue (h, m1, m2), 0.0f, 1.0f);
+  col.b = clampf (hue (h - 1.0f/3.0f, m1, m2), 0.0f, 1.0f);
+  col.a = a / 255.0f;
+  return col;
+  }
+//}}}
+//{{{
+inline sVgColour nvgHSL (float h, float s, float l) {
+  return nvgHSLA (h,s,l,255);
+  }
+//}}}
+
+//{{{
+inline sVgColour nvgPremulColor (sVgColour c) {
+  c.r *= c.a;
+  c.g *= c.a;
+  c.b *= c.a;
+  return c;
+  }
+//}}}
 //}}}
 
 class cVg {
@@ -86,7 +261,6 @@ public:
   //}}}
   cVg() : cVg(0) {}
   cVg (int flags);
-
   virtual ~cVg();
   void initialise();
 
@@ -541,14 +715,14 @@ public:
                                          eBlendFactor srcAlpha, eBlendFactor dstAlpha);
   //}}}
   //{{{  frame
-  void beginFrame (int windowWidth, int windowHeight, float devicePixelRatio);
-  void endFrame();
-
-  std::string getFrameStats();
-
   void toggleEdges() { mDrawEdges = !mDrawEdges; }
   void toggleSolid() { mDrawSolid = !mDrawSolid; }
   void toggleTriangles() { mDrawTriangles = !mDrawTriangles; }
+
+  std::string getFrameStats();
+
+  void beginFrame (int windowWidth, int windowHeight, float devicePixelRatio);
+  void endFrame();
   //}}}
 
 private:
@@ -557,6 +731,7 @@ private:
   enum eUniformLocation { LOCATION_VIEWSIZE, LOCATION_TEX, LOCATION_FRAG, MAX_LOCATIONS };
   enum eUniformBindings { FRAG_BINDING };
   //}}}
+
   //{{{
   class c2dVertex {
   public:
@@ -738,7 +913,7 @@ private:
         for (int i = 0; i < numValues;) {
           switch ((int)values[i++]) {
             case eMOVETO:
-            case eLINETO: 
+            case eLINETO:
               if (i+1 < numValues) // ensure enough values supplied for command type
                 transform.point (values[i], values[i+1]);
               else
@@ -1931,30 +2106,15 @@ private:
 
     //{{{
     void getUniforms() {
-
       location[LOCATION_VIEWSIZE] = glGetUniformLocation (prog, "viewSize");
       location[LOCATION_TEX] = glGetUniformLocation (prog, "tex");
-
       location[LOCATION_FRAG] = glGetUniformLocation (prog, "frag");
       }
     //}}}
 
-    //{{{
-    void setTex (int tex) {
-      glUniform1i (location[LOCATION_TEX], tex);
-      }
-    //}}}
-    //{{{
-    void setViewport (float* viewport) {
-      glUniform2fv (location[LOCATION_VIEWSIZE], 1, viewport);
-      }
-    //}}}
-
-    //{{{
-    void setFrags (float* frags) {
-      glUniform4fv (location[LOCATION_FRAG], NANOVG_GL_UNIFORMARRAY_SIZE, frags);
-      }
-    //}}}
+    void setTex (int tex) { glUniform1i (location[LOCATION_TEX], tex); }
+    void setViewport (float* viewport) { glUniform2fv (location[LOCATION_VIEWSIZE], 1, viewport); }
+    void setFrags (float* frags) { glUniform4fv (location[LOCATION_FRAG], NANOVG_GL_UNIFORMARRAY_SIZE, frags); }
 
   private:
     const char* kShaderHeader =
@@ -2089,17 +2249,6 @@ private:
     };
   //}}}
 
-  void renderViewport (int width, int height, float devicePixelRatio);
-  void renderText (int firstVertexIndex, int numVertices, cPaint& paint, cScissor& scissor);
-  void renderTriangles (int firstVertexIndex, int numVertices, cPaint& paint, cScissor& scissor);
-  void renderFill (cShape& shape, cPaint& paint, cScissor& scissor, float fringe);
-  void renderStroke (cShape& shape, cPaint& paint, cScissor& scissor, float fringe, float strokeWidth);
-  void renderFrame (c2dVertices& vertices, cCompositeOpState compositeOp);
-
-  bool renderGetTextureSize (int image, int* w, int* h);
-  int renderCreateTexture (int type, int w, int h, int imageFlags, const unsigned char* data);
-  bool renderUpdateTexture (int image, int x, int y, int w, int h, const unsigned char* data);
-
   cDraw* allocDraw();
   int allocFrags (int numFrags);
   int allocPathVertices (int numPaths);
@@ -2111,10 +2260,20 @@ private:
   void setBindTexture (GLuint texture);
   void setUniforms (int firstFragIndex, int image);
 
-  GLenum convertBlendFuncFactor (eBlendFactor factor);
-
   void setDevicePixelRatio (float ratio);
   cCompositeOpState compositeOpState (eCompositeOp op);
+  GLenum convertBlendFuncFactor (eBlendFactor factor);
+
+  bool renderGetTextureSize (int image, int* w, int* h);
+  int renderCreateTexture (int type, int w, int h, int imageFlags, const unsigned char* data);
+  bool renderUpdateTexture (int image, int x, int y, int w, int h, const unsigned char* data);
+
+  void renderViewport (int width, int height, float devicePixelRatio);
+  void renderText (int firstVertexIndex, int numVertices, cPaint& paint, cScissor& scissor);
+  void renderTriangles (int firstVertexIndex, int numVertices, cPaint& paint, cScissor& scissor);
+  void renderFill (cShape& shape, cPaint& paint, cScissor& scissor, float fringe);
+  void renderStroke (cShape& shape, cPaint& paint, cScissor& scissor, float fringe, float strokeWidth);
+  void renderFrame (c2dVertices& vertices, cCompositeOpState compositeOp);
 
   // text
   float getFontScale (cState* state);
