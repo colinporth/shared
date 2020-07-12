@@ -14,8 +14,6 @@
 #include <time.h>
 #include <chrono>
 #include "../date/date.h"
-
-#include "dvbSubtitle.h"
 //}}}
 
 //{{{
@@ -193,7 +191,6 @@ private:
   int64_t getPtsDts (uint8_t* tsPtr);
   std::string getDescrStr (uint8_t* buf, int len);
 
-  const char* huffDecode (const unsigned char *src, size_t size);
   void parseDescr (int key, uint8_t* buf, int tid);
   void parseDescrs (int key, uint8_t* buf, int len, uint8_t tid);
 

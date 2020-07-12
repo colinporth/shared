@@ -18,10 +18,127 @@
 #include "../utils/cBipBuffer.h"
 #include "cDumpTransportStream.h"
 
-#include "cLinuxDvb.h"
+#include "cDvb.h"
+
+#include <linux/dvb/version.h>
+#include <linux/dvb/dmx.h>
+#include <linux/dvb/frontend.h>
 
 using namespace std;
 //}}}
+
+namespace {
+//{{{  vars
+int mFrontEnd = 0;
+int mDemux = 0;
+int mDvr = 0 ;
+
+uint64_t mLastDiscontinuity = 0;
+int mLastBlockSize = 0;
+int mMaxBlockSize = 0;
+cBipBuffer* mBipBuffer;
+//}}}
+
+//{{{
+void setTsFilter (uint16_t pid, dmx_pes_type_t pestype) {
+
+  struct dmx_pes_filter_params pesFilterParams;
+  pesFilterParams.pid = pid;
+  pesFilterParams.input = DMX_IN_FRONTEND;
+  pesFilterParams.output = DMX_OUT_TS_TAP;
+  pesFilterParams.pes_type = pestype;
+  pesFilterParams.flags = DMX_IMMEDIATE_START;
+
+  auto error = ioctl (mDemux, DMX_SET_PES_FILTER, &pesFilterParams);
+  if (error < 0)
+    cLog::log (LOGERROR, "Demux set filter pid " + dec(pid) + " " + dec(error));
+  }
+//}}}
+
+//{{{
+string updateSignalString() {
+
+  fe_status_t feStatus;
+  if (ioctl (mFrontEnd, FE_READ_STATUS, &feStatus) < 0) {
+    cLog::log (LOGERROR, "FE_READ_STATUS failed");
+    return "statuse failed";
+    }
+  else {
+    string str = "";
+    if (feStatus & FE_TIMEDOUT)
+      str += "timeout ";
+    if (feStatus & FE_HAS_LOCK)
+      str += "lock ";
+    if (feStatus & FE_HAS_SIGNAL)
+      str += "s";
+    if (feStatus & FE_HAS_CARRIER)
+      str += "c";
+    if (feStatus & FE_HAS_VITERBI)
+      str += "v";
+    if (feStatus & FE_HAS_SYNC)
+      str += "s";
+
+    uint32_t strength;
+    if (ioctl (mFrontEnd, FE_READ_SIGNAL_STRENGTH, &strength) < 0)
+      cLog::log (LOGERROR, "FE_READ_SIGNAL_STRENGTH failed");
+    else
+      str += " " + frac((strength & 0xFFFF) / 1000.f, 5, 2, ' ');
+
+    uint32_t snr;
+    if (ioctl (mFrontEnd, FE_READ_SNR, &snr) < 0)
+      cLog::log (LOGERROR, "FE_READ_SNR failed");
+    else
+      str += " snr:" + dec((snr & 0xFFFF) / 1000.f,3);
+
+    return str;
+    }
+  }
+//}}}
+//{{{
+void readMonitorFe() {
+
+  struct dtv_property getProps[] = {
+      { .cmd = DTV_STAT_SIGNAL_STRENGTH },
+      { .cmd = DTV_STAT_CNR },
+      { .cmd = DTV_STAT_PRE_ERROR_BIT_COUNT },
+      { .cmd = DTV_STAT_PRE_TOTAL_BIT_COUNT },
+      { .cmd = DTV_STAT_POST_ERROR_BIT_COUNT },
+      { .cmd = DTV_STAT_POST_TOTAL_BIT_COUNT },
+      { .cmd = DTV_STAT_ERROR_BLOCK_COUNT },
+      { .cmd = DTV_STAT_TOTAL_BLOCK_COUNT },
+    };
+  struct dtv_properties cmdGet = {
+    .num = sizeof(getProps) / sizeof (getProps[0]),
+    .props = getProps
+    };
+  if ((ioctl (mFrontEnd, FE_GET_PROPERTY, &cmdGet)) < 0)
+    cLog::log (LOGERROR, "FE_GET_PROPERTY failed");
+  else
+    for (int i = 0; i < 8; i++) {
+      auto uvalue = getProps[i].u.st.stat[0].uvalue;
+      cLog::log (LOGINFO, "stats %d len:%d scale:%d uvalue:%d",
+                 i, getProps[i].u.st.len, getProps[i].u.st.stat[0].scale, int(uvalue));
+      }
+  //__s64 svalue;
+
+  // need to decode further
+  }
+//}}}
+
+//{{{
+void uSleep (uint64_t uSec) {
+
+  struct timespec timeRequest = { 0 };
+
+  timeRequest.tv_sec = uSec / 1000000;
+  timeRequest.tv_nsec = (uSec % 1000000) * 1000;
+
+  while ((nanosleep (&timeRequest, &timeRequest) == -1) &&
+         (errno == EINTR) &&
+         (timeRequest.tv_nsec > 0 || timeRequest.tv_sec > 0));
+  }
+//}}}
+}
 
 // public:
 //{{{
@@ -256,8 +373,8 @@ void cDvb::tune (int frequency) {
         guardTab [getProps[6].u.buffer.data[0]],
         transmissionModeTab [getProps[7].u.buffer.data[0]]);
 
-      updateSignalString();
-      monitorFe();
+      mSignalStr = updateSignalString();
+      readMonitorFe();
 
       mTuneStr = string(fe_info.name) + " " + dec(frequency/1000000) + "Mhz";
       return;
@@ -314,7 +431,7 @@ void cDvb::grabThread() {
         mMaxBlockSize = blockSize;
 
       mErrorStr = dec(getDiscontinuity()) + " " + dec(blockSize,6) + " max" + dec(mMaxBlockSize);
-      updateSignalString();
+      mSignalStr = updateSignalString();
 
       if (show)
         cLog::log (LOGINFO, mErrorStr + " " + mSignalStr);
@@ -324,103 +441,5 @@ void cDvb::grabThread() {
     }
 
   cLog::log (LOGERROR, "exit");
-  }
-//}}}
-
-// private
-//{{{
-void cDvb::setTsFilter (uint16_t pid, dmx_pes_type_t pestype) {
-
-  struct dmx_pes_filter_params pesFilterParams;
-  pesFilterParams.pid = pid;
-  pesFilterParams.input = DMX_IN_FRONTEND;
-  pesFilterParams.output = DMX_OUT_TS_TAP;
-  pesFilterParams.pes_type = pestype;
-  pesFilterParams.flags = DMX_IMMEDIATE_START;
-
-  auto error = ioctl (mDemux, DMX_SET_PES_FILTER, &pesFilterParams);
-  if (error < 0)
-    cLog::log (LOGERROR, "Demux set filter pid " + dec(pid) + " " + dec(error));
-  }
-//}}}
-
-//{{{
-void cDvb::updateSignalString() {
-
-  fe_status_t feStatus;
-  if (ioctl (mFrontEnd, FE_READ_STATUS, &feStatus) < 0)
-    cLog::log (LOGERROR, "FE_READ_STATUS failed");
-
-  else {
-    string str = "";
-    if (feStatus & FE_TIMEDOUT)
-      str += "timeout ";
-    if (feStatus & FE_HAS_LOCK)
-      str += "lock ";
-    if (feStatus & FE_HAS_SIGNAL)
-      str += "s";
-    if (feStatus & FE_HAS_CARRIER)
-      str += "c";
-    if (feStatus & FE_HAS_VITERBI)
-      str += "v";
-    if (feStatus & FE_HAS_SYNC)
-      str += "s";
-
-    uint32_t strength;
-    if (ioctl (mFrontEnd, FE_READ_SIGNAL_STRENGTH, &strength) < 0)
-      cLog::log (LOGERROR, "FE_READ_SIGNAL_STRENGTH failed");
-    else
-      str += " " + frac((strength & 0xFFFF) / 1000.f, 5, 2, ' ');
-
-    uint32_t snr;
-    if (ioctl (mFrontEnd, FE_READ_SNR, &snr) < 0)
-      cLog::log (LOGERROR, "FE_READ_SNR failed");
-    else
-      str += " snr:" + dec((snr & 0xFFFF) / 1000.f,3);
-
-    mSignalStr = str;
-    }
-  }
-//}}}
-//{{{
-void cDvb::monitorFe() {
-
-  struct dtv_property getProps[] = {
-      { .cmd = DTV_STAT_SIGNAL_STRENGTH },
-      { .cmd = DTV_STAT_CNR },
-      { .cmd = DTV_STAT_PRE_ERROR_BIT_COUNT },
-      { .cmd = DTV_STAT_PRE_TOTAL_BIT_COUNT },
-      { .cmd = DTV_STAT_POST_ERROR_BIT_COUNT },
-      { .cmd = DTV_STAT_POST_TOTAL_BIT_COUNT },
-      { .cmd = DTV_STAT_ERROR_BLOCK_COUNT },
-      { .cmd = DTV_STAT_TOTAL_BLOCK_COUNT },
-    };
-  struct dtv_properties cmdGet = {
-    .num = sizeof(getProps) / sizeof (getProps[0]),
-    .props = getProps
-    };
-  if ((ioctl (mFrontEnd, FE_GET_PROPERTY, &cmdGet)) < 0)
-    cLog::log (LOGERROR, "FE_GET_PROPERTY failed");
-  else
-    for (int i = 0; i < 8; i++) {
-      auto uvalue = getProps[i].u.st.stat[0].uvalue;
-      cLog::log (LOGINFO, "stats %d len:%d scale:%d uvalue:%d",
-                 i, getProps[i].u.st.len, getProps[i].u.st.stat[0].scale, int(uvalue));
-      }
-    //__s64 svalue;
-  }
-//}}}
-
-//{{{
-void cDvb::uSleep (uint64_t uSec) {
-
-  struct timespec timeRequest = { 0 };
-
-  timeRequest.tv_sec = uSec / 1000000;
-  timeRequest.tv_nsec = (uSec % 1000000) * 1000;
-
-  while ((nanosleep (&timeRequest, &timeRequest) == -1) &&
-         (errno == EINTR) &&
-         (timeRequest.tv_nsec > 0 || timeRequest.tv_sec > 0));
   }
 //}}}
