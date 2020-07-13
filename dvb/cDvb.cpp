@@ -751,10 +751,10 @@ cDvb::cDvb (int frequency, const string& root,
 
   #ifdef _WIN32
     // windows create and tune
-    if (createGraph (frequency))
-      mTuneStr = "tuned " + dec (frequency / 1000, 3) + "Mhz";
+    if (createGraph (frequency * 1000))
+      mTuneStr = "tuned " + dec (frequency, 3) + "Mhz";
     else
-      mTuneStr = "not tuned " + dec (frequency / 1000, 3) + "Mhz";
+      mTuneStr = "not tuned " + dec (frequency, 3) + "Mhz";
 
   #else
     // linux create and tune
@@ -767,7 +767,7 @@ cDvb::cDvb (int frequency, const string& root,
       cLog::log (LOGERROR, "open frontend failed");
       return;
       }
-    tune (frequency);
+    tune (frequency * 1000000);
 
     // demux nonBlocking rw
     mDemux = open ("/dev/dvb/adapter0/demux0", O_RDWR | O_NONBLOCK);
@@ -819,7 +819,6 @@ void cDvb::tune (int frequency) {
 
   #else
     // linux tune
-    frequency *= 1000000UL;
     bool t2 = frequency == 626000000;
 
     struct dvb_frontend_info fe_info;
