@@ -5733,7 +5733,7 @@ static const unsigned huffIndex2[] = {
 //}}}
 
 //{{{
-char* huffDecode (const unsigned char* src, size_t size) {
+std::string huffDecode (const unsigned char* src, size_t size) {
 
   if ((src[0] == 0x1F) && (src[1] == 1 || src[1] == 2)) {
     const struct tHuffTable* hufftable = (src[1] == 1) ? huffTable1 : huffTable2;
@@ -5809,14 +5809,18 @@ char* huffDecode (const unsigned char* src, size_t size) {
             bit++;
           }
         }
-      else
-        return nullptr;
+      else {
+        free (uncompressed);
+        return "none";
+        }
       } while (lastch != STOP && byte < size+4);
 
-    return uncompressed;
+    std::string str = uncompressed;
+    free (uncompressed);
+    return str;
     }
   else
-    return nullptr;
+    return "";
   }
 //}}}
 }

@@ -1706,19 +1706,17 @@ void cTransportStream::parseEit (cPidInfo* pidInfo, uint8_t* buf) {
           // get title
           auto eventBuf = buf + sizeof(descr_short_event_struct);
           auto eventBufLen = ((descr_short_event_t*)(buf))->event_name_length;
-          auto titleChars = huffDecode (eventBuf, eventBufLen);
-          auto titleString = titleChars ? titleChars : getDescrStr (eventBuf, eventBufLen);
-          free (titleChars);
+          auto titleString = huffDecode (eventBuf, eventBufLen);
+          if (titleString.empty())
+            titleString = getDescrStr (eventBuf, eventBufLen);
 
           // get description
           eventBuf += ((descr_short_event_t*)(buf))->event_name_length + 1;
           eventBufLen = *((uint8_t*)(buf + sizeof(descr_short_event_struct) +
                                      ((descr_short_event_t*)(buf))->event_name_length));
-          auto descriptionChars = huffDecode (eventBuf, eventBufLen);
-          auto descriptionString = descriptionChars ? descriptionChars : getDescrStr (eventBuf, eventBufLen);
-          free (descriptionChars);
-
-          //cLog::log (LOGINFO3, " - " + hex(tag,2) + " shortEvent " + titleString);
+          auto descriptionString = huffDecode (eventBuf, eventBufLen);
+          if (descriptionString.empty())
+            descriptionString = getDescrStr (eventBuf, eventBufLen);
 
           auto serviceIt = mServiceMap.find (sid);
           if (serviceIt != mServiceMap.end()) {

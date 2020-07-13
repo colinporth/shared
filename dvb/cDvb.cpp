@@ -1069,8 +1069,12 @@ void cDvb::grabThread() {
         if (blockSize) {
           streamPos += demux (ptr, blockSize, streamPos, false, -1);
           releaseBlock (blockSize);
+
+          mErrorStr.clear();
           if (getDiscontinuity())
-            mErrorStr = "errors " + dec (getDiscontinuity()) + " of " + dec(streamPos/1000000) + "m";
+            mErrorStr += dec (getDiscontinuity()) + " errors ";
+          if (streamPos < 1000000)
+            mErrorStr = dec(streamPos/1000) + "k";
           else
             mErrorStr = dec(streamPos/1000000) + "m";
           }
@@ -1080,7 +1084,7 @@ void cDvb::grabThread() {
         if (mScanningTuner) {
           long signal = 0;
           mScanningTuner->get_SignalStrength (&signal);
-          mSignalStr = "signal " + dec(signal / 0x10000, 3);
+          mSignalStr = "signal " + dec (signal / 0x10000);
           }
         }
       }
