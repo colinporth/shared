@@ -16,33 +16,6 @@
 #include <algorithm>
 //}}}
 
-#ifdef NANOVG
-  //{{{  malloc, free defines
-  #define bigMalloc(size,tag)   malloc (size)
-  #define bigFree               free
-  #define smallMalloc(size,tag) malloc (size)
-  #define smallFree             free
-  //}}}
-#elif _WIN32
-  //{{{  malloc, free defines
-  void* debugMalloc (size_t size, const char* tag, uint8_t heap);
-  void debugFree (void* ptr);
-  #define bigMalloc(size,tag)   malloc (size)
-  #define bigFree               free
-  #define smallMalloc(size,tag) malloc (size)
-  #define smallFree             free
-  //}}}
-#elif STM32
-  //{{{  malloc, free defines
-  #include "cLcd.h"
-  #define bigMalloc(size,tag)    pvPortMalloc(size)
-  #define bigFree                vPortFree
-  #define smallMalloc(size,tag)  malloc(size)
-  #define smallFree              free
-  #define debug(str)             cLcd::get()->info (str)
-  //}}}
-#endif
-
 // string utils
 //{{{
 template <typename T> std::string hex (T value, int width = 0) {

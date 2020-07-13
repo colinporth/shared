@@ -15,8 +15,8 @@ const float kDistanceTolerance = 0.01f;
 
 // public
 //{{{
-cVg::cVg (int flags) :
-    mDrawEdges(!(flags & DRAW_NOEDGES)), mDrawSolid(!(flags & DRAW_NOSOLID)), mDrawTriangles(true) {
+cVg::cVg (int flags)
+   : mDrawEdges(!(flags & DRAW_NOEDGES)), mDrawSolid(!(flags & DRAW_NOSOLID)), mDrawTriangles(true) {
 
   saveState();
   resetState();
@@ -88,8 +88,8 @@ void cVg::resetState() {
   auto state = &mStates[mNumStates-1];
 
   state->compositeOp = compositeOpState (NVG_SOURCE_OVER);
-  state->fillPaint.setColor (nvgRGBA (255, 255, 255, 255));
-  state->strokePaint.setColor (nvgRGBA (0, 0, 0, 255));
+  state->fillPaint.set (nvgRGBA (255, 255, 255, 255));
+  state->strokePaint.set (nvgRGBA (0, 0, 0, 255));
 
   state->strokeWidth = 1.0f;
   state->miterLimit = 10.0f;
@@ -163,8 +163,8 @@ void cVg::rotate (float angle) {
 //}}}
 //}}}
 //{{{  shape
-void cVg::fillColor (sVgColour color) { mStates[mNumStates-1].fillPaint.setColor (color); }
-void cVg::strokeColor (sVgColour color) { mStates[mNumStates-1].strokePaint.setColor (color); }
+void cVg::fillColor (sVgColour color) { mStates[mNumStates-1].fillPaint.set (color); }
+void cVg::strokeColor (sVgColour color) { mStates[mNumStates-1].strokePaint.set (color); }
 void cVg::globalAlpha (float alpha) { mStates[mNumStates-1].alpha = alpha; }
 
 void cVg::strokeWidth (float width) { mStates[mNumStates-1].strokeWidth = width; }
@@ -208,6 +208,7 @@ cVg::cPaint cVg::linearGradient (float sx, float sy, float ex, float ey, sVgColo
   p.feather = maxf (1.0f, d);
   p.innerColor = icol;
   p.outerColor = ocol;
+  p.image = 0;
 
   return p;
   }
@@ -226,6 +227,7 @@ cVg::cPaint cVg::radialGradient (float cx, float cy, float inr, float outr, sVgC
   p.feather = maxf (1.0f, f);
   p.innerColor = icol;
   p.outerColor = ocol;
+  p.image = 0;
 
   return p;
   }
@@ -235,10 +237,14 @@ cVg::cPaint cVg::boxGradient (float x, float y, float w, float h, float r, float
 
   cPaint p;
   p.mTransform.setTranslate (x + w * 0.5f, y + h * 0.5f);
+  p.extent[0] = 0.f;
+  p.extent[1] = 0.f;
   p.radius = r;
   p.feather = maxf (1.0f, f);
   p.innerColor = icol;
   p.outerColor = ocol;
+  p.image = 0;
+
   return p;
   }
 //}}}
@@ -249,8 +255,11 @@ cVg::cPaint cVg::imagePattern (float cx, float cy, float w, float h, float angle
   p.mTransform.setRotateTranslate (angle, cx, cy);
   p.extent[0] = w;
   p.extent[1] = h;
+  p.radius = 0.f;
+  p.feather = 0.f;
+  p.innerColor = nvgRGBAf (1, 1 , 1, alpha);
+  p.outerColor = nvgRGBAf (1, 1 , 1, alpha);
   p.image = image;
-  p.innerColor = p.outerColor = nvgRGBAf (1, 1 , 1, alpha);
 
   return p;
   }
@@ -1278,7 +1287,7 @@ void cVg::globalCompositeBlendFunc (eBlendFactor sfactor, eBlendFactor dfactor) 
 //{{{  frame
 //{{{
 string cVg::getFrameStats() {
-  return "v:" + to_string(mVertices.getNumVertices()) + " d:" + to_string (mDrawArrays);
+  return "vertices:" + dec (mVertices.getNumVertices()) + " drawArrays:" + dec (mDrawArrays);
   }
 //}}}
 

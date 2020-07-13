@@ -2,7 +2,9 @@
 //{{{  includes
 #pragma once
 #include "cVg.h"
+
 #include "cPerfGraph.h"
+
 #include "../utils/iChange.h"
 #include "../widgets/cRootContainer.h"
 //}}}
@@ -51,15 +53,15 @@ protected:
 
   void toggleVsync();
   void togglePerf();
-  void toggleStats();
-  void toggleTests();
+  void toggleStats() { mDrawStats = !mDrawStats; }
+  void toggleTests() { mDrawTests = !mDrawTests; }
 
   virtual void onKey (int key, int scancode, int action, int mods) = 0;
   virtual void onChar (char ch, int mods) = 0;
 
-  static cGlWindow* mGlWindow;
-  static float mMouseX;
-  static float mMouseY;
+  static inline cGlWindow* mGlWindow = nullptr;
+  static inline float mMouseX = 0;
+  static inline float mMouseY = 0;
 
   struct GLFWwindow* mWindow = nullptr;
 
@@ -92,13 +94,13 @@ private:
 
   cRootContainer* mRoot = nullptr;
 
-  static bool mMouseDown;
-  static bool mMouseMoved;
-  static int mMouseIntX;
-  static int mMouseIntY;
+  static inline bool mMouseDown =  false;
+  static inline bool mMouseMoved = false;
+  static inline int mMouseIntX = 0;
+  static inline int mMouseIntY = 0;
 
-  static bool mAlted;
-  static bool mSupered;
-  static bool mShifted;
-  static bool mControlled;
+  static inline bool mAlted = false;
+  static inline bool mSupered = false;
+  static inline bool mShifted = false;
+  static inline bool mControlled = false;
   };

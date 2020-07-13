@@ -1,4 +1,4 @@
-// cRaspWindow.h
+// cRaspWindow.h - non X openGL
 //{{{  includes
 #pragma once
 
@@ -90,7 +90,6 @@ private:
   void drawSpinner (float cx, float cy, float r);
   void drawEyes (float x, float y, float w, float h, float cursorX, float cursorY);
   void drawLines (float x, float y, float w, float h);
-  void drawStats (float x, float y, std::string str);
 
   //{{{  vars
   DISPMANX_DISPLAY_HANDLE_T mDispmanxDisplay = 0;

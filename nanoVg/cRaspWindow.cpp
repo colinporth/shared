@@ -1,4 +1,4 @@
-// cRaspWindow.cpp
+// cRaspWindow.cpp - non X opengl
 //{{{  includes
 #include <stdio.h>
 #include <fcntl.h>
@@ -203,10 +203,16 @@ void cRaspWindow::run() {
         drawSpinner (mScreenWidth/2.f, mScreenHeight/2.f, 20.f);
         }
         //}}}
-      if (mDrawStats)
-        drawStats (mScreenWidth, mScreenHeight, getFrameStats() + (mVsync ? " vsync" : " free"));
+      if (mDrawStats) {
+        //{{{  draw stats
+        fontSize (12.f);
+        textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_BOTTOM);
+        fillColor (kWhite);
+        text (0.f, mScreenHeight, getFrameStats() + (mVsync ? " vsyncOn" : " vsyncOff"));
+        }
+        //}}}
       if (mDrawPerf) {
-        //{{{  render perf stats
+        //{{{  draw perf stats
         mFpsGraph->render (this, 0.f, mScreenHeight-35.f, mScreenWidth/3.f -2.f, 35.f);
         mCpuGraph->render (this, mScreenWidth/3.f, mScreenHeight-35.f, mScreenWidth/3.f - 2.f, 35.f);
         }
@@ -464,9 +470,5 @@ void cRaspWindow::drawLines (float x, float y, float w, float h) {
 //{{{
 void cRaspWindow::drawStats (float x, float y, std::string str) {
 
-  fontSize (12.f);
-  textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_BOTTOM);
-  fillColor (kWhite);
-  text (0.f, y, str);
   }
 //}}}

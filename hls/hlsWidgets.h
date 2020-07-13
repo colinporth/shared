@@ -47,24 +47,6 @@ private:
   };
 //}}}
 //{{{
-class cHlsTextWidget : public cWidget {
-public:
-  cHlsTextWidget (cHls* hls, float width, float height) : cWidget(width, height), mHls(hls) {}
-  virtual ~cHlsTextWidget() {}
-
-  void onDraw (iDraw* draw) {
-    //auto item = mHls->findItem (mHls->getPlayTzSec());
-    //if (item)
-    //  draw->drawText (COL_WHITE, getFontHeight(), item->mTitle + " - " + item->mSynopsis, mX, mY+1, mWidth-1, mHeight-1);
-    //else
-    //  draw->drawText (COL_WHITE, getFontHeight(), "no schedule", mX, mY+1, mWidth-1, mHeight-1);
-    }
-
-private:
-  cHls* mHls;
-  };
-//}}}
-//{{{
 class cHlsPeakWidget : public cWidget {
 public:
   cHlsPeakWidget (cHls* hls, float width, float height) : cWidget (COL_BLUE, width, height), mHls(hls) {}
@@ -213,7 +195,4 @@ void hlsMenu (cRootContainer* root, cHls* hls) {
 
   root->add (new cHlsDotsBox (hls, 1, 3));
   root->addAt (new cHlsPeakWidget (hls, 0, -4), 0, 4);
-  root->addAt (new cHlsTextWidget (hls, 0, 3), 0, 3);
-
-  root->addTopRight (new cValueBox (hls->mVolume, hls->mVolumeChanged, COL_YELLOW, 0.5, 0))->setOverPick (1.5);
   }

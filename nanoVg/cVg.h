@@ -10,12 +10,13 @@
 
 #include <math.h>
 
-#include "../utils/cLog.h"
-
 #include "../glad/glad.h"
 #include <GLFW/glfw3.h>
 
-// defines
+#include "../utils/utils.h"
+#include "../utils/cLog.h"
+//}}}
+//{{{  defines
 #define MAX_STATES               32
 
 #define NVG_MAX_FONTIMAGES       4
@@ -504,32 +505,7 @@ public:
     //}}}
     };
   //}}}
-  //{{{
-  class cPaint {
-  public:
-    //{{{
-    void setColor (sVgColour color) {
-      mTransform.setIdentity();
-      extent[0] = 0.0f;
-      extent[1] = 0.0f;
-      radius = 0.0f;
-      feather = 1.0f;
-      innerColor = color;
-      outerColor = color;
-      image = 0;
-      }
-    //}}}
 
-    cTransform mTransform;
-    float extent[2];
-    float radius;
-    float feather;
-
-    sVgColour innerColor;
-    sVgColour outerColor;
-    int image;
-    };
-  //}}}
   //{{{
   enum eBlendFactor {
     NVG_ZERO                = 1<<0,
@@ -552,8 +528,36 @@ public:
     NVG_LIGHTER, NVG_COPY, NVG_XOR };
   //}}}
   //{{{
-  class cCompositeOpState {
-  public:
+  struct cPaint {
+    //{{{
+    void set (sVgColour color) {
+
+      mTransform.setIdentity();
+
+      extent[0] = 0.0f;
+      extent[1] = 0.0f;
+
+      radius = 0.0f;
+      feather = 1.0f;
+      innerColor = color;
+      outerColor = color;
+
+      image = 0;
+      }
+    //}}}
+
+    cTransform mTransform;
+    float extent[2];
+    float radius;
+    float feather;
+
+    sVgColour innerColor;
+    sVgColour outerColor;
+    int image;
+    };
+  //}}}
+  //{{{
+  struct cCompositeOpState {
     eBlendFactor srcRGB;
     eBlendFactor dstRGB;
     eBlendFactor srcAlpha;
@@ -733,7 +737,14 @@ private:
   //}}}
 
   //{{{
-  class c2dVertex {
+  struct cScissor {
+  public:
+    cTransform mTransform;
+    float extent[2];
+    };
+  //}}}
+  //{{{
+  struct c2dVertex {
   public:
     //{{{
     void set (float x, float y, float u, float v) {
@@ -749,6 +760,448 @@ private:
 
     float mU = 0.0f;
     float mV = 0.0f;
+    };
+  //}}}
+  //{{{
+  struct cPathVertices {
+    int mNumFillVertices = 0;
+    int mFirstFillVertexIndex = 0;
+
+    int mNumStrokeVertices = 0;
+    int mFirstStrokeVertexIndex = 0;
+    };
+  //}}}
+  //{{{
+  struct cPath {
+    int mNumPoints = 0;
+    int mFirstPointIndex = 0;
+
+    eWinding mWinding = eSOLID;
+    bool mConvex = false;
+    bool mClosed = false;
+    int mNumBevel = 0;
+
+    cPathVertices mPathVertices;
+    };
+  //}}}
+  //{{{
+  struct cDraw {
+    enum eType { TEXT, TRIANGLE, CONVEX_FILL, STENCIL_FILL, STROKE };
+    //{{{
+    void set (eType type, int image, int firstPathVerticesIndex, int numPaths, int firstFragIndex,
+              int firstVertexIndex, int numVertices) {
+      mType = type;
+      mImage = image;
+
+      mFirstPathVerticesIndex = firstPathVerticesIndex;
+      mNumPaths = numPaths;
+
+      mFirstFragIndex = firstFragIndex;
+
+      mTriangleFirstVertexIndex = firstVertexIndex;
+      mNumTriangleVertices = numVertices;
+      }
+    //}}}
+
+    eType mType;
+    int mImage = 0;
+
+    int mFirstPathVerticesIndex = 0;
+    int mNumPaths = 0;
+
+    int mFirstFragIndex = 0;
+
+    int mTriangleFirstVertexIndex = 0;
+    int mNumTriangleVertices = 0;
+    };
+  //}}}
+  //{{{
+  struct cTexture {
+    //{{{
+    void reset() {
+      id = 0;
+      tex = 0;
+
+      width = 0;
+      height = 0;
+      type = 0;
+      flags = 0;
+      }
+    //}}}
+
+    int id = 0;
+    GLuint tex = 0;
+
+    int width = 0;
+    int height = 0;
+    int type = 0;
+    int flags = 0;
+    };
+  //}}}
+  //{{{
+  struct cFrag {
+    //{{{
+    void setFill (cPaint* paint, cScissor* scissor, float width, float fringe, float strokeThreshold, cTexture* tex) {
+
+      innerColor = nvgPremulColor (paint->innerColor);
+      outerColor = nvgPremulColor (paint->outerColor);
+
+      if ((scissor->extent[0] < -0.5f) || (scissor->extent[1] < -0.5f)) {
+        memset (scissorMatrix, 0, sizeof(scissorMatrix));
+        scissorExt[0] = 1.0f;
+        scissorExt[1] = 1.0f;
+        scissorScale[0] = 1.0f;
+        scissorScale[1] = 1.0f;
+        }
+      else {
+        cTransform inverse;
+        scissor->mTransform.getInverse (inverse);
+        inverse.getMatrix3x4 (scissorMatrix);
+        scissorExt[0] = scissor->extent[0];
+        scissorExt[1] = scissor->extent[1];
+        scissorScale[0] = scissor->mTransform.getAverageScaleX() / fringe;
+        scissorScale[1] = scissor->mTransform.getAverageScaleY() / fringe;
+        }
+
+      memcpy (extent, paint->extent, sizeof(extent));
+      strokeMult = (width * 0.5f + fringe * 0.5f) / fringe;
+      this->strokeThreshold = strokeThreshold;
+
+      cTransform inverse;
+      if (paint->image) {
+        type = SHADER_FILL_IMAGE;
+        if ((tex->flags & cVg::IMAGE_FLIPY) != 0) {
+          //{{{  flipY
+          cTransform m1;
+          m1.setTranslate (0.0f, extent[1] * 0.5f);
+          m1.multiply (paint->mTransform);
+
+          cTransform m2;
+          m2.setScale (1.0f, -1.0f);
+          m2.multiply (m1);
+          m1.setTranslate (0.0f, -extent[1] * 0.5f);
+          m1.multiply (m2);
+          m1.getInverse (inverse);
+          }
+          //}}}
+        else
+          paint->mTransform.getInverse (inverse);
+
+        if (tex->type == TEXTURE_RGBA)
+          texType = (tex->flags & cVg::IMAGE_PREMULTIPLIED) ? 0.f : 1.f;
+        else
+          texType = 2.f;
+        }
+      else {
+        type = SHADER_FILL_GRADIENT;
+        radius = paint->radius;
+        feather = paint->feather;
+        paint->mTransform.getInverse (inverse);
+        }
+      inverse.getMatrix3x4 (paintMatrix);
+      }
+    //}}}
+    //{{{
+    void setImage (cPaint* paint, cScissor* scissor, cTexture* tex) {
+
+      innerColor = nvgPremulColor (paint->innerColor);
+      outerColor = nvgPremulColor (paint->outerColor);
+
+      if ((scissor->extent[0] < -0.5f) || (scissor->extent[1] < -0.5f)) {
+        memset (scissorMatrix, 0, sizeof(scissorMatrix));
+        scissorExt[0] = 1.0f;
+        scissorExt[1] = 1.0f;
+        scissorScale[0] = 1.0f;
+        scissorScale[1] = 1.0f;
+        }
+      else {
+        cTransform inverse;
+        scissor->mTransform.getInverse (inverse);
+        inverse.getMatrix3x4 (scissorMatrix);
+        scissorExt[0] = scissor->extent[0];
+        scissorExt[1] = scissor->extent[1];
+        scissorScale[0] = scissor->mTransform.getAverageScaleX();
+        scissorScale[1] = scissor->mTransform.getAverageScaleY();
+        }
+
+      memcpy (extent, paint->extent, sizeof(extent));
+      strokeMult = 1.0f;
+      strokeThreshold = -1.0f;
+
+      type = SHADER_IMAGE;
+      if (tex->type == TEXTURE_RGBA)
+        texType = (tex->flags & cVg::IMAGE_PREMULTIPLIED) ? 0.f : 1.f;
+      else
+        texType = 2.f;
+
+      cTransform inverse;
+      paint->mTransform.getInverse (inverse);
+      inverse.getMatrix3x4 (paintMatrix);
+      }
+    //}}}
+    //{{{
+    void setSimple() {
+      type = SHADER_SIMPLE;
+      strokeThreshold = -1.0f;
+      }
+    //}}}
+
+    union {
+      struct {
+        float scissorMatrix[12]; // 3vec4's
+        float paintMatrix[12];   // 3vec4's
+        struct sVgColour innerColor;
+        struct sVgColour outerColor;
+        float scissorExt[2];
+        float scissorScale[2];
+        float extent[2];
+        float radius;
+        float feather;
+        float strokeMult;
+        float strokeThreshold;
+        float texType;
+        float type;
+        };
+      #define NANOVG_GL_UNIFORMARRAY_SIZE 11
+      float uniformArray[NANOVG_GL_UNIFORMARRAY_SIZE][4];
+      };
+    };
+  //}}}
+  //{{{
+  struct cState {
+    cCompositeOpState compositeOp;
+    cPaint fillPaint;
+    cPaint strokePaint;
+
+    float strokeWidth;
+    float miterLimit;
+    eLineCap lineJoin;
+    eLineCap lineCap;
+    float alpha;
+
+    cTransform mTransform;
+
+    cScissor scissor;
+    float fontSize;
+    float letterSpacing;
+    float lineHeight;
+    int textAlign;
+    int fontId;
+    };
+  //}}}
+
+  //{{{
+  class cShader {
+  public:
+    //{{{
+    ~cShader() {
+      if (prog)
+        glDeleteProgram (prog);
+      if (vert)
+        glDeleteShader (vert);
+      if (frag)
+        glDeleteShader (frag);
+      }
+    //}}}
+
+    //{{{
+    bool create (const char* opts) {
+
+      const char* str[3];
+      str[0] = kShaderHeader;
+      str[1] = opts != nullptr ? opts : "";
+
+      prog = glCreateProgram();
+      vert = glCreateShader (GL_VERTEX_SHADER);
+      str[2] = kVertShader;
+      glShaderSource (vert, 3, str, 0);
+
+      frag = glCreateShader (GL_FRAGMENT_SHADER);
+      str[2] = kFragShader;
+      glShaderSource (frag, 3, str, 0);
+
+      glCompileShader (vert);
+      GLint status;
+      glGetShaderiv (vert, GL_COMPILE_STATUS, &status);
+      if (status != GL_TRUE) {
+        //{{{  error return
+        dumpShaderError (vert, "shader", "vert");
+        return false;
+        }
+        //}}}
+
+      glCompileShader (frag);
+      glGetShaderiv (frag, GL_COMPILE_STATUS, &status);
+      if (status != GL_TRUE) {
+        //{{{  error return
+        dumpShaderError (frag, "shader", "frag");
+        return false;
+        }
+        //}}}
+
+      glAttachShader (prog, vert);
+      glAttachShader (prog, frag);
+
+      glBindAttribLocation (prog, 0, "vertex");
+      glBindAttribLocation (prog, 1, "tcoord");
+
+      glLinkProgram (prog);
+      glGetProgramiv (prog, GL_LINK_STATUS, &status);
+      if (status != GL_TRUE) {
+        //{{{  error return
+        dumpProgramError (prog, "shader");
+        return false;
+        }
+        //}}}
+
+      glUseProgram (prog);
+
+      return true;
+      }
+    //}}}
+
+    //{{{
+    void getUniforms() {
+      location[LOCATION_VIEWSIZE] = glGetUniformLocation (prog, "viewSize");
+      location[LOCATION_TEX] = glGetUniformLocation (prog, "tex");
+      location[LOCATION_FRAG] = glGetUniformLocation (prog, "frag");
+      }
+    //}}}
+
+    void setTex (int tex) { glUniform1i (location[LOCATION_TEX], tex); }
+    void setViewport (float* viewport) { glUniform2fv (location[LOCATION_VIEWSIZE], 1, viewport); }
+    void setFrags (float* frags) { glUniform4fv (location[LOCATION_FRAG], NANOVG_GL_UNIFORMARRAY_SIZE, frags); }
+
+  private:
+    const char* kShaderHeader =
+      "#version 100\n"
+      "#define UNIFORMARRAY_SIZE 11\n"
+      "\n";
+
+    const char* kVertShader =
+      "uniform vec2 viewSize;\n"
+      "attribute vec2 vertex;\n"
+      "attribute vec2 tcoord;\n"
+      "varying vec2 ftcoord;\n"
+      "varying vec2 fpos;\n"
+
+      "void main() {\n"
+        "ftcoord = tcoord;\n"
+        "fpos = vertex;\n"
+        "gl_Position = vec4(2.0*vertex.x/viewSize.x - 1.0, 1.0 - 2.0*vertex.y/viewSize.y, 0, 1);\n"
+        "}\n";
+
+    //{{{
+    const char* kFragShader =
+      // vars
+      "precision mediump float;\n"
+      "uniform vec4 frag[UNIFORMARRAY_SIZE];\n"
+      "uniform sampler2D tex;\n"
+      "varying vec2 ftcoord;\n"
+      "varying vec2 fpos;\n"
+
+      "#define scissorMatrix mat3(frag[0].xyz, frag[1].xyz, frag[2].xyz)\n"
+      "#define paintMatrix mat3(frag[3].xyz, frag[4].xyz, frag[5].xyz)\n"
+      "#define innerColor frag[6]\n"
+      "#define outerColor frag[7]\n"
+      "#define scissorExt frag[8].xy\n"
+      "#define scissorScale frag[8].zw\n"
+      "#define extent frag[9].xy\n"
+      "#define radius frag[9].z\n"
+      "#define feather frag[9].w\n"
+      "#define strokeMult frag[10].x\n"
+      "#define strokeThreshold frag[10].y\n"
+      "#define texType int(frag[10].z)\n"
+      "#define type int(frag[10].w)\n"
+
+      "float sdroundrect(vec2 pt, vec2 ext, float rad) {\n"
+        "vec2 ext2 = ext - vec2(rad,rad);\n"
+        "vec2 d = abs(pt) - ext2;\n"
+        "return min (max (d.x,d.y),0.0) + length(max(d,0.0)) - rad;\n"
+        "}\n"
+
+      // Scissoring
+      "float scissorMask(vec2 p) {\n"
+        "vec2 sc = (abs((scissorMatrix * vec3(p,1.0)).xy) - scissorExt);\n"
+        "sc = vec2(0.5,0.5) - sc * scissorScale;\n"
+        "return clamp(sc.x,0.0,1.0) * clamp(sc.y,0.0,1.0);\n"
+        "}\n"
+
+      // EDGE_AA Stroke - from [0..1] to clipped pyramid, where the slope is 1px
+      "float strokeMask() { return min(1.0, (1.0-abs(ftcoord.x*2.0-1.0))*strokeMult) * min(1.0, ftcoord.y); }\n"
+
+      "void main() {\n"
+        "vec4 result;\n"
+        "float scissor = scissorMask(fpos);\n"
+        "float strokeAlpha = strokeMask();\n"
+
+        "if (type == 0) {\n"
+          //  SHADER_FILL_GRADIENT - calc grad color using box grad
+          "vec2 pt = (paintMatrix * vec3(fpos,1.0)).xy;\n"
+          "float d = clamp((sdroundrect(pt, extent, radius) + feather*0.5) / feather, 0.0, 1.0);\n"
+          "vec4 color = mix(innerColor,outerColor,d);\n"
+          // Combine alpha
+          "color *= strokeAlpha * scissor;\n"
+          "result = color;\n"
+        "} else if (type == 1) {\n"
+          // SHADER_FILL_IMAGE - image calc color fron texture
+          "vec2 pt = (paintMatrix * vec3(fpos,1.0)).xy / extent;\n"
+          "vec4 color = texture2D(tex, pt);\n"
+          "if (texType == 1) color = vec4(color.xyz*color.w,color.w);"
+          "if (texType == 2) color = vec4(color.x);"
+          "color *= innerColor;\n"            // apply color tint and alpha
+          "color *= strokeAlpha * scissor;\n" // combine alpha
+          "result = color;\n"
+        "} else if (type == 2) {\n"
+          //  SHADER_SIMPLE - stencil fill
+          "result = vec4(1,1,1,1);\n"
+        "} else if (type == 3) {\n"
+           // SHADER_IMAGE - textured tris
+          "vec4 color = texture2D(tex, ftcoord);\n"
+          "if (texType == 1) color = vec4(color.xyz*color.w,color.w);"
+          "if (texType == 2) color = vec4(color.x);"
+          "color *= scissor;\n"
+          "result = color * innerColor;\n"
+        "}\n"
+
+      "if (strokeAlpha < strokeThreshold) discard;\n"
+      "gl_FragColor = result;\n"
+      "}\n";
+    //}}}
+
+    //{{{
+    void dumpShaderError (GLuint shader, const char* name, const char* type) {
+
+      GLchar str[512+1];
+      GLsizei len = 0;
+      glGetShaderInfoLog (shader, 512, &len, str);
+      if (len > 512)
+        len = 512;
+      str[len] = '\0';
+
+      printf ("Shader %s/%s error:%s\n", name, type, str);
+      }
+    //}}}
+    //{{{
+    void dumpProgramError (GLuint prog, const char* name) {
+
+      GLchar str[512+1];
+      GLsizei len = 0;
+      glGetProgramInfoLog (prog, 512, &len, str);
+      if (len > 512)
+        len = 512;
+      str[len] = '\0';
+
+      printf ("Program %s error:%s\n", name, str);
+      }
+    //}}}
+
+    // vars
+    GLuint prog = 0;
+    GLuint frag = 0;
+    GLuint vert = 0;
+
+    GLint location[MAX_LOCATIONS];
     };
   //}}}
   //{{{
@@ -789,6 +1242,7 @@ private:
 
       if (mNumVertices + numVertices > mNumAllocatedVertices) {
         mNumAllocatedVertices = maxi (mNumVertices + numVertices, 4096) + mNumAllocatedVertices/2; // 1.5x Overallocate
+        cLog::log (LOGINFO2, "realloc vertices " + dec(mNumAllocatedVertices));
         mVertices = (c2dVertex*)realloc (mVertices, mNumAllocatedVertices * sizeof(c2dVertex));
         }
 
@@ -815,30 +1269,6 @@ private:
 
     int mNumVertices = 0;
     int mNumAllocatedVertices = 0;
-    };
-  //}}}
-  //{{{
-  class cPathVertices {
-  public:
-    int mNumFillVertices = 0;
-    int mFirstFillVertexIndex = 0;
-
-    int mNumStrokeVertices = 0;
-    int mFirstStrokeVertexIndex = 0;
-    };
-  //}}}
-  //{{{
-  class cPath {
-  public:
-    int mNumPoints = 0;
-    int mFirstPointIndex = 0;
-
-    eWinding mWinding = eSOLID;
-    bool mConvex = false;
-    bool mClosed = false;
-    int mNumBevel = 0;
-
-    cPathVertices mPathVertices;
     };
   //}}}
   //{{{
@@ -948,6 +1378,7 @@ private:
         // not enough shapeCommands, expand shapeCommands size by 3/2
         mNumAllocatedCommands = mNumCommands + numValues + mNumAllocatedCommands / 2;
         mCommands = (float*)realloc (mCommands, sizeof(float) * mNumAllocatedCommands);
+        cLog::log (LOGINFO2, "realloc commmands " + dec(mNumAllocatedCommands));
         }
       memcpy (&mCommands[mNumCommands], values, numValues * sizeof(float));
       mNumCommands += numValues;
@@ -1448,6 +1879,7 @@ private:
 
       if (mNumPaths+1 > mNumAllocatedPaths) {
         mNumAllocatedPaths = mNumPaths+1 + mNumAllocatedPaths / 2;
+        cLog::log (LOGINFO2, "realloc paths " + dec(mNumAllocatedPaths));
         mPaths = (cPath*)realloc (mPaths, sizeof(cPath)* mNumAllocatedPaths);
         }
 
@@ -1531,6 +1963,7 @@ private:
       // allocate point in pathCache
       if (mNumPoints+1 > mNumAllocatedPoints) {
         mNumAllocatedPoints = mNumPoints+1 + mNumAllocatedPoints / 2;
+        cLog::log (LOGINFO2, "realloc points " + dec(mNumAllocatedPoints));
         mPoints = (cPoint*)realloc (mPoints, sizeof(cPoint)*mNumAllocatedPoints);
         }
 
@@ -1817,437 +2250,6 @@ private:
     int mNumAllocatedCommands = 0;
     };
   //}}}
-  //{{{
-  class cScissor {
-  public:
-    cTransform mTransform;
-    float extent[2];
-    };
-  //}}}
-  //{{{
-  class cState {
-  public:
-    cCompositeOpState compositeOp;
-    cPaint fillPaint;
-    cPaint strokePaint;
-
-    float strokeWidth;
-    float miterLimit;
-    eLineCap lineJoin;
-    eLineCap lineCap;
-    float alpha;
-
-    cTransform mTransform;
-
-    cScissor scissor;
-    float fontSize;
-    float letterSpacing;
-    float lineHeight;
-    int textAlign;
-    int fontId;
-    };
-  //}}}
-  //{{{
-  class cDraw {
-  public:
-    enum eType { TEXT, TRIANGLE, CONVEX_FILL, STENCIL_FILL, STROKE };
-    //{{{
-    void set (eType type, int image, int firstPathVerticesIndex, int numPaths, int firstFragIndex,
-              int firstVertexIndex, int numVertices) {
-      mType = type;
-      mImage = image;
-
-      mFirstPathVerticesIndex = firstPathVerticesIndex;
-      mNumPaths = numPaths;
-
-      mFirstFragIndex = firstFragIndex;
-
-      mTriangleFirstVertexIndex = firstVertexIndex;
-      mNumTriangleVertices = numVertices;
-      }
-    //}}}
-
-    eType mType;
-    int mImage = 0;
-
-    int mFirstPathVerticesIndex = 0;
-    int mNumPaths = 0;
-
-    int mFirstFragIndex = 0;
-
-    int mTriangleFirstVertexIndex = 0;
-    int mNumTriangleVertices = 0;
-    };
-  //}}}
-  //{{{
-  class cTexture {
-  public:
-    //{{{
-    void reset() {
-      id = 0;
-      tex = 0;
-
-      width = 0;
-      height = 0;
-      type = 0;
-      flags = 0;
-      }
-    //}}}
-
-    int id = 0;
-    GLuint tex = 0;
-
-    int width = 0;
-    int height = 0;
-    int type = 0;
-    int flags = 0;
-    };
-  //}}}
-  //{{{
-  class cFrag {
-  public:
-    //{{{
-    void setFill (cPaint* paint, cScissor* scissor, float width, float fringe, float strokeThreshold, cTexture* tex) {
-
-      innerColor = nvgPremulColor (paint->innerColor);
-      outerColor = nvgPremulColor (paint->outerColor);
-
-      if ((scissor->extent[0] < -0.5f) || (scissor->extent[1] < -0.5f)) {
-        memset (scissorMatrix, 0, sizeof(scissorMatrix));
-        scissorExt[0] = 1.0f;
-        scissorExt[1] = 1.0f;
-        scissorScale[0] = 1.0f;
-        scissorScale[1] = 1.0f;
-        }
-      else {
-        cTransform inverse;
-        scissor->mTransform.getInverse (inverse);
-        inverse.getMatrix3x4 (scissorMatrix);
-        scissorExt[0] = scissor->extent[0];
-        scissorExt[1] = scissor->extent[1];
-        scissorScale[0] = scissor->mTransform.getAverageScaleX() / fringe;
-        scissorScale[1] = scissor->mTransform.getAverageScaleY() / fringe;
-        }
-
-      memcpy (extent, paint->extent, sizeof(extent));
-      strokeMult = (width * 0.5f + fringe * 0.5f) / fringe;
-      this->strokeThreshold = strokeThreshold;
-
-      cTransform inverse;
-      if (paint->image) {
-        type = SHADER_FILL_IMAGE;
-        if ((tex->flags & cVg::IMAGE_FLIPY) != 0) {
-          //{{{  flipY
-          cTransform m1;
-          m1.setTranslate (0.0f, extent[1] * 0.5f);
-          m1.multiply (paint->mTransform);
-
-          cTransform m2;
-          m2.setScale (1.0f, -1.0f);
-          m2.multiply (m1);
-          m1.setTranslate (0.0f, -extent[1] * 0.5f);
-          m1.multiply (m2);
-          m1.getInverse (inverse);
-          }
-          //}}}
-        else
-          paint->mTransform.getInverse (inverse);
-
-        if (tex->type == TEXTURE_RGBA)
-          texType = (tex->flags & cVg::IMAGE_PREMULTIPLIED) ? 0.f : 1.f;
-        else
-          texType = 2.f;
-        }
-      else {
-        type = SHADER_FILL_GRADIENT;
-        radius = paint->radius;
-        feather = paint->feather;
-        paint->mTransform.getInverse (inverse);
-        }
-      inverse.getMatrix3x4 (paintMatrix);
-      }
-    //}}}
-    //{{{
-    void setImage (cPaint* paint, cScissor* scissor, cTexture* tex) {
-
-      innerColor = nvgPremulColor (paint->innerColor);
-      outerColor = nvgPremulColor (paint->outerColor);
-
-      if ((scissor->extent[0] < -0.5f) || (scissor->extent[1] < -0.5f)) {
-        memset (scissorMatrix, 0, sizeof(scissorMatrix));
-        scissorExt[0] = 1.0f;
-        scissorExt[1] = 1.0f;
-        scissorScale[0] = 1.0f;
-        scissorScale[1] = 1.0f;
-        }
-      else {
-        cTransform inverse;
-        scissor->mTransform.getInverse (inverse);
-        inverse.getMatrix3x4 (scissorMatrix);
-        scissorExt[0] = scissor->extent[0];
-        scissorExt[1] = scissor->extent[1];
-        scissorScale[0] = scissor->mTransform.getAverageScaleX();
-        scissorScale[1] = scissor->mTransform.getAverageScaleY();
-        }
-
-      memcpy (extent, paint->extent, sizeof(extent));
-      strokeMult = 1.0f;
-      strokeThreshold = -1.0f;
-
-      type = SHADER_IMAGE;
-      if (tex->type == TEXTURE_RGBA)
-        texType = (tex->flags & cVg::IMAGE_PREMULTIPLIED) ? 0.f : 1.f;
-      else
-        texType = 2.f;
-
-      cTransform inverse;
-      paint->mTransform.getInverse (inverse);
-      inverse.getMatrix3x4 (paintMatrix);
-      }
-    //}}}
-    //{{{
-    void setSimple() {
-      type = SHADER_SIMPLE;
-      strokeThreshold = -1.0f;
-      }
-    //}}}
-
-  private:
-    union {
-      struct {
-        float scissorMatrix[12]; // 3vec4's
-        float paintMatrix[12];   // 3vec4's
-        struct sVgColour innerColor;
-        struct sVgColour outerColor;
-        float scissorExt[2];
-        float scissorScale[2];
-        float extent[2];
-        float radius;
-        float feather;
-        float strokeMult;
-        float strokeThreshold;
-        float texType;
-        float type;
-        };
-      #define NANOVG_GL_UNIFORMARRAY_SIZE 11
-      float uniformArray[NANOVG_GL_UNIFORMARRAY_SIZE][4];
-      };
-    };
-  //}}}
-  //{{{
-  class cShader {
-  public:
-    //{{{
-    ~cShader() {
-      if (prog)
-        glDeleteProgram (prog);
-      if (vert)
-        glDeleteShader (vert);
-      if (frag)
-        glDeleteShader (frag);
-      }
-    //}}}
-
-    //{{{
-    bool create (const char* opts) {
-
-      const char* str[3];
-      str[0] = kShaderHeader;
-      str[1] = opts != nullptr ? opts : "";
-
-      prog = glCreateProgram();
-      vert = glCreateShader (GL_VERTEX_SHADER);
-      str[2] = kVertShader;
-      glShaderSource (vert, 3, str, 0);
-
-      frag = glCreateShader (GL_FRAGMENT_SHADER);
-      str[2] = kFragShader;
-      glShaderSource (frag, 3, str, 0);
-
-      glCompileShader (vert);
-      GLint status;
-      glGetShaderiv (vert, GL_COMPILE_STATUS, &status);
-      if (status != GL_TRUE) {
-        //{{{  error return
-        dumpShaderError (vert, "shader", "vert");
-        return false;
-        }
-        //}}}
-
-      glCompileShader (frag);
-      glGetShaderiv (frag, GL_COMPILE_STATUS, &status);
-      if (status != GL_TRUE) {
-        //{{{  error return
-        dumpShaderError (frag, "shader", "frag");
-        return false;
-        }
-        //}}}
-
-      glAttachShader (prog, vert);
-      glAttachShader (prog, frag);
-
-      glBindAttribLocation (prog, 0, "vertex");
-      glBindAttribLocation (prog, 1, "tcoord");
-
-      glLinkProgram (prog);
-      glGetProgramiv (prog, GL_LINK_STATUS, &status);
-      if (status != GL_TRUE) {
-        //{{{  error return
-        dumpProgramError (prog, "shader");
-        return false;
-        }
-        //}}}
-
-      glUseProgram (prog);
-
-      return true;
-      }
-    //}}}
-
-    //{{{
-    void getUniforms() {
-      location[LOCATION_VIEWSIZE] = glGetUniformLocation (prog, "viewSize");
-      location[LOCATION_TEX] = glGetUniformLocation (prog, "tex");
-      location[LOCATION_FRAG] = glGetUniformLocation (prog, "frag");
-      }
-    //}}}
-
-    void setTex (int tex) { glUniform1i (location[LOCATION_TEX], tex); }
-    void setViewport (float* viewport) { glUniform2fv (location[LOCATION_VIEWSIZE], 1, viewport); }
-    void setFrags (float* frags) { glUniform4fv (location[LOCATION_FRAG], NANOVG_GL_UNIFORMARRAY_SIZE, frags); }
-
-  private:
-    const char* kShaderHeader =
-      "#version 100\n"
-      "#define UNIFORMARRAY_SIZE 11\n"
-      "\n";
-
-    const char* kVertShader =
-      "uniform vec2 viewSize;\n"
-      "attribute vec2 vertex;\n"
-      "attribute vec2 tcoord;\n"
-      "varying vec2 ftcoord;\n"
-      "varying vec2 fpos;\n"
-
-      "void main() {\n"
-        "ftcoord = tcoord;\n"
-        "fpos = vertex;\n"
-        "gl_Position = vec4(2.0*vertex.x/viewSize.x - 1.0, 1.0 - 2.0*vertex.y/viewSize.y, 0, 1);\n"
-        "}\n";
-
-    //{{{
-    const char* kFragShader =
-      // vars
-      "precision mediump float;\n"
-      "uniform vec4 frag[UNIFORMARRAY_SIZE];\n"
-      "uniform sampler2D tex;\n"
-      "varying vec2 ftcoord;\n"
-      "varying vec2 fpos;\n"
-
-      "#define scissorMatrix mat3(frag[0].xyz, frag[1].xyz, frag[2].xyz)\n"
-      "#define paintMatrix mat3(frag[3].xyz, frag[4].xyz, frag[5].xyz)\n"
-      "#define innerColor frag[6]\n"
-      "#define outerColor frag[7]\n"
-      "#define scissorExt frag[8].xy\n"
-      "#define scissorScale frag[8].zw\n"
-      "#define extent frag[9].xy\n"
-      "#define radius frag[9].z\n"
-      "#define feather frag[9].w\n"
-      "#define strokeMult frag[10].x\n"
-      "#define strokeThreshold frag[10].y\n"
-      "#define texType int(frag[10].z)\n"
-      "#define type int(frag[10].w)\n"
-
-      "float sdroundrect(vec2 pt, vec2 ext, float rad) {\n"
-        "vec2 ext2 = ext - vec2(rad,rad);\n"
-        "vec2 d = abs(pt) - ext2;\n"
-        "return min (max (d.x,d.y),0.0) + length(max(d,0.0)) - rad;\n"
-        "}\n"
-
-      // Scissoring
-      "float scissorMask(vec2 p) {\n"
-        "vec2 sc = (abs((scissorMatrix * vec3(p,1.0)).xy) - scissorExt);\n"
-        "sc = vec2(0.5,0.5) - sc * scissorScale;\n"
-        "return clamp(sc.x,0.0,1.0) * clamp(sc.y,0.0,1.0);\n"
-        "}\n"
-
-      // EDGE_AA Stroke - from [0..1] to clipped pyramid, where the slope is 1px
-      "float strokeMask() { return min(1.0, (1.0-abs(ftcoord.x*2.0-1.0))*strokeMult) * min(1.0, ftcoord.y); }\n"
-
-      "void main() {\n"
-        "vec4 result;\n"
-        "float scissor = scissorMask(fpos);\n"
-        "float strokeAlpha = strokeMask();\n"
-
-        "if (type == 0) {\n"
-          //  SHADER_FILL_GRADIENT - calc grad color using box grad
-          "vec2 pt = (paintMatrix * vec3(fpos,1.0)).xy;\n"
-          "float d = clamp((sdroundrect(pt, extent, radius) + feather*0.5) / feather, 0.0, 1.0);\n"
-          "vec4 color = mix(innerColor,outerColor,d);\n"
-          // Combine alpha
-          "color *= strokeAlpha * scissor;\n"
-          "result = color;\n"
-        "} else if (type == 1) {\n"
-          // SHADER_FILL_IMAGE - image calc color fron texture
-          "vec2 pt = (paintMatrix * vec3(fpos,1.0)).xy / extent;\n"
-          "vec4 color = texture2D(tex, pt);\n"
-          "if (texType == 1) color = vec4(color.xyz*color.w,color.w);"
-          "if (texType == 2) color = vec4(color.x);"
-          "color *= innerColor;\n"            // apply color tint and alpha
-          "color *= strokeAlpha * scissor;\n" // combine alpha
-          "result = color;\n"
-        "} else if (type == 2) {\n"
-          //  SHADER_SIMPLE - stencil fill
-          "result = vec4(1,1,1,1);\n"
-        "} else if (type == 3) {\n"
-           // SHADER_IMAGE - textured tris
-          "vec4 color = texture2D(tex, ftcoord);\n"
-          "if (texType == 1) color = vec4(color.xyz*color.w,color.w);"
-          "if (texType == 2) color = vec4(color.x);"
-          "color *= scissor;\n"
-          "result = color * innerColor;\n"
-        "}\n"
-
-      "if (strokeAlpha < strokeThreshold) discard;\n"
-      "gl_FragColor = result;\n"
-      "}\n";
-    //}}}
-
-    //{{{
-    void dumpShaderError (GLuint shader, const char* name, const char* type) {
-
-      GLchar str[512+1];
-      GLsizei len = 0;
-      glGetShaderInfoLog (shader, 512, &len, str);
-      if (len > 512)
-        len = 512;
-      str[len] = '\0';
-
-      printf ("Shader %s/%s error:%s\n", name, type, str);
-      }
-    //}}}
-    //{{{
-    void dumpProgramError (GLuint prog, const char* name) {
-
-      GLchar str[512+1];
-      GLsizei len = 0;
-      glGetProgramInfoLog (prog, 512, &len, str);
-      if (len > 512)
-        len = 512;
-      str[len] = '\0';
-
-      printf ("Program %s error:%s\n", name, str);
-      }
-    //}}}
-
-    // vars
-    GLuint prog = 0;
-    GLuint frag = 0;
-    GLuint vert = 0;
-
-    GLint location[MAX_LOCATIONS];
-    };
-  //}}}
 
   cDraw* allocDraw();
   int allocFrags (int numFrags);
@@ -2282,9 +2284,9 @@ private:
   int allocTextAtlas();
 
   //{{{  vars
-  bool mDrawEdges;
-  bool mDrawSolid;
-  bool mDrawTriangles;
+  bool mDrawEdges = false;
+  bool mDrawSolid = false;
+  bool mDrawTriangles = false;
   int mDrawArrays = 0;
 
   float mViewport[2];

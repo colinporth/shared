@@ -1,4 +1,5 @@
 // cGlWindow.cpp
+//{{{  includes
 #define _CRT_SECURE_NO_WARNINGS
 
 #include "../utils/utils.h"
@@ -6,26 +7,12 @@
 #include "cGlWindow.h"
 
 using namespace std;
+//}}}
 
 //{{{
 cGlWindow::~cGlWindow() {
   glfwTerminate();
   }
-//}}}
-//{{{  static var inits
-cGlWindow* cGlWindow::mGlWindow = NULL;
-
-bool cGlWindow::mMouseDown = false;
-bool cGlWindow::mMouseMoved = false;
-float cGlWindow::mMouseX = 0;
-float cGlWindow::mMouseY = 0;
-int cGlWindow::mMouseIntX = 0;
-int cGlWindow::mMouseIntY = 0;
-
-bool cGlWindow::mAlted = false;
-bool cGlWindow::mSupered = false;
-bool cGlWindow::mShifted = false;
-bool cGlWindow::mControlled = false;
 //}}}
 
 // iWindow
@@ -149,17 +136,23 @@ void cGlWindow::run () {
     if (mRoot)
       mRoot->onDraw (this);
     if (mDrawTests) {
-      //{{{  draw
+      //{{{  draw tests
       drawEyes (winWidth*3.0f/4.0f, winHeight/2.0f, winWidth/4.0f, winHeight/2.0f,
                 mMouseX, mMouseY, (float)glfwGetTime());
       drawLines (0.0f, 50.0f, (float)winWidth, (float)winHeight, (float)glfwGetTime());
       drawSpinner (winWidth/2.0f, winHeight/2.0f, 20.0f, (float)glfwGetTime());
       }
       //}}}
-    if (mDrawStats)
-      drawStats ((float)winWidth, (float)winHeight, getFrameStats() + (mVsync ? " vsync" : " free"));
+    if (mDrawStats) {
+      //{{{  draw stats
+      fontSize (12.0f);
+      textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_BOTTOM);
+      fillColor (nvgRGBA(255, 255, 255, 255));
+      text (0.0f, (float)winHeight, getFrameStats() + (mVsync ? " vsyncOn" : " vsyncOff"));
+      }
+      //}}}
     if (mDrawPerf) {
-      //{{{  render perf stats
+      //{{{  draw perf stats
       mFpsGraph->render (this, 0.0f, winHeight-35.0f, winWidth/3.0f -2.0f, 35.0f);
       mCpuGraph->render (this, winWidth/3.0f, winHeight-35.0f, winWidth/3.0f - 2.0f, 35.0f);
       }
@@ -186,16 +179,6 @@ void cGlWindow::togglePerf() {
 
   mFpsGraph->reset();
   mCpuGraph->reset();
-  }
-//}}}
-//{{{
-void cGlWindow::toggleStats() {
-  mDrawStats = !mDrawStats;
-  }
-//}}}
-//{{{
-void cGlWindow::toggleTests() {
-  mDrawTests = !mDrawTests;
   }
 //}}}
 
@@ -349,15 +332,6 @@ void cGlWindow::drawLines (float x, float y, float w, float h, float t) {
       }
     }
   restoreState();
-  }
-//}}}
-//{{{
-void cGlWindow::drawStats (float x, float y, const string& str) {
-
-  fontSize (12.0f);
-  textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_BOTTOM);
-  fillColor (nvgRGBA(255, 255, 255, 255));
-  text (0.0f, y, str);
   }
 //}}}
 //{{{
