@@ -391,6 +391,7 @@ namespace { // anonymous
     return converter.to_bytes (wstr);
     }
   //}}}
+
   //{{{
   bool connectPins (Microsoft::WRL::ComPtr<IBaseFilter> fromFilter,
                     Microsoft::WRL::ComPtr<IBaseFilter> toFilter,
@@ -427,12 +428,12 @@ namespace { // anonymous
                   (!toPinName || !wcscmp (toPinInfo.achName, toPinName))) {
                 // found toPin
                 if (mGraphBuilder->Connect (fromPin.Get(), toPin.Get()) == S_OK) {
-                  cLog::log (LOGINFO, "- connecting pin " + wstrToStr (fromPinInfo.achName) +
-                                      " to " + wstrToStr (toPinInfo.achName));
+                  cLog::log (LOGINFO3, "- connecting pin " + wstrToStr (fromPinInfo.achName) +
+                                       " to " + wstrToStr (toPinInfo.achName));
                   return true;
                   }
                 else {
-                  cLog::log (LOGINFO, "- connectPins failed");
+                  cLog::log (LOGINFO3, "- connectPins failed");
                   return false;
                   }
                 }
@@ -475,7 +476,7 @@ namespace { // anonymous
           propertyBag->Read (L"FriendlyName", &varName, 0);
           VariantClear (&varName);
 
-          cLog::log (LOGINFO, "FindFilter " + wstrToStr (varName.bstrVal));
+          cLog::log (LOGINFO, "- " + wstrToStr (varName.bstrVal));
 
           // bind the filter
           moniker->BindToObject (NULL, NULL, IID_IBaseFilter, (void**)(&filter));
@@ -498,6 +499,7 @@ namespace { // anonymous
       }
     }
   //}}}
+
   //{{{
   void createFilter (Microsoft::WRL::ComPtr<IBaseFilter>& filter,
                      const CLSID& clsid, wchar_t* title,
@@ -513,119 +515,85 @@ namespace { // anonymous
   //{{{
   bool createGraphDvbT (int frequency) {
 
-    auto hr = CoCreateInstance (CLSID_FilterGraph, nullptr,
-                                CLSCTX_INPROC_SERVER, IID_PPV_ARGS (mGraphBuilder.GetAddressOf()));
-    //{{{  error
-    if (hr != S_OK) {
-      cLog::log (LOGERROR, "createGraphDvbT - CoCreateInstance graph failed " + dec(hr));
+    if (CoCreateInstance (CLSID_FilterGraph, nullptr,
+                          CLSCTX_INPROC_SERVER, IID_PPV_ARGS (mGraphBuilder.GetAddressOf())) != S_OK) {
+      //{{{  error, exit
+      cLog::log (LOGERROR, "createGraphDvbT - CoCreateInstance graph failed");
       return false;
       }
-    //}}}
+      //}}}
 
-    hr = CoCreateInstance (CLSID_DVBTNetworkProvider, nullptr,
-                           CLSCTX_INPROC_SERVER, IID_PPV_ARGS (mDvbNetworkProvider.GetAddressOf()));
-    //{{{  error
-    if (hr != S_OK) {
-      cLog::log (LOGERROR, "createGraphDvbT - CoCreateInstance dvbNetworkProvider failed " + dec(hr));
+    if (CoCreateInstance (CLSID_DVBTNetworkProvider, nullptr,
+                          CLSCTX_INPROC_SERVER, IID_PPV_ARGS (mDvbNetworkProvider.GetAddressOf())) != S_OK) {
+      //{{{  error, exit
+      cLog::log (LOGERROR, "createGraphDvbT - CoCreateInstance dvbNetworkProvider failed");
       return false;
       }
-    //}}}
+      //}}}
 
-    hr = mGraphBuilder->AddFilter (mDvbNetworkProvider.Get(), L"dvbtNetworkProvider");
-    //{{{  error
-    if (hr != S_OK) {
-      cLog::log (LOGERROR, "createGraphDvbT - AddFilter failed " + dec(hr));
+    if (mGraphBuilder->AddFilter (mDvbNetworkProvider.Get(), L"dvbtNetworkProvider") != S_OK) {
+      //{{{  error,exit
+      cLog::log (LOGERROR, "createGraphDvbT - AddFilter failed");
       return false;
       }
-    //}}}
+      //}}}
     mDvbNetworkProvider.As (&mScanningTuner);
 
     //{{{  setup dvbTuningSpace2 interface
-    hr = mScanningTuner->get_TuningSpace (mTuningSpace.GetAddressOf());
-    //{{{  error
-    if (hr != S_OK)
-      cLog::log (LOGERROR, "createGraphDvbT - get_TuningSpace failed " + dec(hr));
-    //}}}
+    if (mScanningTuner->get_TuningSpace (mTuningSpace.GetAddressOf()) != S_OK)
+      cLog::log (LOGERROR, "createGraphDvbT - get_TuningSpace failed");
 
     mTuningSpace.As (&mDvbTuningSpace2);
-    hr = mDvbTuningSpace2->put__NetworkType (CLSID_DVBTNetworkProvider);
-    //{{{  error
-    if (hr != S_OK)
-      cLog::log (LOGERROR, "createGraphDvbT - put__NetworkType failed " + dec(hr));
-    //}}}
-    hr = mDvbTuningSpace2->put_SystemType (DVB_Terrestrial);
-    //{{{  error
-    if (hr != S_OK)
-      cLog::log (LOGERROR, "createGraphDvbT - put_SystemType failed " + dec(hr));
-    //}}}
-    hr = mDvbTuningSpace2->put_NetworkID (9018);
-    //{{{  error
-    if (hr != S_OK)
-      cLog::log (LOGERROR, "createGraphDvbT - put_NetworkID failed " + dec(hr));
-    //}}}
-    hr = mDvbTuningSpace2->put_FrequencyMapping (L"");
-    //{{{  error
-    if (hr != S_OK)
-      cLog::log (LOGERROR, "createGraphDvbT - put_FrequencyMapping failed " + dec(hr));
-    //}}}
-    hr = mDvbTuningSpace2->put_UniqueName (L"DTV DVB-T");
-    //{{{  error
-    if (hr != S_OK)
-      cLog::log (LOGERROR, "createGraphDvbT - put_UniqueName failed " + dec(hr));
-    //}}}
-    hr = mDvbTuningSpace2->put_FriendlyName (L"DTV DVB-T");
-    //{{{  error
-    if (hr != S_OK)
-      cLog::log (LOGERROR, "createGraphDvbT - put_FriendlyName failed " + dec(hr));
-    //}}}
+    if (mDvbTuningSpace2->put__NetworkType (CLSID_DVBTNetworkProvider) != S_OK)
+      cLog::log (LOGERROR, "createGraphDvbT - put__NetworkType failed");
+
+    if (mDvbTuningSpace2->put_SystemType (DVB_Terrestrial) != S_OK)
+      cLog::log (LOGERROR, "createGraphDvbT - put_SystemType failed");
+
+    if (mDvbTuningSpace2->put_NetworkID (9018) != S_OK)
+      cLog::log (LOGERROR, "createGraphDvbT - put_NetworkID failed");
+
+    if (mDvbTuningSpace2->put_FrequencyMapping (L"") != S_OK)
+      cLog::log (LOGERROR, "createGraphDvbT - put_FrequencyMapping failed");
+
+    if (mDvbTuningSpace2->put_UniqueName (L"DTV DVB-T") != S_OK)
+      cLog::log (LOGERROR, "createGraphDvbT - put_UniqueName failed");
+
+    if (mDvbTuningSpace2->put_FriendlyName (L"DTV DVB-T") != S_OK)
+      cLog::log (LOGERROR, "createGraphDvbT - put_FriendlyName failed");
     //}}}
     //{{{  create dvbtLocator and setup in dvbTuningSpace2 interface
-    hr = CoCreateInstance (CLSID_DVBTLocator, nullptr,
-                           CLSCTX_INPROC_SERVER, IID_PPV_ARGS (mDvbLocator.GetAddressOf()));
-    //{{{  error
-    if (hr != S_OK)
-      cLog::log (LOGERROR, "createGraphDvbT - CoCreateInstance dvbLocator failed " + dec(hr));
-    //}}}
-    hr = mDvbLocator->put_CarrierFrequency (frequency);
-    //{{{  error
-    if (hr != S_OK)
-      cLog::log (LOGERROR, "createGraphDvbT - put_CarrierFrequency failed " + dec(hr));
-    //}}}
-    hr = mDvbLocator->put_Bandwidth (8);
-    //{{{  error
-    if (hr != S_OK)
-      cLog::log (LOGERROR, "createGraphDvbT - put_Bandwidth failed " + dec(hr));
-    //}}}
-    hr = mDvbTuningSpace2->put_DefaultLocator (mDvbLocator.Get());
-    //{{{  error
-    if (hr != S_OK)
-      cLog::log (LOGERROR, "createGraphDvbT - put_DefaultLocator failed " + dec(hr));
-    //}}}
+    if (CoCreateInstance (CLSID_DVBTLocator, nullptr,
+                          CLSCTX_INPROC_SERVER, IID_PPV_ARGS (mDvbLocator.GetAddressOf())) != S_OK)
+      cLog::log (LOGERROR, "createGraphDvbT - CoCreateInstance dvbLocator failed");
+
+    if (mDvbLocator->put_CarrierFrequency (frequency) != S_OK)
+      cLog::log (LOGERROR, "createGraphDvbT - put_CarrierFrequency failed");
+
+    if (mDvbLocator->put_Bandwidth (8) != S_OK)
+      cLog::log (LOGERROR, "createGraphDvbT - put_Bandwidth failed");
+
+    if (mDvbTuningSpace2->put_DefaultLocator (mDvbLocator.Get()) != S_OK)
+      cLog::log (LOGERROR, "createGraphDvbT - put_DefaultLocator failed");
     //}}}
     //{{{  tuneRequest from scanningTuner
     if (mScanningTuner->get_TuneRequest (mTuneRequest.GetAddressOf()) != S_OK)
       mTuningSpace->CreateTuneRequest (mTuneRequest.GetAddressOf());
-    hr = mTuneRequest->put_Locator (mDvbLocator.Get());
-    //{{{  error
-    if (hr != S_OK)
-      cLog::log (LOGERROR, "createGraphDvbT - put_Locator failed " + dec(hr));
-    //}}}
-    hr = mScanningTuner->Validate (mTuneRequest.Get());
-    //{{{  error
-    if (hr != S_OK)
-      cLog::log (LOGERROR, "createGraphDvbT - Validate failed " + dec(hr));
-    //}}}
-    hr = mScanningTuner->put_TuneRequest (mTuneRequest.Get());
-    //{{{  error
-    if (hr != S_OK)
-      cLog::log (LOGERROR, "createGraphDvbT - put_TuneRequest failed " + dec(hr));
-    //}}}
+
+    if (mTuneRequest->put_Locator (mDvbLocator.Get()) != S_OK)
+      cLog::log (LOGERROR, "createGraphDvbT - put_Locator failed");
+
+    if (mScanningTuner->Validate (mTuneRequest.Get()) != S_OK)
+      cLog::log (LOGERROR, "createGraphDvbT - Validate failed");
+
+    if (mScanningTuner->put_TuneRequest (mTuneRequest.Get()) != S_OK)
+      cLog::log (LOGERROR, "createGraphDvbT - put_TuneRequest failed");
     //}}}
 
     // dvbtNetworkProvider -> dvbtTuner -> dvbtCapture -> sampleGrabberFilter -> mpeg2Demux -> bdaTif
     findFilter (mDvbTuner, KSCATEGORY_BDA_NETWORK_TUNER, L"DVBTtuner", mDvbNetworkProvider);
     if (!mDvbTuner) {
-      //{{{  error
+      //{{{  error, exit
       cLog::log (LOGERROR, "createGraphDvbT - unable to find dvbtuner filter");
       return false;
       }
@@ -663,6 +631,7 @@ namespace { // anonymous
       return false;
     }
   //}}}
+
   //{{{
   uint8_t* getBlock (int& len) {
 

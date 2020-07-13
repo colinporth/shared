@@ -176,7 +176,10 @@ protected:
   virtual bool audDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
   virtual bool vidDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
 
-  virtual void start (cService* service, const std::string& name, std::chrono::system_clock::time_point time, bool selected) {}
+  virtual void start (cService* service, const std::string& name, 
+                      std::chrono::system_clock::time_point time, 
+                      std::chrono::system_clock::time_point startTime,
+                      bool selected) {}
   virtual void pesPacket (int sid, int pid, uint8_t* ts) {}
   virtual void stop (cService* service) {}
 

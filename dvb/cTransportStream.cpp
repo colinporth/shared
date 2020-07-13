@@ -1720,11 +1720,11 @@ void cTransportStream::parseEit (cPidInfo* pidInfo, uint8_t* buf) {
                   auto pidInfoIt = mPidInfoMap.find (serviceIt->second.getProgramPid());
                   if (pidInfoIt != mPidInfoMap.end())
                     // update service pgmPid infoStr with new now
-                    pidInfoIt->second.mInfoStr = serviceIt->second.getChannelName() +
-                                                 " " + serviceIt->second.getNowTitleString();
+                    pidInfoIt->second.mInfoStr = serviceIt->second.getChannelName() + " " +
+                                                 serviceIt->second.getNowTitleString();
 
-                  start (&serviceIt->second, titleStr, startTime,
-                         serviceIt->second.isEpgRecord (titleStr, startTime));
+                  start (&serviceIt->second, titleStr,
+                         mTime, startTime, serviceIt->second.isEpgRecord (titleStr, startTime));
                   }
                 }
               }
