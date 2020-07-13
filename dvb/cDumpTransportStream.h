@@ -34,7 +34,7 @@ protected:
       if (channelName == service->getChannelName()) {
         record = true;
         if (i < mSaveNames.size())
-          saveName = mSaveNames[i] +  "  ";
+          saveName = mSaveNames[i] +  " ";
         break;
         }
       i++;
