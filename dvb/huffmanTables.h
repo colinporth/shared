@@ -5735,13 +5735,11 @@ static const unsigned huffIndex2[] = {
 //{{{
 std::string huffDecode (const unsigned char* src, size_t size) {
 
+  std::string str;
+
   if ((src[0] == 0x1F) && (src[1] == 1 || src[1] == 2)) {
     const struct tHuffTable* hufftable = (src[1] == 1) ? huffTable1 : huffTable2;
     const unsigned int* huffindex = (src[1] == 1) ? huffIndex1 : huffIndex2;
-
-    int uncompressed_len = 30;
-    char* uncompressed = (char *)calloc(1, uncompressed_len + 1);
-    int p = 0;
 
     unsigned value = 0;
     unsigned byte = 2;
@@ -5787,14 +5785,8 @@ std::string huffDecode (const unsigned char* src, size_t size) {
         }
 
       if (found) {
-        if (nextCh != STOP && nextCh != ESCAPE) {
-          if (p >= uncompressed_len) {
-            uncompressed_len += 10;
-            uncompressed = (char*)realloc (uncompressed, uncompressed_len + 1);
-            }
-          uncompressed[p++] = nextCh;
-          uncompressed[p] = 0;
-          }
+        if (nextCh != STOP && nextCh != ESCAPE) 
+          str += nextCh;
 
         // Shift up by the number of bits.
         for (unsigned b = 0; b < bitShift; b++) {
@@ -5809,18 +5801,12 @@ std::string huffDecode (const unsigned char* src, size_t size) {
             bit++;
           }
         }
-      else {
-        free (uncompressed);
-        return "none";
-        }
+      else 
+        return "error";
       } while (lastch != STOP && byte < size+4);
-
-    std::string str = uncompressed;
-    free (uncompressed);
-    return str;
     }
-  else
-    return "";
+
+  return str;
   }
 //}}}
 }
