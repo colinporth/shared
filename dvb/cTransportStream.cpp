@@ -669,7 +669,6 @@ void cService::setAudPid (int pid, int streamType) {
 //}}}
 void cService::toggleShowEpg() { mShowEpg = !mShowEpg; }
 void cService::setChannelName (const std::string& channelName) { mChannelName = channelName;}
-void cService::setSubPid (int pid, int streamType) { mSubPid = pid; }
 void cService::setProgramPid (int pid) { mProgramPid = pid; }
 //{{{
 bool cService::setNow (bool record, std::chrono::system_clock::time_point time, std::chrono::seconds duration,
@@ -737,7 +736,6 @@ void cService::print() {
                       " pgmPid:" + dec (mProgramPid) +
                       " vidPid:" + dec(mVidPid) +
                       " audPid:" + dec (mAudPid) +
-                      " subPid:" + dec (mSubPid) +
                       " " + mChannelName);
 
   if (mNowEpgItem)
@@ -1475,33 +1473,6 @@ void cTransportStream::parseDescr (int key, uint8_t* buf, int tid) {
 
       break;
       }
-
-    // known tags
-    case DESCR_COMPONENT:
-    case DESCR_NW_NAME:
-    case DESCR_TERR_DEL_SYS:
-    case DESCR_SERVICE_LIST:
-    case 0x25: // NIT2
-    case DESCR_COUNTRY_AVAIL:
-    case DESCR_CONTENT:
-    case DESCR_CA_IDENT:
-    case DESCR_ML_COMPONENT:
-    case DESCR_DATA_BROADCAST:
-    case DESCR_PRIV_DATA:
-    case DESCR_SYSTEM_CLOCK:
-    case DESCR_MULTIPLEX_BUFFER_UTIL:
-    case DESCR_MAXIMUM_BITRATE:
-    case DESCR_SMOOTHING_BUFFER:
-    case DESCR_FREQUENCY_LIST:  // NIT1
-    case DESCR_LINKAGE:
-    case 0x73:
-    case 0x7F:                  // NIT2
-    case 0x83:
-    case 0xC3: break;
-
-    default:
-      cLog::log (LOGERROR, "parseDescr - unknown tag:" + dec(getDescrTag(buf)));
-      break;
     }
   }
 //}}}
@@ -1647,7 +1618,7 @@ void cTransportStream::parseSdt (cPidInfo* pidInfo, uint8_t* buf) {
             auto it = mServiceMap.find (sid);
             if (it != mServiceMap.end()) {
               if (it->second.getChannelName().empty()) {
-                cLog::log (LOGINFO, "SDT - service " + dec(sid) +  " named " + name);
+                cLog::log (LOGINFO, dec(sid) +  " " + name);
                 it->second.setChannelName (name);
                 }
               }
@@ -1811,7 +1782,7 @@ void cTransportStream::parsePmt (cPidInfo* pidInfo, uint8_t* buf) {
       // service not found, create one
       auto insertPair = mServiceMap.insert (std::map<int,cService>::value_type (sid, cService(sid)));
       serviceIt = insertPair.first;
-      cLog::log (LOGINFO, "parsePmt - create service " + dec(sid));
+      cLog::log (LOGINFO, "create service " + dec(sid));
       }
     auto service = &serviceIt->second;
     service->setProgramPid (pidInfo->mPid);
@@ -1850,11 +1821,10 @@ void cTransportStream::parsePmt (cPidInfo* pidInfo, uint8_t* buf) {
           service->setAudPid (esPid, esPidInfo->mStreamType); break;
 
         case   6: // subtitle
-          service->setSubPid (esPid, esPidInfo->mStreamType); break;
-
         case   5: // private mpeg2 tabled data - private
         case  11: // dsm cc u_n
         case  13: // dsm cc tabled data
+        case 134:
           break;
 
         default:

@@ -102,7 +102,6 @@ public:
   int getAudPid() const { return mAudPid; }
   int getAudStreamType() const { return mAudStreamType; }
   int getAudOtherPid() const { return mAudOtherPid; }
-  int getSubPid() const { return mSubPid; }
 
   std::string getChannelName() { return mChannelName; }
 
@@ -119,7 +118,6 @@ public:
   void toggleShowEpg();
 
   void setChannelName (const std::string& channelName);
-  void setSubPid (int pid, int streamType);
   void setProgramPid (int pid);
   bool setNow (bool record, std::chrono::system_clock::time_point time, std::chrono::seconds duration,
                const std::string& str1, const std::string& str2);
@@ -147,7 +145,6 @@ private:
   int mAudPid = -1;
   int mAudOtherPid = -1;
   int mAudStreamType = 0;
-  int mSubPid = -1;
 
   cEpgItem* mNowEpgItem = nullptr;
   std::map<std::chrono::system_clock::time_point,cEpgItem*> mEpgItemMap;
