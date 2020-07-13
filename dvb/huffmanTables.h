@@ -5733,9 +5733,7 @@ static const unsigned huffIndex2[] = {
 //}}}
 
 //{{{
-const char* huffDecode (const unsigned char* src, size_t size) {
-
-  const char* kNoneStr = "none";
+char* huffDecode (const unsigned char* src, size_t size) {
 
   if ((src[0] == 0x1F) && (src[1] == 1 || src[1] == 2)) {
     const struct tHuffTable* hufftable = (src[1] == 1) ? huffTable1 : huffTable2;
@@ -5792,7 +5790,7 @@ const char* huffDecode (const unsigned char* src, size_t size) {
         if (nextCh != STOP && nextCh != ESCAPE) {
           if (p >= uncompressed_len) {
             uncompressed_len += 10;
-            uncompressed = (char *)realloc (uncompressed, uncompressed_len + 1);
+            uncompressed = (char*)realloc (uncompressed, uncompressed_len + 1);
             }
           uncompressed[p++] = nextCh;
           uncompressed[p] = 0;
@@ -5812,13 +5810,13 @@ const char* huffDecode (const unsigned char* src, size_t size) {
           }
         }
       else
-        return kNoneStr;
+        return nullptr;
       } while (lastch != STOP && byte < size+4);
 
     return uncompressed;
     }
   else
-    return NULL;
+    return nullptr;
   }
 //}}}
 }

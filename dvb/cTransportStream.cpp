@@ -630,7 +630,7 @@ cService::~cService() {
 
   delete mNowEpgItem;
 
-  for (auto epgItem : mEpgItemMap)
+  for (auto& epgItem : mEpgItemMap)
     delete epgItem.second;
   mEpgItemMap.clear();
 
@@ -679,13 +679,14 @@ void cService::setProgramPid (int pid) { mProgramPid = pid; }
 //{{{
 bool cService::setNow (bool record,
                        chrono::system_clock::time_point time, chrono::seconds duration,
-                       const string& str1, const string& str2) {
+                       const string& titleString, const string& descriptionString) {
 
   if (mNowEpgItem && (mNowEpgItem->getTime() == time))
     return false;
 
   delete mNowEpgItem;
-  mNowEpgItem = new cEpgItem (true, record, time, duration, str1, str2);
+
+  mNowEpgItem = new cEpgItem (true, record, time, duration, titleString, descriptionString);
 
   return true;
   }
@@ -697,10 +698,11 @@ bool cService::setEpg (bool record,
 // could return true only if changed
 
   auto epgItemIt = mEpgItemMap.find (startTime);
-  if (epgItemIt == mEpgItemMap.end())
+  if (epgItemIt == mEpgItemMap.end()) {
     mEpgItemMap.insert (
       map<chrono::system_clock::time_point, cEpgItem*>::value_type (
         startTime, new cEpgItem (false, record, startTime, duration, title, description)));
+    }
   else
     epgItemIt->second->set (startTime, duration, title, description);
 
@@ -749,7 +751,8 @@ void cService::print() {
 
   if (mNowEpgItem)
     mNowEpgItem->print ("");
-  for (auto epgItem : mEpgItemMap)
+
+  for (auto& epgItem : mEpgItemMap)
     epgItem.second->print ("- ");
   }
 //}}}
@@ -1703,17 +1706,19 @@ void cTransportStream::parseEit (cPidInfo* pidInfo, uint8_t* buf) {
           // get title
           auto eventBuf = buf + sizeof(descr_short_event_struct);
           auto eventBufLen = ((descr_short_event_t*)(buf))->event_name_length;
-          auto title = huffDecode (eventBuf, eventBufLen);
-          auto titleStr = title ? title : getDescrStr (eventBuf, eventBufLen);
+          auto titleChars = huffDecode (eventBuf, eventBufLen);
+          auto titleString = titleChars ? titleChars : getDescrStr (eventBuf, eventBufLen);
+          free (titleChars);
 
           // get description
           eventBuf += ((descr_short_event_t*)(buf))->event_name_length + 1;
           eventBufLen = *((uint8_t*)(buf + sizeof(descr_short_event_struct) +
                                      ((descr_short_event_t*)(buf))->event_name_length));
-          auto description = huffDecode (eventBuf, eventBufLen);
-          auto descriptionStr = description ? description : getDescrStr (eventBuf, eventBufLen);
+          auto descriptionChars = huffDecode (eventBuf, eventBufLen);
+          auto descriptionString = descriptionChars ? descriptionChars : getDescrStr (eventBuf, eventBufLen);
+          free (descriptionChars);
 
-          //cLog::log (LOGINFO3, " - " + hex(tag,2) + " shortEvent " + titleStr);
+          //cLog::log (LOGINFO3, " - " + hex(tag,2) + " shortEvent " + titleString);
 
           auto serviceIt = mServiceMap.find (sid);
           if (serviceIt != mServiceMap.end()) {
@@ -1723,8 +1728,8 @@ void cTransportStream::parseEit (cPidInfo* pidInfo, uint8_t* buf) {
                   !serviceIt->second.getChannelName().empty() &&
                   (serviceIt->second.getProgramPid() != -1)) {
                 // wait for named service with pgmPid
-                if (serviceIt->second.setNow (serviceIt->second.isEpgRecord(titleStr, startTime),
-                                              startTime, duration, titleStr, descriptionStr)) {
+                if (serviceIt->second.setNow (serviceIt->second.isEpgRecord (titleString, startTime),
+                                              startTime, duration, titleString, descriptionString)) {
                   // new now
                   auto pidInfoIt = mPidInfoMap.find (serviceIt->second.getProgramPid());
                   if (pidInfoIt != mPidInfoMap.end())
@@ -1732,13 +1737,13 @@ void cTransportStream::parseEit (cPidInfo* pidInfo, uint8_t* buf) {
                     pidInfoIt->second.mInfoStr = serviceIt->second.getChannelName() + " " +
                                                  serviceIt->second.getNowTitleString();
 
-                  start (&serviceIt->second, titleStr,
-                         mTime, startTime, serviceIt->second.isEpgRecord (titleStr, startTime));
+                  start (&serviceIt->second, titleString,
+                         mTime, startTime, serviceIt->second.isEpgRecord (titleString, startTime));
                   }
                 }
               }
             else // epg
-              serviceIt->second.setEpg (false, startTime, duration, titleStr, descriptionStr);
+              serviceIt->second.setEpg (false, startTime, duration, titleString, descriptionString);
             }
           }
           //}}}

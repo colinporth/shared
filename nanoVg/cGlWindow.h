@@ -32,6 +32,34 @@ public:
   int drawText (uint32_t colour, uint16_t fontHeight, std::string str, int16_t x, int16_t y, uint16_t width, uint16_t height);
   void ellipseSolid (uint32_t colour, int16_t x, int16_t y, uint16_t xradius, uint16_t yradius);
 
+  //{{{
+  void pixelClipped (uint32_t colour, int16_t x, int16_t y) {
+
+    drawRect(colour, x, y, 1, 1);
+    }
+  //}}}
+  //{{{
+  void stampClipped (uint32_t colour, uint8_t* src, int16_t x, int16_t y, uint16_t width, uint16_t height) {
+
+    stamp (colour, src, x, y, width, height);
+    }
+  //}}}
+  //{{{
+  void rectClipped (uint32_t colour, int16_t x, int16_t y, uint16_t width, uint16_t height) {
+
+    drawRect (colour, x, y, width, height);
+    }
+  //}}}
+  //{{{
+  void rectOutline (uint32_t colour, int16_t x, int16_t y, uint16_t width, uint16_t height, uint8_t thickness) {
+
+    drawRect(colour, x, y, width, thickness);
+    drawRect(colour, x + width-thickness, y, thickness, height);
+    drawRect(colour, x, y + height-thickness, width, thickness);
+    drawRect(colour, x, y, thickness, height);
+    }
+  //}}}
+
   // iChange
   void changed() {}
   void setChangeCountDown (int countDown) {}
