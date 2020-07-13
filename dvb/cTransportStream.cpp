@@ -25,7 +25,7 @@ using namespace std;
                                      ((10*((x##_s & 0xF0)>>4)) + (x##_s & 0xF)))
 //}}}
 //{{{  const, struct
-const int kBufSize = 512;
+const int kInitBufSize = 512;
 
 //{{{  pid defines
 #define PID_PAT   0x00   /* Program Association Table */
@@ -1393,11 +1393,11 @@ cPidInfo* cTransportStream::getPidInfo (int pid, bool createPsiOnly) {
 
       // create new psi cPidInfo, insert
       pidInfoIt = mPidInfoMap.insert (
-        map<int, cPidInfo>::value_type (pid, cPidInfo(pid, createPsiOnly))).first;
+        map<int, cPidInfo>::value_type (pid, cPidInfo (pid, createPsiOnly))).first;
 
       // allocate buffer
-      pidInfoIt->second.mBufSize = kBufSize;
-      pidInfoIt->second.mBuffer = (uint8_t*)malloc (kBufSize);
+      pidInfoIt->second.mBufSize = kInitBufSize;
+      pidInfoIt->second.mBuffer = (uint8_t*)malloc (kInitBufSize);
       }
     else
       return nullptr;
