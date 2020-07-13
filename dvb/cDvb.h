@@ -8,7 +8,9 @@
 
 class cDvb : public cDumpTransportStream {
 public:
-  cDvb (int frequency, const std::string& root, bool recordAll);
+  cDvb (int frequency, const std::string& root, 
+        const std::vector<std::string>& channelNames, const std::vector<std::string>& recordNames);
+
   virtual ~cDvb();
 
   void tune (int frequency);

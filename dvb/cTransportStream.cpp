@@ -668,7 +668,7 @@ void cService::setAudPid (int pid, int streamType) {
   }
 //}}}
 void cService::toggleShowEpg() { mShowEpg = !mShowEpg; }
-void cService::setName (const std::string& name) { mName = name;}
+void cService::setChannelName (const std::string& channelName) { mChannelName = channelName;}
 void cService::setSubPid (int pid, int streamType) { mSubPid = pid; }
 void cService::setProgramPid (int pid) { mProgramPid = pid; }
 //{{{
@@ -738,7 +738,7 @@ void cService::print() {
                       " vidPid:" + dec(mVidPid) +
                       " audPid:" + dec (mAudPid) +
                       " subPid:" + dec (mSubPid) +
-                      " " + mName);
+                      " " + mChannelName);
 
   if (mNowEpgItem)
     mNowEpgItem->print ("");
@@ -1646,9 +1646,9 @@ void cTransportStream::parseSdt (cPidInfo* pidInfo, uint8_t* buf) {
 
             auto it = mServiceMap.find (sid);
             if (it != mServiceMap.end()) {
-              if (it->second.getNameString().empty()) {
+              if (it->second.getChannelName().empty()) {
                 cLog::log (LOGINFO, "SDT - service " + dec(sid) +  " named " + name);
-                it->second.setName (name);
+                it->second.setChannelName (name);
                 }
               }
             else
@@ -1740,7 +1740,7 @@ void cTransportStream::parseEit (cPidInfo* pidInfo, uint8_t* buf) {
             // recognise service
             if (now) {
               if (running &&
-                  !serviceIt->second.getNameString().empty() &&
+                  !serviceIt->second.getChannelName().empty() &&
                   (serviceIt->second.getProgramPid() != -1)) {
                 // wait for named service with pgmPid
                 if (serviceIt->second.setNow (serviceIt->second.isEpgRecord(titleStr, startTime),
@@ -1749,7 +1749,7 @@ void cTransportStream::parseEit (cPidInfo* pidInfo, uint8_t* buf) {
                   auto pidInfoIt = mPidInfoMap.find (serviceIt->second.getProgramPid());
                   if (pidInfoIt != mPidInfoMap.end())
                     // update service pgmPid infoStr with new now
-                    pidInfoIt->second.mInfoStr = serviceIt->second.getNameString() +
+                    pidInfoIt->second.mInfoStr = serviceIt->second.getChannelName() +
                                                  " " + serviceIt->second.getNowTitleString();
 
                   start (&serviceIt->second, titleStr, startTime,
@@ -1817,7 +1817,7 @@ void cTransportStream::parsePmt (cPidInfo* pidInfo, uint8_t* buf) {
     service->setProgramPid (pidInfo->mPid);
 
     pidInfo->mSid = sid;
-    pidInfo->mInfoStr = service->getNameString() + " " + service->getNowTitleString();
+    pidInfo->mInfoStr = service->getChannelName() + " " + service->getNowTitleString();
 
     buf += sizeof(sPmt);
     sectionLength -= 4;

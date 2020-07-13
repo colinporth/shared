@@ -104,7 +104,7 @@ public:
   int getAudOtherPid() const { return mAudOtherPid; }
   int getSubPid() const { return mSubPid; }
 
-  std::string getNameString() { return mName; }
+  std::string getChannelName() { return mChannelName; }
 
   bool getShowEpg() { return mShowEpg; }
   cEpgItem* getNowEpgItem() { return mNowEpgItem; }
@@ -118,7 +118,7 @@ public:
   void setAudPid (int pid, int streamType);
   void toggleShowEpg();
 
-  void setName (const std::string& name);
+  void setChannelName (const std::string& channelName);
   void setSubPid (int pid, int streamType);
   void setProgramPid (int pid);
   bool setNow (bool record, std::chrono::system_clock::time_point time, std::chrono::seconds duration,
@@ -139,7 +139,7 @@ private:
   void writeSection (uint8_t* ts, uint8_t* tsSectionStart, uint8_t* tsPtr);
 
   const int mSid;
-  std::string mName;
+  std::string mChannelName;
 
   int mProgramPid = -1;
   int mVidPid = -1;

@@ -775,7 +775,10 @@ namespace { // anonymous
 
 // public:
 //{{{
-cDvb::cDvb (int frequency, const string& root, bool recordAll) : cDumpTransportStream (root, recordAll) {
+cDvb::cDvb (int frequency, const string& root,
+            const std::vector <std::string>& channelNames,
+            const std::vector <std::string>& recordNames)
+    : cDumpTransportStream (root, channelNames, recordNames) {
 
   #ifdef _WIN32
     // windows create and tune
