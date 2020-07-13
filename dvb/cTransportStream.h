@@ -61,7 +61,7 @@ public:
 class cEpgItem {
 public:
   cEpgItem (bool now, bool record, std::chrono::system_clock::time_point time, std::chrono::seconds duration,
-            const std::string& title, std::string description);
+            const std::string& title, const std::string& description);
   ~cEpgItem();
 
   std::string getTitleString() { return mTitle; }

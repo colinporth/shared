@@ -26,6 +26,7 @@ using namespace std;
 //}}}
 //{{{  const, struct
 const int kBufSize = 512;
+
 //{{{  pid defines
 #define PID_PAT   0x00   /* Program Association Table */
 #define PID_CAT   0x01   /* Conditional Access Table */
@@ -585,7 +586,7 @@ void cPidInfo::print() {
 // public:
 //{{{
 cEpgItem::cEpgItem (bool now, bool record, std::chrono::system_clock::time_point time, std::chrono::seconds duration,
-          const std::string& title, std::string description) :
+          const std::string& title, const std::string& description) :
   mNow(now), mRecord(record), mTime(time), mDuration(duration), mTitle(title), mDescription(description) {}
 //}}}
 cEpgItem::~cEpgItem() { cLog::log (LOGINFO3, "~cEpgItem"); }
