@@ -650,7 +650,7 @@ namespace { // anonymous
   int mDemux = 0;
   int mDvr = 0 ;
 
-  uint64_t mLastDiscontinuity = 0;
+  uint64_t mLastErrors = 0;
   int mLastBlockSize = 0;
   int mMaxBlockSize = 0;
   cBipBuffer* mBipBuffer;
@@ -1101,14 +1101,14 @@ void cDvb::grabThread() {
         streamPos += demux (ptr, blockSize, 0, false, -1);
         mBipBuffer->decommitBlock (blockSize);
 
-        bool show = (getDiscontinuity() != mLastDiscontinuity) || (blockSize > mLastBlockSize);
-        mLastDiscontinuity = getDiscontinuity();
+        bool show = (getErrors() != mLastErrors) || (blockSize > mLastBlockSize);
+        mLastErrors = getErrors();
         if (blockSize > mLastBlockSize)
           mLastBlockSize = blockSize;
         if (blockSize > mMaxBlockSize)
           mMaxBlockSize = blockSize;
 
-        mErrorStr = dec(getDiscontinuity()) + " " + dec(blockSize,6) + " max" + dec(mMaxBlockSize);
+        mErrorStr = dec(getErrors()) + " " + dec(blockSize,6) + " max" + dec(mMaxBlockSize);
         mSignalStr = updateSignalString();
 
         if (show)
