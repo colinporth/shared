@@ -8,9 +8,9 @@ class cDumpTransportStream : public cTransportStream {
 public:
   cDumpTransportStream (const std::string& rootName,
                         const std::vector <std::string>& channelStrings,
-                        const std::vector <std::string>& saveNames)
+                        const std::vector <std::string>& saveStrings)
     : mRootName(rootName),
-      mChannelStrings(channelStrings), mSaveNames(saveNames),
+      mChannelStrings(channelStrings), mSaveStrings(saveStrings),
       mRecordAll ((channelStrings.size() == 1) && (channelStrings[0] == "all")) {}
 
   virtual ~cDumpTransportStream() {}
@@ -29,15 +29,18 @@ protected:
     bool record = selected || mRecordAll;
     std::string saveName;
 
-    size_t i = 0;
-    for (auto& channelString : mChannelStrings) {
-      if (channelString == service->getChannelString()) {
-        record = true;
-        if (i < mSaveNames.size())
-          saveName = mSaveNames[i] +  " ";
-        break;
+    if (!mRecordAll) {
+      // filter and rename channel prefix
+      size_t i = 0;
+      for (auto& channelString : mChannelStrings) {
+        if (channelString == service->getChannelString()) {
+          record = true;
+          if (i < mSaveStrings.size())
+            saveName = mSaveStrings[i] +  " ";
+          break;
+          }
+        i++;
         }
-      i++;
       }
 
     saveName += date::format ("%d %b %y %a %H.%M", date::floor<std::chrono::seconds>(time));
@@ -76,7 +79,7 @@ private:
   std::string mRootName;
 
   std::vector<std::string> mChannelStrings;
-  std::vector<std::string> mSaveNames;
+  std::vector<std::string> mSaveStrings;
   bool mRecordAll;
 
   std::mutex mFileMutex;

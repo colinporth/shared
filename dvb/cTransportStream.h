@@ -40,7 +40,7 @@ public:
 
   int mPackets = 0;
   int mContinuity = -1;
-  int mDisContinuity = 0;
+  int mErrors = 0;
   int mRepeatContinuity = 0;
 
   int64_t mPts = -1;
@@ -184,13 +184,16 @@ public:
   virtual ~cTransportStream() { clear(); }
 
   //  gets
-  static char getFrameType (uint8_t* pesBuf, int64_t pesBufSize, int streamType);
-  uint64_t getDiscontinuity() { return mDiscontinuity; }
+  uint64_t getErrors() { return mErrors; }
   std::chrono::system_clock::time_point getTime() { return mTime; }
-  cService* getService (int index, int64_t& firstPts, int64_t& lastPts);
-  int64_t demux (uint8_t* tsBuf, int64_t tsBufSize, int64_t streamPos, bool skip, int decodePid);
-  virtual void clear();
 
+  cService* getService (int index, int64_t& firstPts, int64_t& lastPts);
+  static char getFrameType (uint8_t* pesBuf, int64_t pesBufSize, int streamType);
+
+  virtual void clear();
+  int64_t demux (uint8_t* tsBuf, int64_t tsBufSize, int64_t streamPos, bool skip, int decodePid);
+
+  // vars, public for widget
   std::mutex mMutex;
   std::map<int,cPidInfo> mPidInfoMap;
   std::map<int,cService> mServiceMap;
@@ -226,7 +229,7 @@ private:
   int parsePsi (cPidInfo* pidInfo, uint8_t* buf);
 
   // vars
-  uint64_t mDiscontinuity = 0;
+  uint64_t mErrors = 0;
 
   std::map<int,int> mProgramMap;
 

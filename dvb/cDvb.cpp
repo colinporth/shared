@@ -1071,8 +1071,8 @@ void cDvb::grabThread() {
           releaseBlock (blockSize);
 
           mErrorStr.clear();
-          if (getDiscontinuity())
-            mErrorStr += dec (getDiscontinuity()) + " errors ";
+          if (getErrors())
+            mErrorStr += dec (getErrors()) + " errors ";
           if (streamPos < 1000000)
             mErrorStr = dec(streamPos/1000) + "k";
           else

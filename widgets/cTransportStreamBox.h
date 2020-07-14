@@ -28,7 +28,7 @@ public:
       auto x = mX+2;
 
       auto str = dec (pidInfo.second.mPackets,mPacketDigits) +
-                 (mContDigits ? (":" + dec(pidInfo.second.mDisContinuity, mContDigits)) : "") +
+                 (mContDigits ? (":" + dec(pidInfo.second.mErrors, mContDigits)) : "") +
                  " " + dec(pidInfo.first, 4) +
                  " " + getFullPtsString (pidInfo.second.mPts) +
                  " " + pidInfo.second.getTypeString();
@@ -46,7 +46,7 @@ public:
       //if (y > mY + mHeight)
       //  break;
       }
-    if (mTs->getDiscontinuity() > pow (10, mContDigits))
+    if (mTs->getErrors() > pow (10, mContDigits))
       mContDigits++;
     }
 
