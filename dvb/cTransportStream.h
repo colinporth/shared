@@ -213,12 +213,9 @@ protected:
   void clearPidContinuity();
 
 private:
+  int64_t getPts (uint8_t* tsPtr);
   cPidInfo* getPidInfo (int pid, bool createPsiOnly);
-  int64_t getPtsDts (uint8_t* tsPtr);
-  std::string getDescrStr (uint8_t* buf, int len);
-
-  void parseDescr (int key, uint8_t* buf, int tid);
-  void parseDescrs (int key, uint8_t* buf, int len, uint8_t tid);
+  std::string getDescrString (uint8_t* buf, int len);
 
   void parsePat (cPidInfo* pidInfo, uint8_t* buf);
   void parseNit (cPidInfo* pidInfo, uint8_t* buf);

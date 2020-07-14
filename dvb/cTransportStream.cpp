@@ -1250,7 +1250,7 @@ int64_t cTransportStream::demux (uint8_t* tsBuf, int64_t tsBufSize, int64_t stre
                   pidInfo->mStreamPos = streamPos;
 
                   // form pts, firstPts, lastPts
-                  pidInfo->mPts = (ts[7] & 0x80) ? getPtsDts (ts+9) : -1;
+                  pidInfo->mPts = (ts[7] & 0x80) ? getPts (ts+9) : -1;
                   if (pidInfo->mFirstPts == -1)
                     pidInfo->mFirstPts = pidInfo->mPts;
                   if (pidInfo->mPts > pidInfo->mLastPts)
@@ -1308,6 +1308,25 @@ void cTransportStream::clearPidContinuity() {
 
 //  private:
 //{{{
+int64_t cTransportStream::getPts (uint8_t* tsPtr) {
+// return 33 bits of pts,dts
+
+  if ((tsPtr[0] & 0x01) && (tsPtr[2] & 0x01) && (tsPtr[4] & 0x01)) {
+    // valid marker bits
+    int64_t pts = tsPtr[0] & 0x0E;
+    pts = (pts << 7) | tsPtr[1];
+    pts = (pts << 8) | (tsPtr[2] & 0xFE);
+    pts = (pts << 7) | tsPtr[3];
+    pts = (pts << 7) | (tsPtr[4] >> 1);
+    return pts;
+    }
+  else
+    cLog::log (LOGERROR, "getPts - marker bits - %02x %02x %02x %02x 0x02",
+                         tsPtr[0], tsPtr[1],tsPtr[2],tsPtr[3],tsPtr[4]);
+  return -1;
+  }
+//}}}
+//{{{
 cPidInfo* cTransportStream::getPidInfo (int pid, bool createPsiOnly) {
 // find or create pidInfo by pid
 
@@ -1319,8 +1338,7 @@ cPidInfo* cTransportStream::getPidInfo (int pid, bool createPsiOnly) {
         (mProgramMap.find (pid) != mProgramMap.end())) {
 
       // create new psi cPidInfo, insert
-      pidInfoIt = mPidInfoMap.insert (
-        map<int, cPidInfo>::value_type (pid, cPidInfo (pid, createPsiOnly))).first;
+      pidInfoIt = mPidInfoMap.insert (map <int, cPidInfo>::value_type (pid, cPidInfo (pid, createPsiOnly))).first;
 
       // allocate buffer
       pidInfoIt->second.mBufSize = kInitBufSize;
@@ -1334,97 +1352,27 @@ cPidInfo* cTransportStream::getPidInfo (int pid, bool createPsiOnly) {
   }
 //}}}
 //{{{
-int64_t cTransportStream::getPtsDts (uint8_t* tsPtr) {
-// return 33 bits of pts,dts
-
-  if ((tsPtr[0] & 0x01) && (tsPtr[2] & 0x01) && (tsPtr[4] & 0x01)) {
-    // valid marker bits
-    int64_t pts = tsPtr[0] & 0x0E;
-    pts = (pts << 7) | tsPtr[1];
-    pts = (pts << 8) | (tsPtr[2] & 0xFE);
-    pts = (pts << 7) | tsPtr[3];
-    pts = (pts << 7) | (tsPtr[4] >> 1);
-    return pts;
-    }
-  else
-    cLog::log (LOGERROR, "getPtsDts - marker bits - %02x %02x %02x %02x 0x02",
-                         tsPtr[0], tsPtr[1],tsPtr[2],tsPtr[3],tsPtr[4]);
-  return -1;
-  }
-//}}}
-//{{{
-string cTransportStream::getDescrStr (uint8_t* buf, int len) {
+string cTransportStream::getDescrString (uint8_t* buf, int len) {
 
   string str;
+
   for (auto i = 0; i < len; i++) {
     if (*buf == 0)
       break;
+
     if ((*buf >= ' ' && *buf <= '~') || (*buf == '\n') || (*buf >= 0xa0 && *buf <= 0xff))
       str += *buf;
+
     if (*buf == 0x8A)
       str += '\n';
+
     if ((*buf == 0x86 || *buf == 0x87))
       str += ' ';
+
     buf++;
     }
 
   return str;
-  }
-//}}}
-
-//{{{
-void cTransportStream::parseDescr (int key, uint8_t* buf, int tid) {
-
-  switch (getDescrTag(buf)) {
-    case DESCR_EXT_EVENT: {
-      auto text = getDescrStr (
-        buf + sizeof(descr_extended_event_struct) + CastExtendedEventDescr(buf)->length_of_items + 1,
-        *((uint8_t*)(buf + sizeof(descr_extended_event_struct) + CastExtendedEventDescr(buf)->length_of_items)));
-
-      cLog::log (LOGINFO, "extended event - %d %d %c%c%c %s",
-                           CastExtendedEventDescr(buf)->descr_number, CastExtendedEventDescr(buf)->last_descr_number,
-                           CastExtendedEventDescr(buf)->lang_code1,
-                           CastExtendedEventDescr(buf)->lang_code2,
-                           CastExtendedEventDescr(buf)->lang_code3, text.c_str());
-
-      auto ptr = buf + sizeof(descr_extended_event_struct);
-      auto length = CastExtendedEventDescr(buf)->length_of_items;
-      while ((length > 0) && (length < getDescrLength (buf))) {
-        text = getDescrStr (ptr + sizeof(item_extended_event_struct), CastExtendedEventItem(ptr)->item_description_length);
-        auto text2 = getDescrStr (
-          ptr + sizeof(item_extended_event_struct) +
-          CastExtendedEventItem(ptr)->item_description_length + 1,
-          *(uint8_t*)(ptr + sizeof(item_extended_event_struct) +
-                      CastExtendedEventItem(ptr)->item_description_length));
-        cLog::log (LOGINFO, "- %s %s", text.c_str(), text2.c_str());
-
-        length -= sizeof(item_extended_event_struct) + CastExtendedEventItem(ptr)->item_description_length +
-                  *((uint8_t*)(ptr + sizeof(item_extended_event_struct) +
-                                CastExtendedEventItem(ptr)->item_description_length)) + 1;
-
-        ptr += sizeof(item_extended_event_struct) + CastExtendedEventItem(ptr)->item_description_length +
-               *((uint8_t*)(ptr + sizeof(item_extended_event_struct) +
-                             CastExtendedEventItem(ptr)->item_description_length)) + 1;
-        }
-
-      break;
-      }
-    }
-  }
-//}}}
-//{{{
-void cTransportStream::parseDescrs (int key, uint8_t* buf, int len, uint8_t tid) {
-
- auto descrLength = 0;
- while (descrLength < len) {
-   if ((getDescrLength (buf) <= 0) || (getDescrLength (buf) > len - descrLength))
-     return;
-
-    parseDescr (key, buf, tid);
-
-    descrLength += getDescrLength (buf);
-    buf += getDescrLength (buf);
-    }
   }
 //}}}
 
@@ -1486,8 +1434,6 @@ void cTransportStream::parseNit (cPidInfo* pidInfo, uint8_t* buf) {
 
   sectionLength -= sizeof(sNit) + 4;
   if (loopLength <= sectionLength) {
-    if (sectionLength >= 0)
-      parseDescrs (networkId, buf, loopLength, nit->table_id);
     sectionLength -= loopLength;
 
     buf += loopLength;
@@ -1503,10 +1449,6 @@ void cTransportStream::parseNit (cPidInfo* pidInfo, uint8_t* buf) {
         auto tsid = HILO (TSDesc->transport_stream_id);
         auto loopLength2 = HILO (TSDesc->transport_descrs_length);
         buf += sizeof(sNitTs);
-        if (loopLength2 <= loopLength)
-          if (loopLength >= 0)
-            parseDescrs (tsid, buf, loopLength2, nit->table_id);
-
         loopLength -= loopLength2 + sizeof(sNitTs);
         sectionLength -= loopLength2 + sizeof(sNitTs);
         buf += loopLength2;
@@ -1547,7 +1489,7 @@ void cTransportStream::parseSdt (cPidInfo* pidInfo, uint8_t* buf) {
         switch (getDescrTag (buf)) {
           case DESCR_SERVICE: {
             //{{{  service
-            auto name = getDescrStr (
+            auto name = getDescrString (
               buf + sizeof(descr_service_t) + ((descr_service_t*)buf)->provider_name_length + 1,
               *((uint8_t*)(buf + sizeof (descr_service_t) + ((descr_service_t*)buf)->provider_name_length)));
 
@@ -1633,13 +1575,13 @@ void cTransportStream::parseEit (cPidInfo* pidInfo, uint8_t* buf) {
             // get title
             auto bufPtr = buf + sizeof(descr_short_event_struct);
             auto bufLen = ((descr_short_event_t*)buf)->event_name_length;
-            auto titleString = isHuff (bufPtr) ? huffDecode (bufPtr, bufLen) : getDescrStr (bufPtr, bufLen);
+            auto titleString = isHuff (bufPtr) ? huffDecode (bufPtr, bufLen) : getDescrString (bufPtr, bufLen);
 
             // get info
             bufPtr += ((descr_short_event_t*)buf)->event_name_length + 1;
             bufLen = *((uint8_t*)(buf + sizeof(descr_short_event_struct) +
                      ((descr_short_event_t*)buf)->event_name_length));
-            auto infoString = isHuff (bufPtr) ? huffDecode (bufPtr, bufLen) : getDescrStr (bufPtr, bufLen);
+            auto infoString = isHuff (bufPtr) ? huffDecode (bufPtr, bufLen) : getDescrString (bufPtr, bufLen);
 
             if (now) {
               // now event
@@ -1729,8 +1671,6 @@ void cTransportStream::parsePmt (cPidInfo* pidInfo, uint8_t* buf) {
     sectionLength -= 4;
     auto programInfoLength = HILO (pmt->program_info_length);
     auto streamLength = sectionLength - programInfoLength - sizeof(sPmt);
-    if (streamLength >= 0)
-      parseDescrs (sid, buf, programInfoLength, pmt->table_id);
 
     buf += programInfoLength;
     while (streamLength > 0) {
@@ -1771,9 +1711,6 @@ void cTransportStream::parsePmt (cPidInfo* pidInfo, uint8_t* buf) {
       //}}}
 
       auto loopLength = HILO (pmtInfo->ES_info_length);
-      if (loopLength >= 0)
-        parseDescrs (sid, buf, loopLength, pmt->table_id);
-
       buf += sizeof(sPmtInfo);
       streamLength -= loopLength + sizeof(sPmtInfo);
       buf += loopLength;
