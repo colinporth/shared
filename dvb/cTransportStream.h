@@ -19,20 +19,19 @@
 //{{{
 class cPidInfo {
 public:
-  cPidInfo (int pid, bool isPsi);
+  cPidInfo (int pid, bool isPsi) : mPid(pid), mPsi(isPsi) {}
   ~cPidInfo();
 
   int getBufUsed();
   std::string getTypeString();
   std::string getInfoString();
-  std::wstring getTypeWstring();
-  std::wstring getInfoWstring();
   int addToBuffer (uint8_t* buf, int bufSize);
 
   void clearCounts();
   void clearContinuity();
   void print();
 
+  // vars
   const int mPid;
   const bool mPsi;
 
@@ -54,26 +53,40 @@ public:
 
   int64_t mStreamPos = -1;
 
-  std::string mInfoStr;
+  std::string mInfoString;
   };
 //}}}
 //{{{
 class cEpgItem {
 public:
-  cEpgItem (bool now, bool record, std::chrono::system_clock::time_point time, std::chrono::seconds duration,
-            const std::string& title, const std::string& description);
+  cEpgItem (bool now, bool record,
+            std::chrono::system_clock::time_point time, std::chrono::seconds duration,
+            const std::string& titleString, const std::string& infoString)
+    : mNow(now), mRecord(record), mTime(time), mDuration(duration), mTitleString(titleString), mInfoString(infoString) {}
   ~cEpgItem();
 
-  std::string getTitleString() { return mTitle; }
-  std::string getDesriptionString() { return mDescription; }
+  bool getRecord() { return mRecord; }
+  std::string getTitleString() { return mTitleString; }
+  std::string getDesriptionString() { return mInfoString; }
 
   std::chrono::seconds getDuration() { return mDuration; }
   std::chrono::system_clock::time_point getTime() { return mTime; }
 
-  bool getRecord() { return mRecord; }
-
-  bool toggleRecord();
-  void set (std::chrono::system_clock::time_point time, std::chrono::seconds duration, const std::string& title, const std::string& description);
+  //{{{
+  bool toggleRecord() {
+    mRecord = !mRecord;
+    return mRecord;
+    }
+  //}}}
+  //{{{
+  void set (std::chrono::system_clock::time_point time, std::chrono::seconds duration,
+            const std::string& titleString, const std::string& infoString) {
+    mTime = time;
+    mDuration = duration;
+    mTitleString = titleString;
+    mInfoString = infoString;
+    }
+  //}}}
 
   void print (const std::string& prefix);
 
@@ -84,14 +97,15 @@ private:
 
   std::chrono::system_clock::time_point mTime;
   std::chrono::seconds mDuration;
-  std::string mTitle;
-  std::string mDescription;
+
+  std::string mTitleString;
+  std::string mInfoString;
   };
 //}}}
 //{{{
 class cService {
 public:
-  cService (int sid);
+  cService (int sid) : mSid(sid) {}
   ~cService();
 
   // gets
@@ -103,27 +117,34 @@ public:
   int getAudStreamType() const { return mAudStreamType; }
   int getAudOtherPid() const { return mAudOtherPid; }
 
-  std::string getChannelName() { return mChannelName; }
-
-  bool getShowEpg() { return mShowEpg; }
   cEpgItem* getNowEpgItem() { return mNowEpgItem; }
+  std::string getChannelString() { return mChannelString; }
   std::string getNowTitleString() { return mNowEpgItem ? mNowEpgItem->getTitleString() : ""; }
-  std::map<std::chrono::system_clock::time_point,cEpgItem*>& getEpgItemMap() { return mEpgItemMap; }
-
-  bool isEpgRecord (const std::string& title, std::chrono::system_clock::time_point startTime);
+  std::map <std::chrono::system_clock::time_point, cEpgItem*>& getEpgItemMap() { return mEpgItemMap; }
 
   //  sets
-  void setVidPid (int pid, int streamType);
+  //{{{
+  void setVidPid (int pid, int streamType) {
+    mVidPid = pid;
+    mVidStreamType = streamType;
+    }
+  //}}}
   void setAudPid (int pid, int streamType);
-  void toggleShowEpg();
+  void setChannelString (const std::string& channelString) { mChannelString = channelString;}
+  void setProgramPid (int pid) { mProgramPid = pid; }
 
-  void setChannelName (const std::string& channelName);
-  void setProgramPid (int pid);
-  bool setNow (bool record, std::chrono::system_clock::time_point time, std::chrono::seconds duration,
+  bool setNow (bool record,
+               std::chrono::system_clock::time_point time, std::chrono::seconds duration,
                const std::string& str1, const std::string& str2);
-  bool setEpg (bool record, std::chrono::system_clock::time_point startTime, std::chrono::seconds duration,
-               const std::string& title, const std::string& description);
-  // file
+  bool setEpg (bool record,
+               std::chrono::system_clock::time_point startTime, std::chrono::seconds duration,
+               const std::string& titleString, const std::string& infoString);
+
+  // override info
+  bool getShowEpg() { return mShowEpg; }
+  bool isEpgRecord (const std::string& title, std::chrono::system_clock::time_point startTime);
+  void toggleShowEpg() { mShowEpg = !mShowEpg; }
+
   bool openFile (const std::string& fileName, int tsid);
   void writePacket (uint8_t* ts, int pid);
   void closeFile();
@@ -136,9 +157,8 @@ private:
   void writePmt();
   void writeSection (uint8_t* ts, uint8_t* tsSectionStart, uint8_t* tsPtr);
 
+  // vars
   const int mSid;
-  std::string mChannelName;
-
   int mProgramPid = -1;
   int mVidPid = -1;
   int mVidStreamType = 0;
@@ -146,9 +166,12 @@ private:
   int mAudOtherPid = -1;
   int mAudStreamType = 0;
 
-  cEpgItem* mNowEpgItem = nullptr;
-  std::map<std::chrono::system_clock::time_point,cEpgItem*> mEpgItemMap;
+  std::string mChannelString;
 
+  cEpgItem* mNowEpgItem = nullptr;
+  std::map <std::chrono::system_clock::time_point, cEpgItem*> mEpgItemMap;
+
+  // override info, simpler to hold it here for now
   bool mShowEpg = true;
   FILE* mFile = nullptr;
   };
@@ -176,8 +199,8 @@ protected:
   virtual bool audDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
   virtual bool vidDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
 
-  virtual void start (cService* service, const std::string& name, 
-                      std::chrono::system_clock::time_point time, 
+  virtual void start (cService* service, const std::string& name,
+                      std::chrono::system_clock::time_point time,
                       std::chrono::system_clock::time_point startTime,
                       bool selected) {}
   virtual void pesPacket (int sid, int pid, uint8_t* ts) {}

@@ -7,11 +7,11 @@
 class cDumpTransportStream : public cTransportStream {
 public:
   cDumpTransportStream (const std::string& rootName,
-                        const std::vector <std::string>& channelNames,
+                        const std::vector <std::string>& channelStrings,
                         const std::vector <std::string>& saveNames)
     : mRootName(rootName),
-      mChannelNames(channelNames), mSaveNames(saveNames),
-      mRecordAll ((channelNames.size() == 1) && (channelNames[0] == "all")) {}
+      mChannelStrings(channelStrings), mSaveNames(saveNames),
+      mRecordAll ((channelStrings.size() == 1) && (channelStrings[0] == "all")) {}
 
   virtual ~cDumpTransportStream() {}
 
@@ -30,8 +30,8 @@ protected:
     std::string saveName;
 
     size_t i = 0;
-    for (auto& channelName : mChannelNames) {
-      if (channelName == service->getChannelName()) {
+    for (auto& channelString : mChannelStrings) {
+      if (channelString == service->getChannelString()) {
         record = true;
         if (i < mSaveNames.size())
           saveName = mSaveNames[i] +  " ";
@@ -75,7 +75,7 @@ protected:
 private:
   std::string mRootName;
 
-  std::vector<std::string> mChannelNames;
+  std::vector<std::string> mChannelStrings;
   std::vector<std::string> mSaveNames;
   bool mRecordAll;
 

@@ -445,7 +445,6 @@ static uint32_t getCrc32 (uint32_t crc, uint8_t* buf, unsigned int len) {
 
 //{{{  cPidInfo
 // public:
-cPidInfo::cPidInfo (int pid, bool isPsi) : mPid(pid), mPsi(isPsi) {}
 //{{{
 cPidInfo::~cPidInfo() {
   free (mBuffer);
@@ -494,51 +493,7 @@ string cPidInfo::getTypeString() {
 //{{{
 string cPidInfo::getInfoString() {
 
-  return (mSid > 0 ? dec(mSid) : "") + (mInfoStr.empty() ? "" : " " + mInfoStr);
-  }
-//}}}
-//{{{
-wstring cPidInfo::getTypeWstring() {
-
-  // known pids
-  switch (mPid) {
-    case PID_PAT: return L"PAT";
-    case PID_CAT: return L"CAT";
-    case PID_NIT: return L"NIT";
-    case PID_SDT: return L"SDT";
-    case PID_EIT: return L"EIT";
-    case PID_RST: return L"RST";
-    case PID_TDT: return L"TDT";
-    case PID_SYN: return L"SYN";
-    }
-
-  if (mSid != -1) {
-    // service - pgm or es
-    switch (mStreamType) {
-      case   0: return L"pgm";
-      case   2: return L"m2v"; // ISO 13818-2 video
-      case   3: return L"m2a"; // ISO 11172-3 audio
-      case   4: return L"m3a"; // ISO 13818-3 audio
-      case   5: return L"mtd"; // private mpeg2 tabled data - private
-      case   6: return L"sub"; // subtitle
-      case  11: return L"dsm"; // dsm cc u_n
-      case  13: return L"dsm"; // dsm cc tabled data
-      case  15: return L"aac"; // HD aud ADTS
-      case  17: return L"aac"; // HD aud LATM
-      case  27: return L"264"; // HD vid
-      case 129: return L"ac3"; // aud AC3
-      default : return wdec(mStreamType,3);
-      }
-    }
-
-  // unknown pid
-  return L"---";
-  }
-//}}}
-//{{{
-wstring cPidInfo::getInfoWstring() {
-
-  return (mSid > 0 ? wdec(mSid) : L"") + (mInfoStr.empty() ? L"" : L" " + strToWstr(mInfoStr));
+  return (mSid > 0 ? dec(mSid) : "") + (mInfoString.empty() ? "" : " " + mInfoString);
   }
 //}}}
 
@@ -588,43 +543,19 @@ void cPidInfo::print() {
 //}}}
 //{{{  cEpgItem
 // public:
-//{{{
-cEpgItem::cEpgItem (bool now, bool record,
-                    chrono::system_clock::time_point time, chrono::seconds duration,
-                    const string& title, const string& description)
-    : mNow(now), mRecord(record), mTime(time), mDuration(duration), mTitle(title), mDescription(description) {}
-//}}}
 cEpgItem::~cEpgItem() { cLog::log (LOGINFO3, "~cEpgItem"); }
 
 //{{{
-bool cEpgItem::toggleRecord() {
-  mRecord = !mRecord;
-  return mRecord;
-  }
-//}}}
-//{{{
-void cEpgItem::set (chrono::system_clock::time_point time, chrono::seconds duration,
-                    const string& title, const string& description) {
-
-  mDuration = duration;
-  mTime = time;
-
-  mTitle = title;
-  mDescription = description;
-  }
-//}}}
-
-//{{{
 void cEpgItem::print (const string& prefix) {
+
   cLog::log (LOGINFO, prefix + date::format ("%D %T", date::floor<chrono::seconds>(mTime)) +
                       " " + dec(chrono::duration_cast<chrono::minutes>(mDuration).count()) + "m" +
-                      " " + mTitle);
+                      " " + mTitleString);
   }
 //}}}
 //}}}
 //{{{  cService
 // public:
-cService::cService (int sid) : mSid(sid) {}
 //{{{
 cService::~cService() {
 
@@ -638,6 +569,7 @@ cService::~cService() {
   }
 //}}}
 
+// get
 //{{{
 bool cService::isEpgRecord (const string& title, chrono::system_clock::time_point startTime) {
 // return true if startTime, title selected to record in epg
@@ -654,12 +586,6 @@ bool cService::isEpgRecord (const string& title, chrono::system_clock::time_poin
 
 //  sets
 //{{{
-void cService::setVidPid (int pid, int streamType) {
-  mVidPid = pid;
-  mVidStreamType = streamType;
-  }
-//}}}
-//{{{
 void cService::setAudPid (int pid, int streamType) {
 
   if ((pid != mAudPid) && (pid != mAudOtherPid)) {
@@ -673,20 +599,17 @@ void cService::setAudPid (int pid, int streamType) {
     }
   }
 //}}}
-void cService::toggleShowEpg() { mShowEpg = !mShowEpg; }
-void cService::setChannelName (const string& channelName) { mChannelName = channelName;}
-void cService::setProgramPid (int pid) { mProgramPid = pid; }
 //{{{
 bool cService::setNow (bool record,
                        chrono::system_clock::time_point time, chrono::seconds duration,
-                       const string& titleString, const string& descriptionString) {
+                       const string& titleString, const string& infoString) {
 
   if (mNowEpgItem && (mNowEpgItem->getTime() == time))
     return false;
 
   delete mNowEpgItem;
 
-  mNowEpgItem = new cEpgItem (true, record, time, duration, titleString, descriptionString);
+  mNowEpgItem = new cEpgItem (true, record, time, duration, titleString, infoString);
 
   return true;
   }
@@ -694,23 +617,23 @@ bool cService::setNow (bool record,
 //{{{
 bool cService::setEpg (bool record,
                        chrono::system_clock::time_point startTime, chrono::seconds duration,
-                       const string& title, const string& description) {
+                       const string& titleString, const string& infoString) {
 // could return true only if changed
 
   auto epgItemIt = mEpgItemMap.find (startTime);
   if (epgItemIt == mEpgItemMap.end()) {
     mEpgItemMap.insert (
       map<chrono::system_clock::time_point, cEpgItem*>::value_type (
-        startTime, new cEpgItem (false, record, startTime, duration, title, description)));
+        startTime, new cEpgItem (false, record, startTime, duration, titleString, infoString)));
     }
   else
-    epgItemIt->second->set (startTime, duration, title, description);
+    epgItemIt->second->set (startTime, duration, titleString, infoString);
 
   return true;
   }
 //}}}
 
-// file
+// file, probably wrong here but saves duplicating file elsewhere
 //{{{
 bool cService::openFile (const string& fileName, int tsid) {
 
@@ -737,18 +660,17 @@ void cService::closeFile() {
 
   if (mFile)
     fclose (mFile);
+
   mFile = nullptr;
   }
 //}}}
 
 //{{{
 void cService::print() {
-  cLog::log (LOGINFO, "sid:" + dec(mSid) +
-                      " pgmPid:" + dec (mProgramPid) +
-                      " vidPid:" + dec(mVidPid) +
-                      " audPid:" + dec (mAudPid) +
-                      " " + mChannelName);
 
+  cLog::log (LOGINFO, "sid:" + dec(mSid) + " ppid:" + dec (mProgramPid) +
+                      " vpid:" + dec(mVidPid) + " apid:" + dec (mAudPid) +
+                      " " + mChannelString);
   if (mNowEpgItem)
     mNowEpgItem->print ("");
 
@@ -772,6 +694,7 @@ uint8_t* cService::tsHeader (uint8_t* ts, int pid, int continuityCount) {
   return ts;
   }
 //}}}
+
 //{{{
 void cService::writePat (int tsid) {
 
@@ -1629,9 +1552,9 @@ void cTransportStream::parseSdt (cPidInfo* pidInfo, uint8_t* buf) {
 
             auto it = mServiceMap.find (sid);
             if (it != mServiceMap.end()) {
-              if (it->second.getChannelName().empty()) {
+              if (it->second.getChannelString().empty()) {
                 cLog::log (LOGINFO, dec(sid) +  " " + name);
-                it->second.setChannelName (name);
+                it->second.setChannelString (name);
                 }
               }
             else
@@ -1679,6 +1602,7 @@ void cTransportStream::parseEit (cPidInfo* pidInfo, uint8_t* buf) {
     //}}}
 
   auto tid = eit->table_id;
+
   auto now = (tid == TID_EIT_ACT);
   auto next = (tid == TID_EIT_OTH);
   auto epg = (tid == TID_EIT_ACT_SCH) || (tid == TID_EIT_OTH_SCH) ||
@@ -1694,57 +1618,55 @@ void cTransportStream::parseEit (cPidInfo* pidInfo, uint8_t* buf) {
       buf += sizeof(sEitEvent);
       sectionLength -= sizeof(sEitEvent);
 
-      // parse Descriptors
+      // parse descriptors
       while (loopLength > 0) {
         if (getDescrTag (buf) == DESCR_SHORT_EVENT)  {
           //{{{  shortEvent
-          auto startTime = chrono::system_clock::from_time_t (MjdToEpochTime (eitEvent->mjd) +
-                                                                   BcdTimeToSeconds (eitEvent->start_time));
-          chrono::seconds duration (BcdTimeToSeconds (eitEvent->duration));
-          auto running = (eitEvent->running_status == 0x04);
-
-          // get title
-          auto eventBuf = buf + sizeof(descr_short_event_struct);
-          auto eventBufLen = ((descr_short_event_t*)(buf))->event_name_length;
-          auto titleString = huffDecode (eventBuf, eventBufLen);
-          if (titleString.empty())
-            titleString = getDescrStr (eventBuf, eventBufLen);
-
-          // get description
-          eventBuf += ((descr_short_event_t*)(buf))->event_name_length + 1;
-          eventBufLen = *((uint8_t*)(buf + sizeof(descr_short_event_struct) +
-                                     ((descr_short_event_t*)(buf))->event_name_length));
-          auto descriptionString = huffDecode (eventBuf, eventBufLen);
-          if (descriptionString.empty())
-            descriptionString = getDescrStr (eventBuf, eventBufLen);
-
           auto serviceIt = mServiceMap.find (sid);
           if (serviceIt != mServiceMap.end()) {
-            // recognise service
+            // known service
+            auto startTime = chrono::system_clock::from_time_t (
+              MjdToEpochTime (eitEvent->mjd) + BcdTimeToSeconds (eitEvent->start_time));
+            chrono::seconds duration (BcdTimeToSeconds (eitEvent->duration));
+
+            // get title
+            auto bufPtr = buf + sizeof(descr_short_event_struct);
+            auto bufLen = ((descr_short_event_t*)buf)->event_name_length;
+            auto titleString = isHuff (bufPtr) ? huffDecode (bufPtr, bufLen) : getDescrStr (bufPtr, bufLen);
+
+            // get info
+            bufPtr += ((descr_short_event_t*)buf)->event_name_length + 1;
+            bufLen = *((uint8_t*)(buf + sizeof(descr_short_event_struct) +
+                     ((descr_short_event_t*)buf)->event_name_length));
+            auto infoString = isHuff (bufPtr) ? huffDecode (bufPtr, bufLen) : getDescrStr (bufPtr, bufLen);
+
             if (now) {
+              // now event
+              auto running = (eitEvent->running_status == 0x04);
               if (running &&
-                  !serviceIt->second.getChannelName().empty() &&
-                  (serviceIt->second.getProgramPid() != -1)) {
-                // wait for named service with pgmPid
+                  !serviceIt->second.getChannelString().empty() && (serviceIt->second.getProgramPid() != -1)) {
+                // event for named service with pgmPid
                 if (serviceIt->second.setNow (serviceIt->second.isEpgRecord (titleString, startTime),
-                                              startTime, duration, titleString, descriptionString)) {
-                  // new now
+                                              startTime, duration, titleString, infoString)) {
+                  // new now event
                   auto pidInfoIt = mPidInfoMap.find (serviceIt->second.getProgramPid());
                   if (pidInfoIt != mPidInfoMap.end())
-                    // update service pgmPid infoStr with new now
-                    pidInfoIt->second.mInfoStr = serviceIt->second.getChannelName() + " " +
-                                                 serviceIt->second.getNowTitleString();
+                    // update service pgmPid infoStr with new now event
+                    pidInfoIt->second.mInfoString = serviceIt->second.getChannelString() + " " +
+                                                    serviceIt->second.getNowTitleString();
 
+                  // callback to override to start new program
                   start (&serviceIt->second, titleString,
                          mTime, startTime, serviceIt->second.isEpgRecord (titleString, startTime));
                   }
                 }
               }
-            else // epg
-              serviceIt->second.setEpg (false, startTime, duration, titleString, descriptionString);
+            else // epg event, add it
+              serviceIt->second.setEpg (false, startTime, duration, titleString, infoString);
             }
           }
           //}}}
+
         loopLength -= getDescrLength (buf);
         sectionLength -= getDescrLength (buf);
         buf += getDescrLength (buf);
@@ -1767,8 +1689,8 @@ void cTransportStream::parseTdt (cPidInfo* pidInfo, uint8_t* buf) {
       mTimeDefined = true;
       }
 
-    pidInfo->mInfoStr = date::format ("%T", date::floor<chrono::seconds>(mFirstTime)) +
-                        " to " + date::format ("%T", date::floor<chrono::seconds>(mTime));
+    pidInfo->mInfoString = date::format ("%T", date::floor<chrono::seconds>(mFirstTime)) +
+                           " to " + date::format ("%T", date::floor<chrono::seconds>(mTime));
     }
   }
 //}}}
@@ -1800,7 +1722,7 @@ void cTransportStream::parsePmt (cPidInfo* pidInfo, uint8_t* buf) {
     service->setProgramPid (pidInfo->mPid);
 
     pidInfo->mSid = sid;
-    pidInfo->mInfoStr = service->getChannelName() + " " + service->getNowTitleString();
+    pidInfo->mInfoString = service->getChannelString() + " " + service->getNowTitleString();
 
     buf += sizeof(sPmt);
     sectionLength -= 4;
