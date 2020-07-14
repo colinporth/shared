@@ -518,8 +518,9 @@ cService::~cService() {
 
   delete mNowEpgItem;
 
-  for (auto& epgItem : mEpgItemMap)
+  for (auto &epgItem : mEpgItemMap)
     delete epgItem.second;
+
   mEpgItemMap.clear();
   }
 //}}}
@@ -1321,7 +1322,7 @@ void cTransportStream::parsePat (cPidInfo* pidInfo, uint8_t* buf) {
   auto pat = (sPat*)buf;
   auto sectionLength = HILO(pat->section_length) + 3;
   if (getCrc32 (0xffffffff, buf, sectionLength) != 0) {
-    //{{{  bad crc
+    //{{{  bad crc error, return
     cLog::log (LOGERROR, "parsePAT - bad crc - sectionLength:" + dec(sectionLength));
     return;
     }
@@ -1349,7 +1350,7 @@ void cTransportStream::parseNit (cPidInfo* pidInfo, uint8_t* buf) {
   auto nit = (sNit*)buf;
   auto sectionLength = HILO(nit->section_length) + 3;
   if (getCrc32 (0xffffffff, buf, sectionLength) != 0) {
-    //{{{  bad crc
+    //{{{  bad crc, error, return
     cLog::log (LOGERROR, "parseNIT - bad crc " + dec(sectionLength));
     return;
     }
@@ -1357,7 +1358,7 @@ void cTransportStream::parseNit (cPidInfo* pidInfo, uint8_t* buf) {
   if ((nit->table_id != TID_NIT_ACT) &&
       (nit->table_id != TID_NIT_OTH) &&
       (nit->table_id != TID_BAT)) {
-    //{{{  wrong tid
+    //{{{  wrong tid, error, return
     cLog::log (LOGERROR, "parseNIT - wrong TID " +dec (nit->table_id));
     return;
     }
@@ -1400,7 +1401,7 @@ void cTransportStream::parseSdt (cPidInfo* pidInfo, uint8_t* buf) {
   auto sdt = (sSdt*)buf;
   auto sectionLength = HILO(sdt->section_length) + 3;
   if (getCrc32 (0xffffffff, buf, sectionLength) != 0) {
-    //{{{  wrong crc
+    //{{{  wrong crc, error, return
     cLog::log (LOGERROR, "parseSDT - bad crc " + dec(sectionLength));
     return;
     }
@@ -1577,7 +1578,7 @@ void cTransportStream::parsePmt (cPidInfo* pidInfo, uint8_t* buf) {
   auto pmt = (sPmt*)buf;
   auto sectionLength = HILO(pmt->section_length) + 3;
   if (getCrc32 (0xffffffff, buf, sectionLength) != 0) {
-    //{{{  bad crc
+    //{{{  bad crc, error, return
     cLog::log (LOGERROR, "parsePMT - pid:%d bad crc %d", pidInfo->mPid, sectionLength);
     return;
     }
