@@ -20,16 +20,28 @@
 class cPidInfo {
 public:
   cPidInfo (int pid, bool isPsi) : mPid(pid), mPsi(isPsi) {}
-  ~cPidInfo();
+  ~cPidInfo() { free (mBuffer); }
 
-  int getBufUsed();
   std::string getTypeString();
   std::string getInfoString();
+  int getBufUsed() { return int(mBufPtr - mBuffer); }
+
   int addToBuffer (uint8_t* buf, int bufSize);
 
-  void clearCounts();
-  void clearContinuity();
-  void print();
+  //{{{
+  void clearCounts() {
+    mPackets = 0;
+    mErrors = 0;
+    mRepeatContinuity = 0;
+    }
+  //}}}
+  //{{{
+  void clearContinuity() {
+    mBufPtr = nullptr;
+    mStreamPos = -1;
+    mContinuity = -1;
+    }
+  //}}}
 
   // vars
   const int mPid;
@@ -63,7 +75,7 @@ public:
             std::chrono::system_clock::time_point time, std::chrono::seconds duration,
             const std::string& titleString, const std::string& infoString)
     : mNow(now), mRecord(record), mTime(time), mDuration(duration), mTitleString(titleString), mInfoString(infoString) {}
-  ~cEpgItem();
+  ~cEpgItem() {}
 
   bool getRecord() { return mRecord; }
   std::string getTitleString() { return mTitleString; }
@@ -87,8 +99,6 @@ public:
     mInfoString = infoString;
     }
   //}}}
-
-  void print (const std::string& prefix);
 
 private:
   const bool mNow = false;
@@ -149,8 +159,6 @@ public:
   void writePacket (uint8_t* ts, int pid);
   void closeFile();
 
-  void print();
-
 private:
   uint8_t* tsHeader (uint8_t* ts, int pid, int continuityCount);
   void writePat (int tsid);
@@ -195,8 +203,8 @@ public:
 
   // vars, public for widget
   std::mutex mMutex;
-  std::map<int,cPidInfo> mPidInfoMap;
-  std::map<int,cService> mServiceMap;
+  std::map <int, cPidInfo> mPidInfoMap;
+  std::map <int, cService> mServiceMap;
 
 protected:
   virtual bool audDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
@@ -228,7 +236,7 @@ private:
   // vars
   uint64_t mErrors = 0;
 
-  std::map<int,int> mProgramMap;
+  std::map <int, int> mProgramMap;
 
   bool mTimeDefined = false;
   std::chrono::system_clock::time_point mTime;

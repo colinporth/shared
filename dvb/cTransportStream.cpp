@@ -446,14 +446,6 @@ namespace { // anonymous
   }
 
 //{{{  cPidInfo
-// public:
-//{{{
-cPidInfo::~cPidInfo() {
-  free (mBuffer);
-  }
-//}}}
-
-int cPidInfo::getBufUsed() { return int(mBufPtr - mBuffer); }
 //{{{
 string cPidInfo::getTypeString() {
 
@@ -518,43 +510,6 @@ int cPidInfo::addToBuffer (uint8_t* buf, int bufSize) {
   return getBufUsed();
   }
 //}}}
-
-//{{{
-void cPidInfo::clearCounts() {
-
-  mPackets = 0;
-  mErrors = 0;
-  mRepeatContinuity = 0;
-  }
-//}}}
-//{{{
-void cPidInfo::clearContinuity() {
-
-  mBufPtr = nullptr;
-  mStreamPos = -1;
-  mContinuity = -1;
-  }
-//}}}
-
-//{{{
-void cPidInfo::print() {
-  cLog::log (LOGINFO, "pid:%d sid:%d streamType:%d - errors:%d repContinuity:%d",
-                      mPid, mSid, mStreamType, mErrors, mRepeatContinuity);
-  }
-//}}}
-//}}}
-//{{{  cEpgItem
-// public:
-cEpgItem::~cEpgItem() { cLog::log (LOGINFO3, "~cEpgItem"); }
-
-//{{{
-void cEpgItem::print (const string& prefix) {
-
-  cLog::log (LOGINFO, prefix + date::format ("%D %T", date::floor<chrono::seconds>(mTime)) +
-                      " " + dec(chrono::duration_cast<chrono::minutes>(mDuration).count()) + "m" +
-                      " " + mTitleString);
-  }
-//}}}
 //}}}
 //{{{  cService
 // public:
@@ -566,8 +521,6 @@ cService::~cService() {
   for (auto& epgItem : mEpgItemMap)
     delete epgItem.second;
   mEpgItemMap.clear();
-
-  cLog::log (LOGINFO3, "~cService");
   }
 //}}}
 
@@ -664,20 +617,6 @@ void cService::closeFile() {
     fclose (mFile);
 
   mFile = nullptr;
-  }
-//}}}
-
-//{{{
-void cService::print() {
-
-  cLog::log (LOGINFO, "sid:" + dec(mSid) + " ppid:" + dec (mProgramPid) +
-                      " vpid:" + dec(mVidPid) + " apid:" + dec (mAudPid) +
-                      " " + mChannelString);
-  if (mNowEpgItem)
-    mNowEpgItem->print ("");
-
-  for (auto& epgItem : mEpgItemMap)
-    epgItem.second->print ("- ");
   }
 //}}}
 
@@ -795,9 +734,9 @@ cService* cTransportStream::getService (int index, int64_t& firstPts, int64_t& l
       if (pidInfoIt != mPidInfoMap.end()) {
         firstPts = pidInfoIt->second.mFirstPts;
         lastPts = pidInfoIt->second.mLastPts;
-        cLog::log (LOGNOTICE, "getService " + dec(index) +
-                              " firstPts:" + getFullPtsString (firstPts) +
-                              " lastPts:" + getFullPtsString (lastPts));
+        cLog::log (LOGINFO, "getService " + dec(index) +
+                            " firstPts:" + getFullPtsString (firstPts) +
+                            " lastPts:" + getFullPtsString (lastPts));
         return &service.second;
         }
       }
@@ -1100,7 +1039,6 @@ char cTransportStream::getFrameType (uint8_t* pesBuf, int64_t pesBufSize, int st
         switch (bitstream.getBits (5)) {
           case 1:
           case 5:
-            //cLog::log(LOGINFO, "SLICE");
             bitstream.getUe();
             switch (bitstream.getUe()) {
               case 5: return 'P';
@@ -1380,7 +1318,6 @@ string cTransportStream::getDescrString (uint8_t* buf, int len) {
 void cTransportStream::parsePat (cPidInfo* pidInfo, uint8_t* buf) {
 // PAT declares programPid,sid to mProgramMap to recognise programPid PMT to declare service streams
 
-  //cLog::log (LOGINFO, "parsePat");
   auto pat = (sPat*)buf;
   auto sectionLength = HILO(pat->section_length) + 3;
   if (getCrc32 (0xffffffff, buf, sectionLength) != 0) {
@@ -1409,7 +1346,6 @@ void cTransportStream::parsePat (cPidInfo* pidInfo, uint8_t* buf) {
 //{{{
 void cTransportStream::parseNit (cPidInfo* pidInfo, uint8_t* buf) {
 
-  //cLog::log (LOGINFO, "parseNit");
   auto nit = (sNit*)buf;
   auto sectionLength = HILO(nit->section_length) + 3;
   if (getCrc32 (0xffffffff, buf, sectionLength) != 0) {
@@ -1461,7 +1397,6 @@ void cTransportStream::parseNit (cPidInfo* pidInfo, uint8_t* buf) {
 void cTransportStream::parseSdt (cPidInfo* pidInfo, uint8_t* buf) {
 // SDT name services in mServiceMap
 
-  //cLog::log (LOGINFO, "parseSdt");
   auto sdt = (sSdt*)buf;
   auto sectionLength = HILO(sdt->section_length) + 3;
   if (getCrc32 (0xffffffff, buf, sectionLength) != 0) {
@@ -1534,7 +1469,6 @@ void cTransportStream::parseSdt (cPidInfo* pidInfo, uint8_t* buf) {
 //{{{
 void cTransportStream::parseEit (cPidInfo* pidInfo, uint8_t* buf) {
 
-  //cLog::log (LOGINFO, "parseEit");
   auto eit = (sEit*)buf;
   auto sectionLength = HILO(eit->section_length) + 3;
   if (getCrc32 (0xffffffff, buf, sectionLength) != 0) {
@@ -1623,7 +1557,6 @@ void cTransportStream::parseEit (cPidInfo* pidInfo, uint8_t* buf) {
 //{{{
 void cTransportStream::parseTdt (cPidInfo* pidInfo, uint8_t* buf) {
 
-  //cLog::log (LOGINFO, "parseTdt");
   auto tdt = (sTdt*)buf;
   if (tdt->table_id == TID_TDT) {
     mTime = chrono::system_clock::from_time_t (MjdToEpochTime (tdt->utc_mjd) + BcdTimeToSeconds (tdt->utc_time));
@@ -1641,7 +1574,6 @@ void cTransportStream::parseTdt (cPidInfo* pidInfo, uint8_t* buf) {
 void cTransportStream::parsePmt (cPidInfo* pidInfo, uint8_t* buf) {
 // PMT declares pgmPid and streams for a service
 
-  //cLog::log (LOGINFO, "parsePmt " + dec(pidInfo->mPid));
   auto pmt = (sPmt*)buf;
   auto sectionLength = HILO(pmt->section_length) + 3;
   if (getCrc32 (0xffffffff, buf, sectionLength) != 0) {
@@ -1679,7 +1611,6 @@ void cTransportStream::parsePmt (cPidInfo* pidInfo, uint8_t* buf) {
       auto esPid = HILO (pmtInfo->elementary_PID);
       auto esPidInfo = getPidInfo (esPid, false);
       //{{{  set service esPids
-      //cLog::log (LOGINFO, "parsePmt - add esPid:"+ dec(esPid) + " serv:" + dec(sid));
       esPidInfo->mSid = sid;
       esPidInfo->mStreamType = pmtInfo->stream_type;
 
@@ -1703,9 +1634,8 @@ void cTransportStream::parsePmt (cPidInfo* pidInfo, uint8_t* buf) {
           break;
 
         default:
-          cLog::log (LOGERROR, "parsePmt - unknown streamType " + dec(sid) +
-                               " " + dec(esPid) +
-                               " " + dec(esPidInfo->mStreamType));
+          cLog::log (LOGERROR, "parsePmt - unknown streamType " +
+                               dec(sid) + " " + dec(esPid) + " " + dec(esPidInfo->mStreamType));
           break;
         }
       //}}}
@@ -1724,13 +1654,15 @@ int cTransportStream::parsePsi (cPidInfo* pidInfo, uint8_t* buf) {
 
   switch (pidInfo->mPid) {
     case PID_PAT: parsePat (pidInfo, buf); break;
-    case PID_CAT: break;
     case PID_NIT: parseNit (pidInfo, buf); break;
     case PID_SDT: parseSdt (pidInfo, buf); break;
     case PID_EIT: parseEit (pidInfo, buf); break;
-    case PID_RST: break;
     case PID_TDT: parseTdt (pidInfo, buf); break;
+
+    case PID_CAT:
+    case PID_RST:
     case PID_SYN: break;
+
     default:      parsePmt (pidInfo, buf); break;
     }
 
