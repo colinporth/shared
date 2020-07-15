@@ -67,11 +67,11 @@ extern "C" {
   }
 
 namespace Debug {
-  class cDeath {
+  class cCrash {
   //{{{  description
   //  This class installs a SEGFAULT signal handler to print
   // a nice stack trace and (if requested) generate a core dump.
-  // @details In cDeath's constructor, a SEGFAULT signal handler
+  // @details In cCrash's constructor, a SEGFAULT signal handler
   // is installed via sigaction(). If your program encounters a segmentation
   // fault, the call stack is unwinded with backtrace(), converted into
   // function names with line numbers via addr2line (fork() + execlp()).
@@ -89,12 +89,12 @@ namespace Debug {
     // @param altstack If true, allocate and use a dedicated signal handler stack.
     // backtrace() will report nothing then, but the handler will survive a stack
     // overflow.
-    cDeath (bool altstack = false);
+    cCrash (bool altstack = false);
     //}}}
     //{{{
     //  This is called on normal program termination. Previously installed
     // SIGSEGV and SIGABRT signal handlers are removed.
-    ~cDeath();
+    ~cCrash();
     //}}}
 
     //{{{  gets
@@ -117,7 +117,7 @@ namespace Debug {
     void set_cut_relative_paths (bool value) { cut_relative_paths_ = value; }
     void set_append_pid (bool value) { append_pid_ = value; }
     void set_thread_safe (bool value) { thread_safe_ = value; }
-    void set_output_callback (cDeath::OutputCallback value) { output_callback_ = value; }
+    void set_output_callback (cCrash::OutputCallback value) { output_callback_ = value; }
     //}}}
 
    private:

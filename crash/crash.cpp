@@ -35,7 +35,7 @@
  */
 //}}}
 //{{{  includes
-#include "death.h"
+#include "crash.h"
 
 #include <assert.h>
 #include <execinfo.h>
@@ -67,11 +67,11 @@ extern "C" {
   //{{{
   void* __malloc_impl (size_t size) {
 
-    char* malloc_buffer = Debug::cDeath::memory_ + Debug::cDeath::kNeededMemory - 512;
+    char* malloc_buffer = Debug::cCrash::memory_ + Debug::cCrash::kNeededMemory - 512;
     if (size > 512U) {
       const char* msg = "malloc() replacement function should not return "
                         "a memory block larger than 512 bytes\n";
-      Debug::cDeath::print(msg, strlen(msg) + 1);
+      Debug::cCrash::print(msg, strlen(msg) + 1);
       _Exit(EXIT_FAILURE);
       }
 
@@ -81,11 +81,11 @@ extern "C" {
   //{{{
   void* malloc (size_t size) throw() {
 
-    if (!Debug::cDeath::heap_trap_active_) {
-      if (!Debug::cDeath::malloc_)
-        Debug::cDeath::malloc_ = dlsym (RTLD_NEXT, "malloc");
+    if (!Debug::cCrash::heap_trap_active_) {
+      if (!Debug::cCrash::malloc_)
+        Debug::cCrash::malloc_ = dlsym (RTLD_NEXT, "malloc");
 
-      return ((void*(*)(size_t))Debug::cDeath::malloc_)(size);
+      return ((void*(*)(size_t))Debug::cCrash::malloc_)(size);
       }
 
     return __malloc_impl(size);
@@ -94,10 +94,10 @@ extern "C" {
   //{{{
   void free (void* ptr) throw() {
 
-    if (!Debug::cDeath::heap_trap_active_) {
-      if (!Debug::cDeath::free_)
-        Debug::cDeath::free_ = dlsym(RTLD_NEXT, "free");
-      ((void(*)(void*))Debug::cDeath::free_)(ptr);
+    if (!Debug::cCrash::heap_trap_active_) {
+      if (!Debug::cCrash::free_)
+        Debug::cCrash::free_ = dlsym(RTLD_NEXT, "free");
+      ((void(*)(void*))Debug::cCrash::free_)(ptr);
       }
     // no-op
     }
@@ -110,7 +110,7 @@ extern "C" {
 
 namespace Debug {
   namespace Safe {
-    // non heap libc functions 
+    // non heap libc functions
     //{{{
     INLINE char* itoa (int val, char* memory, int base = 10) {
     //  Converts an integer to a preallocated string.
@@ -177,13 +177,13 @@ namespace Debug {
     }
 
   // static var init
-  cDeath::OutputCallback cDeath::output_callback_ = Safe::write2stderr;
+  cCrash::OutputCallback cCrash::output_callback_ = Safe::write2stderr;
 
   typedef void (*sa_sigaction_handler) (int, siginfo_t *, void *);
   //{{{
-  cDeath::cDeath (bool altstack) {
+  cCrash::cCrash (bool altstack) {
 
-    if (memory_ == NULL) 
+    if (memory_ == NULL)
       memory_ = new char[kNeededMemory + (altstack ? MINSIGSTKSZ : 0)];
 
     if (altstack) {
@@ -192,7 +192,7 @@ namespace Debug {
       altstack.ss_size = MINSIGSTKSZ;
       altstack.ss_flags = 0;
       if (sigaltstack (&altstack, NULL) < 0) {
-        perror ("cDeath - sigaltstack()");
+        perror ("cCrash - sigaltstack()");
         }
       }
 
@@ -202,17 +202,17 @@ namespace Debug {
 
     sa.sa_flags = SA_RESTART | SA_SIGINFO | (altstack? SA_ONSTACK : 0);
     if (sigaction (SIGSEGV, &sa, NULL) < 0)
-      perror("cDeath - sigaction(SIGSEGV)");
+      perror("cCrash - sigaction(SIGSEGV)");
 
     if (sigaction (SIGABRT, &sa, NULL) < 0)
-      perror("cDeath - sigaction(SIGABBRT)");
+      perror("cCrash - sigaction(SIGABBRT)");
 
     if (sigaction (SIGFPE, &sa, NULL) < 0)
-      perror("cDeath - sigaction(SIGFPE)");
+      perror("cCrash - sigaction(SIGFPE)");
     }
   //}}}
   //{{{
-  cDeath::~cDeath() {
+  cCrash::~cCrash() {
 
     // Disable alternative signal handler stack
     stack_t altstack;
@@ -311,7 +311,7 @@ namespace Debug {
   //}}}
 
   //{{{
-  void cDeath::print (const char* msg, size_t len) {
+  void cCrash::print (const char* msg, size_t len) {
 
     if (len > 0)
       checked (output_callback_ (msg, len));
@@ -326,7 +326,7 @@ namespace Debug {
   #endif
 
   //{{{
-  void cDeath::handleSignal (int sig, void * /* info */, void *secret) {
+  void cCrash::handleSignal (int sig, void * /* info */, void *secret) {
   // Stop all other running threads by forking
 
     pid_t forkedPid = fork();
