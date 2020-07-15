@@ -1,0 +1,565 @@
+//{{{  description
+/*
+  Copyright (c) 2012, Samsung R&D Institute Russia
+  All rights reserved.
+
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions are met:
+
+  1. Redistributions of source code must retain the above copyright notice, this
+     list of conditions and the following disclaimer.
+  2. Redistributions in binary form must reproduce the above copyright notice,
+     this list of conditions and the following disclaimer in the documentation
+     and/or other materials provided with the distribution.
+
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+  ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+ */
+
+/*! @file death_handler.cc
+ *   Implementation of the SIGSEGV/SIGABRT handler which prints the debug
+ *  stack trace.
+ *  @author Markovtsev Vadim <gmarkhor@gmail.com>
+ *  @version 1.0
+ *  @license Simplified BSD License
+ *  @copyright 2012 Samsung R&D Institute Russia, 2016 Moscow Institute of Physics and Technology
+ */
+//}}}
+//{{{  includes
+#include "death.h"
+
+#include <assert.h>
+#include <execinfo.h>
+#include <pthread.h>
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+
+#ifndef _GNU_SOURCE
+  #define _GNU_SOURCE
+#endif
+
+#include <dlfcn.h>
+
+#define INLINE __attribute__((always_inline)) inline
+//}}}
+
+namespace Debug {
+  namespace Safe {
+    INLINE void print (const char *msg, size_t len = 0);
+    }
+  }
+
+extern "C" {
+  //{{{
+  void* __malloc_impl (size_t size) {
+
+    char* malloc_buffer = Debug::cDeath::memory_ + Debug::cDeath::kNeededMemory - 512;
+    if (size > 512U) {
+      const char* msg = "malloc() replacement function should not return "
+                        "a memory block larger than 512 bytes\n";
+      Debug::cDeath::print(msg, strlen(msg) + 1);
+      _Exit(EXIT_FAILURE);
+      }
+
+    return malloc_buffer;
+    }
+  //}}}
+  //{{{
+  void* malloc (size_t size) throw() {
+
+    if (!Debug::cDeath::heap_trap_active_) {
+      if (!Debug::cDeath::malloc_)
+        Debug::cDeath::malloc_ = dlsym (RTLD_NEXT, "malloc");
+
+      return ((void*(*)(size_t))Debug::cDeath::malloc_)(size);
+      }
+
+    return __malloc_impl(size);
+    }
+  //}}}
+  //{{{
+  void free (void* ptr) throw() {
+
+    if (!Debug::cDeath::heap_trap_active_) {
+      if (!Debug::cDeath::free_)
+        Debug::cDeath::free_ = dlsym(RTLD_NEXT, "free");
+      ((void(*)(void*))Debug::cDeath::free_)(ptr);
+      }
+    // no-op
+    }
+  //}}}
+  }
+
+#pragma GCC poison malloc realloc free backtrace_symbols printf fprintf sprintf snprintf scanf sscanf
+
+#define checked(x) do { if ((x) <= 0) _Exit(EXIT_FAILURE); } while (false)
+
+namespace Debug {
+  namespace Safe {
+    // non heap libc functions 
+    //{{{
+    INLINE char* itoa (int val, char* memory, int base = 10) {
+    //  Converts an integer to a preallocated string.
+    // @pre base must be less than or equal to 16.
+
+      char* res = memory;
+      if (val == 0) {
+        res[0] = '0';
+        res[1] = '\0';
+        return res;
+        }
+
+      const int res_max_length = 32;
+      int i;
+      bool negative = val < 0;
+      res[res_max_length - 1] = 0;
+      for (i = res_max_length - 2; val != 0 && i != 0; i--, val /= base) {
+        res[i] = "0123456789ABCDEF"[val % base];
+        }
+
+      if (negative) {
+        res[i--] = '-';
+        }
+
+      return &res[i + 1];
+      }
+    //}}}
+    //{{{
+    INLINE char* utoa (uint64_t val, char* memory, int base = 10) {
+    //  Converts an unsigned integer to a preallocated string.
+    // @pre base must be less than or equal to 16.
+
+      char* res = memory;
+      if (val == 0) {
+        res[0] = '0';
+        res[1] = '\0';
+        return res;
+        }
+
+      const int res_max_length = 32;
+      int i;
+      res[res_max_length - 1] = 0;
+      for (i = res_max_length - 2; val != 0 && i != 0; i--, val /= base) {
+        res[i] = "0123456789abcdef"[val % base];
+        }
+
+      return &res[i + 1];
+      }
+    //}}}
+    //{{{
+    INLINE char* ptoa (const void* val, char* memory) {
+    //  Converts a pointer to a preallocated string.
+
+      char* buf = utoa(reinterpret_cast<uint64_t>(val), memory + 32, 16);
+      char* result = memory;  // 32
+
+      strcpy(result + 2, buf);
+      result[0] = '0';
+      result[1] = 'x';
+      return result;
+      }
+    //}}}
+    ssize_t write2stderr (const char* msg, size_t len) { return write (STDERR_FILENO, msg, len); }
+    }
+
+  // static var init
+  cDeath::OutputCallback cDeath::output_callback_ = Safe::write2stderr;
+
+  typedef void (*sa_sigaction_handler) (int, siginfo_t *, void *);
+  //{{{
+  cDeath::cDeath (bool altstack) {
+
+    if (memory_ == NULL) 
+      memory_ = new char[kNeededMemory + (altstack ? MINSIGSTKSZ : 0)];
+
+    if (altstack) {
+      stack_t altstack;
+      altstack.ss_sp = memory_ + kNeededMemory;
+      altstack.ss_size = MINSIGSTKSZ;
+      altstack.ss_flags = 0;
+      if (sigaltstack (&altstack, NULL) < 0) {
+        perror ("cDeath - sigaltstack()");
+        }
+      }
+
+    struct sigaction sa;
+    sa.sa_sigaction = (sa_sigaction_handler)handleSignal;
+    sigemptyset (&sa.sa_mask);
+
+    sa.sa_flags = SA_RESTART | SA_SIGINFO | (altstack? SA_ONSTACK : 0);
+    if (sigaction (SIGSEGV, &sa, NULL) < 0)
+      perror("cDeath - sigaction(SIGSEGV)");
+
+    if (sigaction (SIGABRT, &sa, NULL) < 0)
+      perror("cDeath - sigaction(SIGABBRT)");
+
+    if (sigaction (SIGFPE, &sa, NULL) < 0)
+      perror("cDeath - sigaction(SIGFPE)");
+    }
+  //}}}
+  //{{{
+  cDeath::~cDeath() {
+
+    // Disable alternative signal handler stack
+    stack_t altstack;
+    altstack.ss_sp = NULL;
+    altstack.ss_size = 0;
+    altstack.ss_flags = SS_DISABLE;
+    sigaltstack(&altstack, NULL);
+
+    struct sigaction sa;
+
+    sigaction(SIGSEGV, NULL, &sa);
+    sa.sa_handler = SIG_DFL;
+    sigaction(SIGSEGV, &sa, NULL);
+
+    sigaction(SIGABRT, NULL, &sa);
+    sa.sa_handler = SIG_DFL;
+    sigaction(SIGABRT, &sa, NULL);
+
+    sigaction(SIGFPE, NULL, &sa);
+    sa.sa_handler = SIG_DFL;
+    sigaction(SIGFPE, &sa, NULL);
+    delete[] memory_;
+    }
+  //}}}
+
+  //{{{
+  INLINE static void safe_abort() {
+
+    struct sigaction sa;
+    sigaction (SIGABRT, NULL, &sa);
+
+    kill (getppid(), SIGCONT);
+
+    sa.sa_handler = SIG_DFL;
+    sigaction (SIGABRT, &sa, NULL);
+
+    abort();
+    }
+  //}}}
+  //{{{
+  static char* addr2line (const char* image, void* addr, char** memory) {
+  // invoke addr2line utility
+  // - for function name and line information from an address in the code segment.
+
+    int pipefd[2];
+    if (pipe (pipefd) != 0)
+      safe_abort();
+
+    pid_t pid = fork();
+    if (pid == 0) {
+      close (pipefd[0]);
+      dup2 (pipefd[1], STDOUT_FILENO);
+      dup2 (pipefd[1], STDERR_FILENO);
+      if (execlp ("addr2line", "addr2line",
+                  Safe::ptoa (addr, *memory), "-f", "-C", "-e", image,
+                  reinterpret_cast<void*>(NULL)) == -1) {
+        safe_abort();
+        }
+      }
+
+    close (pipefd[1]);
+    const int line_max_length = 4096;
+    char* line = *memory;
+    *memory += line_max_length;
+    ssize_t len = read (pipefd[0], line, line_max_length);
+    close (pipefd[0]);
+
+    if (len == 0)
+      safe_abort();
+    line[len] = 0;
+
+    if (waitpid (pid, NULL, 0) != pid)
+      safe_abort();
+
+    if (line[0] == '?') {
+      char* straddr = Safe::ptoa (addr, *memory);
+      strcpy (line, "\033[32;1m");
+      strcat (line, straddr);
+      strcat (line, "\033[0m");
+      strcat (line, " at ");
+      strcat (line, image);
+      strcat (line, " ");
+      }
+    else {
+      if (*(strstr (line, "\n") + 1) == '?') {
+        char* straddr = Safe::ptoa (addr, *memory);
+        strcpy (strstr(line, "\n") + 1, image);
+        strcat (line, ":");
+        strcat (line, straddr);
+        strcat (line, "\n");
+        }
+      }
+
+    return line;
+    }
+  //}}}
+
+  //{{{
+  void cDeath::print (const char* msg, size_t len) {
+
+    if (len > 0)
+      checked (output_callback_ (msg, len));
+    else
+      checked (output_callback_ (msg, strlen(msg)));
+    }
+  //}}}
+
+  #if (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  #endif
+
+  //{{{
+  void cDeath::handleSignal (int sig, void * /* info */, void *secret) {
+  // Stop all other running threads by forking
+
+    pid_t forkedPid = fork();
+    if (forkedPid != 0) {
+      int status;
+      if (thread_safe_) {
+        // Freeze the original process, until it's child prints the stack trace
+        kill (getpid(), SIGSTOP);
+
+        // Wait for the child without blocking and exit as soon as possible,
+        // so that no zombies are left.
+        waitpid (forkedPid, &status, WNOHANG);
+        }
+
+      else
+        // Wait for the child, blocking only the current thread.
+        // All other threads will continue to run, potentially crashing the parent.
+        waitpid (forkedPid, &status, 0);
+
+      if (quick_exit_)
+        ::quick_exit (EXIT_FAILURE);
+
+      if (generate_core_dump_) {
+        struct sigaction sa;
+        sigaction (SIGABRT, NULL, &sa);
+        sa.sa_handler = SIG_DFL;
+        sigaction (SIGABRT, &sa, NULL);
+        abort();
+        }
+      else if (cleanup_)
+        exit (EXIT_FAILURE);
+      else
+        _Exit (EXIT_FAILURE);
+      }
+
+    ucontext_t* uc = reinterpret_cast<ucontext_t*>(secret);
+
+    if (dup2 (STDERR_FILENO, STDOUT_FILENO) == -1)  // redirect stdout to stderr
+      print ("Failed to redirect stdout to stderr\n");
+
+    char* memory = memory_;
+    {
+      char* msg = memory;
+      const int msg_max_length = 128;
+
+      // \033[31;1mSegmentation fault\033[0m \033[33;1m(%i)\033[0m\n
+      strcpy (msg, "\033[31;1m");
+
+      switch (sig) {
+        case SIGSEGV:
+          strcat (msg, "Segmentation fault");
+          break;
+
+        case SIGABRT:
+          strcat (msg, "Aborted");
+          break;
+
+        case SIGFPE:
+          strcat (msg, "Floating point exception");
+          break;
+
+        default:
+          strcat (msg, "Caught signal ");
+          strcat (msg, Safe::itoa(sig, msg + msg_max_length));
+          break;
+        }
+
+      strcat (msg, "\033[0m");
+      strcat (msg, " (thread ");
+      strcat (msg, "\033[33;1m");
+      strcat (msg, Safe::utoa(pthread_self(), msg + msg_max_length));
+
+      strcat (msg, "\033[0m");
+      strcat (msg, ", pid ");
+      strcat (msg, "\033[33;1m");
+      strcat (msg, Safe::itoa(getppid(), msg + msg_max_length));
+
+      strcat (msg, "\033[0m");
+      strcat (msg, ")");
+
+      print (msg);
+      }
+
+    print ("\nStack trace:\n");
+    void** trace = reinterpret_cast<void**>(memory);
+    memory += (frames_count_ + 2) * sizeof(void*);
+
+    // Workaround malloc() inside backtrace()
+    heap_trap_active_ = true;
+    int trace_size = backtrace (trace, frames_count_ + 2);
+    heap_trap_active_ = false;
+    if (trace_size <= 2)
+      safe_abort();
+
+    // Overwrite sigaction with caller's address
+    #if defined(__arm__)
+      trace[1] = reinterpret_cast<void *>(uc->uc_mcontext.arm_pc);
+    #else
+      #if !defined(__i386__) && !defined(__x86_64__)
+        #error Only ARM, x86 and x86-64 are supported
+      #endif
+
+      #if defined(__x86_64__)
+        trace[1] = reinterpret_cast<void *>(uc->uc_mcontext.gregs[REG_RIP]);
+      #else
+        trace[1] = reinterpret_cast<void *>(uc->uc_mcontext.gregs[REG_EIP]);
+      #endif
+    #endif
+
+    const int path_max_length = 2048;
+    char* name_buf = memory;
+    ssize_t name_buf_length = readlink ("/proc/self/exe", name_buf, path_max_length - 1);
+    if (name_buf_length < 1)
+      safe_abort();
+
+    name_buf[name_buf_length] = 0;
+    memory += name_buf_length + 1;
+    char* cwd = memory;
+    if (getcwd (cwd, path_max_length) == NULL)
+      safe_abort();
+    strcat (cwd, "/");
+    memory += strlen(cwd) + 1;
+    char* prev_memory = memory;
+
+    int stackOffset = trace[2] == trace[1] ? 2 : 1;
+    for (int i = stackOffset; i < trace_size; i++) {
+      memory = prev_memory;
+      char* line;
+      Dl_info dlinf;
+      if (dladdr (trace[i], &dlinf) == 0 || dlinf.dli_fname[0] != '/' || !strcmp(name_buf, dlinf.dli_fname))
+        line = addr2line (name_buf, trace[i], &memory);
+      else
+        line = addr2line (dlinf.dli_fname, reinterpret_cast<void *>(
+                 reinterpret_cast<char*>(trace[i]) -
+                 reinterpret_cast<char*>(dlinf.dli_fbase)),
+                 &memory);
+
+      char* function_name_end = strstr (line, "\n");
+      if (function_name_end != NULL) {
+        *function_name_end = 0;
+
+        {
+          // "\033[34;1m[%s]\033[0m \033[33;1m(%i)\033[0m\n
+          char* msg = memory;
+          const int msg_max_length = 512;
+          strcpy (msg, "\033[34;1m");
+          strcat (msg, line);
+          strcat (msg, "]");
+          if (append_pid_) {
+            strcat (msg, "\033[0m\033[33;1m");
+            strcat (msg, " (");
+            strcat (msg, Safe::itoa (getppid(), msg + msg_max_length));
+            strcat (msg, ")");
+            strcat(msg, "\033[0m");
+            strcat(msg, "\n");
+            }
+          else {
+            strcat(msg, "\033[0m");
+            strcat(msg, "\n");
+            }
+          print(msg);
+          }
+        line = function_name_end + 1;
+
+        // Remove the common path root
+        if (cut_common_path_root_) {
+          int cpi;
+          for (cpi = 0; cwd[cpi] == line[cpi]; cpi++) {};
+          if (line[cpi - 1] != '/')
+            for (; line[cpi - 1] != '/'; cpi--)
+              {};
+          if (cpi > 1)
+            line = line + cpi;
+          }
+
+        // remove relative path root
+        if (cut_relative_paths_) {
+          char* path_cut_pos = strstr (line, "../");
+          if (path_cut_pos != NULL) {
+            path_cut_pos += 3;
+            while (!strncmp (path_cut_pos, "../", 3))
+              path_cut_pos += 3;
+            line = path_cut_pos;
+            }
+          }
+
+        // mark line number
+        char* number_pos = strstr (line, ":");
+        if (number_pos != NULL) {
+          char* line_number = memory;  // 128
+          strcpy(line_number, number_pos);
+
+          // Overwrite the new line char
+          line_number[strlen(line_number) - 1] = 0;
+
+          // \033[32;1m%s\033[0m\n
+          strcpy (number_pos, "\033[32;1m");
+          strcat (line, line_number);
+          strcat (line, "\033[0m\n");
+          }
+        }
+
+      // Overwrite the new line char
+      line[strlen (line) - 1] = 0;
+
+      // Append pid
+      if (append_pid_) {
+        // %s\033[33;1m(%i)\033[0m\n
+        strcat (line, " ");
+        strcat (line, "\033[33;1m");
+        strcat (line, "(");
+        strcat (line, Safe::itoa(getppid(), memory));
+        strcat (line, ")");
+        strcat (line, "\033[0m");
+        }
+
+      strcat (line, "\n");
+      print (line);
+      }
+
+    // Write '\0' to indicate the end of the output
+    char end = '\0';
+    write (STDERR_FILENO, &end, 1);
+
+    if (thread_safe_) // Resume the parent process
+      kill (getppid(), SIGCONT);
+
+    // This is called in the child process
+    _Exit (EXIT_SUCCESS);
+    }
+  //}}}
+
+  #if (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
+    #pragma GCC diagnostic pop
+  #endif
+  }

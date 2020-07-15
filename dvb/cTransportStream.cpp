@@ -1364,8 +1364,7 @@ void cTransportStream::parseNit (cPidInfo* pidInfo, uint8_t* buf) {
     }
     //}}}
 
-  auto networkId = HILO (nit->network_id);
-
+  //auto networkId = HILO (nit->network_id);
   buf += sizeof(sNit);
   auto loopLength = HILO (nit->network_descr_length);
 
@@ -1383,7 +1382,7 @@ void cTransportStream::parseNit (cPidInfo* pidInfo, uint8_t* buf) {
 
       while (loopLength > 0) {
         auto TSDesc = (sNitTs*)buf;
-        auto tsid = HILO (TSDesc->transport_stream_id);
+        //auto tsid = HILO (TSDesc->transport_stream_id);
         auto loopLength2 = HILO (TSDesc->transport_descrs_length);
         buf += sizeof(sNitTs);
         loopLength -= loopLength2 + sizeof(sNitTs);
