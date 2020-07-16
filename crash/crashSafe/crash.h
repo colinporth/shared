@@ -52,9 +52,27 @@
  *  Underlying code style is very similar to [Google C++ Style Guide](http://google-styleguide.googlecode.com/svn/trunk/cppguide.xml). It is checked with cpplint.py.
  */
 //}}}
-//{{{  includes
 #pragma once
 
+#ifdef _WIN32
+  //{{{  minimal class
+  namespace Debug {
+    class cCrash {
+    public:
+      cCrash() {}
+      ~cCrash() {}
+      };
+
+    class cCrashSafe {
+    public:
+      cCrashSafe() {}
+      ~cCrashSafe() {}
+      };
+    }
+  //}}}
+#else
+
+//{{{  includes
 #include <stddef.h>
 #include <unistd.h>
 #include <assert.h>
@@ -191,3 +209,5 @@ namespace Debug {
     static OutputCallback output_callback_;
     };
   }
+
+#endif

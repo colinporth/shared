@@ -64,7 +64,6 @@ namespace Debug {
     }
   }
 
-
 extern "C" {
   //{{{
   void* __malloc_impl (size_t size) {
@@ -105,8 +104,6 @@ extern "C" {
     }
   //}}}
   }
-
-//#pragma GCC poison malloc realloc free backtrace_symbols printf fprintf sprintf snprintf scanf sscanf
 
 #define checked(x) do { if ((x) <= 0) _Exit(EXIT_FAILURE); } while (false)
 
@@ -365,6 +362,8 @@ namespace Debug {
     _Exit (EXIT_SUCCESS);
     }
   //}}}
+
+  #pragma GCC poison malloc realloc free backtrace_symbols printf fprintf sprintf snprintf scanf sscanf
 
   //  cCrashSafe
   //{{{
