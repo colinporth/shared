@@ -1,5 +1,5 @@
 #include "stdio.h"
-#include "death.h"
+#include "crash.h"
 
 void testProc() {
   printf ("Hello colin in proc\n");
@@ -9,7 +9,7 @@ void testProc() {
   }
 
 int main() {
-  Debug::cDeath death;
+  Debug::cCrash crash;
   printf ("Hello colin\n");
   testProc();
   return 0;

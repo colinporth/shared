@@ -2,8 +2,8 @@
    License: BSD licence (http://www.opensource.org/licenses/bsd-license.php) */
 
 #include <iostream>
-#include <stacktrace/call_stack.hpp>
-#include <stacktrace/stack_exception.hpp>
+#include "call_stack.h"
+#include "stack_exception.h"
 
 using namespace std;
 using namespace stacktrace;
