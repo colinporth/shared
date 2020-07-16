@@ -113,8 +113,6 @@ namespace Debug {
     // non heap libc functions
     //{{{
     INLINE char* itoa (int val, char* memory, int base = 10) {
-    //  Converts an integer to a preallocated string.
-    // @pre base must be less than or equal to 16.
 
       char* res = memory;
       if (val == 0) {
@@ -127,13 +125,11 @@ namespace Debug {
       int i;
       bool negative = val < 0;
       res[res_max_length - 1] = 0;
-      for (i = res_max_length - 2; val != 0 && i != 0; i--, val /= base) {
+      for (i = res_max_length - 2; val != 0 && i != 0; i--, val /= base)
         res[i] = "0123456789ABCDEF"[val % base];
-        }
 
-      if (negative) {
+      if (negative)
         res[i--] = '-';
-        }
 
       return &res[i + 1];
       }
@@ -151,11 +147,10 @@ namespace Debug {
         }
 
       const int res_max_length = 32;
-      int i;
       res[res_max_length - 1] = 0;
-      for (i = res_max_length - 2; val != 0 && i != 0; i--, val /= base) {
+      int i;
+      for (i = res_max_length - 2; val != 0 && i != 0; i--, val /= base)
         res[i] = "0123456789abcdef"[val % base];
-        }
 
       return &res[i + 1];
       }
@@ -164,10 +159,10 @@ namespace Debug {
     INLINE char* ptoa (const void* val, char* memory) {
     //  Converts a pointer to a preallocated string.
 
-      char* buf = utoa(reinterpret_cast<uint64_t>(val), memory + 32, 16);
+      char* buf = utoa (reinterpret_cast<uint64_t>(val), memory + 32, 16);
       char* result = memory;  // 32
 
-      strcpy(result + 2, buf);
+      strcpy (result + 2, buf);
       result[0] = '0';
       result[1] = 'x';
       return result;
@@ -179,7 +174,7 @@ namespace Debug {
   // static var init
   cCrash::OutputCallback cCrash::output_callback_ = Safe::write2stderr;
 
-  typedef void (*sa_sigaction_handler) (int, siginfo_t *, void *);
+  typedef void (*sa_sigaction_handler) (int, siginfo_t*, void*);
   //{{{
   cCrash::cCrash (bool altstack) {
 
@@ -219,21 +214,22 @@ namespace Debug {
     altstack.ss_sp = NULL;
     altstack.ss_size = 0;
     altstack.ss_flags = SS_DISABLE;
-    sigaltstack(&altstack, NULL);
+    sigaltstack (&altstack, NULL);
 
     struct sigaction sa;
 
-    sigaction(SIGSEGV, NULL, &sa);
+    sigaction (SIGSEGV, NULL, &sa);
     sa.sa_handler = SIG_DFL;
-    sigaction(SIGSEGV, &sa, NULL);
+    sigaction (SIGSEGV, &sa, NULL);
 
-    sigaction(SIGABRT, NULL, &sa);
+    sigaction (SIGABRT, NULL, &sa);
     sa.sa_handler = SIG_DFL;
-    sigaction(SIGABRT, &sa, NULL);
+    sigaction (SIGABRT, &sa, NULL);
 
-    sigaction(SIGFPE, NULL, &sa);
+    sigaction (SIGFPE, NULL, &sa);
     sa.sa_handler = SIG_DFL;
-    sigaction(SIGFPE, &sa, NULL);
+    sigaction (SIGFPE, &sa, NULL);
+
     delete[] memory_;
     }
   //}}}
@@ -320,17 +316,15 @@ namespace Debug {
     }
   //}}}
 
-  #if (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
-    #pragma GCC diagnostic push
-    #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  #endif
-
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   //{{{
-  void cCrash::handleSignal (int sig, void * /* info */, void *secret) {
+  void cCrash::handleSignal (int sig, void* /* info */, void* secret) {
   // Stop all other running threads by forking
 
     pid_t forkedPid = fork();
     if (forkedPid != 0) {
+      //{{{  fiddle with threads
       int status;
       if (thread_safe_) {
         // Freeze the original process, until it's child prints the stack trace
@@ -361,6 +355,7 @@ namespace Debug {
       else
         _Exit (EXIT_FAILURE);
       }
+      //}}}
 
     ucontext_t* uc = reinterpret_cast<ucontext_t*>(secret);
 
@@ -368,53 +363,56 @@ namespace Debug {
       print ("Failed to redirect stdout to stderr\n");
 
     char* memory = memory_;
+
+    //{{{  report signal, thread, pid
     {
-      char* msg = memory;
-      const int msg_max_length = 128;
+    char* msg = memory;
+    const int msg_max_length = 128;
 
-      // \033[31;1mSegmentation fault\033[0m \033[33;1m(%i)\033[0m\n
-      strcpy (msg, "\033[31;1m");
+    strcpy (msg, "\033[31;1m");
 
-      switch (sig) {
-        case SIGSEGV:
-          strcat (msg, "Segmentation fault");
-          break;
+    switch (sig) {
+      case SIGSEGV:
+        strcat (msg, "Segmentation fault");
+        break;
 
-        case SIGABRT:
-          strcat (msg, "Aborted");
-          break;
+      case SIGABRT:
+        strcat (msg, "Aborted");
+        break;
 
-        case SIGFPE:
-          strcat (msg, "Floating point exception");
-          break;
+      case SIGFPE:
+        strcat (msg, "Floating point exception");
+        break;
 
-        default:
-          strcat (msg, "Caught signal ");
-          strcat (msg, Safe::itoa(sig, msg + msg_max_length));
-          break;
-        }
-
-      strcat (msg, "\033[0m");
-      strcat (msg, " (thread ");
-      strcat (msg, "\033[33;1m");
-      strcat (msg, Safe::utoa(pthread_self(), msg + msg_max_length));
-
-      strcat (msg, "\033[0m");
-      strcat (msg, ", pid ");
-      strcat (msg, "\033[33;1m");
-      strcat (msg, Safe::itoa(getppid(), msg + msg_max_length));
-
-      strcat (msg, "\033[0m");
-      strcat (msg, ")");
-
-      print (msg);
+      default:
+        strcat (msg, "Caught signal ");
+        strcat (msg, Safe::itoa (sig, msg + msg_max_length));
+        break;
       }
 
+    strcat (msg, "\033[0m");
+    strcat (msg, " (thread ");
+    strcat (msg, "\033[33;1m");
+    strcat (msg, Safe::utoa (pthread_self(), msg + msg_max_length));
+
+    strcat (msg, "\033[0m");
+    strcat (msg, ", pid ");
+    strcat (msg, "\033[33;1m");
+    strcat (msg, Safe::itoa (getppid(), msg + msg_max_length));
+
+    strcat (msg, "\033[0m");
+    strcat (msg, ")");
+
+    print (msg);
+    }
+    //}}}
+    //{{{  get backtrace
+    // workaround malloc() inside backtrace()
     print ("\nStack trace:\n");
+
     void** trace = reinterpret_cast<void**>(memory);
     memory += (frames_count_ + 2) * sizeof(void*);
 
-    // Workaround malloc() inside backtrace()
     heap_trap_active_ = true;
     int trace_size = backtrace (trace, frames_count_ + 2);
     heap_trap_active_ = false;
@@ -435,7 +433,8 @@ namespace Debug {
         trace[1] = reinterpret_cast<void *>(uc->uc_mcontext.gregs[REG_EIP]);
       #endif
     #endif
-
+    //}}}
+    //{{{  get name_buf
     const int path_max_length = 2048;
     char* name_buf = memory;
     ssize_t name_buf_length = readlink ("/proc/self/exe", name_buf, path_max_length - 1);
@@ -444,19 +443,22 @@ namespace Debug {
 
     name_buf[name_buf_length] = 0;
     memory += name_buf_length + 1;
+    //}}}
+    //{{{  get cwd
     char* cwd = memory;
     if (getcwd (cwd, path_max_length) == NULL)
       safe_abort();
     strcat (cwd, "/");
     memory += strlen(cwd) + 1;
-    char* prev_memory = memory;
+    //}}}
 
+    char* prev_memory = memory;
     int stackOffset = trace[2] == trace[1] ? 2 : 1;
     for (int i = stackOffset; i < trace_size; i++) {
       memory = prev_memory;
       char* line;
       Dl_info dlinf;
-      if (dladdr (trace[i], &dlinf) == 0 || dlinf.dli_fname[0] != '/' || !strcmp(name_buf, dlinf.dli_fname))
+      if (dladdr (trace[i], &dlinf) == 0 || dlinf.dli_fname[0] != '/' || !strcmp (name_buf, dlinf.dli_fname))
         line = addr2line (name_buf, trace[i], &memory);
       else
         line = addr2line (dlinf.dli_fname, reinterpret_cast<void *>(
@@ -467,43 +469,44 @@ namespace Debug {
       char* function_name_end = strstr (line, "\n");
       if (function_name_end != NULL) {
         *function_name_end = 0;
-
         {
-          // "\033[34;1m[%s]\033[0m \033[33;1m(%i)\033[0m\n
-          char* msg = memory;
-          const int msg_max_length = 512;
-          strcpy (msg, "\033[34;1m");
-          strcat (msg, line);
-          strcat (msg, "]");
-          if (append_pid_) {
-            strcat (msg, "\033[0m\033[33;1m");
-            strcat (msg, " (");
-            strcat (msg, Safe::itoa (getppid(), msg + msg_max_length));
-            strcat (msg, ")");
-            strcat(msg, "\033[0m");
-            strcat(msg, "\n");
-            }
-          else {
-            strcat(msg, "\033[0m");
-            strcat(msg, "\n");
-            }
-          print(msg);
+        char* msg = memory;
+        const int msg_max_length = 512;
+        strcpy (msg, "\033[34;1m");
+        //strcat (msg, Safe::itoa (i, msg + msg_max_length));
+        strcat (msg, "[");
+        strcat (msg, line);
+        strcat (msg, "]");
+        if (append_pid_) {
+          strcat (msg, "\033[0m\033[33;1m");
+          strcat (msg, " (");
+          strcat (msg, Safe::itoa (getppid(), msg + msg_max_length));
+          strcat (msg, ")");
+          strcat (msg, "\033[0m");
+          strcat (msg, "\n");
           }
+        else {
+          strcat (msg, "\033[0m");
+          strcat (msg, "\n");
+          }
+        print (msg);
+        }
         line = function_name_end + 1;
 
-        // Remove the common path root
         if (cut_common_path_root_) {
+          //{{{  remove the common path root
           int cpi;
           for (cpi = 0; cwd[cpi] == line[cpi]; cpi++) {};
+
           if (line[cpi - 1] != '/')
-            for (; line[cpi - 1] != '/'; cpi--)
-              {};
+            for (; line[cpi - 1] != '/'; cpi--) {};
+
           if (cpi > 1)
             line = line + cpi;
           }
-
-        // remove relative path root
+          //}}}
         if (cut_relative_paths_) {
+          //{{{  remove relative path root
           char* path_cut_pos = strstr (line, "../");
           if (path_cut_pos != NULL) {
             path_cut_pos += 3;
@@ -512,21 +515,23 @@ namespace Debug {
             line = path_cut_pos;
             }
           }
+          //}}}
 
-        // mark line number
         char* number_pos = strstr (line, ":");
         if (number_pos != NULL) {
+          //{{{  mark line number
           char* line_number = memory;  // 128
-          strcpy(line_number, number_pos);
+          strcpy (line_number, number_pos);
 
           // Overwrite the new line char
-          line_number[strlen(line_number) - 1] = 0;
+          line_number[strlen (line_number) - 1] = 0;
 
           // \033[32;1m%s\033[0m\n
           strcpy (number_pos, "\033[32;1m");
           strcat (line, line_number);
           strcat (line, "\033[0m\n");
           }
+          //}}}
         }
 
       // Overwrite the new line char
@@ -558,8 +563,5 @@ namespace Debug {
     _Exit (EXIT_SUCCESS);
     }
   //}}}
-
-  #if (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
-    #pragma GCC diagnostic pop
-  #endif
+  #pragma GCC diagnostic pop
   }

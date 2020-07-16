@@ -1,0 +1,45 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="test">
+      <UniqueIdentifier>{96c742d7-d775-4657-9753-cb277182d7c6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="stacktrace">
+      <UniqueIdentifier>{588a53ef-cae5-4ad4-a9d0-c3c6ad8fb8ff}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="externals">
+      <UniqueIdentifier>{c5d7da41-a9e2-43a5-87d0-73ffded21b80}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="externals\StackWalker">
+      <UniqueIdentifier>{30a5ef5f-9c0d-4b8d-a3a7-e21d97b284e0}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="test\test_code.cpp">
+      <Filter>test</Filter>
+    </ClCompile>
+    <ClCompile Include="stacktrace\call_stack_gcc.cpp">
+      <Filter>stacktrace</Filter>
+    </ClCompile>
+    <ClCompile Include="stacktrace\call_stack_msvc.cpp">
+      <Filter>stacktrace</Filter>
+    </ClCompile>
+    <ClCompile Include="externals\StackWalker\StackWalker.cpp">
+      <Filter>externals\StackWalker</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="stacktrace\call_stack.hpp">
+      <Filter>stacktrace</Filter>
+    </ClInclude>
+    <ClInclude Include="stacktrace\stack_exception.hpp">
+      <Filter>stacktrace</Filter>
+    </ClInclude>
+    <ClInclude Include="externals\StackWalker\StackWalker.h">
+      <Filter>externals\StackWalker</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="README.txt" />
+  </ItemGroup>
+</Project>

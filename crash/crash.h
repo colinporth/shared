@@ -85,10 +85,9 @@ namespace Debug {
   public:
     typedef ssize_t (*OutputCallback)(const char*, size_t);
     //{{{
-    //  Installs the SIGSEGV/etc. signal handler.
-    // @param altstack If true, allocate and use a dedicated signal handler stack.
-    // backtrace() will report nothing then, but the handler will survive a stack
-    // overflow.
+    // Installs the SIGSEGV/etc. signal handler.
+    // - altstack If true, allocate and use a dedicated signal handler stack.
+    //   backtrace() will report nothing then, but the handler will survive a stack overflow.
     cCrash (bool altstack = false);
     //}}}
     //{{{
@@ -110,11 +109,14 @@ namespace Debug {
     //}}}
     //{{{  sets
     void set_generate_core_dump (bool value) { generate_core_dump_ = value; }
+
     void set_cleanup (bool value) { cleanup_ = value; }
     void set_quick_exit (bool value) { quick_exit_ = value; }
+
     void set_frames_count (int value) { assert(value > 0 && value <= 100); frames_count_ = value; }
     void set_cut_common_path_root (bool value) { cut_common_path_root_ = value; }
     void set_cut_relative_paths (bool value) { cut_relative_paths_ = value; }
+
     void set_append_pid (bool value) { append_pid_ = value; }
     void set_thread_safe (bool value) { thread_safe_ = value; }
     void set_output_callback (cCrash::OutputCallback value) { output_callback_ = value; }
@@ -130,8 +132,6 @@ namespace Debug {
     static void handleSignal (int sig, void* info, void* secret);
 
     // static vars
-    static OutputCallback output_callback_;
-
     static inline const size_t kNeededMemory = 16384;
 
     static inline int frames_count_ = 16;
@@ -140,7 +140,7 @@ namespace Debug {
     static inline bool cleanup_ = true;
     static inline bool thread_safe_ = true;
 
-    static inline bool append_pid_ = true;
+    static inline bool append_pid_ = false;
     static inline bool cut_common_path_root_ = true;
     static inline bool cut_relative_paths_ = true;
 
@@ -150,5 +150,7 @@ namespace Debug {
     static inline void* malloc_ = NULL;
     static inline void* free_ = NULL;
     static inline bool heap_trap_active_ = false;
+
+    static OutputCallback output_callback_;
     };
   }
