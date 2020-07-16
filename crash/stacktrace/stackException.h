@@ -4,8 +4,8 @@
 #include "callStack.h"
 
 namespace stacktrace {
-  // Abstract base-class for all stack-augmented exception classes.
-  //  Enables catching of all stack-augmented exception classes. */
+  // Abstract base-class for all stack-augmented exception classes
+  // Enables catching of all stack-augmented exception classes
   class stack_exception_base : public call_stack {
   public:
     stack_exception_base (const bool _show_stack) : call_stack(2), show_stack(_show_stack) {}

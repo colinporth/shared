@@ -38,9 +38,6 @@
 #include "crash.h"
 
 #include <assert.h>
-#include <execinfo.h>
-#include <pthread.h>
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -48,30 +45,35 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-#ifndef _GNU_SOURCE
-  #define _GNU_SOURCE
-#endif
-
+#include <execinfo.h>
+#include <cxxabi.h>
 #include <dlfcn.h>
+
+#include <pthread.h>
+#include <signal.h>
 
 #define INLINE __attribute__((always_inline)) inline
 //}}}
 
 namespace Debug {
-  namespace Safe {
-    INLINE void print (const char *msg, size_t len = 0);
+  INLINE void print (const char *msg, size_t len = 0) {
+    if (len > 0)
+      write (STDERR_FILENO, msg, len);
+    else
+      write (STDERR_FILENO, msg, strlen (msg));
     }
   }
+
 
 extern "C" {
   //{{{
   void* __malloc_impl (size_t size) {
 
-    char* malloc_buffer = Debug::cCrash::memory_ + Debug::cCrash::kNeededMemory - 512;
+    char* malloc_buffer = Debug::cCrashSafe::memory_ + Debug::cCrashSafe::kNeededMemory - 512;
     if (size > 512U) {
       const char* msg = "malloc() replacement function should not return "
                         "a memory block larger than 512 bytes\n";
-      Debug::cCrash::print(msg, strlen(msg) + 1);
+      Debug::print (msg, strlen(msg) + 1);
       _Exit(EXIT_FAILURE);
       }
 
@@ -81,11 +83,11 @@ extern "C" {
   //{{{
   void* malloc (size_t size) throw() {
 
-    if (!Debug::cCrash::heap_trap_active_) {
-      if (!Debug::cCrash::malloc_)
-        Debug::cCrash::malloc_ = dlsym (RTLD_NEXT, "malloc");
+    if (!Debug::cCrashSafe::heap_trap_active_) {
+      if (!Debug::cCrashSafe::malloc_)
+        Debug::cCrashSafe::malloc_ = dlsym (RTLD_NEXT, "malloc");
 
-      return ((void*(*)(size_t))Debug::cCrash::malloc_)(size);
+      return ((void*(*)(size_t))Debug::cCrashSafe::malloc_)(size);
       }
 
     return __malloc_impl(size);
@@ -94,21 +96,22 @@ extern "C" {
   //{{{
   void free (void* ptr) throw() {
 
-    if (!Debug::cCrash::heap_trap_active_) {
-      if (!Debug::cCrash::free_)
-        Debug::cCrash::free_ = dlsym(RTLD_NEXT, "free");
-      ((void(*)(void*))Debug::cCrash::free_)(ptr);
+    if (!Debug::cCrashSafe::heap_trap_active_) {
+      if (!Debug::cCrashSafe::free_)
+        Debug::cCrashSafe::free_ = dlsym(RTLD_NEXT, "free");
+      ((void(*)(void*))Debug::cCrashSafe::free_)(ptr);
       }
     // no-op
     }
   //}}}
   }
 
-#pragma GCC poison malloc realloc free backtrace_symbols printf fprintf sprintf snprintf scanf sscanf
+//#pragma GCC poison malloc realloc free backtrace_symbols printf fprintf sprintf snprintf scanf sscanf
 
 #define checked(x) do { if ((x) <= 0) _Exit(EXIT_FAILURE); } while (false)
 
 namespace Debug {
+  typedef void (*sa_sigaction_handler) (int, siginfo_t*, void*);
   namespace Safe {
     // non heap libc functions
     //{{{
@@ -168,71 +171,7 @@ namespace Debug {
       return result;
       }
     //}}}
-    ssize_t write2stderr (const char* msg, size_t len) { return write (STDERR_FILENO, msg, len); }
     }
-
-  // static var init
-  cCrash::OutputCallback cCrash::output_callback_ = Safe::write2stderr;
-
-  typedef void (*sa_sigaction_handler) (int, siginfo_t*, void*);
-  //{{{
-  cCrash::cCrash (bool altstack) {
-
-    if (memory_ == NULL)
-      memory_ = new char[kNeededMemory + (altstack ? MINSIGSTKSZ : 0)];
-
-    if (altstack) {
-      stack_t altstack;
-      altstack.ss_sp = memory_ + kNeededMemory;
-      altstack.ss_size = MINSIGSTKSZ;
-      altstack.ss_flags = 0;
-      if (sigaltstack (&altstack, NULL) < 0) {
-        perror ("cCrash - sigaltstack()");
-        }
-      }
-
-    struct sigaction sa;
-    sa.sa_sigaction = (sa_sigaction_handler)handleSignal;
-    sigemptyset (&sa.sa_mask);
-
-    sa.sa_flags = SA_RESTART | SA_SIGINFO | (altstack? SA_ONSTACK : 0);
-    if (sigaction (SIGSEGV, &sa, NULL) < 0)
-      perror("cCrash - sigaction(SIGSEGV)");
-
-    if (sigaction (SIGABRT, &sa, NULL) < 0)
-      perror("cCrash - sigaction(SIGABBRT)");
-
-    if (sigaction (SIGFPE, &sa, NULL) < 0)
-      perror("cCrash - sigaction(SIGFPE)");
-    }
-  //}}}
-  //{{{
-  cCrash::~cCrash() {
-
-    // Disable alternative signal handler stack
-    stack_t altstack;
-    altstack.ss_sp = NULL;
-    altstack.ss_size = 0;
-    altstack.ss_flags = SS_DISABLE;
-    sigaltstack (&altstack, NULL);
-
-    struct sigaction sa;
-
-    sigaction (SIGSEGV, NULL, &sa);
-    sa.sa_handler = SIG_DFL;
-    sigaction (SIGSEGV, &sa, NULL);
-
-    sigaction (SIGABRT, NULL, &sa);
-    sa.sa_handler = SIG_DFL;
-    sigaction (SIGABRT, &sa, NULL);
-
-    sigaction (SIGFPE, NULL, &sa);
-    sa.sa_handler = SIG_DFL;
-    sigaction (SIGFPE, &sa, NULL);
-
-    delete[] memory_;
-    }
-  //}}}
 
   //{{{
   INLINE static void safe_abort() {
@@ -306,20 +245,191 @@ namespace Debug {
     }
   //}}}
 
+  // cCrash
   //{{{
-  void cCrash::print (const char* msg, size_t len) {
+  cCrash::cCrash() {
 
-    if (len > 0)
-      checked (output_callback_ (msg, len));
-    else
-      checked (output_callback_ (msg, strlen(msg)));
+    if (memoryAlloc == NULL)
+      memoryAlloc = new char[kNeededMemory];
+
+    struct sigaction sa;
+    sa.sa_sigaction = (sa_sigaction_handler)handleSignal;
+    sigemptyset (&sa.sa_mask);
+
+    sa.sa_flags = SA_RESTART | SA_SIGINFO;
+    if (sigaction (SIGSEGV, &sa, NULL) < 0)
+      perror ("cCrash - sigaction(SIGSEGV)");
+
+    if (sigaction (SIGABRT, &sa, NULL) < 0)
+      perror ("cCrash - sigaction(SIGABBRT)");
+
+    if (sigaction (SIGFPE, &sa, NULL) < 0)
+      perror ("cCrash - sigaction(SIGFPE)");
+    }
+  //}}}
+  //{{{
+  cCrash::~cCrash() {
+
+    // Disable alternative signal handler stack
+    stack_t altstack;
+
+    altstack.ss_sp = NULL;
+    altstack.ss_size = 0;
+    altstack.ss_flags = SS_DISABLE;
+    sigaltstack (&altstack, NULL);
+
+    struct sigaction sa;
+
+    sigaction (SIGSEGV, NULL, &sa);
+    sa.sa_handler = SIG_DFL;
+    sigaction (SIGSEGV, &sa, NULL);
+
+    sigaction (SIGABRT, NULL, &sa);
+    sa.sa_handler = SIG_DFL;
+    sigaction (SIGABRT, &sa, NULL);
+
+    sigaction (SIGFPE, NULL, &sa);
+    sa.sa_handler = SIG_DFL;
+    sigaction (SIGFPE, &sa, NULL);
+
+    delete[] memoryAlloc;
+    }
+  //}}}
+  //{{{
+  void cCrash::handleSignal (int sig, void* info, void* secret) {
+
+    //{{{  report signal, thread, pid
+    switch (sig) {
+      case SIGSEGV:
+        printf ("--------- crashed SIGSEGV thread:%ld pid:%d\n", pthread_self(), getppid());
+        break;
+
+      case SIGABRT:
+        printf ("--------- crashed SIGABRT thread:%ld pid:%d\n", pthread_self(), getppid());
+        break;
+
+      case SIGFPE:
+        printf ("--------- crashed SIGFPE thread:%ld pid:%d\n", pthread_self(), getppid());
+        break;
+
+      default:
+        printf ("--------- crashed signal:%d thread:%ld pid:%d\n", sig, pthread_self(), getppid());
+        break;
+      }
+    //}}}
+    //{{{  get backtrace
+    void** trace = reinterpret_cast<void**>(memoryAlloc);
+    int traceSize = backtrace (trace, frames_count_ + 2);
+    if (traceSize <= 2)
+      abort();
+
+    // Overwrite sigaction with caller's address
+    ucontext_t* uc = reinterpret_cast<ucontext_t*>(secret);
+    #if defined(__arm__)
+      trace[1] = reinterpret_cast<void *>(uc->uc_mcontext.arm_pc);
+    #else
+      #if defined(__x86_64__)
+        trace[1] = reinterpret_cast<void *>(uc->uc_mcontext.gregs[REG_RIP]);
+      #else
+        trace[1] = reinterpret_cast<void *>(uc->uc_mcontext.gregs[REG_EIP]);
+      #endif
+    #endif
+    //}}}
+
+    int stackOffset = trace[2] == trace[1] ? 2 : 1;
+    for (int i = stackOffset; i < traceSize; i++) {
+      //{{{  addr2line
+       //Dl_info dlinfo;
+       //bool result = dladdr (trace[i], &dlinfo);
+      //char* line;
+      //if (result == 0 ||
+          //(dlinfo.dli_fname[0] != '/') || !strcmp (name_buf, dlinfo.dli_fname))
+        //line = addr2line (name_buf, trace[i], &memory);
+      //else
+        //line = addr2line (dlinfo.dli_fname, reinterpret_cast<void *>(
+                 //reinterpret_cast<char*>(trace[i]) -
+                 //reinterpret_cast<char*>(dlinfo.dli_fbase)),
+                 //&memory);
+      //}}}
+
+      Dl_info dlinfo;
+      dladdr (trace[i], &dlinfo);
+      int status;
+      char* demangled = abi::__cxa_demangle (dlinfo.dli_sname, NULL, 0, &status);
+      printf ("%0d %s\n", i, ((status == 0) && demangled) ? demangled : dlinfo.dli_sname);
+      free (demangled);
+      //printf ("dlinfo    - %p %s %p %s\n", dlinfo.dli_fbase, dlinfo.dli_fname, dlinfo.dli_saddr, symname);
+      //printf ("addr2line - %s\n", line);
+      }
+
+    _Exit (EXIT_SUCCESS);
+    }
+  //}}}
+
+  //  cCrashSafe
+  //{{{
+  cCrashSafe::cCrashSafe (bool altstack) {
+
+    if (memory_ == NULL)
+      memory_ = new char[kNeededMemory + (altstack ? MINSIGSTKSZ : 0)];
+
+    if (altstack) {
+      stack_t altstack;
+      altstack.ss_sp = memory_ + kNeededMemory;
+      altstack.ss_size = MINSIGSTKSZ;
+      altstack.ss_flags = 0;
+      if (sigaltstack (&altstack, NULL) < 0) {
+        perror ("cCrashSafe - sigaltstack()");
+        }
+      }
+
+    struct sigaction sa;
+    sa.sa_sigaction = (sa_sigaction_handler)handleSignal;
+    sigemptyset (&sa.sa_mask);
+
+    sa.sa_flags = SA_RESTART | SA_SIGINFO | (altstack? SA_ONSTACK : 0);
+    if (sigaction (SIGSEGV, &sa, NULL) < 0)
+      perror ("cCrashSafe - sigaction(SIGSEGV)");
+
+    if (sigaction (SIGABRT, &sa, NULL) < 0)
+      perror ("cCrashSafe - sigaction(SIGABBRT)");
+
+    if (sigaction (SIGFPE, &sa, NULL) < 0)
+      perror ("cCrashSafe - sigaction(SIGFPE)");
+    }
+  //}}}
+  //{{{
+  cCrashSafe::~cCrashSafe() {
+
+    // Disable alternative signal handler stack
+    stack_t altstack;
+    altstack.ss_sp = NULL;
+    altstack.ss_size = 0;
+    altstack.ss_flags = SS_DISABLE;
+    sigaltstack (&altstack, NULL);
+
+    struct sigaction sa;
+
+    sigaction (SIGSEGV, NULL, &sa);
+    sa.sa_handler = SIG_DFL;
+    sigaction (SIGSEGV, &sa, NULL);
+
+    sigaction (SIGABRT, NULL, &sa);
+    sa.sa_handler = SIG_DFL;
+    sigaction (SIGABRT, &sa, NULL);
+
+    sigaction (SIGFPE, NULL, &sa);
+    sa.sa_handler = SIG_DFL;
+    sigaction (SIGFPE, &sa, NULL);
+
+    delete[] memory_;
     }
   //}}}
 
   #pragma GCC diagnostic push
   #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   //{{{
-  void cCrash::handleSignal (int sig, void* /* info */, void* secret) {
+  void cCrashSafe::handleSignal (int sig, void* /* info */, void* secret) {
   // Stop all other running threads by forking
 
     pid_t forkedPid = fork();

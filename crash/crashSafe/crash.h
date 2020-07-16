@@ -67,11 +67,11 @@ extern "C" {
   }
 
 namespace Debug {
-  class cCrash {
+  class cCrash{
   //{{{  description
   //  This class installs a SEGFAULT signal handler to print
   // a nice stack trace and (if requested) generate a core dump.
-  // @details In cCrash's constructor, a SEGFAULT signal handler
+  // @details In cCrashSafe's constructor, a SEGFAULT signal handler
   // is installed via sigaction(). If your program encounters a segmentation
   // fault, the call stack is unwinded with backtrace(), converted into
   // function names with line numbers via addr2line (fork() + execlp()).
@@ -88,12 +88,51 @@ namespace Debug {
     // Installs the SIGSEGV/etc. signal handler.
     // - altstack If true, allocate and use a dedicated signal handler stack.
     //   backtrace() will report nothing then, but the handler will survive a stack overflow.
-    cCrash (bool altstack = false);
+    cCrash();
     //}}}
     //{{{
     //  This is called on normal program termination. Previously installed
     // SIGSEGV and SIGABRT signal handlers are removed.
     ~cCrash();
+    //}}}
+
+   private:
+    static void handleSignal (int sig, void* info, void* secret);
+
+    // static vars
+    static inline const size_t kNeededMemory = 16384;
+
+    static inline int frames_count_ = 16;
+    static inline char* memoryAlloc = NULL;
+    };
+
+  class cCrashSafe {
+  //{{{  description
+  //  This class installs a SEGFAULT signal handler to print
+  // a nice stack trace and (if requested) generate a core dump.
+  // @details In cCrashSafe's constructor, a SEGFAULT signal handler
+  // is installed via sigaction(). If your program encounters a segmentation
+  // fault, the call stack is unwinded with backtrace(), converted into
+  // function names with line numbers via addr2line (fork() + execlp()).
+  // Addresses from shared libraries are also converted thanks to dladdr().
+  // All C++ symbols are demangled. Printed stack trace includes the faulty
+  // thread id obtained with pthread_self() and each line contains the process
+  // id to distinguish several stack traces printed by different processes at
+  // the same time.
+  //}}}
+
+  public:
+    typedef ssize_t (*OutputCallback)(const char*, size_t);
+    //{{{
+    // Installs the SIGSEGV/etc. signal handler.
+    // - altstack If true, allocate and use a dedicated signal handler stack.
+    //   backtrace() will report nothing then, but the handler will survive a stack overflow.
+    cCrashSafe (bool altstack = false);
+    //}}}
+    //{{{
+    //  This is called on normal program termination. Previously installed
+    // SIGSEGV and SIGABRT signal handlers are removed.
+    ~cCrashSafe();
     //}}}
 
     //{{{  gets
@@ -119,15 +158,13 @@ namespace Debug {
 
     void set_append_pid (bool value) { append_pid_ = value; }
     void set_thread_safe (bool value) { thread_safe_ = value; }
-    void set_output_callback (cCrash::OutputCallback value) { output_callback_ = value; }
+    void set_output_callback (cCrashSafe::OutputCallback value) { output_callback_ = value; }
     //}}}
 
    private:
     friend void* ::__malloc_impl (size_t);
     friend void* ::malloc (size_t) throw();
     friend void ::free (void*) throw();
-
-    static inline void print (const char* msg, size_t len = 0);
 
     static void handleSignal (int sig, void* info, void* secret);
 
