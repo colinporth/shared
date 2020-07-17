@@ -149,7 +149,7 @@ namespace {
 
         #else
 
-          if ((bfd_section_flags (abfd, section) & SEC_ALLOC) == 0 )
+          if ((bfd_get_section_flags (abfd, section) & SEC_ALLOC) == 0 )
             return;
           bfd_vma vma = bfd_section_vma (abfd, section);
           if (mPc < vma )
@@ -204,7 +204,7 @@ namespace {
             ret_buf[i] = buf;
           bfd_map_over_sections (abfd, findAddressInSection, (void*)&desc);
 
-          if (desc.mFound)
+          if (desc.mFound) {
             char* unmangledName = NULL;
             const char* name = desc.mFunctionname;
             if (name == NULL || *name == '\0')
