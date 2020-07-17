@@ -28,7 +28,11 @@ public:
 
   ~cLog();
 
-  static bool init (enum eLogLevel logLevel, bool buffer = false, std::string path = "", std::string title = "");
+  static bool init (enum eLogLevel logLevel = LOGINFO, 
+                    bool buffer = false,
+                    std::string path = "", 
+                    std::string title = "");
+
   static void setDaylightOffset (int offset);
   static void close();
 
@@ -45,7 +49,4 @@ public:
   static bool getLine (cLine& line, unsigned lineNum, unsigned& lastLineIndex);
 
   static void avLogCallback (void* ptr, int level, const char* fmt, va_list vargs);
-
-private:
-  static uint64_t getThreadId();
   };

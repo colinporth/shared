@@ -50,29 +50,29 @@
 
 using namespace std;
 //}}}
-const int kMaxBuffer = 10000;
 
-enum eLogLevel mLogLevel = LOGERROR;
+namespace {
+  const int kMaxBuffer = 10000;
+  enum eLogLevel mLogLevel = LOGERROR;
 
-mutex mLinesMutex;
-deque<cLog::cLine> mLineDeque;
+  mutex mLinesMutex;
+  deque<cLog::cLine> mLineDeque;
 
-bool mBuffer = false;
-int mDaylightSecs = 0;
-FILE* mFile = NULL;
+  bool mBuffer = false;
+  int mDaylightSecs = 0;
+  FILE* mFile = NULL;
 
-map<uint64_t,string> mThreadNameMap;
+  map<uint64_t,string> mThreadNameMap;
 
-#ifdef _WIN32
-  HANDLE hStdOut = 0;
-#else
-  // static vars
-  static inline const size_t kNeededMemory = 16384;
-  static inline int frames_count_ = 16;
-  static inline char* memoryAlloc = NULL;
-  typedef void (*sa_sigaction_handler) (int, siginfo_t*, void*);
+  #ifdef _WIN32
+    HANDLE hStdOut = 0;
+  #else
+    // static vars
+    static const int kMaxFrames = 16;
+    static const size_t kMemoryAlloc = 16384;
+    static inline char* memoryAlloc = NULL;
+    typedef void (*sa_sigaction_handler) (int, siginfo_t*, void*);
 
-  namespace {
     //{{{
     class FileMatch {
     public:
@@ -109,7 +109,7 @@ map<uint64_t,string> mThreadNameMap;
     static asymbol** slurpSymbolTable (bfd* abfd, const char* fileName) {
 
       if (!(bfd_get_file_flags (abfd) & HAS_SYMS)) {
-        printf ("Error - bfd file %s has no symbols\n", fileName);
+        cLog::log (LOGERROR, "bfd file %s has no symbols", fileName);
         return NULL;
         }
 
@@ -121,7 +121,7 @@ map<uint64_t,string> mThreadNameMap;
         symcount = bfd_read_minisymbols (abfd, true, (void**)&syms, &size);
 
       if (symcount < 0) {
-        printf ("Error - bfd file %s found no symbols\n", fileName);
+        cLog::log (LOGERROR, "bfd file %s found no symbols", fileName);
         return NULL;
         }
 
@@ -208,9 +208,8 @@ map<uint64_t,string> mThreadNameMap;
 
           bfd_map_over_sections (abfd, findAddressInSection, (void*)&desc);
 
-          if (!desc.mFound) {
-            total += snprintf( buf, len, "[0x%llx] \?\? \?\?:0", (long long unsigned int) addr[i] ) + 1;
-            }
+          if (!desc.mFound)
+            total += snprintf (buf, len, "[0x%llx] \?\? \?\?:0", (long long unsigned int) addr[i] ) + 1;
           else {
             char* realname = NULL;
             const char* name = desc.mFunctionname;
@@ -246,26 +245,26 @@ map<uint64_t,string> mThreadNameMap;
 
        bfd* abfd = bfd_openr (fileName, NULL);
        if (!abfd) {
-         printf ("Error - openng bfd file %s\n", fileName);
+         cLog::log (LOGERROR, "openng bfd file %s", fileName);
          return NULL;
          }
 
        if (bfd_check_format (abfd, bfd_archive)) {
-         printf ( "Cannot get addresses from archive %s\n", fileName);
+         cLog::log (LOGERROR, "Cannot get addresses from archive %s", fileName);
          bfd_close (abfd);
          return NULL;
          }
 
        char** matching;
        if (!bfd_check_format_matches (abfd, bfd_object, &matching)) {
-         printf ("Format does not match for archive %s\n", fileName);
+         cLog::log (LOGERROR, "Format does not match for archive %s", fileName);
          bfd_close (abfd);
          return NULL;
          }
 
        asymbol** syms = slurpSymbolTable (abfd, fileName);
        if (!syms) {
-         printf ("Failed to read symbol table for archive %s\n", fileName);
+         cLog::log (LOGERROR, "Failed to read symbol table for archive %s", fileName);
          bfd_close (abfd);
          return NULL;
          }
@@ -278,7 +277,6 @@ map<uint64_t,string> mThreadNameMap;
        return retBuf;
       }
     //}}}
-
     //{{{
     char** backtraceSymbols (void* const* addrList, int numAddr) {
 
@@ -324,10 +322,10 @@ map<uint64_t,string> mThreadNameMap;
     //}}}
 
     //{{{
-    void handleSignal (int sig, void* info, void* secret) {
+    void handleSignal (int signal, void* info, void* secret) {
 
       // report signal type
-      switch (sig) {
+      switch (signal) {
         case SIGSEGV:
           cLog::log (LOGERROR, "SIGSEGV thread:%lx pid:%d", pthread_self(), getppid());
           break;
@@ -338,44 +336,53 @@ map<uint64_t,string> mThreadNameMap;
           cLog::log (LOGERROR, "SIGFPE thread:%lx pid:%d", pthread_self(), getppid());
           break;
         default:
-          cLog::log (LOGERROR, "crashed signal:%d thread:%lx pid:%d", sig, pthread_self(), getppid());
+          cLog::log (LOGERROR, "crashed signal:%d thread:%lx pid:%d", signal, pthread_self(), getppid());
           break;
         }
 
       // get backtrace with preallocated memory
-      void** trace = reinterpret_cast<void**>(memoryAlloc);
-      int traceSize = backtrace (trace, frames_count_ + 2);
-      char** symbols = backtraceSymbols (trace, traceSize);
+      void** traces = reinterpret_cast<void**>(memoryAlloc);
+      int traceSize = backtrace (traces, kMaxFrames + 2);
+      char** symbols = backtraceSymbols (traces, traceSize);
       if (traceSize <= 2)
         abort();
 
-      //  Overwrite sigaction with caller's address
+      //  overwrite sigaction with caller's address
       ucontext_t* ucontext = reinterpret_cast<ucontext_t*>(secret);
       #if defined(__arm__)
-        trace[1] = reinterpret_cast<void*>(ucontext->uc_mcontext.arm_pc);
+        traces[1] = reinterpret_cast<void*>(ucontext->uc_mcontext.arm_pc);
       #elif defined(__x86_64__)
-        trace[1] = reinterpret_cast<void*>(ucontext->uc_mcontext.gregs[REG_RIP]);
+        traces[1] = reinterpret_cast<void*>(ucontext->uc_mcontext.gregs[REG_RIP]);
       #else
-        trace[1] = reinterpret_cast<void*>(ucontext->uc_mcontext.gregs[REG_EIP]);
+        traces[1] = reinterpret_cast<void*>(ucontext->uc_mcontext.gregs[REG_EIP]);
       #endif
 
-      int stackOffset = trace[2] == trace[1] ? 2 : 1;
-
-      for (int i = stackOffset; i < traceSize; i++)
-        cLog::log (LOGNOTICE, string("- ") + symbols[i]);
+      for (int trace = ((traces[2] == traces[1]) ? 2 : 1); trace < traceSize; trace++)
+        cLog::log (LOGNOTICE, string("- ") + symbols[trace]);
 
       _Exit (EXIT_SUCCESS);
       }
     //}}}
+  #endif
+
+  //{{{
+  uint64_t getThreadId() {
+
+    #ifdef _WIN32
+      return GetCurrentThreadId();
+    #else
+      return gettid();
+    #endif
     }
-#endif
+  //}}}
+  }
 
 //{{{
-cLog::~cLog() { 
-  close(); 
+cLog::~cLog() {
+  close();
 
   #ifndef _WIN32
-    //{{{   Disable alternative signal handler stack
+    //{{{  Disable alternative signal handler stack
     stack_t altstack;
 
     altstack.ss_sp = NULL;
@@ -416,7 +423,7 @@ bool cLog::init (enum eLogLevel logLevel, bool buffer, string path, std::string 
       mDaylightSecs = -timeZoneInfo.DaylightBias * 60;
   #else
     if (memoryAlloc == NULL)
-      memoryAlloc = new char[kNeededMemory];
+      memoryAlloc = new char[kMemoryAlloc];
 
     struct sigaction sa;
     sa.sa_sigaction = (sa_sigaction_handler)handleSignal;
@@ -680,13 +687,3 @@ void cLog::avLogCallback (void* ptr, int level, const char* fmt, va_list vargs) 
 //}}}
 
 // private
-//{{{
-uint64_t cLog::getThreadId() {
-
-  #ifdef _WIN32
-    return GetCurrentThreadId();
-  #else
-    return gettid();
-  #endif
-  }
-//}}}
