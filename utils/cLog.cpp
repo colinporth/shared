@@ -50,7 +50,7 @@
 using namespace std;
 //}}}
 
-namespace {
+namespace { // anonymous
   const int kMaxBuffer = 10000;
   enum eLogLevel mLogLevel = LOGERROR;
 
@@ -65,11 +65,12 @@ namespace {
 
   #ifdef _WIN32
     HANDLE hStdOut = 0;
+    uint64_t getThreadId() { return GetCurrentThreadId(); }
+
   #else
-    // static vars
-    static const int kMaxFrames = 16;
-    static const size_t kMemoryAlloc = 16384;
-    static inline char* memoryAlloc = NULL;
+    const int kMaxFrames = 16;
+    const size_t kMemoryAlloc = 16384;
+    char* memoryAlloc = NULL;
     typedef void (*sa_sigaction_handler) (int, siginfo_t*, void*);
 
     //{{{
@@ -102,29 +103,6 @@ namespace {
         }
 
       return 0;
-      }
-    //}}}
-    //{{{
-    static asymbol** slurpSymbolTable (bfd* abfd, const char* fileName) {
-
-      if (!(bfd_get_file_flags (abfd) & HAS_SYMS)) {
-        cLog::log (LOGERROR, "bfd file %s has no symbols", fileName);
-        return NULL;
-        }
-
-      asymbol** syms;
-      unsigned int size;
-
-      long symcount = bfd_read_minisymbols (abfd, false, (void**)&syms, &size);
-      if (symcount == 0)
-        symcount = bfd_read_minisymbols (abfd, true, (void**)&syms, &size);
-
-      if (symcount < 0) {
-        cLog::log (LOGERROR, "bfd file %s found no symbols", fileName);
-        return NULL;
-        }
-
-      return syms;
       }
     //}}}
 
@@ -181,6 +159,29 @@ namespace {
       }
     //}}}
 
+    //{{{
+    static asymbol** slurpSymbolTable (bfd* abfd, const char* fileName) {
+
+      if (!(bfd_get_file_flags (abfd) & HAS_SYMS)) {
+        cLog::log (LOGERROR, "bfd file %s has no symbols", fileName);
+        return NULL;
+        }
+
+      asymbol** syms;
+      unsigned int size;
+
+      long symcount = bfd_read_minisymbols (abfd, false, (void**)&syms, &size);
+      if (symcount == 0)
+        symcount = bfd_read_minisymbols (abfd, true, (void**)&syms, &size);
+
+      if (symcount < 0) {
+        cLog::log (LOGERROR, "bfd file %s found no symbols", fileName);
+        return NULL;
+        }
+
+      return syms;
+      }
+    //}}}
     //{{{
     static char** translateAddressesBuf (bfd* abfd, bfd_vma* addr, int numAddr, asymbol** syms) {
 
@@ -283,17 +284,17 @@ namespace {
       uint32_t idx = numAddr;
       for (int32_t i = 0; i < numAddr; i++) {
         // find which executable, or library the symbol is from
-        FileMatch match (addrList[--idx] );
-        dl_iterate_phdr (findMatchingFile, &match);
+        FileMatch fileMatch (addrList[--idx] );
+        dl_iterate_phdr (findMatchingFile, &fileMatch);
 
         // adjust the address in the global space of your binary to an
         // offset in the relevant library
         bfd_vma addr = (bfd_vma)(addrList[idx]);
-        addr -= (bfd_vma)(match.mBase);
+        addr -= (bfd_vma)(fileMatch.mBase);
 
         // lookup the symbol
-        if (match.mFile && strlen (match.mFile))
-          locations[idx] = processFile (match.mFile, &addr, 1);
+        if (fileMatch.mFile && strlen (fileMatch.mFile))
+          locations[idx] = processFile (fileMatch.mFile, &addr, 1);
         else
           locations[idx] = processFile ("/proc/self/exe", &addr, 1);
 
@@ -357,18 +358,9 @@ namespace {
       _Exit (EXIT_SUCCESS);
       }
     //}}}
+
+    uint64_t getThreadId() { return gettid(); }
   #endif
-
-  //{{{
-  uint64_t getThreadId() {
-
-    #ifdef _WIN32
-      return GetCurrentThreadId();
-    #else
-      return gettid();
-    #endif
-    }
-  //}}}
   }
 
 //{{{
