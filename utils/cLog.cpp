@@ -15,7 +15,6 @@
 
   #include <stddef.h>
   #include <unistd.h>
-  #include <assert.h>
   #include <cstdarg>
   #include <unistd.h>
   #include <sys/types.h>
@@ -150,12 +149,12 @@ namespace {
 
         #else
 
-          if ((bfd_get_section_flags (abfd, section) & SEC_ALLOC) == 0 )
+          if ((bfd_section_flags (abfd, section) & SEC_ALLOC) == 0 )
             return;
-          bfd_vma vma = bfd_get_section_vma (abfd, section);
+          bfd_vma vma = bfd_section_vma (abfd, section);
           if (mPc < vma )
             return;
-          bfd_size_type size = bfd_get_section_size (abfd, section);
+          bfd_size_type size = bfd_section_size (abfd, section);
 
         #endif
 
@@ -178,7 +177,6 @@ namespace {
     static void findAddressInSection (bfd* abfd, asection* section, void* data) {
 
       FileLineDesc* desc = (FileLineDesc*)data;
-      assert (desc);
       return desc->findAddressInSection (abfd, section);
       }
     //}}}
@@ -195,31 +193,27 @@ namespace {
 
       for (uint32_t state = 0; state < 2; state++) {
         if (state == 1) {
-          ret_buf = (char**)malloc( total + ( sizeof(char*) * numAddr ));
+          ret_buf = (char**)malloc (total + (sizeof(char*) * numAddr));
           buf = (char*)(ret_buf + numAddr);
           len = total;
           }
 
         for (int32_t i = 0; i < numAddr; i++) {
           FileLineDesc desc (syms, addr[i]);
-
           if (state == 1)
             ret_buf[i] = buf;
-
           bfd_map_over_sections (abfd, findAddressInSection, (void*)&desc);
 
-          if (!desc.mFound)
-            total += snprintf (buf, len, "[0x%llx] \?\? \?\?:0", (long long unsigned int) addr[i] ) + 1;
-          else {
-            char* realname = NULL;
+          if (desc.mFound)
+            char* unmangledName = NULL;
             const char* name = desc.mFunctionname;
             if (name == NULL || *name == '\0')
                name = "??";
             else {
               int status;
-              realname = abi::__cxa_demangle(name, 0, 0, &status);
+              unmangledName = abi::__cxa_demangle (name, 0, 0, &status);
               if (status == 0)
-                name = realname;
+                name = unmangledName;
               }
             if (desc.mFilename != NULL) {
               char* h = strrchr (desc.mFilename, '/');
@@ -227,10 +221,10 @@ namespace {
                 desc.mFilename = h + 1;
               }
             total += snprintf (buf, len, "%s:%u %s", desc.mFilename ? desc.mFilename : "??", desc.mLine, name) + 1;
-            free (realname);
-
-            // elog << "\"" << buf << "\"\n";
+            free (unmangledName);
             }
+          else
+            total += snprintf (buf, len, "[0x%llx] \?\? \?\?:0", (long long unsigned int) addr[i] ) + 1;
           }
 
         if (state == 1)
@@ -294,7 +288,7 @@ namespace {
 
         // adjust the address in the global space of your binary to an
         // offset in the relevant library
-        bfd_vma addr  = (bfd_vma)(addrList[idx]);
+        bfd_vma addr = (bfd_vma)(addrList[idx]);
         addr -= (bfd_vma)(match.mBase);
 
         // lookup the symbol
