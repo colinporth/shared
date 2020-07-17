@@ -1,17 +1,20 @@
 #include "stdio.h"
 #include "crash.h"
+#include "../utils/cLog.h"
 
 void testProc() {
 
-  printf ("Hello colin in proc\n");
+  cLog::log (LOGINFO, "Hello colin in proc");
   int* p = NULL;
   *p = 0;
   }
 
 int main() {
-  Debug::cCrash crash;
+  cLog::init (LOGINFO, false, "");
 
-  printf ("Hello colin\n");
+  cCrash crash;
+
+  cLog::log (LOGINFO, "Hello colin");
   testProc();
   return 0;
   }

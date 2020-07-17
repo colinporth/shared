@@ -26,7 +26,7 @@ public:
     };
   //}}}
 
-  ~cLog() { close(); }
+  ~cLog();
 
   static bool init (enum eLogLevel logLevel, bool buffer = false, std::string path = "", std::string title = "");
   static void setDaylightOffset (int offset);

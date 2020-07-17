@@ -1,49 +1,12 @@
-//{{{  description
-/*
-  Copyright (c) 2012, Samsung R&D Institute Russia
-  All rights reserved.
-
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are met:
-
-  1. Redistributions of source code must retain the above copyright notice, this
-     list of conditions and the following disclaimer.
-  2. Redistributions in binary form must reproduce the above copyright notice,
-     this list of conditions and the following disclaimer in the documentation
-     and/or other materials provided with the distribution.
-
-  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
-  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-  ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
- */
-
-/*! @file death_handler.cc
- *   Implementation of the SIGSEGV/SIGABRT handler which prints the debug
- *  stack trace.
- *  @author Markovtsev Vadim <gmarkhor@gmail.com>
- *  @version 1.0
- *  @license Simplified BSD License
- *  @copyright 2012 Samsung R&D Institute Russia, 2016 Moscow Institute of Physics and Technology
- */
-//}}}
 //{{{  includes
 #include "crash.h"
 
-#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
-#include <sys/types.h>
-#include <sys/wait.h>
+
+#include <string>
 
 #include <signal.h>
 #include <pthread.h>
@@ -53,9 +16,13 @@
 #include <dlfcn.h>
 #include <bfd.h>
 #include <link.h>
+
+#include "../utils/cLog.h"
+
+using namespace std;
 //}}}
 
-namespace Debug {
+namespace {
   typedef void (*sa_sigaction_handler) (int, siginfo_t*, void*);
 
   //{{{
@@ -120,22 +87,35 @@ namespace Debug {
     FileLineDesc (asymbol** syms, bfd_vma pc) : mPc(pc), mFound(false), mSyms(syms) {}
 
     void findAddressInSection (bfd* abfd, asection* section) {
+
       if (mFound)
         return;
 
-      if ((bfd_section_flags (section) & SEC_ALLOC) == 0 )
-        return;
+      #ifdef HAS_BINUTILS_234
 
-      bfd_vma vma = bfd_section_vma (section);
-      if (mPc < vma )
-        return;
+        if ((bfd_section_flags (section) & SEC_ALLOC) == 0 )
+          return;
+        bfd_vma vma = bfd_section_vma (section);
+        if (mPc < vma )
+          return;
+        bfd_size_type size = bfd_section_size (section);
 
-      bfd_size_type size = bfd_section_size (section);
+      #else
+
+        if ((bfd_get_section_flags (abfd, section) & SEC_ALLOC) == 0 )
+          return;
+        bfd_vma vma = bfd_get_section_vma (abfd, section);
+        if (mPc < vma )
+          return;
+        bfd_size_type size = bfd_get_section_size (abfd, section);
+
+      #endif
+
       if (mPc >= (vma + size))
         return;
 
-      mFound = bfd_find_nearest_line (abfd, section, mSyms, (mPc - vma),
-                                      (const char**)&mFilename, (const char**)&mFunctionname, &mLine );
+      mFound = bfd_find_nearest_line (
+        abfd, section, mSyms, (mPc - vma), (const char**)&mFilename, (const char**)&mFunctionname, &mLine);
       }
 
     bfd_vma      mPc;
@@ -294,107 +274,100 @@ namespace Debug {
     return final;
     }
   //}}}
-
-  // cCrash
-  //{{{
-  cCrash::cCrash() {
-
-    if (memoryAlloc == NULL)
-      memoryAlloc = new char[kNeededMemory];
-
-    struct sigaction sa;
-    sa.sa_sigaction = (sa_sigaction_handler)handleSignal;
-    sigemptyset (&sa.sa_mask);
-
-    sa.sa_flags = SA_RESTART | SA_SIGINFO;
-    if (sigaction (SIGSEGV, &sa, NULL) < 0)
-      perror ("cCrash - sigaction(SIGSEGV)");
-
-    if (sigaction (SIGABRT, &sa, NULL) < 0)
-      perror ("cCrash - sigaction(SIGABBRT)");
-
-    if (sigaction (SIGFPE, &sa, NULL) < 0)
-      perror ("cCrash - sigaction(SIGFPE)");
-    }
-  //}}}
-  //{{{
-  cCrash::~cCrash() {
-
-    // Disable alternative signal handler stack
-    stack_t altstack;
-
-    altstack.ss_sp = NULL;
-    altstack.ss_size = 0;
-    altstack.ss_flags = SS_DISABLE;
-    sigaltstack (&altstack, NULL);
-
-    struct sigaction sa;
-
-    sigaction (SIGSEGV, NULL, &sa);
-    sa.sa_handler = SIG_DFL;
-    sigaction (SIGSEGV, &sa, NULL);
-
-    sigaction (SIGABRT, NULL, &sa);
-    sa.sa_handler = SIG_DFL;
-    sigaction (SIGABRT, &sa, NULL);
-
-    sigaction (SIGFPE, NULL, &sa);
-    sa.sa_handler = SIG_DFL;
-    sigaction (SIGFPE, &sa, NULL);
-
-    delete[] memoryAlloc;
-    }
-  //}}}
-
-  //{{{
-  void cCrash::handleSignal (int sig, void* info, void* secret) {
-
-    //{{{  report signal
-    switch (sig) {
-      case SIGSEGV:
-        printf ("--------- crashed SIGSEGV thread:%lx pid:%d\n", pthread_self(), getppid());
-        break;
-
-      case SIGABRT:
-        printf ("--------- crashed SIGABRT thread:%lx pid:%d\n", pthread_self(), getppid());
-        break;
-
-      case SIGFPE:
-        printf ("--------- crashed SIGFPE thread:%lx pid:%d\n", pthread_self(), getppid());
-        break;
-
-      default:
-        printf ("--------- crashed signal:%d thread:%lx pid:%d\n", sig, pthread_self(), getppid());
-        break;
-      }
-    //}}}
-
-    // get backtrace
-    void** trace = reinterpret_cast<void**>(memoryAlloc);
-
-    int traceSize = backtrace (trace, frames_count_ + 2);
-    char** symbols = backtraceSymbols (trace, traceSize);
-    if (traceSize <= 2)
-      abort();
-
-    //  Overwrite sigaction with caller's address
-    ucontext_t* uc = reinterpret_cast<ucontext_t*>(secret);
-    #if defined(__arm__)
-      trace[1] = reinterpret_cast<void *>(uc->uc_mcontext.arm_pc);
-    #else
-      #if defined(__x86_64__)
-        trace[1] = reinterpret_cast<void *>(uc->uc_mcontext.gregs[REG_RIP]);
-      #else
-        trace[1] = reinterpret_cast<void *>(uc->uc_mcontext.gregs[REG_EIP]);
-      #endif
-    #endif
-
-    int stackOffset = trace[2] == trace[1] ? 2 : 1;
-
-    for (int i = stackOffset; i < traceSize; i++)
-      printf ("%s\n", symbols[i]);
-
-    _Exit (EXIT_SUCCESS);
-    }
-  //}}}
   }
+
+// cCrash
+//{{{
+cCrash::cCrash() {
+
+  if (memoryAlloc == NULL)
+    memoryAlloc = new char[kNeededMemory];
+
+  struct sigaction sa;
+  sa.sa_sigaction = (sa_sigaction_handler)handleSignal;
+  sigemptyset (&sa.sa_mask);
+
+  sa.sa_flags = SA_RESTART | SA_SIGINFO;
+  if (sigaction (SIGSEGV, &sa, NULL) < 0)
+    perror ("cCrash - sigaction(SIGSEGV)");
+
+  if (sigaction (SIGABRT, &sa, NULL) < 0)
+    perror ("cCrash - sigaction(SIGABBRT)");
+
+  if (sigaction (SIGFPE, &sa, NULL) < 0)
+    perror ("cCrash - sigaction(SIGFPE)");
+  }
+//}}}
+//{{{
+cCrash::~cCrash() {
+
+  // Disable alternative signal handler stack
+  stack_t altstack;
+
+  altstack.ss_sp = NULL;
+  altstack.ss_size = 0;
+  altstack.ss_flags = SS_DISABLE;
+  sigaltstack (&altstack, NULL);
+
+  struct sigaction sa;
+
+  sigaction (SIGSEGV, NULL, &sa);
+  sa.sa_handler = SIG_DFL;
+  sigaction (SIGSEGV, &sa, NULL);
+
+  sigaction (SIGABRT, NULL, &sa);
+  sa.sa_handler = SIG_DFL;
+  sigaction (SIGABRT, &sa, NULL);
+
+  sigaction (SIGFPE, NULL, &sa);
+  sa.sa_handler = SIG_DFL;
+  sigaction (SIGFPE, &sa, NULL);
+
+  delete[] memoryAlloc;
+  }
+//}}}
+
+//{{{
+void cCrash::handleSignal (int sig, void* info, void* secret) {
+
+  // report signal type
+  switch (sig) {
+    case SIGSEGV:
+      cLog::log (LOGERROR, "SIGSEGV thread:%lx pid:%d", pthread_self(), getppid());
+      break;
+    case SIGABRT:
+      cLog::log (LOGERROR, "SIGABRT thread:%lx pid:%d", pthread_self(), getppid());
+      break;
+    case SIGFPE:
+      cLog::log (LOGERROR, "SIGFPE thread:%lx pid:%d", pthread_self(), getppid());
+      break;
+    default:
+      cLog::log (LOGERROR, "crashed signal:%d thread:%lx pid:%d", sig, pthread_self(), getppid());
+      break;
+    }
+
+  // get backtrace with preallocated memory
+  void** trace = reinterpret_cast<void**>(memoryAlloc);
+  int traceSize = backtrace (trace, frames_count_ + 2);
+  char** symbols = backtraceSymbols (trace, traceSize);
+  if (traceSize <= 2)
+    abort();
+
+  //  Overwrite sigaction with caller's address
+  ucontext_t* ucontext = reinterpret_cast<ucontext_t*>(secret);
+  #if defined(__arm__)
+    trace[1] = reinterpret_cast<void*>(ucontext->uc_mcontext.arm_pc);
+  #elif defined(__x86_64__)
+    trace[1] = reinterpret_cast<void*>(ucontext->uc_mcontext.gregs[REG_RIP]);
+  #else
+    trace[1] = reinterpret_cast<void*>(ucontext->uc_mcontext.gregs[REG_EIP]);
+  #endif
+
+  int stackOffset = trace[2] == trace[1] ? 2 : 1;
+
+  for (int i = stackOffset; i < traceSize; i++)
+    cLog::log (LOGNOTICE, string("- ") + symbols[i]);
+
+  _Exit (EXIT_SUCCESS);
+  }
+//}}}
