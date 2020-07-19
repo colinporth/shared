@@ -135,7 +135,7 @@ inline float hue (float h, float m1, float m2) {
   }
 //}}}
 //}}}
-//{{{  inline sVgColour 
+//{{{  inline sVgColour
 struct sVgColour {
   union {
     float rgba[4];
@@ -993,91 +993,23 @@ private:
   //{{{
   class cShader {
   public:
-    //{{{
-    ~cShader() {
-      if (prog)
-        glDeleteProgram (prog);
-      if (vert)
-        glDeleteShader (vert);
-      if (frag)
-        glDeleteShader (frag);
-      }
-    //}}}
+    ~cShader();
 
-    //{{{
-    bool create (const char* opts) {
-
-      const char* str[3];
-      str[0] = kShaderHeader;
-      str[1] = opts != nullptr ? opts : "";
-
-      prog = glCreateProgram();
-      vert = glCreateShader (GL_VERTEX_SHADER);
-      str[2] = kVertShader;
-      glShaderSource (vert, 3, str, 0);
-
-      frag = glCreateShader (GL_FRAGMENT_SHADER);
-      str[2] = kFragShader;
-      glShaderSource (frag, 3, str, 0);
-
-      glCompileShader (vert);
-      GLint status;
-      glGetShaderiv (vert, GL_COMPILE_STATUS, &status);
-      if (status != GL_TRUE) {
-        //{{{  error return
-        dumpShaderError (vert, "shader", "vert");
-        return false;
-        }
-        //}}}
-
-      glCompileShader (frag);
-      glGetShaderiv (frag, GL_COMPILE_STATUS, &status);
-      if (status != GL_TRUE) {
-        //{{{  error return
-        dumpShaderError (frag, "shader", "frag");
-        return false;
-        }
-        //}}}
-
-      glAttachShader (prog, vert);
-      glAttachShader (prog, frag);
-
-      glBindAttribLocation (prog, 0, "vertex");
-      glBindAttribLocation (prog, 1, "tcoord");
-
-      glLinkProgram (prog);
-      glGetProgramiv (prog, GL_LINK_STATUS, &status);
-      if (status != GL_TRUE) {
-        //{{{  error return
-        dumpProgramError (prog, "shader");
-        return false;
-        }
-        //}}}
-
-      glUseProgram (prog);
-
-      return true;
-      }
-    //}}}
-
-    //{{{
-    void getUniforms() {
-      location[LOCATION_VIEWSIZE] = glGetUniformLocation (prog, "viewSize");
-      location[LOCATION_TEX] = glGetUniformLocation (prog, "tex");
-      location[LOCATION_FRAG] = glGetUniformLocation (prog, "frag");
-      }
-    //}}}
+    bool create (const char* opts);
+    void getUniforms();
 
     void setTex (int tex) { glUniform1i (location[LOCATION_TEX], tex); }
     void setViewport (float* viewport) { glUniform2fv (location[LOCATION_VIEWSIZE], 1, viewport); }
     void setFrags (float* frags) { glUniform4fv (location[LOCATION_FRAG], NANOVG_GL_UNIFORMARRAY_SIZE, frags); }
 
   private:
+    //{{{
     const char* kShaderHeader =
       "#version 100\n"
       "#define UNIFORMARRAY_SIZE 11\n"
       "\n";
-
+    //}}}
+    //{{{
     const char* kVertShader =
       "uniform vec2 viewSize;\n"
       "attribute vec2 vertex;\n"
@@ -1090,7 +1022,7 @@ private:
         "fpos = vertex;\n"
         "gl_Position = vec4(2.0*vertex.x/viewSize.x - 1.0, 1.0 - 2.0*vertex.y/viewSize.y, 0, 1);\n"
         "}\n";
-
+    //}}}
     //{{{
     const char* kFragShader =
       // vars
@@ -1169,32 +1101,8 @@ private:
       "}\n";
     //}}}
 
-    //{{{
-    void dumpShaderError (GLuint shader, const char* name, const char* type) {
-
-      GLchar str[512+1];
-      GLsizei len = 0;
-      glGetShaderInfoLog (shader, 512, &len, str);
-      if (len > 512)
-        len = 512;
-      str[len] = '\0';
-
-      printf ("Shader %s/%s error:%s\n", name, type, str);
-      }
-    //}}}
-    //{{{
-    void dumpProgramError (GLuint prog, const char* name) {
-
-      GLchar str[512+1];
-      GLsizei len = 0;
-      glGetProgramInfoLog (prog, 512, &len, str);
-      if (len > 512)
-        len = 512;
-      str[len] = '\0';
-
-      printf ("Program %s error:%s\n", name, str);
-      }
-    //}}}
+    void dumpShaderError (GLuint shader, const char* name, const char* type);
+    void dumpProgramError (GLuint prog, const char* name);
 
     // vars
     GLuint prog = 0;
@@ -1207,60 +1115,16 @@ private:
   //{{{
   class c2dVertices {
   public:
-    //{{{
-    c2dVertices() {
-      mVertices = (c2dVertex*)malloc (kInitNumVertices * sizeof(c2dVertex));
-      mNumAllocatedVertices = kInitNumVertices;
-      }
-    //}}}
-    //{{{
-    ~c2dVertices() {
-      free (mVertices);
-      }
-    //}}}
+    c2dVertices();
+    ~c2dVertices();
 
-    //{{{
-    void reset() {
-      mNumVertices = 0;
-      }
-    //}}}
+    void reset();
 
-    //{{{
-    int getNumVertices() {
-      return mNumVertices;
-      }
-    //}}}
-    //{{{
-    c2dVertex* getVertexPtr (int vertexIndex) {
-      return mVertices + vertexIndex;
-      }
-    //}}}
+    int getNumVertices();
+    c2dVertex* getVertexPtr (int vertexIndex);
 
-    //{{{
-    int alloc (int numVertices) {
-    // allocate n vertices and return index of first
-
-      if (mNumVertices + numVertices > mNumAllocatedVertices) {
-        mNumAllocatedVertices = maxi (mNumVertices + numVertices, 4096) + mNumAllocatedVertices/2; // 1.5x Overallocate
-        cLog::log (LOGINFO2, "realloc vertices " + dec(mNumAllocatedVertices));
-        mVertices = (c2dVertex*)realloc (mVertices, mNumAllocatedVertices * sizeof(c2dVertex));
-        }
-
-      int firstVertexIndex = mNumVertices;
-      mNumVertices += numVertices;
-      return firstVertexIndex;
-      }
-    //}}}
-    //{{{
-    void trim (int numVertices) {
-    // trim vertices used to numVertices
-
-      if (numVertices > mNumVertices)
-        printf ("trimVertices overflowed %d %d\n", numVertices, mNumVertices);
-
-      mNumVertices = numVertices;
-      }
-    //}}}
+    int alloc (int numVertices);
+    void trim (int numVertices);
 
   private:
     const int kInitNumVertices = 4000;
