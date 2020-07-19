@@ -1593,6 +1593,227 @@ void cVg::initialise() {
   }
 //}}}
 
+//{{{  cVg::cTransform
+//{{{
+cVg::cTransform::cTransform() : mIdentity(true) {
+  mSx = 1.0f;
+  mKy = 0.0f;
+  mKx = 0.0f;
+  mSy = 1.0f;
+
+  mTx = 0.0f;
+  mTy = 0.0f;
+  }
+//}}}
+//{{{
+cVg::cTransform::cTransform (float sx, float ky, float kx, float sy, float tx, float ty) {
+  mSx = sx;
+  mKy = ky;
+  mKx = kx;
+  mSy = sy;
+
+  mTx = tx;
+  mTy = ty;
+
+  mIdentity = isIdentity();
+  }
+//}}}
+
+float cVg::cTransform::getAverageScaleX() { return sqrtf (mSx*mSx + mKx*mKx); }
+float cVg::cTransform::getAverageScaleY() { return sqrtf (mKy*mKy + mSy*mSy); }
+float cVg::cTransform::getAverageScale() { return (getAverageScaleX() + getAverageScaleY()) * 0.5f; }
+float cVg::cTransform::getTranslateX() { return mTx; }
+float cVg::cTransform::getTranslateY() { return mTy; }
+//{{{
+bool cVg::cTransform::getInverse (cTransform& inverse) {
+
+  double det = (double)mSx * mSy - (double)mKx * mKy;
+  if (det > -1e-6 && det < 1e-6) {
+    inverse.setIdentity();
+    return false;
+    }
+
+  double inverseDet = 1.0 / det;
+  inverse.mSx = (float)(mSy * inverseDet);
+  inverse.mKx = (float)(-mKx * inverseDet);
+  inverse.mTx = (float)(((double)mKx * mTy - (double)mSy * mTx) * inverseDet);
+  inverse.mKy = (float)(-mKy * inverseDet);
+  inverse.mSy = (float)(mSx * inverseDet);
+  inverse.mTy = (float)(((double)mKy * mTx - (double)mSx * mTy) * inverseDet);
+  return true;
+  }
+//}}}
+//{{{
+void cVg::cTransform::getMatrix3x4 (float* matrix3x4) {
+
+  matrix3x4[0] = mSx;
+  matrix3x4[1] = mKy;
+  matrix3x4[2] = 0.0f;
+
+  matrix3x4[3] = 0.0f;
+  matrix3x4[4] = mKx;
+  matrix3x4[5] = mSy;
+
+  matrix3x4[6] = 0.0f;
+  matrix3x4[7] = 0.0f;
+  matrix3x4[8] = mTx;
+
+  matrix3x4[9] = mTy;
+  matrix3x4[10] = 1.0f;
+  matrix3x4[11] = 0.0f;
+  }
+//}}}
+
+//{{{
+void cVg::cTransform::setIdentity() {
+  mSx = 1.0f;
+  mKy = 0.0f;
+  mKx = 0.0f;
+  mSy = 1.0f;
+
+  mTx = 0.0f;
+  mTy = 0.0f;
+  mIdentity = true;
+  }
+//}}}
+//{{{
+void cVg::cTransform::setTranslate (float tx, float ty) {
+  mSx = 1.0f;
+  mKy = 0.0f;
+  mKx = 0.0f;
+  mSy = 1.0f;
+
+  mTx = tx;
+  mTy = ty;
+
+  mIdentity = isIdentity();
+  }
+//}}}
+//{{{
+void cVg::cTransform::setScale (float sx, float sy) {
+  mSx = sx;
+  mKy = 0.0f;
+  mKx = 0.0f;
+  mSy = sy;
+
+  mTx = 0.0f;
+  mTy = 0.0f;
+
+  mIdentity = isIdentity();
+  }
+//}}}
+//{{{
+void cVg::cTransform::setRotate (float angle) {
+  float cs = cosf (angle);
+  float sn = sinf (angle);
+  mSx = cs;
+  mKy = sn;
+  mKx = -sn;
+  mSy = cs;
+
+  mTx = 0.0f;
+  mTy = 0.0f;
+
+  mIdentity = isIdentity();
+  }
+//}}}
+//{{{
+void cVg::cTransform::setRotateTranslate (float angle, float tx, float ty) {
+  float cs = cosf (angle);
+  float sn = sinf (angle);
+
+  mSx = cs;
+  mKy = sn;
+  mKx = -sn;
+  mSy = cs;
+
+  mTx = tx;
+  mTy = ty;
+
+  mIdentity = isIdentity();
+  }
+//}}}
+//{{{
+void cVg::cTransform::set (float sx, float ky, float kx, float sy, float tx, float ty) {
+  mSx = sx;
+  mKy = ky;
+  mKx = kx;
+  mSy = sy;
+
+  mTx = tx;
+  mTy = ty;
+
+  mIdentity = isIdentity();
+  }
+//}}}
+
+//{{{
+void cVg::cTransform::multiply (cTransform& t) {
+
+  float t0 = mSx * t.mSx + mKy * t.mKx;
+  float t2 = mKx * t.mSx + mSy * t.mKx;
+  float t4 = mTx * t.mSx + mTy * t.mKx + t.mTx;
+
+  mKy = mSx * t.mKy + mKy * t.mSy;
+  mSy = mKx * t.mKy + mSy * t.mSy;
+  mTy = mTx * t.mKy + mTy * t.mSy + t.mTy;
+
+  mSx = t0;
+  mKx = t2;
+  mTx = t4;
+
+  mIdentity = isIdentity();
+  }
+//}}}
+//{{{
+void cVg::cTransform::premultiply (cTransform& t) {
+  float t0 = t.mSx * mSx + t.mKy * mKx;
+  float t2 = t.mKx * mSx + t.mSy * mKx;
+  float t4 = t.mTx * mSx + t.mTy * mKx + mTx;
+
+  t.mKy = t.mSx * mKy + t.mKy * mSy;
+  t.mSy = t.mKx * mKy + t.mSy * mSy;
+  t.mTy = t.mTx * mKy + t.mTy * mSy + mTy;
+
+  t.mSx = t0;
+  t.mKx = t2;
+  t.mTx = t4;
+
+  mIdentity = isIdentity();
+  }
+//}}}
+
+//{{{
+void cVg::cTransform::point (float& x, float& y) {
+// transform point back to itself
+
+  float temp = (x * mSx) + (y * mKx) + mTx;
+  y = (x * mKy) + (y * mSy) + mTy;
+  x = temp;
+  }
+//}}}
+//{{{
+void cVg::cTransform::point (float srcx, float srcy, float& dstx, float& dsty) {
+// transform src point to dst point
+
+  dstx = (srcx * mSx) + (srcy * mKx) + mTx;
+  dsty = (srcx * mKy) + (srcy * mSy) + mTy;
+  }
+//}}}
+//{{{
+void cVg::cTransform::pointScissor (float srcx, float srcy, float& dstx, float& dsty) {
+  dstx = srcx * absf (mSx) + srcy * absf (mKx);
+  dsty = srcx * absf (mKy) + srcy * absf (mSy);
+  }
+//}}}
+
+//{{{
+bool cVg::cTransform::isIdentity() {
+  return mSx == 1.0f && mKy == 0.0f && mKx == 0.0f && mSy == 1.0f && mTx == 0.0f && mTy == 0.0f;
+  }
+//}}}
+//}}}
+
 //{{{  state
 //{{{
 void cVg::resetState() {

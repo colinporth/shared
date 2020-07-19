@@ -273,218 +273,30 @@ public:
   //   [ky sy ty]
   //   [ 0  0  1]
   public:
-    //{{{
-    cTransform() : mIdentity(true) {
-      mSx = 1.0f;
-      mKy = 0.0f;
-      mKx = 0.0f;
-      mSy = 1.0f;
+    cTransform();
+    cTransform (float sx, float ky, float kx, float sy, float tx, float ty);
 
-      mTx = 0.0f;
-      mTy = 0.0f;
-      }
-    //}}}
-    //{{{
-    cTransform (float sx, float ky, float kx, float sy, float tx, float ty) {
-      mSx = sx;
-      mKy = ky;
-      mKx = kx;
-      mSy = sy;
+    float getAverageScaleX();
+    float getAverageScaleY();
+    float getAverageScale();
+    float getTranslateX();
+    float getTranslateY();
+    bool getInverse (cTransform& inverse);
+    void getMatrix3x4 (float* matrix3x4);
 
-      mTx = tx;
-      mTy = ty;
+    void setIdentity();
+    void setTranslate (float tx, float ty);
+    void setScale (float sx, float sy);
+    void setRotate (float angle);
+    void setRotateTranslate (float angle, float tx, float ty);
+    void set (float sx, float ky, float kx, float sy, float tx, float ty);
 
-      mIdentity = isIdentity();
-      }
-    //}}}
+    void multiply (cTransform& t);
+    void premultiply (cTransform& t);
 
-    float getAverageScaleX() { return sqrtf (mSx*mSx + mKx*mKx); }
-    float getAverageScaleY() { return sqrtf (mKy*mKy + mSy*mSy); }
-    float getAverageScale() { return (getAverageScaleX() + getAverageScaleY()) * 0.5f; }
-    float getTranslateX() { return mTx; }
-    float getTranslateY() { return mTy; }
-    //{{{
-    bool getInverse (cTransform& inverse) {
-
-      double det = (double)mSx * mSy - (double)mKx * mKy;
-      if (det > -1e-6 && det < 1e-6) {
-        inverse.setIdentity();
-        return false;
-        }
-
-      double inverseDet = 1.0 / det;
-      inverse.mSx = (float)(mSy * inverseDet);
-      inverse.mKx = (float)(-mKx * inverseDet);
-      inverse.mTx = (float)(((double)mKx * mTy - (double)mSy * mTx) * inverseDet);
-      inverse.mKy = (float)(-mKy * inverseDet);
-      inverse.mSy = (float)(mSx * inverseDet);
-      inverse.mTy = (float)(((double)mKy * mTx - (double)mSx * mTy) * inverseDet);
-      return true;
-      }
-    //}}}
-    //{{{
-    void getMatrix3x4 (float* matrix3x4) {
-
-      matrix3x4[0] = mSx;
-      matrix3x4[1] = mKy;
-      matrix3x4[2] = 0.0f;
-
-      matrix3x4[3] = 0.0f;
-      matrix3x4[4] = mKx;
-      matrix3x4[5] = mSy;
-
-      matrix3x4[6] = 0.0f;
-      matrix3x4[7] = 0.0f;
-      matrix3x4[8] = mTx;
-
-      matrix3x4[9] = mTy;
-      matrix3x4[10] = 1.0f;
-      matrix3x4[11] = 0.0f;
-      }
-    //}}}
-
-    //{{{
-    void setIdentity() {
-      mSx = 1.0f;
-      mKy = 0.0f;
-      mKx = 0.0f;
-      mSy = 1.0f;
-
-      mTx = 0.0f;
-      mTy = 0.0f;
-      mIdentity = true;
-      }
-    //}}}
-    //{{{
-    void setTranslate (float tx, float ty) {
-      mSx = 1.0f;
-      mKy = 0.0f;
-      mKx = 0.0f;
-      mSy = 1.0f;
-
-      mTx = tx;
-      mTy = ty;
-
-      mIdentity = isIdentity();
-      }
-    //}}}
-    //{{{
-    void setScale (float sx, float sy) {
-      mSx = sx;
-      mKy = 0.0f;
-      mKx = 0.0f;
-      mSy = sy;
-
-      mTx = 0.0f;
-      mTy = 0.0f;
-
-      mIdentity = isIdentity();
-      }
-    //}}}
-    //{{{
-    void setRotate (float angle) {
-      float cs = cosf (angle);
-      float sn = sinf (angle);
-      mSx = cs;
-      mKy = sn;
-      mKx = -sn;
-      mSy = cs;
-
-      mTx = 0.0f;
-      mTy = 0.0f;
-
-      mIdentity = isIdentity();
-      }
-    //}}}
-    //{{{
-    void setRotateTranslate (float angle, float tx, float ty) {
-      float cs = cosf (angle);
-      float sn = sinf (angle);
-
-      mSx = cs;
-      mKy = sn;
-      mKx = -sn;
-      mSy = cs;
-
-      mTx = tx;
-      mTy = ty;
-
-      mIdentity = isIdentity();
-      }
-    //}}}
-    //{{{
-    void set (float sx, float ky, float kx, float sy, float tx, float ty) {
-      mSx = sx;
-      mKy = ky;
-      mKx = kx;
-      mSy = sy;
-
-      mTx = tx;
-      mTy = ty;
-
-      mIdentity = isIdentity();
-      }
-    //}}}
-
-    //{{{
-    void multiply (cTransform& t) {
-
-      float t0 = mSx * t.mSx + mKy * t.mKx;
-      float t2 = mKx * t.mSx + mSy * t.mKx;
-      float t4 = mTx * t.mSx + mTy * t.mKx + t.mTx;
-
-      mKy = mSx * t.mKy + mKy * t.mSy;
-      mSy = mKx * t.mKy + mSy * t.mSy;
-      mTy = mTx * t.mKy + mTy * t.mSy + t.mTy;
-
-      mSx = t0;
-      mKx = t2;
-      mTx = t4;
-
-      mIdentity = isIdentity();
-      }
-    //}}}
-    //{{{
-    void premultiply (cTransform& t) {
-      float t0 = t.mSx * mSx + t.mKy * mKx;
-      float t2 = t.mKx * mSx + t.mSy * mKx;
-      float t4 = t.mTx * mSx + t.mTy * mKx + mTx;
-
-      t.mKy = t.mSx * mKy + t.mKy * mSy;
-      t.mSy = t.mKx * mKy + t.mSy * mSy;
-      t.mTy = t.mTx * mKy + t.mTy * mSy + mTy;
-
-      t.mSx = t0;
-      t.mKx = t2;
-      t.mTx = t4;
-
-      mIdentity = isIdentity();
-      }
-    //}}}
-
-    //{{{
-    void point (float& x, float& y) {
-    // transform point back to itself
-
-      float temp = (x * mSx) + (y * mKx) + mTx;
-      y = (x * mKy) + (y * mSy) + mTy;
-      x = temp;
-      }
-    //}}}
-    //{{{
-    void point (float srcx, float srcy, float& dstx, float& dsty) {
-    // transform src point to dst point
-
-      dstx = (srcx * mSx) + (srcy * mKx) + mTx;
-      dsty = (srcx * mKy) + (srcy * mSy) + mTy;
-      }
-    //}}}
-    //{{{
-    void pointScissor (float srcx, float srcy, float& dstx, float& dsty) {
-      dstx = srcx * absf (mSx) + srcy * absf (mKx);
-      dsty = srcx * absf (mKy) + srcy * absf (mSy);
-      }
-    //}}}
+    void point (float& x, float& y);
+    void point (float srcx, float srcy, float& dstx, float& dsty);
+    void pointScissor (float srcx, float srcy, float& dstx, float& dsty);
 
     // vars
     float mSx;
@@ -498,11 +310,7 @@ public:
     bool mIdentity;
 
   private:
-    //{{{
-    bool isIdentity() {
-      return mSx == 1.0f && mKy == 0.0f && mKx == 0.0f && mSy == 1.0f && mTx == 0.0f && mTy == 0.0f;
-      }
-    //}}}
+    bool isIdentity();
     };
   //}}}
 
