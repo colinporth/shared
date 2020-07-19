@@ -3525,61 +3525,995 @@ void cVg::cShader::dumpProgramError (GLuint prog, const char* name) {
   }
 //}}}
 //}}}
-  //{{{
-  cVg::c2dVertices::c2dVertices() {
-    mVertices = (c2dVertex*)malloc (kInitNumVertices * sizeof(c2dVertex));
-    mNumAllocatedVertices = kInitNumVertices;
-    }
-  //}}}
-  //{{{
-  cVg::c2dVertices::~c2dVertices() {
-    free (mVertices);
-    }
-  //}}}
+//{{{  cVg::c2dVertices
+//{{{
+cVg::c2dVertices::c2dVertices() {
+  mVertices = (c2dVertex*)malloc (kInitNumVertices * sizeof(c2dVertex));
+  mNumAllocatedVertices = kInitNumVertices;
+  }
+//}}}
+//{{{
+cVg::c2dVertices::~c2dVertices() {
+  free (mVertices);
+  }
+//}}}
 
-  //{{{
-  void cVg::c2dVertices::reset() {
-    mNumVertices = 0;
-    }
-  //}}}
+//{{{
+void cVg::c2dVertices::reset() {
+  mNumVertices = 0;
+  }
+//}}}
 
-  //{{{
-  int cVg::c2dVertices::getNumVertices() {
-    return mNumVertices;
-    }
-  //}}}
-  //{{{
-  cVg::c2dVertex* cVg::c2dVertices::getVertexPtr (int vertexIndex) {
-    return mVertices + vertexIndex;
-    }
-  //}}}
+//{{{
+int cVg::c2dVertices::getNumVertices() {
+  return mNumVertices;
+  }
+//}}}
+//{{{
+cVg::c2dVertex* cVg::c2dVertices::getVertexPtr (int vertexIndex) {
+  return mVertices + vertexIndex;
+  }
+//}}}
 
-  //{{{
-  int cVg::c2dVertices::alloc (int numVertices) {
-  // allocate n vertices and return index of first
+//{{{
+int cVg::c2dVertices::alloc (int numVertices) {
+// allocate n vertices and return index of first
 
-    if (mNumVertices + numVertices > mNumAllocatedVertices) {
-      mNumAllocatedVertices = maxi (mNumVertices + numVertices, 4096) + mNumAllocatedVertices/2; // 1.5x Overallocate
-      cLog::log (LOGINFO2, "realloc vertices " + dec(mNumAllocatedVertices));
-      mVertices = (c2dVertex*)realloc (mVertices, mNumAllocatedVertices * sizeof(c2dVertex));
+  if (mNumVertices + numVertices > mNumAllocatedVertices) {
+    mNumAllocatedVertices = maxi (mNumVertices + numVertices, 4096) + mNumAllocatedVertices/2; // 1.5x Overallocate
+    cLog::log (LOGINFO2, "realloc vertices " + dec(mNumAllocatedVertices));
+    mVertices = (c2dVertex*)realloc (mVertices, mNumAllocatedVertices * sizeof(c2dVertex));
+    }
+
+  int firstVertexIndex = mNumVertices;
+  mNumVertices += numVertices;
+  return firstVertexIndex;
+  }
+//}}}
+//{{{
+void cVg::c2dVertices::trim (int numVertices) {
+// trim vertices used to numVertices
+
+  if (numVertices > mNumVertices)
+    printf ("trimVertices overflowed %d %d\n", numVertices, mNumVertices);
+
+  mNumVertices = numVertices;
+  }
+//}}}
+
+//}}}
+//{{{  cVg::cShape
+//{{{
+cVg::cShape::cShape() {
+  mPaths = (cPath*)malloc (sizeof(cPath)*NVG_INIT_PATHS_SIZE);
+  mNumAllocatedPaths = NVG_INIT_PATHS_SIZE;
+
+  mPoints = (cPoint*)malloc (sizeof(cPoint)*NVG_INIT_POINTS_SIZE);
+  mNumAllocatedPoints = NVG_INIT_POINTS_SIZE;
+
+  mNumAllocatedCommands = kInitCommandsSize;
+  mCommands = (float*)malloc (sizeof(float) * kInitCommandsSize);
+  }
+//}}}
+//{{{
+cVg::cShape::~cShape() {
+  free (mPoints);
+  free (mPaths);
+  free (mCommands);
+  }
+//}}}
+
+//{{{
+
+float cVg::cShape::getLastX() {
+  return mLastX;
+  }
+//}}}
+//{{{
+
+float cVg::cShape::getLastY() {
+  return mLastY;
+  }
+//}}}
+//{{{
+
+int cVg::cShape::getNumCommands() {
+  return mNumCommands;
+  }
+//}}}
+//{{{
+void cVg::cShape::addCommand (float* values, int numValues, cTransform& transform) {
+
+  if (((int)values[0] == eMOVETO) ||
+      ((int)values[0] == eLINETO) ||
+      ((int)values[0] == eBEZIERTO)) {
+    mLastX = values[numValues-2];
+    mLastY = values[numValues-1];
+    }
+
+  // transform commands
+  if (transform.mIdentity) {
+    //{{{  state xform nonIdentity, transform points
+    for (int i = 0; i < numValues;) {
+      switch ((int)values[i++]) {
+        case eMOVETO:
+        case eLINETO:
+          if (i+1 < numValues) // ensure enough values supplied for command type
+            transform.point (values[i], values[i+1]);
+          else
+            cLog::log (LOGERROR, "not enough values in addCommand");
+          i += 2;
+          break;
+
+        case eBEZIERTO:
+          if (i+5 < numValues) { // ensure enough values supplied for command type
+            transform.point (values[i], values[i+1]);
+            transform.point (values[i+2], values[i+3]);
+            transform.point (values[i+4], values[i+5]);
+            }
+          else
+            cLog::log (LOGERROR, "not enough values in addCommand");
+
+          i += 6;
+          break;
+
+        case eWINDING:
+          i += 1;
+          break;
+
+        case eCLOSE:;
+        }
+      }
+    }
+    //}}}
+
+  // copy values to shapeCommands
+  if (mNumCommands + numValues > mNumAllocatedCommands) {
+    // not enough shapeCommands, expand shapeCommands size by 3/2
+    mNumAllocatedCommands = mNumCommands + numValues + mNumAllocatedCommands / 2;
+    mCommands = (float*)realloc (mCommands, sizeof(float) * mNumAllocatedCommands);
+    cLog::log (LOGINFO2, "realloc commmands " + dec(mNumAllocatedCommands));
+    }
+  memcpy (&mCommands[mNumCommands], values, numValues * sizeof(float));
+  mNumCommands += numValues;
+  }
+//}}}
+
+//{{{
+int cVg::cShape::getNumVertices() {
+
+  int numVertices = 0;
+  for (int i = 0; i < mNumPaths; i++)
+    numVertices += mPaths[i].mNumPoints;
+  return numVertices;
+  }
+//}}}
+
+//{{{
+void cVg::cShape::beginPath() {
+  mNumPaths = 0;
+  mNumPoints = 0;
+  mNumCommands = 0;
+  }
+//}}}
+//{{{
+void cVg::cShape::flattenPaths() {
+
+  commandsToPaths();
+
+  // Calculate the direction and length of line segments.
+  mBounds[0] = 1e6f;
+  mBounds[1] = 1e6f;
+  mBounds[2] = -1e6f;
+  mBounds[3] = -1e6f;
+
+  for (auto path = mPaths; path < mPaths + mNumPaths; path++) {
+    // if firstPoint = lastPoint, remove the last, mark as closed
+    auto points = &mPoints[path->mFirstPointIndex];
+    auto point0 = &points[path->mNumPoints-1];
+    auto point1 = &points[0];
+    if (pointEquals (point0->x, point0->y, point1->x, point1->y, kDistanceTolerance)) {
+      path->mNumPoints--;
+      point0 = &points[path->mNumPoints-1];
+      path->mClosed = true;
       }
 
-    int firstVertexIndex = mNumVertices;
-    mNumVertices += numVertices;
-    return firstVertexIndex;
+    // enforce winding direction
+    if (path->mNumPoints > 2) {
+     float area = polyArea (points, path->mNumPoints);
+      if ((path->mWinding == eSOLID) && (area < 0.0f))
+        polyReverse (points, path->mNumPoints);
+      if ((path->mWinding == eHOLE) && (area > 0.0f))
+        polyReverse (points, path->mNumPoints);
+      }
+
+    // calc segment direction, length, update shape bounds
+    for (int i = 0; i < path->mNumPoints; i++) {
+      point0->dx = point1->x - point0->x;
+      point0->dy = point1->y - point0->y;
+      point0->len = normalize (point0->dx, point0->dy);
+
+      mBounds[0] = minf (mBounds[0], point0->x);
+      mBounds[1] = minf (mBounds[1], point0->y);
+      mBounds[2] = maxf (mBounds[2], point0->x);
+      mBounds[3] = maxf (mBounds[3], point0->y);
+
+      // advance
+      point0 = point1++;
+      }
+    }
+  }
+//}}}
+//{{{
+void cVg::cShape::calculateJoins (float w, int lineJoin, float miterLimit) {
+
+  float iw = 0.0f;
+  if (w > 0.0f)
+    iw = 1.0f / w;
+
+  // Calculate which joins needs extra vertices to append, and gather vertex count.
+  for (auto path = mPaths; path < mPaths + mNumPaths; path++) {
+    auto points = &mPoints[path->mFirstPointIndex];
+    auto point0 = &points[path->mNumPoints-1];
+    auto point1 = &points[0];
+    int nleft = 0;
+    path->mNumBevel = 0;
+
+    for (int j = 0; j < path->mNumPoints; j++) {
+      float dlx0, dly0, dlx1, dly1, dmr2, cross, limit;
+      dlx0 = point0->dy;
+      dly0 = -point0->dx;
+      dlx1 = point1->dy;
+      dly1 = -point1->dx;
+
+      // Calculate extrusions
+      point1->dmx = (dlx0 + dlx1) * 0.5f;
+      point1->dmy = (dly0 + dly1) * 0.5f;
+      dmr2 = point1->dmx*point1->dmx + point1->dmy*point1->dmy;
+      if (dmr2 > 0.000001f) {
+        float scale = 1.0f / dmr2;
+        if (scale > 600.0f) {
+          scale = 600.0f;
+          }
+        point1->dmx *= scale;
+        point1->dmy *= scale;
+        }
+
+      // Clear flags, but keep the corner.
+      point1->flags = (point1->flags & cPoint::PT_CORNER) ? cPoint::PT_CORNER : 0;
+
+      // Keep track of left turns.
+      cross = point1->dx * point0->dy - point0->dx * point1->dy;
+      if (cross > 0.0f) {
+        nleft++;
+        point1->flags |= cPoint::PT_LEFT;
+        }
+
+      // Calculate if we should use bevel or miter for inner join.
+      limit = maxf (1.01f, minf (point0->len, point1->len) * iw);
+      if ((dmr2 * limit * limit) < 1.0f)
+        point1->flags |= cPoint::PT_INNERBEVEL;
+
+      // Check to see if the corner needs to be beveled.
+      if (point1->flags & cPoint::PT_CORNER) {
+        if (((dmr2 * miterLimit * miterLimit) < 1.0f) || (lineJoin == eBEVEL) || (lineJoin == eROUND)) {
+          point1->flags |= cPoint::PT_BEVEL;
+          }
+        }
+
+      if ((point1->flags & (cPoint::PT_BEVEL | cPoint::PT_INNERBEVEL)) != 0)
+        path->mNumBevel++;
+      point0 = point1++;
+      }
+
+    path->mConvex = (nleft == path->mNumPoints);
+    }
+  }
+//}}}
+//{{{
+void cVg::cShape::expandFill (c2dVertices& vertices, float w, eLineCap lineJoin, float miterLimit, float fringeWidth) {
+
+  bool fringe = w > 0.0f;
+
+  calculateJoins (w, lineJoin, miterLimit);
+
+  // calc max numVertices
+  int numVertices = 0;
+  for (auto path = mPaths; path < mPaths + mNumPaths; path++) {
+    numVertices += path->mNumPoints + path->mNumBevel + 1;
+    if (fringe)
+      numVertices += (path->mNumPoints + path->mNumBevel * 5 + 1) * 2; // plus one for loop
+    }
+
+  bool convex = (mNumPaths == 1) && mPaths[0].mConvex;
+  numVertices += 4;
+
+  int vertexIndex = vertices.alloc (numVertices);
+  auto vertexPtr = vertices.getVertexPtr (vertexIndex);
+
+  // setup bounds vertices
+  mBoundsVertexIndex = vertexIndex;
+  vertexPtr++->set (mBounds[0], mBounds[1], 0.5f, 1.0f);
+  vertexPtr++->set (mBounds[0], mBounds[3], 0.5f, 1.0f);
+  vertexPtr++->set (mBounds[2], mBounds[1], 0.5f, 1.0f);
+  vertexPtr++->set (mBounds[2], mBounds[3], 0.5f, 1.0f);
+  vertexIndex += 4;
+
+  for (auto path = mPaths; path < mPaths + mNumPaths; path++) {
+    auto points = &mPoints[path->mFirstPointIndex];
+
+    // Calculate shape vertices.
+    auto firstVertexPtr = vertexPtr;
+    path->mPathVertices.mFirstFillVertexIndex = vertexIndex;
+
+    float woff = 0.5f * fringeWidth;
+    if (fringe) {
+      //{{{  looping
+      auto point0 = &points[path->mNumPoints-1];
+      auto point1 = &points[0];
+
+      for (int j = 0; j < path->mNumPoints; ++j) {
+        if (point1->flags & cPoint::PT_BEVEL) {
+          float dlx0 = point0->dy;
+          float dly0 = -point0->dx;
+          float dlx1 = point1->dy;
+          float dly1 = -point1->dx;
+          if (point1->flags & cPoint::PT_LEFT) {
+            float lx = point1->x + point1->dmx * woff;
+            float ly = point1->y + point1->dmy * woff;
+            vertexPtr++->set (lx, ly, 0.5f,1);
+            }
+          else {
+            float lx0 = point1->x + dlx0 * woff;
+            float ly0 = point1->y + dly0 * woff;
+            float lx1 = point1->x + dlx1 * woff;
+            float ly1 = point1->y + dly1 * woff;
+            vertexPtr++->set (lx0, ly0, 0.5f,1);
+            vertexPtr++->set (lx1, ly1, 0.5f,1);
+            }
+          }
+        else
+          vertexPtr++->set (point1->x + (point1->dmx * woff), point1->y + (point1->dmy * woff), 0.5f, 1);
+
+        point0 = point1++;
+        }
+      }
+      //}}}
+    else
+      for (int j = 0; j < path->mNumPoints; ++j)
+        vertexPtr++->set (points[j].x, points[j].y, 0.5f, 1);
+
+    int numVertices = (int)(vertexPtr - firstVertexPtr);
+    path->mPathVertices.mNumFillVertices = numVertices;
+    vertexIndex += numVertices;
+
+    if (fringe) {
+      //{{{  calculate fringe
+      float lw = w + woff;
+      float rw = w - woff;
+      float lu = 0;
+      float ru = 1;
+
+      firstVertexPtr = vertexPtr;
+      path->mPathVertices.mFirstStrokeVertexIndex = vertexIndex;
+
+      // Create only half a fringe for convex shapes so that the shape can be rendered without stenciling.
+      if (convex) {
+        lw = woff;  // This should generate the same vertex as fill inset above.
+        lu = 0.5f;  // Set outline fade at middle.
+        }
+
+      // Looping
+      cPoint* point0 = &points[path->mNumPoints-1];
+      cPoint* point1 = &points[0];
+      for (int j = 0; j < path->mNumPoints; ++j) {
+        if ((point1->flags & (cPoint::PT_BEVEL | cPoint::PT_INNERBEVEL)) != 0)
+          vertexPtr = bevelJoin (vertexPtr, point0, point1, lw, rw, lu, ru, fringeWidth);
+        else {
+          vertexPtr++->set (point1->x + (point1->dmx * lw), point1->y + (point1->dmy * lw), lu, 1);
+          vertexPtr++->set (point1->x - (point1->dmx * rw), point1->y - (point1->dmy * rw), ru, 1);
+          }
+        point0 = point1++;
+        }
+
+      // Loop it
+      vertexPtr++->set (firstVertexPtr->mX, firstVertexPtr->mY, lu, 1);
+      vertexPtr++->set ((firstVertexPtr+1)->mX, (firstVertexPtr+1)->mY, ru, 1);
+
+      int numVertices = (int)(vertexPtr - firstVertexPtr);
+      path->mPathVertices.mNumStrokeVertices = numVertices;
+      vertexIndex += numVertices;
+      }
+      //}}}
+    else {
+      path->mPathVertices.mFirstStrokeVertexIndex = 0;
+      path->mPathVertices.mNumStrokeVertices = 0;
+      }
+    }
+
+  vertices.trim (vertexIndex);
+  }
+//}}}
+//{{{
+void cVg::cShape::triangleFill (c2dVertices& vertices, int& vertexIndex, int& numVertices) {
+
+  commandsToPaths();
+
+  // estimate numVertices, 6 vertices per quad path
+  numVertices = mNumPaths * 6;
+
+  // alloc and set vertices
+  vertexIndex = vertices.alloc (numVertices);
+  auto vertexPtr = vertices.getVertexPtr (vertexIndex);
+  auto firstVertexPtr = vertexPtr;
+  for (int i = 0; i < mNumPaths; i++)
+    if (mPaths[i].mNumPoints == 4) {
+      auto point = &mPoints[mPaths[i].mFirstPointIndex];
+      vertexPtr++->set (point[0].x, point[0].y, 0.5f, 1.0f);
+      vertexPtr++->set (point[1].x, point[1].y, 0.5f, 1.0f);
+      vertexPtr++->set (point[2].x, point[2].y, 0.5f, 1.0f);
+      vertexPtr++->set (point[0].x, point[0].y, 0.5f, 1.0f); // 3 = 0
+      vertexPtr++->set (point[2].x, point[2].y, 0.5f, 1.0f); // 5 = 2
+      vertexPtr++->set (point[3].x, point[3].y, 0.5f, 1.0f);
+      }
+
+  numVertices = (int)(vertexPtr - firstVertexPtr);
+  vertices.trim (vertexIndex + numVertices);
+  }
+//}}}
+//{{{
+void cVg::cShape::expandStroke (c2dVertices& vertices, float w, eLineCap lineCap, eLineCap lineJoin, float miterLimit, float fringeWidth) {
+
+  calculateJoins (w, lineJoin, miterLimit);
+
+  // Calculate divisions per half circle.
+  int ncap = curveDivs (w, PI, 0.25f);
+  //{{{  calculate max vertex usage.
+  int numVertices = 0;
+  for (auto path = mPaths; path < mPaths + mNumPaths; path++) {
+    bool loop = path->mClosed;
+    if (lineJoin == eROUND)
+      numVertices += (path->mNumPoints + path->mNumBevel * (ncap+2) + 1) * 2; // plus one for loop
+    else
+      numVertices += (path->mNumPoints + path->mNumBevel*5 + 1) * 2; // plus one for loop
+    if (!loop) {
+      // space for caps
+      if (lineCap == eROUND)
+        numVertices += (ncap*2 + 2)*2;
+      else
+        numVertices += (3+3)*2;
+      }
     }
   //}}}
-  //{{{
-  void cVg::c2dVertices::trim (int numVertices) {
-  // trim vertices used to numVertices
 
-    if (numVertices > mNumVertices)
-      printf ("trimVertices overflowed %d %d\n", numVertices, mNumVertices);
+  int vertexIndex = vertices.alloc (numVertices);
+  auto vertexPtr = vertices.getVertexPtr (vertexIndex);
 
-    mNumVertices = numVertices;
+  for (auto path = mPaths; path < mPaths + mNumPaths; path++) {
+    auto points = &mPoints[path->mFirstPointIndex];
+
+    path->mPathVertices.mFirstFillVertexIndex = 0;
+    path->mPathVertices.mNumFillVertices = 0;
+
+    // Calculate fringe or stroke
+    bool loop = path->mClosed;
+
+    auto firstVertexPtr = vertexPtr;
+    path->mPathVertices.mFirstStrokeVertexIndex = vertexIndex;
+
+    cPoint* point0;
+    cPoint* point1;
+    int s, e;
+    if (loop) {
+      //{{{  looping
+      point0 = &points[path->mNumPoints-1];
+      point1 = &points[0];
+      s = 0;
+      e = path->mNumPoints;
+      }
+      //}}}
+    else {
+      //{{{  add cap
+      point0 = &points[0];
+      point1 = &points[1];
+      s = 1;
+      e = path->mNumPoints-1;
+      }
+      //}}}
+
+    float dx, dy;
+    if (!loop) {
+      //{{{  add cap
+      dx = point1->x - point0->x;
+      dy = point1->y - point0->y;
+      normalize (dx, dy);
+      if (lineCap == eBUTT)
+        vertexPtr = buttCapStart (vertexPtr, point0, dx, dy, w, -fringeWidth*0.5f, fringeWidth);
+      else if (lineCap == eBUTT || lineCap == eSQUARE)
+        vertexPtr = buttCapStart (vertexPtr, point0, dx, dy, w, w-fringeWidth, fringeWidth);
+      else if (lineCap == eROUND)
+        vertexPtr = roundCapStart (vertexPtr, point0, dx, dy, w, ncap, fringeWidth);
+      }
+      //}}}
+
+    for (int j = s; j < e; ++j) {
+      if ((point1->flags & (cPoint::PT_BEVEL | cPoint::PT_INNERBEVEL)) != 0) {
+        if (lineJoin == eROUND)
+          vertexPtr = roundJoin (vertexPtr, point0, point1, w, w, 0, 1, ncap, fringeWidth);
+        else
+          vertexPtr = bevelJoin (vertexPtr, point0, point1, w, w, 0, 1, fringeWidth);
+        }
+      else {
+        vertexPtr++->set (point1->x + (point1->dmx * w), point1->y + (point1->dmy * w), 0, 1);
+        vertexPtr++->set (point1->x - (point1->dmx * w), point1->y - (point1->dmy * w), 1, 1);
+        }
+      point0 = point1++;
+      }
+
+    if (loop) {
+      //{{{  loop it
+      vertexPtr++->set (firstVertexPtr->mX, firstVertexPtr->mY, 0, 1);
+      vertexPtr++->set ((firstVertexPtr+1)->mX, (firstVertexPtr+1)->mY, 1, 1);
+      }
+      //}}}
+    else {
+      //{{{  add cap
+      dx = point1->x - point0->x;
+      dy = point1->y - point0->y;
+      normalize (dx, dy);
+
+      if (lineCap == eBUTT)
+        vertexPtr = buttCapEnd (vertexPtr, point1, dx, dy, w, -fringeWidth * 0.5f, fringeWidth);
+      else if (lineCap == eBUTT || lineCap == eSQUARE)
+        vertexPtr = buttCapEnd (vertexPtr, point1, dx, dy, w, w - fringeWidth, fringeWidth);
+      else if (lineCap == eROUND)
+        vertexPtr = roundCapEnd (vertexPtr, point1, dx, dy, w, ncap, fringeWidth);
+      }
+      //}}}
+
+    int numVertices = (int)(vertexPtr - firstVertexPtr);
+    path->mPathVertices.mNumStrokeVertices = numVertices;
+    vertexIndex += numVertices;
     }
-  //}}}
 
+  vertices.trim (vertexIndex);
+  }
+//}}}
+//{{{
+float cVg::cShape::normalize (float& x, float& y) {
+
+  float d = sqrtf(x*x + y*y);
+  if (d > 1e-6f) {
+    float id = 1.0f / d;
+    x *= id;
+    y *= id;
+    }
+
+  return d;
+  }
+//}}}
+//{{{
+int cVg::cShape::curveDivs (float r, float arc, float tol) {
+  float da = acosf (r / (r + tol)) * 2.0f;
+  return maxi (2, (int)ceilf(arc / da));
+  }
+//}}}
+//{{{
+int cVg::cShape::pointEquals (float x1, float y1, float x2, float y2, float tol) {
+  float dx = x2 - x1;
+  float dy = y2 - y1;
+  return dx*dx + dy*dy < tol*tol;
+  }
+//}}}
+//{{{
+float cVg::cShape::polyArea (cPoint* points, int mNumPoints) {
+
+  float area = 0;
+  for (int i = 2; i < mNumPoints; i++)
+    area += (points[i].x - points[0].x) * (points[i-1].y - points[0].y) -
+            (points[i-1].x - points[0].x) *  (points[i].y - points[0].y);
+  return area * 0.5f;
+  }
+//}}}
+//{{{
+void cVg::cShape::polyReverse (cPoint* points, int numPoints) {
+
+  int i = 0;
+  int j = numPoints - 1;
+  while (i < j) {
+    auto tempPoint = points[i];
+    points[i] = points[j];
+    points[j] = tempPoint;
+    i++;
+    j--;
+    }
+  }
+//}}}
+
+//{{{
+cVg::cPath* cVg::cShape::lastPath() {
+  return mNumPaths ? &mPaths[mNumPaths-1] : NULL;
+  }
+//}}}
+//{{{
+void cVg::cShape::lastPathWinding (eWinding winding) {
+  auto path = lastPath();
+  if (path == NULL)
+    return;
+  path->mWinding = winding;  }
+//}}}
+//{{{
+void cVg::cShape::closeLastPath() {
+  auto path = lastPath();
+  if (path == NULL)
+    return;
+  path->mClosed = true;
+  }
+//}}}
+//{{{
+void cVg::cShape::addPath() {
+
+  if (mNumPaths+1 > mNumAllocatedPaths) {
+    mNumAllocatedPaths = mNumPaths+1 + mNumAllocatedPaths / 2;
+    cLog::log (LOGINFO2, "realloc paths " + dec(mNumAllocatedPaths));
+    mPaths = (cPath*)realloc (mPaths, sizeof(cPath)* mNumAllocatedPaths);
+    }
+
+  auto path = &mPaths[mNumPaths];
+  //memset (path, 0, sizeof(*path));
+  path->mNumPoints = 0;
+  path->mFirstPointIndex = mNumPoints;
+  path->mWinding = eSOLID;
+  path->mConvex = false;
+  path->mClosed = false;
+  path->mNumBevel = 0;
+  path->mPathVertices.mNumFillVertices = 0;
+  path->mPathVertices.mFirstFillVertexIndex = 0;
+  path->mPathVertices.mNumStrokeVertices = 0;
+  path->mPathVertices.mFirstStrokeVertexIndex = 0;;
+
+  mNumPaths++;
+  }
+//}}}
+
+//{{{
+void cVg::cShape::tesselateBezier (float x1, float y1, float x2, float y2,
+                           float x3, float y3, float x4, float y4, int level, cPoint::eFlags type) {
+
+  if (level > 10)
+    return;
+
+  float x12 = (x1+x2) * 0.5f;
+  float y12 = (y1+y2) * 0.5f;
+  float x23 = (x2+x3) * 0.5f;
+  float y23 = (y2+y3) * 0.5f;
+  float x34 = (x3+x4) * 0.5f;
+  float y34 = (y3+y4) * 0.5f;
+  float x123 = (x12+x23) * 0.5f;
+  float y123 = (y12+y23) * 0.5f;
+
+  float dx = x4 - x1;
+  float dy = y4 - y1;
+  float d2 = absf (((x2 - x4) * dy - (y2 - y4) * dx));
+  float d3 = absf (((x3 - x4) * dy - (y3 - y4) * dx));
+
+  if ((d2 + d3)*(d2 + d3) < kTesselateTolerance * (dx*dx + dy*dy)) {
+    addPoint (x4, y4, type);
+    return;
+    }
+
+  //if (absf(x1+x3-x2-x2) + absf(y1+y3-y2-y2) + absf(x2+x4-x3-x3) + absf(y2+y4-y3-y3) < tessTol) {
+  //  addPoint(context, x4, y4, type);
+  //  return;
+  //  }
+
+  float x234 = (x23+x34)*0.5f;
+  float y234 = (y23+y34)*0.5f;
+  float x1234 = (x123+x234)*0.5f;
+  float y1234 = (y123+y234)*0.5f;
+
+  tesselateBezier (x1,y1, x12,y12, x123,y123, x1234,y1234, level+1, cPoint::PT_NONE);
+  tesselateBezier (x1234,y1234, x234,y234, x34,y34, x4,y4, level+1, type);
+  }
+//}}}
+//{{{
+cVg::cShape::cPoint* cVg::cShape::lastPoint() {
+  return mNumPoints ? &mPoints[mNumPoints-1] : NULL;
+  }
+//}}}
+//{{{
+void cVg::cShape::addPoint (float x, float y, cPoint::eFlags flags) {
+
+  auto path = lastPath();
+  if (path == NULL)
+    return;
+
+  if ((path->mNumPoints > 0) && (mNumPoints > 0)) {
+    auto point = lastPoint();
+    if (pointEquals (point->x, point->y, x, y, kDistanceTolerance)) {
+      point->flags |= flags;
+      return;
+      }
+    }
+
+  // allocate point in pathCache
+  if (mNumPoints+1 > mNumAllocatedPoints) {
+    mNumAllocatedPoints = mNumPoints+1 + mNumAllocatedPoints / 2;
+    cLog::log (LOGINFO2, "realloc points " + dec(mNumAllocatedPoints));
+    mPoints = (cPoint*)realloc (mPoints, sizeof(cPoint)*mNumAllocatedPoints);
+    }
+
+  // set point
+  auto point = &mPoints[mNumPoints];
+  point->x = x;
+  point->y = y;
+  point->flags = flags;
+
+  mNumPoints++;
+  path->mNumPoints++;
+  }
+//}}}
+
+//{{{
+void cVg::cShape::commandsToPaths() {
+// convert shapeCommands to paths,points
+
+  auto command = mCommands;
+  while (command < mCommands + mNumCommands) {
+    switch ((int)*command++) {
+      case eMOVETO:
+        addPath();
+      case eLINETO:
+        addPoint (*command, *(command+1), cPoint::PT_CORNER);
+        command += 2;
+        break;
+
+      case eBEZIERTO: {
+        auto last = lastPoint();
+        if (last != NULL)
+          tesselateBezier (last->x, last->y,
+                           *command, *(command+1),
+                           *(command+2), *(command+3),
+                           *(command+4), *(command+5),
+                           0, cPoint::PT_CORNER);
+        command += 6;
+        break;
+        }
+
+      case eWINDING:
+        lastPathWinding ((eWinding)(int)*command++);
+        break;
+
+      case eCLOSE:
+        closeLastPath();
+      }
+    }
+  }
+//}}}
+
+//{{{
+void cVg::cShape::chooseBevel (int bevel, cPoint* p0, cPoint* p1, float w, float* x0, float* y0, float* x1, float* y1) {
+
+  if (bevel) {
+    *x0 = p1->x + p0->dy * w;
+    *y0 = p1->y - p0->dx * w;
+    *x1 = p1->x + p1->dy * w;
+    *y1 = p1->y - p1->dx * w;
+    }
+  else {
+    *x0 = p1->x + p1->dmx * w;
+    *y0 = p1->y + p1->dmy * w;
+    *x1 = p1->x + p1->dmx * w;
+    *y1 = p1->y + p1->dmy * w;
+    }
+  }
+//}}}
+//{{{
+cVg::c2dVertex* cVg::cShape::roundJoin (c2dVertex* vertexPtr, cPoint* point0, cPoint* point1,
+                    float lw, float rw, float lu, float ru, int ncap, float fringe) {
+  int i, n;
+  float dlx0 = point0->dy;
+  float dly0 = -point0->dx;
+  float dlx1 = point1->dy;
+  float dly1 = -point1->dx;
+
+  if (point1->flags & cPoint::PT_LEFT) {
+    float lx0,ly0,lx1,ly1,a0,a1;
+    chooseBevel (point1->flags & cPoint::PT_INNERBEVEL, point0, point1, lw, &lx0,&ly0, &lx1,&ly1);
+    a0 = atan2f (-dly0, -dlx0);
+    a1 = atan2f (-dly1, -dlx1);
+    if (a1 > a0)
+      a1 -= PI*2;
+
+    vertexPtr++->set (lx0, ly0, lu,1);
+    vertexPtr++->set (point1->x - dlx0*rw, point1->y - dly0*rw, ru,1);
+
+    n = clampi ((int)ceilf (((a0 - a1) / PI) * ncap), 2, ncap);
+    for (i = 0; i < n; i++) {
+      float u = i/(float)(n-1);
+      float a = a0 + u*(a1-a0);
+      float rx = point1->x + cosf(a) * rw;
+      float ry = point1->y + sinf(a) * rw;
+      vertexPtr++->set (point1->x, point1->y, 0.5f,1);
+      vertexPtr++->set (rx, ry, ru,1);
+      }
+
+    vertexPtr++->set (lx1, ly1, lu,1);
+    vertexPtr++->set (point1->x - dlx1*rw, point1->y - dly1*rw, ru,1);
+    }
+
+  else {
+    float rx0,ry0,rx1,ry1,a0,a1;
+    chooseBevel (point1->flags & cPoint::PT_INNERBEVEL, point0, point1, -rw, &rx0,&ry0, &rx1,&ry1);
+    a0 = atan2f (dly0, dlx0);
+    a1 = atan2f (dly1, dlx1);
+    if (a1 < a0)
+      a1 += PI *2;
+
+    vertexPtr++->set (point1->x + dlx0*rw, point1->y + dly0*rw, lu,1);
+    vertexPtr++->set (rx0, ry0, ru,1);
+
+    n = clampi ((int)ceilf(((a1 - a0) / PI) * ncap), 2, ncap);
+    for (i = 0; i < n; i++) {
+      float u = i/(float)(n-1);
+      float a = a0 + u*(a1-a0);
+      float lx = point1->x + cosf(a) * lw;
+      float ly = point1->y + sinf(a) * lw;
+      vertexPtr++->set (lx, ly, lu,1);
+      vertexPtr++->set (point1->x, point1->y, 0.5f,1);
+      }
+
+    vertexPtr++->set (point1->x + dlx1*rw, point1->y + dly1*rw, lu,1);
+    vertexPtr++->set (rx1, ry1, ru,1);
+    }
+
+  return vertexPtr;
+  }
+//}}}
+//{{{
+cVg::c2dVertex* cVg::cShape::bevelJoin (c2dVertex* vertexPtr, cPoint* point0, cPoint* point1,
+                    float lw, float rw, float lu, float ru, float fringe) {
+
+  float rx0, ry0, rx1, ry1;
+  float lx0, ly0, lx1 ,ly1;
+
+  float dlx0 = point0->dy;
+  float dly0 = -point0->dx;
+  float dlx1 = point1->dy;
+  float dly1 = -point1->dx;
+
+  if (point1->flags & cPoint::PT_LEFT) {
+    chooseBevel (point1->flags & cPoint::PT_INNERBEVEL, point0, point1, lw, &lx0, &ly0, &lx1, &ly1);
+    vertexPtr++->set (lx0, ly0, lu,1);
+    vertexPtr++->set (point1->x - dlx0*rw, point1->y - dly0*rw, ru,1);
+
+    if (point1->flags & cPoint::PT_BEVEL) {
+      vertexPtr++->set (lx0, ly0, lu,1);
+      vertexPtr++->set (point1->x - dlx0*rw, point1->y - dly0*rw, ru,1);
+      vertexPtr++->set (lx1, ly1, lu,1);
+      vertexPtr++->set (point1->x - dlx1*rw, point1->y - dly1*rw, ru,1);
+      }
+    else {
+      rx0 = point1->x - point1->dmx * rw;
+      ry0 = point1->y - point1->dmy * rw;
+      vertexPtr++->set (point1->x, point1->y, 0.5f,1);
+      vertexPtr++->set (point1->x - dlx0*rw, point1->y - dly0*rw, ru,1);
+      vertexPtr++->set (rx0, ry0, ru,1);
+      vertexPtr++->set (rx0, ry0, ru,1);
+      vertexPtr++->set (point1->x, point1->y, 0.5f,1);
+      vertexPtr++->set (point1->x - dlx1*rw, point1->y - dly1*rw, ru,1);
+      }
+
+    vertexPtr++->set (lx1, ly1, lu,1);
+    vertexPtr++->set (point1->x - dlx1*rw, point1->y - dly1*rw, ru,1);
+    }
+  else {
+    chooseBevel (point1->flags & cPoint::PT_INNERBEVEL, point0, point1, -rw, &rx0,&ry0, &rx1,&ry1);
+    vertexPtr++->set (point1->x + dlx0*lw, point1->y + dly0*lw, lu,1);
+    vertexPtr++->set (rx0, ry0, ru,1);
+
+    if (point1->flags & cPoint::PT_BEVEL) {
+      vertexPtr++->set (point1->x + dlx0*lw, point1->y + dly0*lw, lu,1);
+      vertexPtr++->set (rx0, ry0, ru,1);
+      vertexPtr++->set (point1->x + dlx1*lw, point1->y + dly1*lw, lu,1);
+      vertexPtr++->set (rx1, ry1, ru,1);
+      }
+
+    else {
+      lx0 = point1->x + point1->dmx * lw;
+      ly0 = point1->y + point1->dmy * lw;
+      vertexPtr++->set (point1->x + dlx0*lw, point1->y + dly0*lw, lu,1);
+      vertexPtr++->set (point1->x, point1->y, 0.5f,1);
+      vertexPtr++->set (lx0, ly0, lu,1);
+      vertexPtr++->set (lx0, ly0, lu,1);
+      vertexPtr++->set (point1->x + dlx1*lw, point1->y + dly1*lw, lu,1);
+      vertexPtr++->set (point1->x, point1->y, 0.5f,1);
+      }
+
+    vertexPtr++->set (point1->x + dlx1*lw, point1->y + dly1*lw, lu,1);
+    vertexPtr++->set (rx1, ry1, ru,1);
+    }
+
+  return vertexPtr;
+  }
+//}}}
+
+//{{{
+cVg::c2dVertex* cVg::cShape::buttCapStart (c2dVertex* vertexPtr, cPoint* point, float dx, float dy, float w, float d, float aa) {
+
+  float px = point->x - dx*d;
+  float py = point->y - dy*d;
+  float dlx = dy;
+  float dly = -dx;
+
+  vertexPtr++->set (px + dlx * w - dx * aa, py + dly * w - dy * aa, 0, 0);
+  vertexPtr++->set (px - dlx * w - dx * aa, py - dly * w - dy * aa, 1, 0);
+  vertexPtr++->set (px + dlx * w, py + dly * w, 0, 1);
+  vertexPtr++->set (px - dlx * w, py - dly * w, 1, 1);
+
+  return vertexPtr;
+  }
+//}}}
+//{{{
+cVg::c2dVertex* cVg::cShape::buttCapEnd (c2dVertex* vertexPtr, cPoint* point, float dx, float dy, float w, float d, float aa) {
+
+  float px = point->x + dx * d;
+  float py = point->y + dy * d;
+  float dlx = dy;
+  float dly = -dx;
+
+  vertexPtr++->set (px + dlx * w, py + dly * w, 0,1);
+  vertexPtr++->set (px - dlx * w, py - dly * w, 1,1);
+  vertexPtr++->set (px + dlx * w + dx * aa, py + dly * w + dy * aa, 0, 0);
+  vertexPtr++->set (px - dlx * w + dx * aa, py - dly * w + dy * aa, 1, 0);
+
+  return vertexPtr;
+  }
+//}}}
+//{{{
+cVg::c2dVertex* cVg::cShape::roundCapStart (c2dVertex* vertexPtr, cPoint* point, float dx, float dy, float w, int ncap, float aa) {
+
+  float px = point->x;
+  float py = point->y;
+  float dlx = dy;
+  float dly = -dx;
+
+  for (int i = 0; i < ncap; i++) {
+    float a = i / (float)(ncap-1) * PI;
+    float ax = cosf(a) * w;
+    float ay = sinf(a) * w;
+    vertexPtr++->set (px - dlx * ax - dx * ay, py - dly * ax - dy * ay, 0, 1);
+    vertexPtr++->set (px, py, 0.5f, 1);
+    }
+
+  vertexPtr++->set (px + dlx * w, py + dly * w, 0, 1);
+  vertexPtr++->set (px - dlx * w, py - dly * w, 1, 1);
+
+  return vertexPtr;
+  }
+//}}}
+//{{{
+cVg::c2dVertex* cVg::cShape::roundCapEnd (c2dVertex* vertexPtr, cPoint* point, float dx, float dy, float w, int ncap, float aa) {
+
+  float px = point->x;
+  float py = point->y;
+  float dlx = dy;
+  float dly = -dx;
+
+  vertexPtr++->set (px + dlx * w, py + dly * w, 0, 1);
+  vertexPtr++->set (px - dlx * w, py - dly * w, 1, 1);
+  for (int i = 0; i < ncap; i++) {
+    float a = i / (float)(ncap-1) * PI;
+    float ax = cosf(a) * w;
+    float ay = sinf(a) * w;
+    vertexPtr++->set (px, py, 0.5f, 1);
+    vertexPtr++->set (px - dlx * ax + dx * ay, py - dly * ax + dy * ay, 0, 1);
+    }
+
+  return vertexPtr;
+  }
+//}}}
+//}}}
 
 // text
 //{{{
