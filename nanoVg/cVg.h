@@ -26,7 +26,7 @@
 #define NVG_INIT_PATHS_SIZE      16
 //}}}
 
-//{{{  math utils
+//{{{  inline math utils
 #define PI 3.14159265358979323846264338327f
 
 inline int mini (int a, int b) { return a < b ? a : b; }
@@ -135,7 +135,7 @@ inline float hue (float h, float m1, float m2) {
   }
 //}}}
 //}}}
-//{{{  sVgColour utils
+//{{{  inline sVgColour 
 struct sVgColour {
   union {
     float rgba[4];
@@ -2329,7 +2329,6 @@ private:
   float mFringeWidth = 1.0f;
   float devicePixelRatio = 1.0f;
 
-  struct FONScontext* fonsContext = NULL;
   int fontImageIdx = 0;
   int fontImages[NVG_MAX_FONTIMAGES];
   //}}}
