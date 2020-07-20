@@ -12,7 +12,7 @@ using namespace std;
 #define MAX_FONTIMAGE_SIZE  2048
 const float kDistanceTolerance = 0.01f;
 
-//{{{  fonts
+// fontStash
 //{{{  stb_truetype heap
 void* tmpalloc (size_t size, void* up);
 #define STBTT_malloc(x,u) tmpalloc (x,u)
@@ -21,8 +21,8 @@ void tmpfree (void* ptr, void* up);
 #define STBTT_free(x,u) tmpfree (x,u)
 //}}}
 #include "stb_truetype.h"
-
-//{{{  FONS defines
+//{{{  fontStash defines, enums, structs
+//{{{  defines
 #define FONS_INVALID -1
 
 #define FONS_NOTUSED(v)  (void)sizeof(v)
@@ -37,7 +37,11 @@ void tmpfree (void* ptr, void* up);
 
 #define FONS_MAX_STATES 20
 #define FONS_MAX_FALLBACKS 20
+
+#define FONS_UTF8_ACCEPT 0
+#define FONS_UTF8_REJECT 12
 //}}}
+
 //{{{
 enum FONSflags {
   FONS_ZERO_TOPLEFT = 1,
@@ -62,14 +66,18 @@ enum FONSalign {
 enum FONSerrorCode {
   // Font atlas is full.
   FONS_ATLAS_FULL = 1,
+
   // Scratch memory used to render glyphs is full, requested size reported in 'val', you may need to bump up FONS_SCRATCH_BUF_SIZE.
   FONS_SCRATCH_FULL = 2,
+
   // Calls to fonsPushState has created too large stack, if you need deep state stack bump up FONS_MAX_STATES.
   FONS_STATES_OVERFLOW = 3,
+
   // Trying to pop too many states fonsPopState().
   FONS_STATES_UNDERFLOW = 4,
   };
 //}}}
+
 //{{{
 struct FONSquad {
   float x0,y0,s0,t0;
@@ -81,7 +89,7 @@ struct FONStextIter {
   float x, y, nextx, nexty, scale, spacing;
   unsigned int codepoint;
   short isize;
-  struct FONSfont* font;
+  struct sFonstStashFont* font;
   int prevGlyphIndex;
   const char* str;
   const char* next;
@@ -94,6 +102,7 @@ struct FONSttFontImpl {
   stbtt_fontinfo font;
   };
 //}}}
+
 //{{{
 struct FONSglyph {
   unsigned int codepoint;
@@ -105,7 +114,7 @@ struct FONSglyph {
   };
 //}}}
 //{{{
-struct FONSfont {
+struct sFonstStashFont {
   FONSttFontImpl font;
   char name[64];
   unsigned char* data;
@@ -131,6 +140,7 @@ struct FONSstate {
   float spacing;
   };
 //}}}
+
 //{{{
 struct FONSatlasNode {
   short x, y, width;
@@ -146,7 +156,7 @@ struct FONSatlas {
 //}}}
 
 //{{{
-struct FONSparams {
+struct sFontStashParams {
   int width, height;
   unsigned char flags;
 
@@ -159,38 +169,39 @@ struct FONSparams {
   };
 //}}}
 //{{{
-struct FONScontext {
-  FONSparams params;
+struct sFontStashContext {
+  sFontStashParams params;
+
   float itw,ith;
   unsigned char* texData;
   int dirtyRect[4];
 
-  FONSfont** fonts;
-  FONSatlas* atlas;
   int cfonts;
   int nfonts;
+  sFonstStashFont** fonts;
+  FONSatlas* atlas;
 
+  int nverts;
   float verts[FONS_VERTEX_COUNT*2];
   float tcoords[FONS_VERTEX_COUNT*2];
   unsigned int colors[FONS_VERTEX_COUNT];
-  int nverts;
 
-  unsigned char* scratch;
   int nscratch;
+  unsigned char* scratch;
 
-  FONSstate states[FONS_MAX_STATES];
   int nstates;
+  FONSstate states[FONS_MAX_STATES];
 
-  void (*handleError)(void* uptr, int error, int val);
   void* errorUptr;
+  void (*handleError)(void* uptr, int error, int val);
   };
 //}}}
-FONScontext* fonsContext = NULL;
-
+//}}}
+sFontStashContext* fontStashContext = NULL;
 //{{{
 void* tmpalloc (size_t size, void* up) {
 
-  auto stash = (FONScontext*)up;
+  auto stash = (sFontStashContext*)up;
 
   // 16-byte align the returned pointer
   size = (size + 0xf) & ~0xf;
@@ -213,22 +224,23 @@ void tmpfree (void* ptr, void* up) {
   // empty
   }
 //}}}
-
-namespace fons {
+namespace fontStash {
+  //{{{  fontStash
   //{{{
-  int TTinit (FONScontext* context) {
+  int TTinit (sFontStashContext* context) {
     FONS_NOTUSED(context);
     return 1;
     }
   //}}}
   //{{{
-  int TTloadFont (FONScontext* context, FONSttFontImpl* font, unsigned char* data, int dataSize) {
+  int TTloadFont (sFontStashContext* context, FONSttFontImpl* font, unsigned char* data, int dataSize) {
 
     FONS_NOTUSED(dataSize);
     font->font.userdata = context;
     return stbtt_InitFont (&font->font, data, 0);
     }
   //}}}
+
   //{{{
   void TTgetFontVMetrics (FONSttFontImpl* font, int* ascent, int* descent, int* lineGap) {
     stbtt_GetFontVMetrics (&font->font, ascent, descent, lineGap);
@@ -245,6 +257,12 @@ namespace fons {
     }
   //}}}
   //{{{
+  int TTgetGlyphKernAdvance (FONSttFontImpl* font, int glyph1, int glyph2) {
+    return stbtt_GetGlyphKernAdvance (&font->font, glyph1, glyph2);
+    }
+  //}}}
+
+  //{{{
   int TTbuildGlyphBitmap (FONSttFontImpl* font, int glyph, float size, float scale,
                               int *advance, int *lsb, int *x0, int *y0, int *x1, int *y1) {
     FONS_NOTUSED(size);
@@ -259,16 +277,9 @@ namespace fons {
     stbtt_MakeGlyphBitmap (&font->font, output, outWidth, outHeight, outStride, scaleX, scaleY, glyph);
     }
   //}}}
-  //{{{
-  int TTgetGlyphKernAdvance (FONSttFontImpl* font, int glyph1, int glyph2) {
-    return stbtt_GetGlyphKernAdvance (&font->font, glyph1, glyph2);
-    }
-  //}}}
 
-  #define FONS_UTF8_ACCEPT 0
-  #define FONS_UTF8_REJECT 12
   //{{{
-  void freeFont (FONSfont* font) {
+  void freeFont (sFonstStashFont* font) {
 
     if (font == NULL)
       return;
@@ -281,19 +292,19 @@ namespace fons {
     }
   //}}}
   //{{{
-  int allocFont (FONScontext* stash) {
+  int allocFont (sFontStashContext* stash) {
 
     if (stash->nfonts+1 > stash->cfonts) {
       stash->cfonts = stash->cfonts == 0 ? 8 : stash->cfonts * 2;
-      stash->fonts = (FONSfont**)realloc(stash->fonts, sizeof(FONSfont*) * stash->cfonts);
+      stash->fonts = (sFonstStashFont**)realloc(stash->fonts, sizeof(sFonstStashFont*) * stash->cfonts);
       if (stash->fonts == NULL)
         return -1;
       }
 
-    auto font = (FONSfont*)malloc(sizeof(FONSfont));
+    auto font = (sFonstStashFont*)malloc(sizeof(sFonstStashFont));
     if (font == NULL)
       goto error;
-    memset (font, 0, sizeof(FONSfont));
+    memset (font, 0, sizeof(sFonstStashFont));
 
     font->glyphs = (FONSglyph*)malloc(sizeof(FONSglyph) * FONS_INIT_GLYPHS);
     if (font->glyphs == NULL)
@@ -310,7 +321,7 @@ namespace fons {
     }
   //}}}
   //{{{
-  FONSstate* getState (FONScontext* stash) {
+  FONSstate* getState (sFontStashContext* stash) {
     return &stash->states[stash->nstates-1];
     }
   //}}}
@@ -361,7 +372,7 @@ namespace fons {
   //}}}
 
   //{{{
-  void PushState (FONScontext* stash) {
+  void PushState (sFontStashContext* stash) {
 
     if (stash->nstates >= FONS_MAX_STATES) {
       if (stash->handleError)
@@ -375,7 +386,7 @@ namespace fons {
     }
   //}}}
   //{{{
-  void PopState (FONScontext* stash) {
+  void PopState (sFontStashContext* stash) {
 
     if (stash->nstates <= 1) {
       if (stash->handleError)
@@ -387,7 +398,7 @@ namespace fons {
     }
   //}}}
   //{{{
-  void ClearState (FONScontext* stash) {
+  void ClearState (sFontStashContext* stash) {
 
     auto state = getState (stash);
     state->size = 12.0f;
@@ -398,7 +409,7 @@ namespace fons {
     }
   //}}}
   //{{{
-  void flush (FONScontext* stash) {
+  void flush (sFontStashContext* stash) {
   // Flush texture
 
     if (stash->dirtyRect[0] < stash->dirtyRect[2] && stash->dirtyRect[1] < stash->dirtyRect[3]) {
@@ -420,7 +431,7 @@ namespace fons {
     }
   //}}}
 
-  //{{{  font atlas
+  // font atlas
   //{{{
   // Atlas based on Skyline Bin Packer by Jukka Jylänki
   void deleteAtlas (FONSatlas* atlas) {
@@ -469,7 +480,6 @@ namespace fons {
     return NULL;
     }
   //}}}
-
   //{{{
   int atlasInsertNode (FONSatlas* atlas, int idx, int x, int y, int w) {
 
@@ -503,7 +513,6 @@ namespace fons {
     atlas->nnodes--;
     }
   //}}}
-
   //{{{
   void atlasExpand (FONSatlas* atlas, int w, int h) {
 
@@ -622,7 +631,7 @@ namespace fons {
     }
   //}}}
   //{{{
-  void addWhiteRect (FONScontext* stash, int w, int h) {
+  void addWhiteRect (sFontStashContext* stash, int w, int h) {
 
     int x, y, gx, gy;
     unsigned char* dst;
@@ -643,9 +652,8 @@ namespace fons {
     stash->dirtyRect[3] = maxi(stash->dirtyRect[3], gy+h);
     }
   //}}}
-
   //{{{
-  FONSglyph* allocGlyph (FONSfont* font) {
+  FONSglyph* allocGlyph (sFonstStashFont* font) {
 
     if (font->nglyphs+1 > font->cglyphs) {
       font->cglyphs = font->cglyphs == 0 ? 8 : font->cglyphs * 2;
@@ -657,9 +665,8 @@ namespace fons {
     return &font->glyphs[font->nglyphs-1];
     }
   //}}}
-
   //{{{
-  void GetAtlasSize (FONScontext* stash, int* width, int* height) {
+  void getAtlasSize (sFontStashContext* stash, int* width, int* height) {
 
     if (stash == NULL)
       return;
@@ -668,7 +675,7 @@ namespace fons {
     }
   //}}}
   //{{{
-  int ExpandAtlas (FONScontext* stash, int width, int height) {
+  int expandAtlas (sFontStashContext* stash, int width, int height) {
 
     int i, maxy = 0;
     unsigned char* data = NULL;
@@ -724,7 +731,7 @@ namespace fons {
     }
   //}}}
   //{{{
-  int ResetAtlas (FONScontext* stash, int width, int height) {
+  int resetAtlas (sFontStashContext* stash, int width, int height) {
 
     int i, j;
     if (stash == NULL)
@@ -755,7 +762,7 @@ namespace fons {
 
     // Reset cached glyphs
     for (i = 0; i < stash->nfonts; i++) {
-      FONSfont* font = stash->fonts[i];
+      sFonstStashFont* font = stash->fonts[i];
       font->nglyphs = 0;
       for (j = 0; j < FONS_HASH_LUT_SIZE; j++)
         font->lut[j] = -1;
@@ -772,10 +779,9 @@ namespace fons {
     return 1;
     }
   //}}}
-  //}}}
 
   //{{{
-  void DeleteInternal (FONScontext* stash) {
+  void deleteInternal (sFontStashContext* stash) {
 
     int i;
     if (stash == NULL)
@@ -797,13 +803,13 @@ namespace fons {
     }
   //}}}
   //{{{
-  FONScontext* CreateInternal (FONSparams* params) {
+  sFontStashContext* createInternal (sFontStashParams* params) {
 
     // Allocate memory for the font stash.
-    auto stash = (FONScontext*)malloc (sizeof (FONScontext));
+    auto stash = (sFontStashContext*)malloc (sizeof (sFontStashContext));
     if (stash == NULL)
       goto error;
-    memset (stash, 0, sizeof (FONScontext));
+    memset (stash, 0, sizeof (sFontStashContext));
 
     stash->params = *params;
 
@@ -813,7 +819,7 @@ namespace fons {
       goto error;
 
     // Initialize implementation library
-    if (!fons::TTinit (stash))
+    if (!fontStash::TTinit (stash))
       goto error;
 
     if (stash->params.renderCreate != NULL)
@@ -825,10 +831,10 @@ namespace fons {
       goto error;
 
     // Allocate space for fonts.
-    stash->fonts = (FONSfont**)malloc (sizeof(FONSfont*) * FONS_INIT_FONTS);
+    stash->fonts = (sFonstStashFont**)malloc (sizeof(sFonstStashFont*) * FONS_INIT_FONTS);
     if (stash->fonts == NULL)
       goto error;
-    memset (stash->fonts, 0, sizeof(FONSfont*) * FONS_INIT_FONTS);
+    memset (stash->fonts, 0, sizeof(sFonstStashFont*) * FONS_INIT_FONTS);
     stash->cfonts = FONS_INIT_FONTS;
     stash->nfonts = 0;
 
@@ -852,12 +858,12 @@ namespace fons {
     return stash;
 
   error:
-    DeleteInternal (stash);
+    deleteInternal (stash);
     return NULL;
     }
   //}}}
   //{{{
-  int AddFallbackFont (FONScontext* stash, int base, int fallback) {
+  int addFallbackFont (sFontStashContext* stash, int base, int fallback) {
 
     auto baseFont = stash->fonts[base];
     if (baseFont->nfallbacks < FONS_MAX_FALLBACKS) {
@@ -871,7 +877,7 @@ namespace fons {
 
   // external interface
   //{{{
-  int AddFontMem (FONScontext* stash, const char* name, unsigned char* data, int dataSize, int freeData) {
+  int addFontMem (sFontStashContext* stash, const char* name, unsigned char* data, int dataSize, int freeData) {
 
     int idx = allocFont (stash);
     if (idx == FONS_INVALID)
@@ -892,7 +898,7 @@ namespace fons {
 
     // Init font
     stash->nscratch = 0;
-    if (!fons::TTloadFont(stash, &font->font, data, dataSize)) {
+    if (!fontStash::TTloadFont(stash, &font->font, data, dataSize)) {
       freeFont (font);
       stash->nfonts--;
       return FONS_INVALID;
@@ -901,7 +907,7 @@ namespace fons {
     // Store normalized line height. The real line height is got
     // by multiplying the lineh by font size.
     int ascent, descent, lineGap;
-    fons::TTgetFontVMetrics (&font->font, &ascent, &descent, &lineGap);
+    fontStash::TTgetFontVMetrics (&font->font, &ascent, &descent, &lineGap);
     int fh = ascent - descent;
 
     font->ascender = (float)ascent / (float)fh;
@@ -911,7 +917,7 @@ namespace fons {
     }
   //}}}
   //{{{
-  int AddFont (FONScontext* stash, const char* name, const char* path) {
+  int addFont (sFontStashContext* stash, const char* name, const char* path) {
 
     // Read in the font data.
     auto fp = fopen (path, "rb");
@@ -931,11 +937,11 @@ namespace fons {
     fread (data, 1, dataSize, fp);
     fclose (fp);
 
-    return AddFontMem (stash, name, data, dataSize, 1);
+    return addFontMem (stash, name, data, dataSize, 1);
     }
   //}}}
   //{{{
-  int GetFontByName (FONScontext* s, const char* name) {
+  int getFontByName (sFontStashContext* s, const char* name) {
 
     for (int i = 0; i < s->nfonts; i++)
       if (strcmp(s->fonts[i]->name, name) == 0)
@@ -945,14 +951,14 @@ namespace fons {
     }
   //}}}
 
-  void SetSize (FONScontext* stash, float size) { getState(stash)->size = size; }
-  void SetColor (FONScontext* stash, unsigned int color) { getState(stash)->color = color; }
-  void SetSpacing (FONScontext* stash, float spacing) { getState(stash)->spacing = spacing; }
-  void SetAlign (FONScontext* stash, int align) { getState(stash)->align = align; }
-  void SetFont (FONScontext* stash, int font) { getState(stash)->font = font; }
+  void setSize (sFontStashContext* stash, float size) { getState(stash)->size = size; }
+  void setColor (sFontStashContext* stash, unsigned int color) { getState(stash)->color = color; }
+  void setSpacing (sFontStashContext* stash, float spacing) { getState(stash)->spacing = spacing; }
+  void setAlign (sFontStashContext* stash, int align) { getState(stash)->align = align; }
+  void setFont (sFontStashContext* stash, int font) { getState(stash)->font = font; }
 
   //{{{
-  FONSglyph* getGlyph (FONScontext* stash, FONSfont* font, unsigned int codepoint, short isize) {
+  FONSglyph* getGlyph (sFontStashContext* stash, sFonstStashFont* font, unsigned int codepoint, short isize) {
 
     int i, g, advance, lsb, x0, y0, x1, y1, gw, gh, gx, gy, x, y;
     float scale;
@@ -961,7 +967,7 @@ namespace fons {
     float size = isize/10.0f;
     int pad, added;
     unsigned char* dst;
-    FONSfont* renderFont = font;
+    sFonstStashFont* renderFont = font;
 
     if (isize < 2)
       return NULL;
@@ -980,12 +986,12 @@ namespace fons {
       }
 
     // Could not find glyph, create it.
-    g = fons::TTgetGlyphIndex (&font->font, codepoint);
+    g = fontStash::TTgetGlyphIndex (&font->font, codepoint);
     // Try to find the glyph in fallback fonts.
     if (g == 0) {
       for (i = 0; i < font->nfallbacks; ++i) {
-        FONSfont* fallbackFont = stash->fonts[font->fallbacks[i]];
-        int fallbackIndex = fons::TTgetGlyphIndex(&fallbackFont->font, codepoint);
+        sFonstStashFont* fallbackFont = stash->fonts[font->fallbacks[i]];
+        int fallbackIndex = fontStash::TTgetGlyphIndex(&fallbackFont->font, codepoint);
         if (fallbackIndex != 0) {
           g = fallbackIndex;
           renderFont = fallbackFont;
@@ -996,8 +1002,8 @@ namespace fons {
       // In that case the glyph index 'g' is 0, and we'll proceed below and cache empty glyph.
       }
 
-    scale = fons::TTgetPixelHeightScale (&renderFont->font, size);
-    fons::TTbuildGlyphBitmap (&renderFont->font, g, size, scale, &advance, &lsb, &x0, &y0, &x1, &y1);
+    scale = fontStash::TTgetPixelHeightScale (&renderFont->font, size);
+    fontStash::TTbuildGlyphBitmap (&renderFont->font, g, size, scale, &advance, &lsb, &x0, &y0, &x1, &y1);
     gw = x1-x0 + pad*2;
     gh = y1-y0 + pad*2;
 
@@ -1031,7 +1037,7 @@ namespace fons {
 
     // Rasterize
     dst = &stash->texData[(glyph->x0+pad) + (glyph->y0+pad) * stash->params.width];
-    fons::TTrenderGlyphBitmap (&renderFont->font, dst, gw-pad*2,gh-pad*2, stash->params.width, scale,scale, g);
+    fontStash::TTrenderGlyphBitmap (&renderFont->font, dst, gw-pad*2,gh-pad*2, stash->params.width, scale,scale, g);
 
     // Make sure there is one pixel empty border.
     dst = &stash->texData[glyph->x0 + glyph->y0 * stash->params.width];
@@ -1053,14 +1059,14 @@ namespace fons {
     }
   //}}}
   //{{{
-  void getQuad (FONScontext* stash, FONSfont* font,
+  void getQuad (sFontStashContext* stash, sFonstStashFont* font,
                      int prevGlyphIndex, FONSglyph* glyph,
                      float scale, float spacing, float* x, float* y, FONSquad* q) {
 
     float rx,ry,xoff,yoff,x0,y0,x1,y1;
 
     if (prevGlyphIndex != -1) {
-      float adv = fons::TTgetGlyphKernAdvance(&font->font, prevGlyphIndex, glyph->index) * scale;
+      float adv = fontStash::TTgetGlyphKernAdvance(&font->font, prevGlyphIndex, glyph->index) * scale;
       *x += (int)(adv + spacing + 0.5f);
       }
 
@@ -1107,7 +1113,7 @@ namespace fons {
     }
   //}}}
   //{{{
-  void vertex (FONScontext* stash, float x, float y, float s, float t, unsigned int c) {
+  void vertex (sFontStashContext* stash, float x, float y, float s, float t, unsigned int c) {
 
     stash->verts[stash->nverts*2+0] = x;
     stash->verts[stash->nverts*2+1] = y;
@@ -1118,7 +1124,7 @@ namespace fons {
     }
   //}}}
   //{{{
-  float getVertAlign (FONScontext* stash, FONSfont* font, int align, short isize) {
+  float getVertAlign (sFontStashContext* stash, sFonstStashFont* font, int align, short isize) {
 
     if (stash->params.flags & FONS_ZERO_TOPLEFT) {
       if (align & FONS_ALIGN_TOP)
@@ -1144,7 +1150,7 @@ namespace fons {
   //}}}
 
   //{{{
-  float TextBounds (FONScontext* stash, float x, float y, const char* str, const char* end, float* bounds) {
+  float textBounds (sFontStashContext* stash, float x, float y, const char* str, const char* end, float* bounds) {
 
     auto state = getState (stash);
 
@@ -1166,7 +1172,7 @@ namespace fons {
     if (font->data == NULL)
       return 0;
 
-    float scale = fons::TTgetPixelHeightScale (&font->font, (float)isize / 10.0f);
+    float scale = fontStash::TTgetPixelHeightScale (&font->font, (float)isize / 10.0f);
 
     // Align vertically.
     y += getVertAlign (stash, font, state->align, isize);
@@ -1231,7 +1237,7 @@ namespace fons {
     }
   //}}}
   //{{{
-  float DrawText (FONScontext* stash, float x, float y, const char* str, const char* end) {
+  float drawText (sFontStashContext* stash, float x, float y, const char* str, const char* end) {
 
     auto state = getState(stash);
     unsigned int codepoint;
@@ -1242,7 +1248,7 @@ namespace fons {
     int prevGlyphIndex = -1;
     short isize = (short)(state->size*10.0f);
     float scale;
-    FONSfont* font;
+    sFonstStashFont* font;
     float width;
 
     if (stash == NULL)
@@ -1253,7 +1259,7 @@ namespace fons {
     if (font->data == NULL)
       return x;
 
-    scale = fons::TTgetPixelHeightScale(&font->font, (float)isize/10.0f);
+    scale = fontStash::TTgetPixelHeightScale(&font->font, (float)isize/10.0f);
 
     if (end == NULL)
       end = str + strlen(str);
@@ -1263,11 +1269,11 @@ namespace fons {
       // empty
       }
     else if (state->align & FONS_ALIGN_RIGHT) {
-      width = fons::TextBounds(stash, x,y, str, end, NULL);
+      width = fontStash::textBounds(stash, x,y, str, end, NULL);
       x -= width;
       }
     else if (state->align & FONS_ALIGN_CENTER) {
-      width = fons::TextBounds(stash, x,y, str, end, NULL);
+      width = fontStash::textBounds(stash, x,y, str, end, NULL);
       x -= width * 0.5f;
       }
 
@@ -1300,7 +1306,7 @@ namespace fons {
     }
   //}}}
   //{{{
-  int TextIterInit (FONScontext* stash, FONStextIter* iter,
+  int textIterInit (sFontStashContext* stash, FONStextIter* iter,
                         float x, float y, const char* str, const char* end) {
 
     auto state = getState (stash);
@@ -1317,18 +1323,18 @@ namespace fons {
       return 0;
 
     iter->isize = (short)(state->size*10.0f);
-    iter->scale = fons::TTgetPixelHeightScale (&iter->font->font, (float)iter->isize/10.0f);
+    iter->scale = fontStash::TTgetPixelHeightScale (&iter->font->font, (float)iter->isize/10.0f);
 
     // Align horizontally
     if (state->align & FONS_ALIGN_LEFT) {
       // empty
       }
     else if (state->align & FONS_ALIGN_RIGHT) {
-      width = fons::TextBounds (stash, x,y, str, end, NULL);
+      width = fontStash::textBounds (stash, x,y, str, end, NULL);
       x -= width;
       }
     else if (state->align & FONS_ALIGN_CENTER) {
-      width = fons::TextBounds (stash, x,y, str, end, NULL);
+      width = fontStash::textBounds (stash, x,y, str, end, NULL);
       x -= width * 0.5f;
       }
 
@@ -1351,7 +1357,7 @@ namespace fons {
     }
   //}}}
   //{{{
-  int TextIterNext (FONScontext* stash, FONStextIter* iter, FONSquad* quad) {
+  int textIterNext (sFontStashContext* stash, FONStextIter* iter, FONSquad* quad) {
 
     FONSglyph* glyph = NULL;
     const char* str = iter->next;
@@ -1380,7 +1386,7 @@ namespace fons {
   //}}}
 
   //{{{
-  void DrawDebug (FONScontext* stash, float x, float y) {
+  void drawDebug (sFontStashContext* stash, float x, float y) {
 
     int i;
     int w = stash->params.width;
@@ -1429,7 +1435,7 @@ namespace fons {
     }
   //}}}
   //{{{
-  void VertMetrics (FONScontext* stash, float* ascender, float* descender, float* lineh) {
+  void vertMetrics (sFontStashContext* stash, float* ascender, float* descender, float* lineh) {
 
     auto state = getState(stash);
 
@@ -1452,7 +1458,7 @@ namespace fons {
     }
   //}}}
   //{{{
-  void LineBounds (FONScontext* stash, float y, float* miny, float* maxy) {
+  void lineBounds (sFontStashContext* stash, float y, float* miny, float* maxy) {
 
     auto state = getState(stash);
     short isize;
@@ -1481,7 +1487,7 @@ namespace fons {
   //}}}
 
   //{{{
-  const unsigned char* GetTextureData (FONScontext* stash, int* width, int* height) {
+  const unsigned char* getTextureData (sFontStashContext* stash, int* width, int* height) {
 
     if (width != NULL)
       *width = stash->params.width;
@@ -1492,7 +1498,7 @@ namespace fons {
     }
   //}}}
   //{{{
-  int ValidateTexture (FONScontext* stash, int* dirty) {
+  int validateTexture (sFontStashContext* stash, int* dirty) {
 
     if (stash->dirtyRect[0] < stash->dirtyRect[2] && stash->dirtyRect[1] < stash->dirtyRect[3]) {
       dirty[0] = stash->dirtyRect[0];
@@ -1513,7 +1519,7 @@ namespace fons {
   //}}}
 
   //{{{
-  void SetErrorCallback (FONScontext* stash, void (*callback)(void* uptr, int error, int val), void* uptr) {
+  void setErrorCallback (sFontStashContext* stash, void (*callback)(void* uptr, int error, int val), void* uptr) {
 
     if (stash == NULL)
       return;
@@ -1522,77 +1528,10 @@ namespace fons {
     stash->errorUptr = uptr;
     }
   //}}}
+  //}}}
   }
-//}}}
 
 // public
-//{{{
-cVg::cVg (int flags)
-   : mDrawEdges(!(flags & DRAW_NOEDGES)), mDrawSolid(!(flags & DRAW_NOSOLID)), mDrawTriangles(true) {
-
-  saveState();
-  resetState();
-
-  setDevicePixelRatio (1.f);
-
-  // init font rendering
-  FONSparams fontParams;
-  fontParams.width = NVG_INIT_FONTIMAGE_SIZE;
-  fontParams.height = NVG_INIT_FONTIMAGE_SIZE;
-  fontParams.flags = FONS_ZERO_TOPLEFT;
-
-  fontParams.renderCreate = nullptr;
-  fontParams.renderUpdate = nullptr;
-  fontParams.renderDraw = nullptr;
-  fontParams.renderDelete = nullptr;
-  fontParams.userPtr = nullptr;
-
-  fonsContext = fons::CreateInternal (&fontParams);
-  }
-//}}}
-//{{{
-cVg::~cVg() {
-
-  if (fonsContext)
-    fons::DeleteInternal (fonsContext);
-
-  glDisableVertexAttribArray (0);
-  glDisableVertexAttribArray (1);
-
-  if (mVertexBuffer)
-    glDeleteBuffers (1, &mVertexBuffer);
-
-  glDisable (GL_CULL_FACE);
-  glBindBuffer (GL_ARRAY_BUFFER, 0);
-  glUseProgram (0);
-  setBindTexture (0);
-
-  for (int i = 0; i < mNumTextures; i++)
-    if (mTextures[i].tex && (mTextures[i].flags & IMAGE_NODELETE) == 0)
-      glDeleteTextures (1, &mTextures[i].tex);
-
-  free (mTextures);
-  free (mPathVertices);
-  free (mFrags);
-  free (mDraws);
-  }
-//}}}
-
-//{{{
-void cVg::initialise() {
-
-  mShader.create ("#define EDGE_AA 1\n");
-  mShader.getUniforms();
-
-  glGenBuffers (1, &mVertexBuffer);
-
-  // removed because of strange startup time
-  //glFinish();
-
-  fontImages[0] = renderCreateTexture (TEXTURE_ALPHA, NVG_INIT_FONTIMAGE_SIZE, NVG_INIT_FONTIMAGE_SIZE, 0, NULL);
-  }
-//}}}
-
 //{{{  cVg::cTransform
 //{{{
 cVg::cTransform::cTransform() : mIdentity(true) {
@@ -1813,7 +1752,71 @@ bool cVg::cTransform::isIdentity() {
   }
 //}}}
 //}}}
+//{{{
+cVg::cVg (int flags)
+   : mDrawEdges(!(flags & DRAW_NOEDGES)), mDrawSolid(!(flags & DRAW_NOSOLID)), mDrawTriangles(true) {
 
+  saveState();
+  resetState();
+
+  setDevicePixelRatio (1.f);
+
+  // init font rendering
+  sFontStashParams fontParams;
+  fontParams.width = NVG_INIT_FONTIMAGE_SIZE;
+  fontParams.height = NVG_INIT_FONTIMAGE_SIZE;
+  fontParams.flags = FONS_ZERO_TOPLEFT;
+
+  fontParams.renderCreate = nullptr;
+  fontParams.renderUpdate = nullptr;
+  fontParams.renderDraw = nullptr;
+  fontParams.renderDelete = nullptr;
+  fontParams.userPtr = nullptr;
+
+  fontStashContext = fontStash::createInternal (&fontParams);
+  }
+//}}}
+//{{{
+cVg::~cVg() {
+
+  if (fontStashContext)
+    fontStash::deleteInternal (fontStashContext);
+
+  glDisableVertexAttribArray (0);
+  glDisableVertexAttribArray (1);
+
+  if (mVertexBuffer)
+    glDeleteBuffers (1, &mVertexBuffer);
+
+  glDisable (GL_CULL_FACE);
+  glBindBuffer (GL_ARRAY_BUFFER, 0);
+  glUseProgram (0);
+  setBindTexture (0);
+
+  for (int i = 0; i < mNumTextures; i++)
+    if (mTextures[i].tex && (mTextures[i].flags & IMAGE_NODELETE) == 0)
+      glDeleteTextures (1, &mTextures[i].tex);
+
+  free (mTextures);
+  free (mPathVertices);
+  free (mFrags);
+  free (mDraws);
+  }
+//}}}
+//{{{
+void cVg::initialise() {
+
+  mShader.create ("#define EDGE_AA 1\n");
+  mShader.getUniforms();
+
+  glGenBuffers (1, &mVertexBuffer);
+
+  // removed because of strange startup time
+  //glFinish();
+
+  fontImages[0] = renderCreateTexture (TEXTURE_ALPHA, NVG_INIT_FONTIMAGE_SIZE, NVG_INIT_FONTIMAGE_SIZE, 0, NULL);
+  }
+//}}}
 //{{{  state
 //{{{
 void cVg::resetState() {
@@ -2297,16 +2300,16 @@ void cVg::textAlign (int align) { mStates[mNumStates-1].textAlign = align; }
 void cVg::textLineHeight (float lineHeight) { mStates[mNumStates-1].lineHeight = lineHeight; }
 void cVg::textLetterSpacing (float spacing) { mStates[mNumStates-1].letterSpacing = spacing; }
 void cVg::fontFaceId (int font) { mStates[mNumStates-1].fontId = font; }
-void cVg::fontFace (string font) { mStates[mNumStates-1].fontId = fons::GetFontByName (fonsContext, font.c_str()); }
+void cVg::fontFace (string font) { mStates[mNumStates-1].fontId = fontStash::getFontByName (fontStashContext, font.c_str()); }
 
 //{{{
 int cVg::createFont (string name, string path) {
-  return fons::AddFont (fonsContext, name.c_str(), path.c_str());
+  return fontStash::addFont (fontStashContext, name.c_str(), path.c_str());
   }
 //}}}
 //{{{
 int cVg::createFontMem (string name, unsigned char* data, int ndata, int freeData) {
-  return fons::AddFontMem (fonsContext, name.c_str(), data, ndata, freeData);
+  return fontStash::addFontMem (fontStashContext, name.c_str(), data, ndata, freeData);
   }
 //}}}
 //{{{
@@ -2314,7 +2317,7 @@ int cVg::findFont (string name) {
 
   if (name.empty())
     return -1;
-  return fons::GetFontByName (fonsContext, name.c_str());
+  return fontStash::getFontByName (fontStashContext, name.c_str());
   }
 //}}}
 //{{{
@@ -2326,7 +2329,7 @@ int cVg::addFallbackFont (string baseFont, string fallbackFont) {
 int cVg::addFallbackFontId (int baseFont, int fallbackFont) {
   if (baseFont == -1 || fallbackFont == -1)
     return 0;
-  return fons::AddFallbackFont (fonsContext, baseFont, fallbackFont);
+  return fontStash::addFallbackFont (fontStashContext, baseFont, fallbackFont);
   }
 //}}}
 
@@ -2341,10 +2344,10 @@ float cVg::text (float x, float y, string str) {
   float scale = getFontScale (state) * devicePixelRatio;
   float inverseScale = 1.0f / scale;
 
-  fons::SetSize (fonsContext, state->fontSize * scale);
-  fons::SetSpacing (fonsContext, state->letterSpacing * scale);
-  fons::SetAlign (fonsContext, state->textAlign);
-  fons::SetFont (fonsContext, state->fontId);
+  fontStash::setSize (fontStashContext, state->fontSize * scale);
+  fontStash::setSpacing (fontStashContext, state->letterSpacing * scale);
+  fontStash::setAlign (fontStashContext, state->textAlign);
+  fontStash::setFont (fontStashContext, state->fontId);
 
   // allocate 6 vertices per glyph
   int numVertices = maxi (2, (int)str.size()) * 6;
@@ -2353,16 +2356,16 @@ float cVg::text (float x, float y, string str) {
   auto firstVertex = vertices;
 
   FONStextIter iter;
-  fons::TextIterInit (fonsContext, &iter, x*scale, y*scale, str.c_str(), str.c_str() + str.size());
+  fontStash::textIterInit (fontStashContext, &iter, x*scale, y*scale, str.c_str(), str.c_str() + str.size());
   FONStextIter prevIter = iter;
   FONSquad q;
-  while (fons::TextIterNext (fonsContext, &iter, &q)) {
+  while (fontStash::textIterNext (fontStashContext, &iter, &q)) {
     if (iter.prevGlyphIndex == -1) {
       // can not retrieve glyph?
       if (!allocTextAtlas())
         break; // no memory
       iter = prevIter;
-      fons::TextIterNext (fonsContext, &iter, &q); // try again
+      fontStash::textIterNext (fontStashContext, &iter, &q); // try again
       if (iter.prevGlyphIndex == -1) // still can not find glyph?
         break;
       }
@@ -2463,15 +2466,15 @@ float cVg::textBounds (float x, float y, string str, float* bounds) {
   float inverseScale = 1.0f / scale;
   float width;
 
-  fons::SetSize (fonsContext, state->fontSize*scale);
-  fons::SetSpacing (fonsContext, state->letterSpacing*scale);
-  fons::SetAlign (fonsContext, state->textAlign);
-  fons::SetFont (fonsContext, state->fontId);
+  fontStash::setSize (fontStashContext, state->fontSize*scale);
+  fontStash::setSpacing (fontStashContext, state->letterSpacing*scale);
+  fontStash::setAlign (fontStashContext, state->textAlign);
+  fontStash::setFont (fontStashContext, state->fontId);
 
-  width = fons::TextBounds (fonsContext, x*scale, y*scale, str.c_str(), str.c_str() + str.size(), bounds);
+  width = fontStash::textBounds (fontStashContext, x*scale, y*scale, str.c_str(), str.c_str() + str.size(), bounds);
   if (bounds != NULL) {
     // Use line bounds for height.
-    fons::LineBounds (fonsContext, y*scale, &bounds[1], &bounds[3]);
+    fontStash::lineBounds (fontStashContext, y*scale, &bounds[1], &bounds[3]);
     bounds[0] *= inverseScale;
     bounds[1] *= inverseScale;
     bounds[2] *= inverseScale;
@@ -2491,12 +2494,12 @@ void cVg::textMetrics (float* ascender, float* descender, float* lineh) {
   float scale = getFontScale(state) * devicePixelRatio;
   float inverseScale = 1.0f / scale;
 
-  fons::SetSize (fonsContext, state->fontSize*scale);
-  fons::SetSpacing (fonsContext, state->letterSpacing*scale);
-  fons::SetAlign (fonsContext, state->textAlign);
-  fons::SetFont (fonsContext, state->fontId);
+  fontStash::setSize (fontStashContext, state->fontSize*scale);
+  fontStash::setSpacing (fontStashContext, state->letterSpacing*scale);
+  fontStash::setAlign (fontStashContext, state->textAlign);
+  fontStash::setFont (fontStashContext, state->fontId);
 
-  fons::VertMetrics (fonsContext, ascender, descender, lineh);
+  fontStash::vertMetrics (fontStashContext, ascender, descender, lineh);
   if (ascender != NULL)
     *ascender *= inverseScale;
   if (descender != NULL)
@@ -2518,22 +2521,22 @@ int cVg::textGlyphPositions (float x, float y, string str, NVGglyphPosition* pos
   float scale = getFontScale (state) * devicePixelRatio;
   float inverseScale = 1.0f / scale;
 
-  fons::SetSize (fonsContext, state->fontSize * scale);
-  fons::SetSpacing (fonsContext, state->letterSpacing * scale);
-  fons::SetAlign (fonsContext, state->textAlign);
-  fons::SetFont (fonsContext, state->fontId);
+  fontStash::setSize (fontStashContext, state->fontSize * scale);
+  fontStash::setSpacing (fontStashContext, state->letterSpacing * scale);
+  fontStash::setAlign (fontStashContext, state->textAlign);
+  fontStash::setFont (fontStashContext, state->fontId);
 
   FONStextIter iter;
-  fons::TextIterInit (fonsContext, &iter, x*scale, y*scale, str.c_str(), str.c_str() + str.size());
+  fontStash::textIterInit (fontStashContext, &iter, x*scale, y*scale, str.c_str(), str.c_str() + str.size());
   FONStextIter prevIter = iter;
 
   int npos = 0;
   FONSquad q;
-  while (fons::TextIterNext (fonsContext, &iter, &q)) {
+  while (fontStash::textIterNext (fontStashContext, &iter, &q)) {
     if (iter.prevGlyphIndex < 0 && allocTextAtlas()) {
       // can not retrieve glyph, try again
       iter = prevIter;
-      fons::TextIterNext (fonsContext, &iter, &q);
+      fontStash::textIterNext (fontStashContext, &iter, &q);
       }
     prevIter = iter;
 
@@ -2579,11 +2582,11 @@ void cVg::textBoxBounds (float x, float y, float breakRowWidth, const char* stri
   minx = maxx = x;
   miny = maxy = y;
 
-  fons::SetSize (fonsContext, state->fontSize*scale);
-  fons::SetSpacing (fonsContext, state->letterSpacing*scale);
-  fons::SetAlign (fonsContext, state->textAlign);
-  fons::SetFont (fonsContext, state->fontId);
-  fons::LineBounds (fonsContext, 0, &rminy, &rmaxy);
+  fontStash::setSize (fontStashContext, state->fontSize*scale);
+  fontStash::setSpacing (fontStashContext, state->letterSpacing*scale);
+  fontStash::setAlign (fontStashContext, state->textAlign);
+  fontStash::setFont (fontStashContext, state->fontId);
+  fontStash::lineBounds (fontStashContext, 0, &rminy, &rmaxy);
   rminy *= inverseScale;
   rmaxy *= inverseScale;
 
@@ -2655,22 +2658,22 @@ int cVg::textBreakLines (const char* string, const char* end, float breakRowWidt
   int ptype = NVG_SPACE;
   unsigned int pcodepoint = 0;
 
-  fons::SetSize (fonsContext, state->fontSize*scale);
-  fons::SetSpacing (fonsContext, state->letterSpacing*scale);
-  fons::SetAlign (fonsContext, state->textAlign);
-  fons::SetFont (fonsContext, state->fontId);
+  fontStash::setSize (fontStashContext, state->fontSize*scale);
+  fontStash::setSpacing (fontStashContext, state->letterSpacing*scale);
+  fontStash::setAlign (fontStashContext, state->textAlign);
+  fontStash::setFont (fontStashContext, state->fontId);
 
   breakRowWidth *= scale;
 
   FONStextIter iter;
-  fons::TextIterInit (fonsContext, &iter, 0, 0, string, end);
+  fontStash::textIterInit (fontStashContext, &iter, 0, 0, string, end);
   FONStextIter prevIter = iter;
 
   FONSquad q;
-  while (fons::TextIterNext (fonsContext, &iter, &q)) {
+  while (fontStash::textIterNext (fontStashContext, &iter, &q)) {
     if (iter.prevGlyphIndex < 0 && allocTextAtlas()) { // can not retrieve glyph?
       iter = prevIter;
-      fons::TextIterNext (fonsContext, &iter, &q); // try again
+      fontStash::textIterNext (fontStashContext, &iter, &q); // try again
       }
     prevIter = iter;
 
@@ -3079,573 +3082,6 @@ void cVg::endFrame() {
 //}}}
 
 // private
-//{{{
-cVg::cDraw* cVg::allocDraw() {
-// allocate a draw, return pointer to it
-
-  if (mNumDraws + 1 > mNumAllocatedDraws) {
-    mNumAllocatedDraws = maxi (mNumDraws + 1, 128) + mNumAllocatedDraws / 2; // 1.5x Overallocate
-    mDraws = (cDraw*)realloc (mDraws, sizeof(cDraw) * mNumAllocatedDraws);
-    }
-  return &mDraws[mNumDraws++];
-  }
-//}}}
-//{{{
-int cVg::allocFrags (int numFrags) {
-// allocate numFrags, return index of first
-
-  if (mNumFrags + numFrags > mNumAllocatedFrags) {
-    mNumAllocatedFrags = maxi (mNumFrags + numFrags, 128) + mNumAllocatedFrags / 2; // 1.5x Overallocate
-    mFrags = (cFrag*)realloc (mFrags, mNumAllocatedFrags * sizeof(cFrag));
-    }
-
-  int firstFragIndex = mNumFrags;
-  mNumFrags += numFrags;
-  return firstFragIndex;
-  }
-//}}}
-//{{{
-int cVg::allocPathVertices (int numPaths) {
-// allocate numPaths pathVertices, return index of first
-
-  if (mNumPathVertices + numPaths > mNumAllocatedPathVertices) {
-    mNumAllocatedPathVertices = maxi (mNumPathVertices + numPaths, 128) + mNumAllocatedPathVertices / 2; // 1.5x Overallocate
-    mPathVertices = (cPathVertices*)realloc (mPathVertices, mNumAllocatedPathVertices * sizeof(cPathVertices));
-    }
-
-  int firstPathVerticeIndex = mNumPathVertices;
-  mNumPathVertices += numPaths;
-  return firstPathVerticeIndex;
-  }
-//}}}
-//{{{
-cVg::cTexture* cVg::allocTexture() {
-
-  cTexture* texture = nullptr;
-  for (int i = 0; i < mNumTextures; i++) {
-    if (mTextures[i].id == 0) {
-      texture = &mTextures[i];
-      break;
-      }
-    }
-
-  if (texture == nullptr) {
-    if (mNumTextures + 1 > mNumAllocatedTextures) {
-      mNumAllocatedTextures = maxi (mNumTextures + 1, 4) +  mNumAllocatedTextures / 2; // 1.5x Overallocate
-      mTextures = (cTexture*)realloc (mTextures, mNumAllocatedTextures * sizeof(cTexture));
-      if (mTextures == nullptr)
-        return nullptr;
-      }
-    texture = &mTextures[mNumTextures++];
-    }
-
-  texture->reset();
-  texture->id = ++mTextureId;
-  return texture;
-  }
-//}}}
-//{{{
-cVg::cTexture* cVg::findTexture (int textureId) {
-
-  for (int i = 0; i < mNumTextures; i++)
-    if (mTextures[i].id == textureId)
-      return &mTextures[i];
-
-  return nullptr;
-  }
-//}}}
-
-//{{{
-void cVg::setStencilMask (GLuint mask) {
-
-  if (mStencilMask != mask) {
-    mStencilMask = mask;
-    glStencilMask (mask);
-    }
-  }
-//}}}
-//{{{
-void cVg::setStencilFunc (GLenum func, GLint ref, GLuint mask) {
-
-  if ((mStencilFunc != func) || (mStencilFuncRef != ref) || (mStencilFuncMask != mask)) {
-    mStencilFunc = func;
-    mStencilFuncRef = ref;
-    mStencilFuncMask = mask;
-    glStencilFunc (func, ref, mask);
-    }
-  }
-//}}}
-//{{{
-void cVg::setBindTexture (GLuint texture) {
-
-  if (mBindTexture != texture) {
-    mBindTexture = texture;
-    glBindTexture (GL_TEXTURE_2D, texture);
-    }
-  }
-//}}}
-//{{{
-void cVg::setUniforms (int firstFragIndex, int image) {
-
-  mShader.setFrags ((float*)(&mFrags[firstFragIndex]));
-
-  if (image) {
-    auto tex = findTexture (image);
-    setBindTexture (tex ? tex->tex : 0);
-    }
-  else
-    setBindTexture (0);
-  }
-//}}}
-
-//{{{
-cVg::cCompositeOpState cVg::compositeOpState (eCompositeOp op) {
-
-  cCompositeOpState compositeOpState;
-  switch (op) {
-    case NVG_SOURCE_OVER :
-      compositeOpState.srcRGB = NVG_ONE;
-      compositeOpState.dstRGB = NVG_ONE_MINUS_SRC_ALPHA;
-      break;
-    case NVG_SOURCE_IN:
-      compositeOpState.srcRGB = NVG_DST_ALPHA;
-      compositeOpState.dstRGB = NVG_ZERO;
-      break;
-    case NVG_SOURCE_OUT:
-      compositeOpState.srcRGB = NVG_ONE_MINUS_DST_ALPHA;
-      compositeOpState.dstRGB = NVG_ZERO;
-      break;
-    case NVG_ATOP:
-      compositeOpState.srcRGB = NVG_DST_ALPHA;
-      compositeOpState.dstRGB = NVG_ONE_MINUS_SRC_ALPHA;
-      break;
-    case NVG_DESTINATION_OVER:
-      compositeOpState.srcRGB = NVG_ONE_MINUS_DST_ALPHA;
-      compositeOpState.dstRGB = NVG_ONE;
-      break;
-    case NVG_DESTINATION_IN:
-      compositeOpState.srcRGB = NVG_ZERO;
-      compositeOpState.dstRGB = NVG_SRC_ALPHA;
-      break;
-    case NVG_DESTINATION_OUT:
-      compositeOpState.srcRGB = NVG_ZERO;
-      compositeOpState.dstRGB = NVG_ONE_MINUS_SRC_ALPHA;
-      break;
-    case NVG_DESTINATION_ATOP:
-      compositeOpState.srcRGB = NVG_ONE_MINUS_DST_ALPHA;
-      compositeOpState.dstRGB = NVG_SRC_ALPHA;
-      break;
-    case NVG_LIGHTER:
-      compositeOpState.srcRGB = NVG_ONE;
-      compositeOpState.dstRGB = NVG_ONE;
-      break;
-    case NVG_COPY:
-      compositeOpState.srcRGB = NVG_ONE;
-      compositeOpState.dstRGB = NVG_ZERO;
-      break;
-    case NVG_XOR:
-      compositeOpState.srcRGB = NVG_ONE_MINUS_DST_ALPHA;
-      compositeOpState.dstRGB = NVG_ONE_MINUS_SRC_ALPHA;
-      break;
-    default:
-      compositeOpState.srcRGB = NVG_ONE;
-      compositeOpState.dstRGB = NVG_ZERO;
-      break;
-    }
-
-  compositeOpState.srcAlpha = compositeOpState.srcRGB;
-  compositeOpState.dstAlpha = compositeOpState.dstRGB;
-  return compositeOpState;
-  }
-//}}}
-//{{{
-GLenum cVg::convertBlendFuncFactor (eBlendFactor factor) {
-
-  switch (factor) {
-    case NVG_ZERO:
-      return GL_ZERO;
-    case NVG_ONE:
-      return GL_ONE;
-    case NVG_SRC_COLOR:
-      return GL_SRC_COLOR;
-    case NVG_ONE_MINUS_SRC_COLOR:
-      return GL_ONE_MINUS_SRC_COLOR;
-    case NVG_DST_COLOR:
-      return GL_DST_COLOR;
-    case NVG_ONE_MINUS_DST_COLOR:
-      return GL_ONE_MINUS_DST_COLOR;
-    case NVG_SRC_ALPHA:
-      return GL_SRC_ALPHA;
-    case  NVG_ONE_MINUS_SRC_ALPHA:
-      return GL_ONE_MINUS_SRC_ALPHA;
-    case NVG_DST_ALPHA:
-      return GL_DST_ALPHA;
-    case NVG_ONE_MINUS_DST_ALPHA:
-      return GL_ONE_MINUS_DST_ALPHA;
-    case NVG_SRC_ALPHA_SATURATE:
-      return GL_SRC_ALPHA_SATURATE;
-    default:
-      return GL_INVALID_ENUM;
-      }
-  }
-//}}}
-
-//{{{
-bool cVg::renderGetTextureSize (int image, int& w, int& h) {
-
-  auto texture = findTexture (image);
-  if (texture == nullptr)
-    return false;
-
-  w = texture->width;
-  h = texture->height;
-
-  return true;
-  }
-//}}}
-//{{{
-int cVg::renderCreateTexture (int type, int w, int h, int imageFlags, const unsigned char* data) {
-
-  auto texture = allocTexture();
-  if (texture == nullptr)
-    return 0;
-
-  // Check for non-power of 2.
-  if (nearestPow2 (w) != (unsigned int)w || nearestPow2(h) != (unsigned int)h) {
-    if ((imageFlags & IMAGE_REPEATX) != 0 || (imageFlags & IMAGE_REPEATY) != 0) {
-      printf ("Repeat X/Y is not supported for non power-of-two textures (%d x %d)\n", w, h);
-      imageFlags &= ~(IMAGE_REPEATX | IMAGE_REPEATY);
-      }
-
-    if (imageFlags & IMAGE_GENERATE_MIPMAPS) {
-      printf ("Mip-maps is not support for non power-of-two textures (%d x %d)\n", w, h);
-      imageFlags &= ~IMAGE_GENERATE_MIPMAPS;
-      }
-    }
-
-  glGenTextures (1, &texture->tex);
-  texture->width = w;
-  texture->height = h;
-  texture->type = type;
-  texture->flags = imageFlags;
-  setBindTexture (texture->tex);
-
-  glPixelStorei (GL_UNPACK_ALIGNMENT,1);
-
-  if (type == TEXTURE_RGBA)
-    glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-  else
-    glTexImage2D (GL_TEXTURE_2D, 0, GL_LUMINANCE, w, h, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, data);
-
-  if (imageFlags & cVg::IMAGE_GENERATE_MIPMAPS)
-    glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
-     imageFlags & cVg::IMAGE_NEAREST ? GL_NEAREST_MIPMAP_NEAREST : GL_LINEAR_MIPMAP_LINEAR);
-
-  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, imageFlags &  cVg::IMAGE_NEAREST ? GL_NEAREST : GL_LINEAR);
-  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, imageFlags &  cVg::IMAGE_NEAREST ? GL_NEAREST : GL_LINEAR);
-  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, imageFlags &  cVg::IMAGE_REPEATX ? GL_REPEAT : GL_CLAMP_TO_EDGE);
-  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, imageFlags &  cVg::IMAGE_REPEATY ? GL_REPEAT : GL_CLAMP_TO_EDGE);
-
-  glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-
-  if (imageFlags & cVg::IMAGE_GENERATE_MIPMAPS)
-    glGenerateMipmap (GL_TEXTURE_2D);
-
-  setBindTexture (0);
-
-  return texture->id;
-  }
-//}}}
-//{{{
-bool cVg::renderUpdateTexture (int image, int x, int y, int w, int h, const unsigned char* data) {
-
-  auto texture = findTexture (image);
-  if (texture == nullptr)
-    return false;
-  setBindTexture (texture->tex);
-
-  glPixelStorei (GL_UNPACK_ALIGNMENT, 1);
-
-  // No support for all of skip, need to update a whole row at a time.
-  if (texture->type == TEXTURE_RGBA)
-    data += y * texture->width * 4;
-  else
-    data += y * texture->width;
-  x = 0;
-  w = texture->width;
-
-  if (texture->type == TEXTURE_RGBA)
-    glTexSubImage2D (GL_TEXTURE_2D, 0, x,y, w,h, GL_RGBA, GL_UNSIGNED_BYTE, data);
-  else
-    glTexSubImage2D (GL_TEXTURE_2D, 0, x,y, w,h, GL_LUMINANCE, GL_UNSIGNED_BYTE, data);
-
-  glPixelStorei (GL_UNPACK_ALIGNMENT, 4);
-
-  setBindTexture (0);
-  return true;
-  }
-//}}}
-
-//{{{
-void cVg::renderViewport (int width, int height, float devicePixelRatio) {
-  mViewport[0] = (float)width;
-  mViewport[1] = (float)height;
-  }
-//}}}
-//{{{
-void cVg::renderText (int firstVertexIndex, int numVertices, cPaint& paint, cScissor& scissor) {
-
-  auto draw = allocDraw();
-  draw->set (cDraw::TEXT, paint.image, 0, 0, allocFrags (1), firstVertexIndex, numVertices);
-  mFrags[draw->mFirstFragIndex].setImage (&paint, &scissor, findTexture (paint.image));
-  }
-//}}}
-//{{{
-void cVg::renderTriangles (int firstVertexIndex, int numVertices, cPaint& paint, cScissor& scissor) {
-
-  auto draw = allocDraw();
-  draw->set (cDraw::TRIANGLE, paint.image, 0, 0, allocFrags (1), firstVertexIndex, numVertices);
-  mFrags[draw->mFirstFragIndex].setFill (&paint, &scissor, 1.0f, 1.0f, -1.0f, findTexture (paint.image));
-  }
-//}}}
-//{{{
-void cVg::renderFill (cShape& shape, cPaint& paint, cScissor& scissor, float fringe) {
-
-  auto draw = allocDraw();
-  if ((shape.mNumPaths == 1) && shape.mPaths[0].mConvex) {
-    // convex
-    draw->set (cDraw::CONVEX_FILL, paint.image, allocPathVertices (shape.mNumPaths), shape.mNumPaths,
-               allocFrags (1), 0,0);
-    mFrags[draw->mFirstFragIndex].setFill (&paint, &scissor, fringe, fringe, -1.0f, findTexture (paint.image));
-    }
-  else {
-    // stencil
-    draw->set (cDraw::STENCIL_FILL, paint.image, allocPathVertices (shape.mNumPaths), shape.mNumPaths,
-               allocFrags (2), shape.mBoundsVertexIndex, 4);
-    mFrags[draw->mFirstFragIndex].setSimple();
-    mFrags[draw->mFirstFragIndex+1].setFill (&paint, &scissor, fringe, fringe, -1.0f, findTexture (paint.image));
-    }
-
-  auto fromPath = shape.mPaths;
-  auto toPathVertices = &mPathVertices[draw->mFirstPathVerticesIndex];
-  while (fromPath < shape.mPaths + shape.mNumPaths)
-    *toPathVertices++ = fromPath++->mPathVertices;
-  }
-//}}}
-//{{{
-void cVg::renderStroke (cShape& shape, cPaint& paint, cScissor& scissor, float fringe, float strokeWidth) {
-// only uses toPathVertices firstStrokeVertexIndex, strokeVertexCount, no fill
-
-  auto draw = allocDraw();
-  draw->set (cDraw::STROKE, paint.image, allocPathVertices (shape.mNumPaths), shape.mNumPaths, allocFrags (2), 0,0);
-  mFrags[draw->mFirstFragIndex].setFill (&paint, &scissor, strokeWidth, fringe, -1.0f, findTexture (paint.image));
-  mFrags[draw->mFirstFragIndex+1].setFill (&paint, &scissor, strokeWidth, fringe, 1.0f - 0.5f/255.0f, findTexture (paint.image));
-
-  auto fromPath = shape.mPaths;
-  auto toPathVertices = &mPathVertices[draw->mFirstPathVerticesIndex];
-  while (fromPath < shape.mPaths + shape.mNumPaths)
-    *toPathVertices++ = fromPath++->mPathVertices;
-  }
-//}}}
-//{{{
-void cVg::renderFrame (c2dVertices& vertices, cCompositeOpState compositeOp) {
-
-  mDrawArrays = 0;
-  //{{{  init gl blendFunc
-  GLenum srcRGB = convertBlendFuncFactor (compositeOp.srcRGB);
-  GLenum dstRGB = convertBlendFuncFactor (compositeOp.dstRGB);
-  GLenum srcAlpha = convertBlendFuncFactor (compositeOp.srcAlpha);
-  GLenum dstAlpha = convertBlendFuncFactor (compositeOp.dstAlpha);
-
-  if (srcRGB == GL_INVALID_ENUM || dstRGB == GL_INVALID_ENUM ||
-      srcAlpha == GL_INVALID_ENUM || dstAlpha == GL_INVALID_ENUM)
-    glBlendFunc (GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-  else
-    glBlendFuncSeparate (srcRGB, dstRGB, srcAlpha, dstAlpha);
-  //}}}
-  //{{{  init gl draw style
-  glEnable (GL_CULL_FACE);
-  glCullFace (GL_BACK);
-
-  glFrontFace (GL_CCW);
-  glEnable (GL_BLEND);
-
-  glDisable (GL_DEPTH_TEST);
-  glDisable (GL_SCISSOR_TEST);
-  //}}}
-  //{{{  init gl stencil buffer
-  mStencilMask = 0xFF;
-  glStencilMask (mStencilMask);
-
-  mStencilFunc = GL_ALWAYS;
-  mStencilFuncRef = 0;
-  mStencilFuncMask = 0xFF;
-  glStencilFunc (mStencilFunc, mStencilFuncRef, mStencilFuncMask);
-
-  glStencilOp (GL_KEEP, GL_KEEP, GL_KEEP);
-  glColorMask (GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-  //}}}
-  //{{{  init gl texture
-  glActiveTexture (GL_TEXTURE0);
-  glBindTexture (GL_TEXTURE_2D, 0);
-  mBindTexture = 0;
-  //}}}
-  //{{{  init gl uniforms
-  mShader.setTex (0);
-  mShader.setViewport (mViewport);
-  //}}}
-  //{{{  init gl vertices
-  glBindBuffer (GL_ARRAY_BUFFER, mVertexBuffer);
-  glBufferData (GL_ARRAY_BUFFER, vertices.getNumVertices() * sizeof(c2dVertex), vertices.getVertexPtr(0), GL_STREAM_DRAW);
-
-  glEnableVertexAttribArray (0);
-  glVertexAttribPointer (0, 2, GL_FLOAT, GL_FALSE, sizeof(c2dVertex), (const GLvoid*)(size_t)0);
-
-  glEnableVertexAttribArray (1);
-  glVertexAttribPointer (1, 2, GL_FLOAT, GL_FALSE, sizeof(c2dVertex), (const GLvoid*)(0 + 2*sizeof(float)));
-  //}}}
-
-  for (auto draw = mDraws; draw < mDraws + mNumDraws; draw++)
-    switch (draw->mType) {
-      case cDraw::TEXT:
-        //{{{  text triangles
-        if (mDrawTriangles) {
-          setUniforms (draw->mFirstFragIndex, draw->mImage);
-          glDrawArrays (GL_TRIANGLES, draw->mTriangleFirstVertexIndex, draw->mNumTriangleVertices);
-          mDrawArrays++;
-          }
-        break;
-        //}}}
-      case cDraw::TRIANGLE:
-        //{{{  fill triangles
-        if (mDrawSolid) {
-          setUniforms (draw->mFirstFragIndex, draw->mImage);
-          glDrawArrays (GL_TRIANGLES, draw->mTriangleFirstVertexIndex, draw->mNumTriangleVertices);
-          mDrawArrays++;
-          }
-        break;
-        //}}}
-      case cDraw::CONVEX_FILL: {
-        //{{{  convexFill
-        setUniforms (draw->mFirstFragIndex, draw->mImage);
-
-        auto pathVertices = &mPathVertices[draw->mFirstPathVerticesIndex];
-
-        if (mDrawSolid)
-          for (int i = 0; i < draw->mNumPaths; i++) {
-            glDrawArrays (GL_TRIANGLE_FAN, pathVertices[i].mFirstFillVertexIndex, pathVertices[i].mNumFillVertices);
-            mDrawArrays++;
-            }
-
-        if (mDrawEdges)
-          for (int i = 0; i < draw->mNumPaths; i++)
-            if (pathVertices[i].mNumStrokeVertices) {
-              glDrawArrays (GL_TRIANGLE_STRIP, pathVertices[i].mFirstStrokeVertexIndex, pathVertices[i].mNumStrokeVertices);
-              mDrawArrays++;
-              }
-
-        break;
-        }
-        //}}}
-      case cDraw::STENCIL_FILL: {
-        //{{{  stencilFill
-        glEnable (GL_STENCIL_TEST);
-
-        auto pathVertices = &mPathVertices[draw->mFirstPathVerticesIndex];
-
-        if (mDrawSolid) {
-          glDisable (GL_CULL_FACE);
-
-          glStencilOpSeparate (GL_FRONT, GL_KEEP, GL_KEEP, GL_INCR_WRAP);
-          glStencilOpSeparate (GL_BACK, GL_KEEP, GL_KEEP, GL_DECR_WRAP);
-          glColorMask (GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
-
-          setStencilFunc (GL_ALWAYS, 0x00, 0xFF);
-          setUniforms (draw->mFirstFragIndex, 0);
-          for (int i = 0; i < draw->mNumPaths; i++) {
-            glDrawArrays (GL_TRIANGLE_FAN, pathVertices[i].mFirstFillVertexIndex, pathVertices[i].mNumFillVertices);
-            mDrawArrays++;
-            }
-
-          glEnable (GL_CULL_FACE);
-          glColorMask (GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-          }
-
-        setUniforms (draw->mFirstFragIndex + 1, draw->mImage);
-        if (mDrawEdges) {
-          glStencilOp (GL_KEEP, GL_KEEP, GL_KEEP);
-          setStencilFunc (GL_EQUAL, 0x00, 0xFF);
-          for (int i = 0; i < draw->mNumPaths; i++)
-            if (pathVertices[i].mNumStrokeVertices) {
-              glDrawArrays (GL_TRIANGLE_STRIP, pathVertices[i].mFirstStrokeVertexIndex, pathVertices[i].mNumStrokeVertices);
-              mDrawArrays++;
-              }
-          }
-
-        // draw bounding rect as triangleStrip
-        if (mDrawSolid || mDrawEdges) {
-          glStencilOp (GL_ZERO, GL_ZERO, GL_ZERO);
-          setStencilFunc (GL_NOTEQUAL, 0x00, 0xFF);
-          glDrawArrays (GL_TRIANGLE_STRIP, draw->mTriangleFirstVertexIndex, draw->mNumTriangleVertices);
-          mDrawArrays++;
-          }
-
-        glDisable (GL_STENCIL_TEST);
-        break;
-        }
-        //}}}
-      case cDraw::STROKE: {
-        //{{{  stroke
-        glEnable (GL_STENCIL_TEST);
-
-        auto pathVertices = &mPathVertices[draw->mFirstPathVerticesIndex];
-
-        // fill stroke base without overlap
-        if (mDrawSolid) {
-          glStencilOp (GL_KEEP, GL_KEEP, GL_INCR);
-          setStencilFunc (GL_EQUAL, 0x00, 0xFF);
-          setUniforms (draw->mFirstFragIndex + 1, draw->mImage);
-          for (int i = 0; i < draw->mNumPaths; i++) {
-            glDrawArrays (GL_TRIANGLE_STRIP, pathVertices[i].mFirstStrokeVertexIndex, pathVertices[i].mNumStrokeVertices);
-            mDrawArrays++;
-            }
-          }
-
-        setUniforms (draw->mFirstFragIndex, draw->mImage);
-        if (mDrawEdges) {
-          glStencilOp (GL_KEEP, GL_KEEP, GL_KEEP);
-          setStencilFunc (GL_EQUAL, 0x00, 0xFF);
-          for (int i = 0; i < draw->mNumPaths; i++)  {
-            glDrawArrays (GL_TRIANGLE_STRIP, pathVertices[i].mFirstStrokeVertexIndex, pathVertices[i].mNumStrokeVertices);
-            mDrawArrays++;
-            }
-          }
-
-        // clear stencilBuffer
-        if (mDrawSolid || mDrawEdges) {
-          glColorMask (GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
-          glStencilOp (GL_ZERO, GL_ZERO, GL_ZERO);
-          setStencilFunc (GL_ALWAYS, 0x00, 0xFF);
-          for (int i = 0; i < draw->mNumPaths; i++) {
-            glDrawArrays (GL_TRIANGLE_STRIP, pathVertices[i].mFirstStrokeVertexIndex, pathVertices[i].mNumStrokeVertices);
-            mDrawArrays++;
-            }
-          glColorMask (GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-          }
-
-        glDisable (GL_STENCIL_TEST);
-        break;
-        }
-        //}}}
-      }
-
-  // reset counts
-  mNumDraws = 0;
-  mNumPathVertices = 0;
-  mNumFrags = 0;
-  }
-//}}}
-
 //{{{  cVg::cShader
 //{{{
 cVg::cShader::~cShader() {
@@ -4736,6 +4172,573 @@ cVg::c2dVertex* cVg::cShape::roundCapEnd (c2dVertex* vertexPtr, cPoint* point, f
 //}}}
 //}}}
 
+//{{{
+cVg::cDraw* cVg::allocDraw() {
+// allocate a draw, return pointer to it
+
+  if (mNumDraws + 1 > mNumAllocatedDraws) {
+    mNumAllocatedDraws = maxi (mNumDraws + 1, 128) + mNumAllocatedDraws / 2; // 1.5x Overallocate
+    mDraws = (cDraw*)realloc (mDraws, sizeof(cDraw) * mNumAllocatedDraws);
+    }
+  return &mDraws[mNumDraws++];
+  }
+//}}}
+//{{{
+int cVg::allocFrags (int numFrags) {
+// allocate numFrags, return index of first
+
+  if (mNumFrags + numFrags > mNumAllocatedFrags) {
+    mNumAllocatedFrags = maxi (mNumFrags + numFrags, 128) + mNumAllocatedFrags / 2; // 1.5x Overallocate
+    mFrags = (cFrag*)realloc (mFrags, mNumAllocatedFrags * sizeof(cFrag));
+    }
+
+  int firstFragIndex = mNumFrags;
+  mNumFrags += numFrags;
+  return firstFragIndex;
+  }
+//}}}
+//{{{
+int cVg::allocPathVertices (int numPaths) {
+// allocate numPaths pathVertices, return index of first
+
+  if (mNumPathVertices + numPaths > mNumAllocatedPathVertices) {
+    mNumAllocatedPathVertices = maxi (mNumPathVertices + numPaths, 128) + mNumAllocatedPathVertices / 2; // 1.5x Overallocate
+    mPathVertices = (cPathVertices*)realloc (mPathVertices, mNumAllocatedPathVertices * sizeof(cPathVertices));
+    }
+
+  int firstPathVerticeIndex = mNumPathVertices;
+  mNumPathVertices += numPaths;
+  return firstPathVerticeIndex;
+  }
+//}}}
+//{{{
+cVg::cTexture* cVg::allocTexture() {
+
+  cTexture* texture = nullptr;
+  for (int i = 0; i < mNumTextures; i++) {
+    if (mTextures[i].id == 0) {
+      texture = &mTextures[i];
+      break;
+      }
+    }
+
+  if (texture == nullptr) {
+    if (mNumTextures + 1 > mNumAllocatedTextures) {
+      mNumAllocatedTextures = maxi (mNumTextures + 1, 4) +  mNumAllocatedTextures / 2; // 1.5x Overallocate
+      mTextures = (cTexture*)realloc (mTextures, mNumAllocatedTextures * sizeof(cTexture));
+      if (mTextures == nullptr)
+        return nullptr;
+      }
+    texture = &mTextures[mNumTextures++];
+    }
+
+  texture->reset();
+  texture->id = ++mTextureId;
+  return texture;
+  }
+//}}}
+//{{{
+cVg::cTexture* cVg::findTexture (int textureId) {
+
+  for (int i = 0; i < mNumTextures; i++)
+    if (mTextures[i].id == textureId)
+      return &mTextures[i];
+
+  return nullptr;
+  }
+//}}}
+
+//{{{
+void cVg::setStencilMask (GLuint mask) {
+
+  if (mStencilMask != mask) {
+    mStencilMask = mask;
+    glStencilMask (mask);
+    }
+  }
+//}}}
+//{{{
+void cVg::setStencilFunc (GLenum func, GLint ref, GLuint mask) {
+
+  if ((mStencilFunc != func) || (mStencilFuncRef != ref) || (mStencilFuncMask != mask)) {
+    mStencilFunc = func;
+    mStencilFuncRef = ref;
+    mStencilFuncMask = mask;
+    glStencilFunc (func, ref, mask);
+    }
+  }
+//}}}
+//{{{
+void cVg::setBindTexture (GLuint texture) {
+
+  if (mBindTexture != texture) {
+    mBindTexture = texture;
+    glBindTexture (GL_TEXTURE_2D, texture);
+    }
+  }
+//}}}
+//{{{
+void cVg::setUniforms (int firstFragIndex, int image) {
+
+  mShader.setFrags ((float*)(&mFrags[firstFragIndex]));
+
+  if (image) {
+    auto tex = findTexture (image);
+    setBindTexture (tex ? tex->tex : 0);
+    }
+  else
+    setBindTexture (0);
+  }
+//}}}
+
+//{{{
+cVg::cCompositeOpState cVg::compositeOpState (eCompositeOp op) {
+
+  cCompositeOpState compositeOpState;
+  switch (op) {
+    case NVG_SOURCE_OVER :
+      compositeOpState.srcRGB = NVG_ONE;
+      compositeOpState.dstRGB = NVG_ONE_MINUS_SRC_ALPHA;
+      break;
+    case NVG_SOURCE_IN:
+      compositeOpState.srcRGB = NVG_DST_ALPHA;
+      compositeOpState.dstRGB = NVG_ZERO;
+      break;
+    case NVG_SOURCE_OUT:
+      compositeOpState.srcRGB = NVG_ONE_MINUS_DST_ALPHA;
+      compositeOpState.dstRGB = NVG_ZERO;
+      break;
+    case NVG_ATOP:
+      compositeOpState.srcRGB = NVG_DST_ALPHA;
+      compositeOpState.dstRGB = NVG_ONE_MINUS_SRC_ALPHA;
+      break;
+    case NVG_DESTINATION_OVER:
+      compositeOpState.srcRGB = NVG_ONE_MINUS_DST_ALPHA;
+      compositeOpState.dstRGB = NVG_ONE;
+      break;
+    case NVG_DESTINATION_IN:
+      compositeOpState.srcRGB = NVG_ZERO;
+      compositeOpState.dstRGB = NVG_SRC_ALPHA;
+      break;
+    case NVG_DESTINATION_OUT:
+      compositeOpState.srcRGB = NVG_ZERO;
+      compositeOpState.dstRGB = NVG_ONE_MINUS_SRC_ALPHA;
+      break;
+    case NVG_DESTINATION_ATOP:
+      compositeOpState.srcRGB = NVG_ONE_MINUS_DST_ALPHA;
+      compositeOpState.dstRGB = NVG_SRC_ALPHA;
+      break;
+    case NVG_LIGHTER:
+      compositeOpState.srcRGB = NVG_ONE;
+      compositeOpState.dstRGB = NVG_ONE;
+      break;
+    case NVG_COPY:
+      compositeOpState.srcRGB = NVG_ONE;
+      compositeOpState.dstRGB = NVG_ZERO;
+      break;
+    case NVG_XOR:
+      compositeOpState.srcRGB = NVG_ONE_MINUS_DST_ALPHA;
+      compositeOpState.dstRGB = NVG_ONE_MINUS_SRC_ALPHA;
+      break;
+    default:
+      compositeOpState.srcRGB = NVG_ONE;
+      compositeOpState.dstRGB = NVG_ZERO;
+      break;
+    }
+
+  compositeOpState.srcAlpha = compositeOpState.srcRGB;
+  compositeOpState.dstAlpha = compositeOpState.dstRGB;
+  return compositeOpState;
+  }
+//}}}
+//{{{
+GLenum cVg::convertBlendFuncFactor (eBlendFactor factor) {
+
+  switch (factor) {
+    case NVG_ZERO:
+      return GL_ZERO;
+    case NVG_ONE:
+      return GL_ONE;
+    case NVG_SRC_COLOR:
+      return GL_SRC_COLOR;
+    case NVG_ONE_MINUS_SRC_COLOR:
+      return GL_ONE_MINUS_SRC_COLOR;
+    case NVG_DST_COLOR:
+      return GL_DST_COLOR;
+    case NVG_ONE_MINUS_DST_COLOR:
+      return GL_ONE_MINUS_DST_COLOR;
+    case NVG_SRC_ALPHA:
+      return GL_SRC_ALPHA;
+    case  NVG_ONE_MINUS_SRC_ALPHA:
+      return GL_ONE_MINUS_SRC_ALPHA;
+    case NVG_DST_ALPHA:
+      return GL_DST_ALPHA;
+    case NVG_ONE_MINUS_DST_ALPHA:
+      return GL_ONE_MINUS_DST_ALPHA;
+    case NVG_SRC_ALPHA_SATURATE:
+      return GL_SRC_ALPHA_SATURATE;
+    default:
+      return GL_INVALID_ENUM;
+      }
+  }
+//}}}
+
+//{{{
+bool cVg::renderGetTextureSize (int image, int& w, int& h) {
+
+  auto texture = findTexture (image);
+  if (texture == nullptr)
+    return false;
+
+  w = texture->width;
+  h = texture->height;
+
+  return true;
+  }
+//}}}
+//{{{
+int cVg::renderCreateTexture (int type, int w, int h, int imageFlags, const unsigned char* data) {
+
+  auto texture = allocTexture();
+  if (texture == nullptr)
+    return 0;
+
+  // Check for non-power of 2.
+  if (nearestPow2 (w) != (unsigned int)w || nearestPow2(h) != (unsigned int)h) {
+    if ((imageFlags & IMAGE_REPEATX) != 0 || (imageFlags & IMAGE_REPEATY) != 0) {
+      printf ("Repeat X/Y is not supported for non power-of-two textures (%d x %d)\n", w, h);
+      imageFlags &= ~(IMAGE_REPEATX | IMAGE_REPEATY);
+      }
+
+    if (imageFlags & IMAGE_GENERATE_MIPMAPS) {
+      printf ("Mip-maps is not support for non power-of-two textures (%d x %d)\n", w, h);
+      imageFlags &= ~IMAGE_GENERATE_MIPMAPS;
+      }
+    }
+
+  glGenTextures (1, &texture->tex);
+  texture->width = w;
+  texture->height = h;
+  texture->type = type;
+  texture->flags = imageFlags;
+  setBindTexture (texture->tex);
+
+  glPixelStorei (GL_UNPACK_ALIGNMENT,1);
+
+  if (type == TEXTURE_RGBA)
+    glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+  else
+    glTexImage2D (GL_TEXTURE_2D, 0, GL_LUMINANCE, w, h, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, data);
+
+  if (imageFlags & cVg::IMAGE_GENERATE_MIPMAPS)
+    glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+     imageFlags & cVg::IMAGE_NEAREST ? GL_NEAREST_MIPMAP_NEAREST : GL_LINEAR_MIPMAP_LINEAR);
+
+  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, imageFlags &  cVg::IMAGE_NEAREST ? GL_NEAREST : GL_LINEAR);
+  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, imageFlags &  cVg::IMAGE_NEAREST ? GL_NEAREST : GL_LINEAR);
+  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, imageFlags &  cVg::IMAGE_REPEATX ? GL_REPEAT : GL_CLAMP_TO_EDGE);
+  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, imageFlags &  cVg::IMAGE_REPEATY ? GL_REPEAT : GL_CLAMP_TO_EDGE);
+
+  glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+
+  if (imageFlags & cVg::IMAGE_GENERATE_MIPMAPS)
+    glGenerateMipmap (GL_TEXTURE_2D);
+
+  setBindTexture (0);
+
+  return texture->id;
+  }
+//}}}
+//{{{
+bool cVg::renderUpdateTexture (int image, int x, int y, int w, int h, const unsigned char* data) {
+
+  auto texture = findTexture (image);
+  if (texture == nullptr)
+    return false;
+  setBindTexture (texture->tex);
+
+  glPixelStorei (GL_UNPACK_ALIGNMENT, 1);
+
+  // No support for all of skip, need to update a whole row at a time.
+  if (texture->type == TEXTURE_RGBA)
+    data += y * texture->width * 4;
+  else
+    data += y * texture->width;
+  x = 0;
+  w = texture->width;
+
+  if (texture->type == TEXTURE_RGBA)
+    glTexSubImage2D (GL_TEXTURE_2D, 0, x,y, w,h, GL_RGBA, GL_UNSIGNED_BYTE, data);
+  else
+    glTexSubImage2D (GL_TEXTURE_2D, 0, x,y, w,h, GL_LUMINANCE, GL_UNSIGNED_BYTE, data);
+
+  glPixelStorei (GL_UNPACK_ALIGNMENT, 4);
+
+  setBindTexture (0);
+  return true;
+  }
+//}}}
+
+//{{{
+void cVg::renderViewport (int width, int height, float devicePixelRatio) {
+  mViewport[0] = (float)width;
+  mViewport[1] = (float)height;
+  }
+//}}}
+//{{{
+void cVg::renderText (int firstVertexIndex, int numVertices, cPaint& paint, cScissor& scissor) {
+
+  auto draw = allocDraw();
+  draw->set (cDraw::TEXT, paint.image, 0, 0, allocFrags (1), firstVertexIndex, numVertices);
+  mFrags[draw->mFirstFragIndex].setImage (&paint, &scissor, findTexture (paint.image));
+  }
+//}}}
+//{{{
+void cVg::renderTriangles (int firstVertexIndex, int numVertices, cPaint& paint, cScissor& scissor) {
+
+  auto draw = allocDraw();
+  draw->set (cDraw::TRIANGLE, paint.image, 0, 0, allocFrags (1), firstVertexIndex, numVertices);
+  mFrags[draw->mFirstFragIndex].setFill (&paint, &scissor, 1.0f, 1.0f, -1.0f, findTexture (paint.image));
+  }
+//}}}
+//{{{
+void cVg::renderFill (cShape& shape, cPaint& paint, cScissor& scissor, float fringe) {
+
+  auto draw = allocDraw();
+  if ((shape.mNumPaths == 1) && shape.mPaths[0].mConvex) {
+    // convex
+    draw->set (cDraw::CONVEX_FILL, paint.image, allocPathVertices (shape.mNumPaths), shape.mNumPaths,
+               allocFrags (1), 0,0);
+    mFrags[draw->mFirstFragIndex].setFill (&paint, &scissor, fringe, fringe, -1.0f, findTexture (paint.image));
+    }
+  else {
+    // stencil
+    draw->set (cDraw::STENCIL_FILL, paint.image, allocPathVertices (shape.mNumPaths), shape.mNumPaths,
+               allocFrags (2), shape.mBoundsVertexIndex, 4);
+    mFrags[draw->mFirstFragIndex].setSimple();
+    mFrags[draw->mFirstFragIndex+1].setFill (&paint, &scissor, fringe, fringe, -1.0f, findTexture (paint.image));
+    }
+
+  auto fromPath = shape.mPaths;
+  auto toPathVertices = &mPathVertices[draw->mFirstPathVerticesIndex];
+  while (fromPath < shape.mPaths + shape.mNumPaths)
+    *toPathVertices++ = fromPath++->mPathVertices;
+  }
+//}}}
+//{{{
+void cVg::renderStroke (cShape& shape, cPaint& paint, cScissor& scissor, float fringe, float strokeWidth) {
+// only uses toPathVertices firstStrokeVertexIndex, strokeVertexCount, no fill
+
+  auto draw = allocDraw();
+  draw->set (cDraw::STROKE, paint.image, allocPathVertices (shape.mNumPaths), shape.mNumPaths, allocFrags (2), 0,0);
+  mFrags[draw->mFirstFragIndex].setFill (&paint, &scissor, strokeWidth, fringe, -1.0f, findTexture (paint.image));
+  mFrags[draw->mFirstFragIndex+1].setFill (&paint, &scissor, strokeWidth, fringe, 1.0f - 0.5f/255.0f, findTexture (paint.image));
+
+  auto fromPath = shape.mPaths;
+  auto toPathVertices = &mPathVertices[draw->mFirstPathVerticesIndex];
+  while (fromPath < shape.mPaths + shape.mNumPaths)
+    *toPathVertices++ = fromPath++->mPathVertices;
+  }
+//}}}
+//{{{
+void cVg::renderFrame (c2dVertices& vertices, cCompositeOpState compositeOp) {
+
+  mDrawArrays = 0;
+  //{{{  init gl blendFunc
+  GLenum srcRGB = convertBlendFuncFactor (compositeOp.srcRGB);
+  GLenum dstRGB = convertBlendFuncFactor (compositeOp.dstRGB);
+  GLenum srcAlpha = convertBlendFuncFactor (compositeOp.srcAlpha);
+  GLenum dstAlpha = convertBlendFuncFactor (compositeOp.dstAlpha);
+
+  if (srcRGB == GL_INVALID_ENUM || dstRGB == GL_INVALID_ENUM ||
+      srcAlpha == GL_INVALID_ENUM || dstAlpha == GL_INVALID_ENUM)
+    glBlendFunc (GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+  else
+    glBlendFuncSeparate (srcRGB, dstRGB, srcAlpha, dstAlpha);
+  //}}}
+  //{{{  init gl draw style
+  glEnable (GL_CULL_FACE);
+  glCullFace (GL_BACK);
+
+  glFrontFace (GL_CCW);
+  glEnable (GL_BLEND);
+
+  glDisable (GL_DEPTH_TEST);
+  glDisable (GL_SCISSOR_TEST);
+  //}}}
+  //{{{  init gl stencil buffer
+  mStencilMask = 0xFF;
+  glStencilMask (mStencilMask);
+
+  mStencilFunc = GL_ALWAYS;
+  mStencilFuncRef = 0;
+  mStencilFuncMask = 0xFF;
+  glStencilFunc (mStencilFunc, mStencilFuncRef, mStencilFuncMask);
+
+  glStencilOp (GL_KEEP, GL_KEEP, GL_KEEP);
+  glColorMask (GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+  //}}}
+  //{{{  init gl texture
+  glActiveTexture (GL_TEXTURE0);
+  glBindTexture (GL_TEXTURE_2D, 0);
+  mBindTexture = 0;
+  //}}}
+  //{{{  init gl uniforms
+  mShader.setTex (0);
+  mShader.setViewport (mViewport);
+  //}}}
+  //{{{  init gl vertices
+  glBindBuffer (GL_ARRAY_BUFFER, mVertexBuffer);
+  glBufferData (GL_ARRAY_BUFFER, vertices.getNumVertices() * sizeof(c2dVertex), vertices.getVertexPtr(0), GL_STREAM_DRAW);
+
+  glEnableVertexAttribArray (0);
+  glVertexAttribPointer (0, 2, GL_FLOAT, GL_FALSE, sizeof(c2dVertex), (const GLvoid*)(size_t)0);
+
+  glEnableVertexAttribArray (1);
+  glVertexAttribPointer (1, 2, GL_FLOAT, GL_FALSE, sizeof(c2dVertex), (const GLvoid*)(0 + 2*sizeof(float)));
+  //}}}
+
+  for (auto draw = mDraws; draw < mDraws + mNumDraws; draw++)
+    switch (draw->mType) {
+      case cDraw::TEXT:
+        //{{{  text triangles
+        if (mDrawTriangles) {
+          setUniforms (draw->mFirstFragIndex, draw->mImage);
+          glDrawArrays (GL_TRIANGLES, draw->mTriangleFirstVertexIndex, draw->mNumTriangleVertices);
+          mDrawArrays++;
+          }
+        break;
+        //}}}
+      case cDraw::TRIANGLE:
+        //{{{  fill triangles
+        if (mDrawSolid) {
+          setUniforms (draw->mFirstFragIndex, draw->mImage);
+          glDrawArrays (GL_TRIANGLES, draw->mTriangleFirstVertexIndex, draw->mNumTriangleVertices);
+          mDrawArrays++;
+          }
+        break;
+        //}}}
+      case cDraw::CONVEX_FILL: {
+        //{{{  convexFill
+        setUniforms (draw->mFirstFragIndex, draw->mImage);
+
+        auto pathVertices = &mPathVertices[draw->mFirstPathVerticesIndex];
+
+        if (mDrawSolid)
+          for (int i = 0; i < draw->mNumPaths; i++) {
+            glDrawArrays (GL_TRIANGLE_FAN, pathVertices[i].mFirstFillVertexIndex, pathVertices[i].mNumFillVertices);
+            mDrawArrays++;
+            }
+
+        if (mDrawEdges)
+          for (int i = 0; i < draw->mNumPaths; i++)
+            if (pathVertices[i].mNumStrokeVertices) {
+              glDrawArrays (GL_TRIANGLE_STRIP, pathVertices[i].mFirstStrokeVertexIndex, pathVertices[i].mNumStrokeVertices);
+              mDrawArrays++;
+              }
+
+        break;
+        }
+        //}}}
+      case cDraw::STENCIL_FILL: {
+        //{{{  stencilFill
+        glEnable (GL_STENCIL_TEST);
+
+        auto pathVertices = &mPathVertices[draw->mFirstPathVerticesIndex];
+
+        if (mDrawSolid) {
+          glDisable (GL_CULL_FACE);
+
+          glStencilOpSeparate (GL_FRONT, GL_KEEP, GL_KEEP, GL_INCR_WRAP);
+          glStencilOpSeparate (GL_BACK, GL_KEEP, GL_KEEP, GL_DECR_WRAP);
+          glColorMask (GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+
+          setStencilFunc (GL_ALWAYS, 0x00, 0xFF);
+          setUniforms (draw->mFirstFragIndex, 0);
+          for (int i = 0; i < draw->mNumPaths; i++) {
+            glDrawArrays (GL_TRIANGLE_FAN, pathVertices[i].mFirstFillVertexIndex, pathVertices[i].mNumFillVertices);
+            mDrawArrays++;
+            }
+
+          glEnable (GL_CULL_FACE);
+          glColorMask (GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+          }
+
+        setUniforms (draw->mFirstFragIndex + 1, draw->mImage);
+        if (mDrawEdges) {
+          glStencilOp (GL_KEEP, GL_KEEP, GL_KEEP);
+          setStencilFunc (GL_EQUAL, 0x00, 0xFF);
+          for (int i = 0; i < draw->mNumPaths; i++)
+            if (pathVertices[i].mNumStrokeVertices) {
+              glDrawArrays (GL_TRIANGLE_STRIP, pathVertices[i].mFirstStrokeVertexIndex, pathVertices[i].mNumStrokeVertices);
+              mDrawArrays++;
+              }
+          }
+
+        // draw bounding rect as triangleStrip
+        if (mDrawSolid || mDrawEdges) {
+          glStencilOp (GL_ZERO, GL_ZERO, GL_ZERO);
+          setStencilFunc (GL_NOTEQUAL, 0x00, 0xFF);
+          glDrawArrays (GL_TRIANGLE_STRIP, draw->mTriangleFirstVertexIndex, draw->mNumTriangleVertices);
+          mDrawArrays++;
+          }
+
+        glDisable (GL_STENCIL_TEST);
+        break;
+        }
+        //}}}
+      case cDraw::STROKE: {
+        //{{{  stroke
+        glEnable (GL_STENCIL_TEST);
+
+        auto pathVertices = &mPathVertices[draw->mFirstPathVerticesIndex];
+
+        // fill stroke base without overlap
+        if (mDrawSolid) {
+          glStencilOp (GL_KEEP, GL_KEEP, GL_INCR);
+          setStencilFunc (GL_EQUAL, 0x00, 0xFF);
+          setUniforms (draw->mFirstFragIndex + 1, draw->mImage);
+          for (int i = 0; i < draw->mNumPaths; i++) {
+            glDrawArrays (GL_TRIANGLE_STRIP, pathVertices[i].mFirstStrokeVertexIndex, pathVertices[i].mNumStrokeVertices);
+            mDrawArrays++;
+            }
+          }
+
+        setUniforms (draw->mFirstFragIndex, draw->mImage);
+        if (mDrawEdges) {
+          glStencilOp (GL_KEEP, GL_KEEP, GL_KEEP);
+          setStencilFunc (GL_EQUAL, 0x00, 0xFF);
+          for (int i = 0; i < draw->mNumPaths; i++)  {
+            glDrawArrays (GL_TRIANGLE_STRIP, pathVertices[i].mFirstStrokeVertexIndex, pathVertices[i].mNumStrokeVertices);
+            mDrawArrays++;
+            }
+          }
+
+        // clear stencilBuffer
+        if (mDrawSolid || mDrawEdges) {
+          glColorMask (GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+          glStencilOp (GL_ZERO, GL_ZERO, GL_ZERO);
+          setStencilFunc (GL_ALWAYS, 0x00, 0xFF);
+          for (int i = 0; i < draw->mNumPaths; i++) {
+            glDrawArrays (GL_TRIANGLE_STRIP, pathVertices[i].mFirstStrokeVertexIndex, pathVertices[i].mNumStrokeVertices);
+            mDrawArrays++;
+            }
+          glColorMask (GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+          }
+
+        glDisable (GL_STENCIL_TEST);
+        break;
+        }
+        //}}}
+      }
+
+  // reset counts
+  mNumDraws = 0;
+  mNumPathVertices = 0;
+  mNumFrags = 0;
+  }
+//}}}
+
 // text
 //{{{
 float cVg::getFontScale (cState* state) {
@@ -4746,12 +4749,12 @@ float cVg::getFontScale (cState* state) {
 void cVg::flushTextTexture() {
 
   int dirty[4];
-  if (fons::ValidateTexture (fonsContext, dirty)) {
+  if (fontStash::validateTexture (fontStashContext, dirty)) {
     int fontImage = fontImages[fontImageIdx];
     // Update texture
     if (fontImage != 0) {
       int iw, ih;
-      const unsigned char* data = fons::GetTextureData (fonsContext, &iw, &ih);
+      const unsigned char* data = fontStash::getTextureData (fontStashContext, &iw, &ih);
       int x = dirty[0];
       int y = dirty[1];
       int w = dirty[2] - dirty[0];
@@ -4786,7 +4789,7 @@ int cVg::allocTextAtlas() {
     }
 
   ++fontImageIdx;
-  fons::ResetAtlas (fonsContext, iw, ih);
+  fontStash::resetAtlas (fontStashContext, iw, ih);
   return 1;
   }
 //}}}

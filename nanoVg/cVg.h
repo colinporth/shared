@@ -331,9 +331,17 @@ public:
   //}}}
   //{{{
   enum eCompositeOp {
-    NVG_SOURCE_OVER,           NVG_SOURCE_IN,      NVG_SOURCE_OUT,             NVG_ATOP,
-    NVG_DESTINATION_OVER, NVG_DESTINATION_IN, NVG_DESTINATION_OUT, NVG_DESTINATION_ATOP,
-    NVG_LIGHTER, NVG_COPY, NVG_XOR };
+    NVG_SOURCE_OVER,
+    NVG_SOURCE_IN,
+    NVG_SOURCE_OUT,
+    NVG_ATOP,
+    NVG_DESTINATION_OVER,
+    NVG_DESTINATION_IN,
+    NVG_DESTINATION_OUT,
+    NVG_DESTINATION_ATOP,
+    NVG_LIGHTER,
+    NVG_COPY,
+    NVG_XOR };
   //}}}
   //{{{
   struct cPaint {
@@ -461,8 +469,6 @@ public:
     float x;          // The x-coordinate of the logical glyph position.
     float minx, maxx; // The bounds of the glyph shape.
     };
-
-  typedef struct NVGglyphPosition NVGglyphPosition;
   //}}}
 
   void fontSize (float size);
@@ -540,20 +546,19 @@ public:
 private:
   //{{{  enums
   enum eShaderType { SHADER_FILL_GRADIENT = 0, SHADER_FILL_IMAGE, SHADER_SIMPLE, SHADER_IMAGE };
+
   enum eUniformLocation { LOCATION_VIEWSIZE, LOCATION_TEX, LOCATION_FRAG, MAX_LOCATIONS };
+
   enum eUniformBindings { FRAG_BINDING };
   //}}}
-
   //{{{
   struct cScissor {
-  public:
     cTransform mTransform;
     float extent[2];
     };
   //}}}
   //{{{
   struct c2dVertex {
-  public:
     //{{{
     void set (float x, float y, float u, float v) {
       mX = x;
