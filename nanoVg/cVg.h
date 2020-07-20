@@ -260,11 +260,35 @@ public:
     IMAGE_NODELETE = 0x10,
     };
   //}}}
-  cVg() : cVg(0) {}
-  cVg (int flags);
-  virtual ~cVg();
-  void initialise();
-
+  //{{{
+  enum eBlendFactor {
+    NVG_ZERO                = 1<<0,
+    NVG_ONE                 = 1<<1,
+    NVG_SRC_COLOR           = 1<<2,
+    NVG_ONE_MINUS_SRC_COLOR = 1<<3,
+    NVG_DST_COLOR           = 1<<4,
+    NVG_ONE_MINUS_DST_COLOR = 1<<5,
+    NVG_SRC_ALPHA           = 1<<6,
+    NVG_ONE_MINUS_SRC_ALPHA = 1<<7,
+    NVG_DST_ALPHA           = 1<<8,
+    NVG_ONE_MINUS_DST_ALPHA = 1<<9,
+    NVG_SRC_ALPHA_SATURATE  = 1<<10
+    };
+  //}}}
+  //{{{
+  enum eCompositeOp {
+    NVG_SOURCE_OVER,
+    NVG_SOURCE_IN,
+    NVG_SOURCE_OUT,
+    NVG_ATOP,
+    NVG_DESTINATION_OVER,
+    NVG_DESTINATION_IN,
+    NVG_DESTINATION_OUT,
+    NVG_DESTINATION_ATOP,
+    NVG_LIGHTER,
+    NVG_COPY,
+    NVG_XOR };
+  //}}}
   //{{{
   class cTransform {
   // sx,sy define scaling, kx,ky skewing, tx,ty translation.
@@ -313,36 +337,6 @@ public:
     bool isIdentity();
     };
   //}}}
-
-  //{{{
-  enum eBlendFactor {
-    NVG_ZERO                = 1<<0,
-    NVG_ONE                 = 1<<1,
-    NVG_SRC_COLOR           = 1<<2,
-    NVG_ONE_MINUS_SRC_COLOR = 1<<3,
-    NVG_DST_COLOR           = 1<<4,
-    NVG_ONE_MINUS_DST_COLOR = 1<<5,
-    NVG_SRC_ALPHA           = 1<<6,
-    NVG_ONE_MINUS_SRC_ALPHA = 1<<7,
-    NVG_DST_ALPHA           = 1<<8,
-    NVG_ONE_MINUS_DST_ALPHA = 1<<9,
-    NVG_SRC_ALPHA_SATURATE  = 1<<10
-    };
-  //}}}
-  //{{{
-  enum eCompositeOp {
-    NVG_SOURCE_OVER,
-    NVG_SOURCE_IN,
-    NVG_SOURCE_OUT,
-    NVG_ATOP,
-    NVG_DESTINATION_OVER,
-    NVG_DESTINATION_IN,
-    NVG_DESTINATION_OUT,
-    NVG_DESTINATION_ATOP,
-    NVG_LIGHTER,
-    NVG_COPY,
-    NVG_XOR };
-  //}}}
   //{{{
   struct cPaint {
     //{{{
@@ -380,6 +374,11 @@ public:
     eBlendFactor dstAlpha;
     };
   //}}}
+
+  cVg() : cVg(0) {}
+  cVg (int flags);
+  virtual ~cVg();
+  void initialise();
 
   //{{{  state
   void saveState();
@@ -933,8 +932,8 @@ private:
 
     void reset();
 
-    int getNumVertices();
-    c2dVertex* getVertexPtr (int vertexIndex);
+    int getNumVertices() { return mNumVertices; }
+    c2dVertex* getVertexPtr (int vertexIndex) { return mVertices + vertexIndex; }
 
     int alloc (int numVertices);
     void trim (int numVertices);
@@ -969,11 +968,10 @@ private:
     cShape();
     ~cShape();
 
-    float getLastX();
+    float getLastX() { return mLastX; }
+    float getLastY() { return mLastY; }
+    int getNumCommands() { return mNumCommands; }
 
-    float getLastY();
-
-    int getNumCommands();
     void addCommand (float* values, int numValues, cTransform& transform);
 
     int getNumVertices();
