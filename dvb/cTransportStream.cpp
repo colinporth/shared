@@ -607,7 +607,8 @@ bool cService::openFile (const string& fileName, int tsid) {
 //{{{
 void cService::writePacket (uint8_t* ts, int pid) {
 
-  if (mFile && ((pid == mVidPid) || (pid == mAudPid)))
+  if (mFile && 
+      ((pid == mVidPid) || (pid == mAudPid) || (pid == mSubPid)))
     fwrite (ts, 1, 188, mFile);
   }
 //}}}
@@ -1111,10 +1112,8 @@ int64_t cTransportStream::demux (uint8_t* tsBuf, int64_t tsBufSize, int64_t stre
               //{{{  continuity error
               if (pidInfo->mContinuity == continuityCount) // strange case of bbc subtitles
                 pidInfo->mRepeatContinuity++;
-
-              else {
+              else
                 mErrors++;
-                }
 
               // abandon any buffered pes or section
               pidInfo->mBufPtr = nullptr;
@@ -1617,16 +1616,21 @@ void cTransportStream::parsePmt (cPidInfo* pidInfo, uint8_t* buf) {
       switch (esPidInfo->mStreamType) {
         case   2: // ISO 13818-2 video
         case  27: // HD vid
-          service->setVidPid (esPid, esPidInfo->mStreamType); break;
+          service->setVidPid (esPid, esPidInfo->mStreamType);
+          break;
 
         case   3: // ISO 11172-3 audio
         case   4: // ISO 13818-3 audio
         case  15: // HD aud ADTS
         case  17: // HD aud LATM
         case 129: // aud AC3
-          service->setAudPid (esPid, esPidInfo->mStreamType); break;
+          service->setAudPid (esPid, esPidInfo->mStreamType);
+          break;
 
         case   6: // subtitle
+          service->setSubPid (esPid, esPidInfo->mStreamType);
+          break;
+
         case   5: // private mpeg2 tabled data - private
         case  11: // dsm cc u_n
         case  13: // dsm cc tabled data

@@ -134,6 +134,7 @@ public:
   std::map <std::chrono::system_clock::time_point, cEpgItem*>& getEpgItemMap() { return mEpgItemMap; }
 
   //  sets
+  void setSubPid (int pid, int streamType) { mSubPid = pid; }
   //{{{
   void setVidPid (int pid, int streamType) {
     mVidPid = pid;
@@ -174,6 +175,7 @@ private:
   int mAudPid = -1;
   int mAudOtherPid = -1;
   int mAudStreamType = 0;
+  int mSubPid = -1;
 
   std::string mChannelString;
 
