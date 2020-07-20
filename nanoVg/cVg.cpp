@@ -1592,30 +1592,12 @@ cVg::cTransform::cTransform (float sx, float ky, float kx, float sy, float tx, f
   }
 //}}}
 
+// gets
+float cVg::cTransform::getTranslateX() { return mTx; }
+float cVg::cTransform::getTranslateY() { return mTy; }
 float cVg::cTransform::getAverageScaleX() { return sqrtf (mSx*mSx + mKx*mKx); }
 float cVg::cTransform::getAverageScaleY() { return sqrtf (mKy*mKy + mSy*mSy); }
 float cVg::cTransform::getAverageScale() { return (getAverageScaleX() + getAverageScaleY()) * 0.5f; }
-float cVg::cTransform::getTranslateX() { return mTx; }
-float cVg::cTransform::getTranslateY() { return mTy; }
-//{{{
-bool cVg::cTransform::getInverse (cTransform& inverse) {
-
-  double det = (double)mSx * mSy - (double)mKx * mKy;
-  if (det > -1e-6 && det < 1e-6) {
-    inverse.setIdentity();
-    return false;
-    }
-
-  double inverseDet = 1.0 / det;
-  inverse.mSx = (float)(mSy * inverseDet);
-  inverse.mKx = (float)(-mKx * inverseDet);
-  inverse.mTx = (float)(((double)mKx * mTy - (double)mSy * mTx) * inverseDet);
-  inverse.mKy = (float)(-mKy * inverseDet);
-  inverse.mSy = (float)(mSx * inverseDet);
-  inverse.mTy = (float)(((double)mKy * mTx - (double)mSx * mTy) * inverseDet);
-  return true;
-  }
-//}}}
 //{{{
 void cVg::cTransform::getMatrix3x4 (float* matrix3x4) {
 
@@ -1636,7 +1618,27 @@ void cVg::cTransform::getMatrix3x4 (float* matrix3x4) {
   matrix3x4[11] = 0.0f;
   }
 //}}}
+//{{{
+bool cVg::cTransform::getInverse (cTransform& inverse) {
 
+  double det = (double)mSx * mSy - (double)mKx * mKy;
+  if (det > -1e-6 && det < 1e-6) {
+    inverse.setIdentity();
+    return false;
+    }
+
+  double inverseDet = 1.0 / det;
+  inverse.mSx = (float)(mSy * inverseDet);
+  inverse.mKx = (float)(-mKx * inverseDet);
+  inverse.mTx = (float)(((double)mKx * mTy - (double)mSy * mTx) * inverseDet);
+  inverse.mKy = (float)(-mKy * inverseDet);
+  inverse.mSy = (float)(mSx * inverseDet);
+  inverse.mTy = (float)(((double)mKy * mTx - (double)mSx * mTy) * inverseDet);
+  return true;
+  }
+//}}}
+
+// sets
 //{{{
 void cVg::cTransform::setIdentity() {
   mSx = 1.0f;
@@ -1780,6 +1782,7 @@ void cVg::cTransform::pointScissor (float srcx, float srcy, float& dstx, float& 
   }
 //}}}
 
+// private
 //{{{
 bool cVg::cTransform::isIdentity() {
   return mSx == 1.0f && mKy == 0.0f && mKx == 0.0f && mSy == 1.0f && mTx == 0.0f && mTy == 0.0f;
@@ -4186,6 +4189,7 @@ cVg::cDraw* cVg::allocDraw() {
     mNumAllocatedDraws = maxi (mNumDraws + 1, 128) + mNumAllocatedDraws / 2; // 1.5x Overallocate
     mDraws = (cDraw*)realloc (mDraws, sizeof(cDraw) * mNumAllocatedDraws);
     }
+
   return &mDraws[mNumDraws++];
   }
 //}}}
@@ -4200,6 +4204,7 @@ int cVg::allocFrags (int numFrags) {
 
   int firstFragIndex = mNumFrags;
   mNumFrags += numFrags;
+
   return firstFragIndex;
   }
 //}}}
@@ -4214,6 +4219,7 @@ int cVg::allocPathVertices (int numPaths) {
 
   int firstPathVerticeIndex = mNumPathVertices;
   mNumPathVertices += numPaths;
+
   return firstPathVerticeIndex;
   }
 //}}}
@@ -4240,6 +4246,7 @@ cVg::cTexture* cVg::allocTexture() {
 
   texture->reset();
   texture->id = ++mTextureId;
+
   return texture;
   }
 //}}}
@@ -4487,6 +4494,7 @@ bool cVg::renderUpdateTexture (int image, int x, int y, int w, int h, const unsi
 
 //{{{
 void cVg::renderViewport (int width, int height, float devicePixelRatio) {
+
   mViewport[0] = (float)width;
   mViewport[1] = (float)height;
   }
