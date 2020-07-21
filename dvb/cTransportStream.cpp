@@ -607,7 +607,7 @@ bool cService::openFile (const string& fileName, int tsid) {
 //{{{
 void cService::writePacket (uint8_t* ts, int pid) {
 
-  if (mFile && 
+  if (mFile &&
       ((pid == mVidPid) || (pid == mAudPid) || (pid == mSubPid)))
     fwrite (ts, 1, 188, mFile);
   }
@@ -672,7 +672,7 @@ void cService::writePmt() {
   uint8_t* tsSectionStart = tsHeader (ts, mProgramPid, 0);
   uint8_t* tsPtr = tsSectionStart;
 
-  int sectionLength = 23; // 5+4 + program_info_length + esStreams * (5 + ES_info_length) + 4
+  int sectionLength = 28; // 5+4 + program_info_length + esStreams * (5 + ES_info_length) + 4
   *tsPtr++ = TID_PMT;
   *tsPtr++ = 0xb0 | ((sectionLength & 0x0F00) >> 8);
   *tsPtr++ = sectionLength & 0x0FF;
@@ -701,6 +701,13 @@ void cService::writePmt() {
   *tsPtr++ = mAudStreamType; // elementary stream_type
   *tsPtr++ = 0xE0 | ((mAudPid & 0x1F00) >> 8); // elementary_PID
   *tsPtr++ = mAudPid & 0x00FF;
+  *tsPtr++ = ((0 & 0xFF00) >> 8) | 0xF0;  // ES_info_length
+  *tsPtr++ = 0 & 0x00FF;
+
+  // sub es
+  *tsPtr++ = mSubStreamType; // elementary stream_type
+  *tsPtr++ = 0xE0 | ((mAudPid & 0x1F00) >> 8); // elementary_PID
+  *tsPtr++ = mSubPid & 0x00FF;
   *tsPtr++ = ((0 & 0xFF00) >> 8) | 0xF0;  // ES_info_length
   *tsPtr++ = 0 & 0x00FF;
 

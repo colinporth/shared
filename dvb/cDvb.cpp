@@ -1047,7 +1047,6 @@ void cDvb::captureThread() {
       else
         cLog::log (LOGERROR, "bipBuffer.reserve failed " + dec(bytesAllocated));
       }
-
   #endif
 
   cLog::log (LOGERROR, "exit");
@@ -1072,7 +1071,7 @@ void cDvb::grabThread() {
 
           mErrorStr.clear();
           if (getErrors())
-            mErrorStr += dec (getErrors()) + " errors ";
+            mErrorStr += dec(getErrors()) + " err:";
           if (streamPos < 1000000)
             mErrorStr = dec(streamPos/1000) + "k";
           else
@@ -1108,10 +1107,13 @@ void cDvb::grabThread() {
         if (blockSize > mMaxBlockSize)
           mMaxBlockSize = blockSize;
 
-        mErrorStr = dec(getErrors()) + " " + dec(blockSize,6) + " max" + dec(mMaxBlockSize);
+        string str;
+        if (getErrors())
+          str = "err:" + dec(getErrors()) + " max:" + dec(mMaxBlockSize);
+        mErrorStr = str;
         mSignalStr = updateSignalString();
 
-        if (show)
+        if (show) 
           cLog::log (LOGINFO, mErrorStr + " " + mSignalStr);
         }
       else

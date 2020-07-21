@@ -127,6 +127,8 @@ public:
   int getAudPid() const { return mAudPid; }
   int getAudStreamType() const { return mAudStreamType; }
   int getAudOtherPid() const { return mAudOtherPid; }
+  int getSubPid() const { return mSubPid; }
+  int getSubStreamType() const { return mSubStreamType; }
 
   cEpgItem* getNowEpgItem() { return mNowEpgItem; }
   std::string getChannelString() { return mChannelString; }
@@ -134,16 +136,11 @@ public:
   std::map <std::chrono::system_clock::time_point, cEpgItem*>& getEpgItemMap() { return mEpgItemMap; }
 
   //  sets
-  void setSubPid (int pid, int streamType) { mSubPid = pid; }
-  //{{{
-  void setVidPid (int pid, int streamType) {
-    mVidPid = pid;
-    mVidStreamType = streamType;
-    }
-  //}}}
-  void setAudPid (int pid, int streamType);
-  void setChannelString (const std::string& channelString) { mChannelString = channelString;}
   void setProgramPid (int pid) { mProgramPid = pid; }
+  void setVidPid (int pid, int streamType) { mVidPid = pid; mVidStreamType = streamType; }
+  void setAudPid (int pid, int streamType);
+  void setSubPid (int pid, int streamType) { mSubPid = pid; mSubStreamType = streamType; }
+  void setChannelString (const std::string& channelString) { mChannelString = channelString;}
 
   bool setNow (bool record,
                std::chrono::system_clock::time_point time, std::chrono::seconds duration,
@@ -176,6 +173,7 @@ private:
   int mAudOtherPid = -1;
   int mAudStreamType = 0;
   int mSubPid = -1;
+  int mSubStreamType = 0;
 
   std::string mChannelString;
 
