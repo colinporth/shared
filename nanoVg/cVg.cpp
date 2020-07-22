@@ -772,13 +772,13 @@ namespace fontStash {
       return 0;
 
     // Flush pending glyphs.
-    flush(stash);
+    flush (stash);
 
     // Create new texture
-    if (stash->params.renderResize != NULL) {
+    if (stash->params.renderResize != NULL)
       if (stash->params.renderResize (stash->params.userPtr, width, height) == 0)
         return 0;
-      }
+
 
     // Reset atlas
     atlasReset(stash->atlas, width, height);
