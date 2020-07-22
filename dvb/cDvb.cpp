@@ -671,7 +671,7 @@ namespace { // anonymous
     }
   //}}}
   //{{{
-  string updateSignalString() {
+  string updateSignalStr() {
 
     fe_status_t feStatus;
     if (ioctl (mFrontEnd, FE_READ_STATUS, &feStatus) < 0) {
@@ -707,6 +707,13 @@ namespace { // anonymous
 
       return str;
       }
+    }
+  //}}}
+  //{{{
+  string updateErrorStr (int errors) {
+
+    string str = "err:" + dec(errors) + " max:" + dec(mMaxBlockSize);
+    return str;
     }
   //}}}
   //{{{
@@ -1011,7 +1018,8 @@ void cDvb::tune (int frequency) {
                    guardTab [getProps[6].u.buffer.data[0]],
                    transmissionModeTab [getProps[7].u.buffer.data[0]]);
 
-        mSignalStr = updateSignalString();
+        mSignalStr = updateSignalStr();
+        mErrorStr = updateErrorStr (getErrors());
         readMonitorFe();
 
         mTuneStr = string(fe_info.name) + " " + dec(frequency/1000000) + "Mhz";
@@ -1057,8 +1065,7 @@ void cDvb::grabThread() {
 
   cLog::setThreadName ("grab");
 
-  #ifdef _WIN32
-    // windows
+  #ifdef _WIN32 // windows
     auto hr = mMediaControl->Run();
     if (hr == S_OK) {
       int64_t streamPos = 0;
@@ -1066,6 +1073,7 @@ void cDvb::grabThread() {
       while (true) {
         auto ptr = getBlock (blockSize);
         if (blockSize) {
+          //{{{  read and demux block
           streamPos += demux (ptr, blockSize, streamPos, false, -1);
           releaseBlock (blockSize);
 
@@ -1077,21 +1085,22 @@ void cDvb::grabThread() {
           else
             mErrorStr = dec(streamPos/1000000) + "m";
           }
+          //}}}
         else
           this_thread::sleep_for (1ms);
-
         if (mScanningTuner) {
+          //{{{  update mSignalStr
           long signal = 0;
           mScanningTuner->get_SignalStrength (&signal);
           mSignalStr = "signal " + dec (signal / 0x10000);
           }
+          //}}}
         }
       }
     else
       cLog::log (LOGERROR, "run graph failed " + dec(hr));
 
-  #else
-    // linux
+  #else // linux
     uint64_t streamPos = 0;
     while (true) {
       int blockSize = 0;
@@ -1107,14 +1116,12 @@ void cDvb::grabThread() {
         if (blockSize > mMaxBlockSize)
           mMaxBlockSize = blockSize;
 
-        string str;
-        if (getErrors())
-          str = "err:" + dec(getErrors()) + " max:" + dec(mMaxBlockSize);
-        mErrorStr = str;
-        mSignalStr = updateSignalString();
+        mSignalStr = updateSignalStr();
 
-        if (show) 
+        if (show) {
+          mErrorStr = updateErrorStr (getErrors());
           cLog::log (LOGINFO, mErrorStr + " " + mSignalStr);
+          }
         }
       else
         this_thread::sleep_for (1ms);
