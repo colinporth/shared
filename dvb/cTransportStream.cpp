@@ -1177,19 +1177,21 @@ int64_t cTransportStream::demux (uint8_t* tsBuf, int64_t tsBufSize, int64_t stre
 
               ts += headerBytes;
               tsBytesLeft -= headerBytes;
+
               if (payloadStart && !ts[0] && !ts[1] && (ts[2] == 0x01)) {
                 // start new payload, recognise streamIds
-                bool isVid = (ts[3] == 0xE0);
-                bool isAud = (ts[3] == 0xBD) || (ts[3] == 0xC0);
-
-                if (isVid || isAud) {
+                bool streamOk = (ts[3] == 0xE0) || (ts[3] == 0xBD) || (ts[3] == 0xC0);
+                if (streamOk) {
                   if (pidInfo->mBufPtr && pidInfo->mStreamType) {
-                    if (isVid) {
+                    if ((pidInfo->mStreamType == 2) || (pidInfo->mStreamType == 27)) {
                       decoded = vidDecodePes (pidInfo, skip);
                       skip = false;
                       }
-                    else
+                    else if ((pidInfo->mStreamType == 3) || (pidInfo->mStreamType == 4) ||
+                             (pidInfo->mStreamType == 15) || (pidInfo->mStreamType == 17) || (pidInfo->mStreamType == 129))
                       decoded = audDecodePes (pidInfo, skip);
+                    else if (pidInfo->mStreamType == 6)
+                      decoded = subDecodePes (pidInfo, skip);
                     }
 
                   pidInfo->mStreamPos = streamPos;
@@ -1209,6 +1211,8 @@ int64_t cTransportStream::demux (uint8_t* tsBuf, int64_t tsBufSize, int64_t stre
                   // start new buffer
                   pidInfo->mBufPtr = pidInfo->mBuffer;
                   }
+                else
+                  cLog::log (LOGERROR, "demux - new pes stream not recognisedpayload - pid:" + dec(pid) + " ts:" + hex (ts[3]));
                 }
 
               if (pidInfo->mBufPtr && (tsBytesLeft > 0))

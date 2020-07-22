@@ -210,6 +210,7 @@ public:
 protected:
   virtual bool audDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
   virtual bool vidDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
+  virtual bool subDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
 
   virtual void start (cService* service, const std::string& name,
                       std::chrono::system_clock::time_point time,
