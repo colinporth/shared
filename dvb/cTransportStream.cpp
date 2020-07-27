@@ -1178,33 +1178,23 @@ int64_t cTransportStream::demux (uint8_t* tsBuf, int64_t tsBufSize, int64_t stre
               ts += headerBytes;
               tsBytesLeft -= headerBytes;
 
-              if (payloadStart)  {
-                uint32_t type =  (ts[0] << 24) | (ts[1] << 16 ) | (ts[2] << 8) | ts[3];
-                //cLog::log (LOGINFO, hex (type, 8));
-
-                if ((type == 0x000001BD) || 
-                    (type == 0x000001C0) || 
-                    (type == 0x000001E0)) {
-                  // recognise streamIds
+              if (payloadStart && !ts[0] && !ts[1] && (ts[2] == 0x01)) {
+                // start new payload, recognise streamIds
+                bool streamOk = (ts[3] == 0xE0) || (ts[3] == 0xBD) || (ts[3] == 0xC0);
+                if (streamOk) {
                   if (pidInfo->mBufPtr && pidInfo->mStreamType) {
-                    if ((pidInfo->mStreamType == 2) || 
-                        (pidInfo->mStreamType == 27)) {
+                    if ((pidInfo->mStreamType == 2) || (pidInfo->mStreamType == 27)) {
                       decoded = vidDecodePes (pidInfo, skip);
                       skip = false;
                       }
-                    else if ((pidInfo->mStreamType == 3) || 
-                             (pidInfo->mStreamType == 4) ||
-                             (pidInfo->mStreamType == 15) || 
-                             (pidInfo->mStreamType == 17) ||
+                    else if ((pidInfo->mStreamType == 3) || (pidInfo->mStreamType == 4) ||
+                             (pidInfo->mStreamType == 15) || (pidInfo->mStreamType == 17) || 
                              (pidInfo->mStreamType == 129))
                       decoded = audDecodePes (pidInfo, skip);
                     else if (pidInfo->mStreamType == 6)
                       decoded = subDecodePes (pidInfo, skip);
                     }
                   }
-                else
-                  cLog::log (LOGERROR, "unrecognised " + dec(pid) + " "  + hex (type, 8));
-
                 pidInfo->mStreamPos = streamPos;
 
                 // form pts, firstPts, lastPts
