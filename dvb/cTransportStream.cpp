@@ -1115,7 +1115,8 @@ int64_t cTransportStream::demux (uint8_t* tsBuf, int64_t tsBufSize, int64_t stre
           lock_guard<mutex> lockGuard (mMutex);
           auto pidInfo = getPidInfo (pid, true);
           if (pidInfo) {
-            if ((pidInfo->mContinuity >= 0) && (continuityCount != ((pidInfo->mContinuity+1) & 0x0F))) {
+            if ((pidInfo->mContinuity >= 0) &&
+                (continuityCount != ((pidInfo->mContinuity+1) & 0x0F))) {
               //{{{  continuity error
               if (pidInfo->mContinuity == continuityCount) // strange case of bbc subtitles
                 pidInfo->mRepeatContinuity++;
@@ -1178,39 +1179,49 @@ int64_t cTransportStream::demux (uint8_t* tsBuf, int64_t tsBufSize, int64_t stre
               ts += headerBytes;
               tsBytesLeft -= headerBytes;
 
-              if (payloadStart && !ts[0] && !ts[1] && (ts[2] == 0x01)) {
-                // start new payload, recognise streamIds
-                bool streamOk = (ts[3] == 0xE0) || (ts[3] == 0xBD) || (ts[3] == 0xC0);
-                if (streamOk) {
+              if (payloadStart) {
+                // start of payload for new pes buffer
+                if ((*(uint32_t*)ts == 0xBD010000) ||
+                    (*(uint32_t*)ts == 0xC0010000) ||
+                    (*(uint32_t*)ts == 0xE0010000)) {
                   if (pidInfo->mBufPtr && pidInfo->mStreamType) {
-                    if ((pidInfo->mStreamType == 2) || (pidInfo->mStreamType == 27)) {
+                    // recognise streamIds, call pes handler with any last pes buffer
+                    if ((pidInfo->mStreamType == 2) ||
+                        (pidInfo->mStreamType == 27)) {
                       decoded = vidDecodePes (pidInfo, skip);
                       skip = false;
                       }
-                    else if ((pidInfo->mStreamType == 3) || (pidInfo->mStreamType == 4) ||
-                             (pidInfo->mStreamType == 15) || (pidInfo->mStreamType == 17) || 
+                    else if ((pidInfo->mStreamType == 3) ||
+                             (pidInfo->mStreamType == 4) ||
+                             (pidInfo->mStreamType == 15) ||
+                             (pidInfo->mStreamType == 17) ||
                              (pidInfo->mStreamType == 129))
                       decoded = audDecodePes (pidInfo, skip);
-                    else if (pidInfo->mStreamType == 6)
+                    else if (pidInfo->mStreamType == 6) {
                       decoded = subDecodePes (pidInfo, skip);
+                      cLog::log (LOGINFO, "subtitle pes - pid:" + dec(pid) + " len:" + 
+                                           dec (pidInfo->mBufPtr - pidInfo->mBuffer));
+                      }
                     }
+
+                  // save ts streamPos for start of new pes buffer
+                  pidInfo->mStreamPos = streamPos;
+
+                  // form pts, firstPts, lastPts
+                  pidInfo->mPts = (ts[7] & 0x80) ? getPts (ts+9) : -1;
+                  if (pidInfo->mFirstPts == -1)
+                    pidInfo->mFirstPts = pidInfo->mPts;
+                  if (pidInfo->mPts > pidInfo->mLastPts)
+                    pidInfo->mLastPts = pidInfo->mPts;
+
+                  // skip past pesHeader
+                  int pesHeaderBytes = 9 + ts[8];
+                  ts += pesHeaderBytes;
+                  tsBytesLeft -= pesHeaderBytes;
+
+                  // reset new payload buffer
+                  pidInfo->mBufPtr = pidInfo->mBuffer;
                   }
-                pidInfo->mStreamPos = streamPos;
-
-                // form pts, firstPts, lastPts
-                pidInfo->mPts = (ts[7] & 0x80) ? getPts (ts+9) : -1;
-                if (pidInfo->mFirstPts == -1)
-                  pidInfo->mFirstPts = pidInfo->mPts;
-                if (pidInfo->mPts > pidInfo->mLastPts)
-                  pidInfo->mLastPts = pidInfo->mPts;
-
-                // skip past pesHeader
-                int pesHeaderBytes = 9 + ts[8];
-                ts += pesHeaderBytes;
-                tsBytesLeft -= pesHeaderBytes;
-
-                // reset new payload buffer
-                pidInfo->mBufPtr = pidInfo->mBuffer;
                 }
 
               // add payload to buffer
