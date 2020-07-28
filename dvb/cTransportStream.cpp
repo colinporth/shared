@@ -1087,9 +1087,10 @@ void cTransportStream::clear() {
   }
 //}}}
 //{{{
-int64_t cTransportStream::demux (uint8_t* tsBuf, int64_t tsBufSize, int64_t streamPos, bool skip, int decodePid) {
+int64_t cTransportStream::demux (uint8_t* tsBuf, int64_t tsBufSize, int64_t streamPos, bool skip,
+                                 int decodePid1, int decodePid2) {
 // demux from tsBuffer to tsBuffer + tsBufferSize, streamPos is offset into full stream of first packet
-// if decodePid != -1, only process pesPid == decodePid, saves lots of buffering
+// decodePid1 = -1 use all
 // - return bytes decoded
 
   if (skip)
@@ -1172,7 +1173,7 @@ int64_t cTransportStream::demux (uint8_t* tsBuf, int64_t tsBufSize, int64_t stre
                 pidInfo->addToBuffer (ts, tsBytesLeft);
               }
               //}}}
-            else if ((decodePid == -1) || (decodePid == pid)) {
+            else if ((decodePid1 == -1) || (decodePid1 == pid) || (decodePid2 == pid)) {
               //{{{  pes packet
               pesPacket (pidInfo->mSid, pidInfo->mPid, ts-1);
 
@@ -1198,9 +1199,9 @@ int64_t cTransportStream::demux (uint8_t* tsBuf, int64_t tsBufSize, int64_t stre
                              (pidInfo->mStreamType == 129))
                       decoded = audDecodePes (pidInfo, skip);
                     else if (pidInfo->mStreamType == 6) {
+                      cLog::log (LOGINFO, "demux subtitle pes - pid:" + dec(pid) + " len:" +
+                                           dec (pidInfo->mBufPtr - pidInfo->mBuffer));
                       decoded = subDecodePes (pidInfo, skip);
-                      //cLog::log (LOGINFO, "subtitle pes - pid:" + dec(pid) + " len:" +
-                      //                     dec (pidInfo->mBufPtr - pidInfo->mBuffer));
                       }
                     }
 

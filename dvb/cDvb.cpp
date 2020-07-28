@@ -1074,7 +1074,7 @@ void cDvb::grabThread() {
         auto ptr = getBlock (blockSize);
         if (blockSize) {
           //{{{  read and demux block
-          streamPos += demux (ptr, blockSize, streamPos, false, -1);
+          streamPos += demux (ptr, blockSize, streamPos, false, -1, 0);
           releaseBlock (blockSize);
 
           mErrorStr.clear();

@@ -200,7 +200,8 @@ public:
   static char getFrameType (uint8_t* pesBuf, int64_t pesBufSize, int streamType);
 
   virtual void clear();
-  int64_t demux (uint8_t* tsBuf, int64_t tsBufSize, int64_t streamPos, bool skip, int decodePid);
+  int64_t demux (uint8_t* tsBuf, int64_t tsBufSize, int64_t streamPos, bool skip, 
+                 int decodePid1, int decodePid2);
 
   // vars, public for widget
   std::mutex mMutex;
