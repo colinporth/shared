@@ -1199,8 +1199,8 @@ int64_t cTransportStream::demux (uint8_t* tsBuf, int64_t tsBufSize, int64_t stre
                       decoded = audDecodePes (pidInfo, skip);
                     else if (pidInfo->mStreamType == 6) {
                       decoded = subDecodePes (pidInfo, skip);
-                      cLog::log (LOGINFO, "subtitle pes - pid:" + dec(pid) + " len:" + 
-                                           dec (pidInfo->mBufPtr - pidInfo->mBuffer));
+                      //cLog::log (LOGINFO, "subtitle pes - pid:" + dec(pid) + " len:" +
+                      //                     dec (pidInfo->mBufPtr - pidInfo->mBuffer));
                       }
                     }
 
