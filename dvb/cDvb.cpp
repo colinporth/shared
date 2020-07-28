@@ -1106,7 +1106,7 @@ void cDvb::grabThread() {
       int blockSize = 0;
       auto ptr = mBipBuffer->getContiguousBlock (blockSize);
       if (blockSize > 0) {
-        streamPos += demux (ptr, blockSize, 0, false, -1);
+        streamPos += demux (ptr, blockSize, 0, false, -1, 0);
         mBipBuffer->decommitBlock (blockSize);
 
         bool show = (getErrors() != mLastErrors) || (blockSize > mLastBlockSize);
