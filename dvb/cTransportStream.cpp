@@ -1187,21 +1187,26 @@ int64_t cTransportStream::demux (uint8_t* tsBuf, int64_t tsBufSize, int64_t stre
                     (*(uint32_t*)ts == 0xE0010000)) {
                   if (pidInfo->mBufPtr && pidInfo->mStreamType) {
                     // recognise streamIds, call pes handler with any last pes buffer
-                    if ((pidInfo->mStreamType == 2) ||
-                        (pidInfo->mStreamType == 27)) {
-                      decoded = vidDecodePes (pidInfo, skip);
-                      skip = false;
-                      }
-                    else if ((pidInfo->mStreamType == 3) ||
-                             (pidInfo->mStreamType == 4) ||
-                             (pidInfo->mStreamType == 15) ||
-                             (pidInfo->mStreamType == 17) ||
-                             (pidInfo->mStreamType == 129))
-                      decoded = audDecodePes (pidInfo, skip);
-                    else if (pidInfo->mStreamType == 6) {
-                      cLog::log (LOGINFO, "demux subtitle pes - pid:" + dec(pid) + " len:" +
-                                           dec (pidInfo->mBufPtr - pidInfo->mBuffer));
-                      decoded = subDecodePes (pidInfo, skip);
+                    switch (pidInfo->mStreamType) {
+                      case 2:
+                      case 27:
+                        decoded = vidDecodePes (pidInfo, skip);
+                        skip = false;
+                        break;
+
+                      case 3:
+                      case 4:
+                      case 15:
+                      case 17:
+                      case 129:
+                        decoded = audDecodePes (pidInfo, skip);
+                        break;
+
+                      case 6:
+                        //cLog::log (LOGINFO, "demux subtitle pes - pid:" + dec(pid) + " len:" +
+                        //                     dec (pidInfo->mBufPtr - pidInfo->mBuffer));
+                        decoded = subDecodePes (pidInfo, skip);
+                        break;
                       }
                     }
 
