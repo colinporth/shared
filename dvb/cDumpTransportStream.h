@@ -75,6 +75,29 @@ protected:
     }
   //}}}
 
+  //{{{
+  bool audDecodePes (cPidInfo* pidInfo, bool skip) {
+
+    //cLog::log (LOGINFO, getPtsString (pidInfo->mPts) + " a - " + dec(int (pidInfo->mBufPtr - pidInfo->mBuffer)));
+    return false;
+    }
+  //}}}
+  //{{{
+  bool vidDecodePes (cPidInfo* pidInfo, bool skip) {
+
+    //cLog::log (LOGINFO, getPtsString (pidInfo->mPts) + " v - " + dec(int (pidInfo->mBufPtr - pidInfo->mBuffer)));
+
+    return false;
+    }
+  //}}}
+  //{{{
+  bool subDecodePes (cPidInfo* pidInfo, bool skip) {
+
+    cLog::log (LOGINFO, getPtsString (pidInfo->mPts) + " s - " + dec(int (pidInfo->mBufPtr - pidInfo->mBuffer)));
+    return false;
+    }
+  //}}}
+
 private:
   std::string mRootName;
 
