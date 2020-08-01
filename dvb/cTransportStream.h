@@ -200,7 +200,7 @@ public:
   static char getFrameType (uint8_t* pesBuf, int64_t pesBufSize, int streamType);
 
   virtual void clear();
-  int64_t demux (uint8_t* tsBuf, int64_t tsBufSize, int64_t streamPos, bool skip, 
+  int64_t demux (uint8_t* tsBuf, int64_t tsBufSize, int64_t streamPos, bool skip,
                  int decodePid1, int decodePid2);
 
   // vars, public for widget
@@ -209,16 +209,16 @@ public:
   std::map <int, cService> mServiceMap;
 
 protected:
-  virtual bool audDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
-  virtual bool vidDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
-  virtual bool subDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
-
   virtual void start (cService* service, const std::string& name,
                       std::chrono::system_clock::time_point time,
                       std::chrono::system_clock::time_point startTime,
                       bool selected) {}
   virtual void pesPacket (int sid, int pid, uint8_t* ts) {}
   virtual void stop (cService* service) {}
+
+  virtual bool audDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
+  virtual bool vidDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
+  virtual bool subDecodePes (cPidInfo* pidInfo) { return false; }
 
   void clearPidCounts();
   void clearPidContinuity();

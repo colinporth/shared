@@ -1205,7 +1205,7 @@ int64_t cTransportStream::demux (uint8_t* tsBuf, int64_t tsBufSize, int64_t stre
                       case 6:
                         //cLog::log (LOGINFO, "demux subtitle pes - pid:" + dec(pid) + " len:" +
                         //                     dec (pidInfo->mBufPtr - pidInfo->mBuffer));
-                        decoded = subDecodePes (pidInfo, skip);
+                        decoded = subDecodePes (pidInfo);
                         break;
                       }
                     }
