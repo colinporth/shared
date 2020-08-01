@@ -29,7 +29,7 @@ struct sSubtitle {
 //{{{
 class cSubtitleDecoder {
   //{{{  defines
-  #define AVRB16(p) (*(p) << 8) | *(p+1)
+  #define AVRB16(p) ((*(p) << 8) | *(p+1))
 
   #define AV_NOPTS_VALUE 0x8000000000000000
 
