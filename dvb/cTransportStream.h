@@ -18,7 +18,7 @@
 //}}}
 
 //{{{
-class cPidInfo {
+struct cPidInfo {
 public:
   cPidInfo (int pid, bool isPsi) : mPid(pid), mPsi(isPsi) {}
   ~cPidInfo() { free (mBuffer); }
