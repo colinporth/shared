@@ -692,7 +692,7 @@ private:
     cBitStream bitStream (*srcBuf, srcBufSize);
     while ((bitStream.getBitsRead() < (srcBufSize * 8)) && (dstPixels < dstBufSize)) {
       int bits = bitStream.getBits (4);
-      str += "[4b:" + hex(bits,1);
+      if (mRunDebug) str += "[4b:" + hex(bits,1);
 
       if (bits) {
         if (nonModifyingColor != 1 || bits != 1)
@@ -702,10 +702,13 @@ private:
 
       else {
         bits = bitStream.getBit();
-        str += ",1b:" + hex(bits,1);
+        if (mRunDebug)
+          str += ",1b:" + hex(bits,1);
         if (bits == 0) {
+          //{{{  simple runlength
           int runLength = bitStream.getBits (3);
-          str += ",3b:" + hex(runLength);
+          if (mRunDebug)
+            str += ",3b:" + hex(runLength);
           if (runLength == 0) {
             if (mRunDebug)
               cLog::log (LOGINFO, str + "]");
@@ -720,18 +723,20 @@ private:
             dstPixels++;
             }
           }
-
+          //}}}
         else {
           bits = bitStream.getBit();
-          str += ",1b:" + hex(bits,1);
+          if (mRunDebug) str += ",1b:" + hex(bits,1);
           if (bits == 0) {
             //{{{  bits = 0
             int runBits = bitStream.getBits (2);
-            str += ",2b:" + hex(runBits,1);
+            if (mRunDebug)
+              str += ",2b:" + hex(runBits,1);
             int runLength = runBits + 4;
 
             bits = bitStream.getBits (4);
-            str += ",4b:" + hex(bits,1);
+            if (mRunDebug)
+              str += ",4b:" + hex(bits,1);
 
             if (nonModifyingColor == 1 && bits == 1)
               dstPixels += runLength;
@@ -748,7 +753,7 @@ private:
             //}}}
           else {
             bits = bitStream.getBits (2);
-            str += ",2b:" + hex(bits,1);
+            if (mRunDebug) str += ",2b:" + hex(bits,1);
             if (bits == 0) {
               //{{{  0
               bits = mapTable ? mapTable[0] : 0;
@@ -760,7 +765,8 @@ private:
               //{{{  1
               bits = mapTable ? mapTable[0] : 0;
               int runLength = 2;
-              str += ":run:" + dec(runLength);
+              if (mRunDebug)
+                str += ":run:" + dec(runLength);
               while ((runLength-- > 0) && (dstPixels < dstBufSize)) {
                 *dstBuf++ = bits;
                 dstPixels++;
@@ -771,9 +777,11 @@ private:
               //{{{  2
               int runBits = bitStream.getBits (4);
               int runLength = runBits + 9;
-              str += ",4b:" + hex(runBits,1) + ":run:" + dec(runLength);
+              if (mRunDebug)
+                str += ",4b:" + hex(runBits,1) + ":run:" + dec(runLength);
               bits = bitStream.getBits (4);
-              str += ",4b:" + hex(bits,1);
+              if (mRunDebug)
+                str += ",4b:" + hex(bits,1);
 
               if (nonModifyingColor == 1 && bits == 1)
                 dstPixels += runLength;
@@ -791,9 +799,11 @@ private:
               //{{{  3
               int runBits = bitStream.getBits (8);
               int runLength = runBits + 25;
-              str += ",8b:" + hex(runBits,2) + ":run:" + dec(runLength);
+              if (mRunDebug)
+                str += ",8b:" + hex(runBits,2) + ":run:" + dec(runLength);
               bits = bitStream.getBits (4);
-              str += ",4b:" + hex(bits);
+              if (mRunDebug)
+                str += ",4b:" + hex(bits);
 
               if (nonModifyingColor == 1 && bits == 1)
                 dstPixels += runLength;
@@ -813,12 +823,13 @@ private:
       }
 
     int bits = bitStream.getBits (8);
+    if (mRunDebug) {
+      str += "] [4b:" + hex(bits) + "]";;
+      cLog::log (LOGINFO, str);
+      }
+
     if (bits)
       cLog::log (LOGERROR, "line overflow");
-
-    str += "] [4b:" + hex(bits) + "] ok";;
-    if (mRunDebug)
-      cLog::log (LOGINFO, str);
 
     (*srcBuf) += bitStream.getBytesRead();
     return dstPixels;
@@ -1399,11 +1410,11 @@ private:
   //  vars
   bool mBufferDebug = false;
   bool mSegmentDebug = false;
-  bool mDisplayDefnitionDebug = true;
-  bool mRegionDebug = true;
+  bool mDisplayDefnitionDebug = false;
+  bool mRegionDebug = false;
   bool mBlockDebug = false;
-  bool mClutDebug = true;
   bool mRunDebug = false;
+  bool mClutDebug = false;
 
   int mVersion = 0;
   int mTimeOut = 0;

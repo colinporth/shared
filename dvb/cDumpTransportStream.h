@@ -5,6 +5,8 @@
 
 #include "cSubtitleDecoder.h"
 //}}}
+const bool kSubtitleDebug = false;
+const bool kSubtitleDecodeDebug = false;
 
 class cDumpTransportStream : public cTransportStream {
   public:
@@ -95,11 +97,12 @@ class cDumpTransportStream : public cTransportStream {
     //{{{
     bool subDecodePes (cPidInfo* pidInfo) {
 
-      cLog::log (LOGINFO, "subDecodePes - pts:" + getPtsString (pidInfo->mPts) +
-                          " size:" + dec(pidInfo->getBufUsed(),4) +
-                          " sid:" + dec(pidInfo->mPid));
+      if (kSubtitleDebug)
+        cLog::log (LOGINFO, "subDecodePes - pts:" + getPtsString (pidInfo->mPts) +
+                            " size:" + dec(pidInfo->getBufUsed(),4) +
+                            " sid:" + dec(pidInfo->mPid));
 
-      if (true) {
+      if (kSubtitleDecodeDebug) {
         cSubtitleDecoder decoder;
         auto subtitle = decoder.decode (pidInfo->mBuffer, pidInfo->getBufUsed());
         if (subtitle)
