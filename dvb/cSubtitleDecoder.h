@@ -1,4 +1,4 @@
-// cDumpTransportStream.h
+// cSubtitleDecoder.h
 #pragma once
 
 class cSubtitleDecoder {
@@ -53,24 +53,30 @@ public:
     //{{{
     void debug() {
 
-      for (unsigned int i = 0; i < numRects; i++) {
-        cLog::log (LOGINFO, "x:"   + dec(rects[i]->x) +
-                            " y:"  + dec(rects[i]->y) +
-                            " w:"  + dec(rects[i]->w) +
-                            " h:"  + dec(rects[i]->h) +
-                            " c:"  + dec(rects[i]->numColours) +
-                            " l:"  + dec(rects[i]->stride));
+      if (numRects)
+        for (unsigned int i = 0; i < numRects; i++) {
+          cLog::log (LOGINFO, "subtitle rect:" + dec(i) +
+                              " x:"  + dec(rects[i]->x) +
+                              " y:"  + dec(rects[i]->y) +
+                              " w:"  + dec(rects[i]->w) +
+                              " h:"  + dec(rects[i]->h) +
+                              " c:"  + dec(rects[i]->numColours) +
+                              " l:"  + dec(rects[i]->stride));
 
-        int xStep = rects[i]->w / 64;
-        int yStep = rects[i]->h / 16;
-        for (int y = 0; y < rects[i]->h; y += yStep) {
-          uint8_t* p = rects[i]->data[0] + rects[i]->w;
-          std::string str;
-          for (int x = 0; x < rects[i]->w; x += xStep)
-            str += p[x] ? 'X' : '.';
-          cLog::log (LOGINFO, str);
+          int xStep = rects[i]->w / 80;
+          int yStep = rects[i]->h / 16;
+          for (int y = 0; y < rects[i]->h; y += yStep) {
+            uint8_t* p = rects[i]->data[0] + rects[i]->w;
+            std::string str = "  ";
+            for (int x = 0; x < rects[i]->w; x += xStep) {
+              int value = p[x];
+              str += value ? hex(value,1) : ".";
+              }
+            cLog::log (LOGINFO, str);
+            }
           }
-        }
+      else
+        cLog::log (LOGINFO, "subtitle empty");
       }
     //}}}
     };
@@ -80,6 +86,7 @@ public:
   ~cSubtitleDecoder() {}
   //{{{
   sSubtitle* decode (const uint8_t* buf, int bufSize) {
+  // return malloc'ed sSubtitle if succesful
 
     // skip past first 2 bytes
     const uint8_t* bufEnd = buf + bufSize;
@@ -102,10 +109,8 @@ public:
       }
       //}}}
 
-    int gotSegments = 0;
-    while (((bufEnd - bufPtr) >= 6) && (*bufPtr == 0x0f)) {
-      bufPtr += 1;
-      int segment_type = *bufPtr++;
+    while ((bufEnd - bufPtr >= 6) && (*bufPtr++ == 0x0f)) {
+      int segmentType = *bufPtr++;
       int pageId = AVRB16(bufPtr); bufPtr += 2;
       int segmentLength = AVRB16(bufPtr); bufPtr += 2;
       if (bufEnd - bufPtr < segmentLength) {
@@ -115,61 +120,42 @@ public:
         }
         //}}}
 
-      switch (segment_type) {
-        case 0x10: // page
-          if (!parsePage (bufPtr, segmentLength)) return nullptr; gotSegments |= 0x01; break;
+      switch (segmentType) {
+        case 0x10:
+          if (!parsePage (bufPtr, segmentLength)) return nullptr; break;
 
-        case 0x11: // region
-          if (!parseRegion (bufPtr, segmentLength)) return nullptr; gotSegments |= 0x02; break;
+        case 0x11:
+          if (!parseRegion (bufPtr, segmentLength)) return nullptr;  break;
 
-        case 0x12: // clut
-          if (!parseClut (bufPtr, segmentLength)) return nullptr; gotSegments |= 0x04; break;
+        case 0x12:
+          if (!parseClut (bufPtr, segmentLength)) return nullptr;  break;
 
-        case 0x13: // object
-          if (!parseObject (bufPtr, segmentLength)) return nullptr; gotSegments |= 0x08; break;
+        case 0x13:
+          if (!parseObject (bufPtr, segmentLength)) return nullptr; break;
 
-        case 0x14: // display definition
-          if (!parseDisplayDefinition (bufPtr, segmentLength)) return nullptr; gotSegments |= 0x20; break;
+        case 0x14:
+          if (!parseDisplayDefinition (bufPtr, segmentLength)) return nullptr; break;
 
-        case 0x80: // display
-          saveToSubtitle(); gotSegments |= 0x10; break;
+        case 0x80: saveToSubtitle(); break;
 
         default:
-          cLog::log (LOGINFO, "segment:%x, pageId:%d, length:%d", segment_type, pageId, segmentLength);
+          cLog::log (LOGERROR, "unknown seg:%x, pageId:%d, size:%d", segmentType, pageId, segmentLength);
           break;
         }
 
       bufPtr += segmentLength;
       }
 
-    if ((gotSegments & 0x0f) == 0x0F) {
-      //{{{  Some streams do not send a display segment
-      cLog::log (LOGINFO, "Missing display_endSegment, emulating");
-      saveToSubtitle();
-      }
-      //}}}
-
     return mSubtitle;
     }
   //}}}
 
 private:
-  //{{{
-  struct sClut {
-    int id = 0;
-    int version = 0;
-
-    uint32_t clut4[4] = { 0 };
-    uint32_t clut16[16] = { 0 };
-    uint32_t clut256[256] = { 0 };
-
-    sClut* next;
-    };
-  //}}}
+  //{{{  structs
   //{{{
   struct sObjectDisplay {
-    int objectId;
-    int regionId;
+    int mObjectId;
+    int mRegionId;
 
     int xPos;
     int yPos;
@@ -177,8 +163,8 @@ private:
     int fgcolor;
     int bgcolor;
 
-    sObjectDisplay* regionListNext;
-    sObjectDisplay* objectListNext;
+    sObjectDisplay* mRegionListNext;
+    sObjectDisplay* mObjectListNext;
     };
   //}}}
   //{{{
@@ -209,8 +195,8 @@ private:
 
     int width;
     int height;
-    int depth;
 
+    int depth;
     int clut;
     int bgcolor;
 
@@ -236,7 +222,19 @@ private:
     int height;
     };
   //}}}
+  //{{{
+  struct sClut {
+    int id = 0;
+    int version = 0;
 
+    uint32_t clut4[4] = { 0 };
+    uint32_t clut16[16] = { 0 };
+    uint32_t clut256[256] = { 0 };
+
+    sClut* next;
+    };
+  //}}}
+  //}}}
   //{{{
   class cBitStream {
   public:
@@ -254,9 +252,6 @@ private:
     uint32_t getBits (int numBits) {
 
       uint32_t result = 0;
-
-      mLastByte = mBitStream [mBitPointer >> 3];
-
       for (int i = 0; i < numBits; i++)
         result = (result << 1) | getBit();
 
@@ -265,34 +260,13 @@ private:
     //}}}
 
     //{{{
-    int getBitsUsed() {
+    int getBitsRead() {
       return mBitPointer;
       }
     //}}}
     //{{{
-    int getBytesUsed() {
+    int getBytesRead() {
       return (mBitPointer + 7) / 8;
-      }
-    //}}}
-
-    //{{{
-    void debug() {
-      uint64_t address = (uint64_t)mBitStream;
-      cLog::log (LOGINFO, "bitstream " + hex(address,16) + " " + dec(mSize,4));
-
-      int j = 0;
-      std::string str;
-      auto bufPtr = mBitStream;
-      auto bufEnd = mBitStream + mSize;
-      while (bufPtr != bufEnd) {
-        int value = *bufPtr++;
-        str += hex (value,2) + " ";
-        if (!(++j % 32)) {
-          cLog::log (LOGINFO, str);
-          str.clear();
-          }
-        }
-      cLog::log (LOGINFO, str);
       }
     //}}}
 
@@ -300,7 +274,6 @@ private:
     const uint8_t* mBitStream;
     int mBitPointer;
     int mSize;
-    uint8_t mLastByte;
     };
   //}}}
 
@@ -468,18 +441,18 @@ private:
     while (region->mDisplayList) {
       sObjectDisplay* display = region->mDisplayList;
 
-      sObject* object = getObject (display->objectId);
+      sObject* object = getObject (display->mObjectId);
       if (object) {
         sObjectDisplay** objDispPtr = &object->mDisplayList;
         sObjectDisplay* objDisp = *objDispPtr;
 
         while (objDisp && objDisp != display) {
-          objDispPtr = &objDisp->objectListNext;
+          objDispPtr = &objDisp->mObjectListNext;
           objDisp = *objDispPtr;
           }
 
         if (objDisp) {
-          *objDispPtr = objDisp->objectListNext;
+          *objDispPtr = objDisp->mObjectListNext;
 
           if (!object->mDisplayList) {
             sObject** obj2Ptr = &mObjectList;
@@ -498,31 +471,11 @@ private:
           }
         }
 
-      region->mDisplayList = display->regionListNext;
+      region->mDisplayList = display->mRegionListNext;
 
       free (&display);
       }
 
-    }
-  //}}}
-  //{{{
-  void deleteCluts() {
-
-    while (mClutList) {
-      sClut* clut = mClutList;
-      mClutList = clut->next;
-      free (&clut);
-      }
-    }
-  //}}}
-  //{{{
-  void deleteObjects() {
-
-    while (mObjectList) {
-      sObject* object = mObjectList;
-      mObjectList = object->next;
-      free (&object);
-      }
     }
   //}}}
   //{{{
@@ -540,24 +493,39 @@ private:
     }
   //}}}
   //{{{
-  int closeDecoder() {
+  void deleteObjects() {
 
-    sRegionDisplay* display;
+    while (mObjectList) {
+      sObject* object = mObjectList;
+      mObjectList = object->next;
+      free (&object);
+      }
+    }
+  //}}}
+  //{{{
+  void deleteCluts() {
+
+    while (mClutList) {
+      sClut* clut = mClutList;
+      mClutList = clut->next;
+      free (&clut);
+      }
+    }
+  //}}}
+  //{{{
+  void closeDecoder() {
 
     deleteRegions();
     deleteObjects();
     deleteCluts();
 
     free (&mDisplayDefinition);
-    mDisplayDefinition = NULL;
 
     while (mDisplayList) {
-      display = mDisplayList;
+      sRegionDisplay* display = mDisplayList;
       mDisplayList = display->next;
       free (&display);
       }
-
-    return 0;
     }
   //}}}
 
@@ -596,15 +564,15 @@ private:
   //}}}
 
   //{{{
-  int read2bitString (uint8_t* dstBuf, int dstBufSize,
-                      const uint8_t** srcBuf, int srcBufSize,
-                      int nonModifyingColor, uint8_t* mapTable, int xPos) {
+  int parse2bitString (uint8_t* dstBuf, int dstBufSize,
+                       const uint8_t** srcBuf, int srcBufSize,
+                       int nonModifyingColor, uint8_t* mapTable, int xPos) {
 
     int dstPixels = xPos;
     dstBuf += xPos;
 
     cBitStream bitStream (*srcBuf, srcBufSize);
-    while ((bitStream.getBitsUsed() < (srcBufSize * 8)) && (dstPixels < dstBufSize)) {
+    while ((bitStream.getBitsRead() < (srcBufSize * 8)) && (dstPixels < dstBufSize)) {
       int bits = bitStream.getBits (2);
       if (bits) {
         if (nonModifyingColor != 1 || bits != 1) {
@@ -640,7 +608,7 @@ private:
             bits = bitStream.getBits (2);
             if (bits == 0) {
               //{{{  bits == 0
-              (*srcBuf) += bitStream.getBytesUsed();
+              (*srcBuf) += bitStream.getBytesRead();
               return dstPixels;
               }
               //}}}
@@ -708,21 +676,21 @@ private:
     if (bitStream.getBits (6))
       cLog::log (LOGERROR, "line overflow");
 
-    (*srcBuf) += bitStream.getBytesUsed();
+    (*srcBuf) += bitStream.getBytesRead();
     return dstPixels;
     }
   //}}}
   //{{{
-  int read4bitString (uint8_t* dstBuf, int dstBufSize,
-                      const uint8_t** srcBuf, int srcBufSize,
-                      int nonModifyingColor, uint8_t* mapTable, int xPos) {
+  int parse4bitString (uint8_t* dstBuf, int dstBufSize,
+                       const uint8_t** srcBuf, int srcBufSize,
+                       int nonModifyingColor, uint8_t* mapTable, int xPos) {
 
     dstBuf += xPos;
     int dstPixels = xPos;
     std::string str;
 
     cBitStream bitStream (*srcBuf, srcBufSize);
-    while ((bitStream.getBitsUsed() < (srcBufSize * 8)) && (dstPixels < dstBufSize)) {
+    while ((bitStream.getBitsRead() < (srcBufSize * 8)) && (dstPixels < dstBufSize)) {
       int bits = bitStream.getBits (4);
       str += "[4b:" + hex(bits,1);
 
@@ -741,7 +709,7 @@ private:
           if (runLength == 0) {
             if (mRunDebug)
               cLog::log (LOGINFO, str + "]");
-            (*srcBuf) += bitStream.getBytesUsed();
+            (*srcBuf) += bitStream.getBytesRead();
             return dstPixels;
             }
 
@@ -852,14 +820,14 @@ private:
     if (mRunDebug)
       cLog::log (LOGINFO, str);
 
-    (*srcBuf) += bitStream.getBytesUsed();
+    (*srcBuf) += bitStream.getBytesRead();
     return dstPixels;
     }
   //}}}
   //{{{
-  int read8bitString (uint8_t* dstBuf, int dstBufSize,
-                      const uint8_t** srcBuf, int srcBufSize,
-                      int nonModifyingColor, uint8_t* mapTable, int xPos) {
+  int parse8bitString (uint8_t* dstBuf, int dstBufSize,
+                       const uint8_t** srcBuf, int srcBufSize,
+                       int nonModifyingColor, uint8_t* mapTable, int xPos) {
 
     const uint8_t* srcBufEnd = (*srcBuf) + srcBufSize;
     int dstPixels = xPos;
@@ -907,13 +875,13 @@ private:
     }
   //}}}
   //{{{
-  void parseBlock (sObjectDisplay* display, const uint8_t* buf, int bufSize, int topBottom, int nonModifyingColor) {
+  void parseBlock (sObjectDisplay* display, const uint8_t* buf, int bufSize, bool bottom, int nonModifyingColor) {
 
     const uint8_t* bufEnd = buf + bufSize;
     if (mBlockDebug) {
       //{{{  debug buf
       uint64_t address = (uint64_t)buf;
-      cLog::log (LOGINFO, "parsePixelDataBlock add:" + hex(address,16) + " size:" + dec(bufSize,4));
+      cLog::log (LOGINFO, "parseBlock @:" + hex(address,16) + " size:" + dec(bufSize,4));
 
       int j = 0;
       std::string str;
@@ -931,7 +899,7 @@ private:
       }
       //}}}
 
-    sRegion* region = getRegion (display->regionId);
+    sRegion* region = getRegion (display->mRegionId);
     if (!region)
       return;
 
@@ -945,18 +913,18 @@ private:
     region->dirty = 1;
 
     int xPos = display->xPos;
-    int yPos = display->yPos + topBottom;
+    int yPos = display->yPos + (bottom ? 1 : 0);
 
     while (buf < bufEnd) {
       if (((*buf != 0xF0) && (xPos >= region->width)) || (yPos >= region->height)) {
-        cLog::log (LOGERROR, "Invalid object location %d-%d %d-%d %02x",
+        cLog::log (LOGERROR, "invalid object location %d-%d %d-%d %02x",
                               xPos, region->width, yPos, region->height, *buf);
         return;
         }
 
       switch (*buf++) {
         //{{{
-        case 0x10:
+        case 0x10: // 2 bit
           if (region->depth == 8)
             mapTable = map2to8;
           else if (region->depth == 4)
@@ -964,12 +932,12 @@ private:
           else
             mapTable = NULL;
 
-          xPos = read2bitString (pixelBuf + (yPos * region->width), region->width,
-                                 &buf, int(bufEnd - buf), nonModifyingColor, mapTable, xPos);
+          xPos = parse2bitString (pixelBuf + (yPos * region->width), region->width,
+                                  &buf, int(bufEnd - buf), nonModifyingColor, mapTable, xPos);
           break;
         //}}}
         //{{{
-        case 0x11:
+        case 0x11: // 4 bit
           if (region->depth < 4) {
             cLog::log (LOGERROR, "4-bit pixel string in %d-bit region!", region->depth);
             return;
@@ -980,24 +948,24 @@ private:
           else
             mapTable = NULL;
 
-          xPos = read4bitString (pixelBuf + (yPos * region->width), region->width,
-                                 &buf, int(bufEnd - buf), nonModifyingColor, mapTable, xPos);
+          xPos = parse4bitString (pixelBuf + (yPos * region->width), region->width,
+                                  &buf, int(bufEnd - buf), nonModifyingColor, mapTable, xPos);
           break;
         //}}}
         //{{{
 
-        case 0x12:
+        case 0x12: // 8 bit
           if (region->depth < 8) {
             cLog::log (LOGERROR, "8-bit pixel string in %d-bit region!", region->depth);
             return;
             }
 
-          xPos = read8bitString (pixelBuf + (yPos * region->width), region->width,
-                                 &buf, int(bufEnd - buf), nonModifyingColor, NULL, xPos);
+          xPos = parse8bitString (pixelBuf + (yPos * region->width), region->width,
+                                  &buf, int(bufEnd - buf), nonModifyingColor, NULL, xPos);
             break;
         //}}}
         //{{{
-        case 0x20:
+        case 0x20: // map 2 to 4
           map2to4[0] = (*buf) >> 4;
           map2to4[1] = (*buf++) & 0xf;
           map2to4[2] = (*buf) >> 4;
@@ -1006,28 +974,28 @@ private:
           break;
         //}}}
         //{{{
-        case 0x21:
+        case 0x21: // map 2 to 8
           for (int i = 0; i < 4; i++)
             map2to8[i] = *buf++;
 
           break;
         //}}}
         //{{{
-        case 0x22:
+        case 0x22: // map 4 top 8
           for (int i = 0; i < 16; i++)
             map4to8[i] = *buf++;
 
           break;
         //}}}
         //{{{
-        case 0xF0:
+        case 0xF0: // end of line
           xPos = display->xPos;
           yPos += 2;
 
           break;
         //}}}
         default:
-          cLog::log (LOGINFO, "Unknown/unsupported pixel block 0x%x\n", *(buf-1));
+          cLog::log (LOGINFO, "unknownblock %x", *(buf-1));
           break;
         }
       }
@@ -1163,7 +1131,8 @@ private:
       display->next = mDisplayList;
       mDisplayList = display;
 
-      cLog::log (LOGINFO, "Region:%d, x:%d y:%d", regionId, display->xPos, display->yPos);
+      if (mRegionDebug)
+        cLog::log (LOGINFO, "- region:%d x:%d y:%d", regionId, display->xPos, display->yPos);
       }
 
     while (tmpDisplayList) {
@@ -1179,7 +1148,7 @@ private:
   bool parseRegion (const uint8_t* buf, int bufSize) {
 
     if (mSegmentDebug)
-      cLog::log (LOGINFO, "region");
+      cLog::log (LOGINFO, "region segment");
 
     if (bufSize < 10)
       return false;
@@ -1247,8 +1216,8 @@ private:
       object->mType = (*buf) >> 6;
 
       sObjectDisplay* display = (sObjectDisplay*)calloc (1, sizeof(*display));
-      display->objectId = objectId;
-      display->regionId = regionId;
+      display->mObjectId = objectId;
+      display->mRegionId = regionId;
       display->xPos = AVRB16(buf) & 0xFFF; buf += 2;
       display->yPos = AVRB16(buf) & 0xFFF; buf += 2;
 
@@ -1264,10 +1233,10 @@ private:
         display->bgcolor = *buf++;
         }
 
-      display->regionListNext = region->mDisplayList;
+      display->mRegionListNext = region->mDisplayList;
       region->mDisplayList = display;
 
-      display->objectListNext = object->mDisplayList;
+      display->mObjectListNext = object->mDisplayList;
       object->mDisplayList = display;
       }
 
@@ -1278,7 +1247,7 @@ private:
   bool parseClut (const uint8_t* buf, int bufSize) {
 
     if (mSegmentDebug)
-      cLog::log (LOGINFO, "clut");
+      cLog::log (LOGINFO, "clut segment");
 
     const uint8_t* bufEnd = buf + bufSize;
 
@@ -1352,7 +1321,7 @@ private:
   bool parseObject (const uint8_t* buf, int bufSize) {
 
     if (mSegmentDebug)
-      cLog::log (LOGINFO, "object");
+      cLog::log (LOGINFO, "object segment");
 
     const uint8_t* bufEnd = buf + bufSize;
 
@@ -1373,16 +1342,16 @@ private:
         return false;
         }
 
-      for (sObjectDisplay* display = object->mDisplayList; display; display = display->objectListNext) {
+      for (sObjectDisplay* display = object->mDisplayList; display; display = display->mObjectListNext) {
         const uint8_t* block = buf;
-        parseBlock (display, block, topFieldLen, 0, nonModifyingColor);
+        parseBlock (display, block, topFieldLen, false, nonModifyingColor);
 
         int bfl = bottomFieldLen;
         if (bottomFieldLen > 0)
           block = buf + topFieldLen;
         else
           bfl = topFieldLen;
-        parseBlock (display, block, bfl, 1, nonModifyingColor);
+        parseBlock (display, block, bfl, true, nonModifyingColor);
         }
       }
     else
@@ -1395,26 +1364,27 @@ private:
   bool parseDisplayDefinition (const uint8_t *buf, int bufSize) {
 
     if (mSegmentDebug)
-      cLog::log (LOGINFO, "displayDefinition");
+      cLog::log (LOGINFO, "displayDefinition segment");
 
     if (bufSize < 5)
       return false;
 
-    int info_byte = *buf++;
-    int dds_version = info_byte >> 4;
-    if (mDisplayDefinition && (mDisplayDefinition->version == dds_version))
+    int infoByte = *buf++;
+    int ddsVersion = infoByte >> 4;
+
+    if (mDisplayDefinition &&
+        (mDisplayDefinition->version == ddsVersion))
       return true;
 
     if (!mDisplayDefinition)
-      mDisplayDefinition = (sDisplayDefinition*)calloc (1, sizeof(*mDisplayDefinition));
+      mDisplayDefinition = (sDisplayDefinition*)malloc (sizeof(*mDisplayDefinition));
+    mDisplayDefinition->version = ddsVersion;
+    mDisplayDefinition->x = 0;
+    mDisplayDefinition->y = 0;
+    mDisplayDefinition->width = AVRB16(buf) + 1; buf += 2;
+    mDisplayDefinition->height = AVRB16(buf) + 1; buf += 2;
 
-    mDisplayDefinition->version = dds_version;
-    mDisplayDefinition->x       = 0;
-    mDisplayDefinition->y       = 0;
-    mDisplayDefinition->width   = AVRB16(buf) + 1; buf += 2;
-    mDisplayDefinition->height  = AVRB16(buf) + 1; buf += 2;
-
-    if (info_byte & (1 << 3)) {
+    if (infoByte & (1 << 3)) {
       // display_window_flag
       if (bufSize < 13)
         return false;
@@ -1425,6 +1395,11 @@ private:
       mDisplayDefinition->height = AVRB16(buf) - mDisplayDefinition->y + 1; buf += 2;
       }
 
+    if (mDisplayDefnitionDebug)
+      cLog::log (LOGINFO, "- displayDefinition x:" + dec(mDisplayDefinition->x) +
+                          " y:" + dec(mDisplayDefinition->y) +
+                          " w:" + dec(mDisplayDefinition->width) +
+                          " h:" + dec(mDisplayDefinition->height));
     return true;
     }
   //}}}
@@ -1432,6 +1407,8 @@ private:
   //  vars
   bool mBufferDebug = false;
   bool mSegmentDebug = false;
+  bool mDisplayDefnitionDebug = true;
+  bool mRegionDebug = true;
   bool mBlockDebug = false;
   bool mRunDebug = false;
 
