@@ -9,24 +9,6 @@ public:
   #define SCALEBITS 10
   #define ONE_HALF  (1 << (SCALEBITS - 1))
   #define FIX(x)    ((int) ((x) * (1<<SCALEBITS) + 0.5))
-  //{{{
-  #define YUV_TO_RGB1_CCIR(cb1, cr1) {\
-    cb = (cb1) - 128;\
-    cr = (cr1) - 128;\
-    r_add = FIX(1.40200*255.0/224.0) * cr + ONE_HALF;\
-    g_add = - FIX(0.34414*255.0/224.0) * cb - FIX(0.71414*255.0/224.0) * cr + ONE_HALF;\
-    b_add = FIX(1.77200*255.0/224.0) * cb + ONE_HALF;\
-    }
-  //}}}
-  //{{{
-  #define YUV_TO_RGB2_CCIR(r, g, b, y1) {\
-    y = ((y1) - 16) * FIX(255.0/219.0);\
-    r = (y + r_add) >> SCALEBITS;\
-    g = (y + g_add) >> SCALEBITS;\
-    b = (y + b_add) >> SCALEBITS;\
-    }
-  //}}}
-
   #define RGBA(r,g,b,a) (((unsigned)(a) << 24) | ((r) << 16) | ((g) << 8) | (b))
   //}}}
   //{{{
@@ -96,10 +78,6 @@ public:
 
     // vars
     std::vector <cRect*> mRects;
-
-    uint32_t mStartDisplayTime; // relative to packet pts, in ms
-    uint32_t mEndDisplayTime;   // relative to packet pts, in ms
-    int64_t mPts;                 // Same as packet pts, in AV_TIME_BASE
     };
   //}}}
 
@@ -378,7 +356,6 @@ private:
 
     //if (substream < 0) {
     mVersion = -1;
-    mPrevStart = 0;
 
     mDefaultClut.id = -1;
     mDefaultClut.next = NULL;
@@ -556,21 +533,9 @@ private:
   //}}}
 
   //{{{
-  sObject* getObject (int objectId) {
-
-    sObject* object = mObjectList;
-
-    while (object && object->mId != objectId)
-      object = object->mNext;
-
-    return object;
-    }
-  //}}}
-  //{{{
   sClut* getClut (int clutId) {
 
     sClut* clut = mClutList;
-
     while (clut && clut->id != clutId)
       clut = clut->next;
 
@@ -578,10 +543,19 @@ private:
     }
   //}}}
   //{{{
+  sObject* getObject (int objectId) {
+
+    sObject* object = mObjectList;
+    while (object && object->mId != objectId)
+      object = object->mNext;
+
+    return object;
+    }
+  //}}}
+  //{{{
   sRegion* getRegion (int regionId) {
 
     sRegion* ptr = mRegionList;
-
     while (ptr && ptr->mId != regionId)
       ptr = ptr->next;
 
@@ -1029,64 +1003,6 @@ private:
     region->hasComputedClut = 0;
     }
   //}}}
-  //{{{
-  cSubtitle* createSubtitle() {
-
-    int offsetX = 0;
-    int offsetY = 0;
-
-    if (mDisplayDefinition) {
-      offsetX = mDisplayDefinition->x;
-      offsetY = mDisplayDefinition->y;
-      }
-
-    cSubtitle* subtitle = new cSubtitle();
-    subtitle->mEndDisplayTime = mTimeOut * 1000;
-
-    for (sRegionDisplay* display = mDisplayList; display; display = display->mNext) {
-      sRegion* region = getRegion (display->mRegionId);
-      if (!region || !region->dirty)
-        continue;
-
-      auto subtitleRect = new cSubtitle::cRect();
-      subtitleRect->mX = display->xPos + offsetX;
-      subtitleRect->mY = display->yPos + offsetY;
-      subtitleRect->mWidth = region->width;
-      subtitleRect->mHeight = region->height;
-      subtitleRect->mNumColours = 1 << region->depth;
-      subtitleRect->mStride = region->width;
-
-      sClut* clut = getClut (region->clut);
-      if (!clut)
-        clut = &mDefaultClut;
-      uint32_t* clutTable;
-      switch (region->depth) {
-        case 2:  clutTable = clut->clut4; break;
-        case 8:  clutTable = clut->clut256; break;
-        case 4:
-        default: clutTable = clut->clut16; break;
-        }
-
-      subtitleRect->mClutData = (uint8_t*)malloc (1024);
-      memcpy (subtitleRect->mClutData, clutTable, (1 << region->depth) * sizeof(*clutTable));
-
-      subtitleRect->mPixelData = (uint8_t*)malloc (region->pixelBufSize);
-      memcpy (subtitleRect->mPixelData, region->pixelBuf, region->pixelBufSize);
-
-      if (((clut == &mDefaultClut) && (mComputeClut == -1)) || (mComputeClut == 1)) {
-        if (!region->hasComputedClut) {
-          initDefaultClut (region->computedClut, subtitleRect, subtitleRect->mWidth, subtitleRect->mHeight);
-          region->hasComputedClut = 1;
-          }
-        memcpy (subtitleRect->mClutData, region->computedClut, sizeof(region->computedClut));
-        }
-
-      subtitle->mRects.push_back (subtitleRect);
-      }
-
-    return subtitle;
-    }
-  //}}}
 
   //{{{
   bool parsePage (const uint8_t* buf, int bufSize) {
@@ -1107,7 +1023,7 @@ private:
     int pageState = ((*buf++) >> 2) & 3;
 
     if (mSegmentDebug)
-      cLog::log (LOGINFO, "- time out %ds, state %d", mTimeOut, pageState);
+      cLog::log (LOGINFO, "- timeOut:%d state:%d", mTimeOut, pageState);
 
     if ((pageState == 1) || (pageState == 2)) {
       deleteRegions();
@@ -1267,8 +1183,7 @@ private:
     const uint8_t* bufEnd = buf + bufSize;
 
     int clutId = *buf++;
-    int version = ((*buf)>>4)&15;
-    buf += 1;
+    int version = ((*buf++) >> 4) & 15;
 
     sClut* clut = getClut (clutId);
     if (!clut) {
@@ -1300,32 +1215,34 @@ private:
           //}}}
         else {
           //{{{  not full range
-          y     = buf[0] & 0xfc;
-          cr    = (((buf[0] & 3) << 2) | ((buf[1] >> 6) & 3)) << 4;
-          cb    = (buf[1] << 2) & 0xf0;
-          alpha = (buf[1] << 6) & 0xc0;
+          y = buf[0] & 0xFC;
+          cr = (((buf[0] & 3) << 2) | ((buf[1] >> 6) & 3)) << 4;
+          cb = (buf[1] << 2) & 0xF0;
+          alpha = (buf[1] << 6) & 0xC0;
+
           buf += 2;
           }
           //}}}
-
         if (y == 0)
           alpha = 0xff;
 
-        int r = 0;
-        int g = 0;
-        int b = 0;
-        int r_add;
-        int g_add;
-        int b_add;
-        YUV_TO_RGB1_CCIR(cb, cr);
-        YUV_TO_RGB2_CCIR(r, g, b, y);
+        int rAdd = FIX(1.40200*255.0/224.0) * (cr - 128) + ONE_HALF;
+        int gAdd = - FIX(0.34414*255.0/224.0) * (cb - 128) - FIX(0.71414*255.0/224.0) * (cr - 128) + ONE_HALF;
+        int bAdd = FIX(1.77200*255.0/224.0) * (cb - 128) + ONE_HALF;
+        y = (y - 16) * FIX(255.0 / 219.0);
+        int r = (y + rAdd) >> SCALEBITS;
+        int g = (y + gAdd) >> SCALEBITS;
+        int b = (y + bAdd) >> SCALEBITS;
 
         if (depth & 0x80 && entryId < 4)
-          clut->clut4[entryId] = RGBA(r, g, b, 255 - alpha);
+          clut->clut4[entryId] = RGBA(r, g, b, 0xFF - alpha);
         else if (depth & 0x40 && entryId < 16)
-          clut->clut16[entryId] = RGBA(r, g, b, 255 - alpha);
+          clut->clut16[entryId] = RGBA(r, g, b, 0xFF - alpha);
         else if (depth & 0x20)
-          clut->clut256[entryId] = RGBA(r, g, b, 255 - alpha);
+          clut->clut256[entryId] = RGBA(r, g, b, 0xFF - alpha);
+        if (mClutDebug)
+          cLog::log (LOGINFO, "- clut depth:" + hex(depth) + " id:" + hex(entryId) +
+                              " " + hex(r & 0xFF, 2) + ":" + hex(g & 0xFF, 2) + ":" + hex(b & 0xFF, 2) + ":" + hex(0xFF - alpha, 2));
         }
       }
 
@@ -1353,11 +1270,13 @@ private:
       int bottomFieldLen = AVRB16(buf); buf += 2;
 
       if ((buf + topFieldLen + bottomFieldLen) > bufEnd) {
+        //{{{  error return
         cLog::log (LOGERROR, "Field data size %d+%d too large", topFieldLen, bottomFieldLen);
         return false;
         }
+        //}}}
 
-      for (sObjectDisplay* display = object->mDisplayList; display; display = display->mObjectListNext) {
+      for (auto display = object->mDisplayList; display; display = display->mObjectListNext) {
         const uint8_t* block = buf;
         parseBlock (display, block, topFieldLen, false, nonModifyingColor);
 
@@ -1370,7 +1289,7 @@ private:
         }
       }
     else
-      cLog::log (LOGERROR, "Unknown object coding %d", codingMethod);
+      cLog::log (LOGERROR, "unknown object coding %d", codingMethod);
 
     return true;
     }
@@ -1419,18 +1338,75 @@ private:
     }
   //}}}
 
+  //{{{
+  cSubtitle* createSubtitle() {
+
+    auto subtitle = new cSubtitle();
+
+    int offsetX = 0;
+    int offsetY = 0;
+    if (mDisplayDefinition) {
+      offsetX = mDisplayDefinition->x;
+      offsetY = mDisplayDefinition->y;
+      }
+
+    for (sRegionDisplay* display = mDisplayList; display; display = display->mNext) {
+      sRegion* region = getRegion (display->mRegionId);
+      if (!region || !region->dirty)
+        continue;
+
+      auto subtitleRect = new cSubtitle::cRect();
+      subtitleRect->mX = display->xPos + offsetX;
+      subtitleRect->mY = display->yPos + offsetY;
+      subtitleRect->mWidth = region->width;
+      subtitleRect->mHeight = region->height;
+      subtitleRect->mNumColours = 1 << region->depth;
+      subtitleRect->mStride = region->width;
+
+      auto clut = getClut (region->clut);
+      if (!clut)
+        clut = &mDefaultClut;
+
+      uint32_t* clutTable;
+      switch (region->depth) {
+        case 2:  clutTable = clut->clut4; break;
+        case 4:  clutTable = clut->clut16; break;
+        case 8:  clutTable = clut->clut256; break;
+        default: clutTable = clut->clut16; break;
+        }
+
+      subtitleRect->mClutData = (uint8_t*)malloc (1024);
+      memcpy (subtitleRect->mClutData, clutTable, (1 << region->depth) * sizeof(*clutTable));
+
+      subtitleRect->mPixelData = (uint8_t*)malloc (region->pixelBufSize);
+      memcpy (subtitleRect->mPixelData, region->pixelBuf, region->pixelBufSize);
+
+      if (((clut == &mDefaultClut) && (mComputeClut == -1)) || (mComputeClut == 1)) {
+        if (!region->hasComputedClut) {
+          initDefaultClut (region->computedClut, subtitleRect, subtitleRect->mWidth, subtitleRect->mHeight);
+          region->hasComputedClut = 1;
+          }
+        memcpy (subtitleRect->mClutData, region->computedClut, sizeof(region->computedClut));
+        }
+
+      subtitle->mRects.push_back (subtitleRect);
+      }
+
+    return subtitle;
+    }
+  //}}}
+
   //  vars
   bool mBufferDebug = false;
   bool mSegmentDebug = false;
   bool mDisplayDefnitionDebug = true;
   bool mRegionDebug = true;
   bool mBlockDebug = false;
+  bool mClutDebug = true;
   bool mRunDebug = false;
 
   int mVersion = 0;
   int mTimeOut = 0;
-
-  uint64_t mPrevStart = 0;
 
   int mComputeClut = 0;
   sClut mDefaultClut = { 0 };
