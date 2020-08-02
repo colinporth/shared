@@ -104,7 +104,7 @@ class cDumpTransportStream : public cTransportStream {
         auto subtitle = decoder.decode (pidInfo->mBuffer, pidInfo->getBufUsed());
         if (subtitle)
           subtitle->debug();
-        free (subtitle);
+        delete subtitle;
         //subCloseDecoder (&context);
         }
 

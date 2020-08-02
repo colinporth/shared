@@ -30,62 +30,86 @@ public:
   #define RGBA(r,g,b,a) (((unsigned)(a) << 24) | ((r) << 16) | ((g) << 8) | (b))
   //}}}
   //{{{
-  struct sRect {
-    int x;
-    int y;
-    int w;
-    int h;
-    int numColours;
+  class cSubtitle {
+  public:
+    //{{{
+    class cRect {
+    public:
+      //{{{
+      ~cRect() {
+        free (mPixelData);
+        free (mClutData);
+        }
 
-    uint8_t* data[2];
-    int stride;
-    };
-  //}}}
-  //{{{
-  struct sSubtitle {
-    unsigned numRects;
-    sRect** rects;
+      //}}}
 
-    uint32_t startDisplayTime; // relative to packet pts, in ms
-    uint32_t endDisplayTime;   // relative to packet pts, in ms
-    int64_t pts;                 // Same as packet pts, in AV_TIME_BASE
+      int mX = 0;
+      int mY = 0;
+      int mWidth = 0;
+      int mHeight = 0;
+
+      int mStride = 0;
+      uint8_t* mPixelData = nullptr;
+
+      int mNumColours = 0;
+      uint8_t* mClutData = nullptr;
+      };
+    //}}}
+
+    cSubtitle() {}
+    //{{{
+    ~cSubtitle() {
+      for (auto rect : mRects)
+        delete rect;
+      }
+    //}}}
 
     //{{{
     void debug() {
 
-      if (numRects)
-        for (unsigned int i = 0; i < numRects; i++) {
+      if (mRects.empty())
+        cLog::log (LOGINFO, "subtitle empty");
+      else
+        for (unsigned int i = 0; i < mRects.size(); i++) {
           cLog::log (LOGINFO, "subtitle rect:" + dec(i) +
-                              " x:"  + dec(rects[i]->x) +
-                              " y:"  + dec(rects[i]->y) +
-                              " w:"  + dec(rects[i]->w) +
-                              " h:"  + dec(rects[i]->h) +
-                              " c:"  + dec(rects[i]->numColours) +
-                              " l:"  + dec(rects[i]->stride));
+                              " x:"  + dec(mRects[i]->mX) +
+                              " y:"  + dec(mRects[i]->mY) +
+                              " w:"  + dec(mRects[i]->mWidth) +
+                              " h:"  + dec(mRects[i]->mHeight) +
+                              " c:"  + dec(mRects[i]->mNumColours) +
+                              " l:"  + dec(mRects[i]->mStride));
 
-          int xStep = rects[i]->w / 80;
-          int yStep = rects[i]->h / 16;
-          for (int y = 0; y < rects[i]->h; y += yStep) {
-            uint8_t* p = rects[i]->data[0] + rects[i]->w;
+          int xStep = mRects[i]->mWidth / 80;
+          int yStep = mRects[i]->mHeight / 16;
+          for (int y = 0; y < mRects[i]->mHeight; y += yStep) {
+            uint8_t* p = mRects[i]->mPixelData + mRects[i]->mWidth;
             std::string str = "  ";
-            for (int x = 0; x < rects[i]->w; x += xStep) {
+            for (int x = 0; x < mRects[i]->mWidth; x += xStep) {
               int value = p[x];
               str += value ? hex(value,1) : ".";
               }
             cLog::log (LOGINFO, str);
             }
           }
-      else
-        cLog::log (LOGINFO, "subtitle empty");
       }
     //}}}
+
+    // vars
+    std::vector <cRect*> mRects;
+
+    uint32_t mStartDisplayTime; // relative to packet pts, in ms
+    uint32_t mEndDisplayTime;   // relative to packet pts, in ms
+    int64_t mPts;                 // Same as packet pts, in AV_TIME_BASE
     };
   //}}}
 
   cSubtitleDecoder() {}
-  ~cSubtitleDecoder() {}
+  ~cSubtitleDecoder() {
+    //closeDecoder();
+    }
+
   //{{{
-  sSubtitle* decode (const uint8_t* buf, int bufSize) {
+  cSubtitle* decode (const uint8_t* buf, int bufSize) {
   // return malloc'ed sSubtitle if succesful
 
     // skip past first 2 bytes
@@ -136,7 +160,8 @@ public:
         case 0x14:
           if (!parseDisplayDefinition (bufPtr, segmentLength)) return nullptr; break;
 
-        case 0x80: saveToSubtitle(); break;
+        case 0x80:
+          mSubtitle = createSubtitle(); break;
 
         default:
           cLog::log (LOGERROR, "unknown seg:%x, pageId:%d, size:%d", segmentType, pageId, segmentLength);
@@ -160,8 +185,8 @@ private:
     int xPos;
     int yPos;
 
-    int fgcolor;
-    int bgcolor;
+    int mForegroundColor;
+    int mBackgroundColor;
 
     sObjectDisplay* mRegionListNext;
     sObjectDisplay* mObjectListNext;
@@ -175,9 +200,10 @@ private:
 
     sObjectDisplay* mDisplayList;
 
-    sObject* next;
+    sObject* mNext;
     };
   //}}}
+
   //{{{
   struct sRegionDisplay {
     int mRegionId;
@@ -185,7 +211,7 @@ private:
     int xPos;
     int yPos;
 
-    sRegionDisplay* next;
+    sRegionDisplay* mNext;
     };
   //}}}
   //{{{
@@ -212,6 +238,7 @@ private:
     sRegion* next;
     };
   //}}}
+
   //{{{
   struct sDisplayDefinition {
     int version;
@@ -222,6 +249,7 @@ private:
     int height;
     };
   //}}}
+
   //{{{
   struct sClut {
     int id = 0;
@@ -238,13 +266,13 @@ private:
   //{{{
   class cBitStream {
   public:
-    cBitStream (const uint8_t* bitStream, int size) : mBitStream(bitStream), mBitPointer(0), mSize(size) {}
+    cBitStream (const uint8_t* bitStream, int size) : mBitStream(bitStream), mSize(size) {}
 
     //{{{
     uint32_t getBit() {
 
-      uint32_t result = (uint32_t)((mBitStream [mBitPointer >> 3] >> (7-(mBitPointer & 0x7))) & 0x01);
-      mBitPointer += 1;
+      uint32_t result = (uint32_t)((mBitStream [mBitsRead >> 3] >> (7-(mBitsRead & 0x7))) & 0x01);
+      mBitsRead += 1;
       return result;
       }
     //}}}
@@ -261,24 +289,24 @@ private:
 
     //{{{
     int getBitsRead() {
-      return mBitPointer;
+      return mBitsRead;
       }
     //}}}
     //{{{
     int getBytesRead() {
-      return (mBitPointer + 7) / 8;
+      return (mBitsRead + 7) / 8;
       }
     //}}}
 
   private:
-    const uint8_t* mBitStream;
-    int mBitPointer;
-    int mSize;
+    const uint8_t* mBitStream = nullptr;
+    int mBitsRead = 0;
+    int mSize = 0;
     };
   //}}}
 
   //{{{
-  void initDefaultClut (uint8_t* clut, sRect* rect, int w, int h) {
+  void initDefaultClut (uint8_t* clut, cSubtitle::cRect* rect, int w, int h) {
 
     uint8_t list[256] = { 0 };
     uint8_t listInv[256];
@@ -286,11 +314,11 @@ private:
     int (*counttab2)[256] = mClutCount2;
 
     int count, i, x, y;
-    ptrdiff_t stride = rect->stride;
+    ptrdiff_t stride = rect->mStride;
 
     memset (mClutCount2, 0, sizeof(mClutCount2));
 
-    #define V(x,y) rect->data[0][(x) + (y)*stride]
+    #define V(x,y) rect->mPixelData[(x) + (y)*stride]
 
     for (y = 0; y < h; y++) {
       for (x = 0; x < w; x++) {
@@ -446,7 +474,7 @@ private:
         sObjectDisplay** objDispPtr = &object->mDisplayList;
         sObjectDisplay* objDisp = *objDispPtr;
 
-        while (objDisp && objDisp != display) {
+        while (objDisp && (objDisp != display)) {
           objDispPtr = &objDisp->mObjectListNext;
           objDisp = *objDispPtr;
           }
@@ -459,14 +487,12 @@ private:
             sObject* obj2 = *obj2Ptr;
 
             while (obj2 != object) {
-              //av_assert0(obj2);
-              obj2Ptr = &obj2->next;
+              obj2Ptr = &obj2->mNext;
               obj2 = *obj2Ptr;
               }
 
-            *obj2Ptr = obj2->next;
+            *obj2Ptr = obj2->mNext;
             free (&obj2);
-            obj2 = NULL;
             }
           }
         }
@@ -497,7 +523,7 @@ private:
 
     while (mObjectList) {
       sObject* object = mObjectList;
-      mObjectList = object->next;
+      mObjectList = object->mNext;
       free (&object);
       }
     }
@@ -523,7 +549,7 @@ private:
 
     while (mDisplayList) {
       sRegionDisplay* display = mDisplayList;
-      mDisplayList = display->next;
+      mDisplayList = display->mNext;
       free (&display);
       }
     }
@@ -535,7 +561,7 @@ private:
     sObject* object = mObjectList;
 
     while (object && object->mId != objectId)
-      object = object->next;
+      object = object->mNext;
 
     return object;
     }
@@ -1004,7 +1030,7 @@ private:
     }
   //}}}
   //{{{
-  void saveToSubtitle() {
+  cSubtitle* createSubtitle() {
 
     int offsetX = 0;
     int offsetY = 0;
@@ -1014,62 +1040,51 @@ private:
       offsetY = mDisplayDefinition->y;
       }
 
-    mSubtitle = (sSubtitle*) calloc (1, sizeof(sSubtitle));
-    mSubtitle->endDisplayTime = mTimeOut * 1000;
+    cSubtitle* subtitle = new cSubtitle();
+    subtitle->mEndDisplayTime = mTimeOut * 1000;
 
-    for (sRegionDisplay* display = mDisplayList; display; display = display->next) {
+    for (sRegionDisplay* display = mDisplayList; display; display = display->mNext) {
       sRegion* region = getRegion (display->mRegionId);
-      if (region && region->dirty)
-        mSubtitle->numRects++;
-      }
+      if (!region || !region->dirty)
+        continue;
 
-    if (mSubtitle->numRects > 0) {
-      mSubtitle->rects = (sRect**)malloc (mSubtitle->numRects * sizeof(*mSubtitle->rects));
-      for (unsigned int i = 0; i < mSubtitle->numRects; i++)
-        mSubtitle->rects[i] = (sRect*)calloc (1, sizeof(*mSubtitle->rects[i]));
+      auto subtitleRect = new cSubtitle::cRect();
+      subtitleRect->mX = display->xPos + offsetX;
+      subtitleRect->mY = display->yPos + offsetY;
+      subtitleRect->mWidth = region->width;
+      subtitleRect->mHeight = region->height;
+      subtitleRect->mNumColours = 1 << region->depth;
+      subtitleRect->mStride = region->width;
 
-      int i = 0;
-      for (sRegionDisplay* display = mDisplayList; display; display = display->next) {
-        sRegion* region = getRegion (display->mRegionId);
-        if (!region)
-          continue;
-        if (!region->dirty)
-          continue;
-
-        mSubtitle->rects[i]->x = display->xPos + offsetX;
-        mSubtitle->rects[i]->y = display->yPos + offsetY;
-        mSubtitle->rects[i]->w = region->width;
-        mSubtitle->rects[i]->h = region->height;
-        mSubtitle->rects[i]->numColours = 1 << region->depth;
-        mSubtitle->rects[i]->stride = region->width;
-
-        sClut* clut = getClut (region->clut);
-        if (!clut)
-          clut = &mDefaultClut;
-        uint32_t* clutTable;
-        switch (region->depth) {
-          case 2:  clutTable = clut->clut4; break;
-          case 8:  clutTable = clut->clut256; break;
-          case 4:
-          default: clutTable = clut->clut16; break;
-          }
-
-        mSubtitle->rects[i]->data[1] = (uint8_t*)malloc (1024);
-        memcpy (mSubtitle->rects[i]->data[1], clutTable, (1 << region->depth) * sizeof(*clutTable));
-
-        mSubtitle->rects[i]->data[0] = (uint8_t*)malloc (region->pixelBufSize);
-        memcpy (mSubtitle->rects[i]->data[0], region->pixelBuf, region->pixelBufSize);
-
-        if (((clut == &mDefaultClut) && (mComputeClut == -1)) || (mComputeClut == 1)) {
-          if (!region->hasComputedClut) {
-            initDefaultClut (region->computedClut, mSubtitle->rects[i], mSubtitle->rects[i]->w, mSubtitle->rects[i]->h);
-            region->hasComputedClut = 1;
-            }
-          memcpy (mSubtitle->rects[i]->data[1], region->computedClut, sizeof(region->computedClut));
-          }
-        i++;
+      sClut* clut = getClut (region->clut);
+      if (!clut)
+        clut = &mDefaultClut;
+      uint32_t* clutTable;
+      switch (region->depth) {
+        case 2:  clutTable = clut->clut4; break;
+        case 8:  clutTable = clut->clut256; break;
+        case 4:
+        default: clutTable = clut->clut16; break;
         }
+
+      subtitleRect->mClutData = (uint8_t*)malloc (1024);
+      memcpy (subtitleRect->mClutData, clutTable, (1 << region->depth) * sizeof(*clutTable));
+
+      subtitleRect->mPixelData = (uint8_t*)malloc (region->pixelBufSize);
+      memcpy (subtitleRect->mPixelData, region->pixelBuf, region->pixelBufSize);
+
+      if (((clut == &mDefaultClut) && (mComputeClut == -1)) || (mComputeClut == 1)) {
+        if (!region->hasComputedClut) {
+          initDefaultClut (region->computedClut, subtitleRect, subtitleRect->mWidth, subtitleRect->mHeight);
+          region->hasComputedClut = 1;
+          }
+        memcpy (subtitleRect->mClutData, region->computedClut, sizeof(region->computedClut));
+        }
+
+      subtitle->mRects.push_back (subtitleRect);
       }
+
+    return subtitle;
     }
   //}}}
 
@@ -1108,7 +1123,7 @@ private:
 
       sRegionDisplay* display = mDisplayList;
       while (display && (display->mRegionId != regionId))
-        display = display->next;
+        display = display->mNext;
 
       if (display) {
         cLog::log (LOGERROR, "duplicate region");
@@ -1118,8 +1133,8 @@ private:
       display = tmpDisplayList;
       sRegionDisplay** tmpPtr = &tmpDisplayList;
       while (display && (display->mRegionId != regionId)) {
-        tmpPtr = &display->next;
-        display = display->next;
+        tmpPtr = &display->mNext;
+        display = display->mNext;
         }
 
       if (!display)
@@ -1127,8 +1142,8 @@ private:
       display->mRegionId = regionId;
       display->xPos = AVRB16(buf); buf += 2;
       display->yPos = AVRB16(buf); buf += 2;
-      *tmpPtr = display->next;
-      display->next = mDisplayList;
+      *tmpPtr = display->mNext;
+      display->mNext = mDisplayList;
       mDisplayList = display;
 
       if (mRegionDebug)
@@ -1137,7 +1152,7 @@ private:
 
     while (tmpDisplayList) {
       sRegionDisplay* display = tmpDisplayList;
-      tmpDisplayList = display->next;
+      tmpDisplayList = display->mNext;
       free (&display);
       }
 
@@ -1209,7 +1224,7 @@ private:
       if (!object) {
         object = (sObject*)calloc (1, sizeof(*object));
         object->mId = objectId;
-        object->next = mObjectList;
+        object->mNext = mObjectList;
         mObjectList = object;
         }
 
@@ -1229,8 +1244,8 @@ private:
         }
 
       if (((object->mType == 1) || (object->mType == 2)) && (buf+1 < bufEnd)) {
-        display->fgcolor = *buf++;
-        display->bgcolor = *buf++;
+        display->mForegroundColor = *buf++;
+        display->mBackgroundColor = *buf++;
         }
 
       display->mRegionListNext = region->mDisplayList;
@@ -1427,5 +1442,5 @@ private:
   sRegionDisplay* mDisplayList = nullptr;
   sDisplayDefinition* mDisplayDefinition = nullptr;
 
-  sSubtitle* mSubtitle;
+  cSubtitle* mSubtitle;
   };
