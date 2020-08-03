@@ -129,7 +129,6 @@ public:
   int getAudOtherPid() const { return mAudOtherPid; }
   int getSubPid() const { return mSubPid; }
   int getSubStreamType() const { return mSubStreamType; }
-
   cEpgItem* getNowEpgItem() { return mNowEpgItem; }
   std::string getChannelString() { return mChannelString; }
   std::string getNowTitleString() { return mNowEpgItem ? mNowEpgItem->getTitleString() : ""; }
@@ -176,7 +175,6 @@ private:
   int mSubStreamType = 0;
 
   std::string mChannelString;
-
   cEpgItem* mNowEpgItem = nullptr;
   std::map <std::chrono::system_clock::time_point, cEpgItem*> mEpgItemMap;
 

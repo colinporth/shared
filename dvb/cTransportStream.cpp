@@ -1547,8 +1547,12 @@ void cTransportStream::parseEit (cPidInfo* pidInfo, uint8_t* buf) {
               // now event
               auto running = (eitEvent->running_status == 0x04);
               if (running &&
-                  !serviceIt->second.getChannelString().empty() && (serviceIt->second.getProgramPid() != -1)) {
-                // event for named service with pgmPid
+                  !serviceIt->second.getChannelString().empty() && 
+                  (serviceIt->second.getProgramPid() != -1) &&
+                  (serviceIt->second.getVidPid() != -1) &&
+                  (serviceIt->second.getAudPid() != -1) &&
+                  (serviceIt->second.getSubPid() != -1)) {
+                // now event for named service with valid pgmPid, vidPid, audPid, subPid
                 if (serviceIt->second.setNow (serviceIt->second.isEpgRecord (titleString, startTime),
                                               startTime, duration, titleString, infoString)) {
                   // new now event

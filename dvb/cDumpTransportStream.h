@@ -6,7 +6,7 @@
 #include "cSubtitleDecoder.h"
 //}}}
 const bool kSubtitleDebug = true;
-const bool kSubtitleDecodeDebug = true;
+const bool kSubtitleDecodeDebug = false;
 
 class cDumpTransportStream : public cTransportStream {
   public:
@@ -47,12 +47,14 @@ class cDumpTransportStream : public cTransportStream {
           }
         }
 
-      saveName += date::format ("%d %b %y %a %H.%M", date::floor<std::chrono::seconds>(time));
+      saveName += date::format ("%d %b %y %a %H.%M.%S ", date::floor<std::chrono::seconds>(time));
 
       if (record) {
-        if ((service->getVidPid() > 0) && (service->getAudPid() > 0)) {
+        if ((service->getVidPid() > 0) &&
+            (service->getAudPid() > 0) &&
+            (service->getSubPid() > 0)) {
           auto validName = validFileString (name, "<>:/|?*\"\'\\");
-          auto fileNameStr = mRootName + "/" + saveName + " - " + validName + ".ts";
+          auto fileNameStr = mRootName + "/" + saveName + validName + ".ts";
           service->openFile (fileNameStr, 0x1234);
           cLog::log (LOGINFO, fileNameStr);
           }
@@ -102,13 +104,13 @@ class cDumpTransportStream : public cTransportStream {
                             " size:" + dec(pidInfo->getBufUsed(),4) +
                             " sid:" + dec(pidInfo->mPid));
 
-      if (kSubtitleDecodeDebug) {
-        cSubtitleDecoder decoder;
-        auto subtitle = decoder.decode (pidInfo->mBuffer, pidInfo->getBufUsed());
-        if (subtitle)
-          subtitle->debug();
-        delete subtitle;
-        }
+      cSubtitleDecoder decoder;
+      auto subtitle = decoder.decode (pidInfo->mBuffer, pidInfo->getBufUsed());
+      if (kSubtitleDebug)
+        subtitle->debug ("- ");
+      if (kSubtitleDecodeDebug && subtitle)
+        subtitle->moreDebug();
+      delete subtitle;
 
       return false;
       }

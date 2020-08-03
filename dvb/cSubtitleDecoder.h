@@ -37,20 +37,28 @@ public:
   //}}}
 
   //{{{
-  void debug() {
+  void debug (std::string prefix) {
 
     if (mRects.empty())
       cLog::log (LOGINFO, "subtitle empty");
     else
       for (unsigned int i = 0; i < mRects.size(); i++) {
-        cLog::log (LOGINFO, "subtitle rect:" + dec(i) +
+        cLog::log (LOGINFO, prefix + 
+                            "rect:" + dec(i) +
                             " x:"  + dec(mRects[i]->mX) +
                             " y:"  + dec(mRects[i]->mY) +
                             " w:"  + dec(mRects[i]->mWidth) +
                             " h:"  + dec(mRects[i]->mHeight) +
                             " c:"  + dec(mRects[i]->mNumColours) +
                             " l:"  + dec(mRects[i]->mStride));
+        }
+    }
+  //}}}
+  //{{{
+  void moreDebug() {
 
+    if (!mRects.empty())
+      for (unsigned int i = 0; i < mRects.size(); i++) {
         int xStep = mRects[i]->mWidth / 80;
         int yStep = mRects[i]->mHeight / 16;
         for (int y = 0; y < mRects[i]->mHeight; y += yStep) {
@@ -87,6 +95,7 @@ public:
 
     mDefaultClut.mId = -1;
     mDefaultClut.mNext = NULL;
+
     mDefaultClut.mClut4[0] = RGBA (  0,   0,   0,   0);
     mDefaultClut.mClut4[1] = RGBA (255, 255, 255, 255);
     mDefaultClut.mClut4[2] = RGBA (  0,   0,   0, 255);
