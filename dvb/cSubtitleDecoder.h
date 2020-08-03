@@ -578,17 +578,17 @@ private:
   //}}}
 
   //{{{
-  int parse2bit (uint8_t* dstBuf, int dstBufSize, const uint8_t** srcBuf, int srcBufSize,
-                 int nonModifyingColor, uint8_t* mapTable, int xPos) {
+  int parse2bit (const uint8_t** buf, int bufSize, uint8_t* dstBuf, int dstBufSize,
+                 int nonModifyColor, uint8_t* mapTable, int xPos) {
 
-    int dstPixels = xPos;
     dstBuf += xPos;
+    int dstPixels = xPos;
 
-    cBitStream bitStream (*srcBuf, srcBufSize);
-    while ((bitStream.getBitsRead() < (srcBufSize * 8)) && (dstPixels < dstBufSize)) {
+    cBitStream bitStream (*buf, bufSize);
+    while ((bitStream.getBitsRead() < (bufSize * 8)) && (dstPixels < dstBufSize)) {
       int bits = bitStream.getBits (2);
       if (bits) {
-        if (nonModifyingColor != 1 || bits != 1) {
+        if (nonModifyColor != 1 || bits != 1) {
           if (mapTable)
             *dstBuf++ = mapTable[bits];
           else
@@ -603,7 +603,7 @@ private:
           int runLength = bitStream.getBits (3) + 3;
           bits = bitStream.getBits (2);
 
-          if (nonModifyingColor == 1 && bits == 1)
+          if (nonModifyColor == 1 && bits == 1)
             dstPixels += runLength;
           else {
             if (mapTable)
@@ -621,7 +621,7 @@ private:
             bits = bitStream.getBits (2);
             if (bits == 0) {
               //{{{  bits == 0
-              (*srcBuf) += bitStream.getBytesRead();
+              *buf += bitStream.getBytesRead();
               return dstPixels;
               }
               //}}}
@@ -643,7 +643,7 @@ private:
               int runLength = bitStream.getBits (4) + 12;
               bits = bitStream.getBits (2);
 
-              if ((nonModifyingColor == 1) && (bits == 1))
+              if ((nonModifyColor == 1) && (bits == 1))
                 dstPixels += runLength;
               else {
                 if (mapTable)
@@ -660,7 +660,7 @@ private:
               int runLength = bitStream.getBits (8) + 29;
               bits = bitStream.getBits (2);
 
-              if (nonModifyingColor == 1 && bits == 1)
+              if (nonModifyColor == 1 && bits == 1)
                  dstPixels += runLength;
               else {
                 if (mapTable)
@@ -689,25 +689,26 @@ private:
     if (bitStream.getBits (6))
       cLog::log (LOGERROR, "line overflow");
 
-    (*srcBuf) += bitStream.getBytesRead();
+    *buf += bitStream.getBytesRead();
     return dstPixels;
     }
   //}}}
   //{{{
-  int parse4bit (uint8_t* dstBuf, int dstBufSize, const uint8_t** srcBuf, int srcBufSize,
-                 int nonModifyingColor, uint8_t* mapTable, int xPos) {
+  int parse4bit (const uint8_t** buf, int bufSize, uint8_t* dstBuf, int dstBufSize,
+                 int nonModifyColor, uint8_t* mapTable, int xPos) {
 
     dstBuf += xPos;
     int dstPixels = xPos;
+
     std::string str;
 
-    cBitStream bitStream (*srcBuf, srcBufSize);
-    while ((bitStream.getBitsRead() < (srcBufSize * 8)) && (dstPixels < dstBufSize)) {
+    cBitStream bitStream (*buf, bufSize);
+    while ((bitStream.getBitsRead() < (bufSize * 8)) && (dstPixels < dstBufSize)) {
       int bits = bitStream.getBits (4);
       if (mRunDebug) str += "[4b:" + hex(bits,1);
 
       if (bits) {
-        if (nonModifyingColor != 1 || bits != 1)
+        if (nonModifyColor != 1 || bits != 1)
           *dstBuf++ = mapTable ? mapTable[bits] : bits;
         dstPixels++;
         }
@@ -724,7 +725,7 @@ private:
           if (runLength == 0) {
             if (mRunDebug)
               cLog::log (LOGINFO, str + "]");
-            (*srcBuf) += bitStream.getBytesRead();
+            *buf += bitStream.getBytesRead();
             return dstPixels;
             }
 
@@ -750,7 +751,7 @@ private:
             if (mRunDebug)
               str += ",4b:" + hex(bits,1);
 
-            if (nonModifyingColor == 1 && bits == 1)
+            if (nonModifyColor == 1 && bits == 1)
               dstPixels += runLength;
             else {
               if (mapTable)
@@ -795,7 +796,7 @@ private:
               if (mRunDebug)
                 str += ",4b:" + hex(bits,1);
 
-              if (nonModifyingColor == 1 && bits == 1)
+              if (nonModifyColor == 1 && bits == 1)
                 dstPixels += runLength;
               else {
                 if (mapTable)
@@ -817,7 +818,7 @@ private:
               if (mRunDebug)
                 str += ",4b:" + hex(bits);
 
-              if (nonModifyingColor == 1 && bits == 1)
+              if (nonModifyColor == 1 && bits == 1)
                 dstPixels += runLength;
               else {
                 if (mapTable)
@@ -843,22 +844,22 @@ private:
     if (bits)
       cLog::log (LOGERROR, "line overflow");
 
-    (*srcBuf) += bitStream.getBytesRead();
+    *buf += bitStream.getBytesRead();
     return dstPixels;
     }
   //}}}
   //{{{
-  int parse8bit (uint8_t* dstBuf, int dstBufSize, const uint8_t** srcBuf, int srcBufSize,
-                 int nonModifyingColor, uint8_t* mapTable, int xPos) {
+  int parse8bit (const uint8_t** buf, int bufSize, uint8_t* dstBuf, int dstBufSize,
+                 int nonModifyColor, uint8_t* mapTable, int xPos) {
 
-    const uint8_t* srcBufEnd = (*srcBuf) + srcBufSize;
-    int dstPixels = xPos;
     dstBuf += xPos;
+    int dstPixels = xPos;
 
-    while ((*srcBuf < srcBufEnd) && (dstPixels < dstBufSize)) {
-      int bits = *(*srcBuf)++;
+    const uint8_t* bufEnd = *buf + bufSize;
+    while ((*buf < bufEnd) && (dstPixels < dstBufSize)) {
+      int bits = *(*buf)++;
       if (bits) {
-        if (nonModifyingColor != 1 || bits != 1) {
+        if (nonModifyColor != 1 || bits != 1) {
           if (mapTable)
             *dstBuf++ = mapTable[bits];
           else
@@ -867,7 +868,7 @@ private:
         dstPixels++;
         }
       else {
-        bits = *(*srcBuf)++;
+        bits = *(*buf)++;
         int runLength = bits & 0x7f;
         if ((bits & 0x80) == 0) {
           if (runLength == 0)
@@ -875,9 +876,9 @@ private:
           bits = 0;
           }
         else
-          bits = *(*srcBuf)++;
+          bits = *(*buf)++;
 
-        if ((nonModifyingColor == 1) && (bits == 1))
+        if ((nonModifyColor == 1) && (bits == 1))
           dstPixels += runLength;
         else {
           if (mapTable)
@@ -890,15 +891,15 @@ private:
         }
       }
 
-    if (*(*srcBuf)++)
+    if (*(*buf)++)
       cLog::log (LOGERROR, "line overflow");
 
     return dstPixels;
     }
   //}}}
   //{{{
-  void parseObjectBlock (sObjectDisplay* display, const uint8_t* buf, int bufSize, 
-                         bool bottom, int nonModifyingColor) {
+  void parseObjectBlock (sObjectDisplay* display, const uint8_t* buf, int bufSize,
+                         bool bottom, int nonModifyColor) {
 
     const uint8_t* bufEnd = buf + bufSize;
     if (mBlockDebug) {
@@ -955,8 +956,9 @@ private:
           else
             mapTable = NULL;
 
-          xPos = parse2bit (pixelBuf + (yPos * region->width), region->width,
-                            &buf, int(bufEnd - buf), nonModifyingColor, mapTable, xPos);
+          xPos = parse2bit (&buf, int(bufEnd - buf),
+                            pixelBuf + (yPos * region->width), region->width,
+                            nonModifyColor, mapTable, xPos);
           break;
         //}}}
         //{{{
@@ -971,8 +973,9 @@ private:
           else
             mapTable = NULL;
 
-          xPos = parse4bit (pixelBuf + (yPos * region->width), region->width,
-                            &buf, int(bufEnd - buf), nonModifyingColor, mapTable, xPos);
+          xPos = parse4bit (&buf, int(bufEnd - buf),
+                            pixelBuf + (yPos * region->width), region->width,
+                            nonModifyColor, mapTable, xPos);
           break;
         //}}}
         //{{{
@@ -983,8 +986,9 @@ private:
             return;
             }
 
-          xPos = parse8bit (pixelBuf + (yPos * region->width), region->width,
-                            &buf, int(bufEnd - buf), nonModifyingColor, NULL, xPos);
+          xPos = parse8bit (&buf, int(bufEnd - buf),
+                            pixelBuf + (yPos * region->width), region->width,
+                            nonModifyColor, NULL, xPos);
             break;
         //}}}
         //{{{
@@ -1290,7 +1294,7 @@ private:
       return false;
 
     int codingMethod = ((*buf) >> 2) & 3;
-    int nonModifyingColor = ((*buf++) >> 1) & 1;
+    int nonModifyColor = ((*buf++) >> 1) & 1;
 
     if (codingMethod == 0) {
       int topFieldLen = AVRB16(buf); buf += 2;
@@ -1305,14 +1309,14 @@ private:
 
       for (auto display = object->mDisplayList; display; display = display->mObjectListNext) {
         const uint8_t* block = buf;
-        parseObjectBlock (display, block, topFieldLen, false, nonModifyingColor);
+        parseObjectBlock (display, block, topFieldLen, false, nonModifyColor);
 
         int bfl = bottomFieldLen;
         if (bottomFieldLen > 0)
           block = buf + topFieldLen;
         else
           bfl = topFieldLen;
-        parseObjectBlock (display, block, bfl, true, nonModifyingColor);
+        parseObjectBlock (display, block, bfl, true, nonModifyColor);
         }
       }
     else
