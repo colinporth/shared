@@ -15,10 +15,10 @@ public:
   class cSubtitle {
   public:
     //{{{
-    class cRect {
+    class cRectData {
     public:
       //{{{
-      ~cRect() {
+      ~cRectData() {
         free (mPixelData);
         free (mClutData);
         }
@@ -77,18 +77,20 @@ public:
     //}}}
 
     // vars
-    std::vector <cRect*> mRects;
+    std::vector <cRectData*> mRects;
     };
   //}}}
 
   cSubtitleDecoder() {}
+  //{{{
   ~cSubtitleDecoder() {
     //closeDecoder();
     }
+  //}}}
 
   //{{{
   cSubtitle* decode (const uint8_t* buf, int bufSize) {
-  // return malloc'ed sSubtitle if succesful
+  // return new cSubtitle if succesful
 
     // skip past first 2 bytes
     const uint8_t* bufEnd = buf + bufSize;
@@ -124,22 +126,31 @@ public:
 
       switch (segmentType) {
         case 0x10:
-          if (!parsePage (bufPtr, segmentLength)) return nullptr; break;
+          if (!parsePage (bufPtr, segmentLength))
+            return nullptr;
+          break;
 
         case 0x11:
-          if (!parseRegion (bufPtr, segmentLength)) return nullptr;  break;
+          if (!parseRegion (bufPtr, segmentLength))
+            return nullptr;
+          break;
 
         case 0x12:
-          if (!parseClut (bufPtr, segmentLength)) return nullptr;  break;
+          if (!parseClut (bufPtr, segmentLength))
+            return nullptr;  break;
 
         case 0x13:
-          if (!parseObject (bufPtr, segmentLength)) return nullptr; break;
+          if (!parseObject (bufPtr, segmentLength))
+            return nullptr;
+          break;
 
         case 0x14:
-          if (!parseDisplayDefinition (bufPtr, segmentLength)) return nullptr; break;
+          if (!parseDisplayDefinition (bufPtr, segmentLength))
+            return nullptr;
+          break;
 
         case 0x80:
-          mSubtitle = createSubtitle(); break;
+          return createSubtitle();
 
         default:
           cLog::log (LOGERROR, "unknown seg:%x, pageId:%d, size:%d", segmentType, pageId, segmentLength);
@@ -149,7 +160,7 @@ public:
       bufPtr += segmentLength;
       }
 
-    return mSubtitle;
+    return nullptr;
     }
   //}}}
 
@@ -168,6 +179,18 @@ private:
 
     sObjectDisplay* mRegionListNext;
     sObjectDisplay* mObjectListNext;
+
+    void init (int objectId, int regionId, int xpos, int ypos) {
+      mObjectId = objectId;
+      mRegionId = regionId;
+      xPos = xpos;
+      yPos = ypos;
+      mForegroundColor = 0;;
+      mBackgroundColor = 0;
+      mRegionListNext = nullptr;
+      mObjectListNext = nullptr;
+      }
+
     };
   //}}}
   //{{{
@@ -219,25 +242,25 @@ private:
 
   //{{{
   struct sDisplayDefinition {
-    int version;
+    int mVersion;
 
-    int x;
-    int y;
-    int width;
-    int height;
+    int mX;
+    int mY;
+    int mWidth;
+    int mHeight;
     };
   //}}}
 
   //{{{
   struct sClut {
-    int id = 0;
-    int version = 0;
+    int mId = 0;
+    int mVersion = 0;
 
-    uint32_t clut4[4] = { 0 };
-    uint32_t clut16[16] = { 0 };
-    uint32_t clut256[256] = { 0 };
+    uint32_t mClut4[4] = { 0 };
+    uint32_t mClut16[16] = { 0 };
+    uint32_t mClut256[256] = { 0 };
 
-    sClut* next;
+    sClut* mNext;
     };
   //}}}
   //}}}
@@ -284,7 +307,7 @@ private:
   //}}}
 
   //{{{
-  void initDefaultClut (uint8_t* clut, cSubtitle::cRect* rect, int w, int h) {
+  void initDefaultClut (uint8_t* clut, cSubtitle::cRectData* rect, int w, int h) {
 
     uint8_t list[256] = { 0 };
     uint8_t listInv[256];
@@ -357,13 +380,13 @@ private:
     //if (substream < 0) {
     mVersion = -1;
 
-    mDefaultClut.id = -1;
-    mDefaultClut.next = NULL;
-    mDefaultClut.clut4[0] = RGBA (  0,   0,   0,   0);
-    mDefaultClut.clut4[1] = RGBA (255, 255, 255, 255);
-    mDefaultClut.clut4[2] = RGBA (  0,   0,   0, 255);
-    mDefaultClut.clut4[3] = RGBA (127, 127, 127, 255);
-    mDefaultClut.clut16[0] = RGBA (0, 0, 0, 0);
+    mDefaultClut.mId = -1;
+    mDefaultClut.mNext = NULL;
+    mDefaultClut.mClut4[0] = RGBA (  0,   0,   0,   0);
+    mDefaultClut.mClut4[1] = RGBA (255, 255, 255, 255);
+    mDefaultClut.mClut4[2] = RGBA (  0,   0,   0, 255);
+    mDefaultClut.mClut4[3] = RGBA (127, 127, 127, 255);
+    mDefaultClut.mClut16[0] = RGBA (0, 0, 0, 0);
 
     int r = 0;
     int g = 0;
@@ -384,10 +407,10 @@ private:
         b = (i & 4) ? 127 : 0;
         }
         //}}}
-      mDefaultClut.clut16[i] = RGBA (r, g, b, 255);
+      mDefaultClut.mClut16[i] = RGBA (r, g, b, 255);
       }
 
-    mDefaultClut.clut256[0] = RGBA (0, 0, 0, 0);
+    mDefaultClut.mClut256[0] = RGBA (0, 0, 0, 0);
     for (int i = 1; i < 256; i++) {
       if (i < 8) {
         //{{{  set rgb
@@ -433,7 +456,7 @@ private:
             //}}}
           }
         }
-      mDefaultClut.clut256[i] = RGBA(r, g, b, a);
+      mDefaultClut.mClut256[i] = RGBA(r, g, b, a);
       }
 
     return 0;
@@ -510,7 +533,7 @@ private:
 
     while (mClutList) {
       sClut* clut = mClutList;
-      mClutList = clut->next;
+      mClutList = clut->mNext;
       free (&clut);
       }
     }
@@ -536,8 +559,8 @@ private:
   sClut* getClut (int clutId) {
 
     sClut* clut = mClutList;
-    while (clut && clut->id != clutId)
-      clut = clut->next;
+    while (clut && clut->mId != clutId)
+      clut = clut->mNext;
 
     return clut;
     }
@@ -1064,13 +1087,16 @@ private:
         display = display->mNext;
         }
 
-      if (!display)
-        display = (sRegionDisplay*)calloc (1, sizeof(*display));
+      if (!display) {
+        display = (sRegionDisplay*)malloc (sizeof(*display));
+        display->mNext = nullptr;
+        }
       display->mRegionId = regionId;
       display->xPos = AVRB16(buf); buf += 2;
       display->yPos = AVRB16(buf); buf += 2;
       *tmpPtr = display->mNext;
       display->mNext = mDisplayList;
+
       mDisplayList = display;
 
       if (mRegionDebug)
@@ -1157,18 +1183,19 @@ private:
 
       object->mType = (*buf) >> 6;
 
-      sObjectDisplay* display = (sObjectDisplay*)calloc (1, sizeof(*display));
-      display->mObjectId = objectId;
-      display->mRegionId = regionId;
-      display->xPos = AVRB16(buf) & 0xFFF; buf += 2;
-      display->yPos = AVRB16(buf) & 0xFFF; buf += 2;
+      int xpos = AVRB16(buf) & 0xFFF; buf += 2;
+      int ypos = AVRB16(buf) & 0xFFF; buf += 2;
+      auto display = (sObjectDisplay*)malloc (sizeof(sObjectDisplay));
+      display->init (objectId, regionId, xpos, ypos);
 
       if (display->xPos >= region->width ||
+        //{{{  error return
         display->yPos >= region->height) {
         cLog::log (LOGERROR, "Object outside region");
         free (display);
         return false;
         }
+        //}}}
 
       if (((object->mType == 1) || (object->mType == 2)) && (buf+1 < bufEnd)) {
         display->mForegroundColor = *buf++;
@@ -1200,14 +1227,14 @@ private:
     if (!clut) {
       clut = (sClut*)malloc (sizeof(*clut));
       memcpy (clut, &mDefaultClut, sizeof(*clut));
-      clut->id = clutId;
-      clut->version = -1;
-      clut->next = mClutList;
+      clut->mId = clutId;
+      clut->mVersion = -1;
+      clut->mNext = mClutList;
       mClutList = clut;
       }
 
-    if (clut->version != version) {
-      clut->version = version;
+    if (clut->mVersion != version) {
+      clut->mVersion = version;
       while (buf + 4 < bufEnd) {
         int entryId = *buf++;
         int depth = (*buf) & 0xe0;
@@ -1246,11 +1273,11 @@ private:
         int b = (y + bAdd) >> SCALEBITS;
 
         if (depth & 0x80 && entryId < 4)
-          clut->clut4[entryId] = RGBA(r, g, b, 0xFF - alpha);
+          clut->mClut4[entryId] = RGBA(r, g, b, 0xFF - alpha);
         else if (depth & 0x40 && entryId < 16)
-          clut->clut16[entryId] = RGBA(r, g, b, 0xFF - alpha);
+          clut->mClut16[entryId] = RGBA(r, g, b, 0xFF - alpha);
         else if (depth & 0x20)
-          clut->clut256[entryId] = RGBA(r, g, b, 0xFF - alpha);
+          clut->mClut256[entryId] = RGBA(r, g, b, 0xFF - alpha);
         if (mClutDebug)
           cLog::log (LOGINFO, "- clut depth:" + hex(depth) + " id:" + hex(entryId) +
                               " " + hex(r & 0xFF, 2) + ":" + hex(g & 0xFF, 2) + ":" + hex(b & 0xFF, 2) + ":" + hex(0xFF - alpha, 2));
@@ -1318,33 +1345,33 @@ private:
     int ddsVersion = infoByte >> 4;
 
     if (mDisplayDefinition &&
-        (mDisplayDefinition->version == ddsVersion))
+        (mDisplayDefinition->mVersion == ddsVersion))
       return true;
 
     if (!mDisplayDefinition)
       mDisplayDefinition = (sDisplayDefinition*)malloc (sizeof(*mDisplayDefinition));
-    mDisplayDefinition->version = ddsVersion;
-    mDisplayDefinition->x = 0;
-    mDisplayDefinition->y = 0;
-    mDisplayDefinition->width = AVRB16(buf) + 1; buf += 2;
-    mDisplayDefinition->height = AVRB16(buf) + 1; buf += 2;
+    mDisplayDefinition->mVersion = ddsVersion;
+    mDisplayDefinition->mX = 0;
+    mDisplayDefinition->mY = 0;
+    mDisplayDefinition->mWidth = AVRB16(buf) + 1; buf += 2;
+    mDisplayDefinition->mHeight = AVRB16(buf) + 1; buf += 2;
 
     if (infoByte & (1 << 3)) {
       // display_window_flag
       if (bufSize < 13)
         return false;
 
-      mDisplayDefinition->x = AVRB16(buf); buf += 2;
-      mDisplayDefinition->width  = AVRB16(buf) - mDisplayDefinition->x + 1; buf += 2;
-      mDisplayDefinition->y = AVRB16(buf); buf += 2;
-      mDisplayDefinition->height = AVRB16(buf) - mDisplayDefinition->y + 1; buf += 2;
+      mDisplayDefinition->mX = AVRB16(buf); buf += 2;
+      mDisplayDefinition->mWidth  = AVRB16(buf) - mDisplayDefinition->mX + 1; buf += 2;
+      mDisplayDefinition->mY = AVRB16(buf); buf += 2;
+      mDisplayDefinition->mHeight = AVRB16(buf) - mDisplayDefinition->mY + 1; buf += 2;
       }
 
     if (mDisplayDefnitionDebug)
-      cLog::log (LOGINFO, "- displayDefinition x:" + dec(mDisplayDefinition->x) +
-                          " y:" + dec(mDisplayDefinition->y) +
-                          " w:" + dec(mDisplayDefinition->width) +
-                          " h:" + dec(mDisplayDefinition->height));
+      cLog::log (LOGINFO, "- displayDefinition x:" + dec(mDisplayDefinition->mX) +
+                          " y:" + dec(mDisplayDefinition->mY) +
+                          " w:" + dec(mDisplayDefinition->mWidth) +
+                          " h:" + dec(mDisplayDefinition->mHeight));
     return true;
     }
   //}}}
@@ -1357,8 +1384,8 @@ private:
     int offsetX = 0;
     int offsetY = 0;
     if (mDisplayDefinition) {
-      offsetX = mDisplayDefinition->x;
-      offsetY = mDisplayDefinition->y;
+      offsetX = mDisplayDefinition->mX;
+      offsetY = mDisplayDefinition->mY;
       }
 
     for (sRegionDisplay* display = mDisplayList; display; display = display->mNext) {
@@ -1366,7 +1393,7 @@ private:
       if (!region || !region->dirty)
         continue;
 
-      auto subtitleRect = new cSubtitle::cRect();
+      auto subtitleRect = new cSubtitle::cRectData();
       subtitleRect->mX = display->xPos + offsetX;
       subtitleRect->mY = display->yPos + offsetY;
       subtitleRect->mWidth = region->width;
@@ -1380,14 +1407,14 @@ private:
 
       uint32_t* clutTable;
       switch (region->depth) {
-        case 2:  clutTable = clut->clut4; break;
-        case 4:  clutTable = clut->clut16; break;
-        case 8:  clutTable = clut->clut256; break;
-        default: clutTable = clut->clut16; break;
+        case 2:  clutTable = clut->mClut4; break;
+        case 4:  clutTable = clut->mClut16; break;
+        case 8:  clutTable = clut->mClut256; break;
+        default: clutTable = clut->mClut16; break;
         }
 
       subtitleRect->mClutData = (uint8_t*)malloc (1024);
-      memcpy (subtitleRect->mClutData, clutTable, (1 << region->depth) * sizeof(*clutTable));
+      memcpy (subtitleRect->mClutData, clutTable, int(1 << region->depth) * sizeof(*clutTable));
 
       subtitleRect->mPixelData = (uint8_t*)malloc (region->pixelBufSize);
       memcpy (subtitleRect->mPixelData, region->pixelBuf, region->pixelBufSize);
@@ -1408,6 +1435,7 @@ private:
   //}}}
 
   //  vars
+  //{{{  debug flags
   bool mBufferDebug = false;
   bool mSegmentDebug = false;
   bool mDisplayDefnitionDebug = false;
@@ -1415,7 +1443,7 @@ private:
   bool mBlockDebug = false;
   bool mRunDebug = false;
   bool mClutDebug = false;
-
+  //}}}
   int mVersion = 0;
   int mTimeOut = 0;
 
@@ -1428,6 +1456,4 @@ private:
   sObject* mObjectList = nullptr;
   sRegionDisplay* mDisplayList = nullptr;
   sDisplayDefinition* mDisplayDefinition = nullptr;
-
-  cSubtitle* mSubtitle;
   };
