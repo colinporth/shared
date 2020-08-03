@@ -1447,13 +1447,13 @@ private:
   int mVersion = 0;
   int mTimeOut = 0;
 
-  int mComputeClut = 0;
-  sClut mDefaultClut = { 0 };
-  int mClutCount2[257][256] = { 0 };
-
   sRegion* mRegionList = nullptr;
-  sClut* mClutList = nullptr;
   sObject* mObjectList = nullptr;
   sRegionDisplay* mDisplayList = nullptr;
   sDisplayDefinition* mDisplayDefinition = nullptr;
+
+  sClut* mClutList = nullptr;
+  int mComputeClut = 0;
+  sClut mDefaultClut = { 0 };
+  int mClutCount2[257][256] = { 0 };
   };
