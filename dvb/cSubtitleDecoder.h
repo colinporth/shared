@@ -1,6 +1,76 @@
 // cSubtitleDecoder.h
 #pragma once
 
+//{{{
+class cSubtitle {
+public:
+  //{{{
+  class cRectData {
+  public:
+    //{{{
+    ~cRectData() {
+      free (mPixelData);
+      free (mClutData);
+      }
+
+    //}}}
+
+    int mX = 0;
+    int mY = 0;
+    int mWidth = 0;
+    int mHeight = 0;
+
+    int mStride = 0;
+    uint8_t* mPixelData = nullptr;
+
+    int mNumColours = 0;
+    uint8_t* mClutData = nullptr;
+    };
+  //}}}
+
+  cSubtitle() {}
+  //{{{
+  ~cSubtitle() {
+    for (auto rect : mRects)
+      delete rect;
+    }
+  //}}}
+
+  //{{{
+  void debug() {
+
+    if (mRects.empty())
+      cLog::log (LOGINFO, "subtitle empty");
+    else
+      for (unsigned int i = 0; i < mRects.size(); i++) {
+        cLog::log (LOGINFO, "subtitle rect:" + dec(i) +
+                            " x:"  + dec(mRects[i]->mX) +
+                            " y:"  + dec(mRects[i]->mY) +
+                            " w:"  + dec(mRects[i]->mWidth) +
+                            " h:"  + dec(mRects[i]->mHeight) +
+                            " c:"  + dec(mRects[i]->mNumColours) +
+                            " l:"  + dec(mRects[i]->mStride));
+
+        int xStep = mRects[i]->mWidth / 80;
+        int yStep = mRects[i]->mHeight / 16;
+        for (int y = 0; y < mRects[i]->mHeight; y += yStep) {
+          uint8_t* p = mRects[i]->mPixelData + mRects[i]->mWidth;
+          std::string str = "  ";
+          for (int x = 0; x < mRects[i]->mWidth; x += xStep) {
+            int value = p[x];
+            str += value ? hex(value,1) : ".";
+            }
+          cLog::log (LOGINFO, str);
+          }
+        }
+    }
+  //}}}
+
+  // vars
+  std::vector <cRectData*> mRects;
+  };
+//}}}
+
 class cSubtitleDecoder {
 public:
   //{{{  defines
@@ -12,79 +82,103 @@ public:
   #define RGBA(r,g,b,a) (((unsigned)(a) << 24) | ((r) << 16) | ((g) << 8) | (b))
   //}}}
   //{{{
-  class cSubtitle {
-  public:
-    //{{{
-    class cRectData {
-    public:
-      //{{{
-      ~cRectData() {
-        free (mPixelData);
-        free (mClutData);
+  cSubtitleDecoder() {
+    mVersion = -1;
+
+    mDefaultClut.mId = -1;
+    mDefaultClut.mNext = NULL;
+    mDefaultClut.mClut4[0] = RGBA (  0,   0,   0,   0);
+    mDefaultClut.mClut4[1] = RGBA (255, 255, 255, 255);
+    mDefaultClut.mClut4[2] = RGBA (  0,   0,   0, 255);
+    mDefaultClut.mClut4[3] = RGBA (127, 127, 127, 255);
+    mDefaultClut.mClut16[0] = RGBA (0, 0, 0, 0);
+
+    int r = 0;
+    int g = 0;
+    int b = 0;
+    int a = 0;
+    for (int i = 1; i < 16; i++) {
+      if (i < 8) {
+        //{{{  set rgb
+        r = (i & 1) ? 255 : 0;
+        g = (i & 2) ? 255 : 0;
+        b = (i & 4) ? 255 : 0;
         }
-
-      //}}}
-
-      int mX = 0;
-      int mY = 0;
-      int mWidth = 0;
-      int mHeight = 0;
-
-      int mStride = 0;
-      uint8_t* mPixelData = nullptr;
-
-      int mNumColours = 0;
-      uint8_t* mClutData = nullptr;
-      };
-    //}}}
-
-    cSubtitle() {}
-    //{{{
-    ~cSubtitle() {
-      for (auto rect : mRects)
-        delete rect;
+        //}}}
+      else {
+        //{{{  set rgb
+        r = (i & 1) ? 127 : 0;
+        g = (i & 2) ? 127 : 0;
+        b = (i & 4) ? 127 : 0;
+        }
+        //}}}
+      mDefaultClut.mClut16[i] = RGBA (r, g, b, 255);
       }
-    //}}}
 
-    //{{{
-    void debug() {
-
-      if (mRects.empty())
-        cLog::log (LOGINFO, "subtitle empty");
-      else
-        for (unsigned int i = 0; i < mRects.size(); i++) {
-          cLog::log (LOGINFO, "subtitle rect:" + dec(i) +
-                              " x:"  + dec(mRects[i]->mX) +
-                              " y:"  + dec(mRects[i]->mY) +
-                              " w:"  + dec(mRects[i]->mWidth) +
-                              " h:"  + dec(mRects[i]->mHeight) +
-                              " c:"  + dec(mRects[i]->mNumColours) +
-                              " l:"  + dec(mRects[i]->mStride));
-
-          int xStep = mRects[i]->mWidth / 80;
-          int yStep = mRects[i]->mHeight / 16;
-          for (int y = 0; y < mRects[i]->mHeight; y += yStep) {
-            uint8_t* p = mRects[i]->mPixelData + mRects[i]->mWidth;
-            std::string str = "  ";
-            for (int x = 0; x < mRects[i]->mWidth; x += xStep) {
-              int value = p[x];
-              str += value ? hex(value,1) : ".";
-              }
-            cLog::log (LOGINFO, str);
-            }
+    mDefaultClut.mClut256[0] = RGBA (0, 0, 0, 0);
+    for (int i = 1; i < 256; i++) {
+      if (i < 8) {
+        //{{{  set rgb
+        r = (i & 1) ? 255 : 0;
+        g = (i & 2) ? 255 : 0;
+        b = (i & 4) ? 255 : 0;
+        a = 63;
+        }
+        //}}}
+      else {
+        switch (i & 0x88) {
+          case 0x00:
+            //{{{  set rgba
+            r = ((i & 1) ? 85 : 0) + ((i & 0x10) ? 170 : 0);
+            g = ((i & 2) ? 85 : 0) + ((i & 0x20) ? 170 : 0);
+            b = ((i & 4) ? 85 : 0) + ((i & 0x40) ? 170 : 0);
+            a = 255;
+            break;
+            //}}}
+          case 0x08:
+            //{{{  set rgba
+            r = ((i & 1) ? 85 : 0) + ((i & 0x10) ? 170 : 0);
+            g = ((i & 2) ? 85 : 0) + ((i & 0x20) ? 170 : 0);
+            b = ((i & 4) ? 85 : 0) + ((i & 0x40) ? 170 : 0);
+            a = 127;
+            break;
+            //}}}
+          case 0x80:
+            //{{{  set rgba
+            r = 127 + ((i & 1) ? 43 : 0) + ((i & 0x10) ? 85 : 0);
+            g = 127 + ((i & 2) ? 43 : 0) + ((i & 0x20) ? 85 : 0);
+            b = 127 + ((i & 4) ? 43 : 0) + ((i & 0x40) ? 85 : 0);
+            a = 255;
+            break;
+            //}}}
+          case 0x88:
+            //{{{  set rgba
+            r = ((i & 1) ? 43 : 0) + ((i & 0x10) ? 85 : 0);
+            g = ((i & 2) ? 43 : 0) + ((i & 0x20) ? 85 : 0);
+            b = ((i & 4) ? 43 : 0) + ((i & 0x40) ? 85 : 0);
+            a = 255;
+            break;
+            //}}}
           }
+        }
+      mDefaultClut.mClut256[i] = RGBA(r, g, b, a);
       }
-    //}}}
-
-    // vars
-    std::vector <cRectData*> mRects;
-    };
+    }
   //}}}
-
-  cSubtitleDecoder() {}
   //{{{
   ~cSubtitleDecoder() {
-    //closeDecoder();
+
+    deleteRegions();
+    deleteObjects();
+    deleteCluts();
+
+    free (mDisplayDefinition);
+
+    while (mDisplayList) {
+      sRegionDisplay* display = mDisplayList;
+      mDisplayList = display->mNext;
+      free (display);
+      }
     }
   //}}}
 
@@ -137,7 +231,8 @@ public:
 
         case 0x12:
           if (!parseClut (bufPtr, segmentLength))
-            return nullptr;  break;
+            return nullptr;
+          break;
 
         case 0x13:
           if (!parseObject (bufPtr, segmentLength))
@@ -374,94 +469,6 @@ private:
       }
     }
   //}}}
-  //{{{
-  int initDecoder() {
-
-    //if (substream < 0) {
-    mVersion = -1;
-
-    mDefaultClut.mId = -1;
-    mDefaultClut.mNext = NULL;
-    mDefaultClut.mClut4[0] = RGBA (  0,   0,   0,   0);
-    mDefaultClut.mClut4[1] = RGBA (255, 255, 255, 255);
-    mDefaultClut.mClut4[2] = RGBA (  0,   0,   0, 255);
-    mDefaultClut.mClut4[3] = RGBA (127, 127, 127, 255);
-    mDefaultClut.mClut16[0] = RGBA (0, 0, 0, 0);
-
-    int r = 0;
-    int g = 0;
-    int b = 0;
-    int a = 0;
-    for (int i = 1; i < 16; i++) {
-      if (i < 8) {
-        //{{{  set rgb
-        r = (i & 1) ? 255 : 0;
-        g = (i & 2) ? 255 : 0;
-        b = (i & 4) ? 255 : 0;
-        }
-        //}}}
-      else {
-        //{{{  set rgb
-        r = (i & 1) ? 127 : 0;
-        g = (i & 2) ? 127 : 0;
-        b = (i & 4) ? 127 : 0;
-        }
-        //}}}
-      mDefaultClut.mClut16[i] = RGBA (r, g, b, 255);
-      }
-
-    mDefaultClut.mClut256[0] = RGBA (0, 0, 0, 0);
-    for (int i = 1; i < 256; i++) {
-      if (i < 8) {
-        //{{{  set rgb
-        r = (i & 1) ? 255 : 0;
-        g = (i & 2) ? 255 : 0;
-        b = (i & 4) ? 255 : 0;
-        a = 63;
-        }
-        //}}}
-      else {
-        switch (i & 0x88) {
-          case 0x00:
-            //{{{  set rgba
-            r = ((i & 1) ? 85 : 0) + ((i & 0x10) ? 170 : 0);
-            g = ((i & 2) ? 85 : 0) + ((i & 0x20) ? 170 : 0);
-            b = ((i & 4) ? 85 : 0) + ((i & 0x40) ? 170 : 0);
-            a = 255;
-            break;
-            //}}}
-          case 0x08:
-            //{{{  set rgba
-            r = ((i & 1) ? 85 : 0) + ((i & 0x10) ? 170 : 0);
-            g = ((i & 2) ? 85 : 0) + ((i & 0x20) ? 170 : 0);
-            b = ((i & 4) ? 85 : 0) + ((i & 0x40) ? 170 : 0);
-            a = 127;
-            break;
-            //}}}
-          case 0x80:
-            //{{{  set rgba
-            r = 127 + ((i & 1) ? 43 : 0) + ((i & 0x10) ? 85 : 0);
-            g = 127 + ((i & 2) ? 43 : 0) + ((i & 0x20) ? 85 : 0);
-            b = 127 + ((i & 4) ? 43 : 0) + ((i & 0x40) ? 85 : 0);
-            a = 255;
-            break;
-            //}}}
-          case 0x88:
-            //{{{  set rgba
-            r = ((i & 1) ? 43 : 0) + ((i & 0x10) ? 85 : 0);
-            g = ((i & 2) ? 43 : 0) + ((i & 0x20) ? 85 : 0);
-            b = ((i & 4) ? 43 : 0) + ((i & 0x40) ? 85 : 0);
-            a = 255;
-            break;
-            //}}}
-          }
-        }
-      mDefaultClut.mClut256[i] = RGBA(r, g, b, a);
-      }
-
-    return 0;
-    }
-  //}}}
 
   //{{{
   void deleteRegionDisplayList (sRegion* region) {
@@ -492,14 +499,14 @@ private:
               }
 
             *obj2Ptr = obj2->mNext;
-            free (&obj2);
+            free (obj2);
             }
           }
         }
 
       region->mDisplayList = display->mRegionListNext;
 
-      free (&display);
+      free (display);
       }
 
     }
@@ -513,8 +520,8 @@ private:
       mRegionList = region->next;
       deleteRegionDisplayList (region);
 
-      free (&region->pixelBuf);
-      free (&region);
+      free (region->pixelBuf);
+      free (region);
       }
     }
   //}}}
@@ -524,7 +531,7 @@ private:
     while (mObjectList) {
       sObject* object = mObjectList;
       mObjectList = object->mNext;
-      free (&object);
+      free (object);
       }
     }
   //}}}
@@ -534,23 +541,7 @@ private:
     while (mClutList) {
       sClut* clut = mClutList;
       mClutList = clut->mNext;
-      free (&clut);
-      }
-    }
-  //}}}
-  //{{{
-  void closeDecoder() {
-
-    deleteRegions();
-    deleteObjects();
-    deleteCluts();
-
-    free (&mDisplayDefinition);
-
-    while (mDisplayList) {
-      sRegionDisplay* display = mDisplayList;
-      mDisplayList = display->mNext;
-      free (&display);
+      free (clut);
       }
     }
   //}}}
@@ -587,9 +578,8 @@ private:
   //}}}
 
   //{{{
-  int parse2bitString (uint8_t* dstBuf, int dstBufSize,
-                       const uint8_t** srcBuf, int srcBufSize,
-                       int nonModifyingColor, uint8_t* mapTable, int xPos) {
+  int parse2bit (uint8_t* dstBuf, int dstBufSize, const uint8_t** srcBuf, int srcBufSize,
+                 int nonModifyingColor, uint8_t* mapTable, int xPos) {
 
     int dstPixels = xPos;
     dstBuf += xPos;
@@ -704,9 +694,8 @@ private:
     }
   //}}}
   //{{{
-  int parse4bitString (uint8_t* dstBuf, int dstBufSize,
-                       const uint8_t** srcBuf, int srcBufSize,
-                       int nonModifyingColor, uint8_t* mapTable, int xPos) {
+  int parse4bit (uint8_t* dstBuf, int dstBufSize, const uint8_t** srcBuf, int srcBufSize,
+                 int nonModifyingColor, uint8_t* mapTable, int xPos) {
 
     dstBuf += xPos;
     int dstPixels = xPos;
@@ -859,9 +848,8 @@ private:
     }
   //}}}
   //{{{
-  int parse8bitString (uint8_t* dstBuf, int dstBufSize,
-                       const uint8_t** srcBuf, int srcBufSize,
-                       int nonModifyingColor, uint8_t* mapTable, int xPos) {
+  int parse8bit (uint8_t* dstBuf, int dstBufSize, const uint8_t** srcBuf, int srcBufSize,
+                 int nonModifyingColor, uint8_t* mapTable, int xPos) {
 
     const uint8_t* srcBufEnd = (*srcBuf) + srcBufSize;
     int dstPixels = xPos;
@@ -909,7 +897,8 @@ private:
     }
   //}}}
   //{{{
-  void parseBlock (sObjectDisplay* display, const uint8_t* buf, int bufSize, bool bottom, int nonModifyingColor) {
+  void parseObjectBlock (sObjectDisplay* display, const uint8_t* buf, int bufSize, 
+                         bool bottom, int nonModifyingColor) {
 
     const uint8_t* bufEnd = buf + bufSize;
     if (mBlockDebug) {
@@ -966,8 +955,8 @@ private:
           else
             mapTable = NULL;
 
-          xPos = parse2bitString (pixelBuf + (yPos * region->width), region->width,
-                                  &buf, int(bufEnd - buf), nonModifyingColor, mapTable, xPos);
+          xPos = parse2bit (pixelBuf + (yPos * region->width), region->width,
+                            &buf, int(bufEnd - buf), nonModifyingColor, mapTable, xPos);
           break;
         //}}}
         //{{{
@@ -982,8 +971,8 @@ private:
           else
             mapTable = NULL;
 
-          xPos = parse4bitString (pixelBuf + (yPos * region->width), region->width,
-                                  &buf, int(bufEnd - buf), nonModifyingColor, mapTable, xPos);
+          xPos = parse4bit (pixelBuf + (yPos * region->width), region->width,
+                            &buf, int(bufEnd - buf), nonModifyingColor, mapTable, xPos);
           break;
         //}}}
         //{{{
@@ -994,8 +983,8 @@ private:
             return;
             }
 
-          xPos = parse8bitString (pixelBuf + (yPos * region->width), region->width,
-                                  &buf, int(bufEnd - buf), nonModifyingColor, NULL, xPos);
+          xPos = parse8bit (pixelBuf + (yPos * region->width), region->width,
+                            &buf, int(bufEnd - buf), nonModifyingColor, NULL, xPos);
             break;
         //}}}
         //{{{
@@ -1106,7 +1095,7 @@ private:
     while (tmpDisplayList) {
       sRegionDisplay* display = tmpDisplayList;
       tmpDisplayList = display->mNext;
-      free (&display);
+      free (display);
       }
 
     return true;
@@ -1316,14 +1305,14 @@ private:
 
       for (auto display = object->mDisplayList; display; display = display->mObjectListNext) {
         const uint8_t* block = buf;
-        parseBlock (display, block, topFieldLen, false, nonModifyingColor);
+        parseObjectBlock (display, block, topFieldLen, false, nonModifyingColor);
 
         int bfl = bottomFieldLen;
         if (bottomFieldLen > 0)
           block = buf + topFieldLen;
         else
           bfl = topFieldLen;
-        parseBlock (display, block, bfl, true, nonModifyingColor);
+        parseObjectBlock (display, block, bfl, true, nonModifyingColor);
         }
       }
     else

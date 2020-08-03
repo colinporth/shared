@@ -5,8 +5,8 @@
 
 #include "cSubtitleDecoder.h"
 //}}}
-const bool kSubtitleDebug = false;
-const bool kSubtitleDecodeDebug = false;
+const bool kSubtitleDebug = true;
+const bool kSubtitleDecodeDebug = true;
 
 class cDumpTransportStream : public cTransportStream {
   public:
@@ -108,7 +108,6 @@ class cDumpTransportStream : public cTransportStream {
         if (subtitle)
           subtitle->debug();
         delete subtitle;
-        //subCloseDecoder (&context);
         }
 
       return false;
