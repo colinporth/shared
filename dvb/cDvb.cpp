@@ -756,40 +756,42 @@ cDvb::cDvb (int frequency, const string& root,
             const std::vector <std::string>& recordNames)
     : cDumpTransportStream (root, channelNames, recordNames) {
 
-  #ifdef _WIN32
-    // windows create and tune
-    if (createGraph (frequency * 1000))
-      mTuneStr = "tuned " + dec (frequency, 3) + "Mhz";
-    else
-      mTuneStr = "not tuned " + dec (frequency, 3) + "Mhz";
+  if (frequency) {
+    #ifdef _WIN32
+      // windows create and tune
+      if (createGraph (frequency * 1000))
+        mTuneStr = "tuned " + dec (frequency, 3) + "Mhz";
+      else
+        mTuneStr = "not tuned " + dec (frequency, 3) + "Mhz";
 
-  #else
-    // linux create and tune
-    mBipBuffer = new cBipBuffer();
-    mBipBuffer->allocateBuffer (2048 * 128 * 188); // 50m - T2 5m a second
+    #else
+      // linux create and tune
+      mBipBuffer = new cBipBuffer();
+      mBipBuffer->allocateBuffer (2048 * 128 * 188); // 50m - T2 5m a second
 
-    // frontend nonBlocking rw
-    mFrontEnd = open ("/dev/dvb/adapter0/frontend0", O_RDWR | O_NONBLOCK);
-    if (mFrontEnd < 0){
-      cLog::log (LOGERROR, "open frontend failed");
-      return;
-      }
-    tune (frequency * 1000000);
+      // frontend nonBlocking rw
+      mFrontEnd = open ("/dev/dvb/adapter0/frontend0", O_RDWR | O_NONBLOCK);
+      if (mFrontEnd < 0){
+        cLog::log (LOGERROR, "open frontend failed");
+        return;
+        }
+      tune (frequency * 1000000);
 
-    // demux nonBlocking rw
-    mDemux = open ("/dev/dvb/adapter0/demux0", O_RDWR | O_NONBLOCK);
-    if (mDemux < 0) {
-      cLog::log (LOGERROR, "open demux failed");
-      return;
-      }
-    setTsFilter (8192, DMX_PES_OTHER);
+      // demux nonBlocking rw
+      mDemux = open ("/dev/dvb/adapter0/demux0", O_RDWR | O_NONBLOCK);
+      if (mDemux < 0) {
+        cLog::log (LOGERROR, "open demux failed");
+        return;
+        }
+      setTsFilter (8192, DMX_PES_OTHER);
 
-    // dvr blocking reads
-    mDvr = open ("/dev/dvb/adapter0/dvr0", O_RDONLY);
-    if (mDvr < 0)
-      cLog::log (LOGERROR, "open dvr failed");
+      // dvr blocking reads
+      mDvr = open ("/dev/dvb/adapter0/dvr0", O_RDONLY);
+      if (mDvr < 0)
+        cLog::log (LOGERROR, "open dvr failed");
 
-  #endif
+    #endif
+    }
   };
 //}}}
 //{{{
@@ -797,9 +799,12 @@ cDvb::~cDvb() {
 
   #ifndef _WIN32
     // linux
-    close (mDvr);
-    close (mDemux);
-  close (mFrontEnd);
+    if (mDvr)
+      close (mDvr);
+    if (mDemux)
+      close (mDemux);
+    if (mFrontEnd)
+      close (mFrontEnd);
   #endif
   }
 //}}}
@@ -1129,5 +1134,38 @@ void cDvb::grabThread() {
   #endif
 
   cLog::log (LOGINFO, "exit");
+  }
+//}}}
+//{{{
+void cDvb::readThread (const std::string& fileName) {
+
+  cLog::setThreadName ("read");
+
+  auto file = fopen (fileName.c_str(), "rb");
+  if (!file) {
+    //{{{  error, return
+    cLog::log (LOGERROR, "no file " + fileName);
+    return;
+    }
+    //}}}
+
+  uint64_t streamPos = 0;
+  auto blockSize = 188 * 8;
+  auto buffer = (uint8_t*)malloc (blockSize);
+
+  bool run = true;
+  while (run) {
+    size_t bytesRead = fread (buffer, 1, blockSize, file);
+    if (bytesRead > 0)
+      streamPos += demux (buffer, bytesRead, streamPos, false, -1, -1);
+    else
+      break;
+    mErrorStr = dec(getErrors());
+    }
+
+  fclose (file);
+  free (buffer);
+
+  cLog::log (LOGERROR, "exit");
   }
 //}}}

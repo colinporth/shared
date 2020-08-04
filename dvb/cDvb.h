@@ -8,7 +8,7 @@
 
 class cDvb : public cDumpTransportStream {
 public:
-  cDvb (int frequency, const std::string& root, 
+  cDvb (int frequency, const std::string& root,
         const std::vector<std::string>& channelNames, const std::vector<std::string>& recordNames);
 
   virtual ~cDvb();
@@ -17,6 +17,7 @@ public:
 
   void captureThread();
   void grabThread();
+  void readThread (const std::string& fileName);
 
   // public for widget observe
   std::string mErrorStr = "waiting";

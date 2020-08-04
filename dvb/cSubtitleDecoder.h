@@ -1333,7 +1333,7 @@ private:
     }
   //}}}
   //{{{
-  bool parseDisplayDefinition (const uint8_t *buf, int bufSize) {
+  bool parseDisplayDefinition (const uint8_t* buf, int bufSize) {
 
     if (mSegmentDebug)
       cLog::log (LOGINFO, "displayDefinition segment");
