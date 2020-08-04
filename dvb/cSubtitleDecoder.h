@@ -89,86 +89,87 @@ public:
   //{{{
   cSubtitleDecoder() {
     mVersion = -1;
-
     mDefaultClut.mId = -1;
-    mDefaultClut.mNext = NULL;
-
+    //{{{  init 2bit clut
     mDefaultClut.mClut4[0] = RGBA (  0,   0,   0,   0);
     mDefaultClut.mClut4[1] = RGBA (255, 255, 255, 255);
     mDefaultClut.mClut4[2] = RGBA (  0,   0,   0, 255);
     mDefaultClut.mClut4[3] = RGBA (127, 127, 127, 255);
+    //}}}
+    //{{{  init 4bit clut
     mDefaultClut.mClut16[0] = RGBA (0, 0, 0, 0);
 
-    int r = 0;
-    int g = 0;
-    int b = 0;
-    int a = 0;
-    for (int i = 1; i < 16; i++) {
-      if (i < 8) {
-        //{{{  set rgb
-        r = (i & 1) ? 255 : 0;
-        g = (i & 2) ? 255 : 0;
-        b = (i & 4) ? 255 : 0;
-        }
-        //}}}
-      else {
-        //{{{  set rgb
-        r = (i & 1) ? 127 : 0;
-        g = (i & 2) ? 127 : 0;
-        b = (i & 4) ? 127 : 0;
-        }
-        //}}}
-      mDefaultClut.mClut16[i] = RGBA (r, g, b, 255);
-      }
+    for (int i = 1; i <= 0x0F; i++) {
+      int r;
+      int g;
+      int b;
+      int a = 0xFF;
 
-    mDefaultClut.mClut256[0] = RGBA (0, 0, 0, 0);
-    for (int i = 1; i < 256; i++) {
       if (i < 8) {
-        //{{{  set rgb
-        r = (i & 1) ? 255 : 0;
-        g = (i & 2) ? 255 : 0;
-        b = (i & 4) ? 255 : 0;
-        a = 63;
+        r = (i & 1) ? 0xFF : 0;
+        g = (i & 2) ? 0xFF : 0;
+        b = (i & 4) ? 0xFF : 0;
         }
-        //}}}
       else {
+        r = (i & 1) ? 0x7F : 0;
+        g = (i & 2) ? 0x7F : 0;
+        b = (i & 4) ? 0x7F : 0;
+        }
+
+      mDefaultClut.mClut16[i] = RGBA (r, g, b, a);
+      }
+    //}}}
+    //{{{  init 8bit clut
+    mDefaultClut.mClut256[0] = RGBA (0, 0, 0, 0);
+
+    for (int i = 1; i <= 0xFF; i++) {
+      int r;
+      int g;
+      int b;
+      int a;
+
+      if (i < 8) {
+        r = (i & 1) ? 0xFF : 0;
+        g = (i & 2) ? 0xFF : 0;
+        b = (i & 4) ? 0xFF : 0;
+        a = 0x3F;
+        }
+
+      else
         switch (i & 0x88) {
           case 0x00:
-            //{{{  set rgba
             r = ((i & 1) ? 85 : 0) + ((i & 0x10) ? 170 : 0);
             g = ((i & 2) ? 85 : 0) + ((i & 0x20) ? 170 : 0);
             b = ((i & 4) ? 85 : 0) + ((i & 0x40) ? 170 : 0);
-            a = 255;
+            a = 0xFF;
             break;
-            //}}}
+
           case 0x08:
-            //{{{  set rgba
             r = ((i & 1) ? 85 : 0) + ((i & 0x10) ? 170 : 0);
             g = ((i & 2) ? 85 : 0) + ((i & 0x20) ? 170 : 0);
             b = ((i & 4) ? 85 : 0) + ((i & 0x40) ? 170 : 0);
-            a = 127;
+            a = 0x7F;
             break;
-            //}}}
+
           case 0x80:
-            //{{{  set rgba
             r = 127 + ((i & 1) ? 43 : 0) + ((i & 0x10) ? 85 : 0);
             g = 127 + ((i & 2) ? 43 : 0) + ((i & 0x20) ? 85 : 0);
             b = 127 + ((i & 4) ? 43 : 0) + ((i & 0x40) ? 85 : 0);
-            a = 255;
+            a = 0xFF;
             break;
-            //}}}
+
           case 0x88:
-            //{{{  set rgba
             r = ((i & 1) ? 43 : 0) + ((i & 0x10) ? 85 : 0);
             g = ((i & 2) ? 43 : 0) + ((i & 0x20) ? 85 : 0);
             b = ((i & 4) ? 43 : 0) + ((i & 0x40) ? 85 : 0);
-            a = 255;
+            a = 0xFF;
             break;
-            //}}}
           }
-        }
+
       mDefaultClut.mClut256[i] = RGBA(r, g, b, a);
       }
+    //}}}
+    mDefaultClut.mNext = NULL;
     }
   //}}}
   //{{{
@@ -409,74 +410,6 @@ private:
   //}}}
 
   //{{{
-  void initDefaultClut (uint8_t* clut, cSubtitle::cRectData* rect, int w, int h) {
-
-    uint8_t list[256] = { 0 };
-    uint8_t listInv[256];
-    int counttab[256] = { 0 };
-    int (*counttab2)[256] = mClutCount2;
-
-    int count, i, x, y;
-
-    memset (mClutCount2, 0, sizeof(mClutCount2));
-
-    #define V(x,y) rect->mPixelData[(x) + (y)*rect->mWidth]
-
-    for (y = 0; y < h; y++) {
-      for (x = 0; x < w; x++) {
-        int v = V(x,y) + 1;
-        int vl = x     ? V(x-1,y) + 1 : 0;
-        int vr = x+1<w ? V(x+1,y) + 1 : 0;
-        int vt = y     ? V(x,y-1) + 1 : 0;
-        int vb = y+1<h ? V(x,y+1) + 1 : 0;
-        counttab[v-1] += !!((v!=vl) + (v!=vr) + (v!=vt) + (v!=vb));
-        counttab2[vl][v-1] ++;
-        counttab2[vr][v-1] ++;
-        counttab2[vt][v-1] ++;
-        counttab2[vb][v-1] ++;
-        }
-      }
-
-    for (i = 0; i < 256; i++)
-      counttab2[i+1][i] = 0;
-
-    for (i = 0; i < 256; i++) {
-      int bestscore = 0;
-      int bestv = 0;
-
-      for (x = 0; x < 256; x++) {
-        int scorev = 0;
-        if (list[x])
-          continue;
-        scorev += counttab2[0][x];
-        for (y = 0; y < 256; y++)
-          scorev += list[y] * counttab2[y+1][x];
-
-        if (scorev) {
-          int score = 1024LL * scorev / counttab[x];
-          if (score > bestscore) {
-            bestscore = score;
-            bestv = x;
-            }
-          }
-        }
-
-      if (!bestscore)
-        break;
-      list[bestv] = 1;
-      listInv[i] = bestv;
-      }
-
-    count = std::max(i - 1, 1);
-    for (i--; i >= 0; i--) {
-      int v = i * 255 / count;
-      //AV_WN32 (clut + 4*listInv[i], RGBA(v/2,v,v/2,v));
-      *(clut + 4*listInv[i]) = RGBA(v/2,v,v/2,v);
-      }
-    }
-  //}}}
-
-  //{{{
   void deleteRegionDisplayList (sRegion* region) {
 
     while (region->mDisplayList) {
@@ -711,7 +644,8 @@ private:
     cBitStream bitStream (*buf, bufSize);
     while ((bitStream.getBitsRead() < (bufSize * 8)) && (dstPixels < dstBufSize)) {
       int bits = bitStream.getBits (4);
-      if (mRunDebug) str += "[4b:" + hex(bits,1);
+      if (mRunDebug)
+        str += "[4b:" + hex(bits,1);
 
       if (bits) {
         if (nonModifyColor != 1 || bits != 1)
@@ -1034,7 +968,7 @@ private:
   //{{{
   bool parsePage (const uint8_t* buf, int bufSize) {
 
-    if (mSegmentDebug)
+    if (mSegmentDebug || mPageDebug)
       cLog::log (LOGINFO, "page");
 
     if (bufSize < 1)
@@ -1049,8 +983,8 @@ private:
     mVersion = pageVersion;
     int pageState = ((*buf++) >> 2) & 3;
 
-    if (mSegmentDebug)
-      cLog::log (LOGINFO, "- timeOut:%d state:%d", mTimeOut, pageState);
+    if (mSegmentDebug || mPageDebug)
+      cLog::log (LOGINFO, "- timeOut:" + dec(mTimeOut) + " state:" + dec(pageState));
 
     if ((pageState == 1) || (pageState == 2)) {
       //{{{  delete regions, objects, cluts
@@ -1094,8 +1028,9 @@ private:
 
       mDisplayList = display;
 
-      if (mRegionDebug)
-        cLog::log (LOGINFO, "- region:%d x:%d y:%d", regionId, display->xPos, display->yPos);
+      if (mPageDebug)
+        cLog::log (LOGINFO, "- regionId:" + dec(regionId) +
+                            " " + dec(display->xPos) + "," + dec(display->yPos));
       }
 
     while (tmpDisplayList) {
@@ -1212,7 +1147,7 @@ private:
   //{{{
   bool parseClut (const uint8_t* buf, int bufSize) {
 
-    if (mSegmentDebug)
+    if (mSegmentDebug || mClutDebug)
       cLog::log (LOGINFO, "clut segment");
 
     const uint8_t* bufEnd = buf + bufSize;
@@ -1235,49 +1170,62 @@ private:
       while (buf + 4 < bufEnd) {
         int entryId = *buf++;
         int depth = (*buf) & 0xe0;
-        if (depth == 0)
+        if (depth == 0) {
+          //{{{  error return
           cLog::log (LOGERROR, "Invalid clut depth 0x%x!n", *buf);
+          return false;
+          }
+          //}}}
 
         int y, cr, cb, alpha;
         int fullRange = (*buf++) & 1;
         if (fullRange) {
           //{{{  full range
-          y     = *buf++;
-          cr    = *buf++;
-          cb    = *buf++;
+          y = *buf++;
+          cr = *buf++;
+          cb = *buf++;
           alpha = *buf++;
           }
           //}}}
         else {
-          //{{{  not full range
+          //{{{  not full range, ??? should lsb's be extended into mask ???
           y = buf[0] & 0xFC;
-          cr = (((buf[0] & 3) << 2) | ((buf[1] >> 6) & 3)) << 4;
+          cr = (((buf[0] & 3) << 2) | (((buf[1] >> 6) & 3)) << 4);
           cb = (buf[1] << 2) & 0xF0;
           alpha = (buf[1] << 6) & 0xC0;
-
           buf += 2;
           }
           //}}}
         if (y == 0)
           alpha = 0xff;
 
-        int rAdd = FIX(1.40200*255.0/224.0) * (cr - 128) + ONE_HALF;
-        int gAdd = - FIX(0.34414*255.0/224.0) * (cb - 128) - FIX(0.71414*255.0/224.0) * (cr - 128) + ONE_HALF;
-        int bAdd = FIX(1.77200*255.0/224.0) * (cb - 128) + ONE_HALF;
+        int rAdd = FIX(1.40200 * 255.0 / 224.0) * (cr - 128) + ONE_HALF;
+        int gAdd = -FIX(0.34414 * 255.0 / 224.0) * (cb - 128) - FIX(0.71414*255.0/224.0) * (cr - 128) + ONE_HALF;
+        int bAdd = FIX(1.77200 * 255.0 / 224.0) * (cb - 128) + ONE_HALF;
         y = (y - 16) * FIX(255.0 / 219.0);
         int r = (y + rAdd) >> SCALEBITS;
         int g = (y + gAdd) >> SCALEBITS;
         int b = (y + bAdd) >> SCALEBITS;
 
-        if (depth & 0x80 && entryId < 4)
+        if ((depth & 0x80) && (entryId < 4))
           clut->mClut4[entryId] = RGBA(r, g, b, 0xFF - alpha);
-        else if (depth & 0x40 && entryId < 16)
+        else if ((depth & 0x40) && (entryId < 16))
           clut->mClut16[entryId] = RGBA(r, g, b, 0xFF - alpha);
         else if (depth & 0x20)
           clut->mClut256[entryId] = RGBA(r, g, b, 0xFF - alpha);
+        else
+          cLog::log (LOGERROR, "clut error depth:" + hex(depth) + " entryId:" + hex(entryId));
         if (mClutDebug)
-          cLog::log (LOGINFO, "- clut depth:" + hex(depth) + " id:" + hex(entryId) +
-                              " " + hex(r & 0xFF, 2) + ":" + hex(g & 0xFF, 2) + ":" + hex(b & 0xFF, 2) + ":" + hex(0xFF - alpha, 2));
+          cLog::log (LOGINFO, "- depth:" + hex(depth) +
+                              " id:" + hex(entryId) +
+                              (fullRange == 1 ? " fullRange" : "") +
+                              " y:" + hex(y & 0xFF, 2) +
+                              " cr:" + hex(cr & 0xFF, 2) +
+                              " cb:" + hex(cb & 0xFF, 2) +
+                              " r:" + hex(r & 0xFF, 2) +
+                              " g:" + hex(g & 0xFF, 2) +
+                              " b:" + hex(b & 0xFF, 2) +
+                              " a:" + hex(0xFF - alpha, 2));
         }
       }
 
@@ -1332,7 +1280,7 @@ private:
   //{{{
   bool parseDisplayDefinition (const uint8_t* buf, int bufSize) {
 
-    if (mSegmentDebug)
+    if (mSegmentDebug || mDisplayDefinitionDebug)
       cLog::log (LOGINFO, "displayDefinition segment");
 
     if (bufSize < 5)
@@ -1353,8 +1301,8 @@ private:
     mDisplayDefinition->mWidth = AVRB16(buf) + 1; buf += 2;
     mDisplayDefinition->mHeight = AVRB16(buf) + 1; buf += 2;
 
-    if (infoByte & (1 << 3)) {
-      // display_window_flag
+    int displayWindow = infoByte & (1 << 3);
+    if (displayWindow) {
       if (bufSize < 13)
         return false;
 
@@ -1364,8 +1312,9 @@ private:
       mDisplayDefinition->mHeight = AVRB16(buf) - mDisplayDefinition->mY + 1; buf += 2;
       }
 
-    if (mDisplayDefnitionDebug)
-      cLog::log (LOGINFO, "- displayDefinition x:" + dec(mDisplayDefinition->mX) +
+    if (mDisplayDefinitionDebug)
+      cLog::log (LOGINFO, std::string(displayWindow != 0 ? "window" : "") +
+                          " x:" + dec(mDisplayDefinition->mX) +
                           " y:" + dec(mDisplayDefinition->mY) +
                           " w:" + dec(mDisplayDefinition->mWidth) +
                           " h:" + dec(mDisplayDefinition->mHeight));
@@ -1428,13 +1377,13 @@ private:
 
   //  vars
   //{{{  debug flags
-  bool mBufferDebug = false;
-  bool mSegmentDebug = false;
-  bool mDisplayDefnitionDebug = false;
-  bool mRegionDebug = false;
-  bool mBlockDebug = false;
-  bool mRunDebug = false;
-  bool mClutDebug = false;
+  const bool mBufferDebug = false;
+  const bool mSegmentDebug = false;
+  const bool mDisplayDefinitionDebug = false;
+  const bool mPageDebug = false;
+  const bool mBlockDebug = false;
+  const bool mRunDebug = false;
+  const bool mClutDebug = false;
   //}}}
   int mVersion = 0;
   int mTimeOut = 0;
