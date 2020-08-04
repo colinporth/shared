@@ -1338,39 +1338,41 @@ private:
       if (!region || !region->dirty)
         continue;
 
-      if (i+1 > subtitle->mRects.size())
+      if (i >= subtitle->mRects.size())
         subtitle->mRects.push_back (new cSubtitle::cRectData());
+
       subtitle->mRects[i]->mX = display->xPos + offsetX;
       subtitle->mRects[i]->mY = display->yPos + offsetY;
       subtitle->mRects[i]->mWidth = region->width;
       subtitle->mRects[i]->mHeight = region->height;
       subtitle->mRects[i]->mNumColours = 1 << region->depth;
 
-      auto clut = getClut(region->clut);
+      auto clut = getClut (region->clut);
       if (!clut)
         clut = &mDefaultClut;
 
       subtitle->mRects[i]->mPixelData = (uint8_t*)realloc (subtitle->mRects[i]->mPixelData, region->pixelBufSize * 4);
       uint32_t* ptr = (uint32_t*) (subtitle->mRects[i]->mPixelData);
-      switch (region->depth) {
-        case 2:
-          for (int i = 0; i < region->pixelBufSize; i++)
-            *ptr++ = clut->mClut4[region->pixelBuf[i]];
-          break;
-        case 4:
-          for (int i = 0; i < region->pixelBufSize; i++)
-            *ptr++ = clut->mClut16[region->pixelBuf[i]];
-          break;
-        case 8:
-          for (int i = 0; i < region->pixelBufSize; i++)
-            *ptr++ = clut->mClut256[region->pixelBuf[i]];
-          break;
-        default:
-          cLog::log (LOGERROR, "unknown depth:" + dec(region->depth));
-        }
+      for (int pix = 0; pix < region->pixelBufSize; pix++)
+        switch (region->depth) {
+          case 2:
+            *ptr++ = clut->mClut4[region->pixelBuf[pix]];
+            break;
+          case 4:
+            *ptr++ = clut->mClut16[region->pixelBuf[pix]];
+            break;
+          case 8:
+            *ptr++ = clut->mClut256[region->pixelBuf[pix]];
+            break;
+          default:
+            cLog::log (LOGERROR, "unknown depth:" + dec(region->depth));
+          }
+
       subtitle->mChanged = true;
       i++;
       }
+
+    // !!! should remove or disable unused rects !!!
     return true;
     }
   //}}}

@@ -12,40 +12,42 @@ class cSubtitleWidget : public cWidget {
 public:
   cSubtitleWidget (cSubtitle& subtitle, float height, float width)
     : cWidget(width, height), mSubtitle(subtitle)  {}
-  virtual ~cSubtitleWidget() {}
+
+  virtual ~cSubtitleWidget() {
+    // should delete images, no context pointer ???
+    }
 
   void onDraw (iDraw* draw) {
 
+    float y = mY;
     if (!mSubtitle.mRects.empty()) {
-      //int i = int(mSubtitle.mRects.size()) - 1;
-      int i = 0;
-      int subWidth = mSubtitle.mRects[i]->mWidth;
-      int subHeight = mSubtitle.mRects[i]->mHeight;
-
-      mScale = float(mWidth) / subWidth;
-      float dstWidth = mWidth;
-      float dstHeight = subHeight * mScale;
-
       auto context = draw->getContext();
-      int imageFlags = 0; //cVg::IMAGE_GENERATE_MIPMAPS;
-      if (mImage == -1)
-        mImage = context->createImageRGBA (mSubtitle.mRects[i]->mWidth, mSubtitle.mRects[i]->mHeight,
-                                           imageFlags, mSubtitle.mRects[i]->mPixelData);
-      else if (mSubtitle.mChanged)
-        context->updateImage (mImage, mSubtitle.mRects[i]->mPixelData);
-      mSubtitle.mChanged = false;
 
-      auto imgPaint = context->imagePattern (0, 0, dstWidth, dstHeight, 0.f, mImage, 1.f);
-      context->beginPath();
-      context->rect (mX, mX, dstWidth, dstHeight);
-      context->fillPaint (imgPaint);
-      context->fill();
+      for (unsigned int i = 0; i < mSubtitle.mRects.size(); i++) {
+        int subWidth = mSubtitle.mRects[i]->mWidth;
+        int subHeight = mSubtitle.mRects[i]->mHeight;
+
+        float dstWidth = mWidth;
+        float dstHeight = float(subHeight * mWidth) / subWidth;
+
+        if (mImage[i] == -1)
+          mImage[i] = context->createImageRGBA (subWidth, subHeight, 0, mSubtitle.mRects[i]->mPixelData);
+        else if (mSubtitle.mChanged)
+          context->updateImage (mImage[i], mSubtitle.mRects[i]->mPixelData);
+
+        auto imgPaint = context->imagePattern (mX, y, dstWidth, dstHeight, 0.f, mImage[i], 1.f);
+        context->beginPath();
+        context->rect (mX, y, dstWidth, dstHeight);
+        context->fillPaint (imgPaint);
+        context->fill();
+        y += dstHeight;
+        }
       }
+    mSubtitle.mChanged = false;
     }
 
 private:
   cSubtitle& mSubtitle;
 
-  int mImage = -1;
-  float mScale = 1.f;
+  int mImage[2] =  { -1 };
   };
