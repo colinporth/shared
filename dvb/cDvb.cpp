@@ -749,6 +749,8 @@ namespace { // anonymous
   }
 #endif
 
+cSubtitleDecoder decoder;
+
 // public:
 //{{{
 cDvb::cDvb (int frequency, const string& root,
@@ -1153,8 +1155,13 @@ void cDvb::readThread (const std::string& fileName) {
   auto blockSize = 188 * 8;
   auto buffer = (uint8_t*)malloc (blockSize);
 
+  int i = 0;
   bool run = true;
   while (run) {
+    i++;
+    if (!(i % 100))
+      this_thread::sleep_for (20ms);
+
     size_t bytesRead = fread (buffer, 1, blockSize, file);
     if (bytesRead > 0)
       streamPos += demux (buffer, bytesRead, streamPos, false, -1, -1);
@@ -1167,5 +1174,19 @@ void cDvb::readThread (const std::string& fileName) {
   free (buffer);
 
   cLog::log (LOGERROR, "exit");
+  }
+//}}}
+
+// protected
+//{{{
+bool cDvb::subDecodePes (cPidInfo* pidInfo) {
+
+  cLog::log (LOGINFO, "cDvb - subDecodePes - pts:" + getPtsString (pidInfo->mPts) +
+                      " size:" + dec(pidInfo->getBufUsed(),4) +
+                      " sid:" + dec(pidInfo->mPid));
+  decoder.decode (pidInfo->mBuffer, pidInfo->getBufUsed(), &mSubtitle);
+  mSubtitle.debug ("- ");
+
+  return false;
   }
 //}}}

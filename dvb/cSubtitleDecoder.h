@@ -10,7 +10,6 @@ public:
     //{{{
     ~cRectData() {
       free (mPixelData);
-      free (mClutData);
       }
 
     //}}}
@@ -20,11 +19,8 @@ public:
     int mWidth = 0;
     int mHeight = 0;
 
-    int mStride = 0;
-    uint8_t* mPixelData = nullptr;
-
     int mNumColours = 0;
-    uint8_t* mClutData = nullptr;
+    uint8_t* mPixelData = nullptr;
     };
   //}}}
 
@@ -49,8 +45,7 @@ public:
                             " y:"  + dec(mRects[i]->mY) +
                             " w:"  + dec(mRects[i]->mWidth) +
                             " h:"  + dec(mRects[i]->mHeight) +
-                            " c:"  + dec(mRects[i]->mNumColours) +
-                            " l:"  + dec(mRects[i]->mStride));
+                            " c:"  + dec(mRects[i]->mNumColours));
         }
     }
   //}}}
@@ -76,6 +71,7 @@ public:
 
   // vars
   std::vector <cRectData*> mRects;
+  bool mChanged = false;
   };
 //}}}
 
@@ -87,7 +83,8 @@ public:
   #define SCALEBITS 10
   #define ONE_HALF  (1 << (SCALEBITS - 1))
   #define FIX(x)    ((int) ((x) * (1<<SCALEBITS) + 0.5))
-  #define RGBA(r,g,b,a) (((unsigned)(a) << 24) | ((r) << 16) | ((g) << 8) | (b))
+  //#define RGBA(r,g,b,a) (((unsigned)(a) << 24) | ((r) << 16) | ((g) << 8) | (b))
+  #define RGBA(r,g,b,a) (((unsigned)(a) << 24) | ((b) << 16) | ((g) << 8) | (r))
   //}}}
   //{{{
   cSubtitleDecoder() {
@@ -192,7 +189,7 @@ public:
   //}}}
 
   //{{{
-  cSubtitle* decode (const uint8_t* buf, int bufSize) {
+  bool decode (const uint8_t* buf, int bufSize, cSubtitle* subtitle) {
   // return new cSubtitle if succesful
 
     // skip past first 2 bytes
@@ -223,38 +220,39 @@ public:
       if (bufEnd - bufPtr < segmentLength) {
         //{{{  error return
         cLog::log (LOGERROR, "incomplete or broken packet");
-        return nullptr;
+        return false;
         }
         //}}}
 
       switch (segmentType) {
         case 0x10:
           if (!parsePage (bufPtr, segmentLength))
-            return nullptr;
+            return false;
           break;
 
         case 0x11:
           if (!parseRegion (bufPtr, segmentLength))
-            return nullptr;
+            return false;
           break;
 
         case 0x12:
           if (!parseClut (bufPtr, segmentLength))
-            return nullptr;
+            return false;
           break;
 
         case 0x13:
           if (!parseObject (bufPtr, segmentLength))
-            return nullptr;
+            return false;
           break;
 
         case 0x14:
           if (!parseDisplayDefinition (bufPtr, segmentLength))
-            return nullptr;
+            return false;
           break;
 
         case 0x80:
-          return createSubtitle();
+          updateSubtitle (subtitle);
+          return true;
 
         default:
           cLog::log (LOGERROR, "unknown seg:%x, pageId:%d, size:%d", segmentType, pageId, segmentLength);
@@ -264,7 +262,7 @@ public:
       bufPtr += segmentLength;
       }
 
-    return nullptr;
+    return false;
     }
   //}}}
 
@@ -419,11 +417,10 @@ private:
     int (*counttab2)[256] = mClutCount2;
 
     int count, i, x, y;
-    ptrdiff_t stride = rect->mStride;
 
     memset (mClutCount2, 0, sizeof(mClutCount2));
 
-    #define V(x,y) rect->mPixelData[(x) + (y)*stride]
+    #define V(x,y) rect->mPixelData[(x) + (y)*rect->mWidth]
 
     for (y = 0; y < h; y++) {
       for (x = 0; x < w; x++) {
@@ -1377,9 +1374,7 @@ private:
   //}}}
 
   //{{{
-  cSubtitle* createSubtitle() {
-
-    auto subtitle = new cSubtitle();
+  bool updateSubtitle (cSubtitle* subtitle) {
 
     int offsetX = 0;
     int offsetY = 0;
@@ -1388,49 +1383,46 @@ private:
       offsetY = mDisplayDefinition->mY;
       }
 
+    int i = 0;
     for (sRegionDisplay* display = mDisplayList; display; display = display->mNext) {
       sRegion* region = getRegion (display->mRegionId);
       if (!region || !region->dirty)
         continue;
 
-      auto subtitleRect = new cSubtitle::cRectData();
-      subtitleRect->mX = display->xPos + offsetX;
-      subtitleRect->mY = display->yPos + offsetY;
-      subtitleRect->mWidth = region->width;
-      subtitleRect->mHeight = region->height;
-      subtitleRect->mNumColours = 1 << region->depth;
-      subtitleRect->mStride = region->width;
+      if (i+1 > subtitle->mRects.size())
+        subtitle->mRects.push_back (new cSubtitle::cRectData());
+      subtitle->mRects[i]->mX = display->xPos + offsetX;
+      subtitle->mRects[i]->mY = display->yPos + offsetY;
+      subtitle->mRects[i]->mWidth = region->width;
+      subtitle->mRects[i]->mHeight = region->height;
+      subtitle->mRects[i]->mNumColours = 1 << region->depth;
 
-      auto clut = getClut (region->clut);
+      auto clut = getClut(region->clut);
       if (!clut)
         clut = &mDefaultClut;
 
-      uint32_t* clutTable;
+      subtitle->mRects[i]->mPixelData = (uint8_t*)realloc (subtitle->mRects[i]->mPixelData, region->pixelBufSize * 4);
+      uint32_t* ptr = (uint32_t*) (subtitle->mRects[i]->mPixelData);
       switch (region->depth) {
-        case 2:  clutTable = clut->mClut4; break;
-        case 4:  clutTable = clut->mClut16; break;
-        case 8:  clutTable = clut->mClut256; break;
-        default: clutTable = clut->mClut16; break;
+        case 2:
+          for (int i = 0; i < region->pixelBufSize; i++)
+            *ptr++ = clut->mClut4[region->pixelBuf[i]];
+          break;
+        case 4:
+          for (int i = 0; i < region->pixelBufSize; i++)
+            *ptr++ = clut->mClut16[region->pixelBuf[i]];
+          break;
+        case 8:
+          for (int i = 0; i < region->pixelBufSize; i++)
+            *ptr++ = clut->mClut256[region->pixelBuf[i]];
+          break;
+        default:
+          cLog::log (LOGERROR, "unknown depth:" + dec(region->depth));
         }
-
-      subtitleRect->mClutData = (uint8_t*)malloc (1024);
-      memcpy (subtitleRect->mClutData, clutTable, int(1 << region->depth) * sizeof(*clutTable));
-
-      subtitleRect->mPixelData = (uint8_t*)malloc (region->pixelBufSize);
-      memcpy (subtitleRect->mPixelData, region->pixelBuf, region->pixelBufSize);
-
-      if (((clut == &mDefaultClut) && (mComputeClut == -1)) || (mComputeClut == 1)) {
-        if (!region->hasComputedClut) {
-          initDefaultClut (region->computedClut, subtitleRect, subtitleRect->mWidth, subtitleRect->mHeight);
-          region->hasComputedClut = 1;
-          }
-        memcpy (subtitleRect->mClutData, region->computedClut, sizeof(region->computedClut));
-        }
-
-      subtitle->mRects.push_back (subtitleRect);
+      subtitle->mChanged = true;
+      i++;
       }
-
-    return subtitle;
+    return true;
     }
   //}}}
 
@@ -1453,7 +1445,6 @@ private:
   sDisplayDefinition* mDisplayDefinition = nullptr;
 
   sClut* mClutList = nullptr;
-  int mComputeClut = 0;
   sClut mDefaultClut = { 0 };
   int mClutCount2[257][256] = { 0 };
   };

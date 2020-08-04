@@ -4,6 +4,7 @@
 #include <string>
 
 #include "cDumpTransportStream.h"
+#include "cSubtitleDecoder.h"
 //}}}
 
 class cDvb : public cDumpTransportStream {
@@ -23,4 +24,9 @@ public:
   std::string mErrorStr = "waiting";
   std::string mTuneStr = "untuned";
   std::string mSignalStr = "no signal";
+
+  cSubtitle mSubtitle;
+
+protected:
+  virtual bool subDecodePes (cPidInfo* pidInfo);
   };

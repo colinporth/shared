@@ -21,7 +21,7 @@ class cDumpTransportStream : public cTransportStream {
 
   protected:
     //{{{
-    void start (cService* service, const std::string& name,
+    virtual void start (cService* service, const std::string& name,
                 std::chrono::system_clock::time_point time,
                 std::chrono::system_clock::time_point starttime,
                 bool selected) {
@@ -62,7 +62,7 @@ class cDumpTransportStream : public cTransportStream {
       }
     //}}}
     //{{{
-    void pesPacket (int sid, int pid, uint8_t* ts) {
+    virtual void pesPacket (int sid, int pid, uint8_t* ts) {
     // look up service and write it
 
       std::lock_guard<std::mutex> lockGuard (mFileMutex);
@@ -73,7 +73,7 @@ class cDumpTransportStream : public cTransportStream {
       }
     //}}}
     //{{{
-    void stop (cService* service) {
+    virtual void stop (cService* service) {
 
       std::lock_guard<std::mutex> lockGuard (mFileMutex);
 
@@ -82,14 +82,14 @@ class cDumpTransportStream : public cTransportStream {
     //}}}
 
     //{{{
-    bool audDecodePes (cPidInfo* pidInfo, bool skip) {
+    virtual bool audDecodePes (cPidInfo* pidInfo, bool skip) {
 
       //cLog::log (LOGINFO, getPtsString (pidInfo->mPts) + " a - " + dec(pidInfo->getBufUsed());
       return false;
       }
     //}}}
     //{{{
-    bool vidDecodePes (cPidInfo* pidInfo, bool skip) {
+    virtual bool vidDecodePes (cPidInfo* pidInfo, bool skip) {
 
       //cLog::log (LOGINFO, getPtsString (pidInfo->mPts) + " v - " + dec(pidInfo->getBufUsed());
 
@@ -97,7 +97,7 @@ class cDumpTransportStream : public cTransportStream {
       }
     //}}}
     //{{{
-    bool subDecodePes (cPidInfo* pidInfo) {
+    virtual bool subDecodePes (cPidInfo* pidInfo) {
 
       if (kSubtitleDebug)
         cLog::log (LOGINFO, "subDecodePes - pts:" + getPtsString (pidInfo->mPts) +
@@ -105,12 +105,12 @@ class cDumpTransportStream : public cTransportStream {
                             " sid:" + dec(pidInfo->mPid));
 
       cSubtitleDecoder decoder;
-      auto subtitle = decoder.decode (pidInfo->mBuffer, pidInfo->getBufUsed());
+      cSubtitle subtitle;
+      decoder.decode (pidInfo->mBuffer, pidInfo->getBufUsed(), &subtitle);
       if (kSubtitleDebug)
-        subtitle->debug ("- ");
-      if (kSubtitleDecodeDebug && subtitle)
-        subtitle->moreDebug();
-      delete subtitle;
+        subtitle.debug ("- ");
+      if (kSubtitleDecodeDebug)
+        subtitle.moreDebug();
 
       return false;
       }
