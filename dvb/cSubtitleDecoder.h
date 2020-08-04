@@ -43,7 +43,7 @@ public:
       cLog::log (LOGINFO, "subtitle empty");
     else
       for (unsigned int i = 0; i < mRects.size(); i++) {
-        cLog::log (LOGINFO, prefix + 
+        cLog::log (LOGINFO, prefix +
                             "rect:" + dec(i) +
                             " x:"  + dec(mRects[i]->mX) +
                             " y:"  + dec(mRects[i]->mY) +
@@ -499,16 +499,16 @@ private:
           *objDispPtr = objDisp->mObjectListNext;
 
           if (!object->mDisplayList) {
-            sObject** obj2Ptr = &mObjectList;
-            sObject* obj2 = *obj2Ptr;
+            sObject** object2Ptr = &mObjectList;
+            sObject* object2 = *object2Ptr;
 
-            while (obj2 != object) {
-              obj2Ptr = &obj2->mNext;
-              obj2 = *obj2Ptr;
+            while (object2 != object) {
+              object2Ptr = &object2->mNext;
+              object2 = *object2Ptr;
               }
 
-            *obj2Ptr = obj2->mNext;
-            free (obj2);
+            *object2Ptr = object2->mNext;
+            free (object2);
             }
           }
         }
@@ -559,7 +559,7 @@ private:
   sClut* getClut (int clutId) {
 
     sClut* clut = mClutList;
-    while (clut && clut->mId != clutId)
+    while (clut && (clut->mId != clutId))
       clut = clut->mNext;
 
     return clut;
@@ -569,7 +569,7 @@ private:
   sObject* getObject (int objectId) {
 
     sObject* object = mObjectList;
-    while (object && object->mId != objectId)
+    while (object && (object->mId != objectId))
       object = object->mNext;
 
     return object;
@@ -579,7 +579,7 @@ private:
   sRegion* getRegion (int regionId) {
 
     sRegion* ptr = mRegionList;
-    while (ptr && ptr->mId != regionId)
+    while (ptr && (ptr->mId != regionId))
       ptr = ptr->next;
 
     return ptr;
@@ -588,7 +588,7 @@ private:
 
   //{{{
   int parse2bit (const uint8_t** buf, int bufSize, uint8_t* dstBuf, int dstBufSize,
-                 int nonModifyColor, uint8_t* mapTable, int xPos) {
+                 int nonModifyColor, int xPos, uint8_t* mapTable) {
 
     dstBuf += xPos;
     int dstPixels = xPos;
@@ -704,7 +704,7 @@ private:
   //}}}
   //{{{
   int parse4bit (const uint8_t** buf, int bufSize, uint8_t* dstBuf, int dstBufSize,
-                 int nonModifyColor, uint8_t* mapTable, int xPos) {
+                 int nonModifyColor, int xPos, uint8_t* mapTable) {
 
     dstBuf += xPos;
     int dstPixels = xPos;
@@ -859,7 +859,7 @@ private:
   //}}}
   //{{{
   int parse8bit (const uint8_t** buf, int bufSize, uint8_t* dstBuf, int dstBufSize,
-                 int nonModifyColor, uint8_t* mapTable, int xPos) {
+                 int nonModifyColor, int xPos) {
 
     dstBuf += xPos;
     int dstPixels = xPos;
@@ -868,12 +868,8 @@ private:
     while ((*buf < bufEnd) && (dstPixels < dstBufSize)) {
       int bits = *(*buf)++;
       if (bits) {
-        if (nonModifyColor != 1 || bits != 1) {
-          if (mapTable)
-            *dstBuf++ = mapTable[bits];
-          else
-            *dstBuf++ = bits;
-          }
+        if (nonModifyColor != 1 || bits != 1)
+          *dstBuf++ = bits;
         dstPixels++;
         }
       else {
@@ -890,8 +886,6 @@ private:
         if ((nonModifyColor == 1) && (bits == 1))
           dstPixels += runLength;
         else {
-          if (mapTable)
-            bits = mapTable[bits];
           while (runLength-- > 0 && dstPixels < dstBufSize) {
             *dstBuf++ = bits;
             dstPixels++;
@@ -949,13 +943,19 @@ private:
     int yPos = display->yPos + (bottom ? 1 : 0);
 
     while (buf < bufEnd) {
-      if (((*buf != 0xF0) && (xPos >= region->width)) || (yPos >= region->height)) {
-        cLog::log (LOGERROR, "invalid object location %d-%d %d-%d %02x",
+      if (((*buf != 0xF0) && (xPos >= region->width)) ||
+          (yPos >= region->height)) {
+        //{{{  error return
+        cLog::log (LOGERROR, "invalid object location %d %d %d %d %02x",
                               xPos, region->width, yPos, region->height, *buf);
         return;
         }
+        //}}}
 
-      switch (*buf++) {
+      int type = *buf++;
+      int bufLeft = int(bufEnd - buf);
+      uint8_t* pixelPtr = pixelBuf + (yPos * region->width);
+      switch (type) {
         //{{{
         case 0x10: // 2 bit
           if (region->depth == 8)
@@ -965,9 +965,7 @@ private:
           else
             mapTable = NULL;
 
-          xPos = parse2bit (&buf, int(bufEnd - buf),
-                            pixelBuf + (yPos * region->width), region->width,
-                            nonModifyColor, mapTable, xPos);
+          xPos = parse2bit (&buf, bufLeft, pixelPtr, region->width, nonModifyColor, xPos, mapTable);
           break;
         //}}}
         //{{{
@@ -982,9 +980,7 @@ private:
           else
             mapTable = NULL;
 
-          xPos = parse4bit (&buf, int(bufEnd - buf),
-                            pixelBuf + (yPos * region->width), region->width,
-                            nonModifyColor, mapTable, xPos);
+          xPos = parse4bit (&buf, bufLeft, pixelPtr, region->width, nonModifyColor, xPos, mapTable);
           break;
         //}}}
         //{{{
@@ -995,10 +991,8 @@ private:
             return;
             }
 
-          xPos = parse8bit (&buf, int(bufEnd - buf),
-                            pixelBuf + (yPos * region->width), region->width,
-                            nonModifyColor, NULL, xPos);
-            break;
+          xPos = parse8bit (&buf, bufLeft, pixelPtr, region->width, nonModifyColor, xPos);
+          break;
         //}}}
         //{{{
         case 0x20: // map 2 to 4
@@ -1031,7 +1025,7 @@ private:
           break;
         //}}}
         default:
-          cLog::log (LOGINFO, "unknownblock %x", *(buf-1));
+          cLog::log (LOGINFO, "unknown objectBlock %x", type);
           break;
         }
       }
@@ -1062,10 +1056,12 @@ private:
       cLog::log (LOGINFO, "- timeOut:%d state:%d", mTimeOut, pageState);
 
     if ((pageState == 1) || (pageState == 2)) {
+      //{{{  delete regions, objects, cluts
       deleteRegions();
       deleteObjects();
       deleteCluts();
       }
+      //}}}
 
     sRegionDisplay* tmpDisplayList = mDisplayList;
     mDisplayList = NULL;
@@ -1106,10 +1102,12 @@ private:
       }
 
     while (tmpDisplayList) {
+      //{{{  free tmpDisplayList
       sRegionDisplay* display = tmpDisplayList;
       tmpDisplayList = display->mNext;
       free (display);
       }
+      //}}}
 
     return true;
     }
