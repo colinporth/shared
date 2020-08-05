@@ -343,7 +343,7 @@ public:
   //{{{
   struct cPaint {
     //{{{
-    void set (sVgColour color) {
+    void set (const sVgColour& color) {
 
       mTransform.setIdentity();
 
@@ -401,12 +401,12 @@ public:
   enum eLineCap { eBUTT, eROUND, eSQUARE, eBEVEL, eMITER };
   enum eShapeCommands { eMOVETO, eLINETO, eBEZIERTO, eWINDING, eCLOSE };
 
-  void fillColor (sVgColour color);
+  void fillColor (const sVgColour& color);
   void fillPaint (const cPaint& paint);
   void globalAlpha (float alpha);
 
   void strokeWidth (float size);
-  void strokeColor (sVgColour color);
+  void strokeColor (const sVgColour& color);
   void strokePaint (const cPaint& paint);
 
   void fringeWidth (float width);
@@ -416,9 +416,9 @@ public:
   void lineCap (eLineCap cap);
   void lineJoin (eLineCap join);
 
-  cPaint linearGradient (float sx, float sy, float ex, float ey, sVgColour icol, sVgColour ocol);
-  cPaint boxGradient (float x, float y, float w, float h, float r, float f, sVgColour icol, sVgColour ocol);
-  cPaint radialGradient (float cx, float cy, float inr, float outr, sVgColour icol, sVgColour ocol);
+  cPaint linearGradient (float sx, float sy, float ex, float ey, const sVgColour& icol, const sVgColour& ocol);
+  cPaint boxGradient (float x, float y, float w, float h, float r, float f, const sVgColour& icol, const sVgColour& ocol);
+  cPaint radialGradient (float cx, float cy, float inr, float outr, const sVgColour& icol, const sVgColour& ocol);
   cPaint imagePattern (float ox, float oy, float ex, float ey, float angle, int image, float alpha);
 
   void beginPath();
@@ -765,8 +765,8 @@ private:
       struct {
         float scissorMatrix[12]; // 3vec4's
         float paintMatrix[12];   // 3vec4's
-        struct sVgColour innerColor;
-        struct sVgColour outerColor;
+        sVgColour innerColor;
+        sVgColour outerColor;
         float scissorExt[2];
         float scissorScale[2];
         float extent[2];

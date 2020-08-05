@@ -1040,6 +1040,7 @@ private:
     int regionId = *buf++;
     sRegion* region = getRegion (regionId);
     if (!region) {
+      //{{{  allocate and init region
       region = (sRegion*)malloc (sizeof(sRegion));
       region->mNext = mRegionList;
       region->mId = regionId;
@@ -1047,8 +1048,8 @@ private:
 
       region->mWidth = 0;
       region->mHeight = 0;
-      region->mDepth =0 ;
-      region->mClut = 0;;
+      region->mDepth = 0;
+      region->mClut = 0;
       region->mBackgroundColour = 0;
 
       region->mDirty = false;
@@ -1056,10 +1057,9 @@ private:
       region->mPixBuf = nullptr;
 
       region->mDisplayList = nullptr;
-
+      //}}}
       mRegionList = region;
       }
-
     region->mVersion = ((*buf) >> 4) & 0x0F;
 
     bool fill = ((*buf++) >> 3) & 1;
@@ -1103,14 +1103,15 @@ private:
 
       sObject* object = getObject (objectId);
       if (!object) {
+        //{{{  allocate and init object
         object = (sObject*)malloc (sizeof(sObject));
         object->mId = objectId;
+        object->mType = 0;
         object->mNext = mObjectList;
         object->mDisplayList = nullptr;
-
+        //}}}
         mObjectList = object;
         }
-
       object->mType = (*buf) >> 6;
 
       int xpos = AVRB16(buf) & 0xFFF; buf += 2;

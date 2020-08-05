@@ -3,6 +3,7 @@
 #pragma once
 
 #include "../utils/cLog.h"
+#include "../dvb/cDvb.h"
 #include "../dvb/cSubtitleDecoder.h"
 
 #include "cWidget.h"
@@ -10,8 +11,8 @@
 
 class cSubtitleWidget : public cWidget {
 public:
-  cSubtitleWidget (cSubtitle& subtitle, float height, float width)
-    : cWidget(width, height), mSubtitle(subtitle)  {}
+  cSubtitleWidget (cDvb* dvb, float height, float width)
+    : cWidget(width, height), mDvb(dvb)  {}
 
   virtual ~cSubtitleWidget() {
     // should delete images, no context pointer ???
@@ -19,35 +20,42 @@ public:
 
   void onDraw (iDraw* draw) {
 
-    if (!mSubtitle.mRects.empty()) {
-      auto context = draw->getContext();
+    auto context = draw->getContext();
+    int numServices = mDvb->getNumServices();
 
-      float y = mY;
-      for (unsigned int i = 0; i < mSubtitle.mRects.size(); i++) {
-        int subWidth = mSubtitle.mRects[i]->mWidth;
-        int subHeight = mSubtitle.mRects[i]->mHeight;
+    int widgetLine = 0;
+    float y = mY;
+    for (int serviceIndex = 0; serviceIndex < numServices; serviceIndex++) {
+      cSubtitle* subtitle = mDvb->getSubtitle (serviceIndex);
+      if (subtitle) {
+        if (!subtitle->mRects.empty()) {
+          for (size_t subtitleLine = 0; subtitleLine < subtitle->mRects.size(); subtitleLine++) {
+            int subWidth = subtitle->mRects[subtitleLine]->mWidth;
+            int subHeight = subtitle->mRects[subtitleLine]->mHeight;
 
-        float dstWidth = mWidth;
-        float dstHeight = float(subHeight * mWidth) / subWidth;
+            float dstWidth = mWidth;
+            float dstHeight = float(subHeight * mWidth) / subWidth;
 
-        if (mImage[i] == -1)
-          mImage[i] = context->createImageRGBA (subWidth, subHeight, 0, mSubtitle.mRects[i]->mPixData);
-        else if (mSubtitle.mChanged)
-          context->updateImage (mImage[i], mSubtitle.mRects[i]->mPixData);
+            if (mImage[widgetLine] == -1)
+              mImage[widgetLine] = context->createImageRGBA (subWidth, subHeight, 0, subtitle->mRects[subtitleLine]->mPixData);
+            else if (subtitle->mChanged)
+              context->updateImage (mImage[widgetLine], subtitle->mRects[subtitleLine]->mPixData);
 
-        auto imgPaint = context->imagePattern (mX, y, dstWidth, dstHeight, 0.f, mImage[i], 1.f);
-        context->beginPath();
-        context->rect (mX, y, dstWidth, dstHeight);
-        context->fillPaint (imgPaint);
-        context->fill();
-        y += dstHeight;
+            auto imgPaint = context->imagePattern (mX, y, dstWidth, dstHeight, 0.f, mImage[widgetLine], 1.f);
+            context->beginPath();
+            context->rect (mX, y, dstWidth, dstHeight);
+            context->fillPaint (imgPaint);
+            context->fill();
+            y += dstHeight;
+            widgetLine++;
+            }
+          }
+        subtitle->mChanged = false;
         }
       }
-    mSubtitle.mChanged = false;
     }
 
 private:
-  cSubtitle& mSubtitle;
-
-  int mImage[2] =  { -1 };
+  cDvb* mDvb;
+  int mImage[20] =  { -1 };
   };

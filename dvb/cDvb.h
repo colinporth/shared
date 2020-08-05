@@ -2,6 +2,7 @@
 //{{{  includes
 #pragma once
 #include <string>
+#include <map>
 
 #include "cDumpTransportStream.h"
 #include "cSubtitleDecoder.h"
@@ -14,6 +15,9 @@ public:
 
   virtual ~cDvb();
 
+  int getNumServices();
+  cSubtitle* getSubtitle (int serviceIndex);
+
   void tune (int frequency);
 
   void captureThread();
@@ -24,8 +28,6 @@ public:
   std::string mErrorStr = "waiting";
   std::string mTuneStr = "untuned";
   std::string mSignalStr = "no signal";
-
-  cSubtitle mSubtitle;
 
 protected:
   virtual bool subDecodePes (cPidInfo* pidInfo);

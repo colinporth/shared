@@ -2039,8 +2039,8 @@ void cVg::rotate (float angle) {
 //}}}
 //}}}
 //{{{  shape
-void cVg::fillColor (sVgColour color) { mStates[mNumStates-1].fillPaint.set (color); }
-void cVg::strokeColor (sVgColour color) { mStates[mNumStates-1].strokePaint.set (color); }
+void cVg::fillColor (const sVgColour& color) { mStates[mNumStates-1].fillPaint.set (color); }
+void cVg::strokeColor (const sVgColour& color) { mStates[mNumStates-1].strokePaint.set (color); }
 void cVg::strokeWidth (float width) { mStates[mNumStates-1].strokeWidth = width; }
 void cVg::globalAlpha (float alpha) { mStates[mNumStates-1].alpha = alpha; }
 //{{{
@@ -2059,7 +2059,7 @@ void cVg::lineJoin (eLineCap join) { mStates[mNumStates-1].lineJoin = join; }
 void cVg::lineCap (eLineCap cap) { mStates[mNumStates-1].lineCap = cap; }
 
 //{{{
-cVg::cPaint cVg::linearGradient (float sx, float sy, float ex, float ey, sVgColour icol, sVgColour ocol) {
+cVg::cPaint cVg::linearGradient (float sx, float sy, float ex, float ey, const sVgColour& icol, const sVgColour& ocol) {
 
   // Calculate transform aligned to the line
   float dx = ex - sx;
@@ -2089,7 +2089,7 @@ cVg::cPaint cVg::linearGradient (float sx, float sy, float ex, float ey, sVgColo
   }
 //}}}
 //{{{
-cVg::cPaint cVg::radialGradient (float cx, float cy, float inr, float outr, sVgColour icol, sVgColour ocol) {
+cVg::cPaint cVg::radialGradient (float cx, float cy, float inr, float outr, const sVgColour& icol, const sVgColour& ocol) {
 
   float r = (inr + outr) * 0.5f;
   float f = (outr - inr);
@@ -2108,7 +2108,7 @@ cVg::cPaint cVg::radialGradient (float cx, float cy, float inr, float outr, sVgC
   }
 //}}}
 //{{{
-cVg::cPaint cVg::boxGradient (float x, float y, float w, float h, float r, float f, sVgColour icol, sVgColour ocol) {
+cVg::cPaint cVg::boxGradient (float x, float y, float w, float h, float r, float f, const sVgColour& icol, const sVgColour& ocol) {
 
   cPaint p;
   p.mTransform.setTranslate (x + w * 0.5f, y + h * 0.5f);
