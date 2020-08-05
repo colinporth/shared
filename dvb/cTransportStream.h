@@ -194,7 +194,7 @@ public:
   uint64_t getErrors() { return mErrors; }
   std::chrono::system_clock::time_point getTime() { return mTime; }
 
-  std::string getChannelInfoBySid (int sid);
+  std::string getChannelStringBySid (int sid);
   cService* getService (int index, int64_t& firstPts, int64_t& lastPts);
   static char getFrameType (uint8_t* pesBuf, int64_t pesBufSize, int streamType);
 

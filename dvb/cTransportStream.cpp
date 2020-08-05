@@ -732,14 +732,13 @@ void cService::writeSection (uint8_t* ts, uint8_t* tsSectionStart, uint8_t* tsPt
 
 // public
 //{{{
-std::string cTransportStream::getChannelInfoBySid (int sid) {
+std::string cTransportStream::getChannelStringBySid (int sid) {
 
   auto it = mServiceMap.find (sid);
-  if (it != mServiceMap.end()) {
-    if (it->second.getChannelString().empty())
-      return dec(sid) + ":" + it->second.getChannelString();
-    }
-  return dec(sid) + ":unknown";
+  if (it == mServiceMap.end())
+    return "";
+  else
+    return it->second.getChannelString();
   }
 //}}}
 //{{{
@@ -1469,7 +1468,7 @@ void cTransportStream::parseSdt (cPidInfo* pidInfo, uint8_t* buf) {
             auto it = mServiceMap.find (sid);
             if (it != mServiceMap.end()) {
               if (it->second.getChannelString().empty()) {
-                cLog::log (LOGINFO, dec(sid) +  " " + name);
+                cLog::log (LOGINFO, "SDT named sid:" + dec(sid) +  " " + name);
                 it->second.setChannelString (name);
                 }
               }

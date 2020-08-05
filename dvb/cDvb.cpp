@@ -1222,10 +1222,11 @@ void cDvb::readThread (const std::string& fileName) {
 bool cDvb::subDecodePes (cPidInfo* pidInfo) {
 
   //if (kDebug)
-    cLog::log (LOGINFO, "subtitle Pes pts:" + getPtsString (pidInfo->mPts) +
+    cLog::log (LOGINFO, "subtitle pid:" + dec(pidInfo->mPid,4) +
+                        " sid:" + dec(pidInfo->mSid,5) +
                         " size:" + dec(pidInfo->getBufUsed(),4) +
-                        " pid:" + dec(pidInfo->mPid) +
-                        " sid:" + getChannelInfoBySid (pidInfo->mSid));
+                        " " + getFullPtsString (pidInfo->mPts) +
+                        " " + getChannelStringBySid (pidInfo->mSid));
 
   // find or create sid service cStuff
   auto it = mServiceStuffMap.find (pidInfo->mSid);
