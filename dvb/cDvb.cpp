@@ -1208,7 +1208,7 @@ void cDvb::tune (int frequency) {
                    transmissionModeTab [getProps[7].u.buffer.data[0]]);
 
         mSignalStr = updateSignalStr();
-        mErrorStr = updateErrorStr (getErrors());
+        mErrorStr = updateErrorStr (mDvbTransportStream->getErrors());
         readMonitorFe();
 
         mTuneStr = string(fe_info.name) + " " + dec(frequency/1000000) + "Mhz";
@@ -1295,11 +1295,11 @@ void cDvb::grabThread() {
       int blockSize = 0;
       auto ptr = mBipBuffer->getContiguousBlock (blockSize);
       if (blockSize > 0) {
-        streamPos += demux (ptr, blockSize, 0, false, -1, 0);
+        streamPos += mDvbTransportStream->demux (ptr, blockSize, 0, false, -1, 0);
         mBipBuffer->decommitBlock (blockSize);
 
-        bool show = (getErrors() != mLastErrors) || (blockSize > mLastBlockSize);
-        mLastErrors = getErrors();
+        bool show = (mDvbTransportStream->getErrors() != mLastErrors) || (blockSize > mLastBlockSize);
+        mLastErrors = mDvbTransportStream->getErrors();
         if (blockSize > mLastBlockSize)
           mLastBlockSize = blockSize;
         if (blockSize > mMaxBlockSize)
@@ -1308,7 +1308,7 @@ void cDvb::grabThread() {
         mSignalStr = updateSignalStr();
 
         if (show) {
-          mErrorStr = updateErrorStr (getErrors());
+          mErrorStr = updateErrorStr (mDvbTransportStream->getErrors());
           cLog::log (LOGINFO, mErrorStr + " " + mSignalStr);
           }
         }
