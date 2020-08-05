@@ -2041,9 +2041,8 @@ void cVg::rotate (float angle) {
 //{{{  shape
 void cVg::fillColor (sVgColour color) { mStates[mNumStates-1].fillPaint.set (color); }
 void cVg::strokeColor (sVgColour color) { mStates[mNumStates-1].strokePaint.set (color); }
-void cVg::globalAlpha (float alpha) { mStates[mNumStates-1].alpha = alpha; }
-
 void cVg::strokeWidth (float width) { mStates[mNumStates-1].strokeWidth = width; }
+void cVg::globalAlpha (float alpha) { mStates[mNumStates-1].alpha = alpha; }
 //{{{
 void cVg::fringeWidth (float width) {
 
@@ -2127,30 +2126,36 @@ cVg::cPaint cVg::boxGradient (float x, float y, float w, float h, float r, float
 //{{{
 cVg::cPaint cVg::imagePattern (float cx, float cy, float w, float h, float angle, int image, float alpha) {
 
-  cPaint p;
-  p.mTransform.setRotateTranslate (angle, cx, cy);
-  p.extent[0] = w;
-  p.extent[1] = h;
-  p.radius = 0.f;
-  p.feather = 0.f;
-  p.innerColor = nvgRGBAf (1, 1 , 1, alpha);
-  p.outerColor = nvgRGBAf (1, 1 , 1, alpha);
-  p.image = image;
+  cPaint paint;
 
-  return p;
+  paint.mTransform.setRotateTranslate (angle, cx, cy);
+
+  paint.extent[0] = w;
+  paint.extent[1] = h;
+
+  paint.radius = 0.f;
+  paint.feather = 0.f;
+
+  paint.innerColor = nvgRGBAf (1, 1, 1, alpha);
+  paint.outerColor = nvgRGBAf (1, 1, 1, alpha);
+  paint.image = image;
+
+  return paint;
   }
 //}}}
 
 //{{{
-void cVg::fillPaint (cPaint paint) {
+void cVg::fillPaint (const cPaint& paint) {
+
   mStates[mNumStates-1].fillPaint = paint;
-  mStates[mNumStates - 1].fillPaint.mTransform.multiply (mStates[mNumStates-1].mTransform);
+  mStates[mNumStates-1].fillPaint.mTransform.multiply (mStates[mNumStates-1].mTransform);
   }
 //}}}
 //{{{
-void cVg::strokePaint (cPaint paint) {
+void cVg::strokePaint (const cPaint& paint) {
+
   mStates[mNumStates-1].strokePaint = paint;
-  mStates[mNumStates - 1].strokePaint.mTransform.multiply (mStates[mNumStates-1].mTransform);
+  mStates[mNumStates-1].strokePaint.mTransform.multiply (mStates[mNumStates-1].mTransform);
   }
 //}}}
 
@@ -2161,6 +2166,7 @@ void cVg::pathWinding (eWinding dir) {
   mShape.addCommand (values, 2, mStates[mNumStates-1].mTransform);
   }
 //}}}
+
 //{{{
 void cVg::moveTo (float x, float y) {
   float values[] = { eMOVETO, x, y };
@@ -2313,6 +2319,7 @@ void cVg::arc (float cx, float cy, float r, float a0, float a1, int dir) {
   mShape.addCommand (values, numValues, mStates[mNumStates-1].mTransform);
   }
 //}}}
+
 //{{{
 void cVg::rect (float x, float y, float w, float h) {
 
@@ -2320,7 +2327,6 @@ void cVg::rect (float x, float y, float w, float h) {
   mShape.addCommand (values, 13, mStates[mNumStates-1].mTransform);
   }
 //}}}
-
 //{{{
 void cVg::roundedRectVarying (float x, float y, float w, float h,
                               float radTopLeft, float radTopRight, float radBottomRight, float radBottomLeft) {

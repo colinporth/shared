@@ -19,10 +19,10 @@ public:
 
   void onDraw (iDraw* draw) {
 
-    float y = mY;
     if (!mSubtitle.mRects.empty()) {
       auto context = draw->getContext();
 
+      float y = mY;
       for (unsigned int i = 0; i < mSubtitle.mRects.size(); i++) {
         int subWidth = mSubtitle.mRects[i]->mWidth;
         int subHeight = mSubtitle.mRects[i]->mHeight;
@@ -31,9 +31,9 @@ public:
         float dstHeight = float(subHeight * mWidth) / subWidth;
 
         if (mImage[i] == -1)
-          mImage[i] = context->createImageRGBA (subWidth, subHeight, 0, mSubtitle.mRects[i]->mPixelData);
+          mImage[i] = context->createImageRGBA (subWidth, subHeight, 0, mSubtitle.mRects[i]->mPixData);
         else if (mSubtitle.mChanged)
-          context->updateImage (mImage[i], mSubtitle.mRects[i]->mPixelData);
+          context->updateImage (mImage[i], mSubtitle.mRects[i]->mPixData);
 
         auto imgPaint = context->imagePattern (mX, y, dstWidth, dstHeight, 0.f, mImage[i], 1.f);
         context->beginPath();

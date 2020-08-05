@@ -206,10 +206,12 @@ inline sVgColour nvgTransRGBAf (sVgColour c, float a) {
 inline sVgColour nvgLerpRGBA (sVgColour c0, sVgColour c1, float u) {
 
   sVgColour cint = {{{0}}};
+
   u = clampf(u, 0.0f, 1.0f);
   float oneminu = 1.0f - u;
   for (int i = 0; i <4; i++ )
     cint.rgba[i] = c0.rgba[i] * oneminu + c1.rgba[i] * u;
+
   return cint;
   }
 //}}}
@@ -231,6 +233,7 @@ inline sVgColour nvgHSLA (float h, float s, float l, unsigned char a) {
   col.g = clampf (hue (h, m1, m2), 0.0f, 1.0f);
   col.b = clampf (hue (h - 1.0f/3.0f, m1, m2), 0.0f, 1.0f);
   col.a = a / 255.0f;
+
   return col;
   }
 //}}}
@@ -399,12 +402,12 @@ public:
   enum eShapeCommands { eMOVETO, eLINETO, eBEZIERTO, eWINDING, eCLOSE };
 
   void fillColor (sVgColour color);
-  void fillPaint (cPaint paint);
+  void fillPaint (const cPaint& paint);
   void globalAlpha (float alpha);
 
-  void strokeColor (sVgColour color);
-  void strokePaint (cPaint paint);
   void strokeWidth (float size);
+  void strokeColor (sVgColour color);
+  void strokePaint (const cPaint& paint);
 
   void fringeWidth (float width);
   float getFringeWidth() { return mFringeWidth; }

@@ -5,11 +5,11 @@
 class cSubtitle {
 public:
   //{{{
-  class cRectData {
+  class cSubRect {
   public:
     //{{{
-    ~cRectData() {
-      free (mPixelData);
+    ~cSubRect() {
+      free (mPixData);
       }
 
     //}}}
@@ -18,9 +18,7 @@ public:
     int mY = 0;
     int mWidth = 0;
     int mHeight = 0;
-
-    int mNumColours = 0;
-    uint8_t* mPixelData = nullptr;
+    uint8_t* mPixData = nullptr;
     };
   //}}}
 
@@ -44,8 +42,7 @@ public:
                             " x:"  + dec(mRects[i]->mX) +
                             " y:"  + dec(mRects[i]->mY) +
                             " w:"  + dec(mRects[i]->mWidth) +
-                            " h:"  + dec(mRects[i]->mHeight) +
-                            " c:"  + dec(mRects[i]->mNumColours));
+                            " h:"  + dec(mRects[i]->mHeight));
         }
     }
   //}}}
@@ -57,7 +54,7 @@ public:
         int xStep = mRects[i]->mWidth / 80;
         int yStep = mRects[i]->mHeight / 16;
         for (int y = 0; y < mRects[i]->mHeight; y += yStep) {
-          uint8_t* p = mRects[i]->mPixelData + mRects[i]->mWidth;
+          uint8_t* p = mRects[i]->mPixData + mRects[i]->mWidth;
           std::string str = "  ";
           for (int x = 0; x < mRects[i]->mWidth; x += xStep) {
             int value = p[x];
@@ -70,7 +67,7 @@ public:
   //}}}
 
   // vars
-  std::vector <cRectData*> mRects;
+  std::vector <cSubRect*> mRects;
   bool mChanged = false;
   };
 //}}}
@@ -268,81 +265,78 @@ public:
   //}}}
 
 private:
-  //{{{  structs
   //{{{
   struct sObjectDisplay {
+    //{{{
+    void init (int objectId, int regionId, int xpos, int ypos) {
+      mObjectListNext = nullptr;
+
+      mObjectId = objectId;
+      mRegionId = regionId;
+
+      xPos = xpos;
+      yPos = ypos;
+
+      mForegroundColour = 0;;
+      mBackgroundColour = 0;
+
+      mRegionListNext = nullptr;
+      }
+    //}}}
+
+    sObjectDisplay* mObjectListNext;
+
     int mObjectId;
     int mRegionId;
 
     int xPos;
     int yPos;
 
-    int mForegroundColor;
-    int mBackgroundColor;
+    int mForegroundColour;
+    int mBackgroundColour;
 
     sObjectDisplay* mRegionListNext;
-    sObjectDisplay* mObjectListNext;
-
-    void init (int objectId, int regionId, int xpos, int ypos) {
-      mObjectId = objectId;
-      mRegionId = regionId;
-      xPos = xpos;
-      yPos = ypos;
-      mForegroundColor = 0;;
-      mBackgroundColor = 0;
-      mRegionListNext = nullptr;
-      mObjectListNext = nullptr;
-      }
-
     };
   //}}}
   //{{{
   struct sObject {
+    sObject* mNext;
+
     int mId;
-    int mVersion;
     int mType;
 
     sObjectDisplay* mDisplayList;
-
-    sObject* mNext;
     };
   //}}}
-
   //{{{
   struct sRegionDisplay {
-    int mRegionId;
+    sRegionDisplay* mNext;
 
+    int mRegionId;
     int xPos;
     int yPos;
-
-    sRegionDisplay* mNext;
     };
   //}}}
   //{{{
   struct sRegion {
+    sRegion* mNext;
+
     int mId;
     int mVersion;
 
-    int width;
-    int height;
+    int mWidth;
+    int mHeight;
+    int mDepth;
+    int mClut;
+    int mBackgroundColour;
 
-    int depth;
-    int clut;
-    int bgcolor;
-
-    uint8_t computedClut[4*256];
-    int hasComputedClut;
-
-    uint8_t* pixelBuf;
-    int pixelBufSize;
-    int dirty;
+    bool mDirty;
+    int mPixBufSize;
+    uint8_t* mPixBuf;
 
     sObjectDisplay* mDisplayList;
-
-    sRegion* next;
     };
   //}}}
-
   //{{{
   struct sDisplayDefinition {
     int mVersion;
@@ -353,19 +347,17 @@ private:
     int mHeight;
     };
   //}}}
-
   //{{{
   struct sClut {
-    int mId = 0;
+    sClut* mNext;
+
     int mVersion = 0;
+    int mId = 0;
 
     uint32_t mClut4[4] = { 0 };
     uint32_t mClut16[16] = { 0 };
     uint32_t mClut256[256] = { 0 };
-
-    sClut* mNext;
     };
-  //}}}
   //}}}
   //{{{
   class cBitStream {
@@ -456,10 +448,10 @@ private:
     while (mRegionList) {
       sRegion* region = mRegionList;
 
-      mRegionList = region->next;
+      mRegionList = region->mNext;
       deleteRegionDisplayList (region);
 
-      free (region->pixelBuf);
+      free (region->mPixBuf);
       free (region);
       }
     }
@@ -508,32 +500,30 @@ private:
   //{{{
   sRegion* getRegion (int regionId) {
 
-    sRegion* ptr = mRegionList;
-    while (ptr && (ptr->mId != regionId))
-      ptr = ptr->next;
+    sRegion* region = mRegionList;
+    while (region && (region->mId != regionId))
+      region = region->mNext;
 
-    return ptr;
+    return region;
     }
   //}}}
 
   //{{{
-  int parse2bit (const uint8_t** buf, int bufSize, uint8_t* dstBuf, int dstBufSize,
-                 int nonModifyColor, int xPos, uint8_t* mapTable) {
+  int parse2bit (const uint8_t** buf, int bufSize, uint8_t* pixBuf, int pixBufSize, int pixPos, int nonModifyColour, uint8_t* mapTable) {
 
-    dstBuf += xPos;
-    int dstPixels = xPos;
+    pixBuf += pixPos;
 
     cBitStream bitStream (*buf, bufSize);
-    while ((bitStream.getBitsRead() < (bufSize * 8)) && (dstPixels < dstBufSize)) {
+    while ((bitStream.getBitsRead() < (bufSize * 8)) && (pixPos < pixBufSize)) {
       int bits = bitStream.getBits (2);
       if (bits) {
-        if (nonModifyColor != 1 || bits != 1) {
+        if (nonModifyColour != 1 || bits != 1) {
           if (mapTable)
-            *dstBuf++ = mapTable[bits];
+            *pixBuf++ = mapTable[bits];
           else
-            *dstBuf++ = bits;
+            *pixBuf++ = bits;
           }
-        dstPixels++;
+        pixPos++;
         }
       else {
         bits = bitStream.getBit();
@@ -542,14 +532,14 @@ private:
           int runLength = bitStream.getBits (3) + 3;
           bits = bitStream.getBits (2);
 
-          if (nonModifyColor == 1 && bits == 1)
-            dstPixels += runLength;
+          if (nonModifyColour == 1 && bits == 1)
+            pixPos += runLength;
           else {
             if (mapTable)
               bits = mapTable[bits];
-            while ((runLength-- > 0) && (dstPixels < dstBufSize)) {
-              *dstBuf++ = bits;
-              dstPixels++;
+            while ((runLength-- > 0) && (pixPos < pixBufSize)) {
+              *pixBuf++ = bits;
+              pixPos++;
               }
             }
           }
@@ -561,7 +551,7 @@ private:
             if (bits == 0) {
               //{{{  bits == 0
               *buf += bitStream.getBytesRead();
-              return dstPixels;
+              return pixPos;
               }
               //}}}
             else if (bits == 1) {
@@ -571,9 +561,9 @@ private:
               else
                 bits = 0;
               int runLength = 2;
-              while ((runLength-- > 0) && (dstPixels < dstBufSize)) {
-                *dstBuf++ = bits;
-                dstPixels++;
+              while ((runLength-- > 0) && (pixPos < pixBufSize)) {
+                *pixBuf++ = bits;
+                pixPos++;
                 }
               }
               //}}}
@@ -582,14 +572,14 @@ private:
               int runLength = bitStream.getBits (4) + 12;
               bits = bitStream.getBits (2);
 
-              if ((nonModifyColor == 1) && (bits == 1))
-                dstPixels += runLength;
+              if ((nonModifyColour == 1) && (bits == 1))
+                pixPos += runLength;
               else {
                 if (mapTable)
                   bits = mapTable[bits];
-                while ((runLength-- > 0) && (dstPixels < dstBufSize)) {
-                  *dstBuf++ = bits;
-                  dstPixels++;
+                while ((runLength-- > 0) && (pixPos < pixBufSize)) {
+                  *pixBuf++ = bits;
+                  pixPos++;
                   }
                 }
               }
@@ -599,14 +589,14 @@ private:
               int runLength = bitStream.getBits (8) + 29;
               bits = bitStream.getBits (2);
 
-              if (nonModifyColor == 1 && bits == 1)
-                 dstPixels += runLength;
+              if (nonModifyColour == 1 && bits == 1)
+                 pixPos += runLength;
               else {
                 if (mapTable)
                   bits = mapTable[bits];
-                while ((runLength-- > 0) && (dstPixels < dstBufSize)) {
-                  *dstBuf++ = bits;
-                  dstPixels++;
+                while ((runLength-- > 0) && (pixPos < pixBufSize)) {
+                  *pixBuf++ = bits;
+                  pixPos++;
                   }
                 }
               }
@@ -618,8 +608,8 @@ private:
               bits = mapTable[0];
             else
               bits = 0;
-            *dstBuf++ = bits;
-            dstPixels++;
+            *pixBuf++ = bits;
+            pixPos++;
             }
           }
         }
@@ -629,28 +619,26 @@ private:
       cLog::log (LOGERROR, "line overflow");
 
     *buf += bitStream.getBytesRead();
-    return dstPixels;
+    return pixPos;
     }
   //}}}
   //{{{
-  int parse4bit (const uint8_t** buf, int bufSize, uint8_t* dstBuf, int dstBufSize,
-                 int nonModifyColor, int xPos, uint8_t* mapTable) {
+  int parse4bit (const uint8_t** buf, int bufSize, uint8_t* pixBuf, int pixBufSize, int pixPos, int nonModifyColour, uint8_t* mapTable) {
 
-    dstBuf += xPos;
-    int dstPixels = xPos;
+    pixBuf += pixPos;
 
     std::string str;
 
     cBitStream bitStream (*buf, bufSize);
-    while ((bitStream.getBitsRead() < (bufSize * 8)) && (dstPixels < dstBufSize)) {
+    while ((bitStream.getBitsRead() < (bufSize * 8)) && (pixPos < pixBufSize)) {
       int bits = bitStream.getBits (4);
       if (mRunDebug)
         str += "[4b:" + hex(bits,1);
 
       if (bits) {
-        if (nonModifyColor != 1 || bits != 1)
-          *dstBuf++ = mapTable ? mapTable[bits] : bits;
-        dstPixels++;
+        if (nonModifyColour != 1 || bits != 1)
+          *pixBuf++ = mapTable ? mapTable[bits] : bits;
+        pixPos++;
         }
 
       else {
@@ -666,14 +654,14 @@ private:
             if (mRunDebug)
               cLog::log (LOGINFO, str + "]");
             *buf += bitStream.getBytesRead();
-            return dstPixels;
+            return pixPos;
             }
 
           runLength += 2;
           bits = mapTable ? mapTable[0] : 0;
-          while ((runLength-- > 0) && (dstPixels < dstBufSize)) {
-            *dstBuf++ = bits;
-            dstPixels++;
+          while ((runLength-- > 0) && (pixPos < pixBufSize)) {
+            *pixBuf++ = bits;
+            pixPos++;
             }
           }
           //}}}
@@ -691,15 +679,15 @@ private:
             if (mRunDebug)
               str += ",4b:" + hex(bits,1);
 
-            if (nonModifyColor == 1 && bits == 1)
-              dstPixels += runLength;
+            if (nonModifyColour == 1 && bits == 1)
+              pixPos += runLength;
             else {
               if (mapTable)
                 bits = mapTable[bits];
 
-              while ((runLength-- > 0) && (dstPixels < dstBufSize)) {
-                *dstBuf++ = bits;
-                dstPixels++;
+              while ((runLength-- > 0) && (pixPos < pixBufSize)) {
+                *pixBuf++ = bits;
+                pixPos++;
                 }
               }
             }
@@ -710,8 +698,8 @@ private:
             if (bits == 0) {
               //{{{  0
               bits = mapTable ? mapTable[0] : 0;
-              *dstBuf++ = bits;
-              dstPixels ++;
+              *pixBuf++ = bits;
+              pixPos ++;
               }
               //}}}
             else if (bits == 1) {
@@ -720,9 +708,9 @@ private:
               int runLength = 2;
               if (mRunDebug)
                 str += ":run:" + dec(runLength);
-              while ((runLength-- > 0) && (dstPixels < dstBufSize)) {
-                *dstBuf++ = bits;
-                dstPixels++;
+              while ((runLength-- > 0) && (pixPos < pixBufSize)) {
+                *pixBuf++ = bits;
+                pixPos++;
                 }
               }
               //}}}
@@ -736,14 +724,14 @@ private:
               if (mRunDebug)
                 str += ",4b:" + hex(bits,1);
 
-              if (nonModifyColor == 1 && bits == 1)
-                dstPixels += runLength;
+              if (nonModifyColour == 1 && bits == 1)
+                pixPos += runLength;
               else {
                 if (mapTable)
                   bits = mapTable[bits];
-                while ((runLength-- > 0) && (dstPixels < dstBufSize)) {
-                  *dstBuf++ = bits;
-                  dstPixels++;
+                while ((runLength-- > 0) && (pixPos < pixBufSize)) {
+                  *pixBuf++ = bits;
+                  pixPos++;
                   }
                 }
               }
@@ -758,14 +746,14 @@ private:
               if (mRunDebug)
                 str += ",4b:" + hex(bits);
 
-              if (nonModifyColor == 1 && bits == 1)
-                dstPixels += runLength;
+              if (nonModifyColour == 1 && bits == 1)
+                pixPos += runLength;
               else {
                 if (mapTable)
                   bits = mapTable[bits];
-                while ((runLength-- > 0) && (dstPixels < dstBufSize)) {
-                  *dstBuf++ = bits;
-                  dstPixels++;
+                while ((runLength-- > 0) && (pixPos < pixBufSize)) {
+                  *pixBuf++ = bits;
+                  pixPos++;
                   }
                 }
               }
@@ -785,41 +773,39 @@ private:
       cLog::log (LOGERROR, "line overflow");
 
     *buf += bitStream.getBytesRead();
-    return dstPixels;
+    return pixPos;
     }
   //}}}
   //{{{
-  int parse8bit (const uint8_t** buf, int bufSize, uint8_t* dstBuf, int dstBufSize,
-                 int nonModifyColor, int xPos) {
+  int parse8bit (const uint8_t** buf, int bufSize, uint8_t* pixBuf, int pixBufSize, int pixPos, int nonModifyColour) {
 
-    dstBuf += xPos;
-    int dstPixels = xPos;
+    pixBuf += pixPos;
 
     const uint8_t* bufEnd = *buf + bufSize;
-    while ((*buf < bufEnd) && (dstPixels < dstBufSize)) {
+    while ((*buf < bufEnd) && (pixPos < pixBufSize)) {
       int bits = *(*buf)++;
       if (bits) {
-        if (nonModifyColor != 1 || bits != 1)
-          *dstBuf++ = bits;
-        dstPixels++;
+        if (nonModifyColour != 1 || bits != 1)
+          *pixBuf++ = bits;
+        pixPos++;
         }
       else {
         bits = *(*buf)++;
         int runLength = bits & 0x7f;
         if ((bits & 0x80) == 0) {
           if (runLength == 0)
-            return dstPixels;
+            return pixPos;
           bits = 0;
           }
         else
           bits = *(*buf)++;
 
-        if ((nonModifyColor == 1) && (bits == 1))
-          dstPixels += runLength;
+        if ((nonModifyColour == 1) && (bits == 1))
+          pixPos += runLength;
         else {
-          while (runLength-- > 0 && dstPixels < dstBufSize) {
-            *dstBuf++ = bits;
-            dstPixels++;
+          while (runLength-- > 0 && pixPos < pixBufSize) {
+            *pixBuf++ = bits;
+            pixPos++;
             }
           }
         }
@@ -828,12 +814,12 @@ private:
     if (*(*buf)++)
       cLog::log (LOGERROR, "line overflow");
 
-    return dstPixels;
+    return pixPos;
     }
   //}}}
   //{{{
   void parseObjectBlock (sObjectDisplay* display, const uint8_t* buf, int bufSize,
-                         bool bottom, int nonModifyColor) {
+                         bool bottom, int nonModifyColour) {
 
     const uint8_t* bufEnd = buf + bufSize;
     if (mBlockDebug) {
@@ -867,62 +853,62 @@ private:
                           0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff};
     uint8_t* mapTable;
 
-    uint8_t* pixelBuf = region->pixelBuf;
-    region->dirty = 1;
+    uint8_t* pixBuf = region->mPixBuf;
+    region->mDirty = true;
 
     int xPos = display->xPos;
     int yPos = display->yPos + (bottom ? 1 : 0);
 
     while (buf < bufEnd) {
-      if (((*buf != 0xF0) && (xPos >= region->width)) ||
-          (yPos >= region->height)) {
+      if (((*buf != 0xF0) && (xPos >= region->mWidth)) ||
+          (yPos >= region->mHeight)) {
         //{{{  error return
         cLog::log (LOGERROR, "invalid object location %d %d %d %d %02x",
-                              xPos, region->width, yPos, region->height, *buf);
+                              xPos, region->mWidth, yPos, region->mHeight, *buf);
         return;
         }
         //}}}
 
       int type = *buf++;
       int bufLeft = int(bufEnd - buf);
-      uint8_t* pixelPtr = pixelBuf + (yPos * region->width);
+      uint8_t* pixPtr = pixBuf + (yPos * region->mWidth);
       switch (type) {
         //{{{
         case 0x10: // 2 bit
-          if (region->depth == 8)
+          if (region->mDepth == 8)
             mapTable = map2to8;
-          else if (region->depth == 4)
+          else if (region->mDepth == 4)
             mapTable = map2to4;
           else
             mapTable = NULL;
 
-          xPos = parse2bit (&buf, bufLeft, pixelPtr, region->width, nonModifyColor, xPos, mapTable);
+          xPos = parse2bit (&buf, bufLeft, pixPtr, region->mWidth, xPos, nonModifyColour, mapTable);
           break;
         //}}}
         //{{{
         case 0x11: // 4 bit
-          if (region->depth < 4) {
-            cLog::log (LOGERROR, "4-bit pixel string in %d-bit region!", region->depth);
+          if (region->mDepth < 4) {
+            cLog::log (LOGERROR, "4-bit pix string in %d-bit region!", region->mDepth);
             return;
             }
 
-          if (region->depth == 8)
+          if (region->mDepth == 8)
             mapTable = map4to8;
           else
             mapTable = NULL;
 
-          xPos = parse4bit (&buf, bufLeft, pixelPtr, region->width, nonModifyColor, xPos, mapTable);
+          xPos = parse4bit (&buf, bufLeft, pixPtr, region->mWidth, xPos, nonModifyColour, mapTable);
           break;
         //}}}
         //{{{
 
         case 0x12: // 8 bit
-          if (region->depth < 8) {
-            cLog::log (LOGERROR, "8-bit pixel string in %d-bit region!", region->depth);
+          if (region->mDepth < 8) {
+            cLog::log (LOGERROR, "8-bit pix string in %d-bit region!", region->mDepth);
             return;
             }
 
-          xPos = parse8bit (&buf, bufLeft, pixelPtr, region->width, nonModifyColor, xPos);
+          xPos = parse8bit (&buf, bufLeft, pixPtr, region->mWidth, xPos, nonModifyColour);
           break;
         //}}}
         //{{{
@@ -960,8 +946,6 @@ private:
           break;
         }
       }
-
-    region->hasComputedClut = 0;
     }
   //}}}
 
@@ -984,7 +968,7 @@ private:
     int pageState = ((*buf++) >> 2) & 3;
 
     if (mSegmentDebug || mPageDebug)
-      cLog::log (LOGINFO, "- timeOut:" + dec(mTimeOut) + " state:" + dec(pageState));
+      cLog::log (LOGINFO,  "- pageState:" + dec(pageState) + " timeOut:" + dec(mTimeOut));
 
     if ((pageState == 1) || (pageState == 2)) {
       //{{{  delete regions, objects, cluts
@@ -1017,7 +1001,7 @@ private:
         }
 
       if (!display) {
-        display = (sRegionDisplay*)malloc (sizeof(*display));
+        display = (sRegionDisplay*)malloc (sizeof(sRegionDisplay));
         display->mNext = nullptr;
         }
       display->mRegionId = regionId;
@@ -1049,7 +1033,6 @@ private:
 
     if (mSegmentDebug)
       cLog::log (LOGINFO, "region segment");
-
     if (bufSize < 10)
       return false;
     const uint8_t* bufEnd = buf + bufSize;
@@ -1057,48 +1040,61 @@ private:
     int regionId = *buf++;
     sRegion* region = getRegion (regionId);
     if (!region) {
-      region = (sRegion*)calloc (1, sizeof(*region));
+      region = (sRegion*)malloc (sizeof(sRegion));
+      region->mNext = mRegionList;
       region->mId = regionId;
       region->mVersion = -1;
-      region->next = mRegionList;
+
+      region->mWidth = 0;
+      region->mHeight = 0;
+      region->mDepth =0 ;
+      region->mClut = 0;;
+      region->mBackgroundColour = 0;
+
+      region->mDirty = false;
+      region->mPixBufSize = 0;
+      region->mPixBuf = nullptr;
+
+      region->mDisplayList = nullptr;
+
       mRegionList = region;
       }
 
-    region->mVersion = ((*buf)>>4) & 15;
-    int fill = ((*buf++) >> 3) & 1;
+    region->mVersion = ((*buf) >> 4) & 0x0F;
 
-    region->width = AVRB16(buf); buf += 2;
-    region->height = AVRB16(buf); buf += 2;
-
-    if ((region->width * region->height) != region->pixelBufSize) {
-      free (region->pixelBuf);
-      region->pixelBufSize = region->width * region->height;
-      region->pixelBuf = (uint8_t*)malloc (region->pixelBufSize);
-      fill = 1;
-      region->dirty = 0;
+    bool fill = ((*buf++) >> 3) & 1;
+    region->mWidth = AVRB16(buf); buf += 2;
+    region->mHeight = AVRB16(buf); buf += 2;
+    if ((region->mWidth * region->mHeight) != region->mPixBufSize) {
+      region->mPixBufSize = region->mWidth * region->mHeight;
+      region->mPixBuf = (uint8_t*)realloc (region->mPixBuf, region->mPixBufSize);
+      region->mDirty = false;
+      fill = true;
       }
 
-    region->depth = 1 << (((*buf++) >> 2) & 7);
-    if (region->depth < 2 || region->depth > 8) {
-      cLog::log (LOGERROR, "region depth %d is invalid", region->depth);
-      region->depth= 4;
+    region->mDepth = 1 << (((*buf++) >> 2) & 7);
+    if ((region->mDepth < 2) || (region->mDepth > 8)) {
+      //{{{  error return
+      cLog::log (LOGERROR, "unknown region depth:" + dec(region->mDepth));
+      return false;
       }
-    region->clut = *buf++;
+      //}}}
 
-    if (region->depth == 8) {
-      region->bgcolor = *buf++;
+    region->mClut = *buf++;
+    if (region->mDepth == 8) {
+      region->mBackgroundColour = *buf++;
       buf += 1;
       }
     else {
       buf += 1;
-      if (region->depth == 4)
-        region->bgcolor = ((*buf++) >> 4) & 15;
+      if (region->mDepth == 4)
+        region->mBackgroundColour = ((*buf++) >> 4) & 15;
       else
-        region->bgcolor = ((*buf++) >> 2) & 3;
+        region->mBackgroundColour = ((*buf++) >> 2) & 3;
       }
 
     if (fill)
-      memset (region->pixelBuf, region->bgcolor, region->pixelBufSize);
+      memset (region->mPixBuf, region->mBackgroundColour, region->mPixBufSize);
 
     deleteRegionDisplayList (region);
 
@@ -1107,9 +1103,11 @@ private:
 
       sObject* object = getObject (objectId);
       if (!object) {
-        object = (sObject*)calloc (1, sizeof(*object));
+        object = (sObject*)malloc (sizeof(sObject));
         object->mId = objectId;
         object->mNext = mObjectList;
+        object->mDisplayList = nullptr;
+
         mObjectList = object;
         }
 
@@ -1120,9 +1118,9 @@ private:
       auto display = (sObjectDisplay*)malloc (sizeof(sObjectDisplay));
       display->init (objectId, regionId, xpos, ypos);
 
-      if (display->xPos >= region->width ||
+      if (display->xPos >= region->mWidth ||
         //{{{  error return
-        display->yPos >= region->height) {
+        display->yPos >= region->mHeight) {
         cLog::log (LOGERROR, "Object outside region");
         free (display);
         return false;
@@ -1130,8 +1128,8 @@ private:
         //}}}
 
       if (((object->mType == 1) || (object->mType == 2)) && (buf+1 < bufEnd)) {
-        display->mForegroundColor = *buf++;
-        display->mBackgroundColor = *buf++;
+        display->mForegroundColour = *buf++;
+        display->mBackgroundColour = *buf++;
         }
 
       display->mRegionListNext = region->mDisplayList;
@@ -1157,7 +1155,7 @@ private:
 
     sClut* clut = getClut (clutId);
     if (!clut) {
-      clut = (sClut*)malloc (sizeof(*clut));
+      clut = (sClut*)malloc (sizeof(sClut));
       memcpy (clut, &mDefaultClut, sizeof(*clut));
       clut->mId = clutId;
       clut->mVersion = -1;
@@ -1246,7 +1244,7 @@ private:
       return false;
 
     int codingMethod = ((*buf) >> 2) & 3;
-    int nonModifyColor = ((*buf++) >> 1) & 1;
+    int nonModifyColour = ((*buf++) >> 1) & 1;
 
     if (codingMethod == 0) {
       int topFieldLen = AVRB16(buf); buf += 2;
@@ -1261,14 +1259,14 @@ private:
 
       for (auto display = object->mDisplayList; display; display = display->mObjectListNext) {
         const uint8_t* block = buf;
-        parseObjectBlock (display, block, topFieldLen, false, nonModifyColor);
+        parseObjectBlock (display, block, topFieldLen, false, nonModifyColour);
 
         int bfl = bottomFieldLen;
         if (bottomFieldLen > 0)
           block = buf + topFieldLen;
         else
           bfl = topFieldLen;
-        parseObjectBlock (display, block, bfl, true, nonModifyColor);
+        parseObjectBlock (display, block, bfl, true, nonModifyColour);
         }
       }
     else
@@ -1294,7 +1292,7 @@ private:
       return true;
 
     if (!mDisplayDefinition)
-      mDisplayDefinition = (sDisplayDefinition*)malloc (sizeof(*mDisplayDefinition));
+      mDisplayDefinition = (sDisplayDefinition*)malloc (sizeof(sDisplayDefinition));
     mDisplayDefinition->mVersion = ddsVersion;
     mDisplayDefinition->mX = 0;
     mDisplayDefinition->mY = 0;
@@ -1335,44 +1333,47 @@ private:
     int i = 0;
     for (sRegionDisplay* display = mDisplayList; display; display = display->mNext) {
       sRegion* region = getRegion (display->mRegionId);
-      if (!region || !region->dirty)
+      if (!region || !region->mDirty)
         continue;
 
       if (i >= subtitle->mRects.size())
-        subtitle->mRects.push_back (new cSubtitle::cRectData());
+        subtitle->mRects.push_back (new cSubtitle::cSubRect());
 
       subtitle->mRects[i]->mX = display->xPos + offsetX;
       subtitle->mRects[i]->mY = display->yPos + offsetY;
-      subtitle->mRects[i]->mWidth = region->width;
-      subtitle->mRects[i]->mHeight = region->height;
-      subtitle->mRects[i]->mNumColours = 1 << region->depth;
+      subtitle->mRects[i]->mWidth = region->mWidth;
+      subtitle->mRects[i]->mHeight = region->mHeight;
 
-      auto clut = getClut (region->clut);
+      auto clut = getClut (region->mClut);
       if (!clut)
         clut = &mDefaultClut;
 
-      subtitle->mRects[i]->mPixelData = (uint8_t*)realloc (subtitle->mRects[i]->mPixelData, region->pixelBufSize * 4);
-      uint32_t* ptr = (uint32_t*) (subtitle->mRects[i]->mPixelData);
-      for (int pix = 0; pix < region->pixelBufSize; pix++)
-        switch (region->depth) {
+      subtitle->mRects[i]->mPixData = (uint8_t*)realloc (subtitle->mRects[i]->mPixData, region->mPixBufSize * 4);
+      uint32_t* ptr = (uint32_t*) (subtitle->mRects[i]->mPixData);
+      for (int pix = 0; pix < region->mPixBufSize; pix++)
+        switch (region->mDepth) {
           case 2:
-            *ptr++ = clut->mClut4[region->pixelBuf[pix]];
+            *ptr++ = clut->mClut4[region->mPixBuf[pix]];
             break;
           case 4:
-            *ptr++ = clut->mClut16[region->pixelBuf[pix]];
+            *ptr++ = clut->mClut16[region->mPixBuf[pix]];
             break;
           case 8:
-            *ptr++ = clut->mClut256[region->pixelBuf[pix]];
+            *ptr++ = clut->mClut256[region->mPixBuf[pix]];
             break;
           default:
-            cLog::log (LOGERROR, "unknown depth:" + dec(region->depth));
+            cLog::log (LOGERROR, "unknown depth:" + dec(region->mDepth));
           }
 
       subtitle->mChanged = true;
       i++;
       }
 
-    // !!! should remove or disable unused rects !!!
+    while (subtitle->mRects.size() > i) {
+      subtitle->mRects.pop_back();
+      cLog::log (LOGINFO, "- updateSubtitle pop " + dec(i) + " " + dec(subtitle->mRects.size()));
+      }
+
     return true;
     }
   //}}}
