@@ -820,7 +820,7 @@ int cDvb::getNumServices() {
   return (int)mServiceSubtitleMap.size();
   };
 //}}}
-
+//{{{
 cSubtitle* cDvb::getSubtitle (int serviceIndex) {
 
   if (mServiceSubtitleMap.empty())
@@ -834,6 +834,7 @@ cSubtitle* cDvb::getSubtitle (int serviceIndex) {
     return (*it).second;
     }
   }
+//}}}
 
 //{{{
 void cDvb::tune (int frequency) {

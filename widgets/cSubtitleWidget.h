@@ -20,37 +20,40 @@ public:
 
   void onDraw (iDraw* draw) {
 
-    auto context = draw->getContext();
     int numServices = mDvb->getNumServices();
+    if (numServices) {
+      auto context = draw->getContext();
 
-    int widgetLine = 0;
-    float y = mY;
-    for (int serviceIndex = 0; serviceIndex < numServices; serviceIndex++) {
-      cSubtitle* subtitle = mDvb->getSubtitle (serviceIndex);
-      if (subtitle) {
-        if (!subtitle->mRects.empty()) {
-          for (size_t subtitleLine = 0; subtitleLine < subtitle->mRects.size(); subtitleLine++) {
-            int subWidth = subtitle->mRects[subtitleLine]->mWidth;
-            int subHeight = subtitle->mRects[subtitleLine]->mHeight;
+      float y = mY;
+      int widgetLine = 0;
+      for (int serviceIndex = 0; serviceIndex < numServices; serviceIndex++) {
+        cSubtitle* subtitle = mDvb->getSubtitle (serviceIndex);
+        if (subtitle) {
+          if (!subtitle->mRects.empty()) {
+            for (size_t subtitleLine = 0; subtitleLine < subtitle->mRects.size(); subtitleLine++) {
+              int subWidth = subtitle->mRects[subtitleLine]->mWidth;
+              int subHeight = subtitle->mRects[subtitleLine]->mHeight;
+              float dstWidth = mWidth;
+              float dstHeight = float(subHeight * mWidth) / subWidth;
 
-            float dstWidth = mWidth;
-            float dstHeight = float(subHeight * mWidth) / subWidth;
+              if (mImage[widgetLine] == -1)
+                mImage[widgetLine] = context->createImageRGBA (subWidth, subHeight, 0, subtitle->mRects[subtitleLine]->mPixData);
+              else if (subtitle->mChanged)
+                context->updateImage (mImage[widgetLine], subtitle->mRects[subtitleLine]->mPixData);
 
-            if (mImage[widgetLine] == -1)
-              mImage[widgetLine] = context->createImageRGBA (subWidth, subHeight, 0, subtitle->mRects[subtitleLine]->mPixData);
-            else if (subtitle->mChanged)
-              context->updateImage (mImage[widgetLine], subtitle->mRects[subtitleLine]->mPixData);
+              auto imagePaint = context->imagePattern (mX, y, dstWidth, dstHeight, 0.f, mImage[widgetLine], 1.f);
 
-            auto imgPaint = context->imagePattern (mX, y, dstWidth, dstHeight, 0.f, mImage[widgetLine], 1.f);
-            context->beginPath();
-            context->rect (mX, y, dstWidth, dstHeight);
-            context->fillPaint (imgPaint);
-            context->fill();
-            y += dstHeight;
-            widgetLine++;
+              context->beginPath();
+              context->rect (mX, y, dstWidth, dstHeight);
+              context->fillPaint (imagePaint);
+              context->fill();
+
+              y += dstHeight;
+              widgetLine++;
+              }
             }
+          subtitle->mChanged = false;
           }
-        subtitle->mChanged = false;
         }
       }
     }
