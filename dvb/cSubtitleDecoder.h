@@ -1,5 +1,6 @@
 // cSubtitleDecoder.h
 #pragma once
+#include <vector>
 
 //{{{
 class cSubtitle {

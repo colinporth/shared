@@ -2,21 +2,22 @@
 //{{{  includes
 #pragma once
 #include <string>
-#include <map>
-
-#include "cDumpTransportStream.h"
-#include "cSubtitleDecoder.h"
+#include <vector>
 //}}}
 
-class cDvb : public cDumpTransportStream {
+class cSubtitle;
+class cTransportStream;
+
+class cDvb {
 public:
   cDvb (int frequency, const std::string& root,
         const std::vector<std::string>& channelNames, const std::vector<std::string>& recordNames);
 
   virtual ~cDvb();
 
-  int getNumServices();
+  int getNumSubtitleServices();
   cSubtitle* getSubtitle (int serviceIndex);
+  cTransportStream* getTransportStream();
 
   void tune (int frequency);
 
@@ -28,7 +29,4 @@ public:
   std::string mErrorStr = "waiting";
   std::string mTuneStr = "untuned";
   std::string mSignalStr = "no signal";
-
-protected:
-  virtual bool subDecodePes (cPidInfo* pidInfo);
   };

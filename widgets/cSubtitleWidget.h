@@ -20,7 +20,7 @@ public:
 
   void onDraw (iDraw* draw) {
 
-    int numServices = mDvb->getNumServices();
+    int numServices = mDvb->getNumSubtitleServices();
     if (numServices) {
       auto context = draw->getContext();
 

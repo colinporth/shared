@@ -65,12 +65,15 @@
 
 #include <chrono>
 #include <thread>
+#include <map>
 
 #include "../date/date.h"
 #include "../utils/utils.h"
 #include "../utils/cLog.h"
-
 #include "../utils/cBipBuffer.h"
+
+#include "cSubtitleDecoder.h"
+#include "cTransportStream.h"
 
 #include "cDvb.h"
 
@@ -749,16 +752,178 @@ namespace { // anonymous
   //}}}
 #endif
   //{{{
-  class cStuff {
+  class cDvbTransportStream : public cTransportStream {
   public:
-    cStuff (cSubtitleDecoder* subtitleDecoder, cSubtitle* subtitle) :
-      mSubtitleDecoder(subtitleDecoder), mSubtitle(subtitle) {}
+    //{{{
+    cDvbTransportStream (const std::string& rootName,
+                         const std::vector <std::string>& channelStrings,
+                         const std::vector <std::string>& saveStrings)
+      : mRootName(rootName),
+        mChannelStrings(channelStrings), mSaveStrings(saveStrings),
+        mRecordAll ((channelStrings.size() == 1) && (channelStrings[0] == "all")) {}
+    //}}}
+    //{{{
+    virtual ~cDvbTransportStream() {
 
-    cSubtitleDecoder* mSubtitleDecoder;
-    cSubtitle* mSubtitle;
+      for (auto& subtitleContext : mSubtitleContextMap) {
+        delete (subtitleContext.second.mSubtitleDecoder);
+        delete (subtitleContext.second.mSubtitle);
+        }
+
+      mSubtitleContextMap.clear();
+      }
+    //}}}
+
+    //{{{
+    int getNumSubtitleServices() {
+      return (int)mSubtitleContextMap.size();
+      }
+    //}}}
+    //{{{
+    cSubtitle* getSubtitle (int index) {
+
+      if (mSubtitleContextMap.empty())
+        return nullptr;
+      else {
+        auto it = mSubtitleContextMap.begin();
+        while ((index > 0) && (it != mSubtitleContextMap.end())) {
+          ++it;
+          index--;
+          }
+        return (*it).second.mSubtitle;
+        }
+      }
+    //}}}
+
+  protected:
+    //{{{
+    virtual void start (cService* service, const std::string& name,
+                        std::chrono::system_clock::time_point time,
+                        std::chrono::system_clock::time_point starttime,
+                        bool selected) {
+
+      std::lock_guard<std::mutex> lockGuard (mFileMutex);
+
+      service->closeFile();
+
+      bool record = selected || mRecordAll;
+      std::string saveName;
+
+      if (!mRecordAll) {
+        // filter and rename channel prefix
+        size_t i = 0;
+        for (auto& channelString : mChannelStrings) {
+          if (channelString == service->getChannelString()) {
+            record = true;
+            if (i < mSaveStrings.size())
+              saveName = mSaveStrings[i] +  " ";
+            break;
+            }
+          i++;
+          }
+        }
+
+      saveName += date::format ("%d %b %y %a %H.%M.%S ", date::floor<std::chrono::seconds>(time));
+
+      if (record) {
+        if ((service->getVidPid() > 0) &&
+            (service->getAudPid() > 0) &&
+            (service->getSubPid() > 0)) {
+          auto validName = validFileString (name, "<>:/|?*\"\'\\");
+          auto fileNameStr = mRootName + "/" + saveName + validName + ".ts";
+          service->openFile (fileNameStr, 0x1234);
+          cLog::log (LOGINFO, fileNameStr);
+          }
+        }
+      }
+    //}}}
+    //{{{
+    virtual void pesPacket (int sid, int pid, uint8_t* ts) {
+    // look up service and write it
+
+      std::lock_guard<std::mutex> lockGuard (mFileMutex);
+
+      auto serviceIt = mServiceMap.find (sid);
+      if (serviceIt != mServiceMap.end())
+        serviceIt->second.writePacket (ts, pid);
+      }
+    //}}}
+    //{{{
+    virtual void stop (cService* service) {
+
+      std::lock_guard<std::mutex> lockGuard (mFileMutex);
+
+      service->closeFile();
+      }
+    //}}}
+
+    //{{{
+    virtual bool audDecodePes (cPidInfo* pidInfo, bool skip) {
+
+      //cLog::log (LOGINFO, getPtsString (pidInfo->mPts) + " a - " + dec(pidInfo->getBufUsed());
+      return false;
+      }
+    //}}}
+    //{{{
+    virtual bool vidDecodePes (cPidInfo* pidInfo, bool skip) {
+
+      //cLog::log (LOGINFO, getPtsString (pidInfo->mPts) + " v - " + dec(pidInfo->getBufUsed());
+
+      return false;
+      }
+    //}}}
+    //{{{
+    virtual bool subDecodePes (cPidInfo* pidInfo) {
+
+      //if (kDebug)
+        cLog::log (LOGINFO, "subtitle pid:" + dec(pidInfo->mPid,4) +
+                            " sid:" + dec(pidInfo->mSid,5) +
+                            " size:" + dec(pidInfo->getBufUsed(),4) +
+                            " " + getFullPtsString (pidInfo->mPts) +
+                            " " + getChannelStringBySid (pidInfo->mSid));
+
+      // find or create sid service cSubtitleContext
+      auto it = mSubtitleContextMap.find (pidInfo->mSid);
+      if (it == mSubtitleContextMap.end()) {
+        auto insertPair = mSubtitleContextMap.insert (
+          map <int, cSubtitleContext>::value_type (pidInfo->mSid, cSubtitleContext (new cSubtitleDecoder(), new cSubtitle())));
+        it = insertPair.first;
+        cLog::log (LOGINFO, "cDvb::subDecodePes - create serviceStuff sid:" + dec(pidInfo->mSid));
+        }
+      auto subtitleContext = it->second;
+
+      subtitleContext.mSubtitleDecoder->decode (pidInfo->mBuffer, pidInfo->getBufUsed(), subtitleContext.mSubtitle);
+      if (kDebug)
+        subtitleContext.mSubtitle->debug ("- ");
+
+      return false;
+      }
+    //}}}
+
+  private:
+
+    std::string mRootName;
+
+    std::vector<std::string> mChannelStrings;
+    std::vector<std::string> mSaveStrings;
+    bool mRecordAll;
+
+    std::mutex mFileMutex;
+
+    //{{{
+    class cSubtitleContext {
+    public:
+      cSubtitleContext (cSubtitleDecoder* subtitleDecoder, cSubtitle* subtitle) :
+        mSubtitleDecoder(subtitleDecoder), mSubtitle(subtitle) {}
+
+      cSubtitleDecoder* mSubtitleDecoder;
+      cSubtitle* mSubtitle;
+      };
+    //}}}
+    std::map <int, cSubtitleContext> mSubtitleContextMap;
     };
   //}}}
-  std::map <int, cStuff> mServiceStuffMap;
+  cDvbTransportStream* mDvbTransportStream;
   }
 
 
@@ -766,8 +931,9 @@ namespace { // anonymous
 //{{{
 cDvb::cDvb (int frequency, const string& root,
             const std::vector <std::string>& channelNames,
-            const std::vector <std::string>& recordNames)
-    : cDumpTransportStream (root, channelNames, recordNames) {
+            const std::vector <std::string>& recordNames) {
+
+  mDvbTransportStream = new cDvbTransportStream (root, channelNames, recordNames);
 
   if (frequency) {
     #ifdef _WIN32
@@ -820,33 +986,23 @@ cDvb::~cDvb() {
       close (mFrontEnd);
   #endif
 
-  for (auto& stuff : mServiceStuffMap) {
-    delete (stuff.second.mSubtitleDecoder);
-    delete (stuff.second.mSubtitle);
-    }
-
-  mServiceStuffMap.clear();
+  delete mDvbTransportStream;
   }
 //}}}
 
 //{{{
-int cDvb::getNumServices() {
-  return (int)mServiceStuffMap.size();
+int cDvb::getNumSubtitleServices() {
+  return mDvbTransportStream->getNumSubtitleServices();
   };
 //}}}
 //{{{
-cSubtitle* cDvb::getSubtitle (int serviceIndex) {
-
-  if (mServiceStuffMap.empty())
-    return nullptr;
-  else {
-    auto it = mServiceStuffMap.begin();
-    while ((serviceIndex > 0) && (it != mServiceStuffMap.end())) {
-      ++it;
-      serviceIndex--;
-      }
-    return (*it).second.mSubtitle;
-    }
+cSubtitle* cDvb::getSubtitle (int index) {
+  return mDvbTransportStream->getSubtitle (index);
+  }
+//}}}
+//{{{
+cTransportStream* cDvb::getTransportStream() {
+  return mDvbTransportStream;
   }
 //}}}
 
@@ -1120,12 +1276,12 @@ void cDvb::grabThread() {
         auto ptr = getBlock (blockSize);
         if (blockSize) {
           //{{{  read and demux block
-          streamPos += demux (ptr, blockSize, streamPos, false, -1, 0);
+          streamPos += mDvbTransportStream->demux (ptr, blockSize, streamPos, false, -1, 0);
           releaseBlock (blockSize);
 
           mErrorStr.clear();
-          if (getErrors())
-            mErrorStr += dec(getErrors()) + " err:";
+          if (mDvbTransportStream->getErrors())
+            mErrorStr += dec(mDvbTransportStream->getErrors()) + " err:";
           if (streamPos < 1000000)
             mErrorStr = dec(streamPos/1000) + "k";
           else
@@ -1203,44 +1359,15 @@ void cDvb::readThread (const std::string& fileName) {
 
     size_t bytesRead = fread (buffer, 1, blockSize, file);
     if (bytesRead > 0)
-      streamPos += demux (buffer, bytesRead, streamPos, false, -1, -1);
+      streamPos += mDvbTransportStream->demux (buffer, bytesRead, streamPos, false, -1, -1);
     else
       break;
-    mErrorStr = dec(getErrors());
+    mErrorStr = dec(mDvbTransportStream->getErrors());
     }
 
   fclose (file);
   free (buffer);
 
   cLog::log (LOGERROR, "exit");
-  }
-//}}}
-
-// protected
-//{{{
-bool cDvb::subDecodePes (cPidInfo* pidInfo) {
-
-  //if (kDebug)
-    cLog::log (LOGINFO, "subtitle pid:" + dec(pidInfo->mPid,4) +
-                        " sid:" + dec(pidInfo->mSid,5) +
-                        " size:" + dec(pidInfo->getBufUsed(),4) +
-                        " " + getFullPtsString (pidInfo->mPts) +
-                        " " + getChannelStringBySid (pidInfo->mSid));
-
-  // find or create sid service cStuff
-  auto it = mServiceStuffMap.find (pidInfo->mSid);
-  if (it == mServiceStuffMap.end()) {
-    auto insertPair = mServiceStuffMap.insert (
-      map <int, cStuff>::value_type (pidInfo->mSid, cStuff (new cSubtitleDecoder(), new cSubtitle())));
-    it = insertPair.first;
-    cLog::log (LOGINFO, "cDvb::subDecodePes - create serviceStuff sid:" + dec(pidInfo->mSid));
-    }
-  auto stuff = it->second;
-
-  stuff.mSubtitleDecoder->decode (pidInfo->mBuffer, pidInfo->getBufUsed(), stuff.mSubtitle);
-  if (kDebug)
-    stuff.mSubtitle->debug ("- ");
-
-  return false;
   }
 //}}}
