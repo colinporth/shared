@@ -77,6 +77,8 @@
 using namespace std;
 //}}}
 
+const bool kDebug = false;
+
 namespace { // anonymous
 #ifdef _WIN32
   //{{{
@@ -747,8 +749,17 @@ namespace { // anonymous
   //}}}
 #endif
 
-  std::map <int, cSubtitle*> mServiceSubtitleMap;
-  std::map <int, cSubtitleDecoder*> mServiceSubtitleDecodeMap;
+  //{{{
+  class cStuff {
+  public:
+    cStuff (cSubtitleDecoder* subtitleDecoder, cSubtitle* subtitle) :
+      mSubtitleDecoder(subtitleDecoder), mSubtitle(subtitle) {}
+
+    cSubtitleDecoder* mSubtitleDecoder;
+    cSubtitle* mSubtitle;
+    };
+  //}}}
+  std::map <int, cStuff> mServiceStuffMap;
   }
 
 
@@ -810,28 +821,32 @@ cDvb::~cDvb() {
       close (mFrontEnd);
   #endif
 
-  mServiceSubtitleMap.clear();
-  mServiceSubtitleDecodeMap.clear();
+  for (auto& stuff : mServiceStuffMap) {
+    delete (stuff.second.mSubtitleDecoder);
+    delete (stuff.second.mSubtitle);
+    }
+
+  mServiceStuffMap.clear();
   }
 //}}}
 
 //{{{
 int cDvb::getNumServices() {
-  return (int)mServiceSubtitleMap.size();
+  return (int)mServiceStuffMap.size();
   };
 //}}}
 //{{{
 cSubtitle* cDvb::getSubtitle (int serviceIndex) {
 
-  if (mServiceSubtitleMap.empty())
+  if (mServiceStuffMap.empty())
     return nullptr;
   else {
-    auto it = mServiceSubtitleMap.begin();
-    while ((serviceIndex > 0) && (it != mServiceSubtitleMap.end())) {
+    auto it = mServiceStuffMap.begin();
+    while ((serviceIndex > 0) && (it != mServiceStuffMap.end())) {
       ++it;
       serviceIndex--;
       }
-    return (*it).second;
+    return (*it).second.mSubtitle;
     }
   }
 //}}}
@@ -1206,29 +1221,25 @@ void cDvb::readThread (const std::string& fileName) {
 //{{{
 bool cDvb::subDecodePes (cPidInfo* pidInfo) {
 
-  cLog::log (LOGINFO, "subtitle Pes pts:" + getPtsString (pidInfo->mPts) +
-                      " size:" + dec(pidInfo->getBufUsed(),4) +
-                      " pid:" + dec(pidInfo->mPid) +
-                      " pidSid:" + dec(pidInfo->mSid));
+  //if (kDebug)
+    cLog::log (LOGINFO, "subtitle Pes pts:" + getPtsString (pidInfo->mPts) +
+                        " size:" + dec(pidInfo->getBufUsed(),4) +
+                        " pid:" + dec(pidInfo->mPid) +
+                        " sid:" + getChannelInfoBySid (pidInfo->mSid));
 
-  auto serviceSubtitleDecoderIt = mServiceSubtitleDecodeMap.find (pidInfo->mSid);
-  if (serviceSubtitleDecoderIt == mServiceSubtitleDecodeMap.end()) {
-    auto insertPair = mServiceSubtitleDecodeMap.insert (map <int, cSubtitleDecoder*>::value_type (pidInfo->mSid, new cSubtitleDecoder()));
-    serviceSubtitleDecoderIt = insertPair.first;
-    cLog::log (LOGINFO, "create serviceSubtitleDecoder" + dec(pidInfo->mSid));
+  // find or create sid service cStuff
+  auto it = mServiceStuffMap.find (pidInfo->mSid);
+  if (it == mServiceStuffMap.end()) {
+    auto insertPair = mServiceStuffMap.insert (
+      map <int, cStuff>::value_type (pidInfo->mSid, cStuff (new cSubtitleDecoder(), new cSubtitle())));
+    it = insertPair.first;
+    cLog::log (LOGINFO, "cDvb::subDecodePes - create serviceStuff sid:" + dec(pidInfo->mSid));
     }
-  auto decoder = serviceSubtitleDecoderIt->second;
+  auto stuff = it->second;
 
-  auto serviceSubtitleIt = mServiceSubtitleMap.find (pidInfo->mSid);
-  if (serviceSubtitleIt == mServiceSubtitleMap.end()) {
-    auto insertPair = mServiceSubtitleMap.insert (map <int, cSubtitle*>::value_type (pidInfo->mSid, new cSubtitle()));
-    serviceSubtitleIt = insertPair.first;
-    cLog::log (LOGINFO, "create serviceSubtitle" + dec(pidInfo->mSid));
-    }
-  auto subtitle = serviceSubtitleIt->second;
-
-  decoder->decode (pidInfo->mBuffer, pidInfo->getBufUsed(), subtitle);
-  subtitle->debug ("- ");
+  stuff.mSubtitleDecoder->decode (pidInfo->mBuffer, pidInfo->getBufUsed(), stuff.mSubtitle);
+  if (kDebug)
+    stuff.mSubtitle->debug ("- ");
 
   return false;
   }

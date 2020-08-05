@@ -491,6 +491,7 @@ string cPidInfo::getInfoString() {
   }
 //}}}
 
+
 //{{{
 int cPidInfo::addToBuffer (uint8_t* buf, int bufSize) {
 
@@ -730,6 +731,17 @@ void cService::writeSection (uint8_t* ts, uint8_t* tsSectionStart, uint8_t* tsPt
 //}}}
 
 // public
+//{{{
+std::string cTransportStream::getChannelInfoBySid (int sid) {
+
+  auto it = mServiceMap.find (sid);
+  if (it != mServiceMap.end()) {
+    if (it->second.getChannelString().empty())
+      return dec(sid) + ":" + it->second.getChannelString();
+    }
+  return dec(sid) + ":unknown";
+  }
+//}}}
 //{{{
 cService* cTransportStream::getService (int index, int64_t& firstPts, int64_t& lastPts) {
 
@@ -1547,7 +1559,7 @@ void cTransportStream::parseEit (cPidInfo* pidInfo, uint8_t* buf) {
               // now event
               auto running = (eitEvent->running_status == 0x04);
               if (running &&
-                  !serviceIt->second.getChannelString().empty() && 
+                  !serviceIt->second.getChannelString().empty() &&
                   (serviceIt->second.getProgramPid() != -1) &&
                   (serviceIt->second.getVidPid() != -1) &&
                   (serviceIt->second.getAudPid() != -1) &&

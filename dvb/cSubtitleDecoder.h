@@ -1331,7 +1331,7 @@ private:
       offsetY = mDisplayDefinition->mY;
       }
 
-    int i = 0;
+    size_t i = 0;
     for (sRegionDisplay* display = mDisplayList; display; display = display->mNext) {
       sRegion* region = getRegion (display->mRegionId);
       if (!region || !region->mDirty)
