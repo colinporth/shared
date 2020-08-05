@@ -748,7 +748,6 @@ namespace { // anonymous
     }
   //}}}
 #endif
-
   //{{{
   class cStuff {
   public:
