@@ -45,10 +45,6 @@
   //}}}
 #else
   //{{{  linux includes
-  #include <linux/dvb/version.h>
-  #include <linux/dvb/dmx.h>
-  #include <linux/dvb/frontend.h>
-
   #include <unistd.h>
   #include <signal.h>
   #include <fcntl.h>
@@ -56,6 +52,10 @@
   #include <sys/ioctl.h>
   #include <sys/time.h>
   #include <sys/poll.h>
+
+  #include <linux/dvb/version.h>
+  #include <linux/dvb/dmx.h>
+  #include <linux/dvb/frontend.h>
   //}}}
 #endif
 //{{{  common includes
@@ -920,7 +920,7 @@ namespace { // anonymous
       cSubtitle* mSubtitle;
       };
     //}}}
-    std::map <int, cSubtitleContext> mSubtitleContextMap;
+    std::map <int, cSubtitleContext> mSubtitleContextMap; // indexed by sid
     };
   //}}}
   cDvbTransportStream* mDvbTransportStream;
