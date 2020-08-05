@@ -513,7 +513,7 @@ public:
 
   GLuint imageHandle (int image);
 
-  int createImage (const char* filename, eImageFlags imageFlags);
+  int createImage (const char* filename, int imageFlags);
   int createImageMem (int imageFlags, unsigned char* data, int ndata);
   int createImageRGBA (int w, int h, int imageFlags, const unsigned char* data);
   int createImageFromHandle (GLuint textureId, int w, int h, int imageFlags);

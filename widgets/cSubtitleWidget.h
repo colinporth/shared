@@ -28,37 +28,40 @@ public:
       int widgetLine = 0;
       for (int serviceIndex = 0; serviceIndex < numServices; serviceIndex++) {
         cSubtitle* subtitle = mDvb->getSubtitle (serviceIndex);
-        if (subtitle) {
-          if (!subtitle->mRects.empty()) {
-            for (size_t subtitleLine = 0; subtitleLine < subtitle->mRects.size(); subtitleLine++) {
-              int subWidth = subtitle->mRects[subtitleLine]->mWidth;
-              int subHeight = subtitle->mRects[subtitleLine]->mHeight;
-              float dstWidth = mWidth;
-              float dstHeight = float(subHeight * mWidth) / subWidth;
-
-              if (mImage[widgetLine] == -1)
-                mImage[widgetLine] = context->createImageRGBA (subWidth, subHeight, 0, subtitle->mRects[subtitleLine]->mPixData);
-              else if (subtitle->mChanged)
-                context->updateImage (mImage[widgetLine], subtitle->mRects[subtitleLine]->mPixData);
-
-              auto imagePaint = context->imagePattern (mX, y, dstWidth, dstHeight, 0.f, mImage[widgetLine], 1.f);
-
-              context->beginPath();
-              context->rect (mX, y, dstWidth, dstHeight);
-              context->fillPaint (imagePaint);
-              context->fill();
-
-              y += dstHeight;
-              widgetLine++;
+        if (!subtitle->mRects.empty()) {
+          for (size_t subtitleLine = 0; subtitleLine < subtitle->mRects.size(); subtitleLine++) {
+            int subWidth = subtitle->mRects[subtitleLine]->mWidth;
+            int subHeight = subtitle->mRects[subtitleLine]->mHeight;
+            float dstWidth = mWidth;
+            float dstHeight = float(subHeight * mWidth) / subWidth;
+            if (dstHeight > mHeight) {
+              float scaleh = mHeight / dstHeight;
+              dstHeight = mHeight;
+              dstWidth *= scaleh;
               }
+
+            if (mImage[widgetLine] == -1)
+              mImage[widgetLine] = context->createImageRGBA (
+                subWidth, subHeight, 0, subtitle->mRects[subtitleLine]->mPixData);
+            else if (subtitle->mChanged)
+              context->updateImage (mImage[widgetLine], subtitle->mRects[subtitleLine]->mPixData);
+
+            auto imagePaint = context->imagePattern (mX, y, dstWidth, dstHeight, 0.f, mImage[widgetLine], 1.f);
+            context->beginPath();
+            context->rect (mX, y, dstWidth, dstHeight);
+            context->fillPaint (imagePaint);
+            context->fill();
+
+            y += dstHeight;
+            widgetLine++;
             }
-          subtitle->mChanged = false;
           }
+        subtitle->mChanged = false;
         }
       }
     }
 
 private:
   cDvb* mDvb;
-  int mImage[20] =  { -1 };
+  int mImage[16] =  { -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1 };
   };

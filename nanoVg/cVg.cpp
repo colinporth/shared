@@ -3008,7 +3008,7 @@ GLuint cVg::imageHandle (int image) {
 //}}}
 
 //{{{
-int cVg::createImage (const char* filename, eImageFlags imageFlags) {
+int cVg::createImage (const char* filename, int imageFlags) {
 
   stbi_set_unpremultiply_on_load (1);
   stbi_convert_iphone_png_to_rgb (1);

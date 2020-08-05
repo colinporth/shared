@@ -354,9 +354,9 @@ private:
     int mVersion = 0;
     int mId = 0;
 
-    uint32_t mClut4[4] = { 0 };
-    uint32_t mClut16[16] = { 0 };
-    uint32_t mClut256[256] = { 0 };
+    uint32_t mClut4[4];
+    uint32_t mClut16[16];
+    uint32_t mClut256[256];
     };
   //}}}
   //{{{
@@ -1324,24 +1324,20 @@ private:
   //{{{
   bool updateSubtitle (cSubtitle* subtitle) {
 
-    int offsetX = 0;
-    int offsetY = 0;
-    if (mDisplayDefinition) {
-      offsetX = mDisplayDefinition->mX;
-      offsetY = mDisplayDefinition->mY;
-      }
+    int offsetX = mDisplayDefinition ? mDisplayDefinition->mX : 0;
+    int offsetY = mDisplayDefinition ? mDisplayDefinition->mY : 0;
 
     size_t i = 0;
-    for (sRegionDisplay* display = mDisplayList; display; display = display->mNext) {
-      sRegion* region = getRegion (display->mRegionId);
+    for (sRegionDisplay* regionDisplay = mDisplayList; regionDisplay; regionDisplay = regionDisplay->mNext) {
+      sRegion* region = getRegion (regionDisplay->mRegionId);
       if (!region || !region->mDirty)
         continue;
 
       if (i >= subtitle->mRects.size())
         subtitle->mRects.push_back (new cSubtitle::cSubRect());
 
-      subtitle->mRects[i]->mX = display->xPos + offsetX;
-      subtitle->mRects[i]->mY = display->yPos + offsetY;
+      subtitle->mRects[i]->mX = regionDisplay->xPos + offsetX;
+      subtitle->mRects[i]->mY = regionDisplay->yPos + offsetY;
       subtitle->mRects[i]->mWidth = region->mWidth;
       subtitle->mRects[i]->mHeight = region->mHeight;
 
@@ -1397,7 +1393,6 @@ private:
   sRegionDisplay* mDisplayList = nullptr;
   sDisplayDefinition* mDisplayDefinition = nullptr;
 
+  sClut mDefaultClut;
   sClut* mClutList = nullptr;
-  sClut mDefaultClut = { 0 };
-  int mClutCount2[257][256] = { 0 };
   };
