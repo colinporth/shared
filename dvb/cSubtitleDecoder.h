@@ -2,78 +2,7 @@
 #pragma once
 #include <vector>
 
-//{{{
 class cSubtitle {
-public:
-  //{{{
-  class cSubRect {
-  public:
-    //{{{
-    ~cSubRect() {
-      free (mPixData);
-      }
-
-    //}}}
-
-    int mX = 0;
-    int mY = 0;
-    int mWidth = 0;
-    int mHeight = 0;
-    uint8_t* mPixData = nullptr;
-    };
-  //}}}
-
-  cSubtitle() {}
-  //{{{
-  ~cSubtitle() {
-    for (auto rect : mRects)
-      delete rect;
-    }
-  //}}}
-
-  //{{{
-  void debug (std::string prefix) {
-
-    if (mRects.empty())
-      cLog::log (LOGINFO, "subtitle empty");
-    else
-      for (unsigned int i = 0; i < mRects.size(); i++) {
-        cLog::log (LOGINFO, prefix +
-                            "rect:" + dec(i) +
-                            " x:"  + dec(mRects[i]->mX) +
-                            " y:"  + dec(mRects[i]->mY) +
-                            " w:"  + dec(mRects[i]->mWidth) +
-                            " h:"  + dec(mRects[i]->mHeight));
-        }
-    }
-  //}}}
-  //{{{
-  void moreDebug() {
-
-    if (!mRects.empty())
-      for (unsigned int i = 0; i < mRects.size(); i++) {
-        int xStep = mRects[i]->mWidth / 80;
-        int yStep = mRects[i]->mHeight / 16;
-        for (int y = 0; y < mRects[i]->mHeight; y += yStep) {
-          uint8_t* p = mRects[i]->mPixData + mRects[i]->mWidth;
-          std::string str = "  ";
-          for (int x = 0; x < mRects[i]->mWidth; x += xStep) {
-            int value = p[x];
-            str += value ? hex(value,1) : ".";
-            }
-          cLog::log (LOGINFO, str);
-          }
-        }
-    }
-  //}}}
-
-  // vars
-  std::vector <cSubRect*> mRects;
-  bool mChanged = false;
-  };
-//}}}
-
-class cSubtitleDecoder {
 public:
   //{{{  defines
   #define AVRB16(p) ((*(p) << 8) | *(p+1))
@@ -85,7 +14,7 @@ public:
   #define RGBA(r,g,b,a) (((unsigned)(a) << 24) | ((b) << 16) | ((g) << 8) | (r))
   //}}}
   //{{{
-  cSubtitleDecoder() {
+  cSubtitle() {
     mVersion = -1;
     mDefaultClut.mId = -1;
     //{{{  init 2bit clut
@@ -171,7 +100,7 @@ public:
     }
   //}}}
   //{{{
-  ~cSubtitleDecoder() {
+  ~cSubtitle() {
 
     deleteRegions();
     deleteObjects();
@@ -184,12 +113,14 @@ public:
       mDisplayList = display->mNext;
       free (display);
       }
+
+    for (auto rect : mRects)
+      delete rect;
     }
   //}}}
 
   //{{{
-  bool decode (const uint8_t* buf, int bufSize, cSubtitle* subtitle) {
-  // return new cSubtitle if succesful
+  bool decode (const uint8_t* buf, int bufSize) {
 
     // skip past first 2 bytes
     const uint8_t* bufEnd = buf + bufSize;
@@ -250,7 +181,7 @@ public:
           break;
 
         case 0x80:
-          updateSubtitle (subtitle);
+          updateRects();
           return true;
 
         default:
@@ -264,6 +195,62 @@ public:
     return false;
     }
   //}}}
+  //{{{
+  void debug (std::string prefix) {
+
+    if (mRects.empty())
+      cLog::log (LOGINFO, "subtitle empty");
+    else
+      for (unsigned int i = 0; i < mRects.size(); i++) {
+        cLog::log (LOGINFO, prefix +
+                            "rect:" + dec(i) +
+                            " x:"  + dec(mRects[i]->mX) +
+                            " y:"  + dec(mRects[i]->mY) +
+                            " w:"  + dec(mRects[i]->mWidth) +
+                            " h:"  + dec(mRects[i]->mHeight));
+        }
+    }
+  //}}}
+  //{{{
+  void rectDebug() {
+
+    if (!mRects.empty())
+      for (unsigned int i = 0; i < mRects.size(); i++) {
+        int xStep = mRects[i]->mWidth / 80;
+        int yStep = mRects[i]->mHeight / 16;
+        for (int y = 0; y < mRects[i]->mHeight; y += yStep) {
+          uint8_t* p = mRects[i]->mPixData + mRects[i]->mWidth;
+          std::string str = "  ";
+          for (int x = 0; x < mRects[i]->mWidth; x += xStep) {
+            int value = p[x];
+            str += value ? hex(value,1) : ".";
+            }
+          cLog::log (LOGINFO, str);
+          }
+        }
+    }
+  //}}}
+
+  // public for widget access
+  //{{{
+  class cSubRect {
+  public:
+    //{{{
+    ~cSubRect() {
+      free (mPixData);
+      }
+
+    //}}}
+
+    int mX = 0;
+    int mY = 0;
+    int mWidth = 0;
+    int mHeight = 0;
+    uint8_t* mPixData = nullptr;
+    };
+  //}}}
+  std::vector <cSubRect*> mRects;
+  bool mChanged = false;
 
 private:
   //{{{
@@ -1323,7 +1310,7 @@ private:
   //}}}
 
   //{{{
-  bool updateSubtitle (cSubtitle* subtitle) {
+  bool updateRects() {
 
     int offsetX = mDisplayDefinition ? mDisplayDefinition->mX : 0;
     int offsetY = mDisplayDefinition ? mDisplayDefinition->mY : 0;
@@ -1334,20 +1321,20 @@ private:
       if (!region || !region->mDirty)
         continue;
 
-      if (i >= subtitle->mRects.size())
-        subtitle->mRects.push_back (new cSubtitle::cSubRect());
+      if (i >= mRects.size())
+        mRects.push_back (new cSubtitle::cSubRect());
 
-      subtitle->mRects[i]->mX = regionDisplay->xPos + offsetX;
-      subtitle->mRects[i]->mY = regionDisplay->yPos + offsetY;
-      subtitle->mRects[i]->mWidth = region->mWidth;
-      subtitle->mRects[i]->mHeight = region->mHeight;
+      mRects[i]->mX = regionDisplay->xPos + offsetX;
+      mRects[i]->mY = regionDisplay->yPos + offsetY;
+      mRects[i]->mWidth = region->mWidth;
+      mRects[i]->mHeight = region->mHeight;
 
       auto clut = getClut (region->mClut);
       if (!clut)
         clut = &mDefaultClut;
 
-      subtitle->mRects[i]->mPixData = (uint8_t*)realloc (subtitle->mRects[i]->mPixData, region->mPixBufSize * 4);
-      uint32_t* ptr = (uint32_t*) (subtitle->mRects[i]->mPixData);
+      mRects[i]->mPixData = (uint8_t*)realloc (mRects[i]->mPixData, region->mPixBufSize * 4);
+      uint32_t* ptr = (uint32_t*) (mRects[i]->mPixData);
       for (int pix = 0; pix < region->mPixBufSize; pix++)
         switch (region->mDepth) {
           case 2:
@@ -1363,13 +1350,13 @@ private:
             cLog::log (LOGERROR, "unknown depth:" + dec(region->mDepth));
           }
 
-      subtitle->mChanged = true;
+      mChanged = true;
       i++;
       }
 
-    while (subtitle->mRects.size() > i) {
-      subtitle->mRects.pop_back();
-      cLog::log (LOGINFO, "- updateSubtitle pop " + dec(i) + " " + dec(subtitle->mRects.size()));
+    while (mRects.size() > i) {
+      mRects.pop_back();
+      cLog::log (LOGINFO, "- updateSubtitle pop " + dec(i) + " " + dec(mRects.size()));
       }
 
     return true;

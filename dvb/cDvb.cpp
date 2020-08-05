@@ -765,32 +765,30 @@ namespace { // anonymous
     //{{{
     virtual ~cDvbTransportStream() {
 
-      for (auto& subtitleContext : mSubtitleContextMap) {
-        delete (subtitleContext.second.mSubtitleDecoder);
-        delete (subtitleContext.second.mSubtitle);
-        }
+      for (auto& subtitle : mSubtitleMap)
+        delete (subtitle.second);
 
-      mSubtitleContextMap.clear();
+      mSubtitleMap.clear();
       }
     //}}}
 
     //{{{
     int getNumSubtitleServices() {
-      return (int)mSubtitleContextMap.size();
+      return (int)mSubtitleMap.size();
       }
     //}}}
     //{{{
     cSubtitle* getSubtitle (int index) {
 
-      if (mSubtitleContextMap.empty())
+      if (mSubtitleMap.empty())
         return nullptr;
       else {
-        auto it = mSubtitleContextMap.begin();
-        while ((index > 0) && (it != mSubtitleContextMap.end())) {
+        auto it = mSubtitleMap.begin();
+        while ((index > 0) && (it != mSubtitleMap.end())) {
           ++it;
           index--;
           }
-        return (*it).second.mSubtitle;
+        return (*it).second;
         }
       }
     //}}}
@@ -883,25 +881,24 @@ namespace { // anonymous
                             " " + getChannelStringBySid (pidInfo->mSid));
 
       // find or create sid service cSubtitleContext
-      auto it = mSubtitleContextMap.find (pidInfo->mSid);
-      if (it == mSubtitleContextMap.end()) {
-        auto insertPair = mSubtitleContextMap.insert (
-          map <int, cSubtitleContext>::value_type (pidInfo->mSid, cSubtitleContext (new cSubtitleDecoder(), new cSubtitle())));
+      auto it = mSubtitleMap.find (pidInfo->mSid);
+      if (it == mSubtitleMap.end()) {
+        auto insertPair = mSubtitleMap.insert (
+          map <int, cSubtitle*>::value_type (pidInfo->mSid, new cSubtitle()));
         it = insertPair.first;
         cLog::log (LOGINFO, "cDvb::subDecodePes - create serviceStuff sid:" + dec(pidInfo->mSid));
         }
-      auto subtitleContext = it->second;
+      auto subtitle = it->second;
 
-      subtitleContext.mSubtitleDecoder->decode (pidInfo->mBuffer, pidInfo->getBufUsed(), subtitleContext.mSubtitle);
+      subtitle->decode (pidInfo->mBuffer, pidInfo->getBufUsed());
       if (kDebug)
-        subtitleContext.mSubtitle->debug ("- ");
+        subtitle->debug ("- ");
 
       return false;
       }
     //}}}
 
   private:
-
     std::string mRootName;
 
     std::vector<std::string> mChannelStrings;
@@ -910,17 +907,7 @@ namespace { // anonymous
 
     std::mutex mFileMutex;
 
-    //{{{
-    class cSubtitleContext {
-    public:
-      cSubtitleContext (cSubtitleDecoder* subtitleDecoder, cSubtitle* subtitle) :
-        mSubtitleDecoder(subtitleDecoder), mSubtitle(subtitle) {}
-
-      cSubtitleDecoder* mSubtitleDecoder;
-      cSubtitle* mSubtitle;
-      };
-    //}}}
-    std::map <int, cSubtitleContext> mSubtitleContextMap; // indexed by sid
+    std::map <int, cSubtitle*> mSubtitleMap; // indexed by sid
     };
   //}}}
   cDvbTransportStream* mDvbTransportStream;
