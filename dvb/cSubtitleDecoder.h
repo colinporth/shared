@@ -195,6 +195,7 @@ public:
     return false;
     }
   //}}}
+
   //{{{
   void debug (std::string prefix) {
 
@@ -1356,7 +1357,7 @@ private:
 
     while (mRects.size() > i) {
       mRects.pop_back();
-      cLog::log (LOGINFO, "- updateSubtitle pop " + dec(i) + " " + dec(mRects.size()));
+      cLog::log (LOGINFO1, "- updateSubtitle pop " + dec(i) + " " + dec(mRects.size()));
       }
 
     return true;

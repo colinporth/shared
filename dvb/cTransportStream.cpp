@@ -496,7 +496,7 @@ int cPidInfo::addToBuffer (uint8_t* buf, int bufSize) {
 
   if (getBufUsed() + bufSize > mBufSize) {
     // realloc buffer to twice size
-    mBufSize *= 2;
+    mBufSize = mBufSize * 2;
     cLog::log (LOGINFO1, "demux pid:" + dec(mPid) + " realloc to " + dec(mBufSize));
 
     auto ptrOffset = getBufUsed();
@@ -1131,18 +1131,18 @@ int64_t cTransportStream::demux (const std::vector<int>& pids, uint8_t* tsBuf, i
               //{{{  continuity error
               if (pidInfo->mContinuity == continuityCount) // strange case of bbc subtitles
                 pidInfo->mRepeatContinuity++;
-              else
+              else {
                 mErrors++;
-
-              // abandon any buffered pes or section
-              pidInfo->mBufPtr = nullptr;
+                // abandon any buffered pes or section
+                pidInfo->mBufPtr = nullptr;
+                }
               }
               //}}}
             pidInfo->mContinuity = continuityCount;
             pidInfo->mPackets++;
 
             if (pidInfo->mPsi) {
-              //{{{  psi 
+              //{{{  psi
               ts += headerBytes;
               tsBytesLeft -= headerBytes;
 
@@ -1192,7 +1192,7 @@ int64_t cTransportStream::demux (const std::vector<int>& pids, uint8_t* tsBuf, i
               }
               //}}}
             else if (pids.empty() || (pid == pids[0]) || ((pids.size() > 1) && (pid == pids[1]))) {
-              //{{{  pes 
+              //{{{  pes
               pesPacket (pidInfo->mSid, pidInfo->mPid, ts-1);
 
               ts += headerBytes;
@@ -1208,8 +1208,7 @@ int64_t cTransportStream::demux (const std::vector<int>& pids, uint8_t* tsBuf, i
                     switch (pidInfo->mStreamType) {
                       case 2:   // ISO 13818-2 video
                       case 27:  // HD vid
-                        //{{{  video
-                        // send last pes
+                        //{{{  send last video pes
                         decoded = vidDecodePes (pidInfo, skip);
 
                         skip = false;
@@ -1220,20 +1219,16 @@ int64_t cTransportStream::demux (const std::vector<int>& pids, uint8_t* tsBuf, i
                       case 15:  // aac adts
                       case 17:  // aac latm
                       case 129: // ac3
-                        //{{{  audio
-                        // send last pes
+                        //{{{  send last audio pes
                         if (*(uint32_t*)ts == 0xC1010000)
                           decoded = audAltDecodePes (pidInfo, skip);
                         else
                           decoded = audDecodePes (pidInfo, skip);
+
                         break;
                         //}}}
                       case 6:   // subtitle
-                        //{{{  subtitle
-                        // send last pes
-
-                        //cLog::log (LOGINFO, "demux subtitle pes - pid:" + dec(pid) + " len:" +
-                        //                     dec (pidInfo->mBufPtr - pidInfo->mBuffer));
+                        //{{{  send last subtitle pes
                         decoded = subDecodePes (pidInfo);
                         break;
                         //}}}

@@ -878,11 +878,11 @@ namespace { // anonymous
     virtual bool subDecodePes (cPidInfo* pidInfo) {
 
       //if (kDebug)
-        cLog::log (LOGINFO, "subtitle pid:" + dec(pidInfo->mPid,4) +
-                            " sid:" + dec(pidInfo->mSid,5) +
-                            " size:" + dec(pidInfo->getBufUsed(),4) +
-                            " " + getFullPtsString (pidInfo->mPts) +
-                            " " + getChannelStringBySid (pidInfo->mSid));
+        cLog::log (LOGINFO1, "subtitle pid:" + dec(pidInfo->mPid,4) +
+                             " sid:" + dec(pidInfo->mSid,5) +
+                             " size:" + dec(pidInfo->getBufUsed(),4) +
+                             " " + getFullPtsString (pidInfo->mPts) +
+                             " " + getChannelStringBySid (pidInfo->mSid));
 
       // find or create sid service cSubtitleContext
       auto it = mSubtitleMap.find (pidInfo->mSid);
@@ -890,7 +890,7 @@ namespace { // anonymous
         auto insertPair = mSubtitleMap.insert (
           map <int, cSubtitle*>::value_type (pidInfo->mSid, new cSubtitle()));
         it = insertPair.first;
-        cLog::log (LOGINFO, "cDvb::subDecodePes - create serviceStuff sid:" + dec(pidInfo->mSid));
+        cLog::log (LOGINFO1, "cDvb::subDecodePes - create serviceStuff sid:" + dec(pidInfo->mSid));
         }
       auto subtitle = it->second;
 
