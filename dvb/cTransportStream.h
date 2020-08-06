@@ -199,8 +199,7 @@ public:
   static char getFrameType (uint8_t* pesBuf, int64_t pesBufSize, int streamType);
 
   virtual void clear();
-  int64_t demux (uint8_t* tsBuf, int64_t tsBufSize, int64_t streamPos, bool skip,
-                 int decodePid1, int decodePid2);
+  int64_t demux (const std::vector<int>& pids, uint8_t* tsBuf, int64_t tsBufSize, int64_t streamPos, bool skip);
 
   // vars, public for widget
   std::mutex mMutex;
@@ -216,6 +215,7 @@ protected:
   virtual void stop (cService* service) {}
 
   virtual bool audDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
+  virtual bool audAltDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
   virtual bool vidDecodePes (cPidInfo* pidInfo, bool skip) { return false; }
   virtual bool subDecodePes (cPidInfo* pidInfo) { return false; }
 

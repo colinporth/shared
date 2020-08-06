@@ -1273,7 +1273,7 @@ void cDvb::grabThread (const string& root, const string& multiplexName) {
           if (mFile)
             fwrite (ptr, 1, blockSize, mFile);
 
-          streamPos += mDvbTransportStream->demux (ptr, blockSize, streamPos, false, -1, 0);
+          streamPos += mDvbTransportStream->demux ({}, ptr, blockSize, streamPos, false);
           releaseBlock (blockSize);
 
           mErrorStr.clear();
@@ -1305,7 +1305,7 @@ void cDvb::grabThread (const string& root, const string& multiplexName) {
       int blockSize = 0;
       auto ptr = mBipBuffer->getContiguousBlock (blockSize);
       if (blockSize > 0) {
-        streamPos += mDvbTransportStream->demux (ptr, blockSize, 0, false, -1, 0);
+        streamPos += mDvbTransportStream->demux ({}, ptr, blockSize, 0, false);
         if (mFile)
           fwrite (ptr, 1, blockSize, mFile);
         mBipBuffer->decommitBlock (blockSize);
@@ -1360,7 +1360,7 @@ void cDvb::readThread (const std::string& fileName) {
 
     size_t bytesRead = fread (buffer, 1, blockSize, file);
     if (bytesRead > 0)
-      streamPos += mDvbTransportStream->demux (buffer, bytesRead, streamPos, false, -1, -1);
+      streamPos += mDvbTransportStream->demux ({}, buffer, bytesRead, streamPos, false);
     else
       break;
     mErrorStr = dec(mDvbTransportStream->getErrors());

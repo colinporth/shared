@@ -470,8 +470,8 @@ string cPidInfo::getTypeString() {
       case   4: return "m3a"; // ISO 13818-3 audio
       case   5: return "mtd"; // private mpeg2 tabled data - private
       case   6: return "sub"; // subtitle
-      case  11: return "dsm"; // dsm cc u_n
-      case  13: return "dsm"; // dsm cc tabled data
+      case  11: return "d11"; // dsm cc u_n
+      case  13: return "d13"; // dsm cc tabled data
       case  15: return "aac"; // HD aud ADTS
       case  17: return "aac"; // HD aud LATM
       case  27: return "264"; // HD vid
@@ -490,7 +490,6 @@ string cPidInfo::getInfoString() {
   return (mSid > 0 ? dec(mSid) : "") + (mInfoString.empty() ? "" : " " + mInfoString);
   }
 //}}}
-
 
 //{{{
 int cPidInfo::addToBuffer (uint8_t* buf, int bufSize) {
@@ -1098,8 +1097,8 @@ void cTransportStream::clear() {
   }
 //}}}
 //{{{
-int64_t cTransportStream::demux (uint8_t* tsBuf, int64_t tsBufSize, int64_t streamPos, bool skip,
-                                 int decodePid1, int decodePid2) {
+int64_t cTransportStream::demux (const std::vector<int>& pids, uint8_t* tsBuf, int64_t tsBufSize,
+                                 int64_t streamPos, bool skip) {
 // demux from tsBuffer to tsBuffer + tsBufferSize, streamPos is offset into full stream of first packet
 // decodePid1 = -1 use all
 // - return bytes decoded
@@ -1143,7 +1142,7 @@ int64_t cTransportStream::demux (uint8_t* tsBuf, int64_t tsBufSize, int64_t stre
             pidInfo->mPackets++;
 
             if (pidInfo->mPsi) {
-              //{{{  psi packet
+              //{{{  psi 
               ts += headerBytes;
               tsBytesLeft -= headerBytes;
 
@@ -1184,8 +1183,16 @@ int64_t cTransportStream::demux (uint8_t* tsBuf, int64_t tsBufSize, int64_t stre
                 pidInfo->addToBuffer (ts, tsBytesLeft);
               }
               //}}}
-            else if ((decodePid1 == -1) || (decodePid1 == pid) || (decodePid2 == pid)) {
-              //{{{  pes packet
+            else if (pidInfo->mStreamType == 5) {
+              //{{{  mtd - do nothing
+              }
+              //}}}
+            else if (pidInfo->mStreamType == 11) {
+              //{{{  dsm - do nothing
+              }
+              //}}}
+            else if (pids.empty() || (pid == pids[0]) || ((pids.size() > 1) && (pid == pids[1]))) {
+              //{{{  pes 
               pesPacket (pidInfo->mSid, pidInfo->mPid, ts-1);
 
               ts += headerBytes;
@@ -1195,29 +1202,43 @@ int64_t cTransportStream::demux (uint8_t* tsBuf, int64_t tsBufSize, int64_t stre
                 // start of payload for new pes buffer
                 if ((*(uint32_t*)ts == 0xBD010000) ||
                     (*(uint32_t*)ts == 0xC0010000) ||
+                    (*(uint32_t*)ts == 0xC1010000) ||
                     (*(uint32_t*)ts == 0xE0010000)) {
                   if (pidInfo->mBufPtr && pidInfo->mStreamType) {
-                    // recognise streamIds, call pes handler with any last pes buffer
                     switch (pidInfo->mStreamType) {
-                      case 2:
-                      case 27:
+                      case 2:   // ISO 13818-2 video
+                      case 27:  // HD vid
+                        //{{{  video
+                        // send last pes
                         decoded = vidDecodePes (pidInfo, skip);
+
                         skip = false;
                         break;
-
-                      case 3:
-                      case 4:
-                      case 15:
-                      case 17:
-                      case 129:
-                        decoded = audDecodePes (pidInfo, skip);
+                        //}}}
+                      case 3:   // ISO 11172-3 audio
+                      case 4:   // ISO 13818-3 audio
+                      case 15:  // aac adts
+                      case 17:  // aac latm
+                      case 129: // ac3
+                        //{{{  audio
+                        // send last pes
+                        if (*(uint32_t*)ts == 0xC1010000)
+                          decoded = audAltDecodePes (pidInfo, skip);
+                        else
+                          decoded = audDecodePes (pidInfo, skip);
                         break;
+                        //}}}
+                      case 6:   // subtitle
+                        //{{{  subtitle
+                        // send last pes
 
-                      case 6:
                         //cLog::log (LOGINFO, "demux subtitle pes - pid:" + dec(pid) + " len:" +
                         //                     dec (pidInfo->mBufPtr - pidInfo->mBuffer));
                         decoded = subDecodePes (pidInfo);
                         break;
+                        //}}}
+                      default:
+                        cLog::log (LOGINFO, "unknown pid:" + dec(pid) + " streamType:" + dec(pidInfo->mStreamType));
                       }
                     }
 
@@ -1238,6 +1259,10 @@ int64_t cTransportStream::demux (uint8_t* tsBuf, int64_t tsBufSize, int64_t stre
 
                   // reset new payload buffer
                   pidInfo->mBufPtr = pidInfo->mBuffer;
+                  }
+                else {
+                  uint32_t nn = *(uint32_t*)ts;
+                  cLog::log (LOGINFO, "unrecognised pes header " + dec(pid) + " " + hex (nn,8));
                   }
                 }
 
