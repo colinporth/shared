@@ -24,6 +24,7 @@ public:
 
   void onDraw (iDraw* draw) {
 
+    int lastSid = 0;
     int imageIndex = 0;
     auto context = draw->getContext();
 
@@ -32,12 +33,15 @@ public:
     float lineHeight = getBoxHeight() * 4.f/5.f;
     for (auto &pidInfoItem : mDvb->getTransportStream()->mPidInfoMap) {
       // draw pidInfo
-
       cPidInfo& pidInfo = pidInfoItem.second;
       int pid = pidInfo.mPid;
 
-      mMaxPidPackets = std::max (mMaxPidPackets, (float)pidInfo.mPackets);
-      float frac = pidInfo.mPackets / mMaxPidPackets;
+      if (pidInfo.mSid != lastSid) {
+        //{{{  spacer on change of service
+        lastSid = pidInfo.mSid;
+        draw->drawRect (COL_GREY, x, y, mWidth, 1.f);
+        }
+        //}}}
 
       auto pidString = dec (pidInfo.mPackets,mPacketDigits) +
                        (mContDigits ? (":" + dec(pidInfo.mErrors, mContDigits)) : "") +
@@ -45,15 +49,15 @@ public:
                        " " + getFullPtsString (pidInfo.mPts) +
                        " " + pidInfo.getTypeString();
       float textWidth = draw->drawText (COL_LIGHTGREY, lineHeight, pidString, x, y, mWidth-3.f, lineHeight);
-
       float x2 = x + textWidth + lineHeight/2;
+
       if (pidInfo.mStreamType == 6) {
         //{{{  draw subtitle
         cSubtitle* subtitle = mDvb->getSubtitleBySid (pidInfo.mSid);
         if (subtitle && !subtitle->mRects.empty()) {
-          float x3 = x2 + 40.f;
-          float y2 = y;
-          for (size_t subtitleLine = 0; subtitleLine < subtitle->mRects.size(); subtitleLine++) {
+          float x3 = x2 + 44.f;
+          float y2 = y - lineHeight;
+          for (int subtitleLine = (int)subtitle->mRects.size()-1; subtitleLine >= 0; subtitleLine--) {
             int subWidth = subtitle->mRects[subtitleLine]->mWidth;
             int subHeight = subtitle->mRects[subtitleLine]->mHeight;
             float dstWidth = mWidth - x3;
@@ -90,12 +94,13 @@ public:
         }
         //}}}
 
-      draw->rectClipped (COL_DARKORANGE,x2, y, (mWidth - textWidth) * frac, lineHeight-1);
+      mMaxPidPackets = std::max (mMaxPidPackets, (float)pidInfo.mPackets);
+      float frac = pidInfo.mPackets / mMaxPidPackets;
+      draw->drawRect (COL_DARKORANGE,x2, y, (mWidth - textWidth) * frac, lineHeight-1);
       draw->drawText (COL_LIGHTGREY, lineHeight, pidInfo.getInfoString(), x2, y, mWidth - textWidth, lineHeight);
 
       if (pidInfo.mPackets > pow (10, mPacketDigits))
         mPacketDigits++;
-
       y += lineHeight;
       }
 

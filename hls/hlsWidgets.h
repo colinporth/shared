@@ -36,11 +36,11 @@ private:
     mHls->getChunkInfo (chunk, loaded, loading, offset);
 
     draw->ellipseSolid (loading ? COL_DARKORANGE : loaded ? COL_DARKERGREEN : COL_DARKRED,
-                   mX + 2 + ((mWidth-2) / 2), mY + (chunk * getBoxHeight()) + mHeight / 6, (mWidth-2) / 2, (mWidth-2) / 2);
+                        mX + 2.f + ((mWidth-2.f) / 2.f), mY + (chunk * getBoxHeight()) + mHeight / 6.f, (mWidth-2.f) / 2.f, (mWidth-2.f) / 2.f);
 
     if (loaded || loading)
-      draw->drawText(COL_LIGHTGREY, getSmallFontHeight(), dec(offset),
-                  mX + mWidth / 3, mY + (chunk * getBoxHeight()) + mWidth/6, mWidth, mWidth);
+      draw->drawText (COL_LIGHTGREY, getSmallFontHeight(), dec(offset),
+                      mX + mWidth / 3.f, mY + (chunk * getBoxHeight()) + mWidth/6.f, mWidth, mWidth);
     }
 
   cHls* mHls;

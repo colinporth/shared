@@ -46,7 +46,7 @@ public:
   void onDraw (iDraw* draw) {
     cPicWidget::onDraw (draw);
     if (mFileName.size())
-      draw->drawText (COL_WHITE, getFontHeight(), mFileName, mX+2, mY+1, 800, mHeight-1);
+      draw->drawText (COL_WHITE, getFontHeight(), mFileName, mX+2.f, mY+1.f, 800.f, mHeight-1.f);
     }
   //}}}
 
