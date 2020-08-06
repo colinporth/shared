@@ -707,7 +707,7 @@ void cService::writePmt() {
 
   // sub es
   *tsPtr++ = mSubStreamType; // elementary stream_type
-  *tsPtr++ = 0xE0 | ((mAudPid & 0x1F00) >> 8); // elementary_PID
+  *tsPtr++ = 0xE0 | ((mSubPid & 0x1F00) >> 8); // elementary_PID
   *tsPtr++ = mSubPid & 0x00FF;
   *tsPtr++ = ((0 & 0xFF00) >> 8) | 0xF0;  // ES_info_length
   *tsPtr++ = 0 & 0x00FF;

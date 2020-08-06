@@ -27,7 +27,8 @@ public:
       float y = mY;
       int widgetLine = 0;
       for (int serviceIndex = 0; serviceIndex < numServices; serviceIndex++) {
-        cSubtitle* subtitle = mDvb->getSubtitle (serviceIndex);
+        std::string debugString;
+        cSubtitle* subtitle = mDvb->getSubtitle (serviceIndex, debugString);
         if (!subtitle->mRects.empty()) {
           for (size_t subtitleLine = 0; subtitleLine < subtitle->mRects.size(); subtitleLine++) {
             int subWidth = subtitle->mRects[subtitleLine]->mWidth;
@@ -51,6 +52,12 @@ public:
             context->rect (mX, y, dstWidth, dstHeight);
             context->fillPaint (imagePaint);
             context->fill();
+
+            uint16_t lineHeight = 15;
+            std::string text = dec(subtitle->mRects[subtitleLine]->mX) +
+                               "," + dec(subtitle->mRects[subtitleLine]->mY) +
+                               " " + debugString;
+            draw->drawText (COL_GREY, lineHeight, text, mX + uint16_t(dstWidth) -130, (int16_t)y, uint16_t(dstWidth), uint16_t(dstHeight));
 
             y += dstHeight;
             widgetLine++;

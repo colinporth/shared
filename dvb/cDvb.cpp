@@ -778,16 +778,20 @@ namespace { // anonymous
       }
     //}}}
     //{{{
-    cSubtitle* getSubtitle (int index) {
+    cSubtitle* getSubtitle (int index, string& debugString) {
 
-      if (mSubtitleMap.empty())
+      if (mSubtitleMap.empty()) {
+        debugString = "";
         return nullptr;
+        }
       else {
         auto it = mSubtitleMap.begin();
         while ((index > 0) && (it != mSubtitleMap.end())) {
           ++it;
           index--;
           }
+
+        debugString = getChannelStringBySid ((*it).first);
         return (*it).second;
         }
       }
@@ -983,8 +987,8 @@ int cDvb::getNumSubtitleServices() {
   };
 //}}}
 //{{{
-cSubtitle* cDvb::getSubtitle (int index) {
-  return mDvbTransportStream->getSubtitle (index);
+cSubtitle* cDvb::getSubtitle (int index, string& debugString) {
+  return mDvbTransportStream->getSubtitle (index, debugString);
   }
 //}}}
 //{{{
@@ -1250,9 +1254,12 @@ void cDvb::captureThread() {
   }
 //}}}
 //{{{
-void cDvb::grabThread() {
+void cDvb::grabThread (const string& root, const string& multiplexName) {
 
   cLog::setThreadName ("grab");
+
+  string allName = root + "/all" + multiplexName + ".ts";
+  FILE* mFile = root.empty() ? nullptr : fopen (allName.c_str(), "wb");
 
   #ifdef _WIN32 // windows
     auto hr = mMediaControl->Run();
@@ -1263,6 +1270,9 @@ void cDvb::grabThread() {
         auto ptr = getBlock (blockSize);
         if (blockSize) {
           //{{{  read and demux block
+          if (mFile)
+            fwrite (ptr, 1, blockSize, mFile);
+
           streamPos += mDvbTransportStream->demux (ptr, blockSize, streamPos, false, -1, 0);
           releaseBlock (blockSize);
 
@@ -1296,6 +1306,8 @@ void cDvb::grabThread() {
       auto ptr = mBipBuffer->getContiguousBlock (blockSize);
       if (blockSize > 0) {
         streamPos += mDvbTransportStream->demux (ptr, blockSize, 0, false, -1, 0);
+        if (mFile)
+          fwrite (ptr, 1, blockSize, mFile);
         mBipBuffer->decommitBlock (blockSize);
 
         bool show = (mDvbTransportStream->getErrors() != mLastErrors) || (blockSize > mLastBlockSize);
@@ -1306,7 +1318,6 @@ void cDvb::grabThread() {
           mMaxBlockSize = blockSize;
 
         mSignalStr = updateSignalStr();
-
         if (show) {
           mErrorStr = updateErrorStr (mDvbTransportStream->getErrors());
           cLog::log (LOGINFO, mErrorStr + " " + mSignalStr);
@@ -1316,6 +1327,9 @@ void cDvb::grabThread() {
         this_thread::sleep_for (1ms);
       }
   #endif
+
+  if (mFile)
+    fclose (mFile);
 
   cLog::log (LOGINFO, "exit");
   }
@@ -1341,7 +1355,7 @@ void cDvb::readThread (const std::string& fileName) {
   bool run = true;
   while (run) {
     i++;
-    if (!(i % 100))
+    if (!(i % 200)) // throttle read rate
       this_thread::sleep_for (20ms);
 
     size_t bytesRead = fread (buffer, 1, blockSize, file);

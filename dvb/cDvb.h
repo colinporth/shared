@@ -16,13 +16,13 @@ public:
   virtual ~cDvb();
 
   int getNumSubtitleServices();
-  cSubtitle* getSubtitle (int serviceIndex);
+  cSubtitle* getSubtitle (int index, std::string& debugString);
   cTransportStream* getTransportStream();
 
   void tune (int frequency);
 
   void captureThread();
-  void grabThread();
+  void grabThread (const std::string& root, const std::string& multiplexName);
   void readThread (const std::string& fileName);
 
   // public for widget observe
