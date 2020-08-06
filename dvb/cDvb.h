@@ -15,9 +15,8 @@ public:
 
   virtual ~cDvb();
 
-  int getNumSubtitleServices();
-  cSubtitle* getSubtitle (int index, std::string& debugString);
   cTransportStream* getTransportStream();
+  cSubtitle* getSubtitleBySid (int sid);
 
   void tune (int frequency);
 

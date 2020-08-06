@@ -72,8 +72,8 @@
 #include "../utils/cLog.h"
 #include "../utils/cBipBuffer.h"
 
-#include "cSubtitleDecoder.h"
 #include "cTransportStream.h"
+#include "cSubtitle.h"
 
 #include "cDvb.h"
 
@@ -773,27 +773,10 @@ namespace { // anonymous
     //}}}
 
     //{{{
-    int getNumSubtitleServices() {
-      return (int)mSubtitleMap.size();
-      }
-    //}}}
-    //{{{
-    cSubtitle* getSubtitle (int index, string& debugString) {
+    cSubtitle* getSubtitleBySid (int sid) {
 
-      if (mSubtitleMap.empty()) {
-        debugString = "";
-        return nullptr;
-        }
-      else {
-        auto it = mSubtitleMap.begin();
-        while ((index > 0) && (it != mSubtitleMap.end())) {
-          ++it;
-          index--;
-          }
-
-        debugString = getChannelStringBySid ((*it).first);
-        return (*it).second;
-        }
+      auto it = mSubtitleMap.find (sid);
+      return (it == mSubtitleMap.end()) ? nullptr : (*it).second;
       }
     //}}}
 
@@ -887,8 +870,7 @@ namespace { // anonymous
       // find or create sid service cSubtitleContext
       auto it = mSubtitleMap.find (pidInfo->mSid);
       if (it == mSubtitleMap.end()) {
-        auto insertPair = mSubtitleMap.insert (
-          map <int, cSubtitle*>::value_type (pidInfo->mSid, new cSubtitle()));
+        auto insertPair = mSubtitleMap.insert (map <int, cSubtitle*>::value_type (pidInfo->mSid, new cSubtitle()));
         it = insertPair.first;
         cLog::log (LOGINFO1, "cDvb::subDecodePes - create serviceStuff sid:" + dec(pidInfo->mSid));
         }
@@ -982,13 +964,8 @@ cDvb::~cDvb() {
 //}}}
 
 //{{{
-int cDvb::getNumSubtitleServices() {
-  return mDvbTransportStream->getNumSubtitleServices();
-  };
-//}}}
-//{{{
-cSubtitle* cDvb::getSubtitle (int index, string& debugString) {
-  return mDvbTransportStream->getSubtitle (index, debugString);
+cSubtitle* cDvb::getSubtitleBySid (int sid) {
+  return mDvbTransportStream->getSubtitleBySid (sid);
   }
 //}}}
 //{{{

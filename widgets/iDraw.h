@@ -57,8 +57,8 @@ public:
   virtual ~iDraw() {}
 
   virtual void pixel (uint32_t colour, int16_t x, int16_t y) = 0;
-  virtual void drawRect (uint32_t colour, int16_t x, int16_t y, uint16_t width, uint16_t height) = 0;
-  virtual int drawText (uint32_t colour, uint16_t fontHeight, std::string str, int16_t x, int16_t y, uint16_t width, uint16_t height) = 0;
+  virtual void drawRect (uint32_t colour, float x, float y, float width, float height) = 0;
+  virtual float drawText (uint32_t colour, float fontHeight, std::string str, float x, float y, float width, float height) = 0;
 
   virtual void stamp (uint32_t colour, uint8_t* src, int16_t x, int16_t y, uint16_t width, uint16_t height) {}
   virtual void copy (uint8_t* src, int16_t x, int16_t y, uint16_t width, uint16_t height) {}
@@ -97,18 +97,18 @@ public:
     }
   //}}}
   //{{{
-  virtual void rectClipped (uint32_t colour, int16_t x, int16_t y, uint16_t width, uint16_t height) {
+  virtual void rectClipped (uint32_t colour, float x, float y, float width, float height) {
 
     if (x >= getWidthPix())
       return;
     if (y >= getHeightPix())
       return;
 
-    int xend = x + width;
+    float xend = x + width;
     if (xend <= 0)
       return;
 
-    int yend = y + height;
+    float yend = y + height;
     if (yend <= 0)
       return;
 
@@ -131,7 +131,7 @@ public:
     }
   //}}}
   //{{{
-  virtual void rectOutline (uint32_t colour, int16_t x, int16_t y, uint16_t width, uint16_t height, uint8_t thickness) {
+  virtual void rectOutline (uint32_t colour, float x, float y, float width, float height, float thickness) {
 
     rectClipped (colour, x, y, width, thickness);
     rectClipped (colour, x + width-thickness, y, thickness, height);
@@ -147,23 +147,23 @@ public:
   //}}}
 
   //{{{
-  virtual void ellipseSolid (uint32_t colour, int16_t x, int16_t y, uint16_t xradius, uint16_t yradius) {
+  virtual void ellipseSolid (uint32_t colour, float x, float y, float xradius, float yradius) {
 
     if (!xradius)
       return;
     if (!yradius)
       return;
 
-    int x1 = 0;
-    int y1 = -yradius;
-    int err = 2 - 2*xradius;
+    float x1 = 0.f;
+    float y1 = -yradius;
+    float err = 2.f - 2.f*xradius;
     float k = (float)yradius / xradius;
 
     do {
-      rectClipped (colour, (x-(uint16_t)(x1 / k)), y + y1, (2*(uint16_t)(x1 / k) + 1), 1);
-      rectClipped (colour, (x-(uint16_t)(x1 / k)), y - y1, (2*(uint16_t)(x1 / k) + 1), 1);
+      rectClipped (colour, (x-(x1 / k)), y + y1, (2*(x1 / k) + 1), 1);
+      rectClipped (colour, (x-(x1 / k)), y - y1, (2*(x1 / k) + 1), 1);
 
-      int e2 = err;
+      float e2 = err;
       if (e2 <= x1) {
         err += ++x1 * 2 + 1;
         if (-y1 == x && e2 <= y1)
@@ -175,21 +175,21 @@ public:
     }
   //}}}
   //{{{
-  virtual void ellipseOutline (uint32_t colour, int16_t x, int16_t y, uint16_t xradius, uint16_t yradius) {
+  virtual void ellipseOutline (uint32_t colour, float x, float y, float xradius, float yradius) {
 
     if (xradius && yradius) {
-      int x1 = 0;
-      int y1 = -yradius;
-      int err = 2 - 2*xradius;
+      float x1 = 0;
+      float y1 = -yradius;
+      float err = 2 - 2*xradius;
       float k = (float)yradius / xradius;
 
       do {
-        rectClipped (colour, x - (uint16_t)(x1 / k), y + y1, 1, 1);
-        rectClipped (colour, x + (uint16_t)(x1 / k), y + y1, 1, 1);
-        rectClipped (colour, x + (uint16_t)(x1 / k), y - y1, 1, 1);
-        rectClipped (colour, x - (uint16_t)(x1 / k), y - y1, 1, 1);
+        rectClipped (colour, x - (x1 / k), y + y1, 1, 1);
+        rectClipped (colour, x + (x1 / k), y + y1, 1, 1);
+        rectClipped (colour, x + (x1 / k), y - y1, 1, 1);
+        rectClipped (colour, x - (x1 / k), y - y1, 1, 1);
 
-        int e2 = err;
+        float e2 = err;
         if (e2 <= x1) {
           err += ++x1*2 + 1;
           if (-y1 == x1 && e2 <= y1)
@@ -203,15 +203,15 @@ public:
   //}}}
 
   //{{{
-  virtual void line (uint32_t colour, int16_t x1, int16_t y1, int16_t x2, int16_t y2) {
+  virtual void line (uint32_t colour, float x1, float y1, float x2, float y2) {
 
-    int16_t deltax = (x2 - x1) > 0 ? (x2 - x1) : -(x2 - x1);        /* The difference between the x's */
-    int16_t deltay = (y2 - y1) > 0 ? (y2 - y1) : -(y2 - y1);        /* The difference between the y's */
-    int16_t x = x1;                       /* Start x off at the first pixel */
-    int16_t y = y1;                       /* Start y off at the first pixel */
+    float deltax = (x2 - x1) > 0 ? (x2 - x1) : -(x2 - x1);        /* The difference between the x's */
+    float deltay = (y2 - y1) > 0 ? (y2 - y1) : -(y2 - y1);        /* The difference between the y's */
+    float x = x1;                       /* Start x off at the first pixel */
+    float y = y1;                       /* Start y off at the first pixel */
 
-    int16_t xinc1;
-    int16_t xinc2;
+    float xinc1;
+    float xinc2;
     if (x2 >= x1) {               /* The x-values are increasing */
       xinc1 = 1;
       xinc2 = 1;
@@ -232,10 +232,10 @@ public:
       yinc2 = -1;
       }
 
-    int den = 0;
-    int num = 0;
-    int num_add = 0;
-    int num_pixels = 0;
+    float den = 0;
+    float num = 0;
+    float num_add = 0;
+    float num_pixels = 0;
     if (deltax >= deltay) {        /* There is at least one x-value for every y-value */
       xinc1 = 0;                  /* Don't change the x when numerator >= denominator */
       yinc2 = 0;                  /* Don't change the y for every iteration */

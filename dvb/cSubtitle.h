@@ -1,4 +1,4 @@
-// cSubtitleDecoder.h
+// cSubtitle.h
 #pragma once
 #include <vector>
 

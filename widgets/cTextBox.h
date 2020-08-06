@@ -19,7 +19,7 @@ public:
   void onDraw (iDraw* draw) {
 
     cWidget::onDraw (draw);
-    draw->drawText (mTextColour, getFontHeight(), mText, mX+2, mY+1, mWidth-3, mHeight-1);
+    draw->drawText (mTextColour, getFontHeight(), mText, mX+2.f, mY+1.f, mWidth-3.f, mHeight-1.f);
     }
   //}}}
 

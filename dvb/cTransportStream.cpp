@@ -476,6 +476,7 @@ string cPidInfo::getTypeString() {
       case  17: return "aac"; // HD aud LATM
       case  27: return "264"; // HD vid
       case 129: return "ac3"; // aud AC3
+      case 134: return "???"; // ???
       default : return dec(mStreamType,3);
       }
     }
@@ -1191,6 +1192,10 @@ int64_t cTransportStream::demux (const std::vector<int>& pids, uint8_t* tsBuf, i
               //{{{  dsm - do nothing
               }
               //}}}
+            else if (pidInfo->mStreamType == 134) {
+              //{{{  ??? - do nothing
+              }
+              //}}}
             else if (pids.empty() || (pid == pids[0]) || ((pids.size() > 1) && (pid == pids[1]))) {
               //{{{  pes
               pesPacket (pidInfo->mSid, pidInfo->mPid, ts-1);
@@ -1201,8 +1206,22 @@ int64_t cTransportStream::demux (const std::vector<int>& pids, uint8_t* tsBuf, i
               if (payloadStart) {
                 // start of payload for new pes buffer
                 if ((*(uint32_t*)ts == 0xBD010000) ||
+                    (*(uint32_t*)ts == 0xBE010000) ||
                     (*(uint32_t*)ts == 0xC0010000) ||
                     (*(uint32_t*)ts == 0xC1010000) ||
+                    (*(uint32_t*)ts == 0xC2010000) ||
+                    (*(uint32_t*)ts == 0xC4010000) ||
+                    (*(uint32_t*)ts == 0xC6010000) ||
+                    (*(uint32_t*)ts == 0xC8010000) ||
+                    (*(uint32_t*)ts == 0xCA010000) ||
+                    (*(uint32_t*)ts == 0xCC010000) ||
+                    (*(uint32_t*)ts == 0xCE010000) ||
+                    (*(uint32_t*)ts == 0xD0010000) ||
+                    (*(uint32_t*)ts == 0xD2010000) ||
+                    (*(uint32_t*)ts == 0xD4010000) ||
+                    (*(uint32_t*)ts == 0xD6010000) ||
+                    (*(uint32_t*)ts == 0xD8010000) ||
+                    (*(uint32_t*)ts == 0xDA010000) ||
                     (*(uint32_t*)ts == 0xE0010000)) {
                   if (pidInfo->mBufPtr && pidInfo->mStreamType) {
                     switch (pidInfo->mStreamType) {
@@ -1317,7 +1336,7 @@ int64_t cTransportStream::getPts (uint8_t* tsPtr) {
     return pts;
     }
   else
-    cLog::log (LOGERROR, "getPts - marker bits - %02x %02x %02x %02x 0x02",
+    cLog::log (LOGERROR, "getPts marker bits - %02x %02x %02x %02x 0x02",
                          tsPtr[0], tsPtr[1],tsPtr[2],tsPtr[3],tsPtr[4]);
   return -1;
   }

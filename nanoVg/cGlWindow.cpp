@@ -27,7 +27,7 @@ void cGlWindow::pixel (uint32_t colour, int16_t x, int16_t y) {
   }
 //}}}
 //{{{
-void cGlWindow::drawRect (uint32_t colour, int16_t x, int16_t y, uint16_t width, uint16_t height) {
+void cGlWindow::drawRect (uint32_t colour, float x, float y, float width, float height) {
 
   beginPath();
   rect (x, y, width, height);
@@ -41,7 +41,7 @@ void cGlWindow::stamp (uint32_t colour, uint8_t* src, int16_t x, int16_t y, uint
   }
 //}}}
 //{{{
-int cGlWindow::drawText (uint32_t colour, uint16_t fontHeight, string str, int16_t x, int16_t y, uint16_t width, uint16_t height) {
+float cGlWindow::drawText (uint32_t colour, float fontHeight, string str, float x, float y, float width, float height) {
 
   fontSize ((float)fontHeight);
   textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_TOP);
@@ -49,11 +49,11 @@ int cGlWindow::drawText (uint32_t colour, uint16_t fontHeight, string str, int16
   text ((float)x+3, (float)y+1, str);
 
   // get width
-  return (int)textBounds ((float)x+3, (float)y+1, str, nullptr);
+  return textBounds ((float)x+3, (float)y+1, str, nullptr);
   }
 //}}}
 //{{{
-void cGlWindow::ellipseSolid (uint32_t colour, int16_t x, int16_t y, uint16_t xradius, uint16_t yradius) {
+void cGlWindow::ellipseSolid (uint32_t colour, float x, float y, float xradius, float yradius) {
 
   beginPath();
   ellipse (x, y, xradius, yradius);
