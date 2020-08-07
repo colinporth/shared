@@ -39,7 +39,7 @@ public:
   //}}}
 
   //{{{
-  void onDown (int16_t x, int16_t y) {
+  virtual void onDown (float x, float y) {
     cWidget::onDown (x, y);
     if (mSelectValue != mValue) {
       mValue = mSelectValue;
@@ -47,8 +47,9 @@ public:
       }
     }
   //}}}
+
   //{{{
-  void onDraw (iDraw* draw) {
+  virtual void onDraw (iDraw* draw) {
 
     mScale = isOn() ? 0.7f : (mSelectValue == mValue) ? 0.85f : 1.0f;
     uint16_t width = int((mWidth-1) * mScale);

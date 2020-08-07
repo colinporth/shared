@@ -184,30 +184,29 @@ void cGlWindow::togglePerf() {
 
 // private
 //{{{
-void cGlWindow::onProx (bool inClient, int x, int y) {
+void cGlWindow::onProx (bool inClient, float x, float y) {
   mMouseX = (float)x;
   mMouseY = (float)y;
   }
 //}}}
 //{{{
-void cGlWindow::onDown (bool right, int x, int y) {
+void cGlWindow::onDown (bool right, float x, float y) {
   mRoot->onDown (0, x, y, 0,  0, 0);
   }
 //}}}
 //{{{
-void cGlWindow::onMove (bool right, int x, int y, int xInc, int yInc) {
-  mMouseX = (float)x;
-  mMouseY = (float)y;
+void cGlWindow::onMove (bool right, float x, float y, float xInc, float yInc) {
   mRoot->onDown (1, x, y, 0, xInc, yInc);
   }
 //}}}
 //{{{
-void cGlWindow::onUp (bool right, bool mouseMoved, int x, int y) {
+void cGlWindow::onUp (bool right, bool mouseMoved, float x, float y) {
   mRoot->onUp();
   }
 //}}}
 //{{{
-void cGlWindow::onWheel (int delta) {
+void cGlWindow::onWheel (float delta) {
+  mRoot->onWheel (delta);
   }
 //}}}
 
@@ -362,8 +361,9 @@ void cGlWindow::drawSpinner (float cx, float cy, float r, float t) {
   }
 //}}}
 
+// static keyboard - route to mRootContainer
 //{{{
-void cGlWindow::glfwKey (struct GLFWwindow* window, int key, int scancode, int action, int mods) {
+void cGlWindow::glfwKey (GLFWwindow* window, int key, int scancode, int action, int mods) {
 
   if ((key == GLFW_KEY_LEFT_SHIFT) && (action == GLFW_PRESS))
     mShifted = true;
@@ -402,49 +402,53 @@ void cGlWindow::glfwKey (struct GLFWwindow* window, int key, int scancode, int a
   }
 //}}}
 //{{{
-void cGlWindow::glfwCharMods (struct GLFWwindow* window, unsigned int ch, int mods) {
+void cGlWindow::glfwCharMods (GLFWwindow* window, unsigned int ch, int mods) {
   mGlWindow->onChar (ch, mods);
   }
 //}}}
-//{{{
-void cGlWindow::glfwCursorPos (struct GLFWwindow* window, double xpos, double ypos) {
-  if (mMouseDown) {
-    int xinc = int(xpos) - mMouseIntX;
-    int yinc = int(ypos) - mMouseIntY;
-    if ((xinc != 0) || (yinc != 0)) {
-      mMouseMoved = true;
-      mGlWindow->onMove (false, int(xpos), int(ypos), xinc, yinc);
-      mMouseIntX = int(xpos);
-      mMouseIntY = int(ypos);
-      }
-    }
-  else
-    mGlWindow->onProx (true, int(xpos), int(ypos));
 
-  mMouseX = float(xpos);
-  mMouseY = float(ypos);
-  }
-//}}}
+// static mouse - route to mRootContainer
 //{{{
-void cGlWindow::glfwMouseButton (struct GLFWwindow* window, int button, int action, int mods) {
+void cGlWindow::glfwMouseButton (GLFWwindow* window, int button, int action, int mods) {
 
   if (action == GLFW_PRESS) {
     mMouseMoved = false;
-    mGlWindow->onDown (button == GLFW_MOUSE_BUTTON_RIGHT, (int)mMouseX, (int)mMouseY);
+    mGlWindow->onDown (button == GLFW_MOUSE_BUTTON_RIGHT, mMouseX, mMouseY);
+    mMouseLastX = mMouseX;
+    mMouseLastY = mMouseY;
     mMouseDown = true;
     }
 
   else if (action == GLFW_RELEASE) {
-    mGlWindow->onUp (button == GLFW_MOUSE_BUTTON_RIGHT, mMouseMoved, (int)mMouseX, (int)mMouseY);
+    mGlWindow->onUp (button == GLFW_MOUSE_BUTTON_RIGHT, mMouseMoved, mMouseX, mMouseY);
     mMouseDown = false;
     mMouseMoved = false;
     }
-
   }
 //}}}
 //{{{
-void cGlWindow::glfMouseScroll (struct GLFWwindow* window,  double xoffset, double yoffset) {
-  mGlWindow->onWheel (int (yoffset));
+void cGlWindow::glfwCursorPos (GLFWwindow* window, double xpos, double ypos) {
+
+  if (mMouseDown) {
+    float xinc = (float)xpos - mMouseLastX;
+    float yinc = (float)ypos - mMouseLastY;
+    if ((xinc != 0) || (yinc != 0)) {
+      mMouseMoved = true;
+      mGlWindow->onMove (false, (float)xpos, (float)ypos, xinc, yinc);
+      mMouseLastX = float(xpos);
+      mMouseLastY = float(ypos);
+      }
+    }
+  else
+    mGlWindow->onProx (true, (float)xpos, (float)ypos);
+
+  mMouseX = (float)xpos;
+  mMouseY = (float)ypos;
+  }
+//}}}
+//{{{
+void cGlWindow::glfMouseScroll (GLFWwindow* window, double xoffset, double yoffset) {
+  mGlWindow->onWheel ((float)yoffset);
   }
 //}}}
 

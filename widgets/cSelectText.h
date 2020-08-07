@@ -17,7 +17,7 @@ public:
   virtual ~cSelectText() {}
 
   //{{{
-  void onDown (int16_t x, int16_t y) {
+  void onDown (float x, float y) {
     cWidget::onDown (x, y);
     if (mMyValue != mValue) {
       mValue = mMyValue;

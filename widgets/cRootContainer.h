@@ -14,7 +14,7 @@ public:
   virtual ~cRootContainer() {}
 
   //{{{
-  void prox (int16_t x, int16_t y) {
+  virtual void prox (float x, float y) {
 
     mProxWidget = picked (x, y, 0);
     if (mProxWidget)
@@ -22,7 +22,7 @@ public:
     }
   //}}}
   //{{{
-  void onDown (int pressCount, int16_t x, int16_t y, uint16_t z, int16_t xinc, int16_t yinc) {
+  virtual void onDown (int pressCount, float x, float y, float z, float xinc, float yinc) {
 
     if (!pressCount) {
       mPressedWidget = picked (x, y, z);
@@ -34,7 +34,7 @@ public:
     }
   //}}}
   //{{{
-  void onUp() {
+  virtual void onUp() {
 
     if (mPressedWidget) {
       mPressedWidget->onUp();
@@ -43,7 +43,15 @@ public:
     }
   //}}}
   //{{{
-  void onDraw (iDraw* draw) {
+  virtual void onWheel (float delta) {
+
+    if (mProxWidget)
+      mProxWidget->onWheel (delta);
+    }
+  //}}}
+
+  //{{{
+  virtual void onDraw (iDraw* draw) {
 
     if (mOn)
       draw->drawRect (COL_DARKGREEN, mX, mY, mWidth, mHeight);

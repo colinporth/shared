@@ -17,6 +17,7 @@ public:
   cSubtitle() {
     mVersion = -1;
     mDefaultClut.mId = -1;
+
     //{{{  init 2bit clut
     mDefaultClut.mClut4[0] = RGBA (  0,   0,   0,   0);
     mDefaultClut.mClut4[1] = RGBA (255, 255, 255, 255);
@@ -27,21 +28,10 @@ public:
     mDefaultClut.mClut16[0] = RGBA (0, 0, 0, 0);
 
     for (int i = 1; i <= 0x0F; i++) {
-      int r;
-      int g;
-      int b;
+      int r = (i < 8) ? ((i & 1) ? 0xFF : 0) : ((i & 1) ? 0x7F : 0);
+      int g = (i < 8) ? ((i & 2) ? 0xFF : 0) : ((i & 2) ? 0x7F : 0);
+      int b = (i < 8) ? ((i & 4) ? 0xFF : 0) : ((i & 4) ? 0x7F : 0);
       int a = 0xFF;
-
-      if (i < 8) {
-        r = (i & 1) ? 0xFF : 0;
-        g = (i & 2) ? 0xFF : 0;
-        b = (i & 4) ? 0xFF : 0;
-        }
-      else {
-        r = (i & 1) ? 0x7F : 0;
-        g = (i & 2) ? 0x7F : 0;
-        b = (i & 4) ? 0x7F : 0;
-        }
 
       mDefaultClut.mClut16[i] = RGBA (r, g, b, a);
       }
@@ -96,6 +86,7 @@ public:
       mDefaultClut.mClut256[i] = RGBA(r, g, b, a);
       }
     //}}}
+
     mDefaultClut.mNext = NULL;
     }
   //}}}
@@ -248,6 +239,9 @@ public:
     int mWidth = 0;
     int mHeight = 0;
     uint8_t* mPixData = nullptr;
+
+    int mClutSize = 0;
+    uint32_t mClut[16];
     };
   //}}}
   std::vector <cSubRect*> mRects;
@@ -1351,6 +1345,9 @@ private:
             cLog::log (LOGERROR, "unknown depth:" + dec(region->mDepth));
           }
 
+      mRects[i]->mClutSize = 16;
+      memcpy (mRects[i]->mClut, clut->mClut16, sizeof(clut->mClut16));
+
       mChanged = true;
       i++;
       }
@@ -1372,7 +1369,7 @@ private:
   const bool mPageDebug = false;
   const bool mBlockDebug = false;
   const bool mRunDebug = false;
-  const bool mClutDebug = false;
+  const bool mClutDebug = true;
   //}}}
   int mVersion = 0;
   int mTimeOut = 0;

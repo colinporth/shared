@@ -11,7 +11,7 @@ public:
   virtual ~cValueBox() {}
 
   //{{{
-  void onDown (int16_t x, int16_t y) {
+  void onDown (float x, float y) {
 
     cWidget::onDown (x, y);
     if (mWidth > mHeight)
@@ -21,7 +21,7 @@ public:
     }
   //}}}
   //{{{
-  void onMove (int16_t x, int16_t y, uint16_t z, int16_t xinc, int16_t yinc) {
+  void onMove (float x, float y, float z, float xinc, float yinc) {
     cWidget::onMove (x, y, z, xinc, yinc);
     if (mWidth > mHeight)
       setValue ((float)x / (float)mWidth);

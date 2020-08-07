@@ -13,7 +13,7 @@ public:
   virtual ~cListWidget() {}
 
   //{{{
-  void onDown (int16_t x, int16_t y) {
+  void onDown (float x, float y) {
 
     mPressedIndex = ((int)mScroll + y) / getBoxHeight();
     mTextPressed = x < mMeasure[y / getBoxHeight()];
@@ -24,7 +24,7 @@ public:
     }
   //}}}
   //{{{
-  void onMove (int16_t x, int16_t y, uint16_t z, int16_t xinc, int16_t yinc) {
+  void onMove (float x, float y, float z, float xinc, float yinc) {
 
     mMoveInc += yinc;
 

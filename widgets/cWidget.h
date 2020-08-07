@@ -30,7 +30,7 @@ public:
   //}}}
   virtual ~cWidget() {}
 
-  //{{{  gets
+//  gets
   float getX() { return mX / (float)getBoxHeight(); }
   float getY() { return mY / (float)getBoxHeight(); }
   float getWidth() { return (float)mWidth / (float)getBoxHeight(); }
@@ -45,7 +45,7 @@ public:
   bool isPressed() { return mPressedCount > 0; }
   bool isOn() { return mOn; }
   bool isVisible() { return mVisible; }
-  //}}}
+
   //{{{  sets
   //{{{
   void setXY (float x, float y) {
@@ -85,34 +85,29 @@ public:
   void setOverPick (float overPick) { mOverPick = int(overPick * getBoxHeight()); }
   //}}}
 
+  virtual void prox (float x, float y) {}
   //{{{
-  virtual void prox (int16_t x, int16_t y) {
-    }
-  //}}}
-  //{{{
-  virtual cWidget* picked (int16_t x, int16_t y, uint16_t z) {
+  virtual cWidget* picked (float x, float y, float z) {
     return (x >= mX - mOverPick) && (x < mX + mWidth + mOverPick) &&
            (y >= mY - mOverPick) && (y < mY + mHeight + mOverPick) ? this : nullptr;
     }
   //}}}
-
   //{{{
-  virtual void onDown (int16_t x, int16_t y) {
+  virtual void onDown (float x, float y) {
     if (!mPressedCount)
       mOn = true;
     mPressedCount++;
     }
   //}}}
-  //{{{
-  virtual void onMove (int16_t x, int16_t y, uint16_t z, int16_t xinc, int16_t yinc) {
-    }
-  //}}}
+  virtual void onMove (float x, float y, float z, float xinc, float yinc) {}
   //{{{
   virtual void onUp() {
     mPressedCount = 0;
     mOn = false;
     }
   //}}}
+  virtual void onWheel (float delta) {}
+
   //{{{
   virtual void onDraw (iDraw* draw) {
     draw->rectClipped (mOn ? COL_LIGHTRED : mColour, mX+1.f, mY+1.f, mWidth-1.f, mHeight-1.f);

@@ -22,14 +22,40 @@ public:
   //}}}
   virtual ~cDvbWidget() {}
 
-  void onDraw (iDraw* draw) {
+  //{{{
+  virtual void onDown (float x, float y) {
+
+    cLog::log (LOGINFO, "dvbWidget onDown " + dec(x) + " " + dec(y));
+    }
+  //}}}
+  //{{{
+  virtual void onMove (float x, float y, float z, float xinc, float yinc) {
+    cLog::log (LOGINFO, "dvbWidget onMove " + dec(x) + "," + dec(y) + "," + dec(z) +
+                         " " + dec(xinc) + "," + dec(yinc));
+    mScroll += yinc; 
+    }
+  //}}}
+  //{{{
+  virtual void onUp() {
+
+    cLog::log (LOGINFO, "dvbWidget onUp");
+    }
+  //}}}
+
+  //{{{
+  virtual void onWheel (float delta) {
+    cLog::log (LOGINFO, "onwheel " + dec(delta));
+    }
+  //}}}
+
+  virtual void onDraw (iDraw* draw) {
 
     int lastSid = 0;
     int imageIndex = 0;
     auto context = draw->getContext();
 
     float x = mX + 2.f;
-    float y = mY + 1.f;
+    float y = mY + 1.f + mScroll;
     float lineHeight = getBoxHeight() * 4.f/5.f;
     for (auto &pidInfoItem : mDvb->getTransportStream()->mPidInfoMap) {
       // draw pidInfo
@@ -56,12 +82,10 @@ public:
         cSubtitle* subtitle = mDvb->getSubtitleBySid (pidInfo.mSid);
         if (subtitle && !subtitle->mRects.empty()) {
           float x3 = x2 + 44.f;
-          float y2 = y - lineHeight;
-          for (int subtitleLine = (int)subtitle->mRects.size()-1; subtitleLine >= 0; subtitleLine--) {
-            int subWidth = subtitle->mRects[subtitleLine]->mWidth;
-            int subHeight = subtitle->mRects[subtitleLine]->mHeight;
+          float ySub = y - lineHeight;
+          for (int line = (int)subtitle->mRects.size()-1; line >= 0; line--) {
             float dstWidth = mWidth - x3;
-            float dstHeight = float(subtitle->mRects[subtitleLine]->mHeight * dstWidth) / subtitle->mRects[subtitleLine]->mWidth;
+            float dstHeight = float(subtitle->mRects[line]->mHeight * dstWidth) / subtitle->mRects[line]->mWidth;
             if (dstHeight > lineHeight) {
               float scaleh = lineHeight / dstHeight;
               dstHeight = lineHeight;
@@ -69,25 +93,32 @@ public:
               }
 
             if (mImage[imageIndex] == -1)
-              mImage[imageIndex] = context->createImageRGBA (subtitle->mRects[subtitleLine]->mWidth,
-                                                             subtitle->mRects[subtitleLine]->mHeight,
-                                                             0, subtitle->mRects[subtitleLine]->mPixData);
+              mImage[imageIndex] = context->createImageRGBA (subtitle->mRects[line]->mWidth,
+                                                             subtitle->mRects[line]->mHeight,
+                                                             0, subtitle->mRects[line]->mPixData);
             else if (subtitle->mChanged)
-              context->updateImage (mImage[imageIndex], subtitle->mRects[subtitleLine]->mPixData);
+              context->updateImage (mImage[imageIndex], subtitle->mRects[line]->mPixData);
 
-            auto imagePaint = context->imagePattern (x3, y2, dstWidth, dstHeight, 0.f, mImage[imageIndex], 1.f);
+            auto imagePaint = context->imagePattern (x3, ySub, dstWidth, dstHeight, 0.f, mImage[imageIndex], 1.f);
             imageIndex++;
 
             context->beginPath();
-            context->rect (x3, y2, dstWidth, dstHeight);
+            context->rect (x3, ySub, dstWidth, dstHeight);
             context->fillPaint (imagePaint);
             context->fill();
 
-            std::string text = dec(subtitle->mRects[subtitleLine]->mX) +
-                               "," + dec(subtitle->mRects[subtitleLine]->mY);
-            draw->drawText (COL_GREY, lineHeight, text, x3 + dstWidth - 55.f, y2, dstWidth, dstHeight);
+            std::string text = dec(subtitle->mRects[line]->mX) +
+                               "," + dec(subtitle->mRects[line]->mY);
+            draw->drawText (COL_GREY, lineHeight, text, x3 + dstWidth - 55.f, ySub, dstWidth, dstHeight);
 
-            y2 += lineHeight;
+            for (int i = 0; i < subtitle->mRects[line]->mClutSize; i++) {
+              float cx = x3 + (i % 8) * lineHeight / 2.f;
+              float cy = ySub + (i / 8) * lineHeight / 2.f;
+              draw->drawRect (subtitle->mRects[line]->mClut[i],
+                              cx, cy, (lineHeight/2.f)-1.f, (lineHeight / 2.f) - 1.f);
+              }
+
+            ySub += lineHeight;
             }
           subtitle->mChanged = false;
           }
@@ -96,7 +127,7 @@ public:
 
       mMaxPidPackets = std::max (mMaxPidPackets, (float)pidInfo.mPackets);
       float frac = pidInfo.mPackets / mMaxPidPackets;
-      draw->drawRect (COL_DARKORANGE,x2, y, (mWidth - textWidth) * frac, lineHeight-1);
+      draw->drawRect (COL_DARKORANGE,x2, y, (mWidth - textWidth) * frac, lineHeight-1.f);
       draw->drawText (COL_LIGHTGREY, lineHeight, pidInfo.getInfoString(), x2, y, mWidth - textWidth, lineHeight);
 
       if (pidInfo.mPackets > pow (10, mPacketDigits))
@@ -113,5 +144,8 @@ private:
   int mContDigits = 0;
   int mPacketDigits = 1;
   float mMaxPidPackets = 0;
-  int mImage[16] =  { -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1 };
+
+  float mScroll = 0.f;
+  int mImage[20] =  { -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+                      -1,-1,-1,-1,-1,-1,-1,-1,-1,-1 };
   };

@@ -94,22 +94,22 @@ protected:
   struct GLFWwindow* mWindow = nullptr;
 
 private:
-  void onProx (bool inClient, int x, int y);
-  void onDown (bool right, int x, int y);
-  void onMove (bool right, int x, int y, int xInc, int yInc);
-  void onUp (bool right, bool mouseMoved, int x, int y);
-  void onWheel (int delta);
+  void onProx (bool inClient, float x, float y);
+  void onDown (bool right, float x, float y);
+  void onMove (bool right, float x, float y, float xInc, float yInc);
+  void onUp (bool right, bool mouseMoved, float x, float y);
+  void onWheel (float delta);
 
   void drawEyes (float x, float y, float w, float h, float cursorX, float cursorY, float t);
   void drawLines (float x, float y, float w, float h, float t);
   void drawStats (float x, float y, const std::string& str);
   void drawSpinner (float cx, float cy, float r, float t);
 
-  static void glfwKey (struct GLFWwindow* window, int key, int scancode, int action, int mods);
-  static void glfwCharMods (struct GLFWwindow* window, unsigned int ch, int mods);
-  static void glfwCursorPos (struct GLFWwindow* window, double xpos, double ypos);
-  static void glfwMouseButton (struct GLFWwindow* window, int button, int action, int mods);
-  static void glfMouseScroll (struct GLFWwindow* window, double xoffset, double yoffset);
+  static void glfwKey (GLFWwindow* window, int key, int scancode, int action, int mods);
+  static void glfwCharMods (GLFWwindow* window, unsigned int ch, int mods);
+  static void glfwCursorPos (GLFWwindow* window, double xpos, double ypos);
+  static void glfwMouseButton (GLFWwindow* window, int button, int action, int mods);
+  static void glfMouseScroll (GLFWwindow* window, double xoffset, double yoffset);
   static void errorCallback (int error, const char* desc);
 
   bool mVsync = true;
@@ -124,8 +124,8 @@ private:
 
   static inline bool mMouseDown =  false;
   static inline bool mMouseMoved = false;
-  static inline int mMouseIntX = 0;
-  static inline int mMouseIntY = 0;
+  static inline float mMouseLastX = 0;
+  static inline float mMouseLastY = 0;
 
   static inline bool mAlted = false;
   static inline bool mSupered = false;

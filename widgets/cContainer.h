@@ -93,7 +93,7 @@ public:
   //}}}
 
   //{{{
-  cWidget* picked (int16_t x, int16_t y, uint16_t z) {
+  virtual cWidget* picked (float x, float y, float z) {
 
     if (cWidget::picked (x, y, z)) {
       if (mSubWidgets.empty())
@@ -113,7 +113,7 @@ public:
     }
   //}}}
   //{{{
-  void onDraw (iDraw* draw) {
+  virtual void onDraw (iDraw* draw) {
 
     for (auto widget : mSubWidgets)
       if (widget->isVisible())
