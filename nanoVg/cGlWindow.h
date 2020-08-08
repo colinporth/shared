@@ -14,7 +14,7 @@ public:
   cGlWindow() {};
   virtual ~cGlWindow();
 
-  // iWindow
+  //{{{  iWindow gets
   cVg* getContext();
   float getWidth() { return 800; }
   float getHeight() { return 480; }
@@ -24,7 +24,8 @@ public:
   bool getShift() { return mShifted; }
   bool getControl() { return mControlled; }
   bool getMouseDown() { return mMouseDown; }
-
+  //}}}
+  //{{{  draws
   // iDraw
   void drawRect (uint32_t colour, float x, float y, float width, float height);
   float drawText (uint32_t colour, float fontHeight, std::string str, float x, float y, float width, float height);
@@ -59,24 +60,25 @@ public:
     drawRect(colour, x, y, thickness, height);
     }
   //}}}
+  //}}}
 
-  // iChange
+  // iChange - !!! ignored for now !!!
   void changed() {}
   void setChangeCountDown (int countDown) {}
 
 protected:
   cRootContainer* initialise (std::string title, int width, int height, unsigned char* sansFont);
 
-  cWidget* add (cWidget* widget) { return mRoot->add (widget); }
-  cWidget* addAt (cWidget* widget, float x, float y) { return mRoot->addAt (widget,x,y); }
-  cWidget* addAtPix (cWidget* widget, int16_t x, int16_t y) { return mRoot->addAtPix (widget,x,y); }
-  cWidget* addTopLeft (cWidget* widget) { return mRoot->addTopLeft (widget); }
-  cWidget* addTopRight (cWidget* widget) { return mRoot->addTopRight (widget); }
-  cWidget* addBottomLeft (cWidget* widget) { return mRoot->addBottomLeft (widget); }
-  cWidget* addBottomRight (cWidget* widget) { return mRoot->addBottomRight (widget); }
-  cWidget* addBelow (cWidget* widget) { return mRoot->addBelow (widget); }
-  cWidget* addLeft (cWidget* widget) { return mRoot->addLeft (widget); }
-  cWidget* addAbove (cWidget* widget) { return mRoot->addAbove (widget); }
+  cWidget* add (cWidget* widget) { return mRootContainer->add (widget); }
+  cWidget* addAt (cWidget* widget, float x, float y) { return mRootContainer->addAt (widget,x,y); }
+  cWidget* addAtPix (cWidget* widget, int16_t x, int16_t y) { return mRootContainer->addAtPix (widget,x,y); }
+  cWidget* addTopLeft (cWidget* widget) { return mRootContainer->addTopLeft (widget); }
+  cWidget* addTopRight (cWidget* widget) { return mRootContainer->addTopRight (widget); }
+  cWidget* addBottomLeft (cWidget* widget) { return mRootContainer->addBottomLeft (widget); }
+  cWidget* addBottomRight (cWidget* widget) { return mRootContainer->addBottomRight (widget); }
+  cWidget* addBelow (cWidget* widget) { return mRootContainer->addBelow (widget); }
+  cWidget* addLeft (cWidget* widget) { return mRootContainer->addLeft (widget); }
+  cWidget* addAbove (cWidget* widget) { return mRootContainer->addAbove (widget); }
   void run();
 
   void toggleVsync();
@@ -94,24 +96,22 @@ protected:
   struct GLFWwindow* mWindow = nullptr;
 
 private:
-  void mouseProx (float x, float y);
-  void mouseDown (bool right, float x, float y);
-  void mouseMove (bool right, float x, float y, float xInc, float yInc);
-  void mouseUp (bool right, float x, float y);
-  void mouseWheel (float delta);
-
   void drawEyes (float x, float y, float w, float h, float cursorX, float cursorY, float t);
   void drawLines (float x, float y, float w, float h, float t);
   void drawStats (float x, float y, const std::string& str);
   void drawSpinner (float cx, float cy, float r, float t);
 
+  //{{{  static glfw callbacks
   static void glfwKey (GLFWwindow* window, int key, int scancode, int action, int mods);
   static void glfwCharMods (GLFWwindow* window, unsigned int ch, int mods);
   static void glfwCursorPos (GLFWwindow* window, double xpos, double ypos);
   static void glfwMouseButton (GLFWwindow* window, int button, int action, int mods);
   static void glfMouseScroll (GLFWwindow* window, double xoffset, double yoffset);
+  static void glfWindowSize (GLFWwindow* window, int xsize, int ysize);
   static void errorCallback (int error, const char* desc);
+  //}}}
 
+  //{{{  vars
   bool mVsync = true;
   bool mDrawPerf = false;
   bool mDrawStats = false;
@@ -120,7 +120,7 @@ private:
   cPerfGraph* mCpuGraph = nullptr;
   cPerfGraph* mFpsGraph = nullptr;
 
-  cRootContainer* mRoot = nullptr;
+  static inline cRootContainer* mRootContainer = nullptr;
 
   static inline bool mMouseDown =  false;
   static inline bool mMouseMoved = false;
@@ -132,4 +132,5 @@ private:
   static inline bool mSupered = false;
   static inline bool mShifted = false;
   static inline bool mControlled = false;
+  //}}}
   };

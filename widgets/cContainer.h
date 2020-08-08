@@ -18,11 +18,11 @@ public:
     adjustWidthHeight (widget);
 
     if (mSubWidgets.empty())
-      return addAtPix(widget, 0, 0);
+      return addAtPix (widget, 0, 0);
     else if (mSubWidgets.back()->getPixX() + mSubWidgets.back()->getPixWidth() + widget->getPixWidth() <= getPixWidth())
-      return addAtPix(widget, mSubWidgets.back()->getPixX() + mSubWidgets.back()->getPixWidth(), mSubWidgets.back()->getPixY());
+      return addAtPix (widget, mSubWidgets.back()->getPixX() + mSubWidgets.back()->getPixWidth(), mSubWidgets.back()->getPixY());
     else if (mSubWidgets.back()->getPixY() + mSubWidgets.back()->getPixHeight() + widget->getPixHeight() <= getPixHeight())
-      return addAtPix(widget, 0, mSubWidgets.back()->getPixY() + mSubWidgets.back()->getPixHeight());
+      return addAtPix (widget, 0, mSubWidgets.back()->getPixY() + mSubWidgets.back()->getPixHeight());
     else
       return widget;
     }
@@ -75,19 +75,22 @@ public:
 
   //{{{
   cWidget* addBelow (cWidget* widget) {
-    return addAtPix (widget, mSubWidgets.empty() ? 0 : mSubWidgets.back()->getPixX(),
+    return addAtPix (widget,
+                     mSubWidgets.empty() ? 0 : mSubWidgets.back()->getPixX(),
                      mSubWidgets.empty() ? 0 : mSubWidgets.back()->getPixY() + mSubWidgets.back()->getPixHeight());
     }
   //}}}
   //{{{
   cWidget* addLeft (cWidget* widget) {
-    return addAtPix (widget, mSubWidgets.empty() ? 0 : mSubWidgets.back()->getPixX() - mSubWidgets.back()->getPixWidth(),
+    return addAtPix (widget,
+                     mSubWidgets.empty() ? 0 : mSubWidgets.back()->getPixX() - mSubWidgets.back()->getPixWidth(),
                      mSubWidgets.empty() ? 0 : mSubWidgets.back()->getPixY());
     }
   //}}}
   //{{{
   cWidget* addAbove (cWidget* widget) {
-    return addAtPix (widget, mSubWidgets.empty() ? 0 : mSubWidgets.back()->getPixX(),
+    return addAtPix (widget,
+                     mSubWidgets.empty() ? 0 : mSubWidgets.back()->getPixX(),
                      mSubWidgets.empty() ? 0 : mSubWidgets.back()->getPixY() - mSubWidgets.back()->getPixHeight());
     }
   //}}}
@@ -113,6 +116,14 @@ public:
     }
   //}}}
   //{{{
+  virtual void layout (float width, float height) {
+
+    setPixSize (width, height);
+    for (auto widget : mSubWidgets) 
+      widget->layout (width, height);
+    }
+  //}}}
+  //{{{
   virtual void onDraw (iDraw* draw) {
 
     for (auto widget : mSubWidgets)
@@ -125,9 +136,9 @@ protected:
   //{{{
   void adjustWidthHeight (cWidget* widget) {
 
-    if (widget->getPixWidth() <= 0) // non +ve width means parent width + width
+    if (widget->getPixWidth() <= 0) // non +ve width means parent width minus our -ve width
       widget->setPixWidth (mWidth + widget->getPixWidth());
-    if (widget->getPixHeight() <= 0) // non +ve height means parent height + height
+    if (widget->getPixHeight() <= 0) // non +ve height means parent height minus our -ve height
       widget->setPixHeight (mHeight + widget->getPixHeight());
     }
   //}}}

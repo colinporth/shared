@@ -17,8 +17,8 @@ cGlWindow::~cGlWindow() {
 
 // iWindow
 cVg* cGlWindow::getContext() { return this; }
-float cGlWindow::getWidthPix() { return mRoot->getPixWidth(); }
-float cGlWindow::getHeightPix() { return mRoot->getPixHeight(); }
+float cGlWindow::getWidthPix() { return mRootContainer->getPixWidth(); }
+float cGlWindow::getHeightPix() { return mRootContainer->getPixHeight(); }
 
 // iDraw
 //{{{
@@ -102,6 +102,7 @@ cRootContainer* cGlWindow::initialise (string title, int width, int height, unsi
   glfwSetCursorPosCallback (mWindow, glfwCursorPos);
   glfwSetMouseButtonCallback (mWindow, glfwMouseButton);
   glfwSetScrollCallback (mWindow, glfMouseScroll);
+  glfwSetWindowSizeCallback (mWindow, glfWindowSize);
 
   glfwSwapInterval (1);
 
@@ -109,14 +110,14 @@ cRootContainer* cGlWindow::initialise (string title, int width, int height, unsi
   createFontMem ("sans", (unsigned char*)sansFont, sizeof(sansFont), 0);
   fontFace ("sans");
 
-  mRoot = new cRootContainer (width, height);
+  mRootContainer = new cRootContainer (width, height);
 
   // init timers
   glfwSetTime (0);
   mCpuGraph = new cPerfGraph (cPerfGraph::GRAPH_RENDER_MS, "cpu");
   mFpsGraph = new cPerfGraph (cPerfGraph::GRAPH_RENDER_FPS, "frame");
 
-  return mRoot;
+  return mRootContainer;
   }
 //}}}
 //{{{
@@ -130,6 +131,7 @@ void cGlWindow::run () {
     // Update and render
     int winWidth, winHeight;
     glfwGetWindowSize (mWindow, &winWidth, &winHeight);
+
     int frameBufferWidth, frameBufferHeight;
     glfwGetFramebufferSize (mWindow, &frameBufferWidth, &frameBufferHeight);
 
@@ -137,8 +139,8 @@ void cGlWindow::run () {
     glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
     beginFrame (winWidth, winHeight, (float)frameBufferWidth / (float)winWidth);
-    if (mRoot)
-      mRoot->onDraw (this);
+    if (mRootContainer)
+      mRootContainer->onDraw (this);
     if (mDrawTests) {
       //{{{  draw tests
       drawEyes (winWidth*3.0f/4.0f, winHeight/2.0f, winWidth/4.0f, winHeight/2.0f,
@@ -187,16 +189,6 @@ void cGlWindow::togglePerf() {
 //}}}
 
 // private
-void cGlWindow::mouseProx (float x, float y) { mRoot->onProx (x, y); }
-void cGlWindow::mouseDown (bool rightButton, float x, float y) { mRoot->onDown (x, y); }
-//{{{
-void cGlWindow::mouseMove (bool rightButton, float x, float y, float xInc, float yInc) {
-  mRoot->onMove (x, y, xInc, yInc);
-  }
-//}}}
-void cGlWindow::mouseUp (bool right, float x, float y) { mRoot->onUp(); }
-void cGlWindow::mouseWheel (float delta) { mRoot->onWheel (delta); }
-
 //{{{
 void cGlWindow::drawEyes (float x, float y, float w, float h, float cursorX, float cursorY, float t) {
 
@@ -402,14 +394,14 @@ void cGlWindow::glfwMouseButton (GLFWwindow* window, int button, int action, int
     mMouseDown = true;
     mMouseMoved = false;
     mMouseRightButton = button == GLFW_MOUSE_BUTTON_RIGHT;
-    mGlWindow->mouseDown (mMouseRightButton, mMouseX, mMouseY);
+    mRootContainer->onDown (mMouseX, mMouseY);
     mMouseLastX = mMouseX;
     mMouseLastY = mMouseY;
     }
 
   else if (action == GLFW_RELEASE) {
     mMouseRightButton = button == GLFW_MOUSE_BUTTON_RIGHT;
-    mGlWindow->mouseUp (mMouseRightButton, mMouseX, mMouseY);
+    mRootContainer->onUp();
     mMouseMoved = false;
     mMouseDown = false;
     }
@@ -426,18 +418,24 @@ void cGlWindow::glfwCursorPos (GLFWwindow* window, double xpos, double ypos) {
     float yinc = mMouseY - mMouseLastY;
     if ((fabs(xinc) >  0.5f) || (fabs(yinc) > 0.5f)) {
       mMouseMoved = true;
-      mGlWindow->mouseMove (mMouseRightButton, mMouseX, mMouseY, xinc, yinc);
+      mRootContainer->onMove (mMouseX, mMouseY, xinc, yinc);
       mMouseLastX = mMouseX;
       mMouseLastY = mMouseY;
       }
     }
   else
-    mGlWindow->mouseProx (mMouseX, mMouseY);
+    mRootContainer->onProx (mMouseX, mMouseY);
   }
 //}}}
 //{{{
 void cGlWindow::glfMouseScroll (GLFWwindow* window, double xoffset, double yoffset) {
-  mGlWindow->mouseWheel ((float)yoffset);
+  mRootContainer->onWheel (float (yoffset));
+  }
+//}}}
+//{{{
+void cGlWindow::glfWindowSize (GLFWwindow* window, int xsize, int ysize) {
+  cLog::log (LOGINFO, "glfWindowSize " + dec(xsize) + " " + dec(ysize));
+  mRootContainer->layout ((float)xsize, (float)ysize);
   }
 //}}}
 

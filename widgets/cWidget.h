@@ -18,15 +18,19 @@ public:
   cWidget() {}
   //{{{
   cWidget (float width)
-    : mWidth(width * getBoxHeight()), mHeight(getBoxHeight()) {}
+    : mWidth(width * getBoxHeight()), mHeight(getBoxHeight()),
+      mLayoutWidth (width * getBoxHeight()), mLayoutHeight(getBoxHeight()) {}
   //}}}
   //{{{
   cWidget (float width, float height)
-    : mWidth(width * getBoxHeight()), mHeight(height * getBoxHeight()) {}
+    : mWidth(width * getBoxHeight()), mHeight(height * getBoxHeight()),
+      mLayoutWidth(width * getBoxHeight()), mLayoutHeight(height * getBoxHeight()) {}
   //}}}
   //{{{
   cWidget (uint32_t colour, float width, float height)
-    : mColour(colour), mWidth(width * getBoxHeight()), mHeight(height * getBoxHeight()) {}
+    : mColour(colour),
+      mWidth(width * getBoxHeight()), mHeight(height * getBoxHeight()),
+      mLayoutWidth(width * getBoxHeight()), mLayoutHeight(height * getBoxHeight()) {}
   //}}}
   virtual ~cWidget() {}
 
@@ -59,6 +63,7 @@ public:
     mY = y;
     }
   //}}}
+
   //{{{
   void setPixWidth (float width) {
     mWidth = width;
@@ -87,6 +92,12 @@ public:
   virtual cWidget* isPicked (float x, float y) {
     return (x >= mX) && (x < mX + mWidth) &&
            (y >= mY) && (y < mY + mHeight) ? this : nullptr;
+    }
+  //}}}
+  //{{{
+  virtual void layout (float width, float height) {
+    setPixSize ((mLayoutWidth <= 0.f) ? width + mLayoutWidth : mWidth,
+                (mLayoutHeight <= 0.f) ? height + mLayoutHeight : mHeight);
     }
   //}}}
 
@@ -120,6 +131,8 @@ protected:
   float mY = 0;
   float mWidth = 0;
   float mHeight = 0;
+  float mLayoutWidth = 0;
+  float mLayoutHeight = 0;
 
   int mPressedCount = 0;
   bool mOn = false;

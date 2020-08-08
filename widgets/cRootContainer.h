@@ -61,6 +61,7 @@ public:
 
     if (mOn)
       draw->drawRect (COL_DARKGREEN, mX, mY, mWidth, mHeight);
+
     cContainer::onDraw  (draw);
     }
   //}}}
