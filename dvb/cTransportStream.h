@@ -24,7 +24,8 @@ public:
   ~cPidInfo() { free (mBuffer); }
 
   std::string getTypeString();
-  std::string getInfoString();
+  std::string getInfoString() { return mInfoString; }
+
   int getBufUsed() { return int(mBufPtr - mBuffer); }
 
   int addToBuffer (uint8_t* buf, int bufSize);

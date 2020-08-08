@@ -34,13 +34,25 @@ void cGlWindow::drawRect (uint32_t colour, float x, float y, float width, float 
 //{{{
 float cGlWindow::drawText (uint32_t colour, float fontHeight, string str, float x, float y, float width, float height) {
 
-  fontSize ((float)fontHeight);
+  fontSize (fontHeight);
   textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_TOP);
   fillColor (nvgRGBA32 (colour));
-  text ((float)x+3, (float)y+1, str);
+  text (x+3.f, y+1.f, str);
 
   // get width
-  return textBounds ((float)x+3, (float)y+1, str, nullptr);
+  return textBounds (x+3.f, y+1.f, str, nullptr);
+  }
+//}}}
+//{{{
+float cGlWindow::drawTextRight (uint32_t colour, float fontHeight, string str, float x, float y, float width, float height) {
+
+  fontSize (fontHeight);
+  textAlign (cVg::ALIGN_RIGHT | cVg::ALIGN_TOP);
+  fillColor (nvgRGBA32 (colour));
+  text (x, y+1.f, str);
+
+  // get width
+  return textBounds (x, y+1.f, str, nullptr);
   }
 //}}}
 //{{{

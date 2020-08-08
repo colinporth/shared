@@ -485,12 +485,6 @@ string cPidInfo::getTypeString() {
   return "---";
   }
 //}}}
-//{{{
-string cPidInfo::getInfoString() {
-
-  return (mSid > 0 ? dec(mSid) : "") + (mInfoString.empty() ? "" : " " + mInfoString);
-  }
-//}}}
 
 //{{{
 int cPidInfo::addToBuffer (uint8_t* buf, int bufSize) {

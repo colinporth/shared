@@ -332,28 +332,84 @@ private:
     };
   //}}}
   //{{{
-  class cBitStream {
-  public:
-    cBitStream (const uint8_t* bitStream, int size) : mBitStream(bitStream), mSize(size) {}
+  //class cBitStream {
+  // dumb explicit bitstream
+  //public:
+    //cBitStream(const uint8_t* bitStream, int size) : mBitStream(bitStream), mSize(size) {}
 
     //{{{
-    uint32_t getBit() {
+    //uint32_t getBit() {
 
-      uint32_t result = (uint32_t)((mBitStream [mBitsRead >> 3] >> (7-(mBitsRead & 0x7))) & 0x01);
-      mBitsRead += 1;
-      return result;
-      }
+      //uint32_t result = (uint32_t)((mBitStream [mBitsRead >> 3] >> (7-(mBitsRead & 0x7))) & 0x01);
+      //mBitsRead += 1;
+      //return result;
+      //}
     //}}}
+    //{{{
+    //uint32_t getBits (int numBits) {
+
+      //uint32_t result = 0;
+      //for (int i = 0; i < numBits; i++)
+        //result = (result << 1) | getBit();
+
+      //return result;
+      //}
+    //}}}
+
+    //{{{
+    //int getBitsRead() {
+      //return mBitsRead;
+      //}
+    //}}}
+    //{{{
+    //int getBytesRead() {
+      //return (mBitsRead + 7) / 8;
+      //}
+    //}}}
+
+  //private:
+    //const uint8_t* mBitStream = nullptr;
+    //int mBitsRead = 0;
+    //int mSize = 0;
+    //};
+  //}}}
+  //{{{
+  class cBitStream {
+  // dodgy faster bitstream, no size chacking, assumes multiple of 4 bytes
+  public:
+    cBitStream (const uint8_t* buffer) : mBytePtr((uint8_t*)buffer) {}
+
     //{{{
     uint32_t getBits (int numBits) {
 
-      uint32_t result = 0;
-      for (int i = 0; i < numBits; i++)
-        result = (result << 1) | getBit();
+      uint32_t data = mCache >> (31 - numBits);  // unsigned >> so zero-extend
+      data >>= 1;                                // do as >> 31, >> 1 so that numBits = 0 works okay (returns 0)
+      mCache <<= numBits;                        // left-justify cache
+      mCacheBits -= numBits;                     // how many bits have we drawn from the cache so far
 
-      return result;
+      // if we cross an int boundary, refill the cache
+      if (mCacheBits < 0) {
+        uint32_t lowBits = -mCacheBits;
+
+        // assumes always 4 more bytes
+        mCache  = (*mBytePtr++) << 24;
+        mCache |= (*mBytePtr++) << 16;
+        mCache |= (*mBytePtr++) <<  8;
+        mCache |= (*mBytePtr++);
+        mCacheBits = 32;
+
+        // get the low-order bits
+        data |= mCache >> (32 - lowBits);
+
+        mCacheBits -= lowBits;  // how many bits have we drawn from the cache so far
+        mCache <<= lowBits;     // left-justify cache
+        }
+
+      mBitsRead += numBits;
+      return data;
       }
     //}}}
+    uint32_t getBit() { return getBits (1); }
 
     //{{{
     int getBitsRead() {
@@ -367,9 +423,10 @@ private:
     //}}}
 
   private:
-    const uint8_t* mBitStream = nullptr;
+    uint8_t* mBytePtr;
+    uint32_t mCache = 0;
+    int32_t mCacheBits = 0;
     int mBitsRead = 0;
-    int mSize = 0;
     };
   //}}}
 
@@ -601,7 +658,7 @@ private:
 
     std::string str;
 
-    cBitStream bitStream (*buf, bufSize);
+    cBitStream bitStream (*buf);
     while ((bitStream.getBitsRead() < (bufSize * 8)) && (pixPos < pixBufSize)) {
       int bits = bitStream.getBits (4);
       if (mRunDebug)

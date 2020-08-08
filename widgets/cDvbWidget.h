@@ -43,7 +43,6 @@ public:
   //}}}
 
   virtual void onDraw (iDraw* draw) {
-
     auto context = draw->getContext();
     context->scissor (mX, mY, mWidth, mHeight);
 
@@ -57,10 +56,9 @@ public:
       cPidInfo& pidInfo = pidInfoItem.second;
       int pid = pidInfo.mPid;
 
-      if (pidInfo.mSid != lastSid) {
+      if ((pidInfo.mSid != lastSid) && (pidInfo.mStreamType != 5) && (pidInfo.mStreamType != 11)) {
         //{{{  spacer on change of service
-        lastSid = pidInfo.mSid;
-        draw->drawRect (COL_GREY, mX + x, mY + y, mWidth, 1.f);
+        draw->drawRect (COL_GREY, x, y, mWidth, 1.f);
         }
         //}}}
 
@@ -70,7 +68,7 @@ public:
                        " " + getFullPtsString (pidInfo.mPts) +
                        " " + pidInfo.getTypeString();
       float textWidth = draw->drawText (COL_LIGHTGREY, lineHeight, pidString, x,  y, mWidth-3.f, lineHeight);
-      float x2 = x + textWidth + lineHeight/2.f;
+      float visx = x + textWidth + lineHeight/2.f;
 
       if (pidInfo.mStreamType == 6) {
         //{{{  draw subtitle
@@ -79,12 +77,11 @@ public:
         if (subtitle) {
           if (!subtitle->mRects.empty()) {
             // subttitle with some rects
-            float x3 = x2 + 44.f;
             float ySub = y - lineHeight;
 
             for (int line = (int)subtitle->mRects.size()-1; line >= 0; line--) {
               // iterate rects
-              float dstWidth = mWidth - x3;
+              float dstWidth = mWidth - visx;
               float dstHeight = float(subtitle->mRects[line]->mHeight * dstWidth) / subtitle->mRects[line]->mWidth;
               if (dstHeight > lineHeight) {
                 //{{{  scale to fit line
@@ -106,21 +103,22 @@ public:
                 context->updateImage (mImage[imageIndex], (uint8_t*)subtitle->mRects[line]->mPixData);
 
               // draw rect image
-              auto imagePaint = context->imagePattern (x3, ySub, dstWidth, dstHeight, 0.f, mImage[imageIndex], 1.f);
+              auto imagePaint = context->imagePattern (visx, ySub, dstWidth, dstHeight, 0.f, mImage[imageIndex], 1.f);
               imageIndex++;
 
               context->beginPath();
-              context->rect (x3, ySub, dstWidth, dstHeight);
+              context->rect (visx, ySub, dstWidth, dstHeight);
               context->fillPaint (imagePaint);
               context->fill();
 
               // draw rect position
               std::string text = dec(subtitle->mRects[line]->mX) + "," + dec(subtitle->mRects[line]->mY);
-              draw->drawText (COL_WHITE, lineHeight, text, x3 + dstWidth - 55.f,  ySub, dstWidth, dstHeight);
+              float posWidth = draw->drawTextRight (COL_WHITE, lineHeight, text, mX + mWidth,  ySub, mWidth - mX, dstHeight);
 
               // draw clut
+              float clutX = mWidth - mX - posWidth - lineHeight * 4.f;
               for (int i = 0; i < subtitle->mRects[line]->mClutSize; i++) {
-                float cx = x3 + (i % 8) * lineHeight / 2.f;
+                float cx = clutX + (i % 8) * lineHeight / 2.f;
                 float cy = ySub + (i / 8) * lineHeight / 2.f;
                 draw->drawRect (subtitle->mRects[line]->mClut[i],
                                 cx, cy, (lineHeight/2.f)-1.f, (lineHeight / 2.f) - 1.f);
@@ -139,12 +137,18 @@ public:
 
       mMaxPidPackets = std::max (mMaxPidPackets, (float)pidInfo.mPackets);
       float frac = pidInfo.mPackets / mMaxPidPackets;
-      draw->drawRect (COL_DARKORANGE, x2, y, frac * (mWidth - textWidth), lineHeight-1.f);
-      draw->drawText (COL_LIGHTGREY, lineHeight, pidInfo.getInfoString(), x2,  y, mWidth - textWidth, lineHeight);
+      draw->drawRect (COL_DARKORANGE, visx, y, frac * (mWidth - textWidth), lineHeight-1.f);
+
+      std::string str;
+      if ((pidInfo.mSid != lastSid) || (pidInfo.mStreamType == 5) || (pidInfo.mStreamType == 11))
+        str += dec(pidInfo.mSid) + " ";
+      str += pidInfo.getInfoString();
+      draw->drawText (COL_LIGHTGREY, lineHeight, str, visx,  y, mWidth - textWidth, lineHeight);
 
       if (pidInfo.mPackets > pow (10, mPacketDigits))
         mPacketDigits++;
 
+      lastSid = pidInfo.mSid;
       y += lineHeight;
       }
     mLastHeight = y + mScroll;
