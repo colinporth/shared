@@ -149,6 +149,16 @@ struct sVgColour {
   };
 
 //{{{
+inline sVgColour nvgRGBA32 (uint32_t colour) {
+  sVgColour color;
+  color.r = ((colour & 0xFF0000) >> 16) / 255.0f;
+  color.g = ((colour & 0xFF00) >> 8) / 255.0f;
+  color.b = (colour & 0xFF) / 255.0f;
+  color.a = (colour >> 24) / 255.0f;
+  return color;
+  }
+//}}}
+//{{{
 inline sVgColour nvgRGBA (unsigned char r, unsigned char g, unsigned char b, unsigned char a) {
 
   sVgColour color;
@@ -157,6 +167,11 @@ inline sVgColour nvgRGBA (unsigned char r, unsigned char g, unsigned char b, uns
   color.b = b / 255.0f;
   color.a = a / 255.0f;
   return color;
+  }
+//}}}
+//{{{
+inline sVgColour nvgRGB (unsigned char r, unsigned char g, unsigned char b) {
+  return nvgRGBA (r,g,b,255);
   }
 //}}}
 //{{{
@@ -170,79 +185,10 @@ inline sVgColour nvgRGBAf (float r, float g, float b, float a) {
   }
 //}}}
 //{{{
-inline sVgColour nvgRGBA32 (uint32_t colour) {
-  sVgColour color;
-  color.r = ((colour & 0xFF0000) >> 16) / 255.0f;
-  color.g = ((colour & 0xFF00) >> 8) / 255.0f;
-  color.b = (colour & 0xFF) / 255.0f;
-  color.a = (colour >> 24) / 255.0f;
-  return color;
-  }
-//}}}
-//{{{
-inline sVgColour nvgRGB (unsigned char r, unsigned char g, unsigned char b) {
-  return nvgRGBA (r,g,b,255);
-  }
-//}}}
-//{{{
 inline sVgColour nvgRGBf (float r, float g, float b) {
   return nvgRGBAf (r,g,b,1.0f);
   }
 //}}}
-
-//{{{
-inline sVgColour nvgTransRGBA (sVgColour c, unsigned char a) {
-  c.a = a / 255.0f;
-  return c;
-  }
-//}}}
-//{{{
-inline sVgColour nvgTransRGBAf (sVgColour c, float a) {
-  c.a = a;
-  return c;
-  }
-//}}}
-//{{{
-inline sVgColour nvgLerpRGBA (sVgColour c0, sVgColour c1, float u) {
-
-  sVgColour cint = {{{0}}};
-
-  u = clampf(u, 0.0f, 1.0f);
-  float oneminu = 1.0f - u;
-  for (int i = 0; i <4; i++ )
-    cint.rgba[i] = c0.rgba[i] * oneminu + c1.rgba[i] * u;
-
-  return cint;
-  }
-//}}}
-
-//{{{
-inline sVgColour nvgHSLA (float h, float s, float l, unsigned char a) {
-
-  h = fmodf (h, 1.0f);
-  if (h < 0.0f)
-    h += 1.0f;
-  s = clampf (s, 0.0f, 1.0f);
-  l = clampf (l, 0.0f, 1.0f);
-
-  float m2 = l <= 0.5f ? (l * (1 + s)) : (l + s - l * s);
-  float m1 = 2 * l - m2;
-
-  sVgColour col;
-  col.r = clampf (hue (h + 1.0f/3.0f, m1, m2), 0.0f, 1.0f);
-  col.g = clampf (hue (h, m1, m2), 0.0f, 1.0f);
-  col.b = clampf (hue (h - 1.0f/3.0f, m1, m2), 0.0f, 1.0f);
-  col.a = a / 255.0f;
-
-  return col;
-  }
-//}}}
-//{{{
-inline sVgColour nvgHSL (float h, float s, float l) {
-  return nvgHSLA (h,s,l,255);
-  }
-//}}}
-
 //{{{
 inline sVgColour nvgPremulColor (sVgColour c) {
   c.r *= c.a;

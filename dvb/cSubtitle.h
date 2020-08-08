@@ -10,8 +10,8 @@ public:
   #define SCALEBITS 10
   #define ONE_HALF  (1 << (SCALEBITS - 1))
   #define FIX(x)    ((int) ((x) * (1<<SCALEBITS) + 0.5))
-  //#define RGBA(r,g,b,a) (((unsigned)(a) << 24) | ((r) << 16) | ((g) << 8) | (b))
-  #define RGBA(r,g,b,a) (((unsigned)(a) << 24) | ((b) << 16) | ((g) << 8) | (r))
+  #define RGBA(r,g,b,a) (((unsigned)(a) << 24) | ((r) << 16) | ((g) << 8) | (b))
+  //#define RGBA(r,g,b,a) (((unsigned)(a) << 24) | ((b) << 16) | ((g) << 8) | (r))
   //}}}
   //{{{
   cSubtitle() {
@@ -107,6 +107,8 @@ public:
 
     for (auto rect : mRects)
       delete rect;
+
+    mRects.clear();
     }
   //}}}
 
@@ -203,42 +205,21 @@ public:
         }
     }
   //}}}
-  //{{{
-  void rectDebug() {
-
-    if (!mRects.empty())
-      for (unsigned int i = 0; i < mRects.size(); i++) {
-        int xStep = mRects[i]->mWidth / 80;
-        int yStep = mRects[i]->mHeight / 16;
-        for (int y = 0; y < mRects[i]->mHeight; y += yStep) {
-          uint8_t* p = mRects[i]->mPixData + mRects[i]->mWidth;
-          std::string str = "  ";
-          for (int x = 0; x < mRects[i]->mWidth; x += xStep) {
-            int value = p[x];
-            str += value ? hex(value,1) : ".";
-            }
-          cLog::log (LOGINFO, str);
-          }
-        }
-    }
-  //}}}
 
   // public for widget access
   //{{{
   class cSubRect {
   public:
-    //{{{
     ~cSubRect() {
       free (mPixData);
       }
 
-    //}}}
 
     int mX = 0;
     int mY = 0;
     int mWidth = 0;
     int mHeight = 0;
-    uint8_t* mPixData = nullptr;
+    uint32_t* mPixData = nullptr;
 
     int mClutSize = 0;
     uint32_t mClut[16];
@@ -1328,23 +1309,25 @@ private:
       if (!clut)
         clut = &mDefaultClut;
 
-      mRects[i]->mPixData = (uint8_t*)realloc (mRects[i]->mPixData, region->mPixBufSize * 4);
-      uint32_t* ptr = (uint32_t*) (mRects[i]->mPixData);
+      // write rect pixData from region pixBuf using clut
+      mRects[i]->mPixData = (uint32_t*)realloc (mRects[i]->mPixData, region->mPixBufSize * sizeof(uint32_t));
+      uint32_t* pixDataPtr = mRects[i]->mPixData;
       for (int pix = 0; pix < region->mPixBufSize; pix++)
         switch (region->mDepth) {
           case 2:
-            *ptr++ = clut->mClut4[region->mPixBuf[pix]];
+            *pixDataPtr++ = clut->mClut4[region->mPixBuf[pix]];
             break;
           case 4:
-            *ptr++ = clut->mClut16[region->mPixBuf[pix]];
+            *pixDataPtr++ = clut->mClut16[region->mPixBuf[pix]];
             break;
           case 8:
-            *ptr++ = clut->mClut256[region->mPixBuf[pix]];
+            *pixDataPtr++ = clut->mClut256[region->mPixBuf[pix]];
             break;
           default:
             cLog::log (LOGERROR, "unknown depth:" + dec(region->mDepth));
           }
 
+      // copy clut16 for widget debug
       mRects[i]->mClutSize = 16;
       memcpy (mRects[i]->mClut, clut->mClut16, sizeof(clut->mClut16));
 

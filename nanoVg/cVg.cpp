@@ -4528,12 +4528,12 @@ int cVg::renderCreateTexture (int type, int w, int h, int imageFlags, const unsi
   // Check for non-power of 2.
   if (nearestPow2 (w) != (unsigned int)w || nearestPow2(h) != (unsigned int)h) {
     if ((imageFlags & IMAGE_REPEATX) != 0 || (imageFlags & IMAGE_REPEATY) != 0) {
-      printf ("Repeat X/Y is not supported for non power-of-two textures (%d x %d)\n", w, h);
+      cLog::log (LOGINFO, "Repeat X/Y is not supported for non power-of-two textures %dx%d", w, h);
       imageFlags &= ~(IMAGE_REPEATX | IMAGE_REPEATY);
       }
 
     if (imageFlags & IMAGE_GENERATE_MIPMAPS) {
-      printf ("Mip-maps is not support for non power-of-two textures (%d x %d)\n", w, h);
+      cLog::log (LOGINFO, "Mip-maps is not support for non power-of-two textures %dx )", w, h);
       imageFlags &= ~IMAGE_GENERATE_MIPMAPS;
       }
     }

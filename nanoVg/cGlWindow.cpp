@@ -139,7 +139,7 @@ void cGlWindow::run () {
       //{{{  draw stats
       fontSize (12.0f);
       textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_BOTTOM);
-      fillColor (nvgRGBA(255, 255, 255, 255));
+      fillColor (nvgRGBA (255, 255, 255, 255));
       text (0.0f, (float)winHeight, getFrameStats() + (mVsync ? " vsyncOn" : " vsyncOff"));
       }
       //}}}

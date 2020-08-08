@@ -97,9 +97,9 @@ public:
               // create or update rect image
               if (mImage[imageIndex] == -1)
                 mImage[imageIndex] = context->createImageRGBA (
-                  subtitle->mRects[line]->mWidth, subtitle->mRects[line]->mHeight, 0, subtitle->mRects[line]->mPixData);
+                  subtitle->mRects[line]->mWidth, subtitle->mRects[line]->mHeight, 0, (uint8_t*)subtitle->mRects[line]->mPixData);
               else if (subtitle->mChanged)  // !!! assumes image is same size as before !!!
-                context->updateImage (mImage[imageIndex], subtitle->mRects[line]->mPixData);
+                context->updateImage (mImage[imageIndex], (uint8_t*)subtitle->mRects[line]->mPixData);
 
               // draw rect image
               auto imagePaint = context->imagePattern (x3, ySub, dstWidth, dstHeight, 0.f, mImage[imageIndex], 1.f);
