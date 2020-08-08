@@ -94,6 +94,7 @@ cRootContainer* cGlWindow::initialise (string title, int width, int height, unsi
     }
     //}}}
 
+  // setup callbacks
   glfwMakeContextCurrent (mWindow);
   gladLoadGLLoader ((GLADloadproc)glfwGetProcAddress);
 
@@ -121,53 +122,12 @@ cRootContainer* cGlWindow::initialise (string title, int width, int height, unsi
   }
 //}}}
 //{{{
-void cGlWindow::run () {
+void cGlWindow::run() {
+// runs in app main thread after initialising everything
 
   while (!glfwWindowShouldClose (mWindow)) {
     glfwPollEvents();
-
-    mCpuGraph->start ((float)glfwGetTime());
-
-    // Update and render
-    int winWidth, winHeight;
-    glfwGetWindowSize (mWindow, &winWidth, &winHeight);
-
-    int frameBufferWidth, frameBufferHeight;
-    glfwGetFramebufferSize (mWindow, &frameBufferWidth, &frameBufferHeight);
-
-    glViewport (0, 0, frameBufferWidth, frameBufferHeight);
-    glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-
-    beginFrame (winWidth, winHeight, (float)frameBufferWidth / (float)winWidth);
-    if (mRootContainer)
-      mRootContainer->onDraw (this);
-    if (mDrawTests) {
-      //{{{  draw tests
-      drawEyes (winWidth*3.0f/4.0f, winHeight/2.0f, winWidth/4.0f, winHeight/2.0f,
-                mMouseX, mMouseY, (float)glfwGetTime());
-      drawLines (0.0f, 50.0f, (float)winWidth, (float)winHeight, (float)glfwGetTime());
-      drawSpinner (winWidth/2.0f, winHeight/2.0f, 20.0f, (float)glfwGetTime());
-      }
-      //}}}
-    if (mDrawStats) {
-      //{{{  draw stats
-      fontSize (12.0f);
-      textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_BOTTOM);
-      fillColor (nvgRGBA (255, 255, 255, 255));
-      text (0.0f, (float)winHeight, getFrameStats() + (mVsync ? " vsyncOn" : " vsyncOff"));
-      }
-      //}}}
-    if (mDrawPerf) {
-      //{{{  draw perf stats
-      mFpsGraph->render (this, 0.0f, winHeight-35.0f, winWidth/3.0f -2.0f, 35.0f);
-      mCpuGraph->render (this, winWidth/3.0f, winHeight-35.0f, winWidth/3.0f - 2.0f, 35.0f);
-      }
-      //}}}
-    endFrame();
-    glfwSwapBuffers (mWindow);
-
-    mCpuGraph->updateTime ((float)glfwGetTime());
-    mFpsGraph->updateTime ((float)glfwGetTime());
+    draw();
     }
   }
 //}}}
@@ -189,6 +149,54 @@ void cGlWindow::togglePerf() {
 //}}}
 
 // private
+//{{{
+void cGlWindow::draw() {
+
+  mCpuGraph->start ((float)glfwGetTime());
+
+  // Update and render
+  int winWidth, winHeight;
+  glfwGetWindowSize (mWindow, &winWidth, &winHeight);
+
+  int frameBufferWidth, frameBufferHeight;
+  glfwGetFramebufferSize (mWindow, &frameBufferWidth, &frameBufferHeight);
+
+  glViewport (0, 0, frameBufferWidth, frameBufferHeight);
+  glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
+  beginFrame (winWidth, winHeight, (float)frameBufferWidth / (float)winWidth);
+  if (mRootContainer)
+    mRootContainer->onDraw (this);
+  if (mDrawTests) {
+    //{{{  draw tests
+    drawEyes (winWidth*3.0f/4.0f, winHeight/2.0f, winWidth/4.0f, winHeight/2.0f,
+              mMouseX, mMouseY, (float)glfwGetTime());
+    drawLines (0.0f, 50.0f, (float)winWidth, (float)winHeight, (float)glfwGetTime());
+    drawSpinner (winWidth/2.0f, winHeight/2.0f, 20.0f, (float)glfwGetTime());
+    }
+    //}}}
+  if (mDrawStats) {
+    //{{{  draw stats
+    fontSize (12.0f);
+    textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_BOTTOM);
+    fillColor (nvgRGBA (255, 255, 255, 255));
+    text (0.0f, (float)winHeight, getFrameStats() + (mVsync ? " vsyncOn" : " vsyncOff"));
+    }
+    //}}}
+  if (mDrawPerf) {
+    //{{{  draw perf stats
+    mFpsGraph->render (this, 0.0f, winHeight-35.0f, winWidth/3.0f -2.0f, 35.0f);
+    mCpuGraph->render (this, winWidth/3.0f, winHeight-35.0f, winWidth/3.0f - 2.0f, 35.0f);
+    }
+    //}}}
+  endFrame();
+  glfwSwapBuffers (mWindow);
+
+  mCpuGraph->updateTime ((float)glfwGetTime());
+  mFpsGraph->updateTime ((float)glfwGetTime());
+  }
+//}}}
+
 //{{{
 void cGlWindow::drawEyes (float x, float y, float w, float h, float cursorX, float cursorY, float t) {
 
@@ -434,8 +442,8 @@ void cGlWindow::glfMouseScroll (GLFWwindow* window, double xoffset, double yoffs
 //}}}
 //{{{
 void cGlWindow::glfWindowSize (GLFWwindow* window, int xsize, int ysize) {
-  cLog::log (LOGINFO, "glfWindowSize " + dec(xsize) + " " + dec(ysize));
   mRootContainer->layout ((float)xsize, (float)ysize);
+  mGlWindow->draw();
   }
 //}}}
 

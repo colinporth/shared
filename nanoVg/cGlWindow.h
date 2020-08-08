@@ -96,6 +96,8 @@ protected:
   struct GLFWwindow* mWindow = nullptr;
 
 private:
+  void draw();
+
   void drawEyes (float x, float y, float w, float h, float cursorX, float cursorY, float t);
   void drawLines (float x, float y, float w, float h, float t);
   void drawStats (float x, float y, const std::string& str);
