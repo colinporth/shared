@@ -29,7 +29,7 @@ public:
     //mDefaultClut.mClut4[2] = RGBA (  0,   0,   0, 255);
     //mDefaultClut.mClut4[3] = RGBA (127, 127, 127, 255);
     //}}}
-    //{{{  init 4bit clut
+    //{{{  init 4bit clut - not very useful ?
     mDefaultClut.mClut16[0] = RGBA (0, 0, 0, 0);
     mDefaultClut.mClut16bgra[0] = BGRA (0, 0, 0, 0);
 
@@ -325,53 +325,12 @@ private:
     int mVersion = 0;
     int mId = 0;
 
-    //uint32_t mClut4[4];
     uint32_t mClut16[16];
     uint32_t mClut16bgra[16];
+
+    //uint32_t mClut4[4];
     //uint32_t mClut256[256];
     };
-  //}}}
-  //{{{
-  //class cBitStream {
-  // dumb explicit bitstream
-  //public:
-    //cBitStream(const uint8_t* bitStream, int size) : mBitStream(bitStream), mSize(size) {}
-
-    //{{{
-    //uint32_t getBit() {
-
-      //uint32_t result = (uint32_t)((mBitStream [mBitsRead >> 3] >> (7-(mBitsRead & 0x7))) & 0x01);
-      //mBitsRead += 1;
-      //return result;
-      //}
-    //}}}
-    //{{{
-    //uint32_t getBits (int numBits) {
-
-      //uint32_t result = 0;
-      //for (int i = 0; i < numBits; i++)
-        //result = (result << 1) | getBit();
-
-      //return result;
-      //}
-    //}}}
-
-    //{{{
-    //int getBitsRead() {
-      //return mBitsRead;
-      //}
-    //}}}
-    //{{{
-    //int getBytesRead() {
-      //return (mBitsRead + 7) / 8;
-      //}
-    //}}}
-
-  //private:
-    //const uint8_t* mBitStream = nullptr;
-    //int mBitsRead = 0;
-    //int mSize = 0;
-    //};
   //}}}
   //{{{
   class cBitStream {
@@ -876,11 +835,11 @@ private:
     if (!region)
       return;
 
-    uint8_t map2to4[] = {  0x0,  0x7,  0x8,  0xf};
-    uint8_t map2to8[] = { 0x00, 0x77, 0x88, 0xff};
-    uint8_t map4to8[] = { 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
-                          0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff};
-    uint8_t* mapTable;
+    //uint8_t map2to4[] = {  0x0,  0x7,  0x8,  0xf};
+    //uint8_t map2to8[] = { 0x00, 0x77, 0x88, 0xff};
+    //uint8_t map4to8[] = { 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
+    //                      0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff};
+    uint8_t* mapTable = nullptr;
 
     uint8_t* pixBuf = region->mPixBuf;
     region->mDirty = true;
@@ -921,10 +880,10 @@ private:
             return;
             }
 
-          if (region->mDepth == 8)
-            mapTable = map4to8;
-          else
-            mapTable = NULL;
+          //if (region->mDepth == 8)
+          //  mapTable = map4to8;
+          //else
+          //  mapTable = NULL;
 
           xPos = parse4bit (&buf, bufLeft, pixPtr, region->mWidth, xPos, nonModifyColour, mapTable);
           break;

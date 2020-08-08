@@ -102,6 +102,8 @@ public:
               else if (subtitle->mChanged)  // !!! assumes image is same size as before !!!
                 context->updateImage (mImage[imageIndex], (uint8_t*)subtitle->mRects[line]->mPixData);
 
+              draw->drawRect (COL_DARKGREY, visx, ySub, dstWidth, dstHeight);
+
               // draw rect image
               auto imagePaint = context->imagePattern (visx, ySub, dstWidth, dstHeight, 0.f, mImage[imageIndex], 1.f);
               imageIndex++;
@@ -112,7 +114,7 @@ public:
               context->fill();
 
               // draw rect position
-              std::string text = dec(subtitle->mRects[line]->mX) + "," + dec(subtitle->mRects[line]->mY);
+              std::string text = dec(subtitle->mRects[line]->mX) + "," + dec(subtitle->mRects[line]->mY,3);
               float posWidth = draw->drawTextRight (COL_WHITE, lineHeight, text, mX + mWidth,  ySub, mWidth - mX, dstHeight);
 
               // draw clut
