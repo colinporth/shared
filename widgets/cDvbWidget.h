@@ -142,7 +142,7 @@ public:
       draw->drawRect (COL_DARKORANGE, visx, y, frac * (mWidth - textWidth), lineHeight-1.f);
 
       std::string str;
-      if ((pidInfo.mSid != lastSid) || (pidInfo.mStreamType == 5) || (pidInfo.mStreamType == 11))
+      if ((pidInfo.mStreamType == 0) && (pidInfo.mSid > 0))
         str += dec(pidInfo.mSid) + " ";
       str += pidInfo.getInfoString();
       draw->drawText (COL_LIGHTGREY, lineHeight, str, visx,  y, mWidth - textWidth, lineHeight);
