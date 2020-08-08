@@ -15,18 +15,18 @@ public:
 
     cWidget::onDown (x, y);
     if (mWidth > mHeight)
-      setValue ((float)x / (float)mWidth);
+      setValue (x / mWidth);
     else
-      setValue ((float)y / (float)mHeight);
+      setValue (y / mHeight);
     }
   //}}}
   //{{{
-  void onMove (float x, float y, float z, float xinc, float yinc) {
-    cWidget::onMove (x, y, z, xinc, yinc);
+  void onMove (float x, float y, float xinc, float yinc) {
+    cWidget::onMove (x, y, xinc, yinc);
     if (mWidth > mHeight)
-      setValue ((float)x / (float)mWidth);
+      setValue (x / mWidth);
     else
-      setValue ((float)y / (float)mHeight);
+      setValue (y / mHeight);
     }
   //}}}
   //{{{

@@ -183,32 +183,15 @@ void cGlWindow::togglePerf() {
 //}}}
 
 // private
+void cGlWindow::mouseProx (float x, float y) { mRoot->onProx (x, y); }
+void cGlWindow::mouseDown (bool rightButton, float x, float y) { mRoot->onDown (x, y); }
 //{{{
-void cGlWindow::onProx (bool inClient, float x, float y) {
-  mMouseX = (float)x;
-  mMouseY = (float)y;
+void cGlWindow::mouseMove (bool rightButton, float x, float y, float xInc, float yInc) { 
+  mRoot->onMove (x, y, xInc, yInc); 
   }
 //}}}
-//{{{
-void cGlWindow::onDown (bool right, float x, float y) {
-  mRoot->onDown (0, x, y, 0,  0, 0);
-  }
-//}}}
-//{{{
-void cGlWindow::onMove (bool right, float x, float y, float xInc, float yInc) {
-  mRoot->onDown (1, x, y, 0, xInc, yInc);
-  }
-//}}}
-//{{{
-void cGlWindow::onUp (bool right, bool mouseMoved, float x, float y) {
-  mRoot->onUp();
-  }
-//}}}
-//{{{
-void cGlWindow::onWheel (float delta) {
-  mRoot->onWheel (delta);
-  }
-//}}}
+void cGlWindow::mouseUp (bool right, float x, float y) { mRoot->onUp(); }
+void cGlWindow::mouseWheel (float delta) { mRoot->onWheel (delta); }
 
 //{{{
 void cGlWindow::drawEyes (float x, float y, float w, float h, float cursorX, float cursorY, float t) {
@@ -412,43 +395,45 @@ void cGlWindow::glfwCharMods (GLFWwindow* window, unsigned int ch, int mods) {
 void cGlWindow::glfwMouseButton (GLFWwindow* window, int button, int action, int mods) {
 
   if (action == GLFW_PRESS) {
+    mMouseDown = true;
     mMouseMoved = false;
-    mGlWindow->onDown (button == GLFW_MOUSE_BUTTON_RIGHT, mMouseX, mMouseY);
+    mMouseRightButton = button == GLFW_MOUSE_BUTTON_RIGHT;
+    mGlWindow->mouseDown (mMouseRightButton, mMouseX, mMouseY);
     mMouseLastX = mMouseX;
     mMouseLastY = mMouseY;
-    mMouseDown = true;
     }
 
   else if (action == GLFW_RELEASE) {
-    mGlWindow->onUp (button == GLFW_MOUSE_BUTTON_RIGHT, mMouseMoved, mMouseX, mMouseY);
-    mMouseDown = false;
+    mMouseRightButton = button == GLFW_MOUSE_BUTTON_RIGHT;
+    mGlWindow->mouseUp (mMouseRightButton, mMouseX, mMouseY);
     mMouseMoved = false;
+    mMouseDown = false;
     }
   }
 //}}}
 //{{{
 void cGlWindow::glfwCursorPos (GLFWwindow* window, double xpos, double ypos) {
 
+  mMouseX = (float)xpos;
+  mMouseY = (float)ypos;
+
   if (mMouseDown) {
-    float xinc = (float)xpos - mMouseLastX;
-    float yinc = (float)ypos - mMouseLastY;
-    if ((xinc != 0) || (yinc != 0)) {
+    float xinc = mMouseX - mMouseLastX;
+    float yinc = mMouseY - mMouseLastY;
+    if ((fabs(xinc) >  0.5f) || (fabs(yinc) > 0.5f)) {
       mMouseMoved = true;
-      mGlWindow->onMove (false, (float)xpos, (float)ypos, xinc, yinc);
-      mMouseLastX = float(xpos);
-      mMouseLastY = float(ypos);
+      mGlWindow->mouseMove (mMouseRightButton, mMouseX, mMouseY, xinc, yinc);
+      mMouseLastX = mMouseX;
+      mMouseLastY = mMouseY;
       }
     }
   else
-    mGlWindow->onProx (true, (float)xpos, (float)ypos);
-
-  mMouseX = (float)xpos;
-  mMouseY = (float)ypos;
+    mGlWindow->mouseProx (mMouseX, mMouseY);
   }
 //}}}
 //{{{
 void cGlWindow::glfMouseScroll (GLFWwindow* window, double xoffset, double yoffset) {
-  mGlWindow->onWheel ((float)yoffset);
+  mGlWindow->mouseWheel ((float)yoffset);
   }
 //}}}
 

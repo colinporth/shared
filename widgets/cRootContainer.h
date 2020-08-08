@@ -14,23 +14,29 @@ public:
   virtual ~cRootContainer() {}
 
   //{{{
-  virtual void prox (float x, float y) {
+  virtual void onProx (float x, float y) {
 
-    mProxWidget = picked (x, y, 0);
+    mProxWidget = isPicked (x, y);
+
     if (mProxWidget)
-      mProxWidget->prox (x - mProxWidget->getPixX(), y - mProxWidget->getPixY());
+      mProxWidget->onProx (x - mProxWidget->getPixX(), y - mProxWidget->getPixY());
+    else
+      mProxWidget = this;
     }
   //}}}
   //{{{
-  virtual void onDown (int pressCount, float x, float y, float z, float xinc, float yinc) {
+  virtual void onDown (float x, float y) {
 
-    if (!pressCount) {
-      mPressedWidget = picked (x, y, z);
-      if (mPressedWidget)
-        mPressedWidget->onDown (x - mPressedWidget->getPixX(), y - mPressedWidget->getPixY());
-      }
-    else if (mPressedWidget)
-      mPressedWidget->onMove (x - mPressedWidget->getPixX(), y - mPressedWidget->getPixY(), z, xinc, yinc);
+    mPressedWidget = isPicked (x, y);
+    if (mPressedWidget)
+      mPressedWidget->onDown (x - mPressedWidget->getPixX(), y - mPressedWidget->getPixY());
+    }
+  //}}}
+  //{{{
+  virtual void onMove (float x, float y, float xinc, float yinc) {
+
+    if (mPressedWidget)
+      mPressedWidget->onMove (x - mPressedWidget->getPixX(), y - mPressedWidget->getPixY(), xinc, yinc);
     }
   //}}}
   //{{{

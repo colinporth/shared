@@ -83,13 +83,14 @@ public:
   void setVisible (bool visible) { mVisible = visible; }
   //}}}
 
-  virtual void prox (float x, float y) {}
   //{{{
-  virtual cWidget* picked (float x, float y, float z) {
+  virtual cWidget* isPicked (float x, float y) {
     return (x >= mX) && (x < mX + mWidth) &&
            (y >= mY) && (y < mY + mHeight) ? this : nullptr;
     }
   //}}}
+
+  virtual void onProx (float x, float y) {}
   //{{{
   virtual void onDown (float x, float y) {
     if (!mPressedCount)
@@ -97,7 +98,7 @@ public:
     mPressedCount++;
     }
   //}}}
-  virtual void onMove (float x, float y, float z, float xinc, float yinc) {}
+  virtual void onMove (float x, float y, float xinc, float yinc) {}
   //{{{
   virtual void onUp() {
     mPressedCount = 0;

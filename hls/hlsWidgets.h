@@ -19,7 +19,7 @@ public:
   cHlsDotsBox (cHls* hls, float width, float height) : cWidget(width, height), mHls(hls) {}
   virtual ~cHlsDotsBox() {}
 
-  void onDown (int16_t x, int16_t y) {
+  void onDown (float x, float y) {
     cWidget::onDown (x, y);
     }
 
@@ -52,23 +52,23 @@ public:
   cHlsPeakWidget (cHls* hls, float width, float height) : cWidget (COL_BLUE, width, height), mHls(hls) {}
   virtual ~cHlsPeakWidget() {}
 
-  void onDown (int16_t x, int16_t y) {
+  void onDown (float x, float y) {
     cWidget::onDown (x, y);
     mMove = 0;
-    mPressInc = x - (mWidth/2);
+    mPressInc = x - (mWidth/2.f);
     mHls->setScrub();
-    setZoomAnim (1.0f + ((mWidth/2) - abs(x - (mWidth/2))) / (mWidth/6), 4);
+    setZoomAnim (1.0f + ((mWidth/2.f) - abs(x - (mWidth/2.f))) / (mWidth/6.f), 4);
     }
 
-  void onMove (int16_t x, int16_t y, uint16_t z, int16_t xinc, int16_t yinc) {
-    cWidget::onMove (x, y, z, xinc, yinc);
+  void onMove (float x, float y, float xinc, float yinc) {
+    cWidget::onMove (x, y, xinc, yinc);
     mMove += abs(xinc) + abs(yinc);
     mHls->incPlaySample ((-xinc * kSamplesPerFrame) / mZoom);
     }
 
   void onUp() {
     cWidget::onUp();
-    if (mMove < getBoxHeight()/2) {
+    if (mMove < getBoxHeight()/2.f) {
       mAnimation = mPressInc;
       mHls->incPlaySample (mPressInc * kSamplesPerFrame / kNormalZoom);
       mHls->setPlay();
@@ -94,12 +94,12 @@ public:
         mZoom += mZoomInc;
       }
     //}}}
-    uint16_t midx = mX + (mWidth/2);
+    float midx = mX + (mWidth/2.f);
     float samplesPerPixF = kSamplesPerFrame / mZoom;
     float pixPerSec = kSamplesPerSecondF / samplesPerPixF;
-    double sample = mHls->getPlaySample() - ((mWidth/2) + mAnimation) * samplesPerPixF;
+    double sample = mHls->getPlaySample() - ((mWidth/2.f) + mAnimation) * samplesPerPixF;
 
-    int16_t y = mY + mHeight - getBoxHeight()/2;
+    float y = mY + mHeight - getBoxHeight()/2.f;
     int secs = int (sample / kSamplesPerSecond);
     float subSecSamples = (float)fmod (sample, kSamplesPerSecondD);
     float nextxF = (kSamplesPerSecondF - subSecSamples) / samplesPerPixF;
@@ -124,7 +124,7 @@ public:
     context->text (midx-60.0f+3.0f, y+1.0f, getTimeString (mHls->getPlayTzSeconds()));
 
     float midy = (float)mY + (mHeight/2);
-    uint16_t midWidth = midx + int(mHls->getPlaying() == cHls::eScrub ? kScrubFrames*mZoom : mZoom);
+    float midWidth = midx + int(mHls->getPlaying() == cHls::eScrub ? kScrubFrames*mZoom : mZoom);
 
     context->beginPath();
     uint8_t* samples = nullptr;
@@ -175,8 +175,8 @@ private:
 
   float mMove = 0;
   bool mMoved = false;
-  int16_t mPressInc = 0;
-  int16_t mAnimation = 0;
+  float mPressInc = 0;
+  float mAnimation = 0;
 
   float mZoom = kNormalZoom;
   float mZoomInc = 0;

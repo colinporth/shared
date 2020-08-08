@@ -22,24 +22,23 @@ public:
   //}}}
   virtual ~cDvbWidget() {}
 
-  virtual void onDown (float x, float y) {}
   //{{{
-  virtual void onMove (float x, float y, float z, float xinc, float yinc) {
+  virtual void onMove (float x, float y, float xinc, float yinc) {
 
-    // inc and clip mScroll
+    // inc and clip mScroll to top
     mScroll = std::max (mScroll - yinc, -1.f);
 
+    // clip mScroll to bottom
     if (mLastHeight > mHeight)
       mScroll = std::min (mScroll, mLastHeight - mHeight);
     else
       mScroll = 0.f;
     }
   //}}}
-  virtual void onUp() {}
-
   //{{{
-  virtual void onWheel (float delta) {
-    cLog::log (LOGINFO, "onwheel " + dec(delta));
+  virtual void onWheel (float delta) { 
+    // inc and clip lineHeight
+    mZoom  = std::min (5.f, std::max (mZoom + delta, -5.f));
     }
   //}}}
 
@@ -48,9 +47,9 @@ public:
     int imageIndex = 0;
     auto context = draw->getContext();
 
+    float lineHeight = mZoom + (getBoxHeight() * 4.f / 5.f);
     float x = mX + 2.f;
     float y = mY - mScroll;
-    float lineHeight = getBoxHeight() *4.f/5.f;
     for (auto& pidInfoItem : mDvb->getTransportStream()->mPidInfoMap) { // iteratepidInfo
       cPidInfo& pidInfo = pidInfoItem.second;
       int pid = pidInfo.mPid;
@@ -68,7 +67,7 @@ public:
                        " " + getFullPtsString (pidInfo.mPts) +
                        " " + pidInfo.getTypeString();
       float textWidth = draw->drawText (COL_LIGHTGREY, lineHeight, pidString, x,  y, mWidth-3.f, lineHeight);
-      float x2 = x + textWidth + lineHeight/2;
+      float x2 = x + textWidth + lineHeight/2.f;
 
       if (pidInfo.mStreamType == 6) {
         //{{{  draw subtitle
@@ -96,7 +95,7 @@ public:
               if (mImage[imageIndex] == -1)
                 mImage[imageIndex] = context->createImageRGBA (
                   subtitle->mRects[line]->mWidth, subtitle->mRects[line]->mHeight, 0, subtitle->mRects[line]->mPixData);
-              else if (subtitle->mChanged)
+              else if (subtitle->mChanged)  // !!! assumes image is same size as before !!!
                 context->updateImage (mImage[imageIndex], subtitle->mRects[line]->mPixData);
 
               // draw rect image
@@ -154,6 +153,7 @@ private:
   float mMaxPidPackets = 0;
 
   float mScroll = -1.f;
+  float mZoom  = 0.f;
   float mLastHeight = 0.f;
 
   int mImage[20] =  { -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,

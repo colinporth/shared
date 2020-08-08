@@ -24,7 +24,7 @@ public:
     }
   //}}}
   //{{{
-  void onMove (float x, float y, float z, float xinc, float yinc) {
+  void onMove (float x, float y, float xinc, float yinc) {
 
     mMoveInc += yinc;
 

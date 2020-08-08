@@ -94,11 +94,11 @@ protected:
   struct GLFWwindow* mWindow = nullptr;
 
 private:
-  void onProx (bool inClient, float x, float y);
-  void onDown (bool right, float x, float y);
-  void onMove (bool right, float x, float y, float xInc, float yInc);
-  void onUp (bool right, bool mouseMoved, float x, float y);
-  void onWheel (float delta);
+  void mouseProx (float x, float y);
+  void mouseDown (bool right, float x, float y);
+  void mouseMove (bool right, float x, float y, float xInc, float yInc);
+  void mouseUp (bool right, float x, float y);
+  void mouseWheel (float delta);
 
   void drawEyes (float x, float y, float w, float h, float cursorX, float cursorY, float t);
   void drawLines (float x, float y, float w, float h, float t);
@@ -124,6 +124,7 @@ private:
 
   static inline bool mMouseDown =  false;
   static inline bool mMouseMoved = false;
+  static inline bool mMouseRightButton = false;
   static inline float mMouseLastX = 0;
   static inline float mMouseLastY = 0;
 

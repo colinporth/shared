@@ -68,8 +68,8 @@ public:
         }
       mUpdateTexture = false;
 
-      uint16_t x = mScale >= 1.0 ? mX : mX + (mWidth - width)/2;
-      uint16_t y = mScale >= 1.0 ? mY : mY + (mHeight - height)/2;
+      float x = mScale >= 1.0 ? mX : mX + (mWidth - width)/2.f;
+      float y = mScale >= 1.0 ? mY : mY + (mHeight - height)/2.f;
 
       auto imgPaint = context->imagePattern (x, y, width, height, mAngle / 180.0f * PI, mImage, 1.0f);
       context->beginPath();
