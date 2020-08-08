@@ -4,12 +4,12 @@
 
 #include <string>
 #include <algorithm>
-#include "../utils/utils.h"
 
 #include "../dvb/cDvb.h"
+
+#include "../utils/utils.h"
 #include "../dvb/cTransportStream.h"
 #include "../dvb/cSubtitle.h"
-
 
 #include "cWidget.h"
 //}}}
@@ -95,9 +95,13 @@ public:
                 //}}}
 
               // create or update rect image
-              if (mImage[imageIndex] == -1)
-                mImage[imageIndex] = context->createImageRGBA (
-                  subtitle->mRects[line]->mWidth, subtitle->mRects[line]->mHeight, 0, (uint8_t*)subtitle->mRects[line]->mPixData);
+              if (mImage[imageIndex] == -1) {
+                if (imageIndex < 20)
+                  mImage[imageIndex] = context->createImageRGBA (
+                    subtitle->mRects[line]->mWidth, subtitle->mRects[line]->mHeight, 0, (uint8_t*)subtitle->mRects[line]->mPixData);
+                else
+                  cLog::log (LOGERROR, "too many cDvbWidget images, fixit");
+                }
               else if (subtitle->mChanged)  // !!! assumes image is same size as before !!!
                 context->updateImage (mImage[imageIndex], (uint8_t*)subtitle->mRects[line]->mPixData);
 
@@ -112,7 +116,7 @@ public:
 
               // draw rect position
               std::string text = dec(subtitle->mRects[line]->mX) + "," + dec(subtitle->mRects[line]->mY);
-              draw->drawText (COL_GREY, lineHeight, text, x3 + dstWidth - 55.f,  ySub, dstWidth, dstHeight);
+              draw->drawText (COL_WHITE, lineHeight, text, x3 + dstWidth - 55.f,  ySub, dstWidth, dstHeight);
 
               // draw clut
               for (int i = 0; i < subtitle->mRects[line]->mClutSize; i++) {

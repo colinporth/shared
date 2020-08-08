@@ -10,8 +10,13 @@ public:
   #define SCALEBITS 10
   #define ONE_HALF  (1 << (SCALEBITS - 1))
   #define FIX(x)    ((int) ((x) * (1<<SCALEBITS) + 0.5))
-  #define RGBA(r,g,b,a) (((unsigned)(a) << 24) | ((r) << 16) | ((g) << 8) | (b))
-  //#define RGBA(r,g,b,a) (((unsigned)(a) << 24) | ((b) << 16) | ((g) << 8) | (r))
+
+  #define RGBA(r,g,b,a) (uint32_t ((((a) << 24) & 0xFF000000) | (((r) << 16) & 0x00FF0000) | \
+                                   (((g) <<  8) & 0x0000FF00) |  ((b)        & 0x000000FF)))
+
+  // don't inderstand where the BGRA is introduced - something wrong somewhere
+  #define BGRA(r,g,b,a) (uint32_t ((((a) << 24) & 0xFF000000) | (((b) << 16) & 0x00FF0000) | \
+                                   (((g) <<  8) & 0x0000FF00) |  ((r)        & 0x000000FF)))
   //}}}
   //{{{
   cSubtitle() {
@@ -19,13 +24,14 @@ public:
     mDefaultClut.mId = -1;
 
     //{{{  init 2bit clut
-    mDefaultClut.mClut4[0] = RGBA (  0,   0,   0,   0);
-    mDefaultClut.mClut4[1] = RGBA (255, 255, 255, 255);
-    mDefaultClut.mClut4[2] = RGBA (  0,   0,   0, 255);
-    mDefaultClut.mClut4[3] = RGBA (127, 127, 127, 255);
+    //mDefaultClut.mClut4[0] = RGBA (  0,   0,   0,   0);
+    //mDefaultClut.mClut4[1] = RGBA (255, 255, 255, 255);
+    //mDefaultClut.mClut4[2] = RGBA (  0,   0,   0, 255);
+    //mDefaultClut.mClut4[3] = RGBA (127, 127, 127, 255);
     //}}}
     //{{{  init 4bit clut
     mDefaultClut.mClut16[0] = RGBA (0, 0, 0, 0);
+    mDefaultClut.mClut16bgra[0] = BGRA (0, 0, 0, 0);
 
     for (int i = 1; i <= 0x0F; i++) {
       int r = (i < 8) ? ((i & 1) ? 0xFF : 0) : ((i & 1) ? 0x7F : 0);
@@ -34,57 +40,58 @@ public:
       int a = 0xFF;
 
       mDefaultClut.mClut16[i] = RGBA (r, g, b, a);
+      mDefaultClut.mClut16bgra[i] = BGRA (r, g, b, a);
       }
     //}}}
     //{{{  init 8bit clut
-    mDefaultClut.mClut256[0] = RGBA (0, 0, 0, 0);
+    //mDefaultClut.mClut256[0] = RGBA (0, 0, 0, 0);
 
-    for (int i = 1; i <= 0xFF; i++) {
-      int r;
-      int g;
-      int b;
-      int a;
+    //for (int i = 1; i <= 0xFF; i++) {
+      //int r;
+      //int g;
+      //int b;
+      //int a;
 
-      if (i < 8) {
-        r = (i & 1) ? 0xFF : 0;
-        g = (i & 2) ? 0xFF : 0;
-        b = (i & 4) ? 0xFF : 0;
-        a = 0x3F;
-        }
+      //if (i < 8) {
+        //r = (i & 1) ? 0xFF : 0;
+        //g = (i & 2) ? 0xFF : 0;
+        //b = (i & 4) ? 0xFF : 0;
+        //a = 0x3F;
+        //}
 
-      else
-        switch (i & 0x88) {
-          case 0x00:
-            r = ((i & 1) ? 85 : 0) + ((i & 0x10) ? 170 : 0);
-            g = ((i & 2) ? 85 : 0) + ((i & 0x20) ? 170 : 0);
-            b = ((i & 4) ? 85 : 0) + ((i & 0x40) ? 170 : 0);
-            a = 0xFF;
-            break;
+      //else
+        //switch (i & 0x88) {
+          //case 0x00:
+            //r = ((i & 1) ? 85 : 0) + ((i & 0x10) ? 170 : 0);
+            //g = ((i & 2) ? 85 : 0) + ((i & 0x20) ? 170 : 0);
+            //b = ((i & 4) ? 85 : 0) + ((i & 0x40) ? 170 : 0);
+            //a = 0xFF;
+            //break;
 
-          case 0x08:
-            r = ((i & 1) ? 85 : 0) + ((i & 0x10) ? 170 : 0);
-            g = ((i & 2) ? 85 : 0) + ((i & 0x20) ? 170 : 0);
-            b = ((i & 4) ? 85 : 0) + ((i & 0x40) ? 170 : 0);
-            a = 0x7F;
-            break;
+          //case 0x08:
+            //r = ((i & 1) ? 85 : 0) + ((i & 0x10) ? 170 : 0);
+            //g = ((i & 2) ? 85 : 0) + ((i & 0x20) ? 170 : 0);
+            //b = ((i & 4) ? 85 : 0) + ((i & 0x40) ? 170 : 0);
+            //a = 0x7F;
+            //break;
 
-          case 0x80:
-            r = 127 + ((i & 1) ? 43 : 0) + ((i & 0x10) ? 85 : 0);
-            g = 127 + ((i & 2) ? 43 : 0) + ((i & 0x20) ? 85 : 0);
-            b = 127 + ((i & 4) ? 43 : 0) + ((i & 0x40) ? 85 : 0);
-            a = 0xFF;
-            break;
+          //case 0x80:
+            //r = 127 + ((i & 1) ? 43 : 0) + ((i & 0x10) ? 85 : 0);
+            //g = 127 + ((i & 2) ? 43 : 0) + ((i & 0x20) ? 85 : 0);
+            //b = 127 + ((i & 4) ? 43 : 0) + ((i & 0x40) ? 85 : 0);
+            //a = 0xFF;
+            //break;
 
-          case 0x88:
-            r = ((i & 1) ? 43 : 0) + ((i & 0x10) ? 85 : 0);
-            g = ((i & 2) ? 43 : 0) + ((i & 0x20) ? 85 : 0);
-            b = ((i & 4) ? 43 : 0) + ((i & 0x40) ? 85 : 0);
-            a = 0xFF;
-            break;
-          }
+          //case 0x88:
+            //r = ((i & 1) ? 43 : 0) + ((i & 0x10) ? 85 : 0);
+            //g = ((i & 2) ? 43 : 0) + ((i & 0x20) ? 85 : 0);
+            //b = ((i & 4) ? 43 : 0) + ((i & 0x40) ? 85 : 0);
+            //a = 0xFF;
+            //break;
+          //}
 
-      mDefaultClut.mClut256[i] = RGBA(r, g, b, a);
-      }
+      //mDefaultClut.mClut256[i] = RGBA(r, g, b, a);
+      //}
     //}}}
 
     mDefaultClut.mNext = NULL;
@@ -318,9 +325,10 @@ private:
     int mVersion = 0;
     int mId = 0;
 
-    uint32_t mClut4[4];
+    //uint32_t mClut4[4];
     uint32_t mClut16[16];
-    uint32_t mClut256[256];
+    uint32_t mClut16bgra[16];
+    //uint32_t mClut256[256];
     };
   //}}}
   //{{{
@@ -473,118 +481,118 @@ private:
   //}}}
 
   //{{{
-  int parse2bit (const uint8_t** buf, int bufSize, uint8_t* pixBuf, int pixBufSize, int pixPos, int nonModifyColour, uint8_t* mapTable) {
+  //int parse2bit (const uint8_t** buf, int bufSize, uint8_t* pixBuf, int pixBufSize, int pixPos, int nonModifyColour, uint8_t* mapTable) {
 
-    pixBuf += pixPos;
+    //pixBuf += pixPos;
 
-    cBitStream bitStream (*buf, bufSize);
-    while ((bitStream.getBitsRead() < (bufSize * 8)) && (pixPos < pixBufSize)) {
-      int bits = bitStream.getBits (2);
-      if (bits) {
-        if (nonModifyColour != 1 || bits != 1) {
-          if (mapTable)
-            *pixBuf++ = mapTable[bits];
-          else
-            *pixBuf++ = bits;
-          }
-        pixPos++;
-        }
-      else {
-        bits = bitStream.getBit();
-        if (bits == 1) {
+    //cBitStream bitStream (*buf, bufSize);
+    //while ((bitStream.getBitsRead() < (bufSize * 8)) && (pixPos < pixBufSize)) {
+      //int bits = bitStream.getBits (2);
+      //if (bits) {
+        //if (nonModifyColour != 1 || bits != 1) {
+          //if (mapTable)
+            //*pixBuf++ = mapTable[bits];
+          //else
+            //*pixBuf++ = bits;
+          //}
+        //pixPos++;
+        //}
+      //else {
+        //bits = bitStream.getBit();
+        //if (bits == 1) {
           //{{{  bits == 1
-          int runLength = bitStream.getBits (3) + 3;
-          bits = bitStream.getBits (2);
+          //int runLength = bitStream.getBits (3) + 3;
+          //bits = bitStream.getBits (2);
 
-          if (nonModifyColour == 1 && bits == 1)
-            pixPos += runLength;
-          else {
-            if (mapTable)
-              bits = mapTable[bits];
-            while ((runLength-- > 0) && (pixPos < pixBufSize)) {
-              *pixBuf++ = bits;
-              pixPos++;
-              }
-            }
-          }
+          //if (nonModifyColour == 1 && bits == 1)
+            //pixPos += runLength;
+          //else {
+            //if (mapTable)
+              //bits = mapTable[bits];
+            //while ((runLength-- > 0) && (pixPos < pixBufSize)) {
+              //*pixBuf++ = bits;
+              //pixPos++;
+              //}
+            //}
+          //}
           //}}}
-        else {
-          bits = bitStream.getBit();
-          if (bits == 0) {
-            bits = bitStream.getBits (2);
-            if (bits == 0) {
+        //else {
+          //bits = bitStream.getBit();
+          //if (bits == 0) {
+            //bits = bitStream.getBits (2);
+            //if (bits == 0) {
               //{{{  bits == 0
-              *buf += bitStream.getBytesRead();
-              return pixPos;
-              }
+              //*buf += bitStream.getBytesRead();
+              //return pixPos;
+              //}
               //}}}
-            else if (bits == 1) {
+            //else if (bits == 1) {
               //{{{  bits == 1
-              if (mapTable)
-                bits = mapTable[0];
-              else
-                bits = 0;
-              int runLength = 2;
-              while ((runLength-- > 0) && (pixPos < pixBufSize)) {
-                *pixBuf++ = bits;
-                pixPos++;
-                }
-              }
+              //if (mapTable)
+                //bits = mapTable[0];
+              //else
+                //bits = 0;
+              //int runLength = 2;
+              //while ((runLength-- > 0) && (pixPos < pixBufSize)) {
+                //*pixBuf++ = bits;
+                //pixPos++;
+                //}
+              //}
               //}}}
-            else if (bits == 2) {
+            //else if (bits == 2) {
               //{{{  bits == 2
-              int runLength = bitStream.getBits (4) + 12;
-              bits = bitStream.getBits (2);
+              //int runLength = bitStream.getBits (4) + 12;
+              //bits = bitStream.getBits (2);
 
-              if ((nonModifyColour == 1) && (bits == 1))
-                pixPos += runLength;
-              else {
-                if (mapTable)
-                  bits = mapTable[bits];
-                while ((runLength-- > 0) && (pixPos < pixBufSize)) {
-                  *pixBuf++ = bits;
-                  pixPos++;
-                  }
-                }
-              }
+              //if ((nonModifyColour == 1) && (bits == 1))
+                //pixPos += runLength;
+              //else {
+                //if (mapTable)
+                  //bits = mapTable[bits];
+                //while ((runLength-- > 0) && (pixPos < pixBufSize)) {
+                  //*pixBuf++ = bits;
+                  //pixPos++;
+                  //}
+                //}
+              //}
               //}}}
-            else { // if (bits == 3)
+            //else { // if (bits == 3)
               //{{{  bits == 3
-              int runLength = bitStream.getBits (8) + 29;
-              bits = bitStream.getBits (2);
+              //int runLength = bitStream.getBits (8) + 29;
+              //bits = bitStream.getBits (2);
 
-              if (nonModifyColour == 1 && bits == 1)
-                 pixPos += runLength;
-              else {
-                if (mapTable)
-                  bits = mapTable[bits];
-                while ((runLength-- > 0) && (pixPos < pixBufSize)) {
-                  *pixBuf++ = bits;
-                  pixPos++;
-                  }
-                }
-              }
+              //if (nonModifyColour == 1 && bits == 1)
+                 //pixPos += runLength;
+              //else {
+                //if (mapTable)
+                  //bits = mapTable[bits];
+                //while ((runLength-- > 0) && (pixPos < pixBufSize)) {
+                  //*pixBuf++ = bits;
+                  //pixPos++;
+                  //}
+                //}
+              //}
               //}}}
-            }
+            //}
 
-          else {
-            if (mapTable)
-              bits = mapTable[0];
-            else
-              bits = 0;
-            *pixBuf++ = bits;
-            pixPos++;
-            }
-          }
-        }
-      }
+          //else {
+            //if (mapTable)
+              //bits = mapTable[0];
+            //else
+              //bits = 0;
+            //*pixBuf++ = bits;
+            //pixPos++;
+            //}
+          //}
+        //}
+      //}
 
-    if (bitStream.getBits (6))
-      cLog::log (LOGERROR, "line overflow");
+    //if (bitStream.getBits (6))
+      //cLog::log (LOGERROR, "line overflow");
 
-    *buf += bitStream.getBytesRead();
-    return pixPos;
-    }
+    //*buf += bitStream.getBytesRead();
+    //return pixPos;
+    //}
   //}}}
   //{{{
   int parse4bit (const uint8_t** buf, int bufSize, uint8_t* pixBuf, int pixBufSize, int pixPos, int nonModifyColour, uint8_t* mapTable) {
@@ -741,45 +749,45 @@ private:
     }
   //}}}
   //{{{
-  int parse8bit (const uint8_t** buf, int bufSize, uint8_t* pixBuf, int pixBufSize, int pixPos, int nonModifyColour) {
+  //int parse8bit (const uint8_t** buf, int bufSize, uint8_t* pixBuf, int pixBufSize, int pixPos, int nonModifyColour) {
 
-    pixBuf += pixPos;
+    //pixBuf += pixPos;
 
-    const uint8_t* bufEnd = *buf + bufSize;
-    while ((*buf < bufEnd) && (pixPos < pixBufSize)) {
-      int bits = *(*buf)++;
-      if (bits) {
-        if (nonModifyColour != 1 || bits != 1)
-          *pixBuf++ = bits;
-        pixPos++;
-        }
-      else {
-        bits = *(*buf)++;
-        int runLength = bits & 0x7f;
-        if ((bits & 0x80) == 0) {
-          if (runLength == 0)
-            return pixPos;
-          bits = 0;
-          }
-        else
-          bits = *(*buf)++;
+    //const uint8_t* bufEnd = *buf + bufSize;
+    //while ((*buf < bufEnd) && (pixPos < pixBufSize)) {
+      //int bits = *(*buf)++;
+      //if (bits) {
+        //if (nonModifyColour != 1 || bits != 1)
+          //*pixBuf++ = bits;
+        //pixPos++;
+        //}
+      //else {
+        //bits = *(*buf)++;
+        //int runLength = bits & 0x7f;
+        //if ((bits & 0x80) == 0) {
+          //if (runLength == 0)
+            //return pixPos;
+          //bits = 0;
+          //}
+        //else
+          //bits = *(*buf)++;
 
-        if ((nonModifyColour == 1) && (bits == 1))
-          pixPos += runLength;
-        else {
-          while (runLength-- > 0 && pixPos < pixBufSize) {
-            *pixBuf++ = bits;
-            pixPos++;
-            }
-          }
-        }
-      }
+        //if ((nonModifyColour == 1) && (bits == 1))
+          //pixPos += runLength;
+        //else {
+          //while (runLength-- > 0 && pixPos < pixBufSize) {
+            //*pixBuf++ = bits;
+            //pixPos++;
+            //}
+          //}
+        //}
+      //}
 
-    if (*(*buf)++)
-      cLog::log (LOGERROR, "line overflow");
+    //if (*(*buf)++)
+      //cLog::log (LOGERROR, "line overflow");
 
-    return pixPos;
-    }
+    //return pixPos;
+    //}
   //}}}
   //{{{
   void parseObjectBlock (sObjectDisplay* display, const uint8_t* buf, int bufSize,
@@ -838,16 +846,16 @@ private:
       uint8_t* pixPtr = pixBuf + (yPos * region->mWidth);
       switch (type) {
         //{{{
-        case 0x10: // 2 bit
-          if (region->mDepth == 8)
-            mapTable = map2to8;
-          else if (region->mDepth == 4)
-            mapTable = map2to4;
-          else
-            mapTable = NULL;
+        //case 0x10: // 2 bit
+          //if (region->mDepth == 8)
+            //mapTable = map2to8;
+          //else if (region->mDepth == 4)
+            //mapTable = map2to4;
+          //else
+            //mapTable = NULL;
 
-          xPos = parse2bit (&buf, bufLeft, pixPtr, region->mWidth, xPos, nonModifyColour, mapTable);
-          break;
+          //xPos = parse2bit (&buf, bufLeft, pixPtr, region->mWidth, xPos, nonModifyColour, mapTable);
+          //break;
         //}}}
         //{{{
         case 0x11: // 4 bit
@@ -866,37 +874,37 @@ private:
         //}}}
         //{{{
 
-        case 0x12: // 8 bit
-          if (region->mDepth < 8) {
-            cLog::log (LOGERROR, "8-bit pix string in %d-bit region!", region->mDepth);
-            return;
-            }
+        //case 0x12: // 8 bit
+          //if (region->mDepth < 8) {
+            //cLog::log (LOGERROR, "8-bit pix string in %d-bit region!", region->mDepth);
+            //return;
+            //}
 
-          xPos = parse8bit (&buf, bufLeft, pixPtr, region->mWidth, xPos, nonModifyColour);
-          break;
+          //xPos = parse8bit (&buf, bufLeft, pixPtr, region->mWidth, xPos, nonModifyColour);
+          //break;
         //}}}
         //{{{
-        case 0x20: // map 2 to 4
-          map2to4[0] = (*buf) >> 4;
-          map2to4[1] = (*buf++) & 0xf;
-          map2to4[2] = (*buf) >> 4;
-          map2to4[3] = (*buf++) & 0xf;
+        //case 0x20: // map 2 to 4
+          //map2to4[0] = (*buf) >> 4;
+          //map2to4[1] = (*buf++) & 0xf;
+          //map2to4[2] = (*buf) >> 4;
+          //map2to4[3] = (*buf++) & 0xf;
 
-          break;
+          //break;
         //}}}
         //{{{
-        case 0x21: // map 2 to 8
-          for (int i = 0; i < 4; i++)
-            map2to8[i] = *buf++;
+        //case 0x21: // map 2 to 8
+          //for (int i = 0; i < 4; i++)
+            //map2to8[i] = *buf++;
 
-          break;
+          //break;
         //}}}
         //{{{
-        case 0x22: // map 4 top 8
-          for (int i = 0; i < 16; i++)
-            map4to8[i] = *buf++;
+        //case 0x22: // map 4 top 8
+          //for (int i = 0; i < 16; i++)
+            //map4to8[i] = *buf++;
 
-          break;
+          //break;
         //}}}
         //{{{
         case 0xF0: // end of line
@@ -1037,8 +1045,8 @@ private:
       }
 
     region->mDepth = 1 << (((*buf++) >> 2) & 7);
-    if ((region->mDepth < 2) || (region->mDepth > 8)) {
-      //{{{  error return
+    if (region->mDepth != 4) {
+      //{{{  error return, allow 2 and 8 when we see them
       cLog::log (LOGERROR, "unknown region depth:" + dec(region->mDepth));
       return false;
       }
@@ -1159,23 +1167,27 @@ private:
           buf += 2;
           }
           //}}}
-        if (y == 0)
-          alpha = 0xff;
+
+        // fixup alpha
+        alpha = (y == 0) ? 0x0 : (0xFF - alpha);
 
         int rAdd = FIX(1.40200 * 255.0 / 224.0) * (cr - 128) + ONE_HALF;
         int gAdd = -FIX(0.34414 * 255.0 / 224.0) * (cb - 128) - FIX(0.71414*255.0/224.0) * (cr - 128) + ONE_HALF;
         int bAdd = FIX(1.77200 * 255.0 / 224.0) * (cb - 128) + ONE_HALF;
         y = (y - 16) * FIX(255.0 / 219.0);
-        int r = (y + rAdd) >> SCALEBITS;
-        int g = (y + gAdd) >> SCALEBITS;
-        int b = (y + bAdd) >> SCALEBITS;
 
-        if ((depth & 0x80) && (entryId < 4))
-          clut->mClut4[entryId] = RGBA(r, g, b, 0xFF - alpha);
-        else if ((depth & 0x40) && (entryId < 16))
-          clut->mClut16[entryId] = RGBA(r, g, b, 0xFF - alpha);
-        else if (depth & 0x20)
-          clut->mClut256[entryId] = RGBA(r, g, b, 0xFF - alpha);
+        uint8_t r = ((y + rAdd) >> SCALEBITS) & 0xFF;
+        uint8_t g = ((y + gAdd) >> SCALEBITS) & 0xFF;
+        uint8_t b = ((y + bAdd) >> SCALEBITS) & 0xFF;
+
+        //if ((depth & 0x80) && (entryId < 4))
+        //  clut->mClut4[entryId] = RGBA(r, g, b, alpha);
+        if ((depth & 0x40) && (entryId < 16)) {
+          clut->mClut16[entryId] = RGBA(r, g, b, alpha);
+          clut->mClut16bgra[entryId] = BGRA(r, g, b, alpha);
+          }
+        //else if (depth & 0x20)
+        //  clut->mClut256[entryId] = RGBA(r, g, b, alpha);
         else
           cLog::log (LOGERROR, "clut error depth:" + hex(depth) + " entryId:" + hex(entryId));
         if (mClutDebug)
@@ -1188,7 +1200,7 @@ private:
                               " r:" + hex(r & 0xFF, 2) +
                               " g:" + hex(g & 0xFF, 2) +
                               " b:" + hex(b & 0xFF, 2) +
-                              " a:" + hex(0xFF - alpha, 2));
+                              " a:" + hex(alpha, 2));
         }
       }
 
@@ -1314,15 +1326,15 @@ private:
       uint32_t* pixDataPtr = mRects[i]->mPixData;
       for (int pix = 0; pix < region->mPixBufSize; pix++)
         switch (region->mDepth) {
-          case 2:
-            *pixDataPtr++ = clut->mClut4[region->mPixBuf[pix]];
-            break;
+          //case 2:
+          //  *pixDataPtr++ = clut->mClut4[region->mPixBuf[pix]];
+          //  break;
           case 4:
-            *pixDataPtr++ = clut->mClut16[region->mPixBuf[pix]];
+            *pixDataPtr++ = clut->mClut16bgra[region->mPixBuf[pix]];
             break;
-          case 8:
-            *pixDataPtr++ = clut->mClut256[region->mPixBuf[pix]];
-            break;
+          //case 8:
+          //  *pixDataPtr++ = clut->mClut256[region->mPixBuf[pix]];
+          //  break;
           default:
             cLog::log (LOGERROR, "unknown depth:" + dec(region->mDepth));
           }

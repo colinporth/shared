@@ -107,7 +107,7 @@ public:
     //{{{  draw waveform rects
     auto context = draw->getContext();
 
-    context->fillColor (kDarkGrey);
+    context->fillColor (kVgDarkGrey);
     context->beginPath();
     for (float x = 0; x < mWidth; secs++, nextxF += pixPerSec) {
       if (secs & 1)
@@ -120,7 +120,7 @@ public:
 
     context->fontSize ((float)getBigFontHeight());
     context->textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_TOP);
-    context->fillColor (kWhite);
+    context->fillColor (kVgWhite);
     context->text (midx-60.0f+3.0f, y+1.0f, getTimeString (mHls->getPlayTzSeconds()));
 
     float midy = (float)mY + (mHeight/2);
