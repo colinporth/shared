@@ -18,28 +18,28 @@ public:
   cVg* getContext();
   float getWidth() { return 800; }
   float getHeight() { return 480; }
-  uint16_t getWidthPix();
-  uint16_t getHeightPix();
+  float getWidthPix();
+  float getHeightPix();
 
   bool getShift() { return mShifted; }
   bool getControl() { return mControlled; }
   bool getMouseDown() { return mMouseDown; }
 
   // iDraw
-  void pixel (uint32_t colour, int16_t x, int16_t y);
+  void pixel (uint32_t colour, float x, float y);
   void drawRect (uint32_t colour, float x, float y, float width, float height);
-  void stamp (uint32_t colour, uint8_t* src, int16_t x, int16_t y, uint16_t width, uint16_t height);
+  void stamp (uint32_t colour, uint8_t* src, float x, float y, float width, float height);
   float drawText (uint32_t colour, float fontHeight, std::string str, float x, float y, float width, float height);
   void ellipseSolid (uint32_t colour, float x, float y, float xradius, float yradius);
 
   //{{{
-  void pixelClipped (uint32_t colour, int16_t x, int16_t y) {
+  void pixelClipped (uint32_t colour, float x, float y) {
 
     drawRect(colour, x, y, 1, 1);
     }
   //}}}
   //{{{
-  void stampClipped (uint32_t colour, uint8_t* src, int16_t x, int16_t y, uint16_t width, uint16_t height) {
+  void stampClipped (uint32_t colour, uint8_t* src, float x, float y, float width, float height) {
 
     stamp (colour, src, x, y, width, height);
     }

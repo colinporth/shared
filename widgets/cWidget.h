@@ -18,28 +18,28 @@ public:
   cWidget() {}
   //{{{
   cWidget (float width)
-    : mWidth(int(width * getBoxHeight())), mHeight(getBoxHeight()) {}
+    : mWidth(width * getBoxHeight()), mHeight(getBoxHeight()) {}
   //}}}
   //{{{
   cWidget (float width, float height)
-    : mWidth(int(width * getBoxHeight())), mHeight(int(height * getBoxHeight())) {}
+    : mWidth(width * getBoxHeight()), mHeight(height * getBoxHeight()) {}
   //}}}
   //{{{
   cWidget (uint32_t colour, float width, float height)
-    : mColour(colour), mWidth(int(width * getBoxHeight())), mHeight(int(height * getBoxHeight())) {}
+    : mColour(colour), mWidth(width * getBoxHeight()), mHeight(height * getBoxHeight()) {}
   //}}}
   virtual ~cWidget() {}
 
 //  gets
-  float getX() { return mX / (float)getBoxHeight(); }
-  float getY() { return mY / (float)getBoxHeight(); }
-  float getWidth() { return (float)mWidth / (float)getBoxHeight(); }
-  float getHeight() { return (float)mHeight / (float)getBoxHeight(); }
+  float getX() { return mX / getBoxHeight(); }
+  float getY() { return mY / getBoxHeight(); }
+  float getWidth() { return mWidth / getBoxHeight(); }
+  float getHeight() { return mHeight / getBoxHeight(); }
 
-  int16_t getPixX() { return mX; }
-  int16_t getPixY() { return mY; }
-  int16_t getPixWidth() { return mWidth; }
-  int16_t getPixHeight() { return mHeight; }
+  float getPixX() { return mX; }
+  float getPixY() { return mY; }
+  float getPixWidth() { return mWidth; }
+  float getPixHeight() { return mHeight; }
 
   int getPressedCount() { return mPressedCount; }
   bool isPressed() { return mPressedCount > 0; }
@@ -49,28 +49,28 @@ public:
   //{{{  sets
   //{{{
   void setXY (float x, float y) {
-    setPixXY (int (x*getBoxHeight()), int (y*getBoxHeight()));
+    setPixXY (x*getBoxHeight(), y*getBoxHeight());
     }
   //}}}
 
   //{{{
-  void setPixXY (int16_t x, int16_t y) {
+  void setPixXY (float x, float y) {
     mX = x;
     mY = y;
     }
   //}}}
   //{{{
-  void setPixWidth (int16_t width) {
+  void setPixWidth (float width) {
     mWidth = width;
     }
   //}}}
   //{{{
-  void setPixHeight (int16_t height) {
+  void setPixHeight (float height) {
     mHeight = height;
     }
   //}}}
   //{{{
-  void setPixSize (int16_t width, int16_t height) {
+  void setPixSize (float width, float height) {
     mWidth = width;
     mHeight = height;
     }
@@ -81,15 +81,13 @@ public:
 
   void setOn (bool on) { mOn = on; }
   void setVisible (bool visible) { mVisible = visible; }
-
-  void setOverPick (float overPick) { mOverPick = int(overPick * getBoxHeight()); }
   //}}}
 
   virtual void prox (float x, float y) {}
   //{{{
   virtual cWidget* picked (float x, float y, float z) {
-    return (x >= mX - mOverPick) && (x < mX + mWidth + mOverPick) &&
-           (y >= mY - mOverPick) && (y < mY + mHeight + mOverPick) ? this : nullptr;
+    return (x >= mX) && (x < mX + mWidth) &&
+           (y >= mY) && (y < mY + mHeight) ? this : nullptr;
     }
   //}}}
   //{{{
@@ -117,14 +115,13 @@ public:
 protected:
   uint32_t mColour = COL_LIGHTGREY;
 
-  int16_t mX = 0;
-  int16_t mY = 0;
-  int16_t mWidth = 0;
-  int16_t mHeight = 0;
+  float mX = 0;
+  float mY = 0;
+  float mWidth = 0;
+  float mHeight = 0;
 
   int mPressedCount = 0;
   bool mOn = false;
-  uint16_t mOverPick = 0;
 
   cContainer* mParent = nullptr;
   bool mVisible = true;

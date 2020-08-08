@@ -56,23 +56,23 @@ class iDraw : public iWindow {
 public:
   virtual ~iDraw() {}
 
-  virtual void pixel (uint32_t colour, int16_t x, int16_t y) = 0;
+  virtual void pixel (uint32_t colour, float x, float y) = 0;
   virtual void drawRect (uint32_t colour, float x, float y, float width, float height) = 0;
   virtual float drawText (uint32_t colour, float fontHeight, std::string str, float x, float y, float width, float height) = 0;
 
-  virtual void stamp (uint32_t colour, uint8_t* src, int16_t x, int16_t y, uint16_t width, uint16_t height) {}
+  virtual void stamp (uint32_t colour, uint8_t* src, float x, float y, float width, float height) {}
   virtual void copy (uint8_t* src, int16_t x, int16_t y, uint16_t width, uint16_t height) {}
-  virtual void copy (uint8_t* src, int16_t srcx, int16_t srcy, uint16_t srcWidth, uint16_t srcHeight,
-                     int16_t dstx, int16_t dsty, uint16_t dstWidth, uint16_t dstHeight) {}
+  virtual void copy (uint8_t* src, float srcx, float srcy, float srcWidth, float srcHeight,
+                     float dstx, float dsty, float dstWidth, float dstHeight) {}
 
   //{{{
-  virtual void pixelClipped (uint32_t colour, int16_t x, int16_t y) {
+  virtual void pixelClipped (uint32_t colour, float x, float y) {
 
     rectClipped (colour, x, y, 1, 1);
     }
   //}}}
   //{{{
-  virtual void stampClipped (uint32_t colour, uint8_t* src, int16_t x, int16_t y, uint16_t width, uint16_t height) {
+  virtual void stampClipped (uint32_t colour, uint8_t* src, float x, float y, float width, float height) {
 
     if (!width || !height || x < 0)
       return;
@@ -82,7 +82,7 @@ public:
       if (y + height <= 0)
         return;
       height += y;
-      src += -y * width;
+      src += int(-y * width);
       y = 0;
       }
 

@@ -40,7 +40,7 @@ public:
     }
   //}}}
   //{{{
-  cWidget* addAtPix (cWidget* widget, int16_t x, int16_t y) {
+  cWidget* addAtPix (cWidget* widget, float x, float y) {
 
     widget->setParent (this);
     mSubWidgets.push_back (widget);

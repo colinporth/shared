@@ -7,8 +7,8 @@ public:
 
   virtual cVg* getContext() = 0;
 
-  virtual uint16_t getWidthPix() = 0;
-  virtual uint16_t getHeightPix() = 0;
+  virtual float getWidthPix() = 0;
+  virtual float getHeightPix() = 0;
 
   virtual bool getShift() = 0;
   virtual bool getControl() = 0;

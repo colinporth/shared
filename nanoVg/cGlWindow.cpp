@@ -17,12 +17,12 @@ cGlWindow::~cGlWindow() {
 
 // iWindow
 cVg* cGlWindow::getContext() { return this; }
-uint16_t cGlWindow::getWidthPix() { return mRoot->getPixWidth(); }
-uint16_t cGlWindow::getHeightPix() { return mRoot->getPixHeight(); }
+float cGlWindow::getWidthPix() { return mRoot->getPixWidth(); }
+float cGlWindow::getHeightPix() { return mRoot->getPixHeight(); }
 
 // iDraw
 //{{{
-void cGlWindow::pixel (uint32_t colour, int16_t x, int16_t y) {
+void cGlWindow::pixel (uint32_t colour, float x, float y) {
   rectClipped (colour, x, y, 1, 1);
   }
 //}}}
@@ -36,7 +36,7 @@ void cGlWindow::drawRect (uint32_t colour, float x, float y, float width, float 
   }
 //}}}
 //{{{
-void cGlWindow::stamp (uint32_t colour, uint8_t* src, int16_t x, int16_t y, uint16_t width, uint16_t height) {
+void cGlWindow::stamp (uint32_t colour, uint8_t* src, float x, float y, float width, float height) {
   //rect (0xC0000000 | (colour & 0xFFFFFF), x,y, width, height);
   }
 //}}}

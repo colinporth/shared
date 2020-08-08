@@ -1365,11 +1365,11 @@ private:
   //{{{  debug flags
   const bool mBufferDebug = false;
   const bool mSegmentDebug = false;
-  const bool mDisplayDefinitionDebug = false;
   const bool mPageDebug = false;
   const bool mBlockDebug = false;
   const bool mRunDebug = false;
-  const bool mClutDebug = true;
+  const bool mClutDebug = false;
+  const bool mDisplayDefinitionDebug = false;
   //}}}
   int mVersion = 0;
   int mTimeOut = 0;

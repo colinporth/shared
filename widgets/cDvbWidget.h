@@ -22,24 +22,20 @@ public:
   //}}}
   virtual ~cDvbWidget() {}
 
-  //{{{
-  virtual void onDown (float x, float y) {
-    cLog::log (LOGINFO, "dvbWidget onDown " + dec(x) + " " + dec(y));
-    }
-  //}}}
+  virtual void onDown (float x, float y) {}
   //{{{
   virtual void onMove (float x, float y, float z, float xinc, float yinc) {
-    cLog::log (LOGINFO, "dvbWidget onMove " + dec(x) + "," + dec(y) + "," + dec(z) + " " + dec(xinc) + "," + dec(yinc));
 
     // inc and clip mScroll
-    mScroll = std::min (std::max (mLastMaxY - (mY + mHeight), -1.f), std::max (-1.f, mScroll - yinc));
+    mScroll = std::max (mScroll - yinc, -1.f);
+
+    if (mLastHeight > mHeight)
+      mScroll = std::min (mScroll, mLastHeight - mHeight);
+    else
+      mScroll = 0.f;
     }
   //}}}
-  //{{{
-  virtual void onUp() {
-    cLog::log (LOGINFO, "dvbWidget onUp");
-    }
-  //}}}
+  virtual void onUp() {}
 
   //{{{
   virtual void onWheel (float delta) {
@@ -52,9 +48,9 @@ public:
     int imageIndex = 0;
     auto context = draw->getContext();
 
-    float x = 2.f;
-    float y = -mScroll;
-    float lineHeight = getBoxHeight() * 4.f/5.f;
+    float x = mX + 2.f;
+    float y = mY - mScroll;
+    float lineHeight = getBoxHeight() *4.f/5.f;
     for (auto& pidInfoItem : mDvb->getTransportStream()->mPidInfoMap) { // iteratepidInfo
       cPidInfo& pidInfo = pidInfoItem.second;
       int pid = pidInfo.mPid;
@@ -71,7 +67,7 @@ public:
                        " " + dec(pid, 4) +
                        " " + getFullPtsString (pidInfo.mPts) +
                        " " + pidInfo.getTypeString();
-      float textWidth = draw->drawText (COL_LIGHTGREY, lineHeight, pidString, mX+x,  mY+y, mWidth-3.f, lineHeight);
+      float textWidth = draw->drawText (COL_LIGHTGREY, lineHeight, pidString, x,  y, mWidth-3.f, lineHeight);
       float x2 = x + textWidth + lineHeight/2;
 
       if (pidInfo.mStreamType == 6) {
@@ -104,24 +100,24 @@ public:
                 context->updateImage (mImage[imageIndex], subtitle->mRects[line]->mPixData);
 
               // draw rect image
-              auto imagePaint = context->imagePattern (mX+x3, mY+ySub, dstWidth, dstHeight, 0.f, mImage[imageIndex], 1.f);
+              auto imagePaint = context->imagePattern (x3, ySub, dstWidth, dstHeight, 0.f, mImage[imageIndex], 1.f);
               imageIndex++;
 
               context->beginPath();
-              context->rect (mX+x3, mY+ySub, dstWidth, dstHeight);
+              context->rect (x3, ySub, dstWidth, dstHeight);
               context->fillPaint (imagePaint);
               context->fill();
 
               // draw rect position
               std::string text = dec(subtitle->mRects[line]->mX) + "," + dec(subtitle->mRects[line]->mY);
-              draw->drawText (COL_GREY, lineHeight, text, mX+x3 + dstWidth - 55.f,  mY+ySub, dstWidth, dstHeight);
+              draw->drawText (COL_GREY, lineHeight, text, x3 + dstWidth - 55.f,  ySub, dstWidth, dstHeight);
 
               // draw clut
               for (int i = 0; i < subtitle->mRects[line]->mClutSize; i++) {
                 float cx = x3 + (i % 8) * lineHeight / 2.f;
                 float cy = ySub + (i / 8) * lineHeight / 2.f;
                 draw->drawRect (subtitle->mRects[line]->mClut[i],
-                                mX+cx, mY+cy, (lineHeight/2.f)-1.f, (lineHeight / 2.f) - 1.f);
+                                cx, cy, (lineHeight/2.f)-1.f, (lineHeight / 2.f) - 1.f);
                 }
 
               // next subtitle line
@@ -137,19 +133,18 @@ public:
 
       mMaxPidPackets = std::max (mMaxPidPackets, (float)pidInfo.mPackets);
       float frac = pidInfo.mPackets / mMaxPidPackets;
-      draw->drawRect (COL_DARKORANGE, mX+x2, mY+y, frac * (mWidth - textWidth), lineHeight-1.f);
-      draw->drawText (COL_LIGHTGREY, lineHeight, pidInfo.getInfoString(), mX+x2,  mY+y, mWidth - textWidth, lineHeight);
+      draw->drawRect (COL_DARKORANGE, x2, y, frac * (mWidth - textWidth), lineHeight-1.f);
+      draw->drawText (COL_LIGHTGREY, lineHeight, pidInfo.getInfoString(), x2,  y, mWidth - textWidth, lineHeight);
 
       if (pidInfo.mPackets > pow (10, mPacketDigits))
         mPacketDigits++;
 
       y += lineHeight;
       }
+    mLastHeight = y + mScroll;
 
     if (mDvb->getTransportStream()->getErrors() > pow (10, mContDigits))
       mContDigits++;
-
-    mLastMaxY = y;
     }
 
 private:
@@ -159,7 +154,7 @@ private:
   float mMaxPidPackets = 0;
 
   float mScroll = -1.f;
-  float mLastMaxY = 0.f;
+  float mLastHeight = 0.f;
 
   int mImage[20] =  { -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
                       -1,-1,-1,-1,-1,-1,-1,-1,-1,-1 };
