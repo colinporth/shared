@@ -36,18 +36,21 @@ public:
     }
   //}}}
   //{{{
-  virtual void onWheel (float delta) { 
+  virtual void onWheel (float delta) {
     // inc and clip lineHeight
     mZoom  = std::min (5.f, std::max (mZoom + delta, -5.f));
     }
   //}}}
 
   virtual void onDraw (iDraw* draw) {
+
+    auto context = draw->getContext();
+    context->scissor (mX, mY, mWidth, mHeight);
+
     int lastSid = 0;
     int imageIndex = 0;
-    auto context = draw->getContext();
-
     float lineHeight = mZoom + (getBoxHeight() * 4.f / 5.f);
+
     float x = mX + 2.f;
     float y = mY - mScroll;
     for (auto& pidInfoItem : mDvb->getTransportStream()->mPidInfoMap) { // iteratepidInfo

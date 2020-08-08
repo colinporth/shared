@@ -35,8 +35,8 @@ private:
     int offset;
     mHls->getChunkInfo (chunk, loaded, loading, offset);
 
-    draw->ellipseSolid (loading ? COL_DARKORANGE : loaded ? COL_DARKERGREEN : COL_DARKRED,
-                        mX + 2.f + ((mWidth-2.f) / 2.f), mY + (chunk * getBoxHeight()) + mHeight / 6.f, (mWidth-2.f) / 2.f, (mWidth-2.f) / 2.f);
+    draw->drawEllipseSolid (loading ? COL_DARKORANGE : loaded ? COL_DARKERGREEN : COL_DARKRED,
+                            mX + 2.f + ((mWidth-2.f) / 2.f), mY + (chunk * getBoxHeight()) + mHeight / 6.f, (mWidth-2.f) / 2.f, (mWidth-2.f) / 2.f);
 
     if (loaded || loading)
       draw->drawText (COL_LIGHTGREY, getSmallFontHeight(), dec(offset),
@@ -138,12 +138,12 @@ public:
 
       if (samples) {
         if (x == midx) {
-          context->fillColor (nvgRGB32 (COL_BLUE));
+          context->fillColor (nvgRGBA32 (COL_BLUE));
           context->triangleFill();
           context->beginPath();
           }
         else if (x == midWidth) {
-          context->fillColor (nvgRGB32 (COL_DARKGREEN));
+          context->fillColor (nvgRGBA32 (COL_DARKGREEN));
           context->triangleFill();
           context->beginPath();
           }
@@ -157,7 +157,7 @@ public:
         sample += samplesPerPixF;
       }
 
-    context->fillColor (nvgRGB32 (COL_DARKGREY));
+    context->fillColor (nvgRGBA32 (COL_DARKGREY));
     context->triangleFill();
     //}}}
     }

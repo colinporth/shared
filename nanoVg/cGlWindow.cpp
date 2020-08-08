@@ -22,22 +22,13 @@ float cGlWindow::getHeightPix() { return mRoot->getPixHeight(); }
 
 // iDraw
 //{{{
-void cGlWindow::pixel (uint32_t colour, float x, float y) {
-  rectClipped (colour, x, y, 1, 1);
-  }
-//}}}
-//{{{
 void cGlWindow::drawRect (uint32_t colour, float x, float y, float width, float height) {
+
+  fillColor (nvgRGBA32 (colour));
 
   beginPath();
   rect (x, y, width, height);
-  fillColor (nvgRGBA ((colour & 0xFF0000) >> 16, (colour & 0xFF00) >> 8, colour & 0xFF,255));
   triangleFill();
-  }
-//}}}
-//{{{
-void cGlWindow::stamp (uint32_t colour, uint8_t* src, float x, float y, float width, float height) {
-  //rect (0xC0000000 | (colour & 0xFFFFFF), x,y, width, height);
   }
 //}}}
 //{{{
@@ -45,7 +36,7 @@ float cGlWindow::drawText (uint32_t colour, float fontHeight, string str, float 
 
   fontSize ((float)fontHeight);
   textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_TOP);
-  fillColor (nvgRGBA ((colour & 0xFF0000) >> 16, (colour & 0xFF00) >> 8, colour & 0xFF,255));
+  fillColor (nvgRGBA32 (colour));
   text ((float)x+3, (float)y+1, str);
 
   // get width
@@ -53,11 +44,12 @@ float cGlWindow::drawText (uint32_t colour, float fontHeight, string str, float 
   }
 //}}}
 //{{{
-void cGlWindow::ellipseSolid (uint32_t colour, float x, float y, float xradius, float yradius) {
+void cGlWindow::drawEllipseSolid (uint32_t colour, float x, float y, float xradius, float yradius) {
+
+  fillColor (nvgRGBA32 (colour));
 
   beginPath();
   ellipse (x, y, xradius, yradius);
-  fillColor (nvgRGBA ((colour & 0xFF0000) >> 16, (colour & 0xFF00) >> 8, colour & 0xFF,255));
   fill();
   }
 //}}}
@@ -186,8 +178,8 @@ void cGlWindow::togglePerf() {
 void cGlWindow::mouseProx (float x, float y) { mRoot->onProx (x, y); }
 void cGlWindow::mouseDown (bool rightButton, float x, float y) { mRoot->onDown (x, y); }
 //{{{
-void cGlWindow::mouseMove (bool rightButton, float x, float y, float xInc, float yInc) { 
-  mRoot->onMove (x, y, xInc, yInc); 
+void cGlWindow::mouseMove (bool rightButton, float x, float y, float xInc, float yInc) {
+  mRoot->onMove (x, y, xInc, yInc);
   }
 //}}}
 void cGlWindow::mouseUp (bool right, float x, float y) { mRoot->onUp(); }

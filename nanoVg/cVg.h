@@ -170,7 +170,7 @@ inline sVgColour nvgRGBAf (float r, float g, float b, float a) {
   }
 //}}}
 //{{{
-inline sVgColour nvgRGB32 (uint32_t colour) {
+inline sVgColour nvgRGBA32 (uint32_t colour) {
   sVgColour color;
   color.r = ((colour & 0xFF0000) >> 16) / 255.0f;
   color.g = ((colour & 0xFF00) >> 8) / 255.0f;

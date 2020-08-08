@@ -26,32 +26,31 @@ public:
   bool getMouseDown() { return mMouseDown; }
 
   // iDraw
-  void pixel (uint32_t colour, float x, float y);
   void drawRect (uint32_t colour, float x, float y, float width, float height);
-  void stamp (uint32_t colour, uint8_t* src, float x, float y, float width, float height);
   float drawText (uint32_t colour, float fontHeight, std::string str, float x, float y, float width, float height);
-  void ellipseSolid (uint32_t colour, float x, float y, float xradius, float yradius);
+  void drawEllipseSolid (uint32_t colour, float x, float y, float xradius, float yradius);
+
+  void drawPixel (uint32_t colour, float x, float y) {}
+  void drawStamp (uint32_t colour, uint8_t* src, float x, float y, float width, float height) {}
 
   //{{{
-  void pixelClipped (uint32_t colour, float x, float y) {
-
-    drawRect(colour, x, y, 1, 1);
+  void drawPixelClipped (uint32_t colour, float x, float y) {
+    drawRectClipped (colour, x, y, 1, 1);
     }
   //}}}
   //{{{
-  void stampClipped (uint32_t colour, uint8_t* src, float x, float y, float width, float height) {
+  void drawStampClipped (uint32_t colour, uint8_t* src, float x, float y, float width, float height) {
 
-    stamp (colour, src, x, y, width, height);
+    drawStamp (colour, src, x, y, width, height);
     }
   //}}}
   //{{{
-  void rectClipped (uint32_t colour, float x, float y, float width, float height) {
-
+  void drawRectClipped (uint32_t colour, float x, float y, float width, float height) {
     drawRect (colour, x, y, width, height);
     }
   //}}}
   //{{{
-  void rectOutline (uint32_t colour, float x, float y, float width, float height, float thickness) {
+  void drawRectOutline (uint32_t colour, float x, float y, float width, float height, float thickness) {
 
     drawRect(colour, x, y, width, thickness);
     drawRect(colour, x + width-thickness, y, thickness, height);

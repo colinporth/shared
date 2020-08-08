@@ -109,7 +109,7 @@ public:
 
   //{{{
   virtual void onDraw (iDraw* draw) {
-    draw->rectClipped (mOn ? COL_LIGHTRED : mColour, mX+1.f, mY+1.f, mWidth-1.f, mHeight-1.f);
+    draw->drawRectClipped (mOn ? COL_LIGHTRED : mColour, mX+1.f, mY+1.f, mWidth-1.f, mHeight-1.f);
     }
   //}}}
 
