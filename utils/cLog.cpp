@@ -116,25 +116,21 @@ namespace { // anonymous
         if (mFound)
           return;
 
-        #ifdef HAS_BINUTILS_234
-
-          if ((bfd_section_flags (section) & SEC_ALLOC) == 0 )
-            return;
-          bfd_vma vma = bfd_section_vma (section);
-          if (mPc < vma )
-            return;
-          bfd_size_type size = bfd_section_size (section);
-
-        #else
-
-          if ((bfd_get_section_flags (abfd, section) & SEC_ALLOC) == 0 )
-            return;
-          bfd_vma vma = bfd_section_vma (abfd, section);
-          if (mPc < vma )
-            return;
-          bfd_size_type size = bfd_section_size (abfd, section);
-
-        #endif
+      #ifdef HAS_BINUTILS_234
+        if ((bfd_section_flags (section) & SEC_ALLOC) == 0)
+          return;
+        bfd_vma vma = bfd_section_vma (section);
+        if (mPc < vma )
+          return;
+        bfd_size_type size = bfd_section_size (section);
+      #else
+        if ((bfd_get_section_flags (abfd, section) & SEC_ALLOC) == 0 )
+          return;
+        bfd_vma vma = bfd_section_vma (abfd, section);
+        if (mPc < vma )
+          return;
+        bfd_size_type size = bfd_section_size (abfd, section);
+      #endif
 
         if (mPc >= (vma + size))
           return;
