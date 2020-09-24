@@ -2,6 +2,9 @@
 //{{{  includes
 #pragma once
 
+#include <string>
+#include <vector>
+
 #include "../date/date.h"
 #include "../utils/utils.h"
 #include "../utils/cLog.h"
@@ -14,12 +17,10 @@ const float kDefaultVolume = 0.8f;
 const uint32_t kDefaultChan = 4;
 const uint32_t kDefaultBitrate = 128000;
 
-const std::string kSrc = "as-hls-uk-live.bbcfmt.hs.llnwd.net";
-
+const std::string kHost = "as-hls-uk-live.bbcfmt.s.llnwi.net";
+const std::vector <std::string> kChannels = { "none", "bbc_radio_one", "bbc_radio_two",       "bbc_radio_three",
+                                              "bbc_radio_fourfm",      "bbc_radio_five_live", "bbc_6music" };
 const int kPool [] = { 0, 904, 904, 904, 904, 904, 904 };
-
-const char* kPathNames[] = { "none", "bbc_radio_one",    "bbc_radio_two",       "bbc_radio_three",
-                                     "bbc_radio_fourfm", "bbc_radio_five_live", "bbc_6music" };
 
 const uint16_t kFramesPerChunk = 300;
 const uint16_t kSamplesPerFrame = 1024;
@@ -42,8 +43,7 @@ class cHls {
 public:
   enum ePlaying { ePause, eScrub, ePlay };
   //{{{
-  cHls (int chan, int bitrate, int daylightSeconds) :
-      mChan(chan), mBitrate(bitrate), mDaylightSeconds(daylightSeconds) {
+  cHls (int chan, int bitrate, int daylightSeconds) : mChan(chan), mBitrate(bitrate), mDaylightSeconds(daylightSeconds) {
     mDecoder = new cAacDecoder();
     }
   //}}}
@@ -523,9 +523,9 @@ public:
     //pool_904/live/uk/bbc_radio_three/bbc_radio_three.isml/bbc_radio_three-audio=128000.norewind.m3u8
     return "pool_" + dec(kPool[mChan]) +
            "/live/uk/" +
-           kPathNames[mChan] + '/' +
-           kPathNames[mChan] + ".isml/" +
-           kPathNames[mChan] + "-audio=" + dec(mBitrate);
+           kChannels[mChan] + '/' +
+           kChannels[mChan] + ".isml/" +
+           kChannels[mChan] + "-audio=" + dec(mBitrate);
     }
   //}}}
   //{{{
@@ -615,7 +615,7 @@ public:
 
     const int kBaseTimeSecondsOffset = 17;
 
-    mHost = http.getRedirect (kSrc, getM3u8path());
+    mHost = http.getRedirect (kHost, getM3u8path());
 
     // point to #EXT-X-MEDIA-SEQUENCE: sequence num str
     const auto kExtSeq = "#EXT-X-MEDIA-SEQUENCE:";
