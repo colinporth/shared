@@ -4,12 +4,29 @@
 
 using namespace std;
 
+constexpr static int kRecvBufferSize = 1024;
+constexpr static int kInitialScratchSize = 256;
+
 // public
 //{{{
+cHttp::cHttp() {
+  mScratch = (char*)malloc (kInitialScratchSize);
+  mScratchAllocSize = kInitialScratchSize;
+  }
+//}}}
+//{{{
+cHttp::~cHttp() {
+
+  free (mContent);
+  free (mScratch);
+  }
+//}}}
+
+//{{{
 int cHttp::get (const string& host, const string& path,
-         const string& header,
-         const function<void (const string& key, const string& value)>& headerCallback,
-         const function<bool (const uint8_t* data, int len)>& dataCallback) {
+                const string& header,
+                const function<void (const string& key, const string& value)>& headerCallback,
+                const function<bool (const uint8_t* data, int len)>& dataCallback) {
 // send http GET request to host, return response code
 
   clear();
@@ -19,9 +36,10 @@ int cHttp::get (const string& host, const string& path,
     return connectToHostResult;
 
   string request = "GET /" + path + " HTTP/1.1\r\n" +
-                        "Host: " + host + "\r\n" +
-                        (header.empty() ? "" : (header + "\r\n")) +
-                        "\r\n";
+                   "Host: " + host + "\r\n" +
+                   (header.empty() ? "" : (header + "\r\n")) +
+                   "\r\n";
+
   if (getSend (request)) {
     uint8_t buffer[kRecvBufferSize];
     bool needMoreData = true;
@@ -30,7 +48,7 @@ int cHttp::get (const string& host, const string& path,
       auto bufferBytesReceived = getRecv (buffer, sizeof(buffer));
       if (bufferBytesReceived <= 0)
         break;
-      //cLog::log (LOGINFO, "getAllRecv %d", bufferBytesReceived);
+      cLog::log (LOGINFO, "getAllRecv %d", bufferBytesReceived);
 
       while (needMoreData && (bufferBytesReceived > 0)) {
         int bytesReceived;
@@ -179,8 +197,8 @@ cHttp::eParseHeaderState cHttp::parseHeaderChar (char ch) {
 //}}}
 //{{{
 bool cHttp::parseRecvData (const uint8_t* data, int length, int& bytesParsed,
-                    const function<void (const string& key, const string& value)>& headerCallback,
-                    const function<bool (const uint8_t* data, int len)>& dataCallback) {
+                           const function<void (const string& key, const string& value)>& headerCallback,
+                           const function<bool (const uint8_t* data, int len)>& dataCallback) {
 
   auto initialLength = length;
 

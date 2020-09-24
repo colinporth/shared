@@ -14,19 +14,8 @@
 
 class cHttp {
 public:
-  //{{{
-  cHttp() {
-    mScratch = (char*)malloc (kInitialScratchSize);
-    mScratchAllocSize = kInitialScratchSize;
-    }
-  //}}}
-  //{{{
-  virtual ~cHttp() {
-
-    free (mContent);
-    free (mScratch);
-    }
-  //}}}
+  cHttp();
+  virtual ~cHttp();
   virtual void initialise() = 0;
 
   // gets
@@ -47,8 +36,6 @@ protected:
   virtual int getRecv (uint8_t* buffer, int bufferSize) { return 0; }
 
 private:
-  constexpr static int kRecvBufferSize = 1024;
-  constexpr static int kInitialScratchSize = 256;
   //{{{
   enum eState {
     eHttp_header,

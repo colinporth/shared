@@ -396,6 +396,7 @@ cLog::~cLog() {
 bool cLog::init (enum eLogLevel logLevel, bool buffer, string path, std::string title) {
 
   #ifdef _WIN32
+
     hStdOut = GetStdHandle (STD_OUTPUT_HANDLE);
     DWORD consoleMode = ENABLE_VIRTUAL_TERMINAL_PROCESSING | ENABLE_PROCESSED_OUTPUT | ENABLE_WRAP_AT_EOL_OUTPUT;
     SetConsoleMode (hStdOut, consoleMode);
@@ -403,7 +404,9 @@ bool cLog::init (enum eLogLevel logLevel, bool buffer, string path, std::string 
     TIME_ZONE_INFORMATION timeZoneInfo;
     if (GetTimeZoneInformation (&timeZoneInfo) == TIME_ZONE_ID_DAYLIGHT)
       mDaylightSecs = -timeZoneInfo.DaylightBias * 60;
+
   #else
+
     if (memoryAlloc == NULL)
       memoryAlloc = new char[kMemoryAlloc];
 
@@ -420,6 +423,7 @@ bool cLog::init (enum eLogLevel logLevel, bool buffer, string path, std::string 
 
     if (sigaction (SIGFPE, &sa, NULL) < 0)
       perror ("cCrash - sigaction(SIGFPE)");
+
   #endif
 
   mBuffer = buffer;
