@@ -48,7 +48,7 @@ int cHttp::get (const string& host, const string& path,
       auto bufferBytesReceived = getRecv (buffer, sizeof(buffer));
       if (bufferBytesReceived <= 0)
         break;
-      cLog::log (LOGINFO, "getAllRecv %d", bufferBytesReceived);
+      //cLog::log (LOGINFO, "getAllRecv %d", bufferBytesReceived);
 
       while (needMoreData && (bufferBytesReceived > 0)) {
         int bytesReceived;
@@ -82,9 +82,10 @@ string cHttp::getRedirect (const string& host, const string& path) {
 //}}}
 //{{{
 void cHttp::freeContent() {
+
   free (mContent);
   mContent = nullptr;
-  mContentSize = 0;
+  mContentReceivedSize = 0;
   }
 //}}}
 
@@ -98,8 +99,8 @@ void cHttp::clear() {
   mParseHeaderState = eHttp_parse_header_done;
 
   mChunked = false;
-  mContentLen = -1;
-  mContentLenValid = false;
+  mHeaderContentLength = -1;
+  mHeaderContentLengthValid = false;
 
   mKeyLen = 0;
   mValueLen = 0;
@@ -245,9 +246,10 @@ bool cHttp::parseRecvData (const uint8_t* data, int length, int& bytesParsed,
             //cLog::log (LOGINFO, "header key:" + key + " value:" + value);
 
             if (key == "content-length") {
-              mContentLen = stoi (value);
-              mContent = (uint8_t*)malloc (mContentLen);
-              mContentLenValid = true;
+              mHeaderContentLength = stoi (value);
+              mContent = (uint8_t*)malloc (mHeaderContentLength);
+              mHeaderContentLengthValid = true;
+              cLog::log (LOGINFO, "got mHeaderContentLength:%d", mHeaderContentLength);
               }
             else if (key == "location")
               mRedirectUrl.parse (value);
@@ -266,17 +268,17 @@ bool cHttp::parseRecvData (const uint8_t* data, int length, int& bytesParsed,
               mState = eHttp_error;
 
             else if (mChunked) {
-              mContentLen = 0;
+              mHeaderContentLength = 0;
               mState = eHttp_chunk_header;
               }
 
-            else if (!mContentLenValid)
+            else if (!mHeaderContentLengthValid)
               mState = eHttp_stream_data;
 
-            else if (mContentLen == 0)
+            else if (mHeaderContentLength == 0)
               mState = eHttp_close;
 
-            else if (mContentLen > 0)
+            else if (mHeaderContentLength > 0)
               mState = eHttp_raw_data;
 
             else
@@ -292,12 +294,11 @@ bool cHttp::parseRecvData (const uint8_t* data, int length, int& bytesParsed,
 
       //{{{
       case eHttp_chunk_header:
-        cLog::log (LOGINFO, "eHttp_chunk_header contentLen:%d", mContentLen);
-
-        if (!parseChunk (mContentLen, *data)) {
-          if (mContentLen == -1)
+        //cLog::log (LOGINFO, "eHttp_chunk_header contentLen:%d", mHeaderContentLength);
+        if (!parseChunk (mHeaderContentLength, *data)) {
+          if (mHeaderContentLength == -1)
             mState = eHttp_error;
-          else if (mContentLen == 0)
+          else if (mHeaderContentLength == 0)
             mState = eHttp_close;
           else
             mState = eHttp_chunk_data;
@@ -310,68 +311,65 @@ bool cHttp::parseRecvData (const uint8_t* data, int length, int& bytesParsed,
       //}}}
       //{{{
       case eHttp_chunk_data: {
-        cLog::log (LOGINFO, "eHttp_chunk_data len:%d contentLen:%d contentSize:%d", length, mContentLen, mContentSize);
-
-        int chunkSize = (length < mContentLen) ? length : mContentLen;
-
-        cLog::log (LOGINFO, "chunked data %d chunksize %d", mContentLen, chunkSize);
+        //cLog::log (LOGINFO, "eHttp_chunk_data len:%d mHeaderContentLength:%d mContentReceivedSize:%d",
+        //                    length, mHeaderContentLength, mContentReceivedSize);
+        int chunkSize = (length < mHeaderContentLength) ? length : mHeaderContentLength;
+        cLog::log (LOGINFO, "chunked mHeaderContentLength:%d chunksize:%d mContent:%x",
+                            mHeaderContentLength, chunkSize, mContent);
         if (!mContent) {
-          mContent = (uint8_t*)malloc (mContentLen);
-          memcpy (mContent + mContentSize, data, chunkSize);
-          mContentSize += chunkSize;
+          mContent = (uint8_t*)malloc (mHeaderContentLength);
+          memcpy (mContent + mContentReceivedSize, data, chunkSize);
+          mContentReceivedSize += chunkSize;
           }
-        else
+        else {
           cLog::log (LOGERROR, "implement more than 1 data chunk");
+          }
 
-        mContentLen -= chunkSize;
+        mHeaderContentLength -= chunkSize;
         length -= chunkSize;
         data += chunkSize;
 
-        if (mContentLen == 0) {
-          mContentLen = 1;
+        if (mHeaderContentLength == 0) {
+          mHeaderContentLength = 1;
           mState = eHttp_chunk_header;
           }
         }
 
         break;
       //}}}
-
       //{{{
       case eHttp_raw_data: {
-        //cLog::log (LOGINFO, "eHttp_raw_data len:%d contentLen:%d contentSize:%d", length, mContentLen, mContentSize);
-        int chunkSize = (length < mContentLen) ? length : mContentLen;
+        //cLog::log (LOGINFO, "eHttp_raw_data len:%d mHeaderContentLength:%d mContentReceivedSize:%d",
+        //                    length, mHeaderContentLength, mContentReceivedSize);
+        int chunkSize = (length < mHeaderContentLength) ? length : mHeaderContentLength;
 
         if (mContent) {
-          memcpy (mContent + mContentSize, data, chunkSize);
-          mContentSize += chunkSize;
+          memcpy (mContent + mContentReceivedSize, data, chunkSize);
+          mContentReceivedSize += chunkSize;
           }
 
-        mContentLen -= chunkSize;
+        mHeaderContentLength -= chunkSize;
         length -= chunkSize;
         data += chunkSize;
 
-        if (mContentLen == 0)
+        if (mHeaderContentLength == 0)
           mState = eHttp_close;
-        }
 
         break;
+        }
       //}}}
       //{{{
       case eHttp_stream_data: {
         //cLog::log (LOGINFO, "eHttp_stream_data len:%d", length);
+
         if (!dataCallback (data, length))
           mState = eHttp_close;
 
-        //int chunkSize = (length < mContentLen) ? length : mContentLen;
-        //memcpy (mContent + mContentSize, data, chunkSize);
-        //mContentSize += chunkSize;
-        //mContentLen -= chunkSize;
-
         data += length;
         length = 0;
-        }
 
         break;
+        }
       //}}}
 
       case eHttp_close:

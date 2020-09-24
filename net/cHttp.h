@@ -21,7 +21,7 @@ public:
   // gets
   int getResponse() { return mResponse; }
   uint8_t* getContent() { return mContent; }
-  int getContentSize() { return mContentSize; }
+  int getContentSize() { return mContentReceivedSize; }
 
   int get (const std::string& host, const std::string& path,
            const std::string& header = "",
@@ -100,10 +100,10 @@ private:
   eParseHeaderState mParseHeaderState = eHttp_parse_header_done;
 
   bool mChunked = 0;
-  bool mContentLenValid = false;
-  int mContentLen = -1;
+  bool mHeaderContentLengthValid = false;
+  int mHeaderContentLength = -1;
   uint8_t* mContent = nullptr;
-  int mContentSize = 0;
+  int mContentReceivedSize = 0;
 
   char* mScratch;
   int mScratchAllocSize = 0;
