@@ -1,5 +1,6 @@
 // cHttp.cpp - http base class based on tinyHttp parser
 #include "cHttp.h"
+#include "cstring"
 #include "../utils/cLog.h"
 
 using namespace std;
