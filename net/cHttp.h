@@ -1,13 +1,12 @@
 // cHttp.h - http base class based on tinyHttp parser
 #pragma once
 //{{{  includes
-#include <stdint.h>
-
+#include <cstdint>
 #include <string>
-#include <sstream>
-#include <iostream>
-#include <iomanip>
 #include <functional>
+//#include <sstream>
+//#include <iostream>
+//#include <iomanip>
 
 #include "cUrl.h"
 //}}}
@@ -21,7 +20,7 @@ public:
   // gets
   int getResponse() { return mResponse; }
   uint8_t* getContent() { return mContent; }
-  int getContentSize() { return mContentReceivedSize; }
+  int getContentSize() { return mContentReceivedBytes; }
 
   int get (const std::string& host, const std::string& path,
            const std::string& header = "",
@@ -38,30 +37,45 @@ protected:
 private:
   //{{{
   enum eState {
-    eHttp_header,
-    eHttp_chunk_header,
-    eHttp_chunk_data,
-    eHttp_raw_data,
-    eHttp_stream_data,
-    eHttp_close,
-    eHttp_error,
+    eHeader,
+    eChunkHeader,
+    eChunkData,
+    eRawData,
+    eStreamData,
+    eClose,
+    eError,
     };
   //}}}
   //{{{
-  enum eParseHeaderState {
-    eHttp_parse_header_done,
-    eHttp_parse_header_continue,
-    eHttp_parse_header_version_character,
-    eHttp_parse_header_code_character,
-    eHttp_parse_header_status_character,
-    eHttp_parse_header_key_character,
-    eHttp_parse_header_value_character,
-    eHttp_parse_header_store_keyvalue
+  enum eHeaderState {
+    eHeader_done,
+    eHeader_continue,
+    eHeader_version_character,
+    eHeader_code_character,
+    eHeader_status_character,
+    eHeader_key_character,
+    eHeader_value_character,
+    eHeader_store_keyvalue,
+    };
+  //}}}
+  //{{{
+  enum eDataState {
+    eDataNone,
+    eDataContentLength,
+    eDataChunked,
     };
   //}}}
 
+  void clear();
+  bool parseChunk (int& size, char ch);
+  eHeaderState parseHeaderChar (char ch);
+  bool parseRecvData (const uint8_t* data, int length, int& bytesParsed,
+                      const std::function<void (const std::string& key, const std::string& value)>& headerCallback,
+                      const std::function<bool (const uint8_t* data, int len)>& dataCallback);
+
+  // static const
   //{{{
-  const uint8_t kHeaderState[88] = {
+  static inline const uint8_t kHeaderState[88] = {
   //  *    \t    \n   \r    ' '     ,     :   PAD
     0x80,    1, 0xC1, 0xC1,    1, 0x80, 0x80, 0xC1,  // state 0:  HTTP version
     0x81,    2, 0xC1, 0xC1,    2,    1,    1, 0xC1,  // state 1:  Response code
@@ -77,7 +91,7 @@ private:
     };
   //}}}
   //{{{
-  const uint8_t kChunkState[20] = {
+  static inline const uint8_t kChunkState[20] = {
   //  *    LF    CR    HEX
     0xC1, 0xC1, 0xC1,    1,  // s0: initial hex char
     0xC1, 0xC1,    2, 0x81,  // s1: additional hex chars, followed by CR
@@ -87,29 +101,21 @@ private:
     };
   //}}}
 
-  void clear();
-  bool parseChunk (int& size, char ch);
-  eParseHeaderState parseHeaderChar (char ch);
-  bool parseRecvData (const uint8_t* data, int length, int& bytesParsed,
-                      const std::function<void (const std::string& key, const std::string& value)>& headerCallback,
-                      const std::function<bool (const uint8_t* data, int len)>& dataCallback);
-  //{{{  private vars
-  int mResponse = 0;
+  // vars
+  eState mState = eHeader;
 
-  eState mState = eHttp_header;
-  eParseHeaderState mParseHeaderState = eHttp_parse_header_done;
-
-  bool mChunked = 0;
-  bool mHeaderContentLengthValid = false;
-  int mHeaderContentLength = -1;
-  uint8_t* mContent = nullptr;
-  int mContentReceivedSize = 0;
-
-  char* mScratch;
+  eHeaderState mHeaderState = eHeader_done;
+  char* mScratch = nullptr;
   int mScratchAllocSize = 0;
   int mKeyLen = 0;
   int mValueLen = 0;
 
+  eDataState mDataState = eDataNone;
+  int mHeaderContentLength = -1;
+  int mContentLengthLeft = -1;
+  int mContentReceivedBytes = 0;
+  uint8_t* mContent = nullptr;
+
+  int mResponse = 0;
   cUrl mRedirectUrl;
-  //}}}
   };

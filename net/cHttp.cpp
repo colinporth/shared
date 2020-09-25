@@ -1,12 +1,11 @@
 // cHttp.cpp - http base class based on tinyHttp parser
 #include "cHttp.h"
-#include "cstring"
 #include "../utils/cLog.h"
 
 using namespace std;
 
-constexpr static int kRecvBufferSize = 1024;
-constexpr static int kInitialScratchSize = 256;
+constexpr int kRecvBufferSize = 1024;
+constexpr int kInitialScratchSize = 256;
 
 // public
 //{{{
@@ -86,7 +85,7 @@ void cHttp::freeContent() {
 
   free (mContent);
   mContent = nullptr;
-  mContentReceivedSize = 0;
+  mContentReceivedBytes = 0;
   }
 //}}}
 
@@ -96,12 +95,12 @@ void cHttp::clear() {
 
   mResponse = 0;
 
-  mState = eHttp_header;
-  mParseHeaderState = eHttp_parse_header_done;
+  mState = eHeader;
+  mHeaderState = eHeader_done;
 
-  mChunked = false;
+  mDataState = eDataNone;
   mHeaderContentLength = -1;
-  mHeaderContentLengthValid = false;
+  mContentLengthLeft = -1;
 
   mKeyLen = 0;
   mValueLen = 0;
@@ -122,16 +121,21 @@ bool cHttp::parseChunk (int& size, char ch) {
   switch (ch) {
     case '\n': code = 1; break;
     case '\r': code = 2; break;
-    case '0': case '1': case '2': case '3':
-    case '4': case '5': case '6': case '7':
-    case '8': case '9': case 'a': case 'b':
-    case 'c': case 'd': case 'e': case 'f':
-    case 'A': case 'B': case 'C': case 'D':
+    case '0': case '1':
+    case '2': case '3':
+    case '4': case '5':
+    case '6': case '7':
+    case '8': case '9':
+    case 'a': case 'b':
+    case 'c': case 'd':
+    case 'e': case 'f':
+    case 'A': case 'B':
+    case 'C': case 'D':
     case 'E': case 'F': code = 3; break;
     }
 
-  auto newstate = kChunkState [mParseHeaderState * 4 + code];
-  mParseHeaderState = (eParseHeaderState)(newstate & 0xF);
+  auto newstate = kChunkState [mHeaderState * 4 + code];
+  mHeaderState = (eHeaderState)(newstate & 0xF);
 
   switch (newstate) {
     case 0xC0:
@@ -161,13 +165,13 @@ bool cHttp::parseChunk (int& size, char ch) {
   }
 //}}}
 //{{{
-cHttp::eParseHeaderState cHttp::parseHeaderChar (char ch) {
+cHttp::eHeaderState cHttp::parseHeaderChar (char ch) {
 // Parses a single character of an HTTP header stream. The state parameter is
 // used as internal state and should be initialized to zero for the first call.
-// Return value is a value from the http_parse_header enuemeration specifying
+// Return value is a value from the http_header enuemeration specifying
 // the semantics of the character. If an error is encountered,
-// http_parse_header_done will be returned with a non-zero state parameter. On
-// success http_parse_header_done is returned with the state parameter set to zero.
+// http_header_done will be returned with a non-zero state parameter. On
+// success http_header_done is returned with the state parameter set to zero.
 
   auto code = 0;
   switch (ch) {
@@ -179,22 +183,22 @@ cHttp::eParseHeaderState cHttp::parseHeaderChar (char ch) {
     case  ':': code = 6; break;
     }
 
-  auto newstate = kHeaderState [mParseHeaderState * 8 + code];
-  mParseHeaderState = (eParseHeaderState)(newstate & 0xF);
+  auto newstate = kHeaderState [mHeaderState * 8 + code];
+  mHeaderState = (eHeaderState)(newstate & 0xF);
 
   switch (newstate) {
-    case 0xC0: return eHttp_parse_header_done;
-    case 0xC1: return eHttp_parse_header_done;
-    case 0xC4: return eHttp_parse_header_store_keyvalue;
-    case 0x80: return eHttp_parse_header_version_character;
-    case 0x81: return eHttp_parse_header_code_character;
-    case 0x82: return eHttp_parse_header_status_character;
-    case 0x84: return eHttp_parse_header_key_character;
-    case 0x87: return eHttp_parse_header_value_character;
-    case 0x88: return eHttp_parse_header_value_character;
+    case 0xC0: return eHeader_done;
+    case 0xC1: return eHeader_done;
+    case 0xC4: return eHeader_store_keyvalue;
+    case 0x80: return eHeader_version_character;
+    case 0x81: return eHeader_code_character;
+    case 0x82: return eHeader_status_character;
+    case 0x84: return eHeader_key_character;
+    case 0x87: return eHeader_value_character;
+    case 0x88: return eHeader_value_character;
     }
 
-  return eHttp_parse_header_continue;
+  return eHeader_continue;
   }
 //}}}
 //{{{
@@ -206,14 +210,14 @@ bool cHttp::parseRecvData (const uint8_t* data, int length, int& bytesParsed,
 
   while (length) {
     switch (mState) {
-      case eHttp_header:
+      case eHeader:
         switch (parseHeaderChar (*data)) {
-          case eHttp_parse_header_code_character:
+          case eHeader_code_character:
             //{{{  respone char
             mResponse = mResponse * 10 + *data - '0';
             break;
             //}}}
-          case eHttp_parse_header_key_character:
+          case eHeader_key_character:
             //{{{  key char
             if (mKeyLen >= mScratchAllocSize) {
               mScratchAllocSize *= 2;
@@ -226,7 +230,7 @@ bool cHttp::parseRecvData (const uint8_t* data, int length, int& bytesParsed,
 
             break;
             //}}}
-          case eHttp_parse_header_value_character:
+          case eHeader_value_character:
             //{{{  value char
             if (mKeyLen + mValueLen >= mScratchAllocSize) {
               mScratchAllocSize *= 2;
@@ -239,7 +243,7 @@ bool cHttp::parseRecvData (const uint8_t* data, int length, int& bytesParsed,
 
             break;
             //}}}
-          case eHttp_parse_header_store_keyvalue: {
+          case eHeader_store_keyvalue: {
             //{{{  key value
             string key = string (mScratch, size_t (mKeyLen));
             string value = string (mScratch + mKeyLen, size_t (mValueLen));
@@ -249,13 +253,14 @@ bool cHttp::parseRecvData (const uint8_t* data, int length, int& bytesParsed,
             if (key == "content-length") {
               mHeaderContentLength = stoi (value);
               mContent = (uint8_t*)malloc (mHeaderContentLength);
-              mHeaderContentLengthValid = true;
+              mContentLengthLeft = mHeaderContentLength;
+              mDataState = eDataContentLength;
               cLog::log (LOGINFO, "got mHeaderContentLength:%d", mHeaderContentLength);
               }
+            else if (key == "transfer-encoding")
+              mDataState = value == "chunked" ? eDataChunked : eDataNone;
             else if (key == "location")
               mRedirectUrl.parse (value);
-            else if (key == "transfer-encoding")
-              mChunked = value == "chunked";
 
             mKeyLen = 0;
             mValueLen = 0;
@@ -263,27 +268,23 @@ bool cHttp::parseRecvData (const uint8_t* data, int length, int& bytesParsed,
             break;
             }
             //}}}
-          case eHttp_parse_header_done:
+          case eHeader_done:
             //{{{  done
-            if (mParseHeaderState != 0)
-              mState = eHttp_error;
-
-            else if (mChunked) {
+            if (mHeaderState != 0)
+              mState = eError;
+            else if (mDataState == eDataChunked) {
               mHeaderContentLength = 0;
-              mState = eHttp_chunk_header;
+              mContentLengthLeft = 0;
+              mState = eChunkHeader;
               }
-
-            else if (!mHeaderContentLengthValid)
-              mState = eHttp_stream_data;
-
+            else if (mDataState == eDataNone)
+              mState = eStreamData;
             else if (mHeaderContentLength == 0)
-              mState = eHttp_close;
-
+              mState = eClose;
             else if (mHeaderContentLength > 0)
-              mState = eHttp_raw_data;
-
+              mState = eRawData;
             else
-              mState = eHttp_error;
+              mState = eError;
 
             break;
             //}}}
@@ -294,15 +295,16 @@ bool cHttp::parseRecvData (const uint8_t* data, int length, int& bytesParsed,
         break;
 
       //{{{
-      case eHttp_chunk_header:
-        //cLog::log (LOGINFO, "eHttp_chunk_header contentLen:%d", mHeaderContentLength);
+      case eChunkHeader:
+        //cLog::log (LOGINFO, "eHttp_chunk_header contentLen:%d left:%d",
+        //                    mHeaderContentLength, mContentLengthLeft);
         if (!parseChunk (mHeaderContentLength, *data)) {
           if (mHeaderContentLength == -1)
-            mState = eHttp_error;
+            mState = eError;
           else if (mHeaderContentLength == 0)
-            mState = eHttp_close;
+            mState = eClose;
           else
-            mState = eHttp_chunk_data;
+            mState = eChunkData;
           }
 
         data++;
@@ -311,60 +313,60 @@ bool cHttp::parseRecvData (const uint8_t* data, int length, int& bytesParsed,
         break;
       //}}}
       //{{{
-      case eHttp_chunk_data: {
-        //cLog::log (LOGINFO, "eHttp_chunk_data len:%d mHeaderContentLength:%d mContentReceivedSize:%d",
-        //                    length, mHeaderContentLength, mContentReceivedSize);
-        int chunkSize = (length < mHeaderContentLength) ? length : mHeaderContentLength;
-        cLog::log (LOGINFO, "chunked mHeaderContentLength:%d chunksize:%d mContent:%x",
-                            mHeaderContentLength, chunkSize, mContent);
+      case eChunkData: {
+        //cLog::log (LOGINFO, "eHttp_chunk_data len:%d mHeaderContentLength:%d left:%d mContentReceivedSize:%d",
+        //                    length, mHeaderContentLength, mContentLengthLeft, mContentReceivedSize);
+        int chunkSize = (length < mContentLengthLeft) ? length : mContentLengthLeft;
+        cLog::log (LOGINFO, "chunked mHeaderContentLength:%d left:%d chunksize:%d mContent:%x",
+                            mHeaderContentLength, mContentLengthLeft, chunkSize, mContent);
         if (!mContent) {
           mContent = (uint8_t*)malloc (mHeaderContentLength);
-          memcpy (mContent + mContentReceivedSize, data, chunkSize);
-          mContentReceivedSize += chunkSize;
+          memcpy (mContent + mContentReceivedBytes, data, chunkSize);
+          mContentReceivedBytes += chunkSize;
           }
         else {
           cLog::log (LOGERROR, "implement more than 1 data chunk");
           }
 
-        mHeaderContentLength -= chunkSize;
+        mContentLengthLeft -= chunkSize;
         length -= chunkSize;
         data += chunkSize;
 
-        if (mHeaderContentLength == 0) {
+        if (mContentLengthLeft == 0) {
           mHeaderContentLength = 1;
-          mState = eHttp_chunk_header;
+          mState = eChunkHeader;
           }
         }
 
         break;
       //}}}
       //{{{
-      case eHttp_raw_data: {
-        //cLog::log (LOGINFO, "eHttp_raw_data len:%d mHeaderContentLength:%d mContentReceivedSize:%d",
-        //                    length, mHeaderContentLength, mContentReceivedSize);
-        int chunkSize = (length < mHeaderContentLength) ? length : mHeaderContentLength;
+      case eRawData: {
+        //cLog::log (LOGINFO, "eHttp_raw_data len:%d mHeaderContentLength:%d left:%d mContentReceivedSize:%d",
+        //                    length, mHeaderContentLength, mContentLengthLeft, mContentReceivedSize);
+        int chunkSize = (length < mContentLengthLeft) ? length : mContentLengthLeft;
 
         if (mContent) {
-          memcpy (mContent + mContentReceivedSize, data, chunkSize);
-          mContentReceivedSize += chunkSize;
+          memcpy (mContent + mContentReceivedBytes, data, chunkSize);
+          mContentReceivedBytes += chunkSize;
           }
 
-        mHeaderContentLength -= chunkSize;
+        mContentLengthLeft -= chunkSize;
         length -= chunkSize;
         data += chunkSize;
 
-        if (mHeaderContentLength == 0)
-          mState = eHttp_close;
+        if (mContentLengthLeft == 0)
+          mState = eClose;
 
         break;
         }
       //}}}
       //{{{
-      case eHttp_stream_data: {
+      case eStreamData: {
         //cLog::log (LOGINFO, "eHttp_stream_data len:%d", length);
 
         if (!dataCallback (data, length))
-          mState = eHttp_close;
+          mState = eClose;
 
         data += length;
         length = 0;
@@ -373,14 +375,14 @@ bool cHttp::parseRecvData (const uint8_t* data, int length, int& bytesParsed,
         }
       //}}}
 
-      case eHttp_close:
-      case eHttp_error:
+      case eClose:
+      case eError:
         break;
 
       default:;
       }
 
-    if ((mState == eHttp_error) || (mState == eHttp_close)) {
+    if ((mState == eError) || (mState == eClose)) {
       bytesParsed = initialLength - length;
       return false;
       }

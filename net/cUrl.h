@@ -1,6 +1,6 @@
 // cUrl.h - url parser
 #pragma once
-#include <stdint.h>
+#include <cstdint>
 #include <cstring>
 #include <string>
 //#include <sstream>
