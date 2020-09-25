@@ -38,9 +38,9 @@ private:
   //{{{
   enum eState {
     eHeader,
+    eExpectedData,
     eChunkHeader,
     eChunkData,
-    eRawData,
     eStreamData,
     eClose,
     eError,
@@ -48,30 +48,30 @@ private:
   //}}}
   //{{{
   enum eHeaderState {
-    eHeader_done,
-    eHeader_continue,
-    eHeader_version_character,
-    eHeader_code_character,
-    eHeader_status_character,
-    eHeader_key_character,
-    eHeader_value_character,
-    eHeader_store_keyvalue,
+    eHeaderDone,
+    eHeaderContinue,
+    eHeaderVersionCharacter,
+    eHeaderCodeCharacter,
+    eHeaderStatusCharacter,
+    eHeaderKeyCharacter,
+    eHeaderValueCharacter,
+    eHeaderStoreKeyValue,
     };
   //}}}
   //{{{
-  enum eDataState {
-    eDataNone,
-    eDataContentLength,
-    eDataChunked,
+  enum eContentState {
+    eContentNone,
+    eContentLength,
+    eContentChunked,
     };
   //}}}
 
   void clear();
-  bool parseChunk (int& size, char ch);
   eHeaderState parseHeaderChar (char ch);
-  bool parseRecvData (const uint8_t* data, int length, int& bytesParsed,
-                      const std::function<void (const std::string& key, const std::string& value)>& headerCallback,
-                      const std::function<bool (const uint8_t* data, int len)>& dataCallback);
+  bool parseChunk (int& size, char ch);
+  bool parseData (const uint8_t* data, int length, int& bytesParsed,
+                  const std::function<void (const std::string& key, const std::string& value)>& headerCallback,
+                  const std::function<bool (const uint8_t* data, int len)>& dataCallback);
 
   // static const
   //{{{
@@ -104,13 +104,13 @@ private:
   // vars
   eState mState = eHeader;
 
-  eHeaderState mHeaderState = eHeader_done;
+  eHeaderState mHeaderState = eHeaderDone;
   char* mScratch = nullptr;
   int mScratchAllocSize = 0;
   int mKeyLen = 0;
   int mValueLen = 0;
 
-  eDataState mDataState = eDataNone;
+  eContentState mContentState = eContentNone;
   int mHeaderContentLength = -1;
   int mContentLengthLeft = -1;
   int mContentReceivedBytes = 0;
