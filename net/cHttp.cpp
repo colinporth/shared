@@ -250,14 +250,14 @@ bool cHttp::parseData (const uint8_t* data, int length, int& bytesParsed,
             string key = string (mScratch, size_t (mKeyLen));
             string value = string (mScratch + mKeyLen, size_t (mValueLen));
             headerCallback (key, value);
-            //cLog::log (LOGINFO, "header key:" + key + " value:" + value);
 
+            //cLog::log (LOGINFO, "header key:" + key + " value:" + value);
             if (key == "content-length") {
               mHeaderContentLength = stoi (value);
               mContent = (uint8_t*)malloc (mHeaderContentLength);
               mContentLengthLeft = mHeaderContentLength;
               mContentState = eContentLength;
-              cLog::log (LOGINFO, "got mHeaderContentLength:%d", mHeaderContentLength);
+              //cLog::log (LOGINFO, "got mHeaderContentLength:%d", mHeaderContentLength);
               }
 
             else if (key == "transfer-encoding")
@@ -352,13 +352,10 @@ bool cHttp::parseData (const uint8_t* data, int length, int& bytesParsed,
       //}}}
       //{{{
       case eChunkData: {
-        //cLog::log (LOGINFO, "eHttp_chunk_data len:%d mHeaderContentLength:%d left:%d mContentReceivedSize:%d",
-        //                    length, mHeaderContentLength, mContentLengthLeft, mContentReceivedSize);
         int chunkSize = (length < mContentLengthLeft) ? length : mContentLengthLeft;
 
-        cLog::log (LOGINFO, "eChunkData - mHeaderContentLength:%d left:%d chunksize:%d mContent:%x",
-                            mHeaderContentLength, mContentLengthLeft, chunkSize, mContent);
-
+        //log (LOGINFO, "eChunkData - mHeaderContentLength:%d left:%d chunksize:%d mContent:%x",
+        //                    mHeaderContentLength, mContentLengthLeft, chunkSize, mContent);
         mContent = (uint8_t*)realloc (mContent, mContentReceivedBytes + chunkSize);
         memcpy (mContent + mContentReceivedBytes, data, chunkSize);
         mContentReceivedBytes += chunkSize;
@@ -377,7 +374,6 @@ bool cHttp::parseData (const uint8_t* data, int length, int& bytesParsed,
       //{{{
       case eStreamData: {
         //cLog::log (LOGINFO, "eStreamData - length:%d", length);
-
         if (!dataCallback (data, length))
           mState = eClose;
 
