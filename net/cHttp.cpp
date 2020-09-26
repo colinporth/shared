@@ -4,21 +4,21 @@
 
 using namespace std;
 
+constexpr int kInitialHeaderBufferSize = 256;
 constexpr int kRecvBufferSize = 1024;
-constexpr int kInitialScratchSize = 256;
 
 // public
 //{{{
 cHttp::cHttp() {
-  mScratch = (char*)malloc (kInitialScratchSize);
-  mScratchAllocSize = kInitialScratchSize;
+  mHeaderBuffer = (char*)malloc (kInitialHeaderBufferSize);
+  mHeaderBufferAllocSize = kInitialHeaderBufferSize;
   }
 //}}}
 //{{{
 cHttp::~cHttp() {
 
   free (mContent);
-  free (mScratch);
+  free (mHeaderBuffer);
   }
 //}}}
 
@@ -221,34 +221,34 @@ bool cHttp::parseData (const uint8_t* data, int length, int& bytesParsed,
             //}}}
           case eHeaderKeyCharacter:
             //{{{  key char
-            if (mKeyLen >= mScratchAllocSize) {
-              mScratchAllocSize *= 2;
-              mScratch = (char*)realloc (mScratch, mScratchAllocSize);
-              cLog::log (LOGINFO, "mScratch key realloc %d %d", mKeyLen, mScratchAllocSize);
+            if (mKeyLen >= mHeaderBufferAllocSize) {
+              mHeaderBufferAllocSize *= 2;
+              mHeaderBuffer = (char*)realloc (mHeaderBuffer, mHeaderBufferAllocSize);
+              cLog::log (LOGINFO, "mHeaderBuffer key realloc %d %d", mKeyLen, mHeaderBufferAllocSize);
               }
 
-            mScratch [mKeyLen] = tolower (*data);
+            mHeaderBuffer [mKeyLen] = tolower (*data);
             mKeyLen++;
 
             break;
             //}}}
           case eHeaderValueCharacter:
             //{{{  value char
-            if (mKeyLen + mValueLen >= mScratchAllocSize) {
-              mScratchAllocSize *= 2;
-              mScratch = (char*)realloc (mScratch, mScratchAllocSize);
-              cLog::log (LOGINFO, "mScratch value realloc %d %d", mKeyLen + mValueLen, mScratchAllocSize);
+            if (mKeyLen + mValueLen >= mHeaderBufferAllocSize) {
+              mHeaderBufferAllocSize *= 2;
+              mHeaderBuffer = (char*)realloc (mHeaderBuffer, mHeaderBufferAllocSize);
+              cLog::log (LOGINFO, "mHeaderBuffer value realloc %d %d", mKeyLen + mValueLen, mHeaderBufferAllocSize);
               }
 
-            mScratch [mKeyLen + mValueLen] = *data;
+            mHeaderBuffer [mKeyLen + mValueLen] = *data;
             mValueLen++;
 
             break;
             //}}}
           case eHeaderStoreKeyValue: {
             //{{{  key value
-            string key = string (mScratch, size_t (mKeyLen));
-            string value = string (mScratch + mKeyLen, size_t (mValueLen));
+            string key = string (mHeaderBuffer, size_t (mKeyLen));
+            string value = string (mHeaderBuffer + mKeyLen, size_t (mValueLen));
             headerCallback (key, value);
 
             //cLog::log (LOGINFO, "header key:" + key + " value:" + value);

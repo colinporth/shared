@@ -105,8 +105,8 @@ private:
   eState mState = eHeader;
 
   eHeaderState mHeaderState = eHeaderDone;
-  char* mScratch = nullptr;
-  int mScratchAllocSize = 0;
+  char* mHeaderBuffer = nullptr;
+  int mHeaderBufferAllocSize = 0;
   int mKeyLen = 0;
   int mValueLen = 0;
 
