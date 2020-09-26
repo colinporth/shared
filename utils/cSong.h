@@ -178,6 +178,7 @@ public:
   int getNumFrames() { return mAudioFrameMap.empty() ? 0 : (mAudioFrameMap.rbegin()->first - mAudioFrameMap.begin()->first + 1); }
   int getTotalFrames() { return mTotalFrames; }
   int getPlayFrame() { return mPlayFrame; }
+  int getBasePlayFrame() { return mPlayFrame - mHlsBaseFrame; }
 
   //{{{
   cAudioFrame* getAudioFramePtr (int frame) {
