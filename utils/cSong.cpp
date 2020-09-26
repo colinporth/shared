@@ -252,7 +252,7 @@ int cSong::getHlsLoadChunkNum (system_clock::time_point now, chrono::seconds sec
   int loaded = 0;
   while ((loaded < preload) && ((now - (mHlsBaseTimePoint + (chunkNumOffset * 6400ms))) > secs))
     // chunkNum chunk should be available
-    if (!getFramePtr (mHlsBaseFrame + (chunkNumOffset * mHlsFramesPerChunk)))
+    if (!getAudioFramePtr (mHlsBaseFrame + (chunkNumOffset * mHlsFramesPerChunk)))
       // not loaded, return chunkNum to load
       return mHlsBaseChunkNum + chunkNumOffset;
     else {
@@ -389,7 +389,7 @@ void cSong::checkSilenceWindow (int frameNum) {
   // walk backwards looking for continuous loaded quiet frames
   auto windowSize = 0;
   while (true) {
-    auto framePtr = getFramePtr (frameNum);
+    auto framePtr = getAudioFramePtr (frameNum);
     if (framePtr && framePtr->isQuiet()) {
       windowSize++;
       frameNum--;
@@ -401,7 +401,7 @@ void cSong::checkSilenceWindow (int frameNum) {
   if (windowSize > kSilenceWindowFrames) {
     // walk forward setting silence for continuous loaded quiet frames
     while (true) {
-      auto framePtr = getFramePtr (++frameNum);
+      auto framePtr = getAudioFramePtr (++frameNum);
       if (framePtr && framePtr->isQuiet())
         framePtr->setSilence (true);
       else
@@ -415,7 +415,7 @@ void cSong::checkSilenceWindow (int frameNum) {
 int cSong::skipPrev (int fromFrame, bool silence) {
 
   for (int frame = fromFrame-1; frame >= getFirstFrame(); frame--) {
-    auto framePtr = getFramePtr (frame);
+    auto framePtr = getAudioFramePtr (frame);
     if (framePtr && (framePtr->isSilence() ^ silence))
       return frame;
     }
@@ -427,7 +427,7 @@ int cSong::skipPrev (int fromFrame, bool silence) {
 int cSong::skipNext (int fromFrame, bool silence) {
 
   for (int frame = fromFrame; frame <= getLastFrame(); frame++) {
-    auto framePtr = getFramePtr (frame);
+    auto framePtr = getAudioFramePtr (frame);
     if (framePtr && (framePtr->isSilence() ^ silence))
       return frame;
     }

@@ -180,9 +180,15 @@ public:
   int getPlayFrame() { return mPlayFrame; }
 
   //{{{
-  cAudioFrame* getFramePtr (int frame) {
+  cAudioFrame* getAudioFramePtr (int frame) {
     auto it = mAudioFrameMap.find (frame);
     return (it == mAudioFrameMap.end()) ? nullptr : it->second;
+    }
+  //}}}
+  //{{{
+  cVideoFrame* getVideoFramePtr (int frame) {
+    auto it = mVideoFrameMap.find (frame);
+    return (it == mVideoFrameMap.end()) ? nullptr : it->second;
     }
   //}}}
   cSelect& getSelect() { return mSelect; }
