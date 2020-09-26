@@ -20,6 +20,8 @@
 #include <Functiondiscoverykeys_devpkey.h>
 
 #include <array>
+
+#include "../utils/cLog.h"
 //}}}
 
 // cAudioBuffer
