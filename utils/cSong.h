@@ -1,4 +1,4 @@
-// cSong.h
+// cSong.h - set of audioFrames, videoFrames added with own timing
 #pragma once
 //{{{  includes
 #include <cstdint>
@@ -18,18 +18,18 @@
 class cSong {
 public:
   //{{{
-  class cFrame {
+  class cAudioFrame {
   public:
     static constexpr float kQuietThreshold = 0.01f;
     //{{{
-    cFrame (float* samples, bool owned, uint8_t* framePtr,
-            float* powerValues, float* peakValues, uint8_t* freqValues, uint8_t* lumaValues) :
+    cAudioFrame (float* samples, bool owned, uint8_t* framePtr,
+                 float* powerValues, float* peakValues, uint8_t* freqValues, uint8_t* lumaValues) :
         mSamples(samples), mOwned(owned), mPtr(framePtr),
         mPowerValues(powerValues), mPeakValues(peakValues),
         mFreqValues(freqValues), mFreqLuma(lumaValues), mMuted(false), mSilence(false) {}
     //}}}
     //{{{
-    ~cFrame() {
+    ~cAudioFrame() {
 
       if (mOwned)
         free (mSamples);
@@ -75,6 +75,23 @@ public:
     uint8_t* mFreqLuma;
 
     std::string mTitle;
+    };
+  //}}}
+  //{{{
+  class cVideoFrame {
+  public:
+    cVideoFrame(uint8_t* pes, int pesLen) : mPes(pes), mPesLen(pesLen) {}
+    ~cVideoFrame() {
+      free (mPes);
+      }
+
+    // gets
+    uint8_t* getPes() { return mPes; }
+    int getPesLen() { return mPesLen; }
+
+  private:
+    uint8_t* mPes;
+    int mPesLen;
     };
   //}}}
   //{{{
@@ -141,7 +158,8 @@ public:
   virtual ~cSong();
 
   void init (cAudioDecode::eFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame);
-  void addFrame (int frameNum, float* samples, bool owned, int totalFrames, uint8_t* framePtr = nullptr);
+  void addAudioFrame (int frameNum, float* samples, bool owned, int totalFrames, uint8_t* framePtr = nullptr);
+  void addVideoFrame (int frameNum, uint8_t* pes, int pesLen);
   void clear();
 
   enum eHlsLoad { eHlsIdle, eHlsLoading, eHlsFailed };
@@ -155,16 +173,16 @@ public:
   int getSampleRate() { return mSampleRate; }
   int getSamplesPerFrame() { return mSamplesPerFrame; }
 
-  int getFirstFrame() { return mFrameMap.empty() ? 0 : mFrameMap.begin()->first; }
-  int getLastFrame() { return mFrameMap.empty() ? 0 : mFrameMap.rbegin()->first;  }
-  int getNumFrames() { return mFrameMap.empty() ? 0 : (mFrameMap.rbegin()->first - mFrameMap.begin()->first + 1); }
+  int getFirstFrame() { return mAudioFrameMap.empty() ? 0 : mAudioFrameMap.begin()->first; }
+  int getLastFrame() { return mAudioFrameMap.empty() ? 0 : mAudioFrameMap.rbegin()->first;  }
+  int getNumFrames() { return mAudioFrameMap.empty() ? 0 : (mAudioFrameMap.rbegin()->first - mAudioFrameMap.begin()->first + 1); }
   int getTotalFrames() { return mTotalFrames; }
   int getPlayFrame() { return mPlayFrame; }
 
   //{{{
-  cFrame* getFramePtr (int frame) {
-    auto it = mFrameMap.find (frame);
-    return (it == mFrameMap.end()) ? nullptr : it->second;
+  cAudioFrame* getFramePtr (int frame) {
+    auto it = mAudioFrameMap.find (frame);
+    return (it == mAudioFrameMap.end()) ? nullptr : it->second;
     }
   //}}}
   cSelect& getSelect() { return mSelect; }
@@ -239,8 +257,9 @@ private:
   constexpr static int kMaxFreqBytes = 512; // arbitrary graphics max
 
   // vars
-  std::map<int,cFrame*> mFrameMap;
   std::shared_mutex mSharedMutex;
+  std::map <int, cAudioFrame*> mAudioFrameMap;
+  std::map <int, cVideoFrame*> mVideoFrameMap;
 
   cAudioDecode::eFrameType mFrameType = cAudioDecode::eUnknown;
   bool owned = false;

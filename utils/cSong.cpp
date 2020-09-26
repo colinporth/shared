@@ -1,10 +1,10 @@
-// cSong.cpp
+// cSong.cpp - set of audioFrames, videoFrames added with own timing
 #pragma once
 //{{{  includes
 #include "cSong.h"
 
 #include "../date/date.h"
-#include "../utils/cLog.h"
+#include "cLog.h"
 
 using namespace std;
 using namespace chrono;
@@ -152,7 +152,7 @@ void cSong::init (cAudioDecode::eFrameType frameType, int numChannels, int sampl
   }
 //}}}
 //{{{
-void cSong::addFrame (int frameNum, float* samples, bool owned, int totalFrames, uint8_t* framePtr) {
+void cSong::addAudioFrame (int frameNum, float* samples, bool owned, int totalFrames, uint8_t* framePtr) {
 
   // sum of squares channel power
   auto powerValues = (float*)malloc (mNumChannels * 4);
@@ -207,11 +207,18 @@ void cSong::addFrame (int frameNum, float* samples, bool owned, int totalFrames,
   unique_lock<shared_mutex> lock (mSharedMutex);
 
   // totalFrames can be a changing estimate for file, or increasing value for streaming
-  mFrameMap.insert (map<int,cFrame*>::value_type (frameNum,
-    new cFrame (samples, owned, framePtr, powerValues, peakValues, freqValues, lumaValues)));
+  mAudioFrameMap.insert (map<int,cAudioFrame*>::value_type (frameNum,
+    new cAudioFrame (samples, owned, framePtr, powerValues, peakValues, freqValues, lumaValues)));
   mTotalFrames = totalFrames;
 
   checkSilenceWindow (frameNum);
+  }
+//}}}
+//{{{
+void cSong::addVideoFrame (int frameNum, uint8_t* pes, int pesLen) {
+
+  unique_lock<shared_mutex> lock (mSharedMutex);
+  mVideoFrameMap.insert (map<int,cVideoFrame*>::value_type (frameNum, new cVideoFrame (pes, pesLen)));
   }
 //}}}
 //{{{
@@ -232,7 +239,7 @@ void cSong::clear() {
   }
 //}}}
 
-// gets
+// cSong gets
 //{{{
 int cSong::getHlsLoadChunkNum (system_clock::time_point now, chrono::seconds secs, int preload) {
 
@@ -259,7 +266,7 @@ int cSong::getHlsLoadChunkNum (system_clock::time_point now, chrono::seconds sec
   }
 //}}}
 
-// playsFrame
+// cSong playFrame
 //{{{
 void cSong::setPlayFrame (int frame) {
 
@@ -285,7 +292,7 @@ void cSong::incPlaySec (int secs, bool useSelectRange) {
   }
 //}}}
 
-// hls
+// cSong hls
 //{{{
 void cSong::setHlsBase (int chunkNum, system_clock::time_point timePoint, seconds offset) {
 // set baseChunkNum, baseTimePoint and baseFrame (sinceMidnight)
@@ -332,7 +339,7 @@ void cSong::setHlsLoad (eHlsLoad hlsLoad, int chunkNum) {
   }
 //}}}
 
-// actions
+// cSong actions
 //{{{
 void cSong::prevSilencePlayFrame() {
   mPlayFrame = skipPrev (mPlayFrame, false);
@@ -348,7 +355,7 @@ void cSong::nextSilencePlayFrame() {
   }
 //}}}
 
-// private
+// cSong private
 //{{{
 void cSong::clearFrames() {
 
@@ -360,15 +367,20 @@ void cSong::clearFrames() {
   mTotalFrames = 0;
   mSelect.clearAll();
 
-  for (auto frame : mFrameMap)
+  for (auto frame : mAudioFrameMap)
     if (frame.second)
       delete (frame.second);
-  mFrameMap.clear();
+  mAudioFrameMap.clear();
 
   // reset maxValues
   mMaxPowerValue = kMinPowerValue;
   mMaxPeakValue = kMinPeakValue;
   mMaxFreqValue = kMinFreqValue;
+
+  for (auto frame : mVideoFrameMap)
+    if (frame.second)
+      delete (frame.second);
+  mVideoFrameMap.clear();
   }
 //}}}
 //{{{
