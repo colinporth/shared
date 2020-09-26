@@ -4,8 +4,8 @@
 #include "cWinAudio32.h"
 
 #include <stdio.h>
-#include "utils.h"
-#include "cLog.h"
+#include "../utils/utils.h"
+#include "../utils/cLog.h"
 
 #pragma comment(lib,"Xaudio2.lib")
 //}}}
