@@ -166,7 +166,6 @@ public:
   void init (cAudioDecode::eFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame);
   void addAudioFrame (int frameNum, float* samples, bool owned, int totalFrames, uint8_t* framePtr = nullptr,
                       uint64_t pts = 0xFFFFFFFFFFFFFFFF);
-  void addVideoFrame (int frameNum, uint8_t* pes, int pesLen, uint64_t pts);
   void clear();
 
   enum eHlsLoad { eHlsIdle, eHlsLoading, eHlsFailed };
@@ -191,12 +190,6 @@ public:
   cAudioFrame* getAudioFramePtr (int frame) {
     auto it = mAudioFrameMap.find (frame);
     return (it == mAudioFrameMap.end()) ? nullptr : it->second;
-    }
-  //}}}
-  //{{{
-  cVideoFrame* getVideoFramePtr (int frame) {
-    auto it = mVideoFrameMap.find (frame);
-    return (it == mVideoFrameMap.end()) ? nullptr : it->second;
     }
   //}}}
   cSelect& getSelect() { return mSelect; }
@@ -272,7 +265,6 @@ private:
   // vars
   std::shared_mutex mSharedMutex;
   std::map <int, cAudioFrame*> mAudioFrameMap;
-  std::map <int, cVideoFrame*> mVideoFrameMap;
 
   cAudioDecode::eFrameType mFrameType = cAudioDecode::eUnknown;
   bool owned = false;

@@ -215,13 +215,6 @@ void cSong::addAudioFrame (int frameNum, float* samples, bool owned, int totalFr
   }
 //}}}
 //{{{
-void cSong::addVideoFrame (int frameNum, uint8_t* pes, int pesLen, uint64_t pts) {
-
-  unique_lock<shared_mutex> lock (mSharedMutex);
-  mVideoFrameMap.insert (map<int,cVideoFrame*>::value_type (frameNum, new cVideoFrame (pes, pesLen)));
-  }
-//}}}
-//{{{
 void cSong::clear() {
 
   unique_lock<shared_mutex> lock (mSharedMutex);
@@ -377,11 +370,6 @@ void cSong::clearFrames() {
   mMaxPowerValue = kMinPowerValue;
   mMaxPeakValue = kMinPeakValue;
   mMaxFreqValue = kMinFreqValue;
-
-  for (auto frame : mVideoFrameMap)
-    if (frame.second)
-      delete (frame.second);
-  mVideoFrameMap.clear();
   }
 //}}}
 //{{{
