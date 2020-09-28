@@ -152,7 +152,7 @@ void cSong::init (cAudioDecode::eFrameType frameType, int numChannels, int sampl
   }
 //}}}
 //{{{
-void cSong::addAudioFrame (int frameNum, float* samples, bool owned, int totalFrames, uint8_t* framePtr) {
+void cSong::addAudioFrame (int frameNum, float* samples, bool owned, int totalFrames, uint8_t* framePtr, uint64_t pts) {
 
   // sum of squares channel power
   auto powerValues = (float*)malloc (mNumChannels * 4);
@@ -208,14 +208,14 @@ void cSong::addAudioFrame (int frameNum, float* samples, bool owned, int totalFr
 
   // totalFrames can be a changing estimate for file, or increasing value for streaming
   mAudioFrameMap.insert (map<int,cAudioFrame*>::value_type (frameNum,
-    new cAudioFrame (samples, owned, framePtr, powerValues, peakValues, freqValues, lumaValues)));
+    new cAudioFrame (samples, owned, framePtr, powerValues, peakValues, freqValues, lumaValues, pts)));
   mTotalFrames = totalFrames;
 
   checkSilenceWindow (frameNum);
   }
 //}}}
 //{{{
-void cSong::addVideoFrame (int frameNum, uint8_t* pes, int pesLen) {
+void cSong::addVideoFrame (int frameNum, uint8_t* pes, int pesLen, uint64_t pts) {
 
   unique_lock<shared_mutex> lock (mSharedMutex);
   mVideoFrameMap.insert (map<int,cVideoFrame*>::value_type (frameNum, new cVideoFrame (pes, pesLen)));
@@ -294,14 +294,14 @@ void cSong::incPlaySec (int secs, bool useSelectRange) {
 
 // cSong hls
 //{{{
-void cSong::setHlsBase (int chunkNum, system_clock::time_point timePoint, seconds offset) {
+void cSong::setHlsBase (int chunkNum, system_clock::time_point timePoint, seconds offset, int startSecs) {
 // set baseChunkNum, baseTimePoint and baseFrame (sinceMidnight)
 
   unique_lock<shared_mutex> lock (mSharedMutex);
 
-  timePoint += offset;
-
   mHlsBaseChunkNum = chunkNum;
+
+  timePoint += offset;
   mHlsBaseTimePoint = timePoint;
 
   // calc hlsBaseFrame
@@ -309,7 +309,8 @@ void cSong::setHlsBase (int chunkNum, system_clock::time_point timePoint, second
   uint64_t msSinceMidnight = duration_cast<milliseconds>(timePoint - midnightTimePoint).count();
   mHlsBaseFrame = int((msSinceMidnight * mSampleRate) / mSamplesPerFrame / 1000);
 
-  mPlayFrame = mHlsBaseFrame;
+  // add inn startSecs offset to playFrame for curious case of tv reporting 2 hours late in .m3u8
+  mPlayFrame = mHlsBaseFrame + ((startSecs * mSampleRate) / mSamplesPerFrame);
 
   mHlsBaseValid = true;
   }

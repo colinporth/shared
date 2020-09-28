@@ -23,10 +23,12 @@ public:
     static constexpr float kQuietThreshold = 0.01f;
     //{{{
     cAudioFrame (float* samples, bool owned, uint8_t* framePtr,
-                 float* powerValues, float* peakValues, uint8_t* freqValues, uint8_t* lumaValues) :
+                 float* powerValues, float* peakValues, uint8_t* freqValues, uint8_t* lumaValues,
+                 uint64_t pts) :
         mSamples(samples), mOwned(owned), mPtr(framePtr),
         mPowerValues(powerValues), mPeakValues(peakValues),
-        mFreqValues(freqValues), mFreqLuma(lumaValues), mMuted(false), mSilence(false) {}
+        mFreqValues(freqValues), mFreqLuma(lumaValues), mMuted(false), mSilence(false),
+        mPts(pts) {}
     //}}}
     //{{{
     ~cAudioFrame() {
@@ -49,6 +51,8 @@ public:
     float* getPeakValues() { return mPeakValues;  }
     uint8_t* getFreqValues() { return mFreqValues; }
     uint8_t* getFreqLuma() { return mFreqLuma; }
+
+    uint64_t getPts() { return mPts; }
 
     bool isQuiet() { return mPeakValues[0] + mPeakValues[1] < kQuietThreshold; }
 
@@ -73,6 +77,8 @@ public:
     float* mPeakValues;
     uint8_t* mFreqValues;
     uint8_t* mFreqLuma;
+
+    uint64_t mPts;
 
     std::string mTitle;
     };
@@ -158,8 +164,9 @@ public:
   virtual ~cSong();
 
   void init (cAudioDecode::eFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame);
-  void addAudioFrame (int frameNum, float* samples, bool owned, int totalFrames, uint8_t* framePtr = nullptr);
-  void addVideoFrame (int frameNum, uint8_t* pes, int pesLen);
+  void addAudioFrame (int frameNum, float* samples, bool owned, int totalFrames, uint8_t* framePtr = nullptr,
+                      uint64_t pts = 0xFFFFFFFFFFFFFFFF);
+  void addVideoFrame (int frameNum, uint8_t* pes, int pesLen, uint64_t pts);
   void clear();
 
   enum eHlsLoad { eHlsIdle, eHlsLoading, eHlsFailed };
@@ -227,7 +234,6 @@ public:
     }
   //}}}
 
-
   // playFrame
   void setPlayFrame (int frame);
   void incPlaySec (int secs, bool useSelectRange);
@@ -243,7 +249,7 @@ public:
   //}}}
 
   // hls
-  void setHlsBase (int chunkNum, std::chrono::system_clock::time_point timePoint, std::chrono::seconds offset);
+  void setHlsBase (int chunkNum, std::chrono::system_clock::time_point timePoint, std::chrono::seconds offset, int startSecs);
   void setHlsLoad (eHlsLoad hlsLoad, int chunkNum);
   //}}}
 
