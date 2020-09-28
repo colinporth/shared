@@ -84,23 +84,6 @@ public:
     };
   //}}}
   //{{{
-  class cVideoFrame {
-  public:
-    cVideoFrame(uint8_t* pes, int pesLen) : mPes(pes), mPesLen(pesLen) {}
-    ~cVideoFrame() {
-      free (mPes);
-      }
-
-    // gets
-    uint8_t* getPes() { return mPes; }
-    int getPesLen() { return mPesLen; }
-
-  private:
-    uint8_t* mPes;
-    int mPesLen;
-    };
-  //}}}
-  //{{{
   class cSelect {
   public:
     //{{{
@@ -257,10 +240,10 @@ private:
   int skipPrev (int fromFrame, bool silence);
   int skipNext (int fromFrame, bool silence);
 
-  constexpr static int kMaxNumChannels = 2;           // arbitrary chan max
-  constexpr static int kMaxNumSamplesPerFrame = 2048; // arbitrary frame max
-  constexpr static int kMaxFreq = (kMaxNumSamplesPerFrame / 2) + 1; // fft max
-  constexpr static int kMaxFreqBytes = 512; // arbitrary graphics max
+  static constexpr int kMaxNumChannels = 2;           // arbitrary chan max
+  static constexpr int kMaxNumSamplesPerFrame = 2048; // arbitrary frame max
+  static constexpr int kMaxFreq = (kMaxNumSamplesPerFrame / 2) + 1; // fft max
+  static constexpr int kMaxFreqBytes = 512; // arbitrary graphics max
 
   // vars
   std::shared_mutex mSharedMutex;
