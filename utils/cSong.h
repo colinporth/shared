@@ -207,7 +207,7 @@ public:
 
   // info
   int getBitrate() { return mBitrate; }
-  std::string getChan() { return mChan; }
+  std::string getChannel() { return mChannel; }
 
   // hls
   bool hasHlsBase() { return mHlsBaseValid; }
@@ -233,7 +233,7 @@ public:
   void incPlayFrame (int frames, bool useSelectRange);
 
   // stream
-  void setChan (const std::string& chan) { mChan = chan; }
+  void setChannel (const std::string& channel) { mChannel = channel; }
   //{{{
   void setBitrate (int bitrate, int framesPerChunk) {
     mBitrate = bitrate;
@@ -284,7 +284,7 @@ private:
   float mMaxFreqValue = 0.f;
   //}}}
   //{{{  hls vars
-  std::string mChan;
+  std::string mChannel;
   int mBitrate = 0;
 
   bool mHlsBaseValid = false;
