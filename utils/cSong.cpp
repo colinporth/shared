@@ -1,5 +1,4 @@
 // cSong.cpp - set of audioFrames, videoFrames added with own timing
-#pragma once
 //{{{  includes
 #include "cSong.h"
 

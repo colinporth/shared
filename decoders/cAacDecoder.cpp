@@ -10,12 +10,15 @@
 
 using namespace std;
 //}}}
-#define USE_INTRINSICS
-#ifdef USE_INTRINSICS
-  //{{{  intrinsics
-  #include <intrin.h>
-  #include <immintrin.h>
-  //}}}
+
+#ifdef _WIN32
+  #define USE_INTRINSICS
+  #ifdef USE_INTRINSICS
+    //{{{  intrinsics
+    #include <intrin.h>
+    #include <immintrin.h>
+    //}}}
+  #endif
 #endif
 
 //{{{  defines
@@ -528,7 +531,7 @@ inline int32_t FASTABS (int32_t x) {
   //}}}
 #else
   //{{{
-  inline int32_tcountLeadingZeros (int32_t x) {
+  inline int32_t countLeadingZeros (int32_t x) {
   // count leading zeros with binary search
 
     if (!x)
@@ -5150,7 +5153,7 @@ void cAacDecoder::dequantize (int32_t channel) {
           mInfoBase->pnsUsed[channel] = 1;
         else if (cb == 14 || cb == 15)
           mInfoBase->intensityUsed[channel] = 1; // should only happen if ch == 1
-          coef += width;
+        coef += width;
         }
       coef += (numSamples - sfbTab[icsInfo->maxSFB]);
       }
