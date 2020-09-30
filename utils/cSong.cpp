@@ -29,14 +29,16 @@ bool cSong::cSelect::inRange (int frame) {
 int cSong::cSelect::constrainToRange (int frame, int constrainedFrame) {
 // if frame in a select range return frame constrained to it
 
-  for (auto &item : mItems)
-    if (item.inRange (frame))
+  for (auto &item : mItems) {
+    if (item.inRange (frame)) {
       if (constrainedFrame > item.getLastFrame())
         return item.getFirstFrame();
       else if (constrainedFrame < item.getFirstFrame())
         return item.getFirstFrame();
       else
         return constrainedFrame;
+      }
+    }
 
   return constrainedFrame;
   }
@@ -89,7 +91,7 @@ void cSong::cSelect::start (int frame) {
 //{{{
 void cSong::cSelect::move (int frame) {
 
-  if (mItemNum < mItems.size()) {
+  if (mItemNum < (int)mItems.size()) {
     switch (mEdit) {
       case eEditFirst:
         mItems[mItemNum].setFirstFrame (frame);

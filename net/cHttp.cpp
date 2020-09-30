@@ -274,7 +274,7 @@ bool cHttp::parseData (const uint8_t* data, int length, int& bytesParsed,
             //}}}
           case eHeaderDone:
             //{{{  done
-            if (mHeaderState != eHeader)
+            if (mHeaderState != eHeaderDone)
               mState = eError;
 
             else if (mContentState == eContentChunked) {

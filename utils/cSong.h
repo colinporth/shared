@@ -25,9 +25,8 @@ public:
     cAudioFrame (float* samples, bool owned, uint8_t* framePtr,
                  float* powerValues, float* peakValues, uint8_t* freqValues, uint8_t* lumaValues,
                  uint64_t pts) :
-        mSamples(samples), mOwned(owned), mPtr(framePtr),
-        mPowerValues(powerValues), mPeakValues(peakValues),
-        mFreqValues(freqValues), mFreqLuma(lumaValues), mMuted(false), mSilence(false),
+        mSamples(samples), mOwned(owned), mMuted(false), mSilence(false), mPtr(framePtr),
+        mPowerValues(powerValues), mPeakValues(peakValues), mFreqValues(freqValues), mFreqLuma(lumaValues),
         mPts(pts) {}
     //}}}
     //{{{
