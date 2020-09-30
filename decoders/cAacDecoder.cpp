@@ -566,7 +566,7 @@ inline int32_t FASTABS (int32_t x) {
 //{{{  static const tables
 //{{{
 // channel mapping (table 1.6.3.4) (-1 = unknown, so need to determine mapping based on rules in 8.5.1) */
-static const uint8_t channelMapTab [NUM_DEF_CHAN_MAPS] = {
+static const int channelMapTab [NUM_DEF_CHAN_MAPS] = {
   -1, 1, 2, 3, 4, 5, 6, 8
   };
 //}}}
@@ -801,13 +801,13 @@ static const uint8_t predSFBMax [NUM_SAMPLE_RATES] = {
 
 //{{{  maths
 //{{{
-static const int32_t invQuant3 [16] = {
+static const uint32_t invQuant3 [16] = {
   0x00000000, 0xc8767f65, 0x9becf22c, 0x83358feb, 0x83358feb, 0x9becf22c, 0xc8767f65, 0x00000000,
   0x2bc750e9, 0x5246dd49, 0x6ed9eba1, 0x7e0e2e32, 0x7e0e2e32, 0x6ed9eba1, 0x5246dd49, 0x2bc750e9,
   };
 //}}}
 //{{{
-static const int32_t invQuant4 [16] = {
+static const uint32_t invQuant4 [16] = {
   0x00000000, 0xe5632654, 0xcbf00dbe, 0xb4c373ee, 0xa0e0a15f, 0x9126145f, 0x8643c7b3, 0x80b381ac,
   0x7f7437ad, 0x7b1d1a49, 0x7294b5f2, 0x66256db2, 0x563ba8aa, 0x4362210e, 0x2e3d2abb, 0x17851aad,
   };
@@ -899,7 +899,7 @@ static const int32_t pow2frac [8] = {
 
 // sin cos
 //{{{
-static const int32_t cos4sin4tab64 [64] = {
+static const uint32_t cos4sin4tab64 [64] = {
   0x40c7d2bd, 0x00c90e90, 0x424ff28f, 0x3ff4e5e0, 0x43cdd89a, 0x03ecadcf, 0x454149fc, 0x3fc395f9,
   0x46aa0d6d, 0x070de172, 0x4807eb4b, 0x3f6af2e3, 0x495aada2, 0x0a2abb59, 0x4aa22036, 0x3eeb3347,
   0x4bde1089, 0x0d415013, 0x4d0e4de2, 0x3e44a5ef, 0x4e32a956, 0x104fb80e, 0x4f4af5d1, 0x3d77b192,
@@ -922,7 +922,7 @@ static const int32_t cos1sin1tab64 [34] = {
 //}}}
 static const int32_t cos4sin4tabOffset [NUM_IMDCT_SIZES] = { 0, 128 };
 //{{{
-static const int32_t cos4sin4tab [128 + 1024] = {
+static const uint32_t cos4sin4tab [128 + 1024] = {
 /* 128 - format = Q30 * 2^-7 */
 0xbf9bc731, 0xff9b783c, 0xbed5332c, 0xc002c697, 0xbe112251, 0xfe096c8d, 0xbd4f9c30, 0xc00f1c4a,
 0xbc90a83f, 0xfc77ae5e, 0xbbd44dd9, 0xc0254e27, 0xbb1a9443, 0xfae67ba2, 0xba6382a6, 0xc04558c0,
@@ -1457,13 +1457,13 @@ static const int32_t invTab [NUM_TERMS_RPI]  = {
 //  poly43lo: x = [0.5, 0.7071]
 // Relative error < 1E-7
 // Coefs are scaled by 4, 2, 1, 0.5, 0.25
-static const int32_t poly43lo [5] = {
+static const uint32_t poly43lo [5] = {
   0x29a0bda9, 0xb02e4828, 0x5957aa1b, 0x236c498d, 0xff581859
   };
 //}}}
 //{{{
 //  poly43hi: x = [0.7071, 1.0]
-static const int32_t poly43hi[5] = {
+static const uint32_t poly43hi[5] = {
   0x10852163, 0xd333f6a4, 0x46e9408b, 0x27c2cef0, 0xfef577b4
   };
 //}}}
@@ -1556,7 +1556,7 @@ static const uint8_t uniqueIDTab [8] = {0x5f, 0x4b, 0x43, 0x5f, 0x5f, 0x4a, 0x52
  */
 //}}}
 //{{{
-static const int32_t twidTabOdd [8*6 + 32*6 + 128*6] = {
+static const uint32_t twidTabOdd [8*6 + 32*6 + 128*6] = {
   0x40000000, 0x00000000, 0x40000000, 0x00000000, 0x40000000, 0x00000000, 0x539eba45, 0xe7821d59,
   0x4b418bbe, 0xf383a3e2, 0x58c542c5, 0xdc71898d, 0x5a82799a, 0xd2bec333, 0x539eba45, 0xe7821d59,
   0x539eba45, 0xc4df2862, 0x539eba45, 0xc4df2862, 0x58c542c5, 0xdc71898d, 0x3248d382, 0xc13ad060,
@@ -1688,7 +1688,7 @@ static const int32_t twidTabOdd [8*6 + 32*6 + 128*6] = {
 };
 //}}}
 //{{{
-static const int32_t twidTabEven [4*6 + 16*6 + 64*6] = {
+static const uint32_t twidTabEven [4*6 + 16*6 + 64*6] = {
   0x40000000, 0x00000000, 0x40000000, 0x00000000, 0x40000000, 0x00000000, 0x5a82799a, 0xd2bec333,
   0x539eba45, 0xe7821d59, 0x539eba45, 0xc4df2862, 0x40000000, 0xc0000000, 0x5a82799a, 0xd2bec333,
   0x00000000, 0xd2bec333, 0x00000000, 0xd2bec333, 0x539eba45, 0xc4df2862, 0xac6145bb, 0x187de2a7,
@@ -1885,7 +1885,7 @@ static const int32_t dqTabCouple [25] = {
 //}}}
 //{{{
 // twiddle table for radix 4 pass, format = Q31 */
-static const int32_t twidTabOdd32 [8*6] = {
+static const uint32_t twidTabOdd32 [8*6] = {
   0x40000000, 0x00000000, 0x40000000, 0x00000000, 0x40000000, 0x00000000, 0x539eba45, 0xe7821d59,
   0x4b418bbe, 0xf383a3e2, 0x58c542c5, 0xdc71898d, 0x5a82799a, 0xd2bec333, 0x539eba45, 0xe7821d59,
   0x539eba45, 0xc4df2862, 0x539eba45, 0xc4df2862, 0x58c542c5, 0xdc71898d, 0x3248d382, 0xc13ad060,
@@ -1916,7 +1916,7 @@ static const int32_t invWarpTab [2] = {
 //{{{
 // squared version of table in 4.6.18.7.5 */
 // Q30 (0x80000000 = sentinel for GMAX) */
-static const int32_t limGainTab [4] = {
+static const uint32_t limGainTab [4] = {
   0x20138ca7, 0x40000000, 0x7fb27dce, 0x80000000
   };
 //}}}
@@ -1965,7 +1965,7 @@ static const uint8_t goalSBTab [NUM_SAMPLE_RATES_SBR] = {
 
 //{{{
 // coefficient table 4.A.87, format = Q31
-static const int32_t cTabA [165] = {
+static const uint32_t cTabA [165] = {
   0x00000000, 0x0055dba1, 0x01b2e41d, 0x09015651, 0x2e3a7532, 0xffed978a, 0x006090c4, 0x01fd3ba0, 0x08a24899, 0x311af3a4,
   0xfff0065d, 0x006b47fa, 0x024bf7a1, 0x082f552e, 0x33ff670e, 0xffef7b8b, 0x0075fded, 0x029e35b4, 0x07a8127d, 0x36e69691,
   0xffee1650, 0x00807994, 0x02f3e48d, 0x070bbf58, 0x39ce0477, 0xffecc31b, 0x008a7dd7, 0x034d01f0, 0x06593912, 0x3cb41219,
@@ -1987,7 +1987,7 @@ static const int32_t cTabA [165] = {
 //}}}
 //{{{
 //* coefficient table 4.A.87, format = Q31
-static const int32_t cTabS [640] = {
+static const uint32_t cTabS [640] = {
   0x00000000, 0x0055dba1, 0x01b2e41d, 0x09015651, 0x2e3a7532, 0x6d474e1d, 0xd1c58ace, 0x09015651, 0xfe4d1be3, 0x0055dba1,
   0xffede50e, 0x005b5371, 0x01d78bfc, 0x08d3e41b, 0x2faa221c, 0x6d41d963, 0xd3337b3d, 0x09299ead, 0xfe70b8d1, 0x0050b177,
   0xffed978a, 0x006090c4, 0x01fd3ba0, 0x08a24899, 0x311af3a4, 0x6d32730f, 0xd49fd55f, 0x094d7ec2, 0xfe933dc0, 0x004b6c46,
@@ -2056,7 +2056,7 @@ static const int32_t cTabS [640] = {
 //}}}
 //{{{
 // noise table 4.A.88, format = Q31 */
-static const int32_t noiseTab [512*2] = {
+static const uint32_t noiseTab [512*2] = {
   0x8010fd38, 0xb3dc7948, 0x7c4e2301, 0xa9904192, 0x121622a7, 0x86489625, 0xc3d53d25, 0xd0343fa9,
   0x674d6f70, 0x25f4e9fd, 0xce1a8c8b, 0x72a726c5, 0xfea6efc6, 0xaa4adb1a, 0x8b2dd628, 0xf14029e4,
   0x46321c1a, 0x604889a0, 0x33363b63, 0x815ed069, 0x802b4315, 0x8f2bf7f3, 0x85b86073, 0x745cfb46,
@@ -5064,7 +5064,7 @@ static int32_t dequantizeBlock (int32_t* inbuf, int32_t numSamples, int32_t scal
           x <<= 1, shift += 1;
 
         // polynomial
-        const int32_t* coef = (x < SQRTHALF) ? poly43lo : poly43hi;
+        const int32_t* coef = (x < SQRTHALF) ? (int32_t*)poly43lo : (int32_t*)poly43hi;
         y = coef[0];
         y = MULSHIFT32(y, x) + coef[1];
         y = MULSHIFT32(y, x) + coef[2];
@@ -5602,9 +5602,9 @@ static void decodeLPCCoefs (int32_t order, int32_t res, int8_t* filtCoef, int32_
 
   const int32_t* invQuantTab;
   if (res == 3)
-    invQuantTab = invQuant3;
+    invQuantTab = (int32_t*)invQuant3;
   else if (res == 4)
-    invQuantTab = invQuant4;
+    invQuantTab = (int32_t*)invQuant4;
   else
     return;
 
@@ -6037,13 +6037,13 @@ static void r4FFT (int32_t tabidx, int32_t* x) {
   if (order & 0x1) {
     // long block: order = 9, nfft = 512
     r8FirstPass (x, nfft >> 3);                       // gain 1 int32_t bit,  lose 2 GB
-    r4Core (x, nfft >> 5, 8, (int32_t *)twidTabOdd);  // gain 6 int32_t bits, lose 2 GB
+    r4Core (x, nfft >> 5, 8, (int32_t*)twidTabOdd);  // gain 6 int32_t bits, lose 2 GB
     }
 
   else {
     // short block: order = 6, nfft = 64 */
     r4FirstPass (x, nfft >> 2);                       // gain 0 int32_t bits, lose 2 GB
-    r4Core (x, nfft >> 4, 4, (int32_t *)twidTabEven); // gain 4 int32_t bits, lose 1 GB
+    r4Core (x, nfft >> 4, 4, (int32_t*)twidTabEven); // gain 4 int32_t bits, lose 1 GB
     }
 
   }
@@ -6063,7 +6063,7 @@ static void preMultiply (int32_t tabidx, int32_t* zbuf1) {
 
   int32_t nmdct = nmdctTab[tabidx];
   int32_t* zbuf2 = zbuf1 + nmdct - 1;
-  const int32_t* csptr = cos4sin4tab + cos4sin4tabOffset[tabidx];
+  const int32_t* csptr = (int32_t*)cos4sin4tab + cos4sin4tabOffset[tabidx];
 
   for (auto i = nmdct >> 2; i != 0; i--) {
     // cps2 = (cos+sin), sin2 = sin, cms2 = (cos-sin)
@@ -6158,7 +6158,7 @@ static void postMultiply (int32_t tabidx, int32_t* fft1) {
 
   int32_t nmdct = nmdctTab[tabidx];
   int32_t* zbuf2 = zbuf1 + nmdct - 1;
-  const int32_t* csptr = cos4sin4tab + cos4sin4tabOffset[tabidx];
+  const int32_t* csptr = (int32_t*)cos4sin4tab + cos4sin4tabOffset[tabidx];
 
   // whole thing should fit in registers - verify that compiler does this
   for (auto i = nmdct >> 2; i != 0; i--) {
@@ -6879,13 +6879,13 @@ static void calcMaxGain (sInfoSbr* psi, sSbrHeader* sbrHdr, sSbrGrid* sbrGrid, s
   psi->gainMaxFBits = 30; // Q30 tables
   if (sumECurr == 0)
     // any non-zero numerator * 1/EPS_0 is > G_MAX */
-    gainMax = (sumEOrigMapped == 0 ? (int)limGainTab[sbrHdr->limiterGains] : (int)0x80000000);
+    gainMax = (sumEOrigMapped == 0 ? (int32_t)limGainTab[sbrHdr->limiterGains] : (int)0x80000000);
   else if (sumEOrigMapped == 0)
     // 1/(any non-zero denominator) * EPS_0 * limGainTab[x] is appx. 0
     gainMax = 0;
   else {
     // sumEOrigMapped = Q(fbitsDQ - ACC_SCALE), sumECurr = Q(-eCurrExpMax)
-    gainMax = limGainTab[sbrHdr->limiterGains];
+    gainMax = (int32_t)limGainTab[sbrHdr->limiterGains];
     if (sbrHdr->limiterGains != 3) {
       int32_t q = MULSHIFT32 (sumEOrigMapped, gainMax);  // Q(fbitsDQ - ACC_SCALE - 2), gainMax = Q30  */
       int32_t z = countLeadingZeros (sumECurr) - 1;
@@ -7315,10 +7315,10 @@ static void mapHF (sInfoSbr* psi, sSbrHeader* sbrHdr,
       else {
         // add scaled signal and scaled noise */
         int32_t qFilt = psi->qFiltLast[m];
-        int32_t n = noiseTab[noiseTabIndex++];
+        int32_t n = (int32_t)noiseTab[noiseTabIndex++];
         smre = MULSHIFT32 (n, qFilt) >> (FBITS_QLIM_BOOST - 1 - FBITS_OUT_QMFA);
 
-        n = noiseTab[noiseTabIndex++];
+        n = (int32_t)noiseTab[noiseTabIndex++];
         smim = MULSHIFT32 (n, qFilt) >> (FBITS_QLIM_BOOST - 1 - FBITS_OUT_QMFA);
         }
       noiseTabIndex &= 1023;  /* 512 complex numbers */
@@ -7951,7 +7951,7 @@ static void preMultiply64 (int32_t* zbuf1) {
  **************************************************************************************/
 
   int32_t* zbuf2 = zbuf1 + 64 - 1;
-  const int32_t* csptr = cos4sin4tab64;
+  const int32_t* csptr = (int32_t*)cos4sin4tab64;
 
   // whole thing should fit in registers - verify that compiler does this */
   for (auto i = 64 >> 2; i != 0; i--) {
@@ -8218,7 +8218,7 @@ static void r4Core32 (int32_t *r0) {
  *              current instruction count (per pass): 16 LDR, 16 STR, 4 SMULL, 61 ALU
  **************************************************************************************/
 
-  int32_t* r1 = (int*)twidTabOdd32;
+  int32_t* r1 = (int32_t*)twidTabOdd32;
   int32_t r10 = 8;
   do {
     // can use r14 for lo32 scratch register in all MULSHIFT32
@@ -8412,7 +8412,7 @@ static int32_t qmfAnalysis (int32_t* inbuf, int32_t* delay, int32_t* XBuf,
       }
     }
 
-  qmfAnalysisConv ((int*)cTabA, delay, *delayIdx, uBuf);
+  qmfAnalysisConv ((int32_t*)cTabA, delay, *delayIdx, uBuf);
 
   // uBuf has at least 2 GB right now (1 from clipping to Q(FBITS_IN_QMFA), one from
   //   the scaling by cTab (MULSHIFT32(*delayPtr--, *cPtr++), with net gain of < 1.0)
@@ -8598,7 +8598,7 @@ static void qmfSynthesis (int32_t* inbuf, int32_t* delay, int32_t* delayIdx, int
     delay[dOff1++] = (b1 + a1);
     }
 
-  qmfSynthesisConv ((int*)cTabS, delay, dIdx, outBuffer, numChans);
+  qmfSynthesisConv ((int32_t*)cTabS, delay, dIdx, outBuffer, numChans);
 
   *delayIdx = (*delayIdx == NUM_QMF_DELAY_BUFS - 1 ? 0 : *delayIdx + 1);
   }
