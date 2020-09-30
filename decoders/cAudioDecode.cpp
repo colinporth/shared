@@ -1,6 +1,8 @@
 // cAudioDecode.cpp
 #pragma once
 //{{{  includes
+#include <cstring>
+
 #include "cAudioDecode.h"
 
 #include "cAacDecoder.h"

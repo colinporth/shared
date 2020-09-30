@@ -1,5 +1,6 @@
 // cMp3Decoder.cpp - based on https://github.com/lieff/minimp3
 //{{{  includes
+#include <cstring>
 #include <algorithm>
 
 #include "cMp3decoder.h"
@@ -1167,7 +1168,10 @@ void changeSignL3 (float* granuleBuffer) {
 //}}}
 //}}}
 
-#define USE_INTRINSICS
+#ifdef _WIN32
+  #define USE_INTRINSICS
+#endif
+
 #ifdef USE_INTRINSICS
   //{{{  intrinsics defines
   #include <intrin.h>
@@ -1448,24 +1452,24 @@ void changeSignL3 (float* granuleBuffer) {
     zlin [4*15 + 2] = xLeft[0];
     zlin [4*15 + 3] = xRight[0];
 
-    zlin [4*31] = xl[1 + 18 * 16];
+    zlin [4*31] = xLeft[1 + 18 * 16];
     zlin [4*31 + 1] = xRight[1 + 18 * 16];
     zlin [4*31 + 2] = xLeft[1];
     zlin [4*31 + 3] = xRight[1];
 
-    synthPair (dstr, numChannels, lins + 4*15 + 1);
-    synthPair (dstr + 32*numChannels, numChannels, lins + 4*15 + 64 + 1);
-    synthPair (dstl, numChannels, lins + 4*15);
-    synthPair (dstl + 32* numChannels, numChannels, lins + 4*15 + 64);
+    synthPair (dstRight, numChannels, lins + 4*15 + 1);
+    synthPair (dstRight + 32*numChannels, numChannels, lins + 4*15 + 64 + 1);
+    synthPair (dstLeft, numChannels, lins + 4*15);
+    synthPair (dstLeft + 32* numChannels, numChannels, lins + 4*15 + 64);
 
     for (int32_t i = 14; i >= 0; i--) {
-      zlin[4*i] = xl[18 * (31 - i)];
+      zlin[4*i] = xLeft[18 * (31 - i)];
       zlin[4*i + 1] = xRight[18 * (31 - i)];
-      zlin[4*i + 2] = xl[1 + 18 * (31 - i)];
+      zlin[4*i + 2] = xLeft[1 + 18 * (31 - i)];
       zlin[4*i + 3] = xRight[1 + 18 * (31 - i)];
-      zlin[4*(i+16)]   = xl[1 + 18 * (1 + i)];
+      zlin[4*(i+16)]   = xLeft[1 + 18 * (1 + i)];
       zlin[4*(i+16) + 1] = xRight[1 + 18 * (1 + i)];
-      zlin[4*(i-16) + 2] = xl[18 * (1 + i)];
+      zlin[4*(i-16) + 2] = xLeft[18 * (1 + i)];
       zlin[4*(i-16) + 3] = xRight[18 * (1 + i)];
 
       float a[4], b[4];
@@ -1595,7 +1599,7 @@ void changeSignL3 (float* granuleBuffer) {
   //{{{
   void synth (float* qmfState, float* granuleBuf, int32_t numBands, int32_t numChannels, float* pcm, float* lins) {
 
-    for (int32_t channel = 0; channel < numChannels; chan++)
+    for (int32_t channel = 0; channel < numChannels; channel++)
       dctII (granuleBuf + 576 * channel, numBands);
 
     memcpy (lins, qmfState, 15 * 64 * sizeof(float));
@@ -1631,7 +1635,6 @@ float* cMp3Decoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int3
   mSampleRate = headerSampleRate (mHeader);
   mNumSamples = headerNumSamples (mHeader);
 
-  bool jumped = false;
   float* outBuffer = nullptr;
   if (layer == 3) {
     //{{{  layer 3 decode
