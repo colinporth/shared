@@ -3,7 +3,7 @@
 #include <cstring>
 #include <algorithm>
 
-#include "cMp3decoder.h"
+#include "cMp3Decoder.h"
 
 #include "../utils/cLog.h"
 //}}}
