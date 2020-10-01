@@ -1,5 +1,4 @@
 // cAudioDecode.cpp
-#pragma once
 //{{{  includes
 #include <cstring>
 
@@ -22,6 +21,7 @@ cAudioDecode::cAudioDecode (eFrameType frameType) {
     case eAac:
       mAudioDecoder = new cAacDecoder();
       break;
+    default:;
     }
   }
 //}}}
@@ -184,20 +184,20 @@ bool cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast) {
 
         const int sampleRates[4] = { 44100, 48000, 32000, 0};
 
-        uint8_t version = (framePtr[1] & 0x08) >> 3;
+        //uint8_t version = (framePtr[1] & 0x08) >> 3;
         uint8_t layer = (framePtr[1] & 0x06) >> 1;
-        uint8_t errp = framePtr[1] & 0x01;
+        //uint8_t errp = framePtr[1] & 0x01;
 
         uint8_t bitrateIndex = (framePtr[2] & 0xf0) >> 4;
         uint8_t sampleRateIndex = (framePtr[2] & 0x0c) >> 2;
         uint8_t pad = (framePtr[2] & 0x02) >> 1;
-        uint8_t priv = (framePtr[2] & 0x01);
+        //uint8_t priv = (framePtr[2] & 0x01);
 
-        uint8_t mode = (framePtr[3] & 0xc0) >> 6;
-        uint8_t modex = (framePtr[3] & 0x30) >> 4;
-        uint8_t copyright = (framePtr[3] & 0x08) >> 3;
-        uint8_t original = (framePtr[3] & 0x04) >> 2;
-        uint8_t emphasis = (framePtr[3] & 0x03);
+        //uint8_t mode = (framePtr[3] & 0xc0) >> 6;
+        //uint8_t modex = (framePtr[3] & 0x30) >> 4;
+        //uint8_t copyright = (framePtr[3] & 0x08) >> 3;
+        //uint8_t original = (framePtr[3] & 0x04) >> 2;
+        //uint8_t emphasis = (framePtr[3] & 0x03);
 
         uint32_t bitrate = bitRates[bitrateIndex];
         mSampleRate = sampleRates[sampleRateIndex];
@@ -221,7 +221,7 @@ bool cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast) {
       //{{{  got wav header, dumb but explicit parser
       framePtr += 4;
 
-      uint32_t riffSize = framePtr[0] + (framePtr[1] << 8) + (framePtr[2] << 16) + (framePtr[3] << 24);
+      //uint32_t riffSize = framePtr[0] + (framePtr[1] << 8) + (framePtr[2] << 16) + (framePtr[3] << 24);
       framePtr += 4;
 
       if ((framePtr[0] == 'W') && (framePtr[1] == 'A') && (framePtr[2] == 'V') && (framePtr[3] == 'E')) {
@@ -233,10 +233,10 @@ bool cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast) {
           uint32_t fmtSize = framePtr[0] + (framePtr[1] << 8) + (framePtr[2] << 16) + (framePtr[3] << 24);
           framePtr += 4;
 
-          uint16_t audioFormat = framePtr[0] + (framePtr[1] << 8);
-          int numChannels = framePtr[2] + (framePtr[3] << 8);
+          //uint16_t audioFormat = framePtr[0] + (framePtr[1] << 8);
+          //int numChannels = framePtr[2] + (framePtr[3] << 8);
           mSampleRate = framePtr[4] + (framePtr[5] << 8) + (framePtr[6] << 16) + (framePtr[7] << 24);
-          int blockAlign = framePtr[12] + (framePtr[13] << 8);
+          //int blockAlign = framePtr[12] + (framePtr[13] << 8);
           framePtr += fmtSize;
 
           while (!((framePtr[0] == 'd') && (framePtr[1] == 'a') && (framePtr[2] == 't') && (framePtr[3] == 'a'))) {
@@ -247,7 +247,7 @@ bool cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast) {
             }
           framePtr += 4;
 
-          uint32_t dataSize = framePtr[0] + (framePtr[1] << 8) + (framePtr[2] << 16) + (framePtr[3] << 24);
+          //uint32_t dataSize = framePtr[0] + (framePtr[1] << 8) + (framePtr[2] << 16) + (framePtr[3] << 24);
           framePtr += 4;
 
           mFramePtr = framePtr;

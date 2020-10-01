@@ -34,7 +34,7 @@ public:
   //}}}
   virtual ~cWidget() {}
 
-//  gets
+  // gets
   float getX() { return mX / getBoxHeight(); }
   float getY() { return mY / getBoxHeight(); }
   float getWidth() { return mWidth / getBoxHeight(); }
