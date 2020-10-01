@@ -77,6 +77,7 @@ public:
     cWidget::onUp();
 
     mSong->getSelect().end();
+
     mOverviewPressed = false;
     mRangePressed = false;
     }
@@ -102,18 +103,16 @@ public:
     // lock
     std::shared_lock<std::shared_mutex> lock (mSong->getSharedMutex());
 
-    // draw
-    auto playFrame = mSong->getPlayFrame();
-
     // wave left right frames, clip right not left
+    auto playFrame = mSong->getPlayFrame();
     auto leftWaveFrame = playFrame - (((int(mWidth)+mFrameWidth)/2) * mFrameStep) / mFrameWidth;
     auto rightWaveFrame = playFrame + (((int(mWidth)+mFrameWidth)/2) * mFrameStep) / mFrameWidth;
     rightWaveFrame = std::min (rightWaveFrame, mSong->getLastFrame());
-    bool mono = mSong->getNumChannels() == 1;
 
     drawRange (context, playFrame, leftWaveFrame, rightWaveFrame);
 
     if (mSong->getNumFrames()) {
+      bool mono = mSong->getNumChannels() == 1;
       drawWave (context, playFrame, leftWaveFrame, rightWaveFrame, mono);
       drawOverview (context, playFrame, mono);
       drawFreq (context, playFrame);
@@ -371,17 +370,17 @@ private:
   void drawFreq (cVg* context, int playFrame) {
 
     float valueScale = 100.f / 255.f;
-    float xorg = mX;
-    float xlen = 2.f;
 
     context->beginPath();
+
+    float xorg = mX;
     auto framePtr = mSong->getAudioFramePtr (playFrame);
     if (framePtr && framePtr->getFreqValues()) {
       auto freqValues = framePtr->getFreqValues();
       for (auto i = 0; (i < mSong->getNumFreqBytes()) && ((i*2) < int(mWidth)); i++) {
         auto value =  freqValues[i] * valueScale;
         if (value > 1.f)
-          context->rect (xorg, mY + mHeight - value, xlen, value);
+          context->rect (xorg, mY + mHeight - value, 2.f, value);
         xorg += 2.f;
         }
       }
@@ -394,7 +393,7 @@ private:
   void drawTime (cVg* context, const std::string& firstFrameString,
                  const std::string& playFrameString, const std::string& lastFrameString) {
 
-    // small coloured lastFrameString, right
+    // small lastFrameString, coloured, right
     context->fontSize ((float)getFontHeight());
     context->textAlign (cVg::ALIGN_RIGHT | cVg::ALIGN_TOP);
     if (mSong->getHlsLoad() == cSong::eHlsIdle)
@@ -405,14 +404,12 @@ private:
       context->fillColor (kVgGreen);
     context->text (mWidth, mHeight-getFontHeight(), lastFrameString);
 
-    // white
+    // small firstFrameString, white, left
     context->fillColor (kVgWhite);
-
-    // small firstFrameString white left
     context->textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_TOP);
     context->text (0.f, mHeight-getFontHeight(), firstFrameString);
 
-    // big playFrameString white centred
+    // big playFrameString, white, centred
     context->fontSize ((float)getBigFontHeight());
     context->textAlign (cVg::ALIGN_CENTER | cVg::ALIGN_TOP);
     context->text (mWidth/2.f, mHeight-getBigFontHeight(), playFrameString);
