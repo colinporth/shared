@@ -9,6 +9,7 @@ extern "C" {
 using namespace std;
 using namespace chrono;
 
+// cVideoDecode
 class cVideoDecode {
 public:
   //{{{
@@ -409,6 +410,8 @@ protected:
   vector <cFrame*> mFramePool;
   };
 
+
+// cFFmpegVideoDecode
 class cFFmpegVideoDecode : public cVideoDecode {
 public:
   cFFmpegVideoDecode() : cVideoDecode() { }
