@@ -18,10 +18,18 @@ public:
     cFrame (uint64_t pts) : mPts(pts), mOk(false) {}
     //{{{
     virtual ~cFrame() {
-      _aligned_free (mYbuf);
-      _aligned_free (mUbuf);
-      _aligned_free (mVbuf);
-      _aligned_free (mBgra);
+
+      #ifdef __linux__
+        free (mYbuf);
+        free (mUbuf);
+        free (mVbuf);
+        free (mBgra);
+      #else
+        _aligned_free (mYbuf);
+        _aligned_free (mUbuf);
+        _aligned_free (mVbuf);
+        _aligned_free (mBgra);
+      #endif
       }
     //}}}
 
@@ -48,14 +56,22 @@ public:
       mWidth = width;
       mHeight = height;
 
+      #ifdef __linux__
+        mYbuf = (uint8_t*)aligned_alloc (height * mYStride * 3 / 2, 128);
+        mUbuf = (uint8_t*)aligned_alloc ((mHeight/2) * mUVStride, 128);
+        mVbuf = (uint8_t*)aligned_alloc ((mHeight/2) * mUVStride, 128);
+        mBgra = (uint32_t*)aligned_alloc (mWidth * 4 * mHeight, 128);
+      #else
+        mYbuf = (uint8_t*)_aligned_realloc (mYbuf, height * mYStride * 3 / 2, 128);
+        mUbuf = (uint8_t*)_aligned_realloc (mUbuf, (mHeight/2) * mUVStride, 128);
+        mVbuf = (uint8_t*)_aligned_realloc (mVbuf, (mHeight/2) * mUVStride, 128);
+        mBgra = (uint32_t*)_aligned_realloc (mBgra, mWidth * 4 * mHeight, 128);
+      #endif
+
       // copy all of nv12 to yBuf
-      mYbuf = (uint8_t*)_aligned_realloc (mYbuf, height * mYStride * 3 / 2, 128);
       memcpy (mYbuf, buffer, height * mYStride * 3 / 2);
 
       // unpack nv12 to planar uv
-      mUbuf = (uint8_t*)_aligned_realloc (mUbuf, (mHeight/2) * mUVStride, 128);
-      mVbuf = (uint8_t*)_aligned_realloc (mVbuf, (mHeight/2) * mUVStride, 128);
-
       uint8_t* uv = mYbuf + (mHeight * mYStride);
       uint8_t* u = mUbuf;
       uint8_t* v = mVbuf;
@@ -65,7 +81,6 @@ public:
         }
 
       int argbStride = mWidth;
-      mBgra = (uint32_t*)_aligned_realloc (mBgra, mWidth * 4 * mHeight, 128);
 
       __m128i ysub  = _mm_set1_epi32 (0x00100010);
       __m128i uvsub = _mm_set1_epi32 (0x00800080);
@@ -185,15 +200,23 @@ public:
       mWidth = width;
       mHeight = height;
 
-      mYbuf = (uint8_t*)_aligned_realloc (mYbuf, height * mYStride, 128);
+      #ifdef __linux__
+        mYbuf = (uint8_t*)aligned_alloc (height * mYStride, 128);
+        mUbuf = (uint8_t*)aligned_alloc ((mHeight/2) * mUVStride, 128);
+        mVbuf = (uint8_t*)aligned_alloc ((mHeight/2) * mUVStride, 128);
+        mBgra = (uint32_t*)aligned_alloc (mWidth * 4 * mHeight, 128);
+      #else
+        mYbuf = (uint8_t*)_aligned_realloc (mYbuf, height * mYStride, 128);
+        mUbuf = (uint8_t*)_aligned_realloc (mUbuf, (mHeight/2) * mUVStride, 128);
+        mVbuf = (uint8_t*)_aligned_realloc (mVbuf, (mHeight/2) * mUVStride, 128);
+        mBgra = (uint32_t*)_aligned_realloc (mBgra, mWidth * 4 * mHeight, 128);
+      #endif
+
       memcpy (mYbuf, ybuffer, height * mYStride);
-      mUbuf = (uint8_t*)_aligned_realloc (mUbuf, (mHeight/2) * mUVStride, 128);
       memcpy (mUbuf, ubuffer, (mHeight/2) * mUVStride);
-      mVbuf = (uint8_t*)_aligned_realloc (mVbuf, (mHeight/2) * mUVStride, 128);
       memcpy (mVbuf, vbuffer, (mHeight/2) * mUVStride);
 
       int argbStride = mWidth;
-      mBgra = (uint32_t*)_aligned_realloc (mBgra, mWidth * 4 * mHeight, 128);
 
       __m128i ysub  = _mm_set1_epi32 (0x00100010);
       __m128i uvsub = _mm_set1_epi32 (0x00800080);
@@ -300,6 +323,7 @@ public:
           //}}}
           }
         }
+
       mOk = true;
       }
     //}}}
