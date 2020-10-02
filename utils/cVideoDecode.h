@@ -469,7 +469,7 @@ protected:
   vector <cFrame*> mFramePool;
   };
 
-#ifdef _WIN32
+#ifdef _WIN32 // ??? might just be WSL ubuntu missing header ???
   //{{{
   class cMfxVideoDecode : public cVideoDecode {
   public:
