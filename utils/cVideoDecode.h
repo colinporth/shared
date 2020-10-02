@@ -34,10 +34,16 @@ public:
       }
     //}}}
 
+    //{{{
+    void clear() {
+      mOk = false;
+      mPts = 0;
+      }
+    //}}}
+
     // gets
     bool ok() { return mOk; }
     uint64_t getPts() { return mPts; }
-
     uint32_t* get32() { return m32; }
 
     // sets
@@ -48,7 +54,6 @@ public:
       mPts = pts;
       }
     //}}}
-
     #ifdef _WIN32
       //{{{
       void setNv12mfx (int width, int height, uint8_t* buffer, int stride) {
@@ -363,13 +368,6 @@ public:
       }
     //}}}
 
-    //{{{
-    void clear() {
-      mOk = false;
-      mPts = 0;
-      }
-    //}}}
-
   private:
     bool mOk = false;
     uint64_t mPts = 0;
@@ -428,11 +426,13 @@ protected:
   static constexpr int kMaxVideoFramePoolSize = 200;
   //{{{
   cFrame* getFreeFrame (uint64_t pts) {
-  // return first frame older than mPlayPts, otherwise add new frame
+  // return first frame older than mPlayPts - 2 frames just in case, otherwise add new frame
+
+    uint64_t framePts = 90000 / 25;
 
     while (true) {
       for (auto frame : mFramePool) {
-        if (frame->ok() && (frame->getPts() < mPlayPts)) {
+        if (frame->ok() && (frame->getPts() < mPlayPts - (2 * framePts))) {
           // reuse frame
           frame->set (pts);
           return frame;
@@ -446,7 +446,7 @@ protected:
         return mFramePool.back();
         }
       else
-        std::this_thread::sleep_for (40ms);
+        std::this_thread::sleep_for (20ms);
       }
 
     // cannot reach here
@@ -461,7 +461,7 @@ protected:
   vector <cFrame*> mFramePool;
   };
 
-#ifdef _WIN32 // ??? might just be WSL ubuntu missing header ???
+#ifdef _WIN32
   //{{{
   class cMfxVideoDecode : public cVideoDecode {
   public:

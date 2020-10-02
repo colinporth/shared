@@ -100,9 +100,12 @@ cRootContainer* cGlWindow::initialise (string title, int width, int height, unsi
 
   glfwSetKeyCallback (mWindow, glfwKey);
   glfwSetCharModsCallback (mWindow, glfwCharMods);
+
   glfwSetCursorPosCallback (mWindow, glfwCursorPos);
   glfwSetMouseButtonCallback (mWindow, glfwMouseButton);
   glfwSetScrollCallback (mWindow, glfMouseScroll);
+
+  glfwSetWindowPosCallback (mWindow, glfWindowPos);
   glfwSetWindowSizeCallback (mWindow, glfWindowSize);
 
   glfwSwapInterval (1);
@@ -445,6 +448,11 @@ void cGlWindow::glfwCursorPos (GLFWwindow* window, double xpos, double ypos) {
 //{{{
 void cGlWindow::glfMouseScroll (GLFWwindow* window, double xoffset, double yoffset) {
   mRootContainer->onWheel (float (yoffset));
+  }
+//}}}
+//{{{
+void cGlWindow::glfWindowPos (GLFWwindow* window, int xsize, int ysize) {
+  mGlWindow->draw();
   }
 //}}}
 //{{{

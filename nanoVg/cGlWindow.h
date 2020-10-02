@@ -109,6 +109,7 @@ private:
   static void glfwCursorPos (GLFWwindow* window, double xpos, double ypos);
   static void glfwMouseButton (GLFWwindow* window, int button, int action, int mods);
   static void glfMouseScroll (GLFWwindow* window, double xoffset, double yoffset);
+  static void glfWindowPos (GLFWwindow* window, int xsize, int ysize);
   static void glfWindowSize (GLFWwindow* window, int xsize, int ysize);
   static void errorCallback (int error, const char* desc);
   //}}}
