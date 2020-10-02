@@ -21,7 +21,7 @@ public:
   class cFrame {
   // assumes all frames same size as first create
   public:
-    cFrame (uint64_t pts) : mPts(pts), mOk(false) {}
+    cFrame (uint64_t pts) : mOk(false), mPts(pts) {}
     //{{{
     virtual ~cFrame() {
 
@@ -52,162 +52,163 @@ public:
       }
     //}}}
 
-    //{{{
-    void setNv12mfx (int width, int height, uint8_t* buffer, int stride) {
+    #ifdef _WIN32
+      //{{{
+      void setNv12mfx (int width, int height, uint8_t* buffer, int stride) {
 
-      mWidth = width;
-      mHeight = height;
+        mWidth = width;
+        mHeight = height;
 
-      int uvStride = stride/2;
-      int argbStride = width;
+        int uvStride = stride/2;
+        int argbStride = width;
 
-      //{{{  allocate buffers
-      #ifdef __linux__
-        uint8_t* uBuffer = (uint8_t*)aligned_alloc (uvStride * (height/2), 128);
-        uint8_t* vBuffer = (uint8_t*)aligned_alloc (uvStride * (height/2), 128);
-        if (!m32)
-          m32 = (uint32_t*)aligned_alloc (width * height * 4, 128);
-      #else
-        uint8_t* uBuffer = (uint8_t*)_aligned_malloc (uvStride * (height/2), 128);
-        uint8_t* vBuffer = (uint8_t*)_aligned_malloc (uvStride * (height/2), 128);
-        if (!m32)
-          m32 = (uint32_t*)_aligned_malloc (width * height * 4, 128);
-      #endif
-      //}}}
-      //{{{  unpack nv12 interleaved uv to planar uv
-      uint8_t* uv = buffer + (height * stride);
-      uint8_t* u = uBuffer;
-      uint8_t* v = vBuffer;
-      for (int i = 0; i < uvStride * (height/2); i++) {
-        *u++ = *uv++;
-        *v++ = *uv++;
-        }
-      //}}}
-
-      __m128i ysub  = _mm_set1_epi32 (0x00100010);
-      __m128i uvsub = _mm_set1_epi32 (0x00800080);
-      __m128i facy  = _mm_set1_epi32 (0x004a004a);
-      __m128i facrv = _mm_set1_epi32 (0x00660066);
-      __m128i facgu = _mm_set1_epi32 (0x00190019);
-      __m128i facgv = _mm_set1_epi32 (0x00340034);
-      __m128i facbu = _mm_set1_epi32 (0x00810081);
-      __m128i zero  = _mm_set1_epi32 (0x00000000);
-
-      for (int y = 0; y < height; y += 2) {
-        __m128i* srcy128r0 = (__m128i*)(buffer + stride*y);
-        __m128i* srcy128r1 = (__m128i*)(buffer + stride*y + stride);
-        __m64* srcu64 = (__m64*)(uBuffer + uvStride * (y/2));
-        __m64* srcv64 = (__m64*)(vBuffer + uvStride * (y/2));
-        __m128i* dstrgb128r0 = (__m128i*)(m32 + argbStride * y);
-        __m128i* dstrgb128r1 = (__m128i*)(m32 + argbStride * y + argbStride);
-
-        for (int x = 0; x < width; x += 16) {
-          __m128i u0 = _mm_loadl_epi64 ((__m128i*)srcu64);
-          srcu64++;
-          __m128i v0 = _mm_loadl_epi64 ((__m128i*)srcv64);
-          srcv64++;
-          __m128i y0r0 = _mm_load_si128 (srcy128r0++);
-          __m128i y0r1 = _mm_load_si128 (srcy128r1++);
-          //{{{  constant y factors
-          __m128i y00r0 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (y0r0, zero), ysub), facy);
-          __m128i y01r0 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (y0r0, zero), ysub), facy);
-          __m128i y00r1 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (y0r1, zero), ysub), facy);
-          __m128i y01r1 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (y0r1, zero), ysub), facy);
-          //}}}
-          //{{{  expand u and v so they're aligned with y values
-          u0 = _mm_unpacklo_epi8 (u0, zero);
-          __m128i u00 = _mm_sub_epi16 (_mm_unpacklo_epi16 (u0, u0), uvsub);
-          __m128i u01 = _mm_sub_epi16 (_mm_unpackhi_epi16 (u0, u0), uvsub);
-
-          v0 = _mm_unpacklo_epi8( v0,  zero );
-          __m128i v00 = _mm_sub_epi16 (_mm_unpacklo_epi16 (v0, v0), uvsub);
-          __m128i v01 = _mm_sub_epi16 (_mm_unpackhi_epi16 (v0, v0), uvsub);
-          //}}}
-          //{{{  common factors on both rows.
-          __m128i rv00 = _mm_mullo_epi16 (facrv, v00);
-          __m128i rv01 = _mm_mullo_epi16 (facrv, v01);
-          __m128i gu00 = _mm_mullo_epi16 (facgu, u00);
-          __m128i gu01 = _mm_mullo_epi16 (facgu, u01);
-          __m128i gv00 = _mm_mullo_epi16 (facgv, v00);
-          __m128i gv01 = _mm_mullo_epi16 (facgv, v01);
-          __m128i bu00 = _mm_mullo_epi16 (facbu, u00);
-          __m128i bu01 = _mm_mullo_epi16 (facbu, u01);
-          //}}}
-          //{{{  row 0
-          __m128i r00 = _mm_srai_epi16 (_mm_add_epi16 (y00r0, rv00), 6);
-          __m128i r01 = _mm_srai_epi16 (_mm_add_epi16 (y01r0, rv01), 6);
-          __m128i g00 = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (y00r0, gu00), gv00), 6);
-          __m128i g01 = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (y01r0, gu01), gv01), 6);
-          __m128i b00 = _mm_srai_epi16 (_mm_add_epi16 (y00r0, bu00), 6);
-          __m128i b01 = _mm_srai_epi16 (_mm_add_epi16 (y01r0, bu01), 6);
-
-          r00 = _mm_packus_epi16 (r00, r01);                // rrrr.. saturated
-          g00 = _mm_packus_epi16 (g00, g01);                // gggg.. saturated
-          b00 = _mm_packus_epi16 (b00, b01);                // bbbb.. saturated
-
-          r01 = _mm_unpacklo_epi8 (r00, zero);              // 0r0r..
-          __m128i gbgb    = _mm_unpacklo_epi8 (b00, g00);   // gbgb..
-          __m128i rgb0123 = _mm_unpacklo_epi16 (gbgb, r01); // 0rgb0rgb..
-          __m128i rgb4567 = _mm_unpackhi_epi16 (gbgb, r01); // 0rgb0rgb..
-
-          r01 = _mm_unpackhi_epi8 (r00, zero);
-          gbgb = _mm_unpackhi_epi8 (b00, g00);
-          __m128i rgb89ab = _mm_unpacklo_epi16 (gbgb, r01);
-          __m128i rgbcdef = _mm_unpackhi_epi16 (gbgb, r01);
-
-          _mm_stream_si128 (dstrgb128r0++, rgb0123);
-          _mm_stream_si128 (dstrgb128r0++, rgb4567);
-          _mm_stream_si128 (dstrgb128r0++, rgb89ab);
-          _mm_stream_si128 (dstrgb128r0++, rgbcdef);
-          //}}}
-          //{{{  row 1
-          r00 = _mm_srai_epi16 (_mm_add_epi16 (y00r1, rv00), 6);
-          r01 = _mm_srai_epi16 (_mm_add_epi16 (y01r1, rv01), 6);
-          g00 = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (y00r1, gu00), gv00), 6);
-          g01 = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (y01r1, gu01), gv01), 6);
-          b00 = _mm_srai_epi16 (_mm_add_epi16 (y00r1, bu00), 6);
-          b01 = _mm_srai_epi16 (_mm_add_epi16 (y01r1, bu01), 6);
-
-          r00 = _mm_packus_epi16 (r00, r01);        // rrrr.. saturated
-          g00 = _mm_packus_epi16 (g00, g01);        // gggg.. saturated
-          b00 = _mm_packus_epi16 (b00, b01);        // bbbb.. saturated
-
-          r01     = _mm_unpacklo_epi8 (r00, zero);  // 0r0r..
-          gbgb    = _mm_unpacklo_epi8 (b00, g00);   // gbgb..
-          rgb0123 = _mm_unpacklo_epi16 (gbgb, r01); // 0rgb0rgb..
-          rgb4567 = _mm_unpackhi_epi16 (gbgb, r01); // 0rgb0rgb..
-
-          r01     = _mm_unpackhi_epi8 (r00, zero);
-          gbgb    = _mm_unpackhi_epi8 (b00, g00);
-          rgb89ab = _mm_unpacklo_epi16 (gbgb, r01);
-          rgbcdef = _mm_unpackhi_epi16 (gbgb, r01);
-
-          _mm_stream_si128 (dstrgb128r1++, rgb0123);
-          _mm_stream_si128 (dstrgb128r1++, rgb4567);
-          _mm_stream_si128 (dstrgb128r1++, rgb89ab);
-          _mm_stream_si128 (dstrgb128r1++, rgbcdef);
-          //}}}
+        //{{{  allocate buffers
+        #ifdef __linux__
+          uint8_t* uBuffer = (uint8_t*)aligned_alloc (uvStride * (height/2), 128);
+          uint8_t* vBuffer = (uint8_t*)aligned_alloc (uvStride * (height/2), 128);
+          if (!m32)
+            m32 = (uint32_t*)aligned_alloc (width * height * 4, 128);
+        #else
+          uint8_t* uBuffer = (uint8_t*)_aligned_malloc (uvStride * (height/2), 128);
+          uint8_t* vBuffer = (uint8_t*)_aligned_malloc (uvStride * (height/2), 128);
+          if (!m32)
+            m32 = (uint32_t*)_aligned_malloc (width * height * 4, 128);
+        #endif
+        //}}}
+        //{{{  unpack nv12 interleaved uv to planar uv
+        uint8_t* uv = buffer + (height * stride);
+        uint8_t* u = uBuffer;
+        uint8_t* v = vBuffer;
+        for (int i = 0; i < uvStride * (height/2); i++) {
+          *u++ = *uv++;
+          *v++ = *uv++;
           }
+        //}}}
+
+        __m128i ysub  = _mm_set1_epi32 (0x00100010);
+        __m128i uvsub = _mm_set1_epi32 (0x00800080);
+        __m128i facy  = _mm_set1_epi32 (0x004a004a);
+        __m128i facrv = _mm_set1_epi32 (0x00660066);
+        __m128i facgu = _mm_set1_epi32 (0x00190019);
+        __m128i facgv = _mm_set1_epi32 (0x00340034);
+        __m128i facbu = _mm_set1_epi32 (0x00810081);
+        __m128i zero  = _mm_set1_epi32 (0x00000000);
+
+        for (int y = 0; y < height; y += 2) {
+          __m128i* srcy128r0 = (__m128i*)(buffer + stride*y);
+          __m128i* srcy128r1 = (__m128i*)(buffer + stride*y + stride);
+          __m64* srcu64 = (__m64*)(uBuffer + uvStride * (y/2));
+          __m64* srcv64 = (__m64*)(vBuffer + uvStride * (y/2));
+          __m128i* dstrgb128r0 = (__m128i*)(m32 + argbStride * y);
+          __m128i* dstrgb128r1 = (__m128i*)(m32 + argbStride * y + argbStride);
+
+          for (int x = 0; x < width; x += 16) {
+            __m128i u0 = _mm_loadl_epi64 ((__m128i*)srcu64);
+            srcu64++;
+            __m128i v0 = _mm_loadl_epi64 ((__m128i*)srcv64);
+            srcv64++;
+            __m128i y0r0 = _mm_load_si128 (srcy128r0++);
+            __m128i y0r1 = _mm_load_si128 (srcy128r1++);
+            //{{{  constant y factors
+            __m128i y00r0 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (y0r0, zero), ysub), facy);
+            __m128i y01r0 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (y0r0, zero), ysub), facy);
+            __m128i y00r1 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (y0r1, zero), ysub), facy);
+            __m128i y01r1 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (y0r1, zero), ysub), facy);
+            //}}}
+            //{{{  expand u and v so they're aligned with y values
+            u0 = _mm_unpacklo_epi8 (u0, zero);
+            __m128i u00 = _mm_sub_epi16 (_mm_unpacklo_epi16 (u0, u0), uvsub);
+            __m128i u01 = _mm_sub_epi16 (_mm_unpackhi_epi16 (u0, u0), uvsub);
+
+            v0 = _mm_unpacklo_epi8( v0,  zero );
+            __m128i v00 = _mm_sub_epi16 (_mm_unpacklo_epi16 (v0, v0), uvsub);
+            __m128i v01 = _mm_sub_epi16 (_mm_unpackhi_epi16 (v0, v0), uvsub);
+            //}}}
+            //{{{  common factors on both rows.
+            __m128i rv00 = _mm_mullo_epi16 (facrv, v00);
+            __m128i rv01 = _mm_mullo_epi16 (facrv, v01);
+            __m128i gu00 = _mm_mullo_epi16 (facgu, u00);
+            __m128i gu01 = _mm_mullo_epi16 (facgu, u01);
+            __m128i gv00 = _mm_mullo_epi16 (facgv, v00);
+            __m128i gv01 = _mm_mullo_epi16 (facgv, v01);
+            __m128i bu00 = _mm_mullo_epi16 (facbu, u00);
+            __m128i bu01 = _mm_mullo_epi16 (facbu, u01);
+            //}}}
+            //{{{  row 0
+            __m128i r00 = _mm_srai_epi16 (_mm_add_epi16 (y00r0, rv00), 6);
+            __m128i r01 = _mm_srai_epi16 (_mm_add_epi16 (y01r0, rv01), 6);
+            __m128i g00 = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (y00r0, gu00), gv00), 6);
+            __m128i g01 = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (y01r0, gu01), gv01), 6);
+            __m128i b00 = _mm_srai_epi16 (_mm_add_epi16 (y00r0, bu00), 6);
+            __m128i b01 = _mm_srai_epi16 (_mm_add_epi16 (y01r0, bu01), 6);
+
+            r00 = _mm_packus_epi16 (r00, r01);                // rrrr.. saturated
+            g00 = _mm_packus_epi16 (g00, g01);                // gggg.. saturated
+            b00 = _mm_packus_epi16 (b00, b01);                // bbbb.. saturated
+
+            r01 = _mm_unpacklo_epi8 (r00, zero);              // 0r0r..
+            __m128i gbgb    = _mm_unpacklo_epi8 (b00, g00);   // gbgb..
+            __m128i rgb0123 = _mm_unpacklo_epi16 (gbgb, r01); // 0rgb0rgb..
+            __m128i rgb4567 = _mm_unpackhi_epi16 (gbgb, r01); // 0rgb0rgb..
+
+            r01 = _mm_unpackhi_epi8 (r00, zero);
+            gbgb = _mm_unpackhi_epi8 (b00, g00);
+            __m128i rgb89ab = _mm_unpacklo_epi16 (gbgb, r01);
+            __m128i rgbcdef = _mm_unpackhi_epi16 (gbgb, r01);
+
+            _mm_stream_si128 (dstrgb128r0++, rgb0123);
+            _mm_stream_si128 (dstrgb128r0++, rgb4567);
+            _mm_stream_si128 (dstrgb128r0++, rgb89ab);
+            _mm_stream_si128 (dstrgb128r0++, rgbcdef);
+            //}}}
+            //{{{  row 1
+            r00 = _mm_srai_epi16 (_mm_add_epi16 (y00r1, rv00), 6);
+            r01 = _mm_srai_epi16 (_mm_add_epi16 (y01r1, rv01), 6);
+            g00 = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (y00r1, gu00), gv00), 6);
+            g01 = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (y01r1, gu01), gv01), 6);
+            b00 = _mm_srai_epi16 (_mm_add_epi16 (y00r1, bu00), 6);
+            b01 = _mm_srai_epi16 (_mm_add_epi16 (y01r1, bu01), 6);
+
+            r00 = _mm_packus_epi16 (r00, r01);        // rrrr.. saturated
+            g00 = _mm_packus_epi16 (g00, g01);        // gggg.. saturated
+            b00 = _mm_packus_epi16 (b00, b01);        // bbbb.. saturated
+
+            r01     = _mm_unpacklo_epi8 (r00, zero);  // 0r0r..
+            gbgb    = _mm_unpacklo_epi8 (b00, g00);   // gbgb..
+            rgb0123 = _mm_unpacklo_epi16 (gbgb, r01); // 0rgb0rgb..
+            rgb4567 = _mm_unpackhi_epi16 (gbgb, r01); // 0rgb0rgb..
+
+            r01     = _mm_unpackhi_epi8 (r00, zero);
+            gbgb    = _mm_unpackhi_epi8 (b00, g00);
+            rgb89ab = _mm_unpacklo_epi16 (gbgb, r01);
+            rgbcdef = _mm_unpackhi_epi16 (gbgb, r01);
+
+            _mm_stream_si128 (dstrgb128r1++, rgb0123);
+            _mm_stream_si128 (dstrgb128r1++, rgb4567);
+            _mm_stream_si128 (dstrgb128r1++, rgb89ab);
+            _mm_stream_si128 (dstrgb128r1++, rgbcdef);
+            //}}}
+            }
+          }
+
+        //!!! force alpha fixup !!!
+        //for (auto ptr = m32; ptr < m32 + (height*width); ptr++)
+        //  *ptr |= 0xFF000000;
+
+        //{{{  free temp planar buffers
+        #ifdef __linux__
+          free (uBuffer);
+          free (vBuffer);
+        #else
+          _aligned_free (uBuffer);
+          _aligned_free (vBuffer);
+        #endif
+        //}}}
+
+        mOk = true;
         }
-
-      //!!! force alpha fixup !!!
-      //auto ptr = m32;
-      //for (auto ptr = m32; ptr < m32 + (height*width); ptr++)
-      //  *ptr |= 0xFF000000;
-
-      //{{{  free temp planar buffers
-      #ifdef __linux__
-        free (uBuffer);
-        free (vBuffer);
-      #else
-        _aligned_free (uBuffer);
-        _aligned_free (vBuffer);
-      #endif
       //}}}
-
-      mOk = true;
-      }
-    //}}}
+    #endif
     //{{{
     void setNv12ffmpeg (int width, int height, uint8_t** data, int* linesize) {
 
@@ -336,7 +337,6 @@ public:
         }
 
       //!!! force alpha fixup !!!
-      auto ptr = m32;
       for (auto ptr = m32; ptr < m32 + (height*width); ptr++)
         *ptr |= 0xFF000000;
 
@@ -469,120 +469,123 @@ protected:
   vector <cFrame*> mFramePool;
   };
 
-//{{{
-class cMfxVideoDecode : public cVideoDecode {
-public:
+#ifdef _WIN32
   //{{{
-  cMfxVideoDecode() : cVideoDecode() {
+  class cMfxVideoDecode : public cVideoDecode {
+  public:
+    //{{{
+    cMfxVideoDecode() : cVideoDecode() {
 
-    mfxVersion kMfxVersion = { 0,1 };
-    mSession.Init (MFX_IMPL_AUTO, &kMfxVersion);
-    }
-  //}}}
-  //{{{
-  virtual ~cMfxVideoDecode() {
-
-    MFXVideoDECODE_Close (mSession);
-
-    for (auto surface : mSurfacePool)
-      delete surface;
-    }
-  //}}}
-
-  int getSurfacePoolSize() { return (int)mSurfacePool.size(); }
-  //{{{
-  void decode (bool firstPts, uint64_t pts, uint8_t* pesBuffer, unsigned int pesBufferLen) {
-
-    mBitstream.Data = pesBuffer;
-    mBitstream.DataOffset = 0;
-    mBitstream.DataLength = pesBufferLen;
-    mBitstream.MaxLength = pesBufferLen;
-    mBitstream.TimeStamp = pts;
-
-    if (!mWidth) {
-      // firstTime, decode header, init decoder
-      memset (&mVideoParams, 0, sizeof(mVideoParams));
-      mVideoParams.mfx.CodecId = MFX_CODEC_AVC;
-      mVideoParams.IOPattern = MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
-      if (MFXVideoDECODE_DecodeHeader (mSession, &mBitstream, &mVideoParams) != MFX_ERR_NONE) {
-        cLog::log (LOGERROR, "MFXVideoDECODE_DecodeHeader failed");
-        return;
-        }
-
-      //  query surface for mWidth,mHeight
-      mfxFrameAllocRequest frameAllocRequest;
-      memset (&frameAllocRequest, 0, sizeof(frameAllocRequest));
-      if (MFXVideoDECODE_QueryIOSurf (mSession, &mVideoParams, &frameAllocRequest) != MFX_ERR_NONE) {
-        cLog::log (LOGERROR, "MFXVideoDECODE_QueryIOSurf failed");
-        return;
-        }
-      mWidth = ((mfxU32)((frameAllocRequest.Info.Width)+31)) & (~(mfxU32)31);
-      mHeight = frameAllocRequest.Info.Height;
-      // unsure why this was done ??? trace it back for height as well as width ???
-      //mHeight = ((mfxU32)((frameAllocRequest.Info.Height)+31)) & (~(mfxU32)31);
-
-      if (MFXVideoDECODE_Init (mSession, &mVideoParams) != MFX_ERR_NONE) {
-        cLog::log (LOGERROR, "MFXVideoDECODE_Init failed");
-        return;
-        }
+      mfxVersion kMfxVersion = { 0,1 };
+      mSession.Init (MFX_IMPL_AUTO, &kMfxVersion);
       }
+    //}}}
+    //{{{
+    virtual ~cMfxVideoDecode() {
 
-    // reset decoder on skip
-    //mfxStatus status = MFXVideoDECODE_Reset (mSession, &mVideoParams);
+      MFXVideoDECODE_Close (mSession);
 
-    // decode video pes
-    // - could be none or multiple frames
-    // - returned by decode order, not presentation order
-    mfxStatus status = MFX_ERR_NONE;
-    while ((status >= MFX_ERR_NONE) || (status == MFX_ERR_MORE_SURFACE)) {
-      mfxFrameSurface1* surface = nullptr;
-      mfxSyncPoint syncDecode = nullptr;
-      status = MFXVideoDECODE_DecodeFrameAsync (mSession, &mBitstream, getFreeSurface(), &surface, &syncDecode);
-      if (status == MFX_ERR_NONE) {
-        status = mSession.SyncOperation (syncDecode, 60000);
+      for (auto surface : mSurfacePool)
+        delete surface;
+      }
+    //}}}
+
+    int getSurfacePoolSize() { return (int)mSurfacePool.size(); }
+    //{{{
+    void decode (bool firstPts, uint64_t pts, uint8_t* pesBuffer, unsigned int pesBufferLen) {
+
+      mBitstream.Data = pesBuffer;
+      mBitstream.DataOffset = 0;
+      mBitstream.DataLength = pesBufferLen;
+      mBitstream.MaxLength = pesBufferLen;
+      mBitstream.TimeStamp = pts;
+
+      if (!mWidth) {
+        // firstTime, decode header, init decoder
+        memset (&mVideoParams, 0, sizeof(mVideoParams));
+        mVideoParams.mfx.CodecId = MFX_CODEC_AVC;
+        mVideoParams.IOPattern = MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
+        if (MFXVideoDECODE_DecodeHeader (mSession, &mBitstream, &mVideoParams) != MFX_ERR_NONE) {
+          cLog::log (LOGERROR, "MFXVideoDECODE_DecodeHeader failed");
+          return;
+          }
+
+        //  query surface for mWidth,mHeight
+        mfxFrameAllocRequest frameAllocRequest;
+        memset (&frameAllocRequest, 0, sizeof(frameAllocRequest));
+        if (MFXVideoDECODE_QueryIOSurf (mSession, &mVideoParams, &frameAllocRequest) != MFX_ERR_NONE) {
+          cLog::log (LOGERROR, "MFXVideoDECODE_QueryIOSurf failed");
+          return;
+          }
+        mWidth = ((mfxU32)((frameAllocRequest.Info.Width)+31)) & (~(mfxU32)31);
+        mHeight = frameAllocRequest.Info.Height;
+        // unsure why this was done ??? trace it back for height as well as width ???
+        //mHeight = ((mfxU32)((frameAllocRequest.Info.Height)+31)) & (~(mfxU32)31);
+
+        if (MFXVideoDECODE_Init (mSession, &mVideoParams) != MFX_ERR_NONE) {
+          cLog::log (LOGERROR, "MFXVideoDECODE_Init failed");
+          return;
+          }
+        }
+
+      // reset decoder on skip
+      //mfxStatus status = MFXVideoDECODE_Reset (mSession, &mVideoParams);
+
+      // decode video pes
+      // - could be none or multiple frames
+      // - returned by decode order, not presentation order
+      mfxStatus status = MFX_ERR_NONE;
+      while ((status >= MFX_ERR_NONE) || (status == MFX_ERR_MORE_SURFACE)) {
+        mfxFrameSurface1* surface = nullptr;
+        mfxSyncPoint syncDecode = nullptr;
+        status = MFXVideoDECODE_DecodeFrameAsync (mSession, &mBitstream, getFreeSurface(), &surface, &syncDecode);
         if (status == MFX_ERR_NONE) {
-          cLog::log (LOGINFO1, "decoded pts:%u %dx%d:%d",
-                               surface->Data.TimeStamp, surface->Info.Width, surface->Info.Height, surface->Data.Pitch);
-          auto frame = getFreeFrame (surface->Data.TimeStamp);
-          frame->setNv12mfx (surface->Info.Width, surface->Info.Height, surface->Data.Y, surface->Data.Pitch);
+          status = mSession.SyncOperation (syncDecode, 60000);
+          if (status == MFX_ERR_NONE) {
+            cLog::log (LOGINFO1, "decoded pts:%u %dx%d:%d",
+                                 surface->Data.TimeStamp, surface->Info.Width, surface->Info.Height, surface->Data.Pitch);
+            auto frame = getFreeFrame (surface->Data.TimeStamp);
+            frame->setNv12mfx (surface->Info.Width, surface->Info.Height, surface->Data.Y, surface->Data.Pitch);
+            }
           }
         }
       }
-    }
+    //}}}
+
+  private:
+    //{{{
+    mfxFrameSurface1* getFreeSurface() {
+    // return first unlocked surface, allocate new if none
+
+      // reuse any unlocked surface
+      for (auto surface : mSurfacePool)
+        if (!surface->Data.Locked)
+          return surface;
+
+      // allocate new surface
+      auto surface = new mfxFrameSurface1;
+      memset (surface, 0, sizeof (mfxFrameSurface1));
+      memcpy (&surface->Info, &mVideoParams.mfx.FrameInfo, sizeof(mfxFrameInfo));
+      surface->Data.Y = new mfxU8[mWidth * mHeight * 12 / 8];
+      surface->Data.U = surface->Data.Y + mWidth * mHeight;
+      surface->Data.V = nullptr; // NV12 ignores V pointer
+      surface->Data.Pitch = mWidth;
+      mSurfacePool.push_back (surface);
+
+      cLog::log (LOGINFO1, "allocating new mfxFrameSurface1");
+
+      return nullptr;
+      }
+    //}}}
+
+    MFXVideoSession mSession;
+    mfxVideoParam mVideoParams;
+    mfxBitstream mBitstream;
+    vector <mfxFrameSurface1*> mSurfacePool;
+    };
   //}}}
+#endif
 
-private:
-  //{{{
-  mfxFrameSurface1* getFreeSurface() {
-  // return first unlocked surface, allocate new if none
-
-    // reuse any unlocked surface
-    for (auto surface : mSurfacePool)
-      if (!surface->Data.Locked)
-        return surface;
-
-    // allocate new surface
-    auto surface = new mfxFrameSurface1;
-    memset (surface, 0, sizeof (mfxFrameSurface1));
-    memcpy (&surface->Info, &mVideoParams.mfx.FrameInfo, sizeof(mfxFrameInfo));
-    surface->Data.Y = new mfxU8[mWidth * mHeight * 12 / 8];
-    surface->Data.U = surface->Data.Y + mWidth * mHeight;
-    surface->Data.V = nullptr; // NV12 ignores V pointer
-    surface->Data.Pitch = mWidth;
-    mSurfacePool.push_back (surface);
-
-    cLog::log (LOGINFO1, "allocating new mfxFrameSurface1");
-
-    return nullptr;
-    }
-  //}}}
-
-  MFXVideoSession mSession;
-  mfxVideoParam mVideoParams;
-  mfxBitstream mBitstream;
-  vector <mfxFrameSurface1*> mSurfacePool;
-  };
-//}}}
 //{{{
 class cFFmpegVideoDecode : public cVideoDecode {
 public:
@@ -633,8 +636,7 @@ public:
           if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF || ret < 0)
             break;
 
-          auto framePts = avFrame->pts;
-          auto frame = getFreeFrame (mDecodePts);
+          cVideoDecode::cFrame* frame = getFreeFrame (mDecodePts);
           frame->setNv12ffmpegSws (avFrame->width, avFrame->height, avFrame->data, avFrame->linesize);
 
           // fake pts from avContext framerate
