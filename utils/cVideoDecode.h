@@ -1,6 +1,6 @@
 // cVideoDecode.h
 #pragma once
-
+//{{{  includes
 extern "C" {
   #include <libavcodec/avcodec.h>
   #include <libavformat/avformat.h>
@@ -9,8 +9,8 @@ extern "C" {
 
 using namespace std;
 using namespace chrono;
+//}}}
 
-// cVideoDecode
 class cVideoDecode {
 public:
   //{{{
@@ -21,19 +21,14 @@ public:
     virtual ~cFrame() {
 
       #ifdef __linux__
-        free (mYbuf);
-        free (mUbuf);
-        free (mVbuf);
         free (m32);
       #else
-        _aligned_free (mYbuf);
-        _aligned_free (mUbuf);
-        _aligned_free (mVbuf);
         _aligned_free (m32);
       #endif
       }
     //}}}
 
+    // gets
     bool ok() { return mOk; }
     uint64_t getPts() { return mPts; }
 
@@ -41,52 +36,47 @@ public:
     int getHeight() { return mHeight; }
     uint32_t* get32() { return m32; }
 
+    // sets
     //{{{
     void set (uint64_t pts) {
-      mOk = false;
-      mPts = pts;
-      }
-    //}}}
-    //{{{
-    void setNv12mfx (uint8_t* buffer, int width, int height, int stride) {
 
       mOk = false;
-      mYStride = stride;
-      mUVStride = stride/2;
+      mPts = pts;
+      mWidth = 0;
+      mHeight = 0;
+      }
+    //}}}
+
+    //{{{
+    void setNv12mfx (int width, int height, uint8_t* buffer, int stride) {
 
       mWidth = width;
       mHeight = height;
 
+      int uvStride = stride/2;
+      int argbStride = width;
+
       #ifdef __linux__
-        if (!mYbuf)
-          mYbuf = (uint8_t*)aligned_alloc (height * mYStride * 3 / 2, 128);
-        if (!mUbuf)
-          mUbuf = (uint8_t*)aligned_alloc ((mHeight/2) * mUVStride, 128);
-        if (!mVbuf)
-          mVbuf = (uint8_t*)aligned_alloc ((mHeight/2) * mUVStride, 128);
+        uint8_t* uBuffer = (uint8_t*)aligned_alloc ((height/2) * uvStride, 128);
+        uint8_t* vBuffer = (uint8_t*)aligned_alloc ((height/2) * uvStride, 128);
         if (!m32)
-          m32 = (uint32_t*)aligned_alloc (mWidth * 4 * mHeight, 128);
+          m32 = (uint32_t*)aligned_alloc (width * height * 4, 128);
       #else
-        mYbuf = (uint8_t*)_aligned_realloc (mYbuf, height * mYStride * 3 / 2, 128);
-        mUbuf = (uint8_t*)_aligned_realloc (mUbuf, (mHeight/2) * mUVStride, 128);
-        mVbuf = (uint8_t*)_aligned_realloc (mVbuf, (mHeight/2) * mUVStride, 128);
-        m32 = (uint32_t*)_aligned_realloc (m32, mWidth * 4 * mHeight, 128);
+        uint8_t* uBuffer = (uint8_t*)_aligned_malloc ((height/2) * uvStride, 128);
+        uint8_t* vBuffer = (uint8_t*)_aligned_malloc ((height/2) * uvStride, 128);
+        if (!m32)
+          m32 = (uint32_t*)_aligned_malloc (width * height * 4, 128);
       #endif
 
-      // copy all of nv12 to yBuf
-      memcpy (mYbuf, buffer, height * mYStride * 3 / 2);
-
-      // unpack nv12 to planar uv
-      uint8_t* uv = mYbuf + (mHeight * mYStride);
-      uint8_t* u = mUbuf;
-      uint8_t* v = mVbuf;
-      for (int i = 0; i < mHeight/2 * mUVStride; i++) {
+      // unpack nv12 interleaved uv to planar uv
+      uint8_t* uv = buffer + (height * stride);
+      uint8_t* u = uBuffer;
+      uint8_t* v = vBuffer;
+      for (int i = 0; i < uvStride * (height/2); i++) {
         *u++ = *uv++;
         *v++ = *uv++;
         }
 
-      int argbStride = mWidth;
-
       __m128i ysub  = _mm_set1_epi32 (0x00100010);
       __m128i uvsub = _mm_set1_epi32 (0x00800080);
       __m128i facy  = _mm_set1_epi32 (0x004a004a);
@@ -96,18 +86,18 @@ public:
       __m128i facbu = _mm_set1_epi32 (0x00810081);
       __m128i zero  = _mm_set1_epi32 (0x00000000);
 
-      for (int y = 0; y < mHeight; y += 2) {
-        __m128i* srcy128r0 = (__m128i*)(mYbuf + mYStride*y);
-        __m128i* srcy128r1 = (__m128i*)(mYbuf + mYStride*y + mYStride);
-        __m64* srcu64 = (__m64*)(mUbuf + mUVStride * (y/2));
-        __m64* srcv64 = (__m64*)(mVbuf + mUVStride * (y/2));
+      for (int y = 0; y < height; y += 2) {
+        __m128i* srcy128r0 = (__m128i*)(buffer + stride*y);
+        __m128i* srcy128r1 = (__m128i*)(buffer + stride*y + stride);
+        __m64* srcu64 = (__m64*)(uBuffer + uvStride * (y/2));
+        __m64* srcv64 = (__m64*)(vBuffer + uvStride * (y/2));
         __m128i* dstrgb128r0 = (__m128i*)(m32 + argbStride * y);
         __m128i* dstrgb128r1 = (__m128i*)(m32 + argbStride * y + argbStride);
 
-        for (int x = 0; x < mWidth; x += 16) {
-          __m128i u0 = _mm_loadl_epi64 ((__m128i *)srcu64 );
+        for (int x = 0; x < width; x += 16) {
+          __m128i u0 = _mm_loadl_epi64 ((__m128i*)srcu64);
           srcu64++;
-          __m128i v0 = _mm_loadl_epi64 ((__m128i *)srcv64 );
+          __m128i v0 = _mm_loadl_epi64 ((__m128i*)srcv64);
           srcv64++;
           __m128i y0r0 = _mm_load_si128 (srcy128r0++);
           __m128i y0r1 = _mm_load_si128 (srcy128r1++);
@@ -192,32 +182,38 @@ public:
           //}}}
           }
         }
+
+      #ifdef __linux__
+        free (uBuffer);
+        free (vBuffer);
+      #else
+        _aligned_free (uBuffer);
+        _aligned_free (vBuffer);
+      #endif
+
       mOk = true;
       }
     //}}}
     //{{{
-    void setNv12ffmpeg (uint8_t** data, int* linesize, int width, int height) {
-
-      mOk = false;
+    void setNv12ffmpeg (int width, int height, uint8_t** data, int* linesize) {
 
       mWidth = width;
       mHeight = height;
 
-      #ifdef __linux__
-        if (!m32)
-          m32 = (uint32_t*)aligned_alloc (mWidth * 4 * mHeight, 128);
-      #else
-        m32 = (uint32_t*)_aligned_realloc (m32, mWidth * 4 * mHeight, 128);
-      #endif
-
-      // copy all of nv12 to yBuf
-      uint8_t* yBuf = data[0];
-      uint8_t* uBuf = data[1];
-      uint8_t* vBuf = data[2];
+      uint8_t* yBuffer = data[0];
+      uint8_t* uBuffer = data[1];
+      uint8_t* vBuffer = data[2];
 
       int yStride = linesize[0];
       int uvStride = linesize[1];
-      int argbStride = mWidth;
+
+      if (!m32) {
+        #ifdef __linux__
+          m32 = (uint32_t*)aligned_alloc (width * height * 4, 128);
+        #else
+          m32 = (uint32_t*)_aligned_malloc (width * height * 4, 128);
+        #endif
+        }
 
       __m128i ysub  = _mm_set1_epi32 (0x00100010);
       __m128i uvsub = _mm_set1_epi32 (0x00800080);
@@ -228,18 +224,18 @@ public:
       __m128i facbu = _mm_set1_epi32 (0x00810081);
       __m128i zero  = _mm_set1_epi32 (0x00000000);
 
-      for (int y = 0; y < mHeight; y += 2) {
-        __m128i* srcy128r0 = (__m128i*)(yBuf + yStride*y);
-        __m128i* srcy128r1 = (__m128i*)(yBuf + yStride*y + yStride);
-        __m64* srcu64 = (__m64*)(uBuf + uvStride * (y/2));
-        __m64* srcv64 = (__m64*)(vBuf + uvStride * (y/2));
-        __m128i* dstrgb128r0 = (__m128i*)(m32 + argbStride * y);
-        __m128i* dstrgb128r1 = (__m128i*)(m32 + argbStride * y + argbStride);
+      for (int y = 0; y < height; y += 2) {
+        __m128i* srcy128r0 = (__m128i*)(yBuffer + yStride*y);
+        __m128i* srcy128r1 = (__m128i*)(yBuffer + yStride*y + yStride);
+        __m64* srcu64 = (__m64*)(uBuffer + uvStride * (y/2));
+        __m64* srcv64 = (__m64*)(vBuffer + uvStride * (y/2));
+        __m128i* dstrgb128r0 = (__m128i*)(m32 + width * y);
+        __m128i* dstrgb128r1 = (__m128i*)(m32 + width * y + width);
 
-        for (int x = 0; x < mWidth; x += 16) {
-          __m128i u0 = _mm_loadl_epi64 ((__m128i *)srcu64 );
+        for (int x = 0; x < width; x += 16) {
+          __m128i u0 = _mm_loadl_epi64 ((__m128i*)srcu64);
           srcu64++;
-          __m128i v0 = _mm_loadl_epi64 ((__m128i *)srcv64 );
+          __m128i v0 = _mm_loadl_epi64 ((__m128i*)srcv64);
           srcv64++;
           __m128i y0r0 = _mm_load_si128 (srcy128r0++);
           __m128i y0r1 = _mm_load_si128 (srcy128r1++);
@@ -324,31 +320,36 @@ public:
           //}}}
           }
         }
+
+      //!!! force alpha fixup !!!
+      auto ptr = m32;
+      for (auto ptr = m32; ptr < m32 + (height*width); ptr++)
+        *ptr |= 0xFF000000;
+
       mOk = true;
       }
     //}}}
     //{{{
-    void setNv12ffmpegSws (uint8_t** data, int* linesize, int width, int height) {
-
-      mOk = false;
+    void setNv12ffmpegSws (int width, int height, uint8_t** data, int* linesize) {
 
       mWidth = width;
       mHeight = height;
 
-      #ifdef __linux__
-        if (!m32)
-          m32 = (uint32_t*)aligned_alloc (width * 4 * height, 128);
-      #else
-        m32 = (uint32_t*)_aligned_realloc (m32, width * 4 * height, 128);
-      #endif
+      if (!m32) {
+        #ifdef __linux__
+          m32 = (uint32_t*)aligned_alloc (width * height * 4, 128);
+        #else
+          m32 = (uint32_t*)_aligned_malloc (width * height * 4, 128);
+        #endif
+        }
 
-      // Convert from YUV to RGB
-      uint8_t* rgbaData[1] = { (uint8_t*)m32 };
-      int rgbaStride[1] = { width * 4 };
+      // convert yuv to rgba
+      uint8_t* dstData[1] = { (uint8_t*)m32 };
+      int dstStride[1] = { width * 4 };
       SwsContext* swsContext = sws_getContext (width, height, AV_PIX_FMT_YUV420P,
                                                width, height, AV_PIX_FMT_RGBA,
                                                SWS_BILINEAR, NULL, NULL, NULL);
-      sws_scale (swsContext, data, linesize, 0, height, rgbaData, rgbaStride);
+      sws_scale (swsContext, data, linesize, 0, height, dstData, dstStride);
 
       mOk = true;
       }
@@ -367,12 +368,6 @@ public:
 
     int mWidth = 0;
     int mHeight = 0;
-    int mYStride = 0;
-    int mUVStride = 0;
-
-    uint8_t* mYbuf = nullptr;
-    uint8_t* mUbuf = nullptr;
-    uint8_t* mVbuf = nullptr;
 
     uint32_t* m32 = nullptr;
     };
@@ -390,7 +385,7 @@ public:
   int getWidth() { return mWidth; }
   int getHeight() { return mHeight; }
   int getFramePoolSize() { return (int)mFramePool.size(); }
-  virtual int getSurfacePoolSize() = 0;
+  virtual int getSurfacePoolSize() { return 0; }
 
   void setPlayPts (uint64_t playPts) { mPlayPts = playPts; }
   //{{{
@@ -422,7 +417,7 @@ public:
     }
   //}}}
 
-  virtual void decode (bool firstPts, uint64_t pts, uint8_t* pesBuffer, unsigned int pesBufferLen) = 0;
+  virtual void decode (bool validPts, uint64_t pts, uint8_t* pesBuffer, unsigned int pesBufferLen) = 0;
 
 protected:
   static constexpr int kMaxVideoFramePoolSize = 200;
@@ -465,7 +460,15 @@ protected:
 // cFFmpegVideoDecode
 class cFFmpegVideoDecode : public cVideoDecode {
 public:
-  cFFmpegVideoDecode() : cVideoDecode() { }
+  //{{{
+  cFFmpegVideoDecode() : cVideoDecode() {
+
+    mAvParser = av_parser_init (AV_CODEC_ID_H264);
+    mAvCodec = avcodec_find_decoder (AV_CODEC_ID_H264);
+    mAvContext = avcodec_alloc_context3 (mAvCodec);
+    avcodec_open2 (mAvContext, mAvCodec, NULL);
+    }
+  //}}}
   //{{{
   virtual ~cFFmpegVideoDecode() {
 
@@ -476,34 +479,22 @@ public:
     }
   //}}}
 
-  int getSurfacePoolSize() { return 0; }
-
   //{{{
-  void decode (bool firstPts, uint64_t pts, uint8_t* pesBuffer, unsigned int pesBufferLen) {
+  void decode (bool validPts, uint64_t pts, uint8_t* pesBuffer, unsigned int pesBufferLen) {
 
-    if (!mAvParser) {
-      mAvParser = av_parser_init (AV_CODEC_ID_H264);
-      mAvCodec = avcodec_find_decoder (AV_CODEC_ID_H264);
-      mAvContext = avcodec_alloc_context3 (mAvCodec);
-      avcodec_open2 (mAvContext, mAvCodec, NULL);
-      }
-
-    // ffmpeg doesn't maintain correct frame.pts, but decodes frames in presentation order
-    if (firstPts)
+    // ffmpeg doesn't maintain correct avFrame.pts, but does decode frames in presentation order
+    if (validPts)
       mDecodePts = pts;
 
     cLog::log (LOGINFO, "decode PES " + getPtsString (pts));
 
-    // init avPacket
-    AVPacket avPacket;
-    av_init_packet (&avPacket);
-
-    auto avFrame = av_frame_alloc();
-
     auto pesPtr = pesBuffer;
     auto pesSize = pesBufferLen;
     while (pesSize) {
-      auto bytesUsed = av_parser_parse2 (mAvParser, mAvContext, &avPacket.data, &avPacket.size,
+      AVPacket avPacket;
+      av_init_packet (&avPacket);
+      auto bytesUsed = av_parser_parse2 (mAvParser, mAvContext,
+                                         &avPacket.data, &avPacket.size,
                                          pesPtr, (int)pesSize, pts, AV_NOPTS_VALUE, 0);
       avPacket.pts = pts;
 
@@ -512,21 +503,21 @@ public:
       if (avPacket.size) {
         auto ret = avcodec_send_packet (mAvContext, &avPacket);
         while (ret >= 0) {
+          auto avFrame = av_frame_alloc();
           ret = avcodec_receive_frame (mAvContext, avFrame);
           if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF || ret < 0)
             break;
 
           auto framePts = avFrame->pts;
           auto frame = getFreeFrame (mDecodePts);
-          frame->setNv12ffmpeg (avFrame->data, avFrame->linesize, avFrame->width, avFrame->height);
+          frame->setNv12ffmpegSws (avFrame->width, avFrame->height, avFrame->data, avFrame->linesize);
 
           // fake pts from avContext framerate
           mDecodePts += (90000 * mAvContext->framerate.den) / mAvContext->framerate.num;
+          av_frame_free (&avFrame);
           }
         }
       }
-
-    av_frame_free (&avFrame);
     }
   //}}}
 
