@@ -66,10 +66,10 @@ public:
         //{{{  allocate buffers, unpack nv12 interleaved uv to planar uv
         #ifdef __linux__
 
-          uint8_t* uBuffer = (uint8_t*)aligned_alloc (uvStride * (height/2), 128);
-          uint8_t* vBuffer = (uint8_t*)aligned_alloc (uvStride * (height/2), 128);
+          uint8_t* uBuffer = (uint8_t*)aligned_alloc (128, uvStride * (height/2));
+          uint8_t* vBuffer = (uint8_t*)aligned_alloc (128, uvStride * (height/2));
           if (!m32)
-            m32 = (uint32_t*)aligned_alloc (width * height * 4, 128);
+            m32 = (uint32_t*)aligned_alloc (128, width * height * 4);
 
         #else
 
@@ -232,7 +232,7 @@ public:
 
       if (!m32) {
         #ifdef __linux__
-          m32 = (uint32_t*)aligned_alloc (width * height * 4, 128);
+          m32 = (uint32_t*)aligned_alloc (128, width * height * 4);
         #else
           m32 = (uint32_t*)_aligned_malloc (width * height * 4, 128);
         #endif
@@ -359,7 +359,7 @@ public:
 
       if (!m32) {
         #ifdef __linux__
-          m32 = (uint32_t*)aligned_alloc (width * height * 4, 128);
+          m32 = (uint32_t*)aligned_alloc (128, width * height * 4);
         #else
           m32 = (uint32_t*)_aligned_malloc (width * height * 4, 128);
         #endif
