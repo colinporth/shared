@@ -57,9 +57,7 @@ public:
   //{{{
   void onUp() {
     cWidget::onUp();
-
     mSong->getSelect().end();
-
     mOverviewPressed = false;
     mRangePressed = false;
     }
@@ -384,24 +382,24 @@ private:
 
     // small lastFrameString, coloured, right
     context->fontSize ((float)getFontHeight());
-    context->textAlign (cVg::ALIGN_RIGHT | cVg::ALIGN_TOP);
+    context->textAlign (cVg::ALIGN_RIGHT | cVg::ALIGN_BOTTOM);
     if (mSong->getHlsLoad() == cSong::eHlsIdle)
       context->fillColor (kVgWhite);
     else if (mSong->getHlsLoad() == cSong::eHlsFailed)
       context->fillColor (kVgRed);
     else
       context->fillColor (kVgGreen);
-    context->text (mWidth, mHeight-getFontHeight(), lastFrameString);
+    context->text (mWidth, mHeight, lastFrameString);
 
     // small firstFrameString, white, left
     context->fillColor (kVgWhite);
-    context->textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_TOP);
-    context->text (0.f, mHeight-getFontHeight(), firstFrameString);
+    context->textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_BOTTOM);
+    context->text (0.f, mHeight, firstFrameString);
 
     // big playFrameString, white, centred
     context->fontSize ((float)getBigFontHeight());
-    context->textAlign (cVg::ALIGN_CENTER | cVg::ALIGN_TOP);
-    context->text (mWidth/2.f, mHeight-getBigFontHeight(), playFrameString);
+    context->textAlign (cVg::ALIGN_CENTER | cVg::ALIGN_BOTTOM);
+    context->text (mWidth/2.f, mHeight, playFrameString);
     }
   //}}}
 

@@ -16,7 +16,6 @@ public:
     if (frame) {
       auto context = draw->getContext();
       if (frame->getPts() != mPts) {
-        // newFrame, update image
         mPts = frame->getPts();
         if (mImage == -1)
           mImage = context->createImageRGBA (frame->getWidth(), frame->getHeight(), 0, (uint8_t*)frame->get32());
@@ -26,8 +25,8 @@ public:
 
       // paint image rect
       context->beginPath();
-      context->rect (0, 0, mWidth, mHeight);
-      context->fillPaint (context->imagePattern (0, 0, mWidth, mHeight, 0.f, mImage, 1.f));
+      context->rect (0.f,0.f, mWidth, mHeight);
+      context->fillPaint (context->imagePattern (0.f,0.f, mWidth, mHeight, 0.f, mImage, 1.f));
       context->triangleFill();
       }
     }

@@ -1,6 +1,8 @@
 // cVideoDecode.h
 #pragma once
 //{{{  includes
+#include <emmintrin.h>
+
 extern "C" {
   #include <libavcodec/avcodec.h>
   #include <libavformat/avformat.h>
@@ -61,21 +63,23 @@ public:
 
         int uvStride = stride/2;
         int argbStride = width;
-
-        //{{{  allocate buffers
+        //{{{  allocate buffers, unpack nv12 interleaved uv to planar uv
         #ifdef __linux__
+
           uint8_t* uBuffer = (uint8_t*)aligned_alloc (uvStride * (height/2), 128);
           uint8_t* vBuffer = (uint8_t*)aligned_alloc (uvStride * (height/2), 128);
           if (!m32)
             m32 = (uint32_t*)aligned_alloc (width * height * 4, 128);
+
         #else
+
           uint8_t* uBuffer = (uint8_t*)_aligned_malloc (uvStride * (height/2), 128);
           uint8_t* vBuffer = (uint8_t*)_aligned_malloc (uvStride * (height/2), 128);
           if (!m32)
             m32 = (uint32_t*)_aligned_malloc (width * height * 4, 128);
+
         #endif
-        //}}}
-        //{{{  unpack nv12 interleaved uv to planar uv
+
         uint8_t* uv = buffer + (height * stride);
         uint8_t* u = uBuffer;
         uint8_t* v = vBuffer;
@@ -191,17 +195,21 @@ public:
             }
           }
 
-        //!!! force alpha fixup !!!
+        //!!! alpha fixup !!!
         //for (auto ptr = m32; ptr < m32 + (height*width); ptr++)
         //  *ptr |= 0xFF000000;
 
         //{{{  free temp planar buffers
         #ifdef __linux__
+
           free (uBuffer);
           free (vBuffer);
+
         #else
+
           _aligned_free (uBuffer);
           _aligned_free (vBuffer);
+
         #endif
         //}}}
 
@@ -336,7 +344,7 @@ public:
           }
         }
 
-      //!!! force alpha fixup !!!
+      //!!! alpha fixup !!!
       for (auto ptr = m32; ptr < m32 + (height*width); ptr++)
         *ptr |= 0xFF000000;
 

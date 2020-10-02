@@ -155,18 +155,22 @@ void cGlWindow::draw() {
   mCpuGraph->start ((float)glfwGetTime());
 
   // Update and render
-  int winWidth, winHeight;
+  int winWidth;
+  int winHeight;
   glfwGetWindowSize (mWindow, &winWidth, &winHeight);
 
-  int frameBufferWidth, frameBufferHeight;
+  int frameBufferWidth;
+  int frameBufferHeight;
   glfwGetFramebufferSize (mWindow, &frameBufferWidth, &frameBufferHeight);
 
   glViewport (0, 0, frameBufferWidth, frameBufferHeight);
   glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
   beginFrame (winWidth, winHeight, (float)frameBufferWidth / (float)winWidth);
+
   if (mRootContainer)
     mRootContainer->onDraw (this);
+
   if (mDrawTests) {
     //{{{  draw tests
     drawEyes (winWidth*3.0f/4.0f, winHeight/2.0f, winWidth/4.0f, winHeight/2.0f,
@@ -175,6 +179,14 @@ void cGlWindow::draw() {
     drawSpinner (winWidth/2.0f, winHeight/2.0f, 20.0f, (float)glfwGetTime());
     }
     //}}}
+
+  if (mDrawPerf) {
+    //{{{  draw perf stats
+    mFpsGraph->render (this, 0.f, winHeight-35.f, winWidth/2.f -2.f, 35.f);
+    mCpuGraph->render (this, winWidth/2.f, winHeight-35.f, winWidth/2.f - 2.f, 35.f);
+    }
+    //}}}
+
   if (mDrawStats) {
     //{{{  draw stats
     fontSize (12.0f);
@@ -183,12 +195,7 @@ void cGlWindow::draw() {
     text (0.0f, (float)winHeight, getFrameStats() + (mVsync ? " vsyncOn" : " vsyncOff"));
     }
     //}}}
-  if (mDrawPerf) {
-    //{{{  draw perf stats
-    mFpsGraph->render (this, 0.0f, winHeight-35.0f, winWidth/3.0f -2.0f, 35.0f);
-    mCpuGraph->render (this, winWidth/3.0f, winHeight-35.0f, winWidth/3.0f - 2.0f, 35.0f);
-    }
-    //}}}
+
   endFrame();
   glfwSwapBuffers (mWindow);
 
