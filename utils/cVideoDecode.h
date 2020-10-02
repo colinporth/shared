@@ -21,7 +21,6 @@ class cVideoDecode {
 public:
   //{{{
   class cFrame {
-  // assumes all frames same size as first create
   public:
     cFrame (uint64_t pts) : mOk(false), mPts(pts) {}
     //{{{
@@ -39,8 +38,6 @@ public:
     bool ok() { return mOk; }
     uint64_t getPts() { return mPts; }
 
-    int getWidth() { return mWidth; }
-    int getHeight() { return mHeight; }
     uint32_t* get32() { return m32; }
 
     // sets
@@ -49,17 +46,12 @@ public:
 
       mOk = false;
       mPts = pts;
-      mWidth = 0;
-      mHeight = 0;
       }
     //}}}
 
     #ifdef _WIN32
       //{{{
       void setNv12mfx (int width, int height, uint8_t* buffer, int stride) {
-
-        mWidth = width;
-        mHeight = height;
 
         int uvStride = stride/2;
         int argbStride = width;
@@ -220,9 +212,6 @@ public:
     //{{{
     void setNv12ffmpeg (int width, int height, uint8_t** data, int* linesize) {
 
-      mWidth = width;
-      mHeight = height;
-
       uint8_t* yBuffer = data[0];
       uint8_t* uBuffer = data[1];
       uint8_t* vBuffer = data[2];
@@ -354,9 +343,6 @@ public:
     //{{{
     void setNv12ffmpegSws (int width, int height, uint8_t** data, int* linesize) {
 
-      mWidth = width;
-      mHeight = height;
-
       if (!m32) {
         #ifdef __linux__
           m32 = (uint32_t*)aligned_alloc (128, width * height * 4);
@@ -387,8 +373,6 @@ public:
   private:
     bool mOk = false;
     uint64_t mPts = 0;
-    int mWidth = 0;
-    int mHeight = 0;
     uint32_t* m32 = nullptr;
     };
   //}}}
@@ -644,8 +628,10 @@ public:
           if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF || ret < 0)
             break;
 
+          mWidth = avFrame->width;
+          mHeight = avFrame->height;
           cVideoDecode::cFrame* frame = getFreeFrame (mDecodePts);
-          frame->setNv12ffmpegSws (avFrame->width, avFrame->height, avFrame->data, avFrame->linesize);
+          frame->setNv12ffmpegSws (mWidth, mHeight, avFrame->data, avFrame->linesize);
 
           // fake pts from avContext framerate
           mDecodePts += (90000 * mAvContext->framerate.den) / mAvContext->framerate.num;

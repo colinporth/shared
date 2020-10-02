@@ -18,7 +18,7 @@ public:
       if (frame->getPts() != mPts) {
         mPts = frame->getPts();
         if (mImage == -1)
-          mImage = context->createImageRGBA (frame->getWidth(), frame->getHeight(), 0, (uint8_t*)frame->get32());
+          mImage = context->createImageRGBA (mVideoDecode->getWidth(), mVideoDecode->getHeight(), 0, (uint8_t*)frame->get32());
         else
           context->updateImage (mImage, (uint8_t*)frame->get32());
         }
