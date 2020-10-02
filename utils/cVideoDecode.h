@@ -9,17 +9,11 @@ extern "C" {
 
 #ifdef _WIN32
   #include "../mfx/include/mfxvideo++.h"
-  #ifdef _DEBUG
-    #pragma comment (lib,"libmfx_d.lib")
-  #else
-    #pragma comment (lib,"libmfx.lib")
-  #endif
 #endif
 
 using namespace std;
 using namespace chrono;
 //}}}
-
 
 class cVideoDecode {
 public:
@@ -400,6 +394,15 @@ public:
     }
   //}}}
 
+  //{{{
+  void clear() {
+  // returns nearest frame within a 25fps frame of mPlayPts, nullptr if none
+
+    for (auto frame : mFramePool)
+      frame->clear();
+    }
+  //}}}
+
   int getWidth() { return mWidth; }
   int getHeight() { return mHeight; }
   int getFramePoolSize() { return (int)mFramePool.size(); }
@@ -424,14 +427,6 @@ public:
       }
 
     return nearFrame;
-    }
-  //}}}
-  //{{{
-  void clear() {
-  // returns nearest frame within a 25fps frame of mPlayPts, nullptr if none
-
-    for (auto frame : mFramePool)
-      frame->clear();
     }
   //}}}
 

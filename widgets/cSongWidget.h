@@ -1,33 +1,15 @@
 // cSongWidget.h
 #pragma once
+//{{{  includes
 #include "../utils/cSong.h"
 #include "cWidget.h"
+//}}}
 
 class cSongWidget : public cWidget {
 public:
   cSongWidget (cSong* song, float width, float height) : cWidget (COL_BLUE, width, height), mSong(song) {}
   virtual ~cSongWidget() {}
 
-  //{{{
-  void layout() {
-
-    //cD2dWindow::cBox::layout();
-    //cLog::log (LOGINFO, "cSongBox::layout %d %d %d %d", mRect.left, mRect.top, mRect.right, mRect.bottom);
-
-    // invalidate frame bitmap
-    //mFramesBitmapOk = false;
-
-    // invalidate overview bitmap
-    //mOverviewBitmapOk = false;
-    }
-  //}}}
-  //{{{
-  void onWheel (float delta) {
-
-    //if (getShow())
-    setZoom (mZoom - (int)delta);
-    }
-  //}}}
   //{{{
   void onDown (float x, float y) {
 
@@ -80,6 +62,13 @@ public:
 
     mOverviewPressed = false;
     mRangePressed = false;
+    }
+  //}}}
+  //{{{
+  void onWheel (float delta) {
+
+    //if (getShow())
+    setZoom (mZoom - (int)delta);
     }
   //}}}
 
