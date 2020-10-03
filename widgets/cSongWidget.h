@@ -406,12 +406,13 @@ private:
 
     int lastFrame = mSong->getLastFrame();
     int totalFrames = mSong->getTotalFrames();
-    float values[2] = { 0.f };
 
-    bool changed = (mOverviewValueScale != valueScale) ||
-                   (mOverviewFirstFrame != firstFrame) ||
+    bool changed = (mOverviewTotalFrames != totalFrames) ||
                    (mOverviewLastFrame != lastFrame) ||
-                   (mOverviewTotalFrames != totalFrames);
+                   (mOverviewFirstFrame != firstFrame) ||
+                   (mOverviewValueScale != valueScale);
+
+    float values[2] = { 0.f };
 
     context->beginPath();
     float xorg = mX;
@@ -463,10 +464,10 @@ private:
     context->triangleFill();
 
     // possible cache to stop recalc
-    mOverviewValueScale = valueScale;
-    mOverviewFirstFrame = firstFrame;
-    mOverviewLastFrame = lastFrame;
     mOverviewTotalFrames = totalFrames;
+    mOverviewLastFrame = lastFrame;
+    mOverviewFirstFrame = firstFrame;
+    mOverviewValueScale = valueScale;
     }
   //}}}
   //{{{
@@ -640,7 +641,6 @@ private:
   bool mOverviewPressed = false;
   bool mRangePressed = false;
 
-  float mOverviewValueScale = 1.f;
   float mOverviewLens = 0.f;
 
   // vertical layout
@@ -658,9 +658,11 @@ private:
   float mDstOverviewCentre = 0.f;
 
   // mOverview cache
-  int mOverviewFirstFrame = 0;
-  int mOverviewLastFrame = 0;
   int mOverviewTotalFrames = 0;
+  int mOverviewLastFrame = 0;
+  int mOverviewFirstFrame = 0;
+  float mOverviewValueScale = 0.f;
+
   float mOverviewValuesL [1920] = { 0.f };
   float mOverviewValuesR [1920] = { 0.f };
   //}}}
