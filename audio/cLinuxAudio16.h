@@ -20,7 +20,6 @@ public:
   //}}}
   //{{{
   virtual ~cAudio16() {
-    free (mSilence);
     close();
     }
   //}}}
