@@ -21,6 +21,7 @@ public:
   //{{{
   class cFrame {
   public:
+    enum eState { eFree, eAllocated, eLoaded };
     cFrame (uint64_t pts) : mOk(false), mPts(pts) {}
     //{{{
     virtual ~cFrame() {
@@ -35,13 +36,13 @@ public:
 
     //{{{
     void clear() {
-      mOk = false;
+      mState = eFree;
       mPts = 0;
       }
     //}}}
 
     // gets
-    bool ok() { return mOk; }
+    eState getState() { return mState; }
     uint64_t getPts() { return mPts; }
     uint32_t* get32() { return m32; }
 
@@ -49,7 +50,7 @@ public:
     //{{{
     void set (uint64_t pts) {
 
-      mOk = false;
+      mState = eAllocated;
       mPts = pts;
       }
     //}}}
@@ -209,7 +210,7 @@ public:
         #endif
         //}}}
 
-        mOk = true;
+        mState = eLoaded;
         }
       //}}}
       //{{{
@@ -340,7 +341,7 @@ public:
         for (auto ptr = m32; ptr < m32 + (height*width); ptr++)
           *ptr |= 0xFF000000;
 
-        mOk = true;
+        mState = eLoaded;
         }
       //}}}
     #endif
@@ -363,11 +364,12 @@ public:
                                                SWS_BILINEAR, NULL, NULL, NULL);
       sws_scale (swsContext, data, linesize, 0, height, dstData, dstStride);
 
-      mOk = true;
+      mState = eLoaded;
       }
     //}}}
 
   private:
+    eState mState = eFree;
     bool mOk = false;
     uint64_t mPts = 0;
     uint32_t* m32 = nullptr;
@@ -384,11 +386,11 @@ public:
   //}}}
 
   //{{{
-  void clear() {
-  // returns nearest frame within a 25fps frame of mPlayPts, nullptr if none
+  void clear (uint64_t pts) {
 
-    for (auto frame : mFramePool)
-      frame->clear();
+    for (auto frame : mFramePool) 
+      if ((frame->getState() != cFrame::eLoaded) || (frame->getPts() < pts))
+        frame->clear();
     }
   //}}}
 
@@ -405,7 +407,7 @@ public:
 
     cFrame* nearFrame = nullptr;
     for (auto frame : mFramePool) {
-      if (frame->ok()) {
+      if (frame->getState() == cFrame::eLoaded) {
         uint64_t dist = frame->getPts() > mPlayPts ? frame->getPts() - mPlayPts : mPlayPts - frame->getPts();
         if (dist < nearDist) {
           nearDist = dist;
@@ -430,7 +432,8 @@ protected:
 
     while (true) {
       for (auto frame : mFramePool) {
-        if (frame->ok() && (frame->getPts() < mPlayPts - (2 * framePts))) {
+        if ((frame->getState() == cFrame::eFree) ||
+            ((frame->getState() == cFrame::eLoaded) && (frame->getPts() < mPlayPts - (2 * framePts)))) {
           // reuse frame
           frame->set (pts);
           return frame;
@@ -619,6 +622,7 @@ public:
       pesPtr += bytesUsed;
       pesSize -= bytesUsed;
       if (avPacket.size) {
+        cLog::log (LOGINFO, "decode  start");
         auto ret = avcodec_send_packet (mAvContext, &avPacket);
         while (ret >= 0) {
           auto avFrame = av_frame_alloc();
@@ -629,7 +633,9 @@ public:
           mWidth = avFrame->width;
           mHeight = avFrame->height;
           cVideoDecode::cFrame* frame = getFreeFrame (mDecodePts);
+          cLog::log (LOGINFO, "decode done");
           frame->setNv12ffmpegSws (mWidth, mHeight, avFrame->data, avFrame->linesize);
+          cLog::log (LOGINFO, "yuv2rgb done");
 
           // fake pts from avContext framerate
           mDecodePts += (90000 * mAvContext->framerate.den) / mAvContext->framerate.num;
