@@ -845,7 +845,7 @@ void yuv420toRgb888 (uint8_t* dstPtr, uint8_t* yPtr, uint8_t* uPtr, uint8_t* vPt
       uint32_t uv = uTable[*uPtr++] | vTable[*vPtr++];
 
       uint32_t yuv = yTable[*yPtr++] + uv;
-      //{{{  fixup yuv
+      // fixup yuv
       int tmp = yuv & 0x40080100;
       if (tmp != 0) {
         tmp -= tmp >> 8;
@@ -853,14 +853,13 @@ void yuv420toRgb888 (uint8_t* dstPtr, uint8_t* yPtr, uint8_t* uPtr, uint8_t* vPt
         tmp = 0x40080100 & ~(yuv >> 1);
         yuv += tmp >> 8;
         }
-      //}}}
       *dstPtr++ = yuv;
       *dstPtr++ = yuv >> 22;
       *dstPtr++ = yuv >> 11;
       *dstPtr++ = 255;
 
       yuv = yTable[*yPtr++] + uv;
-      //{{{  fixup yuv
+      // fixup yuv
       tmp = yuv & 0x40080100;
       if (tmp != 0) {
         tmp -= tmp >> 8;
@@ -868,14 +867,13 @@ void yuv420toRgb888 (uint8_t* dstPtr, uint8_t* yPtr, uint8_t* uPtr, uint8_t* vPt
         tmp = 0x40080100 & ~(yuv >> 1);
         yuv += tmp >> 8;
         }
-      //}}}
       *dstPtr++ = yuv;
       *dstPtr++ = yuv >> 22;
       *dstPtr++ = yuv >> 11;
       *dstPtr++ = 255;
 
       yuv = yTable[*yPtr2++] + uv;
-      //{{{  fixup yuv
+      // fixup yuv
       tmp = yuv & 0x40080100;
       if (tmp != 0) {
         tmp -= tmp >> 8;
@@ -883,14 +881,13 @@ void yuv420toRgb888 (uint8_t* dstPtr, uint8_t* yPtr, uint8_t* uPtr, uint8_t* vPt
         tmp = 0x40080100 & ~(yuv >> 1);
         yuv += tmp >> 8;
         }
-      //}}}
       *dstPtr2++ = yuv;
       *dstPtr2++ = yuv >> 22;
       *dstPtr2++ = yuv >> 11;
       *dstPtr2++ = 255;
 
       yuv = yTable[*yPtr2++] + uv;
-      //{{{  fixup yuv
+      // fixup yuv
       tmp = yuv & 0x40080100;
       if (tmp != 0) {
         tmp -= tmp >> 8;
@@ -898,7 +895,6 @@ void yuv420toRgb888 (uint8_t* dstPtr, uint8_t* yPtr, uint8_t* uPtr, uint8_t* vPt
         tmp = 0x40080100 & ~(yuv >> 1);
         yuv += tmp >> 8;
         }
-      //}}}
       *dstPtr2++ = yuv;
       *dstPtr2++ = yuv >> 22;
       *dstPtr2++ = yuv >> 11;
