@@ -22,6 +22,8 @@ public:
   uint8_t* getContent() { return mContent; }
   int getContentSize() { return mContentReceivedBytes; }
 
+  int getHeaderContentSize() { return mHeaderContentLength; }
+
   int get (const std::string& host, const std::string& path,
            const std::string& header = "",
            const std::function<void (const std::string& key, const std::string& value)>& headerCallback = [](const std::string&, const std::string&) noexcept {},

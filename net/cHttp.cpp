@@ -313,20 +313,25 @@ bool cHttp::parseData (const uint8_t* data, int length, int& bytesParsed,
         if (length > mContentLengthLeft)
           cLog::log (LOGERROR, "eExpectedData - too large %d %d", length, mContentLengthLeft);
 
-        if (mContent) {
-          memcpy (mContent + mContentReceivedBytes, data, chunkSize);
-          mContentReceivedBytes += chunkSize;
+        if (dataCallback (data, length)) {
+          // data accepted by callback
+          if (mContent) {
+            memcpy (mContent + mContentReceivedBytes, data, chunkSize);
+            mContentReceivedBytes += chunkSize;
 
-          length -= chunkSize;
-          data += chunkSize;
-          mContentLengthLeft -= chunkSize;
-          if (mContentLengthLeft <= 0)
+            length -= chunkSize;
+            data += chunkSize;
+            mContentLengthLeft -= chunkSize;
+            if (mContentLengthLeft <= 0)
+              mState = eClose;
+            }
+          else {
+            cLog::log (LOGERROR, "eExpectedData - content not allocated");
             mState = eClose;
+            }
           }
-        else {
-          cLog::log (LOGERROR, "eExpectedData - content not allocated");
+        else // data not accepted by callback, bomb out
           mState = eClose;
-          }
 
         break;
         }
@@ -352,22 +357,28 @@ bool cHttp::parseData (const uint8_t* data, int length, int& bytesParsed,
       //}}}
       //{{{
       case eChunkData: {
+
         int chunkSize = (length < mContentLengthLeft) ? length : mContentLengthLeft;
 
-        //log (LOGINFO, "eChunkData - mHeaderContentLength:%d left:%d chunksize:%d mContent:%x",
-        //                    mHeaderContentLength, mContentLengthLeft, chunkSize, mContent);
-        mContent = (uint8_t*)realloc (mContent, mContentReceivedBytes + chunkSize);
-        memcpy (mContent + mContentReceivedBytes, data, chunkSize);
-        mContentReceivedBytes += chunkSize;
+        if (dataCallback (data, length)) {
+          //log (LOGINFO, "eChunkData - mHeaderContentLength:%d left:%d chunksize:%d mContent:%x",
+          //                    mHeaderContentLength, mContentLengthLeft, chunkSize, mContent);
+          mContent = (uint8_t*)realloc (mContent, mContentReceivedBytes + chunkSize);
+          memcpy (mContent + mContentReceivedBytes, data, chunkSize);
+          mContentReceivedBytes += chunkSize;
 
-        length -= chunkSize;
-        data += chunkSize;
-        mContentLengthLeft -= chunkSize;
-        if (mContentLengthLeft <= 0) {
-          // finished chunk, get ready for next chunk
-          mHeaderContentLength = 1;
-          mState = eChunkHeader;
+          length -= chunkSize;
+          data += chunkSize;
+          mContentLengthLeft -= chunkSize;
+          if (mContentLengthLeft <= 0) {
+            // finished chunk, get ready for next chunk
+            mHeaderContentLength = 1;
+            mState = eChunkHeader;
+            }
           }
+        else // refused data in callback, bomb out early ???
+          mState = eClose;
+
         break;
         }
       //}}}

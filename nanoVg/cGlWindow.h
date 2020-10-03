@@ -25,16 +25,14 @@ public:
   bool getControl() { return mControlled; }
   bool getMouseDown() { return mMouseDown; }
   //}}}
-  //{{{  draws
+
   // iDraw
   void drawRect (uint32_t colour, float x, float y, float width, float height);
   float drawText (uint32_t colour, float fontHeight, std::string str, float x, float y, float width, float height);
   float drawTextRight (uint32_t colour, float fontHeight, std::string str, float x, float y, float width, float height);
   void drawEllipseSolid (uint32_t colour, float x, float y, float xradius, float yradius);
-
   void drawPixel (uint32_t colour, float x, float y) {}
   void drawStamp (uint32_t colour, uint8_t* src, float x, float y, float width, float height) {}
-
   //{{{
   void drawPixelClipped (uint32_t colour, float x, float y) {
     drawRectClipped (colour, x, y, 1, 1);
@@ -42,7 +40,6 @@ public:
   //}}}
   //{{{
   void drawStampClipped (uint32_t colour, uint8_t* src, float x, float y, float width, float height) {
-
     drawStamp (colour, src, x, y, width, height);
     }
   //}}}
@@ -53,14 +50,15 @@ public:
   //}}}
   //{{{
   void drawRectOutline (uint32_t colour, float x, float y, float width, float height, float thickness) {
-
-    drawRect(colour, x, y, width, thickness);
-    drawRect(colour, x + width-thickness, y, thickness, height);
-    drawRect(colour, x, y + height-thickness, width, thickness);
-    drawRect(colour, x, y, thickness, height);
+    drawRect (colour, x, y, width, thickness);
+    drawRect (colour, x + width-thickness, y, thickness, height);
+    drawRect (colour, x, y + height-thickness, width, thickness);
+    drawRect (colour, x, y, thickness, height);
     }
   //}}}
-  //}}}
+
+  // other draws
+  void drawSpinner (float cx, float cy, float r, float t);
 
   // iChange - !!! ignored for now !!!
   void changed() {}
@@ -101,7 +99,6 @@ private:
   void drawEyes (float x, float y, float w, float h, float cursorX, float cursorY, float t);
   void drawLines (float x, float y, float w, float h, float t);
   void drawStats (float x, float y, const std::string& str);
-  void drawSpinner (float cx, float cy, float r, float t);
 
   //{{{  static glfw callbacks
   static void glfwKey (GLFWwindow* window, int key, int scancode, int action, int mods);
