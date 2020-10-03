@@ -186,21 +186,21 @@ private:
   void drawWave (cVg* context, int playFrame, int leftFrame, int rightFrame, bool mono) {
 
     float values[2] = { 0.f };
+
+    float peakValueScale = mWaveHeight / mSong->getMaxPeakValue() / 2.f;
+    float powerValueScale = mWaveHeight / mSong->getMaxPowerValue() / 2.f;
+
     float xlen = (float)mFrameStep;
-
-    float peakValueScale = mWaveHeight / 2.f / mSong->getMaxPeakValue();
-    float powerValueScale = mWaveHeight / 2.f / mSong->getMaxPowerValue();
-
-    float xorg = mX;
     if (mFrameStep == 1) {
       //{{{  draw all peak values
+      float xorg = mX;
+
       context->beginPath();
 
       for (auto frame = leftFrame; frame < rightFrame; frame += mFrameStep) {
-        // get peak values scaled to maxPeak
         auto framePtr = mSong->getAudioFramePtr (frame);
         if (framePtr) {
-          //{{{  draw frame peak values
+          // draw frame peak values scaled to maxPeak
           if (framePtr->getPowerValues()) {
             auto peakValuesPtr = framePtr->getPeakValues();
             for (auto i = 0; i < 2; i++)
@@ -208,8 +208,7 @@ private:
             }
           context->rect (xorg, mY + mDstWaveCentre - values[0], xlen, values[0] + values[1]);
           }
-          //}}}
-        xorg += 1.f;
+        xorg += xlen;
         }
 
       context->fillColor (kVgDarkGrey);
@@ -217,24 +216,23 @@ private:
       }
       //}}}
 
-    xorg = mX;
-    //{{{  draw powerValues before playFrame
+    float xorg = mX;
+    //{{{  draw powerValues before playFrame, summed if zoomed out
     context->beginPath();
 
     for (auto frame = leftFrame; frame < playFrame; frame += mFrameStep) {
       auto framePtr = mSong->getAudioFramePtr (frame);
       if (framePtr) {
         if (mFrameStep == 1) {
-          //{{{  power scaled to maxPeak
+          // power scaled to maxPeak
           if (framePtr->getPowerValues()) {
            auto powerValuesPtr = framePtr->getPowerValues();
             for (auto i = 0; i < 2; i++)
               values[i] = *powerValuesPtr++ * peakValueScale;
             }
           }
-          //}}}
         else {
-          //{{{  sum mFrameStep frames, mFrameStep aligned, power scaled to maxPower
+          // sum mFrameStep frames, mFrameStep aligned, scaled to maxPower
           for (auto i = 0; i < 2; i++)
             values[i] = 0.f;
 
@@ -254,17 +252,16 @@ private:
           for (auto i = 0; i < 2; i++)
             values[i] /= toSumFrame - alignedFrame + 1;
           }
-          //}}}
         context->rect (xorg, mY + mDstWaveCentre - values[0], xlen, values[0] + values[1]);
         }
 
-      xorg += 1.f;
+      xorg += xlen;
       }
 
     context->fillColor (kVgBlue);
     context->triangleFill();
     //}}}
-    //{{{  draw playFrame powerValue
+    //{{{  draw powerValues playFrame, no sum
     // power scaled to maxPeak
     context->beginPath();
 
@@ -279,28 +276,27 @@ private:
       context->rect (xorg, mY + mDstWaveCentre - values[0], xlen, values[0] + values[1]);
       }
 
-    xorg += 1.f;
+    xorg += xlen;
 
     context->fillColor (kVgWhite);
     context->triangleFill();
     //}}}
-    //{{{  draw powerValues after playFrame
+    //{{{  draw powerValues after playFrame, summed if zoomed out
     context->beginPath();
 
     for (auto frame = playFrame+mFrameStep; frame < rightFrame; frame += mFrameStep) {
       auto framePtr = mSong->getAudioFramePtr (frame);
       if (framePtr) {
         if (mFrameStep == 1) {
-          //{{{  power scaled to maxPeak
+          // power scaled to maxPeak
           if (framePtr->getPowerValues()) {
             auto powerValuesPtr = framePtr->getPowerValues();
             for (auto i = 0; i < 2; i++)
               values[i] = *powerValuesPtr++ * peakValueScale;
             }
           }
-          //}}}
         else {
-          //{{{  sum mFrameStep frames, mFrameStep aligned, power scaled to maxPower
+          // sum mFrameStep frames, mFrameStep aligned, scaled to maxPower
           for (auto i = 0; i < 2; i++)
             values[i] = 0.f;
 
@@ -320,11 +316,10 @@ private:
           for (auto i = 0; i < 2; i++)
             values[i] /= toSumFrame - alignedFrame + 1;
           }
-          //}}}
         context->rect (xorg, mY + mDstWaveCentre - values[0], xlen, values[0] + values[1]);
         }
 
-      xorg += 1.f;
+      xorg += xlen;
       }
 
     context->fillColor (kVgGrey);
