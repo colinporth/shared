@@ -1,3 +1,4 @@
+// simplest YUV420 -> RGB
 //{{{  YUV420 -> RGB conversion code.
 /* Copyright (C) 2011 Robin Watts (robin@wss.co.uk) for Pinknoise Productions Ltd.
  * Licensed under the BSD license. See 'COPYING' for details of (non-)warranty.
@@ -830,11 +831,12 @@ static const uint32_t vTable [256] = {
   //}}}
 
 void yuv420toRgb888 (uint8_t* dstPtr, uint8_t* yPtr, uint8_t* uPtr, uint8_t* vPtr,
-                     int32_t width, int32_t height,
-                     int32_t ySpan, int32_t uvSpan, int32_t dstSpan) {
-  height--;
+                     int32_t width, int32_t height, int32_t ySpan, int32_t uvSpan, int32_t dstSpan) {
+
   uint8_t* yPtr2 = yPtr + ySpan;
   uint8_t* dstPtr2 = dstPtr + dstSpan;
+
+  height--;
   while (height > 0) {
     height -= width << 16;
     height += 1 << 16;
