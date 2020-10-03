@@ -1,8 +1,8 @@
 // cVideoDecodeWidget.h
 #pragma once
 //{{{  includes
-#include "../utils/cVideoDecode.h"
 #include "cWidget.h"
+#include "../utils/cVideoDecode.h"
 //}}}
 
 class cVideoDecodeWidget : public cWidget {

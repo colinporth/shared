@@ -395,7 +395,6 @@ public:
   int getWidth() { return mWidth; }
   int getHeight() { return mHeight; }
   int getFramePoolSize() { return (int)mFramePool.size(); }
-  virtual int getSurfacePoolSize() { return 0; }
 
   void setPlayPts (uint64_t playPts) { mPlayPts = playPts; }
   //{{{

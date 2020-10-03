@@ -1,8 +1,8 @@
 // cSongWidget.h
 #pragma once
 //{{{  includes
-#include "../utils/cSong.h"
 #include "cWidget.h"
+#include "../utils/cSong.h"
 //}}}
 
 class cSongWidget : public cWidget {
@@ -105,13 +105,10 @@ public:
       drawFreq (context, playFrame);
       }
 
-    if (mSong->hasHlsBase())
-      drawTime (context,
-                getFrameString (mSong->getFirstFrame()),
-                getFrameString (mSong->getPlayFrame()),
-                getFrameString (mSong->getLastFrame()));
-    else
-      drawTime (context, "", getFrameString (mSong->getPlayFrame()), getFrameString (mSong->getTotalFrames()));
+    drawTime (context,
+              mSong->hasHlsBase() ? getFrameString (mSong->getFirstFrame()) : "",
+              getFrameString (mSong->getPlayFrame()),
+              mSong->hasHlsBase() ? getFrameString (mSong->getLastFrame()): getFrameString (mSong->getTotalFrames()));
     }
   //}}}
 
@@ -405,52 +402,61 @@ private:
 
   //{{{
   void drawOverviewWave (cVg* context, int firstFrame, int playFrame, float playFrameX, float valueScale, bool mono) {
-  // dumb overview, expensive but simple, should cache
+  // simple overview cache, invalidate if anything changed
 
     int lastFrame = mSong->getLastFrame();
     int totalFrames = mSong->getTotalFrames();
     float values[2] = { 0.f };
+
+    bool changed = (mOverviewValueScale != valueScale) ||
+                   (mOverviewFirstFrame != firstFrame) ||
+                   (mOverviewLastFrame != lastFrame) ||
+                   (mOverviewTotalFrames != totalFrames);
 
     context->beginPath();
     float xorg = mX;
     float xlen = 1.f;
     for (auto x = 0; x < int(mWidth); x++) {
       // iterate widget width
-      int frame = firstFrame + ((x * totalFrames) / int(mWidth));
-      int toFrame = firstFrame + (((x+1) * totalFrames) / int(mWidth));
-      if (toFrame > lastFrame)
-        toFrame = lastFrame+1;
+      if (changed) {
+        int frame = firstFrame + ((x * totalFrames) / int(mWidth));
+        int toFrame = firstFrame + (((x+1) * totalFrames) / int(mWidth));
+        if (toFrame > lastFrame)
+          toFrame = lastFrame+1;
 
-      auto framePtr = mSong->getAudioFramePtr (frame);
-      if (framePtr && framePtr->getPowerValues()) {
-        // accumulate frame, handle silence better
-        float* powerValues = framePtr->getPowerValues();
-        values[0] = powerValues[0];
-        values[1] = mono ? 0 : powerValues[1];
+        auto framePtr = mSong->getAudioFramePtr (frame);
+        if (framePtr && framePtr->getPowerValues()) {
+          // accumulate frame, handle silence better
+          float* powerValues = framePtr->getPowerValues();
+          values[0] = powerValues[0];
+          values[1] = mono ? 0 : powerValues[1];
 
-        if (frame < toFrame) {
-          int numSummedFrames = 1;
-          frame++;
-          while (frame < toFrame) {
-            framePtr = mSong->getAudioFramePtr (frame);
-            if (framePtr) {
-              if (framePtr->getPowerValues()) {
-                auto powerValues = framePtr->getPowerValues();
-                values[0] += powerValues[0];
-                values[1] += mono ? 0 : powerValues[1];
-                numSummedFrames++;
-                }
-              }
+          if (frame < toFrame) {
+            int numSummedFrames = 1;
             frame++;
+            while (frame < toFrame) {
+              framePtr = mSong->getAudioFramePtr (frame);
+              if (framePtr) {
+                if (framePtr->getPowerValues()) {
+                  auto powerValues = framePtr->getPowerValues();
+                  values[0] += powerValues[0];
+                  values[1] += mono ? 0 : powerValues[1];
+                  numSummedFrames++;
+                  }
+                }
+              frame++;
+              }
+            values[0] /= numSummedFrames;
+            values[1] /= numSummedFrames;
             }
-          values[0] /= numSummedFrames;
-          values[1] /= numSummedFrames;
+          values[0] *= valueScale;
+          values[1] *= valueScale;
+          mOverviewValuesL[x] = values[0];
+          mOverviewValuesR[x] = values[0] + values[1];
           }
-        values[0] *= valueScale;
-        values[1] *= valueScale;
-        context->rect (xorg, mY + mDstOverviewCentre -  values[0], xlen,  values[0] + values[1]);
         }
 
+      context->rect (xorg, mY + mDstOverviewCentre - mOverviewValuesL[x], xlen,  mOverviewValuesR[x]);
       xorg += 1.f;
       }
     context->fillColor (kVgGrey);
@@ -634,9 +640,6 @@ private:
   bool mOverviewPressed = false;
   bool mRangePressed = false;
 
-  int mOverviewFirstFrame = 0;
-  int mOverviewLastFrame = 0;
-  int mOverviewTotalFrames = 0;
   float mOverviewValueScale = 1.f;
   float mOverviewLens = 0.f;
 
@@ -653,5 +656,12 @@ private:
 
   float mDstWaveCentre = 0.f;
   float mDstOverviewCentre = 0.f;
+
+  // mOverview cache
+  int mOverviewFirstFrame = 0;
+  int mOverviewLastFrame = 0;
+  int mOverviewTotalFrames = 0;
+  float mOverviewValuesL [1920] = { 0.f };
+  float mOverviewValuesR [1920] = { 0.f };
   //}}}
   };
