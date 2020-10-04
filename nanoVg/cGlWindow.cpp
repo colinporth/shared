@@ -97,7 +97,7 @@ void cGlWindow::drawSpinner (float cx, float cy, float r, float t) {
 
 // protected
 //{{{
-cRootContainer* cGlWindow::initialise (const string& title, int width, int height, 
+cRootContainer* cGlWindow::initialise (const string& title, int width, int height,
                                        unsigned char* fontData, int fontDataSize) {
 
   mGlWindow = this;
