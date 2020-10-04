@@ -38,6 +38,8 @@ public:
   int drawText (uint32_t colour, uint16_t fontHeight, std::string str, int16_t x, int16_t y, uint16_t width, uint16_t height);
   void ellipseSolid (uint32_t colour, int16_t x, int16_t y, uint16_t xradius, uint16_t yradius);
 
+  void drawSpinner (float cx, float cy, float r);
+
   // iChange
   void changed() { mCountDown = 0; }
   void setChangeCountDown (int countDown) { mChangeCountDown = countDown; }
@@ -87,7 +89,6 @@ private:
   void endSwapFrame();
 
   void drawMouse (int x, int y);
-  void drawSpinner (float cx, float cy, float r);
   void drawEyes (float x, float y, float w, float h, float cursorX, float cursorY);
   void drawLines (float x, float y, float w, float h);
 

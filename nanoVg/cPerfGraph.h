@@ -5,12 +5,13 @@ public:
   enum eRenderStyle { GRAPH_RENDER_FPS, GRAPH_RENDER_MS, GRAPH_RENDER_PERCENT };
   //{{{
   cPerfGraph (eRenderStyle style, std::string name) : mStyle(style), mName(name) {
-    reset();
+    clear();
     }
   //}}}
 
   //{{{
-  void reset() {
+  void clear() {
+
     mHead = 0;
     mNumValues = 0;
     for (int i = 0; i < kGRAPH_HISTORY_COUNT; i++)
@@ -28,7 +29,6 @@ public:
     mHead = (mHead+1) % kGRAPH_HISTORY_COUNT;
     mValues[mHead] = time - mStartTime;
     mNumValues++;
-
     mStartTime = time;
     }
   //}}}

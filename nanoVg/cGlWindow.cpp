@@ -175,8 +175,8 @@ void cGlWindow::togglePerf() {
 
   mDrawPerf = !mDrawPerf;
 
-  mFpsGraph->reset();
-  mCpuGraph->reset();
+  mFpsGraph->clear();
+  mCpuGraph->clear();
   }
 //}}}
 

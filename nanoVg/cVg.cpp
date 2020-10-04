@@ -254,217 +254,9 @@ void tmpfree (void* ptr, void* up) {
   // empty
   }
 //}}}
+
+//{{{
 namespace fontStash {
-  //{{{  fontStash
-  //{{{
-  int ttInit (sFontStashContext* context) {
-    FONS_NOTUSED(context);
-    return 1;
-    }
-  //}}}
-  //{{{
-  int ttLoadFont (sFontStashContext* context, sFontStashImpl* font, unsigned char* data, int dataSize) {
-
-    FONS_NOTUSED(dataSize);
-    font->font.userdata = context;
-    return stbtt_InitFont (&font->font, data, 0);
-    }
-  //}}}
-
-  //{{{
-  void ttGetFontVMetrics (sFontStashImpl* font, int* ascent, int* descent, int* lineGap) {
-    stbtt_GetFontVMetrics (&font->font, ascent, descent, lineGap);
-    }
-  //}}}
-  //{{{
-  float ttGetPixelHeightScale (sFontStashImpl* font, float size) {
-    return stbtt_ScaleForPixelHeight (&font->font, size);
-    }
-  //}}}
-  //{{{
-  int ttGetGlyphIndex (sFontStashImpl* font, int codepoint) {
-    return stbtt_FindGlyphIndex (&font->font, codepoint);
-    }
-  //}}}
-  //{{{
-  int ttGetGlyphKernAdvance (sFontStashImpl* font, int glyph1, int glyph2) {
-    return stbtt_GetGlyphKernAdvance (&font->font, glyph1, glyph2);
-    }
-  //}}}
-
-  //{{{
-  int ttBuildGlyphBitmap (sFontStashImpl* font, int glyph, float size, float scale,
-                          int *advance, int *lsb, int *x0, int *y0, int *x1, int *y1) {
-
-    FONS_NOTUSED(size);
-
-    stbtt_GetGlyphHMetrics (&font->font, glyph, advance, lsb);
-    stbtt_GetGlyphBitmapBox (&font->font, glyph, scale, scale, x0, y0, x1, y1);
-
-    return 1;
-    }
-  //}}}
-  //{{{
-  void ttRenderGlyphBitmap (sFontStashImpl* font, unsigned char* output, int outWidth, int outHeight, int outStride,
-                            float scaleX, float scaleY, int glyph) {
-    stbtt_MakeGlyphBitmap (&font->font, output, outWidth, outHeight, outStride, scaleX, scaleY, glyph);
-    }
-  //}}}
-
-  //{{{
-  void freeFont (sFonstStashFont* font) {
-
-    if (font == NULL)
-      return;
-
-    free (font->glyphs);
-    if (font->freeData && font->data)
-      free (font->data);
-
-    free (font);
-    }
-  //}}}
-  //{{{
-  int allocFont (sFontStashContext* stash) {
-
-    if (stash->nfonts+1 > stash->cfonts) {
-      stash->cfonts = stash->cfonts == 0 ? 8 : stash->cfonts * 2;
-      stash->fonts = (sFonstStashFont**)realloc(stash->fonts, sizeof(sFonstStashFont*) * stash->cfonts);
-      if (stash->fonts == NULL)
-        return -1;
-      }
-
-    auto font = (sFonstStashFont*)malloc(sizeof(sFonstStashFont));
-    if (font == NULL)
-      goto error;
-    memset (font, 0, sizeof(sFonstStashFont));
-
-    font->glyphs = (sFontStashGlyph*)malloc(sizeof(sFontStashGlyph) * FONS_INIT_GLYPHS);
-    if (font->glyphs == NULL)
-      goto error;
-    font->cglyphs = FONS_INIT_GLYPHS;
-    font->nglyphs = 0;
-
-    stash->fonts[stash->nfonts++] = font;
-    return stash->nfonts-1;
-
-  error:
-    freeFont (font);
-    return FONS_INVALID;
-    }
-  //}}}
-  //{{{
-  sFontStashState* getState (sFontStashContext* stash) {
-    return &stash->states[stash->nstates-1];
-    }
-  //}}}
-
-  //{{{
-  unsigned int decutf8 (unsigned int* state, unsigned int* codep, unsigned int byte) {
-  // Copyright (c) 2008-2010 Bjoern Hoehrmann <bjoern@hoehrmann.de>
-  // See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
-
-    const unsigned char utf8d[] = {
-      // The first part of the table maps bytes to character classes that
-      // to reduce the size of the transition table and create bitmasks.
-      0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-      0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-      0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-      0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-      1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,  9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,
-      7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,  7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
-      8,8,2,2,2,2,2,2,2,2,2,2,2,2,2,2,  2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
-      10,3,3,3,3,3,3,3,3,3,3,3,3,4,3,3, 11,6,6,6,5,8,8,8,8,8,8,8,8,8,8,8,
-
-      // The second part is a transition table that maps a combination
-      // of a state of the automaton and a character class to a state.
-      0,12,24,36,60,96,84,12,12,12,48,72, 12,12,12,12,12,12,12,12,12,12,12,12,
-      12, 0,12,12,12,12,12, 0,12, 0,12,12, 12,24,12,12,12,12,12,24,12,24,12,12,
-      12,12,12,12,12,12,12,24,12,12,12,12, 12,24,12,12,12,12,12,12,12,24,12,12,
-      12,12,12,12,12,12,12,36,12,36,12,12, 12,36,12,12,12,12,12,36,12,36,12,12,
-      12,36,12,12,12,12,12,12,12,12,12,12,
-      };
-
-    unsigned int type = utf8d[byte];
-    *codep = (*state != FONS_UTF8_ACCEPT) ? (byte & 0x3fu) | (*codep << 6) : (0xff >> type) & (byte);
-    *state = utf8d[256 + *state + type];
-    return *state;
-    }
-  //}}}
-  //{{{
-  unsigned int hashint (unsigned int a) {
-
-    a += ~(a<<15);
-    a ^=  (a>>10);
-    a +=  (a<<3);
-    a ^=  (a>>6);
-    a += ~(a<<11);
-    a ^=  (a>>16);
-
-    return a;
-    }
-  //}}}
-
-  //{{{
-  void pushState (sFontStashContext* stash) {
-
-    if (stash->nstates >= FONS_MAX_STATES) {
-      if (stash->handleError)
-        stash->handleError(stash->errorUptr, FONS_STATES_OVERFLOW, 0);
-      return;
-      }
-
-    if (stash->nstates > 0)
-      memcpy(&stash->states[stash->nstates], &stash->states[stash->nstates-1], sizeof(sFontStashState));
-    stash->nstates++;
-    }
-  //}}}
-  //{{{
-  void popState (sFontStashContext* stash) {
-
-    if (stash->nstates <= 1) {
-      if (stash->handleError)
-        stash->handleError(stash->errorUptr, FONS_STATES_UNDERFLOW, 0);
-      return;
-      }
-
-    stash->nstates--;
-    }
-  //}}}
-  //{{{
-  void clearState (sFontStashContext* stash) {
-
-    auto state = getState (stash);
-    state->size = 12.0f;
-    state->color = 0xffffffff;
-    state->font = 0;
-    state->spacing = 0;
-    state->align = FONS_ALIGN_LEFT | FONS_ALIGN_BASELINE;
-    }
-  //}}}
-  //{{{
-  void flush (sFontStashContext* stash) {
-  // Flush texture
-
-    if (stash->dirtyRect[0] < stash->dirtyRect[2] && stash->dirtyRect[1] < stash->dirtyRect[3]) {
-      if (stash->params.renderUpdate != NULL)
-        stash->params.renderUpdate (stash->params.userPtr, stash->dirtyRect, stash->texData);
-      // Reset dirty rect
-      stash->dirtyRect[0] = stash->params.width;
-      stash->dirtyRect[1] = stash->params.height;
-      stash->dirtyRect[2] = 0;
-      stash->dirtyRect[3] = 0;
-      }
-
-    // Flush triangles
-    if (stash->nverts > 0) {
-      if (stash->params.renderDraw != NULL)
-        stash->params.renderDraw (stash->params.userPtr, stash->verts, stash->tcoords, stash->colors, stash->nverts);
-      stash->nverts = 0;
-      }
-    }
-  //}}}
-
   // font atlas
   //{{{
   // Atlas based on Skyline Bin Packer by Jukka Jylänki
@@ -664,6 +456,216 @@ namespace fontStash {
     return 1;
     }
   //}}}
+
+  //{{{
+  int ttInit (sFontStashContext* context) {
+    FONS_NOTUSED(context);
+    return 1;
+    }
+  //}}}
+  //{{{
+  int ttLoadFont (sFontStashContext* context, sFontStashImpl* font, unsigned char* data, int dataSize) {
+
+    FONS_NOTUSED(dataSize);
+    font->font.userdata = context;
+    return stbtt_InitFont (&font->font, data, 0);
+    }
+  //}}}
+
+  //{{{
+  void ttGetFontVMetrics (sFontStashImpl* font, int* ascent, int* descent, int* lineGap) {
+    stbtt_GetFontVMetrics (&font->font, ascent, descent, lineGap);
+    }
+  //}}}
+  //{{{
+  float ttGetPixelHeightScale (sFontStashImpl* font, float size) {
+    return stbtt_ScaleForPixelHeight (&font->font, size);
+    }
+  //}}}
+  //{{{
+  int ttGetGlyphIndex (sFontStashImpl* font, int codepoint) {
+    return stbtt_FindGlyphIndex (&font->font, codepoint);
+    }
+  //}}}
+  //{{{
+  int ttGetGlyphKernAdvance (sFontStashImpl* font, int glyph1, int glyph2) {
+    return stbtt_GetGlyphKernAdvance (&font->font, glyph1, glyph2);
+    }
+  //}}}
+
+  //{{{
+  int ttBuildGlyphBitmap (sFontStashImpl* font, int glyph, float size, float scale,
+                          int *advance, int *lsb, int *x0, int *y0, int *x1, int *y1) {
+
+    FONS_NOTUSED(size);
+
+    stbtt_GetGlyphHMetrics (&font->font, glyph, advance, lsb);
+    stbtt_GetGlyphBitmapBox (&font->font, glyph, scale, scale, x0, y0, x1, y1);
+
+    return 1;
+    }
+  //}}}
+  //{{{
+  void ttRenderGlyphBitmap (sFontStashImpl* font, unsigned char* output, int outWidth, int outHeight, int outStride,
+                            float scaleX, float scaleY, int glyph) {
+    stbtt_MakeGlyphBitmap (&font->font, output, outWidth, outHeight, outStride, scaleX, scaleY, glyph);
+    }
+  //}}}
+
+  //{{{
+  void freeFont (sFonstStashFont* font) {
+
+    if (font == NULL)
+      return;
+
+    free (font->glyphs);
+    if (font->freeData && font->data)
+      free (font->data);
+
+    free (font);
+    }
+  //}}}
+  //{{{
+  int allocFont (sFontStashContext* stash) {
+
+    if (stash->nfonts+1 > stash->cfonts) {
+      stash->cfonts = stash->cfonts == 0 ? 8 : stash->cfonts * 2;
+      stash->fonts = (sFonstStashFont**)realloc(stash->fonts, sizeof(sFonstStashFont*) * stash->cfonts);
+      if (stash->fonts == NULL)
+        return -1;
+      }
+
+    auto font = (sFonstStashFont*)malloc(sizeof(sFonstStashFont));
+    if (font == NULL)
+      goto error;
+    memset (font, 0, sizeof(sFonstStashFont));
+
+    font->glyphs = (sFontStashGlyph*)malloc(sizeof(sFontStashGlyph) * FONS_INIT_GLYPHS);
+    if (font->glyphs == NULL)
+      goto error;
+    font->cglyphs = FONS_INIT_GLYPHS;
+    font->nglyphs = 0;
+
+    stash->fonts[stash->nfonts++] = font;
+    return stash->nfonts-1;
+
+  error:
+    freeFont (font);
+    return FONS_INVALID;
+    }
+  //}}}
+  //{{{
+  sFontStashState* getState (sFontStashContext* stash) {
+    return &stash->states[stash->nstates-1];
+    }
+  //}}}
+
+  //{{{
+  static unsigned int decutf8 (unsigned int* state, unsigned int* codep, unsigned int byte) {
+  // Copyright (c) 2008-2010 Bjoern Hoehrmann <bjoern@hoehrmann.de>
+  // See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
+
+    const unsigned char utf8d[] = {
+      // The first part of the table maps bytes to character classes that
+      // to reduce the size of the transition table and create bitmasks.
+      0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+      0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+      0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+      0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+      1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,  9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,
+      7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,  7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
+      8,8,2,2,2,2,2,2,2,2,2,2,2,2,2,2,  2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
+      10,3,3,3,3,3,3,3,3,3,3,3,3,4,3,3, 11,6,6,6,5,8,8,8,8,8,8,8,8,8,8,8,
+
+      // The second part is a transition table that maps a combination
+      // of a state of the automaton and a character class to a state.
+      0,12,24,36,60,96,84,12,12,12,48,72, 12,12,12,12,12,12,12,12,12,12,12,12,
+      12, 0,12,12,12,12,12, 0,12, 0,12,12, 12,24,12,12,12,12,12,24,12,24,12,12,
+      12,12,12,12,12,12,12,24,12,12,12,12, 12,24,12,12,12,12,12,12,12,24,12,12,
+      12,12,12,12,12,12,12,36,12,36,12,12, 12,36,12,12,12,12,12,36,12,36,12,12,
+      12,36,12,12,12,12,12,12,12,12,12,12,
+      };
+
+    unsigned int type = utf8d[byte];
+    *codep = (*state != FONS_UTF8_ACCEPT) ? (byte & 0x3fu) | (*codep << 6) : (0xff >> type) & (byte);
+    *state = utf8d[256 + *state + type];
+    return *state;
+    }
+  //}}}
+  //{{{
+  static unsigned int hashint (unsigned int a) {
+
+    a += ~(a<<15);
+    a ^=  (a>>10);
+    a +=  (a<<3);
+    a ^=  (a>>6);
+    a += ~(a<<11);
+    a ^=  (a>>16);
+
+    return a;
+    }
+  //}}}
+
+  //{{{
+  void pushState (sFontStashContext* stash) {
+
+    if (stash->nstates >= FONS_MAX_STATES) {
+      if (stash->handleError)
+        stash->handleError(stash->errorUptr, FONS_STATES_OVERFLOW, 0);
+      return;
+      }
+
+    if (stash->nstates > 0)
+      memcpy(&stash->states[stash->nstates], &stash->states[stash->nstates-1], sizeof(sFontStashState));
+    stash->nstates++;
+    }
+  //}}}
+  //{{{
+  void popState (sFontStashContext* stash) {
+
+    if (stash->nstates <= 1) {
+      if (stash->handleError)
+        stash->handleError(stash->errorUptr, FONS_STATES_UNDERFLOW, 0);
+      return;
+      }
+
+    stash->nstates--;
+    }
+  //}}}
+  //{{{
+  void clearState (sFontStashContext* stash) {
+
+    auto state = getState (stash);
+    state->size = 12.0f;
+    state->color = 0xffffffff;
+    state->font = 0;
+    state->spacing = 0;
+    state->align = FONS_ALIGN_LEFT | FONS_ALIGN_BASELINE;
+    }
+  //}}}
+  //{{{
+  void flush (sFontStashContext* stash) {
+  // Flush texture
+
+    if (stash->dirtyRect[0] < stash->dirtyRect[2] && stash->dirtyRect[1] < stash->dirtyRect[3]) {
+      if (stash->params.renderUpdate != NULL)
+        stash->params.renderUpdate (stash->params.userPtr, stash->dirtyRect, stash->texData);
+      // Reset dirty rect
+      stash->dirtyRect[0] = stash->params.width;
+      stash->dirtyRect[1] = stash->params.height;
+      stash->dirtyRect[2] = 0;
+      stash->dirtyRect[3] = 0;
+      }
+
+    // Flush triangles
+    if (stash->nverts > 0) {
+      if (stash->params.renderDraw != NULL)
+        stash->params.renderDraw (stash->params.userPtr, stash->verts, stash->tcoords, stash->colors, stash->nverts);
+      stash->nverts = 0;
+      }
+    }
+  //}}}
+
   //{{{
   void addWhiteRect (sFontStashContext* stash, int w, int h) {
 
@@ -704,6 +706,7 @@ namespace fontStash {
 
     if (stash == NULL)
       return;
+
     *width = stash->params.width;
     *height = stash->params.height;
     }
@@ -713,7 +716,8 @@ namespace fontStash {
 
     int i, maxy = 0;
     unsigned char* data = NULL;
-    if (stash == NULL) return 0;
+    if (stash == NULL)
+      return 0;
 
     width = maxi(width, stash->params.width);
     height = maxi(height, stash->params.height);
@@ -728,11 +732,13 @@ namespace fontStash {
     if (stash->params.renderResize != NULL) {
       if (stash->params.renderResize(stash->params.userPtr, width, height) == 0)
         return 0;
-    }
+      }
+
     // Copy old texture data over.
     data = (unsigned char*)malloc(width * height);
     if (data == NULL)
       return 0;
+
     for (i = 0; i < stash->params.height; i++) {
       unsigned char* dst = &data[i*width];
       unsigned char* src = &stash->texData[i*stash->params.width];
@@ -752,6 +758,7 @@ namespace fontStash {
     // Add existing data as dirty.
     for (i = 0; i < stash->atlas->nnodes; i++)
       maxy = maxi(maxy, stash->atlas->nodes[i].y);
+
     stash->dirtyRect[0] = 0;
     stash->dirtyRect[1] = 0;
     stash->dirtyRect[2] = stash->params.width;
@@ -779,9 +786,8 @@ namespace fontStash {
       if (stash->params.renderResize (stash->params.userPtr, width, height) == 0)
         return 0;
 
-
     // Reset atlas
-    atlasReset(stash->atlas, width, height);
+    atlasReset (stash->atlas, width, height);
 
     // Clear texture data.
     stash->texData = (unsigned char*)realloc(stash->texData, width * height);
@@ -808,7 +814,7 @@ namespace fontStash {
     stash->ith = 1.0f/stash->params.height;
 
     // Add white rect at 0,0 for debug drawing.
-    addWhiteRect(stash, 2,2);
+    addWhiteRect (stash, 2,2);
 
     return 1;
     }
@@ -1157,6 +1163,7 @@ namespace fontStash {
     stash->nverts++;
     }
   //}}}
+
   //{{{
   float getVertAlign (sFontStashContext* stash, sFonstStashFont* font, int align, short isize) {
 
@@ -1170,6 +1177,7 @@ namespace fontStash {
       else if (align & FONS_ALIGN_BOTTOM)
         return font->descender * (float)isize/10.0f;
       }
+
     else if (align & FONS_ALIGN_TOP)
       return -font->ascender * (float)isize/10.0f;
     else if (align & FONS_ALIGN_MIDDLE)
@@ -1182,7 +1190,57 @@ namespace fontStash {
     return 0.0;
     }
   //}}}
+  //{{{
+  void vertMetrics (sFontStashContext* stash, float* ascender, float* descender, float* lineh) {
 
+    auto state = getState(stash);
+
+    if (stash == NULL)
+      return;
+    if (state->font < 0 || state->font >= stash->nfonts)
+      return;
+
+    auto font = stash->fonts[state->font];
+    short isize = (short)(state->size*10.0f);
+    if (font->data == NULL)
+      return;
+
+    if (ascender)
+      *ascender = font->ascender*isize/10.0f;
+    if (descender)
+      *descender = font->descender*isize/10.0f;
+    if (lineh)
+      *lineh = font->lineh*isize/10.0f;
+    }
+  //}}}
+  //{{{
+  void lineBounds (sFontStashContext* stash, float y, float* miny, float* maxy) {
+
+    auto state = getState(stash);
+    short isize;
+
+    if (stash == NULL)
+      return;
+    if (state->font < 0 || state->font >= stash->nfonts)
+      return;
+
+    auto font = stash->fonts[state->font];
+    isize = (short)(state->size*10.0f);
+    if (font->data == NULL)
+      return;
+
+    y += getVertAlign (stash, font, state->align, isize);
+
+    if (stash->params.flags & FONS_ZERO_TOPLEFT) {
+      *miny = y - font->ascender * (float)isize/10.0f;
+      *maxy = *miny + font->lineh*isize/10.0f;
+      }
+    else {
+      *maxy = y + font->descender * (float)isize/10.0f;
+      *miny = *maxy - font->lineh*isize/10.0f;
+      }
+    }
+  //}}}
   //{{{
   float textBounds (sFontStashContext* stash, float x, float y, const char* str, const char* end, float* bounds) {
 
@@ -1271,6 +1329,84 @@ namespace fontStash {
     }
   //}}}
   //{{{
+  int textItInit (sFontStashContext* stash, sFontStashTextIt* it, float x, float y, const char* str, const char* end) {
+
+    auto state = getState (stash);
+    float width;
+
+    memset (it, 0, sizeof (*it));
+
+    if (stash == NULL)
+      return 0;
+
+    if (state->font < 0 || state->font >= stash->nfonts)
+      return 0;
+
+    it->font = stash->fonts[state->font];
+    if (it->font->data == NULL)
+      return 0;
+
+    it->isize = (short)(state->size*10.0f);
+    it->scale = fontStash::ttGetPixelHeightScale (&it->font->font, (float)it->isize/10.0f);
+
+    // Align horizontally
+    if (state->align & FONS_ALIGN_RIGHT) {
+      width = fontStash::textBounds (stash, x,y, str, end, NULL);
+      x -= width;
+      }
+    else if (state->align & FONS_ALIGN_CENTER) {
+      width = fontStash::textBounds (stash, x,y, str, end, NULL);
+      x -= width * 0.5f;
+      }
+
+    // Align vertically.
+    y += getVertAlign (stash, it->font, state->align, it->isize);
+
+    if (end == NULL)
+      end = str + strlen(str);
+
+    it->x = it->nextx = x;
+    it->y = it->nexty = y;
+    it->spacing = state->spacing;
+    it->str = str;
+    it->next = str;
+    it->end = end;
+    it->codepoint = 0;
+    it->prevGlyphIndex = -1;
+
+    return 1;
+    }
+  //}}}
+  //{{{
+  int textItNext (sFontStashContext* stash, sFontStashTextIt* it, sFontStashQuad* quad) {
+
+    sFontStashGlyph* glyph = NULL;
+    const char* str = it->next;
+    it->str = it->next;
+
+    if (str == it->end)
+      return 0;
+
+    for (; str != it->end; str++) {
+      if (decutf8 (&it->utf8state, &it->codepoint, *(const unsigned char*)str))
+        continue;
+      str++;
+      // Get glyph and quad
+      it->x = it->nextx;
+      it->y = it->nexty;
+      glyph = getGlyph (stash, it->font, it->codepoint, it->isize);
+      if (glyph != NULL)
+        getQuad (stash, it->font, it->prevGlyphIndex, glyph, it->scale, it->spacing, &it->nextx, &it->nexty, quad);
+      it->prevGlyphIndex = glyph != NULL ? glyph->index : -1;
+      break;
+      }
+
+    it->next = str;
+    return 1;
+    }
+  //}}}
+
+  //{{{
   float drawText (sFontStashContext* stash, float x, float y, const char* str, const char* end) {
 
     auto state = getState(stash);
@@ -1340,86 +1476,6 @@ namespace fontStash {
     }
   //}}}
   //{{{
-  int textIterInit (sFontStashContext* stash, sFontStashTextIt* iter,
-                        float x, float y, const char* str, const char* end) {
-
-    auto state = getState (stash);
-    float width;
-
-    memset (iter, 0, sizeof (*iter));
-
-    if (stash == NULL)
-      return 0;
-    if (state->font < 0 || state->font >= stash->nfonts)
-      return 0;
-    iter->font = stash->fonts[state->font];
-    if (iter->font->data == NULL)
-      return 0;
-
-    iter->isize = (short)(state->size*10.0f);
-    iter->scale = fontStash::ttGetPixelHeightScale (&iter->font->font, (float)iter->isize/10.0f);
-
-    // Align horizontally
-    if (state->align & FONS_ALIGN_LEFT) {
-      // empty
-      }
-    else if (state->align & FONS_ALIGN_RIGHT) {
-      width = fontStash::textBounds (stash, x,y, str, end, NULL);
-      x -= width;
-      }
-    else if (state->align & FONS_ALIGN_CENTER) {
-      width = fontStash::textBounds (stash, x,y, str, end, NULL);
-      x -= width * 0.5f;
-      }
-
-    // Align vertically.
-    y += getVertAlign (stash, iter->font, state->align, iter->isize);
-
-    if (end == NULL)
-      end = str + strlen(str);
-
-    iter->x = iter->nextx = x;
-    iter->y = iter->nexty = y;
-    iter->spacing = state->spacing;
-    iter->str = str;
-    iter->next = str;
-    iter->end = end;
-    iter->codepoint = 0;
-    iter->prevGlyphIndex = -1;
-
-    return 1;
-    }
-  //}}}
-  //{{{
-  int textIterNext (sFontStashContext* stash, sFontStashTextIt* iter, sFontStashQuad* quad) {
-
-    sFontStashGlyph* glyph = NULL;
-    const char* str = iter->next;
-    iter->str = iter->next;
-
-    if (str == iter->end)
-      return 0;
-
-    for (; str != iter->end; str++) {
-      if (decutf8 (&iter->utf8state, &iter->codepoint, *(const unsigned char*)str))
-        continue;
-      str++;
-      // Get glyph and quad
-      iter->x = iter->nextx;
-      iter->y = iter->nexty;
-      glyph = getGlyph (stash, iter->font, iter->codepoint, iter->isize);
-      if (glyph != NULL)
-        getQuad (stash, iter->font, iter->prevGlyphIndex, glyph, iter->scale, iter->spacing, &iter->nextx, &iter->nexty, quad);
-      iter->prevGlyphIndex = glyph != NULL ? glyph->index : -1;
-      break;
-      }
-
-    iter->next = str;
-    return 1;
-    }
-  //}}}
-
-  //{{{
   void drawDebug (sFontStashContext* stash, float x, float y) {
 
     int i;
@@ -1468,63 +1524,13 @@ namespace fontStash {
     flush (stash);
     }
   //}}}
-  //{{{
-  void vertMetrics (sFontStashContext* stash, float* ascender, float* descender, float* lineh) {
-
-    auto state = getState(stash);
-
-    if (stash == NULL)
-      return;
-    if (state->font < 0 || state->font >= stash->nfonts)
-      return;
-
-    auto font = stash->fonts[state->font];
-    short isize = (short)(state->size*10.0f);
-    if (font->data == NULL)
-      return;
-
-    if (ascender)
-      *ascender = font->ascender*isize/10.0f;
-    if (descender)
-      *descender = font->descender*isize/10.0f;
-    if (lineh)
-      *lineh = font->lineh*isize/10.0f;
-    }
-  //}}}
-  //{{{
-  void lineBounds (sFontStashContext* stash, float y, float* miny, float* maxy) {
-
-    auto state = getState(stash);
-    short isize;
-
-    if (stash == NULL)
-      return;
-    if (state->font < 0 || state->font >= stash->nfonts)
-      return;
-
-    auto font = stash->fonts[state->font];
-    isize = (short)(state->size*10.0f);
-    if (font->data == NULL)
-      return;
-
-    y += getVertAlign (stash, font, state->align, isize);
-
-    if (stash->params.flags & FONS_ZERO_TOPLEFT) {
-      *miny = y - font->ascender * (float)isize/10.0f;
-      *maxy = *miny + font->lineh*isize/10.0f;
-      }
-    else {
-      *maxy = y + font->descender * (float)isize/10.0f;
-      *miny = *maxy - font->lineh*isize/10.0f;
-      }
-    }
-  //}}}
 
   //{{{
   const unsigned char* getTextureData (sFontStashContext* stash, int* width, int* height) {
 
     if (width != NULL)
       *width = stash->params.width;
+
     if (height != NULL)
       *height = stash->params.height;
 
@@ -1562,8 +1568,8 @@ namespace fontStash {
     stash->errorUptr = uptr;
     }
   //}}}
-  //}}}
   }
+//}}}
 
 //{{{
 static const char* kShaderHeader =
@@ -2501,21 +2507,21 @@ float cVg::text (float x, float y, string str) {
   auto vertices = mVertices.getVertexPtr (vertexIndex);
   auto firstVertex = vertices;
 
-  sFontStashTextIt iter;
-  fontStash::textIterInit (fontStashContext, &iter, x*scale, y*scale, str.c_str(), str.c_str() + str.size());
-  sFontStashTextIt prevIter = iter;
+  sFontStashTextIt it;
+  fontStash::textItInit (fontStashContext, &it, x*scale, y*scale, str.c_str(), str.c_str() + str.size());
+  sFontStashTextIt prevIt = it;
   sFontStashQuad q;
-  while (fontStash::textIterNext (fontStashContext, &iter, &q)) {
-    if (iter.prevGlyphIndex == -1) {
+  while (fontStash::textItNext (fontStashContext, &it, &q)) {
+    if (it.prevGlyphIndex == -1) {
       // can not retrieve glyph?
       if (!allocTextAtlas())
         break; // no memory
-      iter = prevIter;
-      fontStash::textIterNext (fontStashContext, &iter, &q); // try again
-      if (iter.prevGlyphIndex == -1) // still can not find glyph?
+      it = prevIt;
+      fontStash::textItNext (fontStashContext, &it, &q); // try again
+      if (it.prevGlyphIndex == -1) // still can not find glyph?
         break;
       }
-    prevIter = iter;
+    prevIt = it;
     //{{{  set vertex triangles
     if (state->mTransform.mIdentity) {
       vertices++->set (q.x0 * inverseScale, q.y0 * inverseScale, q.s0, q.t0);
@@ -2564,7 +2570,7 @@ float cVg::text (float x, float y, string str) {
     }
   flushTextTexture();
 
-  return iter.x;
+  return it.x;
   }
 //}}}
 //{{{
@@ -2672,24 +2678,24 @@ int cVg::textGlyphPositions (float x, float y, string str, NVGglyphPosition* pos
   fontStash::setAlign (fontStashContext, state->textAlign);
   fontStash::setFont (fontStashContext, state->fontId);
 
-  sFontStashTextIt iter;
-  fontStash::textIterInit (fontStashContext, &iter, x*scale, y*scale, str.c_str(), str.c_str() + str.size());
-  sFontStashTextIt prevIter = iter;
+  sFontStashTextIt it;
+  fontStash::textItInit (fontStashContext, &it, x*scale, y*scale, str.c_str(), str.c_str() + str.size());
+  sFontStashTextIt prevIt = it;
 
   int npos = 0;
   sFontStashQuad q;
-  while (fontStash::textIterNext (fontStashContext, &iter, &q)) {
-    if (iter.prevGlyphIndex < 0 && allocTextAtlas()) {
+  while (fontStash::textItNext (fontStashContext, &it, &q)) {
+    if (it.prevGlyphIndex < 0 && allocTextAtlas()) {
       // can not retrieve glyph, try again
-      iter = prevIter;
-      fontStash::textIterNext (fontStashContext, &iter, &q);
+      it = prevIt;
+      fontStash::textItNext (fontStashContext, &it, &q);
       }
-    prevIter = iter;
+    prevIt = it;
 
-    positions[npos].str = iter.str;
-    positions[npos].x = iter.x * inverseScale;
-    positions[npos].minx = minf(iter.x, q.x0) * inverseScale;
-    positions[npos].maxx = maxf(iter.nextx, q.x1) * inverseScale;
+    positions[npos].str = it.str;
+    positions[npos].x = it.x * inverseScale;
+    positions[npos].minx = minf (it.x, q.x0) * inverseScale;
+    positions[npos].maxx = maxf (it.nextx, q.x1) * inverseScale;
     npos++;
     if (npos >= maxPositions)
       break;
@@ -2811,19 +2817,19 @@ int cVg::textBreakLines (const char* string, const char* end, float breakRowWidt
 
   breakRowWidth *= scale;
 
-  sFontStashTextIt iter;
-  fontStash::textIterInit (fontStashContext, &iter, 0, 0, string, end);
-  sFontStashTextIt prevIter = iter;
+  sFontStashTextIt it;
+  fontStash::textItInit (fontStashContext, &it, 0, 0, string, end);
+  sFontStashTextIt prevIt = it;
 
   sFontStashQuad q;
-  while (fontStash::textIterNext (fontStashContext, &iter, &q)) {
-    if (iter.prevGlyphIndex < 0 && allocTextAtlas()) { // can not retrieve glyph?
-      iter = prevIter;
-      fontStash::textIterNext (fontStashContext, &iter, &q); // try again
+  while (fontStash::textItNext (fontStashContext, &it, &q)) {
+    if (it.prevGlyphIndex < 0 && allocTextAtlas()) { // can not retrieve glyph?
+      it = prevIt;
+      fontStash::textItNext (fontStashContext, &it, &q); // try again
       }
-    prevIter = iter;
+    prevIt = it;
 
-    switch (iter.codepoint) {
+    switch (it.codepoint) {
       case 9:     // \t
       case 11:    // \v
       case 12:    // \f
@@ -2845,12 +2851,12 @@ int cVg::textBreakLines (const char* string, const char* end, float breakRowWidt
         break;
 
       default:
-        if ((iter.codepoint >= 0x4E00 && iter.codepoint <= 0x9FFF) ||
-            (iter.codepoint >= 0x3000 && iter.codepoint <= 0x30FF) ||
-            (iter.codepoint >= 0xFF00 && iter.codepoint <= 0xFFEF) ||
-            (iter.codepoint >= 0x1100 && iter.codepoint <= 0x11FF) ||
-            (iter.codepoint >= 0x3130 && iter.codepoint <= 0x318F) ||
-            (iter.codepoint >= 0xAC00 && iter.codepoint <= 0xD7AF))
+        if ((it.codepoint >= 0x4E00 && it.codepoint <= 0x9FFF) ||
+            (it.codepoint >= 0x3000 && it.codepoint <= 0x30FF) ||
+            (it.codepoint >= 0xFF00 && it.codepoint <= 0xFFEF) ||
+            (it.codepoint >= 0x1100 && it.codepoint <= 0x11FF) ||
+            (it.codepoint >= 0x3130 && it.codepoint <= 0x318F) ||
+            (it.codepoint >= 0xAC00 && it.codepoint <= 0xD7AF))
           type = NVG_CJK_CHAR;
         else
           type = NVG_CHAR;
@@ -2859,12 +2865,12 @@ int cVg::textBreakLines (const char* string, const char* end, float breakRowWidt
 
     if (type == NVG_NEWLINE) {
      //{{{  Always handle new lines.
-     rows[nrows].start = rowStart != NULL ? rowStart : iter.str;
-     rows[nrows].end = rowEnd != NULL ? rowEnd : iter.str;
+     rows[nrows].start = rowStart != NULL ? rowStart : it.str;
+     rows[nrows].end = rowEnd != NULL ? rowEnd : it.str;
      rows[nrows].width = rowWidth * inverseScale;
      rows[nrows].minx = rowMinX * inverseScale;
      rows[nrows].maxx = rowMaxX * inverseScale;
-     rows[nrows].next = iter.next;
+     rows[nrows].next = it.next;
      nrows++;
      if (nrows >= maxRows)
        return nrows;
@@ -2886,14 +2892,14 @@ int cVg::textBreakLines (const char* string, const char* end, float breakRowWidt
        //{{{  Skip white space until the beginning of the line
        if (type == NVG_CHAR || type == NVG_CJK_CHAR) {
          // The current char is the row so far
-         rowStartX = iter.x;
-         rowStart = iter.str;
-         rowEnd = iter.next;
-         rowWidth = iter.nextx - rowStartX; // q.x1 - rowStartX;
+         rowStartX = it.x;
+         rowStart = it.str;
+         rowEnd = it.next;
+         rowWidth = it.nextx - rowStartX; // q.x1 - rowStartX;
          rowMinX = q.x0 - rowStartX;
          rowMaxX = q.x1 - rowStartX;
-         wordStart = iter.str;
-         wordStartX = iter.x;
+         wordStart = it.str;
+         wordStartX = it.x;
          wordMinX = q.x0 - rowStartX;
          // Set null break point
          breakEnd = rowStart;
@@ -2903,25 +2909,25 @@ int cVg::textBreakLines (const char* string, const char* end, float breakRowWidt
        }
        //}}}
      else {
-       float nextWidth = iter.nextx - rowStartX;
+       float nextWidth = it.nextx - rowStartX;
        //{{{  track last non-white space character
        if (type == NVG_CHAR || type == NVG_CJK_CHAR) {
-         rowEnd = iter.next;
-         rowWidth = iter.nextx - rowStartX;
+         rowEnd = it.next;
+         rowWidth = it.nextx - rowStartX;
          rowMaxX = q.x1 - rowStartX;
          }
        //}}}
        //{{{  track last end of a word
        if (((ptype == NVG_CHAR || ptype == NVG_CJK_CHAR) && type == NVG_SPACE) || type == NVG_CJK_CHAR) {
-         breakEnd = iter.str;
+         breakEnd = it.str;
          breakWidth = rowWidth;
          breakMaxX = rowMaxX;
          }
        //}}}
        //{{{  track last beginning of a word
        if ((ptype == NVG_SPACE && (type == NVG_CHAR || type == NVG_CJK_CHAR)) || type == NVG_CJK_CHAR) {
-         wordStart = iter.str;
-         wordStartX = iter.x;
+         wordStart = it.str;
+         wordStartX = it.x;
          wordMinX = q.x0 - rowStartX;
          }
        //}}}
@@ -2932,22 +2938,22 @@ int cVg::textBreakLines (const char* string, const char* end, float breakRowWidt
          if (breakEnd == rowStart) {
            //{{{  current word longer than row length, just break it from here
            rows[nrows].start = rowStart;
-           rows[nrows].end = iter.str;
+           rows[nrows].end = it.str;
            rows[nrows].width = rowWidth * inverseScale;
            rows[nrows].minx = rowMinX * inverseScale;
            rows[nrows].maxx = rowMaxX * inverseScale;
-           rows[nrows].next = iter.str;
+           rows[nrows].next = it.str;
            nrows++;
            if (nrows >= maxRows)
              return nrows;
-           rowStartX = iter.x;
-           rowStart = iter.str;
-           rowEnd = iter.next;
-           rowWidth = iter.nextx - rowStartX;
+           rowStartX = it.x;
+           rowStart = it.str;
+           rowEnd = it.next;
+           rowWidth = it.nextx - rowStartX;
            rowMinX = q.x0 - rowStartX;
            rowMaxX = q.x1 - rowStartX;
-           wordStart = iter.str;
-           wordStartX = iter.x;
+           wordStart = it.str;
+           wordStartX = it.x;
            wordMinX = q.x0 - rowStartX;
            }
            //}}}
@@ -2965,8 +2971,8 @@ int cVg::textBreakLines (const char* string, const char* end, float breakRowWidt
 
            rowStartX = wordStartX;
            rowStart = wordStart;
-           rowEnd = iter.next;
-           rowWidth = iter.nextx - rowStartX;
+           rowEnd = it.next;
+           rowWidth = it.nextx - rowStartX;
            rowMinX = wordMinX;
            rowMaxX = q.x1 - rowStartX;
            // No change to the word start
@@ -2981,7 +2987,7 @@ int cVg::textBreakLines (const char* string, const char* end, float breakRowWidt
        }
      }
 
-    pcodepoint = iter.codepoint;
+    pcodepoint = it.codepoint;
     ptype = type;
     }
 
