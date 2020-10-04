@@ -199,6 +199,7 @@ inline sVgColour nvgPremulColor (sVgColour c) {
 //}}}
 //}}}
 
+class cFontContext;
 class cVg {
 public:
   //{{{
@@ -973,5 +974,7 @@ private:
 
   int fontImageIdx = 0;
   int fontImages[NVG_MAX_FONTIMAGES];
+
+  cFontContext* mFontContext = nullptr;
   //}}}
   };

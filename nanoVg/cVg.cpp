@@ -12,16 +12,15 @@ using namespace std;
 #define KAPPA90 0.5522847493f // Length proportional to radius of a cubic bezier handle for 90deg arcs.
 const float kDistanceTolerance = 0.01f;
 
-// fontStash
+// fonts
 //{{{  stb_truetype heap
-void* tmpalloc (size_t size, void* up);
-#define STBTT_malloc(x,u) tmpalloc (x,u)
+void* fontAlloc (size_t size, void* up);
+#define STBTT_malloc(x,u) fontAlloc (x,u)
 
-void tmpfree (void* ptr, void* up);
-#define STBTT_free(x,u) tmpfree (x,u)
+void fontFree (void* ptr, void* up);
+#define STBTT_free(x,u) fontFree (x,u)
 //}}}
 #include "stb_truetype.h"
-
 //{{{  font defines
 #define FONS_INVALID -1
 #define FONS_NOTUSED(v)  (void)sizeof(v)
@@ -279,7 +278,11 @@ public:
     FONS_STATES_UNDERFLOW = 4,
     };
   //}}}
-
+  //{{{
+  struct sFontStashImpl {
+    stbtt_fontinfo font;
+    };
+  //}}}
   //{{{
   struct sFontStashQuad {
     float x0;
@@ -291,11 +294,6 @@ public:
     float y1;
     float s1;
     float t1;
-    };
-  //}}}
-  //{{{
-  struct sFontStashImpl {
-    stbtt_fontinfo font;
     };
   //}}}
   //{{{
@@ -363,24 +361,12 @@ public:
     unsigned int utf8state;
     };
   //}}}
-  //{{{
-  struct sFontStashState {
-    int font;
-    int align;
-    float size;
-    unsigned int color;
-    float spacing;
-    };
-  //}}}
 
   //{{{
   cFontContext (int width, int height, unsigned char flags) {
 
-    // Allocate scratch buffer.
+    // allocate scratch buffer.
     scratch = (unsigned char*)malloc (FONS_SCRATCH_BUF_SIZE);
-
-    // Initialize implementation library
-    ttInit();
 
     mFontAtlas = new cFontAtlas (width, height, FONS_INIT_ATLAS_NODES);
 
@@ -658,68 +644,14 @@ public:
     }
   //}}}
   //{{{
-  void getQuad (sFonstStashFont* font,
-                     int prevGlyphIndex, sFontStashGlyph* glyph,
-                     float scale, float spacing, float* x, float* y, sFontStashQuad* q) {
-
-    float rx,ry,xoff,yoff,x0,y0,x1,y1;
-
-    if (prevGlyphIndex != -1) {
-      float adv = ttGetGlyphKernAdvance(&font->font, prevGlyphIndex, glyph->index) * scale;
-      *x += (int)(adv + spacing + 0.5f);
-      }
-
-    // Each glyph has 2px border to allow good interpolation,
-    // one pixel to prevent leaking, and one to allow good interpolation for rendering.
-    // Inset the texture region by one pixel for correct interpolation.
-    xoff = (short)(glyph->xoff+1);
-    yoff = (short)(glyph->yoff+1);
-    x0 = (float)(glyph->x0+1);
-    y0 = (float)(glyph->y0+1);
-    x1 = (float)(glyph->x1-1);
-    y1 = (float)(glyph->y1-1);
-
-    if (mFlags & FONS_ZERO_TOPLEFT) {
-      rx = (float)(int)(*x + xoff);
-      ry = (float)(int)(*y + yoff);
-
-      q->x0 = rx;
-      q->y0 = ry;
-      q->x1 = rx + x1 - x0;
-      q->y1 = ry + y1 - y0;
-
-      q->s0 = x0 * itw;
-      q->t0 = y0 * ith;
-      q->s1 = x1 * itw;
-      q->t1 = y1 * ith;
-      }
-
-    else {
-      rx = (float)(int)(*x + xoff);
-      ry = (float)(int)(*y - yoff);
-
-      q->x0 = rx;
-      q->y0 = ry;
-      q->x1 = rx + x1 - x0;
-      q->y1 = ry - y1 + y0;
-
-      q->s0 = x0 * itw;
-      q->t0 = y0 * ith;
-      q->s1 = x1 * itw;
-      q->t1 = y1 * ith;
-      }
-
-    *x += (int)(glyph->xadv / 10.0f + 0.5f);
-    }
-  //}}}
-  //{{{
-  void vertex (float x, float y, float s, float t, unsigned int c) {
+  void vertex (float x, float y, float s, float t, unsigned int color) {
 
     verts[nverts*2+0] = x;
     verts[nverts*2+1] = y;
     tcoords[nverts*2+0] = s;
     tcoords[nverts*2+1] = t;
-    colors[nverts] = c;
+    colors[nverts] = color;
+
     nverts++;
     }
   //}}}
@@ -1120,6 +1052,58 @@ public:
 
 private:
   //{{{
+  struct sFontStashState {
+    int font;
+    int align;
+    float size;
+    unsigned int color;
+    float spacing;
+    };
+  //}}}
+  //{{{
+  sFontStashState* getState() {
+    return &states[nstates-1];
+    }
+  //}}}
+  //{{{
+  void pushState() {
+
+    if (nstates >= FONS_MAX_STATES) {
+      if (handleError)
+        handleError(errorUptr, FONS_STATES_OVERFLOW, 0);
+      return;
+      }
+
+    if (nstates > 0)
+      memcpy(&states[nstates], &states[nstates-1], sizeof(sFontStashState));
+    nstates++;
+    }
+  //}}}
+  //{{{
+  void popState() {
+
+    if (nstates <= 1) {
+      if (handleError)
+        handleError (errorUptr, FONS_STATES_UNDERFLOW, 0);
+      return;
+      }
+
+    nstates--;
+    }
+  //}}}
+  //{{{
+  void clearState() {
+
+    auto state = getState();
+    state->size = 12.0f;
+    state->color = 0xffffffff;
+    state->font = 0;
+    state->spacing = 0;
+    state->align = FONS_ALIGN_LEFT | FONS_ALIGN_BASELINE;
+    }
+  //}}}
+
+  //{{{
   static unsigned int decutf8 (unsigned int* state, unsigned int* codep, unsigned int byte) {
   // Copyright (c) 2008-2010 Bjoern Hoehrmann <bjoern@hoehrmann.de>
   // See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
@@ -1166,19 +1150,12 @@ private:
   //}}}
 
   //{{{
-  int ttInit() {
-    return 1;
-    }
-  //}}}
-  //{{{
   int ttLoadFont (sFontStashImpl* font, unsigned char* data, int dataSize) {
 
-    FONS_NOTUSED(dataSize);
     font->font.userdata = this;
     return stbtt_InitFont (&font->font, data, 0);
     }
   //}}}
-
   //{{{
   void ttGetFontVMetrics (sFontStashImpl* font, int* ascent, int* descent, int* lineGap) {
     stbtt_GetFontVMetrics (&font->font, ascent, descent, lineGap);
@@ -1199,16 +1176,12 @@ private:
     return stbtt_GetGlyphKernAdvance (&font->font, glyph1, glyph2);
     }
   //}}}
-
   //{{{
   int ttBuildGlyphBitmap (sFontStashImpl* font, int glyph, float size, float scale,
                           int *advance, int *lsb, int *x0, int *y0, int *x1, int *y1) {
 
-    FONS_NOTUSED(size);
-
     stbtt_GetGlyphHMetrics (&font->font, glyph, advance, lsb);
     stbtt_GetGlyphBitmapBox (&font->font, glyph, scale, scale, x0, y0, x1, y1);
-
     return 1;
     }
   //}}}
@@ -1219,19 +1192,6 @@ private:
     }
   //}}}
 
-  //{{{
-  void freeFont (sFonstStashFont* font) {
-
-    if (font == NULL)
-      return;
-
-    free (font->glyphs);
-    if (font->freeData && font->data)
-      free (font->data);
-
-    free (font);
-    }
-  //}}}
   //{{{
   int allocFont() {
 
@@ -1261,61 +1221,71 @@ private:
     return FONS_INVALID;
     }
   //}}}
-
-  // state
   //{{{
-  sFontStashState* getState() {
-    return &states[nstates-1];
-    }
-  //}}}
-  //{{{
-  void pushState() {
+  void freeFont (sFonstStashFont* font) {
 
-    if (nstates >= FONS_MAX_STATES) {
-      if (handleError)
-        handleError(errorUptr, FONS_STATES_OVERFLOW, 0);
+    if (font == NULL)
       return;
-      }
 
-    if (nstates > 0)
-      memcpy(&states[nstates], &states[nstates-1], sizeof(sFontStashState));
-    nstates++;
+    free (font->glyphs);
+    if (font->freeData && font->data)
+      free (font->data);
+
+    free (font);
     }
   //}}}
-  //{{{
-  void popState() {
 
-    if (nstates <= 1) {
-      if (handleError)
-        handleError (errorUptr, FONS_STATES_UNDERFLOW, 0);
-      return;
+  //{{{
+  void getQuad (sFonstStashFont* font,
+                int prevGlyphIndex, sFontStashGlyph* glyph,
+                float scale, float spacing, float* x, float* y, sFontStashQuad* q) {
+
+    if (prevGlyphIndex != -1) {
+      float adv = ttGetGlyphKernAdvance(&font->font, prevGlyphIndex, glyph->index) * scale;
+      *x += (int)(adv + spacing + 0.5f);
       }
 
-    nstates--;
-    }
-  //}}}
-  //{{{
-  void clearState() {
+    // Each glyph has 2px border to allow good interpolation,
+    // one pixel to prevent leaking, and one to allow good interpolation for rendering.
+    // Inset the texture region by one pixel for correct interpolation.
+    float xoff = (short)(glyph->xoff+1);
+    float yoff = (short)(glyph->yoff+1);
+    float x0 = (float)(glyph->x0+1);
+    float y0 = (float)(glyph->y0+1);
+    float x1 = (float)(glyph->x1-1);
+    float y1 = (float)(glyph->y1-1);
 
-    auto state = getState();
-    state->size = 12.0f;
-    state->color = 0xffffffff;
-    state->font = 0;
-    state->spacing = 0;
-    state->align = FONS_ALIGN_LEFT | FONS_ALIGN_BASELINE;
-    }
-  //}}}
-  //{{{
-  void flush() {
-  // Flush texture
+    if (mFlags & FONS_ZERO_TOPLEFT) {
+      float rx = (float)(int)(*x + xoff);
+      float ry = (float)(int)(*y + yoff);
 
-    if (dirtyRect[0] < dirtyRect[2] && dirtyRect[1] < dirtyRect[3]) {
-      // Reset dirty rect
-      dirtyRect[0] = mWidth;
-      dirtyRect[1] = mHeight;
-      dirtyRect[2] = 0;
-      dirtyRect[3] = 0;
+      q->x0 = rx;
+      q->y0 = ry;
+      q->x1 = rx + x1 - x0;
+      q->y1 = ry + y1 - y0;
+
+      q->s0 = x0 * itw;
+      q->t0 = y0 * ith;
+      q->s1 = x1 * itw;
+      q->t1 = y1 * ith;
       }
+
+    else {
+      float rx = (float)(int)(*x + xoff);
+      float ry = (float)(int)(*y - yoff);
+
+      q->x0 = rx;
+      q->y0 = ry;
+      q->x1 = rx + x1 - x0;
+      q->y1 = ry - y1 + y0;
+
+      q->s0 = x0 * itw;
+      q->t0 = y0 * ith;
+      q->s1 = x1 * itw;
+      q->t1 = y1 * ith;
+      }
+
+    *x += (int)(glyph->xadv / 10.0f + 0.5f);
     }
   //}}}
 
@@ -1410,13 +1380,29 @@ private:
     return 1;
     }
   //}}}
+  //{{{
+  void flush() {
+  // Flush texture
 
+    if (dirtyRect[0] < dirtyRect[2] && dirtyRect[1] < dirtyRect[3]) {
+      // Reset dirty rect
+      dirtyRect[0] = mWidth;
+      dirtyRect[1] = mHeight;
+      dirtyRect[2] = 0;
+      dirtyRect[3] = 0;
+      }
+    }
+  //}}}
 
+  // vars
   int mFlags = 0;
   int mWidth = 0;
   int mHeight = 0;
   float itw = 0.f;
   float ith = 0.f;
+
+  int nstates = 0;
+  sFontStashState states[FONS_MAX_STATES];
 
   unsigned char* texData = nullptr;
   int dirtyRect[4] = { 0 };
@@ -1430,14 +1416,10 @@ private:
   float verts[FONS_VERTEX_COUNT*2] = { 0.f };
   float tcoords[FONS_VERTEX_COUNT*2] = { 0.f };
   unsigned int colors[FONS_VERTEX_COUNT] = { 0 };
-
-  int nstates = 0;
-  sFontStashState states[FONS_MAX_STATES];
   };
 //}}}
-cFontContext* fontContext = nullptr;
 //{{{
-void* tmpalloc (size_t size, void* up) {
+void* fontAlloc (size_t size, void* up) {
 
   auto fontContext = (cFontContext*)up;
 
@@ -1456,7 +1438,7 @@ void* tmpalloc (size_t size, void* up) {
   return ptr;
   }
 //}}}
-void tmpfree (void* ptr, void* up) {}
+void fontFree (void* ptr, void* up) {}
 
 //{{{
 static const char* kShaderHeader =
@@ -1793,7 +1775,7 @@ cVg::cVg (int flags)
   resetState();
   setDevicePixelRatio (1.f);
 
-  fontContext = new cFontContext (NVG_INIT_FONTIMAGE_SIZE, NVG_INIT_FONTIMAGE_SIZE, cFontContext::FONS_ZERO_TOPLEFT);
+  mFontContext = new cFontContext (NVG_INIT_FONTIMAGE_SIZE, NVG_INIT_FONTIMAGE_SIZE, cFontContext::FONS_ZERO_TOPLEFT);
   }
 //}}}
 //{{{
@@ -2325,16 +2307,16 @@ void cVg::textAlign (int align) { mStates[mNumStates-1].textAlign = align; }
 void cVg::textLineHeight (float lineHeight) { mStates[mNumStates-1].lineHeight = lineHeight; }
 void cVg::textLetterSpacing (float spacing) { mStates[mNumStates-1].letterSpacing = spacing; }
 void cVg::fontFaceId (int font) { mStates[mNumStates-1].fontId = font; }
-void cVg::fontFace (string font) { mStates[mNumStates-1].fontId = fontContext->getFontByName (font.c_str()); }
+void cVg::fontFace (string font) { mStates[mNumStates-1].fontId = mFontContext->getFontByName (font.c_str()); }
 
 //{{{
 int cVg::createFont (string name, string path) {
-  return fontContext->addFont (name.c_str(), path.c_str());
+  return mFontContext->addFont (name.c_str(), path.c_str());
   }
 //}}}
 //{{{
 int cVg::createFontMem (string name, unsigned char* data, int ndata, int freeData) {
-  return fontContext->addFontMem (name.c_str(), data, ndata, freeData);
+  return mFontContext->addFontMem (name.c_str(), data, ndata, freeData);
   }
 //}}}
 //{{{
@@ -2342,7 +2324,7 @@ int cVg::findFont (string name) {
 
   if (name.empty())
     return -1;
-  return fontContext->getFontByName (name.c_str());
+  return mFontContext->getFontByName (name.c_str());
   }
 //}}}
 //{{{
@@ -2354,7 +2336,7 @@ int cVg::addFallbackFont (string baseFont, string fallbackFont) {
 int cVg::addFallbackFontId (int baseFont, int fallbackFont) {
   if (baseFont == -1 || fallbackFont == -1)
     return 0;
-  return fontContext->addFallbackFont (baseFont, fallbackFont);
+  return mFontContext->addFallbackFont (baseFont, fallbackFont);
   }
 //}}}
 
@@ -2369,10 +2351,10 @@ float cVg::text (float x, float y, string str) {
   float scale = getFontScale (state) * devicePixelRatio;
   float inverseScale = 1.0f / scale;
 
-  fontContext->setSize (state->fontSize * scale);
-  fontContext->setSpacing (state->letterSpacing * scale);
-  fontContext->setAlign (state->textAlign);
-  fontContext->setFont ( state->fontId);
+  mFontContext->setSize (state->fontSize * scale);
+  mFontContext->setSpacing (state->letterSpacing * scale);
+  mFontContext->setAlign (state->textAlign);
+  mFontContext->setFont ( state->fontId);
 
   // allocate 6 vertices per glyph
   int numVertices = maxi (2, (int)str.size()) * 6;
@@ -2381,50 +2363,51 @@ float cVg::text (float x, float y, string str) {
   auto firstVertex = vertices;
 
   cFontContext::sFontStashTextIt it;
-  fontContext->textItInit (&it, x*scale, y*scale, str.c_str(), str.c_str() + str.size());
+  mFontContext->textItInit (&it, x*scale, y*scale, str.c_str(), str.c_str() + str.size());
   cFontContext::sFontStashTextIt prevIt = it;
-  cFontContext::sFontStashQuad q;
-  while (fontContext->textItNext (&it, &q)) {
+
+  cFontContext::sFontStashQuad quad;
+  while (mFontContext->textItNext (&it, &quad)) {
     if (it.prevGlyphIndex == -1) {
       // can not retrieve glyph?
       if (!allocTextAtlas())
         break; // no memory
       it = prevIt;
-      fontContext->textItNext (&it, &q); // try again
+      mFontContext->textItNext (&it, &quad); // try again
       if (it.prevGlyphIndex == -1) // still can not find glyph?
         break;
       }
     prevIt = it;
-    //{{{  set vertex triangles
+    //{{{  set vertex triangles from quad
     if (state->mTransform.mIdentity) {
-      vertices++->set (q.x0 * inverseScale, q.y0 * inverseScale, q.s0, q.t0);
-      vertices++->set (q.x1 * inverseScale, q.y1 * inverseScale, q.s1, q.t1);
-      vertices++->set (q.x1 * inverseScale, q.y0 * inverseScale, q.s1, q.t0);
-      vertices++->set (q.x0 * inverseScale, q.y0 * inverseScale, q.s0, q.t0);  // 3 = 0
-      vertices++->set (q.x0 * inverseScale, q.y1 * inverseScale, q.s0, q.t1);
-      vertices++->set (q.x1 * inverseScale, q.y1 * inverseScale, q.s1, q.t1);  // 5 = 1
+      vertices++->set (quad.x0 * inverseScale, quad.y0 * inverseScale, quad.s0, quad.t0);
+      vertices++->set (quad.x1 * inverseScale, quad.y1 * inverseScale, quad.s1, quad.t1);
+      vertices++->set (quad.x1 * inverseScale, quad.y0 * inverseScale, quad.s1, quad.t0);
+      vertices++->set (quad.x0 * inverseScale, quad.y0 * inverseScale, quad.s0, quad.t0);  // 3 = 0
+      vertices++->set (quad.x0 * inverseScale, quad.y1 * inverseScale, quad.s0, quad.t1);
+      vertices++->set (quad.x1 * inverseScale, quad.y1 * inverseScale, quad.s1, quad.t1);  // 5 = 1
       }
 
     else {
       float x;
       float y;
-      state->mTransform.point (q.x0 * inverseScale, q.y0 * inverseScale, x, y);
-      vertices++->set (x, y, q.s0, q.t0);
+      state->mTransform.point (quad.x0 * inverseScale, quad.y0 * inverseScale, x, y);
+      vertices++->set (x, y, quad.s0, quad.t0);
 
-      state->mTransform.point (q.x1 * inverseScale, q.y1 * inverseScale, x, y);
-      vertices++->set (x, y, q.s1, q.t1);
+      state->mTransform.point (quad.x1 * inverseScale, quad.y1 * inverseScale, x, y);
+      vertices++->set (x, y, quad.s1, quad.t1);
 
-      state->mTransform.point (q.x1 * inverseScale, q.y0 * inverseScale, x, y);
-      vertices++->set (x, y, q.s1, q.t0);
+      state->mTransform.point (quad.x1 * inverseScale, quad.y0 * inverseScale, x, y);
+      vertices++->set (x, y, quad.s1, quad.t0);
 
-      state->mTransform.point (q.x0 * inverseScale, q.y0 * inverseScale, x, y);  // 3 = 0
-      vertices++->set (x, y, q.s0, q.t0);
+      state->mTransform.point (quad.x0 * inverseScale, quad.y0 * inverseScale, x, y);  // 3 = 0
+      vertices++->set (x, y, quad.s0, quad.t0);
 
-      state->mTransform.point (q.x0 * inverseScale, q.y1 * inverseScale, x, y);
-      vertices++->set (x, y, q.s0, q.t1);
+      state->mTransform.point (quad.x0 * inverseScale, quad.y1 * inverseScale, x, y);
+      vertices++->set (x, y, quad.s0, quad.t1);
 
-      state->mTransform.point (q.x1 * inverseScale, q.y1 * inverseScale, x, y);  // 5 = 1
-      vertices++->set (x, y, q.s1, q.t1);
+      state->mTransform.point (quad.x1 * inverseScale, quad.y1 * inverseScale, x, y);  // 5 = 1
+      vertices++->set (x, y, quad.s1, quad.t1);
       }
     //}}}
     }
@@ -2434,6 +2417,7 @@ float cVg::text (float x, float y, string str) {
   mVertices.trim (vertexIndex + numVertices);
 
   if (numVertices) {
+    cLog::log (LOGINFO, "numVertices " + dec (numVertices) + " " + str);
     // set up opengl call
     auto fillPaint = mStates[mNumStates - 1].fillPaint;
     fillPaint.image = fontImages[fontImageIdx];
@@ -2491,15 +2475,15 @@ float cVg::textBounds (float x, float y, string str, float* bounds) {
   float inverseScale = 1.0f / scale;
   float width;
 
-  fontContext->setSize (state->fontSize*scale);
-  fontContext->setSpacing (state->letterSpacing*scale);
-  fontContext->setAlign (state->textAlign);
-  fontContext->setFont (state->fontId);
+  mFontContext->setSize (state->fontSize*scale);
+  mFontContext->setSpacing (state->letterSpacing*scale);
+  mFontContext->setAlign (state->textAlign);
+  mFontContext->setFont (state->fontId);
 
-  width = fontContext->textBounds (x*scale, y*scale, str.c_str(), str.c_str() + str.size(), bounds);
+  width = mFontContext->textBounds (x*scale, y*scale, str.c_str(), str.c_str() + str.size(), bounds);
   if (bounds != NULL) {
     // Use line bounds for height.
-    fontContext->lineBounds (y*scale, &bounds[1], &bounds[3]);
+    mFontContext->lineBounds (y*scale, &bounds[1], &bounds[3]);
     bounds[0] *= inverseScale;
     bounds[1] *= inverseScale;
     bounds[2] *= inverseScale;
@@ -2519,12 +2503,12 @@ void cVg::textMetrics (float* ascender, float* descender, float* lineh) {
   float scale = getFontScale(state) * devicePixelRatio;
   float inverseScale = 1.0f / scale;
 
-  fontContext->setSize (state->fontSize*scale);
-  fontContext->setSpacing (state->letterSpacing*scale);
-  fontContext->setAlign (state->textAlign);
-  fontContext->setFont (state->fontId);
+  mFontContext->setSize (state->fontSize*scale);
+  mFontContext->setSpacing (state->letterSpacing*scale);
+  mFontContext->setAlign (state->textAlign);
+  mFontContext->setFont (state->fontId);
 
-  fontContext->vertMetrics (ascender, descender, lineh);
+  mFontContext->vertMetrics (ascender, descender, lineh);
   if (ascender != NULL)
     *ascender *= inverseScale;
   if (descender != NULL)
@@ -2546,29 +2530,29 @@ int cVg::textGlyphPositions (float x, float y, string str, NVGglyphPosition* pos
   float scale = getFontScale (state) * devicePixelRatio;
   float inverseScale = 1.0f / scale;
 
-  fontContext->setSize (state->fontSize * scale);
-  fontContext->setSpacing (state->letterSpacing * scale);
-  fontContext->setAlign (state->textAlign);
-  fontContext->setFont (state->fontId);
+  mFontContext->setSize (state->fontSize * scale);
+  mFontContext->setSpacing (state->letterSpacing * scale);
+  mFontContext->setAlign (state->textAlign);
+  mFontContext->setFont (state->fontId);
 
   cFontContext::sFontStashTextIt it;
-  fontContext->textItInit (&it, x*scale, y*scale, str.c_str(), str.c_str() + str.size());
+  mFontContext->textItInit (&it, x*scale, y*scale, str.c_str(), str.c_str() + str.size());
   cFontContext::sFontStashTextIt prevIt = it;
 
   int npos = 0;
-  cFontContext::sFontStashQuad q;
-  while (fontContext->textItNext (&it, &q)) {
+  cFontContext::sFontStashQuad quad;
+  while (mFontContext->textItNext (&it, &quad)) {
     if (it.prevGlyphIndex < 0 && allocTextAtlas()) {
       // can not retrieve glyph, try again
       it = prevIt;
-      fontContext->textItNext (&it, &q);
+      mFontContext->textItNext (&it, &quad);
       }
     prevIt = it;
 
     positions[npos].str = it.str;
     positions[npos].x = it.x * inverseScale;
-    positions[npos].minx = minf (it.x, q.x0) * inverseScale;
-    positions[npos].maxx = maxf (it.nextx, q.x1) * inverseScale;
+    positions[npos].minx = minf (it.x, quad.x0) * inverseScale;
+    positions[npos].maxx = maxf (it.nextx, quad.x1) * inverseScale;
     npos++;
     if (npos >= maxPositions)
       break;
@@ -2607,11 +2591,11 @@ void cVg::textBoxBounds (float x, float y, float breakRowWidth, const char* stri
   minx = maxx = x;
   miny = maxy = y;
 
-  fontContext->setSize (state->fontSize*scale);
-  fontContext->setSpacing (state->letterSpacing*scale);
-  fontContext->setAlign (state->textAlign);
-  fontContext->setFont (state->fontId);
-  fontContext->lineBounds (0, &rminy, &rmaxy);
+  mFontContext->setSize (state->fontSize*scale);
+  mFontContext->setSpacing (state->letterSpacing*scale);
+  mFontContext->setAlign (state->textAlign);
+  mFontContext->setFont (state->fontId);
+  mFontContext->lineBounds (0, &rminy, &rmaxy);
   rminy *= inverseScale;
   rmaxy *= inverseScale;
 
@@ -2683,22 +2667,22 @@ int cVg::textBreakLines (const char* string, const char* end, float breakRowWidt
   int ptype = NVG_SPACE;
   unsigned int pcodepoint = 0;
 
-  fontContext->setSize (state->fontSize*scale);
-  fontContext->setSpacing (state->letterSpacing*scale);
-  fontContext->setAlign (state->textAlign);
-  fontContext->setFont (state->fontId);
+  mFontContext->setSize (state->fontSize*scale);
+  mFontContext->setSpacing (state->letterSpacing*scale);
+  mFontContext->setAlign (state->textAlign);
+  mFontContext->setFont (state->fontId);
 
   breakRowWidth *= scale;
 
   cFontContext::sFontStashTextIt it;
-  fontContext->textItInit (&it, 0, 0, string, end);
+  mFontContext->textItInit (&it, 0, 0, string, end);
   cFontContext::sFontStashTextIt prevIt = it;
 
-  cFontContext::sFontStashQuad q;
-  while (fontContext->textItNext (&it, &q)) {
+  cFontContext::sFontStashQuad quad;
+  while (mFontContext->textItNext (&it, &quad)) {
     if (it.prevGlyphIndex < 0 && allocTextAtlas()) { // can not retrieve glyph?
       it = prevIt;
-      fontContext->textItNext (&it, &q); // try again
+      mFontContext->textItNext (&it, &quad); // try again
       }
     prevIt = it;
 
@@ -2769,11 +2753,11 @@ int cVg::textBreakLines (const char* string, const char* end, float breakRowWidt
          rowStart = it.str;
          rowEnd = it.next;
          rowWidth = it.nextx - rowStartX; // q.x1 - rowStartX;
-         rowMinX = q.x0 - rowStartX;
-         rowMaxX = q.x1 - rowStartX;
+         rowMinX = quad.x0 - rowStartX;
+         rowMaxX = quad.x1 - rowStartX;
          wordStart = it.str;
          wordStartX = it.x;
-         wordMinX = q.x0 - rowStartX;
+         wordMinX = quad.x0 - rowStartX;
          // Set null break point
          breakEnd = rowStart;
          breakWidth = 0.0;
@@ -2787,7 +2771,7 @@ int cVg::textBreakLines (const char* string, const char* end, float breakRowWidt
        if (type == NVG_CHAR || type == NVG_CJK_CHAR) {
          rowEnd = it.next;
          rowWidth = it.nextx - rowStartX;
-         rowMaxX = q.x1 - rowStartX;
+         rowMaxX = quad.x1 - rowStartX;
          }
        //}}}
        //{{{  track last end of a word
@@ -2801,7 +2785,7 @@ int cVg::textBreakLines (const char* string, const char* end, float breakRowWidt
        if ((ptype == NVG_SPACE && (type == NVG_CHAR || type == NVG_CJK_CHAR)) || type == NVG_CJK_CHAR) {
          wordStart = it.str;
          wordStartX = it.x;
-         wordMinX = q.x0 - rowStartX;
+         wordMinX = quad.x0 - rowStartX;
          }
        //}}}
 
@@ -2823,11 +2807,11 @@ int cVg::textBreakLines (const char* string, const char* end, float breakRowWidt
            rowStart = it.str;
            rowEnd = it.next;
            rowWidth = it.nextx - rowStartX;
-           rowMinX = q.x0 - rowStartX;
-           rowMaxX = q.x1 - rowStartX;
+           rowMinX = quad.x0 - rowStartX;
+           rowMaxX = quad.x1 - rowStartX;
            wordStart = it.str;
            wordStartX = it.x;
-           wordMinX = q.x0 - rowStartX;
+           wordMinX = quad.x0 - rowStartX;
            }
            //}}}
          else {
@@ -2847,7 +2831,7 @@ int cVg::textBreakLines (const char* string, const char* end, float breakRowWidt
            rowEnd = it.next;
            rowWidth = it.nextx - rowStartX;
            rowMinX = wordMinX;
-           rowMaxX = q.x1 - rowStartX;
+           rowMaxX = quad.x1 - rowStartX;
            // No change to the word start
            }
            //}}}
@@ -4772,7 +4756,7 @@ int cVg::allocTextAtlas() {
     }
 
   ++fontImageIdx;
-  fontContext->resetAtlas (iw, ih);
+  mFontContext->resetAtlas (iw, ih);
   return 1;
   }
 //}}}
@@ -4780,12 +4764,12 @@ int cVg::allocTextAtlas() {
 void cVg::flushTextTexture() {
 
   int dirty[4];
-  if (fontContext->validateTexture (dirty)) {
+  if (mFontContext->validateTexture (dirty)) {
     int fontImage = fontImages[fontImageIdx];
     // Update texture
     if (fontImage != 0) {
       int iw, ih;
-      const unsigned char* data = fontContext->getTextureData (&iw, &ih);
+      const unsigned char* data = mFontContext->getTextureData (&iw, &ih);
       int x = dirty[0];
       int y = dirty[1];
       int w = dirty[2] - dirty[0];
