@@ -959,8 +959,7 @@ private:
   float devicePixelRatio = 1.0f;
 
   int fontImageIdx = 0;
-  int fontImages[kMaxFontImages];
-
+  int fontImages[kMaxFontImages] = { 0 };
   cFontContext* mFontContext = nullptr;
   //}}}
   };

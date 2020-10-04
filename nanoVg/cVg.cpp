@@ -142,7 +142,7 @@ public:
   cFontContext (int width, int height) {
 
     // allocate scratch buffer.
-    scratch = (unsigned char*)malloc (kScratchBufSize);
+    mScratchBuf = (unsigned char*)malloc (kScratchBufSize);
 
     mAtlas = new cAtlas (width, height, kInitAtlasNodes);
 
@@ -174,12 +174,12 @@ public:
 
     for (int i = 0; i < nfonts; ++i)
       freeFont (fonts[i]);
+    free (fonts);
 
     delete mAtlas;
 
-    free (fonts);
     free (texData);
-    free (scratch);
+    free (mScratchBuf);
     }
   //}}}
 
@@ -204,7 +204,7 @@ public:
     font->fontInfo.userdata = this;
 
     // Init font
-    nscratch = 0;
+    mScratchBufSize = 0;
     if (!stbtt_InitFont (&font->fontInfo, data, 0)) {
       freeFont (font);
       nfonts--;
@@ -299,7 +299,7 @@ public:
     pad = 2;
 
     // Reset allocator.
-    nscratch = 0;
+    mScratchBufSize = 0;
 
     // Find code point and size.
     h = hashint (codepoint) & (kHashLutSize -1);
@@ -668,8 +668,9 @@ public:
     }
   //}}}
 
-  int nscratch;
-  unsigned char* scratch;
+  // vars
+  int mScratchBufSize;
+  unsigned char* mScratchBuf;
 
 private:
   //{{{  static constexpr
@@ -1199,7 +1200,7 @@ private:
     }
   //}}}
 
-  // vars
+  //{{{  vars
   int mFlags = 0;
   int mWidth = 0;
   int mHeight = 0;
@@ -1221,6 +1222,7 @@ private:
   float verts[kVertexCount *2] = { 0.f };
   float tcoords[kVertexCount *2] = { 0.f };
   unsigned int colors[kVertexCount] = { 0 };
+  //}}}
   };
 //}}}
 
@@ -1232,11 +1234,11 @@ static void* fontAlloc (size_t size, void* up) {
   // 16-byte align the returned pointer
   size = (size + 0xf) & ~0xf;
 
-  if (fontContext->nscratch + (int)size > cFontContext::kScratchBufSize)
+  if (fontContext->mScratchBufSize + (int)size > cFontContext::kScratchBufSize)
     return NULL;
 
-  unsigned char* ptr = fontContext->scratch + fontContext->nscratch;
-  fontContext->nscratch += (int)size;
+  unsigned char* ptr = fontContext->mScratchBuf + fontContext->mScratchBufSize;
+  fontContext->mScratchBufSize += (int)size;
 
   return ptr;
   }
