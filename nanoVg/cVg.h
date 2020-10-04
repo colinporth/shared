@@ -38,6 +38,8 @@ inline float clampf (float a, float mn, float mx) { return a < mn ? mn : (a > mx
 inline float absf (float a) { return a >= 0.0f ? a : -a; }
 
 inline float quantize (float a, float d) { return ((int)(a / d + 0.5f)) * d; }
+inline float signf (float a) { return a >= 0.0f ? 1.0f : -1.0f; }
+inline float cross (float dx0, float dy0, float dx1, float dy1) { return dx1*dy0 - dx0*dy1; }
 //{{{
 inline float normalize (float& x, float& y) {
 
@@ -51,8 +53,6 @@ inline float normalize (float& x, float& y) {
   return d;
   }
 //}}}
-inline float signf (float a) { return a >= 0.0f ? 1.0f : -1.0f; }
-inline float cross (float dx0, float dy0, float dx1, float dy1) { return dx1*dy0 - dx0*dy1; }
 
 inline float degToRad (float deg) { return deg / 180.0f * PI; }
 inline float radToDeg (float rad) { return rad / PI * 180.0f; }
