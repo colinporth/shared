@@ -40,7 +40,7 @@ float cGlWindow::drawText (uint32_t colour, float fontHeight, string str, float 
   text (x+3.f, y+1.f, str);
 
   // get width
-  return textBounds (x+3.f, y+1.f, str, nullptr);
+  return getTextBounds (x+3.f, y+1.f, str, nullptr);
   }
 //}}}
 //{{{
@@ -52,7 +52,7 @@ float cGlWindow::drawTextRight (uint32_t colour, float fontHeight, string str, f
   text (x, y+1.f, str);
 
   // get width
-  return textBounds (x, y+1.f, str, nullptr);
+  return getTextBounds (x, y+1.f, str, nullptr);
   }
 //}}}
 //{{{

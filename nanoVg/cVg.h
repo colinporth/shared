@@ -395,21 +395,18 @@ public:
     };
   //}}}
   //{{{
-  struct sVgTextRow {
-    const char* start; // Pointer to the input text where the row starts.
-    const char* end;   // Pointer to the input text where the row ends (one past the last character).
-    const char* next;  // Pointer to the beginning of the next row.
-    float width;       // Logical width of the row.
-    float minx, maxx;  // Actual bounds of the row. Logical with and bounds can differ because of kerning and some parts over extending.
-    };
-  //}}}
-  //{{{
-  struct NVGglyphPosition {
+  struct sGlyphPosition {
     const char* str;  // Position of the glyph in the input string.
     float x;          // The x-coordinate of the logical glyph position.
     float minx, maxx; // The bounds of the glyph shape.
     };
   //}}}
+
+  int createFont (const std::string& fontName, unsigned char* data, int dataSize);
+
+  float getTextBounds (float x, float y, const std::string& str, float* bounds);
+  float getTextMetrics (float& ascender, float& descender);
+  int getTextGlyphPositions (float x, float y, const std::string& str, sGlyphPosition* positions, int maxPositions);
 
   void setFontSize (float size);
   void setTextLetterSpacing (float spacing);
@@ -418,16 +415,7 @@ public:
   void setFontById (int font);
   void setFontByName (const std::string& fontName);
 
-  int createFont (const std::string& fontName, unsigned char* data, int dataSize);
-
   float text (float x, float y, const std::string& str);
-  float textBounds (float x, float y, const std::string& str, float* bounds);
-  void textMetrics (float* ascender, float* descender, float* lineh);
-  int textGlyphPositions (float x, float y, const std::string& str, NVGglyphPosition* positions, int maxPositions);
-
-  void textBox (float x, float y, float breakRowWidth, const char* string, const char* end);
-  void textBoxBounds (float x, float y, float breakRowWidth, const char* string, const char* end, float* bounds);
-  int textBreakLines (const char* string, const char* end, float breakRowWidth, sVgTextRow* rows, int maxRows);
   //}}}
   //{{{  image
   enum eImageFlags {
