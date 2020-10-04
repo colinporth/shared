@@ -14,7 +14,7 @@ constexpr int kInitPointsSize = 128;
 constexpr float KAPPA90 = 0.5522847493f; // Length proportional to radius of a cubic bezier handle for 90deg arcs.
 //}}}
 
-//{{{  fonts
+//{{{  cFontContext, stbtt
 void* fontAlloc (size_t size, void* up);
 #define STBTT_malloc(x,u) fontAlloc (x,u)
 
@@ -25,7 +25,6 @@ static void fontFree (void* ptr, void* up) {}
 //{{{
 class cFontContext {
 public:
-  enum FONSflags { FONS_ZERO_TOPLEFT = 1, FONS_ZERO_BOTTOMLEFT = 2, };
   //{{{  static constexpr
   static constexpr int kHashLutSize = 256;
 
@@ -36,7 +35,6 @@ public:
 
   static constexpr int kInvalid = -1;
   //}}}
-
   //{{{
   enum eAlign {
     // Horizontal align
@@ -141,12 +139,12 @@ public:
   //}}}
 
   //{{{
-  cFontContext (int width, int height, unsigned char flags) {
+  cFontContext (int width, int height) {
 
     // allocate scratch buffer.
     scratch = (unsigned char*)malloc (kScratchBufSize);
 
-    mFontAtlas = new cFontAtlas (width, height, kInitAtlasNodes);
+    mAtlas = new cAtlas (width, height, kInitAtlasNodes);
 
     // Allocate space for fonts.
     fonts = (sFont**)malloc (sizeof(sFont*) * kInitFonts);
@@ -177,7 +175,7 @@ public:
     for (int i = 0; i < nfonts; ++i)
       freeFont (fonts[i]);
 
-    delete mFontAtlas;
+    delete mAtlas;
 
     free (fonts);
     free (texData);
@@ -245,7 +243,7 @@ public:
     flush();
 
     // Reset atlas
-    mFontAtlas->atlasReset (width, height);
+    mAtlas->reset (width, height);
 
     // Clear texture data.
     texData = (unsigned char*)realloc(texData, width * height);
@@ -321,12 +319,7 @@ public:
     gh = y1-y0 + pad*2;
 
     // Find free spot for the rect in the atlas
-    added = mFontAtlas->atlasAddRect (gw, gh, &gx, &gy);
-    if (added == 0 && handleError != NULL) {
-      // Atlas is full, let the user to resize the atlas (or not), and try again.
-      handleError (errorUptr, ATLAS_FULL, 0);
-      added = mFontAtlas->atlasAddRect (gw, gh, &gx, &gy);
-      }
+    added = mAtlas->addRect (gw, gh, &gx, &gy);
     if (added == 0)
       return NULL;
 
@@ -387,25 +380,14 @@ public:
   //{{{
   float getVertAlign (sFont* font, int align, short isize) {
 
-    if (mFlags & FONS_ZERO_TOPLEFT) {
-      if (align & ALIGN_TOP)
-        return font->ascender * (float)isize/10.0f;
-      else if (align & ALIGN_MIDDLE)
-        return (font->ascender + font->descender) / 2.0f * (float)isize/10.0f;
-      else if (align & ALIGN_BASELINE)
-        return 0.0f;
-      else if (align & ALIGN_BOTTOM)
-        return font->descender * (float)isize/10.0f;
-      }
-
-    else if (align & ALIGN_TOP)
-      return -font->ascender * (float)isize/10.0f;
+    if (align & ALIGN_TOP)
+      return font->ascender * (float)isize/10.0f;
     else if (align & ALIGN_MIDDLE)
-      return -(font->ascender + font->descender) / 2.0f * (float)isize/10.0f;
+      return (font->ascender + font->descender) / 2.0f * (float)isize/10.0f;
     else if (align & ALIGN_BASELINE)
       return 0.0f;
     else if (align & ALIGN_BOTTOM)
-      return -font->descender * (float)isize/10.0f;
+      return font->descender * (float)isize/10.0f;
 
     return 0.0;
     }
@@ -447,14 +429,8 @@ public:
 
     y += getVertAlign (font, state->align, isize);
 
-    if (mFlags & FONS_ZERO_TOPLEFT) {
-      *miny = y - font->ascender * (float)isize/10.0f;
-      *maxy = *miny + font->lineh*isize/10.0f;
-      }
-    else {
-      *maxy = y + font->descender * (float)isize/10.0f;
-      *miny = *maxy - font->lineh*isize/10.0f;
-      }
+    *miny = y - font->ascender * (float)isize/10.0f;
+    *maxy = *miny + font->lineh*isize/10.0f;
     }
   //}}}
   //{{{
@@ -501,18 +477,10 @@ public:
           minx = q.x0;
         if (q.x1 > maxx)
           maxx = q.x1;
-        if (mFlags & FONS_ZERO_TOPLEFT) {
-          if (q.y0 < miny)
-            miny = q.y0;
-          if (q.y1 > maxy)
-            maxy = q.y1;
-          }
-        else {
-          if (q.y1 < miny)
-            miny = q.y1;
-          if (q.y0 > maxy)
-            maxy = q.y0;
-          }
+        if (q.y0 < miny)
+          miny = q.y0;
+        if (q.y1 > maxy)
+          maxy = q.y1;
         }
       prevGlyphIndex = glyph != NULL ? glyph->index : -1;
       }
@@ -648,8 +616,8 @@ public:
     vertex (x+w, y+h, 1, 1, 0xffffffff);
 
     // draw atlas
-    for (i = 0; i < mFontAtlas->mNumNodes; i++) {
-      cFontAtlas::sNode* n = &mFontAtlas->mNodes[i];
+    for (i = 0; i < mAtlas->mNumNodes; i++) {
+      cAtlas::sNode* n = &mAtlas->mNodes[i];
 
       if (nverts+6 > kVertexCount)
         flush();
@@ -700,17 +668,6 @@ public:
     }
   //}}}
 
-  //{{{
-  void setErrorCallback (void (*callback)(void* uptr, int error, int val), void* uptr) {
-
-    handleError = callback;
-    errorUptr = uptr;
-    }
-  //}}}
-
-  void* errorUptr;
-  void (*handleError)(void* uptr, int error, int val);
-
   int nscratch;
   unsigned char* scratch;
 
@@ -727,7 +684,7 @@ private:
   static constexpr int kVertexCount = 1024;
   //}}}
   //{{{
-  class cFontAtlas {
+  class cAtlas {
   public:
     //{{{
     struct sNode {
@@ -738,7 +695,7 @@ private:
     //}}}
 
     //{{{
-    cFontAtlas (int w, int h, int maxNumNodes) {
+    cAtlas (int w, int h, int maxNumNodes) {
 
       mWidth = w;
       mHeight = h;
@@ -760,7 +717,7 @@ private:
     //}}}
     //{{{
     // Atlas based on Skyline Bin Packer by Jukka Jylänki
-    ~cFontAtlas() {
+    ~cAtlas() {
 
       if (mNodes != NULL)
         free (mNodes);
@@ -768,7 +725,7 @@ private:
     //}}}
 
     //{{{
-    void atlasReset (int w, int h) {
+    void reset (int w, int h) {
 
       mWidth = w;
       mHeight = h;
@@ -782,11 +739,11 @@ private:
       }
     //}}}
     //{{{
-    void atlasExpand (int w, int h) {
+    void expand (int w, int h) {
 
       // Insert node for empty space
       if (w > mWidth)
-        atlasInsertNode (mNumNodes, mWidth, 0, w - mWidth);
+        insertNode (mNumNodes, mWidth, 0, w - mWidth);
 
       mWidth = w;
       mHeight = h;
@@ -794,14 +751,14 @@ private:
     //}}}
 
     //{{{
-    int atlasAddRect (int rw, int rh, int* rx, int* ry) {
+    int addRect (int rw, int rh, int* rx, int* ry) {
 
       int besth = mHeight, bestw = mWidth, besti = -1;
       int bestx = -1, besty = -1, i;
 
       // Bottom left fit heuristic.
       for (i = 0; i < mNumNodes; i++) {
-        int y = atlasRectFits (i, rw, rh);
+        int y = rectFits (i, rw, rh);
         if (y != -1) {
           if (y + rh < besth || (y + rh == besth && mNodes[i].mWidth < bestw)) {
             besti = i;
@@ -817,7 +774,7 @@ private:
         return 0;
 
       // Perform the actual packing.
-      if (atlasAddSkylineLevel (besti, bestx, besty, rw, rh) == 0)
+      if (addSkylineLevel (besti, bestx, besty, rw, rh) == 0)
         return 0;
 
       *rx = bestx;
@@ -833,7 +790,7 @@ private:
 
   private:
     //{{{
-    int atlasInsertNode (int idx, int x, int y, int w) {
+    int insertNode (int idx, int x, int y, int w) {
 
       // Insert node
       if (mNumNodes+1 > mMaxNumNodes) {
@@ -854,7 +811,7 @@ private:
       }
     //}}}
     //{{{
-    void atlasRemoveNode (int idx) {
+    void removeNode (int idx) {
 
       if (mNumNodes == 0)
         return;
@@ -867,7 +824,7 @@ private:
     //}}}
 
     //{{{
-    int atlasRectFits (int i, int w, int h) {
+    int rectFits (int i, int w, int h) {
     // Checks if there is enough space at the location of skyline span 'i',
     // and return the max mHeight of all skyline spans under that at that location,
     // (think tetris block being dropped at that position). Or -1 if no space found.
@@ -892,10 +849,10 @@ private:
       }
     //}}}
     //{{{
-    int atlasAddSkylineLevel (int idx, int x, int y, int w, int h) {
+    int addSkylineLevel (int idx, int x, int y, int w, int h) {
 
       // Insert new node
-      if (atlasInsertNode (idx, x, y+h, w) == 0)
+      if (insertNode (idx, x, y+h, w) == 0)
         return 0;
 
       // Delete skyline segments that fall under the shadow of the new segment.
@@ -905,7 +862,7 @@ private:
           mNodes[i].mX += (short)shrink;
           mNodes[i].mWidth -= (short)shrink;
           if (mNodes[i].mWidth <= 0) {
-            atlasRemoveNode (i);
+            removeNode (i);
             i--;
             }
           else
@@ -919,7 +876,7 @@ private:
       for (int i = 0; i < mNumNodes-1; i++) {
         if (mNodes[i].mY == mNodes[i+1].mY) {
           mNodes[i].mWidth += mNodes[i+1].mWidth;
-          atlasRemoveNode (i+1);
+          removeNode (i+1);
           i--;
           }
         }
@@ -950,25 +907,20 @@ private:
   //{{{
   void pushState() {
 
-    if (nstates >= kMaxFontStates) {
-      if (handleError)
-        handleError(errorUptr, STATES_OVERFLOW, 0);
+    if (nstates >= kMaxFontStates)
       return;
-      }
 
     if (nstates > 0)
       memcpy(&states[nstates], &states[nstates-1], sizeof(sFontState));
+
     nstates++;
     }
   //}}}
   //{{{
   void popState() {
 
-    if (nstates <= 1) {
-      if (handleError)
-        handleError (errorUptr, STATES_UNDERFLOW, 0);
+    if (nstates <= 1)
       return;
-      }
 
     nstates--;
     }
@@ -1125,35 +1077,18 @@ private:
     float x1 = (float)(glyph->x1-1);
     float y1 = (float)(glyph->y1-1);
 
-    if (mFlags & FONS_ZERO_TOPLEFT) {
-      float rx = (float)(int)(*x + xoff);
-      float ry = (float)(int)(*y + yoff);
+    float rx = (float)(int)(*x + xoff);
+    float ry = (float)(int)(*y + yoff);
 
-      q->x0 = rx;
-      q->y0 = ry;
-      q->x1 = rx + x1 - x0;
-      q->y1 = ry + y1 - y0;
+    q->x0 = rx;
+    q->y0 = ry;
+    q->x1 = rx + x1 - x0;
+    q->y1 = ry + y1 - y0;
 
-      q->s0 = x0 * itw;
-      q->t0 = y0 * ith;
-      q->s1 = x1 * itw;
-      q->t1 = y1 * ith;
-      }
-
-    else {
-      float rx = (float)(int)(*x + xoff);
-      float ry = (float)(int)(*y - yoff);
-
-      q->x0 = rx;
-      q->y0 = ry;
-      q->x1 = rx + x1 - x0;
-      q->y1 = ry - y1 + y0;
-
-      q->s0 = x0 * itw;
-      q->t0 = y0 * ith;
-      q->s1 = x1 * itw;
-      q->t1 = y1 * ith;
-      }
+    q->s0 = x0 * itw;
+    q->t0 = y0 * ith;
+    q->s1 = x1 * itw;
+    q->t1 = y1 * ith;
 
     *x += (int)(glyph->xadv / 10.0f + 0.5f);
     }
@@ -1164,7 +1099,7 @@ private:
 
     int x, y, gx, gy;
     unsigned char* dst;
-    if (mFontAtlas->atlasAddRect (w, h, &gx, &gy) == 0)
+    if (mAtlas->addRect (w, h, &gx, &gy) == 0)
       return;
 
     // Rasterize
@@ -1232,11 +1167,11 @@ private:
     texData = data;
 
     // Increase atlas size
-    mFontAtlas->atlasExpand (width, height);
+    mAtlas->expand (width, height);
 
     // Add existing data as dirty.
-    for (int i = 0; i < mFontAtlas->mNumNodes; i++)
-      maxy = maxi (maxy, mFontAtlas->mNodes[i].mY);
+    for (int i = 0; i < mAtlas->mNumNodes; i++)
+      maxy = maxi (maxy, mAtlas->mNodes[i].mY);
 
     dirtyRect[0] = 0;
     dirtyRect[1] = 0;
@@ -1279,7 +1214,7 @@ private:
 
   int cfonts = 0;
   int nfonts = 0;
-  cFontAtlas* mFontAtlas = nullptr;
+  cAtlas* mAtlas = nullptr;
   sFont** fonts = { nullptr };
 
   int nverts = 0;
@@ -1297,11 +1232,8 @@ static void* fontAlloc (size_t size, void* up) {
   // 16-byte align the returned pointer
   size = (size + 0xf) & ~0xf;
 
-  if (fontContext->nscratch + (int)size > cFontContext::kScratchBufSize) {
-    if (fontContext->handleError)
-      fontContext->handleError (fontContext->errorUptr, cFontContext::SCRATCH_FULL, fontContext->nscratch+(int)size);
+  if (fontContext->nscratch + (int)size > cFontContext::kScratchBufSize)
     return NULL;
-    }
 
   unsigned char* ptr = fontContext->scratch + fontContext->nscratch;
   fontContext->nscratch += (int)size;
@@ -1643,7 +1575,7 @@ cVg::cVg (int flags)
   resetState();
   setDevicePixelRatio (1.f);
 
-  mFontContext = new cFontContext (cFontContext::kInitFontImageSize, cFontContext::kInitFontImageSize, cFontContext::FONS_ZERO_TOPLEFT);
+  mFontContext = new cFontContext (cFontContext::kInitFontImageSize, cFontContext::kInitFontImageSize);
   }
 //}}}
 //{{{

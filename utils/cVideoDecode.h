@@ -388,7 +388,7 @@ public:
   //{{{
   void clear (uint64_t pts) {
 
-    for (auto frame : mFramePool) 
+    for (auto frame : mFramePool)
       if ((frame->getState() != cFrame::eLoaded) || (frame->getPts() < pts))
         frame->clear();
     }
@@ -622,7 +622,7 @@ public:
       pesPtr += bytesUsed;
       pesSize -= bytesUsed;
       if (avPacket.size) {
-        cLog::log (LOGINFO, "decode  start");
+        //cLog::log (LOGINFO, "decode  start");
         auto ret = avcodec_send_packet (mAvContext, &avPacket);
         while (ret >= 0) {
           auto avFrame = av_frame_alloc();
@@ -633,9 +633,9 @@ public:
           mWidth = avFrame->width;
           mHeight = avFrame->height;
           cVideoDecode::cFrame* frame = getFreeFrame (mDecodePts);
-          cLog::log (LOGINFO, "decode done");
+          //cLog::log (LOGINFO, "decode done");
           frame->setNv12ffmpegSws (mWidth, mHeight, avFrame->data, avFrame->linesize);
-          cLog::log (LOGINFO, "yuv2rgb done");
+          //cLog::log (LOGINFO, "yuv2rgb done");
 
           // fake pts from avContext framerate
           mDecodePts += (90000 * mAvContext->framerate.den) / mAvContext->framerate.num;
