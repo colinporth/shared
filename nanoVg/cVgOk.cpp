@@ -22,8 +22,9 @@ void tmpfree (void* ptr, void* up);
 //}}}
 #include "stb_truetype.h"
 
-//{{{  font defines
+//{{{  defines
 #define FONS_INVALID -1
+
 #define FONS_NOTUSED(v)  (void)sizeof(v)
 
 #define FONS_SCRATCH_BUF_SIZE 64000
@@ -45,83 +46,81 @@ class cFontAtlas {
 public:
   //{{{
   struct sNode {
-    short mX;
-    short mY;
-    short mWidth;
+    short x;
+    short y;
+    short width;
     };
   //}}}
-
   //{{{
-  cFontAtlas (int w, int h, int maxNumNodes) {
+  cFontAtlas (int w, int h, int nnodes) {
 
-    mWidth = w;
-    mHeight = h;
+    width = w;
+    height = h;
 
     // Allocate space for skyline nodes
-    mNodes = (sNode*)malloc(sizeof(sNode) * maxNumNodes);
-    memset (mNodes, 0, sizeof(sNode) * maxNumNodes);
+    nodes = (sNode*)malloc(sizeof(sNode) * nnodes);
+    memset (nodes, 0, sizeof(sNode) * nnodes);
 
-    mNumNodes = 0;
-    mMaxNumNodes = maxNumNodes;
+    nnodes = 0;
+    cnodes = nnodes;
 
     // Init root node.
-    mNodes[0].mX = 0;
-    mNodes[0].mY = 0;
-    mNodes[0].mWidth = (short)w;
-
-    mNumNodes++;
+    nodes[0].x = 0;
+    nodes[0].y = 0;
+    nodes[0].width = (short)w;
+    nnodes++;
     }
   //}}}
   //{{{
   // Atlas based on Skyline Bin Packer by Jukka Jylänki
   ~cFontAtlas() {
 
-    if (mNodes != NULL)
-      free (mNodes);
+    if (nodes != NULL)
+      free (nodes);
     }
   //}}}
 
   //{{{
   void atlasReset (int w, int h) {
 
-    mWidth = w;
-    mHeight = h;
-    mNumNodes = 0;
+    width = w;
+    height = h;
+    nnodes = 0;
 
     // Init root node.
-    mNodes[0].mX = 0;
-    mNodes[0].mY = 0;
-    mNodes[0].mWidth = (short)w;
-    mNumNodes++;
+    nodes[0].x = 0;
+    nodes[0].y = 0;
+    nodes[0].width = (short)w;
+    nnodes++;
     }
   //}}}
   //{{{
   void atlasExpand (int w, int h) {
 
     // Insert node for empty space
-    if (w > mWidth)
-      atlasInsertNode (mNumNodes, mWidth, 0, w - mWidth);
+    if (w > width)
+      atlasInsertNode (nnodes, width, 0, w - width);
 
-    mWidth = w;
-    mHeight = h;
+    width = w;
+    height = h;
     }
   //}}}
 
   //{{{
   int atlasAddRect (int rw, int rh, int* rx, int* ry) {
 
-    int besth = mHeight, bestw = mWidth, besti = -1;
+    int besth = height, bestw = width, besti = -1;
     int bestx = -1, besty = -1, i;
 
     // Bottom left fit heuristic.
-    for (i = 0; i < mNumNodes; i++) {
+    for (i = 0; i < nnodes; i++) {
       int y = atlasRectFits (i, rw, rh);
       if (y != -1) {
-        if (y + rh < besth || (y + rh == besth && mNodes[i].mWidth < bestw)) {
+        if (y + rh < besth || (y + rh == besth && nodes[i].width < bestw)) {
           besti = i;
-          bestw = mNodes[i].mWidth;
+          bestw = nodes[i].width;
           besth = y + rh;
-          bestx = mNodes[i].mX;
+          bestx = nodes[i].x;
           besty = y;
           }
         }
@@ -141,28 +140,28 @@ public:
     }
   //}}}
 
-  int mNumNodes = 0;
-  int mMaxNumNodes = 0;
-  sNode* mNodes = nullptr;
+  int nnodes = 0;
+  int cnodes = 0;
+  sNode* nodes = nullptr;
 
 private:
   //{{{
   int atlasInsertNode (int idx, int x, int y, int w) {
 
     // Insert node
-    if (mNumNodes+1 > mMaxNumNodes) {
-      mMaxNumNodes = mMaxNumNodes == 0 ? 8 : mMaxNumNodes * 2;
-      mNodes = (sNode*)realloc (mNodes, sizeof(sNode) * mMaxNumNodes);
-      if (mNodes == NULL)
+    if (nnodes+1 > cnodes) {
+      cnodes = cnodes == 0 ? 8 : cnodes * 2;
+      nodes = (sNode*)realloc(nodes, sizeof(sNode) * cnodes);
+      if (nodes == NULL)
         return 0;
       }
 
-    for (int i = mNumNodes; i > idx; i--)
-      mNodes[i] = mNodes[i-1];
-    mNodes[idx].mX = (short)x;
-    mNodes[idx].mY = (short)y;
-    mNodes[idx].mWidth = (short)w;
-    mNumNodes++;
+    for (int i = nnodes; i > idx; i--)
+      nodes[i] = nodes[i-1];
+    nodes[idx].x = (short)x;
+    nodes[idx].y = (short)y;
+    nodes[idx].width = (short)w;
+    nnodes++;
 
     return 1;
     }
@@ -170,41 +169,16 @@ private:
   //{{{
   void atlasRemoveNode (int idx) {
 
-    if (mNumNodes == 0)
+    if (nnodes == 0)
       return;
 
-    for (int i = idx; i < mNumNodes-1; i++)
-      mNodes[i] = mNodes[i+1];
+    for (int i = idx; i < nnodes-1; i++)
+      nodes[i] = nodes[i+1];
 
-    mNumNodes--;
+    nnodes--;
     }
   //}}}
 
-  //{{{
-  int atlasRectFits (int i, int w, int h) {
-  // Checks if there is enough space at the location of skyline span 'i',
-  // and return the max mHeight of all skyline spans under that at that location,
-  // (think tetris block being dropped at that position). Or -1 if no space found.
-
-    int x = mNodes[i].mX;
-    int y = mNodes[i].mY;
-
-    if (x + w > mWidth)
-      return -1;
-
-    int spaceLeft = w;
-    while (spaceLeft > 0) {
-      if (i == mNumNodes)
-       return -1;
-      y = maxi (y, mNodes[i].mY);
-      if (y + h > mHeight)
-        return -1;
-      spaceLeft -= mNodes[i].mWidth;
-      ++i;
-      }
-    return y;
-    }
-  //}}}
   //{{{
   int atlasAddSkylineLevel (int idx, int x, int y, int w, int h) {
 
@@ -213,12 +187,12 @@ private:
       return 0;
 
     // Delete skyline segments that fall under the shadow of the new segment.
-    for (int i = idx+1; i < mNumNodes; i++) {
-      if (mNodes[i].mX < mNodes[i-1].mX + mNodes[i-1].mWidth) {
-        int shrink = mNodes[i-1].mX + mNodes[i-1].mWidth - mNodes[i].mX;
-        mNodes[i].mX += (short)shrink;
-        mNodes[i].mWidth -= (short)shrink;
-        if (mNodes[i].mWidth <= 0) {
+    for (int i = idx+1; i < nnodes; i++) {
+      if (nodes[i].x < nodes[i-1].x + nodes[i-1].width) {
+        int shrink = nodes[i-1].x + nodes[i-1].width - nodes[i].x;
+        nodes[i].x += (short)shrink;
+        nodes[i].width -= (short)shrink;
+        if (nodes[i].width <= 0) {
           atlasRemoveNode (i);
           i--;
           }
@@ -229,10 +203,10 @@ private:
         break;
       }
 
-    // Merge same mHeight skyline segments that are next to each other.
-    for (int i = 0; i < mNumNodes-1; i++) {
-      if (mNodes[i].mY == mNodes[i+1].mY) {
-        mNodes[i].mWidth += mNodes[i+1].mWidth;
+    // Merge same height skyline segments that are next to each other.
+    for (int i = 0; i < nnodes-1; i++) {
+      if (nodes[i].y == nodes[i+1].y) {
+        nodes[i].width += nodes[i+1].width;
         atlasRemoveNode (i+1);
         i--;
         }
@@ -241,940 +215,214 @@ private:
     return 1;
     }
   //}}}
+  //{{{
+  int atlasRectFits (int i, int w, int h) {
+  // Checks if there is enough space at the location of skyline span 'i',
+  // and return the max height of all skyline spans under that at that location,
+  // (think tetris block being dropped at that position). Or -1 if no space found.
 
-  int mWidth = 0;
-  int mHeight = 0;
+    int x = nodes[i].x;
+    int y = nodes[i].y;
+
+    if (x + w > width)
+      return -1;
+
+    int spaceLeft = w;
+    while (spaceLeft > 0) {
+      if (i == nnodes) return -1;
+      y = maxi (y, nodes[i].y);
+      if (y + h > height) return -1;
+      spaceLeft -= nodes[i].width;
+      ++i;
+      }
+    return y;
+    }
+  //}}}
+
+  int width = 0;
+  int height = 0;
+  };
+//}}}
+
+enum FONSflags { FONS_ZERO_TOPLEFT = 1, FONS_ZERO_BOTTOMLEFT = 2, };
+//{{{
+enum eFontStashAlign {
+  // Horizontal align
+  FONS_ALIGN_LEFT     = 1<<0, // Default
+  FONS_ALIGN_CENTER   = 1<<1,
+  FONS_ALIGN_RIGHT    = 1<<2,
+
+  // Vertical align
+  FONS_ALIGN_TOP      = 1<<3,
+  FONS_ALIGN_MIDDLE   = 1<<4,
+  FONS_ALIGN_BOTTOM   = 1<<5,
+  FONS_ALIGN_BASELINE = 1<<6, // Default
+  };
+//}}}
+//{{{
+enum eFontStashErrorCode {
+  // Font atlas is full.
+  FONS_ATLAS_FULL = 1,
+
+  // Scratch memory used to render glyphs is full, requested size reported in 'val', you may need to bump up FONS_SCRATCH_BUF_SIZE.
+  FONS_SCRATCH_FULL = 2,
+
+  // Calls to fonsPushState has created too large stack, if you need deep state stack bump up FONS_MAX_STATES.
+  FONS_STATES_OVERFLOW = 3,
+
+  // Trying to pop too many states fonsPopState().
+  FONS_STATES_UNDERFLOW = 4,
+  };
+//}}}
+//{{{
+struct sFontStashQuad {
+  float x0;
+  float y0;
+  float s0;
+  float t0;
+
+  float x1;
+  float y1;
+  float s1;
+  float t1;
+  };
+//}}}
+//{{{
+struct sFontStashTextIt {
+  float x;
+  float y;
+
+  float nextx;
+  float nexty;
+
+  float scale;
+  float spacing;
+
+  unsigned int codepoint;
+
+  short isize;
+
+  struct sFonstStashFont* font;
+  int prevGlyphIndex;
+
+  const char* str;
+  const char* next;
+  const char* end;
+
+  unsigned int utf8state;
+  };
+//}}}
+//{{{
+struct sFontStashImpl {
+  stbtt_fontinfo font;
+  };
+//}}}
+//{{{
+struct sFontStashGlyph {
+  unsigned int codepoint;
+  int index;
+  int next;
+
+  short size;
+  short x0;
+  short y0;
+  short x1;
+  short y1;
+  short xadv;
+  short xoff;
+  short yoff;
+  };
+//}}}
+//{{{
+struct sFonstStashFont {
+  sFontStashImpl font;
+  char name[64];
+
+  unsigned char* data;
+  int dataSize;
+
+  unsigned char freeData;
+
+  float ascender;
+  float descender;
+  float lineh;
+
+  sFontStashGlyph* glyphs;
+  int cglyphs;
+  int nglyphs;
+
+  int lut[FONS_HASH_LUT_SIZE];
+
+  int fallbacks[FONS_MAX_FALLBACKS];
+  int nfallbacks;
+  };
+//}}}
+//{{{
+struct sFontStashState {
+  int font;
+  int align;
+  float size;
+  unsigned int color;
+  float spacing;
+  };
+//}}}
+//{{{
+struct sFontStashParams {
+  int width;
+  int height;
+  unsigned char flags;
+
+  void* userPtr;
+  int (*renderCreate)(void* uptr, int width, int height);
+  int (*renderResize)(void* uptr, int width, int height);
+  void (*renderUpdate)(void* uptr, int* rect, const unsigned char* data);
+  void (*renderDraw)(void* uptr, const float* verts, const float* tcoords, const unsigned int* colors, int nverts);
+  void (*renderDelete)(void* uptr);
+  };
+//}}}
+//{{{
+struct sFontStashContext {
+  sFontStashParams params;
+
+  float itw,ith;
+  unsigned char* texData;
+  int dirtyRect[4];
+
+  int cfonts;
+  int nfonts;
+  sFonstStashFont** fonts;
+
+  cFontAtlas* mFontAtlas;
+
+  int nverts;
+  float verts[FONS_VERTEX_COUNT*2];
+  float tcoords[FONS_VERTEX_COUNT*2];
+  unsigned int colors[FONS_VERTEX_COUNT];
+
+  int nscratch;
+  unsigned char* scratch;
+
+  int nstates;
+  sFontStashState states[FONS_MAX_STATES];
+
+  void* errorUptr;
+  void (*handleError)(void* uptr, int error, int val);
   };
 //}}}
 //{{{
 class cFontContext {
 public:
-  enum FONSflags { FONS_ZERO_TOPLEFT = 1, FONS_ZERO_BOTTOMLEFT = 2, };
   //{{{
-  enum eFontStashAlign {
-    // Horizontal align
-    FONS_ALIGN_LEFT     = 1<<0, // Default
-    FONS_ALIGN_CENTER   = 1<<1,
-    FONS_ALIGN_RIGHT    = 1<<2,
-
-    // Vertical align
-    FONS_ALIGN_TOP      = 1<<3,
-    FONS_ALIGN_MIDDLE   = 1<<4,
-    FONS_ALIGN_BOTTOM   = 1<<5,
-    FONS_ALIGN_BASELINE = 1<<6, // Default
-    };
-  //}}}
-  //{{{
-  enum eFontStashErrorCode {
-    // Font atlas is full.
-    FONS_ATLAS_FULL = 1,
-
-    // Scratch memory used to render glyphs is full, requested size reported in 'val', you may need to bump up FONS_SCRATCH_BUF_SIZE.
-    FONS_SCRATCH_FULL = 2,
-
-    // Calls to fonsPushState has created too large stack, if you need deep state stack bump up FONS_MAX_STATES.
-    FONS_STATES_OVERFLOW = 3,
-
-    // Trying to pop too many states fonsPopState().
-    FONS_STATES_UNDERFLOW = 4,
-    };
-  //}}}
-
-  //{{{
-  struct sFontStashQuad {
-    float x0;
-    float y0;
-    float s0;
-    float t0;
-
-    float x1;
-    float y1;
-    float s1;
-    float t1;
-    };
-  //}}}
-  //{{{
-  struct sFontStashImpl {
-    stbtt_fontinfo font;
-    };
-  //}}}
-  //{{{
-  struct sFontStashGlyph {
-    unsigned int codepoint;
-    int index;
-    int next;
-
-    short size;
-    short x0;
-    short y0;
-    short x1;
-    short y1;
-    short xadv;
-    short xoff;
-    short yoff;
-    };
-  //}}}
-  //{{{
-  struct sFonstStashFont {
-    sFontStashImpl font;
-    char name[64];
-
-    unsigned char* data;
-    int dataSize;
-
-    unsigned char freeData;
-
-    float ascender;
-    float descender;
-    float lineh;
-
-    sFontStashGlyph* glyphs;
-    int cglyphs;
-    int nglyphs;
-
-    int lut[FONS_HASH_LUT_SIZE];
-
-    int fallbacks[FONS_MAX_FALLBACKS];
-    int nfallbacks;
-    };
-  //}}}
-  //{{{
-  struct sFontStashTextIt {
-    float x;
-    float y;
-
-    float nextx;
-    float nexty;
-
-    float scale;
-    float spacing;
-
-    unsigned int codepoint;
-
-    short isize;
-
-    struct sFonstStashFont* font;
-    int prevGlyphIndex;
-
-    const char* str;
-    const char* next;
-    const char* end;
-
-    unsigned int utf8state;
-    };
-  //}}}
-  //{{{
-  struct sFontStashState {
-    int font;
-    int align;
-    float size;
-    unsigned int color;
-    float spacing;
-    };
-  //}}}
-
-  //{{{
-  cFontContext (int width, int height, unsigned char flags) {
-
-    // Allocate scratch buffer.
-    scratch = (unsigned char*)malloc (FONS_SCRATCH_BUF_SIZE);
-
-    // Initialize implementation library
-    ttInit();
-
-    mFontAtlas = new cFontAtlas (width, height, FONS_INIT_ATLAS_NODES);
-
-    // Allocate space for fonts.
-    fonts = (sFonstStashFont**)malloc (sizeof(sFonstStashFont*) * FONS_INIT_FONTS);
-    memset (fonts, 0, sizeof(sFonstStashFont*) * FONS_INIT_FONTS);
-    cfonts = FONS_INIT_FONTS;
-    nfonts = 0;
-
-    // Create texture for the cache.
-    itw = 1.0f / width;
-    ith = 1.0f / height;
-    texData = (unsigned char*)malloc (width * height);
-    memset (texData, 0, width * height);
-
-    dirtyRect[0] = width;
-    dirtyRect[1] = height;
-    dirtyRect[2] = 0;
-    dirtyRect[3] = 0;
-
-    // Add white rect at 0,0 for debug drawing.
-    addWhiteRect (2,2);
-    pushState();
-    clearState();
-    }
-  //}}}
-  //{{{
-  ~cFontContext() {
-
-    for (int i = 0; i < nfonts; ++i)
-      freeFont (fonts[i]);
-
-    delete mFontAtlas;
-
-    free (fonts);
-    free (texData);
-    free (scratch);
-    }
-  //}}}
-
-  //{{{
-  int addFontMem (const char* name, unsigned char* data, int dataSize, int freeData) {
-
-    int idx = allocFont();
-    if (idx == FONS_INVALID)
-      return FONS_INVALID;
-
-    auto font = fonts[idx];
-    strncpy (font->name, name, sizeof(font->name));
-    font->name[sizeof(font->name)-1] = '\0';
-
-    // Init hash lookup.
-    for (int i = 0; i < FONS_HASH_LUT_SIZE; ++i)
-      font->lut[i] = -1;
-
-    // Read in the font data.
-    font->dataSize = dataSize;
-    font->data = data;
-    font->freeData = (unsigned char)freeData;
-
-    // Init font
-    nscratch = 0;
-    if (!ttLoadFont (&font->font, data, dataSize)) {
-      freeFont (font);
-      nfonts--;
-      return FONS_INVALID;
-      }
-
-    // Store normalized line height. The real line height is got
-    // by multiplying the lineh by font size.
-    int ascent, descent, lineGap;
-    ttGetFontVMetrics (&font->font, &ascent, &descent, &lineGap);
-    int fh = ascent - descent;
-
-    font->ascender = (float)ascent / (float)fh;
-    font->descender = (float)descent / (float)fh;
-    font->lineh = (float)(fh + lineGap) / (float)fh;
-    return idx;
-    }
-  //}}}
-  //{{{
-  int addFont (const char* name, const char* path) {
-
-    // Read in the font data.
-    auto fp = fopen (path, "rb");
-    if (fp == NULL)
-      return FONS_INVALID;
-
-    fseek (fp, 0, SEEK_END);
-    auto dataSize = ftell (fp);
-
-    fseek (fp, 0, SEEK_SET);
-    auto data = (unsigned char*)malloc (dataSize);
-    if (data == NULL) {
-      fclose (fp);
-      return FONS_INVALID;
-      }
-
-    fread (data, 1, dataSize, fp);
-    fclose (fp);
-
-    return addFontMem (name, data, dataSize, 1);
-    }
-  //}}}
-  //{{{
-  int getFontByName (const char* name) {
-
-    for (int i = 0; i < nfonts; i++)
-      if (strcmp (fonts[i]->name, name) == 0)
-        return i;
-
-    return FONS_INVALID;
-    }
-  //}}}
-
-  //{{{
-  int addFallbackFont (int base, int fallback) {
-
-    auto baseFont = fonts[base];
-    if (baseFont->nfallbacks < FONS_MAX_FALLBACKS) {
-      baseFont->fallbacks[baseFont->nfallbacks++] = fallback;
-      return 1;
-      }
-
-    return 0;
-    }
-  //}}}
-  //{{{
-  int resetAtlas (int width, int height) {
-
-    int i, j;
-
-    // Flush pending glyphs.
-    flush();
-
-    // Reset atlas
-    mFontAtlas->atlasReset (width, height);
-
-    // Clear texture data.
-    texData = (unsigned char*)realloc(texData, width * height);
-    if (texData == NULL) return 0;
-    memset(texData, 0, width * height);
-
-    // Reset dirty rect
-    dirtyRect[0] = width;
-    dirtyRect[1] = height;
-    dirtyRect[2] = 0;
-    dirtyRect[3] = 0;
-
-    // Reset cached glyphs
-    for (i = 0; i < nfonts; i++) {
-      sFonstStashFont* font = fonts[i];
-      font->nglyphs = 0;
-      for (j = 0; j < FONS_HASH_LUT_SIZE; j++)
-        font->lut[j] = -1;
-      }
-
-    mWidth = width;
-    mHeight = height;
-    itw = 1.0f / mWidth;
-    ith = 1.0f / mHeight;
-
-    // Add white rect at 0,0 for debug drawing.
-    addWhiteRect (2,2);
-
-    return 1;
-    }
-  //}}}
-
-  void setSize (float size) { getState()->size = size; }
-  void setColor (unsigned int color) { getState()->color = color; }
-  void setSpacing (float spacing) { getState()->spacing = spacing; }
-  void setAlign (int align) { getState()->align = align; }
-  void setFont (int font) { getState()->font = font; }
-
-  //{{{
-  sFontStashGlyph* getGlyph (sFonstStashFont* font, unsigned int codepoint, short isize) {
-
-    int i, g, advance, lsb, x0, y0, x1, y1, gw, gh, gx, gy, x, y;
-    float scale;
-    sFontStashGlyph* glyph = NULL;
-    unsigned int h;
-    float size = isize/10.0f;
-    int pad, added;
-    unsigned char* dst;
-    sFonstStashFont* renderFont = font;
-
-    if (isize < 2)
-      return NULL;
-    pad = 2;
-
-    // Reset allocator.
-    nscratch = 0;
-
-    // Find code point and size.
-    h = hashint (codepoint) & (FONS_HASH_LUT_SIZE-1);
-    i = font->lut[h];
-    while (i != -1) {
-      if (font->glyphs[i].codepoint == codepoint && font->glyphs[i].size == isize)
-        return &font->glyphs[i];
-      i = font->glyphs[i].next;
-      }
-
-    // Could not find glyph, create it.
-    g = ttGetGlyphIndex (&font->font, codepoint);
-    // Try to find the glyph in fallback fonts.
-    if (g == 0) {
-      for (i = 0; i < font->nfallbacks; ++i) {
-        sFonstStashFont* fallbackFont = fonts[font->fallbacks[i]];
-        int fallbackIndex = ttGetGlyphIndex(&fallbackFont->font, codepoint);
-        if (fallbackIndex != 0) {
-          g = fallbackIndex;
-          renderFont = fallbackFont;
-          break;
-          }
-        }
-      // It is possible that we did not find a fallback glyph.
-      // In that case the glyph index 'g' is 0, and we'll proceed below and cache empty glyph.
-      }
-
-    scale = ttGetPixelHeightScale (&renderFont->font, size);
-    ttBuildGlyphBitmap (&renderFont->font, g, size, scale, &advance, &lsb, &x0, &y0, &x1, &y1);
-    gw = x1-x0 + pad*2;
-    gh = y1-y0 + pad*2;
-
-    // Find free spot for the rect in the atlas
-    added = mFontAtlas->atlasAddRect (gw, gh, &gx, &gy);
-    if (added == 0 && handleError != NULL) {
-      // Atlas is full, let the user to resize the atlas (or not), and try again.
-      handleError (errorUptr, FONS_ATLAS_FULL, 0);
-      added = mFontAtlas->atlasAddRect (gw, gh, &gx, &gy);
-      }
-    if (added == 0)
-      return NULL;
-
-    // Init glyph.
-    glyph = allocGlyph (font);
-    glyph->codepoint = codepoint;
-    glyph->size = isize;
-    glyph->index = g;
-    glyph->x0 = (short)gx;
-    glyph->y0 = (short)gy;
-    glyph->x1 = (short)(glyph->x0+gw);
-    glyph->y1 = (short)(glyph->y0+gh);
-    glyph->xadv = (short)(scale * advance * 10.0f);
-    glyph->xoff = (short)(x0 - pad);
-    glyph->yoff = (short)(y0 - pad);
-    glyph->next = 0;
-
-    // Insert char to hash lookup.
-    glyph->next = font->lut[h];
-    font->lut[h] = font->nglyphs-1;
-
-    // Rasterize
-    dst = &texData[(glyph->x0+pad) + (glyph->y0+pad) * mWidth];
-    ttRenderGlyphBitmap (&renderFont->font, dst, gw-pad*2,gh-pad*2, mWidth, scale,scale, g);
-
-    // Make sure there is one pixel empty border.
-    dst = &texData[glyph->x0 + glyph->y0 * mWidth];
-    for (y = 0; y < gh; y++) {
-      dst[y*mWidth] = 0;
-      dst[gw-1 + y*mWidth] = 0;
-      }
-    for (x = 0; x < gw; x++) {
-      dst[x] = 0;
-      dst[x + (gh-1)*mWidth] = 0;
-      }
-
-    dirtyRect[0] = mini(dirtyRect[0], glyph->x0);
-    dirtyRect[1] = mini(dirtyRect[1], glyph->y0);
-    dirtyRect[2] = maxi(dirtyRect[2], glyph->x1);
-    dirtyRect[3] = maxi(dirtyRect[3], glyph->y1);
-
-    return glyph;
-    }
-  //}}}
-  //{{{
-  void getQuad (sFonstStashFont* font,
-                     int prevGlyphIndex, sFontStashGlyph* glyph,
-                     float scale, float spacing, float* x, float* y, sFontStashQuad* q) {
-
-    float rx,ry,xoff,yoff,x0,y0,x1,y1;
-
-    if (prevGlyphIndex != -1) {
-      float adv = ttGetGlyphKernAdvance(&font->font, prevGlyphIndex, glyph->index) * scale;
-      *x += (int)(adv + spacing + 0.5f);
-      }
-
-    // Each glyph has 2px border to allow good interpolation,
-    // one pixel to prevent leaking, and one to allow good interpolation for rendering.
-    // Inset the texture region by one pixel for correct interpolation.
-    xoff = (short)(glyph->xoff+1);
-    yoff = (short)(glyph->yoff+1);
-    x0 = (float)(glyph->x0+1);
-    y0 = (float)(glyph->y0+1);
-    x1 = (float)(glyph->x1-1);
-    y1 = (float)(glyph->y1-1);
-
-    if (mFlags & FONS_ZERO_TOPLEFT) {
-      rx = (float)(int)(*x + xoff);
-      ry = (float)(int)(*y + yoff);
-
-      q->x0 = rx;
-      q->y0 = ry;
-      q->x1 = rx + x1 - x0;
-      q->y1 = ry + y1 - y0;
-
-      q->s0 = x0 * itw;
-      q->t0 = y0 * ith;
-      q->s1 = x1 * itw;
-      q->t1 = y1 * ith;
-      }
-
-    else {
-      rx = (float)(int)(*x + xoff);
-      ry = (float)(int)(*y - yoff);
-
-      q->x0 = rx;
-      q->y0 = ry;
-      q->x1 = rx + x1 - x0;
-      q->y1 = ry - y1 + y0;
-
-      q->s0 = x0 * itw;
-      q->t0 = y0 * ith;
-      q->s1 = x1 * itw;
-      q->t1 = y1 * ith;
-      }
-
-    *x += (int)(glyph->xadv / 10.0f + 0.5f);
-    }
-  //}}}
-  //{{{
-  void vertex (float x, float y, float s, float t, unsigned int c) {
-
-    verts[nverts*2+0] = x;
-    verts[nverts*2+1] = y;
-    tcoords[nverts*2+0] = s;
-    tcoords[nverts*2+1] = t;
-    colors[nverts] = c;
-    nverts++;
-    }
-  //}}}
-
-  //{{{
-  float getVertAlign (sFonstStashFont* font, int align, short isize) {
-
-    if (mFlags & FONS_ZERO_TOPLEFT) {
-      if (align & FONS_ALIGN_TOP)
-        return font->ascender * (float)isize/10.0f;
-      else if (align & FONS_ALIGN_MIDDLE)
-        return (font->ascender + font->descender) / 2.0f * (float)isize/10.0f;
-      else if (align & FONS_ALIGN_BASELINE)
-        return 0.0f;
-      else if (align & FONS_ALIGN_BOTTOM)
-        return font->descender * (float)isize/10.0f;
-      }
-
-    else if (align & FONS_ALIGN_TOP)
-      return -font->ascender * (float)isize/10.0f;
-    else if (align & FONS_ALIGN_MIDDLE)
-      return -(font->ascender + font->descender) / 2.0f * (float)isize/10.0f;
-    else if (align & FONS_ALIGN_BASELINE)
-      return 0.0f;
-    else if (align & FONS_ALIGN_BOTTOM)
-      return -font->descender * (float)isize/10.0f;
-
-    return 0.0;
-    }
-  //}}}
-  //{{{
-  void vertMetrics (float* ascender, float* descender, float* lineh) {
-
-    auto state = getState();
-
-    if (state->font < 0 || state->font >= nfonts)
-      return;
-
-    auto font = fonts[state->font];
-    short isize = (short)(state->size*10.0f);
-    if (font->data == NULL)
-      return;
-
-    if (ascender)
-      *ascender = font->ascender*isize/10.0f;
-    if (descender)
-      *descender = font->descender*isize/10.0f;
-    if (lineh)
-      *lineh = font->lineh*isize/10.0f;
-    }
-  //}}}
-  //{{{
-  void lineBounds (float y, float* miny, float* maxy) {
-
-    auto state = getState();
-    short isize;
-
-    if (state->font < 0 || state->font >= nfonts)
-      return;
-
-    auto font = fonts[state->font];
-    isize = (short)(state->size*10.0f);
-    if (font->data == NULL)
-      return;
-
-    y += getVertAlign (font, state->align, isize);
-
-    if (mFlags & FONS_ZERO_TOPLEFT) {
-      *miny = y - font->ascender * (float)isize/10.0f;
-      *maxy = *miny + font->lineh*isize/10.0f;
-      }
-    else {
-      *maxy = y + font->descender * (float)isize/10.0f;
-      *miny = *maxy - font->lineh*isize/10.0f;
-      }
-    }
-  //}}}
-  //{{{
-  float textBounds (float x, float y, const char* str, const char* end, float* bounds) {
-
-    auto state = getState();
-
-    unsigned int codepoint;
-    unsigned int utf8state = 0;
-
-    int prevGlyphIndex = -1;
-    short isize = (short)(state->size * 10.0f);
-
-    float startx, advance;
-    float minx, miny, maxx, maxy;
-
-    if (state->font < 0 || state->font >= nfonts)
-      return 0;
-
-    auto font = fonts[state->font];
-    if (font->data == NULL)
-      return 0;
-
-    float scale = ttGetPixelHeightScale (&font->font, (float)isize / 10.0f);
-
-    // Align vertically.
-    y += getVertAlign (font, state->align, isize);
-
-    minx = maxx = x;
-    miny = maxy = y;
-    startx = x;
-
-    if (end == NULL)
-      end = str + strlen(str);
-
-    for (; str != end; ++str) {
-      if (decutf8(&utf8state, &codepoint, *(const unsigned char*)str))
-        continue;
-      auto glyph = getGlyph (font, codepoint, isize);
-      if (glyph != NULL) {
-        sFontStashQuad q;
-        getQuad (font, prevGlyphIndex, glyph, scale, state->spacing, &x, &y, &q);
-        if (q.x0 < minx)
-          minx = q.x0;
-        if (q.x1 > maxx)
-          maxx = q.x1;
-        if (mFlags & FONS_ZERO_TOPLEFT) {
-          if (q.y0 < miny)
-            miny = q.y0;
-          if (q.y1 > maxy)
-            maxy = q.y1;
-          }
-        else {
-          if (q.y1 < miny)
-            miny = q.y1;
-          if (q.y0 > maxy)
-            maxy = q.y0;
-          }
-        }
-      prevGlyphIndex = glyph != NULL ? glyph->index : -1;
-      }
-
-    advance = x - startx;
-
-    // Align horizontally
-    if (state->align & FONS_ALIGN_LEFT) {
-      // empty
-      }
-    else if (state->align & FONS_ALIGN_RIGHT) {
-      minx -= advance;
-      maxx -= advance;
-      }
-   else if (state->align & FONS_ALIGN_CENTER) {
-      minx -= advance * 0.5f;
-      maxx -= advance * 0.5f;
-      }
-
-    if (bounds) {
-      bounds[0] = minx;
-      bounds[1] = miny;
-      bounds[2] = maxx;
-      bounds[3] = maxy;
-      }
-
-    return advance;
-    }
-  //}}}
-
-  //{{{
-  int textItInit (sFontStashTextIt* it, float x, float y, const char* str, const char* end) {
-
-    memset (it, 0, sizeof(*it));
-
-    auto state = getState();
-    if (state->font < 0 || state->font >= nfonts)
-      return 0;
-
-    it->font = fonts[state->font];
-    if (it->font->data == NULL)
-      return 0;
-
-    it->isize = (short)(state->size*10.0f);
-    it->scale = ttGetPixelHeightScale (&it->font->font, (float)it->isize/10.0f);
-
-    // Align horizontally
-    float width;
-    if (state->align & FONS_ALIGN_RIGHT) {
-      width = textBounds (x,y, str, end, NULL);
-      x -= width;
-      }
-    else if (state->align & FONS_ALIGN_CENTER) {
-      width = textBounds (x,y, str, end, NULL);
-      x -= width * 0.5f;
-      }
-
-    // Align vertically.
-    y += getVertAlign (it->font, state->align, it->isize);
-
-    if (end == NULL)
-      end = str + strlen (str);
-
-    it->x = it->nextx = x;
-    it->y = it->nexty = y;
-    it->spacing = state->spacing;
-    it->str = str;
-    it->next = str;
-    it->end = end;
-    it->codepoint = 0;
-    it->prevGlyphIndex = -1;
-
+  int ttInit (sFontStashContext* context) {
+    FONS_NOTUSED(context);
     return 1;
     }
   //}}}
   //{{{
-  int textItNext (sFontStashTextIt* it, sFontStashQuad* quad) {
-
-    const char* str = it->next;
-    it->str = it->next;
-
-    if (str == it->end)
-      return 0;
-
-    for (; str != it->end; str++) {
-      if (decutf8 (&it->utf8state, &it->codepoint, *(const unsigned char*)str))
-        continue;
-
-      str++;
-      // Get glyph and quad
-      it->x = it->nextx;
-      it->y = it->nexty;
-      sFontStashGlyph* glyph = getGlyph (it->font, it->codepoint, it->isize);
-      if (glyph != NULL)
-        getQuad (it->font, it->prevGlyphIndex, glyph, it->scale, it->spacing, &it->nextx, &it->nexty, quad);
-      it->prevGlyphIndex = glyph != NULL ? glyph->index : -1;
-      break;
-      }
-
-    it->next = str;
-    return 1;
-    }
-  //}}}
-
-  //{{{
-  float drawText (float x, float y, const char* str, const char* end) {
-
-    auto state = getState();
-
-    short isize = (short)(state->size * 10.f);
-    sFonstStashFont* font;
-
-    if ((state->font < 0) || (state->font >= nfonts))
-      return x;
-
-    font = fonts[state->font];
-    if (font->data == NULL)
-      return x;
-
-    float scale = ttGetPixelHeightScale (&font->font, (float)isize / 10.f);
-
-    if (end == NULL)
-      end = str + strlen (str);
-
-    // Align horizontally
-    if (state->align & FONS_ALIGN_RIGHT) {
-      float width = textBounds (x,y, str,end, NULL);
-      x -= width;
-      }
-    else if (state->align & FONS_ALIGN_CENTER) {
-      float width = textBounds (x,y, str,end, NULL);
-      x -= width * 0.5f;
-      }
-
-    // Align vertically.
-    y += getVertAlign (font, state->align, isize);
-
-    unsigned int codepoint;
-    unsigned int utf8state = 0;
-    int prevGlyphIndex = -1;
-    for (; str != end; ++str) {
-      if (decutf8 (&utf8state, &codepoint, *(const unsigned char*)str))
-        continue;
-
-      sFontStashGlyph* glyph = getGlyph (font, codepoint, isize);
-      if (glyph != NULL) {
-        sFontStashQuad q;
-        getQuad (font, prevGlyphIndex, glyph, scale, state->spacing, &x, &y, &q);
-
-        if (nverts+6 > FONS_VERTEX_COUNT)
-          flush();
-
-        vertex (q.x0, q.y0, q.s0, q.t0, state->color);
-        vertex (q.x1, q.y1, q.s1, q.t1, state->color);
-        vertex (q.x1, q.y0, q.s1, q.t0, state->color);
-
-        vertex (q.x0, q.y0, q.s0, q.t0, state->color);
-        vertex (q.x0, q.y1, q.s0, q.t1, state->color);
-        vertex (q.x1, q.y1, q.s1, q.t1, state->color);
-        }
-
-      prevGlyphIndex = glyph != NULL ? glyph->index : -1;
-      }
-
-    flush();
-    return x;
-    }
-  //}}}
-  //{{{
-  void drawDebug (float x, float y) {
-
-    int i;
-    int w = mWidth;
-    int h = mHeight;
-    float u = w == 0 ? 0 : (1.0f / w);
-    float v = h == 0 ? 0 : (1.0f / h);
-
-    if (nverts+6+6 > FONS_VERTEX_COUNT)
-      flush();
-
-    // Draw background
-    vertex (x+0, y+0, u, v, 0x0fffffff);
-    vertex (x+w, y+h, u, v, 0x0fffffff);
-    vertex (x+w, y+0, u, v, 0x0fffffff);
-
-    vertex (x+0, y+0, u, v, 0x0fffffff);
-    vertex (x+0, y+h, u, v, 0x0fffffff);
-    vertex (x+w, y+h, u, v, 0x0fffffff);
-
-    // Draw texture
-    vertex (x+0, y+0, 0, 0, 0xffffffff);
-    vertex (x+w, y+h, 1, 1, 0xffffffff);
-    vertex (x+w, y+0, 1, 0, 0xffffffff);
-
-    vertex (x+0, y+0, 0, 0, 0xffffffff);
-    vertex (x+0, y+h, 0, 1, 0xffffffff);
-    vertex (x+w, y+h, 1, 1, 0xffffffff);
-
-    // draw atlas
-    for (i = 0; i < mFontAtlas->mNumNodes; i++) {
-      cFontAtlas::sNode* n = &mFontAtlas->mNodes[i];
-
-      if (nverts+6 > FONS_VERTEX_COUNT)
-        flush();
-
-      vertex (x+n->mX + 0, y + n->mY + 0, u, v, 0xc00000ff);
-      vertex (x+n->mX + n->mWidth, y+n->mY + 1, u, v, 0xc00000ff);
-      vertex (x+n->mX + n->mWidth, y+n->mY + 0, u, v, 0xc00000ff);
-
-      vertex (x+n->mX + 0, y+n->mY + 0, u, v, 0xc00000ff);
-      vertex (x+n->mX + 0, y+n->mY + 1, u, v, 0xc00000ff);
-      vertex (x+n->mX + n->mWidth, y + n->mY + 1, u, v, 0xc00000ff);
-      }
-
-    flush();
-    }
-  //}}}
-
-  //{{{
-  const unsigned char* getTextureData (int* width, int* height) {
-
-    if (width != NULL)
-      *width = mWidth;
-
-    if (height != NULL)
-      *height = mHeight;
-
-    return texData;
-    }
-  //}}}
-  //{{{
-  int validateTexture (int* dirty) {
-
-    if (dirtyRect[0] < dirtyRect[2] && dirtyRect[1] < dirtyRect[3]) {
-      dirty[0] = dirtyRect[0];
-      dirty[1] = dirtyRect[1];
-      dirty[2] = dirtyRect[2];
-      dirty[3] = dirtyRect[3];
-
-      // Reset dirty rect
-      dirtyRect[0] = mWidth;
-      dirtyRect[1] = mHeight;
-      dirtyRect[2] = 0;
-      dirtyRect[3] = 0;
-      return 1;
-      }
-
-    return 0;
-    }
-  //}}}
-
-  //{{{
-  void setErrorCallback (void (*callback)(void* uptr, int error, int val), void* uptr) {
-
-    handleError = callback;
-    errorUptr = uptr;
-    }
-  //}}}
-
-  void* errorUptr;
-  void (*handleError)(void* uptr, int error, int val);
-
-  int nscratch;
-  unsigned char* scratch;
-
-private:
-  //{{{
-  static unsigned int decutf8 (unsigned int* state, unsigned int* codep, unsigned int byte) {
-  // Copyright (c) 2008-2010 Bjoern Hoehrmann <bjoern@hoehrmann.de>
-  // See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
-
-    const unsigned char utf8d[] = {
-      // The first part of the table maps bytes to character classes that
-      // to reduce the size of the transition table and create bitmasks.
-      0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-      0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-      0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-      0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-      1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,  9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,
-      7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,  7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
-      8,8,2,2,2,2,2,2,2,2,2,2,2,2,2,2,  2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
-      10,3,3,3,3,3,3,3,3,3,3,3,3,4,3,3, 11,6,6,6,5,8,8,8,8,8,8,8,8,8,8,8,
-
-      // The second part is a transition table that maps a combination
-      // of a state of the automaton and a character class to a state.
-      0,12,24,36,60,96,84,12,12,12,48,72, 12,12,12,12,12,12,12,12,12,12,12,12,
-      12, 0,12,12,12,12,12, 0,12, 0,12,12, 12,24,12,12,12,12,12,24,12,24,12,12,
-      12,12,12,12,12,12,12,24,12,12,12,12, 12,24,12,12,12,12,12,12,12,24,12,12,
-      12,12,12,12,12,12,12,36,12,36,12,12, 12,36,12,12,12,12,12,36,12,36,12,12,
-      12,36,12,12,12,12,12,12,12,12,12,12,
-      };
-
-    unsigned int type = utf8d[byte];
-    *codep = (*state != FONS_UTF8_ACCEPT) ? (byte & 0x3fu) | (*codep << 6) : (0xff >> type) & (byte);
-    *state = utf8d[256 + *state + type];
-    return *state;
-    }
-  //}}}
-  //{{{
-  static unsigned int hashint (unsigned int a) {
-
-    a += ~(a<<15);
-    a ^=  (a>>10);
-    a +=  (a<<3);
-    a ^=  (a>>6);
-    a += ~(a<<11);
-    a ^=  (a>>16);
-
-    return a;
-    }
-  //}}}
-
-  //{{{
-  int ttInit() {
-    return 1;
-    }
-  //}}}
-  //{{{
-  int ttLoadFont (sFontStashImpl* font, unsigned char* data, int dataSize) {
+  int ttLoadFont (sFontStashContext* context, sFontStashImpl* font, unsigned char* data, int dataSize) {
 
     FONS_NOTUSED(dataSize);
-    font->font.userdata = this;
+    font->font.userdata = context;
     return stbtt_InitFont (&font->font, data, 0);
     }
   //}}}
@@ -1233,12 +481,12 @@ private:
     }
   //}}}
   //{{{
-  int allocFont() {
+  int allocFont (sFontStashContext* stash) {
 
-    if (nfonts+1 > cfonts) {
-      cfonts = cfonts == 0 ? 8 : cfonts * 2;
-      fonts = (sFonstStashFont**)realloc(fonts, sizeof(sFonstStashFont*) * cfonts);
-      if (fonts == NULL)
+    if (stash->nfonts+1 > stash->cfonts) {
+      stash->cfonts = stash->cfonts == 0 ? 8 : stash->cfonts * 2;
+      stash->fonts = (sFonstStashFont**)realloc(stash->fonts, sizeof(sFonstStashFont*) * stash->cfonts);
+      if (stash->fonts == NULL)
         return -1;
       }
 
@@ -1253,51 +501,96 @@ private:
     font->cglyphs = FONS_INIT_GLYPHS;
     font->nglyphs = 0;
 
-    fonts[nfonts++] = font;
-    return nfonts-1;
+    stash->fonts[stash->nfonts++] = font;
+    return stash->nfonts-1;
 
   error:
     freeFont (font);
     return FONS_INVALID;
     }
   //}}}
-
-  // state
   //{{{
-  sFontStashState* getState() {
-    return &states[nstates-1];
+  sFontStashState* getState (sFontStashContext* stash) {
+    return &stash->states[stash->nstates-1];
+    }
+  //}}}
+
+  //{{{
+  static unsigned int decutf8 (unsigned int* state, unsigned int* codep, unsigned int byte) {
+  // Copyright (c) 2008-2010 Bjoern Hoehrmann <bjoern@hoehrmann.de>
+  // See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
+
+    const unsigned char utf8d[] = {
+      // The first part of the table maps bytes to character classes that
+      // to reduce the size of the transition table and create bitmasks.
+      0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+      0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+      0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+      0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+      1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,  9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,
+      7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,  7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
+      8,8,2,2,2,2,2,2,2,2,2,2,2,2,2,2,  2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
+      10,3,3,3,3,3,3,3,3,3,3,3,3,4,3,3, 11,6,6,6,5,8,8,8,8,8,8,8,8,8,8,8,
+
+      // The second part is a transition table that maps a combination
+      // of a state of the automaton and a character class to a state.
+      0,12,24,36,60,96,84,12,12,12,48,72, 12,12,12,12,12,12,12,12,12,12,12,12,
+      12, 0,12,12,12,12,12, 0,12, 0,12,12, 12,24,12,12,12,12,12,24,12,24,12,12,
+      12,12,12,12,12,12,12,24,12,12,12,12, 12,24,12,12,12,12,12,12,12,24,12,12,
+      12,12,12,12,12,12,12,36,12,36,12,12, 12,36,12,12,12,12,12,36,12,36,12,12,
+      12,36,12,12,12,12,12,12,12,12,12,12,
+      };
+
+    unsigned int type = utf8d[byte];
+    *codep = (*state != FONS_UTF8_ACCEPT) ? (byte & 0x3fu) | (*codep << 6) : (0xff >> type) & (byte);
+    *state = utf8d[256 + *state + type];
+    return *state;
     }
   //}}}
   //{{{
-  void pushState() {
+  static unsigned int hashint (unsigned int a) {
 
-    if (nstates >= FONS_MAX_STATES) {
-      if (handleError)
-        handleError(errorUptr, FONS_STATES_OVERFLOW, 0);
+    a += ~(a<<15);
+    a ^=  (a>>10);
+    a +=  (a<<3);
+    a ^=  (a>>6);
+    a += ~(a<<11);
+    a ^=  (a>>16);
+
+    return a;
+    }
+  //}}}
+
+  //{{{
+  void pushState (sFontStashContext* stash) {
+
+    if (stash->nstates >= FONS_MAX_STATES) {
+      if (stash->handleError)
+        stash->handleError(stash->errorUptr, FONS_STATES_OVERFLOW, 0);
       return;
       }
 
-    if (nstates > 0)
-      memcpy(&states[nstates], &states[nstates-1], sizeof(sFontStashState));
-    nstates++;
+    if (stash->nstates > 0)
+      memcpy(&stash->states[stash->nstates], &stash->states[stash->nstates-1], sizeof(sFontStashState));
+    stash->nstates++;
     }
   //}}}
   //{{{
-  void popState() {
+  void popState (sFontStashContext* stash) {
 
-    if (nstates <= 1) {
-      if (handleError)
-        handleError (errorUptr, FONS_STATES_UNDERFLOW, 0);
+    if (stash->nstates <= 1) {
+      if (stash->handleError)
+        stash->handleError(stash->errorUptr, FONS_STATES_UNDERFLOW, 0);
       return;
       }
 
-    nstates--;
+    stash->nstates--;
     }
   //}}}
   //{{{
-  void clearState() {
+  void clearState (sFontStashContext* stash) {
 
-    auto state = getState();
+    auto state = getState (stash);
     state->size = 12.0f;
     state->color = 0xffffffff;
     state->font = 0;
@@ -1306,39 +599,48 @@ private:
     }
   //}}}
   //{{{
-  void flush() {
+  void flush (sFontStashContext* stash) {
   // Flush texture
 
-    if (dirtyRect[0] < dirtyRect[2] && dirtyRect[1] < dirtyRect[3]) {
+    if (stash->dirtyRect[0] < stash->dirtyRect[2] && stash->dirtyRect[1] < stash->dirtyRect[3]) {
+      if (stash->params.renderUpdate != NULL)
+        stash->params.renderUpdate (stash->params.userPtr, stash->dirtyRect, stash->texData);
       // Reset dirty rect
-      dirtyRect[0] = mWidth;
-      dirtyRect[1] = mHeight;
-      dirtyRect[2] = 0;
-      dirtyRect[3] = 0;
+      stash->dirtyRect[0] = stash->params.width;
+      stash->dirtyRect[1] = stash->params.height;
+      stash->dirtyRect[2] = 0;
+      stash->dirtyRect[3] = 0;
+      }
+
+    // Flush triangles
+    if (stash->nverts > 0) {
+      if (stash->params.renderDraw != NULL)
+        stash->params.renderDraw (stash->params.userPtr, stash->verts, stash->tcoords, stash->colors, stash->nverts);
+      stash->nverts = 0;
       }
     }
   //}}}
 
   //{{{
-  void addWhiteRect (int w, int h) {
+  void addWhiteRect (sFontStashContext* stash, int w, int h) {
 
     int x, y, gx, gy;
     unsigned char* dst;
-    if (mFontAtlas->atlasAddRect (w, h, &gx, &gy) == 0)
+    if (stash->mFontAtlas->atlasAddRect (w, h, &gx, &gy) == 0)
       return;
 
     // Rasterize
-    dst = &texData[gx + gy * mWidth];
+    dst = &stash->texData[gx + gy * stash->params.width];
     for (y = 0; y < h; y++) {
       for (x = 0; x < w; x++)
         dst[x] = 0xff;
-      dst += mWidth;
+      dst += stash->params.width;
       }
 
-    dirtyRect[0] = mini(dirtyRect[0], gx);
-    dirtyRect[1] = mini(dirtyRect[1], gy);
-    dirtyRect[2] = maxi(dirtyRect[2], gx+w);
-    dirtyRect[3] = maxi(dirtyRect[3], gy+h);
+    stash->dirtyRect[0] = mini(stash->dirtyRect[0], gx);
+    stash->dirtyRect[1] = mini(stash->dirtyRect[1], gy);
+    stash->dirtyRect[2] = maxi(stash->dirtyRect[2], gx+w);
+    stash->dirtyRect[3] = maxi(stash->dirtyRect[3], gy+h);
     }
   //}}}
   //{{{
@@ -1355,108 +657,900 @@ private:
     }
   //}}}
   //{{{
-  void getAtlasSize (int* width, int* height) {
+  void getAtlasSize (sFontStashContext* stash, int* width, int* height) {
 
-    *width = mWidth;
-    *height = mHeight;
+    if (stash == NULL)
+      return;
+
+    *width = stash->params.width;
+    *height = stash->params.height;
     }
   //}}}
   //{{{
-  int expandAtlas (int width, int height) {
+  int expandAtlas (sFontStashContext* stash, int width, int height) {
 
-    int maxy = 0;
+    int i, maxy = 0;
     unsigned char* data = NULL;
+    if (stash == NULL)
+      return 0;
 
-    width = maxi (width, mWidth);
-    height = maxi (height, mHeight);
+    width = maxi(width, stash->params.width);
+    height = maxi(height, stash->params.height);
 
-    if ((width == mWidth) && (height == mHeight))
+    if (width == stash->params.width && height == stash->params.height)
       return 1;
 
     // Flush pending glyphs.
-    flush();
+    flush(stash);
+
+    // Create new texture
+    if (stash->params.renderResize != NULL) {
+      if (stash->params.renderResize(stash->params.userPtr, width, height) == 0)
+        return 0;
+      }
 
     // Copy old texture data over.
     data = (unsigned char*)malloc(width * height);
-    for (int i = 0; i < mHeight; i++) {
-      unsigned char* dst = &data[i*width];
-      unsigned char* src = &texData[i*mWidth];
-      memcpy(dst, src, mWidth);
-      if (width > mWidth)
-        memset (dst+mWidth, 0, width - mWidth);
-      }
-    if (height > mHeight)
-      memset (&data[mHeight * width], 0, (height - mHeight) * width);
+    if (data == NULL)
+      return 0;
 
-    free (texData);
-    texData = data;
+    for (i = 0; i < stash->params.height; i++) {
+      unsigned char* dst = &data[i*width];
+      unsigned char* src = &stash->texData[i*stash->params.width];
+      memcpy(dst, src, stash->params.width);
+      if (width > stash->params.width)
+        memset(dst+stash->params.width, 0, width - stash->params.width);
+      }
+    if (height > stash->params.height)
+      memset(&data[stash->params.height * width], 0, (height - stash->params.height) * width);
+
+    free(stash->texData);
+    stash->texData = data;
 
     // Increase atlas size
-    mFontAtlas->atlasExpand (width, height);
+    stash->mFontAtlas->atlasExpand (width, height);
 
     // Add existing data as dirty.
-    for (int i = 0; i < mFontAtlas->mNumNodes; i++)
-      maxy = maxi (maxy, mFontAtlas->mNodes[i].mY);
+    for (i = 0; i < stash->mFontAtlas->nnodes; i++)
+      maxy = maxi(maxy, stash->mFontAtlas->nodes[i].y);
 
-    dirtyRect[0] = 0;
-    dirtyRect[1] = 0;
-    dirtyRect[2] = mWidth;
-    dirtyRect[3] = maxy;
+    stash->dirtyRect[0] = 0;
+    stash->dirtyRect[1] = 0;
+    stash->dirtyRect[2] = stash->params.width;
+    stash->dirtyRect[3] = maxy;
 
-    mWidth = width;
-    mHeight = height;
-    itw = 1.0f / mWidth;
-    ith = 1.0f / mHeight;
+    stash->params.width = width;
+    stash->params.height = height;
+    stash->itw = 1.0f/stash->params.width;
+    stash->ith = 1.0f/stash->params.height;
+    return 1;
+    }
+  //}}}
+  //{{{
+  int resetAtlas (sFontStashContext* stash, int width, int height) {
+
+    int i, j;
+    if (stash == NULL)
+      return 0;
+
+    // Flush pending glyphs.
+    flush (stash);
+
+    // Create new texture
+    if (stash->params.renderResize != NULL)
+      if (stash->params.renderResize (stash->params.userPtr, width, height) == 0)
+        return 0;
+
+    // Reset atlas
+    stash->mFontAtlas->atlasReset (width, height);
+
+    // Clear texture data.
+    stash->texData = (unsigned char*)realloc(stash->texData, width * height);
+    if (stash->texData == NULL) return 0;
+    memset(stash->texData, 0, width * height);
+
+    // Reset dirty rect
+    stash->dirtyRect[0] = width;
+    stash->dirtyRect[1] = height;
+    stash->dirtyRect[2] = 0;
+    stash->dirtyRect[3] = 0;
+
+    // Reset cached glyphs
+    for (i = 0; i < stash->nfonts; i++) {
+      sFonstStashFont* font = stash->fonts[i];
+      font->nglyphs = 0;
+      for (j = 0; j < FONS_HASH_LUT_SIZE; j++)
+        font->lut[j] = -1;
+      }
+
+    stash->params.width = width;
+    stash->params.height = height;
+    stash->itw = 1.0f/stash->params.width;
+    stash->ith = 1.0f/stash->params.height;
+
+    // Add white rect at 0,0 for debug drawing.
+    addWhiteRect (stash, 2,2);
+
     return 1;
     }
   //}}}
 
+  //{{{
+  void deleteInternal (sFontStashContext* stash) {
 
-  int mFlags = 0;
-  int mWidth = 0;
-  int mHeight = 0;
-  float itw = 0.f;
-  float ith = 0.f;
+    int i;
+    if (stash == NULL)
+      return;
 
-  unsigned char* texData = nullptr;
-  int dirtyRect[4] = { 0 };
+    if (stash->params.renderDelete)
+      stash->params.renderDelete (stash->params.userPtr);
 
-  int cfonts = 0;
-  int nfonts = 0;
-  sFonstStashFont** fonts = { nullptr };
-  cFontAtlas* mFontAtlas = nullptr;
+    for (i = 0; i < stash->nfonts; ++i)
+      freeFont (stash->fonts[i]);
 
-  int nverts = 0;
-  float verts[FONS_VERTEX_COUNT*2] = { 0.f };
-  float tcoords[FONS_VERTEX_COUNT*2] = { 0.f };
-  unsigned int colors[FONS_VERTEX_COUNT] = { 0 };
+    delete stash->mFontAtlas;
 
-  int nstates = 0;
-  sFontStashState states[FONS_MAX_STATES];
+    free (stash->fonts);
+    free (stash->texData);
+    free (stash->scratch);
+    free (stash);
+    }
+  //}}}
+  //{{{
+  sFontStashContext* createInternal (sFontStashParams* params) {
+
+    // Allocate memory for the font stash.
+    auto stash = (sFontStashContext*)malloc (sizeof (sFontStashContext));
+    if (stash == NULL)
+      goto error;
+    memset (stash, 0, sizeof (sFontStashContext));
+
+    stash->params = *params;
+
+    // Allocate scratch buffer.
+    stash->scratch = (unsigned char*)malloc (FONS_SCRATCH_BUF_SIZE);
+    if (stash->scratch == NULL)
+      goto error;
+
+    // Initialize implementation library
+    if (!ttInit (stash))
+      goto error;
+
+    if (stash->params.renderCreate != NULL)
+      if (stash->params.renderCreate (stash->params.userPtr, stash->params.width, stash->params.height) == 0)
+        goto error;
+
+    stash->mFontAtlas = new cFontAtlas (stash->params.width, stash->params.height, FONS_INIT_ATLAS_NODES);
+
+    // Allocate space for fonts.
+    stash->fonts = (sFonstStashFont**)malloc (sizeof(sFonstStashFont*) * FONS_INIT_FONTS);
+    if (stash->fonts == NULL)
+      goto error;
+    memset (stash->fonts, 0, sizeof(sFonstStashFont*) * FONS_INIT_FONTS);
+    stash->cfonts = FONS_INIT_FONTS;
+    stash->nfonts = 0;
+
+    // Create texture for the cache.
+    stash->itw = 1.0f/stash->params.width;
+    stash->ith = 1.0f/stash->params.height;
+    stash->texData = (unsigned char*)malloc (stash->params.width * stash->params.height);
+    if (stash->texData == NULL)
+      goto error;
+    memset (stash->texData, 0, stash->params.width * stash->params.height);
+
+    stash->dirtyRect[0] = stash->params.width;
+    stash->dirtyRect[1] = stash->params.height;
+    stash->dirtyRect[2] = 0;
+    stash->dirtyRect[3] = 0;
+
+    // Add white rect at 0,0 for debug drawing.
+    addWhiteRect (stash, 2,2);
+    pushState (stash);
+    clearState (stash);
+    return stash;
+
+  error:
+    deleteInternal (stash);
+    return NULL;
+    }
+  //}}}
+  //{{{
+  int addFallbackFont (sFontStashContext* stash, int base, int fallback) {
+
+    auto baseFont = stash->fonts[base];
+    if (baseFont->nfallbacks < FONS_MAX_FALLBACKS) {
+      baseFont->fallbacks[baseFont->nfallbacks++] = fallback;
+      return 1;
+      }
+
+    return 0;
+    }
+  //}}}
+
+  // external interface
+  //{{{
+  int addFontMem (sFontStashContext* stash, const char* name, unsigned char* data, int dataSize, int freeData) {
+
+    int idx = allocFont (stash);
+    if (idx == FONS_INVALID)
+      return FONS_INVALID;
+
+    auto font = stash->fonts[idx];
+    strncpy (font->name, name, sizeof(font->name));
+    font->name[sizeof(font->name)-1] = '\0';
+
+    // Init hash lookup.
+    for (int i = 0; i < FONS_HASH_LUT_SIZE; ++i)
+      font->lut[i] = -1;
+
+    // Read in the font data.
+    font->dataSize = dataSize;
+    font->data = data;
+    font->freeData = (unsigned char)freeData;
+
+    // Init font
+    stash->nscratch = 0;
+    if (!ttLoadFont (stash, &font->font, data, dataSize)) {
+      freeFont (font);
+      stash->nfonts--;
+      return FONS_INVALID;
+      }
+
+    // Store normalized line height. The real line height is got
+    // by multiplying the lineh by font size.
+    int ascent, descent, lineGap;
+    ttGetFontVMetrics (&font->font, &ascent, &descent, &lineGap);
+    int fh = ascent - descent;
+
+    font->ascender = (float)ascent / (float)fh;
+    font->descender = (float)descent / (float)fh;
+    font->lineh = (float)(fh + lineGap) / (float)fh;
+    return idx;
+    }
+  //}}}
+  //{{{
+  int addFont (sFontStashContext* stash, const char* name, const char* path) {
+
+    // Read in the font data.
+    auto fp = fopen (path, "rb");
+    if (fp == NULL)
+      return FONS_INVALID;
+
+    fseek (fp, 0, SEEK_END);
+    auto dataSize = ftell (fp);
+
+    fseek (fp, 0, SEEK_SET);
+    auto data = (unsigned char*)malloc (dataSize);
+    if (data == NULL) {
+      fclose (fp);
+      return FONS_INVALID;
+      }
+
+    fread (data, 1, dataSize, fp);
+    fclose (fp);
+
+    return addFontMem (stash, name, data, dataSize, 1);
+    }
+  //}}}
+  //{{{
+  int getFontByName (sFontStashContext* s, const char* name) {
+
+    for (int i = 0; i < s->nfonts; i++)
+      if (strcmp(s->fonts[i]->name, name) == 0)
+        return i;
+
+    return FONS_INVALID;
+    }
+  //}}}
+
+  void setSize (sFontStashContext* stash, float size) { getState(stash)->size = size; }
+  void setColor (sFontStashContext* stash, unsigned int color) { getState(stash)->color = color; }
+  void setSpacing (sFontStashContext* stash, float spacing) { getState(stash)->spacing = spacing; }
+  void setAlign (sFontStashContext* stash, int align) { getState(stash)->align = align; }
+  void setFont (sFontStashContext* stash, int font) { getState(stash)->font = font; }
+
+  //{{{
+  sFontStashGlyph* getGlyph (sFontStashContext* stash, sFonstStashFont* font, unsigned int codepoint, short isize) {
+
+    int i, g, advance, lsb, x0, y0, x1, y1, gw, gh, gx, gy, x, y;
+    float scale;
+    sFontStashGlyph* glyph = NULL;
+    unsigned int h;
+    float size = isize/10.0f;
+    int pad, added;
+    unsigned char* dst;
+    sFonstStashFont* renderFont = font;
+
+    if (isize < 2)
+      return NULL;
+    pad = 2;
+
+    // Reset allocator.
+    stash->nscratch = 0;
+
+    // Find code point and size.
+    h = hashint (codepoint) & (FONS_HASH_LUT_SIZE-1);
+    i = font->lut[h];
+    while (i != -1) {
+      if (font->glyphs[i].codepoint == codepoint && font->glyphs[i].size == isize)
+        return &font->glyphs[i];
+      i = font->glyphs[i].next;
+      }
+
+    // Could not find glyph, create it.
+    g = ttGetGlyphIndex (&font->font, codepoint);
+    // Try to find the glyph in fallback fonts.
+    if (g == 0) {
+      for (i = 0; i < font->nfallbacks; ++i) {
+        sFonstStashFont* fallbackFont = stash->fonts[font->fallbacks[i]];
+        int fallbackIndex = ttGetGlyphIndex(&fallbackFont->font, codepoint);
+        if (fallbackIndex != 0) {
+          g = fallbackIndex;
+          renderFont = fallbackFont;
+          break;
+          }
+        }
+      // It is possible that we did not find a fallback glyph.
+      // In that case the glyph index 'g' is 0, and we'll proceed below and cache empty glyph.
+      }
+
+    scale = ttGetPixelHeightScale (&renderFont->font, size);
+    ttBuildGlyphBitmap (&renderFont->font, g, size, scale, &advance, &lsb, &x0, &y0, &x1, &y1);
+    gw = x1-x0 + pad*2;
+    gh = y1-y0 + pad*2;
+
+    // Find free spot for the rect in the atlas
+    added = stash->mFontAtlas->atlasAddRect (gw, gh, &gx, &gy);
+    if (added == 0 && stash->handleError != NULL) {
+      // Atlas is full, let the user to resize the atlas (or not), and try again.
+      stash->handleError (stash->errorUptr, FONS_ATLAS_FULL, 0);
+      added = stash->mFontAtlas->atlasAddRect (gw, gh, &gx, &gy);
+      }
+    if (added == 0)
+      return NULL;
+
+    // Init glyph.
+    glyph = allocGlyph (font);
+    glyph->codepoint = codepoint;
+    glyph->size = isize;
+    glyph->index = g;
+    glyph->x0 = (short)gx;
+    glyph->y0 = (short)gy;
+    glyph->x1 = (short)(glyph->x0+gw);
+    glyph->y1 = (short)(glyph->y0+gh);
+    glyph->xadv = (short)(scale * advance * 10.0f);
+    glyph->xoff = (short)(x0 - pad);
+    glyph->yoff = (short)(y0 - pad);
+    glyph->next = 0;
+
+    // Insert char to hash lookup.
+    glyph->next = font->lut[h];
+    font->lut[h] = font->nglyphs-1;
+
+    // Rasterize
+    dst = &stash->texData[(glyph->x0+pad) + (glyph->y0+pad) * stash->params.width];
+    ttRenderGlyphBitmap (&renderFont->font, dst, gw-pad*2,gh-pad*2, stash->params.width, scale,scale, g);
+
+    // Make sure there is one pixel empty border.
+    dst = &stash->texData[glyph->x0 + glyph->y0 * stash->params.width];
+    for (y = 0; y < gh; y++) {
+      dst[y*stash->params.width] = 0;
+      dst[gw-1 + y*stash->params.width] = 0;
+      }
+    for (x = 0; x < gw; x++) {
+      dst[x] = 0;
+      dst[x + (gh-1)*stash->params.width] = 0;
+      }
+
+    stash->dirtyRect[0] = mini(stash->dirtyRect[0], glyph->x0);
+    stash->dirtyRect[1] = mini(stash->dirtyRect[1], glyph->y0);
+    stash->dirtyRect[2] = maxi(stash->dirtyRect[2], glyph->x1);
+    stash->dirtyRect[3] = maxi(stash->dirtyRect[3], glyph->y1);
+
+    return glyph;
+    }
+  //}}}
+  //{{{
+  void getQuad (sFontStashContext* stash, sFonstStashFont* font,
+                     int prevGlyphIndex, sFontStashGlyph* glyph,
+                     float scale, float spacing, float* x, float* y, sFontStashQuad* q) {
+
+    float rx,ry,xoff,yoff,x0,y0,x1,y1;
+
+    if (prevGlyphIndex != -1) {
+      float adv = ttGetGlyphKernAdvance(&font->font, prevGlyphIndex, glyph->index) * scale;
+      *x += (int)(adv + spacing + 0.5f);
+      }
+
+    // Each glyph has 2px border to allow good interpolation,
+    // one pixel to prevent leaking, and one to allow good interpolation for rendering.
+    // Inset the texture region by one pixel for correct interpolation.
+    xoff = (short)(glyph->xoff+1);
+    yoff = (short)(glyph->yoff+1);
+    x0 = (float)(glyph->x0+1);
+    y0 = (float)(glyph->y0+1);
+    x1 = (float)(glyph->x1-1);
+    y1 = (float)(glyph->y1-1);
+
+    if (stash->params.flags & FONS_ZERO_TOPLEFT) {
+      rx = (float)(int)(*x + xoff);
+      ry = (float)(int)(*y + yoff);
+
+      q->x0 = rx;
+      q->y0 = ry;
+      q->x1 = rx + x1 - x0;
+      q->y1 = ry + y1 - y0;
+
+      q->s0 = x0 * stash->itw;
+      q->t0 = y0 * stash->ith;
+      q->s1 = x1 * stash->itw;
+      q->t1 = y1 * stash->ith;
+      }
+    else {
+      rx = (float)(int)(*x + xoff);
+      ry = (float)(int)(*y - yoff);
+
+      q->x0 = rx;
+      q->y0 = ry;
+      q->x1 = rx + x1 - x0;
+      q->y1 = ry - y1 + y0;
+
+      q->s0 = x0 * stash->itw;
+      q->t0 = y0 * stash->ith;
+      q->s1 = x1 * stash->itw;
+      q->t1 = y1 * stash->ith;
+      }
+
+    *x += (int)(glyph->xadv / 10.0f + 0.5f);
+    }
+  //}}}
+  //{{{
+  void vertex (sFontStashContext* stash, float x, float y, float s, float t, unsigned int c) {
+
+    stash->verts[stash->nverts*2+0] = x;
+    stash->verts[stash->nverts*2+1] = y;
+    stash->tcoords[stash->nverts*2+0] = s;
+    stash->tcoords[stash->nverts*2+1] = t;
+    stash->colors[stash->nverts] = c;
+    stash->nverts++;
+    }
+  //}}}
+
+  //{{{
+  float getVertAlign (sFontStashContext* stash, sFonstStashFont* font, int align, short isize) {
+
+    if (stash->params.flags & FONS_ZERO_TOPLEFT) {
+      if (align & FONS_ALIGN_TOP)
+        return font->ascender * (float)isize/10.0f;
+      else if (align & FONS_ALIGN_MIDDLE)
+        return (font->ascender + font->descender) / 2.0f * (float)isize/10.0f;
+      else if (align & FONS_ALIGN_BASELINE)
+        return 0.0f;
+      else if (align & FONS_ALIGN_BOTTOM)
+        return font->descender * (float)isize/10.0f;
+      }
+
+    else if (align & FONS_ALIGN_TOP)
+      return -font->ascender * (float)isize/10.0f;
+    else if (align & FONS_ALIGN_MIDDLE)
+      return -(font->ascender + font->descender) / 2.0f * (float)isize/10.0f;
+    else if (align & FONS_ALIGN_BASELINE)
+      return 0.0f;
+    else if (align & FONS_ALIGN_BOTTOM)
+      return -font->descender * (float)isize/10.0f;
+
+    return 0.0;
+    }
+  //}}}
+  //{{{
+  void vertMetrics (sFontStashContext* stash, float* ascender, float* descender, float* lineh) {
+
+    auto state = getState(stash);
+
+    if (stash == NULL)
+      return;
+    if (state->font < 0 || state->font >= stash->nfonts)
+      return;
+
+    auto font = stash->fonts[state->font];
+    short isize = (short)(state->size*10.0f);
+    if (font->data == NULL)
+      return;
+
+    if (ascender)
+      *ascender = font->ascender*isize/10.0f;
+    if (descender)
+      *descender = font->descender*isize/10.0f;
+    if (lineh)
+      *lineh = font->lineh*isize/10.0f;
+    }
+  //}}}
+  //{{{
+  void lineBounds (sFontStashContext* stash, float y, float* miny, float* maxy) {
+
+    auto state = getState(stash);
+    short isize;
+
+    if (stash == NULL)
+      return;
+    if (state->font < 0 || state->font >= stash->nfonts)
+      return;
+
+    auto font = stash->fonts[state->font];
+    isize = (short)(state->size*10.0f);
+    if (font->data == NULL)
+      return;
+
+    y += getVertAlign (stash, font, state->align, isize);
+
+    if (stash->params.flags & FONS_ZERO_TOPLEFT) {
+      *miny = y - font->ascender * (float)isize/10.0f;
+      *maxy = *miny + font->lineh*isize/10.0f;
+      }
+    else {
+      *maxy = y + font->descender * (float)isize/10.0f;
+      *miny = *maxy - font->lineh*isize/10.0f;
+      }
+    }
+  //}}}
+  //{{{
+  float textBounds (sFontStashContext* stash, float x, float y, const char* str, const char* end, float* bounds) {
+
+    auto state = getState (stash);
+
+    unsigned int codepoint;
+    unsigned int utf8state = 0;
+
+    int prevGlyphIndex = -1;
+    short isize = (short)(state->size * 10.0f);
+
+    float startx, advance;
+    float minx, miny, maxx, maxy;
+
+    if (stash == NULL)
+      return 0;
+    if (state->font < 0 || state->font >= stash->nfonts)
+      return 0;
+
+    auto font = stash->fonts[state->font];
+    if (font->data == NULL)
+      return 0;
+
+    float scale = ttGetPixelHeightScale (&font->font, (float)isize / 10.0f);
+
+    // Align vertically.
+    y += getVertAlign (stash, font, state->align, isize);
+
+    minx = maxx = x;
+    miny = maxy = y;
+    startx = x;
+
+    if (end == NULL)
+      end = str + strlen(str);
+
+    for (; str != end; ++str) {
+      if (decutf8(&utf8state, &codepoint, *(const unsigned char*)str))
+        continue;
+      auto glyph = getGlyph (stash, font, codepoint, isize);
+      if (glyph != NULL) {
+        sFontStashQuad q;
+        getQuad (stash, font, prevGlyphIndex, glyph, scale, state->spacing, &x, &y, &q);
+        if (q.x0 < minx)
+          minx = q.x0;
+        if (q.x1 > maxx)
+          maxx = q.x1;
+        if (stash->params.flags & FONS_ZERO_TOPLEFT) {
+          if (q.y0 < miny)
+            miny = q.y0;
+          if (q.y1 > maxy)
+            maxy = q.y1;
+          }
+        else {
+          if (q.y1 < miny)
+            miny = q.y1;
+          if (q.y0 > maxy)
+            maxy = q.y0;
+          }
+        }
+      prevGlyphIndex = glyph != NULL ? glyph->index : -1;
+      }
+
+    advance = x - startx;
+
+    // Align horizontally
+    if (state->align & FONS_ALIGN_LEFT) {
+      // empty
+      }
+    else if (state->align & FONS_ALIGN_RIGHT) {
+      minx -= advance;
+      maxx -= advance;
+      }
+   else if (state->align & FONS_ALIGN_CENTER) {
+      minx -= advance * 0.5f;
+      maxx -= advance * 0.5f;
+      }
+
+    if (bounds) {
+      bounds[0] = minx;
+      bounds[1] = miny;
+      bounds[2] = maxx;
+      bounds[3] = maxy;
+      }
+
+    return advance;
+    }
+  //}}}
+  //{{{
+  int textItInit (sFontStashContext* stash, sFontStashTextIt* it, float x, float y, const char* str, const char* end) {
+
+    auto state = getState (stash);
+    float width;
+
+    memset (it, 0, sizeof (*it));
+
+    if (stash == NULL)
+      return 0;
+
+    if (state->font < 0 || state->font >= stash->nfonts)
+      return 0;
+
+    it->font = stash->fonts[state->font];
+    if (it->font->data == NULL)
+      return 0;
+
+    it->isize = (short)(state->size*10.0f);
+    it->scale = ttGetPixelHeightScale (&it->font->font, (float)it->isize/10.0f);
+
+    // Align horizontally
+    if (state->align & FONS_ALIGN_RIGHT) {
+      width = textBounds (stash, x,y, str, end, NULL);
+      x -= width;
+      }
+    else if (state->align & FONS_ALIGN_CENTER) {
+      width = textBounds (stash, x,y, str, end, NULL);
+      x -= width * 0.5f;
+      }
+
+    // Align vertically.
+    y += getVertAlign (stash, it->font, state->align, it->isize);
+
+    if (end == NULL)
+      end = str + strlen(str);
+
+    it->x = it->nextx = x;
+    it->y = it->nexty = y;
+    it->spacing = state->spacing;
+    it->str = str;
+    it->next = str;
+    it->end = end;
+    it->codepoint = 0;
+    it->prevGlyphIndex = -1;
+
+    return 1;
+    }
+  //}}}
+  //{{{
+  int textItNext (sFontStashContext* stash, sFontStashTextIt* it, sFontStashQuad* quad) {
+
+    sFontStashGlyph* glyph = NULL;
+    const char* str = it->next;
+    it->str = it->next;
+
+    if (str == it->end)
+      return 0;
+
+    for (; str != it->end; str++) {
+      if (decutf8 (&it->utf8state, &it->codepoint, *(const unsigned char*)str))
+        continue;
+      str++;
+      // Get glyph and quad
+      it->x = it->nextx;
+      it->y = it->nexty;
+      glyph = getGlyph (stash, it->font, it->codepoint, it->isize);
+      if (glyph != NULL)
+        getQuad (stash, it->font, it->prevGlyphIndex, glyph, it->scale, it->spacing, &it->nextx, &it->nexty, quad);
+      it->prevGlyphIndex = glyph != NULL ? glyph->index : -1;
+      break;
+      }
+
+    it->next = str;
+    return 1;
+    }
+  //}}}
+
+  //{{{
+  float drawText (sFontStashContext* stash, float x, float y, const char* str, const char* end) {
+
+    auto state = getState(stash);
+    unsigned int codepoint;
+    unsigned int utf8state = 0;
+
+    sFontStashGlyph* glyph = NULL;
+    sFontStashQuad q;
+    int prevGlyphIndex = -1;
+    short isize = (short)(state->size*10.0f);
+    float scale;
+    sFonstStashFont* font;
+    float width;
+
+    if (stash == NULL)
+      return x;
+    if (state->font < 0 || state->font >= stash->nfonts)
+      return x;
+    font = stash->fonts[state->font];
+    if (font->data == NULL)
+      return x;
+
+    scale = ttGetPixelHeightScale(&font->font, (float)isize/10.0f);
+
+    if (end == NULL)
+      end = str + strlen(str);
+
+    // Align horizontally
+    if (state->align & FONS_ALIGN_LEFT) {
+      // empty
+      }
+    else if (state->align & FONS_ALIGN_RIGHT) {
+      width = textBounds(stash, x,y, str, end, NULL);
+      x -= width;
+      }
+    else if (state->align & FONS_ALIGN_CENTER) {
+      width = textBounds(stash, x,y, str, end, NULL);
+      x -= width * 0.5f;
+      }
+
+    // Align vertically.
+    y += getVertAlign(stash, font, state->align, isize);
+
+    for (; str != end; ++str) {
+      if (decutf8(&utf8state, &codepoint, *(const unsigned char*)str))
+        continue;
+      glyph = getGlyph(stash, font, codepoint, isize);
+      if (glyph != NULL) {
+        getQuad(stash, font, prevGlyphIndex, glyph, scale, state->spacing, &x, &y, &q);
+
+        if (stash->nverts+6 > FONS_VERTEX_COUNT)
+          flush(stash);
+
+        vertex(stash, q.x0, q.y0, q.s0, q.t0, state->color);
+        vertex(stash, q.x1, q.y1, q.s1, q.t1, state->color);
+        vertex(stash, q.x1, q.y0, q.s1, q.t0, state->color);
+
+        vertex(stash, q.x0, q.y0, q.s0, q.t0, state->color);
+        vertex(stash, q.x0, q.y1, q.s0, q.t1, state->color);
+        vertex(stash, q.x1, q.y1, q.s1, q.t1, state->color);
+        }
+      prevGlyphIndex = glyph != NULL ? glyph->index : -1;
+      }
+
+    flush(stash);
+    return x;
+    }
+  //}}}
+  //{{{
+  void drawDebug (sFontStashContext* stash, float x, float y) {
+
+    int i;
+    int w = stash->params.width;
+    int h = stash->params.height;
+    float u = w == 0 ? 0 : (1.0f / w);
+    float v = h == 0 ? 0 : (1.0f / h);
+
+    if (stash->nverts+6+6 > FONS_VERTEX_COUNT)
+      flush (stash);
+
+    // Draw background
+    vertex (stash, x+0, y+0, u, v, 0x0fffffff);
+    vertex (stash, x+w, y+h, u, v, 0x0fffffff);
+    vertex (stash, x+w, y+0, u, v, 0x0fffffff);
+
+    vertex (stash, x+0, y+0, u, v, 0x0fffffff);
+    vertex (stash, x+0, y+h, u, v, 0x0fffffff);
+    vertex (stash, x+w, y+h, u, v, 0x0fffffff);
+
+    // Draw texture
+    vertex (stash, x+0, y+0, 0, 0, 0xffffffff);
+    vertex (stash, x+w, y+h, 1, 1, 0xffffffff);
+    vertex (stash, x+w, y+0, 1, 0, 0xffffffff);
+
+    vertex (stash, x+0, y+0, 0, 0, 0xffffffff);
+    vertex (stash, x+0, y+h, 0, 1, 0xffffffff);
+    vertex (stash, x+w, y+h, 1, 1, 0xffffffff);
+
+    // Drawbug draw atlas
+    for (i = 0; i < stash->mFontAtlas->nnodes; i++) {
+      cFontAtlas::sNode* n = &stash->mFontAtlas->nodes[i];
+
+      if (stash->nverts+6 > FONS_VERTEX_COUNT)
+        flush (stash);
+
+      vertex (stash, x+n->x+0, y+n->y+0, u, v, 0xc00000ff);
+      vertex (stash, x+n->x+n->width, y+n->y+1, u, v, 0xc00000ff);
+      vertex (stash, x+n->x+n->width, y+n->y+0, u, v, 0xc00000ff);
+
+      vertex (stash, x+n->x+0, y+n->y+0, u, v, 0xc00000ff);
+      vertex (stash, x+n->x+0, y+n->y+1, u, v, 0xc00000ff);
+      vertex (stash, x+n->x+n->width, y+n->y+1, u, v, 0xc00000ff);
+      }
+
+    flush (stash);
+    }
+  //}}}
+
+  //{{{
+  const unsigned char* getTextureData (sFontStashContext* stash, int* width, int* height) {
+
+    if (width != NULL)
+      *width = stash->params.width;
+
+    if (height != NULL)
+      *height = stash->params.height;
+
+    return stash->texData;
+    }
+  //}}}
+  //{{{
+  int validateTexture (sFontStashContext* stash, int* dirty) {
+
+    if (stash->dirtyRect[0] < stash->dirtyRect[2] && stash->dirtyRect[1] < stash->dirtyRect[3]) {
+      dirty[0] = stash->dirtyRect[0];
+      dirty[1] = stash->dirtyRect[1];
+      dirty[2] = stash->dirtyRect[2];
+      dirty[3] = stash->dirtyRect[3];
+
+      // Reset dirty rect
+      stash->dirtyRect[0] = stash->params.width;
+      stash->dirtyRect[1] = stash->params.height;
+      stash->dirtyRect[2] = 0;
+      stash->dirtyRect[3] = 0;
+      return 1;
+      }
+
+    return 0;
+    }
+  //}}}
+
+  //{{{
+  void setErrorCallback (sFontStashContext* stash, void (*callback)(void* uptr, int error, int val), void* uptr) {
+
+    if (stash == NULL)
+      return;
+
+    stash->handleError = callback;
+    stash->errorUptr = uptr;
+    }
+  //}}}
   };
 //}}}
-cFontContext* fontContext = nullptr;
+sFontStashContext* fontStashContext = NULL;
+cFontContext mFontContext;
+
 //{{{
 void* tmpalloc (size_t size, void* up) {
 
-  auto fontContext = (cFontContext*)up;
+  auto stash = (sFontStashContext*)up;
 
   // 16-byte align the returned pointer
   size = (size + 0xf) & ~0xf;
 
-  if (fontContext->nscratch + (int)size > FONS_SCRATCH_BUF_SIZE) {
-    if (fontContext->handleError)
-      fontContext->handleError (fontContext->errorUptr, cFontContext::FONS_SCRATCH_FULL, fontContext->nscratch+(int)size);
+  if (stash->nscratch + (int)size > FONS_SCRATCH_BUF_SIZE) {
+    if (stash->handleError)
+      stash->handleError (stash->errorUptr, FONS_SCRATCH_FULL, stash->nscratch+(int)size);
     return NULL;
     }
 
-  unsigned char* ptr = fontContext->scratch + fontContext->nscratch;
-  fontContext->nscratch += (int)size;
-
+  unsigned char* ptr = stash->scratch + stash->nscratch;
+  stash->nscratch += (int)size;
   return ptr;
   }
 //}}}
-void tmpfree (void* ptr, void* up) {}
+//{{{
+void tmpfree (void* ptr, void* up) {
+  (void)ptr;
+  (void)up;
+  // empty
+  }
+//}}}
 
 //{{{
 static const char* kShaderHeader =
@@ -1559,7 +1653,7 @@ static const char* kFragShader =
   "}\n";
 //}}}
 
-// cVg::cTransform
+// public
 //{{{  cVg::cTransform
 //{{{
 cVg::cTransform::cTransform() : mIdentity(true) {
@@ -1783,21 +1877,35 @@ bool cVg::cTransform::isIdentity() {
   }
 //}}}
 //}}}
-
-// public
 //{{{
 cVg::cVg (int flags)
    : mDrawEdges(!(flags & DRAW_NOEDGES)), mDrawSolid(!(flags & DRAW_NOSOLID)), mDrawTriangles(true) {
 
   saveState();
   resetState();
+
   setDevicePixelRatio (1.f);
 
-  fontContext = new cFontContext (NVG_INIT_FONTIMAGE_SIZE, NVG_INIT_FONTIMAGE_SIZE, cFontContext::FONS_ZERO_TOPLEFT);
+  // init font rendering
+  sFontStashParams fontParams;
+  fontParams.width = NVG_INIT_FONTIMAGE_SIZE;
+  fontParams.height = NVG_INIT_FONTIMAGE_SIZE;
+  fontParams.flags = FONS_ZERO_TOPLEFT;
+
+  fontParams.renderCreate = nullptr;
+  fontParams.renderUpdate = nullptr;
+  fontParams.renderDraw = nullptr;
+  fontParams.renderDelete = nullptr;
+  fontParams.userPtr = nullptr;
+
+  fontStashContext = mFontContext.createInternal (&fontParams);
   }
 //}}}
 //{{{
 cVg::~cVg() {
+
+  if (fontStashContext)
+    mFontContext.deleteInternal (fontStashContext);
 
   glDisableVertexAttribArray (0);
   glDisableVertexAttribArray (1);
@@ -2325,16 +2433,16 @@ void cVg::textAlign (int align) { mStates[mNumStates-1].textAlign = align; }
 void cVg::textLineHeight (float lineHeight) { mStates[mNumStates-1].lineHeight = lineHeight; }
 void cVg::textLetterSpacing (float spacing) { mStates[mNumStates-1].letterSpacing = spacing; }
 void cVg::fontFaceId (int font) { mStates[mNumStates-1].fontId = font; }
-void cVg::fontFace (string font) { mStates[mNumStates-1].fontId = fontContext->getFontByName (font.c_str()); }
+void cVg::fontFace (string font) { mStates[mNumStates-1].fontId = mFontContext.getFontByName (fontStashContext, font.c_str()); }
 
 //{{{
 int cVg::createFont (string name, string path) {
-  return fontContext->addFont (name.c_str(), path.c_str());
+  return mFontContext.addFont (fontStashContext, name.c_str(), path.c_str());
   }
 //}}}
 //{{{
 int cVg::createFontMem (string name, unsigned char* data, int ndata, int freeData) {
-  return fontContext->addFontMem (name.c_str(), data, ndata, freeData);
+  return mFontContext.addFontMem (fontStashContext, name.c_str(), data, ndata, freeData);
   }
 //}}}
 //{{{
@@ -2342,7 +2450,7 @@ int cVg::findFont (string name) {
 
   if (name.empty())
     return -1;
-  return fontContext->getFontByName (name.c_str());
+  return mFontContext.getFontByName (fontStashContext, name.c_str());
   }
 //}}}
 //{{{
@@ -2354,7 +2462,7 @@ int cVg::addFallbackFont (string baseFont, string fallbackFont) {
 int cVg::addFallbackFontId (int baseFont, int fallbackFont) {
   if (baseFont == -1 || fallbackFont == -1)
     return 0;
-  return fontContext->addFallbackFont (baseFont, fallbackFont);
+  return mFontContext.addFallbackFont (fontStashContext, baseFont, fallbackFont);
   }
 //}}}
 
@@ -2369,10 +2477,10 @@ float cVg::text (float x, float y, string str) {
   float scale = getFontScale (state) * devicePixelRatio;
   float inverseScale = 1.0f / scale;
 
-  fontContext->setSize (state->fontSize * scale);
-  fontContext->setSpacing (state->letterSpacing * scale);
-  fontContext->setAlign (state->textAlign);
-  fontContext->setFont ( state->fontId);
+  mFontContext.setSize (fontStashContext, state->fontSize * scale);
+  mFontContext.setSpacing (fontStashContext, state->letterSpacing * scale);
+  mFontContext.setAlign (fontStashContext, state->textAlign);
+  mFontContext.setFont (fontStashContext, state->fontId);
 
   // allocate 6 vertices per glyph
   int numVertices = maxi (2, (int)str.size()) * 6;
@@ -2380,17 +2488,17 @@ float cVg::text (float x, float y, string str) {
   auto vertices = mVertices.getVertexPtr (vertexIndex);
   auto firstVertex = vertices;
 
-  cFontContext::sFontStashTextIt it;
-  fontContext->textItInit (&it, x*scale, y*scale, str.c_str(), str.c_str() + str.size());
-  cFontContext::sFontStashTextIt prevIt = it;
-  cFontContext::sFontStashQuad q;
-  while (fontContext->textItNext (&it, &q)) {
+  sFontStashTextIt it;
+  mFontContext.textItInit (fontStashContext, &it, x*scale, y*scale, str.c_str(), str.c_str() + str.size());
+  sFontStashTextIt prevIt = it;
+  sFontStashQuad q;
+  while (mFontContext.textItNext (fontStashContext, &it, &q)) {
     if (it.prevGlyphIndex == -1) {
       // can not retrieve glyph?
       if (!allocTextAtlas())
         break; // no memory
       it = prevIt;
-      fontContext->textItNext (&it, &q); // try again
+      mFontContext.textItNext (fontStashContext, &it, &q); // try again
       if (it.prevGlyphIndex == -1) // still can not find glyph?
         break;
       }
@@ -2491,15 +2599,15 @@ float cVg::textBounds (float x, float y, string str, float* bounds) {
   float inverseScale = 1.0f / scale;
   float width;
 
-  fontContext->setSize (state->fontSize*scale);
-  fontContext->setSpacing (state->letterSpacing*scale);
-  fontContext->setAlign (state->textAlign);
-  fontContext->setFont (state->fontId);
+  mFontContext.setSize (fontStashContext, state->fontSize*scale);
+  mFontContext.setSpacing (fontStashContext, state->letterSpacing*scale);
+  mFontContext.setAlign (fontStashContext, state->textAlign);
+  mFontContext.setFont (fontStashContext, state->fontId);
 
-  width = fontContext->textBounds (x*scale, y*scale, str.c_str(), str.c_str() + str.size(), bounds);
+  width = mFontContext.textBounds (fontStashContext, x*scale, y*scale, str.c_str(), str.c_str() + str.size(), bounds);
   if (bounds != NULL) {
     // Use line bounds for height.
-    fontContext->lineBounds (y*scale, &bounds[1], &bounds[3]);
+    mFontContext.lineBounds (fontStashContext, y*scale, &bounds[1], &bounds[3]);
     bounds[0] *= inverseScale;
     bounds[1] *= inverseScale;
     bounds[2] *= inverseScale;
@@ -2519,12 +2627,12 @@ void cVg::textMetrics (float* ascender, float* descender, float* lineh) {
   float scale = getFontScale(state) * devicePixelRatio;
   float inverseScale = 1.0f / scale;
 
-  fontContext->setSize (state->fontSize*scale);
-  fontContext->setSpacing (state->letterSpacing*scale);
-  fontContext->setAlign (state->textAlign);
-  fontContext->setFont (state->fontId);
+  mFontContext.setSize (fontStashContext, state->fontSize*scale);
+  mFontContext.setSpacing (fontStashContext, state->letterSpacing*scale);
+  mFontContext.setAlign (fontStashContext, state->textAlign);
+  mFontContext.setFont (fontStashContext, state->fontId);
 
-  fontContext->vertMetrics (ascender, descender, lineh);
+  mFontContext.vertMetrics (fontStashContext, ascender, descender, lineh);
   if (ascender != NULL)
     *ascender *= inverseScale;
   if (descender != NULL)
@@ -2546,22 +2654,22 @@ int cVg::textGlyphPositions (float x, float y, string str, NVGglyphPosition* pos
   float scale = getFontScale (state) * devicePixelRatio;
   float inverseScale = 1.0f / scale;
 
-  fontContext->setSize (state->fontSize * scale);
-  fontContext->setSpacing (state->letterSpacing * scale);
-  fontContext->setAlign (state->textAlign);
-  fontContext->setFont (state->fontId);
+  mFontContext.setSize (fontStashContext, state->fontSize * scale);
+  mFontContext.setSpacing (fontStashContext, state->letterSpacing * scale);
+  mFontContext.setAlign (fontStashContext, state->textAlign);
+  mFontContext.setFont (fontStashContext, state->fontId);
 
-  cFontContext::sFontStashTextIt it;
-  fontContext->textItInit (&it, x*scale, y*scale, str.c_str(), str.c_str() + str.size());
-  cFontContext::sFontStashTextIt prevIt = it;
+  sFontStashTextIt it;
+  mFontContext.textItInit (fontStashContext, &it, x*scale, y*scale, str.c_str(), str.c_str() + str.size());
+  sFontStashTextIt prevIt = it;
 
   int npos = 0;
-  cFontContext::sFontStashQuad q;
-  while (fontContext->textItNext (&it, &q)) {
+  sFontStashQuad q;
+  while (mFontContext.textItNext (fontStashContext, &it, &q)) {
     if (it.prevGlyphIndex < 0 && allocTextAtlas()) {
       // can not retrieve glyph, try again
       it = prevIt;
-      fontContext->textItNext (&it, &q);
+      mFontContext.textItNext (fontStashContext, &it, &q);
       }
     prevIt = it;
 
@@ -2607,11 +2715,11 @@ void cVg::textBoxBounds (float x, float y, float breakRowWidth, const char* stri
   minx = maxx = x;
   miny = maxy = y;
 
-  fontContext->setSize (state->fontSize*scale);
-  fontContext->setSpacing (state->letterSpacing*scale);
-  fontContext->setAlign (state->textAlign);
-  fontContext->setFont (state->fontId);
-  fontContext->lineBounds (0, &rminy, &rmaxy);
+  mFontContext.setSize (fontStashContext, state->fontSize*scale);
+  mFontContext.setSpacing (fontStashContext, state->letterSpacing*scale);
+  mFontContext.setAlign (fontStashContext, state->textAlign);
+  mFontContext.setFont (fontStashContext, state->fontId);
+  mFontContext.lineBounds (fontStashContext, 0, &rminy, &rmaxy);
   rminy *= inverseScale;
   rmaxy *= inverseScale;
 
@@ -2683,22 +2791,22 @@ int cVg::textBreakLines (const char* string, const char* end, float breakRowWidt
   int ptype = NVG_SPACE;
   unsigned int pcodepoint = 0;
 
-  fontContext->setSize (state->fontSize*scale);
-  fontContext->setSpacing (state->letterSpacing*scale);
-  fontContext->setAlign (state->textAlign);
-  fontContext->setFont (state->fontId);
+  mFontContext.setSize (fontStashContext, state->fontSize*scale);
+  mFontContext.setSpacing (fontStashContext, state->letterSpacing*scale);
+  mFontContext.setAlign (fontStashContext, state->textAlign);
+  mFontContext.setFont (fontStashContext, state->fontId);
 
   breakRowWidth *= scale;
 
-  cFontContext::sFontStashTextIt it;
-  fontContext->textItInit (&it, 0, 0, string, end);
-  cFontContext::sFontStashTextIt prevIt = it;
+  sFontStashTextIt it;
+  mFontContext.textItInit (fontStashContext, &it, 0, 0, string, end);
+  sFontStashTextIt prevIt = it;
 
-  cFontContext::sFontStashQuad q;
-  while (fontContext->textItNext (&it, &q)) {
+  sFontStashQuad q;
+  while (mFontContext.textItNext (fontStashContext, &it, &q)) {
     if (it.prevGlyphIndex < 0 && allocTextAtlas()) { // can not retrieve glyph?
       it = prevIt;
-      fontContext->textItNext (&it, &q); // try again
+      mFontContext.textItNext (fontStashContext, &it, &q); // try again
       }
     prevIt = it;
 
@@ -4748,6 +4856,25 @@ float cVg::getFontScale (cState* state) {
   }
 //}}}
 //{{{
+void cVg::flushTextTexture() {
+
+  int dirty[4];
+  if (mFontContext.validateTexture (fontStashContext, dirty)) {
+    int fontImage = fontImages[fontImageIdx];
+    // Update texture
+    if (fontImage != 0) {
+      int iw, ih;
+      const unsigned char* data = mFontContext.getTextureData (fontStashContext, &iw, &ih);
+      int x = dirty[0];
+      int y = dirty[1];
+      int w = dirty[2] - dirty[0];
+      int h = dirty[3] - dirty[1];
+      renderUpdateTexture (fontImage, x,y, w,h, data);
+      }
+    }
+  }
+//}}}
+//{{{
 int cVg::allocTextAtlas() {
 
   flushTextTexture();
@@ -4772,26 +4899,7 @@ int cVg::allocTextAtlas() {
     }
 
   ++fontImageIdx;
-  fontContext->resetAtlas (iw, ih);
+  mFontContext.resetAtlas (fontStashContext, iw, ih);
   return 1;
-  }
-//}}}
-//{{{
-void cVg::flushTextTexture() {
-
-  int dirty[4];
-  if (fontContext->validateTexture (dirty)) {
-    int fontImage = fontImages[fontImageIdx];
-    // Update texture
-    if (fontImage != 0) {
-      int iw, ih;
-      const unsigned char* data = fontContext->getTextureData (&iw, &ih);
-      int x = dirty[0];
-      int y = dirty[1];
-      int w = dirty[2] - dirty[0];
-      int h = dirty[3] - dirty[1];
-      renderUpdateTexture (fontImage, x,y, w,h, data);
-      }
-    }
   }
 //}}}
