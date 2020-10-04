@@ -2090,6 +2090,16 @@ int cVg::getTextGlyphPositions (float x, float y, const string& str, sGlyphPosit
 //}}}
 
 //{{{
+void cVg::setFontById (int font) {
+  mStates[mNumStates-1].fontId = font;
+  }
+//}}}
+//{{{
+void cVg::setFontByName (const string& fontName) {
+  mStates[mNumStates-1].fontId = mFontContext->getFontByName (fontName);
+  }
+//}}}
+//{{{
 void cVg::setFontSize (float size) {
   mStates[mNumStates-1].fontSize = size;
   }
@@ -2107,16 +2117,6 @@ void cVg::setTextLineHeight (float lineHeight) {
 //{{{
 void cVg::setTextLetterSpacing (float spacing) {
   mStates[mNumStates-1].letterSpacing = spacing;
-  }
-//}}}
-//{{{
-void cVg::setFontById (int font) {
-  mStates[mNumStates-1].fontId = font;
-  }
-//}}}
-//{{{
-void cVg::setFontByName (const string& fontName) {
-  mStates[mNumStates-1].fontId = mFontContext->getFontByName (fontName);
   }
 //}}}
 
@@ -2229,8 +2229,8 @@ int cVg::createImageMem (int imageFlags, unsigned char* data, int ndata) {
   }
 //}}}
 //{{{
-int cVg::createImageRGBA (int w, int h, int imageFlags, const unsigned char* data) {
-  return createTexture (TEXTURE_RGBA, w, h, imageFlags, data, "rgba");
+int cVg::createImageRGBA (int width, int height, int imageFlags, const unsigned char* data) {
+  return createTexture (TEXTURE_RGBA, width, height, imageFlags, data, "rgba");
   }
 //}}}
 //{{{
@@ -3646,10 +3646,9 @@ int cVg::allocPathVertices (int numPaths) {
 
 // texture
 //{{{
-int cVg::createTexture (int type, int w, int h, int imageFlags, const unsigned char* data, const string& debug) {
+int cVg::createTexture (int type, int width, int height, int imageFlags, const unsigned char* data, const string& debug) {
 
-  cLog::log (LOGINFO, "createTexture - " + debug + " " + dec(w) + " " +dec(h));
-
+  cLog::log (LOGINFO, "createTexture - " + debug + " " + dec(width) + " " + dec(height));
   cTexture* texture = nullptr;
   for (int i = 0; i < mNumTextures; i++) {
     if (mTextures[i].id == 0) {
@@ -3672,21 +3671,21 @@ int cVg::createTexture (int type, int w, int h, int imageFlags, const unsigned c
   texture->id = ++mTextureId;
 
   // Check for non-power of 2.
-  if (nearestPow2 (w) != (unsigned int)w || nearestPow2(h) != (unsigned int)h) {
+  if (nearestPow2 (width) != (unsigned int)width || nearestPow2(height) != (unsigned int)height) {
     if ((imageFlags & IMAGE_REPEATX) != 0 || (imageFlags & IMAGE_REPEATY) != 0) {
-      cLog::log (LOGINFO, "Repeat X/Y is not supported for non power-of-two textures %dx%d", w, h);
+      cLog::log (LOGINFO, "Repeat X/Y is not supported for non power-of-two textures %dx%d", width, height);
       imageFlags &= ~(IMAGE_REPEATX | IMAGE_REPEATY);
       }
 
     if (imageFlags & IMAGE_GENERATE_MIPMAPS) {
-      cLog::log (LOGINFO, "Mip-maps is not support for non power-of-two textures %dx )", w, h);
+      cLog::log (LOGINFO, "Mip-maps is not support for non power-of-two textures %dx )", width, height);
       imageFlags &= ~IMAGE_GENERATE_MIPMAPS;
       }
     }
 
   glGenTextures (1, &texture->tex);
-  texture->width = w;
-  texture->height = h;
+  texture->width = width;
+  texture->height = height;
   texture->type = type;
   texture->flags = imageFlags;
   setBindTexture (texture->tex);
@@ -3694,16 +3693,16 @@ int cVg::createTexture (int type, int w, int h, int imageFlags, const unsigned c
   glPixelStorei (GL_UNPACK_ALIGNMENT,1);
 
   if (type == TEXTURE_RGBA)
-    glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+    glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
   else // alpha
-    glTexImage2D (GL_TEXTURE_2D, 0, GL_LUMINANCE, w, h, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, data);
+    glTexImage2D (GL_TEXTURE_2D, 0, GL_LUMINANCE, width, height, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, data);
 
   if (imageFlags & cVg::IMAGE_GENERATE_MIPMAPS)
     glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
      imageFlags & cVg::IMAGE_NEAREST ? GL_NEAREST_MIPMAP_NEAREST : GL_LINEAR_MIPMAP_LINEAR);
 
-  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, imageFlags &  cVg::IMAGE_NEAREST ? GL_NEAREST : GL_LINEAR);
-  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, imageFlags &  cVg::IMAGE_NEAREST ? GL_NEAREST : GL_LINEAR);
+  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, imageFlags & cVg::IMAGE_NEAREST ? GL_NEAREST : GL_LINEAR);
+  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, imageFlags & cVg::IMAGE_NEAREST ? GL_NEAREST : GL_LINEAR);
   glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, imageFlags &  cVg::IMAGE_REPEATX ? GL_REPEAT : GL_CLAMP_TO_EDGE);
   glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, imageFlags &  cVg::IMAGE_REPEATY ? GL_REPEAT : GL_CLAMP_TO_EDGE);
 
@@ -3728,7 +3727,7 @@ cVg::cTexture* cVg::findTextureById (int id) {
   }
 //}}}
 //{{{
-bool cVg::updateTexture (int id, int x, int y, int w, int h, const unsigned char* data) {
+bool cVg::updateTexture (int id, int x, int y, int width, int height, const unsigned char* data) {
 
   //cLog::log (LOGINFO, "updateTexture");
   auto texture = findTextureById (id);
@@ -3745,12 +3744,12 @@ bool cVg::updateTexture (int id, int x, int y, int w, int h, const unsigned char
     data += y * texture->width;
 
   x = 0;
-  w = texture->width;
+  width = texture->width;
 
   if (texture->type == TEXTURE_RGBA)
-    glTexSubImage2D (GL_TEXTURE_2D, 0, x,y, w,h, GL_RGBA, GL_UNSIGNED_BYTE, data);
+    glTexSubImage2D (GL_TEXTURE_2D, 0, x,y, width,height, GL_RGBA, GL_UNSIGNED_BYTE, data);
   else // alpha
-    glTexSubImage2D (GL_TEXTURE_2D, 0, x,y, w,h, GL_LUMINANCE, GL_UNSIGNED_BYTE, data);
+    glTexSubImage2D (GL_TEXTURE_2D, 0, x,y, width,height, GL_LUMINANCE, GL_UNSIGNED_BYTE, data);
 
   glPixelStorei (GL_UNPACK_ALIGNMENT, 4);
 
@@ -3759,14 +3758,14 @@ bool cVg::updateTexture (int id, int x, int y, int w, int h, const unsigned char
   }
 //}}}
 //{{{
-bool cVg::getTextureSize (int id, int& w, int& h) {
+bool cVg::getTextureSize (int id, int& width, int& height) {
 
   auto texture = findTextureById (id);
   if (texture == nullptr)
     return false;
 
-  w = texture->width;
-  h = texture->height;
+  width = texture->width;
+  height = texture->height;
 
   return true;
   }

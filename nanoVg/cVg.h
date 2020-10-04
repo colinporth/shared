@@ -408,12 +408,12 @@ public:
   float getTextMetrics (float& ascender, float& descender);
   int getTextGlyphPositions (float x, float y, const std::string& str, sGlyphPosition* positions, int maxPositions);
 
-  void setFontSize (float size);
-  void setTextLetterSpacing (float spacing);
-  void setTextLineHeight (float lineHeight);
-  void setTextAlign (int align);
   void setFontById (int font);
   void setFontByName (const std::string& fontName);
+  void setFontSize (float size);
+  void setTextAlign (int align);
+  void setTextLetterSpacing (float spacing);
+  void setTextLineHeight (float lineHeight);
 
   float text (float x, float y, const std::string& str);
   //}}}
@@ -433,7 +433,7 @@ public:
     };
 
   int createImageMem (int imageFlags, unsigned char* data, int ndata);
-  int createImageRGBA (int w, int h, int imageFlags, const unsigned char* data);
+  int createImageRGBA (int width, int height, int imageFlags, const unsigned char* data);
   void updateImage (int id, const unsigned char* data);
   bool deleteImage (int id);
   //}}}
@@ -878,10 +878,10 @@ private:
   int allocPathVertices (int numPaths);
 
   // texture
-  int createTexture (int type, int w, int h, int imageFlags, const unsigned char* data, const std::string& debug);
+  int createTexture (int type, int width, int height, int imageFlags, const unsigned char* data, const std::string& debug);
   cTexture* findTextureById (int id);
-  bool updateTexture (int id, int x, int y, int w, int h, const unsigned char* data);
-  bool getTextureSize (int id, int& w, int& h);
+  bool updateTexture (int id, int x, int y, int width, int height, const unsigned char* data);
+  bool getTextureSize (int id, int& width, int& height);
 
   // render
   void renderText (int firstVertexIndex, int numVertices, cPaint& paint, cScissor& scissor);
