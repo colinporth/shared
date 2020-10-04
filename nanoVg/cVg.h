@@ -293,7 +293,7 @@ public:
       innerColor = color;
       outerColor = color;
 
-      imageId = 0;
+      id = 0;
       }
     //}}}
 
@@ -304,7 +304,7 @@ public:
 
     sVgColour innerColor;
     sVgColour outerColor;
-    int imageId;
+    int id;
     };
   //}}}
   //{{{
@@ -357,7 +357,7 @@ public:
   cPaint linearGradient (float sx, float sy, float ex, float ey, const sVgColour& icol, const sVgColour& ocol);
   cPaint boxGradient (float x, float y, float w, float h, float r, float f, const sVgColour& icol, const sVgColour& ocol);
   cPaint radialGradient (float cx, float cy, float inr, float outr, const sVgColour& icol, const sVgColour& ocol);
-  cPaint imagePattern (float ox, float oy, float ex, float ey, float angle, int imageId, float alpha);
+  cPaint imagePattern (float ox, float oy, float ex, float ey, float angle, int id, float alpha);
 
   void beginPath();
   void pathWinding (eWinding dir);
@@ -444,15 +444,10 @@ public:
     TEXTURE_RGBA  = 0x02
     };
 
-  GLuint imageHandle (int imageId);
-
   int createImageMem (int imageFlags, unsigned char* data, int ndata);
   int createImageRGBA (int w, int h, int imageFlags, const unsigned char* data);
-  int createImageFromHandle (GLuint textureId, int w, int h, int imageFlags);
-
-  void updateImage (int imageId, const unsigned char* data);
-
-  bool deleteImage (int imageId);
+  void updateImage (int id, const unsigned char* data);
+  bool deleteImage (int id);
   //}}}
   //{{{  scissor
   void scissor (float x, float y, float w, float h);
@@ -535,10 +530,10 @@ private:
   struct cDraw {
     enum eType { TEXT, TRIANGLE, CONVEX_FILL, STENCIL_FILL, STROKE };
     //{{{
-    void set (eType type, int imageId, int firstPathVerticesIndex, int numPaths, int firstFragIndex,
+    void set (eType type, int id, int firstPathVerticesIndex, int numPaths, int firstFragIndex,
               int firstVertexIndex, int numVertices) {
       mType = type;
-      mImageId = imageId;
+      mId = id;
 
       mFirstPathVerticesIndex = firstPathVerticesIndex;
       mNumPaths = numPaths;
@@ -551,7 +546,7 @@ private:
     //}}}
 
     eType mType;
-    int mImageId = 0;
+    int mId = 0;
 
     int mFirstPathVerticesIndex = 0;
     int mNumPaths = 0;
@@ -615,7 +610,7 @@ private:
       this->strokeThreshold = strokeThreshold;
 
       cTransform inverse;
-      if (paint->imageId) {
+      if (paint->id) {
         type = SHADER_FILL_IMAGE;
         if ((tex->flags & cVg::IMAGE_FLIPY) != 0) {
           //{{{  flipY
@@ -736,7 +731,6 @@ private:
     int fontId;
     };
   //}}}
-
   //{{{
   class cShader {
   public:
@@ -879,36 +873,39 @@ private:
     };
   //}}}
 
+  // converts
+  cCompositeOpState compositeOpState (eCompositeOp op);
+  GLenum convertBlendFuncFactor (eBlendFactor factor);
+
+  // sets
+  void setStencilMask (GLuint mask);
+  void setStencilFunc (GLenum func, GLint ref, GLuint mask);
+  void setBindTexture (GLuint texture);
+  void setUniforms (int firstFragIndex, int id);
+  void setDevicePixelRatio (float ratio) { devicePixelRatio = ratio; }
+
+  // allocs
   cDraw* allocDraw();
   int allocFrags (int numFrags);
   int allocPathVertices (int numPaths);
 
-  void setStencilMask (GLuint mask);
-  void setStencilFunc (GLenum func, GLint ref, GLuint mask);
-  void setBindTexture (GLuint texture);
-  void setUniforms (int firstFragIndex, int imageId);
-
-  void setDevicePixelRatio (float ratio) { devicePixelRatio = ratio; }
-
-  cCompositeOpState compositeOpState (eCompositeOp op);
-  GLenum convertBlendFuncFactor (eBlendFactor factor);
-
-  cTexture* allocTexture();
-  int createTexture (int type, int w, int h, int imageFlags, const unsigned char* data);
+  // texture
+  int createTexture (int type, int w, int h, int imageFlags, const unsigned char* data, const std::string& debug);
   cTexture* findTextureById (int id);
   bool updateTexture (int id, int x, int y, int w, int h, const unsigned char* data);
   bool getTextureSize (int id, int& w, int& h);
 
+  // render
   void renderText (int firstVertexIndex, int numVertices, cPaint& paint, cScissor& scissor);
   void renderTriangles (int firstVertexIndex, int numVertices, cPaint& paint, cScissor& scissor);
   void renderFill (cShape& shape, cPaint& paint, cScissor& scissor, float fringe);
   void renderStroke (cShape& shape, cPaint& paint, cScissor& scissor, float fringe, float strokeWidth);
   void renderFrame (c2dVertices& vertices, cCompositeOpState compositeOp);
 
-  // text
+  // font
   float getFontScale (cState* state);
-  void flushTextTexture();
-  int allocTextAtlas();
+  void flushAtlasTexture();
+  int allocFontAtlas();
 
   //{{{  vars
   bool mDrawEdges = false;
@@ -956,8 +953,8 @@ private:
   float mFringeWidth = 1.0f;
   float devicePixelRatio = 1.0f;
 
-  int fontImageIdx = 0;
-  int fontImages[kMaxFontImages] = { 0 };
+  int mFontImageIndex = 0;
+  int mFontImages[kMaxFontImages] = { 0 };
   cFontContext* mFontContext = nullptr;
   //}}}
   };
