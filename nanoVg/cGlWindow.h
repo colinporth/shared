@@ -65,7 +65,8 @@ public:
   void setChangeCountDown (int countDown) {}
 
 protected:
-  cRootContainer* initialise (std::string title, int width, int height, unsigned char* sansFont);
+  cRootContainer* initialise (const std::string& title, int width, int height, 
+                              unsigned char* sansFont, int sansFontSize);
 
   cWidget* add (cWidget* widget) { return mRootContainer->add (widget); }
   cWidget* addAt (cWidget* widget, float x, float y) { return mRootContainer->addAt (widget,x,y); }

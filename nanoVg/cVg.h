@@ -16,15 +16,6 @@
 #include "../utils/utils.h"
 #include "../utils/cLog.h"
 //}}}
-//{{{  defines
-#define MAX_STATES               32
-
-#define NVG_MAX_FONTIMAGES       4
-#define NVG_INIT_FONTIMAGE_SIZE  512
-
-#define NVG_INIT_POINTS_SIZE     128
-#define NVG_INIT_PATHS_SIZE      16
-//}}}
 
 //{{{  inline math utils
 #define PI 3.14159265358979323846264338327f
@@ -425,21 +416,17 @@ public:
   void textLineHeight (float lineHeight);
   void textAlign (int align);
   void fontFaceId (int font);
-  void fontFace (std::string font);
+  void fontFace (const std::string& font);
 
-  int createFont (std::string name, std::string filename);
-  int createFontMem (std::string name, unsigned char* data, int ndata, int freeData);
+  int createFontMem (const std::string& name, unsigned char* data, int dataSize);
+  int findFont (const std::string&);
 
-  int findFont (std::string);
-  int addFallbackFont (std::string baseFont, std::string fallbackFont);
-  int addFallbackFontId (int baseFont, int fallbackFont);
-
-  float text (float x, float y, std::string str);
-  void textBox (float x, float y, float breakRowWidth, const char* string, const char* end);
-  float textBounds (float x, float y, std::string str, float* bounds);
+  float text (float x, float y, const std::string& str);
+  float textBounds (float x, float y, const std::string& str, float* bounds);
   void textMetrics (float* ascender, float* descender, float* lineh);
-  int textGlyphPositions (float x, float y, std::string str, NVGglyphPosition* positions, int maxPositions);
+  int textGlyphPositions (float x, float y, const std::string& str, NVGglyphPosition* positions, int maxPositions);
 
+  void textBox (float x, float y, float breakRowWidth, const char* string, const char* end);
   void textBoxBounds (float x, float y, float breakRowWidth, const char* string, const char* end, float* bounds);
   int textBreakLines (const char* string, const char* end, float breakRowWidth, sVgTextRow* rows, int maxRows);
   //}}}
@@ -493,13 +480,13 @@ public:
   //}}}
 
 private:
-  //{{{  enums
-  enum eShaderType { SHADER_FILL_GRADIENT = 0, SHADER_FILL_IMAGE, SHADER_SIMPLE, SHADER_IMAGE };
-
-  enum eUniformLocation { LOCATION_VIEWSIZE, LOCATION_TEX, LOCATION_FRAG, MAX_LOCATIONS };
-
-  enum eUniformBindings { FRAG_BINDING };
+  //{{{  static constexpr
+  static constexpr int kMaxStates = 32;
+  static constexpr int kMaxFontImages = 4;
   //}}}
+  enum eUniformBindings { FRAG_BINDING };
+  enum eUniformLocation { LOCATION_VIEWSIZE, LOCATION_TEX, LOCATION_FRAG, MAX_LOCATIONS };
+  enum eShaderType { SHADER_FILL_GRADIENT = 0, SHADER_FILL_IMAGE, SHADER_SIMPLE, SHADER_IMAGE };
   //{{{
   struct cScissor {
     cTransform mTransform;
@@ -914,7 +901,6 @@ private:
   int renderCreateTexture (int type, int w, int h, int imageFlags, const unsigned char* data);
   bool renderUpdateTexture (int image, int x, int y, int w, int h, const unsigned char* data);
 
-  void renderViewport (int width, int height, float devicePixelRatio);
   void renderText (int firstVertexIndex, int numVertices, cPaint& paint, cScissor& scissor);
   void renderTriangles (int firstVertexIndex, int numVertices, cPaint& paint, cScissor& scissor);
   void renderFill (cShape& shape, cPaint& paint, cScissor& scissor, float fringe);
@@ -964,7 +950,7 @@ private:
   cPathVertices* mPathVertices = nullptr;
 
   int mNumStates = 0;
-  cState mStates[MAX_STATES];
+  cState mStates[kMaxStates];
 
   cShape mShape;
   c2dVertices mVertices;
@@ -973,7 +959,7 @@ private:
   float devicePixelRatio = 1.0f;
 
   int fontImageIdx = 0;
-  int fontImages[NVG_MAX_FONTIMAGES];
+  int fontImages[kMaxFontImages];
 
   cFontContext* mFontContext = nullptr;
   //}}}

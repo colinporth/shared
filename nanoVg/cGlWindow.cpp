@@ -97,7 +97,8 @@ void cGlWindow::drawSpinner (float cx, float cy, float r, float t) {
 
 // protected
 //{{{
-cRootContainer* cGlWindow::initialise (string title, int width, int height, unsigned char* sansFont) {
+cRootContainer* cGlWindow::initialise (const string& title, int width, int height, 
+                                       unsigned char* fontData, int fontDataSize) {
 
   mGlWindow = this;
 
@@ -140,7 +141,7 @@ cRootContainer* cGlWindow::initialise (string title, int width, int height, unsi
   glfwSwapInterval (1);
 
   cVg::initialise();
-  createFontMem ("sans", (unsigned char*)sansFont, sizeof(sansFont), 0);
+  createFontMem ("sans", (unsigned char*)fontData, fontDataSize);
   fontFace ("sans");
 
   mRootContainer = new cRootContainer (width, height);
