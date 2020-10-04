@@ -293,7 +293,7 @@ public:
       innerColor = color;
       outerColor = color;
 
-      image = 0;
+      imageId = 0;
       }
     //}}}
 
@@ -304,7 +304,7 @@ public:
 
     sVgColour innerColor;
     sVgColour outerColor;
-    int image;
+    int imageId;
     };
   //}}}
   //{{{
@@ -357,7 +357,7 @@ public:
   cPaint linearGradient (float sx, float sy, float ex, float ey, const sVgColour& icol, const sVgColour& ocol);
   cPaint boxGradient (float x, float y, float w, float h, float r, float f, const sVgColour& icol, const sVgColour& ocol);
   cPaint radialGradient (float cx, float cy, float inr, float outr, const sVgColour& icol, const sVgColour& ocol);
-  cPaint imagePattern (float ox, float oy, float ex, float ey, float angle, int image, float alpha);
+  cPaint imagePattern (float ox, float oy, float ex, float ey, float angle, int imageId, float alpha);
 
   void beginPath();
   void pathWinding (eWinding dir);
@@ -411,15 +411,14 @@ public:
     };
   //}}}
 
-  void fontSize (float size);
-  void textLetterSpacing (float spacing);
-  void textLineHeight (float lineHeight);
-  void textAlign (int align);
-  void fontFaceById (int font);
-  void fontFaceByName (const std::string& font);
+  void setFontSize (float size);
+  void setTextLetterSpacing (float spacing);
+  void setTextLineHeight (float lineHeight);
+  void setTextAlign (int align);
+  void setFontById (int font);
+  void setFontByName (const std::string& fontName);
 
-  int createFontMem (const std::string& name, unsigned char* data, int dataSize);
-  int findFont (const std::string&);
+  int createFont (const std::string& fontName, unsigned char* data, int dataSize);
 
   float text (float x, float y, const std::string& str);
   float textBounds (float x, float y, const std::string& str, float* bounds);
@@ -445,15 +444,15 @@ public:
     TEXTURE_RGBA  = 0x02
     };
 
-  GLuint imageHandle (int image);
+  GLuint imageHandle (int imageId);
 
   int createImageMem (int imageFlags, unsigned char* data, int ndata);
   int createImageRGBA (int w, int h, int imageFlags, const unsigned char* data);
   int createImageFromHandle (GLuint textureId, int w, int h, int imageFlags);
 
-  void updateImage (int image, const unsigned char* data);
+  void updateImage (int imageId, const unsigned char* data);
 
-  bool deleteImage (int image);
+  bool deleteImage (int imageId);
   //}}}
   //{{{  scissor
   void scissor (float x, float y, float w, float h);
@@ -536,10 +535,10 @@ private:
   struct cDraw {
     enum eType { TEXT, TRIANGLE, CONVEX_FILL, STENCIL_FILL, STROKE };
     //{{{
-    void set (eType type, int image, int firstPathVerticesIndex, int numPaths, int firstFragIndex,
+    void set (eType type, int imageId, int firstPathVerticesIndex, int numPaths, int firstFragIndex,
               int firstVertexIndex, int numVertices) {
       mType = type;
-      mImage = image;
+      mImageId = imageId;
 
       mFirstPathVerticesIndex = firstPathVerticesIndex;
       mNumPaths = numPaths;
@@ -552,7 +551,7 @@ private:
     //}}}
 
     eType mType;
-    int mImage = 0;
+    int mImageId = 0;
 
     int mFirstPathVerticesIndex = 0;
     int mNumPaths = 0;
@@ -616,7 +615,7 @@ private:
       this->strokeThreshold = strokeThreshold;
 
       cTransform inverse;
-      if (paint->image) {
+      if (paint->imageId) {
         type = SHADER_FILL_IMAGE;
         if ((tex->flags & cVg::IMAGE_FLIPY) != 0) {
           //{{{  flipY
@@ -883,22 +882,22 @@ private:
   cDraw* allocDraw();
   int allocFrags (int numFrags);
   int allocPathVertices (int numPaths);
-  cTexture* allocTexture();
-  cTexture* findTexture (int textureId);
 
   void setStencilMask (GLuint mask);
   void setStencilFunc (GLenum func, GLint ref, GLuint mask);
   void setBindTexture (GLuint texture);
-  void setUniforms (int firstFragIndex, int image);
+  void setUniforms (int firstFragIndex, int imageId);
 
   void setDevicePixelRatio (float ratio) { devicePixelRatio = ratio; }
 
   cCompositeOpState compositeOpState (eCompositeOp op);
   GLenum convertBlendFuncFactor (eBlendFactor factor);
 
-  bool renderGetTextureSize (int image, int& w, int& h);
-  int renderCreateTexture (int type, int w, int h, int imageFlags, const unsigned char* data);
-  bool renderUpdateTexture (int image, int x, int y, int w, int h, const unsigned char* data);
+  cTexture* allocTexture();
+  int createTexture (int type, int w, int h, int imageFlags, const unsigned char* data);
+  cTexture* findTextureById (int id);
+  bool updateTexture (int id, int x, int y, int w, int h, const unsigned char* data);
+  bool getTextureSize (int id, int& w, int& h);
 
   void renderText (int firstVertexIndex, int numVertices, cPaint& paint, cScissor& scissor);
   void renderTriangles (int firstVertexIndex, int numVertices, cPaint& paint, cScissor& scissor);

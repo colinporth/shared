@@ -34,8 +34,8 @@ void cGlWindow::drawRect (uint32_t colour, float x, float y, float width, float 
 //{{{
 float cGlWindow::drawText (uint32_t colour, float fontHeight, string str, float x, float y, float width, float height) {
 
-  fontSize (fontHeight);
-  textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_TOP);
+  setFontSize (fontHeight);
+  setTextAlign (cVg::ALIGN_LEFT | cVg::ALIGN_TOP);
   fillColor (nvgRGBA32 (colour));
   text (x+3.f, y+1.f, str);
 
@@ -46,8 +46,8 @@ float cGlWindow::drawText (uint32_t colour, float fontHeight, string str, float 
 //{{{
 float cGlWindow::drawTextRight (uint32_t colour, float fontHeight, string str, float x, float y, float width, float height) {
 
-  fontSize (fontHeight);
-  textAlign (cVg::ALIGN_RIGHT | cVg::ALIGN_TOP);
+  setFontSize (fontHeight);
+  setTextAlign (cVg::ALIGN_RIGHT | cVg::ALIGN_TOP);
   fillColor (nvgRGBA32 (colour));
   text (x, y+1.f, str);
 
@@ -141,8 +141,8 @@ cRootContainer* cGlWindow::initialise (const string& title, int width, int heigh
   glfwSwapInterval (1);
 
   cVg::initialise();
-  createFontMem ("sans", (unsigned char*)fontData, fontDataSize);
-  fontFaceByName ("sans");
+  createFont ("sans", (unsigned char*)fontData, fontDataSize);
+  setFontByName ("sans");
 
   mRootContainer = new cRootContainer (width, height);
 
@@ -222,8 +222,8 @@ void cGlWindow::draw() {
 
   if (mDrawStats) {
     //{{{  draw stats
-    fontSize (12.0f);
-    textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_BOTTOM);
+    setFontSize (12.0f);
+    setTextAlign (cVg::ALIGN_LEFT | cVg::ALIGN_BOTTOM);
     fillColor (nvgRGBA (255, 255, 255, 255));
     text (0.0f, (float)winHeight, getFrameStats() + (mVsync ? " vsyncOn" : " vsyncOff"));
     }

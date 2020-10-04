@@ -100,11 +100,11 @@ public:
     vg->fill();
 
     // title text
-    vg->fontFaceByName ("sans");
+    vg->setFontByName ("sans");
     if (!mName.empty()) {
       //{{{  name graph
-      vg->fontSize (14.f);
-      vg->textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_TOP);
+      vg->setFontSize (14.f);
+      vg->setTextAlign (cVg::ALIGN_LEFT | cVg::ALIGN_TOP);
       vg->fillColor (nvgRGBA(240,240,240,192));
       vg->text (x+3, y+1, mName);
       }
@@ -114,16 +114,16 @@ public:
     float avg = getGraphAverage();
     if (mStyle == GRAPH_RENDER_FPS) {
       //{{{  fps graph
-      vg->fontSize (18.f);
-      vg->textAlign (cVg::ALIGN_RIGHT | cVg::ALIGN_TOP);
+      vg->setFontSize (18.f);
+      vg->setTextAlign (cVg::ALIGN_RIGHT | cVg::ALIGN_TOP);
       vg->fillColor (nvgRGBA (240,240,240,255));
 
       char str[64];
       sprintf (str, "%.2ffps", 1.f / avg);
       vg->text (x+w-3,y+1, str);
 
-      vg->fontSize (15.f);
-      vg->textAlign (cVg::ALIGN_RIGHT | cVg::ALIGN_BOTTOM);
+      vg->setFontSize (15.f);
+      vg->setTextAlign (cVg::ALIGN_RIGHT | cVg::ALIGN_BOTTOM);
       vg->fillColor (nvgRGBA (240,240,240,160));
 
       sprintf (str, "%.2fms", avg * 1000.f);
@@ -132,8 +132,8 @@ public:
       //}}}
     else if (mStyle == GRAPH_RENDER_PERCENT) {
       //{{{  percent graph
-      vg->fontSize (18.f);
-      vg->textAlign (cVg::ALIGN_RIGHT | cVg::ALIGN_TOP);
+      vg->setFontSize (18.f);
+      vg->setTextAlign (cVg::ALIGN_RIGHT | cVg::ALIGN_TOP);
       vg->fillColor (nvgRGBA (240,240,240,255));
 
       char str[64];
@@ -143,8 +143,8 @@ public:
       //}}}
     else {
       //{{{  ms graph
-      vg->fontSize (18.f);
-      vg->textAlign (cVg::ALIGN_RIGHT | cVg::ALIGN_TOP);
+      vg->setFontSize (18.f);
+      vg->setTextAlign (cVg::ALIGN_RIGHT | cVg::ALIGN_TOP);
       vg->fillColor (nvgRGBA (240,240,240,255));
 
       char str[64];

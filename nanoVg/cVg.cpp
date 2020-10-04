@@ -95,7 +95,7 @@ public:
   //}}}
   //{{{
   struct sFont {
-    char name[64];
+    string name;
 
     stbtt_fontinfo fontInfo;
     unsigned char* data;
@@ -184,15 +184,14 @@ public:
   //}}}
 
   //{{{
-  int addFontMem (const char* name, unsigned char* data, int dataSize) {
+  int addFont (const string& name, unsigned char* data, int dataSize) {
 
     int idx = allocFont();
     if (idx == kInvalid)
       return kInvalid;
 
     auto font = mFonts[idx];
-    strncpy (font->name, name, sizeof(font->name));
-    font->name[sizeof(font->name)-1] = '\0';
+    font->name = name;
 
     // Init hash lookup.
     for (int i = 0; i < kHashLutSize; ++i)
@@ -224,10 +223,10 @@ public:
     }
   //}}}
   //{{{
-  int getFontByName (const char* name) {
+  int getFontByName (const string& name) {
 
     for (int i = 0; i < mNumFonts; i++)
-      if (strcmp (mFonts[i]->name, name) == 0)
+      if (mFonts[i]->name == name)
         return i;
 
     return kInvalid;
@@ -575,7 +574,6 @@ public:
     }
   //}}}
 
-
   //{{{
   const unsigned char* getTextureData (int* width, int* height) {
 
@@ -591,7 +589,7 @@ public:
   //{{{
   int validateTexture (int* dirty) {
 
-    if (dirtyRect[0] < dirtyRect[2] && dirtyRect[1] < dirtyRect[3]) {
+    if ((dirtyRect[0] < dirtyRect[2]) && (dirtyRect[1] < dirtyRect[3])) {
       dirty[0] = dirtyRect[0];
       dirty[1] = dirtyRect[1];
       dirty[2] = dirtyRect[2];
@@ -926,38 +924,39 @@ private:
   //}}}
 
   //{{{
-  void ttGetFontVMetrics (stbtt_fontinfo* font, int* ascent, int* descent, int* lineGap) {
-    stbtt_GetFontVMetrics (font, ascent, descent, lineGap);
+  void ttGetFontVMetrics (stbtt_fontinfo* fontInfo, int* ascent, int* descent, int* lineGap) {
+    stbtt_GetFontVMetrics (fontInfo, ascent, descent, lineGap);
     }
   //}}}
   //{{{
-  float ttGetPixelHeightScale (stbtt_fontinfo* font, float size) {
-    return stbtt_ScaleForPixelHeight (font, size);
+  float ttGetPixelHeightScale (stbtt_fontinfo* fontInfo, float size) {
+    return stbtt_ScaleForPixelHeight (fontInfo, size);
     }
   //}}}
   //{{{
-  int ttGetGlyphIndex (stbtt_fontinfo* font, int codepoint) {
-    return stbtt_FindGlyphIndex (font, codepoint);
+  int ttGetGlyphIndex (stbtt_fontinfo* fontInfo, int codepoint) {
+    return stbtt_FindGlyphIndex (fontInfo, codepoint);
     }
   //}}}
   //{{{
-  int ttGetGlyphKernAdvance (stbtt_fontinfo* font, int glyph1, int glyph2) {
-    return stbtt_GetGlyphKernAdvance (font, glyph1, glyph2);
+  int ttGetGlyphKernAdvance (stbtt_fontinfo* fontInfo, int glyph1, int glyph2) {
+    return stbtt_GetGlyphKernAdvance (fontInfo, glyph1, glyph2);
     }
   //}}}
   //{{{
-  int ttBuildGlyphBitmap (stbtt_fontinfo* font, int glyph, float size, float scale,
+  int ttBuildGlyphBitmap (stbtt_fontinfo* fontInfo, int glyph, float size, float scale,
                           int *advance, int *lsb, int *x0, int *y0, int *x1, int *y1) {
 
-    stbtt_GetGlyphHMetrics (font, glyph, advance, lsb);
-    stbtt_GetGlyphBitmapBox (font, glyph, scale, scale, x0, y0, x1, y1);
+    stbtt_GetGlyphHMetrics (fontInfo, glyph, advance, lsb);
+    stbtt_GetGlyphBitmapBox (fontInfo, glyph, scale, scale, x0, y0, x1, y1);
     return 1;
     }
   //}}}
   //{{{
-  void ttRenderGlyphBitmap (stbtt_fontinfo* font, unsigned char* output, int outWidth, int outHeight, int outStride,
+  void ttRenderGlyphBitmap (stbtt_fontinfo* fontInfo, unsigned char* output,
+                            int outWidth, int outHeight, int outStride,
                             float scaleX, float scaleY, int glyph) {
-    stbtt_MakeGlyphBitmap (font, output, outWidth, outHeight, outStride, scaleX, scaleY, glyph);
+    stbtt_MakeGlyphBitmap (fontInfo, output, outWidth, outHeight, outStride, scaleX, scaleY, glyph);
     }
   //}}}
 
@@ -1082,20 +1081,16 @@ private:
   //{{{
   int expandAtlas (int width, int height) {
 
-    int maxy = 0;
-    unsigned char* data = NULL;
-
     width = maxi (width, mWidth);
     height = maxi (height, mHeight);
-
     if ((width == mWidth) && (height == mHeight))
       return 1;
 
-    // Flush pending glyphs.
+    // flush pending glyphs.
     flush();
 
-    // Copy old texture data
-    data = (unsigned char*)malloc(width * height);
+    // copy old texture data
+    unsigned char* data = (unsigned char*)malloc(width * height);
     for (int i = 0; i < mHeight; i++) {
       unsigned char* dst = &data[i*width];
       unsigned char* src = &texData[i*mWidth];
@@ -1107,12 +1102,14 @@ private:
       memset (&data[mHeight * width], 0, (height - mHeight) * width);
 
     free (texData);
+
     texData = data;
 
-    // Increase atlas size
+    // increase atlas size
     mAtlas->expand (width, height);
 
-    // Add existing data as dirty.
+    // add existing data as dirty
+    int maxy = 0;
     for (int i = 0; i < mAtlas->mNumNodes; i++)
       maxy = maxi (maxy, mAtlas->mNodes[i].mY);
 
@@ -1125,6 +1122,7 @@ private:
     mHeight = height;
     itw = 1.0f / mWidth;
     ith = 1.0f / mHeight;
+
     return 1;
     }
   //}}}
@@ -1550,7 +1548,7 @@ void cVg::initialise() {
   // removed because of strange startup time
   //glFinish();
 
-  fontImages[0] = renderCreateTexture (TEXTURE_ALPHA, cFontContext::kInitFontImageSize, cFontContext::kInitFontImageSize, 0, NULL);
+  fontImages[0] = createTexture (TEXTURE_ALPHA, cFontContext::kInitFontImageSize, cFontContext::kInitFontImageSize, 0, NULL);
   }
 //}}}
 
@@ -1680,7 +1678,7 @@ cVg::cPaint cVg::linearGradient (float sx, float sy, float ex, float ey, const s
   p.feather = maxf (1.0f, d);
   p.innerColor = icol;
   p.outerColor = ocol;
-  p.image = 0;
+  p.imageId = 0;
 
   return p;
   }
@@ -1699,7 +1697,7 @@ cVg::cPaint cVg::radialGradient (float cx, float cy, float inr, float outr, cons
   p.feather = maxf (1.0f, f);
   p.innerColor = icol;
   p.outerColor = ocol;
-  p.image = 0;
+  p.imageId = 0;
 
   return p;
   }
@@ -1715,13 +1713,13 @@ cVg::cPaint cVg::boxGradient (float x, float y, float w, float h, float r, float
   p.feather = maxf (1.0f, f);
   p.innerColor = icol;
   p.outerColor = ocol;
-  p.image = 0;
+  p.imageId = 0;
 
   return p;
   }
 //}}}
 //{{{
-cVg::cPaint cVg::imagePattern (float cx, float cy, float w, float h, float angle, int image, float alpha) {
+cVg::cPaint cVg::imagePattern (float cx, float cy, float w, float h, float angle, int imageId, float alpha) {
 
   cPaint paint;
 
@@ -1735,7 +1733,7 @@ cVg::cPaint cVg::imagePattern (float cx, float cy, float w, float h, float angle
 
   paint.innerColor = nvgRGBAf (1, 1, 1, alpha);
   paint.outerColor = nvgRGBAf (1, 1, 1, alpha);
-  paint.image = image;
+  paint.imageId = imageId;
 
   return paint;
   }
@@ -2039,48 +2037,39 @@ void cVg::triangleFill() {
 //}}}
 //{{{  text
 //{{{
-void cVg::fontSize (float size) { 
-  mStates[mNumStates-1].fontSize = size; 
+void cVg::setFontSize (float size) {
+  mStates[mNumStates-1].fontSize = size;
   }
 //}}}
 //{{{
-void cVg::textAlign (int align) { 
-  mStates[mNumStates-1].textAlign = align; 
+void cVg::setTextAlign (int align) {
+  mStates[mNumStates-1].textAlign = align;
   }
 //}}}
 //{{{
-void cVg::textLineHeight (float lineHeight) { 
-  mStates[mNumStates-1].lineHeight = lineHeight; 
+void cVg::setTextLineHeight (float lineHeight) {
+  mStates[mNumStates-1].lineHeight = lineHeight;
   }
 //}}}
 //{{{
-void cVg::textLetterSpacing (float spacing) { 
-  mStates[mNumStates-1].letterSpacing = spacing; 
+void cVg::setTextLetterSpacing (float spacing) {
+  mStates[mNumStates-1].letterSpacing = spacing;
   }
 //}}}
 //{{{
-void cVg::fontFaceById (int font) { 
-  mStates[mNumStates-1].fontId = font; 
+void cVg::setFontById (int font) {
+  mStates[mNumStates-1].fontId = font;
   }
 //}}}
 //{{{
-void cVg::fontFaceByName (const string& font) { 
-  mStates[mNumStates-1].fontId = mFontContext->getFontByName (font.c_str()); 
+void cVg::setFontByName (const string& fontName) {
+  mStates[mNumStates-1].fontId = mFontContext->getFontByName (fontName);
   }
 //}}}
 
 //{{{
-int cVg::createFontMem (const string& name, unsigned char* data, int dataSize) {
-  return mFontContext->addFontMem (name.c_str(), data, dataSize);
-  }
-//}}}
-//{{{
-int cVg::findFont (const string& name) {
-
-  if (name.empty())
-    return -1;
-
-  return mFontContext->getFontByName (name.c_str());
+int cVg::createFont (const string& fontName, unsigned char* data, int dataSize) {
+  return mFontContext->addFont (fontName, data, dataSize);
   }
 //}}}
 
@@ -2167,7 +2156,7 @@ float cVg::text (float x, float y, const string& str) {
     auto fillPaint = mStates[mNumStates - 1].fillPaint;
     fillPaint.innerColor.a *= mStates[mNumStates - 1].alpha;
     fillPaint.outerColor.a *= mStates[mNumStates - 1].alpha;
-    fillPaint.image = fontImages[fontImageIdx];
+    fillPaint.imageId = fontImages[fontImageIdx];
     renderText (vertexIndex, numVertices, fillPaint, mStates[mNumStates - 1].scissor);
     }
   flushTextTexture();
@@ -2425,9 +2414,12 @@ int cVg::textBreakLines (const char* string, const char* end, float breakRowWidt
 
   cFontContext::sQuad quad;
   while (mFontContext->textItNext (&it, &quad)) {
-    if (it.prevGlyphIndex < 0 && allocTextAtlas()) { // can not retrieve glyph?
+    if ((it.prevGlyphIndex < 0) && allocTextAtlas()) {
+      // can not retrieve glyph?
       it = prevIt;
-      mFontContext->textItNext (&it, &quad); // try again
+
+      // try again
+      mFontContext->textItNext (&it, &quad);
       }
     prevIt = it;
 
@@ -2611,7 +2603,7 @@ int cVg::textBreakLines (const char* string, const char* end, float breakRowWidt
 //{{{  image
 //{{{
 GLuint cVg::imageHandle (int image) {
-  return findTexture (image)->tex;
+  return findTextureById(image)->tex;
   }
 //}}}
 
@@ -2633,7 +2625,7 @@ int cVg::createImageMem (int imageFlags, unsigned char* data, int ndata) {
 //}}}
 //{{{
 int cVg::createImageRGBA (int w, int h, int imageFlags, const unsigned char* data) {
-  return renderCreateTexture (TEXTURE_RGBA, w, h, imageFlags, data);
+  return createTexture (TEXTURE_RGBA, w, h, imageFlags, data);
   }
 //}}}
 //{{{
@@ -2658,8 +2650,8 @@ void cVg::updateImage (int image, const unsigned char* data) {
 
   int w = 0;
   int h = 0;
-  renderGetTextureSize (image, w, h);
-  renderUpdateTexture (image, 0,0, w,h, data);
+  getTextureSize(image, w, h);
+  updateTexture (image, 0,0, w,h, data);
   }
 //}}}
 
@@ -2792,14 +2784,14 @@ void cVg::endFrame() {
     if (fontImage == 0)
       return;
 
-    renderGetTextureSize (fontImage, iw, ih);
+    getTextureSize (fontImage, iw, ih);
 
     int i, j;
     for (i = j = 0; i < fontImageIdx; i++) {
       if (fontImages[i] != 0) {
         int nw = 0;
         int nh = 0;
-        renderGetTextureSize (fontImages[i], nw, nh);
+        getTextureSize(fontImages[i], nw, nh);
         if (nw < iw || nh < ih)
           deleteImage (fontImages[i]);
         else
@@ -3927,43 +3919,6 @@ int cVg::allocPathVertices (int numPaths) {
   return firstPathVerticeIndex;
   }
 //}}}
-//{{{
-cVg::cTexture* cVg::allocTexture() {
-
-  cTexture* texture = nullptr;
-  for (int i = 0; i < mNumTextures; i++) {
-    if (mTextures[i].id == 0) {
-      texture = &mTextures[i];
-      break;
-      }
-    }
-
-  if (texture == nullptr) {
-    if (mNumTextures + 1 > mNumAllocatedTextures) {
-      mNumAllocatedTextures = maxi (mNumTextures + 1, 4) +  mNumAllocatedTextures / 2; // 1.5x Overallocate
-      mTextures = (cTexture*)realloc (mTextures, mNumAllocatedTextures * sizeof(cTexture));
-      if (mTextures == nullptr)
-        return nullptr;
-      }
-    texture = &mTextures[mNumTextures++];
-    }
-
-  texture->reset();
-  texture->id = ++mTextureId;
-
-  return texture;
-  }
-//}}}
-//{{{
-cVg::cTexture* cVg::findTexture (int textureId) {
-
-  for (int i = 0; i < mNumTextures; i++)
-    if (mTextures[i].id == textureId)
-      return &mTextures[i];
-
-  return nullptr;
-  }
-//}}}
 
 //{{{
 void cVg::setStencilMask (GLuint mask) {
@@ -3995,12 +3950,12 @@ void cVg::setBindTexture (GLuint texture) {
   }
 //}}}
 //{{{
-void cVg::setUniforms (int firstFragIndex, int image) {
+void cVg::setUniforms (int firstFragIndex, int imageId) {
 
   mShader.setFrags ((float*)(&mFrags[firstFragIndex]));
 
-  if (image) {
-    auto tex = findTexture (image);
+  if (imageId) {
+    auto tex = findTextureById (imageId);
     setBindTexture (tex ? tex->tex : 0);
     }
   else
@@ -4096,25 +4051,44 @@ GLenum cVg::convertBlendFuncFactor (eBlendFactor factor) {
       return GL_SRC_ALPHA_SATURATE;
     default:
       return GL_INVALID_ENUM;
+    }
+  }
+//}}}
+
+// texture
+//{{{
+cVg::cTexture* cVg::allocTexture() {
+
+  cLog::log (LOGINFO, "allocTexture");
+
+  cTexture* texture = nullptr;
+  for (int i = 0; i < mNumTextures; i++) {
+    if (mTextures[i].id == 0) {
+      texture = &mTextures[i];
+      break;
       }
+    }
+
+  if (texture == nullptr) {
+    if (mNumTextures + 1 > mNumAllocatedTextures) {
+      mNumAllocatedTextures = maxi (mNumTextures + 1, 4) +  mNumAllocatedTextures / 2; // 1.5x Overallocate
+      mTextures = (cTexture*)realloc (mTextures, mNumAllocatedTextures * sizeof(cTexture));
+      if (mTextures == nullptr)
+        return nullptr;
+      }
+    texture = &mTextures[mNumTextures++];
+    }
+
+  texture->reset();
+  texture->id = ++mTextureId;
+
+  return texture;
   }
 //}}}
-
 //{{{
-bool cVg::renderGetTextureSize (int image, int& w, int& h) {
+int cVg::createTexture (int type, int w, int h, int imageFlags, const unsigned char* data) {
 
-  auto texture = findTexture (image);
-  if (texture == nullptr)
-    return false;
-
-  w = texture->width;
-  h = texture->height;
-
-  return true;
-  }
-//}}}
-//{{{
-int cVg::renderCreateTexture (int type, int w, int h, int imageFlags, const unsigned char* data) {
+  cLog::log (LOGINFO, "createTexture");
 
   auto texture = allocTexture();
   if (texture == nullptr)
@@ -4144,7 +4118,7 @@ int cVg::renderCreateTexture (int type, int w, int h, int imageFlags, const unsi
 
   if (type == TEXTURE_RGBA)
     glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-  else
+  else // alpha
     glTexImage2D (GL_TEXTURE_2D, 0, GL_LUMINANCE, w, h, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, data);
 
   if (imageFlags & cVg::IMAGE_GENERATE_MIPMAPS)
@@ -4156,7 +4130,7 @@ int cVg::renderCreateTexture (int type, int w, int h, int imageFlags, const unsi
   glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, imageFlags &  cVg::IMAGE_REPEATX ? GL_REPEAT : GL_CLAMP_TO_EDGE);
   glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, imageFlags &  cVg::IMAGE_REPEATY ? GL_REPEAT : GL_CLAMP_TO_EDGE);
 
-  glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+  glPixelStorei (GL_UNPACK_ALIGNMENT, 4);
 
   if (imageFlags & cVg::IMAGE_GENERATE_MIPMAPS)
     glGenerateMipmap (GL_TEXTURE_2D);
@@ -4166,10 +4140,23 @@ int cVg::renderCreateTexture (int type, int w, int h, int imageFlags, const unsi
   return texture->id;
   }
 //}}}
-//{{{
-bool cVg::renderUpdateTexture (int image, int x, int y, int w, int h, const unsigned char* data) {
 
-  auto texture = findTexture (image);
+//{{{
+cVg::cTexture* cVg::findTextureById (int id) {
+
+  for (int i = 0; i < mNumTextures; i++)
+    if (mTextures[i].id == id)
+      return &mTextures[i];
+
+  return nullptr;
+  }
+//}}}
+//{{{
+bool cVg::updateTexture (int id, int x, int y, int w, int h, const unsigned char* data) {
+
+  cLog::log (LOGINFO, "updateTexture");
+
+  auto texture = findTextureById (id);
   if (texture == nullptr)
     return false;
   setBindTexture (texture->tex);
@@ -4179,14 +4166,15 @@ bool cVg::renderUpdateTexture (int image, int x, int y, int w, int h, const unsi
   // No support for all of skip, need to update a whole row at a time.
   if (texture->type == TEXTURE_RGBA)
     data += y * texture->width * 4;
-  else
+  else // alpha
     data += y * texture->width;
+
   x = 0;
   w = texture->width;
 
   if (texture->type == TEXTURE_RGBA)
     glTexSubImage2D (GL_TEXTURE_2D, 0, x,y, w,h, GL_RGBA, GL_UNSIGNED_BYTE, data);
-  else
+  else // alpha
     glTexSubImage2D (GL_TEXTURE_2D, 0, x,y, w,h, GL_LUMINANCE, GL_UNSIGNED_BYTE, data);
 
   glPixelStorei (GL_UNPACK_ALIGNMENT, 4);
@@ -4195,21 +4183,35 @@ bool cVg::renderUpdateTexture (int image, int x, int y, int w, int h, const unsi
   return true;
   }
 //}}}
+//{{{
+bool cVg::getTextureSize (int id, int& w, int& h) {
 
+  auto texture = findTextureById (id);
+  if (texture == nullptr)
+    return false;
+
+  w = texture->width;
+  h = texture->height;
+
+  return true;
+  }
+//}}}
+
+// render
 //{{{
 void cVg::renderText (int firstVertexIndex, int numVertices, cPaint& paint, cScissor& scissor) {
 
   auto draw = allocDraw();
-  draw->set (cDraw::TEXT, paint.image, 0, 0, allocFrags (1), firstVertexIndex, numVertices);
-  mFrags[draw->mFirstFragIndex].setImage (&paint, &scissor, findTexture (paint.image));
+  draw->set (cDraw::TEXT, paint.imageId, 0, 0, allocFrags (1), firstVertexIndex, numVertices);
+  mFrags[draw->mFirstFragIndex].setImage (&paint, &scissor, findTextureById (paint.imageId));
   }
 //}}}
 //{{{
 void cVg::renderTriangles (int firstVertexIndex, int numVertices, cPaint& paint, cScissor& scissor) {
 
   auto draw = allocDraw();
-  draw->set (cDraw::TRIANGLE, paint.image, 0, 0, allocFrags (1), firstVertexIndex, numVertices);
-  mFrags[draw->mFirstFragIndex].setFill (&paint, &scissor, 1.0f, 1.0f, -1.0f, findTexture (paint.image));
+  draw->set (cDraw::TRIANGLE, paint.imageId, 0, 0, allocFrags (1), firstVertexIndex, numVertices);
+  mFrags[draw->mFirstFragIndex].setFill (&paint, &scissor, 1.0f, 1.0f, -1.0f, findTextureById(paint.imageId));
   }
 //}}}
 //{{{
@@ -4218,16 +4220,16 @@ void cVg::renderFill (cShape& shape, cPaint& paint, cScissor& scissor, float fri
   auto draw = allocDraw();
   if ((shape.mNumPaths == 1) && shape.mPaths[0].mConvex) {
     // convex
-    draw->set (cDraw::CONVEX_FILL, paint.image, allocPathVertices (shape.mNumPaths), shape.mNumPaths,
+    draw->set (cDraw::CONVEX_FILL, paint.imageId, allocPathVertices (shape.mNumPaths), shape.mNumPaths,
                allocFrags (1), 0,0);
-    mFrags[draw->mFirstFragIndex].setFill (&paint, &scissor, fringe, fringe, -1.0f, findTexture (paint.image));
+    mFrags[draw->mFirstFragIndex].setFill (&paint, &scissor, fringe, fringe, -1.0f, findTextureById (paint.imageId));
     }
   else {
     // stencil
-    draw->set (cDraw::STENCIL_FILL, paint.image, allocPathVertices (shape.mNumPaths), shape.mNumPaths,
+    draw->set (cDraw::STENCIL_FILL, paint.imageId, allocPathVertices (shape.mNumPaths), shape.mNumPaths,
                allocFrags (2), shape.mBoundsVertexIndex, 4);
     mFrags[draw->mFirstFragIndex].setSimple();
-    mFrags[draw->mFirstFragIndex+1].setFill (&paint, &scissor, fringe, fringe, -1.0f, findTexture (paint.image));
+    mFrags[draw->mFirstFragIndex+1].setFill (&paint, &scissor, fringe, fringe, -1.0f, findTextureById(paint.imageId));
     }
 
   auto fromPath = shape.mPaths;
@@ -4241,9 +4243,9 @@ void cVg::renderStroke (cShape& shape, cPaint& paint, cScissor& scissor, float f
 // only uses toPathVertices firstStrokeVertexIndex, strokeVertexCount, no fill
 
   auto draw = allocDraw();
-  draw->set (cDraw::STROKE, paint.image, allocPathVertices (shape.mNumPaths), shape.mNumPaths, allocFrags (2), 0,0);
-  mFrags[draw->mFirstFragIndex].setFill (&paint, &scissor, strokeWidth, fringe, -1.0f, findTexture (paint.image));
-  mFrags[draw->mFirstFragIndex+1].setFill (&paint, &scissor, strokeWidth, fringe, 1.0f - 0.5f/255.0f, findTexture (paint.image));
+  draw->set (cDraw::STROKE, paint.imageId, allocPathVertices (shape.mNumPaths), shape.mNumPaths, allocFrags (2), 0,0);
+  mFrags[draw->mFirstFragIndex].setFill (&paint, &scissor, strokeWidth, fringe, -1.0f, findTextureById(paint.imageId));
+  mFrags[draw->mFirstFragIndex+1].setFill (&paint, &scissor, strokeWidth, fringe, 1.0f - 0.5f/255.0f, findTextureById(paint.imageId));
 
   auto fromPath = shape.mPaths;
   auto toPathVertices = &mPathVertices[draw->mFirstPathVerticesIndex];
@@ -4314,7 +4316,7 @@ void cVg::renderFrame (c2dVertices& vertices, cCompositeOpState compositeOp) {
       case cDraw::TEXT:
         //{{{  text triangles
         if (mDrawTriangles) {
-          setUniforms (draw->mFirstFragIndex, draw->mImage);
+          setUniforms (draw->mFirstFragIndex, draw->mImageId);
           glDrawArrays (GL_TRIANGLES, draw->mTriangleFirstVertexIndex, draw->mNumTriangleVertices);
           mDrawArrays++;
           }
@@ -4323,7 +4325,7 @@ void cVg::renderFrame (c2dVertices& vertices, cCompositeOpState compositeOp) {
       case cDraw::TRIANGLE:
         //{{{  fill triangles
         if (mDrawSolid) {
-          setUniforms (draw->mFirstFragIndex, draw->mImage);
+          setUniforms (draw->mFirstFragIndex, draw->mImageId);
           glDrawArrays (GL_TRIANGLES, draw->mTriangleFirstVertexIndex, draw->mNumTriangleVertices);
           mDrawArrays++;
           }
@@ -4331,7 +4333,7 @@ void cVg::renderFrame (c2dVertices& vertices, cCompositeOpState compositeOp) {
         //}}}
       case cDraw::CONVEX_FILL: {
         //{{{  convexFill
-        setUniforms (draw->mFirstFragIndex, draw->mImage);
+        setUniforms (draw->mFirstFragIndex, draw->mImageId);
 
         auto pathVertices = &mPathVertices[draw->mFirstPathVerticesIndex];
 
@@ -4375,7 +4377,7 @@ void cVg::renderFrame (c2dVertices& vertices, cCompositeOpState compositeOp) {
           glColorMask (GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
           }
 
-        setUniforms (draw->mFirstFragIndex + 1, draw->mImage);
+        setUniforms (draw->mFirstFragIndex + 1, draw->mImageId);
         if (mDrawEdges) {
           glStencilOp (GL_KEEP, GL_KEEP, GL_KEEP);
           setStencilFunc (GL_EQUAL, 0x00, 0xFF);
@@ -4408,14 +4410,14 @@ void cVg::renderFrame (c2dVertices& vertices, cCompositeOpState compositeOp) {
         if (mDrawSolid) {
           glStencilOp (GL_KEEP, GL_KEEP, GL_INCR);
           setStencilFunc (GL_EQUAL, 0x00, 0xFF);
-          setUniforms (draw->mFirstFragIndex + 1, draw->mImage);
+          setUniforms (draw->mFirstFragIndex + 1, draw->mImageId);
           for (int i = 0; i < draw->mNumPaths; i++) {
             glDrawArrays (GL_TRIANGLE_STRIP, pathVertices[i].mFirstStrokeVertexIndex, pathVertices[i].mNumStrokeVertices);
             mDrawArrays++;
             }
           }
 
-        setUniforms (draw->mFirstFragIndex, draw->mImage);
+        setUniforms (draw->mFirstFragIndex, draw->mImageId);
         if (mDrawEdges) {
           glStencilOp (GL_KEEP, GL_KEEP, GL_KEEP);
           setStencilFunc (GL_EQUAL, 0x00, 0xFF);
@@ -4459,6 +4461,8 @@ float cVg::getFontScale (cState* state) {
 //{{{
 int cVg::allocTextAtlas() {
 
+  cLog::log (LOGINFO, "allocTextAtlas");
+
   flushTextTexture();
   if (fontImageIdx >= kMaxFontImages-1)
     return 0;
@@ -4467,10 +4471,11 @@ int cVg::allocTextAtlas() {
   int iw = 0;
   int ih = 0;
   if (fontImages[fontImageIdx+1] != 0)
-    renderGetTextureSize (fontImages[fontImageIdx+1], iw, ih);
+    getTextureSize (fontImages[fontImageIdx+1], iw, ih);
+
   else {
-    // calculate the new font image size and create it.
-    renderGetTextureSize (fontImages[fontImageIdx], iw, ih);
+    // calculate the new font image size and create it
+    getTextureSize (fontImages[fontImageIdx], iw, ih);
     if (iw > ih)
       ih *= 2;
     else
@@ -4479,11 +4484,13 @@ int cVg::allocTextAtlas() {
       iw = cFontContext::kMaxFontImageSize;
       ih = cFontContext::kMaxFontImageSize;
       }
-    fontImages[fontImageIdx+1] = renderCreateTexture (TEXTURE_ALPHA, iw, ih, 0, NULL);
+
+    fontImages[fontImageIdx+1] = createTexture (TEXTURE_ALPHA, iw, ih, 0, NULL);
     }
   ++fontImageIdx;
 
   mFontContext->resetAtlas (iw, ih);
+
   return 1;
   }
 //}}}
@@ -4492,6 +4499,8 @@ void cVg::flushTextTexture() {
 
   int dirty[4];
   if (mFontContext->validateTexture (dirty)) {
+    cLog::log (LOGINFO, "flushTextTexture - dirty");
+
     // Update texture
     int fontImage = fontImages[fontImageIdx];
     if (fontImage != 0) {
@@ -4503,7 +4512,7 @@ void cVg::flushTextTexture() {
       int w = dirty[2] - dirty[0];
       int h = dirty[3] - dirty[1];
 
-      renderUpdateTexture (fontImage, x,y, w,h, data);
+      updateTexture (fontImage, x,y, w,h, data);
       }
     }
   }

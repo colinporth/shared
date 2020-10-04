@@ -118,8 +118,8 @@ public:
 
     y = mY + mHeight - getBigFontHeight();
 
-    context->fontSize ((float)getBigFontHeight());
-    context->textAlign (cVg::ALIGN_LEFT | cVg::ALIGN_TOP);
+    context->setFontSize ((float)getBigFontHeight());
+    context->setTextAlign (cVg::ALIGN_LEFT | cVg::ALIGN_TOP);
     context->fillColor (kVgWhite);
     context->text (midx-60.0f+3.0f, y+1.0f, getTimeString (mHls->getPlayTzSeconds()));
 
