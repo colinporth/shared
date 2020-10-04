@@ -41,223 +41,208 @@ void tmpfree (void* ptr, void* up);
 #define FONS_UTF8_ACCEPT 0
 #define FONS_UTF8_REJECT 12
 //}}}
-// font atlas
 //{{{
-struct sFontStashAtlasNode {
-  short x;
-  short y;
-  short width;
-  };
-//}}}
-//{{{
-struct sFontStashAtlas {
-  int width, height;
-  sFontStashAtlasNode* nodes;
-  int nnodes;
-  int cnodes;
-  };
-//}}}
 class cFontAtlas {
-  public:
-    //{{{
-    // Atlas based on Skyline Bin Packer by Jukka Jylänki
-    void deleteAtlas (sFontStashAtlas* atlas) {
+public:
+  //{{{
+  struct sNode {
+    short x;
+    short y;
+    short width;
+    };
+  //}}}
+  //{{{
+  cFontAtlas (int w, int h, int nnodes) {
 
-      if (atlas == NULL)
-        return;
+    width = w;
+    height = h;
 
-      if (atlas->nodes != NULL)
-        free (atlas->nodes);
+    // Allocate space for skyline nodes
+    nodes = (sNode*)malloc(sizeof(sNode) * nnodes);
+    memset (nodes, 0, sizeof(sNode) * nnodes);
 
-      free (atlas);
-      }
-    //}}}
-    //{{{
-    sFontStashAtlas* allocAtlas (int w, int h, int nnodes) {
+    nnodes = 0;
+    cnodes = nnodes;
 
-      // Allocate memory for the font stash.
-      auto atlas = (sFontStashAtlas*)malloc(sizeof(sFontStashAtlas));
-      if (atlas == NULL)
-        goto error;
-      memset (atlas, 0, sizeof (sFontStashAtlas));
+    // Init root node.
+    nodes[0].x = 0;
+    nodes[0].y = 0;
+    nodes[0].width = (short)w;
+    nnodes++;
+    }
+  //}}}
+  //{{{
+  // Atlas based on Skyline Bin Packer by Jukka Jylänki
+  ~cFontAtlas() {
 
-      atlas->width = w;
-      atlas->height = h;
+    if (nodes != NULL)
+      free (nodes);
+    }
+  //}}}
 
-      // Allocate space for skyline nodes
-      atlas->nodes = (sFontStashAtlasNode*)malloc(sizeof(sFontStashAtlasNode) * nnodes);
-      if (atlas->nodes == NULL)
-        goto error;
+  //{{{
+  void atlasReset (int w, int h) {
 
-      memset (atlas->nodes, 0, sizeof(sFontStashAtlasNode) * nnodes);
-      atlas->nnodes = 0;
-      atlas->cnodes = nnodes;
+    width = w;
+    height = h;
+    nnodes = 0;
 
-      // Init root node.
-      atlas->nodes[0].x = 0;
-      atlas->nodes[0].y = 0;
-      atlas->nodes[0].width = (short)w;
-      atlas->nnodes++;
+    // Init root node.
+    nodes[0].x = 0;
+    nodes[0].y = 0;
+    nodes[0].width = (short)w;
+    nnodes++;
+    }
+  //}}}
+  //{{{
+  void atlasExpand (int w, int h) {
 
-      return atlas;
+    // Insert node for empty space
+    if (w > width)
+      atlasInsertNode (nnodes, width, 0, w - width);
 
-    error:
-      if (atlas)
-        deleteAtlas (atlas);
-      return NULL;
-      }
-    //}}}
-    //{{{
-    int atlasInsertNode (sFontStashAtlas* atlas, int idx, int x, int y, int w) {
+    width = w;
+    height = h;
+    }
+  //}}}
 
-      // Insert node
-      if (atlas->nnodes+1 > atlas->cnodes) {
-        atlas->cnodes = atlas->cnodes == 0 ? 8 : atlas->cnodes * 2;
-        atlas->nodes = (sFontStashAtlasNode*)realloc(atlas->nodes, sizeof(sFontStashAtlasNode) * atlas->cnodes);
-        if (atlas->nodes == NULL)
-          return 0;
+  //{{{
+  int atlasAddRect (int rw, int rh, int* rx, int* ry) {
+
+    int besth = height, bestw = width, besti = -1;
+    int bestx = -1, besty = -1, i;
+
+    // Bottom left fit heuristic.
+    for (i = 0; i < nnodes; i++) {
+      int y = atlasRectFits (i, rw, rh);
+      if (y != -1) {
+        if (y + rh < besth || (y + rh == besth && nodes[i].width < bestw)) {
+          besti = i;
+          bestw = nodes[i].width;
+          besth = y + rh;
+          bestx = nodes[i].x;
+          besty = y;
+          }
         }
-
-      for (int i = atlas->nnodes; i > idx; i--)
-        atlas->nodes[i] = atlas->nodes[i-1];
-      atlas->nodes[idx].x = (short)x;
-      atlas->nodes[idx].y = (short)y;
-      atlas->nodes[idx].width = (short)w;
-      atlas->nnodes++;
-
-      return 1;
       }
-    //}}}
-    //{{{
-    void atlasRemoveNode (sFontStashAtlas* atlas, int idx) {
 
-      if (atlas->nnodes == 0)
-        return;
+    if (besti == -1)
+      return 0;
 
-      for (int i = idx; i < atlas->nnodes-1; i++)
-        atlas->nodes[i] = atlas->nodes[i+1];
+    // Perform the actual packing.
+    if (atlasAddSkylineLevel (besti, bestx, besty, rw, rh) == 0)
+      return 0;
 
-      atlas->nnodes--;
-      }
-    //}}}
-    //{{{
-    void atlasExpand (sFontStashAtlas* atlas, int w, int h) {
+    *rx = bestx;
+    *ry = besty;
 
-      // Insert node for empty space
-      if (w > atlas->width)
-        atlasInsertNode (atlas, atlas->nnodes, atlas->width, 0, w - atlas->width);
+    return 1;
+    }
+  //}}}
 
-      atlas->width = w;
-      atlas->height = h;
-      }
-    //}}}
-    //{{{
-    void atlasReset (sFontStashAtlas* atlas, int w, int h) {
+  int nnodes = 0;
+  int cnodes = 0;
+  sNode* nodes = nullptr;
 
-      atlas->width = w;
-      atlas->height = h;
-      atlas->nnodes = 0;
+private:
+  //{{{
+  int atlasInsertNode (int idx, int x, int y, int w) {
 
-      // Init root node.
-      atlas->nodes[0].x = 0;
-      atlas->nodes[0].y = 0;
-      atlas->nodes[0].width = (short)w;
-      atlas->nnodes++;
-      }
-    //}}}
-    //{{{
-    int atlasAddSkylineLevel (sFontStashAtlas* atlas, int idx, int x, int y, int w, int h) {
-
-      // Insert new node
-      if (atlasInsertNode (atlas, idx, x, y+h, w) == 0)
+    // Insert node
+    if (nnodes+1 > cnodes) {
+      cnodes = cnodes == 0 ? 8 : cnodes * 2;
+      nodes = (sNode*)realloc(nodes, sizeof(sNode) * cnodes);
+      if (nodes == NULL)
         return 0;
+      }
 
-      // Delete skyline segments that fall under the shadow of the new segment.
-      for (int i = idx+1; i < atlas->nnodes; i++) {
-        if (atlas->nodes[i].x < atlas->nodes[i-1].x + atlas->nodes[i-1].width) {
-          int shrink = atlas->nodes[i-1].x + atlas->nodes[i-1].width - atlas->nodes[i].x;
-          atlas->nodes[i].x += (short)shrink;
-          atlas->nodes[i].width -= (short)shrink;
-          if (atlas->nodes[i].width <= 0) {
-            atlasRemoveNode (atlas, i);
-            i--;
-            }
-          else
-            break;
+    for (int i = nnodes; i > idx; i--)
+      nodes[i] = nodes[i-1];
+    nodes[idx].x = (short)x;
+    nodes[idx].y = (short)y;
+    nodes[idx].width = (short)w;
+    nnodes++;
+
+    return 1;
+    }
+  //}}}
+  //{{{
+  void atlasRemoveNode (int idx) {
+
+    if (nnodes == 0)
+      return;
+
+    for (int i = idx; i < nnodes-1; i++)
+      nodes[i] = nodes[i+1];
+
+    nnodes--;
+    }
+  //}}}
+
+  //{{{
+  int atlasAddSkylineLevel (int idx, int x, int y, int w, int h) {
+
+    // Insert new node
+    if (atlasInsertNode (idx, x, y+h, w) == 0)
+      return 0;
+
+    // Delete skyline segments that fall under the shadow of the new segment.
+    for (int i = idx+1; i < nnodes; i++) {
+      if (nodes[i].x < nodes[i-1].x + nodes[i-1].width) {
+        int shrink = nodes[i-1].x + nodes[i-1].width - nodes[i].x;
+        nodes[i].x += (short)shrink;
+        nodes[i].width -= (short)shrink;
+        if (nodes[i].width <= 0) {
+          atlasRemoveNode (i);
+          i--;
           }
         else
           break;
         }
-
-      // Merge same height skyline segments that are next to each other.
-      for (int i = 0; i < atlas->nnodes-1; i++) {
-        if (atlas->nodes[i].y == atlas->nodes[i+1].y) {
-          atlas->nodes[i].width += atlas->nodes[i+1].width;
-          atlasRemoveNode (atlas, i+1);
-          i--;
-          }
-        }
-
-      return 1;
+      else
+        break;
       }
-    //}}}
-    //{{{
-    int atlasRectFits (sFontStashAtlas* atlas, int i, int w, int h) {
-    // Checks if there is enough space at the location of skyline span 'i',
-    // and return the max height of all skyline spans under that at that location,
-    // (think tetris block being dropped at that position). Or -1 if no space found.
 
-      int x = atlas->nodes[i].x;
-      int y = atlas->nodes[i].y;
-
-      if (x + w > atlas->width)
-        return -1;
-
-      int spaceLeft = w;
-      while (spaceLeft > 0) {
-        if (i == atlas->nnodes) return -1;
-        y = maxi (y, atlas->nodes[i].y);
-        if (y + h > atlas->height) return -1;
-        spaceLeft -= atlas->nodes[i].width;
-        ++i;
+    // Merge same height skyline segments that are next to each other.
+    for (int i = 0; i < nnodes-1; i++) {
+      if (nodes[i].y == nodes[i+1].y) {
+        nodes[i].width += nodes[i+1].width;
+        atlasRemoveNode (i+1);
+        i--;
         }
-      return y;
       }
-    //}}}
-    //{{{
-    int atlasAddRect (sFontStashAtlas* atlas, int rw, int rh, int* rx, int* ry) {
 
-      int besth = atlas->height, bestw = atlas->width, besti = -1;
-      int bestx = -1, besty = -1, i;
+    return 1;
+    }
+  //}}}
+  //{{{
+  int atlasRectFits (int i, int w, int h) {
+  // Checks if there is enough space at the location of skyline span 'i',
+  // and return the max height of all skyline spans under that at that location,
+  // (think tetris block being dropped at that position). Or -1 if no space found.
 
-      // Bottom left fit heuristic.
-      for (i = 0; i < atlas->nnodes; i++) {
-        int y = atlasRectFits (atlas, i, rw, rh);
-        if (y != -1) {
-          if (y + rh < besth || (y + rh == besth && atlas->nodes[i].width < bestw)) {
-            besti = i;
-            bestw = atlas->nodes[i].width;
-            besth = y + rh;
-            bestx = atlas->nodes[i].x;
-            besty = y;
-            }
-          }
-        }
+    int x = nodes[i].x;
+    int y = nodes[i].y;
 
-      if (besti == -1)
-        return 0;
+    if (x + w > width)
+      return -1;
 
-      // Perform the actual packing.
-      if (atlasAddSkylineLevel (atlas, besti, bestx, besty, rw, rh) == 0)
-        return 0;
-
-      *rx = bestx;
-      *ry = besty;
-
-      return 1;
+    int spaceLeft = w;
+    while (spaceLeft > 0) {
+      if (i == nnodes) return -1;
+      y = maxi (y, nodes[i].y);
+      if (y + h > height) return -1;
+      spaceLeft -= nodes[i].width;
+      ++i;
       }
-    //}}}
-    };
+    return y;
+    }
+  //}}}
+
+  int width = 0;
+  int height = 0;
+  };
+//}}}
 
 enum FONSflags { FONS_ZERO_TOPLEFT = 1, FONS_ZERO_BOTTOMLEFT = 2, };
 //{{{
@@ -407,8 +392,7 @@ struct sFontStashContext {
   int nfonts;
   sFonstStashFont** fonts;
 
-  sFontStashAtlas* atlas;
-  cFontAtlas mFontAtlas;
+  cFontAtlas* mFontAtlas;
 
   int nverts;
   float verts[FONS_VERTEX_COUNT*2];
@@ -642,7 +626,7 @@ public:
 
     int x, y, gx, gy;
     unsigned char* dst;
-    if (stash->mFontAtlas.atlasAddRect (stash->atlas, w, h, &gx, &gy) == 0)
+    if (stash->mFontAtlas->atlasAddRect (w, h, &gx, &gy) == 0)
       return;
 
     // Rasterize
@@ -724,11 +708,11 @@ public:
     stash->texData = data;
 
     // Increase atlas size
-    stash->mFontAtlas.atlasExpand(stash->atlas, width, height);
+    stash->mFontAtlas->atlasExpand (width, height);
 
     // Add existing data as dirty.
-    for (i = 0; i < stash->atlas->nnodes; i++)
-      maxy = maxi(maxy, stash->atlas->nodes[i].y);
+    for (i = 0; i < stash->mFontAtlas->nnodes; i++)
+      maxy = maxi(maxy, stash->mFontAtlas->nodes[i].y);
 
     stash->dirtyRect[0] = 0;
     stash->dirtyRect[1] = 0;
@@ -758,7 +742,7 @@ public:
         return 0;
 
     // Reset atlas
-    stash->mFontAtlas.atlasReset (stash->atlas, width, height);
+    stash->mFontAtlas->atlasReset (width, height);
 
     // Clear texture data.
     stash->texData = (unsigned char*)realloc(stash->texData, width * height);
@@ -804,8 +788,7 @@ public:
     for (i = 0; i < stash->nfonts; ++i)
       freeFont (stash->fonts[i]);
 
-    if (stash->atlas)
-      stash->mFontAtlas.deleteAtlas (stash->atlas);
+    delete stash->mFontAtlas;
 
     free (stash->fonts);
     free (stash->texData);
@@ -837,9 +820,7 @@ public:
       if (stash->params.renderCreate (stash->params.userPtr, stash->params.width, stash->params.height) == 0)
         goto error;
 
-    stash->atlas = stash->mFontAtlas.allocAtlas (stash->params.width, stash->params.height, FONS_INIT_ATLAS_NODES);
-    if (stash->atlas == NULL)
-      goto error;
+    stash->mFontAtlas = new cFontAtlas (stash->params.width, stash->params.height, FONS_INIT_ATLAS_NODES);
 
     // Allocate space for fonts.
     stash->fonts = (sFonstStashFont**)malloc (sizeof(sFonstStashFont*) * FONS_INIT_FONTS);
@@ -1019,11 +1000,11 @@ public:
     gh = y1-y0 + pad*2;
 
     // Find free spot for the rect in the atlas
-    added = stash->mFontAtlas.atlasAddRect (stash->atlas, gw, gh, &gx, &gy);
+    added = stash->mFontAtlas->atlasAddRect (gw, gh, &gx, &gy);
     if (added == 0 && stash->handleError != NULL) {
       // Atlas is full, let the user to resize the atlas (or not), and try again.
       stash->handleError (stash->errorUptr, FONS_ATLAS_FULL, 0);
-      added = stash->mFontAtlas.atlasAddRect (stash->atlas, gw, gh, &gx, &gy);
+      added = stash->mFontAtlas->atlasAddRect (gw, gh, &gx, &gy);
       }
     if (added == 0)
       return NULL;
@@ -1477,8 +1458,8 @@ public:
     vertex (stash, x+w, y+h, 1, 1, 0xffffffff);
 
     // Drawbug draw atlas
-    for (i = 0; i < stash->atlas->nnodes; i++) {
-      sFontStashAtlasNode* n = &stash->atlas->nodes[i];
+    for (i = 0; i < stash->mFontAtlas->nnodes; i++) {
+      cFontAtlas::sNode* n = &stash->mFontAtlas->nodes[i];
 
       if (stash->nverts+6 > FONS_VERTEX_COUNT)
         flush (stash);
@@ -1570,7 +1551,6 @@ void tmpfree (void* ptr, void* up) {
   // empty
   }
 //}}}
-
 
 //{{{
 static const char* kShaderHeader =
