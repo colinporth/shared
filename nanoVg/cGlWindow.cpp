@@ -142,7 +142,7 @@ cRootContainer* cGlWindow::initialise (const string& title, int width, int heigh
 
   cVg::initialise();
   createFontMem ("sans", (unsigned char*)fontData, fontDataSize);
-  fontFace ("sans");
+  fontFaceByName ("sans");
 
   mRootContainer = new cRootContainer (width, height);
 

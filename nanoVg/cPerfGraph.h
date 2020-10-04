@@ -100,7 +100,7 @@ public:
     vg->fill();
 
     // title text
-    vg->fontFace ("sans");
+    vg->fontFaceByName ("sans");
     if (!mName.empty()) {
       //{{{  name graph
       vg->fontSize (14.f);

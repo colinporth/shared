@@ -15,7 +15,7 @@ constexpr float KAPPA90 = 0.5522847493f; // Length proportional to radius of a c
 //}}}
 
 //{{{  cFontContext, stbtt
-void* fontAlloc (size_t size, void* up);
+static void* fontAlloc (size_t size, void* up);
 #define STBTT_malloc(x,u) fontAlloc (x,u)
 
 static void fontFree (void* ptr, void* up) {}
@@ -147,10 +147,10 @@ public:
     mAtlas = new cAtlas (width, height, kInitAtlasNodes);
 
     // Allocate space for fonts.
-    fonts = (sFont**)malloc (sizeof(sFont*) * kInitFonts);
-    memset (fonts, 0, sizeof(sFont*) * kInitFonts);
-    cfonts = kInitFonts;
-    nfonts = 0;
+    mFonts = (sFont**)malloc (sizeof(sFont*) * kInitFonts);
+    memset (mFonts, 0, sizeof(sFont*) * kInitFonts);
+    mNumAllocatedFonts = kInitFonts;
+    mNumFonts = 0;
 
     // Create texture for the cache.
     itw = 1.0f / width;
@@ -172,9 +172,9 @@ public:
   //{{{
   ~cFontContext() {
 
-    for (int i = 0; i < nfonts; ++i)
-      freeFont (fonts[i]);
-    free (fonts);
+    for (int i = 0; i < mNumFonts; ++i)
+      freeFont (mFonts[i]);
+    free (mFonts);
 
     delete mAtlas;
 
@@ -190,7 +190,7 @@ public:
     if (idx == kInvalid)
       return kInvalid;
 
-    auto font = fonts[idx];
+    auto font = mFonts[idx];
     strncpy (font->name, name, sizeof(font->name));
     font->name[sizeof(font->name)-1] = '\0';
 
@@ -207,7 +207,7 @@ public:
     mScratchBufSize = 0;
     if (!stbtt_InitFont (&font->fontInfo, data, 0)) {
       freeFont (font);
-      nfonts--;
+      mNumFonts--;
       return kInvalid;
       }
 
@@ -226,8 +226,8 @@ public:
   //{{{
   int getFontByName (const char* name) {
 
-    for (int i = 0; i < nfonts; i++)
-      if (strcmp (fonts[i]->name, name) == 0)
+    for (int i = 0; i < mNumFonts; i++)
+      if (strcmp (mFonts[i]->name, name) == 0)
         return i;
 
     return kInvalid;
@@ -237,18 +237,17 @@ public:
   //{{{
   int resetAtlas (int width, int height) {
 
-    int i, j;
-
     // Flush pending glyphs.
     flush();
 
     // Reset atlas
     mAtlas->reset (width, height);
 
-    // Clear texture data.
+    // Clear texture data
     texData = (unsigned char*)realloc(texData, width * height);
-    if (texData == NULL) return 0;
-    memset(texData, 0, width * height);
+    if (texData == NULL)
+      return 0;
+    memset (texData, 0, width * height);
 
     // Reset dirty rect
     dirtyRect[0] = width;
@@ -257,8 +256,9 @@ public:
     dirtyRect[3] = 0;
 
     // Reset cached glyphs
-    for (i = 0; i < nfonts; i++) {
-      sFont* font = fonts[i];
+    int i, j;
+    for (i = 0; i < mNumFonts; i++) {
+      sFont* font = mFonts[i];
       font->nglyphs = 0;
       for (j = 0; j < kHashLutSize; j++)
         font->lut[j] = -1;
@@ -356,24 +356,12 @@ public:
       dst[x + (gh-1)*mWidth] = 0;
       }
 
-    dirtyRect[0] = mini(dirtyRect[0], glyph->x0);
-    dirtyRect[1] = mini(dirtyRect[1], glyph->y0);
-    dirtyRect[2] = maxi(dirtyRect[2], glyph->x1);
-    dirtyRect[3] = maxi(dirtyRect[3], glyph->y1);
+    dirtyRect[0] = mini (dirtyRect[0], glyph->x0);
+    dirtyRect[1] = mini (dirtyRect[1], glyph->y0);
+    dirtyRect[2] = maxi (dirtyRect[2], glyph->x1);
+    dirtyRect[3] = maxi (dirtyRect[3], glyph->y1);
 
     return glyph;
-    }
-  //}}}
-  //{{{
-  void vertex (float x, float y, float s, float t, unsigned int color) {
-
-    verts[nverts*2+0] = x;
-    verts[nverts*2+1] = y;
-    tcoords[nverts*2+0] = s;
-    tcoords[nverts*2+1] = t;
-    colors[nverts] = color;
-
-    nverts++;
     }
   //}}}
 
@@ -397,10 +385,10 @@ public:
 
     auto state = getState();
 
-    if (state->font < 0 || state->font >= nfonts)
+    if (state->font < 0 || state->font >= mNumFonts)
       return;
 
-    auto font = fonts[state->font];
+    auto font = mFonts[state->font];
     short isize = (short)(state->size*10.0f);
     if (font->data == NULL)
       return;
@@ -419,10 +407,10 @@ public:
     auto state = getState();
     short isize;
 
-    if (state->font < 0 || state->font >= nfonts)
+    if (state->font < 0 || state->font >= mNumFonts)
       return;
 
-    auto font = fonts[state->font];
+    auto font = mFonts[state->font];
     isize = (short)(state->size*10.0f);
     if (font->data == NULL)
       return;
@@ -447,10 +435,10 @@ public:
     float startx, advance;
     float minx, miny, maxx, maxy;
 
-    if (state->font < 0 || state->font >= nfonts)
+    if (state->font < 0 || state->font >= mNumFonts)
       return 0;
 
-    auto font = fonts[state->font];
+    auto font = mFonts[state->font];
     if (font->data == NULL)
       return 0;
 
@@ -517,24 +505,23 @@ public:
     memset (it, 0, sizeof(*it));
 
     auto state = getState();
-    if (state->font < 0 || state->font >= nfonts)
+    if ((state->font < 0) || (state->font >= mNumFonts))
       return 0;
 
-    it->font = fonts[state->font];
+    it->font = mFonts[state->font];
     if (it->font->data == NULL)
       return 0;
 
-    it->isize = (short)(state->size*10.0f);
-    it->scale = ttGetPixelHeightScale (&it->font->fontInfo, (float)it->isize/10.0f);
+    it->isize = (short)(state->size * 10.f);
+    it->scale = ttGetPixelHeightScale (&it->font->fontInfo, (float)it->isize / 10.f);
 
     // Align horizontally
-    float width;
     if (state->align & ALIGN_RIGHT) {
-      width = textBounds (x,y, str, end, NULL);
+      float width = textBounds (x,y, str,end, NULL);
       x -= width;
       }
     else if (state->align & ALIGN_CENTER) {
-      width = textBounds (x,y, str, end, NULL);
+      float width = textBounds (x,y, str,end, NULL);
       x -= width * 0.5f;
       }
 
@@ -544,8 +531,10 @@ public:
     if (end == NULL)
       end = str + strlen (str);
 
-    it->x = it->nextx = x;
-    it->y = it->nexty = y;
+    it->x = x;
+    it->nextx = x;
+    it->y = y;
+    it->nexty = y;
     it->spacing = state->spacing;
     it->str = str;
     it->next = str;
@@ -560,8 +549,8 @@ public:
   int textItNext (sTextIt* it, sQuad* quad) {
 
     const char* str = it->next;
-    it->str = it->next;
 
+    it->str = it->next;
     if (str == it->end)
       return 0;
 
@@ -576,6 +565,7 @@ public:
       sGlyph* glyph = getGlyph (it->font, it->codepoint, it->isize);
       if (glyph != NULL)
         getQuad (it->font, it->prevGlyphIndex, glyph, it->scale, it->spacing, &it->nextx, &it->nexty, quad);
+
       it->prevGlyphIndex = glyph != NULL ? glyph->index : -1;
       break;
       }
@@ -585,55 +575,6 @@ public:
     }
   //}}}
 
-  //{{{
-  void drawDebug (float x, float y) {
-
-    int i;
-    int w = mWidth;
-    int h = mHeight;
-    float u = w == 0 ? 0 : (1.0f / w);
-    float v = h == 0 ? 0 : (1.0f / h);
-
-    if (nverts+6+6 > kVertexCount)
-      flush();
-
-    // Draw background
-    vertex (x+0, y+0, u, v, 0x0fffffff);
-    vertex (x+w, y+h, u, v, 0x0fffffff);
-    vertex (x+w, y+0, u, v, 0x0fffffff);
-
-    vertex (x+0, y+0, u, v, 0x0fffffff);
-    vertex (x+0, y+h, u, v, 0x0fffffff);
-    vertex (x+w, y+h, u, v, 0x0fffffff);
-
-    // Draw texture
-    vertex (x+0, y+0, 0, 0, 0xffffffff);
-    vertex (x+w, y+h, 1, 1, 0xffffffff);
-    vertex (x+w, y+0, 1, 0, 0xffffffff);
-
-    vertex (x+0, y+0, 0, 0, 0xffffffff);
-    vertex (x+0, y+h, 0, 1, 0xffffffff);
-    vertex (x+w, y+h, 1, 1, 0xffffffff);
-
-    // draw atlas
-    for (i = 0; i < mAtlas->mNumNodes; i++) {
-      cAtlas::sNode* n = &mAtlas->mNodes[i];
-
-      if (nverts+6 > kVertexCount)
-        flush();
-
-      vertex (x+n->mX + 0, y + n->mY + 0, u, v, 0xc00000ff);
-      vertex (x+n->mX + n->mWidth, y+n->mY + 1, u, v, 0xc00000ff);
-      vertex (x+n->mX + n->mWidth, y+n->mY + 0, u, v, 0xc00000ff);
-
-      vertex (x+n->mX + 0, y+n->mY + 0, u, v, 0xc00000ff);
-      vertex (x+n->mX + 0, y+n->mY + 1, u, v, 0xc00000ff);
-      vertex (x+n->mX + n->mWidth, y + n->mY + 1, u, v, 0xc00000ff);
-      }
-
-    flush();
-    }
-  //}}}
 
   //{{{
   const unsigned char* getTextureData (int* width, int* height) {
@@ -902,28 +843,28 @@ private:
   //}}}
   //{{{
   sFontState* getState() {
-    return &states[nstates-1];
+    return &states[mNumStates-1];
     }
   //}}}
   //{{{
   void pushState() {
 
-    if (nstates >= kMaxFontStates)
+    if (mNumStates >= kMaxFontStates)
       return;
 
-    if (nstates > 0)
-      memcpy(&states[nstates], &states[nstates-1], sizeof(sFontState));
+    if (mNumStates > 0)
+      memcpy(&states[mNumStates], &states[mNumStates-1], sizeof(sFontState));
 
-    nstates++;
+    mNumStates++;
     }
   //}}}
   //{{{
   void popState() {
 
-    if (nstates <= 1)
+    if (mNumStates <= 1)
       return;
 
-    nstates--;
+    mNumStates--;
     }
   //}}}
   //{{{
@@ -1023,10 +964,10 @@ private:
   //{{{
   int allocFont() {
 
-    if (nfonts+1 > cfonts) {
-      cfonts = cfonts == 0 ? 8 : cfonts * 2;
-      fonts = (sFont**)realloc(fonts, sizeof(sFont*) * cfonts);
-      if (fonts == NULL)
+    if (mNumFonts + 1 > mNumAllocatedFonts) {
+      mNumAllocatedFonts = mNumAllocatedFonts == 0 ? 8 : mNumAllocatedFonts * 2;
+      mFonts = (sFont**)realloc (mFonts, sizeof(sFont*) * mNumAllocatedFonts);
+      if (mFonts == NULL)
         return -1;
       }
 
@@ -1041,8 +982,8 @@ private:
     font->cglyphs = kInitGlyphs;
     font->nglyphs = 0;
 
-    fonts[nfonts++] = font;
-    return nfonts-1;
+    mFonts[mNumFonts++] = font;
+    return mNumFonts-1;
 
   error:
     freeFont (font);
@@ -1123,7 +1064,8 @@ private:
     if (font->nglyphs+1 > font->cglyphs) {
       font->cglyphs = font->cglyphs == 0 ? 8 : font->cglyphs * 2;
       font->glyphs = (sGlyph*)realloc (font->glyphs, sizeof(sGlyph) * font->cglyphs);
-      if (font->glyphs == NULL) return NULL;
+      if (font->glyphs == NULL)
+        return NULL;
       }
 
     font->nglyphs++;
@@ -1152,7 +1094,7 @@ private:
     // Flush pending glyphs.
     flush();
 
-    // Copy old texture data over.
+    // Copy old texture data
     data = (unsigned char*)malloc(width * height);
     for (int i = 0; i < mHeight; i++) {
       unsigned char* dst = &data[i*width];
@@ -1201,27 +1143,21 @@ private:
   //}}}
 
   //{{{  vars
-  int mFlags = 0;
   int mWidth = 0;
   int mHeight = 0;
   float itw = 0.f;
   float ith = 0.f;
 
-  int nstates = 0;
+  int mNumStates = 0;
   sFontState states[kMaxFontStates];
 
   unsigned char* texData = nullptr;
   int dirtyRect[4] = { 0 };
 
-  int cfonts = 0;
-  int nfonts = 0;
+  int mNumAllocatedFonts = 0;
+  int mNumFonts = 0;
   cAtlas* mAtlas = nullptr;
-  sFont** fonts = { nullptr };
-
-  int nverts = 0;
-  float verts[kVertexCount *2] = { 0.f };
-  float tcoords[kVertexCount *2] = { 0.f };
-  unsigned int colors[kVertexCount] = { 0 };
+  sFont** mFonts = { nullptr };
   //}}}
   };
 //}}}
@@ -1229,11 +1165,9 @@ private:
 //{{{
 static void* fontAlloc (size_t size, void* up) {
 
-  auto fontContext = (cFontContext*)up;
-
   // 16-byte align the returned pointer
   size = (size + 0xf) & ~0xf;
-
+  auto fontContext = (cFontContext*)up;
   if (fontContext->mScratchBufSize + (int)size > cFontContext::kScratchBufSize)
     return NULL;
 
@@ -2104,12 +2038,36 @@ void cVg::triangleFill() {
 //}}}
 //}}}
 //{{{  text
-void cVg::fontSize (float size) { mStates[mNumStates-1].fontSize = size; }
-void cVg::textAlign (int align) { mStates[mNumStates-1].textAlign = align; }
-void cVg::textLineHeight (float lineHeight) { mStates[mNumStates-1].lineHeight = lineHeight; }
-void cVg::textLetterSpacing (float spacing) { mStates[mNumStates-1].letterSpacing = spacing; }
-void cVg::fontFaceId (int font) { mStates[mNumStates-1].fontId = font; }
-void cVg::fontFace (const string& font) { mStates[mNumStates-1].fontId = mFontContext->getFontByName (font.c_str()); }
+//{{{
+void cVg::fontSize (float size) { 
+  mStates[mNumStates-1].fontSize = size; 
+  }
+//}}}
+//{{{
+void cVg::textAlign (int align) { 
+  mStates[mNumStates-1].textAlign = align; 
+  }
+//}}}
+//{{{
+void cVg::textLineHeight (float lineHeight) { 
+  mStates[mNumStates-1].lineHeight = lineHeight; 
+  }
+//}}}
+//{{{
+void cVg::textLetterSpacing (float spacing) { 
+  mStates[mNumStates-1].letterSpacing = spacing; 
+  }
+//}}}
+//{{{
+void cVg::fontFaceById (int font) { 
+  mStates[mNumStates-1].fontId = font; 
+  }
+//}}}
+//{{{
+void cVg::fontFaceByName (const string& font) { 
+  mStates[mNumStates-1].fontId = mFontContext->getFontByName (font.c_str()); 
+  }
+//}}}
 
 //{{{
 int cVg::createFontMem (const string& name, unsigned char* data, int dataSize) {
@@ -2164,6 +2122,7 @@ float cVg::text (float x, float y, const string& str) {
         break;
       }
     prevIt = it;
+
     // set vertex triangles from quad
     if (state->mTransform.mIdentity) {
       //{{{  simple
@@ -2657,24 +2616,6 @@ GLuint cVg::imageHandle (int image) {
 //}}}
 
 //{{{
-int cVg::createImage (const char* filename, int imageFlags) {
-
-  stbi_set_unpremultiply_on_load (1);
-  stbi_convert_iphone_png_to_rgb (1);
-
-  int w, h, n;
-  unsigned char* img = stbi_load (filename, &w, &h, &n, 4);
-  if (img == NULL) {
-    printf ("Failed to load %s - %s\n", filename, stbi_failure_reason());
-    return 0;
-    }
-
-  int image = createImageRGBA (w, h, imageFlags, img);
-  stbi_image_free (img);
-  return image;
-  }
-//}}}
-//{{{
 int cVg::createImageMem (int imageFlags, unsigned char* data, int ndata) {
 
   int w, h, n;
@@ -2685,6 +2626,7 @@ int cVg::createImageMem (int imageFlags, unsigned char* data, int ndata) {
     }
 
   int image = createImageRGBA (w, h, imageFlags, img);
+
   stbi_image_free (img);
   return image;
   }
@@ -4533,12 +4475,14 @@ int cVg::allocTextAtlas() {
       ih *= 2;
     else
       iw *= 2;
-    if (iw > cFontContext::kMaxFontImageSize || ih > cFontContext::kMaxFontImageSize)
-      iw = ih = cFontContext::kMaxFontImageSize;
+    if ((iw > cFontContext::kMaxFontImageSize) || (ih > cFontContext::kMaxFontImageSize)) {
+      iw = cFontContext::kMaxFontImageSize;
+      ih = cFontContext::kMaxFontImageSize;
+      }
     fontImages[fontImageIdx+1] = renderCreateTexture (TEXTURE_ALPHA, iw, ih, 0, NULL);
     }
-
   ++fontImageIdx;
+
   mFontContext->resetAtlas (iw, ih);
   return 1;
   }
@@ -4548,15 +4492,17 @@ void cVg::flushTextTexture() {
 
   int dirty[4];
   if (mFontContext->validateTexture (dirty)) {
-    int fontImage = fontImages[fontImageIdx];
     // Update texture
+    int fontImage = fontImages[fontImageIdx];
     if (fontImage != 0) {
       int iw, ih;
       const unsigned char* data = mFontContext->getTextureData (&iw, &ih);
+
       int x = dirty[0];
       int y = dirty[1];
       int w = dirty[2] - dirty[0];
       int h = dirty[3] - dirty[1];
+
       renderUpdateTexture (fontImage, x,y, w,h, data);
       }
     }

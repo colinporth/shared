@@ -415,8 +415,8 @@ public:
   void textLetterSpacing (float spacing);
   void textLineHeight (float lineHeight);
   void textAlign (int align);
-  void fontFaceId (int font);
-  void fontFace (const std::string& font);
+  void fontFaceById (int font);
+  void fontFaceByName (const std::string& font);
 
   int createFontMem (const std::string& name, unsigned char* data, int dataSize);
   int findFont (const std::string&);
@@ -447,7 +447,6 @@ public:
 
   GLuint imageHandle (int image);
 
-  int createImage (const char* filename, int imageFlags);
   int createImageMem (int imageFlags, unsigned char* data, int ndata);
   int createImageRGBA (int w, int h, int imageFlags, const unsigned char* data);
   int createImageFromHandle (GLuint textureId, int w, int h, int imageFlags);
