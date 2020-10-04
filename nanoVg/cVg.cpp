@@ -219,6 +219,7 @@ public:
     font->ascender = (float)ascent / (float)fh;
     font->descender = (float)descent / (float)fh;
     font->lineh = (float)(fh + lineGap) / (float)fh;
+
     return idx;
     }
   //}}}
@@ -4082,6 +4083,8 @@ cVg::cTexture* cVg::allocTexture() {
   texture->reset();
   texture->id = ++mTextureId;
 
+  cLog::log (LOGINFO, "allocTexture " + dec(texture->id));
+
   return texture;
   }
 //}}}
@@ -4200,6 +4203,8 @@ bool cVg::getTextureSize (int id, int& w, int& h) {
 // render
 //{{{
 void cVg::renderText (int firstVertexIndex, int numVertices, cPaint& paint, cScissor& scissor) {
+
+  //cLog::log (LOGINFO, "renderText " + dec(firstVertexIndex) + " " + dec(numVertices) + " " + dec(paint.imageId));
 
   auto draw = allocDraw();
   draw->set (cDraw::TEXT, paint.imageId, 0, 0, allocFrags (1), firstVertexIndex, numVertices);
@@ -4499,7 +4504,6 @@ void cVg::flushTextTexture() {
 
   int dirty[4];
   if (mFontContext->validateTexture (dirty)) {
-    cLog::log (LOGINFO, "flushTextTexture - dirty");
 
     // Update texture
     int fontImage = fontImages[fontImageIdx];
@@ -4512,8 +4516,12 @@ void cVg::flushTextTexture() {
       int w = dirty[2] - dirty[0];
       int h = dirty[3] - dirty[1];
 
+      cLog::log (LOGINFO, "flushTextTexture - dirty - idx:%d - iw:%d ih:%d x:%d y:%d w:%d h:%d",
+                          fontImageIdx, iw, ih, x,y,w,h);
       updateTexture (fontImage, x,y, w,h, data);
       }
+    else
+      cLog::log (LOGINFO, "flushTextTexture - dirty");
     }
   }
 //}}}
