@@ -763,7 +763,7 @@ private:
     void trim (int numVertices);
 
   private:
-    const int kInitNumVertices = 4000;
+    static constexpr int kInitNumVertices = 4000;
 
     c2dVertex* mVertices = nullptr;
 
@@ -819,9 +819,9 @@ private:
 
   private:
     //{{{  const
-    const int kInitCommandsSize = 256;
-    const float kDistanceTolerance = 0.01f;
-    const float kTesselateTolerance = 0.25f;
+    static constexpr int kInitCommandsSize = 256;
+    static constexpr float kDistanceTolerance = 0.01f;
+    static constexpr float kTesselateTolerance = 0.25f;
     //}}}
 
     float normalize (float& x, float& y);
