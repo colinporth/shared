@@ -203,9 +203,9 @@ void cGlWindow::draw() {
     //}}}
 
   endFrame();
+  mCpuGraph->updateTime ((float)glfwGetTime());
   glfwSwapBuffers (mWindow);
 
-  mCpuGraph->updateTime ((float)glfwGetTime());
   mFpsGraph->updateTime ((float)glfwGetTime());
   }
 //}}}
