@@ -3,10 +3,11 @@
 #define _CRT_SECURE_NO_WARNINGS
 
 #include "cVg.h"
+
 #include "stb_image.h"
+#include "cAtlasText.h"
 
 using namespace std;
-#include "cAtlasText.h"
 //}}}
 //{{{  constexpr
 constexpr float kDistanceTolerance = 0.01f;
@@ -892,17 +893,14 @@ float cVg::getTextBounds (float x, float y, const string& str, float* bounds) {
 
   float scale = getFontScale (state) * devicePixelRatio;
   float inverseScale = 1.0f / scale;
-  float width;
 
-  mAtlasText->setSize (state->fontSize*scale);
-  mAtlasText->setSpacing (state->letterSpacing*scale);
-  mAtlasText->setAlign (state->textAlign);
-  mAtlasText->setFont (state->fontId);
+  mAtlasText->setFontSizeSpacingAlign (
+    state->fontId, state->fontSize * scale, state->letterSpacing * scale, state->textAlign);
 
-  width = mAtlasText->textBounds (x*scale, y*scale, str.c_str(), str.c_str() + str.size(), bounds);
+  float width = mAtlasText->getTextBounds (x*scale, y*scale, str.c_str(), str.c_str() + str.size(), bounds);
   if (bounds != NULL) {
     // Use line bounds for height.
-    mAtlasText->lineBounds (y*scale, &bounds[1], &bounds[3]);
+    mAtlasText->getLineBounds (y*scale, &bounds[1], &bounds[3]);
     bounds[0] *= inverseScale;
     bounds[1] *= inverseScale;
     bounds[2] *= inverseScale;
@@ -922,12 +920,10 @@ float cVg::getTextMetrics (float& ascender, float& descender) {
   float scale = getFontScale(state) * devicePixelRatio;
   float inverseScale = 1.0f / scale;
 
-  mAtlasText->setSize (state->fontSize*scale);
-  mAtlasText->setSpacing (state->letterSpacing*scale);
-  mAtlasText->setAlign (state->textAlign);
-  mAtlasText->setFont (state->fontId);
+  mAtlasText->setFontSizeSpacingAlign (
+    state->fontId, state->fontSize * scale, state->letterSpacing * scale, state->textAlign);
 
-  float lineh = mAtlasText->vertMetrics (ascender, descender);
+  float lineh = mAtlasText->getVertMetrics (ascender, descender);
 
   ascender *= inverseScale;
   descender *= inverseScale;
@@ -939,20 +935,18 @@ float cVg::getTextMetrics (float& ascender, float& descender) {
 //{{{
 int cVg::getTextGlyphPositions (float x, float y, const string& str, sGlyphPosition* positions, int maxPositions) {
 
-  auto state = &mStates[mNumStates-1];
-  if (state->fontId == cAtlasText::kInvalid)
+  if (str.empty())
     return 0;
 
-  if (str.empty())
+  auto state = &mStates[mNumStates-1];
+  if (state->fontId == cAtlasText::kInvalid)
     return 0;
 
   float scale = getFontScale (state) * devicePixelRatio;
   float inverseScale = 1.0f / scale;
 
-  mAtlasText->setSize (state->fontSize * scale);
-  mAtlasText->setSpacing (state->letterSpacing * scale);
-  mAtlasText->setAlign (state->textAlign);
-  mAtlasText->setFont (state->fontId);
+  mAtlasText->setFontSizeSpacingAlign (
+    state->fontId, state->fontSize * scale, state->letterSpacing * scale, state->textAlign);
 
   cAtlasText::sTextIt it;
   mAtlasText->textItInit (&it, x*scale, y*scale, str.c_str(), str.c_str() + str.size());
@@ -1021,11 +1015,7 @@ float cVg::text (float x, float y, const string& str) {
 
   float scale = getFontScale (state) * devicePixelRatio;
   float inverseScale = 1.0f / scale;
-
-  mAtlasText->setSize (state->fontSize * scale);
-  mAtlasText->setSpacing (state->letterSpacing * scale);
-  mAtlasText->setAlign (state->textAlign);
-  mAtlasText->setFont ( state->fontId);
+  mAtlasText->setFontSizeSpacingAlign (state->fontId, state->fontSize * scale, state->letterSpacing * scale, state->textAlign);
 
   // allocate 6 vertices per glyph
   int numVertices = maxi (2, (int)str.size()) * 6;
@@ -1128,10 +1118,10 @@ int cVg::createImageRGBA (int width, int height, int imageFlags, const unsigned 
 //{{{
 void cVg::updateImage (int image, const unsigned char* data) {
 
-  int w = 0;
-  int h = 0;
-  getTextureSize(image, w, h);
-  updateTexture (image, 0,0, w,h, data);
+  int width;
+  int height;
+  getTextureSize (image, width, height);
+  updateTexture (image, 0,0, width, height, data);
   }
 //}}}
 //{{{
@@ -1256,34 +1246,34 @@ void cVg::endFrame() {
 
   if (mFontImageIndex) {
     int fontImage = mFontImages[mFontImageIndex];
-    int iw = 0;
-    int ih = 0;
+    int width = 0;
+    int height = 0;
 
-    // delete images that smaller than current one
+    // delete fontImages smaller than current one
     if (fontImage == 0)
       return;
 
-    getTextureSize (fontImage, iw, ih);
+    getTextureSize (fontImage, width, height);
 
-    int i, j;
-    for (i = j = 0; i < mFontImageIndex; i++) {
+    int j = 0;
+    for (int i = 0; i < mFontImageIndex; i++) {
       if (mFontImages[i] != 0) {
-        int nw = 0;
-        int nh = 0;
-        getTextureSize (mFontImages[i], nw, nh);
-        if (nw < iw || nh < ih)
+        int nWidth = 0;
+        int nHeight = 0;
+        getTextureSize (mFontImages[i], nWidth, nHeight);
+        if (nWidth < width || nHeight < height)
           deleteImage (mFontImages[i]);
         else
           mFontImages[j++] = mFontImages[i];
         }
       }
 
-    // make current font image to first
+    // make current fontImage first
     mFontImages[j++] = mFontImages[0];
     mFontImages[0] = fontImage;
     mFontImageIndex = 0;
 
-    // clear all images after j
+    // clear fontImage after j
     for (int i = j; i < kMaxFontImages; i++)
       mFontImages[i] = 0;
     }
@@ -2973,7 +2963,7 @@ void cVg::flushAtlasTexture() {
     if (fontImage != 0) {
       int iw;
       int ih;
-      const unsigned char* data = mAtlasText->getTextureData (&iw, &ih);
+      const unsigned char* data = mAtlasText->getTextureData (iw, ih);
 
       int x = dirty[0];
       int y = dirty[1];

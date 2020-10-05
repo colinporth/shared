@@ -1,18 +1,16 @@
 // cAtlasText.cpp
-inline int maxi (int a, int b) { return a > b ? a : b; }
 #include "cAtlasText.h"
-inline int mini (int a, int b) { return a < b ? a : b; }
 
-constexpr int kUtf8Accept = 0;
-constexpr int kUtf8Reject = 12;
-
+// stb_truetype
 static void* fontAlloc (size_t size, void* up);
 #define STBTT_malloc(x,u) fontAlloc (x,u)
-
 static void fontFree (void* ptr, void* up) {}
 #define STBTT_free(x,u) fontFree (x,u)
 #include "stb_truetype.h"
 
+//{{{  static utils
+static int maxi (int a, int b) { return a > b ? a : b; }
+static int mini (int a, int b) { return a < b ? a : b; }
 //{{{
 static unsigned int decutf8 (unsigned int* state, unsigned int* codep, unsigned int byte) {
 // Copyright (c) 2008-2010 Bjoern Hoehrmann <bjoern@hoehrmann.de>
@@ -40,7 +38,7 @@ static unsigned int decutf8 (unsigned int* state, unsigned int* codep, unsigned 
     };
 
   unsigned int type = utf8d[byte];
-  *codep = (*state != kUtf8Accept) ? (byte & 0x3fu) | (*codep << 6) : (0xff >> type) & (byte);
+  *codep = (*state != 0) ? (byte & 0x3fu) | (*codep << 6) : (0xff >> type) & (byte);
   *state = utf8d[256 + *state + type];
   return *state;
   }
@@ -58,7 +56,191 @@ static unsigned int hashint (unsigned int a) {
   return a;
   }
 //}}}
+//}}}
+//{{{  cAtlasText::cAtlas members
+// public
+//{{{
+cAtlasText::cAtlas::cAtlas (int width, int height, int maxNumNodes) {
 
+  mWidth = width;
+  mHeight = height;
+
+  // Allocate space for skyline nodes
+  mNodes = (sNode*)malloc(sizeof(sNode) * maxNumNodes);
+  mNumNodes = 0;
+  mMaxNumNodes = maxNumNodes;
+
+  // Init root node.
+  mNodes[0].mX = 0;
+  mNodes[0].mY = 0;
+  mNodes[0].mWidth = (short)width;
+
+  mNumNodes++;
+  }
+//}}}
+//{{{
+// Atlas based on Skyline Bin Packer by Jukka Jylänki
+cAtlasText::cAtlas::~cAtlas() {
+
+  if (mNodes != NULL)
+    free (mNodes);
+  }
+//}}}
+//{{{
+void cAtlasText::cAtlas::reset (int width, int height) {
+
+  mWidth = width;
+  mHeight = height;
+  mNumNodes = 0;
+
+  // Init root node.
+  mNodes[0].mX = 0;
+  mNodes[0].mY = 0;
+  mNodes[0].mWidth = (short)width;
+  mNumNodes++;
+  }
+//}}}
+//{{{
+void cAtlasText::cAtlas::expand (int width, int height) {
+
+  // Insert node for empty space
+  if (width > mWidth)
+    insertNode (mNumNodes, mWidth, 0, width - mWidth);
+
+  mWidth = width;
+  mHeight = height;
+  }
+//}}}
+
+// private
+//{{{
+int cAtlasText::cAtlas::addRect (int rw, int rh, int* rx, int* ry) {
+
+  int besth = mHeight, bestw = mWidth, besti = -1;
+  int bestx = -1, besty = -1, i;
+
+  // Bottom left fit heuristic.
+  for (i = 0; i < mNumNodes; i++) {
+    int y = rectFits (i, rw, rh);
+    if (y != -1) {
+      if (y + rh < besth || (y + rh == besth && mNodes[i].mWidth < bestw)) {
+        besti = i;
+        bestw = mNodes[i].mWidth;
+        besth = y + rh;
+        bestx = mNodes[i].mX;
+        besty = y;
+        }
+      }
+    }
+
+  if (besti == -1)
+    return 0;
+
+  // Perform the actual packing.
+  if (addSkylineLevel (besti, bestx, besty, rw, rh) == 0)
+    return 0;
+
+  *rx = bestx;
+  *ry = besty;
+
+  return 1;
+  }
+//}}}
+//{{{
+int cAtlasText::cAtlas::insertNode (int index, int x, int y, int width) {
+
+  // Insert node
+  if (mNumNodes+1 > mMaxNumNodes) {
+    mMaxNumNodes = mMaxNumNodes == 0 ? 8 : mMaxNumNodes * 2;
+    mNodes = (sNode*)realloc (mNodes, sizeof(sNode) * mMaxNumNodes);
+    }
+
+  for (int i = mNumNodes; i > index; i--)
+    mNodes[i] = mNodes[i-1];
+  mNodes[index].mX = (short)x;
+  mNodes[index].mY = (short)y;
+  mNodes[index].mWidth = (short)width;
+  mNumNodes++;
+
+  return 1;
+  }
+//}}}
+//{{{
+void cAtlasText::cAtlas::removeNode (int index) {
+
+  if (mNumNodes == 0)
+    return;
+
+  for (int i = index; i < mNumNodes-1; i++)
+    mNodes[i] = mNodes[i+1];
+
+  mNumNodes--;
+  }
+//}}}
+//{{{
+int cAtlasText::cAtlas::rectFits (int i, int width, int height) {
+// Checks if there is enough space at the location of skyline span 'i',
+// and return the max mHeight of all skyline spans under that at that location,
+// (think tetris block being dropped at that position). Or -1 if no space found.
+
+  int x = mNodes[i].mX;
+  int y = mNodes[i].mY;
+
+  if (x + width > mWidth)
+    return -1;
+
+  int spaceLeft = width;
+  while (spaceLeft > 0) {
+    if (i == mNumNodes)
+     return -1;
+    y = maxi (y, mNodes[i].mY);
+    if (y + height > mHeight)
+      return -1;
+    spaceLeft -= mNodes[i].mWidth;
+    ++i;
+    }
+  return y;
+  }
+//}}}
+//{{{
+int cAtlasText::cAtlas::addSkylineLevel (int index, int x, int y, int width, int height) {
+
+  // Insert new node
+  if (insertNode (index, x, y + height, width) == 0)
+    return 0;
+
+  // Delete skyline segments that fall under the shadow of the new segment.
+  for (int i = index+1; i < mNumNodes; i++) {
+    if (mNodes[i].mX < mNodes[i-1].mX + mNodes[i-1].mWidth) {
+      int shrink = mNodes[i-1].mX + mNodes[i-1].mWidth - mNodes[i].mX;
+      mNodes[i].mX += (short)shrink;
+      mNodes[i].mWidth -= (short)shrink;
+      if (mNodes[i].mWidth <= 0) {
+        removeNode (i);
+        i--;
+        }
+      else
+        break;
+      }
+    else
+      break;
+    }
+
+  // Merge same mHeight skyline segments that are next to each other.
+  for (int i = 0; i < mNumNodes-1; i++) {
+    if (mNodes[i].mY == mNodes[i+1].mY) {
+      mNodes[i].mWidth += mNodes[i+1].mWidth;
+      removeNode (i+1);
+      i--;
+      }
+    }
+
+  return 1;
+  }
+//}}}
+//}}}
+
+// public
 //{{{
 cAtlasText::cAtlasText (int width, int height) {
 
@@ -110,16 +292,14 @@ int cAtlasText::addFont (const std::string& name, unsigned char* data, int dataS
   auto font = mFonts[index];
   font->name = name;
 
-  // Init hash lookup.
+  // init hash lookup
   for (int i = 0; i < kHashLutSize; ++i)
     font->lut[i] = -1;
 
-  // read in the font data, point to us for alloc context
+  // inti font, read font data, point to us for alloc context
+  mScratchBufSize = 0;
   font->data = data;
   font->dataSize = dataSize;
-
-  // Init font
-  mScratchBufSize = 0;
   font->mFontInfo = (stbtt_fontinfo*)malloc (sizeof(stbtt_fontinfo));
   font->mFontInfo->userdata = this;
   if (!stbtt_InitFont (font->mFontInfo, data, 0)) {
@@ -128,16 +308,16 @@ int cAtlasText::addFont (const std::string& name, unsigned char* data, int dataS
     return kInvalid;
     }
 
-  // Store normalized line height. The real line height is lineh * font size.
+  // store normalized line height, real line height is lineh * font size.
   int ascent;
   int descent;
   int lineGap;
   ttGetFontVMetrics (font->mFontInfo, &ascent, &descent, &lineGap);
-  int fh = ascent - descent;
 
-  font->ascender = (float)ascent / (float)fh;
-  font->descender = (float)descent / (float)fh;
-  font->lineh = (float)(fh + lineGap) / (float)fh;
+  float fh = float(ascent - descent);
+  font->ascender = ascent / fh;
+  font->descender = descent / fh;
+  font->lineh = (fh + lineGap) / fh;
 
   return index;
   }
@@ -286,7 +466,7 @@ float cAtlasText::getVertAlign (cFont* font, int align, short isize) {
   }
 //}}}
 //{{{
-float cAtlasText::vertMetrics (float& ascender, float& descender) {
+float cAtlasText::getVertMetrics (float& ascender, float& descender) {
 
   auto state = getState();
 
@@ -310,7 +490,7 @@ float cAtlasText::vertMetrics (float& ascender, float& descender) {
   }
 //}}}
 //{{{
-void cAtlasText::lineBounds (float y, float* miny, float* maxy) {
+void cAtlasText::getLineBounds (float y, float* miny, float* maxy) {
 
   auto state = getState();
   short isize;
@@ -330,7 +510,7 @@ void cAtlasText::lineBounds (float y, float* miny, float* maxy) {
   }
 //}}}
 //{{{
-float cAtlasText::textBounds (float x, float y, const char* str, const char* end, float* bounds) {
+float cAtlasText::getTextBounds (float x, float y, const char* str, const char* end, float* bounds) {
 
   auto state = getState();
 
@@ -401,97 +581,11 @@ float cAtlasText::textBounds (float x, float y, const char* str, const char* end
   }
 //}}}
 
-void cAtlasText::setSize (float size) { getState()->size = size; }
-void cAtlasText::setColor (unsigned int color) { getState()->color = color; }
-void cAtlasText::setSpacing (float spacing) { getState()->spacing = spacing; }
-void cAtlasText::setAlign (int align) { getState()->align = align; }
-void cAtlasText::setFont (int font) { getState()->font = font; }
-
 //{{{
-int cAtlasText::textItInit (sTextIt* it, float x, float y, const char* str, const char* end) {
+const unsigned char* cAtlasText::getTextureData (int& width, int& height) {
 
-  auto state = getState();
-  if ((state->font < 0) || (state->font >= mNumFonts))
-    return 0;
-
-  it->font = mFonts[state->font];
-  if (it->font->data == NULL)
-    return 0;
-
-  it->isize = (short)(state->size * 10.f);
-  it->scale = ttGetPixelHeightScale (it->font->mFontInfo, (float)it->isize / 10.f);
-
-  // Align horizontally
-  if (state->align & ALIGN_RIGHT) {
-    float bounds[4];
-    float width = textBounds (x,y, str,end, bounds);
-    x -= width;
-    }
-  else if (state->align & ALIGN_CENTER) {
-    float bounds[4];
-    float width = textBounds (x,y, str,end, bounds);
-    x -= width * 0.5f;
-    }
-
-  // Align vertically.
-  y += getVertAlign (it->font, state->align, it->isize);
-
-  if (end == NULL)
-    end = str + strlen (str);
-
-  it->x = x;
-  it->nextx = x;
-  it->y = y;
-  it->nexty = y;
-  it->spacing = state->spacing;
-  it->str = str;
-  it->next = str;
-  it->end = end;
-  it->codepoint = 0;
-  it->prevGlyphIndex = -1;
-
-  return 1;
-  }
-//}}}
-//{{{
-int cAtlasText::textItNext (sTextIt* it, sQuad* quad) {
-
-  const char* str = it->next;
-
-  it->str = it->next;
-  if (str == it->end)
-    return 0;
-
-  for (; str != it->end; str++) {
-    if (decutf8 (&it->utf8state, &it->codepoint, *(const unsigned char*)str))
-      continue;
-
-    str++;
-    // Get glyph and quad
-    it->x = it->nextx;
-    it->y = it->nexty;
-    sGlyph* glyph = getGlyph (it->font, it->codepoint, it->isize);
-    if (glyph != NULL)
-      getQuad (it->font, it->prevGlyphIndex, glyph, it->scale, it->spacing, &it->nextx, &it->nexty, quad);
-
-    it->prevGlyphIndex = glyph != NULL ? glyph->index : -1;
-    break;
-    }
-
-  it->next = str;
-  return 1;
-  }
-//}}}
-
-//{{{
-const unsigned char* cAtlasText::getTextureData (int* width, int* height) {
-
-  if (width != NULL)
-    *width = mWidth;
-
-  if (height != NULL)
-    *height = mHeight;
-
+  width = mWidth;
+  height = mHeight;
   return texData;
   }
 //}}}
@@ -516,6 +610,102 @@ int cAtlasText::validateTexture (int* dirty) {
   }
 //}}}
 
+void cAtlasText::setColor (unsigned int color) { getState()->color = color; }
+void cAtlasText::setFont (int font) { getState()->font = font; }
+void cAtlasText::setSize (float size) { getState()->size = size; }
+void cAtlasText::setSpacing (float spacing) { getState()->spacing = spacing; }
+void cAtlasText::setAlign (int align) { getState()->align = align; }
+//{{{
+void cAtlasText::setFontSizeSpacingAlign (int font, float size, float spacing, int align) {
+
+  getState()->font = font;
+  getState()->size = size;
+  getState()->spacing = spacing;
+  getState()->align = align;
+  }
+//}}}
+
+//{{{
+int cAtlasText::textItInit (sTextIt* it, float x, float y, const char* str, const char* end) {
+
+  auto state = getState();
+  if ((state->font < 0) || (state->font >= mNumFonts))
+    return 0;
+
+  it->font = mFonts[state->font];
+  if (it->font->data == NULL)
+    return 0;
+
+  it->isize = (short)(state->size * 10.f);
+  it->scale = ttGetPixelHeightScale (it->font->mFontInfo, (float)it->isize / 10.f);
+
+  // align horizontally
+  if (state->align & ALIGN_RIGHT) {
+    float textBounds[4];
+    float width = getTextBounds (x,y, str,end, textBounds);
+    x -= width;
+    }
+  else if (state->align & ALIGN_CENTER) {
+    float textBounds[4];
+    float width = getTextBounds (x,y, str,end, textBounds);
+    x -= width * 0.5f;
+    }
+
+  // align vertically
+  y += getVertAlign (it->font, state->align, it->isize);
+
+  if (end == NULL)
+    end = str + strlen (str);
+
+  it->x = x;
+  it->nextx = x;
+
+  it->y = y;
+  it->nexty = y;
+
+  it->spacing = state->spacing;
+  it->str = str;
+  it->next = str;
+  it->end = end;
+
+  it->codepoint = 0;
+  it->prevGlyphIndex = -1;
+
+  return 1;
+  }
+//}}}
+//{{{
+int cAtlasText::textItNext (sTextIt* it, sQuad* quad) {
+
+  const char* str = it->next;
+
+  it->str = it->next;
+  if (str == it->end)
+    return 0;
+
+  for (; str != it->end; str++) {
+    if (decutf8 (&it->utf8state, &it->codepoint, *(const unsigned char*)str))
+      continue;
+
+    str++;
+
+    // get glyph,quad
+    it->x = it->nextx;
+    it->y = it->nexty;
+    sGlyph* glyph = getGlyph (it->font, it->codepoint, it->isize);
+    if (glyph != NULL)
+      getQuad (it->font, it->prevGlyphIndex, glyph, it->scale, it->spacing, &it->nextx, &it->nexty, quad);
+
+    it->prevGlyphIndex = glyph != NULL ? glyph->index : -1;
+    break;
+    }
+
+  it->next = str;
+  return 1;
+  }
+//}}}
+
+// private
 //{{{
 cAtlasText::sFontState* cAtlasText::getState() {
   return &states[mNumStates-1];

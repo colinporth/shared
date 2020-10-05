@@ -46,6 +46,7 @@ public:
   //}}}
   //{{{
   struct sQuad {
+  public:
     float x0 = 0.f;
     float y0 = 0.f;
     float s0 = 0.f;
@@ -59,6 +60,7 @@ public:
   //}}}
   //{{{
   struct sGlyph {
+  public:
     unsigned int codepoint = 0;
     int index = 0;
     int next = 0;
@@ -82,19 +84,20 @@ public:
     unsigned char* data = nullptr;
     int dataSize = 0;
 
+    float lineh = 0.f;
     float ascender = 0.f;
     float descender = 0.f;
-    float lineh = 0.f;
 
-    sGlyph* glyphs = nullptr;
     int cglyphs = 0;
     int nglyphs = 0;
+    sGlyph* glyphs = nullptr;
 
     int lut[kHashLutSize] = { 0 };
     };
   //}}}
   //{{{
   struct sTextIt {
+  public:
     float x = 0.f;
     float y = 0.f;
 
@@ -125,24 +128,27 @@ public:
   int addFont (const std::string& name, unsigned char* data, int dataSize);
   int resetAtlas (int width, int height);
 
+  // gets
   int getFontByName (const std::string& name);
   sGlyph* getGlyph (cFont* font, unsigned int codepoint, short isize);
   float getVertAlign (cFont* font, int align, short isize);
-  float vertMetrics (float& ascender, float& descender);
-  void lineBounds (float y, float* miny, float* maxy);
-  float textBounds (float x, float y, const char* str, const char* end, float* bounds);
+  float getVertMetrics (float& ascender, float& descender);
+  void getLineBounds (float y, float* miny, float* maxy);
+  float getTextBounds (float x, float y, const char* str, const char* end, float* bounds);
 
-  void setSize (float size);
+  const unsigned char* getTextureData (int& width, int& height);
+  int validateTexture (int* dirty);
+
+  // sets
   void setColor (unsigned int color);
+  void setFont (int font);
+  void setSize (float size);
   void setSpacing (float spacing);
   void setAlign (int align);
-  void setFont (int font);
+  void setFontSizeSpacingAlign (int font, float size, float spacing, int align);
 
   int textItInit (sTextIt* it, float x, float y, const char* str, const char* end);
   int textItNext (sTextIt* it, sQuad* quad);
-
-  const unsigned char* getTextureData (int* width, int* height);
-  int validateTexture (int* dirty);
 
   // vars
   int mScratchBufSize;
@@ -150,14 +156,11 @@ public:
 
 private:
   //{{{  static constexpr
-  static constexpr int kMaxFontStates = 20;
-
   static constexpr int kInitFonts = 4;
   static constexpr int kInitGlyphs = 256;
   static constexpr int kInitAtlasNodes = 256;
-  static constexpr int kVertexCount = 1024;
+  static constexpr int kMaxFontStates = 20;
   //}}}
-  //{{{
   class cAtlas {
   public:
     //{{{
@@ -168,197 +171,27 @@ private:
       };
     //}}}
 
-    //{{{
-    cAtlas (int w, int h, int maxNumNodes) {
+    cAtlas (int w, int h, int maxNumNodes);
+    ~cAtlas();
 
-      mWidth = w;
-      mHeight = h;
-
-      // Allocate space for skyline nodes
-      mNodes = (sNode*)malloc(sizeof(sNode) * maxNumNodes);
-      mNumNodes = 0;
-      mMaxNumNodes = maxNumNodes;
-
-      // Init root node.
-      mNodes[0].mX = 0;
-      mNodes[0].mY = 0;
-      mNodes[0].mWidth = (short)w;
-
-      mNumNodes++;
-      }
-    //}}}
-    //{{{
-    // Atlas based on Skyline Bin Packer by Jukka Jylänki
-    ~cAtlas() {
-
-      if (mNodes != NULL)
-        free (mNodes);
-      }
-    //}}}
-
-    //{{{
-    void reset (int w, int h) {
-
-      mWidth = w;
-      mHeight = h;
-      mNumNodes = 0;
-
-      // Init root node.
-      mNodes[0].mX = 0;
-      mNodes[0].mY = 0;
-      mNodes[0].mWidth = (short)w;
-      mNumNodes++;
-      }
-    //}}}
-    //{{{
-    void expand (int w, int h) {
-
-      // Insert node for empty space
-      if (w > mWidth)
-        insertNode (mNumNodes, mWidth, 0, w - mWidth);
-
-      mWidth = w;
-      mHeight = h;
-      }
-    //}}}
-
-    //{{{
-    int addRect (int rw, int rh, int* rx, int* ry) {
-
-      int besth = mHeight, bestw = mWidth, besti = -1;
-      int bestx = -1, besty = -1, i;
-
-      // Bottom left fit heuristic.
-      for (i = 0; i < mNumNodes; i++) {
-        int y = rectFits (i, rw, rh);
-        if (y != -1) {
-          if (y + rh < besth || (y + rh == besth && mNodes[i].mWidth < bestw)) {
-            besti = i;
-            bestw = mNodes[i].mWidth;
-            besth = y + rh;
-            bestx = mNodes[i].mX;
-            besty = y;
-            }
-          }
-        }
-
-      if (besti == -1)
-        return 0;
-
-      // Perform the actual packing.
-      if (addSkylineLevel (besti, bestx, besty, rw, rh) == 0)
-        return 0;
-
-      *rx = bestx;
-      *ry = besty;
-
-      return 1;
-      }
-    //}}}
+    void reset (int w, int h);
+    void expand (int w, int h);
+    int addRect (int rw, int rh, int* rx, int* ry);
 
     int mNumNodes = 0;
     int mMaxNumNodes = 0;
     sNode* mNodes = nullptr;
 
   private:
-    //{{{
-    int insertNode (int index, int x, int y, int w) {
+    int insertNode (int index, int x, int y, int w);
+    void removeNode (int index);
 
-      // Insert node
-      if (mNumNodes+1 > mMaxNumNodes) {
-        mMaxNumNodes = mMaxNumNodes == 0 ? 8 : mMaxNumNodes * 2;
-        mNodes = (sNode*)realloc (mNodes, sizeof(sNode) * mMaxNumNodes);
-        }
-
-      for (int i = mNumNodes; i > index; i--)
-        mNodes[i] = mNodes[i-1];
-      mNodes[index].mX = (short)x;
-      mNodes[index].mY = (short)y;
-      mNodes[index].mWidth = (short)w;
-      mNumNodes++;
-
-      return 1;
-      }
-    //}}}
-    //{{{
-    void removeNode (int index) {
-
-      if (mNumNodes == 0)
-        return;
-
-      for (int i = index; i < mNumNodes-1; i++)
-        mNodes[i] = mNodes[i+1];
-
-      mNumNodes--;
-      }
-    //}}}
-
-    //{{{
-    int rectFits (int i, int w, int h) {
-    // Checks if there is enough space at the location of skyline span 'i',
-    // and return the max mHeight of all skyline spans under that at that location,
-    // (think tetris block being dropped at that position). Or -1 if no space found.
-
-      int x = mNodes[i].mX;
-      int y = mNodes[i].mY;
-
-      if (x + w > mWidth)
-        return -1;
-
-      int spaceLeft = w;
-      while (spaceLeft > 0) {
-        if (i == mNumNodes)
-         return -1;
-        y = maxi (y, mNodes[i].mY);
-        if (y + h > mHeight)
-          return -1;
-        spaceLeft -= mNodes[i].mWidth;
-        ++i;
-        }
-      return y;
-      }
-    //}}}
-    //{{{
-    int addSkylineLevel (int index, int x, int y, int w, int h) {
-
-      // Insert new node
-      if (insertNode (index, x, y+h, w) == 0)
-        return 0;
-
-      // Delete skyline segments that fall under the shadow of the new segment.
-      for (int i = index+1; i < mNumNodes; i++) {
-        if (mNodes[i].mX < mNodes[i-1].mX + mNodes[i-1].mWidth) {
-          int shrink = mNodes[i-1].mX + mNodes[i-1].mWidth - mNodes[i].mX;
-          mNodes[i].mX += (short)shrink;
-          mNodes[i].mWidth -= (short)shrink;
-          if (mNodes[i].mWidth <= 0) {
-            removeNode (i);
-            i--;
-            }
-          else
-            break;
-          }
-        else
-          break;
-        }
-
-      // Merge same mHeight skyline segments that are next to each other.
-      for (int i = 0; i < mNumNodes-1; i++) {
-        if (mNodes[i].mY == mNodes[i+1].mY) {
-          mNodes[i].mWidth += mNodes[i+1].mWidth;
-          removeNode (i+1);
-          i--;
-          }
-        }
-
-      return 1;
-      }
-    //}}}
+    int rectFits (int i, int w, int h);
+    int addSkylineLevel (int index, int x, int y, int w, int h);
 
     int mWidth = 0;
     int mHeight = 0;
     };
-  //}}}
 
   //{{{
   struct sFontState {
