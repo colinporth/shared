@@ -190,7 +190,7 @@ inline sVgColour nvgPremulColor (sVgColour c) {
 //}}}
 //}}}
 
-class cFontContext;
+class cAtlasText;
 class cVg {
 public:
   //{{{
@@ -943,6 +943,6 @@ private:
 
   int mFontImageIndex = 0;
   int mFontImages[kMaxFontImages] = { 0 };
-  cFontContext* mFontContext = nullptr;
+  cAtlasText* mAtlasText = nullptr;
   //}}}
   };
