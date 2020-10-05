@@ -602,7 +602,7 @@ int cVg::getTextGlyphPositions (float x, float y, const string& str, sGlyphPosit
   int npos = 0;
   cAtlasText::sQuad quad;
   while (mAtlasText->textItNext (&it, &quad)) {
-    if ((it.prevGlyphIndex < 0) && allocFontAtlas()) {
+    if ((it.prevGlyphIndex < 0) && allocAtlas()) {
       // can not retrieve glyph, try again
       it = prevIt;
       mAtlasText->textItNext (&it, &quad);
@@ -678,7 +678,7 @@ float cVg::text (float x, float y, const string& str) {
   while (mAtlasText->textItNext (&it, &quad)) {
     if (it.prevGlyphIndex == -1) {
       // can not retrieve glyph?
-      if (!allocFontAtlas())
+      if (!allocAtlas())
         break; // no memory
       it = prevIt;
       mAtlasText->textItNext (&it, &quad); // try again
@@ -1250,14 +1250,13 @@ void cVg::endFrame() {
   renderFrame (mVertices, state->compositeOp);
 
   if (mFontTextureIndex) {
-    int fontTextureId = mFontTextureIds[mFontTextureIndex];
-    int width = 0;
-    int height = 0;
-
     // delete fontImages smaller than current one
+    int fontTextureId = mFontTextureIds[mFontTextureIndex];
     if (fontTextureId == 0)
       return;
 
+    int width = 0;
+    int height = 0;
     getTextureSize (fontTextureId, width, height);
 
     int j = 0;
@@ -2645,13 +2644,15 @@ bool cVg::updateTexture (int id, int x, int y, int width, int height, const uint
 
   //cLog::log (LOGINFO, "updateTexture");
   cTexture* texture = findTextureById (id);
-  if (texture == nullptr)
+  if (texture == nullptr) {
+    cLog::log (LOGERROR, "updateTexture - cannot find texture id:" + dec(id) + " " + dec(width) + "x" + dec(height));
     return false;
+    }
   setBindTexture (texture->tex);
 
   glPixelStorei (GL_UNPACK_ALIGNMENT, 1);
 
-  // No support for all of skip, need to update a whole row at a time.
+  // no support for all of skip, need to update a whole row at a time.
   if (texture->type == TEXTURE_RGBA)
     data += y * texture->width * 4;
   else // alpha
@@ -2951,15 +2952,15 @@ float cVg::getFontScale (cState* state) {
   }
 //}}}
 //{{{
-bool cVg::allocFontAtlas() {
+bool cVg::allocAtlas() {
 
   flushAtlasTexture();
   if (mFontTextureIndex >= kMaxFontTextures-1) {
-    cLog::log (LOGERROR, "allocFontAtlas - no more fontTextures");
+    cLog::log (LOGERROR, "allocAtlas - no more fontTextures");
     return false;
     }
 
-  cLog::log (LOGINFO, "allocFontAtlas");
+  cLog::log (LOGINFO, "allocAtlas");
 
   // if next fontImage already have a texture
   int width;
@@ -2979,7 +2980,7 @@ bool cVg::allocFontAtlas() {
       height = 2048;
       }
 
-    mFontTextureIds[mFontTextureIndex +1] = createTexture (TEXTURE_ALPHA, width, height, 0, NULL, "allocFontAtlas");
+    mFontTextureIds[mFontTextureIndex +1] = createTexture (TEXTURE_ALPHA, width, height, 0, NULL, "allocAtlas");
     }
   ++mFontTextureIndex;
 
@@ -2992,7 +2993,7 @@ void cVg::flushAtlasTexture() {
 
   int dirty[4];
   if (mAtlasText->getAtlasDirty (dirty)) {
-    // dirty atlas, update texture
+    // atlasDirty, update texture
     int fontTextureId = mFontTextureIds[mFontTextureIndex];
     if (fontTextureId != 0) {
       int width;

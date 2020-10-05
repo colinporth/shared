@@ -898,8 +898,8 @@ private:
 
   // font
   float getFontScale (cState* state);
+  bool allocAtlas();
   void flushAtlasTexture();
-  bool allocFontAtlas();
 
   //{{{  vars
   bool mDrawEdges = false;

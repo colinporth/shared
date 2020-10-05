@@ -532,26 +532,17 @@ float cAtlasText::getTextBounds (float x, float y, const char* str, const char* 
 
   int prevGlyphIndex = -1;
   short isize = (short)(state->size * 10.0f);
-
-  float startx, advance;
-  float minx, miny, maxx, maxy;
-
-  if (state->font < 0)
-    return 0;
-
   auto font = mFonts[state->font];
   float scale = ttGetPixelHeightScale (font->mFontInfo, (float)isize / 10.0f);
 
-  // Align vertically.
+  // align vertically.
   y += getVertAlign (font, state->align, isize);
 
-  minx = maxx = x;
-  miny = maxy = y;
-  startx = x;
-
-  if (end == NULL)
-    end = str + strlen(str);
-
+  float minx = x;
+  float maxx = x;
+  float miny = y;
+  float maxy = y;
+  float startx = x;
   unsigned int codepoint;
   unsigned int utf8state = 0;
   for (; str != end; ++str) {
@@ -573,9 +564,9 @@ float cAtlasText::getTextBounds (float x, float y, const char* str, const char* 
     prevGlyphIndex = glyph != NULL ? glyph->index : -1;
     }
 
-  advance = x - startx;
+  float advance = x - startx;
 
-  // Align horizontally
+  // align horizontally
   if (state->align & ALIGN_RIGHT) {
     minx -= advance;
     maxx -= advance;
@@ -663,9 +654,6 @@ int cAtlasText::textIt (sTextIt* it, float x, float y, const char* str, const ch
 
   // align vertically
   y += getVertAlign (it->font, state->align, it->isize);
-
-  if (end == NULL)
-    end = str + strlen (str);
 
   it->x = x;
   it->nextx = x;
