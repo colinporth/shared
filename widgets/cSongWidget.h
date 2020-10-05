@@ -73,8 +73,6 @@ public:
   //{{{
   void onDraw (iDraw* draw) {
 
-    auto vg = draw->getVg();
-
     mWaveHeight = 100.f;
     mOverviewHeight = 100.f;
     mRangeHeight = 8.f;
@@ -96,15 +94,14 @@ public:
     auto rightWaveFrame = playFrame + (((int(mWidth)+mFrameWidth)/2) * mFrameStep) / mFrameWidth;
     rightWaveFrame = std::min (rightWaveFrame, mSong->getLastFrame());
 
+    auto vg = draw->getVg();
     drawRange (vg, playFrame, leftWaveFrame, rightWaveFrame);
-
     if (mSong->getNumFrames()) {
       bool mono = mSong->getNumChannels() == 1;
       drawWave (vg, playFrame, leftWaveFrame, rightWaveFrame, mono);
       drawOverview (vg, playFrame, mono);
       drawFreq (vg, playFrame);
       }
-
     drawTime (vg,
               mSong->hasHlsBase() ? getFrameString (mSong->getFirstFrame()) : "",
               getFrameString (mSong->getPlayFrame()),
