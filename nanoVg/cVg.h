@@ -1,14 +1,14 @@
 // cVg.h - based on Mikko Mononen memon@inside.org nanoVg
 #pragma once
 //{{{  includes
+#include <cstdint>
+#include <string>
+#include <algorithm>
+
 #include <stdio.h>
-#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-
-#include <string>
-#include <algorithm>
 
 #include "../glad/glad.h"
 #include "../GLFW/glfw3.h"
@@ -149,7 +149,7 @@ inline sVgColour nvgRGBA32 (uint32_t colour) {
   }
 //}}}
 //{{{
-inline sVgColour nvgRGBA (unsigned char r, unsigned char g, unsigned char b, unsigned char a) {
+inline sVgColour nvgRGBA (uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
 
   sVgColour color;
   color.r = r / 255.0f;
@@ -160,7 +160,7 @@ inline sVgColour nvgRGBA (unsigned char r, unsigned char g, unsigned char b, uns
   }
 //}}}
 //{{{
-inline sVgColour nvgRGB (unsigned char r, unsigned char g, unsigned char b) {
+inline sVgColour nvgRGB (uint8_t r, uint8_t g, uint8_t b) {
   return nvgRGBA (r,g,b,255);
   }
 //}}}
@@ -331,7 +331,70 @@ public:
   void scale (float x, float y);
   void rotate (float angle);
   //}}}
-  //{{{  shape
+  //{{{  scissor
+  void scissor (float x, float y, float width, float height);
+  void intersectScissor (float x, float y, float width, float height);
+
+  void resetScissor();
+  //}}}
+  //{{{  text
+  //{{{
+  enum eAlign {
+    // Horizontal align
+    ALIGN_LEFT    = 1<<0, // Default, align text horizontally to left.
+    ALIGN_CENTER  = 1<<1, // Align text horizontally to center.
+    ALIGN_RIGHT   = 1<<2, // Align text horizontally to right.
+
+    // Vertical align
+    ALIGN_TOP     = 1<<3, // Align text vertically to top.
+    ALIGN_MIDDLE  = 1<<4, // Align text vertically to middle.
+    ALIGN_BOTTOM  = 1<<5, // Align text vertically to bottom.
+    ALIGN_BASELINE  = 1<<6, // Default, align text vertically to baseline.
+    };
+  //}}}
+  //{{{
+  struct sGlyphPosition {
+    const char* str;  // Position of the glyph in the input string.
+    float x;          // The x-coordinate of the logical glyph position.
+    float minx, maxx; // The bounds of the glyph shape.
+    };
+  //}}}
+
+  int createFont (const std::string& fontName, uint8_t* data, int dataSize);
+
+  float getTextBounds (float x, float y, const std::string& str, float* bounds);
+  float getTextMetrics (float& ascender, float& descender);
+  int getTextGlyphPositions (float x, float y, const std::string& str, sGlyphPosition* positions, int maxPositions);
+
+  void setFontById (int font);
+  void setFontByName (const std::string& fontName);
+  void setFontSize (float size);
+  void setTextAlign (int align);
+  void setTextLetterSpacing (float spacing);
+  void setTextLineHeight (float lineHeight);
+
+  float text (float x, float y, const std::string& str);
+  //}}}
+  //{{{  image
+  enum eImageFlags {
+    IMAGE_GENERATE_MIPMAPS = 1<<0, // Generate mipmaps during creation of the image.
+    IMAGE_REPEATX          = 1<<1, // Repeat image in X direction.
+    IMAGE_REPEATY          = 1<<2, // Repeat image in Y direction.
+    IMAGE_FLIPY            = 1<<3, // Flips (inverses) image in Y direction when rendered.
+    IMAGE_PREMULTIPLIED    = 1<<4, // Image data has premultiplied alpha.
+    IMAGE_NEAREST          = 1<<5, // Image interpolation is Nearest instead Linear
+    };
+
+  enum eTexture { TEXTURE_ALPHA = 0x01, TEXTURE_RGBA = 0x02 };
+
+  int createImageRGBA (int width, int height, int imageFlags, const uint8_t* data);
+  int createImage (int imageFlags, uint8_t* data, int dataSize);
+
+  void updateImage (int id, const uint8_t* data);
+
+  bool deleteImage (int id);
+  //}}}
+  //{{{  basic shapes
   enum eWinding { eSOLID = 1, eHOLE = 2 };  // CCW, CW
   enum eLineCap { eBUTT, eROUND, eSQUARE, eBEVEL, eMITER };
   enum eShapeCommands { eMOVETO, eLINETO, eBEZIERTO, eWINDING, eCLOSE };
@@ -382,69 +445,6 @@ public:
   void stroke();
   void triangleFill();
   //}}}
-  //{{{  text
-  //{{{
-  enum eAlign {
-    // Horizontal align
-    ALIGN_LEFT    = 1<<0, // Default, align text horizontally to left.
-    ALIGN_CENTER  = 1<<1, // Align text horizontally to center.
-    ALIGN_RIGHT   = 1<<2, // Align text horizontally to right.
-
-    // Vertical align
-    ALIGN_TOP     = 1<<3, // Align text vertically to top.
-    ALIGN_MIDDLE  = 1<<4, // Align text vertically to middle.
-    ALIGN_BOTTOM  = 1<<5, // Align text vertically to bottom.
-    ALIGN_BASELINE  = 1<<6, // Default, align text vertically to baseline.
-    };
-  //}}}
-  //{{{
-  struct sGlyphPosition {
-    const char* str;  // Position of the glyph in the input string.
-    float x;          // The x-coordinate of the logical glyph position.
-    float minx, maxx; // The bounds of the glyph shape.
-    };
-  //}}}
-
-  int createFont (const std::string& fontName, unsigned char* data, int dataSize);
-
-  float getTextBounds (float x, float y, const std::string& str, float* bounds);
-  float getTextMetrics (float& ascender, float& descender);
-  int getTextGlyphPositions (float x, float y, const std::string& str, sGlyphPosition* positions, int maxPositions);
-
-  void setFontById (int font);
-  void setFontByName (const std::string& fontName);
-  void setFontSize (float size);
-  void setTextAlign (int align);
-  void setTextLetterSpacing (float spacing);
-  void setTextLineHeight (float lineHeight);
-
-  float text (float x, float y, const std::string& str);
-  //}}}
-  //{{{  image
-  enum eImageFlags {
-    IMAGE_GENERATE_MIPMAPS = 1<<0, // Generate mipmaps during creation of the image.
-    IMAGE_REPEATX          = 1<<1, // Repeat image in X direction.
-    IMAGE_REPEATY          = 1<<2, // Repeat image in Y direction.
-    IMAGE_FLIPY            = 1<<3, // Flips (inverses) image in Y direction when rendered.
-    IMAGE_PREMULTIPLIED    = 1<<4, // Image data has premultiplied alpha.
-    IMAGE_NEAREST          = 1<<5, // Image interpolation is Nearest instead Linear
-    };
-
-  enum eTexture { TEXTURE_ALPHA = 0x01, TEXTURE_RGBA = 0x02 };
-
-  int createImageRGBA (int width, int height, int imageFlags, const unsigned char* data);
-  int createImage (int imageFlags, unsigned char* data, int dataSize);
-
-  void updateImage (int id, const unsigned char* data);
-
-  bool deleteImage (int id);
-  //}}}
-  //{{{  scissor
-  void scissor (float x, float y, float w, float h);
-  void intersectScissor (float x, float y, float w, float h);
-
-  void resetScissor();
-  //}}}
   //{{{  composite
   void globalCompositeOp (eCompositeOp op);
   void globalCompositeBlendFunc (eBlendFactor sfactor, eBlendFactor dfactor);
@@ -452,13 +452,13 @@ public:
                                          eBlendFactor srcAlpha, eBlendFactor dstAlpha);
   //}}}
   //{{{  frame
+  std::string getFrameStats();
+
   void toggleEdges() { mDrawEdges = !mDrawEdges; }
   void toggleSolid() { mDrawSolid = !mDrawSolid; }
   void toggleTriangles() { mDrawTriangles = !mDrawTriangles; }
 
-  std::string getFrameStats();
-
-  void beginFrame (int windowWidth, int windowHeight, float devicePixelRatio);
+  void beginFrame (int width, int height, float devicePixelRatio);
   void endFrame();
   //}}}
   void drawSpinner (float centrex, float centrey, float radius, float frac,
@@ -884,9 +884,9 @@ private:
   int allocPathVertices (int numPaths);
 
   // texture
-  int createTexture (int type, int width, int height, int imageFlags, const unsigned char* data, const std::string& debug);
+  int createTexture (int type, int width, int height, int imageFlags, const uint8_t* data, const std::string& debug);
   cTexture* findTextureById (int id);
-  bool updateTexture (int id, int x, int y, int width, int height, const unsigned char* data);
+  bool updateTexture (int id, int x, int y, int width, int height, const uint8_t* data);
   bool getTextureSize (int id, int& width, int& height);
 
   // render

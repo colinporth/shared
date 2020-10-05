@@ -470,7 +470,327 @@ void cVg::rotate (float angle) {
   }
 //}}}
 //}}}
-//{{{  shape
+//{{{  scissor
+//{{{
+void cVg::scissor (float x, float y, float width, float height) {
+
+  auto state = &mStates[mNumStates-1];
+  width = max (0.0f, width);
+  height = max (0.0f, height);
+
+  state->scissor.mTransform.setTranslate (x + width * 0.5f, y + height * 0.5f);
+  state->scissor.mTransform.multiply (state->mTransform);
+
+  state->scissor.extent[0] = width * 0.5f;
+  state->scissor.extent[1] = height * 0.5f;
+  }
+//}}}
+//{{{
+void cVg::intersectScissor (float x, float y, float width, float height) {
+
+  // if no previous scissor has been set, set the scissor as current scissor.
+  auto state = &mStates[mNumStates-1];
+  if (state->scissor.extent[0] < 0) {
+    scissor (x, y, width, height);
+    return;
+    }
+
+  // transform the current scissor rect into current transform space, if diff in rotation, approximation.
+  cTransform transform (state->scissor.mTransform);
+  float ex = state->scissor.extent[0];
+  float ey = state->scissor.extent[1];
+
+  cTransform inverse;
+  state->mTransform.getInverse (inverse);
+  transform.multiply (inverse);
+
+  // Intersect rects
+  float tex;
+  float tey;
+  transform.pointScissor (ex, ey, tex, tey);
+  float rect[4];
+  intersectRects (rect, transform.getTranslateX() - tex, transform.getTranslateY() - tey, tex*2, tey*2,
+                  x, y, width, height);
+  scissor (rect[0], rect[1], rect[2], rect[3]);
+  }
+//}}}
+//{{{
+void cVg::resetScissor() {
+
+  auto state = &mStates[mNumStates-1];
+  state->scissor.mTransform.setIdentity();
+  state->scissor.extent[0] = -1.0f;
+  state->scissor.extent[1] = -1.0f;
+  }
+//}}}
+//}}}
+//{{{  text
+enum eVgCodepointType { NVG_SPACE, NVG_NEWLINE, NVG_CHAR, NVG_CJK_CHAR };
+//{{{
+int cVg::createFont (const string& fontName, uint8_t* data, int dataSize) {
+  return mAtlasText->addFont (fontName, data, dataSize);
+  }
+//}}}
+
+//{{{
+float cVg::getTextBounds (float x, float y, const string& str, float* bounds) {
+
+  auto state = &mStates[mNumStates-1];
+  if (state->fontId == cAtlasText::kInvalid)
+    return 0;
+
+  float scale = getFontScale (state) * devicePixelRatio;
+  float inverseScale = 1.0f / scale;
+
+  mAtlasText->setFontSizeSpacingAlign (
+    state->fontId, state->fontSize * scale, state->letterSpacing * scale, state->textAlign);
+
+  float width = mAtlasText->getTextBounds (x*scale, y*scale, str.c_str(), str.c_str() + str.size(), bounds);
+
+  // Use line bounds for height.
+  mAtlasText->getLineBounds (y * scale, bounds[1], bounds[3]);
+  bounds[0] *= inverseScale;
+  bounds[1] *= inverseScale;
+  bounds[2] *= inverseScale;
+  bounds[3] *= inverseScale;
+
+  return width * inverseScale;
+  }
+//}}}
+//{{{
+float cVg::getTextMetrics (float& ascender, float& descender) {
+
+  auto state = &mStates[mNumStates-1];
+  if (state->fontId == cAtlasText::kInvalid)
+    return 0.f;
+
+  float scale = getFontScale(state) * devicePixelRatio;
+  float inverseScale = 1.0f / scale;
+
+  mAtlasText->setFontSizeSpacingAlign (
+    state->fontId, state->fontSize * scale, state->letterSpacing * scale, state->textAlign);
+
+  float lineh = mAtlasText->getVertMetrics (ascender, descender);
+
+  ascender *= inverseScale;
+  descender *= inverseScale;
+  lineh *= inverseScale;
+
+  return lineh;
+  }
+//}}}
+//{{{
+int cVg::getTextGlyphPositions (float x, float y, const string& str, sGlyphPosition* positions, int maxPositions) {
+
+  if (str.empty())
+    return 0;
+
+  auto state = &mStates[mNumStates-1];
+  if (state->fontId == cAtlasText::kInvalid)
+    return 0;
+
+  float scale = getFontScale (state) * devicePixelRatio;
+  float inverseScale = 1.0f / scale;
+
+  mAtlasText->setFontSizeSpacingAlign (
+    state->fontId, state->fontSize * scale, state->letterSpacing * scale, state->textAlign);
+
+  cAtlasText::sTextIt it;
+  mAtlasText->textIt (&it, x*scale, y*scale, str.c_str(), str.c_str() + str.size());
+  cAtlasText::sTextIt prevIt = it;
+
+  int npos = 0;
+  cAtlasText::sQuad quad;
+  while (mAtlasText->textItNext (&it, &quad)) {
+    if ((it.prevGlyphIndex < 0) && allocFontAtlas()) {
+      // can not retrieve glyph, try again
+      it = prevIt;
+      mAtlasText->textItNext (&it, &quad);
+      }
+    prevIt = it;
+
+    positions[npos].str = it.str;
+    positions[npos].x = it.x * inverseScale;
+    positions[npos].minx = min (it.x, quad.x0) * inverseScale;
+    positions[npos].maxx = max (it.nextx, quad.x1) * inverseScale;
+    npos++;
+    if (npos >= maxPositions)
+      break;
+    }
+
+  return npos;
+  }
+//}}}
+
+//{{{
+void cVg::setFontById (int font) {
+  mStates[mNumStates-1].fontId = font;
+  }
+//}}}
+//{{{
+void cVg::setFontByName (const string& fontName) {
+  mStates[mNumStates-1].fontId = mAtlasText->getFontByName (fontName);
+  }
+//}}}
+//{{{
+void cVg::setFontSize (float size) {
+  mStates[mNumStates-1].fontSize = size;
+  }
+//}}}
+//{{{
+void cVg::setTextAlign (int align) {
+  mStates[mNumStates-1].textAlign = align;
+  }
+//}}}
+//{{{
+void cVg::setTextLineHeight (float lineHeight) {
+  mStates[mNumStates-1].lineHeight = lineHeight;
+  }
+//}}}
+//{{{
+void cVg::setTextLetterSpacing (float spacing) {
+  mStates[mNumStates-1].letterSpacing = spacing;
+  }
+//}}}
+
+//{{{
+float cVg::text (float x, float y, const string& str) {
+
+  auto state = &mStates[mNumStates-1];
+  if (state->fontId == cAtlasText::kInvalid)
+    return x;
+
+  float scale = getFontScale (state) * devicePixelRatio;
+  float inverseScale = 1.f / scale;
+  mAtlasText->setFontSizeSpacingAlign (state->fontId, state->fontSize * scale, state->letterSpacing * scale, state->textAlign);
+
+  // allocate 6 vertices per glyph
+  int numVertices = max (2, (int)str.size()) * 6;
+  int vertexIndex = mVertices.alloc (numVertices);
+  auto vertices = mVertices.getVertexPtr (vertexIndex);
+  auto firstVertex = vertices;
+
+  cAtlasText::sTextIt it;
+  mAtlasText->textIt (&it, x*scale, y*scale, str.c_str(), str.c_str() + str.size());
+  cAtlasText::sTextIt prevIt = it;
+
+  cAtlasText::sQuad quad;
+  while (mAtlasText->textItNext (&it, &quad)) {
+    if (it.prevGlyphIndex == -1) {
+      // can not retrieve glyph?
+      if (!allocFontAtlas())
+        break; // no memory
+      it = prevIt;
+      mAtlasText->textItNext (&it, &quad); // try again
+      if (it.prevGlyphIndex == -1) // still can not find glyph?
+        break;
+      }
+    prevIt = it;
+
+    // set triangle vertices from quad
+    if (state->mTransform.mIdentity) {
+      //{{{  identity transform, copy
+      vertices++->set (quad.x0 * inverseScale, quad.y0 * inverseScale, quad.s0, quad.t0);
+      vertices++->set (quad.x1 * inverseScale, quad.y1 * inverseScale, quad.s1, quad.t1);
+      vertices++->set (quad.x1 * inverseScale, quad.y0 * inverseScale, quad.s1, quad.t0);
+      vertices++->set (quad.x0 * inverseScale, quad.y0 * inverseScale, quad.s0, quad.t0);  // 3 = 0
+      vertices++->set (quad.x0 * inverseScale, quad.y1 * inverseScale, quad.s0, quad.t1);
+      vertices++->set (quad.x1 * inverseScale, quad.y1 * inverseScale, quad.s1, quad.t1);  // 5 = 1
+      }
+      //}}}
+    else {
+      //{{{  transform
+      float x;
+      float y;
+      state->mTransform.point (quad.x0 * inverseScale, quad.y0 * inverseScale, x, y);
+      vertices++->set (x, y, quad.s0, quad.t0);
+
+      state->mTransform.point (quad.x1 * inverseScale, quad.y1 * inverseScale, x, y);
+      vertices++->set (x, y, quad.s1, quad.t1);
+
+      state->mTransform.point (quad.x1 * inverseScale, quad.y0 * inverseScale, x, y);
+      vertices++->set (x, y, quad.s1, quad.t0);
+
+      state->mTransform.point (quad.x0 * inverseScale, quad.y0 * inverseScale, x, y);  // 3 = 0
+      vertices++->set (x, y, quad.s0, quad.t0);
+
+      state->mTransform.point (quad.x0 * inverseScale, quad.y1 * inverseScale, x, y);
+      vertices++->set (x, y, quad.s0, quad.t1);
+
+      state->mTransform.point (quad.x1 * inverseScale, quad.y1 * inverseScale, x, y);  // 5 = 1
+      vertices++->set (x, y, quad.s1, quad.t1);
+      }
+      //}}}
+    }
+
+  // calc vertices used
+  numVertices = int(vertices - firstVertex);
+  mVertices.trim (vertexIndex + numVertices);
+  if (numVertices) {
+    auto fillPaint = mStates[mNumStates - 1].fillPaint;
+    fillPaint.innerColor.a *= mStates[mNumStates - 1].alpha;
+    fillPaint.outerColor.a *= mStates[mNumStates - 1].alpha;
+    fillPaint.mImageId = mFontTextureIds[mFontTextureIndex];
+    renderText (vertexIndex, numVertices, fillPaint, mStates[mNumStates - 1].scissor);
+    }
+  flushAtlasTexture();
+
+  return it.x;
+  }
+//}}}
+//}}}
+//{{{  image
+//{{{
+int cVg::createImageRGBA (int width, int height, int imageFlags, const uint8_t* data) {
+  return createTexture (TEXTURE_RGBA, width, height, imageFlags, data, "rgba");
+  }
+//}}}
+//{{{
+int cVg::createImage (int imageFlags, uint8_t* data, int dataSize) {
+
+  int width;
+  int height;
+  int numBytes;
+  uint8_t* imageData = stbi_load_from_memory (data, dataSize, &width, &height, &numBytes, 4);
+  if (imageData == NULL) {
+    printf ("Failed to load %s\n", stbi_failure_reason());
+    return 0;
+    }
+
+  int imageId = createImageRGBA (width, height, imageFlags, imageData);
+  stbi_image_free (imageData);
+
+  return imageId;
+  }
+//}}}
+
+//{{{
+void cVg::updateImage (int image, const uint8_t* data) {
+
+  int width;
+  int height;
+  getTextureSize (image, width, height);
+  updateTexture (image, 0,0, width, height, data);
+  }
+//}}}
+
+//{{{
+bool cVg::deleteImage (int image) {
+
+  for (int i = 0; i < mNumTextures; i++) {
+    if (mTextures[i].id == image) {
+      if ((mTextures[i].tex != 0) && ((mTextures[i].flags & eNoDelete) == 0))
+        glDeleteTextures (1, &mTextures[i].tex);
+      mTextures[i].reset();
+      return true;
+      }
+    }
+
+  return false;
+  }
+//}}}
+//}}}
+//{{{  basic shapes
 void cVg::fillColor (const sVgColour& color) { mStates[mNumStates-1].fillPaint.set (color); }
 void cVg::strokeColor (const sVgColour& color) { mStates[mNumStates-1].strokePaint.set (color); }
 void cVg::strokeWidth (float width) { mStates[mNumStates-1].strokeWidth = width; }
@@ -878,325 +1198,6 @@ void cVg::triangleFill() {
   }
 //}}}
 //}}}
-//{{{  text
-enum eVgCodepointType { NVG_SPACE, NVG_NEWLINE, NVG_CHAR, NVG_CJK_CHAR };
-//{{{
-int cVg::createFont (const string& fontName, unsigned char* data, int dataSize) {
-  return mAtlasText->addFont (fontName, data, dataSize);
-  }
-//}}}
-
-//{{{
-float cVg::getTextBounds (float x, float y, const string& str, float* bounds) {
-
-  auto state = &mStates[mNumStates-1];
-  if (state->fontId == cAtlasText::kInvalid)
-    return 0;
-
-  float scale = getFontScale (state) * devicePixelRatio;
-  float inverseScale = 1.0f / scale;
-
-  mAtlasText->setFontSizeSpacingAlign (
-    state->fontId, state->fontSize * scale, state->letterSpacing * scale, state->textAlign);
-
-  float width = mAtlasText->getTextBounds (x*scale, y*scale, str.c_str(), str.c_str() + str.size(), bounds);
-
-  // Use line bounds for height.
-  mAtlasText->getLineBounds (y * scale, bounds[1], bounds[3]);
-  bounds[0] *= inverseScale;
-  bounds[1] *= inverseScale;
-  bounds[2] *= inverseScale;
-  bounds[3] *= inverseScale;
-
-  return width * inverseScale;
-  }
-//}}}
-//{{{
-float cVg::getTextMetrics (float& ascender, float& descender) {
-
-  auto state = &mStates[mNumStates-1];
-  if (state->fontId == cAtlasText::kInvalid)
-    return 0.f;
-
-  float scale = getFontScale(state) * devicePixelRatio;
-  float inverseScale = 1.0f / scale;
-
-  mAtlasText->setFontSizeSpacingAlign (
-    state->fontId, state->fontSize * scale, state->letterSpacing * scale, state->textAlign);
-
-  float lineh = mAtlasText->getVertMetrics (ascender, descender);
-
-  ascender *= inverseScale;
-  descender *= inverseScale;
-  lineh *= inverseScale;
-
-  return lineh;
-  }
-//}}}
-//{{{
-int cVg::getTextGlyphPositions (float x, float y, const string& str, sGlyphPosition* positions, int maxPositions) {
-
-  if (str.empty())
-    return 0;
-
-  auto state = &mStates[mNumStates-1];
-  if (state->fontId == cAtlasText::kInvalid)
-    return 0;
-
-  float scale = getFontScale (state) * devicePixelRatio;
-  float inverseScale = 1.0f / scale;
-
-  mAtlasText->setFontSizeSpacingAlign (
-    state->fontId, state->fontSize * scale, state->letterSpacing * scale, state->textAlign);
-
-  cAtlasText::sTextIt it;
-  mAtlasText->textIt (&it, x*scale, y*scale, str.c_str(), str.c_str() + str.size());
-  cAtlasText::sTextIt prevIt = it;
-
-  int npos = 0;
-  cAtlasText::sQuad quad;
-  while (mAtlasText->textItNext (&it, &quad)) {
-    if ((it.prevGlyphIndex < 0) && allocFontAtlas()) {
-      // can not retrieve glyph, try again
-      it = prevIt;
-      mAtlasText->textItNext (&it, &quad);
-      }
-    prevIt = it;
-
-    positions[npos].str = it.str;
-    positions[npos].x = it.x * inverseScale;
-    positions[npos].minx = min (it.x, quad.x0) * inverseScale;
-    positions[npos].maxx = max (it.nextx, quad.x1) * inverseScale;
-    npos++;
-    if (npos >= maxPositions)
-      break;
-    }
-
-  return npos;
-  }
-//}}}
-
-//{{{
-void cVg::setFontById (int font) {
-  mStates[mNumStates-1].fontId = font;
-  }
-//}}}
-//{{{
-void cVg::setFontByName (const string& fontName) {
-  mStates[mNumStates-1].fontId = mAtlasText->getFontByName (fontName);
-  }
-//}}}
-//{{{
-void cVg::setFontSize (float size) {
-  mStates[mNumStates-1].fontSize = size;
-  }
-//}}}
-//{{{
-void cVg::setTextAlign (int align) {
-  mStates[mNumStates-1].textAlign = align;
-  }
-//}}}
-//{{{
-void cVg::setTextLineHeight (float lineHeight) {
-  mStates[mNumStates-1].lineHeight = lineHeight;
-  }
-//}}}
-//{{{
-void cVg::setTextLetterSpacing (float spacing) {
-  mStates[mNumStates-1].letterSpacing = spacing;
-  }
-//}}}
-
-//{{{
-float cVg::text (float x, float y, const string& str) {
-
-  auto state = &mStates[mNumStates-1];
-  if (state->fontId == cAtlasText::kInvalid)
-    return x;
-
-  float scale = getFontScale (state) * devicePixelRatio;
-  float inverseScale = 1.f / scale;
-  mAtlasText->setFontSizeSpacingAlign (state->fontId, state->fontSize * scale, state->letterSpacing * scale, state->textAlign);
-
-  // allocate 6 vertices per glyph
-  int numVertices = max (2, (int)str.size()) * 6;
-  int vertexIndex = mVertices.alloc (numVertices);
-  auto vertices = mVertices.getVertexPtr (vertexIndex);
-  auto firstVertex = vertices;
-
-  cAtlasText::sTextIt it;
-  mAtlasText->textIt (&it, x*scale, y*scale, str.c_str(), str.c_str() + str.size());
-  cAtlasText::sTextIt prevIt = it;
-
-  cAtlasText::sQuad quad;
-  while (mAtlasText->textItNext (&it, &quad)) {
-    if (it.prevGlyphIndex == -1) {
-      // can not retrieve glyph?
-      if (!allocFontAtlas())
-        break; // no memory
-      it = prevIt;
-      mAtlasText->textItNext (&it, &quad); // try again
-      if (it.prevGlyphIndex == -1) // still can not find glyph?
-        break;
-      }
-    prevIt = it;
-
-    // set triangle vertices from quad
-    if (state->mTransform.mIdentity) {
-      //{{{  identity transform, copy
-      vertices++->set (quad.x0 * inverseScale, quad.y0 * inverseScale, quad.s0, quad.t0);
-      vertices++->set (quad.x1 * inverseScale, quad.y1 * inverseScale, quad.s1, quad.t1);
-      vertices++->set (quad.x1 * inverseScale, quad.y0 * inverseScale, quad.s1, quad.t0);
-      vertices++->set (quad.x0 * inverseScale, quad.y0 * inverseScale, quad.s0, quad.t0);  // 3 = 0
-      vertices++->set (quad.x0 * inverseScale, quad.y1 * inverseScale, quad.s0, quad.t1);
-      vertices++->set (quad.x1 * inverseScale, quad.y1 * inverseScale, quad.s1, quad.t1);  // 5 = 1
-      }
-      //}}}
-    else {
-      //{{{  transform
-      float x;
-      float y;
-      state->mTransform.point (quad.x0 * inverseScale, quad.y0 * inverseScale, x, y);
-      vertices++->set (x, y, quad.s0, quad.t0);
-
-      state->mTransform.point (quad.x1 * inverseScale, quad.y1 * inverseScale, x, y);
-      vertices++->set (x, y, quad.s1, quad.t1);
-
-      state->mTransform.point (quad.x1 * inverseScale, quad.y0 * inverseScale, x, y);
-      vertices++->set (x, y, quad.s1, quad.t0);
-
-      state->mTransform.point (quad.x0 * inverseScale, quad.y0 * inverseScale, x, y);  // 3 = 0
-      vertices++->set (x, y, quad.s0, quad.t0);
-
-      state->mTransform.point (quad.x0 * inverseScale, quad.y1 * inverseScale, x, y);
-      vertices++->set (x, y, quad.s0, quad.t1);
-
-      state->mTransform.point (quad.x1 * inverseScale, quad.y1 * inverseScale, x, y);  // 5 = 1
-      vertices++->set (x, y, quad.s1, quad.t1);
-      }
-      //}}}
-    }
-
-  // calc vertices used
-  numVertices = int(vertices - firstVertex);
-  mVertices.trim (vertexIndex + numVertices);
-  if (numVertices) {
-    auto fillPaint = mStates[mNumStates - 1].fillPaint;
-    fillPaint.innerColor.a *= mStates[mNumStates - 1].alpha;
-    fillPaint.outerColor.a *= mStates[mNumStates - 1].alpha;
-    fillPaint.mImageId = mFontTextureIds[mFontTextureIndex];
-    renderText (vertexIndex, numVertices, fillPaint, mStates[mNumStates - 1].scissor);
-    }
-  flushAtlasTexture();
-
-  return it.x;
-  }
-//}}}
-//}}}
-//{{{  image
-//{{{
-int cVg::createImageRGBA (int width, int height, int imageFlags, const unsigned char* data) {
-  return createTexture (TEXTURE_RGBA, width, height, imageFlags, data, "rgba");
-  }
-//}}}
-//{{{
-int cVg::createImage (int imageFlags, unsigned char* data, int dataSize) {
-
-  int width;
-  int height;
-  int numBytes;
-  unsigned char* imageData = stbi_load_from_memory (data, dataSize, &width, &height, &numBytes, 4);
-  if (imageData == NULL) {
-    printf ("Failed to load %s\n", stbi_failure_reason());
-    return 0;
-    }
-
-  int imageId = createImageRGBA (width, height, imageFlags, imageData);
-  stbi_image_free (imageData);
-
-  return imageId;
-  }
-//}}}
-
-//{{{
-void cVg::updateImage (int image, const unsigned char* data) {
-
-  int width;
-  int height;
-  getTextureSize (image, width, height);
-  updateTexture (image, 0,0, width, height, data);
-  }
-//}}}
-
-//{{{
-bool cVg::deleteImage (int image) {
-
-  for (int i = 0; i < mNumTextures; i++) {
-    if (mTextures[i].id == image) {
-      if ((mTextures[i].tex != 0) && ((mTextures[i].flags & eNoDelete) == 0))
-        glDeleteTextures (1, &mTextures[i].tex);
-      mTextures[i].reset();
-      return true;
-      }
-    }
-
-  return false;
-  }
-//}}}
-//}}}
-//{{{  scissor
-//{{{
-void cVg::scissor (float x, float y, float w, float h) {
-
-  auto state = &mStates[mNumStates-1];
-  w = max (0.0f, w);
-  h = max (0.0f, h);
-
-  state->scissor.mTransform.setTranslate (x + w * 0.5f, y + h* 0.5f);
-  state->scissor.mTransform.multiply (state->mTransform);
-
-  state->scissor.extent[0] = w * 0.5f;
-  state->scissor.extent[1] = h * 0.5f;
-  }
-//}}}
-//{{{
-void cVg::intersectScissor (float x, float y, float w, float h) {
-
-  // If no previous scissor has been set, set the scissor as current scissor.
-  auto state = &mStates[mNumStates-1];
-  if (state->scissor.extent[0] < 0) {
-    scissor (x, y, w, h);
-    return;
-    }
-
-  // Transform the current scissor rect into current transform space, if diff in rotation, approximation.
-  cTransform transform (state->scissor.mTransform);
-  float ex = state->scissor.extent[0];
-  float ey = state->scissor.extent[1];
-
-  cTransform inverse;
-  state->mTransform.getInverse (inverse);
-  transform.multiply (inverse);
-
-  // Intersect rects
-  float tex;
-  float tey;
-  transform.pointScissor (ex, ey, tex, tey);
-  float rect[4];
-  intersectRects (rect, transform.getTranslateX() - tex, transform.getTranslateY() - tey, tex*2, tey*2, x, y, w, h);
-  scissor (rect[0], rect[1], rect[2], rect[3]);
-  }
-//}}}
-//{{{
-void cVg::resetScissor() {
-
-  auto state = &mStates[mNumStates-1];
-  state->scissor.mTransform.setIdentity();
-  state->scissor.extent[0] = -1.0f;
-  state->scissor.extent[1] = -1.0f;
-  }
-//}}}
-//}}}
 //{{{  composite
 //{{{
 void cVg::globalCompositeOp (eCompositeOp op) {
@@ -1230,7 +1231,7 @@ string cVg::getFrameStats() {
 //}}}
 
 //{{{
-void cVg::beginFrame (int windowWidth, int windowHeight, float devicePixelRatio) {
+void cVg::beginFrame (int width, int height, float devicePixelRatio) {
 
   mNumStates = 0;
   saveState();
@@ -1238,8 +1239,8 @@ void cVg::beginFrame (int windowWidth, int windowHeight, float devicePixelRatio)
 
   setDevicePixelRatio (devicePixelRatio);
 
-  mViewport[0] = (float)windowWidth;
-  mViewport[1] = (float)windowHeight;
+  mViewport[0] = (float)width;
+  mViewport[1] = (float)height;
   }
 //}}}
 //{{{
@@ -2558,7 +2559,7 @@ int cVg::allocPathVertices (int numPaths) {
 
 // texture
 //{{{
-int cVg::createTexture (int type, int width, int height, int imageFlags, const unsigned char* data, const string& debug) {
+int cVg::createTexture (int type, int width, int height, int imageFlags, const uint8_t* data, const string& debug) {
 
   cLog::log (LOGINFO, "createTexture - " + debug + " " + dec(width) + "x" + dec(height));
 
@@ -2640,7 +2641,7 @@ cVg::cTexture* cVg::findTextureById (int id) {
   }
 //}}}
 //{{{
-bool cVg::updateTexture (int id, int x, int y, int width, int height, const unsigned char* data) {
+bool cVg::updateTexture (int id, int x, int y, int width, int height, const uint8_t* data) {
 
   //cLog::log (LOGINFO, "updateTexture");
   cTexture* texture = findTextureById (id);
@@ -2996,7 +2997,7 @@ void cVg::flushAtlasTexture() {
     if (fontTextureId != 0) {
       int width;
       int height;
-      const unsigned char* data = mAtlasText->getAtlasTextureData (width, height);
+      const uint8_t* data = mAtlasText->getAtlasTextureData (width, height);
 
       int dirtyX = dirty[0];
       int dirtyY = dirty[1];

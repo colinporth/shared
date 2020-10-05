@@ -22,7 +22,7 @@ static void* STBTT_malloc (size_t size, cAtlasText* fontContext) {
     return nullptr;
 
   // crude allcoate from mScratchBuf
-  unsigned char* scratchPtr = fontContext->mScratchBuf + fontContext->mScratchBufSize;
+  uint8_t* scratchPtr = fontContext->mScratchBuf + fontContext->mScratchBufSize;
   fontContext->mScratchBufSize += (int)size;
 
   return scratchPtr;
@@ -56,7 +56,7 @@ static unsigned int decUtf8 (unsigned int* state, unsigned int* codep, unsigned 
 // Copyright (c) 2008-2010 Bjoern Hoehrmann <bjoern@hoehrmann.de>
 // See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
 
-  const unsigned char utf8d[] = {
+  const uint8_t utf8d[] = {
     // The first part of the table maps bytes to character classes that
     // to reduce the size of the transition table and create bitmasks.
     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -273,7 +273,7 @@ int cAtlasText::cAtlas::addRect (int rw, int rh, int* rx, int* ry) {
 //{{{
 cAtlasText::cAtlasText (int width, int height) {
 
-  mScratchBuf = (unsigned char*)malloc (kScratchBufSize);
+  mScratchBuf = (uint8_t*)malloc (kScratchBufSize);
   mAtlas = new cAtlas (width, height, kInitAtlasNodes);
 
   // create texture for cache
@@ -282,7 +282,7 @@ cAtlasText::cAtlasText (int width, int height) {
   itw = 1.0f / width;
   ith = 1.0f / height;
 
-  texData = (unsigned char*)malloc (width * height);
+  texData = (uint8_t*)malloc (width * height);
   memset (texData, 0, width * height);
 
   dirtyRect[0] = width;
@@ -311,7 +311,7 @@ cAtlasText::~cAtlasText() {
 //}}}
 
 //{{{
-int cAtlasText::addFont (const string& name, unsigned char* data, int dataSize) {
+int cAtlasText::addFont (const string& name, uint8_t* data, int dataSize) {
 
   int fontIndex = allocFont();
   auto font = mFonts[fontIndex];
@@ -355,7 +355,7 @@ int cAtlasText::resetAtlas (int width, int height) {
   mAtlas->reset (width, height);
 
   // clear texture data
-  texData = (unsigned char*)realloc (texData, width * height);
+  texData = (uint8_t*)realloc (texData, width * height);
   memset (texData, 0, width * height);
 
   // reset dirty rect
@@ -402,7 +402,7 @@ cAtlasText::sGlyph* cAtlasText::getGlyph (cFont* font, unsigned int codepoint, s
   unsigned int h;
   float size = isize/10.0f;
   int pad, added;
-  unsigned char* dst;
+  uint8_t* dst;
   cFont* renderFont = font;
 
   if (isize < 2)
@@ -555,7 +555,7 @@ float cAtlasText::getTextBounds (float x, float y, const char* str, const char* 
   unsigned int codepoint;
   unsigned int utf8state = 0;
   for (; str != end; ++str) {
-    if (decUtf8 (&utf8state, &codepoint, *(const unsigned char*)str))
+    if (decUtf8 (&utf8state, &codepoint, *(const uint8_t*)str))
       continue;
     auto glyph = getGlyph (font, codepoint, isize);
     if (glyph != NULL) {
@@ -615,7 +615,7 @@ int cAtlasText::getAtlasDirty (int* dirty) {
   }
 //}}}
 //{{{
-const unsigned char* cAtlasText::getAtlasTextureData (int& width, int& height) {
+const uint8_t* cAtlasText::getAtlasTextureData (int& width, int& height) {
 
   width = mWidth;
   height = mHeight;
@@ -694,7 +694,7 @@ int cAtlasText::textItNext (sTextIt* it, sQuad* quad) {
     return 0;
 
   for (; str != it->end; str++) {
-    if (decUtf8 (&it->utf8state, &it->codepoint, *(const unsigned char*)str))
+    if (decUtf8 (&it->utf8state, &it->codepoint, *(const uint8_t*)str))
       continue;
 
     str++;
@@ -785,7 +785,7 @@ int cAtlasText::ttBuildGlyphBitmap (stbtt_fontinfo* fontInfo, int glyph, float s
   }
 //}}}
 //{{{
-void cAtlasText::ttRenderGlyphBitmap (stbtt_fontinfo* fontInfo, unsigned char* output,
+void cAtlasText::ttRenderGlyphBitmap (stbtt_fontinfo* fontInfo, uint8_t* output,
                           int outWidth, int outHeight, int outStride,
                           float scaleX, float scaleY, int glyph) {
   stbtt_MakeGlyphBitmap (fontInfo, output, outWidth, outHeight, outStride, scaleX, scaleY, glyph);
@@ -872,10 +872,10 @@ int cAtlasText::expandAtlas (int width, int height) {
   flushPendingGlyphs();
 
   // copy old texture data
-  unsigned char* data = (unsigned char*)malloc(width * height);
+  uint8_t* data = (uint8_t*)malloc(width * height);
   for (int i = 0; i < mHeight; i++) {
-    unsigned char* dst = &data[i*width];
-    unsigned char* src = &texData[i*mWidth];
+    uint8_t* dst = &data[i*width];
+    uint8_t* src = &texData[i*mWidth];
     memcpy (dst, src, mWidth);
     }
   free (texData);

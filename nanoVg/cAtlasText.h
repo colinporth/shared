@@ -1,6 +1,7 @@
 // cAtlasText.h
 #pragma once
 //{{{  includes
+#include <cstdint>
 #include <vector>
 #include <string>
 //}}}
@@ -79,7 +80,7 @@ public:
     std::string name;
 
     stbtt_fontinfo* mFontInfo = nullptr;
-    unsigned char* mData = nullptr;
+    uint8_t* mData = nullptr;
     int mDataSize = 0;
 
     float mLineh = 0.f;
@@ -123,7 +124,7 @@ public:
   cAtlasText (int width, int height);
   ~cAtlasText();
 
-  int addFont (const std::string& name, unsigned char* data, int dataSize);
+  int addFont (const std::string& name, uint8_t* data, int dataSize);
   int resetAtlas (int width, int height);
 
   // gets
@@ -135,7 +136,7 @@ public:
   float getTextBounds (float x, float y, const char* str, const char* end, float* bounds);
 
   int getAtlasDirty (int* dirty);
-  const unsigned char* getAtlasTextureData (int& width, int& height);
+  const uint8_t* getAtlasTextureData (int& width, int& height);
 
   // sets
   void setColor (unsigned int color);
@@ -150,7 +151,7 @@ public:
 
   // vars
   int mScratchBufSize;
-  unsigned char* mScratchBuf;
+  uint8_t* mScratchBuf;
 
 private:
   //{{{  static constexpr
@@ -213,7 +214,7 @@ private:
   int ttGetGlyphKernAdvance (stbtt_fontinfo* fontInfo, int glyph1, int glyph2);
   int ttBuildGlyphBitmap (stbtt_fontinfo* fontInfo, int glyph, float size, float scale,
                           int *advance, int *lsb, int *x0, int *y0, int *x1, int *y1);
-  void ttRenderGlyphBitmap (stbtt_fontinfo* fontInfo, unsigned char* output,
+  void ttRenderGlyphBitmap (stbtt_fontinfo* fontInfo, uint8_t* output,
                             int outWidth, int outHeight, int outStride,
                             float scaleX, float scaleY, int glyph);
 
@@ -236,7 +237,7 @@ private:
   int mNumStates = 0;
   sFontState states[kMaxFontStates];
 
-  unsigned char* texData = nullptr;
+  uint8_t* texData = nullptr;
   int dirtyRect[4] = { 0 };
 
   cAtlas* mAtlas = nullptr;

@@ -1,10 +1,10 @@
 // cGlWindow.cpp
 //{{{  includes
 #define _CRT_SECURE_NO_WARNINGS
+#include "cGlWindow.h"
 
 #include "../utils/utils.h"
 #include "../utils/cLog.h"
-#include "cGlWindow.h"
 
 using namespace std;
 //}}}
