@@ -6,6 +6,8 @@
 
 #include <algorithm>
 
+#define STB_TRUETYPE_IMPLEMENTATION  // force following include to generate implementation
+
 //{{{
 static void* fontAlloc (size_t size, void* up) {
 // allocate and return size from mScratchBuf, no free
@@ -285,7 +287,9 @@ cAtlasText::cAtlasText (int width, int height) {
   mHeight = height;
   itw = 1.0f / width;
   ith = 1.0f / height;
+
   texData = (unsigned char*)malloc (width * height);
+  memset (texData, 0, width * height);
 
   dirtyRect[0] = width;
   dirtyRect[1] = height;
@@ -359,6 +363,7 @@ int cAtlasText::resetAtlas (int width, int height) {
 
   // clear texture data
   texData = (unsigned char*)realloc (texData, width * height);
+  memset (texData, 0, width * height);
 
   // reset dirty rect
   dirtyRect[0] = width;

@@ -244,8 +244,8 @@ public:
     float getAverageScaleX();
     float getAverageScaleY();
     float getAverageScale();
-    float getTranslateX();
-    float getTranslateY();
+    float getTranslateX() { return mTx; }
+    float getTranslateY() { return mTy; }
     bool getInverse (cTransform& inverse);
     void getMatrix3x4 (float* matrix3x4);
 
@@ -275,7 +275,11 @@ public:
     bool mIdentity;
 
   private:
-    bool isIdentity();
+    //{{{
+    bool cTransform::isIdentity() {
+      return mSx == 1.0f && mKy == 0.0f && mKx == 0.0f && mSy == 1.0f && mTx == 0.0f && mTy == 0.0f;
+      }
+    //}}}
     };
   //}}}
   //{{{

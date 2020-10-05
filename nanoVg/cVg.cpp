@@ -115,8 +115,58 @@ static const char* kFragShader =
   "}\n";
 //}}}
 
-// cVg::cTransform
-//{{{  cVg::cTransform
+// public
+//{{{
+cVg::cVg (int flags)
+   : mDrawEdges(!(flags & DRAW_NOEDGES)), mDrawSolid(!(flags & DRAW_NOSOLID)), mDrawTriangles(true) {
+
+  saveState();
+  resetState();
+
+  setDevicePixelRatio (1.f);
+  }
+//}}}
+//{{{
+cVg::~cVg() {
+
+  glDisableVertexAttribArray (0);
+  glDisableVertexAttribArray (1);
+
+  if (mVertexBuffer)
+    glDeleteBuffers (1, &mVertexBuffer);
+
+  glDisable (GL_CULL_FACE);
+  glBindBuffer (GL_ARRAY_BUFFER, 0);
+  glUseProgram (0);
+  setBindTexture (0);
+
+  for (int i = 0; i < mNumTextures; i++)
+    if (mTextures[i].tex && (mTextures[i].flags & IMAGE_NODELETE) == 0)
+      glDeleteTextures (1, &mTextures[i].tex);
+
+  free (mTextures);
+  free (mPathVertices);
+  free (mFrags);
+  free (mDraws);
+  }
+//}}}
+
+//{{{
+void cVg::initialise() {
+
+  mShader.create ("#define EDGE_AA 1\n");
+  mShader.getUniforms();
+
+  glGenBuffers (1, &mVertexBuffer);
+
+  // removed because of strange startup time
+  //glFinish();
+
+  mAtlasText = new cAtlasText (512, 512);
+  mFontImageIds[0] = createTexture (TEXTURE_ALPHA, 512, 512, 0, NULL, "initFont");
+  }
+//}}}
+//{{{  cVg::cTransform members
 //{{{
 cVg::cTransform::cTransform() : mIdentity(true) {
   mSx = 1.0f;
@@ -143,8 +193,6 @@ cVg::cTransform::cTransform (float sx, float ky, float kx, float sy, float tx, f
 //}}}
 
 // gets
-float cVg::cTransform::getTranslateX() { return mTx; }
-float cVg::cTransform::getTranslateY() { return mTy; }
 float cVg::cTransform::getAverageScaleX() { return sqrtf (mSx*mSx + mKx*mKx); }
 float cVg::cTransform::getAverageScaleY() { return sqrtf (mKy*mKy + mSy*mSy); }
 float cVg::cTransform::getAverageScale() { return (getAverageScaleX() + getAverageScaleY()) * 0.5f; }
@@ -184,6 +232,7 @@ bool cVg::cTransform::getInverse (cTransform& inverse) {
   inverse.mKy = (float)(-mKy * inverseDet);
   inverse.mSy = (float)(mSx * inverseDet);
   inverse.mTy = (float)(((double)mKy * mTx - (double)mSx * mTy) * inverseDet);
+
   return true;
   }
 //}}}
@@ -332,64 +381,6 @@ void cVg::cTransform::pointScissor (float srcx, float srcy, float& dstx, float& 
   }
 //}}}
 
-// private
-//{{{
-bool cVg::cTransform::isIdentity() {
-  return mSx == 1.0f && mKy == 0.0f && mKx == 0.0f && mSy == 1.0f && mTx == 0.0f && mTy == 0.0f;
-  }
-//}}}
-//}}}
-
-// public
-//{{{
-cVg::cVg (int flags)
-   : mDrawEdges(!(flags & DRAW_NOEDGES)), mDrawSolid(!(flags & DRAW_NOSOLID)), mDrawTriangles(true) {
-
-  saveState();
-  resetState();
-
-  setDevicePixelRatio (1.f);
-  }
-//}}}
-//{{{
-cVg::~cVg() {
-
-  glDisableVertexAttribArray (0);
-  glDisableVertexAttribArray (1);
-
-  if (mVertexBuffer)
-    glDeleteBuffers (1, &mVertexBuffer);
-
-  glDisable (GL_CULL_FACE);
-  glBindBuffer (GL_ARRAY_BUFFER, 0);
-  glUseProgram (0);
-  setBindTexture (0);
-
-  for (int i = 0; i < mNumTextures; i++)
-    if (mTextures[i].tex && (mTextures[i].flags & IMAGE_NODELETE) == 0)
-      glDeleteTextures (1, &mTextures[i].tex);
-
-  free (mTextures);
-  free (mPathVertices);
-  free (mFrags);
-  free (mDraws);
-  }
-//}}}
-
-//{{{
-void cVg::initialise() {
-
-  mShader.create ("#define EDGE_AA 1\n");
-  mShader.getUniforms();
-
-  glGenBuffers (1, &mVertexBuffer);
-
-  // removed because of strange startup time
-  //glFinish();
-
-  mAtlasText = new cAtlasText (512, 512);
-  mFontImageIds[0] = createTexture (TEXTURE_ALPHA, 512, 512, 0, NULL, "initFont");
-  }
 //}}}
 
 //{{{  state
