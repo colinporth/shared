@@ -16,6 +16,8 @@ constexpr int kInitPointsSize = 128;
 
 constexpr float kAppA90 = 0.5522847493f; // Length proportional to radius of a cubic bezier handle for 90deg arcs.
 constexpr float kDistanceTolerance = 0.01f;
+
+constexpr float kLarge = 1e5;
 //}}}
 
 //{{{
@@ -119,7 +121,7 @@ static const char* kFragShader =
 // public
 //{{{
 cVg::cVg (int flags)
-   : mDrawEdges(!(flags & DRAW_NOEDGES)), mDrawSolid(!(flags & DRAW_NOSOLID)), mDrawTriangles(true) {
+   : mDrawEdges(!(flags & eNoEdges)), mDrawSolid(!(flags & eNoSolid)), mDrawTriangles(true) {
 
   saveState();
   resetState();
@@ -142,7 +144,7 @@ cVg::~cVg() {
   setBindTexture (0);
 
   for (int i = 0; i < mNumTextures; i++)
-    if (mTextures[i].tex && (mTextures[i].flags & IMAGE_NODELETE) == 0)
+    if (mTextures[i].tex && (mTextures[i].flags & eNoDelete) == 0)
       glDeleteTextures (1, &mTextures[i].tex);
 
   free (mTextures);
@@ -488,86 +490,84 @@ void cVg::lineJoin (eLineCap join) { mStates[mNumStates-1].lineJoin = join; }
 void cVg::lineCap (eLineCap cap) { mStates[mNumStates-1].lineCap = cap; }
 
 //{{{
-cVg::cPaint cVg::linearGradient (float sx, float sy, float ex, float ey, const sVgColour& icol, const sVgColour& ocol) {
+cVg::cPaint cVg::linearGradient (float startx, float starty, float endx, float endy,
+                                 const sVgColour& innerColor, const sVgColour& outerColor) {
 
   // Calculate transform aligned to the line
-  float dx = ex - sx;
-  float dy = ey - sy;
-  float d = sqrtf (dx * dx + dy * dy);
-  if (d > 0.0001f) {
-    dx /= d;
-    dy /= d;
+  float dx = endx - startx;
+  float dy = endy - starty;
+  float distance = sqrtf (dx * dx + dy * dy);
+  if (distance > 0.0001f) {
+    dx /= distance;
+    dy /= distance;
     }
   else {
-    dx = 0;
-    dy = 1;
+    dx = 0.f;
+    dy = 1.f;
     }
 
-  cPaint p;
-  const float large = 1e5;
-  p.mTransform.set (dy, -dx, dx, dy, sx - dx * large, sy - dy * large);
-  p.extent[0] = large;
-  p.extent[1] = large + d * 0.5f;
-  p.radius = 0.0f;
-  p.feather = max (1.0f, d);
-  p.innerColor = icol;
-  p.outerColor = ocol;
-  p.id = 0;
+  cPaint paint;
+  paint.mTransform.set (dy, -dx, dx, dy, startx - dx * kLarge, starty - dy * kLarge);
+  paint.extent[0] = kLarge;
+  paint.extent[1] = kLarge + distance * 0.5f;
+  paint.radius = 0.f;
+  paint.feather = max (1.0f, distance);
+  paint.innerColor = innerColor;
+  paint.outerColor = outerColor;
+  paint.mImageId = 0;
 
-  return p;
+  return paint;
   }
 //}}}
 //{{{
-cVg::cPaint cVg::radialGradient (float cx, float cy, float inr, float outr, const sVgColour& icol, const sVgColour& ocol) {
-
-  float r = (inr + outr) * 0.5f;
-  float f = (outr - inr);
+cVg::cPaint cVg::boxGradient (float x, float y, float width, float height, float radius, float feather,
+                              const sVgColour& innerColor, const sVgColour& outerColor) {
 
   cPaint p;
-  p.mTransform.setTranslate (cx, cy);
-  p.extent[0] = r;
-  p.extent[1] = r;
-  p.radius = r;
-  p.feather = max (1.0f, f);
-  p.innerColor = icol;
-  p.outerColor = ocol;
-  p.id = 0;
-
-  return p;
-  }
-//}}}
-//{{{
-cVg::cPaint cVg::boxGradient (float x, float y, float w, float h, float r, float f, const sVgColour& icol, const sVgColour& ocol) {
-
-  cPaint p;
-  p.mTransform.setTranslate (x + w * 0.5f, y + h * 0.5f);
+  p.mTransform.setTranslate (x + width * 0.5f, y + height * 0.5f);
   p.extent[0] = 0.f;
   p.extent[1] = 0.f;
-  p.radius = r;
-  p.feather = max (1.0f, f);
-  p.innerColor = icol;
-  p.outerColor = ocol;
-  p.id = 0;
+  p.radius = radius;
+  p.feather = max (1.0f, feather);
+  p.innerColor = innerColor;
+  p.outerColor = outerColor;
+  p.mImageId = 0;
 
   return p;
   }
 //}}}
 //{{{
-cVg::cPaint cVg::imagePattern (float cx, float cy, float w, float h, float angle, int id, float alpha) {
+cVg::cPaint cVg::radialGradient (float centrex, float centrey, float innerRadius, float outerRadius,
+                                 const sVgColour& innerColor, const sVgColour& outerColor) {
+
+  float radius = (innerRadius + outerRadius) * 0.5f;
+  float feather = (outerRadius - innerRadius);
 
   cPaint paint;
+  paint.mTransform.setTranslate (centrex, centrey);
+  paint.extent[0] = radius;
+  paint.extent[1] = radius;
+  paint.radius = radius;
+  paint.feather = max (1.0f, feather);
+  paint.innerColor = innerColor;
+  paint.outerColor = outerColor;
+  paint.mImageId = 0;
 
+  return paint;
+  }
+//}}}
+//{{{
+cVg::cPaint cVg::imagePattern (float cx, float cy, float width, float height, float angle, int imageId, float alpha) {
+
+  cPaint paint;
   paint.mTransform.setRotateTranslate (angle, cx, cy);
-
-  paint.extent[0] = w;
-  paint.extent[1] = h;
-
+  paint.extent[0] = width;
+  paint.extent[1] = height;
   paint.radius = 0.f;
   paint.feather = 0.f;
-
   paint.innerColor = nvgRGBAf (1, 1, 1, alpha);
   paint.outerColor = nvgRGBAf (1, 1, 1, alpha);
-  paint.id = id;
+  paint.mImageId = imageId;
 
   return paint;
   }
@@ -757,42 +757,46 @@ void cVg::rect (float x, float y, float w, float h) {
   }
 //}}}
 //{{{
-void cVg::roundedRectVarying (float x, float y, float w, float h,
+void cVg::roundedRectVarying (float x, float y, float width, float height,
                               float radTopLeft, float radTopRight, float radBottomRight, float radBottomLeft) {
 
   if ((radTopLeft < 0.1f) && (radTopRight < 0.1f) && (radBottomRight < 0.1f) && (radBottomLeft < 0.1f))
-    rect (x, y, w, h);
+    rect (x, y, width, height);
   else {
-    float halfw = absf (w) * 0.5f;
-    float halfh = absf (h) * 0.5f;
+    float halfw = absf (width) * 0.5f;
+    float halfh = absf (height) * 0.5f;
 
-    float rxBL = min (radBottomLeft, halfw) * signf (w);
-    float ryBL = min (radBottomLeft, halfh) * signf(h);
-    float rxBR = min (radBottomRight, halfw) * signf (w);
-    float ryBR = min (radBottomRight, halfh) * signf(h);
-    float rxTR = min (radTopRight, halfw) * signf (w);
-    float ryTR = min (radTopRight, halfh) * signf(h);
-    float rxTL = min (radTopLeft, halfw) * signf (w);
-    float ryTL = min (radTopLeft, halfh) * signf(h);
+    float rxBL = min (radBottomLeft, halfw) * signf (width);
+    float ryBL = min (radBottomLeft, halfh) * signf(height);
+    float rxBR = min (radBottomRight, halfw) * signf (width);
+    float ryBR = min (radBottomRight, halfh) * signf(height);
+    float rxTR = min (radTopRight, halfw) * signf (width);
+    float ryTR = min (radTopRight, halfh) * signf(height);
+    float rxTL = min (radTopLeft, halfw) * signf (width);
+    float ryTL = min (radTopLeft, halfh) * signf(height);
 
     float values[] = {
       eMOVETO, x, y + ryTL,
-      eLINETO, x, y + h - ryBL,
-      eBEZIERTO, x, y + h - ryBL*(1 - kAppA90), x + rxBL*(1 - kAppA90), y + h, x + rxBL, y + h,
-      eLINETO, x + w - rxBR, y + h,
-      eBEZIERTO, x + w - rxBR*(1 - kAppA90), y + h, x + w, y + h - ryBR*(1 - kAppA90), x + w, y + h - ryBR,
-      eLINETO, x + w, y + ryTR,
-      eBEZIERTO, x + w, y + ryTR*(1 - kAppA90), x + w - rxTR*(1 - kAppA90), y, x + w - rxTR, y,
+      eLINETO, x, y + height - ryBL,
+      eBEZIERTO, x, y + height - ryBL*(1 - kAppA90), x + rxBL*(1 - kAppA90), y + height, x + rxBL, y + height,
+      eLINETO, x + width - rxBR, y + height,
+      eBEZIERTO, x + width - rxBR*(1 - kAppA90), y + height, x + width, y + height - ryBR*(1 - kAppA90), x + width, y + height - ryBR,
+      eLINETO, x + width, y + ryTR,
+      eBEZIERTO, x + width, y + ryTR*(1 - kAppA90), x + width - rxTR*(1 - kAppA90), y, x + width - rxTR, y,
       eLINETO, x + rxTL, y,
       eBEZIERTO, x + rxTL*(1 - kAppA90), y, x, y + ryTL*(1 - kAppA90), x, y + ryTL,
       eCLOSE
       };
+
     mShape.addCommand (values, 44, mStates[mNumStates-1].mTransform);
     }
   }
 //}}}
-void cVg::roundedRect (float x, float y, float w, float h, float r) { roundedRectVarying (x, y, w, h, r, r, r, r); }
-
+//{{{
+void cVg::roundedRect (float x, float y, float width, float height, float radius) {
+  roundedRectVarying (x, y, width, height, radius, radius, radius, radius);
+  }
+//}}}
 //{{{
 void cVg::ellipse (float cx, float cy, float rx, float ry) {
 
@@ -807,7 +811,11 @@ void cVg::ellipse (float cx, float cy, float rx, float ry) {
   mShape.addCommand (values, 32, mStates[mNumStates-1].mTransform);
   }
 //}}}
-void cVg::circle (float cx, float cy, float r) { ellipse (cx,cy, r,r); }
+//{{{
+void cVg::circle (float cx, float cy, float radius) {
+  ellipse (cx,cy, radius,radius);
+  }
+//}}}
 
 //{{{
 void cVg::closePath() {
@@ -1075,7 +1083,7 @@ float cVg::text (float x, float y, const string& str) {
     auto fillPaint = mStates[mNumStates - 1].fillPaint;
     fillPaint.innerColor.a *= mStates[mNumStates - 1].alpha;
     fillPaint.outerColor.a *= mStates[mNumStates - 1].alpha;
-    fillPaint.id = mFontTextureIds[mFontTextureIndex];
+    fillPaint.mImageId = mFontTextureIds[mFontTextureIndex];
     renderText (vertexIndex, numVertices, fillPaint, mStates[mNumStates - 1].scissor);
     }
   flushAtlasTexture();
@@ -1120,7 +1128,7 @@ bool cVg::deleteImage (int image) {
 
   for (int i = 0; i < mNumTextures; i++) {
     if (mTextures[i].id == image) {
-      if (mTextures[i].tex != 0 && (mTextures[i].flags & IMAGE_NODELETE) == 0)
+      if (mTextures[i].tex != 0 && (mTextures[i].flags & eNoDelete) == 0)
         glDeleteTextures (1, &mTextures[i].tex);
       mTextures[i].reset();
       return true;
@@ -2654,16 +2662,16 @@ void cVg::renderText (int firstVertexIndex, int numVertices, cPaint& paint, cSci
   //cLog::log (LOGINFO, "renderText " + dec(firstVertexIndex) + " " + dec(numVertices) + " " + dec(paint.id));
 
   auto draw = allocDraw();
-  draw->set (cDraw::TEXT, paint.id, 0, 0, allocFrags (1), firstVertexIndex, numVertices);
-  mFrags[draw->mFirstFragIndex].setImage (&paint, &scissor, findTextureById (paint.id));
+  draw->set (cDraw::TEXT, paint.mImageId, 0, 0, allocFrags (1), firstVertexIndex, numVertices);
+  mFrags[draw->mFirstFragIndex].setImage (&paint, &scissor, findTextureById (paint.mImageId));
   }
 //}}}
 //{{{
 void cVg::renderTriangles (int firstVertexIndex, int numVertices, cPaint& paint, cScissor& scissor) {
 
   auto draw = allocDraw();
-  draw->set (cDraw::TRIANGLE, paint.id, 0, 0, allocFrags (1), firstVertexIndex, numVertices);
-  mFrags[draw->mFirstFragIndex].setFill (&paint, &scissor, 1.0f, 1.0f, -1.0f, findTextureById (paint.id));
+  draw->set (cDraw::TRIANGLE, paint.mImageId, 0, 0, allocFrags (1), firstVertexIndex, numVertices);
+  mFrags[draw->mFirstFragIndex].setFill (&paint, &scissor, 1.0f, 1.0f, -1.0f, findTextureById (paint.mImageId));
   }
 //}}}
 //{{{
@@ -2672,16 +2680,16 @@ void cVg::renderFill (cShape& shape, cPaint& paint, cScissor& scissor, float fri
   auto draw = allocDraw();
   if ((shape.mNumPaths == 1) && shape.mPaths[0].mConvex) {
     // convex
-    draw->set (cDraw::CONVEX_FILL, paint.id, allocPathVertices (shape.mNumPaths), shape.mNumPaths,
+    draw->set (cDraw::CONVEX_FILL, paint.mImageId, allocPathVertices (shape.mNumPaths), shape.mNumPaths,
                allocFrags (1), 0,0);
-    mFrags[draw->mFirstFragIndex].setFill (&paint, &scissor, fringe, fringe, -1.0f, findTextureById (paint.id));
+    mFrags[draw->mFirstFragIndex].setFill (&paint, &scissor, fringe, fringe, -1.0f, findTextureById (paint.mImageId));
     }
   else {
     // stencil
-    draw->set (cDraw::STENCIL_FILL, paint.id, allocPathVertices (shape.mNumPaths), shape.mNumPaths,
+    draw->set (cDraw::STENCIL_FILL, paint.mImageId, allocPathVertices (shape.mNumPaths), shape.mNumPaths,
                allocFrags (2), shape.mBoundsVertexIndex, 4);
     mFrags[draw->mFirstFragIndex].setSimple();
-    mFrags[draw->mFirstFragIndex+1].setFill (&paint, &scissor, fringe, fringe, -1.0f, findTextureById(paint.id));
+    mFrags[draw->mFirstFragIndex+1].setFill (&paint, &scissor, fringe, fringe, -1.0f, findTextureById(paint.mImageId));
     }
 
   auto fromPath = shape.mPaths;
@@ -2695,9 +2703,9 @@ void cVg::renderStroke (cShape& shape, cPaint& paint, cScissor& scissor, float f
 // only uses toPathVertices firstStrokeVertexIndex, strokeVertexCount, no fill
 
   auto draw = allocDraw();
-  draw->set (cDraw::STROKE, paint.id, allocPathVertices (shape.mNumPaths), shape.mNumPaths, allocFrags (2), 0,0);
-  mFrags[draw->mFirstFragIndex].setFill (&paint, &scissor, strokeWidth, fringe, -1.0f, findTextureById(paint.id));
-  mFrags[draw->mFirstFragIndex+1].setFill (&paint, &scissor, strokeWidth, fringe, 1.0f - 0.5f/255.0f, findTextureById(paint.id));
+  draw->set (cDraw::STROKE, paint.mImageId, allocPathVertices (shape.mNumPaths), shape.mNumPaths, allocFrags (2), 0,0);
+  mFrags[draw->mFirstFragIndex].setFill (&paint, &scissor, strokeWidth, fringe, -1.0f, findTextureById (paint.mImageId));
+  mFrags[draw->mFirstFragIndex+1].setFill (&paint, &scissor, strokeWidth, fringe, 1.0f - 0.5f/255.0f, findTextureById (paint.mImageId));
 
   auto fromPath = shape.mPaths;
   auto toPathVertices = &mPathVertices[draw->mFirstPathVerticesIndex];
@@ -2913,11 +2921,13 @@ float cVg::getFontScale (cState* state) {
 //{{{
 bool cVg::allocFontAtlas() {
 
-  cLog::log (LOGINFO, "allocFontAtlas");
-
   flushAtlasTexture();
-  if (mFontTextureIndex >= kMaxFontTextures-1)
+  if (mFontTextureIndex >= kMaxFontTextures-1) {
+    cLog::log (LOGERROR, "allocFontAtlas - no more fontTextures");
     return false;
+    }
+
+  cLog::log (LOGINFO, "allocFontAtlas");
 
   // if next fontImage already have a texture
   int width;

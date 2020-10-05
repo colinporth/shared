@@ -192,14 +192,7 @@ inline sVgColour nvgPremulColor (sVgColour c) {
 class cAtlasText;
 class cVg {
 public:
-  //{{{
-  enum eCreateFlags {
-    DRAW_NOSOLID   = 0x01,
-    DRAW_NOEDGES   = 0x02,
-    DRAW_NOVSYNC   = 0x04,
-    IMAGE_NODELETE = 0x10,
-    };
-  //}}}
+  enum eCreateFlags { eNoSolid = 0x01, eNoEdges = 0x02,  eNoDelete = 0x40 };
   //{{{
   enum eBlendFactor {
     NVG_ZERO                = 1<<0,
@@ -296,18 +289,19 @@ public:
       innerColor = color;
       outerColor = color;
 
-      id = 0;
+      mImageId = 0;
       }
     //}}}
 
     cTransform mTransform;
     float extent[2];
-    float radius;
-    float feather;
+    float radius = 0.f;
+    float feather = 0.f;
 
     sVgColour innerColor;
     sVgColour outerColor;
-    int id;
+
+    int mImageId = 0;
     };
   //}}}
   //{{{
@@ -342,40 +336,46 @@ public:
   enum eLineCap { eBUTT, eROUND, eSQUARE, eBEVEL, eMITER };
   enum eShapeCommands { eMOVETO, eLINETO, eBEZIERTO, eWINDING, eCLOSE };
 
-  void fillColor (const sVgColour& color);
-  void fillPaint (const cPaint& paint);
-  void globalAlpha (float alpha);
-
-  void strokeWidth (float size);
-  void strokeColor (const sVgColour& color);
-  void strokePaint (const cPaint& paint);
-
-  void fringeWidth (float width);
   float getFringeWidth() { return mFringeWidth; }
+
+  void fillColor (const sVgColour& color);
+  void strokeColor (const sVgColour& color);
+  void strokeWidth (float size);
+  void globalAlpha (float alpha);
+  void fringeWidth (float width);
 
   void miterLimit (float limit);
   void lineCap (eLineCap cap);
   void lineJoin (eLineCap join);
 
-  cPaint linearGradient (float sx, float sy, float ex, float ey, const sVgColour& icol, const sVgColour& ocol);
-  cPaint boxGradient (float x, float y, float w, float h, float r, float f, const sVgColour& icol, const sVgColour& ocol);
-  cPaint radialGradient (float cx, float cy, float inr, float outr, const sVgColour& icol, const sVgColour& ocol);
-  cPaint imagePattern (float ox, float oy, float ex, float ey, float angle, int id, float alpha);
+  cPaint linearGradient (float startx, float starty, float endx, float endy,
+                         const sVgColour& innerColor, const sVgColour& outerColor);
+  cPaint boxGradient (float x, float y, float width, float height, float radius, float feather,
+                      const sVgColour& innerColor, const sVgColour& outerColor);
+  cPaint radialGradient (float centrex, float centrey, float innerRadius, float outerRadius,
+                         const sVgColour& innerColor, const sVgColour& outerColor);
+  cPaint imagePattern (float cx, float cy, float width, float height, float angle, int imageId, float alpha);
+
+  void fillPaint (const cPaint& paint);
+  void strokePaint (const cPaint& paint);
 
   void beginPath();
   void pathWinding (eWinding dir);
+
   void moveTo (float x, float y);
   void lineTo (float x, float y);
   void bezierTo (float c1x, float c1y, float c2x, float c2y, float x, float y);
   void quadTo (float cx, float cy, float x, float y);
   void arcTo (float x1, float y1, float x2, float y2, float radius);
   void arc (float cx, float cy, float r, float a0, float a1, int dir);
-  void rect (float x, float y, float w, float h);
-  void roundedRectVarying (float x, float y, float w, float h,
+
+  void rect (float x, float y, float width, float height);
+  void roundedRectVarying (float x, float y, float width, float height,
                            float radTopLeft, float radTopRight, float radBottomRight, float radBottomLeft);
-  void roundedRect (float x, float y, float w, float h, float r);
+  void roundedRect (float x, float y, float w, float h, float radius);
   void ellipse (float cx, float cy, float rx, float ry);
-  void circle (float cx, float cy, float r);
+  void circle (float cx, float cy, float radius);
+
   void closePath();
 
   void fill();
@@ -647,7 +647,7 @@ private:
       this->strokeThreshold = strokeThreshold;
 
       cTransform inverse;
-      if (paint->id) {
+      if (paint->mImageId) {
         type = SHADER_FILL_IMAGE;
         if ((tex->flags & cVg::IMAGE_FLIPY) != 0) {
           //{{{  flipY
