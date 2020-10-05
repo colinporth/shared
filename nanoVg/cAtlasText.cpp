@@ -1,4 +1,4 @@
-// cAtlasText.cpp -
+// cAtlasText.cpp
 //{{{  includes
 #define _CRT_SECURE_NO_WARNINGS
 
@@ -6,17 +6,18 @@
 
 #include <algorithm>
 
-#define STB_TRUETYPE_IMPLEMENTATION  // force following include to generate implementation
+#include "../utils/utils.h"
+#include "../utils/cLog.h"
 
+#define STB_TRUETYPE_IMPLEMENTATION
 //{{{
-static void* fontAlloc (size_t size, void* up) {
+static void* STBTT_malloc (size_t size, cAtlasText* fontContext) {
 // allocate and return size from mScratchBuf, no free
 
   // 16-byte align allocation
   size = (size + 0xf) & ~0xf;
 
   // do we have enough in mScratchBuf
-  auto fontContext = (cAtlasText*)up;
   if (fontContext->mScratchBufSize + (int)size > cAtlasText::kScratchBufSize)
     return nullptr;
 
@@ -27,19 +28,12 @@ static void* fontAlloc (size_t size, void* up) {
   return scratchPtr;
   }
 //}}}
-#define STBTT_malloc(x,u) fontAlloc (x,u)
-
 //{{{
-static void fontFree (void* ptr, void* up) {
+static void STBTT_free (void* ptr, cAtlasText* fontContext) {
   // no free, just allocate
   }
 //}}}
-#define STBTT_free(x,u) fontFree (x,u)
-
 #include "stb_truetype.h"
-
-#include "../utils/utils.h"
-#include "../utils/cLog.h"
 
 using namespace std;
 //}}}

@@ -5,7 +5,7 @@
 #include "cVg.h"
 #include "cAtlasText.h"
 
-#define STB_IMAGE_IMPLEMENTATION  // force following include to generate implementation
+#define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
 using namespace std;
