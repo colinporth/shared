@@ -13,9 +13,8 @@ using namespace std;
 constexpr int kInitPathSize = 16;
 constexpr int kInitPointsSize = 128;
 
+constexpr float kAppA90 = 0.5522847493f; // Length proportional to radius of a cubic bezier handle for 90deg arcs.
 constexpr float kDistanceTolerance = 0.01f;
-
-constexpr float KAPPA90 = 0.5522847493f; // Length proportional to radius of a cubic bezier handle for 90deg arcs.
 //}}}
 
 //{{{
@@ -348,9 +347,8 @@ cVg::cVg (int flags)
 
   saveState();
   resetState();
-  setDevicePixelRatio (1.f);
 
-  mAtlasText = new cAtlasText (cAtlasText::kInitFontImageSize, cAtlasText::kInitFontImageSize);
+  setDevicePixelRatio (1.f);
   }
 //}}}
 //{{{
@@ -389,9 +387,8 @@ void cVg::initialise() {
   // removed because of strange startup time
   //glFinish();
 
-  mFontImageIds[0] = createTexture (TEXTURE_ALPHA,
-                                    cAtlasText::kInitFontImageSize, cAtlasText::kInitFontImageSize,
-                                    0, NULL, "initFont");
+  mAtlasText = new cAtlasText (512, 512);
+  mFontImageIds[0] = createTexture (TEXTURE_ALPHA, 512, 512, 0, NULL, "initFont");
   }
 //}}}
 
@@ -787,13 +784,13 @@ void cVg::roundedRectVarying (float x, float y, float w, float h,
     float values[] = {
       eMOVETO, x, y + ryTL,
       eLINETO, x, y + h - ryBL,
-      eBEZIERTO, x, y + h - ryBL*(1 - KAPPA90), x + rxBL*(1 - KAPPA90), y + h, x + rxBL, y + h,
+      eBEZIERTO, x, y + h - ryBL*(1 - kAppA90), x + rxBL*(1 - kAppA90), y + h, x + rxBL, y + h,
       eLINETO, x + w - rxBR, y + h,
-      eBEZIERTO, x + w - rxBR*(1 - KAPPA90), y + h, x + w, y + h - ryBR*(1 - KAPPA90), x + w, y + h - ryBR,
+      eBEZIERTO, x + w - rxBR*(1 - kAppA90), y + h, x + w, y + h - ryBR*(1 - kAppA90), x + w, y + h - ryBR,
       eLINETO, x + w, y + ryTR,
-      eBEZIERTO, x + w, y + ryTR*(1 - KAPPA90), x + w - rxTR*(1 - KAPPA90), y, x + w - rxTR, y,
+      eBEZIERTO, x + w, y + ryTR*(1 - kAppA90), x + w - rxTR*(1 - kAppA90), y, x + w - rxTR, y,
       eLINETO, x + rxTL, y,
-      eBEZIERTO, x + rxTL*(1 - KAPPA90), y, x, y + ryTL*(1 - KAPPA90), x, y + ryTL,
+      eBEZIERTO, x + rxTL*(1 - kAppA90), y, x, y + ryTL*(1 - kAppA90), x, y + ryTL,
       eCLOSE
       };
     mShape.addCommand (values, 44, mStates[mNumStates-1].mTransform);
@@ -807,10 +804,10 @@ void cVg::ellipse (float cx, float cy, float rx, float ry) {
 
   float values[] = {
     eMOVETO, cx-rx, cy,
-    eBEZIERTO, cx-rx, cy+ry*KAPPA90, cx-rx*KAPPA90, cy+ry, cx, cy+ry,
-    eBEZIERTO, cx+rx*KAPPA90, cy+ry, cx+rx, cy+ry*KAPPA90, cx+rx, cy,
-    eBEZIERTO, cx+rx, cy-ry*KAPPA90, cx+rx*KAPPA90, cy-ry, cx, cy-ry,
-    eBEZIERTO, cx-rx*KAPPA90, cy-ry, cx-rx, cy-ry*KAPPA90, cx-rx, cy,
+    eBEZIERTO, cx-rx, cy+kAppA90* kAppA90, cx-rx* kAppA90, cy+ry, cx, cy+ry,
+    eBEZIERTO, cx+rx* kAppA90, cy+ry, cx+rx, cy+ry* kAppA90, cx+rx, cy,
+    eBEZIERTO, cx+rx, cy-ry* kAppA90, cx+rx* kAppA90, cy-ry, cx, cy-ry,
+    eBEZIERTO, cx-rx* kAppA90, cy-ry, cx-rx, cy-ry* kAppA90, cx-rx, cy,
     eCLOSE
     };
   mShape.addCommand (values, 32, mStates[mNumStates-1].mTransform);
@@ -956,7 +953,7 @@ int cVg::getTextGlyphPositions (float x, float y, const string& str, sGlyphPosit
   int npos = 0;
   cAtlasText::sQuad quad;
   while (mAtlasText->textItNext (&it, &quad)) {
-    if (it.prevGlyphIndex < 0 && allocFontAtlas()) {
+    if ((it.prevGlyphIndex < 0) && allocFontAtlas()) {
       // can not retrieve glyph, try again
       it = prevIt;
       mAtlasText->textItNext (&it, &quad);
@@ -2644,12 +2641,14 @@ bool cVg::updateTexture (int id, int x, int y, int width, int height, const unsi
 bool cVg::getTextureSize (int id, int& width, int& height) {
 
   auto texture = findTextureById (id);
-  if (texture == nullptr)
+  if (texture == nullptr) {
+    width = 0;
+    height = 0;
     return false;
+    }
 
   width = texture->width;
   height = texture->height;
-
   return true;
   }
 //}}}
@@ -2918,40 +2917,38 @@ float cVg::getFontScale (cState* state) {
   }
 //}}}
 //{{{
-int cVg::allocFontAtlas() {
+bool cVg::allocFontAtlas() {
 
   cLog::log (LOGINFO, "allocFontAtlas");
 
   flushAtlasTexture();
   if (mFontImageIdIndex >= kMaxFontImages-1)
-    return 0;
+    return false;
 
   // if next fontImage already have a texture
-  int w = 0;
-  int h = 0;
-  if (mFontImageIds[mFontImageIdIndex +1] != 0)
-    getTextureSize (mFontImageIds[mFontImageIdIndex +1], w, h);
-
+  int width;
+  int height;
+  if (mFontImageIds[mFontImageIdIndex+1] != 0)
+    getTextureSize (mFontImageIds[mFontImageIdIndex+1], width, height);
   else {
     // calculate the new font image size and create it
-    getTextureSize (mFontImageIds[mFontImageIdIndex], w, h);
-    if (w > h)
-      h *= 2;
+    getTextureSize (mFontImageIds[mFontImageIdIndex], width, height);
+    if (width > height)
+      height *= 2;
     else
-      w *= 2;
+      width *= 2;
 
-    if ((w > cAtlasText::kMaxFontImageSize) || (h > cAtlasText::kMaxFontImageSize)) {
-      w = cAtlasText::kMaxFontImageSize;
-      h = cAtlasText::kMaxFontImageSize;
+    if ((width > 2048) || (height > 2048)) {
+      width = 2048;
+      height = 2048;
       }
 
-    mFontImageIds[mFontImageIdIndex +1] = createTexture (TEXTURE_ALPHA, w, h, 0, NULL, "allocFontAtlas");
+    mFontImageIds[mFontImageIdIndex +1] = createTexture (TEXTURE_ALPHA, width, height, 0, NULL, "allocFontAtlas");
     }
   ++mFontImageIdIndex;
 
-  mAtlasText->resetAtlas (w, h);
-
-  return 1;
+  mAtlasText->resetAtlas (width, height);
+  return true;
   }
 //}}}
 //{{{

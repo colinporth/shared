@@ -1,11 +1,10 @@
 // cAtlasText.cpp -
 //{{{  includes
 #define _CRT_SECURE_NO_WARNINGS
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
 
 #include "cAtlasText.h"
+
+#include <algorithm>
 
 //{{{
 static void* fontAlloc (size_t size, void* up) {
@@ -39,13 +38,25 @@ static void fontFree (void* ptr, void* up) {
 
 #include "../utils/utils.h"
 #include "../utils/cLog.h"
+
+using namespace std;
 //}}}
 
-//{{{  static utils
-static int maxi (int a, int b) { return a > b ? a : b; }
-static int mini (int a, int b) { return a < b ? a : b; }
 //{{{
-static unsigned int decutf8 (unsigned int* state, unsigned int* codep, unsigned int byte) {
+static unsigned int hashInt (unsigned int a) {
+
+  a += ~(a<<15);
+  a ^=  (a>>10);
+  a +=  (a<<3);
+  a ^=  (a>>6);
+  a += ~(a<<11);
+  a ^=  (a>>16);
+
+  return a;
+  }
+//}}}
+//{{{
+static unsigned int decUtf8 (unsigned int* state, unsigned int* codep, unsigned int byte) {
 // Copyright (c) 2008-2010 Bjoern Hoehrmann <bjoern@hoehrmann.de>
 // See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
 
@@ -76,20 +87,6 @@ static unsigned int decutf8 (unsigned int* state, unsigned int* codep, unsigned 
   return *state;
   }
 //}}}
-//{{{
-static unsigned int hashint (unsigned int a) {
-
-  a += ~(a<<15);
-  a ^=  (a>>10);
-  a +=  (a<<3);
-  a ^=  (a>>6);
-  a += ~(a<<11);
-  a ^=  (a>>16);
-
-  return a;
-  }
-//}}}
-//}}}
 //{{{  cAtlasText::cAtlas members
 // public
 //{{{
@@ -119,6 +116,7 @@ cAtlasText::cAtlas::~cAtlas() {
     free (mNodes);
   }
 //}}}
+
 //{{{
 void cAtlasText::cAtlas::reset (int width, int height) {
 
@@ -146,39 +144,6 @@ void cAtlasText::cAtlas::expand (int width, int height) {
 //}}}
 
 // private
-//{{{
-int cAtlasText::cAtlas::addRect (int rw, int rh, int* rx, int* ry) {
-
-  int besth = mHeight, bestw = mWidth, besti = -1;
-  int bestx = -1, besty = -1, i;
-
-  // Bottom left fit heuristic.
-  for (i = 0; i < mNumNodes; i++) {
-    int y = rectFits (i, rw, rh);
-    if (y != -1) {
-      if (y + rh < besth || (y + rh == besth && mNodes[i].mWidth < bestw)) {
-        besti = i;
-        bestw = mNodes[i].mWidth;
-        besth = y + rh;
-        bestx = mNodes[i].mX;
-        besty = y;
-        }
-      }
-    }
-
-  if (besti == -1)
-    return 0;
-
-  // Perform the actual packing.
-  if (addSkylineLevel (besti, bestx, besty, rw, rh) == 0)
-    return 0;
-
-  *rx = bestx;
-  *ry = besty;
-
-  return 1;
-  }
-//}}}
 //{{{
 int cAtlasText::cAtlas::insertNode (int index, int x, int y, int width) {
 
@@ -210,6 +175,7 @@ void cAtlasText::cAtlas::removeNode (int index) {
   mNumNodes--;
   }
 //}}}
+
 //{{{
 int cAtlasText::cAtlas::rectFits (int i, int width, int height) {
 // Checks if there is enough space at the location of skyline span 'i',
@@ -226,7 +192,7 @@ int cAtlasText::cAtlas::rectFits (int i, int width, int height) {
   while (spaceLeft > 0) {
     if (i == mNumNodes)
      return -1;
-    y = maxi (y, mNodes[i].mY);
+    y = max (y, int(mNodes[i].mY));
     if (y + height > mHeight)
       return -1;
     spaceLeft -= mNodes[i].mWidth;
@@ -271,6 +237,40 @@ int cAtlasText::cAtlas::addSkylineLevel (int index, int x, int y, int width, int
   return 1;
   }
 //}}}
+//{{{
+int cAtlasText::cAtlas::addRect (int rw, int rh, int* rx, int* ry) {
+
+  int besth = mHeight, bestw = mWidth, besti = -1;
+  int bestx = -1, besty = -1, i;
+
+  // Bottom left fit heuristic.
+  for (i = 0; i < mNumNodes; i++) {
+    int y = rectFits (i, rw, rh);
+    if (y != -1) {
+      if (y + rh < besth || (y + rh == besth && mNodes[i].mWidth < bestw)) {
+        besti = i;
+        bestw = mNodes[i].mWidth;
+        besth = y + rh;
+        bestx = mNodes[i].mX;
+        besty = y;
+        }
+      }
+    }
+
+  if (besti == -1)
+    return 0;
+
+  // Perform the actual packing.
+  if (addSkylineLevel (besti, bestx, besty, rw, rh) == 0)
+    return 0;
+
+  *rx = bestx;
+  *ry = besty;
+
+  return 1;
+  }
+//}}}
+
 //}}}
 
 // public
@@ -313,7 +313,7 @@ cAtlasText::~cAtlasText() {
 //}}}
 
 //{{{
-int cAtlasText::addFont (const std::string& name, unsigned char* data, int dataSize) {
+int cAtlasText::addFont (const string& name, unsigned char* data, int dataSize) {
 
   int fontIndex = allocFont();
   auto font = mFonts[fontIndex];
@@ -383,7 +383,7 @@ int cAtlasText::resetAtlas (int width, int height) {
 //}}}
 
 //{{{
-int cAtlasText::getFontByName (const std::string& name) {
+int cAtlasText::getFontByName (const string& name) {
 
   int index = 0;
   for (auto font : mFonts) {
@@ -415,7 +415,7 @@ cAtlasText::sGlyph* cAtlasText::getGlyph (cFont* font, unsigned int codepoint, s
   mScratchBufSize = 0;
 
   // Find code point and size.
-  h = hashint (codepoint) & (kHashLutSize -1);
+  h = hashInt (codepoint) & (kHashLutSize -1);
   i = font->mHashLut[h];
   while (i != -1) {
     if ((font->mGlyphs[i].codepoint == codepoint) && (font->mGlyphs[i].size == isize))
@@ -469,10 +469,10 @@ cAtlasText::sGlyph* cAtlasText::getGlyph (cFont* font, unsigned int codepoint, s
     dst[x + (gh-1)*mWidth] = 0;
     }
 
-  dirtyRect[0] = mini (dirtyRect[0], glyph->x0);
-  dirtyRect[1] = mini (dirtyRect[1], glyph->y0);
-  dirtyRect[2] = maxi (dirtyRect[2], glyph->x1);
-  dirtyRect[3] = maxi (dirtyRect[3], glyph->y1);
+  dirtyRect[0] = min (dirtyRect[0], int(glyph->x0));
+  dirtyRect[1] = min (dirtyRect[1], int(glyph->y0));
+  dirtyRect[2] = max (dirtyRect[2], int(glyph->x1));
+  dirtyRect[3] = max (dirtyRect[3], int(glyph->y1));
 
   return glyph;
   }
@@ -557,7 +557,7 @@ float cAtlasText::getTextBounds (float x, float y, const char* str, const char* 
   unsigned int codepoint;
   unsigned int utf8state = 0;
   for (; str != end; ++str) {
-    if (decutf8 (&utf8state, &codepoint, *(const unsigned char*)str))
+    if (decUtf8 (&utf8state, &codepoint, *(const unsigned char*)str))
       continue;
     auto glyph = getGlyph (font, codepoint, isize);
     if (glyph != NULL) {
@@ -696,7 +696,7 @@ int cAtlasText::textItNext (sTextIt* it, sQuad* quad) {
     return 0;
 
   for (; str != it->end; str++) {
-    if (decutf8 (&it->utf8state, &it->codepoint, *(const unsigned char*)str))
+    if (decUtf8 (&it->utf8state, &it->codepoint, *(const unsigned char*)str))
       continue;
 
     str++;
@@ -873,8 +873,8 @@ void cAtlasText::getAtlasSize (int* width, int* height) {
 //{{{
 int cAtlasText::expandAtlas (int width, int height) {
 
-  width = maxi (width, mWidth);
-  height = maxi (height, mHeight);
+  width = max (width, mWidth);
+  height = max (height, mHeight);
   if ((width == mWidth) && (height == mHeight))
     return 1;
 
@@ -898,7 +898,7 @@ int cAtlasText::expandAtlas (int width, int height) {
   // add existing data as dirty
   int maxy = 0;
   for (int i = 0; i < mAtlas->mNumNodes; i++)
-    maxy = maxi (maxy, mAtlas->mNodes[i].mY);
+    maxy = max (maxy, int(mAtlas->mNodes[i].mY));
 
   dirtyRect[0] = 0;
   dirtyRect[1] = 0;

@@ -1,19 +1,16 @@
 // cAtlasText.h
 #pragma once
+//{{{  includes
 #include <vector>
 #include <string>
+//}}}
 
 struct stbtt_fontinfo;
 class cAtlasText {
 public:
   //{{{  static constexpr
   static constexpr int kHashLutSize = 256;
-
-  static constexpr int kInitFontImageSize = 512;
-  static constexpr int kMaxFontImageSize = 2048;
-
   static constexpr int kScratchBufSize = 64000;
-
   static constexpr int kInvalid = -1;
   //}}}
   //{{{
