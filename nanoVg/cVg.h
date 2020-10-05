@@ -466,7 +466,7 @@ public:
 private:
   //{{{  static constexpr
   static constexpr int kMaxStates = 32;
-  static constexpr int kMaxFontImages = 4;
+  static constexpr int kMaxFontTextures = 4;
   //}}}
   enum eUniformBindings { FRAG_BINDING };
   enum eUniformLocation { LOCATION_VIEWSIZE, LOCATION_TEX, LOCATION_FRAG, MAX_LOCATIONS };
@@ -949,7 +949,7 @@ private:
   cAtlasText* mAtlasText = nullptr;
 
   // !!! should vector this !!!
-  int mFontImageIdIndex = 0;
-  int mFontImageIds[kMaxFontImages] = { 0 };
+  int mFontTextureIndex = 0;
+  int mFontTextureIds[kMaxFontTextures] = { 0 };
   //}}}
   };

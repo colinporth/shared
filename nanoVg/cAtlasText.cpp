@@ -349,8 +349,7 @@ int cAtlasText::addFont (const string& name, unsigned char* data, int dataSize) 
 //{{{
 int cAtlasText::resetAtlas (int width, int height) {
 
-  // Flush pending glyphs.
-  flush();
+  flushPendingGlyphs();
 
   // reset atlas
   mAtlas->reset (width, height);
@@ -863,13 +862,6 @@ cAtlasText::sGlyph* cAtlasText::allocGlyph (cFont* font) {
   }
 //}}}
 //{{{
-void cAtlasText::getAtlasSize (int* width, int* height) {
-
-  *width = mWidth;
-  *height = mHeight;
-  }
-//}}}
-//{{{
 int cAtlasText::expandAtlas (int width, int height) {
 
   width = max (width, mWidth);
@@ -877,8 +869,7 @@ int cAtlasText::expandAtlas (int width, int height) {
   if ((width == mWidth) && (height == mHeight))
     return 1;
 
-  // flush pending glyphs.
-  flush();
+  flushPendingGlyphs();
 
   // copy old texture data
   unsigned char* data = (unsigned char*)malloc(width * height);
@@ -913,7 +904,7 @@ int cAtlasText::expandAtlas (int width, int height) {
   }
 //}}}
 //{{{
-void cAtlasText::flush() {
+void cAtlasText::flushPendingGlyphs() {
 // Flush texture
 
   if (dirtyRect[0] < dirtyRect[2] && dirtyRect[1] < dirtyRect[3]) {

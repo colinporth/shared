@@ -224,10 +224,9 @@ private:
                 float scale, float spacing, float* x, float* y, sQuad* q);
 
   sGlyph* allocGlyph (cFont* font);
-  void getAtlasSize (int* width, int* height);
   int expandAtlas (int width, int height);
+  void flushPendingGlyphs();
 
-  void flush();
   //{{{  vars
   int mWidth = 0;
   int mHeight = 0;
