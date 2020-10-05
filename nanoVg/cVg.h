@@ -573,6 +573,50 @@ private:
   //{{{
   struct cFrag {
     //{{{
+    void setSimple() {
+      type = SHADER_SIMPLE;
+      strokeThreshold = -1.0f;
+      }
+    //}}}
+    //{{{
+    void setImage (cPaint* paint, cScissor* scissor, cTexture* tex) {
+
+      innerColor = nvgPremulColor (paint->innerColor);
+      outerColor = nvgPremulColor (paint->outerColor);
+
+      if ((scissor->extent[0] < -0.5f) || (scissor->extent[1] < -0.5f)) {
+        memset (scissorMatrix, 0, sizeof(scissorMatrix));
+        scissorExt[0] = 1.0f;
+        scissorExt[1] = 1.0f;
+        scissorScale[0] = 1.0f;
+        scissorScale[1] = 1.0f;
+        }
+      else {
+        cTransform inverse;
+        scissor->mTransform.getInverse (inverse);
+        inverse.getMatrix3x4 (scissorMatrix);
+        scissorExt[0] = scissor->extent[0];
+        scissorExt[1] = scissor->extent[1];
+        scissorScale[0] = scissor->mTransform.getAverageScaleX();
+        scissorScale[1] = scissor->mTransform.getAverageScaleY();
+        }
+
+      memcpy (extent, paint->extent, sizeof(extent));
+      strokeMult = 1.0f;
+      strokeThreshold = -1.0f;
+
+      type = SHADER_IMAGE;
+      if (tex->type == TEXTURE_RGBA)
+        texType = (tex->flags & cVg::IMAGE_PREMULTIPLIED) ? 0.f : 1.f;
+      else
+        texType = 2.f;
+
+      cTransform inverse;
+      paint->mTransform.getInverse (inverse);
+      inverse.getMatrix3x4 (paintMatrix);
+      }
+    //}}}
+    //{{{
     void setFill (cPaint* paint, cScissor* scissor, float width, float fringe, float strokeThreshold, cTexture* tex) {
 
       innerColor = nvgPremulColor (paint->innerColor);
@@ -631,50 +675,6 @@ private:
         paint->mTransform.getInverse (inverse);
         }
       inverse.getMatrix3x4 (paintMatrix);
-      }
-    //}}}
-    //{{{
-    void setImage (cPaint* paint, cScissor* scissor, cTexture* tex) {
-
-      innerColor = nvgPremulColor (paint->innerColor);
-      outerColor = nvgPremulColor (paint->outerColor);
-
-      if ((scissor->extent[0] < -0.5f) || (scissor->extent[1] < -0.5f)) {
-        memset (scissorMatrix, 0, sizeof(scissorMatrix));
-        scissorExt[0] = 1.0f;
-        scissorExt[1] = 1.0f;
-        scissorScale[0] = 1.0f;
-        scissorScale[1] = 1.0f;
-        }
-      else {
-        cTransform inverse;
-        scissor->mTransform.getInverse (inverse);
-        inverse.getMatrix3x4 (scissorMatrix);
-        scissorExt[0] = scissor->extent[0];
-        scissorExt[1] = scissor->extent[1];
-        scissorScale[0] = scissor->mTransform.getAverageScaleX();
-        scissorScale[1] = scissor->mTransform.getAverageScaleY();
-        }
-
-      memcpy (extent, paint->extent, sizeof(extent));
-      strokeMult = 1.0f;
-      strokeThreshold = -1.0f;
-
-      type = SHADER_IMAGE;
-      if (tex->type == TEXTURE_RGBA)
-        texType = (tex->flags & cVg::IMAGE_PREMULTIPLIED) ? 0.f : 1.f;
-      else
-        texType = 2.f;
-
-      cTransform inverse;
-      paint->mTransform.getInverse (inverse);
-      inverse.getMatrix3x4 (paintMatrix);
-      }
-    //}}}
-    //{{{
-    void setSimple() {
-      type = SHADER_SIMPLE;
-      strokeThreshold = -1.0f;
       }
     //}}}
 

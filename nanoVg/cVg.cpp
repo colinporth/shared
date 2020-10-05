@@ -10,9 +10,11 @@
 using namespace std;
 //}}}
 //{{{  constexpr
-constexpr float kDistanceTolerance = 0.01f;
 constexpr int kInitPathSize = 16;
 constexpr int kInitPointsSize = 128;
+
+constexpr float kDistanceTolerance = 0.01f;
+
 constexpr float KAPPA90 = 0.5522847493f; // Length proportional to radius of a cubic bezier handle for 90deg arcs.
 //}}}
 
@@ -2668,7 +2670,7 @@ void cVg::renderTriangles (int firstVertexIndex, int numVertices, cPaint& paint,
 
   auto draw = allocDraw();
   draw->set (cDraw::TRIANGLE, paint.id, 0, 0, allocFrags (1), firstVertexIndex, numVertices);
-  mFrags[draw->mFirstFragIndex].setFill (&paint, &scissor, 1.0f, 1.0f, -1.0f, findTextureById(paint.id));
+  mFrags[draw->mFirstFragIndex].setFill (&paint, &scissor, 1.0f, 1.0f, -1.0f, findTextureById (paint.id));
   }
 //}}}
 //{{{
@@ -2960,18 +2962,19 @@ void cVg::flushAtlasTexture() {
     // dirty atlas, update texture
     int fontImage = mFontImages[mFontImageIndex];
     if (fontImage != 0) {
-      int iw;
-      int ih;
-      const unsigned char* data = mAtlasText->getAtlasTextureData (iw, ih);
+      int width;
+      int height;
+      const unsigned char* data = mAtlasText->getAtlasTextureData (width, height);
 
-      int x = dirty[0];
-      int y = dirty[1];
-      int w = dirty[2] - dirty[0];
-      int h = dirty[3] - dirty[1];
+      int dirtyX = dirty[0];
+      int dirtyY = dirty[1];
+      int dirtyWidth = dirty[2] - dirty[0];
+      int dirtyHeight = dirty[3] - dirty[1];
 
-      cLog::log (LOGINFO, "flushAtlasTexture - dirty - fontImageIndex:%d - iw:%d ih:%d x:%d y:%d w:%d h:%d",
-                          mFontImageIndex, iw, ih, x,y,w,h);
-      updateTexture (fontImage, x,y, w,h, data);
+      cLog::log (LOGINFO, "flushAtlasTexture - dirty - fontImageIndex:%d fontImage:%d - %dx%d - %d,%d:%dx%d",
+                          mFontImageIndex, fontImage, 
+                          width, height, dirtyX, dirtyY, dirtyWidth, dirtyHeight);
+      updateTexture (fontImage, dirtyX, dirtyY, dirtyWidth, dirtyHeight, data);
       }
     else
       cLog::log (LOGINFO, "flushTextTexture - dirty");

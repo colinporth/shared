@@ -271,12 +271,14 @@ cAtlasText::cAtlasText (int width, int height) {
   mScratchBuf = (unsigned char*)malloc (kScratchBufSize);
   mAtlas = new cAtlas (width, height, kInitAtlasNodes);
 
-  // Allocate space for fonts.
+  // allocate space for fonts
   mFonts = (cFont**)malloc (sizeof(cFont*) * kInitFonts);
   mNumAllocatedFonts = kInitFonts;
   mNumFonts = 0;
 
-  // Create texture for the cache.
+  // create texture for cache
+  mWidth = width;
+  mHeight = height;
   itw = 1.0f / width;
   ith = 1.0f / height;
   texData = (unsigned char*)malloc (width * height);
