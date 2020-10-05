@@ -5,7 +5,7 @@ class iWindow {
 public:
   virtual ~iWindow() {}
 
-  virtual cVg* getContext() = 0;
+  virtual cVg* getVg() = 0;
 
   virtual float getWidthPix() = 0;
   virtual float getHeightPix() = 0;

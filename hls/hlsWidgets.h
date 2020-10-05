@@ -105,7 +105,7 @@ public:
     float nextxF = (kSamplesPerSecondF - subSecSamples) / samplesPerPixF;
 
     //{{{  draw waveform rects
-    auto context = draw->getContext();
+    auto context = draw->getVg();
 
     context->fillColor (kVgDarkGrey);
     context->beginPath();

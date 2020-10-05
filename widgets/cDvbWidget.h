@@ -43,8 +43,8 @@ public:
   //}}}
 
   virtual void onDraw (iDraw* draw) {
-    auto context = draw->getContext();
-    context->scissor (mX, mY, mWidth, mHeight);
+    auto vg = draw->getVg();
+    vg->scissor (mX, mY, mWidth, mHeight);
 
     int lastSid = 0;
     int imageIndex = 0;
@@ -94,24 +94,24 @@ public:
               // create or update rect image
               if (mImage[imageIndex] == -1) {
                 if (imageIndex < 20)
-                  mImage[imageIndex] = context->createImageRGBA (
+                  mImage[imageIndex] = vg->createImageRGBA (
                     subtitle->mRects[line]->mWidth, subtitle->mRects[line]->mHeight, 0, (uint8_t*)subtitle->mRects[line]->mPixData);
                 else
                   cLog::log (LOGERROR, "too many cDvbWidget images, fixit");
                 }
               else if (subtitle->mChanged)  // !!! assumes image is same size as before !!!
-                context->updateImage (mImage[imageIndex], (uint8_t*)subtitle->mRects[line]->mPixData);
+                vg->updateImage (mImage[imageIndex], (uint8_t*)subtitle->mRects[line]->mPixData);
 
               draw->drawRect (COL_DARKGREY, visx, ySub, dstWidth, dstHeight);
 
               // draw rect image
-              auto imagePaint = context->imagePattern (visx, ySub, dstWidth, dstHeight, 0.f, mImage[imageIndex], 1.f);
+              auto imagePaint = vg->imagePattern (visx, ySub, dstWidth, dstHeight, 0.f, mImage[imageIndex], 1.f);
               imageIndex++;
 
-              context->beginPath();
-              context->rect (visx, ySub, dstWidth, dstHeight);
-              context->fillPaint (imagePaint);
-              context->fill();
+              vg->beginPath();
+              vg->rect (visx, ySub, dstWidth, dstHeight);
+              vg->fillPaint (imagePaint);
+              vg->fill();
 
               // draw rect position
               std::string text = dec(subtitle->mRects[line]->mX) + "," + dec(subtitle->mRects[line]->mY,3);

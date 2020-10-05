@@ -73,7 +73,7 @@ public:
   //{{{
   void onDraw (iDraw* draw) {
 
-    auto context = draw->getContext();
+    auto vg = draw->getVg();
 
     mWaveHeight = 100.f;
     mOverviewHeight = 100.f;
@@ -96,16 +96,16 @@ public:
     auto rightWaveFrame = playFrame + (((int(mWidth)+mFrameWidth)/2) * mFrameStep) / mFrameWidth;
     rightWaveFrame = std::min (rightWaveFrame, mSong->getLastFrame());
 
-    drawRange (context, playFrame, leftWaveFrame, rightWaveFrame);
+    drawRange (vg, playFrame, leftWaveFrame, rightWaveFrame);
 
     if (mSong->getNumFrames()) {
       bool mono = mSong->getNumChannels() == 1;
-      drawWave (context, playFrame, leftWaveFrame, rightWaveFrame, mono);
-      drawOverview (context, playFrame, mono);
-      drawFreq (context, playFrame);
+      drawWave (vg, playFrame, leftWaveFrame, rightWaveFrame, mono);
+      drawOverview (vg, playFrame, mono);
+      drawFreq (vg, playFrame);
       }
 
-    drawTime (context,
+    drawTime (vg,
               mSong->hasHlsBase() ? getFrameString (mSong->getFirstFrame()) : "",
               getFrameString (mSong->getPlayFrame()),
               mSong->hasHlsBase() ? getFrameString (mSong->getLastFrame()): getFrameString (mSong->getTotalFrames()));
@@ -155,19 +155,19 @@ private:
   //}}}
 
   //{{{
-  void drawRange (cVg* context, int playFrame, int leftFrame, int rightFrame) {
+  void drawRange (cVg* vg, int playFrame, int leftFrame, int rightFrame) {
 
-    context->beginPath();
-    context->rect (mX, mY + mDstRangeTop, mWidth, mRangeHeight);
-    context->fillColor (kVgDarkGrey);
-    context->triangleFill();
+    vg->beginPath();
+    vg->rect (mX, mY + mDstRangeTop, mWidth, mRangeHeight);
+    vg->fillColor (kVgDarkGrey);
+    vg->triangleFill();
 
-    context->beginPath();
+    vg->beginPath();
     for (auto &item : mSong->getSelect().getItems()) {
       auto firstx = (getWidth()/2.f) + (item.getFirstFrame() - playFrame) * mFrameWidth / mFrameStep;
       float lastx = item.getMark() ? firstx + 1.f :
                                      (getWidth()/2.f) + (item.getLastFrame() - playFrame) * mFrameWidth / mFrameStep;
-      context->rect (mX  + firstx, mY + mDstRangeTop, lastx - firstx, mRangeHeight);
+      vg->rect (mX  + firstx, mY + mDstRangeTop, lastx - firstx, mRangeHeight);
 
       auto title = item.getTitle();
       if (!title.empty()) {
@@ -178,12 +178,12 @@ private:
         }
       }
 
-    context->fillColor (kVgWhite);
-    context->triangleFill();
+    vg->fillColor (kVgWhite);
+    vg->triangleFill();
     }
   //}}}
   //{{{
-  void drawWave (cVg* context, int playFrame, int leftFrame, int rightFrame, bool mono) {
+  void drawWave (cVg* vg, int playFrame, int leftFrame, int rightFrame, bool mono) {
 
     float values[2] = { 0.f };
 
@@ -195,7 +195,7 @@ private:
       //{{{  draw all peak values
       float xorg = mX;
 
-      context->beginPath();
+      vg->beginPath();
 
       for (auto frame = leftFrame; frame < rightFrame; frame += mFrameStep) {
         auto framePtr = mSong->getAudioFramePtr (frame);
@@ -206,19 +206,19 @@ private:
             for (auto i = 0; i < 2; i++)
               values[i] = *peakValuesPtr++ * peakValueScale;
             }
-          context->rect (xorg, mY + mDstWaveCentre - values[0], xlen, values[0] + values[1]);
+          vg->rect (xorg, mY + mDstWaveCentre - values[0], xlen, values[0] + values[1]);
           }
         xorg += xlen;
         }
 
-      context->fillColor (kVgDarkGrey);
-      context->triangleFill();
+      vg->fillColor (kVgDarkGrey);
+      vg->triangleFill();
       }
       //}}}
 
     float xorg = mX;
     //{{{  draw powerValues before playFrame, summed if zoomed out
-    context->beginPath();
+    vg->beginPath();
 
     for (auto frame = leftFrame; frame < playFrame; frame += mFrameStep) {
       auto framePtr = mSong->getAudioFramePtr (frame);
@@ -252,18 +252,18 @@ private:
           for (auto i = 0; i < 2; i++)
             values[i] /= toSumFrame - alignedFrame + 1;
           }
-        context->rect (xorg, mY + mDstWaveCentre - values[0], xlen, values[0] + values[1]);
+        vg->rect (xorg, mY + mDstWaveCentre - values[0], xlen, values[0] + values[1]);
         }
 
       xorg += xlen;
       }
 
-    context->fillColor (kVgBlue);
-    context->triangleFill();
+    vg->fillColor (kVgBlue);
+    vg->triangleFill();
     //}}}
     //{{{  draw powerValues playFrame, no sum
     // power scaled to maxPeak
-    context->beginPath();
+    vg->beginPath();
 
     auto framePtr = mSong->getAudioFramePtr (playFrame);
     if (framePtr) {
@@ -273,16 +273,16 @@ private:
         for (auto i = 0; i < 2; i++)
           values[i] = *powerValuesPtr++ * peakValueScale;
         }
-      context->rect (xorg, mY + mDstWaveCentre - values[0], xlen, values[0] + values[1]);
+      vg->rect (xorg, mY + mDstWaveCentre - values[0], xlen, values[0] + values[1]);
       }
 
     xorg += xlen;
 
-    context->fillColor (kVgWhite);
-    context->triangleFill();
+    vg->fillColor (kVgWhite);
+    vg->triangleFill();
     //}}}
     //{{{  draw powerValues after playFrame, summed if zoomed out
-    context->beginPath();
+    vg->beginPath();
 
     for (auto frame = playFrame+mFrameStep; frame < rightFrame; frame += mFrameStep) {
       auto framePtr = mSong->getAudioFramePtr (frame);
@@ -316,14 +316,14 @@ private:
           for (auto i = 0; i < 2; i++)
             values[i] /= toSumFrame - alignedFrame + 1;
           }
-        context->rect (xorg, mY + mDstWaveCentre - values[0], xlen, values[0] + values[1]);
+        vg->rect (xorg, mY + mDstWaveCentre - values[0], xlen, values[0] + values[1]);
         }
 
       xorg += xlen;
       }
 
-    context->fillColor (kVgGrey);
-    context->triangleFill();
+    vg->fillColor (kVgGrey);
+    vg->triangleFill();
     //}}}
 
     //{{{  copy reversed spectrum column to bitmap, clip high freqs to height
@@ -346,11 +346,11 @@ private:
     }
   //}}}
   //{{{
-  void drawFreq (cVg* context, int playFrame) {
+  void drawFreq (cVg* vg, int playFrame) {
 
     float valueScale = 100.f / 255.f;
 
-    context->beginPath();
+    vg->beginPath();
 
     float xorg = mX;
     auto framePtr = mSong->getAudioFramePtr (playFrame);
@@ -359,44 +359,44 @@ private:
       for (auto i = 0; (i < mSong->getNumFreqBytes()) && ((i*2) < int(mWidth)); i++) {
         auto value =  freqValues[i] * valueScale;
         if (value > 1.f)
-          context->rect (xorg, mY + mHeight - value, 2.f, value);
+          vg->rect (xorg, mY + mHeight - value, 2.f, value);
         xorg += 2.f;
         }
       }
 
-    context->fillColor (kVgYellow);
-    context->triangleFill();
+    vg->fillColor (kVgYellow);
+    vg->triangleFill();
     }
   //}}}
   //{{{
-  void drawTime (cVg* context, const std::string& firstFrameString,
+  void drawTime (cVg* vg, const std::string& firstFrameString,
                  const std::string& playFrameString, const std::string& lastFrameString) {
 
     // small lastFrameString, coloured, right
-    context->setFontSize ((float)getFontHeight());
-    context->setTextAlign (cVg::ALIGN_RIGHT | cVg::ALIGN_BOTTOM);
+    vg->setFontSize ((float)getFontHeight());
+    vg->setTextAlign (cVg::ALIGN_RIGHT | cVg::ALIGN_BOTTOM);
     if (mSong->getHlsLoad() == cSong::eHlsIdle)
-      context->fillColor (kVgWhite);
+      vg->fillColor (kVgWhite);
     else if (mSong->getHlsLoad() == cSong::eHlsFailed)
-      context->fillColor (kVgRed);
+      vg->fillColor (kVgRed);
     else
-      context->fillColor (kVgGreen);
-    context->text (mWidth, mHeight, lastFrameString);
+      vg->fillColor (kVgGreen);
+    vg->text (mWidth, mHeight, lastFrameString);
 
     // small firstFrameString, white, left
-    context->fillColor (kVgWhite);
-    context->setTextAlign (cVg::ALIGN_LEFT | cVg::ALIGN_BOTTOM);
-    context->text (0.f, mHeight, firstFrameString);
+    vg->fillColor (kVgWhite);
+    vg->setTextAlign (cVg::ALIGN_LEFT | cVg::ALIGN_BOTTOM);
+    vg->text (0.f, mHeight, firstFrameString);
 
     // big playFrameString, white, centred
-    context->setFontSize ((float)getBigFontHeight());
-    context->setTextAlign (cVg::ALIGN_CENTER | cVg::ALIGN_BOTTOM);
-    context->text (mWidth/2.f, mHeight, playFrameString);
+    vg->setFontSize ((float)getBigFontHeight());
+    vg->setTextAlign (cVg::ALIGN_CENTER | cVg::ALIGN_BOTTOM);
+    vg->text (mWidth/2.f, mHeight, playFrameString);
     }
   //}}}
 
   //{{{
-  void drawOverviewWave (cVg* context, int firstFrame, int playFrame, float playFrameX, float valueScale, bool mono) {
+  void drawOverviewWave (cVg* vg, int firstFrame, int playFrame, float playFrameX, float valueScale, bool mono) {
   // simple overview cache, invalidate if anything changed
 
     int lastFrame = mSong->getLastFrame();
@@ -409,7 +409,7 @@ private:
 
     float values[2] = { 0.f };
 
-    context->beginPath();
+    vg->beginPath();
     float xorg = mX;
     float xlen = 1.f;
     for (auto x = 0; x < int(mWidth); x++) {
@@ -452,11 +452,11 @@ private:
           }
         }
 
-      context->rect (xorg, mY + mDstOverviewCentre - mOverviewValuesL[x], xlen,  mOverviewValuesR[x]);
+      vg->rect (xorg, mY + mDstOverviewCentre - mOverviewValuesL[x], xlen,  mOverviewValuesR[x]);
       xorg += 1.f;
       }
-    context->fillColor (kVgGrey);
-    context->triangleFill();
+    vg->fillColor (kVgGrey);
+    vg->triangleFill();
 
     // possible cache to stop recalc
     mOverviewTotalFrames = totalFrames;
@@ -466,16 +466,16 @@ private:
     }
   //}}}
   //{{{
-  void drawOverviewLens (cVg* context, int playFrame, float centreX, float width, bool mono) {
+  void drawOverviewLens (cVg* vg, int playFrame, float centreX, float width, bool mono) {
   // draw frames centred at playFrame -/+ width in pixels, centred at centreX
 
     cLog::log (LOGINFO, "drawOverviewLens %d %f %f", playFrame, centreX, width);
 
     // cut hole and frame it
-    context->beginPath();
-    context->rect (mX + centreX - width, mY + mDstOverviewTop, width * 2.f, mOverviewHeight);
-    context->fillColor (kVgBlack);
-    context->triangleFill();
+    vg->beginPath();
+    vg->rect (mX + centreX - width, mY + mDstOverviewTop, width * 2.f, mOverviewHeight);
+    vg->fillColor (kVgBlack);
+    vg->triangleFill();
     // frame in yellow
 
     // calc leftmost frame, clip to valid frame, adjust firstX which may overlap left up to mFrameWidth
@@ -502,7 +502,7 @@ private:
       }
 
     // draw unzoomed waveform, start before playFrame
-    context->beginPath();
+    vg->beginPath();
     float xorg = mX + firstX;
     float valueScale = mOverviewHeight / 2.f / maxPowerValue;
     for (auto frame = int(leftFrame); frame <= rightFrame; frame++) {
@@ -529,9 +529,9 @@ private:
 
         if (frame == playFrame) {
           //{{{  finish before playFrame
-          context->fillColor (kVgBlue);
-          context->triangleFill();
-          context->beginPath();
+          vg->fillColor (kVgBlue);
+          vg->triangleFill();
+          vg->beginPath();
           }
           //}}}
 
@@ -540,13 +540,13 @@ private:
                             mDstOverviewCentre - (powerValues[0] * valueScale);
         float ylen = mono ? powerValues[0] * valueScale * 2.f  :
                             (powerValues[0] + powerValues[1]) * valueScale;
-        context->rect (xorg, mY + yorg, 1.f, ylen);
+        vg->rect (xorg, mY + yorg, 1.f, ylen);
 
         if (frame == playFrame) {
           //{{{  finish playFrame, start after playFrame
-          context->fillColor (kVgWhite);
-          context->triangleFill();
-          context->beginPath();
+          vg->fillColor (kVgWhite);
+          vg->triangleFill();
+          vg->beginPath();
           }
           //}}}
         }
@@ -554,12 +554,12 @@ private:
       xorg += 1.f;
       }
     // finish after playFrame
-    context->fillColor (kVgGrey);
-    context->triangleFill();
+    vg->fillColor (kVgGrey);
+    vg->triangleFill();
     }
   //}}}
   //{{{
-  void drawOverview (cVg* context, int playFrame, bool mono) {
+  void drawOverview (cVg* vg, int playFrame, bool mono) {
 
     if (!mSong->getTotalFrames())
       return;
@@ -567,7 +567,7 @@ private:
     int firstFrame = mSong->getFirstFrame();
     float playFrameX = ((playFrame - firstFrame) * mWidth) / mSong->getTotalFrames();
     float valueScale = mOverviewHeight / 2.f / mSong->getMaxPowerValue();
-    drawOverviewWave (context, firstFrame, playFrame, playFrameX, valueScale, mono);
+    drawOverviewWave (vg, firstFrame, playFrame, playFrameX, valueScale, mono);
 
     if (mOverviewPressed) {
       //{{{  animate on
@@ -598,7 +598,7 @@ private:
       else if (overviewLensCentreX + mOverviewLens > mWidth)
         overviewLensCentreX = mWidth - mOverviewLens;
 
-      drawOverviewLens (context, playFrame, overviewLensCentreX, mOverviewLens-1.f, mono);
+      drawOverviewLens (vg, playFrame, overviewLensCentreX, mOverviewLens-1.f, mono);
       }
 
     else {
@@ -606,14 +606,14 @@ private:
 
       auto framePtr = mSong->getAudioFramePtr (playFrame);
       if (framePtr && framePtr->getPowerValues()) {
-        context->beginPath();
+        vg->beginPath();
         auto powerValues = framePtr->getPowerValues();
         float yorg = mono ? (mDstOverviewTop + mOverviewHeight - (powerValues[0] * valueScale * 2.f)) :
                             (mDstOverviewCentre - (powerValues[0] * valueScale));
         float ylen = mono ? (powerValues[0] * valueScale * 2.f) : ((powerValues[0] + powerValues[1]) * valueScale);
-        context->rect (mX+playFrameX, mY+yorg, 1.f, ylen);
-        context->fillColor (kVgWhite);
-        context->triangleFill();
+        vg->rect (mX+playFrameX, mY+yorg, 1.f, ylen);
+        vg->fillColor (kVgWhite);
+        vg->triangleFill();
         }
       }
     }

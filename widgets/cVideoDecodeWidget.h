@@ -14,25 +14,24 @@ public:
   void onDraw (iDraw* draw) {
     auto frame = mVideoDecode->findPlayFrame();
     if (frame) {
-      auto context = draw->getContext();
+      auto vg = draw->getVg();
       if (frame->getPts() != mPts) {
         mPts = frame->getPts();
         if (mImage == -1)
-          mImage = context->createImageRGBA (mVideoDecode->getWidth(), mVideoDecode->getHeight(), 0, (uint8_t*)frame->get32());
+          mImage = vg->createImageRGBA (mVideoDecode->getWidth(), mVideoDecode->getHeight(), 0, (uint8_t*)frame->get32());
         else
-          context->updateImage (mImage, (uint8_t*)frame->get32());
+          vg->updateImage (mImage, (uint8_t*)frame->get32());
         }
 
       // paint image rect
-      context->beginPath();
-      context->rect (0.f,0.f, mWidth, mHeight);
-      context->fillPaint (context->imagePattern (0.f,0.f, mWidth, mHeight, 0.f, mImage, 1.f));
-      context->triangleFill();
+      vg->beginPath();
+      vg->rect (0.f,0.f, mWidth, mHeight);
+      vg->fillPaint (vg->imagePattern (0.f,0.f, mWidth, mHeight, 0.f, mImage, 1.f));
+      vg->triangleFill();
 
       float frac = mVideoDecode->getDecodeFrac();
       if ((frac > 0.f) && (frac < 1.f))
-        context->drawSpinner (mWidth - 24.f, mHeight-24.f, 20.f, frac,
-                              nvgRGBA(0,0,0,0), nvgRGBA(32,255,32,192));
+        vg->drawSpinner (mWidth - 24.f, mHeight-24.f, 20.f, frac, nvgRGBA(0,0,0,0), nvgRGBA(32,255,32,192));
       }
     }
 

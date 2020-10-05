@@ -15,7 +15,7 @@ public:
   virtual ~cGlWindow();
 
   //{{{  iWindow gets
-  cVg* getContext();
+  cVg* getVg();
   float getWidth() { return 800; }
   float getHeight() { return 480; }
   float getWidthPix();

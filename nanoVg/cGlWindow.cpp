@@ -16,7 +16,7 @@ cGlWindow::~cGlWindow() {
 //}}}
 
 // iWindow
-cVg* cGlWindow::getContext() { return this; }
+cVg* cGlWindow::getVg() { return this; }
 float cGlWindow::getWidthPix() { return mRootContainer->getPixWidth(); }
 float cGlWindow::getHeightPix() { return mRootContainer->getPixHeight(); }
 

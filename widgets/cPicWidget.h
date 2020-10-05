@@ -56,26 +56,26 @@ public:
     uint16_t height = int((mHeight-1) * mScale);
 
     if (mPic) {
-      auto context = draw->getContext();
+      auto vg = draw->getVg();
       int imageFlags = cVg::IMAGE_GENERATE_MIPMAPS;
 
       if (mImage == -1)
-        mImage = context->createImageRGBA (mPicWidth, mPicHeight, imageFlags, mPic);
+        mImage = vg->createImageRGBA (mPicWidth, mPicHeight, imageFlags, mPic);
       else if (mUpdateTexture) {
-        //nvgUpdateImage (context, mImage, mPic);
-        context->deleteImage (mImage);
-        mImage = context->createImageRGBA (mPicWidth, mPicHeight, imageFlags, mPic);
+        //nvgUpdateImage (vg, mImage, mPic);
+        vg->deleteImage (mImage);
+        mImage = vg->createImageRGBA (mPicWidth, mPicHeight, imageFlags, mPic);
         }
       mUpdateTexture = false;
 
       float x = mScale >= 1.0 ? mX : mX + (mWidth - width)/2.f;
       float y = mScale >= 1.0 ? mY : mY + (mHeight - height)/2.f;
 
-      auto imgPaint = context->imagePattern (x, y, width, height, mAngle / k180Pi, mImage, 1.0f);
-      context->beginPath();
-      context->rect (x, y, width, height);
-      context->fillPaint (imgPaint);
-      context->fill();
+      auto imgPaint = vg->imagePattern (x, y, width, height, mAngle / k180Pi, mImage, 1.0f);
+      vg->beginPath();
+      vg->rect (x, y, width, height);
+      vg->fillPaint (imgPaint);
+      vg->fill();
       }
     }
   //}}}
