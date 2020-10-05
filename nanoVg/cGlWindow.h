@@ -57,15 +57,12 @@ public:
     }
   //}}}
 
-  // other draws
-  void drawSpinner (float cx, float cy, float r, float t);
-
   // iChange - !!! ignored for now !!!
   void changed() {}
   void setChangeCountDown (int countDown) {}
 
 protected:
-  cRootContainer* initialise (const std::string& title, int width, int height, 
+  cRootContainer* initialise (const std::string& title, int width, int height,
                               unsigned char* sansFont, int sansFontSize);
 
   cWidget* add (cWidget* widget) { return mRootContainer->add (widget); }

@@ -430,14 +430,13 @@ public:
     IMAGE_NEAREST          = 1<<5, // Image interpolation is Nearest instead Linear
     };
 
-  enum eTexture {
-    TEXTURE_ALPHA = 0x01,
-    TEXTURE_RGBA  = 0x02
-    };
+  enum eTexture { TEXTURE_ALPHA = 0x01, TEXTURE_RGBA = 0x02 };
 
-  int createImageMem (int imageFlags, unsigned char* data, int ndata);
   int createImageRGBA (int width, int height, int imageFlags, const unsigned char* data);
+  int createImage (int imageFlags, unsigned char* data, int dataSize);
+
   void updateImage (int id, const unsigned char* data);
+
   bool deleteImage (int id);
   //}}}
   //{{{  scissor
@@ -462,6 +461,8 @@ public:
   void beginFrame (int windowWidth, int windowHeight, float devicePixelRatio);
   void endFrame();
   //}}}
+  void drawSpinner (float centrex, float centrey, float radius, float frac,
+                    const sVgColour& color1, const sVgColour& color2);
 
 private:
   //{{{  static constexpr

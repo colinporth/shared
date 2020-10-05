@@ -67,35 +67,6 @@ void cGlWindow::drawEllipseSolid (uint32_t colour, float x, float y, float xradi
   }
 //}}}
 
-// other draws
-//{{{
-void cGlWindow::drawSpinner (float cx, float cy, float r, float t) {
-
-  float a0 = 0.f + (t * 6.f);
-  float a1 = kPi + (t * 6.f);
-  float r0 = r;
-  float r1 = r * 0.75f;
-
-  saveState();
-
-  beginPath();
-  arc (cx,cy, r0, a0, a1, cVg::eHOLE);
-  arc (cx,cy, r1, a1, a0, cVg::eSOLID);
-  closePath();
-
-  float ax = cx + cosf(a0) * (r0+r1)*0.5f;
-  float ay = cy + sinf(a0) * (r0+r1)*0.5f;
-  float bx = cx + cosf(a1) * (r0+r1)*0.5f;
-  float by = cy + sinf(a1) * (r0+r1)*0.5f;
-
-  auto paint = linearGradient (ax,ay, bx,by, nvgRGBA(0,0,0,0), nvgRGBA(255,255,255,128));
-  fillPaint (paint);
-  fill();
-
-  restoreState();
-  }
-//}}}
-
 // protected
 //{{{
 cRootContainer* cGlWindow::initialise (const string& title, int width, int height,
@@ -210,7 +181,8 @@ void cGlWindow::draw() {
     drawEyes (winWidth*3.0f/4.0f, winHeight/2.0f, winWidth/4.0f, winHeight/2.0f,
               mMouseX, mMouseY, (float)glfwGetTime());
     drawLines (0.0f, 50.0f, (float)winWidth, (float)winHeight, (float)glfwGetTime());
-    drawSpinner (winWidth/2.0f, winHeight/2.0f, 20.0f, (float)glfwGetTime());
+    drawSpinner (winWidth/2.0f, winHeight/2.0f, 20.0f, (float)glfwGetTime(),
+                 nvgRGBA(0, 0, 0, 0), nvgRGBA(255, 255, 255, 128));
     }
     //}}}
 

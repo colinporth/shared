@@ -397,7 +397,9 @@ public:
   int getWidth() { return mWidth; }
   int getHeight() { return mHeight; }
   int getFramePoolSize() { return (int)mFramePool.size(); }
+  float getDecodeFrac() { return mFrac; }
 
+  void setDecodeFrac (float frac) { mFrac = frac; }
   void setPlayPts (uint64_t playPts) { mPlayPts = playPts; }
   //{{{
   cFrame* findPlayFrame() {
@@ -457,7 +459,7 @@ protected:
 
   int mWidth = 0;
   int mHeight = 0;
-
+  float mFrac = 0.f;
   uint64_t mPlayPts = 0;
   vector <cFrame*> mFramePool;
   };

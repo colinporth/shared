@@ -120,8 +120,7 @@ static const char* kFragShader =
 
 // public
 //{{{
-cVg::cVg (int flags)
-   : mDrawEdges(!(flags & eNoEdges)), mDrawSolid(!(flags & eNoSolid)), mDrawTriangles(true) {
+cVg::cVg (int flags) : mDrawEdges(!(flags & eNoEdges)), mDrawSolid(!(flags & eNoSolid)), mDrawTriangles(true) {
 
   saveState();
   resetState();
@@ -441,12 +440,14 @@ void cVg::resetTransform() {
   mStates[mNumStates - 1].mTransform.setIdentity();
   }
 //}}}
+
 //{{{
 void cVg::transform (float a, float b, float c, float d, float e, float f) {
   cTransform transform (a, b, c, d, e, f);
   mStates[mNumStates - 1].mTransform.premultiply (transform);
   }
 //}}}
+
 //{{{
 void cVg::translate (float x, float y) {
   cTransform transform;
@@ -1094,26 +1095,29 @@ float cVg::text (float x, float y, const string& str) {
 //}}}
 //{{{  image
 //{{{
-int cVg::createImageMem (int imageFlags, unsigned char* data, int ndata) {
-
-  int w, h, n;
-  unsigned char* img = stbi_load_from_memory (data, ndata, &w, &h, &n, 4);
-  if (img == NULL) {
-    printf ("Failed to load %s\n", stbi_failure_reason());
-    return 0;
-    }
-
-  int image = createImageRGBA (w, h, imageFlags, img);
-
-  stbi_image_free (img);
-  return image;
-  }
-//}}}
-//{{{
 int cVg::createImageRGBA (int width, int height, int imageFlags, const unsigned char* data) {
   return createTexture (TEXTURE_RGBA, width, height, imageFlags, data, "rgba");
   }
 //}}}
+//{{{
+int cVg::createImage (int imageFlags, unsigned char* data, int dataSize) {
+
+  int width;
+  int height;
+  int numBytes;
+  unsigned char* imageData = stbi_load_from_memory (data, dataSize, &width, &height, &numBytes, 4);
+  if (imageData == NULL) {
+    printf ("Failed to load %s\n", stbi_failure_reason());
+    return 0;
+    }
+
+  int imageId = createImageRGBA (width, height, imageFlags, imageData);
+  stbi_image_free (imageData);
+
+  return imageId;
+  }
+//}}}
+
 //{{{
 void cVg::updateImage (int image, const unsigned char* data) {
 
@@ -1123,12 +1127,13 @@ void cVg::updateImage (int image, const unsigned char* data) {
   updateTexture (image, 0,0, width, height, data);
   }
 //}}}
+
 //{{{
 bool cVg::deleteImage (int image) {
 
   for (int i = 0; i < mNumTextures; i++) {
     if (mTextures[i].id == image) {
-      if (mTextures[i].tex != 0 && (mTextures[i].flags & eNoDelete) == 0)
+      if ((mTextures[i].tex != 0) && ((mTextures[i].flags & eNoDelete) == 0))
         glDeleteTextures (1, &mTextures[i].tex);
       mTextures[i].reset();
       return true;
@@ -1280,6 +1285,32 @@ void cVg::endFrame() {
   mVertices.reset();
   }
 //}}}
+//}}}
+//{{{
+void cVg::drawSpinner (float centrex, float centrey, float radius, float frac,
+                       const sVgColour& color1, const sVgColour& color2) {
+
+  saveState();
+
+  beginPath();
+  float angle0 = (frac * k2Pi);
+  float angle1 = kPi + angle0;
+  float radius0 = radius;
+  float radius1 = radius * 0.75f;
+  arc (centrex, centrey, radius0, angle0, angle1, cVg::eHOLE);
+  arc (centrex, centrey, radius1, angle1, angle0, cVg::eSOLID);
+  closePath();
+
+  float ax = centrex + cosf (angle0) * (radius0 + radius1) * 0.5f;
+  float ay = centrey + sinf (angle0) * (radius0 + radius1) * 0.5f;
+  float bx = centrex + cosf (angle1) * (radius0 + radius1) * 0.5f;
+  float by = centrey + sinf (angle1) * (radius0 + radius1) * 0.5f;
+  auto paint = linearGradient (ax,ay, bx,by, color1, color2);
+  fillPaint (paint);
+  fill();
+
+  restoreState();
+  }
 //}}}
 
 // private
@@ -2557,12 +2588,12 @@ int cVg::createTexture (int type, int width, int height, int imageFlags, const u
   if (nearestPow2 (width) != (unsigned int)width || nearestPow2(height) != (unsigned int)height) {
     //{{{  check non-power of 2 restrictions
     if ((imageFlags & IMAGE_REPEATX) != 0 || (imageFlags & IMAGE_REPEATY) != 0) {
-      cLog::log (LOGINFO, "Repeat X/Y is not supported for non power-of-two textures %dx%d", width, height);
+      cLog::log (LOGINFO, "no repeat x,y for non powerOfTwo textures %dx%d", width, height);
       imageFlags &= ~(IMAGE_REPEATX | IMAGE_REPEATY);
       }
 
     if (imageFlags & IMAGE_GENERATE_MIPMAPS) {
-      cLog::log (LOGINFO, "Mip-maps is not support for non power-of-two textures %dx )", width, height);
+      cLog::log (LOGINFO, "no mipmap for non powerOfTwo textures %dx%d", width, height);
       imageFlags &= ~IMAGE_GENERATE_MIPMAPS;
       }
     }
