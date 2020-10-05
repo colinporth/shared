@@ -1,14 +1,14 @@
 // cVg.h - based on Mikko Mononen memon@inside.org nanoVg
-//{{{  includes
 #pragma once
-
+//{{{  includes
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <string>
-
 #include <math.h>
+
+#include <string>
+#include <algorithm>
 
 #include "../glad/glad.h"
 #include "../GLFW/glfw3.h"
@@ -18,12 +18,11 @@
 //}}}
 
 //{{{  inline math utils
-#define PI 3.14159265358979323846264338327f
+constexpr float kPi = 3.14159265358979323846264338327f;
+constexpr float k2Pi = kPi * 2.f;
+constexpr float kPiDiv2 = kPi / 2.f;
+constexpr float k180Pi = kPi * 180.f;
 
-inline int mini (int a, int b) { return a < b ? a : b; }
-inline float minf (float a, float b) { return a < b ? a : b; }
-inline int maxi (int a, int b) { return a > b ? a : b; }
-inline float maxf (float a, float b) { return a > b ? a : b; }
 inline int clampi (int a, int mn, int mx) { return a < mn ? mn : (a > mx ? mx : a); }
 inline float clampf (float a, float mn, float mx) { return a < mn ? mn : (a > mx ? mx : a); }
 inline float absf (float a) { return a >= 0.0f ? a : -a; }
@@ -45,8 +44,8 @@ inline float normalize (float& x, float& y) {
   }
 //}}}
 
-inline float degToRad (float deg) { return deg / 180.0f * PI; }
-inline float radToDeg (float rad) { return rad / PI * 180.0f; }
+inline float degToRad (float deg) { return deg / k180Pi; }
+inline float radToDeg (float rad) { return rad / k180Pi; }
 //{{{
 inline unsigned int nearestPow2 (unsigned int num) {
 
@@ -95,15 +94,15 @@ inline float distPointSeg (float x, float y, float px, float py, float qx, float
 //{{{
 inline void intersectRects (float* dst, float ax, float ay, float aw, float ah, float bx, float by, float bw, float bh) {
 
-  float minx = maxf (ax, bx);
-  float miny = maxf (ay, by);
-  float maxx = minf (ax+aw, bx+bw);
-  float maxy = minf (ay+ah, by+bh);
+  float minx = std::max (ax, bx);
+  float miny = std::max (ay, by);
+  float maxx = std::min (ax+aw, bx+bw);
+  float maxy = std::min (ay+ah, by+bh);
 
   dst[0] = minx;
   dst[1] = miny;
-  dst[2] = maxf (0.0f, maxx - minx);
-  dst[3] = maxf (0.0f, maxy - miny);
+  dst[2] = std::max (0.0f, maxx - minx);
+  dst[3] = std::max (0.0f, maxy - miny);
   }
 //}}}
 

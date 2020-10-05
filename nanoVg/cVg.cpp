@@ -507,7 +507,7 @@ cVg::cPaint cVg::linearGradient (float sx, float sy, float ex, float ey, const s
   p.extent[0] = large;
   p.extent[1] = large + d * 0.5f;
   p.radius = 0.0f;
-  p.feather = maxf (1.0f, d);
+  p.feather = max (1.0f, d);
   p.innerColor = icol;
   p.outerColor = ocol;
   p.id = 0;
@@ -526,7 +526,7 @@ cVg::cPaint cVg::radialGradient (float cx, float cy, float inr, float outr, cons
   p.extent[0] = r;
   p.extent[1] = r;
   p.radius = r;
-  p.feather = maxf (1.0f, f);
+  p.feather = max (1.0f, f);
   p.innerColor = icol;
   p.outerColor = ocol;
   p.id = 0;
@@ -542,7 +542,7 @@ cVg::cPaint cVg::boxGradient (float x, float y, float w, float h, float r, float
   p.extent[0] = 0.f;
   p.extent[1] = 0.f;
   p.radius = r;
-  p.feather = maxf (1.0f, f);
+  p.feather = max (1.0f, f);
   p.innerColor = icol;
   p.outerColor = ocol;
   p.id = 0;
@@ -693,20 +693,20 @@ void cVg::arc (float cx, float cy, float r, float a0, float a1, int dir) {
   // Clamp angles
   da = a1 - a0;
   if (dir == eHOLE) {
-    if (absf(da) >= PI*2)
-      da = PI*2;
+    if (absf(da) >= k2Pi)
+      da = k2Pi;
     else
-      while (da < 0.0f) da += PI*2;
+      while (da < 0.0f) da += k2Pi;
     }
   else {
-    if (absf(da) >= PI*2)
-      da = -PI*2;
+    if (absf(da) >= k2Pi)
+      da = -k2Pi;
     else
-      while (da > 0.0f) da -= PI*2;
+      while (da > 0.0f) da -= k2Pi;
     }
 
   // Split arc into max 90 degree segments.
-  ndivs = maxi (1, mini((int)(absf(da) / (PI*0.5f) + 0.5f), 5));
+  ndivs = max (1, min((int)(absf(da) / kPiDiv2 + 0.5f), 5));
   hda = (da / (float)ndivs) / 2.0f;
   kappa = absf (4.0f / 3.0f * (1.0f - cosf (hda)) / sinf (hda));
 
@@ -764,14 +764,14 @@ void cVg::roundedRectVarying (float x, float y, float w, float h,
     float halfw = absf (w) * 0.5f;
     float halfh = absf (h) * 0.5f;
 
-    float rxBL = minf (radBottomLeft, halfw) * signf (w);
-    float ryBL = minf(radBottomLeft, halfh) * signf(h);
-    float rxBR = minf (radBottomRight, halfw) * signf (w);
-    float ryBR = minf(radBottomRight, halfh) * signf(h);
-    float rxTR = minf (radTopRight, halfw) * signf (w);
-    float ryTR = minf(radTopRight, halfh) * signf(h);
-    float rxTL = minf (radTopLeft, halfw) * signf (w);
-    float ryTL = minf(radTopLeft, halfh) * signf(h);
+    float rxBL = min (radBottomLeft, halfw) * signf (w);
+    float ryBL = min (radBottomLeft, halfh) * signf(h);
+    float rxBR = min (radBottomRight, halfw) * signf (w);
+    float ryBR = min (radBottomRight, halfh) * signf(h);
+    float rxTR = min (radTopRight, halfw) * signf (w);
+    float ryTR = min (radTopRight, halfh) * signf(h);
+    float rxTL = min (radTopLeft, halfw) * signf (w);
+    float ryTL = min (radTopLeft, halfh) * signf(h);
 
     float values[] = {
       eMOVETO, x, y + ryTL,
@@ -954,8 +954,8 @@ int cVg::getTextGlyphPositions (float x, float y, const string& str, sGlyphPosit
 
     positions[npos].str = it.str;
     positions[npos].x = it.x * inverseScale;
-    positions[npos].minx = minf (it.x, quad.x0) * inverseScale;
-    positions[npos].maxx = maxf (it.nextx, quad.x1) * inverseScale;
+    positions[npos].minx = min (it.x, quad.x0) * inverseScale;
+    positions[npos].maxx = max (it.nextx, quad.x1) * inverseScale;
     npos++;
     if (npos >= maxPositions)
       break;
@@ -1008,7 +1008,7 @@ float cVg::text (float x, float y, const string& str) {
   mAtlasText->setFontSizeSpacingAlign (state->fontId, state->fontSize * scale, state->letterSpacing * scale, state->textAlign);
 
   // allocate 6 vertices per glyph
-  int numVertices = maxi (2, (int)str.size()) * 6;
+  int numVertices = max (2, (int)str.size()) * 6;
   int vertexIndex = mVertices.alloc (numVertices);
   auto vertices = mVertices.getVertexPtr (vertexIndex);
   auto firstVertex = vertices;
@@ -1134,8 +1134,8 @@ bool cVg::deleteImage (int image) {
 void cVg::scissor (float x, float y, float w, float h) {
 
   auto state = &mStates[mNumStates-1];
-  w = maxf (0.0f, w);
-  h = maxf (0.0f, h);
+  w = max (0.0f, w);
+  h = max (0.0f, h);
 
   state->scissor.mTransform.setTranslate (x + w * 0.5f, y + h* 0.5f);
   state->scissor.mTransform.multiply (state->mTransform);
@@ -1399,7 +1399,7 @@ int cVg::c2dVertices::alloc (int numVertices) {
 // allocate n vertices and return index of first
 
   if (mNumVertices + numVertices > mNumAllocatedVertices) {
-    mNumAllocatedVertices = maxi (mNumVertices + numVertices, 4096) + mNumAllocatedVertices/2; // 1.5x Overallocate
+    mNumAllocatedVertices = max (mNumVertices + numVertices, 4096) + mNumAllocatedVertices/2; // 1.5x Overallocate
     cLog::log (LOGINFO2, "realloc vertices " + dec(mNumAllocatedVertices));
     mVertices = (c2dVertex*)realloc (mVertices, mNumAllocatedVertices * sizeof(c2dVertex));
     }
@@ -1553,10 +1553,10 @@ void cVg::cShape::flattenPaths() {
       point0->dy = point1->y - point0->y;
       point0->len = normalize (point0->dx, point0->dy);
 
-      mBounds[0] = minf (mBounds[0], point0->x);
-      mBounds[1] = minf (mBounds[1], point0->y);
-      mBounds[2] = maxf (mBounds[2], point0->x);
-      mBounds[3] = maxf (mBounds[3], point0->y);
+      mBounds[0] = min (mBounds[0], point0->x);
+      mBounds[1] = min (mBounds[1], point0->y);
+      mBounds[2] = max (mBounds[2], point0->x);
+      mBounds[3] = max (mBounds[3], point0->y);
 
       // advance
       point0 = point1++;
@@ -1610,7 +1610,7 @@ void cVg::cShape::calculateJoins (float w, int lineJoin, float miterLimit) {
         }
 
       // Calculate if we should use bevel or miter for inner join.
-      limit = maxf (1.01f, minf (point0->len, point1->len) * iw);
+      limit = max (1.01f, min (point0->len, point1->len) * iw);
       if ((dmr2 * limit * limit) < 1.0f)
         point1->flags |= cPoint::PT_INNERBEVEL;
 
@@ -1787,7 +1787,7 @@ void cVg::cShape::expandStroke (c2dVertices& vertices, float w, eLineCap lineCap
   calculateJoins (w, lineJoin, miterLimit);
 
   // Calculate divisions per half circle.
-  int ncap = curveDivs (w, PI, 0.25f);
+  int ncap = curveDivs (w, kPi, 0.25f);
   //{{{  calculate max vertex usage.
   int numVertices = 0;
   for (auto path = mPaths; path < mPaths + mNumPaths; path++) {
@@ -1915,7 +1915,7 @@ float cVg::cShape::normalize (float& x, float& y) {
 //{{{
 int cVg::cShape::curveDivs (float r, float arc, float tol) {
   float da = acosf (r / (r + tol)) * 2.0f;
-  return maxi (2, (int)ceilf(arc / da));
+  return max (2, (int)ceilf(arc / da));
   }
 //}}}
 //{{{
@@ -2142,12 +2142,12 @@ cVg::c2dVertex* cVg::cShape::roundJoin (c2dVertex* vertexPtr, cPoint* point0, cP
     a0 = atan2f (-dly0, -dlx0);
     a1 = atan2f (-dly1, -dlx1);
     if (a1 > a0)
-      a1 -= PI*2;
+      a1 -= k2Pi;
 
     vertexPtr++->set (lx0, ly0, lu,1);
     vertexPtr++->set (point1->x - dlx0*rw, point1->y - dly0*rw, ru,1);
 
-    n = clampi ((int)ceilf (((a0 - a1) / PI) * ncap), 2, ncap);
+    n = clampi ((int)ceilf (((a0 - a1) / kPi) * ncap), 2, ncap);
     for (i = 0; i < n; i++) {
       float u = i/(float)(n-1);
       float a = a0 + u*(a1-a0);
@@ -2167,12 +2167,12 @@ cVg::c2dVertex* cVg::cShape::roundJoin (c2dVertex* vertexPtr, cPoint* point0, cP
     a0 = atan2f (dly0, dlx0);
     a1 = atan2f (dly1, dlx1);
     if (a1 < a0)
-      a1 += PI *2;
+      a1 += k2Pi;
 
     vertexPtr++->set (point1->x + dlx0*rw, point1->y + dly0*rw, lu,1);
     vertexPtr++->set (rx0, ry0, ru,1);
 
-    n = clampi ((int)ceilf(((a1 - a0) / PI) * ncap), 2, ncap);
+    n = clampi ((int)ceilf(((a1 - a0) / kPi) * ncap), 2, ncap);
     for (i = 0; i < n; i++) {
       float u = i/(float)(n-1);
       float a = a0 + u*(a1-a0);
@@ -2298,7 +2298,7 @@ cVg::c2dVertex* cVg::cShape::roundCapStart (c2dVertex* vertexPtr, cPoint* point,
   float dly = -dx;
 
   for (int i = 0; i < ncap; i++) {
-    float a = i / (float)(ncap-1) * PI;
+    float a = i / (float)(ncap-1) * kPi;
     float ax = cosf(a) * w;
     float ay = sinf(a) * w;
     vertexPtr++->set (px - dlx * ax - dx * ay, py - dly * ax - dy * ay, 0, 1);
@@ -2322,7 +2322,7 @@ cVg::c2dVertex* cVg::cShape::roundCapEnd (c2dVertex* vertexPtr, cPoint* point, f
   vertexPtr++->set (px + dlx * w, py + dly * w, 0, 1);
   vertexPtr++->set (px - dlx * w, py - dly * w, 1, 1);
   for (int i = 0; i < ncap; i++) {
-    float a = i / (float)(ncap-1) * PI;
+    float a = i / (float)(ncap-1) * kPi;
     float ax = cosf(a) * w;
     float ay = sinf(a) * w;
     vertexPtr++->set (px, py, 0.5f, 1);
@@ -2477,7 +2477,7 @@ cVg::cDraw* cVg::allocDraw() {
 // allocate a draw, return pointer to it
 
   if (mNumDraws + 1 > mNumAllocatedDraws) {
-    mNumAllocatedDraws = maxi (mNumDraws + 1, 128) + mNumAllocatedDraws / 2; // 1.5x Overallocate
+    mNumAllocatedDraws = max (mNumDraws + 1, 128) + mNumAllocatedDraws / 2; // 1.5x Overallocate
     mDraws = (cDraw*)realloc (mDraws, sizeof(cDraw) * mNumAllocatedDraws);
     }
 
@@ -2489,7 +2489,7 @@ int cVg::allocFrags (int numFrags) {
 // allocate numFrags, return index of first
 
   if (mNumFrags + numFrags > mNumAllocatedFrags) {
-    mNumAllocatedFrags = maxi (mNumFrags + numFrags, 128) + mNumAllocatedFrags / 2; // 1.5x Overallocate
+    mNumAllocatedFrags = max (mNumFrags + numFrags, 128) + mNumAllocatedFrags / 2; // 1.5x Overallocate
     mFrags = (cFrag*)realloc (mFrags, mNumAllocatedFrags * sizeof(cFrag));
     }
 
@@ -2504,7 +2504,7 @@ int cVg::allocPathVertices (int numPaths) {
 // allocate numPaths pathVertices, return index of first
 
   if (mNumPathVertices + numPaths > mNumAllocatedPathVertices) {
-    mNumAllocatedPathVertices = maxi (mNumPathVertices + numPaths, 128) + mNumAllocatedPathVertices / 2; // 1.5x Overallocate
+    mNumAllocatedPathVertices = max (mNumPathVertices + numPaths, 128) + mNumAllocatedPathVertices / 2; // 1.5x Overallocate
     mPathVertices = (cPathVertices*)realloc (mPathVertices, mNumAllocatedPathVertices * sizeof(cPathVertices));
     }
 
@@ -2531,7 +2531,7 @@ int cVg::createTexture (int type, int width, int height, int imageFlags, const u
 
   if (texture == nullptr) {
     if (mNumTextures + 1 > mNumAllocatedTextures) {
-      mNumAllocatedTextures = maxi (mNumTextures + 1, 4) +  mNumAllocatedTextures / 2; // 1.5x Overallocate
+      mNumAllocatedTextures = max (mNumTextures + 1, 4) +  mNumAllocatedTextures / 2; // 1.5x Overallocate
       mTextures = (cTexture*)realloc (mTextures, mNumAllocatedTextures * sizeof(cTexture));
       if (mTextures == nullptr)
         return 0;
@@ -2905,7 +2905,7 @@ void cVg::renderFrame (c2dVertices& vertices, cCompositeOpState compositeOp) {
 // font
 //{{{
 float cVg::getFontScale (cState* state) {
-  return minf (quantize (state->mTransform.getAverageScale(), 0.01f), 4.f);
+  return min (quantize (state->mTransform.getAverageScale(), 0.01f), 4.f);
   }
 //}}}
 //{{{

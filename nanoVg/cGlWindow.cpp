@@ -72,7 +72,7 @@ void cGlWindow::drawEllipseSolid (uint32_t colour, float x, float y, float xradi
 void cGlWindow::drawSpinner (float cx, float cy, float r, float t) {
 
   float a0 = 0.f + (t * 6.f);
-  float a1 = PI + (t * 6.f);
+  float a1 = kPi + (t * 6.f);
   float r0 = r;
   float r1 = r * 0.75f;
 
