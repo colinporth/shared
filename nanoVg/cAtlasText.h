@@ -1,5 +1,6 @@
 // cAtlasText.h
 #pragma once
+#include <vector>
 #include <string>
 
 struct stbtt_fontinfo;
@@ -242,9 +243,7 @@ private:
   unsigned char* texData = nullptr;
   int dirtyRect[4] = { 0 };
 
-  int mNumAllocatedFonts = 0;
-  int mNumFonts = 0;
   cAtlas* mAtlas = nullptr;
-  cFont** mFonts = { nullptr };
+  std::vector <cFont*> mFonts;
   //}}}
   };

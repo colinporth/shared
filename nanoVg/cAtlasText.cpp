@@ -1,6 +1,12 @@
 // cAtlasText.cpp -
+//{{{  includes
+#define _CRT_SECURE_NO_WARNINGS
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+
 #include "cAtlasText.h"
-//{{{  include stb_truetype
+
 //{{{
 static void* fontAlloc (size_t size, void* up) {
 // allocate and return size from mScratchBuf, no free
@@ -30,6 +36,9 @@ static void fontFree (void* ptr, void* up) {
 #define STBTT_free(x,u) fontFree (x,u)
 
 #include "stb_truetype.h"
+
+#include "../utils/utils.h"
+#include "../utils/cLog.h"
 //}}}
 
 //{{{  static utils
@@ -271,11 +280,6 @@ cAtlasText::cAtlasText (int width, int height) {
   mScratchBuf = (unsigned char*)malloc (kScratchBufSize);
   mAtlas = new cAtlas (width, height, kInitAtlasNodes);
 
-  // allocate space for fonts
-  mFonts = (cFont**)malloc (sizeof(cFont*) * kInitFonts);
-  mNumAllocatedFonts = kInitFonts;
-  mNumFonts = 0;
-
   // create texture for cache
   mWidth = width;
   mHeight = height;
@@ -295,11 +299,11 @@ cAtlasText::cAtlasText (int width, int height) {
 //{{{
 cAtlasText::~cAtlasText() {
 
-  for (int i = 0; i < mNumFonts; ++i) {
-    free (mFonts[i]->mFontInfo);
-    delete mFonts[i];
+  for (auto font : mFonts) {
+    free (font->mFontInfo);
+    free (font);
     }
-  free (mFonts);
+  mFonts.clear();
 
   delete mAtlas;
 
@@ -311,11 +315,8 @@ cAtlasText::~cAtlasText() {
 //{{{
 int cAtlasText::addFont (const std::string& name, unsigned char* data, int dataSize) {
 
-  int index = allocFont();
-  if (index == kInvalid)
-    return kInvalid;
-
-  auto font = mFonts[index];
+  int fontIndex = allocFont();
+  auto font = mFonts[fontIndex];
   font->name = name;
 
   // init hash lookup
@@ -329,8 +330,7 @@ int cAtlasText::addFont (const std::string& name, unsigned char* data, int dataS
   font->mFontInfo = (stbtt_fontinfo*)malloc (sizeof(stbtt_fontinfo));
   font->mFontInfo->userdata = this;
   if (!stbtt_InitFont (font->mFontInfo, data, 0)) {
-    freeFont (font);
-    mNumFonts--;
+    cLog::log (LOGERROR, "addFont failed to load " + name);
     return kInvalid;
     }
 
@@ -345,7 +345,7 @@ int cAtlasText::addFont (const std::string& name, unsigned char* data, int dataS
   font->descender = descent / fh;
   font->lineh = (fh + lineGap) / fh;
 
-  return index;
+  return fontIndex;
   }
 //}}}
 //{{{
@@ -367,11 +367,9 @@ int cAtlasText::resetAtlas (int width, int height) {
   dirtyRect[3] = 0;
 
   // reset cached glyphs
-  int i, j;
-  for (i = 0; i < mNumFonts; i++) {
-    cFont* font = mFonts[i];
+  for (auto font : mFonts) {
     font->nglyphs = 0;
-    for (j = 0; j < kHashLutSize; j++)
+    for (int j = 0; j < kHashLutSize; j++)
       font->lut[j] = -1;
     }
 
@@ -387,9 +385,12 @@ int cAtlasText::resetAtlas (int width, int height) {
 //{{{
 int cAtlasText::getFontByName (const std::string& name) {
 
-  for (int i = 0; i < mNumFonts; i++)
-    if (mFonts[i]->name == name)
-      return i;
+  int index = 0;
+  for (auto font : mFonts) {
+    if (font->name == name)
+      return index;
+    index++;
+    }
 
   return kInvalid;
   }
@@ -496,7 +497,7 @@ float cAtlasText::getVertMetrics (float& ascender, float& descender) {
 
   auto state = getState();
 
-  if (state->font < 0 || state->font >= mNumFonts) {
+  if (state->font < 0) {
     ascender = 0.f;
     descender = 0.f;
     return 0.f;
@@ -521,7 +522,7 @@ void cAtlasText::getLineBounds (float y, float& miny, float& maxy) {
   auto state = getState();
   short isize;
 
-  if ((state->font < 0) || (state->font >= mNumFonts))
+  if (state->font < 0)
     return;
 
   auto font = mFonts[state->font];
@@ -546,7 +547,7 @@ float cAtlasText::getTextBounds (float x, float y, const char* str, const char* 
   float startx, advance;
   float minx, miny, maxx, maxy;
 
-  if (state->font < 0 || state->font >= mNumFonts)
+  if (state->font < 0)
     return 0;
 
   auto font = mFonts[state->font];
@@ -655,7 +656,7 @@ void cAtlasText::setFontSizeSpacingAlign (int font, float size, float spacing, i
 int cAtlasText::textIt (sTextIt* it, float x, float y, const char* str, const char* end) {
 
   auto state = getState();
-  if ((state->font < 0) || (state->font >= mNumFonts))
+  if (state->font < 0)
     return 0;
 
   it->font = mFonts[state->font];
@@ -811,18 +812,13 @@ void cAtlasText::ttRenderGlyphBitmap (stbtt_fontinfo* fontInfo, unsigned char* o
 //{{{
 int cAtlasText::allocFont() {
 
-  if (mNumFonts + 1 > mNumAllocatedFonts) {
-    mNumAllocatedFonts = mNumAllocatedFonts == 0 ? 8 : mNumAllocatedFonts * 2;
-    mFonts = (cFont**)realloc (mFonts, sizeof(cFont*) * mNumAllocatedFonts);
-    }
-
   auto font = new cFont;
+  mFonts.push_back (font);
+
   font->glyphs = (sGlyph*)malloc(sizeof(sGlyph) * kInitGlyphs);
   font->cglyphs = kInitGlyphs;
   font->nglyphs = 0;
-
-  mFonts[mNumFonts++] = font;
-  return mNumFonts-1;
+  return (int)mFonts.size() - 1;
   }
 //}}}
 //{{{
