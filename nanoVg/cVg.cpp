@@ -3,9 +3,10 @@
 #define _CRT_SECURE_NO_WARNINGS
 
 #include "cVg.h"
-
-#include "stb_image.h"
 #include "cAtlasText.h"
+
+#define STB_IMAGE_IMPLEMENTATION  // force following include to generate implementation
+#include "stb_image.h"
 
 using namespace std;
 //}}}
