@@ -208,8 +208,8 @@ void cSong::addAudioFrame (int frameNum, float* samples, bool owned, int totalFr
   unique_lock<shared_mutex> lock (mSharedMutex);
 
   // totalFrames can be a changing estimate for file, or increasing value for streaming
-  mAudioFrameMap.insert (map<int,cAudioFrame*>::value_type (frameNum,
-    new cAudioFrame (samples, owned, framePtr, powerValues, peakValues, freqValues, lumaValues, pts)));
+  mFrameMap.insert (map<int,cFrame*>::value_type (frameNum,
+    new cFrame (samples, owned, framePtr, powerValues, peakValues, freqValues, lumaValues, pts)));
   mTotalFrames = totalFrames;
 
   checkSilenceWindow (frameNum);
@@ -362,10 +362,10 @@ void cSong::clearFrames() {
   mTotalFrames = 0;
   mSelect.clearAll();
 
-  for (auto frame : mAudioFrameMap)
+  for (auto frame : mFrameMap)
     if (frame.second)
       delete (frame.second);
-  mAudioFrameMap.clear();
+  mFrameMap.clear();
 
   // reset maxValues
   mMaxPowerValue = kMinPowerValue;

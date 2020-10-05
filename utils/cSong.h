@@ -1,4 +1,4 @@
-// cSong.h - set of audioFrames, videoFrames added with own timing
+// cSong.h - set of audio frames, power, peak, fft and some hls handling
 #pragma once
 //{{{  includes
 #include <cstdint>
@@ -18,19 +18,19 @@
 class cSong {
 public:
   //{{{
-  class cAudioFrame {
+  class cFrame {
   public:
     static constexpr float kQuietThreshold = 0.01f;
     //{{{
-    cAudioFrame (float* samples, bool owned, uint8_t* framePtr,
-                 float* powerValues, float* peakValues, uint8_t* freqValues, uint8_t* lumaValues,
-                 uint64_t pts) :
+    cFrame (float* samples, bool owned, uint8_t* framePtr,
+            float* powerValues, float* peakValues, uint8_t* freqValues, uint8_t* lumaValues,
+            uint64_t pts) :
         mSamples(samples), mOwned(owned), mMuted(false), mSilence(false), mPtr(framePtr),
         mPowerValues(powerValues), mPeakValues(peakValues), mFreqValues(freqValues), mFreqLuma(lumaValues),
         mPts(pts) {}
     //}}}
     //{{{
-    ~cAudioFrame() {
+    ~cFrame() {
 
       if (mOwned)
         free (mSamples);
@@ -161,17 +161,17 @@ public:
   int getSampleRate() { return mSampleRate; }
   int getSamplesPerFrame() { return mSamplesPerFrame; }
 
-  int getFirstFrame() { return mAudioFrameMap.empty() ? 0 : mAudioFrameMap.begin()->first; }
-  int getLastFrame() { return mAudioFrameMap.empty() ? 0 : mAudioFrameMap.rbegin()->first;  }
-  int getNumFrames() { return mAudioFrameMap.empty() ? 0 : (mAudioFrameMap.rbegin()->first - mAudioFrameMap.begin()->first + 1); }
+  int getFirstFrame() { return mFrameMap.empty() ? 0 : mFrameMap.begin()->first; }
+  int getLastFrame() { return mFrameMap.empty() ? 0 : mFrameMap.rbegin()->first;  }
+  int getNumFrames() { return mFrameMap.empty() ? 0 : (mFrameMap.rbegin()->first - mFrameMap.begin()->first + 1); }
   int getTotalFrames() { return mTotalFrames; }
   int getPlayFrame() { return mPlayFrame; }
   int getBasePlayFrame() { return mPlayFrame - mHlsBaseFrame; }
 
   //{{{
-  cAudioFrame* getAudioFramePtr (int frame) {
-    auto it = mAudioFrameMap.find (frame);
-    return (it == mAudioFrameMap.end()) ? nullptr : it->second;
+  cFrame* getAudioFramePtr (int frame) {
+    auto it = mFrameMap.find (frame);
+    return (it == mFrameMap.end()) ? nullptr : it->second;
     }
   //}}}
   cSelect& getSelect() { return mSelect; }
@@ -246,7 +246,7 @@ private:
 
   // vars
   std::shared_mutex mSharedMutex;
-  std::map <int, cAudioFrame*> mAudioFrameMap;
+  std::map <int, cFrame*> mFrameMap;
 
   cAudioDecode::eFrameType mFrameType = cAudioDecode::eUnknown;
   bool owned = false;
