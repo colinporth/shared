@@ -276,7 +276,7 @@ public:
 
   private:
     //{{{
-    bool cTransform::isIdentity() {
+    bool isIdentity() {
       return mSx == 1.0f && mKy == 0.0f && mKx == 0.0f && mSy == 1.0f && mTx == 0.0f && mTy == 0.0f;
       }
     //}}}
