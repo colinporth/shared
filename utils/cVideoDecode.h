@@ -22,7 +22,7 @@ public:
   class cFrame {
   public:
     enum eState { eFree, eAllocated, eLoaded };
-    cFrame (uint64_t pts) : mOk(false), mPts(pts) {}
+    cFrame (uint64_t pts) : mPts(pts) {}
     //{{{
     virtual ~cFrame() {
 
@@ -370,7 +370,6 @@ public:
 
   private:
     eState mState = eFree;
-    bool mOk = false;
     uint64_t mPts = 0;
     uint32_t* m32 = nullptr;
     };
