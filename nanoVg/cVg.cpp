@@ -898,14 +898,13 @@ float cVg::getTextBounds (float x, float y, const string& str, float* bounds) {
     state->fontId, state->fontSize * scale, state->letterSpacing * scale, state->textAlign);
 
   float width = mAtlasText->getTextBounds (x*scale, y*scale, str.c_str(), str.c_str() + str.size(), bounds);
-  if (bounds != NULL) {
-    // Use line bounds for height.
-    mAtlasText->getLineBounds (y*scale, &bounds[1], &bounds[3]);
-    bounds[0] *= inverseScale;
-    bounds[1] *= inverseScale;
-    bounds[2] *= inverseScale;
-    bounds[3] *= inverseScale;
-    }
+
+  // Use line bounds for height.
+  mAtlasText->getLineBounds (y*scale, &bounds[1], &bounds[3]);
+  bounds[0] *= inverseScale;
+  bounds[1] *= inverseScale;
+  bounds[2] *= inverseScale;
+  bounds[3] *= inverseScale;
 
   return width * inverseScale;
   }
@@ -949,7 +948,7 @@ int cVg::getTextGlyphPositions (float x, float y, const string& str, sGlyphPosit
     state->fontId, state->fontSize * scale, state->letterSpacing * scale, state->textAlign);
 
   cAtlasText::sTextIt it;
-  mAtlasText->textItInit (&it, x*scale, y*scale, str.c_str(), str.c_str() + str.size());
+  mAtlasText->textIt (&it, x*scale, y*scale, str.c_str(), str.c_str() + str.size());
   cAtlasText::sTextIt prevIt = it;
 
   int npos = 0;
@@ -1024,7 +1023,7 @@ float cVg::text (float x, float y, const string& str) {
   auto firstVertex = vertices;
 
   cAtlasText::sTextIt it;
-  mAtlasText->textItInit (&it, x*scale, y*scale, str.c_str(), str.c_str() + str.size());
+  mAtlasText->textIt (&it, x*scale, y*scale, str.c_str(), str.c_str() + str.size());
   cAtlasText::sTextIt prevIt = it;
 
   cAtlasText::sQuad quad;
@@ -1040,9 +1039,9 @@ float cVg::text (float x, float y, const string& str) {
       }
     prevIt = it;
 
-    // set vertex triangles from quad
+    // set triangle vertices from quad
     if (state->mTransform.mIdentity) {
-      //{{{  simple
+      //{{{  identity transform, copy
       vertices++->set (quad.x0 * inverseScale, quad.y0 * inverseScale, quad.s0, quad.t0);
       vertices++->set (quad.x1 * inverseScale, quad.y1 * inverseScale, quad.s1, quad.t1);
       vertices++->set (quad.x1 * inverseScale, quad.y0 * inverseScale, quad.s1, quad.t0);
@@ -1079,7 +1078,6 @@ float cVg::text (float x, float y, const string& str) {
   // calc vertices used
   numVertices = int(vertices - firstVertex);
   mVertices.trim (vertexIndex + numVertices);
-
   if (numVertices) {
     auto fillPaint = mStates[mNumStates - 1].fillPaint;
     fillPaint.innerColor.a *= mStates[mNumStates - 1].alpha;
@@ -2957,13 +2955,13 @@ int cVg::allocFontAtlas() {
 void cVg::flushAtlasTexture() {
 
   int dirty[4];
-  if (mAtlasText->validateTexture (dirty)) {
+  if (mAtlasText->getAtlasDirty (dirty)) {
     // dirty atlas, update texture
     int fontImage = mFontImages[mFontImageIndex];
     if (fontImage != 0) {
       int iw;
       int ih;
-      const unsigned char* data = mAtlasText->getTextureData (iw, ih);
+      const unsigned char* data = mAtlasText->getAtlasTextureData (iw, ih);
 
       int x = dirty[0];
       int y = dirty[1];

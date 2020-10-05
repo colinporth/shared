@@ -80,7 +80,7 @@ public:
   public:
     std::string name;
 
-    stbtt_fontinfo* mFontInfo;
+    stbtt_fontinfo* mFontInfo = nullptr;
     unsigned char* data = nullptr;
     int dataSize = 0;
 
@@ -136,8 +136,8 @@ public:
   void getLineBounds (float y, float* miny, float* maxy);
   float getTextBounds (float x, float y, const char* str, const char* end, float* bounds);
 
-  const unsigned char* getTextureData (int& width, int& height);
-  int validateTexture (int* dirty);
+  int getAtlasDirty (int* dirty);
+  const unsigned char* getAtlasTextureData (int& width, int& height);
 
   // sets
   void setColor (unsigned int color);
@@ -147,7 +147,7 @@ public:
   void setAlign (int align);
   void setFontSizeSpacingAlign (int font, float size, float spacing, int align);
 
-  int textItInit (sTextIt* it, float x, float y, const char* str, const char* end);
+  int textIt (sTextIt* it, float x, float y, const char* str, const char* end);
   int textItNext (sTextIt* it, sQuad* quad);
 
   // vars

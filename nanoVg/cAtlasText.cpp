@@ -1,12 +1,36 @@
-// cAtlasText.cpp
+// cAtlasText.cpp -
 #include "cAtlasText.h"
+//{{{  include stb_truetype
+//{{{
+static void* fontAlloc (size_t size, void* up) {
+// allocate and return size from mScratchBuf, no free
 
-// stb_truetype
-static void* fontAlloc (size_t size, void* up);
+  // 16-byte align allocation
+  size = (size + 0xf) & ~0xf;
+
+  // do we have enough in mScratchBuf
+  auto fontContext = (cAtlasText*)up;
+  if (fontContext->mScratchBufSize + (int)size > cAtlasText::kScratchBufSize)
+    return nullptr;
+
+  // crude allcoate from mScratchBuf
+  unsigned char* scratchPtr = fontContext->mScratchBuf + fontContext->mScratchBufSize;
+  fontContext->mScratchBufSize += (int)size;
+
+  return scratchPtr;
+  }
+//}}}
 #define STBTT_malloc(x,u) fontAlloc (x,u)
-static void fontFree (void* ptr, void* up) {}
+
+//{{{
+static void fontFree (void* ptr, void* up) {
+  // no free, just allocate
+  }
+//}}}
 #define STBTT_free(x,u) fontFree (x,u)
+
 #include "stb_truetype.h"
+//}}}
 
 //{{{  static utils
 static int maxi (int a, int b) { return a > b ? a : b; }
@@ -582,15 +606,7 @@ float cAtlasText::getTextBounds (float x, float y, const char* str, const char* 
 //}}}
 
 //{{{
-const unsigned char* cAtlasText::getTextureData (int& width, int& height) {
-
-  width = mWidth;
-  height = mHeight;
-  return texData;
-  }
-//}}}
-//{{{
-int cAtlasText::validateTexture (int* dirty) {
+int cAtlasText::getAtlasDirty (int* dirty) {
 
   if ((dirtyRect[0] < dirtyRect[2]) && (dirtyRect[1] < dirtyRect[3])) {
     dirty[0] = dirtyRect[0];
@@ -598,7 +614,7 @@ int cAtlasText::validateTexture (int* dirty) {
     dirty[2] = dirtyRect[2];
     dirty[3] = dirtyRect[3];
 
-    // Reset dirty rect
+    // reset dirty rect
     dirtyRect[0] = mWidth;
     dirtyRect[1] = mHeight;
     dirtyRect[2] = 0;
@@ -607,6 +623,14 @@ int cAtlasText::validateTexture (int* dirty) {
     }
 
   return 0;
+  }
+//}}}
+//{{{
+const unsigned char* cAtlasText::getAtlasTextureData (int& width, int& height) {
+
+  width = mWidth;
+  height = mHeight;
+  return texData;
   }
 //}}}
 
@@ -626,7 +650,7 @@ void cAtlasText::setFontSizeSpacingAlign (int font, float size, float spacing, i
 //}}}
 
 //{{{
-int cAtlasText::textItInit (sTextIt* it, float x, float y, const char* str, const char* end) {
+int cAtlasText::textIt (sTextIt* it, float x, float y, const char* str, const char* end) {
 
   auto state = getState();
   if ((state->font < 0) || (state->font >= mNumFonts))
@@ -916,21 +940,5 @@ void cAtlasText::flush() {
     dirtyRect[2] = 0;
     dirtyRect[3] = 0;
     }
-  }
-//}}}
-
-//{{{
-static void* fontAlloc (size_t size, void* up) {
-
-  // 16-byte align the returned pointer
-  size = (size + 0xf) & ~0xf;
-  auto fontContext = (cAtlasText*)up;
-  if (fontContext->mScratchBufSize + (int)size > cAtlasText::kScratchBufSize)
-    return NULL;
-
-  unsigned char* ptr = fontContext->mScratchBuf + fontContext->mScratchBufSize;
-  fontContext->mScratchBufSize += (int)size;
-
-  return ptr;
   }
 //}}}
