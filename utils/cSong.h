@@ -1,4 +1,4 @@
-// cSong.h - set of audio frames, power, peak, fft and some hls handling
+// cSong.h - set of audio frames, power, peak, fft, range select and some hls handling
 #pragma once
 //{{{  includes
 #include <cstdint>

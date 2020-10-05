@@ -1,8 +1,9 @@
+// cPerfGraph.h
 #pragma once
 
 class cPerfGraph {
 public:
-  enum eRenderStyle { GRAPH_RENDER_FPS, GRAPH_RENDER_MS, GRAPH_RENDER_PERCENT };
+  enum eRenderStyle { eRenderFps, eRenderMs, eRenderPercent };
   //{{{
   cPerfGraph (eRenderStyle style, std::string name) : mStyle(style), mName(name) {
     clear();
@@ -14,7 +15,7 @@ public:
 
     mHead = 0;
     mNumValues = 0;
-    for (int i = 0; i < kGRAPH_HISTORY_COUNT; i++)
+    for (int i = 0; i < kGraphHistorySize; i++)
       mValues[i] = 0.0f;
     }
   //}}}
@@ -26,7 +27,7 @@ public:
 
   //{{{
   void updateTime (float time) {
-    mHead = (mHead+1) % kGRAPH_HISTORY_COUNT;
+    mHead = (mHead+1) % kGraphHistorySize;
     mValues[mHead] = time - mStartTime;
     mNumValues++;
     mStartTime = time;
@@ -34,7 +35,7 @@ public:
   //}}}
   //{{{
   void updateValue (float value) {
-    mHead = (mHead+1) % kGRAPH_HISTORY_COUNT;
+    mHead = (mHead+1) % kGraphHistorySize;
     mValues[mHead] = value;
     mNumValues++;
     }
@@ -52,29 +53,29 @@ public:
     // graph
     vg->beginPath();
     vg->moveTo (x, y+h);
-    if (mStyle == GRAPH_RENDER_FPS) {
+    if (mStyle == eRenderFps) {
       //{{{  fps graph
-      for (int i = 0; i < kGRAPH_HISTORY_COUNT; i++) {
-        float v =  mValues[(mHead+i) % kGRAPH_HISTORY_COUNT] ?
-                     1.f / (0.00001f + mValues[(mHead+i) % kGRAPH_HISTORY_COUNT]) : 0;
+      for (int i = 0; i < kGraphHistorySize; i++) {
+        float v =  mValues[(mHead+i) % kGraphHistorySize] ?
+                     1.f / (0.00001f + mValues[(mHead+i) % kGraphHistorySize]) : 0;
         if (v > 100.f)
           v = 100.f;
 
-        float vx = x + ((float)i/(kGRAPH_HISTORY_COUNT-1)) * w;
+        float vx = x + ((float)i/(kGraphHistorySize -1)) * w;
         float vy = y + h - ((v / 100.f) * h);
 
         vg->lineTo (vx, vy);
         }
       }
       //}}}
-    else if (mStyle == GRAPH_RENDER_PERCENT) {
+    else if (mStyle == eRenderPercent) {
       //{{{  percent graph
-      for (int i = 0; i < kGRAPH_HISTORY_COUNT; i++) {
-        float v = mValues[(mHead+i) % kGRAPH_HISTORY_COUNT] * 1.f;
+      for (int i = 0; i < kGraphHistorySize; i++) {
+        float v = mValues[(mHead+i) % kGraphHistorySize] * 1.f;
         if (v > 100.f)
           v = 100.f;
 
-        float vx = x + ((float)i / (kGRAPH_HISTORY_COUNT-1)) * w;
+        float vx = x + ((float)i / (kGraphHistorySize -1)) * w;
         float vy = y + h - ((v / 100.f) * h);
 
         vg->lineTo (vx, vy);
@@ -83,12 +84,12 @@ public:
       //}}}
     else {
       //{{{  ms graph
-      for (int i = 0; i < kGRAPH_HISTORY_COUNT; i++) {
-        float v = mValues[(mHead+i) % kGRAPH_HISTORY_COUNT] * 1000.f;
+      for (int i = 0; i < kGraphHistorySize; i++) {
+        float v = mValues[(mHead+i) % kGraphHistorySize] * 1000.f;
         if (v > 20.f)
           v = 20.f;
 
-        float vx = x + ((float)i / (kGRAPH_HISTORY_COUNT-1)) * w;
+        float vx = x + ((float)i / (kGraphHistorySize -1)) * w;
         float vy = y + h - ((v / 20.f) * h);
 
         vg->lineTo (vx, vy);
@@ -112,7 +113,7 @@ public:
 
     // average text
     float avg = getGraphAverage();
-    if (mStyle == GRAPH_RENDER_FPS) {
+    if (mStyle == eRenderFps) {
       //{{{  fps graph
       vg->setFontSize (18.f);
       vg->setTextAlign (cVg::ALIGN_RIGHT | cVg::ALIGN_TOP);
@@ -130,7 +131,7 @@ public:
       vg->text (x+w-3, y+h-1, str);
       }
       //}}}
-    else if (mStyle == GRAPH_RENDER_PERCENT) {
+    else if (mStyle == eRenderPercent) {
       //{{{  percent graph
       vg->setFontSize (18.f);
       vg->setTextAlign (cVg::ALIGN_RIGHT | cVg::ALIGN_TOP);
@@ -156,12 +157,12 @@ public:
   //}}}
 
 private:
-  static const int kGRAPH_HISTORY_COUNT = 100;
+  static constexpr int kGraphHistorySize = 100;
 
   //{{{
   float getGraphAverage() {
 
-    int numValues = mNumValues < kGRAPH_HISTORY_COUNT ? mNumValues : kGRAPH_HISTORY_COUNT;
+    int numValues = mNumValues < kGraphHistorySize ? mNumValues : kGraphHistorySize;
     if (!numValues)
       return 0.0f;
 
@@ -178,7 +179,7 @@ private:
 
   int mHead = 0;
   int mNumValues = 0;
-  float mValues[kGRAPH_HISTORY_COUNT];
+  float mValues[kGraphHistorySize];
 
   float mStartTime = 0.0f;
   };

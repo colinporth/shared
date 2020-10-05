@@ -10,9 +10,8 @@ struct stbtt_fontinfo;
 class cAtlasText {
 public:
   //{{{  static constexpr
-  static constexpr int kHashLutSize = 256;
-  static constexpr int kScratchBufSize = 64000;
   static constexpr int kInvalid = -1;
+  static constexpr int kHashLutSize = 256;
   //}}}
   //{{{
   enum eAlign {
@@ -154,12 +153,7 @@ public:
   uint8_t* mScratchBuf;
 
 private:
-  //{{{  static constexpr
-  static constexpr int kInitFonts = 4;
-  static constexpr int kInitGlyphs = 256;
-  static constexpr int kInitAtlasNodes = 256;
   static constexpr int kMaxFontStates = 20;
-  //}}}
   //{{{
   class cAtlas {
   public:

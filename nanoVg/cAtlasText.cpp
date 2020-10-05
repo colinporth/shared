@@ -9,7 +9,7 @@
 #include "../utils/utils.h"
 #include "../utils/cLog.h"
 
-#define STB_TRUETYPE_IMPLEMENTATION
+constexpr int kScratchBufSize = 64000;
 //{{{
 static void* STBTT_malloc (size_t size, cAtlasText* fontContext) {
 // allocate and return size from mScratchBuf, no free
@@ -18,7 +18,7 @@ static void* STBTT_malloc (size_t size, cAtlasText* fontContext) {
   size = (size + 0xf) & ~0xf;
 
   // do we have enough in mScratchBuf
-  if (fontContext->mScratchBufSize + (int)size > cAtlasText::kScratchBufSize)
+  if (fontContext->mScratchBufSize + (int)size > kScratchBufSize)
     return nullptr;
 
   // crude allcoate from mScratchBuf
@@ -33,9 +33,15 @@ static void STBTT_free (void* ptr, cAtlasText* fontContext) {
   // no free, just allocate
   }
 //}}}
+#define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 
 using namespace std;
+//}}}
+//{{{  constexpr
+constexpr int kInitFonts = 4;
+constexpr int kInitGlyphs = 256;
+constexpr int kInitAtlasNodes = 256;
 //}}}
 
 //{{{

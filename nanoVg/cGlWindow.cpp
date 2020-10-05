@@ -120,8 +120,8 @@ cRootContainer* cGlWindow::initialise (const string& title, int width, int heigh
 
   // init timers
   glfwSetTime (0);
-  mCpuGraph = new cPerfGraph (cPerfGraph::GRAPH_RENDER_MS, "cpu");
-  mFpsGraph = new cPerfGraph (cPerfGraph::GRAPH_RENDER_FPS, "frame");
+  mCpuGraph = new cPerfGraph (cPerfGraph::eRenderMs, "cpu");
+  mFpsGraph = new cPerfGraph (cPerfGraph::eRenderFps, "frame");
 
   return mRootContainer;
   }
