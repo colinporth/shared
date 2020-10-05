@@ -321,12 +321,12 @@ int cAtlasText::addFont (const std::string& name, unsigned char* data, int dataS
 
   // init hash lookup
   for (int i = 0; i < kHashLutSize; ++i)
-    font->lut[i] = -1;
+    font->mHashLut[i] = -1;
 
   // inti font, read font data, point to us for alloc context
   mScratchBufSize = 0;
-  font->data = data;
-  font->dataSize = dataSize;
+  font->mData = data;
+  font->mDataSize = dataSize;
   font->mFontInfo = (stbtt_fontinfo*)malloc (sizeof(stbtt_fontinfo));
   font->mFontInfo->userdata = this;
   if (!stbtt_InitFont (font->mFontInfo, data, 0)) {
@@ -341,9 +341,9 @@ int cAtlasText::addFont (const std::string& name, unsigned char* data, int dataS
   ttGetFontVMetrics (font->mFontInfo, &ascent, &descent, &lineGap);
 
   float fh = float(ascent - descent);
-  font->ascender = ascent / fh;
-  font->descender = descent / fh;
-  font->lineh = (fh + lineGap) / fh;
+  font->mAscender = ascent / fh;
+  font->mDescender = descent / fh;
+  font->mLineh = (fh + lineGap) / fh;
 
   return fontIndex;
   }
@@ -368,9 +368,9 @@ int cAtlasText::resetAtlas (int width, int height) {
 
   // reset cached glyphs
   for (auto font : mFonts) {
-    font->nglyphs = 0;
+    font->mNumGlyphs = 0;
     for (int j = 0; j < kHashLutSize; j++)
-      font->lut[j] = -1;
+      font->mHashLut[j] = -1;
     }
 
   mWidth = width;
@@ -416,11 +416,11 @@ cAtlasText::sGlyph* cAtlasText::getGlyph (cFont* font, unsigned int codepoint, s
 
   // Find code point and size.
   h = hashint (codepoint) & (kHashLutSize -1);
-  i = font->lut[h];
+  i = font->mHashLut[h];
   while (i != -1) {
-    if (font->glyphs[i].codepoint == codepoint && font->glyphs[i].size == isize)
-      return &font->glyphs[i];
-    i = font->glyphs[i].next;
+    if ((font->mGlyphs[i].codepoint == codepoint) && (font->mGlyphs[i].size == isize))
+      return &font->mGlyphs[i];
+    i = font->mGlyphs[i].next;
     }
 
   // Could not find glyph, create it.
@@ -451,8 +451,8 @@ cAtlasText::sGlyph* cAtlasText::getGlyph (cFont* font, unsigned int codepoint, s
   glyph->next = 0;
 
   // Insert char to hash lookup.
-  glyph->next = font->lut[h];
-  font->lut[h] = font->nglyphs-1;
+  glyph->next = font->mHashLut[h];
+  font->mHashLut[h] = font->mNumGlyphs-1;
 
   // Rasterize
   dst = &texData[(glyph->x0+pad) + (glyph->y0+pad) * mWidth];
@@ -481,13 +481,13 @@ cAtlasText::sGlyph* cAtlasText::getGlyph (cFont* font, unsigned int codepoint, s
 float cAtlasText::getVertAlign (cFont* font, int align, short isize) {
 
   if (align & ALIGN_TOP)
-    return font->ascender * (float)isize/10.0f;
+    return font->mAscender * (float)isize/10.0f;
   else if (align & ALIGN_MIDDLE)
-    return (font->ascender + font->descender) / 2.0f * (float)isize/10.0f;
+    return (font->mAscender + font->mDescender) / 2.0f * (float)isize/10.0f;
   else if (align & ALIGN_BASELINE)
     return 0.0f;
   else if (align & ALIGN_BOTTOM)
-    return font->descender * (float)isize/10.0f;
+    return font->mDescender * (float)isize/10.0f;
 
   return 0.0;
   }
@@ -505,15 +505,9 @@ float cAtlasText::getVertMetrics (float& ascender, float& descender) {
 
   auto font = mFonts[state->font];
   short isize = (short)(state->size*10.0f);
-  if (font->data == NULL) {
-    ascender = 0.f;
-    descender = 0.f;
-    return 0.f;
-    }
-
-  ascender = font->ascender * isize / 10.f;
-  descender = font->descender * isize / 10.f;
-  return font->lineh * isize / 10.f;
+  ascender = font->mAscender * isize / 10.f;
+  descender = font->mDescender * isize / 10.f;
+  return font->mLineh * isize / 10.f;
   }
 //}}}
 //{{{
@@ -527,13 +521,10 @@ void cAtlasText::getLineBounds (float y, float& miny, float& maxy) {
 
   auto font = mFonts[state->font];
   isize = (short)(state->size * 10.f);
-  if (font->data == NULL)
-    return;
-
   y += getVertAlign (font, state->align, isize);
 
-  miny = y - font->ascender * (float)isize / 10.f;
-  maxy = miny + font->lineh * isize / 10.f;
+  miny = y - font->mAscender * (float)isize / 10.f;
+  maxy = miny + font->mLineh * isize / 10.f;
   }
 //}}}
 //{{{
@@ -551,9 +542,6 @@ float cAtlasText::getTextBounds (float x, float y, const char* str, const char* 
     return 0;
 
   auto font = mFonts[state->font];
-  if (font->data == NULL)
-    return 0;
-
   float scale = ttGetPixelHeightScale (font->mFontInfo, (float)isize / 10.0f);
 
   // Align vertically.
@@ -660,9 +648,6 @@ int cAtlasText::textIt (sTextIt* it, float x, float y, const char* str, const ch
     return 0;
 
   it->font = mFonts[state->font];
-  if (it->font->data == NULL)
-    return 0;
-
   it->isize = (short)(state->size * 10.f);
   it->scale = ttGetPixelHeightScale (it->font->mFontInfo, (float)it->isize / 10.f);
 
@@ -815,9 +800,9 @@ int cAtlasText::allocFont() {
   auto font = new cFont;
   mFonts.push_back (font);
 
-  font->glyphs = (sGlyph*)malloc(sizeof(sGlyph) * kInitGlyphs);
-  font->cglyphs = kInitGlyphs;
-  font->nglyphs = 0;
+  font->mGlyphs = (sGlyph*)malloc(sizeof(sGlyph) * kInitGlyphs);
+  font->mNumAllocatedGlyphs = kInitGlyphs;
+  font->mNumGlyphs = 0;
   return (int)mFonts.size() - 1;
   }
 //}}}
@@ -825,7 +810,7 @@ int cAtlasText::allocFont() {
 void cAtlasText::freeFont (cFont* font) {
 
   if (font == NULL)
-    free (font->glyphs);
+    free (font->mGlyphs);
   free (font);
   }
 //}}}
@@ -869,13 +854,13 @@ void cAtlasText::getQuad (cFont* font, int prevGlyphIndex, sGlyph* glyph,
 //{{{
 cAtlasText::sGlyph* cAtlasText::allocGlyph (cFont* font) {
 
-  if (font->nglyphs+1 > font->cglyphs) {
-    font->cglyphs = font->cglyphs == 0 ? 8 : font->cglyphs * 2;
-    font->glyphs = (sGlyph*)realloc (font->glyphs, sizeof(sGlyph) * font->cglyphs);
+  if (font->mNumGlyphs+1 > font->mNumAllocatedGlyphs) {
+    font->mNumAllocatedGlyphs = font->mNumAllocatedGlyphs == 0 ? 8 : font->mNumAllocatedGlyphs * 2;
+    font->mGlyphs = (sGlyph*)realloc (font->mGlyphs, sizeof(sGlyph) * font->mNumAllocatedGlyphs);
     }
 
-  font->nglyphs++;
-  return &font->glyphs[font->nglyphs-1];
+  font->mNumGlyphs++;
+  return &font->mGlyphs[font->mNumGlyphs-1];
   }
 //}}}
 //{{{

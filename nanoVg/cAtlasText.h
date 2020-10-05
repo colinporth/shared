@@ -82,18 +82,18 @@ public:
     std::string name;
 
     stbtt_fontinfo* mFontInfo = nullptr;
-    unsigned char* data = nullptr;
-    int dataSize = 0;
+    unsigned char* mData = nullptr;
+    int mDataSize = 0;
 
-    float lineh = 0.f;
-    float ascender = 0.f;
-    float descender = 0.f;
+    float mLineh = 0.f;
+    float mAscender = 0.f;
+    float mDescender = 0.f;
 
-    int cglyphs = 0;
-    int nglyphs = 0;
-    sGlyph* glyphs = nullptr;
+    int mNumGlyphs = 0;
+    int mNumAllocatedGlyphs = 0;
+    sGlyph* mGlyphs = nullptr;
 
-    int lut[kHashLutSize] = { 0 };
+    int mHashLut[kHashLutSize] = { -1 };
     };
   //}}}
   //{{{

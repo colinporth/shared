@@ -943,8 +943,10 @@ private:
   float mFringeWidth = 1.0f;
   float devicePixelRatio = 1.0f;
 
-  int mFontImageIndex = 0;
-  int mFontImages[kMaxFontImages] = { 0 };
   cAtlasText* mAtlasText = nullptr;
+
+  // !!! should vector this !!!
+  int mFontImageIdIndex = 0;
+  int mFontImageIds[kMaxFontImages] = { 0 };
   //}}}
   };
