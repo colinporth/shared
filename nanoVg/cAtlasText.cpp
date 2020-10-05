@@ -508,29 +508,29 @@ float cAtlasText::getVertMetrics (float& ascender, float& descender) {
     return 0.f;
     }
 
-  ascender = font->ascender*isize/10.0f;
-  descender = font->descender*isize/10.0f;
-  return font->lineh*isize/10.0f;
+  ascender = font->ascender * isize / 10.f;
+  descender = font->descender * isize / 10.f;
+  return font->lineh * isize / 10.f;
   }
 //}}}
 //{{{
-void cAtlasText::getLineBounds (float y, float* miny, float* maxy) {
+void cAtlasText::getLineBounds (float y, float& miny, float& maxy) {
 
   auto state = getState();
   short isize;
 
-  if (state->font < 0 || state->font >= mNumFonts)
+  if ((state->font < 0) || (state->font >= mNumFonts))
     return;
 
   auto font = mFonts[state->font];
-  isize = (short)(state->size*10.0f);
+  isize = (short)(state->size * 10.f);
   if (font->data == NULL)
     return;
 
   y += getVertAlign (font, state->align, isize);
 
-  *miny = y - font->ascender * (float)isize/10.0f;
-  *maxy = *miny + font->lineh*isize/10.0f;
+  miny = y - font->ascender * (float)isize / 10.f;
+  maxy = miny + font->lineh * isize / 10.f;
   }
 //}}}
 //{{{
@@ -736,13 +736,25 @@ cAtlasText::sFontState* cAtlasText::getState() {
   }
 //}}}
 //{{{
+void cAtlasText::clearState() {
+
+  auto state = getState();
+
+  state->font = 0;
+  state->size = 12.0f;
+  state->spacing = 0;
+  state->align = ALIGN_LEFT | ALIGN_BASELINE;
+  state->color = 0xffffffff;
+  }
+//}}}
+//{{{
 void cAtlasText::pushState() {
 
   if (mNumStates >= kMaxFontStates)
     return;
 
   if (mNumStates > 0)
-    memcpy(&states[mNumStates], &states[mNumStates-1], sizeof(sFontState));
+    memcpy (&states[mNumStates], &states[mNumStates-1], sizeof(sFontState));
 
   mNumStates++;
   }
@@ -754,17 +766,6 @@ void cAtlasText::popState() {
     return;
 
   mNumStates--;
-  }
-//}}}
-//{{{
-void cAtlasText::clearState() {
-
-  auto state = getState();
-  state->size = 12.0f;
-  state->color = 0xffffffff;
-  state->font = 0;
-  state->spacing = 0;
-  state->align = ALIGN_LEFT | ALIGN_BASELINE;
   }
 //}}}
 

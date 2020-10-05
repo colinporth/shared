@@ -133,7 +133,7 @@ public:
   sGlyph* getGlyph (cFont* font, unsigned int codepoint, short isize);
   float getVertAlign (cFont* font, int align, short isize);
   float getVertMetrics (float& ascender, float& descender);
-  void getLineBounds (float y, float* miny, float* maxy);
+  void getLineBounds (float y, float& miny, float& maxy);
   float getTextBounds (float x, float y, const char* str, const char* end, float* bounds);
 
   int getAtlasDirty (int* dirty);
@@ -161,6 +161,7 @@ private:
   static constexpr int kInitAtlasNodes = 256;
   static constexpr int kMaxFontStates = 20;
   //}}}
+  //{{{
   class cAtlas {
   public:
     //{{{
@@ -192,20 +193,21 @@ private:
     int mWidth = 0;
     int mHeight = 0;
     };
-
+  //}}}
   //{{{
   struct sFontState {
-    int font;
-    int align;
-    float size;
-    unsigned int color;
-    float spacing;
+    int font = 0;
+    int align = 0;
+    float size = 0.f;
+    float spacing = 0.f;
+    unsigned int color = 0;
     };
   //}}}
+
   sFontState* getState();
+  void clearState();
   void pushState();
   void popState();
-  void clearState();
 
   void ttGetFontVMetrics (stbtt_fontinfo* fontInfo, int* ascent, int* descent, int* lineGap);
   float ttGetPixelHeightScale (stbtt_fontinfo* fontInfo, float size);

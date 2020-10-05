@@ -900,7 +900,7 @@ float cVg::getTextBounds (float x, float y, const string& str, float* bounds) {
   float width = mAtlasText->getTextBounds (x*scale, y*scale, str.c_str(), str.c_str() + str.size(), bounds);
 
   // Use line bounds for height.
-  mAtlasText->getLineBounds (y*scale, &bounds[1], &bounds[3]);
+  mAtlasText->getLineBounds (y * scale, bounds[1], bounds[3]);
   bounds[0] *= inverseScale;
   bounds[1] *= inverseScale;
   bounds[2] *= inverseScale;
@@ -1013,7 +1013,7 @@ float cVg::text (float x, float y, const string& str) {
     return x;
 
   float scale = getFontScale (state) * devicePixelRatio;
-  float inverseScale = 1.0f / scale;
+  float inverseScale = 1.f / scale;
   mAtlasText->setFontSizeSpacingAlign (state->fontId, state->fontSize * scale, state->letterSpacing * scale, state->textAlign);
 
   // allocate 6 vertices per glyph
@@ -2528,7 +2528,8 @@ int cVg::allocPathVertices (int numPaths) {
 //{{{
 int cVg::createTexture (int type, int width, int height, int imageFlags, const unsigned char* data, const string& debug) {
 
-  cLog::log (LOGINFO, "createTexture - " + debug + " " + dec(width) + " " + dec(height));
+  cLog::log (LOGINFO, "createTexture - " + debug + " " + dec(width) + "x" + dec(height));
+
   cTexture* texture = nullptr;
   for (int i = 0; i < mNumTextures; i++) {
     if (mTextures[i].id == 0) {
@@ -2547,11 +2548,13 @@ int cVg::createTexture (int type, int width, int height, int imageFlags, const u
     texture = &mTextures[mNumTextures++];
     }
 
+  // init texture
   texture->reset();
   texture->id = ++mTextureId;
-
-  // Check for non-power of 2.
+  glGenTextures (1, &texture->tex);
+  texture->type = type;
   if (nearestPow2 (width) != (unsigned int)width || nearestPow2(height) != (unsigned int)height) {
+    //{{{  check non-power of 2 restrictions
     if ((imageFlags & IMAGE_REPEATX) != 0 || (imageFlags & IMAGE_REPEATY) != 0) {
       cLog::log (LOGINFO, "Repeat X/Y is not supported for non power-of-two textures %dx%d", width, height);
       imageFlags &= ~(IMAGE_REPEATX | IMAGE_REPEATY);
@@ -2562,12 +2565,10 @@ int cVg::createTexture (int type, int width, int height, int imageFlags, const u
       imageFlags &= ~IMAGE_GENERATE_MIPMAPS;
       }
     }
-
-  glGenTextures (1, &texture->tex);
+    //}}}
+  texture->flags = imageFlags;
   texture->width = width;
   texture->height = height;
-  texture->type = type;
-  texture->flags = imageFlags;
   setBindTexture (texture->tex);
 
   glPixelStorei (GL_UNPACK_ALIGNMENT,1);
@@ -2579,12 +2580,12 @@ int cVg::createTexture (int type, int width, int height, int imageFlags, const u
 
   if (imageFlags & cVg::IMAGE_GENERATE_MIPMAPS)
     glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
-     imageFlags & cVg::IMAGE_NEAREST ? GL_NEAREST_MIPMAP_NEAREST : GL_LINEAR_MIPMAP_LINEAR);
+                     (imageFlags & cVg::IMAGE_NEAREST) ? GL_NEAREST_MIPMAP_NEAREST : GL_LINEAR_MIPMAP_LINEAR);
 
-  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, imageFlags & cVg::IMAGE_NEAREST ? GL_NEAREST : GL_LINEAR);
-  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, imageFlags & cVg::IMAGE_NEAREST ? GL_NEAREST : GL_LINEAR);
-  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, imageFlags &  cVg::IMAGE_REPEATX ? GL_REPEAT : GL_CLAMP_TO_EDGE);
-  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, imageFlags &  cVg::IMAGE_REPEATY ? GL_REPEAT : GL_CLAMP_TO_EDGE);
+  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, (imageFlags & cVg::IMAGE_NEAREST) ? GL_NEAREST : GL_LINEAR);
+  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, (imageFlags & cVg::IMAGE_NEAREST) ? GL_NEAREST : GL_LINEAR);
+  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, (imageFlags & cVg::IMAGE_REPEATX) ? GL_REPEAT : GL_CLAMP_TO_EDGE);
+  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, (imageFlags & cVg::IMAGE_REPEATY) ? GL_REPEAT : GL_CLAMP_TO_EDGE);
 
   glPixelStorei (GL_UNPACK_ALIGNMENT, 4);
 

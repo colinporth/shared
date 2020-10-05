@@ -550,22 +550,24 @@ private:
     //{{{
     void reset() {
       id = 0;
+
+      type = 0;
+      flags = 0;
       tex = 0;
 
       width = 0;
       height = 0;
-      type = 0;
-      flags = 0;
       }
     //}}}
 
     int id = 0;
+
+    int type = 0;
+    int flags = 0;
     GLuint tex = 0;
 
     int width = 0;
     int height = 0;
-    int type = 0;
-    int flags = 0;
     };
   //}}}
   //{{{
