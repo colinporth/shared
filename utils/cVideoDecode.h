@@ -421,7 +421,7 @@ public:
     }
   //}}}
 
-  virtual void decode (bool validPts, uint64_t pts, uint8_t* pesBuffer, unsigned int pesBufferLen) = 0;
+  virtual void decode (uint8_t* pesBuffer, unsigned int pesBufferLen, bool validPts, uint64_t pts) = 0;
 
 protected:
   static constexpr int kMaxVideoFramePoolSize = 200;
@@ -440,42 +440,12 @@ protected:
         }
       }
 
-    cLog::log (LOGINFO, "allocate newFrame %d for %u at play:%u", mFramePool.size(), pts, mPlayPts);
+    //cLog::log (LOGINFO, "allocate newFrame %d for %u at play:%u", mFramePool.size(), pts, mPlayPts);
 
     auto frame = new cFrame (pts);
     mFramePool.push_back (frame);
     return frame;
     }
-  //}}}
-  //{{{
-  //cFrame* getFreeFrame (uint64_t pts) {
-  //// return first frame older than mPlayPts - 2 frames just in case, otherwise add new frame
-
-    //uint64_t framePts = 90000 / 25;
-
-    ////while (true) {
-      //for (auto frame : mFramePool) {
-        //if ((frame->getState() == cFrame::eFree) ||
-            //((frame->getState() == cFrame::eLoaded) && (frame->getPts() < mPlayPts - (2 * framePts)))) {
-          //// reuse frame
-          //frame->set (pts);
-          //return frame;
-          //}
-        //}
-
-      ////if (mFramePool.size() < kMaxVideoFramePoolSize) {
-        //// allocate new frame
-        //mFramePool.push_back (new cFrame (pts));
-        //cLog::log (LOGINFO1, "allocated newFrame %d for %u at play:%u", mFramePool.size(), pts, mPlayPts);
-        //return mFramePool.back();
-      ////  }
-      ////else
-      ////  std::this_thread::sleep_for (20ms);
-      ////}
-
-    //// cannot reach here
-    //return nullptr;
-    //}
   //}}}
 
   int mWidth = 0;
@@ -508,7 +478,7 @@ protected:
 
     int getSurfacePoolSize() { return (int)mSurfacePool.size(); }
     //{{{
-    void decode (bool firstPts, uint64_t pts, uint8_t* pesBuffer, unsigned int pesBufferLen) {
+    void decode (uint8_t* pesBuffer, unsigned int pesBufferLen, bool validPts, uint64_t pts) {
 
       mBitstream.Data = pesBuffer;
       mBitstream.DataOffset = 0;
@@ -625,7 +595,7 @@ public:
   //}}}
 
   //{{{
-  void decode (bool validPts, uint64_t pts, uint8_t* pesBuffer, unsigned int pesBufferLen) {
+  void decode (uint8_t* pesBuffer, unsigned int pesBufferLen, bool validPts, uint64_t pts) {
 
     // ffmpeg doesn't maintain correct avFrame.pts, but does decode frames in presentation order
     if (validPts)

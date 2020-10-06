@@ -12,9 +12,10 @@ public:
   virtual ~cVideoDecodeWidget() {}
 
   void onDraw (iDraw* draw) {
+    cVg* vg = draw->getVg();
+
     auto frame = mVideoDecode->findPlayFrame();
     if (frame) {
-      cVg* vg = draw->getVg();
       if (frame->getPts() != mPts) {
         mPts = frame->getPts();
         if (mImageId == -1)
@@ -28,11 +29,22 @@ public:
       vg->rect (0.f,0.f, mWidth, mHeight);
       vg->fillPaint (vg->imagePattern (0.f,0.f, mWidth, mHeight, 0.f, mImageId, 1.f));
       vg->triangleFill();
-
-      float frac = mVideoDecode->getDecodeFrac();
-      if ((frac > 0.f) && (frac < 1.f))
-        vg->drawSpinner (mWidth - 24.f, mHeight-24.f, 20.f, frac, nvgRGBA(0,0,0,0), nvgRGBA(32,255,32,192));
       }
+
+    float frac = mVideoDecode->getDecodeFrac();
+    if ((frac > 0.f) && (frac < 1.f))
+      vg->drawSpinner (mWidth - 24.f, mHeight-24.f, 20.f, frac, nvgRGBA(0,0,0,0), nvgRGBA(32,255,32,192));
+
+    std::string infoString = dec(mVideoDecode->getWidth()) +
+                             "x" + dec(mVideoDecode->getHeight()) +
+                              " " + dec(mVideoDecode->getFramePoolSize());
+
+    vg->setFontSize ((float)getFontHeight());
+    vg->setTextAlign (cVg::ALIGN_LEFT | cVg::ALIGN_TOP);
+    vg->fillColor (kVgBlack);
+    vg->text (mX+2.f, mY+2.f, infoString);
+    vg->fillColor (kVgWhite);
+    vg->text (mX, mY, infoString);
     }
 
 private:
