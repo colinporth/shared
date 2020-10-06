@@ -9,31 +9,31 @@
 #include "../utils/utils.h"
 #include "../utils/cLog.h"
 
+// stb_truetype
 constexpr int kScratchBufSize = 64000;
 //{{{
-static void* STBTT_malloc (size_t size, cAtlasText* fontContext) {
+static void* scratchMalloc (size_t size, void* atlasTextPtr) {
 // allocate and return size from mScratchBuf, no free
 
   // 16-byte align allocation
   size = (size + 0xf) & ~0xf;
 
   // do we have enough in mScratchBuf
-  if (fontContext->mScratchBufSize + (int)size > kScratchBufSize)
+  cAtlasText* atlasText = (cAtlasText*)atlasTextPtr;
+  if (atlasText->mScratchBufSize + (int)size > kScratchBufSize)
     return nullptr;
 
   // crude allcoate from mScratchBuf
-  uint8_t* scratchPtr = fontContext->mScratchBuf + fontContext->mScratchBufSize;
-  fontContext->mScratchBufSize += (int)size;
+  uint8_t* scratchPtr = atlasText->mScratchBuf + atlasText->mScratchBufSize;
+  atlasText->mScratchBufSize += (int)size;
 
   return scratchPtr;
   }
 //}}}
-//{{{
-static void STBTT_free (void* ptr, cAtlasText* fontContext) {
-  // no free, just allocate
-  }
-//}}}
+static void scratchFree (void* ptr, void* atlasText) {}
 #define STB_TRUETYPE_IMPLEMENTATION
+#define STBTT_malloc(x,u) scratchMalloc (x,u)
+#define STBTT_free(x,u) scratchFree (x,u)
 #include "stb_truetype.h"
 
 using namespace std;
