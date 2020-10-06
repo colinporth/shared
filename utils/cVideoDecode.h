@@ -441,7 +441,6 @@ protected:
       }
 
     //cLog::log (LOGINFO, "allocate newFrame %d for %u at play:%u", mFramePool.size(), pts, mPlayPts);
-
     auto frame = new cFrame (pts);
     mFramePool.push_back (frame);
     return frame;
