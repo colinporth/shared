@@ -11,9 +11,6 @@ extern "C" {
   #include <emmintrin.h>
   #include "../mfx/include/mfxvideo++.h"
 #endif
-
-using namespace std;
-using namespace chrono;
 //}}}
 
 class cVideoDecode {
@@ -421,7 +418,7 @@ public:
     }
   //}}}
 
-  virtual void decode (uint8_t* pesBuffer, unsigned int pesBufferLen, bool validPts, uint64_t pts) = 0;
+  virtual void decode (uint8_t* pes, unsigned int pesSize, bool validPts, uint64_t pts) = 0;
 
 protected:
   static constexpr int kMaxVideoFramePoolSize = 200;
@@ -451,7 +448,7 @@ protected:
   int mHeight = 0;
   float mFrac = 0.f;
   uint64_t mPlayPts = 0;
-  vector <cFrame*> mFramePool;
+  std::vector <cFrame*> mFramePool;
   };
 
 #ifdef _WIN32
@@ -477,12 +474,12 @@ protected:
 
     int getSurfacePoolSize() { return (int)mSurfacePool.size(); }
     //{{{
-    void decode (uint8_t* pesBuffer, unsigned int pesBufferLen, bool validPts, uint64_t pts) {
+    void decode (uint8_t* pes, unsigned int pesSize, bool validPts, uint64_t pts) {
 
-      mBitstream.Data = pesBuffer;
+      mBitstream.Data = pes;
       mBitstream.DataOffset = 0;
-      mBitstream.DataLength = pesBufferLen;
-      mBitstream.MaxLength = pesBufferLen;
+      mBitstream.DataLength = pesSize;
+      mBitstream.MaxLength = pesSize;
       mBitstream.TimeStamp = pts;
 
       if (!mWidth) {
@@ -566,7 +563,7 @@ protected:
     MFXVideoSession mSession;
     mfxVideoParam mVideoParams;
     mfxBitstream mBitstream;
-    vector <mfxFrameSurface1*> mSurfacePool;
+    std::vector <mfxFrameSurface1*> mSurfacePool;
     };
   //}}}
 #endif
@@ -594,25 +591,25 @@ public:
   //}}}
 
   //{{{
-  void decode (uint8_t* pesBuffer, unsigned int pesBufferLen, bool validPts, uint64_t pts) {
+  void decode (uint8_t* pes, unsigned int pesSize, bool validPts, uint64_t pts) {
 
     // ffmpeg doesn't maintain correct avFrame.pts, but does decode frames in presentation order
     if (validPts)
       mDecodePts = pts;
 
     //cLog::log (LOGINFO, "cFFmpegVideoDecode PES " + getPtsString (pts));
-    auto pesPtr = pesBuffer;
-    auto pesSize = pesBufferLen;
-    while (pesSize) {
+    auto pesPtr = pes;
+    auto pesLeft = pesSize;
+    while (pesLeft) {
       AVPacket avPacket;
       av_init_packet (&avPacket);
       auto bytesUsed = av_parser_parse2 (mAvParser, mAvContext,
                                          &avPacket.data, &avPacket.size,
-                                         pesPtr, (int)pesSize, pts, AV_NOPTS_VALUE, 0);
+                                         pesPtr, (int)pesLeft, pts, AV_NOPTS_VALUE, 0);
       avPacket.pts = pts;
 
       pesPtr += bytesUsed;
-      pesSize -= bytesUsed;
+      pesLeft -= bytesUsed;
       if (avPacket.size) {
         //cLog::log (LOGINFO, "decode  start");
         auto ret = avcodec_send_packet (mAvContext, &avPacket);
