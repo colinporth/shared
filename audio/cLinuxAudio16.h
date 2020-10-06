@@ -15,12 +15,19 @@ public:
   //{{{
   cAudio16 (int srcChannels, int srcSampleRate) {
 
-    open (srcChannels, srcSampleRate);
+    int err = snd_pcm_open (&mHandle, "default", SND_PCM_STREAM_PLAYBACK, 0);
+    if (err < 0)
+      printf ("audOpen - snd_pcm_open error: %s\n", snd_strerror (err));
+
+    //SND_PCM_FORMAT_FLOAT
+    err = snd_pcm_set_params (mHandle, SND_PCM_FORMAT_S16, SND_PCM_ACCESS_RW_INTERLEAVED, 2, 48000, 1, 500000);
+    if (err < 0)
+      printf ("audOpen - snd_pcm_set_params  error: %s\n", snd_strerror(err));
     }
   //}}}
   //{{{
   virtual ~cAudio16() {
-    close();
+    snd_pcm_close (mHandle);
     }
   //}}}
 
@@ -73,25 +80,6 @@ public:
   float mVolume = 0.8f;
 
 private:
-  //{{{
-  void open (int srcChannels, int srcSampleRate) {
-
-    int err = snd_pcm_open (&mHandle, "default", SND_PCM_STREAM_PLAYBACK, 0);
-    if (err < 0)
-      printf ("audOpen - snd_pcm_open error: %s\n", snd_strerror (err));
-
-    //SND_PCM_FORMAT_FLOAT
-    err = snd_pcm_set_params (mHandle, SND_PCM_FORMAT_S16, SND_PCM_ACCESS_RW_INTERLEAVED, 2, 48000, 1, 500000);
-    if (err < 0)
-      printf ("audOpen - snd_pcm_set_params  error: %s\n", snd_strerror(err));
-    }
-  //}}}
-  //{{{
-  void close() {
-    snd_pcm_close (mHandle);
-    }
-  //}}}
-
   snd_pcm_t* mHandle;
   eMixDown mMixDown = eBestMix;
   };
