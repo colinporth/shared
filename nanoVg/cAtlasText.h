@@ -59,15 +59,17 @@ public:
   //{{{
   struct sGlyph {
   public:
-    unsigned int codepoint = 0;
-    int index = 0;
     int next = 0;
+    int index = 0;
+    unsigned int codepoint = 0;
 
     short size = 0;
+
     short x0 = 0;
     short y0 = 0;
     short x1 = 0;
     short y1 = 0;
+
     short xadv = 0;
     short xoff = 0;
     short yoff = 0;
@@ -123,9 +125,6 @@ public:
   cAtlasText (int width, int height);
   ~cAtlasText();
 
-  int addFont (const std::string& name, uint8_t* data, int dataSize);
-  int resetAtlas (int width, int height);
-
   // gets
   int getFontByName (const std::string& name);
   sGlyph* getGlyph (cFont* font, unsigned int codepoint, short isize);
@@ -145,12 +144,12 @@ public:
   void setAlign (int align);
   void setFontSizeSpacingAlign (int font, float size, float spacing, int align);
 
+  // textIt
   int textIt (sTextIt* it, float x, float y, const char* str, const char* end);
   int textItNext (sTextIt* it, sQuad* quad);
 
-  // vars
-  int mScratchBufSize;
-  uint8_t* mScratchBuf;
+  int addFont (const std::string& name, uint8_t* data, int dataSize);
+  int resetAtlas (int width, int height);
 
 private:
   static constexpr int kMaxFontStates = 20;

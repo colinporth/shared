@@ -372,7 +372,7 @@ public:
     };
   //}}}
 
-  cVideoDecode() {}
+  cVideoDecode (const std::string& name) : mName(name)  {}
   //{{{
   virtual ~cVideoDecode() {
 
@@ -392,9 +392,11 @@ public:
 
   int getWidth() { return mWidth; }
   int getHeight() { return mHeight; }
+  std::string getName() { return mName; }
   float getDecodeFrac() { return mDecodeFrac; }
   int getFramePoolSize() { return (int)mFramePool.size(); }
 
+  void setName (const std::string& name) { mName = name; }
   void setPlayPts (uint64_t playPts) { mPlayPts = playPts; }
   void setDecodeFrac (float decodeFrac) { mDecodeFrac = decodeFrac; }
 
@@ -443,7 +445,7 @@ protected:
     return frame;
     }
   //}}}
-
+  std::string mName;
   int mWidth = 0;
   int mHeight = 0;
   float mDecodeFrac = 0.f;
@@ -456,7 +458,7 @@ protected:
   class cMfxVideoDecode : public cVideoDecode {
   public:
     //{{{
-    cMfxVideoDecode() : cVideoDecode() {
+    cMfxVideoDecode(const std::string& name) : cVideoDecode(name) {
 
       mfxVersion kMfxVersion = { 0,1 };
       mSession.Init (MFX_IMPL_AUTO, &kMfxVersion);
@@ -572,7 +574,7 @@ protected:
 class cFFmpegVideoDecode : public cVideoDecode {
 public:
   //{{{
-  cFFmpegVideoDecode() : cVideoDecode() {
+  cFFmpegVideoDecode(const std::string& name) : cVideoDecode(name) {
 
     mAvParser = av_parser_init (AV_CODEC_ID_H264);
     mAvCodec = avcodec_find_decoder (AV_CODEC_ID_H264);

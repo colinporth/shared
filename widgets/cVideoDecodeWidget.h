@@ -35,7 +35,8 @@ public:
     if ((frac > 0.f) && (frac < 1.f))
       vg->drawSpinner (mWidth - 24.f, mHeight-24.f, 20.f, frac, nvgRGBA(0,0,0,0), nvgRGBA(32,255,32,192));
 
-    std::string infoString = dec(mVideoDecode->getWidth()) +
+    std::string infoString = mVideoDecode->getName() + " " +
+                             dec(mVideoDecode->getWidth()) +
                              "x" + dec(mVideoDecode->getHeight()) +
                               " " + dec(mVideoDecode->getFramePoolSize());
 

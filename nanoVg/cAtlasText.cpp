@@ -281,74 +281,6 @@ cAtlasText::~cAtlasText() {
 //}}}
 
 //{{{
-int cAtlasText::addFont (const string& name, uint8_t* data, int dataSize) {
-
-  int fontIndex = allocFont();
-  auto font = mFonts[fontIndex];
-  font->name = name;
-
-  // init hash lookup
-  for (int i = 0; i < kHashLutSize; ++i)
-    font->mHashLut[i] = -1;
-
-  // inti font, read font data, point to us for alloc context
-  font->mData = data;
-  font->mDataSize = dataSize;
-  font->mFontInfo = (stbtt_fontinfo*)malloc (sizeof(stbtt_fontinfo));
-  if (!stbtt_InitFont (font->mFontInfo, data, 0)) {
-    cLog::log (LOGERROR, "addFont failed to load " + name);
-    return kInvalid;
-    }
-
-  // store normalized line height, real line height is lineh * font size.
-  int ascent;
-  int descent;
-  int lineGap;
-  ttGetFontVMetrics (font->mFontInfo, &ascent, &descent, &lineGap);
-
-  float fh = float(ascent - descent);
-  font->mAscender = ascent / fh;
-  font->mDescender = descent / fh;
-  font->mLineh = (fh + lineGap) / fh;
-
-  return fontIndex;
-  }
-//}}}
-//{{{
-int cAtlasText::resetAtlas (int width, int height) {
-
-  flushPendingGlyphs();
-
-  // reset atlas
-  mAtlas->reset (width, height);
-
-  // clear texture data
-  texData = (uint8_t*)realloc (texData, width * height);
-  memset (texData, 0, width * height);
-
-  // reset dirty rect
-  dirtyRect[0] = width;
-  dirtyRect[1] = height;
-  dirtyRect[2] = 0;
-  dirtyRect[3] = 0;
-
-  // reset cached glyphs
-  for (auto font : mFonts) {
-    font->mNumGlyphs = 0;
-    for (int j = 0; j < kHashLutSize; j++)
-      font->mHashLut[j] = -1;
-    }
-
-  mWidth = width;
-  mHeight = height;
-  itw = 1.0f / mWidth;
-  ith = 1.0f / mHeight;
-
-  return 1;
-  }
-//}}}
-
-//{{{
 int cAtlasText::getFontByName (const string& name) {
 
   int index = 0;
@@ -664,6 +596,74 @@ int cAtlasText::textItNext (sTextIt* it, sQuad* quad) {
     }
 
   it->next = str;
+  return 1;
+  }
+//}}}
+
+//{{{
+int cAtlasText::addFont (const string& name, uint8_t* data, int dataSize) {
+
+  int fontIndex = allocFont();
+  auto font = mFonts[fontIndex];
+  font->name = name;
+
+  // init hash lookup
+  for (int i = 0; i < kHashLutSize; ++i)
+    font->mHashLut[i] = -1;
+
+  // inti font, read font data, point to us for alloc context
+  font->mData = data;
+  font->mDataSize = dataSize;
+  font->mFontInfo = (stbtt_fontinfo*)malloc (sizeof(stbtt_fontinfo));
+  if (!stbtt_InitFont (font->mFontInfo, data, 0)) {
+    cLog::log (LOGERROR, "addFont failed to load " + name);
+    return kInvalid;
+    }
+
+  // store normalized line height, real line height is lineh * font size.
+  int ascent;
+  int descent;
+  int lineGap;
+  ttGetFontVMetrics (font->mFontInfo, &ascent, &descent, &lineGap);
+
+  float fh = float(ascent - descent);
+  font->mAscender = ascent / fh;
+  font->mDescender = descent / fh;
+  font->mLineh = (fh + lineGap) / fh;
+
+  return fontIndex;
+  }
+//}}}
+//{{{
+int cAtlasText::resetAtlas (int width, int height) {
+
+  flushPendingGlyphs();
+
+  // reset atlas
+  mAtlas->reset (width, height);
+
+  // clear texture data
+  texData = (uint8_t*)realloc (texData, width * height);
+  memset (texData, 0, width * height);
+
+  // reset dirty rect
+  dirtyRect[0] = width;
+  dirtyRect[1] = height;
+  dirtyRect[2] = 0;
+  dirtyRect[3] = 0;
+
+  // reset cached glyphs
+  for (auto font : mFonts) {
+    font->mNumGlyphs = 0;
+    for (int j = 0; j < kHashLutSize; j++)
+      font->mHashLut[j] = -1;
+    }
+
+  mWidth = width;
+  mHeight = height;
+  itw = 1.0f / mWidth;
+  ith = 1.0f / mHeight;
+
   return 1;
   }
 //}}}
