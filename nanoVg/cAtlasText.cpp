@@ -16,7 +16,6 @@ using namespace std;
 //{{{  constexpr
 constexpr int kInitFonts = 4;
 constexpr int kInitGlyphs = 256;
-constexpr int kInitAtlasNodes = 256;
 //}}}
 
 //{{{

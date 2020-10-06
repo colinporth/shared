@@ -429,31 +429,53 @@ protected:
   cFrame* getFreeFrame (uint64_t pts) {
   // return first frame older than mPlayPts - 2 frames just in case, otherwise add new frame
 
-    uint64_t framePts = 90000 / 25;
+    uint64_t playFramePts = mPlayPts - 2 * (90000 / 25);
 
-    while (true) {
-      for (auto frame : mFramePool) {
-        if ((frame->getState() == cFrame::eFree) ||
-            ((frame->getState() == cFrame::eLoaded) && (frame->getPts() < mPlayPts - (2 * framePts)))) {
-          // reuse frame
-          frame->set (pts);
-          return frame;
-          }
+    for (auto frame : mFramePool) {
+      if ((frame->getState() == cFrame::eFree) ||
+          ((frame->getState() == cFrame::eLoaded) && (frame->getPts() < playFramePts))) {
+        // reuse frame before playPts minus a couple of frames
+        frame->set (pts);
+        return frame;
         }
-
-      if (mFramePool.size() < kMaxVideoFramePoolSize) {
-        // allocate new frame
-        mFramePool.push_back (new cFrame (pts));
-        cLog::log (LOGINFO1, "allocated newFrame %d for %u at play:%u", mFramePool.size(), pts, mPlayPts);
-        return mFramePool.back();
-        }
-      else
-        std::this_thread::sleep_for (20ms);
       }
 
-    // cannot reach here
-    return nullptr;
+    cLog::log (LOGINFO, "allocate newFrame %d for %u at play:%u", mFramePool.size(), pts, mPlayPts);
+
+    auto frame = new cFrame (pts);
+    mFramePool.push_back (frame);
+    return frame;
     }
+  //}}}
+  //{{{
+  //cFrame* getFreeFrame (uint64_t pts) {
+  //// return first frame older than mPlayPts - 2 frames just in case, otherwise add new frame
+
+    //uint64_t framePts = 90000 / 25;
+
+    ////while (true) {
+      //for (auto frame : mFramePool) {
+        //if ((frame->getState() == cFrame::eFree) ||
+            //((frame->getState() == cFrame::eLoaded) && (frame->getPts() < mPlayPts - (2 * framePts)))) {
+          //// reuse frame
+          //frame->set (pts);
+          //return frame;
+          //}
+        //}
+
+      ////if (mFramePool.size() < kMaxVideoFramePoolSize) {
+        //// allocate new frame
+        //mFramePool.push_back (new cFrame (pts));
+        //cLog::log (LOGINFO1, "allocated newFrame %d for %u at play:%u", mFramePool.size(), pts, mPlayPts);
+        //return mFramePool.back();
+      ////  }
+      ////else
+      ////  std::this_thread::sleep_for (20ms);
+      ////}
+
+    //// cannot reach here
+    //return nullptr;
+    //}
   //}}}
 
   int mWidth = 0;
