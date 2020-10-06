@@ -5,35 +5,10 @@
 #include "cAtlasText.h"
 
 #include <algorithm>
-
 #include "../utils/utils.h"
 #include "../utils/cLog.h"
 
-// stb_truetype
-constexpr int kScratchBufSize = 64000;
-//{{{
-static void* scratchMalloc (size_t size, void* atlasTextPtr) {
-// allocate and return size from mScratchBuf, no free
-
-  // 16-byte align allocation
-  size = (size + 0xf) & ~0xf;
-
-  // do we have enough in mScratchBuf
-  cAtlasText* atlasText = (cAtlasText*)atlasTextPtr;
-  if (atlasText->mScratchBufSize + (int)size > kScratchBufSize)
-    return nullptr;
-
-  // crude allcoate from mScratchBuf
-  uint8_t* scratchPtr = atlasText->mScratchBuf + atlasText->mScratchBufSize;
-  atlasText->mScratchBufSize += (int)size;
-
-  return scratchPtr;
-  }
-//}}}
-static void scratchFree (void* ptr, void* atlasText) {}
 #define STB_TRUETYPE_IMPLEMENTATION
-#define STBTT_malloc(x,u) scratchMalloc (x,u)
-#define STBTT_free(x,u) scratchFree (x,u)
 #include "stb_truetype.h"
 
 using namespace std;
@@ -92,30 +67,18 @@ static unsigned int decUtf8 (unsigned int* state, unsigned int* codep, unsigned 
 //{{{  cAtlasText::cAtlas members
 // public
 //{{{
-cAtlasText::cAtlas::cAtlas (int width, int height, int maxNumNodes) {
+cAtlasText::cAtlas::cAtlas (int width, int height) {
 
   mWidth = width;
   mHeight = height;
 
-  // Allocate space for skyline nodes
-  mNodes = (sNode*)malloc(sizeof(sNode) * maxNumNodes);
-  mNumNodes = 0;
-  mMaxNumNodes = maxNumNodes;
-
-  // Init root node.
-  mNodes[0].mX = 0;
-  mNodes[0].mY = 0;
-  mNodes[0].mWidth = (short)width;
-
-  mNumNodes++;
+  // insert rootNode
+  mNodes.push_back (new cNode (0,0, width));
   }
 //}}}
 //{{{
-// Atlas based on Skyline Bin Packer by Jukka Jylänki
 cAtlasText::cAtlas::~cAtlas() {
-
-  if (mNodes != NULL)
-    free (mNodes);
+  clear();
   }
 //}}}
 
@@ -124,13 +87,10 @@ void cAtlasText::cAtlas::reset (int width, int height) {
 
   mWidth = width;
   mHeight = height;
-  mNumNodes = 0;
 
-  // Init root node.
-  mNodes[0].mX = 0;
-  mNodes[0].mY = 0;
-  mNodes[0].mWidth = (short)width;
-  mNumNodes++;
+  clear();
+
+  mNodes.push_back (new cNode (0,0, width));
   }
 //}}}
 //{{{
@@ -138,43 +98,84 @@ void cAtlasText::cAtlas::expand (int width, int height) {
 
   // Insert node for empty space
   if (width > mWidth)
-    insertNode (mNumNodes, mWidth, 0, width - mWidth);
+    mNodes.push_back (new cNode (mWidth, 0, width - mWidth));
 
   mWidth = width;
   mHeight = height;
   }
 //}}}
+//{{{
+bool cAtlasText::cAtlas::addRect (int width, int height, int& resultx, int& resulty) {
+
+  // bestFit
+  int bestIndex = -1;
+  int bestx = -1;
+  int besty = -1;
+  int bestWidth = mWidth;
+  int bestHeight = mHeight;
+
+  // bottom left bestFit heuristic
+  for (int i = 0; i < mNodes.size(); i++) {
+    int y = rectFits (i, width, height);
+    if (y != -1) {
+      if ((y + height < bestHeight) ||
+          (((y + height) == bestHeight) && (mNodes[i]->mWidth < bestWidth))) {
+        bestIndex = i;
+        bestx = mNodes[i]->mX;
+        besty = y;
+        bestWidth = mNodes[i]->mWidth;
+        bestHeight = y + height;
+        }
+      }
+    }
+
+  if (bestIndex == -1)
+    return false;
+
+  // perform packing
+  addSkylineLevel (bestIndex, bestx, besty, width, height);
+
+  resultx = bestx;
+  resulty = besty;
+
+  return true;
+  }
+//}}}
+//{{{
+int cAtlasText::cAtlas::getMaxY() {
+
+  int maxy = 0;
+  for (int i = 0; i < mNodes.size(); i++)
+    maxy = max (maxy, int(mNodes[i]->mY));
+
+  return maxy;
+  }
+//}}}
 
 // private
 //{{{
-int cAtlasText::cAtlas::insertNode (int index, int x, int y, int width) {
+void cAtlasText::cAtlas::clear() {
 
-  // Insert node
-  if (mNumNodes+1 > mMaxNumNodes) {
-    mMaxNumNodes = mMaxNumNodes == 0 ? 8 : mMaxNumNodes * 2;
-    mNodes = (sNode*)realloc (mNodes, sizeof(sNode) * mMaxNumNodes);
-    }
+  for (auto node : mNodes)
+    delete node;
 
-  for (int i = mNumNodes; i > index; i--)
-    mNodes[i] = mNodes[i-1];
-  mNodes[index].mX = (short)x;
-  mNodes[index].mY = (short)y;
-  mNodes[index].mWidth = (short)width;
-  mNumNodes++;
+  mNodes.clear();
+  }
+//}}}
+//{{{
+void cAtlasText::cAtlas::insertNode (int index, int x, int y, int width) {
 
-  return 1;
+  cNode* node = new cNode (x,y, width);
+  if (index >= mNodes.size())
+    mNodes.push_back (node);
+  else
+    mNodes.insert (mNodes.begin() + index, node);
   }
 //}}}
 //{{{
 void cAtlasText::cAtlas::removeNode (int index) {
 
-  if (mNumNodes == 0)
-    return;
-
-  for (int i = index; i < mNumNodes-1; i++)
-    mNodes[i] = mNodes[i+1];
-
-  mNumNodes--;
+  mNodes.erase (mNodes.begin() + index);
   }
 //}}}
 
@@ -184,39 +185,41 @@ int cAtlasText::cAtlas::rectFits (int i, int width, int height) {
 // and return the max mHeight of all skyline spans under that at that location,
 // (think tetris block being dropped at that position). Or -1 if no space found.
 
-  int x = mNodes[i].mX;
-  int y = mNodes[i].mY;
+  int x = mNodes[i]->mX;
+  int y = mNodes[i]->mY;
 
   if (x + width > mWidth)
     return -1;
 
   int spaceLeft = width;
   while (spaceLeft > 0) {
-    if (i == mNumNodes)
+    if (i == mNodes.size())
      return -1;
-    y = max (y, int(mNodes[i].mY));
+
+    y = max (y, int(mNodes[i]->mY));
     if (y + height > mHeight)
       return -1;
-    spaceLeft -= mNodes[i].mWidth;
+
+    spaceLeft -= mNodes[i]->mWidth;
     ++i;
     }
+
   return y;
   }
 //}}}
 //{{{
-int cAtlasText::cAtlas::addSkylineLevel (int index, int x, int y, int width, int height) {
+void cAtlasText::cAtlas::addSkylineLevel (int index, int x, int y, int width, int height) {
 
-  // Insert new node
-  if (insertNode (index, x, y + height, width) == 0)
-    return 0;
+  // insert new node
+  insertNode (index, x, y + height, width);
 
-  // Delete skyline segments that fall under the shadow of the new segment.
-  for (int i = index+1; i < mNumNodes; i++) {
-    if (mNodes[i].mX < mNodes[i-1].mX + mNodes[i-1].mWidth) {
-      int shrink = mNodes[i-1].mX + mNodes[i-1].mWidth - mNodes[i].mX;
-      mNodes[i].mX += (short)shrink;
-      mNodes[i].mWidth -= (short)shrink;
-      if (mNodes[i].mWidth <= 0) {
+  // delete skyline segments that fall under the shadow of the new segment
+  for (int i = index+1; i < mNodes.size(); i++) {
+    if (mNodes[i]->mX < mNodes[i-1]->mX + mNodes[i-1]->mWidth) {
+      int shrink = mNodes[i-1]->mX + mNodes[i-1]->mWidth - mNodes[i]->mX;
+      mNodes[i]->mX += shrink;
+      mNodes[i]->mWidth -= shrink;
+      if (mNodes[i]->mWidth <= 0) {
         removeNode (i);
         i--;
         }
@@ -227,60 +230,23 @@ int cAtlasText::cAtlas::addSkylineLevel (int index, int x, int y, int width, int
       break;
     }
 
-  // Merge same mHeight skyline segments that are next to each other.
-  for (int i = 0; i < mNumNodes-1; i++) {
-    if (mNodes[i].mY == mNodes[i+1].mY) {
-      mNodes[i].mWidth += mNodes[i+1].mWidth;
+  // merge same mHeight skyline segments that are next to each other
+  for (int i = 0; i < mNodes.size()-1; i++) {
+    if (mNodes[i]->mY == mNodes[i+1]->mY) {
+      mNodes[i]->mWidth += mNodes[i+1]->mWidth;
       removeNode (i+1);
       i--;
       }
     }
-
-  return 1;
   }
 //}}}
-//{{{
-int cAtlasText::cAtlas::addRect (int rw, int rh, int* rx, int* ry) {
-
-  int besth = mHeight, bestw = mWidth, besti = -1;
-  int bestx = -1, besty = -1, i;
-
-  // Bottom left fit heuristic.
-  for (i = 0; i < mNumNodes; i++) {
-    int y = rectFits (i, rw, rh);
-    if (y != -1) {
-      if (y + rh < besth || (y + rh == besth && mNodes[i].mWidth < bestw)) {
-        besti = i;
-        bestw = mNodes[i].mWidth;
-        besth = y + rh;
-        bestx = mNodes[i].mX;
-        besty = y;
-        }
-      }
-    }
-
-  if (besti == -1)
-    return 0;
-
-  // Perform the actual packing.
-  if (addSkylineLevel (besti, bestx, besty, rw, rh) == 0)
-    return 0;
-
-  *rx = bestx;
-  *ry = besty;
-
-  return 1;
-  }
-//}}}
-
 //}}}
 
 // public
 //{{{
 cAtlasText::cAtlasText (int width, int height) {
 
-  mScratchBuf = (uint8_t*)malloc (kScratchBufSize);
-  mAtlas = new cAtlas (width, height, kInitAtlasNodes);
+  mAtlas = new cAtlas (width, height);
 
   // create texture for cache
   mWidth = width;
@@ -312,7 +278,6 @@ cAtlasText::~cAtlasText() {
   delete mAtlas;
 
   free (texData);
-  free (mScratchBuf);
   }
 //}}}
 
@@ -328,11 +293,9 @@ int cAtlasText::addFont (const string& name, uint8_t* data, int dataSize) {
     font->mHashLut[i] = -1;
 
   // inti font, read font data, point to us for alloc context
-  mScratchBufSize = 0;
   font->mData = data;
   font->mDataSize = dataSize;
   font->mFontInfo = (stbtt_fontinfo*)malloc (sizeof(stbtt_fontinfo));
-  font->mFontInfo->userdata = this;
   if (!stbtt_InitFont (font->mFontInfo, data, 0)) {
     cLog::log (LOGERROR, "addFont failed to load " + name);
     return kInvalid;
@@ -415,9 +378,6 @@ cAtlasText::sGlyph* cAtlasText::getGlyph (cFont* font, unsigned int codepoint, s
     return NULL;
   pad = 2;
 
-  // Reset allocator.
-  mScratchBufSize = 0;
-
   // Find code point and size.
   h = hashInt (codepoint) & (kHashLutSize -1);
   i = font->mHashLut[h];
@@ -436,7 +396,7 @@ cAtlasText::sGlyph* cAtlasText::getGlyph (cFont* font, unsigned int codepoint, s
   gh = y1-y0 + pad*2;
 
   // Find free spot for the rect in the atlas
-  added = mAtlas->addRect (gw, gh, &gx, &gy);
+  added = mAtlas->addRect (gw, gh, gx, gy);
   if (added == 0)
     return NULL;
 
@@ -856,45 +816,39 @@ cAtlasText::sGlyph* cAtlasText::allocGlyph (cFont* font) {
   }
 //}}}
 //{{{
-int cAtlasText::expandAtlas (int width, int height) {
+void cAtlasText::expandAtlas (int width, int height) {
 
   width = max (width, mWidth);
   height = max (height, mHeight);
   if ((width == mWidth) && (height == mHeight))
-    return 1;
+    return;
 
   flushPendingGlyphs();
 
-  // copy old texture data
-  uint8_t* data = (uint8_t*)malloc(width * height);
+  // copy texture data into new size
+  uint8_t* texDataCopy = (uint8_t*)malloc(width * height);
   for (int i = 0; i < mHeight; i++) {
-    uint8_t* dst = &data[i*width];
+    uint8_t* dst = &texDataCopy[i*width];
     uint8_t* src = &texData[i*mWidth];
     memcpy (dst, src, mWidth);
     }
   free (texData);
 
-  texData = data;
+  texData = texDataCopy;
 
   // increase atlas size
   mAtlas->expand (width, height);
 
   // add existing data as dirty
-  int maxy = 0;
-  for (int i = 0; i < mAtlas->mNumNodes; i++)
-    maxy = max (maxy, int(mAtlas->mNodes[i].mY));
-
   dirtyRect[0] = 0;
   dirtyRect[1] = 0;
   dirtyRect[2] = mWidth;
-  dirtyRect[3] = maxy;
+  dirtyRect[3] = mAtlas->getMaxY();
 
   mWidth = width;
   mHeight = height;
   itw = 1.0f / mWidth;
   ith = 1.0f / mHeight;
-
-  return 1;
   }
 //}}}
 //{{{

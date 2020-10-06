@@ -156,35 +156,46 @@ private:
   static constexpr int kMaxFontStates = 20;
   //{{{
   class cAtlas {
+  // Atlas based on Skyline Bin Packer by Jukka Jylänki
   public:
     //{{{
-    struct sNode {
-      short mX;
-      short mY;
-      short mWidth;
+    class cNode {
+    public:
+      cNode (int x, int y, int width) {
+        mX = x;
+        mY = y;
+        mWidth = width;
+        }
+
+      int mX;
+      int mY;
+      int mWidth;
       };
     //}}}
 
-    cAtlas (int w, int h, int maxNumNodes);
+    cAtlas (int width, int height);
     ~cAtlas();
 
-    void reset (int w, int h);
-    void expand (int w, int h);
-    int addRect (int rw, int rh, int* rx, int* ry);
+    int getMaxY();
 
-    int mNumNodes = 0;
-    int mMaxNumNodes = 0;
-    sNode* mNodes = nullptr;
+    void reset (int width, int height);
+    void expand (int width, int height);
+    bool addRect (int width, int height, int& resultx, int& resulty);
 
   private:
-    int insertNode (int index, int x, int y, int w);
+    void clear();
+
+    void insertNode (int index, int x, int y, int w);
     void removeNode (int index);
 
-    int rectFits (int i, int w, int h);
-    int addSkylineLevel (int index, int x, int y, int w, int h);
+    int rectFits (int i, int width, int height);
+    void addSkylineLevel (int index, int x, int y, int width, int height);
 
+    // vars
     int mWidth = 0;
     int mHeight = 0;
+
+    std::vector <cNode*> mNodes;
     };
   //}}}
   //{{{
@@ -219,7 +230,7 @@ private:
                 float scale, float spacing, float* x, float* y, sQuad* q);
 
   sGlyph* allocGlyph (cFont* font);
-  int expandAtlas (int width, int height);
+  void expandAtlas (int width, int height);
   void flushPendingGlyphs();
 
   //{{{  vars
