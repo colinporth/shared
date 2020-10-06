@@ -21,18 +21,18 @@ constexpr int kInitGlyphs = 256;
 //{{{
 static unsigned int hashInt (unsigned int a) {
 
-  a += ~(a<<15);
-  a ^=  (a>>10);
-  a +=  (a<<3);
-  a ^=  (a>>6);
-  a += ~(a<<11);
-  a ^=  (a>>16);
+  a += ~(a << 15);
+  a ^=  (a >> 10);
+  a +=  (a << 3);
+  a ^=  (a >> 6);
+  a += ~(a << 11);
+  a ^=  (a >> 16);
 
   return a;
   }
 //}}}
 //{{{
-static unsigned int decUtf8 (unsigned int* state, unsigned int* codep, unsigned int byte) {
+static unsigned int decUtf8 (unsigned int& state, unsigned int& codep, unsigned int byte) {
 // Copyright (c) 2008-2010 Bjoern Hoehrmann <bjoern@hoehrmann.de>
 // See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
 
@@ -58,9 +58,9 @@ static unsigned int decUtf8 (unsigned int* state, unsigned int* codep, unsigned 
     };
 
   unsigned int type = utf8d[byte];
-  *codep = (*state != 0) ? (byte & 0x3fu) | (*codep << 6) : (0xff >> type) & (byte);
-  *state = utf8d[256 + *state + type];
-  return *state;
+  codep = (state != 0) ? (byte & 0x3fu) | (codep << 6) : (0xff >> type) & (byte);
+  state = utf8d[256 + state + type];
+  return state;
   }
 //}}}
 //{{{  cAtlasText::cAtlas members
@@ -511,7 +511,7 @@ float cAtlasText::getTextBounds (float x, float y, const char* str, const char* 
   unsigned int codepoint;
   unsigned int utf8state = 0;
   for (; str != end; ++str) {
-    if (decUtf8 (&utf8state, &codepoint, *(const uint8_t*)str))
+    if (decUtf8 (utf8state, codepoint, *(const uint8_t*)str))
       continue;
     auto glyph = getGlyph (font, codepoint, isize);
     if (glyph != NULL) {
@@ -647,7 +647,7 @@ int cAtlasText::textItNext (sTextIt* it, sQuad* quad) {
     return 0;
 
   for (; str != it->end; str++) {
-    if (decUtf8 (&it->utf8state, &it->codepoint, *(const uint8_t*)str))
+    if (decUtf8 (it->utf8state, it->codepoint, *(const uint8_t*)str))
       continue;
 
     str++;

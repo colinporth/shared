@@ -392,11 +392,12 @@ public:
 
   int getWidth() { return mWidth; }
   int getHeight() { return mHeight; }
+  float getDecodeFrac() { return mDecodeFrac; }
   int getFramePoolSize() { return (int)mFramePool.size(); }
-  float getDecodeFrac() { return mFrac; }
 
-  void setDecodeFrac (float frac) { mFrac = frac; }
   void setPlayPts (uint64_t playPts) { mPlayPts = playPts; }
+  void setDecodeFrac (float decodeFrac) { mDecodeFrac = decodeFrac; }
+
   //{{{
   cFrame* findPlayFrame() {
   // returns nearest frame within a 25fps frame of mPlayPts, nullptr if none
@@ -445,7 +446,7 @@ protected:
 
   int mWidth = 0;
   int mHeight = 0;
-  float mFrac = 0.f;
+  float mDecodeFrac = 0.f;
   uint64_t mPlayPts = 0;
   std::vector <cFrame*> mFramePool;
   };
