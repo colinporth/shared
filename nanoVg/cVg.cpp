@@ -752,15 +752,15 @@ int cVg::createImage (int imageFlags, uint8_t* data, int dataSize) {
   int height;
   int numBytes;
   uint8_t* imageData = stbi_load_from_memory (data, dataSize, &width, &height, &numBytes, 4);
-  if (imageData == NULL) {
+  if (imageData) {
+    int imageId = createImageRGBA (width, height, imageFlags, imageData);
+    stbi_image_free (imageData);
+    return imageId;
+    }
+  else {
     printf ("Failed to load %s\n", stbi_failure_reason());
     return 0;
     }
-
-  int imageId = createImageRGBA (width, height, imageFlags, imageData);
-  stbi_image_free (imageData);
-
-  return imageId;
   }
 //}}}
 
@@ -3004,10 +3004,9 @@ void cVg::flushAtlasTexture() {
       int dirtyY = dirty[1];
       int dirtyWidth = dirty[2] - dirty[0];
       int dirtyHeight = dirty[3] - dirty[1];
-
-      cLog::log (LOGINFO, "flushAtlasTexture - dirty - mFontTextureIndex:%d fontTextureId:%d - %dx%d - %d,%d:%dx%d",
-                          mFontTextureIndex, fontTextureId,
-                          width, height, dirtyX, dirtyY, dirtyWidth, dirtyHeight);
+      cLog::log (LOGINFO, "flushAtlasTexture mFontTextureIndex:%d fontTextureId:%d %dx%d dirty:%d,%d:%dx%d",
+                          mFontTextureIndex, fontTextureId, width, height, 
+                          dirtyX, dirtyY, dirtyWidth, dirtyHeight);
       updateTexture (fontTextureId, dirtyX, dirtyY, dirtyWidth, dirtyHeight, data);
       }
     else

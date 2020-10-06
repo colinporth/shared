@@ -592,7 +592,7 @@ float cAtlasText::getTextBounds (float x, float y, const char* str, const char* 
 //}}}
 
 //{{{
-int cAtlasText::getAtlasDirty (int* dirty) {
+bool cAtlasText::getAtlasDirty (int* dirty) {
 
   if ((dirtyRect[0] < dirtyRect[2]) && (dirtyRect[1] < dirtyRect[3])) {
     dirty[0] = dirtyRect[0];
@@ -605,10 +605,10 @@ int cAtlasText::getAtlasDirty (int* dirty) {
     dirtyRect[1] = mHeight;
     dirtyRect[2] = 0;
     dirtyRect[3] = 0;
-    return 1;
+    return true;
     }
 
-  return 0;
+  return false;
   }
 //}}}
 //{{{

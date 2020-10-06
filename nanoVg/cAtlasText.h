@@ -134,7 +134,7 @@ public:
   void getLineBounds (float y, float& miny, float& maxy);
   float getTextBounds (float x, float y, const char* str, const char* end, float* bounds);
 
-  int getAtlasDirty (int* dirty);
+  bool getAtlasDirty (int* dirty);
   const uint8_t* getAtlasTextureData (int& width, int& height);
 
   // sets
