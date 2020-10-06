@@ -421,7 +421,6 @@ public:
   virtual void decode (uint8_t* pes, unsigned int pesSize, bool validPts, uint64_t pts) = 0;
 
 protected:
-  static constexpr int kMaxVideoFramePoolSize = 200;
   //{{{
   cFrame* getFreeFrame (uint64_t pts) {
   // return first frame older than mPlayPts - 2 frames just in case, otherwise add new frame
