@@ -154,6 +154,7 @@ public:
   //{{{  gets
   std::shared_mutex& getSharedMutex() { return mSharedMutex; }
   int getId() { return mId; }
+  bool getChanged() { return mChanged; }
 
   cAudioDecode::eFrameType getFrameType() { return mFrameType; }
   int getNumChannels() { return mNumChannels; }
@@ -209,6 +210,8 @@ public:
     }
   //}}}
 
+  void setChanged (bool changed) { mChanged = changed; }
+
   // playFrame
   void setPlayFrame (int frame);
   void incPlaySec (int secs, bool useSelectRange);
@@ -249,7 +252,8 @@ private:
   std::map <int, cFrame*> mFrameMap;
 
   cAudioDecode::eFrameType mFrameType = cAudioDecode::eUnknown;
-  bool owned = false;
+  bool mOwned = false;
+  bool mChanged = false;
 
   int mId = 0;
   int mNumChannels = kMaxNumChannels;

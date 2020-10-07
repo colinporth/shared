@@ -8,9 +8,10 @@
 
 class cSong;
 class cVideoDecode;
+
 class cHlsPlayer {
 public:
-  cHlsPlayer() {}
+  cHlsPlayer();
   virtual ~cHlsPlayer();
 
   void initPlayer (const std::string& name, bool useFFmpeg = true);
@@ -23,8 +24,8 @@ protected:
 
   // vars
   bool mExit = false;
+
   cSong* mSong;
-  bool mSongChanged = false;
   bool mPlaying = true;
   cVideoDecode* mVideoDecode = nullptr;
   };

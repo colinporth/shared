@@ -77,6 +77,7 @@ namespace {
   }
 
 // public
+cHlsPlayer::cHlsPlayer() {}
 //{{{
 cHlsPlayer::~cHlsPlayer() {
   delete mSong;
@@ -120,8 +121,8 @@ void cHlsPlayer::hlsThread (const string& host, const string& channel, int audBi
   mSong->setChannel (channel);
   mSong->setBitrate (audBitrate, audBitrate < 128000 ? 180 : 360); // audBitrate, audioFrames per chunk
 
-  while (!mExit && !mSongChanged) {
-    mSongChanged = false;
+  while (!mExit && !mSong->getChanged()) {
+    mSong->setChanged (false);
     const string path = "pool_902/live/uk/" + mSong->getChannel() +
                         "/" + mSong->getChannel() +
                         ".isml/" + mSong->getChannel() +
@@ -144,7 +145,7 @@ void cHlsPlayer::hlsThread (const string& host, const string& channel, int audBi
       cAudioDecode audioDecode (cAudioDecode::eAac);
 
       thread player;
-      while (!mExit && !mSongChanged) {
+      while (!mExit && !mSong->getChanged()) {
         int chunkNum = mSong->getHlsLoadChunkNum (system_clock::now(), 12s, 2);
         if (chunkNum) {
           // get hls chunkNum chunk
@@ -312,7 +313,7 @@ void cHlsPlayer::hlsThread (const string& host, const string& channel, int audBi
       cAudioDecode decode (mSong->getFrameType());
 
       device->start();
-      while (!mExit && !mSongChanged) {
+      while (!mExit && !mSong->getChanged()) {
         device->process ([&](float*& srcSamples, int& numSrcSamples) mutable noexcept {
           // lambda callback - load srcSamples
           shared_lock<shared_mutex> lock (mSong->getSharedMutex());
@@ -369,7 +370,7 @@ void cHlsPlayer::hlsThread (const string& host, const string& channel, int audBi
     cAudio audio (2, mSong->getSampleRate(), 40000, false);
     cAudioDecode decode (mSong->getFrameType());
 
-    while (!mExit && !mSongChanged) {
+    while (!mExit && !mSong->getChanged()) {
       float* playSamples = silence;
         {
         // scoped song mutex
