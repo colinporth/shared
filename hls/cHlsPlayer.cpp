@@ -362,25 +362,22 @@ void cHlsPlayer::hlsThread (const string& host, const string& channel, int audBi
     cLog::setThreadName ("play");
     //SetThreadPriority (GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
 
-    int16_t samples [2048*2] = { 0 };
-    int16_t silence [2048*2] = { 0 };
+    float samples [2048*2] = { 0 };
+    float silence [2048*2] = { 0 };
 
     cSong::cFrame* framePtr;
-    cAudio audio (2, mSong->getSampleRate(), 50000, true);
+    cAudio audio (2, mSong->getSampleRate(), 40000, false);
     cAudioDecode decode (mSong->getFrameType());
 
     while (!mExit && !mSongChanged) {
-      int16_t* playSamples = silence;
+      float* playSamples = silence;
         {
         // scoped song mutex
         shared_lock<shared_mutex> lock (mSong->getSharedMutex());
         framePtr = mSong->getAudioFramePtr (mSong->getPlayFrame());
         bool gotSamples = mPlaying && framePtr && framePtr->getSamples();
         if (gotSamples) {
-          float* src = framePtr->getSamples();
-          int16_t* dst = samples;
-          for (int i = 0; i <mSong->getSamplesPerFrame() * 2; i++)
-            *dst++ = int16_t(*src++ * 0x8000);
+          memcpy (samples, framePtr->getSamples(), mSong->getSamplesPerFrame() * 8);
           playSamples = samples;
           }
         }
