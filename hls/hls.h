@@ -261,7 +261,7 @@ public:
     }
   //}}}
   //{{{
-  void player (iAudio& audio, iChange* change) {
+  void player (iAudio& audio) {
 
     cLog::setThreadName ("play");
 
@@ -298,7 +298,7 @@ public:
           audio.play (2, sample, 1024, 1.f);
           if (sample)
             incPlayFrame();
-          change->changed();
+          //change->changed();
           }
           break;
         }

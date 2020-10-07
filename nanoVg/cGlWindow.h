@@ -9,7 +9,7 @@
 #include "../widgets/cRootContainer.h"
 //}}}
 
-class cGlWindow : public cVg, public iChange, public iDraw {
+class cGlWindow : public cVg, public iDraw {
 public:
   cGlWindow() {};
   virtual ~cGlWindow();
@@ -56,10 +56,6 @@ public:
     drawRect (colour, x, y, thickness, height);
     }
   //}}}
-
-  // iChange - !!! ignored for now !!!
-  void changed() {}
-  void setChangeCountDown (int countDown) {}
 
 protected:
   cRootContainer* initialise (const std::string& title, int width, int height,

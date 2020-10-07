@@ -9,7 +9,7 @@ extern "C" {
 
 #ifdef _WIN32
   #include <emmintrin.h>
-  #include "../mfx/include/mfxvideo++.h"
+  #include "../../libmfx/include/mfxvideo++.h"
 #endif
 //}}}
 

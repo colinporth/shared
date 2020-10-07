@@ -114,7 +114,7 @@ bool cAtlasText::cAtlas::addRect (int width, int height, int& resultx, int& resu
   int bestHeight = mHeight;
 
   // bottom left bestFit heuristic
-  for (size_t i = 0; i < mNodes.size(); i++) {
+  for (int i = 0; i < (int)mNodes.size(); i++) {
     int y = rectFits (i, width, height);
     if (y != -1) {
       if ((y + height < bestHeight) ||
@@ -213,7 +213,7 @@ void cAtlasText::cAtlas::addSkylineLevel (int index, int x, int y, int width, in
   insertNode (index, x, y + height, width);
 
   // delete skyline segments that fall under the shadow of the new segment
-  for (size_t i = index+1; i < mNodes.size(); i++) {
+  for (int i = index+1; i < (int)mNodes.size(); i++) {
     if (mNodes[i]->mX < mNodes[i-1]->mX + mNodes[i-1]->mWidth) {
       int shrink = mNodes[i-1]->mX + mNodes[i-1]->mWidth - mNodes[i]->mX;
       mNodes[i]->mX += shrink;
@@ -230,7 +230,7 @@ void cAtlasText::cAtlas::addSkylineLevel (int index, int x, int y, int width, in
     }
 
   // merge same mHeight skyline segments that are next to each other
-  for (size_t i = 0; i < mNodes.size()-1; i++) {
+  for (int i = 0; i < (int)mNodes.size()-1; i++) {
     if (mNodes[i]->mY == mNodes[i+1]->mY) {
       mNodes[i]->mWidth += mNodes[i+1]->mWidth;
       removeNode (i+1);
