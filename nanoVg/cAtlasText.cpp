@@ -114,7 +114,7 @@ bool cAtlasText::cAtlas::addRect (int width, int height, int& resultx, int& resu
   int bestHeight = mHeight;
 
   // bottom left bestFit heuristic
-  for (int i = 0; i < mNodes.size(); i++) {
+  for (size_t i = 0; i < mNodes.size(); i++) {
     int y = rectFits (i, width, height);
     if (y != -1) {
       if ((y + height < bestHeight) ||
@@ -144,7 +144,7 @@ bool cAtlasText::cAtlas::addRect (int width, int height, int& resultx, int& resu
 int cAtlasText::cAtlas::getMaxY() {
 
   int maxy = 0;
-  for (int i = 0; i < mNodes.size(); i++)
+  for (size_t i = 0; i < mNodes.size(); i++)
     maxy = max (maxy, int(mNodes[i]->mY));
 
   return maxy;
@@ -165,7 +165,7 @@ void cAtlasText::cAtlas::clear() {
 void cAtlasText::cAtlas::insertNode (int index, int x, int y, int width) {
 
   cNode* node = new cNode (x,y, width);
-  if (index >= mNodes.size())
+  if (index >= (int)mNodes.size())
     mNodes.push_back (node);
   else
     mNodes.insert (mNodes.begin() + index, node);
@@ -192,7 +192,7 @@ int cAtlasText::cAtlas::rectFits (int i, int width, int height) {
 
   int spaceLeft = width;
   while (spaceLeft > 0) {
-    if (i == mNodes.size())
+    if (i == (int)mNodes.size())
      return -1;
 
     y = max (y, int(mNodes[i]->mY));
@@ -213,7 +213,7 @@ void cAtlasText::cAtlas::addSkylineLevel (int index, int x, int y, int width, in
   insertNode (index, x, y + height, width);
 
   // delete skyline segments that fall under the shadow of the new segment
-  for (int i = index+1; i < mNodes.size(); i++) {
+  for (size_t i = index+1; i < mNodes.size(); i++) {
     if (mNodes[i]->mX < mNodes[i-1]->mX + mNodes[i-1]->mWidth) {
       int shrink = mNodes[i-1]->mX + mNodes[i-1]->mWidth - mNodes[i]->mX;
       mNodes[i]->mX += shrink;
@@ -230,7 +230,7 @@ void cAtlasText::cAtlas::addSkylineLevel (int index, int x, int y, int width, in
     }
 
   // merge same mHeight skyline segments that are next to each other
-  for (int i = 0; i < mNodes.size()-1; i++) {
+  for (size_t i = 0; i < mNodes.size()-1; i++) {
     if (mNodes[i]->mY == mNodes[i+1]->mY) {
       mNodes[i]->mWidth += mNodes[i+1]->mWidth;
       removeNode (i+1);
