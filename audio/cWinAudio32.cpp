@@ -16,7 +16,7 @@ const int kMaxSamples = 2048;
 
 // public
 //{{{
-cAudio32::cAudio32 (int srcChannels, int srcSampleRate) : mDstVolume(kDefaultVolume) {
+cAudio::cAudio (int srcChannels, int srcSampleRate, int latency, bool int16) : mDstVolume(kDefaultVolume) {
 
   // alloc and clear mSilence
   mSilence = (float*)calloc (kMaxChannels * kMaxSamples, kBitsPerSample/8);
@@ -33,7 +33,7 @@ cAudio32::cAudio32 (int srcChannels, int srcSampleRate) : mDstVolume(kDefaultVol
   }
 //}}}
 //{{{
-cAudio32::~cAudio32() {
+cAudio::~cAudio() {
 
   close();
 
@@ -45,12 +45,12 @@ cAudio32::~cAudio32() {
 //}}}
 
 //{{{
-void cAudio32::setVolume (float volume) {
+void cAudio::setVolume (float volume) {
   mDstVolume = min (max (volume, 0.f), getMaxVolume());
   }
 //}}}
 //{{{
-void cAudio32::play (int srcChannels, void* srcSamples, int srcNumSamples, float pitch) {
+void cAudio::play (int srcChannels, void* srcSamples, int srcNumSamples, float pitch) {
 // play silence if src == nullptr, maintains timing
 
   if (srcChannels != mSrcChannels) {
@@ -337,7 +337,7 @@ void cAudio32::play (int srcChannels, void* srcSamples, int srcNumSamples, float
 
 // private
 //{{{
-void cAudio32::open (int srcChannels, int srcSampleRate) {
+void cAudio::open (int srcChannels, int srcSampleRate) {
 
   mSrcChannels = srcChannels;
   mSrcSampleRate = srcSampleRate;
@@ -394,7 +394,7 @@ void cAudio32::open (int srcChannels, int srcSampleRate) {
   }
 //}}}
 //{{{
-void cAudio32::close() {
+void cAudio::close() {
 
   if (mXAudio2) {
     mSourceVoice->Stop();

@@ -9,10 +9,10 @@
 #include "iAudio.h"
 //}}}
 
-class cAudio16 : public iAudio {
+class cAudio : public iAudio {
 public:
-  cAudio16 (int srcChannels, int srcSampleRate);
-  virtual ~cAudio16();
+  cAudio (int srcChannels, int srcSampleRate, int latency, bool int16);
+  virtual ~cAudio();
 
   int getDstChannels() { return mDstChannels; }
   int getDstSampleRate() { return mDstSampleRate; }
