@@ -89,8 +89,10 @@ void cHlsPlayer::initPlayer (const std::string& name, bool useFFmpeg) {
   mSong = new cSong();
   if (useFFmpeg)
     mVideoDecode = new cFFmpegVideoDecode (name);
-  else
-    mVideoDecode = new cMfxVideoDecode (name);
+  #ifdef _WIN32
+    else
+      mVideoDecode = new cMfxVideoDecode (name);
+  #endif
   }
 //}}}
 
