@@ -13,7 +13,7 @@ public:
   cHlsPlayer() {}
   virtual ~cHlsPlayer();
 
-  void init (const std::string& name);
+  void initPlayer (const std::string& name, bool useFFmpeg = true);
 
 protected:
   void videoFollowAudio();

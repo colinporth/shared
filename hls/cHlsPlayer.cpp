@@ -84,11 +84,13 @@ cHlsPlayer::~cHlsPlayer() {
   }
 //}}}
 //{{{
-void cHlsPlayer::init (const std::string& name) {
-  //mVideoDecode = new cMfxVideoDecode (name);
+void cHlsPlayer::initPlayer (const std::string& name, bool useFFmpeg) {
 
   mSong = new cSong();
-  mVideoDecode = new cFFmpegVideoDecode (name);
+  if (useFFmpeg)
+    mVideoDecode = new cFFmpegVideoDecode (name);
+  else
+    mVideoDecode = new cMfxVideoDecode (name);
   }
 //}}}
 
@@ -218,7 +220,6 @@ void cHlsPlayer::hlsThread (const string& host, const string& channel, int audBi
                         mSong->setFixups (audioDecode.getNumChannels(), audioDecode.getSampleRate(), audioDecode.getNumSamples());
                         mSong->addAudioFrame (seqFrameNum++, samples, true, mSong->getNumFrames(), nullptr, audPesPts);
                         audPesPts += (audioDecode.getNumSamples() * 90) / 48;
-                        //changed();
                         if (!player.joinable())
                           player = thread ([=](){ playThread (true); });  // playThread16 playThread32 playThreadWSAPI
                         }
@@ -256,7 +257,6 @@ void cHlsPlayer::hlsThread (const string& host, const string& channel, int audBi
                 if (samples) {
                   mSong->addAudioFrame (seqFrameNum++, samples, true, mSong->getNumFrames(), nullptr, audPesPts);
                   audPesPts += (audioDecode.getNumSamples() * 90) / 48;
-                  //changed();
                   }
                 bufferPtr += audioDecode.getNextFrameOffset();
                 }
@@ -274,8 +274,6 @@ void cHlsPlayer::hlsThread (const string& host, const string& channel, int audBi
           else {
             //{{{  failed to load expected available chunk, back off for 250ms
             mSong->setHlsLoad (cSong::eHlsFailed, chunkNum);
-            //changed();
-
             cLog::log (LOGERROR, "late " + dec(chunkNum));
             this_thread::sleep_for (250ms);
             }
@@ -341,7 +339,6 @@ void cHlsPlayer::hlsThread (const string& host, const string& channel, int audBi
             if (mVideoDecode)
               mVideoDecode->setPlayPts (framePtr->getPts());
             mSong->incPlayFrame (1, true);
-            //changed();
             }
           });
 
@@ -392,7 +389,6 @@ void cHlsPlayer::hlsThread (const string& host, const string& channel, int audBi
         if (mVideoDecode)
           mVideoDecode->setPlayPts (framePtr->getPts());
         mSong->incPlayFrame (1, true);
-        changed();
         }
 
       if (!streaming && (mSong->getPlayFrame() > mSong->getLastFrame()))
