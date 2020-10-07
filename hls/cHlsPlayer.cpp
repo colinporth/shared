@@ -27,7 +27,7 @@
   #include "../audio/audioWASAPI.h"
   #include "../audio/cWinAudio16.h"
 #else
-  #include "../audio/cLinuxAudio16.h"
+  #include "../audio/cLinuxAudio.h"
 #endif
 
 // net
@@ -366,7 +366,7 @@ void cHlsPlayer::hlsThread (const string& host, const string& channel, int audBi
     int16_t silence [2048*2] = { 0 };
 
     cSong::cFrame* framePtr;
-    cAudio16 audio (2, mSong->getSampleRate());
+    cAudio audio (2, mSong->getSampleRate(), 50000, true);
     cAudioDecode decode (mSong->getFrameType());
 
     while (!mExit && !mSongChanged) {

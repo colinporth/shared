@@ -10,23 +10,29 @@
 #include "iAudio.h"
 //}}}
 
-class cAudio16 : public iAudio {
+class cAudio : public iAudio {
 public:
   //{{{
-  cAudio16 (int srcChannels, int srcSampleRate) {
+  cAudio (int srcChannels, int srcSampleRate, int latency, bool int16) {
 
     int err = snd_pcm_open (&mHandle, "default", SND_PCM_STREAM_PLAYBACK, 0);
     if (err < 0)
       printf ("audOpen - snd_pcm_open error: %s\n", snd_strerror (err));
 
     //SND_PCM_FORMAT_FLOAT
-    err = snd_pcm_set_params (mHandle, SND_PCM_FORMAT_S16, SND_PCM_ACCESS_RW_INTERLEAVED, 2, 48000, 1, 500000);
+    err = snd_pcm_set_params (mHandle,
+                              int16 ? SND_PCM_FORMAT_S16 : SND_PCM_FORMAT_FLOAT,
+                              SND_PCM_ACCESS_RW_INTERLEAVED,
+                              2,      // channels
+                              48000,  // sampleRate
+                              1,      // softResample
+                              latency);
     if (err < 0)
       printf ("audOpen - snd_pcm_set_params  error: %s\n", snd_strerror(err));
     }
   //}}}
   //{{{
-  virtual ~cAudio16() {
+  virtual ~cAudio() {
     snd_pcm_close (mHandle);
     }
   //}}}
