@@ -14,15 +14,22 @@ public:
   cHlsPlayer();
   virtual ~cHlsPlayer();
 
-  void initPlayer (const std::string& name, bool useFFmpeg = true);
+  void initPlayer (const std::string& host, const std::string& channel, int audBitrate, int vidBitrate,
+                  bool streaming = true, bool useFFmpeg = true);
 
 protected:
   void videoFollowAudio();
-  void hlsThread (const std::string& host, const std::string& channel, int audBitrate, int vidBitrate);
-
-  void playThread (bool streaming);
+  void hlsThread();
+  void playThread();
 
   // vars
+  std::string mHost;
+  std::string mChannel;
+  int mAudBitrate = 0;
+  int mVidBitrate = 0;
+  bool mStreaming = false;
+  bool mUseFFmpeg = false;
+
   bool mExit = false;
 
   cSong* mSong;

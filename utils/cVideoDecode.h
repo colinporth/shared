@@ -421,7 +421,7 @@ public:
     }
   //}}}
 
-  virtual void decode (uint8_t* pes, unsigned int pesSize, bool validPts, uint64_t pts) = 0;
+  virtual void decode (uint8_t* pes, unsigned int pesSize, int pesNumInChunk, uint64_t pts) = 0;
 
 protected:
   //{{{
@@ -476,7 +476,7 @@ protected:
 
     int getSurfacePoolSize() { return (int)mSurfacePool.size(); }
     //{{{
-    void decode (uint8_t* pes, unsigned int pesSize, bool validPts, uint64_t pts) {
+    void decode (uint8_t* pes, unsigned int pesSize, int pesNumInChunk, uint64_t pts) {
 
       mBitstream.Data = pes;
       mBitstream.DataOffset = 0;
@@ -511,6 +511,10 @@ protected:
           return;
           }
         }
+
+      cLog::log (LOGINFO, "cMfxVideoDecode PES " + dec(pesNumInChunk) + 
+                           " pts:" + getPtsString (pts) + 
+                           " size:" + dec(pesSize));
 
       // reset decoder on skip
       //mfxStatus status = MFXVideoDECODE_Reset (mSession, &mVideoParams);
@@ -593,13 +597,17 @@ public:
   //}}}
 
   //{{{
-  void decode (uint8_t* pes, unsigned int pesSize, bool validPts, uint64_t pts) {
+  void decode (uint8_t* pes, unsigned int pesSize, int pesNumInChunk, uint64_t pts) {
 
     // ffmpeg doesn't maintain correct avFrame.pts, but does decode frames in presentation order
-    if (validPts)
+    if (pesNumInChunk == 0)
       mDecodePts = pts;
 
-    //cLog::log (LOGINFO, "cFFmpegVideoDecode PES " + getPtsString (pts));
+    cLog::log (LOGINFO, "cFFmpegVideoDecode PES " + dec(pesNumInChunk) +
+                         " pts:" + getPtsString (pts) +
+                         " decodePts:" + getPtsString (mDecodePts) +
+                         " size:" + dec(pesSize));
+
     auto pesPtr = pes;
     auto pesLeft = pesSize;
     while (pesLeft) {

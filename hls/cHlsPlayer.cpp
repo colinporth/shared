@@ -85,14 +85,23 @@ cHlsPlayer::~cHlsPlayer() {
   }
 //}}}
 //{{{
-void cHlsPlayer::initPlayer (const std::string& name, bool useFFmpeg) {
+void cHlsPlayer::initPlayer (const string& host, const string& channel, int audBitrate, int vidBitrate,
+                             bool streaming, bool useFFmpeg) {
+
+  mHost = host;
+  mChannel = channel;
+  mAudBitrate = audBitrate;
+  mVidBitrate = vidBitrate;
+  mStreaming = streaming;
+  mUseFFmpeg = useFFmpeg;
 
   mSong = new cSong();
+
   if (useFFmpeg)
-    mVideoDecode = new cFFmpegVideoDecode (name);
+    mVideoDecode = new cFFmpegVideoDecode (channel);
   #ifdef _WIN32
     else
-      mVideoDecode = new cMfxVideoDecode (name);
+      mVideoDecode = new cMfxVideoDecode (channel);
   #endif
   }
 //}}}
@@ -109,7 +118,7 @@ void cHlsPlayer::videoFollowAudio() {
   }
 //}}}
 //{{{
-void cHlsPlayer::hlsThread (const string& host, const string& channel, int audBitrate, int vidBitrate) {
+void cHlsPlayer::hlsThread() {
 // hls http chunk load and decode thread
 
   cLog::setThreadName ("hls ");
@@ -118,8 +127,8 @@ void cHlsPlayer::hlsThread (const string& host, const string& channel, int audBi
   uint8_t* audPes = (uint8_t*)malloc (kPesSize);
   uint8_t* vidPes = (uint8_t*)malloc (kPesSize);
 
-  mSong->setChannel (channel);
-  mSong->setBitrate (audBitrate, audBitrate < 128000 ? 180 : 360); // audBitrate, audioFrames per chunk
+  mSong->setChannel (mChannel);
+  mSong->setBitrate (mAudBitrate, mAudBitrate < 128000 ? 180 : 360); // audBitrate, audioFrames per chunk
 
   while (!mExit && !mSong->getChanged()) {
     mSong->setChanged (false);
@@ -127,9 +136,9 @@ void cHlsPlayer::hlsThread (const string& host, const string& channel, int audBi
                         "/" + mSong->getChannel() +
                         ".isml/" + mSong->getChannel() +
                         (mSong->getBitrate() < 128000 ? "-pa3=" : "-pa4=") + dec(mSong->getBitrate()) +
-                        "-video=" + dec(vidBitrate);
+                        "-video=" + dec(mVidBitrate);
     cPlatformHttp http;
-    string redirectedHost = http.getRedirect (host, path + ".m3u8");
+    string redirectedHost = http.getRedirect (mHost, path + ".m3u8");
     if (http.getContent()) {
       //{{{  got .m3u8, parse for mediaSequence, programDateTimePoint
       int mediaSequence = stoi (getTagValue (http.getContent(), "#EXT-X-MEDIA-SEQUENCE:"));
@@ -149,6 +158,7 @@ void cHlsPlayer::hlsThread (const string& host, const string& channel, int audBi
         int chunkNum = mSong->getHlsLoadChunkNum (system_clock::now(), 12s, 2);
         if (chunkNum) {
           // get hls chunkNum chunk
+          cLog::log (LOGINFO, "get " + dec(chunkNum) + " " + path);
           mSong->setHlsLoad (cSong::eHlsLoading, chunkNum);
           if (http.get (redirectedHost, path + '-' + dec(chunkNum) + ".ts", "",
                         [&] (const string& key, const string& value) noexcept { /* headerCallback lambda */ },
@@ -187,7 +197,7 @@ void cHlsPlayer::hlsThread (const string& host, const string& channel, int audBi
                   // new pes
                   if (vidPesSize) {
                     // process prev videoPes
-                    mVideoDecode->decode (vidPes, vidPesSize, vidPesNum == 0, vidPesPts);
+                    mVideoDecode->decode (vidPes, vidPesSize, vidPesNum, vidPesPts);
                     vidPesSize = 0;
                     vidPesNum++;
                     }
@@ -224,7 +234,7 @@ void cHlsPlayer::hlsThread (const string& host, const string& channel, int audBi
                         mSong->addAudioFrame (seqFrameNum++, samples, true, mSong->getNumFrames(), nullptr, audPesPts);
                         audPesPts += (audioDecode.getNumSamples() * 90) / 48;
                         if (!player.joinable())
-                          player = thread ([=](){ playThread (true); });  // playThread16 playThread32 playThreadWSAPI
+                          player = thread ([=](){ playThread(); });  // playThread16 playThread32 playThreadWSAPI
                         }
                       bufferPtr += audioDecode.getNextFrameOffset();
                       }
@@ -267,8 +277,7 @@ void cHlsPlayer::hlsThread (const string& host, const string& channel, int audBi
               //}}}
             if (vidPesSize) {
               //{{{  process last vidPes
-              mVideoDecode->decode (vidPes, vidPesSize, vidPesNum == 0, vidPesPts);
-              vidPesNum++;
+              mVideoDecode->decode (vidPes, vidPesSize, vidPesNum, vidPesPts);
               }
               //}}}
             //}}}
@@ -297,7 +306,7 @@ void cHlsPlayer::hlsThread (const string& host, const string& channel, int audBi
 
 #ifdef _WIN32
   //{{{
-  void cHlsPlayer::playThread (bool streaming) {
+  void cHlsPlayer::playThread() {
   // WSAPI player thread, video just follows play pts
 
     cLog::setThreadName ("play");
@@ -345,7 +354,7 @@ void cHlsPlayer::hlsThread (const string& host, const string& channel, int audBi
             }
           });
 
-        if (!streaming && (mSong->getPlayFrame() > mSong->getLastFrame()))
+        if (!mStreaming && (mSong->getPlayFrame() > mSong->getLastFrame()))
           break;
         }
 
@@ -357,7 +366,7 @@ void cHlsPlayer::hlsThread (const string& host, const string& channel, int audBi
   //}}}
 #else
   //{{{
-  void cHlsPlayer::playThread (bool streaming) {
+  void cHlsPlayer::playThread() {
   // audio16 player thread, video just follows play pts
 
     cLog::setThreadName ("play");
@@ -391,7 +400,7 @@ void cHlsPlayer::hlsThread (const string& host, const string& channel, int audBi
         mSong->incPlayFrame (1, true);
         }
 
-      if (!streaming && (mSong->getPlayFrame() > mSong->getLastFrame()))
+      if (!mStreaming && (mSong->getPlayFrame() > mSong->getLastFrame()))
         break;
       }
 

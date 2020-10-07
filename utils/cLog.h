@@ -25,7 +25,6 @@ public:
     std::string mStr;
     };
   //}}}
-
   ~cLog();
 
   static bool init (enum eLogLevel logLevel = LOGINFO,
