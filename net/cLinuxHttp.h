@@ -57,9 +57,9 @@ protected:
         }
 
       struct sockaddr_in serveraddr;
-      memset (&serveraddr, 0, sizeof(serveraddr));
+      memset (&serveraddr, 0, sizeof(sockaddr_in));
       serveraddr.sin_family = AF_INET;
-      memcpy (server->h_addr, &serveraddr.sin_addr.s_addr, server->h_length);
+      memcpy (&serveraddr.sin_addr.s_addr, server->h_addr, server->h_length);
 
       int port = 80;
       serveraddr.sin_port = htons (port);
