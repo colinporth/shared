@@ -15,7 +15,7 @@ public:
   virtual ~cHlsPlayer();
 
   void initPlayer (const std::string& host, const std::string& channel, int audBitrate, int vidBitrate,
-                  bool streaming = true, bool useFFmpeg = true);
+                   bool streaming = true, bool useFFmpeg = true);
 
 protected:
   void videoFollowAudio();
@@ -27,6 +27,7 @@ protected:
   bool mExit = false;
 
 private:
+  void dequeVidPesThread();
   void playThread();
 
   // vars

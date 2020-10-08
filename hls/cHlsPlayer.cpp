@@ -16,6 +16,8 @@
 #include "../utils/utils.h"
 #include "../utils/cLog.h"
 
+#include "../utils/readerWriterQueue.h"
+
 // audio container
 #include "../utils/cSong.h"
 
@@ -76,6 +78,29 @@ namespace {
   //}}}
   }
 
+//{{{
+class cPes {
+public:
+  //{{{
+  cPes (uint8_t* ptr, int size, int num, uint64_t pts) : mSize(size), mNum(num), mPts(pts) {
+    mPtr = (uint8_t*)malloc (size);
+    memcpy (mPtr, ptr, size);
+    }
+  //}}}
+  //{{{
+  ~cPes() {
+    free (mPtr);
+    }
+  //}}}
+
+  uint8_t* mPtr;
+  const int mSize;
+  const int mNum;
+  const uint64_t mPts;
+  };
+//}}}
+readerWriterQueue::cReaderWriterQueue <cPes*> vidPesQueue;
+
 // public
 cHlsPlayer::cHlsPlayer() {}
 //{{{
@@ -87,7 +112,6 @@ cHlsPlayer::~cHlsPlayer() {
 //{{{
 void cHlsPlayer::initPlayer (const string& host, const string& channel, int audBitrate, int vidBitrate,
                              bool streaming, bool useFFmpeg) {
-
   mHost = host;
   mChannel = channel;
   mAudBitrate = audBitrate;
@@ -106,7 +130,7 @@ void cHlsPlayer::initPlayer (const string& host, const string& channel, int audB
   }
 //}}}
 
-// private:
+// protected
 //{{{
 void cHlsPlayer::videoFollowAudio() {
 
@@ -122,6 +146,7 @@ void cHlsPlayer::hlsThread() {
 // hls http chunk load and decode thread
 
   cLog::setThreadName ("hls ");
+  thread ([=](){ dequeVidPesThread(); }).detach();
 
   constexpr int kPesSize = 1000000;
   uint8_t* audPes = (uint8_t*)malloc (kPesSize);
@@ -196,7 +221,8 @@ void cHlsPlayer::hlsThread() {
                                    // new pes
                                    if (vidPesSize) {
                                      // process prev videoPes
-                                     mVideoDecode->decode (vidPes, vidPesSize, vidPesNum, vidPesPts);
+                                     //mVideoDecode->decode (vidPes, vidPesSize, vidPesNum, vidPesPts);
+                                     vidPesQueue.enqueue (new cPes (vidPes, vidPesSize, vidPesNum, vidPesPts));
                                      vidPesSize = 0;
                                      vidPesNum++;
                                      }
@@ -286,7 +312,8 @@ void cHlsPlayer::hlsThread() {
               //}}}
             if (vidPesSize) {
               //{{{  process last vidPes
-              mVideoDecode->decode (vidPes, vidPesSize, vidPesNum, vidPesPts);
+              //mVideoDecode->decode (vidPes, vidPesSize, vidPesNum, vidPesPts);
+              vidPesQueue.enqueue (new cPes (vidPes, vidPesSize, vidPesNum, vidPesPts));
               }
               //}}}
             mSong->setHlsLoad (cSong::eHlsIdle, chunkNum);
@@ -310,6 +337,24 @@ void cHlsPlayer::hlsThread() {
   free (audPes);
   free (vidPes);
   cLog::log (LOGINFO, "exit");
+  }
+//}}}
+
+// private:
+//{{{
+void cHlsPlayer::dequeVidPesThread() {
+
+  cLog::setThreadName ("deqe");
+  while (true) {
+    cPes* pes;
+    if (vidPesQueue.try_dequeue (pes)) {
+      //cLog::log (LOGINFO, "deque %d %d", pesBlock->mNum, pesBlock->mSize);
+      mVideoDecode->decode (pes->mPtr, pes->mSize, pes->mNum, pes->mPts);
+      delete pes;
+      }
+    else
+      this_thread::sleep_for (1ms);
+    }
   }
 //}}}
 
