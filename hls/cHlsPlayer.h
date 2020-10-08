@@ -20,6 +20,13 @@ public:
 protected:
   void videoFollowAudio();
   void hlsThread();
+
+  cSong* mSong;
+  bool mPlaying = true;
+  cVideoDecode* mVideoDecode = nullptr;
+  bool mExit = false;
+
+private:
   void playThread();
 
   // vars
@@ -29,10 +36,4 @@ protected:
   int mVidBitrate = 0;
   bool mStreaming = false;
   bool mUseFFmpeg = false;
-
-  bool mExit = false;
-
-  cSong* mSong;
-  bool mPlaying = true;
-  cVideoDecode* mVideoDecode = nullptr;
   };
