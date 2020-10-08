@@ -995,7 +995,7 @@ namespace readerWriterQueue {
       size_t blockFront = frontBlock_->front.load();
 
       if (blockFront != blockTail || blockFront != (frontBlock_->localTail = frontBlock_->tail.load())) {
-        fence(memory_order_acquire);
+        fence (memory_order_acquire);
 
       non_empty_front_block:
         // Front block not empty, dequeue from here
@@ -1005,16 +1005,16 @@ namespace readerWriterQueue {
 
         blockFront = (blockFront + 1) & frontBlock_->sizeMask;
 
-        fence(memory_order_release);
+        fence (memory_order_release);
         frontBlock_->front = blockFront;
         }
       else if (frontBlock_ != tailBlock.load()) {
-        fence(memory_order_acquire);
+        fence (memory_order_acquire);
 
         frontBlock_ = frontBlock.load();
         blockTail = frontBlock_->localTail = frontBlock_->tail.load();
         blockFront = frontBlock_->front.load();
-        fence(memory_order_acquire);
+        fence (memory_order_acquire);
 
         if (blockFront != blockTail) {
           // Oh look, the front block isn't empty after all
@@ -1029,11 +1029,11 @@ namespace readerWriterQueue {
 
         size_t nextBlockFront = nextBlock->front.load();
         size_t nextBlockTail = nextBlock->localTail = nextBlock->tail.load();
-        fence(memory_order_acquire);
+        fence (memory_order_acquire);
 
         // Since the tailBlock is only ever advanced after being written to,
         // we know there's for sure an element to dequeue on it
-        assert(nextBlockFront != nextBlockTail);
+        assert (nextBlockFront != nextBlockTail);
         AE_UNUSED(nextBlockTail);
 
         // We're done with this block, let the producer use it if it needs
@@ -1061,32 +1061,31 @@ namespace readerWriterQueue {
     //{{{
     // Returns a pointer to the front element in the queue (the one that
     // would be removed next by a call to `try_dequeue` or `pop`). If the
-    // queue appears empty at the time the method is called, nullptr is
-    // returned instead.
+    // queue appears empty at the time the method is called, nullptr is returned instead.
     // Must be called only from the consumer thread.
     T* peek() const AE_NO_TSAN {
 
       #ifndef NDEBUG
         ReentrantGuard guard(this->dequeuing);
       #endif
-      // See try_dequeue() for reasoning
 
-      Block* frontBlock_ = frontBlock.load();
+      // See try_dequeue() for reasoning
+    Block* frontBlock_ = frontBlock.load();
       size_t blockTail = frontBlock_->localTail;
       size_t blockFront = frontBlock_->front.load();
 
       if (blockFront != blockTail || blockFront != (frontBlock_->localTail = frontBlock_->tail.load())) {
-        fence(memory_order_acquire);
-        non_empty_front_block:
+        fence (memory_order_acquire);
+      non_empty_front_block:
         return reinterpret_cast<T*>(frontBlock_->data + blockFront * sizeof(T));
         }
 
       else if (frontBlock_ != tailBlock.load()) {
-        fence(memory_order_acquire);
+        fence (memory_order_acquire);
         frontBlock_ = frontBlock.load();
         blockTail = frontBlock_->localTail = frontBlock_->tail.load();
         blockFront = frontBlock_->front.load();
-        fence(memory_order_acquire);
+        fence (memory_order_acquire);
 
         if (blockFront != blockTail) {
           goto non_empty_front_block;
@@ -1095,9 +1094,9 @@ namespace readerWriterQueue {
         Block* nextBlock = frontBlock_->next;
 
         size_t nextBlockFront = nextBlock->front.load();
-        fence(memory_order_acquire);
+        fence (memory_order_acquire);
 
-        assert(nextBlockFront != nextBlock->tail.load());
+        assert (nextBlockFront != nextBlock->tail.load());
         return reinterpret_cast<T*>(nextBlock->data + nextBlockFront * sizeof(T));
         }
 
@@ -1180,10 +1179,11 @@ namespace readerWriterQueue {
     inline size_t size_approx() const AE_NO_TSAN {
 
       size_t result = 0;
+
       Block* frontBlock_ = frontBlock.load();
       Block* block = frontBlock_;
       do {
-        fence(memory_order_acquire);
+        fence (memory_order_acquire);
         size_t blockFront = block->front.load();
         size_t blockTail = block->tail.load();
         result += (blockTail - blockFront) & block->sizeMask;
@@ -1194,8 +1194,7 @@ namespace readerWriterQueue {
       }
     //}}}
     //{{{
-    // Returns the total number of items that could be enqueued without incurring
-    // an allocation when this queue is empty.
+    // Returns the total number of items that could be enqueued without incurring an allocation when this queue is empty.
     // Safe to call from both the producer and consumer threads.
     //
     // NOTE: The actual capacity during usage may be different depending on the consumer.
@@ -1209,7 +1208,7 @@ namespace readerWriterQueue {
       Block* frontBlock_ = frontBlock.load();
       Block* block = frontBlock_;
       do {
-        fence(memory_order_acquire);
+        fence (memory_order_acquire);
         result += block->sizeMask;
         block = block->next.load();
         } while (block != frontBlock_);
