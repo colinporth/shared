@@ -445,6 +445,7 @@ protected:
     return frame;
     }
   //}}}
+
   std::string mName;
   int mWidth = 0;
   int mHeight = 0;
@@ -512,8 +513,8 @@ protected:
           }
         }
 
-      cLog::log (LOGINFO, "cMfxVideoDecode PES " + dec(pesNumInChunk) + 
-                           " pts:" + getPtsString (pts) + 
+      cLog::log (LOGINFO, "cMfxVideoDecode PES " + dec(pesNumInChunk) +
+                           " pts:" + getPtsString (pts) +
                            " size:" + dec(pesSize));
 
       // reset decoder on skip

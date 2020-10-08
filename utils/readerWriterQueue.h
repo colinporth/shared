@@ -130,8 +130,7 @@ namespace readerWriterQueue {
 
   namespace readerWriterQueue {
     //{{{
-    AE_FORCEINLINE void compiler_fence (memory_order order) AE_NO_TSAN
-    {
+    AE_FORCEINLINE void compiler_fence (memory_order order) AE_NO_TSAN {
       switch (order) {
         case memory_order_relaxed: break;
         case memory_order_acquire: _ReadBarrier(); break;
@@ -202,8 +201,7 @@ namespace readerWriterQueue {
   #include <atomic>
   namespace readerWriterQueue {
     //{{{
-    AE_FORCEINLINE void compiler_fence (memory_order order) AE_NO_TSAN
-    {
+    AE_FORCEINLINE void compiler_fence (memory_order order) AE_NO_TSAN {
       switch (order) {
         case memory_order_relaxed: break;
         case memory_order_acquire: std::atomic_signal_fence (std::memory_order_acquire); break;
@@ -211,12 +209,12 @@ namespace readerWriterQueue {
         case memory_order_acq_rel: std::atomic_signal_fence (std::memory_order_acq_rel); break;
         case memory_order_seq_cst: std::atomic_signal_fence (std::memory_order_seq_cst); break;
         default: assert(false);
+        }
       }
-    }
     //}}}
     //{{{
-    AE_FORCEINLINE void fence (memory_order order) AE_NO_TSAN
-    {
+    AE_FORCEINLINE void fence (memory_order order) AE_NO_TSAN {
+
       switch (order) {
         case memory_order_relaxed: break;
         case memory_order_acquire: std::atomic_thread_fence (std::memory_order_acquire); break;
@@ -224,8 +222,8 @@ namespace readerWriterQueue {
         case memory_order_acq_rel: std::atomic_thread_fence (std::memory_order_acq_rel); break;
         case memory_order_seq_cst: std::atomic_thread_fence (std::memory_order_seq_cst); break;
         default: assert(false);
+        }
       }
-    }
     //}}}
     }
 #endif
@@ -257,7 +255,7 @@ namespace readerWriterQueue {
       #pragma warning(disable: 4100)    // Get rid of (erroneous) 'unreferenced formal parameter' warning
     #endif
 
-    template <typename U> AE_NO_TSAN weak_atomic(U&& x) : value(std::forward<U>(x)) {}
+    template <typename U> AE_NO_TSAN weak_atomic (U&& x) : value(std::forward<U>(x)) {}
 
     #ifdef __cplusplus_cli
       // Work around bug with universal reference/nullptr combination that only appears when /clr is on
@@ -275,66 +273,74 @@ namespace readerWriterQueue {
 
     #ifndef AE_USE_STD_ATOMIC_FOR_WEAK_ATOMIC
       //{{{
-      template <typename U> AE_FORCEINLINE weak_atomic const& operator= (U&& x) AE_NO_TSAN { value = std::forward<U>(x); return *this; }
-      AE_FORCEINLINE weak_atomic const& operator=(weak_atomic const& other) AE_NO_TSAN { value = other.value; return *this; }
-
+      template <typename U> AE_FORCEINLINE weak_atomic const& operator= (U&& x) AE_NO_TSAN {
+        value = std::forward<U>(x);
+        return *this;
+        }
+      //}}}
+      //{{{
+      AE_FORCEINLINE weak_atomic const& operator= (weak_atomic const& other) AE_NO_TSAN {
+        value = other.value;
+        return *this;
+        }
+      //}}}
       AE_FORCEINLINE T load() const AE_NO_TSAN { return value; }
+      //{{{
+      AE_FORCEINLINE T fetch_add_acquire(T increment) AE_NO_TSAN {
 
-      AE_FORCEINLINE T fetch_add_acquire(T increment) AE_NO_TSAN
-      {
-      #if defined(AE_ARCH_X64) || defined(AE_ARCH_X86)
-        if (sizeof(T) == 4) return _InterlockedExchangeAdd((long volatile*)&value, (long)increment);
-        #if defined(_M_AMD64)
-          else if (sizeof(T) == 8) return _InterlockedExchangeAdd64((long long volatile*)&value, (long long)increment);
+        #if defined(AE_ARCH_X64) || defined(AE_ARCH_X86)
+          if (sizeof(T) == 4) return _InterlockedExchangeAdd((long volatile*)&value, (long)increment);
+          #if defined(_M_AMD64)
+            else if (sizeof(T) == 8) return _InterlockedExchangeAdd64((long long volatile*)&value, (long long)increment);
+          #endif
+        #else
+          #error Unsupported platform
         #endif
-      #else
-        #error Unsupported platform
-      #endif
-        assert(false && "T must be either a 32 or 64 bit type");
-        return value;
-      }
 
-      AE_FORCEINLINE T fetch_add_release(T increment) AE_NO_TSAN
-      {
-      #if defined(AE_ARCH_X64) || defined(AE_ARCH_X86)
-        if (sizeof(T) == 4) return _InterlockedExchangeAdd((long volatile*)&value, (long)increment);
-      #if defined(_M_AMD64)
-        else if (sizeof(T) == 8) return _InterlockedExchangeAdd64((long long volatile*)&value, (long long)increment);
-      #endif
-      #else
-        #error Unsupported platform
-      #endif
         assert(false && "T must be either a 32 or 64 bit type");
         return value;
-      }
+        }
+      //}}}
+      //{{{
+      AE_FORCEINLINE T fetch_add_release(T increment) AE_NO_TSAN {
+        #if defined(AE_ARCH_X64) || defined(AE_ARCH_X86)
+          if (sizeof(T) == 4) return _InterlockedExchangeAdd((long volatile*)&value, (long)increment);
+          #if defined(_M_AMD64)
+            else if (sizeof(T) == 8) return _InterlockedExchangeAdd64((long long volatile*)&value, (long long)increment);
+          #endif
+        #else
+          #error Unsupported platform
+        #endif
+
+        assert(false && "T must be either a 32 or 64 bit type");
+        return value;
+        }
       //}}}
     #else
       //{{{
-      template <typename U> AE_FORCEINLINE weak_atomic const& operator= (U&& x) AE_NO_TSAN
-      {
+      template <typename U> AE_FORCEINLINE weak_atomic const& operator= (U&& x) AE_NO_TSAN {
+
         value.store(std::forward<U>(x), std::memory_order_relaxed);
         return *this;
-      }
+        }
       //}}}
       //{{{
-      AE_FORCEINLINE weak_atomic const& operator= (weak_atomic const& other) AE_NO_TSAN
-      {
+      AE_FORCEINLINE weak_atomic const& operator= (weak_atomic const& other) AE_NO_TSAN {
+
         value.store(other.value.load(std::memory_order_relaxed), std::memory_order_relaxed);
         return *this;
-      }
+        }
       //}}}
       AE_FORCEINLINE T load() const AE_NO_TSAN { return value.load (std::memory_order_relaxed); }
       //{{{
-      AE_FORCEINLINE T fetch_add_acquire (T increment) AE_NO_TSAN
-      {
-        return value.fetch_add(increment, std::memory_order_acquire);
-      }
+      AE_FORCEINLINE T fetch_add_acquire (T increment) AE_NO_TSAN {
+        return value.fetch_add (increment, std::memory_order_acquire);
+        }
       //}}}
       //{{{
-      AE_FORCEINLINE T fetch_add_release (T increment) AE_NO_TSAN
-      {
+      AE_FORCEINLINE T fetch_add_release (T increment) AE_NO_TSAN {
         return value.fetch_add(increment, std::memory_order_release);
-      }
+        }
       //}}}
     #endif
 
@@ -703,9 +709,13 @@ namespace readerWriterQueue {
 #endif
 //}}}
 //{{{  implementation options
+#define MOODYCAMEL_HAS_EMPLACE    1
+
+
 #ifndef MOODYCAMEL_CACHE_LINE_SIZE
   #define MOODYCAMEL_CACHE_LINE_SIZE 64
 #endif
+
 
 #ifndef MOODYCAMEL_EXCEPTIONS_ENABLED
   #if (defined(_MSC_VER) && defined(_CPPUNWIND)) || (defined(__GNUC__) && defined(__EXCEPTIONS)) || (!defined(_MSC_VER) && !defined(__GNUC__))
@@ -713,11 +723,6 @@ namespace readerWriterQueue {
   #endif
 #endif
 
-#ifndef MOODYCAMEL_HAS_EMPLACE
-  #if !defined(_MSC_VER) || _MSC_VER >= 1800 // variadic templates: either a non-MS compiler or VS >= 2013
-    #define MOODYCAMEL_HAS_EMPLACE    1
-  #endif
-#endif
 
 #ifndef MOODYCAMEL_MAYBE_ALIGN_TO_CACHELINE
   #if defined (__APPLE__) && defined (__MACH__) && __cplusplus >= 201703L
@@ -730,9 +735,11 @@ namespace readerWriterQueue {
   #endif
 #endif
 
+
 #ifndef MOODYCAMEL_MAYBE_ALIGN_TO_CACHELINE
   #define MOODYCAMEL_MAYBE_ALIGN_TO_CACHELINE AE_ALIGN(MOODYCAMEL_CACHE_LINE_SIZE)
 #endif
+
 
 #ifdef AE_VCPP
   #pragma warning(push)
@@ -777,7 +784,7 @@ namespace readerWriterQueue {
     #ifndef NDEBUG
       : enqueuing(false), dequeuing(false)
     #endif
-    {
+      {
       assert(size > 0);
       assert(MAX_BLOCK_SIZE == ceilToPow2(MAX_BLOCK_SIZE) && "MAX_BLOCK_SIZE must be a power of 2");
       assert(MAX_BLOCK_SIZE >= 2 && "MAX_BLOCK_SIZE must be at least 2");
@@ -813,6 +820,7 @@ namespace readerWriterQueue {
           block->next = firstBlock;
           }
         }
+
       else {
         firstBlock = make_block(largestBlockSize);
         if (firstBlock == nullptr) {
@@ -840,6 +848,7 @@ namespace readerWriterQueue {
       #ifndef NDEBUG
         ,enqueuing(false), dequeuing(false)
       #endif
+
       {
       other.largestBlockSize = 32;
       Block* b = other.make_block(other.largestBlockSize);
@@ -860,20 +869,24 @@ namespace readerWriterQueue {
     // Note: The queue should not be accessed concurrently while it's
     // being moved. It's up to the user to synchronize this.
     cReaderWriterQueue& operator= (cReaderWriterQueue&& other) AE_NO_TSAN {
+
       Block* b = frontBlock.load();
       frontBlock = other.frontBlock.load();
+
       other.frontBlock = b;
       b = tailBlock.load();
       tailBlock = other.tailBlock.load();
       other.tailBlock = b;
-      std::swap(largestBlockSize, other.largestBlockSize);
+
+      std::swap (largestBlockSize, other.largestBlockSize);
       return *this;
-    }
+      }
     //}}}
     //{{{
     // Note: The queue should not be accessed concurrently while it's
     // being deleted. It's up to the user to synchronize this.
     AE_NO_TSAN ~cReaderWriterQueue() {
+
       // Make sure we get the latest version of all variables from other CPUs:
       fence(memory_order_sync);
 
@@ -889,14 +902,14 @@ namespace readerWriterQueue {
           auto element = reinterpret_cast<T*>(block->data + i * sizeof(T));
           element->~T();
           (void)element;
-        }
+          }
 
         auto rawBlock = block->rawThis;
         block->~Block();
         std::free(rawBlock);
         block = nextBlock;
-      } while (block != frontBlock_);
-    }
+        } while (block != frontBlock_);
+      }
     //}}}
 
     //{{{
@@ -913,44 +926,40 @@ namespace readerWriterQueue {
     // Does not allocate memory.
     AE_FORCEINLINE bool try_enqueue (T&& element) AE_NO_TSAN {
       return inner_enqueue<CannotAlloc>(std::forward<T>(element));
-    }
+      }
     //}}}
 
     #if MOODYCAMEL_HAS_EMPLACE
       //{{{
       // Like try_enqueue() but with emplace semantics (i.e. construct-in-place).
-      template <typename... Args> AE_FORCEINLINE bool try_emplace (Args&&... args) AE_NO_TSAN
-      {
+      template <typename... Args> AE_FORCEINLINE bool try_emplace (Args&&... args) AE_NO_TSAN {
         return inner_enqueue<CannotAlloc>(std::forward<Args>(args)...);
-      }
+        }
       //}}}
     #endif
     //{{{
     // Enqueues a copy of element on the queue.
     // Allocates an additional block of memory if needed.
     // Only fails (returns false) if memory allocation fails.
-    AE_FORCEINLINE bool enqueue (T const& element) AE_NO_TSAN
-    {
+    AE_FORCEINLINE bool enqueue (T const& element) AE_NO_TSAN {
       return inner_enqueue<CanAlloc>(element);
-    }
+      }
     //}}}
     //{{{
     // Enqueues a moved copy of element on the queue.
     // Allocates an additional block of memory if needed.
     // Only fails (returns false) if memory allocation fails.
-    AE_FORCEINLINE bool enqueue (T&& element) AE_NO_TSAN
-    {
+    AE_FORCEINLINE bool enqueue (T&& element) AE_NO_TSAN {
       return inner_enqueue<CanAlloc>(std::forward<T>(element));
-    }
+      }
     //}}}
 
     #if MOODYCAMEL_HAS_EMPLACE
       //{{{
       // Like enqueue() but with emplace semantics (i.e. construct-in-place).
-      template <typename... Args> AE_FORCEINLINE bool emplace (Args&&... args) AE_NO_TSAN
-      {
+      template <typename... Args> AE_FORCEINLINE bool emplace (Args&&... args) AE_NO_TSAN {
         return inner_enqueue<CanAlloc>(std::forward<Args>(args)...);
-      }
+        }
       //}}}
     #endif
 
@@ -958,8 +967,8 @@ namespace readerWriterQueue {
     // Attempts to dequeue an element; if the queue is empty,
     // returns false instead. If the queue has at least one element,
     // moves front to result using operator=, then returns true.
-    template <typename U> bool try_dequeue (U& result) AE_NO_TSAN
-    {
+    template <typename U> bool try_dequeue (U& result) AE_NO_TSAN {
+
       #ifndef NDEBUG
         ReentrantGuard guard(this->dequeuing);
       #endif
@@ -998,7 +1007,7 @@ namespace readerWriterQueue {
 
         fence(memory_order_release);
         frontBlock_->front = blockFront;
-      }
+        }
       else if (frontBlock_ != tailBlock.load()) {
         fence(memory_order_acquire);
 
@@ -1010,7 +1019,7 @@ namespace readerWriterQueue {
         if (blockFront != blockTail) {
           // Oh look, the front block isn't empty after all
           goto non_empty_front_block;
-        }
+          }
 
         // Front block is empty but there's another block ahead, advance to it
         Block* nextBlock = frontBlock_->next;
@@ -1031,10 +1040,8 @@ namespace readerWriterQueue {
         fence(memory_order_release);    // Expose possibly pending changes to frontBlock->front from last dequeue
         frontBlock = frontBlock_ = nextBlock;
 
-        compiler_fence(memory_order_release); // Not strictly needed
-
+        compiler_fence (memory_order_release); // Not strictly needed
         auto element = reinterpret_cast<T*>(frontBlock_->data + nextBlockFront * sizeof(T));
-
         result = std::move(*element);
         element->~T();
 
@@ -1042,14 +1049,14 @@ namespace readerWriterQueue {
 
         fence(memory_order_release);
         frontBlock_->front = nextBlockFront;
-      }
+        }
       else {
         // No elements in current block and no other block to advance to
         return false;
-      }
+        }
 
       return true;
-    }
+      }
     //}}}
     //{{{
     // Returns a pointer to the front element in the queue (the one that
@@ -1057,11 +1064,11 @@ namespace readerWriterQueue {
     // queue appears empty at the time the method is called, nullptr is
     // returned instead.
     // Must be called only from the consumer thread.
-    T* peek() const AE_NO_TSAN
-    {
-    #ifndef NDEBUG
-      ReentrantGuard guard(this->dequeuing);
-    #endif
+    T* peek() const AE_NO_TSAN {
+
+      #ifndef NDEBUG
+        ReentrantGuard guard(this->dequeuing);
+      #endif
       // See try_dequeue() for reasoning
 
       Block* frontBlock_ = frontBlock.load();
@@ -1070,9 +1077,10 @@ namespace readerWriterQueue {
 
       if (blockFront != blockTail || blockFront != (frontBlock_->localTail = frontBlock_->tail.load())) {
         fence(memory_order_acquire);
-      non_empty_front_block:
+        non_empty_front_block:
         return reinterpret_cast<T*>(frontBlock_->data + blockFront * sizeof(T));
-      }
+        }
+
       else if (frontBlock_ != tailBlock.load()) {
         fence(memory_order_acquire);
         frontBlock_ = frontBlock.load();
@@ -1082,7 +1090,7 @@ namespace readerWriterQueue {
 
         if (blockFront != blockTail) {
           goto non_empty_front_block;
-        }
+          }
 
         Block* nextBlock = frontBlock_->next;
 
@@ -1091,20 +1099,20 @@ namespace readerWriterQueue {
 
         assert(nextBlockFront != nextBlock->tail.load());
         return reinterpret_cast<T*>(nextBlock->data + nextBlockFront * sizeof(T));
-      }
+        }
 
       return nullptr;
-    }
+      }
     //}}}
     //{{{
     // Removes the front element from the queue, if any, without returning it.
     // Returns true on success, or false if the queue appeared empty at the time
     // `pop` was called.
-    bool pop() AE_NO_TSAN
-    {
-    #ifndef NDEBUG
-      ReentrantGuard guard(this->dequeuing);
-    #endif
+    bool pop() AE_NO_TSAN {
+
+      #ifndef NDEBUG
+        ReentrantGuard guard(this->dequeuing);
+      #endif
       // See try_dequeue() for reasoning
 
       Block* frontBlock_ = frontBlock.load();
@@ -1122,7 +1130,7 @@ namespace readerWriterQueue {
 
         fence(memory_order_release);
         frontBlock_->front = blockFront;
-      }
+        }
       else if (frontBlock_ != tailBlock.load()) {
         fence(memory_order_acquire);
         frontBlock_ = frontBlock.load();
@@ -1156,21 +1164,21 @@ namespace readerWriterQueue {
 
         fence(memory_order_release);
         frontBlock_->front = nextBlockFront;
-      }
+        }
       else {
         // No elements in current block and no other block to advance to
         return false;
-      }
+        }
 
       return true;
-    }
+      }
     //}}}
 
     //{{{
     // Returns the approximate number of items currently in the queue.
     // Safe to call from both the producer and consumer threads.
-    inline size_t size_approx() const AE_NO_TSAN
-    {
+    inline size_t size_approx() const AE_NO_TSAN {
+
       size_t result = 0;
       Block* frontBlock_ = frontBlock.load();
       Block* block = frontBlock_;
@@ -1180,9 +1188,10 @@ namespace readerWriterQueue {
         size_t blockTail = block->tail.load();
         result += (blockTail - blockFront) & block->sizeMask;
         block = block->next.load();
-      } while (block != frontBlock_);
+        } while (block != frontBlock_);
+
       return result;
-    }
+      }
     //}}}
     //{{{
     // Returns the total number of items that could be enqueued without incurring
@@ -1195,6 +1204,7 @@ namespace readerWriterQueue {
     //       the case where the producer was writing to the same block the consumer was
     //       reading from the whole time.
     inline size_t max_capacity() const {
+
       size_t result = 0;
       Block* frontBlock_ = frontBlock.load();
       Block* block = frontBlock_;
@@ -1202,9 +1212,10 @@ namespace readerWriterQueue {
         fence(memory_order_acquire);
         result += block->sizeMask;
         block = block->next.load();
-      } while (block != frontBlock_);
+        } while (block != frontBlock_);
+
       return result;
-    }
+      }
     //}}}
 
   private:
@@ -1324,35 +1335,35 @@ namespace readerWriterQueue {
       return true;
       }
     //}}}
-    //{{{
+
     // Disable copying
     cReaderWriterQueue (cReaderWriterQueue const&) {  }
-    //}}}
-    //{{{
+
     // Disable assignment
     cReaderWriterQueue& operator= (cReaderWriterQueue const&) {  }
-    //}}}
+
     //{{{
-    AE_FORCEINLINE static size_t ceilToPow2 (size_t x)
-    {
-      // From http://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
+    AE_FORCEINLINE static size_t ceilToPow2 (size_t x) {
+    // From http://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
+
       --x;
       x |= x >> 1;
       x |= x >> 2;
       x |= x >> 4;
       for (size_t i = 1; i < sizeof(size_t); i <<= 1) {
         x |= x >> (i << 3);
-      }
+        }
+
       ++x;
       return x;
-    }
+      }
     //}}}
     //{{{
-    template <typename U> static AE_FORCEINLINE char* align_for (char* ptr) AE_NO_TSAN
-    {
+    template <typename U> static AE_FORCEINLINE char* align_for (char* ptr) AE_NO_TSAN {
+
       const std::size_t alignment = std::alignment_of<U>::value;
       return ptr + (alignment - (reinterpret_cast<std::uintptr_t>(ptr) % alignment)) % alignment;
-    }
+      }
     //}}}
 
     #ifndef NDEBUG
@@ -1376,6 +1387,7 @@ namespace readerWriterQueue {
 
     //{{{
     struct Block {
+
       // Avoid false-sharing by putting highly contended variables on their own cache lines
       weak_atomic<size_t> front;  // (Atomic) Elements are read from here
       size_t localTail;     // An uncontended shadow copy of tail, owned by the consumer
@@ -1403,7 +1415,7 @@ namespace readerWriterQueue {
 
     public:
       char* rawThis;
-    };
+      };
     //}}}
     //{{{
     static Block* make_block (size_t capacity) AE_NO_TSAN {
@@ -1615,7 +1627,7 @@ namespace readerWriterQueue {
     // Safe to call from both the producer and consumer threads.
     AE_FORCEINLINE size_t size_approx() const AE_NO_TSAN {
       return sema->availableApprox();
-    }
+      }
     //}}}
     //{{{
     // Returns the total number of items that could be enqueued without incurring
