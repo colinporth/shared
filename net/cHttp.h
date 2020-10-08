@@ -20,7 +20,7 @@ public:
   // gets
   int getResponse() { return mResponse; }
   uint8_t* getContent() { return mContent; }
-  int getContentSize() { return mContentReceivedBytes; }
+  int getContentSize() { return mContentReceivedSize; }
 
   int getHeaderContentSize() { return mHeaderContentLength; }
 
@@ -115,7 +115,7 @@ private:
   eContentState mContentState = eContentNone;
   int mHeaderContentLength = -1;
   int mContentLengthLeft = -1;
-  int mContentReceivedBytes = 0;
+  int mContentReceivedSize = 0;
   uint8_t* mContent = nullptr;
 
   int mResponse = 0;

@@ -5,7 +5,7 @@
 using namespace std;
 
 constexpr int kInitialHeaderBufferSize = 256;
-constexpr int kRecvBufferSize = 1024;
+constexpr int kRecvBufferSize = 2048;
 
 // public
 //{{{
@@ -49,8 +49,7 @@ int cHttp::get (const string& host, const string& path,
       if (bufferBytesReceived <= 0)
         break;
 
-      //cLog::log (LOGINFO, "getAllRecv %d", bufferBytesReceived);
-
+      //cLog::log (LOGINFO, "get - bufferBytesReceived:%d", bufferBytesReceived);
       while (needMoreData && (bufferBytesReceived > 0)) {
         int bytesReceived;
         needMoreData = parseData (bufferPtr, bufferBytesReceived, bytesReceived, headerCallback, dataCallback);
@@ -88,7 +87,7 @@ void cHttp::freeContent() {
 
   mHeaderContentLength = -1;
   mContentLengthLeft = 0;
-  mContentReceivedBytes = 0;
+  mContentReceivedSize = 0;
 
   mContentState = eContentNone;
   }
@@ -180,14 +179,14 @@ bool cHttp::parseChunk (int& size, char ch) {
     case 0xC0:
       return size != 0;
 
-    case 0xC1: /* error */
+    case 0xC1: // error
       size = -1;
       return false;
 
-    case 0x01: /* initial char */
+    case 0x01: // initial char
       size = 0;
-      /* fallthrough */
-    case 0x81: /* size char */
+      // fallthrough
+    case 0x81: // size char
       if (ch >= 'a')
         size = size * 16 + (ch - 'a' + 10);
       else if (ch >= 'A')
@@ -217,6 +216,7 @@ bool cHttp::parseData (const uint8_t* data, int length, int& bytesParsed,
           case eHeaderCodeCharacter:
             //{{{  response char
             mResponse = mResponse * 10 + *data - '0';
+
             break;
             //}}}
           case eHeaderKeyCharacter:
@@ -281,7 +281,7 @@ bool cHttp::parseData (const uint8_t* data, int length, int& bytesParsed,
               mState = eChunkHeader;
               mHeaderContentLength = 0;
               mContentLengthLeft = 0;
-              mContentReceivedBytes = 0;
+              mContentReceivedSize = 0;
               }
 
             else if (mContentState == eContentNone)
@@ -306,38 +306,44 @@ bool cHttp::parseData (const uint8_t* data, int length, int& bytesParsed,
 
       //{{{
       case eExpectedData: {
-        // declared and allocated in content-length header
+      // content declared and allocated by content-length header
+      // - callback each bit, reject too much, exit cleanly on just enough
+
         //cLog::log (LOGINFO, "eExpectedData - length:%d mHeaderContentLength:%d left:%d mContentReceivedSize:%d",
-        //                    length, mHeaderContentLength, mContentLengthLeft, mContentReceivedBytes);
-        int chunkSize = (length <= mContentLengthLeft) ? length : mContentLengthLeft;
-        if (length > mContentLengthLeft)
-          cLog::log (LOGERROR, "eExpectedData - too large %d %d", length, mContentLengthLeft);
-
-        if (dataCallback (data, length)) {
-          // data accepted by callback
-          if (mContent) {
-            memcpy (mContent + mContentReceivedBytes, data, chunkSize);
-            mContentReceivedBytes += chunkSize;
-
-            length -= chunkSize;
-            data += chunkSize;
-            mContentLengthLeft -= chunkSize;
-            if (mContentLengthLeft <= 0)
-              mState = eClose;
-            }
-          else {
-            cLog::log (LOGERROR, "eExpectedData - content not allocated");
-            mState = eClose;
-            }
-          }
-        else // data not accepted by callback, bomb out
+        //                    length, mHeaderContentLength, mContentLengthLeft, mContentReceivedSize);
+        if (length > mContentLengthLeft) {
+          cLog::log (LOGERROR, "eExpectedData - too much data - got:%d expected:%d", length, mContentLengthLeft);
           mState = eClose;
+          }
 
+        else if (mContent) {
+          // data expected
+          memcpy (mContent + mContentReceivedSize, data, length);
+          mContentReceivedSize += length;
+
+          if (!dataCallback (data, length))
+            // data not accepted by callback, bomb out
+            mState = eClose;
+
+          data += length;
+          mContentLengthLeft -= length;
+          if (mContentLengthLeft == 0)
+            mState = eClose;
+          }
+
+        else {
+          // data not expected, bomb out
+          cLog::log (LOGERROR, "eExpectedData - data not expected - got:%d", length);
+          mState = eClose;
+          }
+
+        length = 0;
         break;
         }
       //}}}
       //{{{
       case eChunkHeader:
+
         //cLog::log (LOGINFO, "eHttp_chunk_header contentLen:%d left:%d", mHeaderContentLength, mContentLengthLeft);
         if (!parseChunk (mHeaderContentLength, *data)) {
           if (mHeaderContentLength == -1)
@@ -359,13 +365,12 @@ bool cHttp::parseData (const uint8_t* data, int length, int& bytesParsed,
       case eChunkData: {
 
         int chunkSize = (length < mContentLengthLeft) ? length : mContentLengthLeft;
-
         if (dataCallback (data, length)) {
           //log (LOGINFO, "eChunkData - mHeaderContentLength:%d left:%d chunksize:%d mContent:%x",
           //                    mHeaderContentLength, mContentLengthLeft, chunkSize, mContent);
-          mContent = (uint8_t*)realloc (mContent, mContentReceivedBytes + chunkSize);
-          memcpy (mContent + mContentReceivedBytes, data, chunkSize);
-          mContentReceivedBytes += chunkSize;
+          mContent = (uint8_t*)realloc (mContent, mContentReceivedSize + chunkSize);
+          memcpy (mContent + mContentReceivedSize, data, chunkSize);
+          mContentReceivedSize += chunkSize;
 
           length -= chunkSize;
           data += chunkSize;
@@ -384,6 +389,7 @@ bool cHttp::parseData (const uint8_t* data, int length, int& bytesParsed,
       //}}}
       //{{{
       case eStreamData: {
+
         //cLog::log (LOGINFO, "eStreamData - length:%d", length);
         if (!dataCallback (data, length))
           mState = eClose;

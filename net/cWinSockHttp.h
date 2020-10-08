@@ -1,6 +1,5 @@
 // cWinSock.h - winSock http
 #pragma once
-
 #include "cHttp.h"
 #include <winsock2.h>
 #include <WS2tcpip.h>
@@ -27,50 +26,42 @@ protected:
 
     if ((mSocket == -1) || (host != mLastHost)) {
       // not connected or different host
-      //{{{  close any open webSocket
+      // close any open webSocket
       if (mSocket >= 0)
         closesocket (mSocket);
-      //}}}
-      //{{{  win32 find host ipAddress
-      struct addrinfo hints;
+
+      // find host ipAddress
+      addrinfo hints;
       memset (&hints, 0, sizeof(hints));
       hints.ai_family = AF_INET;       // IPv4
       hints.ai_protocol = IPPROTO_TCP; // TCP
       hints.ai_socktype = SOCK_STREAM; // TCP so its SOCK_STREAM
-      struct addrinfo* targetAddressInfo = NULL;
+
+      addrinfo* targetAddressInfo = NULL;
       unsigned long getAddrRes = getaddrinfo (host.c_str(), NULL, &hints, &targetAddressInfo);
-      if (getAddrRes != 0 || targetAddressInfo == NULL) {
-        //{{{  error
+      if (getAddrRes != 0 || targetAddressInfo == NULL) 
         return -1;
-        }
-        //}}}
 
       // form sockAddr
-      struct sockaddr_in sockAddr;
-      sockAddr.sin_addr = ((struct sockaddr_in*)targetAddressInfo->ai_addr)->sin_addr;
-      sockAddr.sin_family = AF_INET; // IPv4
+      sockaddr_in sockAddr;
+      sockAddr.sin_addr = ((sockaddr_in*)targetAddressInfo->ai_addr)->sin_addr;
+      sockAddr.sin_family = AF_INET;  // IPv4
       sockAddr.sin_port = htons (80); // HTTP Port: 80
 
       // free targetAddressInfo from getaddrinfo
       freeaddrinfo (targetAddressInfo);
-      //}}}
 
-      // win32 create webSocket
+      // create webSocket
       mSocket = (unsigned int)socket (AF_INET, SOCK_STREAM, IPPROTO_TCP);
-      if (mSocket < 0) {
-        //{{{  error
+      if (mSocket < 0)
         return -2;
-        }
-        //}}}
 
       // win32 connect webSocket
       if (connect (mSocket, (SOCKADDR*)&sockAddr, sizeof(sockAddr))) {
-        //{{{  error
         closesocket (mSocket);
         mSocket = -1;
         return -3;
         }
-        //}}}
 
       mLastHost = host;
       }

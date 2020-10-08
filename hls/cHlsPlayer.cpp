@@ -158,110 +158,119 @@ void cHlsPlayer::hlsThread() {
         int chunkNum = mSong->getHlsLoadChunkNum (system_clock::now(), 12s, 2);
         if (chunkNum) {
           // get hls chunkNum chunk
-          cLog::log (LOGINFO, "get " + dec(chunkNum) + " " + path);
+          int seqFrameNum = mSong->getHlsFrameFromChunkNum (chunkNum);
+          cLog::log (LOGINFO, "get chunk:" + dec(chunkNum) + " seq:" + dec(seqFrameNum) + " " + path);
           mSong->setHlsLoad (cSong::eHlsLoading, chunkNum);
+
+          //{{{  init pes states
+          int contentParsed = 0;
+
+          int audPesSize = 0;
+          uint64_t audPesPts = 0;
+
+          int vidPesNum = 0;
+          int vidPesSize = 0;
+          uint64_t vidPesPts = 0;
+
+          //}}}
           if (http.get (redirectedHost, path + '-' + dec(chunkNum) + ".ts", "",
                         [&] (const string& key, const string& value) noexcept { /* headerCallback lambda */ },
                         [&] (const uint8_t* data, int length) noexcept {
-                          // data callback lambda
-                          if (mVideoDecode)
-                            mVideoDecode->setDecodeFrac (float(http.getContentSize()) / http.getHeaderContentSize());
-                          return true; }
+                           //{{{  data callback lambda
+                           mVideoDecode->setDecodeFrac (float(http.getContentSize()) / http.getHeaderContentSize());
+
+                           while (http.getContentSize() - contentParsed >= 188) {
+                             // whole ts packet left to parse
+                             uint8_t* ts = http.getContent() + contentParsed;
+                             if (*ts++ == 0x47) {
+                               // is a ts packet
+                               auto payStart = ts[0] & 0x40;
+                               auto pid = ((ts[0] & 0x1F) << 8) | ts[1];
+                               auto headerSize = (ts[2] & 0x20) ? 4 + ts[3] : 3;
+                               ts += headerSize;
+                               auto tsBodySize = 187 - headerSize;
+
+                               if (pid == 33) {
+                                 //{{{  video pid
+                                 if (payStart && !ts[0] && !ts[1] && (ts[2] == 1) && (ts[3] == 0xe0)) {
+                                   // new pes
+                                   if (vidPesSize) {
+                                     // process prev videoPes
+                                     mVideoDecode->decode (vidPes, vidPesSize, vidPesNum, vidPesPts);
+                                     vidPesSize = 0;
+                                     vidPesNum++;
+                                     }
+
+                                   // header
+                                   if (ts[7] & 0x80)
+                                     vidPesPts = getPts (ts+9);
+
+                                   headerSize = 9 + ts[8];
+                                   ts += headerSize;
+                                   tsBodySize -= headerSize;
+                                   }
+
+                                 // copy ts payload into Pes
+                                 if (vidPesSize + tsBodySize > kPesSize)
+                                   cLog::log (LOGERROR, "Pes overflowed %d", vidPesSize + tsBodySize);
+                                 else {
+                                   memcpy (vidPes + vidPesSize, ts, tsBodySize);
+                                   vidPesSize += tsBodySize;
+                                   }
+                                 }
+                                 //}}}
+                               else if (pid == 34) {
+                                 //{{{  audio pid
+                                 if (payStart && !ts[0] && !ts[1] && (ts[2] == 1) && (ts[3] == 0xC0)) {
+                                   // new pes
+                                   if (audPesSize) {
+                                     //  process prev audioPes
+                                     uint8_t* bufferPtr = audPes;
+                                     while (audioDecode.parseFrame (bufferPtr, audPes + audPesSize)) {
+                                       float* samples = audioDecode.decodeFrame (seqFrameNum);
+                                       if (samples) {
+                                         mSong->setFixups (audioDecode.getNumChannels(), audioDecode.getSampleRate(), audioDecode.getNumSamples());
+                                         mSong->addAudioFrame (seqFrameNum++, samples, true, mSong->getNumFrames(), nullptr, audPesPts);
+                                         audPesPts += (audioDecode.getNumSamples() * 90) / 48;
+                                         if (!player.joinable())
+                                           player = thread ([=](){ playThread(); });  // playThread16 playThread32 playThreadWSAPI
+                                         }
+                                       bufferPtr += audioDecode.getNextFrameOffset();
+                                       }
+                                     audPesSize = 0;
+                                     }
+
+                                   // header
+                                   if (ts[7] & 0x80)
+                                     audPesPts = getPts (ts+9);
+                                   headerSize = 9 + ts[8];
+                                   ts += headerSize;
+                                   tsBodySize -= headerSize;
+                                   }
+
+                                 // copy ts payload into Pes
+                                 if (audPesSize + tsBodySize > kPesSize)
+                                   cLog::log (LOGERROR, "audPes overflowed %d", audPesSize + tsBodySize);
+                                 else {
+                                   memcpy (audPes + audPesSize, ts, tsBodySize);
+                                   audPesSize += tsBodySize;
+                                   }
+                                 }
+                                 //}}}
+                               else if (pid && (pid != 32))
+                                 cLog::log (LOGERROR, "got other pid %d", pid);
+
+                               ts += tsBodySize;
+                               }
+                             else
+                               cLog::log (LOGERROR, "packet not ts %d", contentParsed);
+                             contentParsed += 188;
+                             }
+
+                           return true;
+                           }
+                           //}}}
                         ) == 200) {
-            // got content chunk
-            mSong->setHlsLoad (cSong::eHlsIdle, chunkNum);
-            int seqFrameNum = mSong->getHlsFrameFromChunkNum (chunkNum);
-            if (mVideoDecode)
-              mVideoDecode->setDecodeFrac (1.f);
-            //{{{  parse content
-            int audPesSize = 0;
-            uint64_t audPesPts = 0;
-
-            int vidPesNum = 0;
-            int vidPesSize = 0;
-            uint64_t vidPesPts = 0;
-
-            // parse ts packets
-            uint8_t* ts = http.getContent();
-            int tsSize = http.getContentSize();
-            while ((ts < ts + tsSize) && (*ts++ == 0x47)) {
-              auto payStart = ts[0] & 0x40;
-              auto pid = ((ts[0] & 0x1F) << 8) | ts[1];
-              auto headerSize = (ts[2] & 0x20) ? 4 + ts[3] : 3;
-              ts += headerSize;
-              auto tsBodySize = 187 - headerSize;
-
-              if (pid == 33) {
-                //{{{  video pid
-                if (payStart && !ts[0] && !ts[1] && (ts[2] == 1) && (ts[3] == 0xe0)) {
-                  // new pes
-                  if (vidPesSize) {
-                    // process prev videoPes
-                    mVideoDecode->decode (vidPes, vidPesSize, vidPesNum, vidPesPts);
-                    vidPesSize = 0;
-                    vidPesNum++;
-                    }
-
-                  // header
-                  if (ts[7] & 0x80)
-                    vidPesPts = getPts (ts+9);
-
-                  headerSize = 9 + ts[8];
-                  ts += headerSize;
-                  tsBodySize -= headerSize;
-                  }
-
-                // copy ts payload into Pes
-                if (vidPesSize + tsBodySize > kPesSize)
-                  cLog::log (LOGERROR, "Pes overflowed %d", vidPesSize + tsBodySize);
-                else {
-                  memcpy (vidPes + vidPesSize, ts, tsBodySize);
-                  vidPesSize += tsBodySize;
-                  }
-                }
-                //}}}
-              else if (pid == 34) {
-                //{{{  audio pid
-                if (payStart && !ts[0] && !ts[1] && (ts[2] == 1) && (ts[3] == 0xC0)) {
-                  // new pes
-                  if (audPesSize) {
-                    //  process prev audioPes
-                    uint8_t* bufferPtr = audPes;
-                    while (audioDecode.parseFrame (bufferPtr, audPes + audPesSize)) {
-                      float* samples = audioDecode.decodeFrame (seqFrameNum);
-                      if (samples) {
-                        mSong->setFixups (audioDecode.getNumChannels(), audioDecode.getSampleRate(), audioDecode.getNumSamples());
-                        mSong->addAudioFrame (seqFrameNum++, samples, true, mSong->getNumFrames(), nullptr, audPesPts);
-                        audPesPts += (audioDecode.getNumSamples() * 90) / 48;
-                        if (!player.joinable())
-                          player = thread ([=](){ playThread(); });  // playThread16 playThread32 playThreadWSAPI
-                        }
-                      bufferPtr += audioDecode.getNextFrameOffset();
-                      }
-                    audPesSize = 0;
-                    }
-
-                  // header
-                  if (ts[7] & 0x80)
-                    audPesPts = getPts (ts+9);
-                  headerSize = 9 + ts[8];
-                  ts += headerSize;
-                  tsBodySize -= headerSize;
-                  }
-
-                // copy ts payload into Pes
-                if (audPesSize + tsBodySize > kPesSize)
-                  cLog::log (LOGERROR, "audPes overflowed %d", audPesSize + tsBodySize);
-                else {
-                  memcpy (audPes + audPesSize, ts, tsBodySize);
-                  audPesSize += tsBodySize;
-                  }
-                }
-                //}}}
-
-              ts += tsBodySize;
-              }
-
             if (audPesSize) {
               //{{{  process last audPes
               uint8_t* bufferPtr = audPes;
@@ -280,7 +289,7 @@ void cHlsPlayer::hlsThread() {
               mVideoDecode->decode (vidPes, vidPesSize, vidPesNum, vidPesPts);
               }
               //}}}
-            //}}}
+            mSong->setHlsLoad (cSong::eHlsIdle, chunkNum);
             http.freeContent();
             }
           else {
