@@ -4,9 +4,11 @@
 // c++
 #include <cstdint>
 #include <string>
+#include <thread>
 //}}}
 
 class cSong;
+class cAudioDecode;
 class cVideoDecode;
 
 class cHlsPlayer {
@@ -24,10 +26,17 @@ protected:
   cSong* mSong;
   bool mPlaying = true;
   cVideoDecode* mVideoDecode = nullptr;
+  cAudioDecode* mAudioDecode = nullptr;
+  std::thread mPlayer;
   bool mExit = false;
 
 private:
-  void dequeVidPesThread();
+  int processVideoPes (uint8_t* pes, int size, int num, uint64_t pts);
+  void dequeVideoPesThread();
+
+  int processAudioPes (uint8_t* pes, int size, int num, uint64_t pts);
+  void dequeAudioPesThread();
+
   void playThread();
 
   // vars
