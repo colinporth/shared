@@ -156,7 +156,7 @@ private:
 
     vg->beginPath();
     vg->rect (mX, mY + mDstRangeTop, mWidth, mRangeHeight);
-    vg->fillColor (kVgDarkGrey);
+    vg->fillColour (kVgDarkGrey);
     vg->triangleFill();
 
     vg->beginPath();
@@ -175,7 +175,7 @@ private:
         }
       }
 
-    vg->fillColor (kVgWhite);
+    vg->fillColour (kVgWhite);
     vg->triangleFill();
     }
   //}}}
@@ -208,7 +208,7 @@ private:
         xorg += xlen;
         }
 
-      vg->fillColor (kVgDarkGrey);
+      vg->fillColour (kVgDarkGrey);
       vg->triangleFill();
       }
       //}}}
@@ -255,7 +255,7 @@ private:
       xorg += xlen;
       }
 
-    vg->fillColor (kVgBlue);
+    vg->fillColour (kVgBlue);
     vg->triangleFill();
     //}}}
     //{{{  draw powerValues playFrame, no sum
@@ -275,7 +275,7 @@ private:
 
     xorg += xlen;
 
-    vg->fillColor (kVgWhite);
+    vg->fillColour (kVgWhite);
     vg->triangleFill();
     //}}}
     //{{{  draw powerValues after playFrame, summed if zoomed out
@@ -319,7 +319,7 @@ private:
       xorg += xlen;
       }
 
-    vg->fillColor (kVgGrey);
+    vg->fillColour (kVgGrey);
     vg->triangleFill();
     //}}}
 
@@ -361,7 +361,7 @@ private:
         }
       }
 
-    vg->fillColor (kVgYellow);
+    vg->fillColour (kVgYellow);
     vg->triangleFill();
     }
   //}}}
@@ -373,15 +373,15 @@ private:
     vg->setFontSize ((float)getFontHeight());
     vg->setTextAlign (cVg::ALIGN_RIGHT | cVg::ALIGN_BOTTOM);
     if (mSong->getHlsLoad() == cSong::eHlsIdle)
-      vg->fillColor (kVgWhite);
+      vg->fillColour (kVgWhite);
     else if (mSong->getHlsLoad() == cSong::eHlsFailed)
-      vg->fillColor (kVgRed);
+      vg->fillColour (kVgRed);
     else
-      vg->fillColor (kVgGreen);
+      vg->fillColour (kVgGreen);
     vg->text (mWidth, mHeight, lastFrameString);
 
     // small firstFrameString, white, left
-    vg->fillColor (kVgWhite);
+    vg->fillColour (kVgWhite);
     vg->setTextAlign (cVg::ALIGN_LEFT | cVg::ALIGN_BOTTOM);
     vg->text (0.f, mHeight, firstFrameString);
 
@@ -452,7 +452,7 @@ private:
       vg->rect (xorg, mY + mDstOverviewCentre - mOverviewValuesL[x], xlen,  mOverviewValuesR[x]);
       xorg += 1.f;
       }
-    vg->fillColor (kVgGrey);
+    vg->fillColour (kVgGrey);
     vg->triangleFill();
 
     // possible cache to stop recalc
@@ -471,7 +471,7 @@ private:
     // cut hole and frame it
     vg->beginPath();
     vg->rect (mX + centreX - width, mY + mDstOverviewTop, width * 2.f, mOverviewHeight);
-    vg->fillColor (kVgBlack);
+    vg->fillColour (kVgBlack);
     vg->triangleFill();
     // frame in yellow
 
@@ -526,7 +526,7 @@ private:
 
         if (frame == playFrame) {
           //{{{  finish before playFrame
-          vg->fillColor (kVgBlue);
+          vg->fillColour (kVgBlue);
           vg->triangleFill();
           vg->beginPath();
           }
@@ -541,7 +541,7 @@ private:
 
         if (frame == playFrame) {
           //{{{  finish playFrame, start after playFrame
-          vg->fillColor (kVgWhite);
+          vg->fillColour (kVgWhite);
           vg->triangleFill();
           vg->beginPath();
           }
@@ -551,7 +551,7 @@ private:
       xorg += 1.f;
       }
     // finish after playFrame
-    vg->fillColor (kVgGrey);
+    vg->fillColour (kVgGrey);
     vg->triangleFill();
     }
   //}}}
@@ -609,7 +609,7 @@ private:
                             (mDstOverviewCentre - (powerValues[0] * valueScale));
         float ylen = mono ? (powerValues[0] * valueScale * 2.f) : ((powerValues[0] + powerValues[1]) * valueScale);
         vg->rect (mX+playFrameX, mY+yorg, 1.f, ylen);
-        vg->fillColor (kVgWhite);
+        vg->fillColour (kVgWhite);
         vg->triangleFill();
         }
       }

@@ -17,6 +17,100 @@
 #include "../utils/cLog.h"
 //}}}
 
+//{{{
+struct cPoint {
+public:
+  //{{{
+  cPoint()  {
+    x = 0;
+    y = 0;
+    }
+  //}}}
+  //{{{
+  cPoint (const cPoint& p) {
+    this->x = p.x;
+    this->y = p.y;
+    }
+  //}}}
+  //{{{
+  cPoint (float x, float y) {
+    this->x = x;
+    this->y = y;
+    }
+  //}}}
+
+  //{{{
+  cPoint operator - (const cPoint& point) const {
+    return cPoint (x - point.x, y - point.y);
+    }
+  //}}}
+  //{{{
+  cPoint operator + (const cPoint& point) const {
+    return cPoint (x + point.x, y + point.y);
+    }
+  //}}}
+  //{{{
+  cPoint operator * (const float s) const {
+    return cPoint (x * s, y * s);
+    }
+  //}}}
+  //{{{
+  cPoint operator / (const float s) const {
+    return cPoint (x / s, y / s);
+    }
+  //}}}
+  //{{{
+  const cPoint& operator += (const cPoint& point)  {
+    x += point.x;
+    y += point.y;
+    return *this;
+    }
+  //}}}
+  //{{{
+  const cPoint& operator -= (const cPoint& point)  {
+    x -= point.x;
+    y -= point.y;
+    return *this;
+    }
+  //}}}
+  //{{{
+  const cPoint& operator *= (const float s)  {
+    x *= s;
+    y *= s;
+    return *this;
+    }
+  //}}}
+  //{{{
+  const cPoint& operator /= (const float s)  {
+    x /= s;
+    y /= s;
+    return *this;
+    }
+  //}}}
+
+  //{{{
+  bool inside (const cPoint& pos) const {
+  // return pos inside rect formed by us as size
+    return pos.x >= 0 && pos.x < x && pos.y >= 0 && pos.y < y;
+    }
+  //}}}
+  //{{{
+  float magnitude() const {
+  // return magnitude of point as vector
+    return sqrt ((x*x) + (y*y));
+    }
+  //}}}
+  //{{{
+  cPoint perp() {
+    float mag = magnitude();
+    return cPoint (-y / mag, x / mag);
+    }
+  //}}}
+
+  float x;
+  float y;
+  };
+//}}}
 //{{{  inline math utils
 constexpr float kPi = 3.14159265358979323846264338327f;
 constexpr float k2Pi = kPi * 2.f;
@@ -140,23 +234,23 @@ struct sVgColour {
 
 //{{{
 inline sVgColour nvgRGBA32 (uint32_t colour) {
-  sVgColour color;
-  color.r = ((colour & 0xFF0000) >> 16) / 255.0f;
-  color.g = ((colour & 0xFF00) >> 8) / 255.0f;
-  color.b = (colour & 0xFF) / 255.0f;
-  color.a = (colour >> 24) / 255.0f;
-  return color;
+  sVgColour vgColour;
+  vgColour.r = ((colour & 0xFF0000) >> 16) / 255.0f;
+  vgColour.g = ((colour & 0xFF00) >> 8) / 255.0f;
+  vgColour.b = (colour & 0xFF) / 255.0f;
+  vgColour.a = (colour >> 24) / 255.0f;
+  return vgColour;
   }
 //}}}
 //{{{
 inline sVgColour nvgRGBA (uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
 
-  sVgColour color;
-  color.r = r / 255.0f;
-  color.g = g / 255.0f;
-  color.b = b / 255.0f;
-  color.a = a / 255.0f;
-  return color;
+  sVgColour vgColour;
+  vgColour.r = r / 255.0f;
+  vgColour.g = g / 255.0f;
+  vgColour.b = b / 255.0f;
+  vgColour.a = a / 255.0f;
+  return vgColour;
   }
 //}}}
 //{{{
@@ -166,12 +260,12 @@ inline sVgColour nvgRGB (uint8_t r, uint8_t g, uint8_t b) {
 //}}}
 //{{{
 inline sVgColour nvgRGBAf (float r, float g, float b, float a) {
-  sVgColour color;
-  color.r = r;
-  color.g = g;
-  color.b = b;
-  color.a = a;
-  return color;
+  sVgColour vgColour;
+  vgColour.r = r;
+  vgColour.g = g;
+  vgColour.b = b;
+  vgColour.a = a;
+  return vgColour;
   }
 //}}}
 //{{{
@@ -180,11 +274,11 @@ inline sVgColour nvgRGBf (float r, float g, float b) {
   }
 //}}}
 //{{{
-inline sVgColour nvgPremulColor (sVgColour c) {
-  c.r *= c.a;
-  c.g *= c.a;
-  c.b *= c.a;
-  return c;
+inline sVgColour nvgPremulColour (sVgColour colour) {
+  colour.r *= colour.a;
+  colour.g *= colour.a;
+  colour.b *= colour.a;
+  return colour;
   }
 //}}}
 //}}}
@@ -242,6 +336,7 @@ public:
     void getMatrix3x4 (float* matrix3x4);
 
     void setIdentity();
+    void setTranslate (cPoint t);
     void setTranslate (float tx, float ty);
     void setScale (float sx, float sy);
     void setRotate (float angle);
@@ -277,7 +372,7 @@ public:
   //{{{
   struct cPaint {
     //{{{
-    void set (const sVgColour& color) {
+    void set (const sVgColour& colour) {
 
       mTransform.setIdentity();
 
@@ -286,8 +381,8 @@ public:
 
       radius = 0.0f;
       feather = 1.0f;
-      innerColor = color;
-      outerColor = color;
+      innerColour = colour;
+      outerColour = colour;
 
       mImageId = 0;
       }
@@ -298,8 +393,8 @@ public:
     float radius = 0.f;
     float feather = 0.f;
 
-    sVgColour innerColor;
-    sVgColour outerColor;
+    sVgColour innerColour;
+    sVgColour outerColour;
 
     int mImageId = 0;
     };
@@ -401,8 +496,8 @@ public:
 
   float getFringeWidth() { return mFringeWidth; }
 
-  void fillColor (const sVgColour& color);
-  void strokeColor (const sVgColour& color);
+  void fillColour (const sVgColour& colour);
+  void strokeColour (const sVgColour& colour);
   void strokeWidth (float size);
   void globalAlpha (float alpha);
   void fringeWidth (float width);
@@ -412,11 +507,11 @@ public:
   void lineJoin (eLineCap join);
 
   cPaint linearGradient (float startx, float starty, float endx, float endy,
-                         const sVgColour& innerColor, const sVgColour& outerColor);
-  cPaint boxGradient (float x, float y, float width, float height, float radius, float feather,
-                      const sVgColour& innerColor, const sVgColour& outerColor);
-  cPaint radialGradient (float centrex, float centrey, float innerRadius, float outerRadius,
-                         const sVgColour& innerColor, const sVgColour& outerColor);
+                         const sVgColour& innerColour, const sVgColour& outerColour);
+  cPaint boxGradient (cPoint p, float width, float height, float radius, float feather,
+                      const sVgColour& innerColour, const sVgColour& outerColour);
+  cPaint radialGradient (cPoint centre, float innerRadius, float outerRadius,
+                         const sVgColour& innerColour, const sVgColour& outerColour);
   cPaint imagePattern (float cx, float cy, float width, float height, float angle, int imageId, float alpha);
 
   void fillPaint (const cPaint& paint);
@@ -425,19 +520,19 @@ public:
   void beginPath();
   void pathWinding (eWinding dir);
 
-  void moveTo (float x, float y);
-  void lineTo (float x, float y);
+  void moveTo (cPoint p);
+  void lineTo (cPoint p);
   void bezierTo (float c1x, float c1y, float c2x, float c2y, float x, float y);
   void quadTo (float cx, float cy, float x, float y);
-  void arcTo (float x1, float y1, float x2, float y2, float radius);
-  void arc (float cx, float cy, float r, float a0, float a1, int dir);
+  void arcTo (cPoint p1, cPoint p2, float radius);
+  void arc (cPoint centre, float r, float a0, float a1, int dir);
 
   void rect (float x, float y, float width, float height);
   void roundedRectVarying (float x, float y, float width, float height,
                            float radTopLeft, float radTopRight, float radBottomRight, float radBottomLeft);
   void roundedRect (float x, float y, float w, float h, float radius);
-  void ellipse (float cx, float cy, float rx, float ry);
-  void circle (float cx, float cy, float radius);
+  void ellipse (cPoint centre, float rx, float ry);
+  void circle (cPoint centre, float radius);
 
   void closePath();
 
@@ -583,8 +678,8 @@ private:
     //{{{
     void setImage (cPaint* paint, cScissor* scissor, cTexture* tex) {
 
-      innerColor = nvgPremulColor (paint->innerColor);
-      outerColor = nvgPremulColor (paint->outerColor);
+      innerColour = nvgPremulColour (paint->innerColour);
+      outerColour = nvgPremulColour (paint->outerColour);
 
       if ((scissor->extent[0] < -0.5f) || (scissor->extent[1] < -0.5f)) {
         memset (scissorMatrix, 0, sizeof(scissorMatrix));
@@ -621,8 +716,8 @@ private:
     //{{{
     void setFill (cPaint* paint, cScissor* scissor, float width, float fringe, float strokeThreshold, cTexture* tex) {
 
-      innerColor = nvgPremulColor (paint->innerColor);
-      outerColor = nvgPremulColor (paint->outerColor);
+      innerColour = nvgPremulColour (paint->innerColour);
+      outerColour = nvgPremulColour (paint->outerColour);
 
       if ((scissor->extent[0] < -0.5f) || (scissor->extent[1] < -0.5f)) {
         memset (scissorMatrix, 0, sizeof(scissorMatrix));
@@ -684,8 +779,8 @@ private:
       struct {
         float scissorMatrix[12]; // 3vec4's
         float paintMatrix[12];   // 3vec4's
-        sVgColour innerColor;
-        sVgColour outerColor;
+        sVgColour innerColour;
+        sVgColour outerColour;
         float scissorExt[2];
         float scissorScale[2];
         float extent[2];

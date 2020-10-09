@@ -107,7 +107,7 @@ public:
     //{{{  draw waveform rects
     auto context = draw->getVg();
 
-    context->fillColor (kVgDarkGrey);
+    context->fillColour (kVgDarkGrey);
     context->beginPath();
     for (float x = 0; x < mWidth; secs++, nextxF += pixPerSec) {
       if (secs & 1)
@@ -120,7 +120,7 @@ public:
 
     context->setFontSize ((float)getBigFontHeight());
     context->setTextAlign (cVg::ALIGN_LEFT | cVg::ALIGN_TOP);
-    context->fillColor (kVgWhite);
+    context->fillColour (kVgWhite);
     context->text (midx-60.0f+3.0f, y+1.0f, getTimeString (mHls->getPlayTzSeconds()));
 
     float midy = (float)mY + (mHeight/2);
@@ -138,12 +138,12 @@ public:
 
       if (samples) {
         if (x == midx) {
-          context->fillColor (nvgRGBA32 (COL_BLUE));
+          context->fillColour (nvgRGBA32 (COL_BLUE));
           context->triangleFill();
           context->beginPath();
           }
         else if (x == midWidth) {
-          context->fillColor (nvgRGBA32 (COL_DARKGREEN));
+          context->fillColour (nvgRGBA32 (COL_DARKGREEN));
           context->triangleFill();
           context->beginPath();
           }
@@ -157,7 +157,7 @@ public:
         sample += samplesPerPixF;
       }
 
-    context->fillColor (nvgRGBA32 (COL_DARKGREY));
+    context->fillColour (nvgRGBA32 (COL_DARKGREY));
     context->triangleFill();
     //}}}
     }

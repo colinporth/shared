@@ -51,8 +51,8 @@ static const char* kFragShader =
 
   "#define scissorMatrix mat3(frag[0].xyz, frag[1].xyz, frag[2].xyz)\n"
   "#define paintMatrix mat3(frag[3].xyz, frag[4].xyz, frag[5].xyz)\n"
-  "#define innerColor frag[6]\n"
-  "#define outerColor frag[7]\n"
+  "#define innerColour frag[6]\n"
+  "#define outerColour frag[7]\n"
   "#define scissorExt frag[8].xy\n"
   "#define scissorScale frag[8].zw\n"
   "#define extent frag[9].xy\n"
@@ -85,32 +85,32 @@ static const char* kFragShader =
     "float strokeAlpha = strokeMask();\n"
 
     "if (type == 0) {\n"
-      //  SHADER_FILL_GRADIENT - calc grad color using box grad
+      //  SHADER_FILL_GRADIENT - calc grad colour using box grad
       "vec2 pt = (paintMatrix * vec3(fpos,1.0)).xy;\n"
       "float d = clamp((sdroundrect(pt, extent, radius) + feather*0.5) / feather, 0.0, 1.0);\n"
-      "vec4 color = mix(innerColor,outerColor,d);\n"
+      "vec4 colour = mix(innerColour,outerColour,d);\n"
       // Combine alpha
-      "color *= strokeAlpha * scissor;\n"
-      "result = color;\n"
+      "colour *= strokeAlpha * scissor;\n"
+      "result = colour;\n"
     "} else if (type == 1) {\n"
-      // SHADER_FILL_IMAGE - image calc color fron texture
+      // SHADER_FILL_IMAGE - image calc colour fron texture
       "vec2 pt = (paintMatrix * vec3(fpos,1.0)).xy / extent;\n"
-      "vec4 color = texture2D(tex, pt);\n"
-      "if (texType == 1) color = vec4(color.xyz*color.w,color.w);"
-      "if (texType == 2) color = vec4(color.x);"
-      "color *= innerColor;\n"            // apply color tint and alpha
-      "color *= strokeAlpha * scissor;\n" // combine alpha
-      "result = color;\n"
+      "vec4 colour = texture2D(tex, pt);\n"
+      "if (texType == 1) colour = vec4(colour.xyz*colour.w,colour.w);"
+      "if (texType == 2) colour = vec4(colour.x);"
+      "colour *= innerColour;\n"            // apply colour tint and alpha
+      "colour *= strokeAlpha * scissor;\n" // combine alpha
+      "result = colour;\n"
     "} else if (type == 2) {\n"
       //  SHADER_SIMPLE - stencil fill
       "result = vec4(1,1,1,1);\n"
     "} else if (type == 3) {\n"
        // SHADER_IMAGE - textured tris
-      "vec4 color = texture2D(tex, ftcoord);\n"
-      "if (texType == 1) color = vec4(color.xyz*color.w,color.w);"
-      "if (texType == 2) color = vec4(color.x);"
-      "color *= scissor;\n"
-      "result = color * innerColor;\n"
+      "vec4 colour = texture2D(tex, ftcoord);\n"
+      "if (texType == 1) colour = vec4(colour.xyz*colour.w,colour.w);"
+      "if (texType == 2) colour = vec4(colour.x);"
+      "colour *= scissor;\n"
+      "result = colour * innerColour;\n"
     "}\n"
 
   "if (strokeAlpha < strokeThreshold) discard;\n"
@@ -252,6 +252,19 @@ void cVg::cTransform::setIdentity() {
   mTx = 0.0f;
   mTy = 0.0f;
   mIdentity = true;
+  }
+//}}}
+//{{{
+void cVg::cTransform::setTranslate (cPoint t) {
+  mSx = 1.0f;
+  mKy = 0.0f;
+  mKx = 0.0f;
+  mSy = 1.0f;
+
+  mTx = t.x;
+  mTy = t.y;
+
+  mIdentity = isIdentity();
   }
 //}}}
 //{{{
@@ -728,8 +741,8 @@ float cVg::text (float x, float y, const string& str) {
   mVertices.trim (vertexIndex + numVertices);
   if (numVertices) {
     auto fillPaint = mStates[mNumStates - 1].fillPaint;
-    fillPaint.innerColor.a *= mStates[mNumStates - 1].alpha;
-    fillPaint.outerColor.a *= mStates[mNumStates - 1].alpha;
+    fillPaint.innerColour.a *= mStates[mNumStates - 1].alpha;
+    fillPaint.outerColour.a *= mStates[mNumStates - 1].alpha;
     fillPaint.mImageId = mFontTextureIds[mFontTextureIndex];
     renderText (vertexIndex, numVertices, fillPaint, mStates[mNumStates - 1].scissor);
     }
@@ -791,8 +804,8 @@ bool cVg::deleteImage (int image) {
 //}}}
 //}}}
 //{{{  basic shapes
-void cVg::fillColor (const sVgColour& color) { mStates[mNumStates-1].fillPaint.set (color); }
-void cVg::strokeColor (const sVgColour& color) { mStates[mNumStates-1].strokePaint.set (color); }
+void cVg::fillColour (const sVgColour& color) { mStates[mNumStates-1].fillPaint.set (color); }
+void cVg::strokeColour (const sVgColour& color) { mStates[mNumStates-1].strokePaint.set (color); }
 void cVg::strokeWidth (float width) { mStates[mNumStates-1].strokeWidth = width; }
 void cVg::globalAlpha (float alpha) { mStates[mNumStates-1].alpha = alpha; }
 //{{{
@@ -833,45 +846,45 @@ cVg::cPaint cVg::linearGradient (float startx, float starty, float endx, float e
   paint.extent[1] = kLarge + distance * 0.5f;
   paint.radius = 0.f;
   paint.feather = max (1.0f, distance);
-  paint.innerColor = innerColor;
-  paint.outerColor = outerColor;
+  paint.innerColour = innerColor;
+  paint.outerColour = outerColor;
   paint.mImageId = 0;
 
   return paint;
   }
 //}}}
 //{{{
-cVg::cPaint cVg::boxGradient (float x, float y, float width, float height, float radius, float feather,
-                              const sVgColour& innerColor, const sVgColour& outerColor) {
+cVg::cPaint cVg::boxGradient (cPoint p, float width, float height, float radius, float feather,
+                              const sVgColour& innerColour, const sVgColour& outerColour) {
 
-  cPaint p;
-  p.mTransform.setTranslate (x + width * 0.5f, y + height * 0.5f);
-  p.extent[0] = 0.f;
-  p.extent[1] = 0.f;
-  p.radius = radius;
-  p.feather = max (1.0f, feather);
-  p.innerColor = innerColor;
-  p.outerColor = outerColor;
-  p.mImageId = 0;
+  cPaint paint;
+  paint.mTransform.setTranslate (p.x + width * 0.5f, p.y + height * 0.5f);
+  paint.extent[0] = 0.f;
+  paint.extent[1] = 0.f;
+  paint.radius = radius;
+  paint.feather = max (1.0f, feather);
+  paint.innerColour = innerColour;
+  paint.outerColour = outerColour;
+  paint.mImageId = 0;
 
-  return p;
+  return paint;
   }
 //}}}
 //{{{
-cVg::cPaint cVg::radialGradient (float centrex, float centrey, float innerRadius, float outerRadius,
-                                 const sVgColour& innerColor, const sVgColour& outerColor) {
+cVg::cPaint cVg::radialGradient (cPoint centre, float innerRadius, float outerRadius,
+                                 const sVgColour& innerColour, const sVgColour& outerColour) {
 
   float radius = (innerRadius + outerRadius) * 0.5f;
   float feather = (outerRadius - innerRadius);
 
   cPaint paint;
-  paint.mTransform.setTranslate (centrex, centrey);
+  paint.mTransform.setTranslate (centre);
   paint.extent[0] = radius;
   paint.extent[1] = radius;
   paint.radius = radius;
   paint.feather = max (1.0f, feather);
-  paint.innerColor = innerColor;
-  paint.outerColor = outerColor;
+  paint.innerColour = innerColour;
+  paint.outerColour = outerColour;
   paint.mImageId = 0;
 
   return paint;
@@ -886,8 +899,8 @@ cVg::cPaint cVg::imagePattern (float cx, float cy, float width, float height, fl
   paint.extent[1] = height;
   paint.radius = 0.f;
   paint.feather = 0.f;
-  paint.innerColor = nvgRGBAf (1, 1, 1, alpha);
-  paint.outerColor = nvgRGBAf (1, 1, 1, alpha);
+  paint.innerColour = nvgRGBAf (1, 1, 1, alpha);
+  paint.outerColour = nvgRGBAf (1, 1, 1, alpha);
   paint.mImageId = imageId;
 
   return paint;
@@ -918,14 +931,14 @@ void cVg::pathWinding (eWinding dir) {
 //}}}
 
 //{{{
-void cVg::moveTo (float x, float y) {
-  float values[] = { eMOVETO, x, y };
+void cVg::moveTo (cPoint p) {
+  float values[] = { eMOVETO, p.x, p.y };
   mShape.addCommand (values, 3, mStates[mNumStates-1].mTransform);
   }
 //}}}
 //{{{
-void cVg::lineTo (float x, float y) {
-  float values[] = { eLINETO, x, y };
+void cVg::lineTo (cPoint p) {
+  float values[] = { eLINETO, p.x, p.y };
   mShape.addCommand (values, 3, mStates[mNumStates-1].mTransform);
   }
 //}}}
@@ -950,7 +963,7 @@ void cVg::quadTo (float cx, float cy, float x, float y) {
   }
 //}}}
 //{{{
-void cVg::arcTo (float x1, float y1, float x2, float y2, float radius) {
+void cVg::arcTo (cPoint p1, cPoint p2, float radius) {
 
   float x0 = mShape.getLastX();
   float y0 = mShape.getLastY();
@@ -961,49 +974,49 @@ void cVg::arcTo (float x1, float y1, float x2, float y2, float radius) {
     return;
 
   // Handle degenerate cases.
-  if (pointEquals (x0,y0, x1,y1, kDistanceTolerance) ||
-      pointEquals (x1,y1, x2,y2, kDistanceTolerance) ||
-      distPointSeg (x1,y1, x0,y0, x2,y2) < kDistanceTolerance*kDistanceTolerance ||
+  if (pointEquals (x0,y0, p1.x,p1.y, kDistanceTolerance) ||
+      pointEquals (p1.x,p1.y, p2.x,p2.y, kDistanceTolerance) ||
+      distPointSeg (p1.x,p1.y, x0,y0, p2.x,p2.y) < kDistanceTolerance*kDistanceTolerance ||
       radius < kDistanceTolerance) {
-    lineTo (x1,y1);
+    lineTo (cPoint(p1.x,p1.y));
     return;
     }
 
   // Calculate tangential circle to lines (x0,y0)-(x1,y1) and (x1,y1)-(x2,y2).
-  dx0 = x0 - x1;
-  dy0 = y0 - y1;
-  dx1 = x2 - x1;
-  dy1 = y2 - y1;
+  dx0 = x0 - p1.x;
+  dy0 = y0 - p1.y;
+  dx1 = p2.x - p1.x;
+  dy1 = p2.y - p1.y;
   normalize (dx0, dy0);
   normalize (dx1, dy1);
   a = acosf (dx0 * dx1 + dy0 * dy1);
   d = radius / tanf (a / 2.0f);
 
   if (d > 10000.0f) {
-    lineTo (x1, y1);
+    lineTo (cPoint(p1.x, p1.y));
     return;
     }
 
   if (cross (dx0,dy0, dx1,dy1) > 0.0f) {
-    cx = x1 + dx0 * d + dy0 * radius;
-    cy = y1 + dy0 * d - dx0 * radius;
+    cx = p1.x + dx0 * d + dy0 * radius;
+    cy = p1.y + dy0 * d - dx0 * radius;
     a0 = atan2f (dx0, -dy0);
     a1 = atan2f (-dx1, dy1);
     dir = eHOLE;
     }
   else {
-    cx = x1 + dx0 * d - dy0 * radius;
-    cy = y1 + dy0 * d + dx0 * radius;
+    cx = p1.x + dx0 * d - dy0 * radius;
+    cy = p1.y + dy0 * d + dx0 * radius;
     a0 = atan2f (-dx0, dy0);
     a1 = atan2f (dx1, -dy1);
     dir = eSOLID;
     }
 
-  arc (cx, cy, radius, a0, a1, dir);
+  arc (cPoint(cx, cy), radius, a0, a1, dir);
   }
 //}}}
 //{{{
-void cVg::arc (float cx, float cy, float r, float a0, float a1, int dir) {
+void cVg::arc (cPoint centre, float r, float a0, float a1, int dir) {
 
   float a = 0, da = 0, hda = 0, kappa = 0;
   float dx = 0, dy = 0, x = 0, y = 0, tanx = 0, tany = 0;
@@ -1041,8 +1054,8 @@ void cVg::arc (float cx, float cy, float r, float a0, float a1, int dir) {
     a = a0 + da * (i / (float)ndivs);
     dx = cosf (a);
     dy = sinf (a);
-    x = cx + dx * r;
-    y = cy + dy * r;
+    x = centre.x + dx * r;
+    y = centre.y + dy * r;
     tanx = -dy * r * kappa;
     tany = dx * r * kappa;
 
@@ -1119,22 +1132,22 @@ void cVg::roundedRect (float x, float y, float width, float height, float radius
   }
 //}}}
 //{{{
-void cVg::ellipse (float cx, float cy, float rx, float ry) {
+void cVg::ellipse (cPoint centre, float rx, float ry) {
 
   float values[] = {
-    eMOVETO, cx-rx, cy,
-    eBEZIERTO, cx-rx, cy+kAppA90* kAppA90, cx-rx* kAppA90, cy+ry, cx, cy+ry,
-    eBEZIERTO, cx+rx* kAppA90, cy+ry, cx+rx, cy+ry* kAppA90, cx+rx, cy,
-    eBEZIERTO, cx+rx, cy-ry* kAppA90, cx+rx* kAppA90, cy-ry, cx, cy-ry,
-    eBEZIERTO, cx-rx* kAppA90, cy-ry, cx-rx, cy-ry* kAppA90, cx-rx, cy,
+    eMOVETO, centre.x-rx, centre.y,
+    eBEZIERTO, centre.x-rx, centre.y+kAppA90* kAppA90, centre.x-rx* kAppA90, centre.y+ry, centre.x, centre.y+ry,
+    eBEZIERTO, centre.x+rx* kAppA90, centre.y+ry, centre.x+rx, centre.y+ry* kAppA90, centre.x+rx, centre.y,
+    eBEZIERTO, centre.x+rx, centre.y-ry* kAppA90, centre.x+rx* kAppA90, centre.y-ry, centre.x, centre.y-ry,
+    eBEZIERTO, centre.x-rx* kAppA90, centre.y-ry, centre.x-rx, centre.y-ry* kAppA90, centre.x-rx, centre.y,
     eCLOSE
     };
   mShape.addCommand (values, 32, mStates[mNumStates-1].mTransform);
   }
 //}}}
 //{{{
-void cVg::circle (float cx, float cy, float radius) {
-  ellipse (cx,cy, radius,radius);
+void cVg::circle (cPoint centre, float radius) {
+  ellipse (centre, radius,radius);
   }
 //}}}
 
@@ -1152,8 +1165,8 @@ void cVg::fill() {
   mShape.expandFill (mVertices, mDrawEdges ? mFringeWidth : 0.0f, eMITER, 2.4f, mFringeWidth);
 
   auto fillPaint = mStates[mNumStates-1].fillPaint;
-  fillPaint.innerColor.a *= mStates[mNumStates-1].alpha;
-  fillPaint.outerColor.a *= mStates[mNumStates-1].alpha;
+  fillPaint.innerColour.a *= mStates[mNumStates-1].alpha;
+  fillPaint.outerColour.a *= mStates[mNumStates-1].alpha;
   renderFill (mShape, fillPaint, mStates[mNumStates-1].scissor, mFringeWidth);
   }
 //}}}
@@ -1169,16 +1182,16 @@ void cVg::stroke() {
   if (strokeWidth < mFringeWidth) {
     // strokeWidth < pixel, use alpha to emulate coverage, scale by alpha*alpha.
     float alpha = clampf (strokeWidth / mFringeWidth, 0.0f, 1.0f);
-    strokePaint.innerColor.a *= alpha * alpha;
-    strokePaint.outerColor.a *= alpha * alpha;
+    strokePaint.innerColour.a *= alpha * alpha;
+    strokePaint.outerColour.a *= alpha * alpha;
     strokeWidth = mFringeWidth;
     }
 
   mShape.expandStroke (mVertices, mDrawEdges ? (strokeWidth + mFringeWidth) * 0.5f : strokeWidth * 0.5f,
                        state->lineCap, state->lineJoin, state->miterLimit, mFringeWidth);
 
-  strokePaint.innerColor.a *= state->alpha;
-  strokePaint.outerColor.a *= state->alpha;
+  strokePaint.innerColour.a *= state->alpha;
+  strokePaint.outerColour.a *= state->alpha;
   renderStroke (mShape, strokePaint, state->scissor, mFringeWidth, strokeWidth);
   }
 //}}}
@@ -1192,8 +1205,8 @@ void cVg::triangleFill() {
 
   // set up opengl call
   auto fillPaint = mStates[mNumStates-1].fillPaint;
-  fillPaint.innerColor.a *= mStates[mNumStates-1].alpha;
-  fillPaint.outerColor.a *= mStates[mNumStates-1].alpha;
+  fillPaint.innerColour.a *= mStates[mNumStates-1].alpha;
+  fillPaint.outerColour.a *= mStates[mNumStates-1].alpha;
   renderTriangles (vertexIndex, numVertices, fillPaint, mStates[mNumStates-1].scissor);
   }
 //}}}

@@ -47,12 +47,12 @@ public:
     // bgnd
     vg->beginPath();
     vg->rect (x,y, w,h);
-    vg->fillColor (nvgRGBA (0,0,0,128));
+    vg->fillColour (nvgRGBA (0,0,0,128));
     vg->fill();
 
     // graph
     vg->beginPath();
-    vg->moveTo (x, y+h);
+    vg->moveTo (cPoint(x, y+h));
     if (mStyle == eRenderFps) {
       //{{{  fps graph
       for (int i = 0; i < kGraphHistorySize; i++) {
@@ -64,7 +64,7 @@ public:
         float vx = x + ((float)i/(kGraphHistorySize -1)) * w;
         float vy = y + h - ((v / 100.f) * h);
 
-        vg->lineTo (vx, vy);
+        vg->lineTo (cPoint(vx, vy));
         }
       }
       //}}}
@@ -78,7 +78,7 @@ public:
         float vx = x + ((float)i / (kGraphHistorySize -1)) * w;
         float vy = y + h - ((v / 100.f) * h);
 
-        vg->lineTo (vx, vy);
+        vg->lineTo (cPoint(vx, vy));
         }
       }
       //}}}
@@ -92,12 +92,12 @@ public:
         float vx = x + ((float)i / (kGraphHistorySize -1)) * w;
         float vy = y + h - ((v / 20.f) * h);
 
-        vg->lineTo (vx, vy);
+        vg->lineTo (cPoint(vx, vy));
         }
       }
       //}}}
-    vg->lineTo (x+w, y+h);
-    vg->fillColor (nvgRGBA (255,192,0,128));
+    vg->lineTo (cPoint(x+w, y+h));
+    vg->fillColour (nvgRGBA (255,192,0,128));
     vg->fill();
 
     // title text
@@ -106,7 +106,7 @@ public:
       //{{{  name graph
       vg->setFontSize (14.f);
       vg->setTextAlign (cVg::ALIGN_LEFT | cVg::ALIGN_TOP);
-      vg->fillColor (nvgRGBA(240,240,240,192));
+      vg->fillColour (nvgRGBA(240,240,240,192));
       vg->text (x+3, y+1, mName);
       }
       //}}}
@@ -117,7 +117,7 @@ public:
       //{{{  fps graph
       vg->setFontSize (18.f);
       vg->setTextAlign (cVg::ALIGN_RIGHT | cVg::ALIGN_TOP);
-      vg->fillColor (nvgRGBA (240,240,240,255));
+      vg->fillColour (nvgRGBA (240,240,240,255));
 
       char str[64];
       sprintf (str, "%.2ffps", 1.f / avg);
@@ -125,7 +125,7 @@ public:
 
       vg->setFontSize (15.f);
       vg->setTextAlign (cVg::ALIGN_RIGHT | cVg::ALIGN_BOTTOM);
-      vg->fillColor (nvgRGBA (240,240,240,160));
+      vg->fillColour (nvgRGBA (240,240,240,160));
 
       sprintf (str, "%.2fms", avg * 1000.f);
       vg->text (x+w-3, y+h-1, str);
@@ -135,7 +135,7 @@ public:
       //{{{  percent graph
       vg->setFontSize (18.f);
       vg->setTextAlign (cVg::ALIGN_RIGHT | cVg::ALIGN_TOP);
-      vg->fillColor (nvgRGBA (240,240,240,255));
+      vg->fillColour (nvgRGBA (240,240,240,255));
 
       char str[64];
       sprintf (str, "%.1f%%", avg * 1.f);
@@ -146,7 +146,7 @@ public:
       //{{{  ms graph
       vg->setFontSize (18.f);
       vg->setTextAlign (cVg::ALIGN_RIGHT | cVg::ALIGN_TOP);
-      vg->fillColor (nvgRGBA (240,240,240,255));
+      vg->fillColour (nvgRGBA (240,240,240,255));
 
       char str[64];
       sprintf (str, "%.2fms", avg * 1000.f);
