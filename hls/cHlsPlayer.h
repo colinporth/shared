@@ -16,8 +16,8 @@ public:
   cHlsPlayer();
   virtual ~cHlsPlayer();
 
-  void initPlayer (const std::string& host, const std::string& channel, int audBitrate, int vidBitrate,
-                   bool streaming = true, bool useFFmpeg = true);
+  void init (const std::string& host, const std::string& channel, int audBitrate, int vidBitrate,
+             bool useFFmpeg = true, bool videoQueue = true, bool audioQueue = true, bool streaming = true);
 
 protected:
   void videoFollowAudio();
@@ -25,9 +25,11 @@ protected:
 
   cSong* mSong;
   bool mPlaying = true;
+
   cVideoDecode* mVideoDecode = nullptr;
   cAudioDecode* mAudioDecode = nullptr;
   std::thread mPlayer;
+
   bool mExit = false;
 
 private:
@@ -42,8 +44,11 @@ private:
   // vars
   std::string mHost;
   std::string mChannel;
-  int mAudBitrate = 0;
   int mVidBitrate = 0;
-  bool mStreaming = false;
+  int mAudBitrate = 0;
+
   bool mUseFFmpeg = false;
+  bool mQueueVideo = true;
+  bool mQueueAudio= true;
+  bool mStreaming = false;
   };

@@ -296,6 +296,19 @@ float* cAudioDecode::decodeFrame (int32_t frameNum) {
   return samples;
   }
 //}}}
+//{{{
+float* cAudioDecode::decodeFrame (uint8_t* framePtr, int frameLen, int32_t frameNum) {
+// decode parser frame to samples using codec context, fixup song samplerate and samplesPerFrame
+
+  auto samples = mAudioDecoder->decodeFrame (framePtr, frameLen, frameNum);
+
+  mNumChannels = mAudioDecoder->getNumChannels();
+  mSampleRate = mAudioDecoder->getSampleRate();
+  mNumSamples = mAudioDecoder->getNumSamples();
+
+  return samples;
+  }
+//}}}
 
 // static
 //{{{

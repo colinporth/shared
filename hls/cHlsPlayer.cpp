@@ -111,15 +111,18 @@ cHlsPlayer::~cHlsPlayer() {
   }
 //}}}
 //{{{
-void cHlsPlayer::initPlayer (const string& host, const string& channel, int audBitrate, int vidBitrate,
-                             bool streaming, bool useFFmpeg) {
+void cHlsPlayer::init (const string& host, const string& channel, int audBitrate, int vidBitrate,
+                       bool useFFmpeg, bool queueVideo, bool queueAudio, bool streaming) {
 
   mHost = host;
   mChannel = channel;
   mAudBitrate = audBitrate;
   mVidBitrate = vidBitrate;
-  mStreaming = streaming;
+
   mUseFFmpeg = useFFmpeg;
+  mQueueVideo = queueVideo;
+  mQueueAudio = queueAudio;
+  mStreaming = streaming;
 
   mSong = new cSong();
 
@@ -150,8 +153,10 @@ void cHlsPlayer::hlsThread() {
   cLog::setThreadName ("hls ");
   mAudioDecode = new cAudioDecode (cAudioDecode::eAac);
 
-  thread ([=](){ dequeVideoPesThread(); }).detach();
-  thread ([=](){ dequeAudioPesThread(); }).detach();
+  if (mQueueVideo)
+    thread ([=](){ dequeVideoPesThread(); }).detach();
+  if (mQueueAudio)
+    thread ([=](){ dequeAudioPesThread(); }).detach();
 
   constexpr int kPesSize = 1000000;
   uint8_t* audPes = (uint8_t*)malloc (kPesSize);
@@ -297,19 +302,22 @@ void cHlsPlayer::hlsThread() {
 //{{{
 int cHlsPlayer::processVideoPes (uint8_t* pes, int size, int num, uint64_t pts) {
 
-  //mVideoDecode->decode (vidPes, vidPesSize, vidPesNum, vidPesPts);
-  vidPesQueue.enqueue (new cPes (pes, size, num, pts));
+  if (mQueueVideo)
+    vidPesQueue.enqueue (new cPes (pes, size, num, pts));
+  else
+    mVideoDecode->decode (pes, size, num, pts);
+
   return num + 1;
   }
 //}}}
 //{{{
 void cHlsPlayer::dequeVideoPesThread() {
 
-  cLog::setThreadName ("vdeq");
-  while (true) {
+  cLog::setThreadName ("vidQ");
+
+  while (!mExit) {
     cPes* pes;
     if (vidPesQueue.try_dequeue (pes)) {
-      //cLog::log (LOGINFO, "deque %d %d", pesBlock->mNum, pesBlock->mSize);
       mVideoDecode->decode (pes->mPes, pes->mSize, pes->mNum, pes->mPts);
       delete pes;
       }
@@ -330,11 +338,16 @@ int cHlsPlayer::processAudioPes (uint8_t* pes, int size, int seqFrameNum, uint64
     int framePesSize = mAudioDecode->getNextFrameOffset();
 
     // decode a single frame from pes
-    float* samples = mAudioDecode->decodeFrame (seqFrameNum);
-    mSong->addAudioFrame (seqFrameNum++, samples, true, mSong->getNumFrames(), nullptr, pts);
+    if (mQueueAudio)
+      audPesQueue.enqueue (new cPes (framePes, framePesSize, seqFrameNum, pts));
+    else {
+      float* samples = mAudioDecode->decodeFrame (framePes, framePesSize, seqFrameNum);
+      mSong->addAudioFrame (seqFrameNum, samples, true, mSong->getNumFrames(), nullptr, pts);
+      }
 
     // point to next frame in pes
     pts += (mAudioDecode->getNumSamples() * 90) / 48;
+    seqFrameNum++;
     framePes += framePesSize;
     }
 
@@ -349,12 +362,13 @@ int cHlsPlayer::processAudioPes (uint8_t* pes, int size, int seqFrameNum, uint64
 //{{{
 void cHlsPlayer::dequeAudioPesThread() {
 
-  cLog::setThreadName ("adeq");
-  while (true) {
+  cLog::setThreadName ("audQ");
+
+  while (!mExit) {
     cPes* pes;
     if (audPesQueue.try_dequeue (pes)) {
-      //cLog::log (LOGINFO, "deque %d %d", pesBlock->mNum, pesBlock->mSize);
-      //mVideoDecode->decode (pes->mPtr, pes->mSize, pes->mNum, pes->mPts);
+      float* samples = mAudioDecode->decodeFrame (pes->mPes, pes->mSize, pes->mNum);
+      mSong->addAudioFrame (pes->mNum, samples, true, mSong->getNumFrames(), nullptr, pes->mPts);
       delete pes;
       }
     else

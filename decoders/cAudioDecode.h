@@ -24,6 +24,7 @@ public:
 
   bool parseFrame (uint8_t* framePtr, uint8_t* frameLast);
   float* decodeFrame (int frameNum);
+  float* decodeFrame (uint8_t* framePtr, int frameLen, int32_t frameNum);
 
   // !!!! statics not quite right, picks up eFrameType
   static eFrameType parseSomeFrames (uint8_t* framePtr, uint8_t* frameLast, int32_t& sampleRate);
