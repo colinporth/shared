@@ -56,7 +56,6 @@
 #else // Assume GCC compliant syntax...
   #define AE_ALIGN(x) __attribute__((aligned(x)))
 #endif
-
 //}}}
 //{{{  atomics
 //{{{  portable atomic fences
@@ -1168,8 +1167,8 @@ namespace readerWriterQueue {
     };
   //}}}
   //{{{
-  // Like ReaderWriterQueue, but also providees blocking operations
   template <typename T, size_t MAX_BLOCK_SIZE = 512> class cBlockingReaderWriterQueue {
+  // Like ReaderWriterQueue, but also providees blocking operations
   public:
     //{{{
     explicit cBlockingReaderWriterQueue (size_t size = 15)
@@ -1295,20 +1294,16 @@ namespace readerWriterQueue {
       return true;
       }
     //}}}
-
-    #if __cplusplus > 199711L || _MSC_VER >= 1700
-      //{{{
-      // Attempts to dequeue an element; if the queue is empty,
-      // waits until an element is available up to the specified timeout,
-      // then dequeues it and returns true, or returns false if the timeout expires before an element can be dequeued.
-      // Using a negative timeout indicates an indefinite timeout,
-      // and is thus functionally equivalent to calling wait_dequeue.
-      template<typename U, typename Rep, typename Period> inline bool wait_dequeue_timed (U& result, std::chrono::duration<Rep, Period> const& timeout) {
-        return wait_dequeue_timed(result, std::chrono::duration_cast<std::chrono::microseconds>(timeout).count());
-        }
-      //}}}
-    #endif
-
+    //{{{
+    // Attempts to dequeue an element; if the queue is empty,
+    // waits until an element is available up to the specified timeout,
+    // then dequeues it and returns true, or returns false if the timeout expires before an element can be dequeued.
+    // Using a negative timeout indicates an indefinite timeout,
+    // and is thus functionally equivalent to calling wait_dequeue.
+    template <typename U, typename Rep, typename Period> inline bool wait_dequeue_timed (U& result, std::chrono::duration<Rep, Period> const& timeout) {
+      return wait_dequeue_timed(result, std::chrono::duration_cast<std::chrono::microseconds>(timeout).count());
+      }
+    //}}}
 
     //{{{
     // Returns a pointer to the front element in the queue (the one that
@@ -1331,6 +1326,7 @@ namespace readerWriterQueue {
       return false;
       }
     //}}}
+
     //{{{
     // Returns the approximate number of items currently in the queue.
     // Safe to call from both the producer and consumer threads.

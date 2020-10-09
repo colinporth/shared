@@ -99,8 +99,10 @@ public:
   const uint64_t mPts;
   };
 //}}}
-readerWriterQueue::cReaderWriterQueue <cPes*> vidPesQueue;
-readerWriterQueue::cReaderWriterQueue <cPes*> audPesQueue;
+//readerWriterQueue::cReaderWriterQueue <cPes*> vidPesQueue;
+//readerWriterQueue::cReaderWriterQueue <cPes*> audPesQueue;
+readerWriterQueue::cBlockingReaderWriterQueue <cPes*> vidPesQueue;
+readerWriterQueue::cBlockingReaderWriterQueue <cPes*> audPesQueue;
 
 // public
 cHlsPlayer::cHlsPlayer() {}
@@ -191,8 +193,8 @@ void cHlsPlayer::hlsThread() {
         int chunkNum = mSong->getHlsLoadChunkNum (system_clock::now(), 12s, 2);
         if (chunkNum) {
           // get hls chunkNum chunk
-          int audioFrameNum = mSong->getHlsFrameFromChunkNum (chunkNum);
-          cLog::log (LOGINFO, "get chunk:" + dec(chunkNum) + " seq:" + dec(audioFrameNum));
+          int audioFrameNum = mSong->getFrameNumFromChunkNum (chunkNum);
+          cLog::log (LOGINFO, "get chunkNum:" + dec(chunkNum) + " frameNum:" + dec(audioFrameNum));
           mSong->setHlsLoad (cSong::eHlsLoading, chunkNum);
 
           //{{{  init pes states
@@ -312,18 +314,31 @@ int cHlsPlayer::processVideoPes (uint8_t* pes, int size, int num, uint64_t pts) 
   }
 //}}}
 //{{{
+//void cHlsPlayer::dequeVideoPesThread() {
+
+  //cLog::setThreadName ("vidQ");
+
+  //while (!mExit) {
+    //cPes* pes;
+    //if (vidPesQueue.try_dequeue (pes)) {
+      //mVideoDecode->decode (pes->mPes, pes->mSize, pes->mNum, pes->mPts);
+      //delete pes;
+      //}
+    //else
+      //this_thread::sleep_for (1ms);
+    //}
+  //}
+//}}}
+//{{{
 void cHlsPlayer::dequeVideoPesThread() {
 
   cLog::setThreadName ("vidQ");
 
   while (!mExit) {
     cPes* pes;
-    if (vidPesQueue.try_dequeue (pes)) {
-      mVideoDecode->decode (pes->mPes, pes->mSize, pes->mNum, pes->mPts);
-      delete pes;
-      }
-    else
-      this_thread::sleep_for (1ms);
+    vidPesQueue.wait_dequeue (pes);
+    mVideoDecode->decode (pes->mPes, pes->mSize, pes->mNum, pes->mPts);
+    delete pes;
     }
   }
 //}}}
@@ -359,19 +374,33 @@ int cHlsPlayer::processAudioPes (uint8_t* pes, int size, int num, uint64_t pts) 
   }
 //}}}
 //{{{
+//void cHlsPlayer::dequeAudioPesThread() {
+
+  //cLog::setThreadName ("audQ");
+
+  //while (!mExit) {
+    //cPes* pes;
+    //if (audPesQueue.try_dequeue (pes)) {
+      //float* samples = mAudioDecode->decodeFrame (pes->mPes, pes->mSize, pes->mNum);
+      //mSong->addAudioFrame (pes->mNum, samples, true, mSong->getNumFrames(), nullptr, pes->mPts);
+      //delete pes;
+      //}
+    //else
+      //this_thread::sleep_for (1ms);
+    //}
+  //}
+//}}}
+//{{{
 void cHlsPlayer::dequeAudioPesThread() {
 
   cLog::setThreadName ("audQ");
 
   while (!mExit) {
     cPes* pes;
-    if (audPesQueue.try_dequeue (pes)) {
-      float* samples = mAudioDecode->decodeFrame (pes->mPes, pes->mSize, pes->mNum);
-      mSong->addAudioFrame (pes->mNum, samples, true, mSong->getNumFrames(), nullptr, pes->mPts);
-      delete pes;
-      }
-    else
-      this_thread::sleep_for (1ms);
+    audPesQueue.wait_dequeue (pes);
+    float* samples = mAudioDecode->decodeFrame (pes->mPes, pes->mSize, pes->mNum);
+    mSong->addAudioFrame (pes->mNum, samples, true, mSong->getNumFrames(), nullptr, pes->mPts);
+    delete pes;
     }
   }
 //}}}
