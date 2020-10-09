@@ -3,12 +3,6 @@
 #define _CRT_SECURE_NO_WARNINGS
 #define WIN32_LEAN_AND_MEAN
 
-// c++
-#include <cstdint>
-#include <string>
-#include <thread>
-#include <chrono>
-
 #include "cHlsPlayer.h"
 
 // utils
@@ -16,7 +10,7 @@
 #include "../utils/utils.h"
 #include "../utils/cLog.h"
 
-// audio container
+// container
 #include "../utils/cSong.h"
 
 // audio decode
@@ -248,6 +242,7 @@ void cHlsPlayer::loaderThread() {
               audioFrameNum = processAudioPes (audPes, audPesSize, audioFrameNum, audPesPts);
             if (vidPesSize)
               vidPesNum = processVideoPes (vidPes, vidPesSize, vidPesNum, vidPesPts);
+            mLoadFrac = 0.f;
 
             mSong->setHlsLoad (cSong::eHlsIdle, chunkNum);
             http.freeContent();
@@ -390,11 +385,10 @@ void cHlsPlayer::dequeAudioPesThread() {
             srcSamples = silence;
           numSrcSamples = mSong->getSamplesPerFrame();
 
-          if (mPlaying && framePtr) {
-            if (mVideoDecode)
-              mVideoDecode->setPlayPts (framePtr->getPts());
+          if (mVideoDecode && framePtr)
+            mVideoDecode->setPlayPts (framePtr->getPts());
+          if (mPlaying && framePtr)
             mSong->incPlayFrame (1, true);
-            }
           });
 
         if (!mStreaming && (mSong->getPlayFrame() > mSong->getLastFrame()))
@@ -435,13 +429,11 @@ void cHlsPlayer::dequeAudioPesThread() {
           }
         }
       audio.play (2, playSamples, mSong->getSamplesPerFrame(), 1.f);
-      //cLog::log (LOGINFO, "audio.play");
 
-      if (mPlaying && framePtr) {
-        if (mVideoDecode)
-          mVideoDecode->setPlayPts (framePtr->getPts());
+      if (mVideoDecode && framePtr)
+        mVideoDecode->setPlayPts (framePtr->getPts());
+      if (mPlaying && framePtr)
         mSong->incPlayFrame (1, true);
-        }
 
       if (!mStreaming && (mSong->getPlayFrame() > mSong->getLastFrame()))
         break;

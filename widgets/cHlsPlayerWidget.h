@@ -13,6 +13,7 @@ public:
     : cWidget (COL_BLACK, width, height), mHlsPlayer(hlsPlayer) {}
   virtual ~cHlsPlayerWidget() {}
 
+  //{{{
   void onDraw (iDraw* draw) {
     cVg* vg = draw->getVg();
 
@@ -39,13 +40,7 @@ public:
     float audFrac = mHlsPlayer->getAudioDecodeFrac();
     float vidFrac = mHlsPlayer->getVideoDecodeFrac();
 
-    if ((audFrac > 0.f) && (audFrac < 1.f))
-      vg->drawSpinner (mWidth - 26.f, 26.f, 20.f, 10.f, frac + vidFrac + audFrac, nvgRGBA(0,0,0,0), nvgRGBA(32,32,255,192));
-    if ((vidFrac > 0.f) && (vidFrac < 1.f))
-      vg->drawSpinner (mWidth - 26.f, 26.f, 20.f, 10.f, frac + vidFrac, nvgRGBA(0,0,0,0), nvgRGBA(255,32,32,192));
-    if ((frac > 0.f) && (frac < 1.f))
-      vg->drawSpinner (mWidth - 26.f, 26.f, 20.f, 10.f, frac, nvgRGBA(0,0,0,0), nvgRGBA(32,255,32,192));
-
+    drawSpinner (vg, mWidth - 26.f, 26.f, 20.f, 10.f, frac, vidFrac, audFrac);
 
     // info text
     std::string infoString = mHlsPlayer->getChannel() +
@@ -61,8 +56,37 @@ public:
     vg->fillColor (kVgWhite);
     vg->text (mX, mY, infoString);
     }
+  //}}}
 
 private:
+  //{{{
+  void drawSpinner (cVg* vg, float centrex, float centrey, float inner, float outer,
+                    float loadFrac, float vidFrac, float audFrac) {
+
+    float angle[4] = { 0.f, loadFrac * k2Pi, (loadFrac + vidFrac) * k2Pi, (loadFrac + vidFrac + audFrac) * k2Pi } ;
+
+    float x[4];
+    float y[4];
+    for (int i = 0; i < 4; i++) {
+      x[i] = centrex + sinf (angle[i]) * ((outer + inner) / 2.f);
+      y[i] = centrey + cosf (angle[i]) * ((outer + inner) / 2.f);
+      }
+
+    sVgColour colours[4] = { nvgRGBA(0,0,0,0), nvgRGBA(32,255,32,192), nvgRGBA(32,32,255,192), nvgRGBA(255,32,32,192) };
+
+    vg->saveState();
+    for (int i = 0; i < 3; i++) {
+      vg->beginPath();
+      vg->arc (centrex, centrey, outer, angle[i], angle[i+1], cVg::eHOLE);
+      vg->arc (centrex, centrey, inner, angle[i+1], angle[i], cVg::eSOLID);
+      vg->closePath();
+      vg->fillPaint (vg->linearGradient (x[i],y[i], x[i+1],y[i+1], colours[i], colours[i+1]));
+      vg->fill();
+      }
+    vg->restoreState();
+    }
+  //}}}
+
   cHlsPlayer* mHlsPlayer;
   uint64_t mPts = 0;
   int mImageId = -1;

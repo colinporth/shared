@@ -212,6 +212,30 @@ void cGlWindow::draw() {
 //}}}
 
 //{{{
+void cGlWindow::drawSpinner (float centrex, float centrey, float inner, float outer, float frac,
+                       const sVgColour& color1, const sVgColour& color2) {
+
+  saveState();
+
+  beginPath();
+  float angle0 = (frac * k2Pi);
+  float angle1 = kPi + angle0;
+  arc (centrex, centrey, outer, angle0, angle1, cVg::eHOLE);
+  arc (centrex, centrey, inner, angle1, angle0, cVg::eSOLID);
+  closePath();
+
+  float ax = centrex + cosf (angle0) * (outer + inner) * 0.5f;
+  float ay = centrey + sinf (angle0) * (outer + inner) * 0.5f;
+  float bx = centrex + cosf (angle1) * (outer + inner) * 0.5f;
+  float by = centrey + sinf (angle1) * (outer + inner) * 0.5f;
+  auto paint = linearGradient (ax,ay, bx,by, color1, color2);
+  fillPaint (paint);
+  fill();
+
+  restoreState();
+  }
+//}}}
+//{{{
 void cGlWindow::drawEyes (float x, float y, float w, float h, float cursorX, float cursorY, float t) {
 
   float ex = w *0.23f;

@@ -90,9 +90,10 @@ protected:
 private:
   void draw();
 
+  void drawSpinner (float centrex, float centrey, float inner, float outer, float frac,
+                    const sVgColour& color1, const sVgColour& color2);
   void drawEyes (float x, float y, float w, float h, float cursorX, float cursorY, float t);
   void drawLines (float x, float y, float w, float h, float t);
-  void drawStats (float x, float y, const std::string& str);
 
   //{{{  static glfw callbacks
   static void glfwKey (GLFWwindow* window, int key, int scancode, int action, int mods);
