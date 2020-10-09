@@ -3,7 +3,6 @@
 // ©2013-2020 Cameron Desrochers.
 // Distributed under the simplified BSD license (see the license file that
 // should have come with this header).
-//}}}
 // A lock-free queue for a single-consumer, single-producer architecture.
 // The queue is also wait-free in the common path (except if more memory
 // needs to be allocated, in which case malloc is called).
@@ -16,6 +15,7 @@
 // Switching roles of the threads, or using multiple consecutive threads for
 // one role, is not safe unless properly synchronized.
 // Using the queue exclusively from one thread is fine, though a bit silly.
+//}}}
 //{{{  includes
 #include <cstdint>
 #include <cstdlib>    // For malloc/free/abort & size_t
@@ -29,65 +29,46 @@
 #include <new>
 #include <memory>
 
+#include <atomic>
+#include <utility>
+
 #include <chrono>
 //}}}
 
-//{{{  platform detection
-#if defined(__INTEL_COMPILER)
-  #define AE_ICC
-#elif defined(_MSC_VER)
+//{{{  platform stuff
+#if defined(_MSC_VER)
   #define AE_VCPP
 #elif defined(__GNUC__)
   #define AE_GCC
 #endif
 
-#if defined(_M_IA64) || defined(__ia64__)
-  #define AE_ARCH_IA64
-#elif defined(_WIN64) || defined(__amd64__) || defined(_M_X64) || defined(__x86_64__)
+#if defined(_WIN64) || defined(__amd64__) || defined(_M_X64) || defined(__x86_64__)
   #define AE_ARCH_X64
 #elif defined(_M_IX86) || defined(__i386__)
   #define AE_ARCH_X86
-#elif defined(_M_PPC) || defined(__powerpc__)
-  #define AE_ARCH_PPC
 #else
   #define AE_ARCH_UNKNOWN
-#endif
-
-// AE_UNUSED
-#define AE_UNUSED(x) ((void)x)
-
-// AE_NO_TSAN
-#if defined(__has_feature)
-  #if __has_feature(thread_sanitizer)
-    #define AE_NO_TSAN __attribute__((no_sanitize("thread")))
-  #else
-    #define AE_NO_TSAN
-   #endif
-#else
-  #define AE_NO_TSAN
-#endif
-
-// AE_FORCEINLINE
-#if defined(AE_VCPP) || defined(AE_ICC)
-  #define AE_FORCEINLINE __forceinline
-#elif defined(AE_GCC)
-  //#define AE_FORCEINLINE __attribute__((always_inline))
-  #define AE_FORCEINLINE inline
-#else
-  #define AE_FORCEINLINE inline
 #endif
 
 // AE_ALIGN
 #if defined(AE_VCPP) || defined(AE_ICC)
   #define AE_ALIGN(x) __declspec(align(x))
-#elif defined(AE_GCC)
-  #define AE_ALIGN(x) __attribute__((aligned(x)))
-#else
-  // Assume GCC compliant syntax...
+#else // Assume GCC compliant syntax...
   #define AE_ALIGN(x) __attribute__((aligned(x)))
 #endif
+
 //}}}
+//{{{  atomics
 //{{{  portable atomic fences
+// WARNING: *NOT* A REPLACEMENT FOR std::atomic. READ CAREFULLY:
+// Provides basic support for atomic variables -- no memory ordering guarantees are provided.
+// The guarantee of atomicity is only made for types that already have atomic load and store guarantees
+// at the hardware level -- on most platforms this generally means aligned pointers and integers (only).
+//}}}
+#if !defined(AE_VCPP) || (_MSC_VER >= 1700 && !defined(__cplusplus_cli))
+  #define AE_USE_STD_ATOMIC_FOR_WEAK_ATOMIC
+#endif
+
 namespace readerWriterQueue {
   //{{{
   enum memory_order {
@@ -102,269 +83,163 @@ namespace readerWriterQueue {
     memory_order_sync = memory_order_seq_cst
   };
   //}}}
-  }
 
-#if (defined(AE_VCPP) && (_MSC_VER < 1700 || defined(__cplusplus_cli))) || (defined(AE_ICC) && __INTEL_COMPILER < 1600)
-  //{{{  VS2010 and ICC13 don't support std::atomic_*_fence, implement our own fences
-  #include <intrin.h>
-
-  #if defined(AE_ARCH_X64) || defined(AE_ARCH_X86)
-    #define AeFullSync _mm_mfence
-    #define AeLiteSync _mm_mfence
-  #elif defined(AE_ARCH_IA64)
-    #define AeFullSync __mf
-    #define AeLiteSync __mf
-  #elif defined(AE_ARCH_PPC)
-    #include <ppcintrinsics.h>
-    #define AeFullSync __sync
-    #define AeLiteSync __lwsync
-  #endif
-
-  #ifdef AE_VCPP
-    #pragma warning(push)
-    #pragma warning(disable: 4365)    // Disable erroneous 'conversion from long to unsigned int, signed/unsigned mismatch' error when using `assert`
-    #ifdef __cplusplus_cli
-      #pragma managed(push, off)
-    #endif
-  #endif
-
-  namespace readerWriterQueue {
-    //{{{
-    AE_FORCEINLINE void compiler_fence (memory_order order) AE_NO_TSAN {
-      switch (order) {
-        case memory_order_relaxed: break;
-        case memory_order_acquire: _ReadBarrier(); break;
-        case memory_order_release: _WriteBarrier(); break;
-        case memory_order_acq_rel: _ReadWriteBarrier(); break;
-        case memory_order_seq_cst: _ReadWriteBarrier(); break;
-        default: assert(false);
+  //{{{
+  inline void compiler_fence (memory_order order) {
+    switch (order) {
+      case memory_order_relaxed: break;
+      case memory_order_acquire: std::atomic_signal_fence (std::memory_order_acquire); break;
+      case memory_order_release: std::atomic_signal_fence (std::memory_order_release); break;
+      case memory_order_acq_rel: std::atomic_signal_fence (std::memory_order_acq_rel); break;
+      case memory_order_seq_cst: std::atomic_signal_fence (std::memory_order_seq_cst); break;
+      default: assert(false);
       }
-    }
-    //}}}
-    // x86/x64 have a strong memory model -- all loads and stores have
-    // acquire and release semantics automatically (so only need compiler barriers for those).
-    #if defined(AE_ARCH_X86) || defined(AE_ARCH_X64)
-      //{{{
-      AE_FORCEINLINE void fence (memory_order order) AE_NO_TSAN
-      {
-        switch (order) {
-          case memory_order_relaxed: break;
-          case memory_order_acquire: _ReadBarrier(); break;
-          case memory_order_release: _WriteBarrier(); break;
-          case memory_order_acq_rel: _ReadWriteBarrier(); break;
-          case memory_order_seq_cst:
-            _ReadWriteBarrier();
-            AeFullSync();
-            _ReadWriteBarrier();
-            break;
-          default: assert(false);
-        }
-      }
-      //}}}
-    #else
-      //{{{
-      AE_FORCEINLINE void fence (memory_order order) AE_NO_TSAN
-      {
-        // Non-specialized arch, use heavier memory barriers everywhere just in case :-(
-        switch (order) {
-          case memory_order_relaxed:
-            break;
-          case memory_order_acquire:
-            _ReadBarrier();
-            AeLiteSync();
-            _ReadBarrier();
-            break;
-          case memory_order_release:
-            _WriteBarrier();
-            AeLiteSync();
-            _WriteBarrier();
-            break;
-          case memory_order_acq_rel:
-            _ReadWriteBarrier();
-            AeLiteSync();
-            _ReadWriteBarrier();
-            break;
-          case memory_order_seq_cst:
-            _ReadWriteBarrier();
-            AeFullSync();
-            _ReadWriteBarrier();
-            break;
-          default: assert(false);
-        }
-      }
-      //}}}
-    #endif
     }
   //}}}
-#else
-  //  Use standard library of atomics
-  #include <atomic>
-  namespace readerWriterQueue {
-    //{{{
-    AE_FORCEINLINE void compiler_fence (memory_order order) AE_NO_TSAN {
-      switch (order) {
-        case memory_order_relaxed: break;
-        case memory_order_acquire: std::atomic_signal_fence (std::memory_order_acquire); break;
-        case memory_order_release: std::atomic_signal_fence (std::memory_order_release); break;
-        case memory_order_acq_rel: std::atomic_signal_fence (std::memory_order_acq_rel); break;
-        case memory_order_seq_cst: std::atomic_signal_fence (std::memory_order_seq_cst); break;
-        default: assert(false);
-        }
-      }
-    //}}}
-    //{{{
-    AE_FORCEINLINE void fence (memory_order order) AE_NO_TSAN {
-
-      switch (order) {
-        case memory_order_relaxed: break;
-        case memory_order_acquire: std::atomic_thread_fence (std::memory_order_acquire); break;
-        case memory_order_release: std::atomic_thread_fence (std::memory_order_release); break;
-        case memory_order_acq_rel: std::atomic_thread_fence (std::memory_order_acq_rel); break;
-        case memory_order_seq_cst: std::atomic_thread_fence (std::memory_order_seq_cst); break;
-        default: assert(false);
-        }
-      }
-    //}}}
-    }
-#endif
-
-#if !defined(AE_VCPP) || (_MSC_VER >= 1700 && !defined(__cplusplus_cli))
-  #define AE_USE_STD_ATOMIC_FOR_WEAK_ATOMIC
-#endif
-
-#ifdef AE_USE_STD_ATOMIC_FOR_WEAK_ATOMIC
-  #include <atomic>
-#endif
-
-#include <utility>
-
-//{{{  description
-// WARNING: *NOT* A REPLACEMENT FOR std::atomic. READ CAREFULLY:
-// Provides basic support for atomic variables -- no memory ordering guarantees are provided.
-// The guarantee of atomicity is only made for types that already have atomic load and store guarantees
-// at the hardware level -- on most platforms this generally means aligned pointers and integers (only).
-//}}}
-namespace readerWriterQueue {
   //{{{
+  inline void fence (memory_order order) {
+
+    switch (order) {
+      case memory_order_relaxed: break;
+      case memory_order_acquire: std::atomic_thread_fence (std::memory_order_acquire); break;
+      case memory_order_release: std::atomic_thread_fence (std::memory_order_release); break;
+      case memory_order_acq_rel: std::atomic_thread_fence (std::memory_order_acq_rel); break;
+      case memory_order_seq_cst: std::atomic_thread_fence (std::memory_order_seq_cst); break;
+      default: assert(false);
+      }
+    }
+  //}}}
+
   template <typename T> class weak_atomic {
   public:
-    AE_NO_TSAN weak_atomic() {}
+    weak_atomic() {}
 
     #ifdef AE_VCPP
       #pragma warning(push)
       #pragma warning(disable: 4100)    // Get rid of (erroneous) 'unreferenced formal parameter' warning
     #endif
 
-    template <typename U> AE_NO_TSAN weak_atomic (U&& x) : value(std::forward<U>(x)) {}
+    template <typename U> weak_atomic (U&& x) : value(std::forward<U>(x)) {}
 
-    #ifdef __cplusplus_cli
-      // Work around bug with universal reference/nullptr combination that only appears when /clr is on
-      AE_NO_TSAN weak_atomic (nullptr_t) : value(nullptr) {}
-    #endif
-
-    AE_NO_TSAN weak_atomic (weak_atomic const& other) : value(other.load()) {}
-    AE_NO_TSAN weak_atomic (weak_atomic&& other) : value(std::move(other.load())) {}
+    weak_atomic (weak_atomic const& other) : value(other.load()) {}
+    weak_atomic (weak_atomic&& other) : value(std::move(other.load())) {}
 
     #ifdef AE_VCPP
       #pragma warning(pop)
     #endif
 
-    AE_FORCEINLINE operator T() const AE_NO_TSAN { return load(); }
+    inline operator T() const { return load(); }
 
-    #ifndef AE_USE_STD_ATOMIC_FOR_WEAK_ATOMIC
+    #ifdef AE_USE_STD_ATOMIC_FOR_WEAK_ATOMIC
       //{{{
-      template <typename U> AE_FORCEINLINE weak_atomic const& operator= (U&& x) AE_NO_TSAN {
-        value = std::forward<U>(x);
-        return *this;
-        }
-      //}}}
-      //{{{
-      AE_FORCEINLINE weak_atomic const& operator= (weak_atomic const& other) AE_NO_TSAN {
-        value = other.value;
-        return *this;
-        }
-      //}}}
-      AE_FORCEINLINE T load() const AE_NO_TSAN { return value; }
-      //{{{
-      AE_FORCEINLINE T fetch_add_acquire(T increment) AE_NO_TSAN {
-
-        #if defined(AE_ARCH_X64) || defined(AE_ARCH_X86)
-          if (sizeof(T) == 4) return _InterlockedExchangeAdd((long volatile*)&value, (long)increment);
-          #if defined(_M_AMD64)
-            else if (sizeof(T) == 8) return _InterlockedExchangeAdd64((long long volatile*)&value, (long long)increment);
-          #endif
-        #else
-          #error Unsupported platform
-        #endif
-
-        assert(false && "T must be either a 32 or 64 bit type");
-        return value;
-        }
-      //}}}
-      //{{{
-      AE_FORCEINLINE T fetch_add_release(T increment) AE_NO_TSAN {
-        #if defined(AE_ARCH_X64) || defined(AE_ARCH_X86)
-          if (sizeof(T) == 4) return _InterlockedExchangeAdd((long volatile*)&value, (long)increment);
-          #if defined(_M_AMD64)
-            else if (sizeof(T) == 8) return _InterlockedExchangeAdd64((long long volatile*)&value, (long long)increment);
-          #endif
-        #else
-          #error Unsupported platform
-        #endif
-
-        assert(false && "T must be either a 32 or 64 bit type");
-        return value;
-        }
-      //}}}
-    #else
-      //{{{
-      template <typename U> AE_FORCEINLINE weak_atomic const& operator= (U&& x) AE_NO_TSAN {
+      template <typename U> inline weak_atomic const& operator= (U&& x) {
 
         value.store(std::forward<U>(x), std::memory_order_relaxed);
         return *this;
         }
       //}}}
       //{{{
-      AE_FORCEINLINE weak_atomic const& operator= (weak_atomic const& other) AE_NO_TSAN {
+      inline weak_atomic const& operator= (weak_atomic const& other) {
 
         value.store(other.value.load(std::memory_order_relaxed), std::memory_order_relaxed);
         return *this;
         }
       //}}}
-      AE_FORCEINLINE T load() const AE_NO_TSAN { return value.load (std::memory_order_relaxed); }
+      inline T load() const { return value.load (std::memory_order_relaxed); }
       //{{{
-      AE_FORCEINLINE T fetch_add_acquire (T increment) AE_NO_TSAN {
+      inline T fetch_add_acquire (T increment) {
         return value.fetch_add (increment, std::memory_order_acquire);
         }
       //}}}
       //{{{
-      AE_FORCEINLINE T fetch_add_release (T increment) AE_NO_TSAN {
+      inline T fetch_add_release (T increment) {
         return value.fetch_add(increment, std::memory_order_release);
+        }
+      //}}}
+    #else
+      //{{{
+      template <typename U> inline weak_atomic const& operator= (U&& x) {
+        value = std::forward<U>(x);
+        return *this;
+        }
+      //}}}
+      //{{{
+      inline weak_atomic const& operator= (weak_atomic const& other) {
+        value = other.value;
+        return *this;
+        }
+      //}}}
+      inline T load() const { return value; }
+      //{{{
+      inline T fetch_add_acquire(T increment) {
+
+        #if defined(AE_ARCH_X64) || defined(AE_ARCH_X86)
+          if (sizeof(T) == 4) return _InterlockedExchangeAdd((long volatile*)&value, (long)increment);
+          #if defined(_M_AMD64)
+            else if (sizeof(T) == 8) return _InterlockedExchangeAdd64((long long volatile*)&value, (long long)increment);
+          #endif
+        #else
+          #error Unsupported platform
+        #endif
+
+        assert(false && "T must be either a 32 or 64 bit type");
+        return value;
+        }
+      //}}}
+      //{{{
+      inline T fetch_add_release(T increment) {
+        #if defined(AE_ARCH_X64) || defined(AE_ARCH_X86)
+          if (sizeof(T) == 4) return _InterlockedExchangeAdd((long volatile*)&value, (long)increment);
+          #if defined(_M_AMD64)
+            else if (sizeof(T) == 8) return _InterlockedExchangeAdd64((long long volatile*)&value, (long long)increment);
+          #endif
+        #else
+          #error Unsupported platform
+        #endif
+
+        assert(false && "T must be either a 32 or 64 bit type");
+        return value;
         }
       //}}}
     #endif
 
   private:
-    #ifndef AE_USE_STD_ATOMIC_FOR_WEAK_ATOMIC
+    #ifdef AE_USE_STD_ATOMIC_FOR_WEAK_ATOMIC
+      std::atomic <T> value;
+    #else
       // No std::atomic support, but still need to circumvent compiler optimizations.
       // `volatile` will make memory access slow, but is guaranteed to be reliable.
       volatile T value;
-    #else
-      std::atomic <T> value;
     #endif
     };
-  //}}}
   }
 //}}}
+//{{{  semaphores
 //{{{  portable single-producer, single-consumer semaphore
+// Code in the spsc_sema namespace below is an adaptation of Jeff Preshing's
+// portable + lightweight semaphore implementations, originally from
+// https://github.com/preshing/cpp11-on-multicore/blob/master/common/sema.h
+// LICENSE:
+// Copyright (c) 2015 Jeff Preshing
+//
+// This software is provided 'as-is', without any express or implied
+// warranty. In no event will the authors be held liable for any damages
+// arising from the use of this software.
+//
+// Permission is granted to anyone to use this software for any purpose,
+// including commercial applications, and to alter it and redistribute it
+// freely, subject to the following restrictions:
+//
+// 1. The origin of this software must not be misrepresented; you must not
+//    claim that you wrote the original software. If you use this software
+//    in a product, an acknowledgement in the product documentation would be
+//    appreciated but is not required.
+// 2. Altered source versions must be plainly marked as such, and must not be
+//    misrepresented as being the original software.
+// 3. This notice may not be removed or altered from any source distribution.
+//}}}
 #if defined(_WIN32)
-  //{{{  description
-  // Avoid including windows.h in a header; we only need a handful of
-  // items, so we'll redeclare them here (this is relatively safe since
-  // the API generally has to remain stable between Windows versions).
-  // I know this is an ugly hack but it still beats polluting the global
-  // namespace with thousands of generic names or adding a .cpp for nothing.
-  //}}}
+  //{{{  minimal windows.h api declarations
   extern "C" {
     struct _SECURITY_ATTRIBUTES;
     __declspec(dllimport) void* __stdcall CreateSemaphoreW(_SECURITY_ATTRIBUTES* lpSemaphoreAttributes, long lInitialCount, long lMaximumCount, const wchar_t* lpName);
@@ -372,6 +247,7 @@ namespace readerWriterQueue {
     __declspec(dllimport) unsigned long __stdcall WaitForSingleObject(void* hHandle, unsigned long dwMilliseconds);
     __declspec(dllimport) int __stdcall ReleaseSemaphore(void* hSemaphore, long lReleaseCount, long* lpPreviousCount);
   }
+  //}}}
 #elif defined(__MACH__)
   #include <mach/mach.h>
 #elif defined(__unix__)
@@ -379,189 +255,94 @@ namespace readerWriterQueue {
 #endif
 
 namespace readerWriterQueue {
-  //{{{  description
-  // Code in the spsc_sema namespace below is an adaptation of Jeff Preshing's
-  // portable + lightweight semaphore implementations, originally from
-  // https://github.com/preshing/cpp11-on-multicore/blob/master/common/sema.h
-  // LICENSE:
-  // Copyright (c) 2015 Jeff Preshing
-  //
-  // This software is provided 'as-is', without any express or implied
-  // warranty. In no event will the authors be held liable for any damages
-  // arising from the use of this software.
-  //
-  // Permission is granted to anyone to use this software for any purpose,
-  // including commercial applications, and to alter it and redistribute it
-  // freely, subject to the following restrictions:
-  //
-  // 1. The origin of this software must not be misrepresented; you must not
-  //    claim that you wrote the original software. If you use this software
-  //    in a product, an acknowledgement in the product documentation would be
-  //    appreciated but is not required.
-  // 2. Altered source versions must be plainly marked as such, and must not be
-  //    misrepresented as being the original software.
-  // 3. This notice may not be removed or altered from any source distribution.
-  //}}}
   namespace spsc_sema {
     #if defined(_WIN32)
       //{{{
-      class Semaphore
-      {
-      private:
-          void* m_hSema;
-
-          Semaphore(const Semaphore& other);
-          Semaphore& operator=(const Semaphore& other);
-
+      class Semaphore {
       public:
-          AE_NO_TSAN Semaphore(int initialCount = 0)
-          {
-              assert(initialCount >= 0);
-              const long maxLong = 0x7fffffff;
-              m_hSema = CreateSemaphoreW(nullptr, initialCount, maxLong, nullptr);
-              assert(m_hSema);
+        //{{{
+        Semaphore(int initialCount = 0) {
+          assert(initialCount >= 0);
+          const long maxLong = 0x7fffffff;
+          m_hSema = CreateSemaphoreW(nullptr, initialCount, maxLong, nullptr);
+          assert(m_hSema);
           }
-
-          AE_NO_TSAN ~Semaphore()
-          {
-              CloseHandle(m_hSema);
+        //}}}
+        //{{{
+        ~Semaphore() {
+          CloseHandle(m_hSema);
           }
+        //}}}
 
-          bool wait() AE_NO_TSAN
-          {
-            const unsigned long infinite = 0xffffffff;
-              return WaitForSingleObject(m_hSema, infinite) == 0;
+        //{{{
+        bool wait() {
+          const unsigned long infinite = 0xffffffff;
+          return WaitForSingleObject(m_hSema, infinite) == 0;
           }
-
-        bool try_wait() AE_NO_TSAN
-        {
+        //}}}
+        //{{{
+        bool try_wait() {
           return WaitForSingleObject(m_hSema, 0) == 0;
-        }
-
-        bool timed_wait(std::uint64_t usecs) AE_NO_TSAN
-        {
+          }
+        //}}}
+        //{{{
+        bool timed_wait(std::uint64_t usecs) {
           return WaitForSingleObject(m_hSema, (unsigned long)(usecs / 1000)) == 0;
-        }
-
-          void signal(int count = 1) AE_NO_TSAN
-          {
-              while (!ReleaseSemaphore(m_hSema, count, nullptr));
           }
-      };
-      //}}}
-    #elif defined(__MACH__)
-      //{{{
-      //---------------------------------------------------------
-      // Semaphore (Apple iOS and OSX)
-      // Can't use POSIX semaphores due to http://lists.apple.com/archives/darwin-kernel/2009/Apr/msg00010.html
-      //---------------------------------------------------------
-      class Semaphore
-      {
+        //}}}
+
+        //{{{
+        void signal(int count = 1) {
+          while (!ReleaseSemaphore(m_hSema, count, nullptr));
+          }
+        //}}}
+
       private:
-          semaphore_t m_sema;
+        Semaphore(const Semaphore& other);
+        Semaphore& operator=(const Semaphore& other);
 
-          Semaphore(const Semaphore& other);
-          Semaphore& operator=(const Semaphore& other);
-
-      public:
-          AE_NO_TSAN Semaphore(int initialCount = 0)
-          {
-              assert(initialCount >= 0);
-              kern_return_t rc = semaphore_create(mach_task_self(), &m_sema, SYNC_POLICY_FIFO, initialCount);
-              assert(rc == KERN_SUCCESS);
-              AE_UNUSED(rc);
-          }
-
-          AE_NO_TSAN ~Semaphore()
-          {
-              semaphore_destroy(mach_task_self(), m_sema);
-          }
-
-          bool wait() AE_NO_TSAN
-          {
-              return semaphore_wait(m_sema) == KERN_SUCCESS;
-          }
-
-        bool try_wait() AE_NO_TSAN
-        {
-          return timed_wait(0);
-        }
-
-        bool timed_wait(std::int64_t timeout_usecs) AE_NO_TSAN
-        {
-          mach_timespec_t ts;
-          ts.tv_sec = static_cast<unsigned int>(timeout_usecs / 1000000);
-          ts.tv_nsec = (timeout_usecs % 1000000) * 1000;
-
-          // added in OSX 10.10: https://developer.apple.com/library/prerelease/mac/documentation/General/Reference/APIDiffsMacOSX10_10SeedDiff/modules/Darwin.html
-          kern_return_t rc = semaphore_timedwait(m_sema, ts);
-          return rc == KERN_SUCCESS;
-        }
-
-          void signal() AE_NO_TSAN
-          {
-              while (semaphore_signal(m_sema) != KERN_SUCCESS);
-          }
-
-          void signal(int count) AE_NO_TSAN
-          {
-              while (count-- > 0)
-              {
-                  while (semaphore_signal(m_sema) != KERN_SUCCESS);
-              }
-          }
-      };
+        void* m_hSema;
+        };
       //}}}
     #elif defined(__unix__)
       //{{{
-      //---------------------------------------------------------
-      // Semaphore (POSIX, Linux)
-      //---------------------------------------------------------
-      class Semaphore
-      {
-      private:
-          sem_t m_sema;
-
-          Semaphore(const Semaphore& other);
-          Semaphore& operator=(const Semaphore& other);
-
+      class Semaphore {
       public:
-          AE_NO_TSAN Semaphore(int initialCount = 0)
-          {
-              assert(initialCount >= 0);
-              int rc = sem_init(&m_sema, 0, initialCount);
-              assert(rc == 0);
-              AE_UNUSED(rc);
+        //{{{
+        Semaphore(int initialCount = 0) {
+          assert(initialCount >= 0);
+          int rc = sem_init(&m_sema, 0, initialCount);
+         assert(rc == 0);
           }
-
-          AE_NO_TSAN ~Semaphore()
-          {
-              sem_destroy(&m_sema);
+        //}}}
+        //{{{
+        ~Semaphore() {
+          sem_destroy(&m_sema);
           }
+        //}}}
 
-          bool wait() AE_NO_TSAN
-          {
-              // http://stackoverflow.com/questions/2013181/gdb-causes-sem-wait-to-fail-with-eintr-error
-              int rc;
-              do
-              {
-                  rc = sem_wait(&m_sema);
-              }
-              while (rc == -1 && errno == EINTR);
-              return rc == 0;
+        //{{{
+        bool wait() {
+          // http://stackoverflow.com/questions/2013181/gdb-causes-sem-wait-to-fail-with-eintr-error
+          int rc;
+          do {
+            rc = sem_wait(&m_sema);
+            } while (rc == -1 && errno == EINTR);
+          return rc == 0;
           }
+        //}}}
+        //{{{
+        bool try_wait() {
 
-        bool try_wait() AE_NO_TSAN
-        {
           int rc;
           do {
             rc = sem_trywait(&m_sema);
-          } while (rc == -1 && errno == EINTR);
+            } while (rc == -1 && errno == EINTR);
           return rc == 0;
-        }
-
-        bool timed_wait(std::uint64_t usecs) AE_NO_TSAN
-        {
+          }
+        //}}}
+        //{{{
+        bool timed_wait(std::uint64_t usecs) {
           struct timespec ts;
           const int usecs_in_1_sec = 1000000;
           const int nsecs_in_1_sec = 1000000000;
@@ -578,23 +359,29 @@ namespace readerWriterQueue {
           int rc;
           do {
             rc = sem_timedwait(&m_sema, &ts);
-          } while (rc == -1 && errno == EINTR);
+            } while (rc == -1 && errno == EINTR);
           return rc == 0;
-        }
-
-          void signal() AE_NO_TSAN
-          {
-              while (sem_post(&m_sema) == -1);
           }
+        //}}}
 
-          void signal(int count) AE_NO_TSAN
-          {
-              while (count-- > 0)
-              {
-                  while (sem_post(&m_sema) == -1);
-              }
+        //{{{
+        void signal() {
+          while (sem_post(&m_sema) == -1);
           }
-      };
+        //}}}
+        //{{{
+        void signal(int count) {
+          while (count-- > 0) {
+            while (sem_post(&m_sema) == -1);
+            }
+          }
+        //}}}
+
+      private:
+        Semaphore(const Semaphore& other);
+        Semaphore& operator=(const Semaphore& other);
+        sem_t m_sema;
+        };
       //}}}
     #else
       #error Unsupported platform! (No semaphore wrapper available)
@@ -605,51 +392,54 @@ namespace readerWriterQueue {
       typedef std::make_signed<std::size_t>::type ssize_t;
 
       //{{{
-      AE_NO_TSAN LightweightSemaphore (ssize_t initialCount = 0) : m_count(initialCount) {
+      LightweightSemaphore (ssize_t initialCount = 0) : m_count(initialCount) {
           assert(initialCount >= 0);
       }
       //}}}
 
       //{{{
-      bool tryWait() AE_NO_TSAN {
-          if (m_count.load() > 0) {
-            m_count.fetch_add_acquire(-1);
-            return true;
+      bool tryWait() {
+
+        if (m_count.load() > 0) {
+          m_count.fetch_add_acquire(-1);
+          return true;
           }
-          return false;
-      }
+        return false;
+        }
       //}}}
       //{{{
-      bool wait() AE_NO_TSAN {
-          return tryWait() || waitWithPartialSpinning();
-      }
+      bool wait() {
+
+        return tryWait() || waitWithPartialSpinning();
+        }
       //}}}
       //{{{
-      bool wait(std::int64_t timeout_usecs) AE_NO_TSAN {
+      bool wait (std::int64_t timeout_usecs) {
+
         return tryWait() || waitWithPartialSpinning(timeout_usecs);
-      }
+        }
       //}}}
       //{{{
-      void signal(ssize_t count = 1) AE_NO_TSAN {
+      void signal (ssize_t count = 1) {
+
         assert(count >= 0);
-          ssize_t oldCount = m_count.fetch_add_release(count);
-          assert(oldCount >= -1);
-          if (oldCount < 0)
-          {
-              m_sema.signal(1);
-          }
-      }
+        ssize_t oldCount = m_count.fetch_add_release(count);
+        assert(oldCount >= -1);
+        if (oldCount < 0)
+          m_sema.signal(1);
+        }
       //}}}
       //{{{
-      std::size_t availableApprox() const AE_NO_TSAN {
+      std::size_t availableApprox() const {
+
         ssize_t count = m_count.load();
         return count > 0 ? static_cast<std::size_t>(count) : 0;
-      }
+        }
       //}}}
 
     private:
       //{{{
-      bool waitWithPartialSpinning(std::int64_t timeout_usecs = -1) AE_NO_TSAN {
+      bool waitWithPartialSpinning (std::int64_t timeout_usecs = -1) {
 
         ssize_t oldCount;
 
@@ -687,6 +477,7 @@ namespace readerWriterQueue {
           oldCount = m_count.fetch_add_release(1);
           if (oldCount < 0)
             return false;    // successfully restored things to the way they were
+
           // Oh, the producer thread just signaled the semaphore after all. Try again:
           oldCount = m_count.fetch_add_acquire(-1);
           if (oldCount > 0 && m_sema.try_wait())
@@ -694,6 +485,7 @@ namespace readerWriterQueue {
           }
         }
       //}}}
+
       weak_atomic<ssize_t> m_count;
       Semaphore m_sema;
       };
@@ -703,45 +495,10 @@ namespace readerWriterQueue {
 
 #if defined(AE_VCPP) && (_MSC_VER < 1700 || defined(__cplusplus_cli))
   #pragma warning(pop)
-  #ifdef __cplusplus_cli
-    #pragma managed(pop)
-  #endif
 #endif
 //}}}
-//{{{  implementation options
-#define MOODYCAMEL_HAS_EMPLACE    1
-
-
-#ifndef MOODYCAMEL_CACHE_LINE_SIZE
-  #define MOODYCAMEL_CACHE_LINE_SIZE 64
-#endif
-
-
-#ifndef MOODYCAMEL_EXCEPTIONS_ENABLED
-  #if (defined(_MSC_VER) && defined(_CPPUNWIND)) || (defined(__GNUC__) && defined(__EXCEPTIONS)) || (!defined(_MSC_VER) && !defined(__GNUC__))
-    #define MOODYCAMEL_EXCEPTIONS_ENABLED
-  #endif
-#endif
-
-
-#ifndef MOODYCAMEL_MAYBE_ALIGN_TO_CACHELINE
-  #if defined (__APPLE__) && defined (__MACH__) && __cplusplus >= 201703L
-    // This is required to find out what deployment target we are using
-    #include <CoreFoundation/CoreFoundation.h>
-    #if !defined(MAC_OS_X_VERSION_MIN_REQUIRED) || MAC_OS_X_VERSION_MIN_REQUIRED < MAC_OS_X_VERSION_10_14
-      // C++17 new(size_t, align_val_t) is not backwards-compatible with older versions of macOS, so we can't support over-alignment in this case
-      #define MOODYCAMEL_MAYBE_ALIGN_TO_CACHELINE
-    #endif
-  #endif
-#endif
-
-
-#ifndef MOODYCAMEL_MAYBE_ALIGN_TO_CACHELINE
-  #define MOODYCAMEL_MAYBE_ALIGN_TO_CACHELINE AE_ALIGN(MOODYCAMEL_CACHE_LINE_SIZE)
-#endif
-
-
-#ifdef AE_VCPP
+//{{{  push,disable warnings
+ #ifdef AE_VCPP
   #pragma warning(push)
   #pragma warning(disable: 4324)  // structure was padded due to __declspec(align())
   #pragma warning(disable: 4820)  // padding was added
@@ -750,8 +507,9 @@ namespace readerWriterQueue {
 //}}}
 
 namespace readerWriterQueue {
+  #define MOODYCAMEL_CACHE_LINE_SIZE 64
   //{{{
-  template <typename T, size_t MAX_BLOCK_SIZE = 512> class MOODYCAMEL_MAYBE_ALIGN_TO_CACHELINE cReaderWriterQueue {
+  template <typename T, size_t MAX_BLOCK_SIZE = 512> class AE_ALIGN(MOODYCAMEL_CACHE_LINE_SIZE) cReaderWriterQueue {
   //{{{  description
   // Design: Based on a queue-of-queues. The low-level queues are just
   // circular buffers with front and tail indices indicating where the
@@ -780,7 +538,7 @@ namespace readerWriterQueue {
     // allocations. If more than MAX_BLOCK_SIZE elements are requested,
     // then several blocks of MAX_BLOCK_SIZE each are reserved (including
     // at least one extra buffer block).
-    AE_NO_TSAN explicit cReaderWriterQueue (size_t size = 15)
+    explicit cReaderWriterQueue (size_t size = 15)
     #ifndef NDEBUG
       : enqueuing(false), dequeuing(false)
     #endif
@@ -804,11 +562,7 @@ namespace readerWriterQueue {
         for (size_t i = 0; i != initialBlockCount; ++i) {
           auto block = make_block(largestBlockSize);
           if (block == nullptr) {
-            #ifdef MOODYCAMEL_EXCEPTIONS_ENABLED
-              throw std::bad_alloc();
-            #else
-              abort();
-            #endif
+            abort();
             }
           if (firstBlock == nullptr) {
             firstBlock = block;
@@ -824,11 +578,7 @@ namespace readerWriterQueue {
       else {
         firstBlock = make_block(largestBlockSize);
         if (firstBlock == nullptr) {
-          #ifdef MOODYCAMEL_EXCEPTIONS_ENABLED
-            throw std::bad_alloc();
-          #else
-            abort();
-          #endif
+          abort();
           }
         firstBlock->next = firstBlock;
         }
@@ -843,7 +593,7 @@ namespace readerWriterQueue {
     //{{{
     // Note: The queue should not be accessed concurrently while it's
     // being moved. It's up to the user to synchronize this.
-    AE_NO_TSAN cReaderWriterQueue (cReaderWriterQueue&& other)
+    cReaderWriterQueue (cReaderWriterQueue&& other)
       : frontBlock(other.frontBlock.load()), tailBlock(other.tailBlock.load()), largestBlockSize(other.largestBlockSize)
       #ifndef NDEBUG
         ,enqueuing(false), dequeuing(false)
@@ -853,11 +603,7 @@ namespace readerWriterQueue {
       other.largestBlockSize = 32;
       Block* b = other.make_block(other.largestBlockSize);
       if (b == nullptr) {
-        #ifdef MOODYCAMEL_EXCEPTIONS_ENABLED
-          throw std::bad_alloc();
-        #else
-          abort();
-        #endif
+        abort();
         }
 
       b->next = b;
@@ -868,7 +614,7 @@ namespace readerWriterQueue {
     //{{{
     // Note: The queue should not be accessed concurrently while it's
     // being moved. It's up to the user to synchronize this.
-    cReaderWriterQueue& operator= (cReaderWriterQueue&& other) AE_NO_TSAN {
+    cReaderWriterQueue& operator= (cReaderWriterQueue&& other) {
 
       Block* b = frontBlock.load();
       frontBlock = other.frontBlock.load();
@@ -885,7 +631,7 @@ namespace readerWriterQueue {
     //{{{
     // Note: The queue should not be accessed concurrently while it's
     // being deleted. It's up to the user to synchronize this.
-    AE_NO_TSAN ~cReaderWriterQueue() {
+    ~cReaderWriterQueue() {
 
       // Make sure we get the latest version of all variables from other CPUs:
       fence(memory_order_sync);
@@ -916,7 +662,7 @@ namespace readerWriterQueue {
     // Enqueues a copy of element if there is room in the queue.
     // Returns true if the element was enqueued, false otherwise.
     // Does not allocate memory.
-    AE_FORCEINLINE bool try_enqueue (T const& element) AE_NO_TSAN {
+    inline bool try_enqueue (T const& element) {
       return inner_enqueue<CannotAlloc>(element);
       }
     //}}}
@@ -924,24 +670,16 @@ namespace readerWriterQueue {
     // Enqueues a moved copy of element if there is room in the queue.
     // Returns true if the element was enqueued, false otherwise.
     // Does not allocate memory.
-    AE_FORCEINLINE bool try_enqueue (T&& element) AE_NO_TSAN {
+    inline bool try_enqueue (T&& element) {
       return inner_enqueue<CannotAlloc>(std::forward<T>(element));
       }
     //}}}
 
-    #if MOODYCAMEL_HAS_EMPLACE
-      //{{{
-      // Like try_enqueue() but with emplace semantics (i.e. construct-in-place).
-      template <typename... Args> AE_FORCEINLINE bool try_emplace (Args&&... args) AE_NO_TSAN {
-        return inner_enqueue<CannotAlloc>(std::forward<Args>(args)...);
-        }
-      //}}}
-    #endif
     //{{{
     // Enqueues a copy of element on the queue.
     // Allocates an additional block of memory if needed.
     // Only fails (returns false) if memory allocation fails.
-    AE_FORCEINLINE bool enqueue (T const& element) AE_NO_TSAN {
+    inline bool enqueue (T const& element) {
       return inner_enqueue<CanAlloc>(element);
       }
     //}}}
@@ -949,25 +687,29 @@ namespace readerWriterQueue {
     // Enqueues a moved copy of element on the queue.
     // Allocates an additional block of memory if needed.
     // Only fails (returns false) if memory allocation fails.
-    AE_FORCEINLINE bool enqueue (T&& element) AE_NO_TSAN {
+    inline bool enqueue (T&& element) {
       return inner_enqueue<CanAlloc>(std::forward<T>(element));
       }
     //}}}
 
-    #if MOODYCAMEL_HAS_EMPLACE
-      //{{{
-      // Like enqueue() but with emplace semantics (i.e. construct-in-place).
-      template <typename... Args> AE_FORCEINLINE bool emplace (Args&&... args) AE_NO_TSAN {
-        return inner_enqueue<CanAlloc>(std::forward<Args>(args)...);
-        }
-      //}}}
-    #endif
+    //{{{
+    // Like try_enqueue() but with emplace semantics (i.e. construct-in-place).
+    template <typename... Args> inline bool try_emplace (Args&&... args) {
+      return inner_enqueue<CannotAlloc>(std::forward<Args>(args)...);
+      }
+    //}}}
+    //{{{
+    // Like enqueue() but with emplace semantics (i.e. construct-in-place).
+    template <typename... Args> inline bool emplace (Args&&... args) {
+      return inner_enqueue<CanAlloc>(std::forward<Args>(args)...);
+      }
+    //}}}
 
     //{{{
     // Attempts to dequeue an element; if the queue is empty,
     // returns false instead. If the queue has at least one element,
     // moves front to result using operator=, then returns true.
-    template <typename U> bool try_dequeue (U& result) AE_NO_TSAN {
+    template <typename U> bool try_dequeue (U& result) {
 
       #ifndef NDEBUG
         ReentrantGuard guard(this->dequeuing);
@@ -1034,7 +776,6 @@ namespace readerWriterQueue {
         // Since the tailBlock is only ever advanced after being written to,
         // we know there's for sure an element to dequeue on it
         assert (nextBlockFront != nextBlockTail);
-        AE_UNUSED(nextBlockTail);
 
         // We're done with this block, let the producer use it if it needs
         fence(memory_order_release);    // Expose possibly pending changes to frontBlock->front from last dequeue
@@ -1063,7 +804,7 @@ namespace readerWriterQueue {
     // would be removed next by a call to `try_dequeue` or `pop`). If the
     // queue appears empty at the time the method is called, nullptr is returned instead.
     // Must be called only from the consumer thread.
-    T* peek() const AE_NO_TSAN {
+    T* peek() const {
 
       #ifndef NDEBUG
         ReentrantGuard guard(this->dequeuing);
@@ -1107,7 +848,7 @@ namespace readerWriterQueue {
     // Removes the front element from the queue, if any, without returning it.
     // Returns true on success, or false if the queue appeared empty at the time
     // `pop` was called.
-    bool pop() AE_NO_TSAN {
+    bool pop() {
 
       #ifndef NDEBUG
         ReentrantGuard guard(this->dequeuing);
@@ -1149,7 +890,6 @@ namespace readerWriterQueue {
         fence(memory_order_acquire);
 
         assert(nextBlockFront != nextBlockTail);
-        AE_UNUSED(nextBlockTail);
 
         fence(memory_order_release);
         frontBlock = frontBlock_ = nextBlock;
@@ -1176,7 +916,7 @@ namespace readerWriterQueue {
     //{{{
     // Returns the approximate number of items currently in the queue.
     // Safe to call from both the producer and consumer threads.
-    inline size_t size_approx() const AE_NO_TSAN {
+    inline size_t size_approx() const {
 
       size_t result = 0;
 
@@ -1220,12 +960,7 @@ namespace readerWriterQueue {
   private:
     enum AllocationMode { CanAlloc, CannotAlloc };
     //{{{  template bool inner_enqueue
-    #if MOODYCAMEL_HAS_EMPLACE
-      template<AllocationMode canAlloc, typename... Args> bool inner_enqueue(Args&&... args) AE_NO_TSAN
-    #else
-      template<AllocationMode canAlloc, typename U> bool inner_enqueue(U&& element) AE_NO_TSAN
-    #endif
-      {
+    template<AllocationMode canAlloc, typename... Args> bool inner_enqueue(Args&&... args) {
       #ifndef NDEBUG
         ReentrantGuard guard(this->enqueuing);
       #endif
@@ -1245,11 +980,7 @@ namespace readerWriterQueue {
         fence(memory_order_acquire);
         // This block has room for at least one more element
         char* location = tailBlock_->data + blockTail * sizeof(T);
-        #if MOODYCAMEL_HAS_EMPLACE
-          new (location) T(std::forward<Args>(args)...);
-        #else
-          new (location) T(std::forward<U>(element));
-        #endif
+        new (location) T(std::forward<Args>(args)...);
 
         fence(memory_order_release);
         tailBlock_->tail = nextBlockTail;
@@ -1276,11 +1007,7 @@ namespace readerWriterQueue {
           tailBlockNext->localFront = nextBlockFront;
 
           char* location = tailBlockNext->data + nextBlockTail * sizeof(T);
-          #if MOODYCAMEL_HAS_EMPLACE
-            new (location) T(std::forward<Args>(args)...);
-          #else
-            new (location) T(std::forward<U>(element));
-          #endif
+          new (location) T(std::forward<Args>(args)...);
 
           tailBlockNext->tail = (nextBlockTail + 1) & tailBlockNext->sizeMask;
 
@@ -1298,12 +1025,7 @@ namespace readerWriterQueue {
             }
           largestBlockSize = newBlockSize;
 
-          #if MOODYCAMEL_HAS_EMPLACE
-            new (newBlock->data) T(std::forward<Args>(args)...);
-          #else
-            new (newBlock->data) T(std::forward<U>(element));
-          #endif
-
+          new (newBlock->data) T(std::forward<Args>(args)...);
           assert(newBlock->front == 0);
           newBlock->tail = newBlock->localTail = 1;
 
@@ -1342,7 +1064,7 @@ namespace readerWriterQueue {
     cReaderWriterQueue& operator= (cReaderWriterQueue const&) {  }
 
     //{{{
-    AE_FORCEINLINE static size_t ceilToPow2 (size_t x) {
+    inline static size_t ceilToPow2 (size_t x) {
     // From http://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
 
       --x;
@@ -1358,7 +1080,7 @@ namespace readerWriterQueue {
       }
     //}}}
     //{{{
-    template <typename U> static AE_FORCEINLINE char* align_for (char* ptr) AE_NO_TSAN {
+    template <typename U> static inline char* align_for (char* ptr) {
 
       const std::size_t alignment = std::alignment_of<U>::value;
       return ptr + (alignment - (reinterpret_cast<std::uintptr_t>(ptr) % alignment)) % alignment;
@@ -1368,12 +1090,12 @@ namespace readerWriterQueue {
     #ifndef NDEBUG
       //{{{
       struct ReentrantGuard {
-        AE_NO_TSAN ReentrantGuard (bool& _inSection) : inSection(_inSection) {
+        ReentrantGuard (bool& _inSection) : inSection(_inSection) {
           assert (!inSection && "Concurrent (or re-entrant) enqueue or dequeue operation detected (only one thread at a time may hold the producer or consumer role)");
           inSection = true;
           }
 
-        AE_NO_TSAN ~ReentrantGuard() { inSection = false; }
+        ~ReentrantGuard() { inSection = false; }
 
       private:
         ReentrantGuard& operator= (ReentrantGuard const&);
@@ -1403,7 +1125,7 @@ namespace readerWriterQueue {
       const size_t sizeMask;
 
       // size must be a power of two (and greater than 0)
-      AE_NO_TSAN Block (size_t const& _size, char* _rawThis, char* _data)
+      Block (size_t const& _size, char* _rawThis, char* _data)
         : front(0UL), localTail(0), tail(0UL), localFront(0), next(nullptr), data(_data), sizeMask(_size - 1), rawThis(_rawThis)
       {
       }
@@ -1417,7 +1139,7 @@ namespace readerWriterQueue {
       };
     //}}}
     //{{{
-    static Block* make_block (size_t capacity) AE_NO_TSAN {
+    static Block* make_block (size_t capacity) {
 
       // Allocate enough memory for the block itself, as well as all the elements it will contain
       auto size = sizeof(Block) + std::alignment_of<Block>::value - 1;
@@ -1450,16 +1172,16 @@ namespace readerWriterQueue {
   template <typename T, size_t MAX_BLOCK_SIZE = 512> class cBlockingReaderWriterQueue {
   public:
     //{{{
-    explicit cBlockingReaderWriterQueue (size_t size = 15) AE_NO_TSAN
+    explicit cBlockingReaderWriterQueue (size_t size = 15)
       : inner(size), sema(new spsc_sema::LightweightSemaphore()) {}
     //}}}
     //{{{
-    cBlockingReaderWriterQueue (cBlockingReaderWriterQueue&& other) AE_NO_TSAN
+    cBlockingReaderWriterQueue (cBlockingReaderWriterQueue&& other)
       : inner(std::move(other.inner)), sema(std::move(other.sema)) {}
     //}}}
 
     //{{{
-    cBlockingReaderWriterQueue& operator= (cBlockingReaderWriterQueue&& other) AE_NO_TSAN {
+    cBlockingReaderWriterQueue& operator= (cBlockingReaderWriterQueue&& other) {
       std::swap(sema, other.sema);
       std::swap(inner, other.inner);
       return *this;
@@ -1470,7 +1192,7 @@ namespace readerWriterQueue {
     // Enqueues a copy of element if there is room in the queue.
     // Returns true if the element was enqueued, false otherwise.
     // Does not allocate memory.
-    AE_FORCEINLINE bool try_enqueue (T const& element) AE_NO_TSAN {
+    inline bool try_enqueue (T const& element) {
       if (inner.try_enqueue(element)) {
         sema->signal();
         return true;
@@ -1482,7 +1204,7 @@ namespace readerWriterQueue {
     // Enqueues a moved copy of element if there is room in the queue.
     // Returns true if the element was enqueued, false otherwise.
     // Does not allocate memory.
-    AE_FORCEINLINE bool try_enqueue (T&& element) AE_NO_TSAN {
+    inline bool try_enqueue (T&& element) {
       if (inner.try_enqueue(std::forward<T>(element))) {
         sema->signal();
         return true;
@@ -1490,25 +1212,11 @@ namespace readerWriterQueue {
       return false;
       }
     //}}}
-
-    #if MOODYCAMEL_HAS_EMPLACE
-      //{{{
-      // Like try_enqueue() but with emplace semantics (i.e. construct-in-place).
-      template <typename... Args> AE_FORCEINLINE bool try_emplace (Args&&... args) AE_NO_TSAN {
-        if (inner.try_emplace(std::forward<Args>(args)...)) {
-          sema->signal();
-          return true;
-          }
-        return false;
-        }
-      //}}}
-    #endif
-
     //{{{
     // Enqueues a copy of element on the queue.
     // Allocates an additional block of memory if needed.
     // Only fails (returns false) if memory allocation fails.
-    AE_FORCEINLINE bool enqueue (T const& element) AE_NO_TSAN {
+    inline bool enqueue (T const& element) {
       if (inner.enqueue(element)) {
         sema->signal();
         return true;
@@ -1520,7 +1228,7 @@ namespace readerWriterQueue {
     // Enqueues a moved copy of element on the queue.
     // Allocates an additional block of memory if needed.
     // Only fails (returns false) if memory allocation fails.
-    AE_FORCEINLINE bool enqueue (T&& element) AE_NO_TSAN {
+    inline bool enqueue (T&& element) {
       if (inner.enqueue(std::forward<T>(element))) {
         sema->signal();
         return true;
@@ -1529,28 +1237,35 @@ namespace readerWriterQueue {
       }
     //}}}
 
-    #if MOODYCAMEL_HAS_EMPLACE
-      //{{{
-      // Like enqueue() but with emplace semantics (i.e. construct-in-place).
-      template <typename... Args> AE_FORCEINLINE bool emplace(Args&&... args) AE_NO_TSAN {
-        if (inner.emplace(std::forward<Args>(args)...)) {
-          sema->signal();
-          return true;
-          }
-        return false;
+    //{{{
+    // Like try_enqueue() but with emplace semantics (i.e. construct-in-place).
+    template <typename... Args> inline bool try_emplace (Args&&... args) {
+      if (inner.try_emplace(std::forward<Args>(args)...)) {
+        sema->signal();
+        return true;
         }
-      //}}}
-    #endif
+      return false;
+      }
+    //}}}
+    //{{{
+    // Like enqueue() but with emplace semantics (i.e. construct-in-place).
+    template <typename... Args> inline bool emplace(Args&&... args) {
+      if (inner.emplace(std::forward<Args>(args)...)) {
+        sema->signal();
+        return true;
+        }
+      return false;
+      }
+    //}}}
 
     //{{{
     // Attempts to dequeue an element; if the queue is empty,
     // returns false instead. If the queue has at least one element,
     // moves front to result using operator=, then returns true.
-    template <typename U> bool try_dequeue (U& result) AE_NO_TSAN {
+    template <typename U> bool try_dequeue (U& result) {
       if (sema->tryWait()) {
         bool success = inner.try_dequeue(result);
         assert(success);
-        AE_UNUSED(success);
         return true;
         }
       return false;
@@ -1559,12 +1274,10 @@ namespace readerWriterQueue {
     //{{{
     // Attempts to dequeue an element; if the queue is empty,
     // waits until an element is available, then dequeues it.
-    template <typename U> void wait_dequeue (U& result) AE_NO_TSAN {
+    template <typename U> void wait_dequeue (U& result) {
       while (!sema->wait());
       bool success = inner.try_dequeue(result);
-      AE_UNUSED(result);
       assert(success);
-      AE_UNUSED(success);
       }
     //}}}
     //{{{
@@ -1573,14 +1286,12 @@ namespace readerWriterQueue {
     // then dequeues it and returns true, or returns false if the timeout expires before an element can be dequeued.
     // Using a negative timeout indicates an indefinite timeout,
     // and is thus functionally equivalent to calling wait_dequeue.
-    template <typename U> bool wait_dequeue_timed (U& result, std::int64_t timeout_usecs) AE_NO_TSAN {
+    template <typename U> bool wait_dequeue_timed (U& result, std::int64_t timeout_usecs) {
       if (!sema->wait(timeout_usecs)) {
         return false;
         }
       bool success = inner.try_dequeue(result);
-      AE_UNUSED(result);
       assert(success);
-      AE_UNUSED(success);
       return true;
       }
     //}}}
@@ -1592,7 +1303,7 @@ namespace readerWriterQueue {
       // then dequeues it and returns true, or returns false if the timeout expires before an element can be dequeued.
       // Using a negative timeout indicates an indefinite timeout,
       // and is thus functionally equivalent to calling wait_dequeue.
-      template<typename U, typename Rep, typename Period> inline bool wait_dequeue_timed (U& result, std::chrono::duration<Rep, Period> const& timeout) AE_NO_TSAN {
+      template<typename U, typename Rep, typename Period> inline bool wait_dequeue_timed (U& result, std::chrono::duration<Rep, Period> const& timeout) {
         return wait_dequeue_timed(result, std::chrono::duration_cast<std::chrono::microseconds>(timeout).count());
         }
       //}}}
@@ -1604,18 +1315,17 @@ namespace readerWriterQueue {
     // would be removed next by a call to `try_dequeue` or `pop`). If the
     // queue appears empty at the time the method is called, nullptr is returned instead.
     // Must be called only from the consumer thread.
-    AE_FORCEINLINE T* peek() const AE_NO_TSAN {
+    inline T* peek() const {
       return inner.peek();
       }
     //}}}
     //{{{
     // Removes the front element from the queue, if any, without returning it.
     // Returns true on success, or false if the queue appeared empty at the time `pop` was called.
-    AE_FORCEINLINE bool pop() AE_NO_TSAN {
+    inline bool pop() {
       if (sema->tryWait()) {
         bool result = inner.pop();
         assert(result);
-        AE_UNUSED(result);
         return true;
         }
       return false;
@@ -1624,7 +1334,7 @@ namespace readerWriterQueue {
     //{{{
     // Returns the approximate number of items currently in the queue.
     // Safe to call from both the producer and consumer threads.
-    AE_FORCEINLINE size_t size_approx() const AE_NO_TSAN {
+    inline size_t size_approx() const {
       return sema->availableApprox();
       }
     //}}}
@@ -1637,7 +1347,7 @@ namespace readerWriterQueue {
     //       the block the consumer is removing from until it's completely empty, except in
     //       the case where the producer was writing to the same block the consumer was
     //       reading from the whole time.
-    AE_FORCEINLINE size_t max_capacity() const {
+    inline size_t max_capacity() const {
       return inner.max_capacity();
       }
     //}}}
@@ -1655,6 +1365,8 @@ namespace readerWriterQueue {
   //}}}
   }
 
+//{{{  pop warnings
 #ifdef AE_VCPP
   #pragma warning(pop)
 #endif
+//}}}
