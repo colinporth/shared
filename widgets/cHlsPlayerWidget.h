@@ -34,25 +34,26 @@ public:
       vg->triangleFill();
       }
 
+    // progress spinner
     float frac = mHlsPlayer->getLoadFrac();
-    if ((frac > 0.f) && (frac < 1.f))
-      vg->drawSpinner (mWidth - 26.f, 26.f, 24.f, 20.f, frac, nvgRGBA(0,0,0,0), nvgRGBA(32,255,32,192));
-
+    float audFrac = mHlsPlayer->getAudioDecodeFrac();
     float vidFrac = mHlsPlayer->getVideoDecodeFrac();
+
+    if ((audFrac > 0.f) && (audFrac < 1.f))
+      vg->drawSpinner (mWidth - 26.f, 26.f, 20.f, 16.f, frac + vidFrac + audFrac, nvgRGBA(0,0,0,0), nvgRGBA(32,32,255,192));
     if ((vidFrac > 0.f) && (vidFrac < 1.f))
       vg->drawSpinner (mWidth - 26.f, 26.f, 20.f, 16.f, frac + vidFrac, nvgRGBA(0,0,0,0), nvgRGBA(255,32,32,192));
+    if ((frac > 0.f) && (frac < 1.f))
+      vg->drawSpinner (mWidth - 26.f, 26.f, 20.f, 16.f, frac, nvgRGBA(0,0,0,0), nvgRGBA(32,255,32,192));
 
-    float audFrac = mHlsPlayer->getAudioDecodeFrac();
-    if ((audFrac > 0.f) && (audFrac < 1.f))
-      vg->drawSpinner (mWidth - 26.f, 26.f, 20.f, 16.f, frac + audFrac, nvgRGBA(0,0,0,0), nvgRGBA(32,32,255,192));
 
-    std::string infoString = mHlsPlayer->getChannel() + 
+    // info text
+    std::string infoString = mHlsPlayer->getChannel() +
                              " - " + dec(mHlsPlayer->getVidBitrate()) +
                              ":" + dec(mHlsPlayer->getAudBitrate()) +
                              " " + dec(mHlsPlayer->getVideoDecode()->getWidth()) +
                              "x" + dec(mHlsPlayer->getVideoDecode()->getHeight()) +
                              " " + dec(mHlsPlayer->getVideoDecode()->getFramePoolSize());
-
     vg->setFontSize ((float)getFontHeight());
     vg->setTextAlign (cVg::ALIGN_LEFT | cVg::ALIGN_TOP);
     vg->fillColor (kVgBlack);
