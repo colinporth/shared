@@ -46,7 +46,7 @@ public:
 
     // bgnd
     vg->beginPath();
-    vg->rect (x,y, w,h);
+    vg->rect (cPoint(x,y), w,h);
     vg->fillColour (nvgRGBA (0,0,0,128));
     vg->fill();
 

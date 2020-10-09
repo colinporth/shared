@@ -108,7 +108,7 @@ public:
               // draw rect image
               auto imagePaint = vg->imagePattern (visx, ySub, dstWidth, dstHeight, 0.f, mImage[imageIndex], 1.f);
               vg->beginPath();
-              vg->rect (visx, ySub, dstWidth, dstHeight);
+              vg->rect (cPoint(visx, ySub), dstWidth, dstHeight);
               vg->fillPaint (imagePaint);
               vg->fill();
 

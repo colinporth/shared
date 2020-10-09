@@ -950,15 +950,15 @@ void cVg::bezierTo (float c1x, float c1y, float c2x, float c2y, float x, float y
   }
 //}}}
 //{{{
-void cVg::quadTo (float cx, float cy, float x, float y) {
+void cVg::quadTo (cPoint centre, cPoint p) {
 
   float x0 = mShape.getLastX();
   float y0 = mShape.getLastY();
 
   float values[] = { eBEZIERTO,
-                     x0 + 2.0f / 3.0f * (cx - x0), y0 + 2.0f / 3.0f * (cy - y0),
-                      x + 2.0f / 3.0f * (cx - x),   y + 2.0f / 3.0f * (cy - y),
-                     x, y };
+                     x0 + 2.0f / 3.0f * (centre.x - x0), y0 + 2.0f / 3.0f * (centre.y - y0),
+                     p.x + 2.0f / 3.0f * (centre.x - p.x), p.y + 2.0f / 3.0f * (centre.y - p.y),
+                     p.x, p.y };
   mShape.addCommand (values, 7, mStates[mNumStates-1].mTransform);
   }
 //}}}
@@ -1084,18 +1084,18 @@ void cVg::arc (cPoint centre, float r, float a0, float a1, int dir) {
 //}}}
 
 //{{{
-void cVg::rect (float x, float y, float w, float h) {
+void cVg::rect (cPoint p, float w, float h) {
 
-  float values[] = { eMOVETO, x, y, eLINETO, x, y+h, eLINETO, x+w, y+h, eLINETO, x+w, y, eCLOSE };
+  float values[] = { eMOVETO, p.x, p.y, eLINETO, p.x, p.y+h, eLINETO, p.x+w, p.y+h, eLINETO, p.x+w, p.y, eCLOSE };
   mShape.addCommand (values, 13, mStates[mNumStates-1].mTransform);
   }
 //}}}
 //{{{
-void cVg::roundedRectVarying (float x, float y, float width, float height,
+void cVg::roundedRectVarying (cPoint p, float width, float height,
                               float radTopLeft, float radTopRight, float radBottomRight, float radBottomLeft) {
 
   if ((radTopLeft < 0.1f) && (radTopRight < 0.1f) && (radBottomRight < 0.1f) && (radBottomLeft < 0.1f))
-    rect (x, y, width, height);
+    rect (p, width, height);
   else {
     float halfw = absf (width) * 0.5f;
     float halfh = absf (height) * 0.5f;
@@ -1110,15 +1110,15 @@ void cVg::roundedRectVarying (float x, float y, float width, float height,
     float ryTL = min (radTopLeft, halfh) * signf(height);
 
     float values[] = {
-      eMOVETO, x, y + ryTL,
-      eLINETO, x, y + height - ryBL,
-      eBEZIERTO, x, y + height - ryBL*(1 - kAppA90), x + rxBL*(1 - kAppA90), y + height, x + rxBL, y + height,
-      eLINETO, x + width - rxBR, y + height,
-      eBEZIERTO, x + width - rxBR*(1 - kAppA90), y + height, x + width, y + height - ryBR*(1 - kAppA90), x + width, y + height - ryBR,
-      eLINETO, x + width, y + ryTR,
-      eBEZIERTO, x + width, y + ryTR*(1 - kAppA90), x + width - rxTR*(1 - kAppA90), y, x + width - rxTR, y,
-      eLINETO, x + rxTL, y,
-      eBEZIERTO, x + rxTL*(1 - kAppA90), y, x, y + ryTL*(1 - kAppA90), x, y + ryTL,
+      eMOVETO, p.x, p.y + ryTL,
+      eLINETO, p.x, p.y + height - ryBL,
+      eBEZIERTO, p.x, p.y + height - ryBL*(1 - kAppA90), p.x + rxBL*(1 - kAppA90), p.y + height, p.x + rxBL, p.y + height,
+      eLINETO, p.x + width - rxBR, p.y + height,
+      eBEZIERTO, p.x + width - rxBR*(1 - kAppA90), p.y + height, p.x + width,p.y + height - ryBR*(1 - kAppA90), p.x + width, p.y + height - ryBR,
+      eLINETO, p.x + width, p.y + ryTR,
+      eBEZIERTO, p.x + width, p.y + ryTR*(1 - kAppA90), p.x + width - rxTR*(1 - kAppA90), p.y, p.x + width - rxTR, p.y,
+      eLINETO, p.x + rxTL, p.y,
+      eBEZIERTO, p.x + rxTL*(1 - kAppA90), p.y, p.x, p.y + ryTL*(1 - kAppA90), p.x, p.y + ryTL,
       eCLOSE
       };
 
@@ -1127,19 +1127,23 @@ void cVg::roundedRectVarying (float x, float y, float width, float height,
   }
 //}}}
 //{{{
-void cVg::roundedRect (float x, float y, float width, float height, float radius) {
-  roundedRectVarying (x, y, width, height, radius, radius, radius, radius);
+void cVg::roundedRect (cPoint p, float width, float height, float radius) {
+  roundedRectVarying (p, width, height, radius, radius, radius, radius);
   }
 //}}}
 //{{{
-void cVg::ellipse (cPoint centre, float rx, float ry) {
+void cVg::ellipse (cPoint centre, cPoint radius) {
 
   float values[] = {
-    eMOVETO, centre.x-rx, centre.y,
-    eBEZIERTO, centre.x-rx, centre.y+kAppA90* kAppA90, centre.x-rx* kAppA90, centre.y+ry, centre.x, centre.y+ry,
-    eBEZIERTO, centre.x+rx* kAppA90, centre.y+ry, centre.x+rx, centre.y+ry* kAppA90, centre.x+rx, centre.y,
-    eBEZIERTO, centre.x+rx, centre.y-ry* kAppA90, centre.x+rx* kAppA90, centre.y-ry, centre.x, centre.y-ry,
-    eBEZIERTO, centre.x-rx* kAppA90, centre.y-ry, centre.x-rx, centre.y-ry* kAppA90, centre.x-rx, centre.y,
+    eMOVETO, centre.x-radius.x, centre.y,
+    eBEZIERTO, centre.x-radius.x, centre.y+kAppA90* kAppA90, centre.x- radius.x* kAppA90,
+               centre.y+radius.y, centre.x, centre.y+radius.y,
+    eBEZIERTO, centre.x+radius.x* kAppA90, centre.y+radius.y, centre.x+radius.x,
+               centre.y+radius.y* kAppA90, centre.x+radius.x, centre.y,
+    eBEZIERTO, centre.x+radius.x, centre.y-radius.y* kAppA90, centre.x+radius.x* kAppA90,
+               centre.y-radius.y, centre.x, centre.y-radius.y,
+    eBEZIERTO, centre.x-radius.x* kAppA90, centre.y-radius.y, centre.x-radius.x,
+               centre.y-radius.y* kAppA90, centre.x-radius.x, centre.y,
     eCLOSE
     };
   mShape.addCommand (values, 32, mStates[mNumStates-1].mTransform);
@@ -1147,7 +1151,7 @@ void cVg::ellipse (cPoint centre, float rx, float ry) {
 //}}}
 //{{{
 void cVg::circle (cPoint centre, float radius) {
-  ellipse (centre, radius,radius);
+  ellipse (centre, cPoint(radius,radius));
   }
 //}}}
 

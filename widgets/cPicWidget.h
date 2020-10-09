@@ -73,7 +73,7 @@ public:
 
       auto imgPaint = vg->imagePattern (x, y, width, height, mAngle / k180Pi, mImage, 1.0f);
       vg->beginPath();
-      vg->rect (x, y, width, height);
+      vg->rect (cPoint(x, y), width, height);
       vg->fillPaint (imgPaint);
       vg->fill();
       }

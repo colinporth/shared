@@ -30,7 +30,7 @@ public:
 
       // paint image rect
       vg->beginPath();
-      vg->rect (0.f,0.f, mWidth, mHeight);
+      vg->rect (cPoint(0.f,0.f), mWidth, mHeight);
       vg->fillPaint (vg->imagePattern (0.f,0.f, mWidth, mHeight, 0.f, mImageId, 1.f));
       vg->triangleFill();
       }

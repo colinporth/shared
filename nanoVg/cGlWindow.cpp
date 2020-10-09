@@ -27,7 +27,7 @@ void cGlWindow::drawRect (uint32_t colour, float x, float y, float width, float 
   fillColour (nvgRGBA32 (colour));
 
   beginPath();
-  rect (x, y, width, height);
+  rect (cPoint(x, y), width, height);
   triangleFill();
   }
 //}}}
@@ -63,7 +63,7 @@ void cGlWindow::drawEllipseSolid (uint32_t colour, float x, float y, float xradi
   fillColour (nvgRGBA32 (colour));
 
   beginPath();
-  ellipse (cPoint(x, y), xradius, yradius);
+  ellipse (cPoint(x, y), cPoint (xradius, yradius));
   fill();
   }
 //}}}
@@ -250,15 +250,15 @@ void cGlWindow::drawEyes (float x, float y, float w, float h, float cursorX, flo
 
   auto bg = linearGradient (x,y+h*0.5f,x+w*0.1f,y+h, nvgRGBA(0,0,0,32), nvgRGBA(0,0,0,16));
   beginPath();
-  ellipse (cPoint(lx+3.0f,ly+16.0f), ex,ey);
-  ellipse (cPoint(rx+3.0f,ry+16.0f), ex,ey);
+  ellipse (cPoint(lx+3.0f,ly+16.0f), cPoint(ex,ey));
+  ellipse (cPoint(rx+3.0f,ry+16.0f), cPoint(ex,ey));
   fillPaint (bg);
   fill();
 
   bg = linearGradient (x,y+h*0.25f,x+w*0.1f,y+h, nvgRGBA(220,220,220,255), nvgRGBA(128,128,128,255));
   beginPath();
-  ellipse (cPoint(lx,ly), ex,ey);
-  ellipse (cPoint(rx,ry), ex,ey);
+  ellipse (cPoint(lx,ly), cPoint(ex,ey));
+  ellipse (cPoint(rx,ry), cPoint(ex,ey));
   fillPaint (bg);
   fill();
 
@@ -272,7 +272,7 @@ void cGlWindow::drawEyes (float x, float y, float w, float h, float cursorX, flo
   dy *= ey*0.5f;
 
   beginPath();
-  ellipse (cPoint(lx+dx,ly+dy+ey*0.25f*(1-blink)), br,br*blink);
+  ellipse (cPoint(lx+dx,ly+dy+ey*0.25f*(1-blink)), cPoint(br,br*blink));
   fillColour (nvgRGBA(32,32,32,255));
   fill();
 
@@ -287,19 +287,19 @@ void cGlWindow::drawEyes (float x, float y, float w, float h, float cursorX, flo
   dy *= ey*0.5f;
 
   beginPath();
-  ellipse (cPoint(rx+dx,ry+dy+ey*0.25f*(1-blink)), br,br*blink);
+  ellipse (cPoint(rx+dx,ry+dy+ey*0.25f*(1-blink)), cPoint(br,br*blink));
   fillColour (nvgRGBA(32,32,32,255));
   fill();
 
   auto gloss = radialGradient (cPoint(lx-ex*0.25f,ly-ey*0.5f), ex*0.1f,ex*0.75f, nvgRGBA(255,255,255,128), nvgRGBA(255,255,255,0));
   beginPath();
-  ellipse (cPoint(lx,ly), ex,ey);
+  ellipse (cPoint(lx,ly), cPoint(ex,ey));
   fillPaint (gloss);
   fill();
 
   gloss = radialGradient (cPoint(rx-ex*0.25f,ry-ey*0.5f), ex*0.1f,ex*0.75f, nvgRGBA(255,255,255,128), nvgRGBA(255,255,255,0));
   beginPath();
-  ellipse (cPoint(rx,ry), ex,ey);
+  ellipse (cPoint(rx,ry), cPoint(ex,ey));
   fillPaint (gloss);
   fill();
   }

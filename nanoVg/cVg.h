@@ -523,15 +523,15 @@ public:
   void moveTo (cPoint p);
   void lineTo (cPoint p);
   void bezierTo (float c1x, float c1y, float c2x, float c2y, float x, float y);
-  void quadTo (float cx, float cy, float x, float y);
+  void quadTo (cPoint centre, cPoint p);
   void arcTo (cPoint p1, cPoint p2, float radius);
   void arc (cPoint centre, float r, float a0, float a1, int dir);
 
-  void rect (float x, float y, float width, float height);
-  void roundedRectVarying (float x, float y, float width, float height,
+  void rect (cPoint p, float width, float height);
+  void roundedRectVarying (cPoint p, float width, float height,
                            float radTopLeft, float radTopRight, float radBottomRight, float radBottomLeft);
-  void roundedRect (float x, float y, float w, float h, float radius);
-  void ellipse (cPoint centre, float rx, float ry);
+  void roundedRect (cPoint p, float w, float h, float radius);
+  void ellipse (cPoint centre, cPoint radius);
   void circle (cPoint centre, float radius);
 
   void closePath();
