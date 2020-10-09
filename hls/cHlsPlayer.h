@@ -1,10 +1,11 @@
 // cHlsPlayer.h - video, audio loader,player
 #pragma once
 //{{{  includes
-// c++
 #include <cstdint>
 #include <string>
 #include <thread>
+
+#include "../utils/readerWriterQueue.h"
 //}}}
 
 class cSong;
@@ -21,13 +22,38 @@ public:
 
 protected:
   void videoFollowAudio();
-  void hlsThread();
+  void loaderThread();
 
   cSong* mSong;
   bool mPlaying = true;
 
   cVideoDecode* mVideoDecode = nullptr;
   cAudioDecode* mAudioDecode = nullptr;
+
+  //{{{
+  class cPes {
+  public:
+    //{{{
+    cPes (uint8_t* pes, int size, int num, uint64_t pts) : mSize(size), mNum(num), mPts(pts) {
+      mPes = (uint8_t*)malloc (size);
+      memcpy (mPes, pes, size);
+      }
+    //}}}
+    //{{{
+    ~cPes() {
+      free (mPes);
+      }
+    //}}}
+
+    uint8_t* mPes;
+    const int mSize;
+    const int mNum;
+    const uint64_t mPts;
+    };
+  //}}}
+  readerWriterQueue::cBlockingReaderWriterQueue <cPes*> vidPesQueue;
+  readerWriterQueue::cBlockingReaderWriterQueue <cPes*> audPesQueue;
+
   std::thread mPlayer;
 
   bool mExit = false;

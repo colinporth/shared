@@ -3004,9 +3004,9 @@ void cVg::flushAtlasTexture() {
       int dirtyY = dirty[1];
       int dirtyWidth = dirty[2] - dirty[0];
       int dirtyHeight = dirty[3] - dirty[1];
-      cLog::log (LOGINFO, "flushAtlasTexture mFontTextureIndex:%d fontTextureId:%d %dx%d dirty:%d,%d:%dx%d",
-                          mFontTextureIndex, fontTextureId, width, height, 
-                          dirtyX, dirtyY, dirtyWidth, dirtyHeight);
+      //cLog::log (LOGINFO, "flushAtlasTexture mFontTextureIndex:%d fontTextureId:%d %dx%d dirty:%d,%d:%dx%d",
+      //                    mFontTextureIndex, fontTextureId, width, height,
+      //                    dirtyX, dirtyY, dirtyWidth, dirtyHeight);
       updateTexture (fontTextureId, dirtyX, dirtyY, dirtyWidth, dirtyHeight, data);
       }
     else

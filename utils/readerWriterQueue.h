@@ -213,10 +213,9 @@ namespace readerWriterQueue {
     };
   }
 //}}}
-//{{{  semaphores
+//{{{  semaphore
 //{{{  portable single-producer, single-consumer semaphore
-// Code in the spsc_sema namespace below is an adaptation of Jeff Preshing's
-// portable + lightweight semaphore implementations, originally from
+// adaptation of Jeff Preshing's portable + lightweight semaphore implementations, originally from
 // https://github.com/preshing/cpp11-on-multicore/blob/master/common/sema.h
 // LICENSE:
 // Copyright (c) 2015 Jeff Preshing
@@ -254,242 +253,241 @@ namespace readerWriterQueue {
 #endif
 
 namespace readerWriterQueue {
-  namespace spsc_sema {
-    #if defined(_WIN32)
-      //{{{
-      class Semaphore {
-      public:
-        //{{{
-        Semaphore(int initialCount = 0) {
-          assert(initialCount >= 0);
-          const long maxLong = 0x7fffffff;
-          m_hSema = CreateSemaphoreW(nullptr, initialCount, maxLong, nullptr);
-          assert(m_hSema);
-          }
-        //}}}
-        //{{{
-        ~Semaphore() {
-          CloseHandle(m_hSema);
-          }
-        //}}}
-
-        //{{{
-        bool wait() {
-          const unsigned long infinite = 0xffffffff;
-          return WaitForSingleObject(m_hSema, infinite) == 0;
-          }
-        //}}}
-        //{{{
-        bool try_wait() {
-          return WaitForSingleObject(m_hSema, 0) == 0;
-          }
-        //}}}
-        //{{{
-        bool timed_wait(std::uint64_t usecs) {
-          return WaitForSingleObject(m_hSema, (unsigned long)(usecs / 1000)) == 0;
-          }
-        //}}}
-
-        //{{{
-        void signal(int count = 1) {
-          while (!ReleaseSemaphore(m_hSema, count, nullptr));
-          }
-        //}}}
-
-      private:
-        Semaphore(const Semaphore& other);
-        Semaphore& operator=(const Semaphore& other);
-
-        void* m_hSema;
-        };
-      //}}}
-    #elif defined(__unix__)
-      //{{{
-      class Semaphore {
-      public:
-        //{{{
-        Semaphore(int initialCount = 0) {
-          assert(initialCount >= 0);
-          int rc = sem_init(&m_sema, 0, initialCount);
-         assert(rc == 0);
-          }
-        //}}}
-        //{{{
-        ~Semaphore() {
-          sem_destroy(&m_sema);
-          }
-        //}}}
-
-        //{{{
-        bool wait() {
-          // http://stackoverflow.com/questions/2013181/gdb-causes-sem-wait-to-fail-with-eintr-error
-          int rc;
-          do {
-            rc = sem_wait(&m_sema);
-            } while (rc == -1 && errno == EINTR);
-          return rc == 0;
-          }
-        //}}}
-        //{{{
-        bool try_wait() {
-
-          int rc;
-          do {
-            rc = sem_trywait(&m_sema);
-            } while (rc == -1 && errno == EINTR);
-          return rc == 0;
-          }
-        //}}}
-        //{{{
-        bool timed_wait(std::uint64_t usecs) {
-          struct timespec ts;
-          const int usecs_in_1_sec = 1000000;
-          const int nsecs_in_1_sec = 1000000000;
-          clock_gettime(CLOCK_REALTIME, &ts);
-          ts.tv_sec += static_cast<time_t>(usecs / usecs_in_1_sec);
-          ts.tv_nsec += static_cast<long>(usecs % usecs_in_1_sec) * 1000;
-          // sem_timedwait bombs if you have more than 1e9 in tv_nsec
-          // so we have to clean things up before passing it in
-          if (ts.tv_nsec >= nsecs_in_1_sec) {
-            ts.tv_nsec -= nsecs_in_1_sec;
-            ++ts.tv_sec;
-          }
-
-          int rc;
-          do {
-            rc = sem_timedwait(&m_sema, &ts);
-            } while (rc == -1 && errno == EINTR);
-          return rc == 0;
-          }
-        //}}}
-
-        //{{{
-        void signal() {
-          while (sem_post(&m_sema) == -1);
-          }
-        //}}}
-        //{{{
-        void signal(int count) {
-          while (count-- > 0) {
-            while (sem_post(&m_sema) == -1);
-            }
-          }
-        //}}}
-
-      private:
-        Semaphore(const Semaphore& other);
-        Semaphore& operator=(const Semaphore& other);
-        sem_t m_sema;
-        };
-      //}}}
-    #else
-      #error Unsupported platform! (No semaphore wrapper available)
-    #endif
+  #if defined(_WIN32)
     //{{{
-    class LightweightSemaphore {
+    class cSemaphore {
     public:
-      typedef std::make_signed<std::size_t>::type ssize_t;
-
       //{{{
-      LightweightSemaphore (ssize_t initialCount = 0) : m_count(initialCount) {
-          assert(initialCount >= 0);
-      }
-      //}}}
-
-      //{{{
-      bool tryWait() {
-
-        if (m_count.load() > 0) {
-          m_count.fetch_add_acquire(-1);
-          return true;
-          }
-        return false;
+      cSemaphore(int initialCount = 0) {
+        assert(initialCount >= 0);
+        const long maxLong = 0x7fffffff;
+        m_hSema = CreateSemaphoreW(nullptr, initialCount, maxLong, nullptr);
+        assert(m_hSema);
         }
       //}}}
+      //{{{
+      ~cSemaphore() {
+        CloseHandle(m_hSema);
+        }
+      //}}}
+
       //{{{
       bool wait() {
-
-        return tryWait() || waitWithPartialSpinning();
+        const unsigned long infinite = 0xffffffff;
+        return WaitForSingleObject(m_hSema, infinite) == 0;
         }
       //}}}
       //{{{
-      bool wait (std::int64_t timeout_usecs) {
-
-        return tryWait() || waitWithPartialSpinning(timeout_usecs);
+      bool try_wait() {
+        return WaitForSingleObject(m_hSema, 0) == 0;
         }
       //}}}
       //{{{
-      void signal (ssize_t count = 1) {
-
-        assert(count >= 0);
-        ssize_t oldCount = m_count.fetch_add_release(count);
-        assert(oldCount >= -1);
-        if (oldCount < 0)
-          m_sema.signal(1);
+      bool timed_wait(std::uint64_t usecs) {
+        return WaitForSingleObject(m_hSema, (unsigned long)(usecs / 1000)) == 0;
         }
       //}}}
-      //{{{
-      std::size_t availableApprox() const {
 
-        ssize_t count = m_count.load();
-        return count > 0 ? static_cast<std::size_t>(count) : 0;
+      //{{{
+      void signal(int count = 1) {
+        while (!ReleaseSemaphore(m_hSema, count, nullptr));
         }
       //}}}
 
     private:
+      cSemaphore (const cSemaphore& other);
+      cSemaphore& operator= (const cSemaphore& other);
+
+      void* m_hSema;
+      };
+    //}}}
+  #elif defined(__unix__)
+    //{{{
+    class cSemaphore {
+    public:
       //{{{
-      bool waitWithPartialSpinning (std::int64_t timeout_usecs = -1) {
+      cSemaphore(int initialCount = 0) {
+        assert(initialCount >= 0);
+        int rc = sem_init(&m_sema, 0, initialCount);
+       assert(rc == 0);
+        }
+      //}}}
+      //{{{
+      ~cSemaphore() {
+        sem_destroy(&m_sema);
+        }
+      //}}}
 
-        ssize_t oldCount;
+      //{{{
+      bool wait() {
+        // http://stackoverflow.com/questions/2013181/gdb-causes-sem-wait-to-fail-with-eintr-error
+        int rc;
+        do {
+          rc = sem_wait(&m_sema);
+          } while (rc == -1 && errno == EINTR);
+        return rc == 0;
+        }
+      //}}}
+      //{{{
+      bool try_wait() {
 
-        // Is there a better way to set the initial spin count?
-        // If we lower it to 1000, testBenaphore becomes 15x slower on my Core i7-5930K Windows PC,
-        // as threads start hitting the kernel semaphore.
-        int spin = 1024;
-        while (--spin >= 0) {
-          if (m_count.load() > 0) {
-            m_count.fetch_add_acquire(-1);
-            return true;
-            }
-          compiler_fence(memory_order_acquire);     // Prevent the compiler from collapsing the loop.
-          }
+        int rc;
+        do {
+          rc = sem_trywait(&m_sema);
+          } while (rc == -1 && errno == EINTR);
+        return rc == 0;
+        }
+      //}}}
+      //{{{
+      bool timed_wait(std::uint64_t usecs) {
+        struct timespec ts;
+        const int usecs_in_1_sec = 1000000;
+        const int nsecs_in_1_sec = 1000000000;
+        clock_gettime(CLOCK_REALTIME, &ts);
+        ts.tv_sec += static_cast<time_t>(usecs / usecs_in_1_sec);
+        ts.tv_nsec += static_cast<long>(usecs % usecs_in_1_sec) * 1000;
+        // sem_timedwait bombs if you have more than 1e9 in tv_nsec
+        // so we have to clean things up before passing it in
+        if (ts.tv_nsec >= nsecs_in_1_sec) {
+          ts.tv_nsec -= nsecs_in_1_sec;
+          ++ts.tv_sec;
+        }
 
-        oldCount = m_count.fetch_add_acquire(-1);
-        if (oldCount > 0)
-          return true;
-            if (timeout_usecs < 0)
+        int rc;
+        do {
+          rc = sem_timedwait(&m_sema, &ts);
+          } while (rc == -1 && errno == EINTR);
+        return rc == 0;
+        }
+      //}}}
 
-          {
-          if (m_sema.wait())
-            return true;
-          }
-
-        if (timeout_usecs > 0 && m_sema.timed_wait(static_cast<uint64_t>(timeout_usecs)))
-          return true;
-
-        // At this point, we've timed out waiting for the semaphore, but the
-        // count is still decremented indicating we may still be waiting on
-        // it. So we have to re-adjust the count, but only if the semaphore
-        // wasn't signaled enough times for us too since then. If it was, we
-        // need to release the semaphore too.
-        while (true) {
-          oldCount = m_count.fetch_add_release(1);
-          if (oldCount < 0)
-            return false;    // successfully restored things to the way they were
-
-          // Oh, the producer thread just signaled the semaphore after all. Try again:
-          oldCount = m_count.fetch_add_acquire(-1);
-          if (oldCount > 0 && m_sema.try_wait())
-            return true;
+      //{{{
+      void signal() {
+        while (sem_post(&m_sema) == -1);
+        }
+      //}}}
+      //{{{
+      void signal(int count) {
+        while (count-- > 0) {
+          while (sem_post(&m_sema) == -1);
           }
         }
       //}}}
 
-      weak_atomic<ssize_t> m_count;
-      Semaphore m_sema;
+    private:
+      cSemaphore (const cSemaphore& other);
+      cSemaphore& operator= (const cSemaphore& other);
+
+      sem_t m_sema;
       };
     //}}}
+  #else
+    #error Unsupported platform! (No semaphore wrapper available)
+  #endif
+  //{{{
+  class cLightweightSemaphore {
+  public:
+    typedef std::make_signed<std::size_t>::type ssize_t;
+
+    //{{{
+    cLightweightSemaphore (ssize_t initialCount = 0) : m_count(initialCount) {
+        assert(initialCount >= 0);
     }
+    //}}}
+
+    //{{{
+    bool tryWait() {
+
+      if (m_count.load() > 0) {
+        m_count.fetch_add_acquire(-1);
+        return true;
+        }
+      return false;
+      }
+    //}}}
+    //{{{
+    bool wait() {
+
+      return tryWait() || waitWithPartialSpinning();
+      }
+    //}}}
+    //{{{
+    bool wait (std::int64_t timeout_usecs) {
+
+      return tryWait() || waitWithPartialSpinning(timeout_usecs);
+      }
+    //}}}
+    //{{{
+    void signal (ssize_t count = 1) {
+
+      assert(count >= 0);
+      ssize_t oldCount = m_count.fetch_add_release(count);
+      assert(oldCount >= -1);
+      if (oldCount < 0)
+        m_sema.signal(1);
+      }
+    //}}}
+    //{{{
+    std::size_t availableApprox() const {
+
+      ssize_t count = m_count.load();
+      return count > 0 ? static_cast<std::size_t>(count) : 0;
+      }
+    //}}}
+
+  private:
+    //{{{
+    bool waitWithPartialSpinning (std::int64_t timeout_usecs = -1) {
+
+      ssize_t oldCount;
+
+      // Is there a better way to set the initial spin count?
+      // If we lower it to 1000, testBenaphore becomes 15x slower on my Core i7-5930K Windows PC,
+      // as threads start hitting the kernel semaphore.
+      int spin = 1024;
+      while (--spin >= 0) {
+        if (m_count.load() > 0) {
+          m_count.fetch_add_acquire(-1);
+          return true;
+          }
+        compiler_fence(memory_order_acquire);     // Prevent the compiler from collapsing the loop.
+        }
+
+      oldCount = m_count.fetch_add_acquire(-1);
+      if (oldCount > 0)
+        return true;
+          if (timeout_usecs < 0)
+
+        {
+        if (m_sema.wait())
+          return true;
+        }
+
+      if (timeout_usecs > 0 && m_sema.timed_wait(static_cast<uint64_t>(timeout_usecs)))
+        return true;
+
+      // At this point, we've timed out waiting for the semaphore, but the
+      // count is still decremented indicating we may still be waiting on
+      // it. So we have to re-adjust the count, but only if the semaphore
+      // wasn't signaled enough times for us too since then. If it was, we
+      // need to release the semaphore too.
+      while (true) {
+        oldCount = m_count.fetch_add_release(1);
+        if (oldCount < 0)
+          return false;    // successfully restored things to the way they were
+
+        // Oh, the producer thread just signaled the semaphore after all. Try again:
+        oldCount = m_count.fetch_add_acquire(-1);
+        if (oldCount > 0 && m_sema.try_wait())
+          return true;
+        }
+      }
+    //}}}
+
+    weak_atomic<ssize_t> m_count;
+    cSemaphore m_sema;
+    };
+  //}}}
   }
 
 #if defined(AE_VCPP) && (_MSC_VER < 1700 || defined(__cplusplus_cli))
@@ -1172,7 +1170,7 @@ namespace readerWriterQueue {
   public:
     //{{{
     explicit cBlockingReaderWriterQueue (size_t size = 15)
-      : inner(size), sema(new spsc_sema::LightweightSemaphore()) {}
+      : inner(size), sema(new cLightweightSemaphore()) {}
     //}}}
     //{{{
     cBlockingReaderWriterQueue (cBlockingReaderWriterQueue&& other)
@@ -1356,7 +1354,7 @@ namespace readerWriterQueue {
     cBlockingReaderWriterQueue& operator= (cBlockingReaderWriterQueue const&) {}
 
     cReaderWriterQueue inner;
-    std::unique_ptr <spsc_sema::LightweightSemaphore> sema;
+    std::unique_ptr <cLightweightSemaphore> sema;
     };
   //}}}
   }

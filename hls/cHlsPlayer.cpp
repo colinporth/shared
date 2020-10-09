@@ -16,8 +16,6 @@
 #include "../utils/utils.h"
 #include "../utils/cLog.h"
 
-#include "../utils/readerWriterQueue.h"
-
 // audio container
 #include "../utils/cSong.h"
 
@@ -78,32 +76,6 @@ namespace {
   //}}}
   }
 
-//{{{
-class cPes {
-public:
-  //{{{
-  cPes (uint8_t* pes, int size, int num, uint64_t pts) : mSize(size), mNum(num), mPts(pts) {
-    mPes = (uint8_t*)malloc (size);
-    memcpy (mPes, pes, size);
-    }
-  //}}}
-  //{{{
-  ~cPes() {
-    free (mPes);
-    }
-  //}}}
-
-  uint8_t* mPes;
-  const int mSize;
-  const int mNum;
-  const uint64_t mPts;
-  };
-//}}}
-//readerWriterQueue::cReaderWriterQueue <cPes*> vidPesQueue;
-//readerWriterQueue::cReaderWriterQueue <cPes*> audPesQueue;
-readerWriterQueue::cBlockingReaderWriterQueue <cPes*> vidPesQueue;
-readerWriterQueue::cBlockingReaderWriterQueue <cPes*> audPesQueue;
-
 // public
 cHlsPlayer::cHlsPlayer() {}
 //{{{
@@ -149,8 +121,8 @@ void cHlsPlayer::videoFollowAudio() {
   }
 //}}}
 //{{{
-void cHlsPlayer::hlsThread() {
-// hls http chunk load and decode thread
+void cHlsPlayer::loaderThread() {
+// hls http chunk load and possible decode thread
 
   cLog::setThreadName ("hls ");
   mAudioDecode = new cAudioDecode (cAudioDecode::eAac);
@@ -314,22 +286,6 @@ int cHlsPlayer::processVideoPes (uint8_t* pes, int size, int num, uint64_t pts) 
   }
 //}}}
 //{{{
-//void cHlsPlayer::dequeVideoPesThread() {
-
-  //cLog::setThreadName ("vidQ");
-
-  //while (!mExit) {
-    //cPes* pes;
-    //if (vidPesQueue.try_dequeue (pes)) {
-      //mVideoDecode->decode (pes->mPes, pes->mSize, pes->mNum, pes->mPts);
-      //delete pes;
-      //}
-    //else
-      //this_thread::sleep_for (1ms);
-    //}
-  //}
-//}}}
-//{{{
 void cHlsPlayer::dequeVideoPesThread() {
 
   cLog::setThreadName ("vidQ");
@@ -372,23 +328,6 @@ int cHlsPlayer::processAudioPes (uint8_t* pes, int size, int num, uint64_t pts) 
 
   return num;
   }
-//}}}
-//{{{
-//void cHlsPlayer::dequeAudioPesThread() {
-
-  //cLog::setThreadName ("audQ");
-
-  //while (!mExit) {
-    //cPes* pes;
-    //if (audPesQueue.try_dequeue (pes)) {
-      //float* samples = mAudioDecode->decodeFrame (pes->mPes, pes->mSize, pes->mNum);
-      //mSong->addAudioFrame (pes->mNum, samples, true, mSong->getNumFrames(), nullptr, pes->mPts);
-      //delete pes;
-      //}
-    //else
-      //this_thread::sleep_for (1ms);
-    //}
-  //}
 //}}}
 //{{{
 void cHlsPlayer::dequeAudioPesThread() {
