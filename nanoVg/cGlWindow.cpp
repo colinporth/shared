@@ -224,11 +224,9 @@ void cGlWindow::drawSpinner (cPoint centre, float inner, float outer, float frac
   arc (centre, inner, angle1, angle0, cVg::eSOLID);
   closePath();
 
-  float ax = centre.x + cosf (angle0) * (outer + inner) * 0.5f;
-  float ay = centre.y + sinf (angle0) * (outer + inner) * 0.5f;
-  float bx = centre.x + cosf (angle1) * (outer + inner) * 0.5f;
-  float by = centre.y + sinf (angle1) * (outer + inner) * 0.5f;
-  auto paint = linearGradient (ax,ay, bx,by, color1, color2);
+  cPoint a (centre.x + cosf (angle0) * (outer + inner) * 0.5f, centre.y + sinf (angle0) * (outer + inner) * 0.5f);
+  cPoint b (centre.x + cosf (angle1) * (outer + inner) * 0.5f, centre.y + sinf (angle1) * (outer + inner) * 0.5f);
+  auto paint = linearGradient (a, b, color1, color2);
   fillPaint (paint);
   fill();
 
@@ -248,14 +246,14 @@ void cGlWindow::drawEyes (float x, float y, float w, float h, float cursorX, flo
   float br = (ex < ey ? ex : ey) * 0.5f;
   float blink = 1 - powf (sinf(t*0.5f),200)*0.8f;
 
-  auto bg = linearGradient (x,y+h*0.5f,x+w*0.1f,y+h, nvgRGBA(0,0,0,32), nvgRGBA(0,0,0,16));
+  auto bg = linearGradient (cPoint(x,y+h*0.5f),cPoint(x+w*0.1f,y+h), nvgRGBA(0,0,0,32), nvgRGBA(0,0,0,16));
   beginPath();
   ellipse (cPoint(lx+3.0f,ly+16.0f), cPoint(ex,ey));
   ellipse (cPoint(rx+3.0f,ry+16.0f), cPoint(ex,ey));
   fillPaint (bg);
   fill();
 
-  bg = linearGradient (x,y+h*0.25f,x+w*0.1f,y+h, nvgRGBA(220,220,220,255), nvgRGBA(128,128,128,255));
+  bg = linearGradient (cPoint(x,y+h*0.25f),cPoint(x+w*0.1f,y+h), nvgRGBA(220,220,220,255), nvgRGBA(128,128,128,255));
   beginPath();
   ellipse (cPoint(lx,ly), cPoint(ex,ey));
   ellipse (cPoint(rx,ry), cPoint(ex,ey));

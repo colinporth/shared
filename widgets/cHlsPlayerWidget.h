@@ -31,7 +31,7 @@ public:
       // paint image rect
       vg->beginPath();
       vg->rect (cPoint(0.f,0.f), mWidth, mHeight);
-      vg->fillPaint (vg->imagePattern (0.f,0.f, mWidth, mHeight, 0.f, mImageId, 1.f));
+      vg->fillPaint (vg->imagePattern (cPoint(0.f,0.f), mWidth, mHeight, 0.f, mImageId, 1.f));
       vg->triangleFill();
       }
 
@@ -62,11 +62,10 @@ private:
 
     float angle[4] = { 0.f, loadFrac * k2Pi, vidFrac * k2Pi, audFrac * k2Pi } ;
 
-    float x[4];
-    float y[4];
+    cPoint p[4];
     for (int i = 0; i < 4; i++) {
-      x[i] = centre.x + cosf (angle[i]) * ((outer + inner) / 2.f);
-      y[i] = centre.y + sinf (angle[i]) * ((outer + inner) / 2.f);
+      p[i].x = centre.x + cosf (angle[i]) * ((outer + inner) / 2.f);
+      p[i].y = centre.y + sinf (angle[i]) * ((outer + inner) / 2.f);
       }
 
     sVgColour colours[4] = { nvgRGBA(0,0,0,0), nvgRGBA(32,255,32,192), nvgRGBA(32,32,255,192), nvgRGBA(255,32,32,192) };
@@ -77,21 +76,21 @@ private:
     vg->arc (centre, outer, angle[0], angle[1], cVg::eHOLE);
     vg->arc (centre, inner, angle[1], angle[0], cVg::eSOLID);
     vg->closePath();
-    vg->fillPaint (vg->linearGradient (x[0],y[0], x[1],y[1], colours[0], colours[1]));
+    vg->fillPaint (vg->linearGradient (p[0], p[1], colours[0], colours[1]));
     vg->fill();
 
     vg->beginPath();
     vg->arc (centre, outer, angle[0], angle[2], cVg::eHOLE);
     vg->arc (centre, inner, angle[2], angle[0], cVg::eSOLID);
     vg->closePath();
-    vg->fillPaint (vg->linearGradient (x[0],y[0], x[2],y[2], colours[0], colours[3]));
+    vg->fillPaint (vg->linearGradient (p[0], p[2], colours[0], colours[3]));
     vg->fill();
 
     vg->beginPath();
     vg->arc (centre, outer, angle[0], angle[3], cVg::eHOLE);
     vg->arc (centre, inner, angle[3], angle[0], cVg::eSOLID);
     vg->closePath();
-    vg->fillPaint (vg->linearGradient (x[0],y[0], x[3],y[3], colours[0], colours[3]));
+    vg->fillPaint (vg->linearGradient (p[0], p[3], colours[0], colours[3]));
     vg->fill();
 
 

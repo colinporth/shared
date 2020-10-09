@@ -824,12 +824,11 @@ void cVg::lineJoin (eLineCap join) { mStates[mNumStates-1].lineJoin = join; }
 void cVg::lineCap (eLineCap cap) { mStates[mNumStates-1].lineCap = cap; }
 
 //{{{
-cVg::cPaint cVg::linearGradient (float startx, float starty, float endx, float endy,
-                                 const sVgColour& innerColor, const sVgColour& outerColor) {
+cVg::cPaint cVg::linearGradient (cPoint start, cPoint end, const sVgColour& innerColor, const sVgColour& outerColor) {
 
   // Calculate transform aligned to the line
-  float dx = endx - startx;
-  float dy = endy - starty;
+  float dx = end.x - start.x;
+  float dy = end.y - start.y;
   float distance = sqrtf (dx * dx + dy * dy);
   if (distance > 0.0001f) {
     dx /= distance;
@@ -841,7 +840,7 @@ cVg::cPaint cVg::linearGradient (float startx, float starty, float endx, float e
     }
 
   cPaint paint;
-  paint.mTransform.set (dy, -dx, dx, dy, startx - dx * kLarge, starty - dy * kLarge);
+  paint.mTransform.set (dy, -dx, dx, dy, start.x - dx * kLarge, start.y - dy * kLarge);
   paint.extent[0] = kLarge;
   paint.extent[1] = kLarge + distance * 0.5f;
   paint.radius = 0.f;
@@ -891,10 +890,10 @@ cVg::cPaint cVg::radialGradient (cPoint centre, float innerRadius, float outerRa
   }
 //}}}
 //{{{
-cVg::cPaint cVg::imagePattern (float cx, float cy, float width, float height, float angle, int imageId, float alpha) {
+cVg::cPaint cVg::imagePattern (cPoint centre,  float width, float height, float angle, int imageId, float alpha) {
 
   cPaint paint;
-  paint.mTransform.setRotateTranslate (angle, cx, cy);
+  paint.mTransform.setRotateTranslate (angle, centre.x, centre.y);
   paint.extent[0] = width;
   paint.extent[1] = height;
   paint.radius = 0.f;

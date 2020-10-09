@@ -506,13 +506,12 @@ public:
   void lineCap (eLineCap cap);
   void lineJoin (eLineCap join);
 
-  cPaint linearGradient (float startx, float starty, float endx, float endy,
-                         const sVgColour& innerColour, const sVgColour& outerColour);
+  cPaint linearGradient (cPoint start, cPoint end, const sVgColour& innerColour, const sVgColour& outerColour);
   cPaint boxGradient (cPoint p, float width, float height, float radius, float feather,
                       const sVgColour& innerColour, const sVgColour& outerColour);
   cPaint radialGradient (cPoint centre, float innerRadius, float outerRadius,
                          const sVgColour& innerColour, const sVgColour& outerColour);
-  cPaint imagePattern (float cx, float cy, float width, float height, float angle, int imageId, float alpha);
+  cPaint imagePattern (cPoint centre, float width, float height, float angle, int imageId, float alpha);
 
   void fillPaint (const cPaint& paint);
   void strokePaint (const cPaint& paint);
@@ -791,6 +790,7 @@ private:
         float texType;
         float type;
         };
+
       #define NANOVG_GL_UNIFORMARRAY_SIZE 11
       float uniformArray[NANOVG_GL_UNIFORMARRAY_SIZE][4];
       };
