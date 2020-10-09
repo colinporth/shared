@@ -40,11 +40,11 @@ public:
     float vidFrac = mHlsPlayer->getVideoDecodeFrac();
 
     if ((audFrac > 0.f) && (audFrac < 1.f))
-      vg->drawSpinner (mWidth - 26.f, 26.f, 20.f, 16.f, frac + vidFrac + audFrac, nvgRGBA(0,0,0,0), nvgRGBA(32,32,255,192));
+      vg->drawSpinner (mWidth - 26.f, 26.f, 20.f, 10.f, frac + vidFrac + audFrac, nvgRGBA(0,0,0,0), nvgRGBA(32,32,255,192));
     if ((vidFrac > 0.f) && (vidFrac < 1.f))
-      vg->drawSpinner (mWidth - 26.f, 26.f, 20.f, 16.f, frac + vidFrac, nvgRGBA(0,0,0,0), nvgRGBA(255,32,32,192));
+      vg->drawSpinner (mWidth - 26.f, 26.f, 20.f, 10.f, frac + vidFrac, nvgRGBA(0,0,0,0), nvgRGBA(255,32,32,192));
     if ((frac > 0.f) && (frac < 1.f))
-      vg->drawSpinner (mWidth - 26.f, 26.f, 20.f, 16.f, frac, nvgRGBA(0,0,0,0), nvgRGBA(32,255,32,192));
+      vg->drawSpinner (mWidth - 26.f, 26.f, 20.f, 10.f, frac, nvgRGBA(0,0,0,0), nvgRGBA(32,255,32,192));
 
 
     // info text

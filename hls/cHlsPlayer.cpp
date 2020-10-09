@@ -91,23 +91,29 @@ void cHlsPlayer::init (const string& host, const string& channel, int audBitrate
 
   mHost = host;
   mChannel = channel;
-
   mAudBitrate = audBitrate;
   mVidBitrate = vidBitrate;
 
-  mUseFFmpeg = useFFmpeg;
-  mQueueVideo = queueVideo;
-  mQueueAudio = queueAudio;
-  mStreaming = streaming;
-
   mSong = new cSong();
+  mAudioDecode = new cAudioDecode (cAudioDecode::eAac);
 
+  mUseFFmpeg = useFFmpeg;
   if (useFFmpeg)
     mVideoDecode = new cFFmpegVideoDecode();
   #ifdef _WIN32
     else
       mVideoDecode = new cMfxVideoDecode();
   #endif
+
+  mQueueVideo = queueVideo;
+  if (queueVideo)
+    thread ([=](){ dequeVideoPesThread(); }).detach();
+
+  mQueueAudio = queueAudio;
+  if (queueAudio)
+    thread ([=](){ dequeAudioPesThread(); }).detach();
+
+  mStreaming = streaming;
   }
 //}}}
 
@@ -127,12 +133,6 @@ void cHlsPlayer::loaderThread() {
 // hls http chunk load and possible decode thread
 
   cLog::setThreadName ("hls ");
-  mAudioDecode = new cAudioDecode (cAudioDecode::eAac);
-
-  if (mQueueVideo)
-    thread ([=](){ dequeVideoPesThread(); }).detach();
-  if (mQueueAudio)
-    thread ([=](){ dequeAudioPesThread(); }).detach();
 
   constexpr int kPesSize = 1000000;
   uint8_t* audPes = (uint8_t*)malloc (kPesSize);
