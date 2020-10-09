@@ -21,6 +21,23 @@ public:
   void init (const std::string& host, const std::string& channel, int audBitrate, int vidBitrate,
              bool useFFmpeg = true, bool videoQueue = true, bool audioQueue = true, bool streaming = true);
 
+  cVideoDecode* getVideoDecode() { return mVideoDecode; }
+
+  float getLoadFrac() { return mLoadFrac; }
+  //{{{
+  float getVideoDecodeFrac() {
+    return (float)vidPesQueue.size_approx() / vidPesQueue.max_capacity();
+    }
+  //}}}
+  //{{{
+  float getAudioDecodeFrac() {
+    return (float)audPesQueue.size_approx() / audPesQueue.max_capacity();
+    }
+  //}}}
+  std::string getChannel() { return mChannel; }
+  int getVidBitrate() { return mVidBitrate; }
+  int getAudBitrate() { return mAudBitrate; }
+
 protected:
   void videoFollowAudio();
   void loaderThread();
@@ -78,4 +95,6 @@ private:
   bool mQueueVideo = true;
   bool mQueueAudio= true;
   bool mStreaming = false;
+
+  float mLoadFrac = 0.f;
   };

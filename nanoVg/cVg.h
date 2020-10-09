@@ -461,7 +461,7 @@ public:
   void beginFrame (int width, int height, float devicePixelRatio);
   void endFrame();
   //}}}
-  void drawSpinner (float centrex, float centrey, float radius, float frac,
+  void drawSpinner (float centrex, float centrey, float inner, float outer, float frac,
                     const sVgColour& color1, const sVgColour& color2);
 
 private:

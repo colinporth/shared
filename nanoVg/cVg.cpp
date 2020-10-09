@@ -1287,7 +1287,7 @@ void cVg::endFrame() {
 //}}}
 //}}}
 //{{{
-void cVg::drawSpinner (float centrex, float centrey, float radius, float frac,
+void cVg::drawSpinner (float centrex, float centrey, float inner, float outer, float frac,
                        const sVgColour& color1, const sVgColour& color2) {
 
   saveState();
@@ -1295,16 +1295,14 @@ void cVg::drawSpinner (float centrex, float centrey, float radius, float frac,
   beginPath();
   float angle0 = (frac * k2Pi);
   float angle1 = kPi + angle0;
-  float radius0 = radius;
-  float radius1 = radius * 0.75f;
-  arc (centrex, centrey, radius0, angle0, angle1, cVg::eHOLE);
-  arc (centrex, centrey, radius1, angle1, angle0, cVg::eSOLID);
+  arc (centrex, centrey, outer, angle0, angle1, cVg::eHOLE);
+  arc (centrex, centrey, inner, angle1, angle0, cVg::eSOLID);
   closePath();
 
-  float ax = centrex + cosf (angle0) * (radius0 + radius1) * 0.5f;
-  float ay = centrey + sinf (angle0) * (radius0 + radius1) * 0.5f;
-  float bx = centrex + cosf (angle1) * (radius0 + radius1) * 0.5f;
-  float by = centrey + sinf (angle1) * (radius0 + radius1) * 0.5f;
+  float ax = centrex + cosf (angle0) * (outer + inner) * 0.5f;
+  float ay = centrey + sinf (angle0) * (outer + inner) * 0.5f;
+  float bx = centrex + cosf (angle1) * (outer + inner) * 0.5f;
+  float by = centrey + sinf (angle1) * (outer + inner) * 0.5f;
   auto paint = linearGradient (ax,ay, bx,by, color1, color2);
   fillPaint (paint);
   fill();

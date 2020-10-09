@@ -30,15 +30,15 @@
   #include "../audio/cLinuxAudio.h"
 #endif
 
+// video decode
+#include "../utils/cVideoDecode.h"
+
 // net
 #ifdef _WIN32
   #include "../net/cWinSockHttp.h"
 #else
   #include "../net/cLinuxHttp.h"
 #endif
-
-// video decode
-#include "../utils/cVideoDecode.h"
 
 using namespace std;
 using namespace chrono;
@@ -91,6 +91,7 @@ void cHlsPlayer::init (const string& host, const string& channel, int audBitrate
 
   mHost = host;
   mChannel = channel;
+
   mAudBitrate = audBitrate;
   mVidBitrate = vidBitrate;
 
@@ -102,10 +103,10 @@ void cHlsPlayer::init (const string& host, const string& channel, int audBitrate
   mSong = new cSong();
 
   if (useFFmpeg)
-    mVideoDecode = new cFFmpegVideoDecode (channel);
+    mVideoDecode = new cFFmpegVideoDecode();
   #ifdef _WIN32
     else
-      mVideoDecode = new cMfxVideoDecode (channel);
+      mVideoDecode = new cMfxVideoDecode();
   #endif
   }
 //}}}
@@ -184,7 +185,7 @@ void cHlsPlayer::loaderThread() {
                         [&] (const string& key, const string& value) noexcept { /* headerCallback lambda */ },
                         [&] (const uint8_t* data, int length) noexcept {
                            //{{{  data callback lambda
-                           mVideoDecode->setDecodeFrac (float(http.getContentSize()) / http.getHeaderContentSize());
+                           mLoadFrac = float(http.getContentSize()) / http.getHeaderContentSize();
 
                            while (http.getContentSize() - contentUsed >= 188) {
                              // whole ts packet left to parse

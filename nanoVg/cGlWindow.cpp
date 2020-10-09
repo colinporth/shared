@@ -182,7 +182,7 @@ void cGlWindow::draw() {
     drawEyes (winWidth*3.0f/4.0f, winHeight/2.0f, winWidth/4.0f, winHeight/2.0f,
               mMouseX, mMouseY, (float)glfwGetTime());
     drawLines (0.0f, 50.0f, (float)winWidth, (float)winHeight, (float)glfwGetTime());
-    drawSpinner (winWidth/2.0f, winHeight/2.0f, 20.0f, (float)glfwGetTime(),
+    drawSpinner (winWidth/2.f, winHeight/2.f, 20.f, 16.f, (float)glfwGetTime(),
                  nvgRGBA(0, 0, 0, 0), nvgRGBA(255, 255, 255, 128));
     }
     //}}}
