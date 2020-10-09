@@ -1,4 +1,4 @@
-// cHlsPlayer.h - video, audio loader,player
+// cHlsPlayer.h - video, audio - loader,player
 #pragma once
 //{{{  includes
 #include <cstdint>
