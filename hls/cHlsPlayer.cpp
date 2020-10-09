@@ -191,8 +191,8 @@ void cHlsPlayer::hlsThread() {
         int chunkNum = mSong->getHlsLoadChunkNum (system_clock::now(), 12s, 2);
         if (chunkNum) {
           // get hls chunkNum chunk
-          int seqFrameNum = mSong->getHlsFrameFromChunkNum (chunkNum);
-          cLog::log (LOGINFO, "get chunk:" + dec(chunkNum) + " seq:" + dec(seqFrameNum) + " " + path);
+          int audioFrameNum = mSong->getHlsFrameFromChunkNum (chunkNum);
+          cLog::log (LOGINFO, "get chunk:" + dec(chunkNum) + " seq:" + dec(audioFrameNum));
           mSong->setHlsLoad (cSong::eHlsLoading, chunkNum);
 
           //{{{  init pes states
@@ -243,7 +243,7 @@ void cHlsPlayer::hlsThread() {
                                  // audio pid
                                  if (payStart && !ts[0] && !ts[1] && (ts[2] == 1) && (ts[3] == 0xC0)) {
                                    if (audPesSize) {
-                                     seqFrameNum = processAudioPes (audPes, audPesSize, seqFrameNum, audPesPts);
+                                     audioFrameNum = processAudioPes (audPes, audPesSize, audioFrameNum, audPesPts);
                                      audPesSize = 0;
                                      }
                                    if (ts[7] & 0x80)
@@ -270,7 +270,7 @@ void cHlsPlayer::hlsThread() {
                            //}}}
                         ) == 200) {
             if (audPesSize)
-              seqFrameNum = processAudioPes (audPes, audPesSize, seqFrameNum, audPesPts);
+              audioFrameNum = processAudioPes (audPes, audPesSize, audioFrameNum, audPesPts);
             if (vidPesSize)
               vidPesNum = processVideoPes (vidPes, vidPesSize, vidPesNum, vidPesPts);
 
@@ -301,6 +301,7 @@ void cHlsPlayer::hlsThread() {
 // private:
 //{{{
 int cHlsPlayer::processVideoPes (uint8_t* pes, int size, int num, uint64_t pts) {
+// queue or decode now
 
   if (mQueueVideo)
     vidPesQueue.enqueue (new cPes (pes, size, num, pts));
@@ -328,10 +329,8 @@ void cHlsPlayer::dequeVideoPesThread() {
 //}}}
 
 //{{{
-int cHlsPlayer::processAudioPes (uint8_t* pes, int size, int seqFrameNum, uint64_t pts) {
-// split audio pes into frames
-
-  //audPesQueue.enqueue (new cPes (audPes, audPesSize, seqFrameNum, audPesPts));
+int cHlsPlayer::processAudioPes (uint8_t* pes, int size, int num, uint64_t pts) {
+// split audio pes into frames, queue or decode now
 
   uint8_t* framePes = pes;
   while (mAudioDecode->parseFrame (framePes, pes + size)) {
@@ -339,15 +338,15 @@ int cHlsPlayer::processAudioPes (uint8_t* pes, int size, int seqFrameNum, uint64
 
     // decode a single frame from pes
     if (mQueueAudio)
-      audPesQueue.enqueue (new cPes (framePes, framePesSize, seqFrameNum, pts));
+      audPesQueue.enqueue (new cPes (framePes, framePesSize, num, pts));
     else {
-      float* samples = mAudioDecode->decodeFrame (framePes, framePesSize, seqFrameNum);
-      mSong->addAudioFrame (seqFrameNum, samples, true, mSong->getNumFrames(), nullptr, pts);
+      float* samples = mAudioDecode->decodeFrame (framePes, framePesSize, num);
+      mSong->addAudioFrame (num, samples, true, mSong->getNumFrames(), nullptr, pts);
       }
 
-    // point to next frame in pes
+    // point to next frame in pes, assumes 48000 sample rate
     pts += (mAudioDecode->getNumSamples() * 90) / 48;
-    seqFrameNum++;
+    num++;
     framePes += framePesSize;
     }
 
@@ -356,7 +355,7 @@ int cHlsPlayer::processAudioPes (uint8_t* pes, int size, int seqFrameNum, uint64
     // start player
     mPlayer = thread ([=](){ playThread(); });
 
-  return seqFrameNum;
+  return num;
   }
 //}}}
 //{{{

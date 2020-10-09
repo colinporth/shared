@@ -513,9 +513,8 @@ protected:
           }
         }
 
-      cLog::log (LOGINFO, "cMfxVideoDecode PES " + dec(pesNumInChunk) +
-                           " pts:" + getPtsString (pts) +
-                           " size:" + dec(pesSize));
+      //cLog::log (LOGINFO, "cMfxVideoDecode PES " + dec(pesNumInChunk) +
+      //                     " pts:" + getPtsString (pts) + " size:" + dec(pesSize));
 
       // reset decoder on skip
       //mfxStatus status = MFXVideoDECODE_Reset (mSession, &mVideoParams);
@@ -604,10 +603,8 @@ public:
     if (pesNumInChunk == 0)
       mDecodePts = pts;
 
-    cLog::log (LOGINFO, "cFFmpegVideoDecode PES " + dec(pesNumInChunk) +
-                         " pts:" + getPtsString (pts) +
-                         " decodePts:" + getPtsString (mDecodePts) +
-                         " size:" + dec(pesSize));
+    //cLog::log (LOGINFO, "cFFmpegVideoDecode PES " + dec(pesNumInChunk) +
+    //                     " pts:" + getPtsString (pts) + " decodePts:" + getPtsString (mDecodePts) + " size:" + dec(pesSize));
 
     auto pesPtr = pes;
     auto pesLeft = pesSize;
