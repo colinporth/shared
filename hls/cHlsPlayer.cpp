@@ -80,6 +80,7 @@ namespace {
 cHlsPlayer::cHlsPlayer() {}
 //{{{
 cHlsPlayer::~cHlsPlayer() {
+
   delete mSong;
   delete mVideoDecode;
   }
@@ -170,7 +171,7 @@ void cHlsPlayer::loaderThread() {
           mSong->setHlsLoad (cSong::eHlsLoading, chunkNum);
 
           //{{{  init pes states
-          int contentParsed = 0;
+          int contentUsed = 0;
 
           int audPesSize = 0;
           uint64_t audPesPts = 0;
@@ -178,7 +179,6 @@ void cHlsPlayer::loaderThread() {
           int vidPesNum = 0;
           int vidPesSize = 0;
           uint64_t vidPesPts = 0;
-
           //}}}
           if (http.get (redirectedHost, path + '-' + dec(chunkNum) + ".ts", "",
                         [&] (const string& key, const string& value) noexcept { /* headerCallback lambda */ },
@@ -186,9 +186,9 @@ void cHlsPlayer::loaderThread() {
                            //{{{  data callback lambda
                            mVideoDecode->setDecodeFrac (float(http.getContentSize()) / http.getHeaderContentSize());
 
-                           while (http.getContentSize() - contentParsed >= 188) {
+                           while (http.getContentSize() - contentUsed >= 188) {
                              // whole ts packet left to parse
-                             uint8_t* ts = http.getContent() + contentParsed;
+                             uint8_t* ts = http.getContent() + contentUsed;
                              if (*ts++ == 0x47) {
                                // is a ts packet
                                auto payStart = ts[0] & 0x40;
@@ -235,8 +235,8 @@ void cHlsPlayer::loaderThread() {
                                ts += tsBodySize;
                                }
                              else
-                               cLog::log (LOGERROR, "packet not ts %d", contentParsed);
-                             contentParsed += 188;
+                               cLog::log (LOGERROR, "packet not ts %d", contentUsed);
+                             contentUsed += 188;
                              }
 
                            return true;
@@ -337,8 +337,10 @@ void cHlsPlayer::dequeAudioPesThread() {
   while (!mExit) {
     cPes* pes;
     audPesQueue.wait_dequeue (pes);
+
     float* samples = mAudioDecode->decodeFrame (pes->mPes, pes->mSize, pes->mNum);
     mSong->addAudioFrame (pes->mNum, samples, true, mSong->getNumFrames(), nullptr, pes->mPts);
+
     delete pes;
     }
   }

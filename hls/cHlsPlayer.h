@@ -2,6 +2,7 @@
 #pragma once
 //{{{  includes
 #include <cstdint>
+#include <ctring>
 #include <string>
 #include <thread>
 
