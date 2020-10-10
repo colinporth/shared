@@ -155,7 +155,7 @@ private:
   void drawRange (cVg* vg, int playFrame, int leftFrame, int rightFrame) {
 
     vg->beginPath();
-    vg->rect (cPoint(mX, mY + mDstRangeTop), mWidth, mRangeHeight);
+    vg->rect (cPoint(mX, mY + mDstRangeTop), cPoint(mWidth, mRangeHeight));
     vg->fillColour (kVgDarkGrey);
     vg->triangleFill();
 
@@ -164,7 +164,7 @@ private:
       auto firstx = (getWidth()/2.f) + (item.getFirstFrame() - playFrame) * mFrameWidth / mFrameStep;
       float lastx = item.getMark() ? firstx + 1.f :
                                      (getWidth()/2.f) + (item.getLastFrame() - playFrame) * mFrameWidth / mFrameStep;
-      vg->rect (cPoint(mX  + firstx, mY + mDstRangeTop), lastx - firstx, mRangeHeight);
+      vg->rect (cPoint(mX  + firstx, mY + mDstRangeTop), cPoint(lastx - firstx, mRangeHeight));
 
       auto title = item.getTitle();
       if (!title.empty()) {
@@ -203,7 +203,7 @@ private:
             for (auto i = 0; i < 2; i++)
               values[i] = *peakValuesPtr++ * peakValueScale;
             }
-          vg->rect (cPoint(xorg, mY + mDstWaveCentre - values[0]), xlen, values[0] + values[1]);
+          vg->rect (cPoint(xorg, mY + mDstWaveCentre - values[0]), cPoint(xlen, values[0] + values[1]));
           }
         xorg += xlen;
         }
@@ -249,7 +249,7 @@ private:
           for (auto i = 0; i < 2; i++)
             values[i] /= toSumFrame - alignedFrame + 1;
           }
-        vg->rect (cPoint(xorg, mY + mDstWaveCentre - values[0]), xlen, values[0] + values[1]);
+        vg->rect (cPoint(xorg, mY + mDstWaveCentre - values[0]), cPoint(xlen, values[0] + values[1]));
         }
 
       xorg += xlen;
@@ -270,7 +270,7 @@ private:
         for (auto i = 0; i < 2; i++)
           values[i] = *powerValuesPtr++ * peakValueScale;
         }
-      vg->rect (cPoint(xorg, mY + mDstWaveCentre - values[0]), xlen, values[0] + values[1]);
+      vg->rect (cPoint(xorg, mY + mDstWaveCentre - values[0]), cPoint(xlen, values[0] + values[1]));
       }
 
     xorg += xlen;
@@ -313,7 +313,7 @@ private:
           for (auto i = 0; i < 2; i++)
             values[i] /= toSumFrame - alignedFrame + 1;
           }
-        vg->rect (cPoint(xorg, mY + mDstWaveCentre - values[0]), xlen, values[0] + values[1]);
+        vg->rect (cPoint(xorg, mY + mDstWaveCentre - values[0]), cPoint(xlen, values[0] + values[1]));
         }
 
       xorg += xlen;
@@ -356,7 +356,7 @@ private:
       for (auto i = 0; (i < mSong->getNumFreqBytes()) && ((i*2) < int(mWidth)); i++) {
         auto value =  freqValues[i] * valueScale;
         if (value > 1.f)
-          vg->rect (cPoint(xorg, mY + mHeight - value), 2.f, value);
+          vg->rect (cPoint(xorg, mY + mHeight - value), cPoint(2.f, value));
         xorg += 2.f;
         }
       }
@@ -449,7 +449,7 @@ private:
           }
         }
 
-      vg->rect (cPoint(xorg, mY + mDstOverviewCentre - mOverviewValuesL[x]), xlen,  mOverviewValuesR[x]);
+      vg->rect (cPoint(xorg, mY + mDstOverviewCentre - mOverviewValuesL[x]), cPoint(xlen,  mOverviewValuesR[x]));
       xorg += 1.f;
       }
     vg->fillColour (kVgGrey);
@@ -470,7 +470,7 @@ private:
 
     // cut hole and frame it
     vg->beginPath();
-    vg->rect (cPoint(mX + centreX - width, mY + mDstOverviewTop), width * 2.f, mOverviewHeight);
+    vg->rect (cPoint(mX + centreX - width, mY + mDstOverviewTop), cPoint(width * 2.f, mOverviewHeight));
     vg->fillColour (kVgBlack);
     vg->triangleFill();
     // frame in yellow
@@ -537,7 +537,7 @@ private:
                             mDstOverviewCentre - (powerValues[0] * valueScale);
         float ylen = mono ? powerValues[0] * valueScale * 2.f  :
                             (powerValues[0] + powerValues[1]) * valueScale;
-        vg->rect (cPoint(xorg, mY + yorg), 1.f, ylen);
+        vg->rect (cPoint(xorg, mY + yorg), cPoint(1.f, ylen));
 
         if (frame == playFrame) {
           //{{{  finish playFrame, start after playFrame
@@ -608,7 +608,7 @@ private:
         float yorg = mono ? (mDstOverviewTop + mOverviewHeight - (powerValues[0] * valueScale * 2.f)) :
                             (mDstOverviewCentre - (powerValues[0] * valueScale));
         float ylen = mono ? (powerValues[0] * valueScale * 2.f) : ((powerValues[0] + powerValues[1]) * valueScale);
-        vg->rect (cPoint(mX+playFrameX, mY+yorg), 1.f, ylen);
+        vg->rect (cPoint(mX+playFrameX, mY+yorg), cPoint(1.f, ylen));
         vg->fillColour (kVgWhite);
         vg->triangleFill();
         }

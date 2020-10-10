@@ -111,7 +111,7 @@ public:
     context->beginPath();
     for (float x = 0; x < mWidth; secs++, nextxF += pixPerSec) {
       if (secs & 1)
-        context->rect (cPoint(mX+x, y), nextxF - x, getBoxHeight()/2.0f);
+        context->rect (cPoint(mX+x, y), cPoint(nextxF - x, getBoxHeight()/2.0f));
       x = nextxF;
       }
     context->triangleFill();
@@ -150,7 +150,7 @@ public:
 
         auto left = (*samples++ * mHeight) / 0x100;
         auto right = (*samples++ * mHeight) / 0x100;
-        context->rect (cPoint(x, midy - left), 1, (float)(left+right));
+        context->rect (cPoint(x, midy - left), cPoint(1.f, (float)(left+right)));
         numSamples--;
         }
       else

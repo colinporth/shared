@@ -10,106 +10,14 @@
 #include <string.h>
 #include <math.h>
 
+#include "cPoint.h"
+#include "sVgColour.h"
+
 #include "../glad/glad.h"
 #include "../GLFW/glfw3.h"
 
 #include "../utils/utils.h"
 #include "../utils/cLog.h"
-//}}}
-
-//{{{
-struct cPoint {
-public:
-  //{{{
-  cPoint()  {
-    x = 0;
-    y = 0;
-    }
-  //}}}
-  //{{{
-  cPoint (const cPoint& p) {
-    this->x = p.x;
-    this->y = p.y;
-    }
-  //}}}
-  //{{{
-  cPoint (float x, float y) {
-    this->x = x;
-    this->y = y;
-    }
-  //}}}
-
-  //{{{
-  cPoint operator - (const cPoint& point) const {
-    return cPoint (x - point.x, y - point.y);
-    }
-  //}}}
-  //{{{
-  cPoint operator + (const cPoint& point) const {
-    return cPoint (x + point.x, y + point.y);
-    }
-  //}}}
-  //{{{
-  cPoint operator * (const float s) const {
-    return cPoint (x * s, y * s);
-    }
-  //}}}
-  //{{{
-  cPoint operator / (const float s) const {
-    return cPoint (x / s, y / s);
-    }
-  //}}}
-  //{{{
-  const cPoint& operator += (const cPoint& point)  {
-    x += point.x;
-    y += point.y;
-    return *this;
-    }
-  //}}}
-  //{{{
-  const cPoint& operator -= (const cPoint& point)  {
-    x -= point.x;
-    y -= point.y;
-    return *this;
-    }
-  //}}}
-  //{{{
-  const cPoint& operator *= (const float s)  {
-    x *= s;
-    y *= s;
-    return *this;
-    }
-  //}}}
-  //{{{
-  const cPoint& operator /= (const float s)  {
-    x /= s;
-    y /= s;
-    return *this;
-    }
-  //}}}
-
-  //{{{
-  bool inside (const cPoint& pos) const {
-  // return pos inside rect formed by us as size
-    return pos.x >= 0 && pos.x < x && pos.y >= 0 && pos.y < y;
-    }
-  //}}}
-  //{{{
-  float magnitude() const {
-  // return magnitude of point as vector
-    return sqrt ((x*x) + (y*y));
-    }
-  //}}}
-  //{{{
-  cPoint perp() {
-    float mag = magnitude();
-    return cPoint (-y / mag, x / mag);
-    }
-  //}}}
-
-  float x;
-  float y;
-  };
 //}}}
 //{{{  inline math utils
 constexpr float kPi = 3.14159265358979323846264338327f;
@@ -219,69 +127,6 @@ inline float hue (float h, float m1, float m2) {
   }
 //}}}
 //}}}
-//{{{  inline sVgColour
-struct sVgColour {
-  union {
-    float rgba[4];
-    struct {
-      float r;
-      float g;
-      float b;
-      float a;
-      };
-    };
-  };
-
-//{{{
-inline sVgColour nvgRGBA32 (uint32_t colour) {
-  sVgColour vgColour;
-  vgColour.r = ((colour & 0xFF0000) >> 16) / 255.0f;
-  vgColour.g = ((colour & 0xFF00) >> 8) / 255.0f;
-  vgColour.b = (colour & 0xFF) / 255.0f;
-  vgColour.a = (colour >> 24) / 255.0f;
-  return vgColour;
-  }
-//}}}
-//{{{
-inline sVgColour nvgRGBA (uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
-
-  sVgColour vgColour;
-  vgColour.r = r / 255.0f;
-  vgColour.g = g / 255.0f;
-  vgColour.b = b / 255.0f;
-  vgColour.a = a / 255.0f;
-  return vgColour;
-  }
-//}}}
-//{{{
-inline sVgColour nvgRGB (uint8_t r, uint8_t g, uint8_t b) {
-  return nvgRGBA (r,g,b,255);
-  }
-//}}}
-//{{{
-inline sVgColour nvgRGBAf (float r, float g, float b, float a) {
-  sVgColour vgColour;
-  vgColour.r = r;
-  vgColour.g = g;
-  vgColour.b = b;
-  vgColour.a = a;
-  return vgColour;
-  }
-//}}}
-//{{{
-inline sVgColour nvgRGBf (float r, float g, float b) {
-  return nvgRGBAf (r,g,b,1.0f);
-  }
-//}}}
-//{{{
-inline sVgColour nvgPremulColour (sVgColour colour) {
-  colour.r *= colour.a;
-  colour.g *= colour.a;
-  colour.b *= colour.a;
-  return colour;
-  }
-//}}}
-//}}}
 
 class cAtlasText;
 class cVg {
@@ -381,6 +226,7 @@ public:
 
       radius = 0.0f;
       feather = 1.0f;
+
       innerColour = colour;
       outerColour = colour;
 
@@ -390,13 +236,14 @@ public:
 
     cTransform mTransform;
     float extent[2];
-    float radius = 0.f;
-    float feather = 0.f;
+
+    float radius;
+    float feather;
 
     sVgColour innerColour;
     sVgColour outerColour;
 
-    int mImageId = 0;
+    int mImageId;
     };
   //}}}
   //{{{
@@ -511,7 +358,7 @@ public:
                       const sVgColour& innerColour, const sVgColour& outerColour);
   cPaint radialGradient (cPoint centre, float innerRadius, float outerRadius,
                          const sVgColour& innerColour, const sVgColour& outerColour);
-  cPaint imagePattern (cPoint centre, float width, float height, float angle, int imageId, float alpha);
+  cPaint imagePattern (cPoint centre, cPoint size, float angle, int imageId, float alpha);
 
   void fillPaint (const cPaint& paint);
   void strokePaint (const cPaint& paint);
@@ -521,15 +368,14 @@ public:
 
   void moveTo (cPoint p);
   void lineTo (cPoint p);
-  void bezierTo (float c1x, float c1y, float c2x, float c2y, float x, float y);
+  void bezierTo (cPoint c1, cPoint c2, cPoint p);
   void quadTo (cPoint centre, cPoint p);
   void arcTo (cPoint p1, cPoint p2, float radius);
   void arc (cPoint centre, float r, float a0, float a1, int dir);
 
-  void rect (cPoint p, float width, float height);
-  void roundedRectVarying (cPoint p, float width, float height,
-                           float radTopLeft, float radTopRight, float radBottomRight, float radBottomLeft);
-  void roundedRect (cPoint p, float w, float h, float radius);
+  void rect (cPoint p, cPoint size);
+  void roundedRectVarying (cPoint p, cPoint size, float tlRadius, float trRadius, float brRadius, float blRadius);
+  void roundedRect (cPoint p, cPoint size, float radius);
   void ellipse (cPoint centre, cPoint radius);
   void circle (cPoint centre, float radius);
 

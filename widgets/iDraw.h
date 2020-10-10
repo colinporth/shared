@@ -6,37 +6,23 @@
 #include "iWindow.h"
 //}}}
 
-//{{{  colour defines, uint32_t and sVgColour
-const sVgColour kVgWhite = { 1.f, 1.f, 1.f, 1.f };
+//{{{  uint32_t colour
 #define COL_WHITE          0xFFFFFFFF
-
-const sVgColour kVgLightGrey = { 0.75f, 0.75f, 0.75f, 1.f };
 #define COL_LIGHTGREY      0xFFD3D3D3
-
-const sVgColour kVgGrey  = { 0.5f, 0.5f, 0.5f, 1.f };
 #define COL_GREY           0xFF808080
-
-const sVgColour kVgDarkGrey = { 0.25f, 0.25f, 0.25f, 1.f };
 #define COL_DARKGREY       0xFF404040
-
-const sVgColour kVgDarkerGrey = { 0.125f, 0.125f, 0.125f, 1.f };
 #define COL_DARKERGREY     0xFF202020
-
-const sVgColour kVgBlack   = { 0.f, 0.f, 0.f, 1.f };
 #define COL_BLACK          0xFF000000
 
-const sVgColour kVgBlue  = { 0.f, 0.f, 1.f, 1.f };
 #define COL_BLUE           0xFF0000FF
 #define COL_LIGHTBLUE      0xFF8080FF
 #define COL_DARKBLUE       0xFF000080
 
-const sVgColour kVgGreen = { 0.f, 1.f, 0.f, 1.f };
 #define COL_GREEN          0xFF00FF00
 #define COL_LIGHTGREEN     0xFF80FF80
 #define COL_DARKGREEN      0xFF008000
 #define COL_DARKERGREEN    0xFF004000
 
-const sVgColour kVgRed   = { 1.f, 0.f, 0.f, 1.f };
 #define COL_RED            0xFFFF0000
 #define COL_LIGHTRED       0xFFFF8080
 #define COL_DARKRED        0xFF800000
@@ -49,7 +35,6 @@ const sVgColour kVgRed   = { 1.f, 0.f, 0.f, 1.f };
 #define COL_LIGHTMAGENTA   0xFFFF80FF
 #define COL_DARKMAGENTA    0xFF800080
 
-const sVgColour kVgYellow = { 1.f, 1.f, 0.f, 1.f };
 #define COL_YELLOW         0xFFFFFF00
 #define COL_LIGHTYELLOW    0xFFFFFF80
 #define COL_DARKYELLOW     0xFF808000

@@ -890,12 +890,12 @@ cVg::cPaint cVg::radialGradient (cPoint centre, float innerRadius, float outerRa
   }
 //}}}
 //{{{
-cVg::cPaint cVg::imagePattern (cPoint centre,  float width, float height, float angle, int imageId, float alpha) {
+cVg::cPaint cVg::imagePattern (cPoint centre, cPoint size, float angle, int imageId, float alpha) {
 
   cPaint paint;
   paint.mTransform.setRotateTranslate (angle, centre.x, centre.y);
-  paint.extent[0] = width;
-  paint.extent[1] = height;
+  paint.extent[0] = size.x;
+  paint.extent[1] = size.y;
   paint.radius = 0.f;
   paint.feather = 0.f;
   paint.innerColour = nvgRGBAf (1, 1, 1, alpha);
@@ -942,9 +942,9 @@ void cVg::lineTo (cPoint p) {
   }
 //}}}
 //{{{
-void cVg::bezierTo (float c1x, float c1y, float c2x, float c2y, float x, float y) {
+void cVg::bezierTo (cPoint c1, cPoint c2, cPoint p) {
 
-  float values[] = { eBEZIERTO, c1x, c1y, c2x, c2y, x,   y };
+  float values[] = { eBEZIERTO, c1.x,c1.y, c2.x,c2.y, p.x,p.y };
   mShape.addCommand (values, 7, mStates[mNumStates-1].mTransform);
   }
 //}}}
@@ -966,49 +966,49 @@ void cVg::arcTo (cPoint p1, cPoint p2, float radius) {
 
   float x0 = mShape.getLastX();
   float y0 = mShape.getLastY();
-  float dx0,dy0, dx1,dy1, a, d, cx,cy, a0,a1;
-  int dir;
 
   if (!mShape.getNumCommands())
     return;
 
-  // Handle degenerate cases.
+  // handle degenerate cases
   if (pointEquals (x0,y0, p1.x,p1.y, kDistanceTolerance) ||
       pointEquals (p1.x,p1.y, p2.x,p2.y, kDistanceTolerance) ||
       distPointSeg (p1.x,p1.y, x0,y0, p2.x,p2.y) < kDistanceTolerance*kDistanceTolerance ||
       radius < kDistanceTolerance) {
-    lineTo (cPoint(p1.x,p1.y));
+    lineTo (p1);
     return;
     }
 
-  // Calculate tangential circle to lines (x0,y0)-(x1,y1) and (x1,y1)-(x2,y2).
-  dx0 = x0 - p1.x;
-  dy0 = y0 - p1.y;
-  dx1 = p2.x - p1.x;
-  dy1 = p2.y - p1.y;
+  // calculate tangential circle to lines (x0,y0)-(x1,y1) and (x1,y1)-(x2,y2).
+  float dx0 = x0 - p1.x;
+  float dy0 = y0 - p1.y;
+  float dx1 = p2.x - p1.x;
+  float dy1 = p2.y - p1.y;
   normalize (dx0, dy0);
   normalize (dx1, dy1);
-  a = acosf (dx0 * dx1 + dy0 * dy1);
-  d = radius / tanf (a / 2.0f);
+  float a = acosf (dx0 * dx1 + dy0 * dy1);
+  float d = radius / tanf (a / 2.0f);
 
   if (d > 10000.0f) {
-    lineTo (cPoint(p1.x, p1.y));
+    lineTo (p1);
     return;
     }
 
+  int dir;
+  float cx,cy, a0,a1;
   if (cross (dx0,dy0, dx1,dy1) > 0.0f) {
+    dir = eHOLE;
     cx = p1.x + dx0 * d + dy0 * radius;
     cy = p1.y + dy0 * d - dx0 * radius;
     a0 = atan2f (dx0, -dy0);
     a1 = atan2f (-dx1, dy1);
-    dir = eHOLE;
     }
   else {
+    dir = eSOLID;
     cx = p1.x + dx0 * d - dy0 * radius;
     cy = p1.y + dy0 * d + dx0 * radius;
     a0 = atan2f (-dx0, dy0);
     a1 = atan2f (dx1, -dy1);
-    dir = eSOLID;
     }
 
   arc (cPoint(cx, cy), radius, a0, a1, dir);
@@ -1017,46 +1017,43 @@ void cVg::arcTo (cPoint p1, cPoint p2, float radius) {
 //{{{
 void cVg::arc (cPoint centre, float r, float a0, float a1, int dir) {
 
-  float a = 0, da = 0, hda = 0, kappa = 0;
-  float dx = 0, dy = 0, x = 0, y = 0, tanx = 0, tany = 0;
-  float px = 0, py = 0, ptanx = 0, ptany = 0;
-  float values[3 + 5*7 + 100];
-
-  int i, ndivs, numValues;
   int move = mShape.getNumCommands() ? eLINETO : eMOVETO;
 
   // Clamp angles
-  da = a1 - a0;
+  float da = a1 - a0;
   if (dir == eHOLE) {
     if (absf(da) >= k2Pi)
       da = k2Pi;
     else
       while (da < 0.0f) da += k2Pi;
     }
-  else {
-    if (absf(da) >= k2Pi)
-      da = -k2Pi;
-    else
-      while (da > 0.0f) da -= k2Pi;
-    }
+  else if (absf(da) >= k2Pi)
+    da = -k2Pi;
+  else
+    while (da > 0.0f) da -= k2Pi;
 
   // Split arc into max 90 degree segments.
-  ndivs = max (1, min((int)(absf(da) / kPiDiv2 + 0.5f), 5));
-  hda = (da / (float)ndivs) / 2.0f;
-  kappa = absf (4.0f / 3.0f * (1.0f - cosf (hda)) / sinf (hda));
+  int ndivs = max (1, min((int)(absf(da) / kPiDiv2 + 0.5f), 5));
+  float hda = (da / (float)ndivs) / 2.0f;
+  float kappa = absf (4.0f / 3.0f * (1.0f - cosf (hda)) / sinf (hda));
 
   if (dir == eSOLID)
     kappa = -kappa;
 
-  numValues = 0;
-  for (i = 0; i <= ndivs; i++) {
-    a = a0 + da * (i / (float)ndivs);
-    dx = cosf (a);
-    dy = sinf (a);
-    x = centre.x + dx * r;
-    y = centre.y + dy * r;
-    tanx = -dy * r * kappa;
-    tany = dx * r * kappa;
+  float px = 0;
+  float py = 0;
+  float ptanx = 0;
+  float ptany = 0;
+  int numValues = 0;
+  float values[3 + 5*7 + 100];
+  for (int i = 0; i <= ndivs; i++) {
+    float a = a0 + da * (i / (float)ndivs);
+    float dx = cosf (a);
+    float dy = sinf (a);
+    float x = centre.x + dx * r;
+    float y = centre.y + dy * r;
+    float tanx = -dy * r * kappa;
+    float tany = dx * r * kappa;
 
     if (i == 0) {
       values[numValues++] = (float)move;
@@ -1078,46 +1075,61 @@ void cVg::arc (cPoint centre, float r, float a0, float a1, int dir) {
     ptanx = tanx;
     ptany = tany;
     }
+
   mShape.addCommand (values, numValues, mStates[mNumStates-1].mTransform);
   }
 //}}}
 
 //{{{
-void cVg::rect (cPoint p, float w, float h) {
+void cVg::rect (cPoint p, cPoint size) {
 
-  float values[] = { eMOVETO, p.x, p.y, eLINETO, p.x, p.y+h, eLINETO, p.x+w, p.y+h, eLINETO, p.x+w, p.y, eCLOSE };
+  float values[] = { 
+    eMOVETO, p.x, p.y, 
+    eLINETO, p.x, p.y + size.y,
+    eLINETO, p.x + size.x, p.y + size.y,
+    eLINETO, p.x + size.x, p.y,
+    eCLOSE 
+    };
+
   mShape.addCommand (values, 13, mStates[mNumStates-1].mTransform);
   }
 //}}}
 //{{{
-void cVg::roundedRectVarying (cPoint p, float width, float height,
-                              float radTopLeft, float radTopRight, float radBottomRight, float radBottomLeft) {
+void cVg::roundedRectVarying (cPoint p, cPoint size, float tlRadius, float trRadius, float brRadius, float blRadius) {
 
-  if ((radTopLeft < 0.1f) && (radTopRight < 0.1f) && (radBottomRight < 0.1f) && (radBottomLeft < 0.1f))
-    rect (p, width, height);
+  if ((tlRadius < 0.1f) && (trRadius < 0.1f) && (brRadius < 0.1f) && (blRadius < 0.1f))
+    rect (p, size);
   else {
-    float halfw = absf (width) * 0.5f;
-    float halfh = absf (height) * 0.5f;
+    float halfw = absf (size.x) * 0.5f;
+    float halfh = absf (size.y) * 0.5f;
 
-    float rxBL = min (radBottomLeft, halfw) * signf (width);
-    float ryBL = min (radBottomLeft, halfh) * signf(height);
-    float rxBR = min (radBottomRight, halfw) * signf (width);
-    float ryBR = min (radBottomRight, halfh) * signf(height);
-    float rxTR = min (radTopRight, halfw) * signf (width);
-    float ryTR = min (radTopRight, halfh) * signf(height);
-    float rxTL = min (radTopLeft, halfw) * signf (width);
-    float ryTL = min (radTopLeft, halfh) * signf(height);
+    float rxTL = min (tlRadius, halfw) * signf (size.x);
+    float ryTL = min (tlRadius, halfh) * signf (size.y);
+    float rxTR = min (trRadius, halfw) * signf (size.x);
+    float ryTR = min (trRadius, halfh) * signf (size.y);
+    float rxBR = min (brRadius, halfw) * signf (size.x);
+    float ryBR = min (brRadius, halfh) * signf (size.y);
+    float rxBL = min (blRadius, halfw) * signf (size.x);
+    float ryBL = min (blRadius, halfh) * signf (size.y);
 
     float values[] = {
       eMOVETO, p.x, p.y + ryTL,
-      eLINETO, p.x, p.y + height - ryBL,
-      eBEZIERTO, p.x, p.y + height - ryBL*(1 - kAppA90), p.x + rxBL*(1 - kAppA90), p.y + height, p.x + rxBL, p.y + height,
-      eLINETO, p.x + width - rxBR, p.y + height,
-      eBEZIERTO, p.x + width - rxBR*(1 - kAppA90), p.y + height, p.x + width,p.y + height - ryBR*(1 - kAppA90), p.x + width, p.y + height - ryBR,
-      eLINETO, p.x + width, p.y + ryTR,
-      eBEZIERTO, p.x + width, p.y + ryTR*(1 - kAppA90), p.x + width - rxTR*(1 - kAppA90), p.y, p.x + width - rxTR, p.y,
+      eLINETO, p.x, p.y + size.y - ryBL,
+      eBEZIERTO, p.x, p.y + size.y - ryBL*(1 - kAppA90),
+                 p.x + rxBL*(1 - kAppA90), p.y + size.y,
+                 p.x + rxBL, p.y + size.y,
+      eLINETO, p.x + size.x - rxBR, p.y + size.y,
+      eBEZIERTO, p.x + size.x - rxBR*(1 - kAppA90), p.y + size.y,
+                 p.x + size.x,p.y + size.y - ryBR*(1 - kAppA90),
+                 p.x + size.x, p.y + size.y - ryBR,
+      eLINETO, p.x + size.x, p.y + ryTR,
+      eBEZIERTO, p.x + size.x, p.y + ryTR*(1 - kAppA90),
+                 p.x + size.x - rxTR*(1 - kAppA90), p.y,
+                 p.x + size.x - rxTR, p.y,
       eLINETO, p.x + rxTL, p.y,
-      eBEZIERTO, p.x + rxTL*(1 - kAppA90), p.y, p.x, p.y + ryTL*(1 - kAppA90), p.x, p.y + ryTL,
+      eBEZIERTO, p.x + rxTL*(1 - kAppA90), p.y,
+                 p.x, p.y + ryTL*(1 - kAppA90),
+                 p.x, p.y + ryTL,
       eCLOSE
       };
 
@@ -1126,8 +1138,8 @@ void cVg::roundedRectVarying (cPoint p, float width, float height,
   }
 //}}}
 //{{{
-void cVg::roundedRect (cPoint p, float width, float height, float radius) {
-  roundedRectVarying (p, width, height, radius, radius, radius, radius);
+void cVg::roundedRect (cPoint p, cPoint size, float radius) {
+  roundedRectVarying (p, size, radius, radius, radius, radius);
   }
 //}}}
 //{{{
@@ -1563,7 +1575,7 @@ void cVg::cShape::flattenPaths() {
     auto points = &mPoints[path->mFirstPointIndex];
     auto point0 = &points[path->mNumPoints-1];
     auto point1 = &points[0];
-    if (pointEquals (point0->x, point0->y, point1->x, point1->y, kDistanceTolerance)) {
+    if (pointEquals(point0->x, point0->y, point1->x, point1->y, kDistanceTolerance)) {
       path->mNumPoints--;
       point0 = &points[path->mNumPoints-1];
       path->mClosed = true;
@@ -2080,7 +2092,7 @@ void cVg::cShape::addPoint (float x, float y, cPoint::eFlags flags) {
 
   if ((path->mNumPoints > 0) && (mNumPoints > 0)) {
     auto point = lastPoint();
-    if (pointEquals (point->x, point->y, x, y, kDistanceTolerance)) {
+    if (pointEquals(point->x, point->y, x, y, kDistanceTolerance)) {
       point->flags |= flags;
       return;
       }

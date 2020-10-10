@@ -9,8 +9,8 @@
 
 class cHlsPlayerWidget : public cWidget {
 public:
-  cHlsPlayerWidget (cHlsPlayer* hlsPlayer, float width, float height)
-    : cWidget (COL_BLACK, width, height), mHlsPlayer(hlsPlayer) {}
+  cHlsPlayerWidget (cHlsPlayer* hlsPlayer, cPoint size)
+    : cWidget (COL_BLACK, size.x, size.y), mHlsPlayer(hlsPlayer) {}
   virtual ~cHlsPlayerWidget() {}
 
   //{{{
@@ -30,13 +30,13 @@ public:
 
       // paint image rect
       vg->beginPath();
-      vg->rect (cPoint(0.f,0.f), mWidth, mHeight);
-      vg->fillPaint (vg->imagePattern (cPoint(0.f,0.f), mWidth, mHeight, 0.f, mImageId, 1.f));
+      vg->rect (cPoint(0.f,0.f), cPoint(mWidth, mHeight));
+      vg->fillPaint (vg->imagePattern (cPoint(0.f,0.f), cPoint(mWidth, mHeight), 0.f, mImageId, 1.f));
       vg->triangleFill();
       }
 
     // progress spinner
-    drawSpinner (vg, cPoint(mWidth - 26.f, 26.f), 20.f, 10.f, 
+    drawSpinner (vg, cPoint(mWidth - 26.f, 26.f), 20.f, 10.f,
                  mHlsPlayer->getLoadFrac(), mHlsPlayer->getAudioDecodeFrac(), mHlsPlayer->getVideoDecodeFrac());
 
     // info text

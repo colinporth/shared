@@ -27,7 +27,7 @@ void cGlWindow::drawRect (uint32_t colour, float x, float y, float width, float 
   fillColour (nvgRGBA32 (colour));
 
   beginPath();
-  rect (cPoint(x, y), width, height);
+  rect (cPoint(x, y), cPoint(width, height));
   triangleFill();
   }
 //}}}
