@@ -412,13 +412,7 @@ private:
   enum eUniformLocation { LOCATION_VIEWSIZE, LOCATION_TEX, LOCATION_FRAG, MAX_LOCATIONS };
   enum eShaderType { SHADER_FILL_GRADIENT, SHADER_FILL_IMAGE, SHADER_SIMPLE, SHADER_IMAGE };
   //{{{
-  struct cScissor {
-    cTransform mTransform;
-    float extent[2];
-    };
-  //}}}
-  //{{{
-  struct s2dVertex {
+  struct sVertex {
     //{{{
     void set (float x, float y, float u, float v) {
       mX = x;
@@ -519,6 +513,12 @@ private:
 
     int width = 0;
     int height = 0;
+    };
+  //}}}
+  //{{{
+  struct cScissor {
+    cTransform mTransform;
+    float extent[2];
     };
   //}}}
   //{{{
@@ -671,15 +671,15 @@ private:
     };
   //}}}
   //{{{
-  class c2dVertices {
+  class cVertices {
   public:
-    c2dVertices();
-    ~c2dVertices();
+    cVertices();
+    ~cVertices();
 
     void reset();
 
     int getNumVertices() { return mNumVertices; }
-    s2dVertex* getVertexPtr (int vertexIndex) { return mVertices + vertexIndex; }
+    sVertex* getVertexPtr (int vertexIndex) { return mVertices + vertexIndex; }
 
     int alloc (int numVertices);
     void trim (int numVertices);
@@ -687,7 +687,7 @@ private:
   private:
     static constexpr int kInitNumVertices = 4000;
 
-    s2dVertex* mVertices = nullptr;
+    sVertex* mVertices = nullptr;
 
     int mNumVertices = 0;
     int mNumAllocatedVertices = 0;
@@ -723,9 +723,9 @@ private:
     void beginPath();
     void flattenPaths();
     void calculateJoins (float w, int lineJoin, float miterLimit);
-    void expandFill (c2dVertices& vertices, float w, eLineCap lineJoin, float miterLimit, float fringeWidth);
-    void triangleFill (c2dVertices& vertices, int& vertexIndex, int& numVertices);
-    void expandStroke (c2dVertices& vertices, float w, eLineCap lineCap, eLineCap lineJoin, float miterLimit, float fringeWidth);
+    void expandFill (cVertices& vertices, float w, eLineCap lineJoin, float miterLimit, float fringeWidth);
+    void triangleFill (cVertices& vertices, int& vertexIndex, int& numVertices);
+    void expandStroke (cVertices& vertices, float w, eLineCap lineCap, eLineCap lineJoin, float miterLimit, float fringeWidth);
 
     // vars
     int mNumPaths = 0;
@@ -762,15 +762,15 @@ private:
     void commandsToPaths();
 
     void chooseBevel (int bevel, sShapePoint* p0, sShapePoint* p1, float w, float* x0, float* y0, float* x1, float* y1);
-    s2dVertex* roundJoin (s2dVertex* vertexPtr, sShapePoint* point0, sShapePoint* point1,
+    sVertex* roundJoin (sVertex* vertexPtr, sShapePoint* point0, sShapePoint* point1,
                           float lw, float rw, float lu, float ru, int ncap, float fringe);
-    s2dVertex* bevelJoin (s2dVertex* vertexPtr, sShapePoint* point0, sShapePoint* point1,
+    sVertex* bevelJoin (sVertex* vertexPtr, sShapePoint* point0, sShapePoint* point1,
                           float lw, float rw, float lu, float ru, float fringe);
 
-    s2dVertex* buttCapStart (s2dVertex* vertexPtr, sShapePoint* point, float dx, float dy, float w, float d, float aa);
-    s2dVertex* buttCapEnd (s2dVertex* vertexPtr, sShapePoint* point, float dx, float dy, float w, float d, float aa);
-    s2dVertex* roundCapStart (s2dVertex* vertexPtr, sShapePoint* point, float dx, float dy, float w, int ncap, float aa);
-    s2dVertex* roundCapEnd (s2dVertex* vertexPtr, sShapePoint* point, float dx, float dy, float w, int ncap, float aa);
+    sVertex* buttCapStart (sVertex* vertexPtr, sShapePoint* point, float dx, float dy, float w, float d, float aa);
+    sVertex* buttCapEnd (sVertex* vertexPtr, sShapePoint* point, float dx, float dy, float w, float d, float aa);
+    sVertex* roundCapStart (sVertex* vertexPtr, sShapePoint* point, float dx, float dy, float w, int ncap, float aa);
+    sVertex* roundCapEnd (sVertex* vertexPtr, sShapePoint* point, float dx, float dy, float w, int ncap, float aa);
 
     // private vars
     int mNumCommands = 0;
@@ -836,7 +836,7 @@ private:
   void renderTriangles (int firstVertexIndex, int numVertices, sPaint& paint, cScissor& scissor);
   void renderFill (cShape& shape, sPaint& paint, cScissor& scissor, float fringe);
   void renderStroke (cShape& shape, sPaint& paint, cScissor& scissor, float fringe, float strokeWidth);
-  void renderFrame (c2dVertices& vertices, sCompositeOpState compositeOp);
+  void renderFrame (cVertices& vertices, sCompositeOpState compositeOp);
 
   // font
   float getFontScale (sState* state);
@@ -884,7 +884,7 @@ private:
   sState mStates[kMaxStates];
 
   cShape mShape;
-  c2dVertices mVertices;
+  cVertices mVertices;
 
   float mFringeWidth = 1.0f;
   float devicePixelRatio = 1.0f;

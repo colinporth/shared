@@ -245,7 +245,7 @@ cVg::cTransform cVg::cTransform::getInverse() {
 
   cTransform inverse;
   double det = (double)mSx * mSy - (double)mKx * mKy;
-  if (det > -1e-6 && det < 1e-6) 
+  if (det > -1e-6 && det < 1e-6)
     inverse.setIdentity();
   else {
     double inverseDet = 1.0 / det;
@@ -1462,33 +1462,33 @@ void cVg::cShader::dumpProgramError (GLuint prog, const char* name) {
   }
 //}}}
 //}}}
-//{{{  cVg::c2dVertices
+//{{{  cVg::cVertices
 //{{{
-cVg::c2dVertices::c2dVertices() {
-  mVertices = (s2dVertex*)malloc (kInitNumVertices * sizeof(s2dVertex));
+cVg::cVertices::cVertices() {
+  mVertices = (sVertex*)malloc (kInitNumVertices * sizeof(sVertex));
   mNumAllocatedVertices = kInitNumVertices;
   }
 //}}}
 //{{{
-cVg::c2dVertices::~c2dVertices() {
+cVg::cVertices::~cVertices() {
   free (mVertices);
   }
 //}}}
 
 //{{{
-void cVg::c2dVertices::reset() {
+void cVg::cVertices::reset() {
   mNumVertices = 0;
   }
 //}}}
 
 //{{{
-int cVg::c2dVertices::alloc (int numVertices) {
+int cVg::cVertices::alloc (int numVertices) {
 // allocate n vertices and return index of first
 
   if (mNumVertices + numVertices > mNumAllocatedVertices) {
     mNumAllocatedVertices = max (mNumVertices + numVertices, 4096) + mNumAllocatedVertices/2; // 1.5x Overallocate
     cLog::log (LOGINFO2, "realloc vertices " + dec(mNumAllocatedVertices));
-    mVertices = (s2dVertex*)realloc (mVertices, mNumAllocatedVertices * sizeof(s2dVertex));
+    mVertices = (sVertex*)realloc (mVertices, mNumAllocatedVertices * sizeof(sVertex));
     }
 
   int firstVertexIndex = mNumVertices;
@@ -1497,7 +1497,7 @@ int cVg::c2dVertices::alloc (int numVertices) {
   }
 //}}}
 //{{{
-void cVg::c2dVertices::trim (int numVertices) {
+void cVg::cVertices::trim (int numVertices) {
 // trim vertices used to numVertices
 
   if (numVertices > mNumVertices)
@@ -1718,7 +1718,7 @@ void cVg::cShape::calculateJoins (float w, int lineJoin, float miterLimit) {
   }
 //}}}
 //{{{
-void cVg::cShape::expandFill (c2dVertices& vertices, float w, eLineCap lineJoin, float miterLimit, float fringeWidth) {
+void cVg::cShape::expandFill (cVertices& vertices, float w, eLineCap lineJoin, float miterLimit, float fringeWidth) {
 
   bool fringe = w > 0.0f;
 
@@ -1842,7 +1842,7 @@ void cVg::cShape::expandFill (c2dVertices& vertices, float w, eLineCap lineJoin,
   }
 //}}}
 //{{{
-void cVg::cShape::triangleFill (c2dVertices& vertices, int& vertexIndex, int& numVertices) {
+void cVg::cShape::triangleFill (cVertices& vertices, int& vertexIndex, int& numVertices) {
 
   commandsToPaths();
 
@@ -1869,7 +1869,7 @@ void cVg::cShape::triangleFill (c2dVertices& vertices, int& vertexIndex, int& nu
   }
 //}}}
 //{{{
-void cVg::cShape::expandStroke (c2dVertices& vertices, float w, eLineCap lineCap, eLineCap lineJoin, float miterLimit, float fringeWidth) {
+void cVg::cShape::expandStroke (cVertices& vertices, float w, eLineCap lineCap, eLineCap lineJoin, float miterLimit, float fringeWidth) {
 
   calculateJoins (w, lineJoin, miterLimit);
 
@@ -2208,7 +2208,7 @@ void cVg::cShape::chooseBevel (int bevel, sShapePoint* p0, sShapePoint* p1, floa
   }
 //}}}
 //{{{
-cVg::s2dVertex* cVg::cShape::roundJoin (s2dVertex* vertexPtr, sShapePoint* point0, sShapePoint* point1,
+cVg::sVertex* cVg::cShape::roundJoin (sVertex* vertexPtr, sShapePoint* point0, sShapePoint* point1,
                     float lw, float rw, float lu, float ru, int ncap, float fringe) {
   int i, n;
   float dlx0 = point0->dy;
@@ -2270,7 +2270,7 @@ cVg::s2dVertex* cVg::cShape::roundJoin (s2dVertex* vertexPtr, sShapePoint* point
   }
 //}}}
 //{{{
-cVg::s2dVertex* cVg::cShape::bevelJoin (s2dVertex* vertexPtr, sShapePoint* point0, sShapePoint* point1,
+cVg::sVertex* cVg::cShape::bevelJoin (sVertex* vertexPtr, sShapePoint* point0, sShapePoint* point1,
                                         float lw, float rw, float lu, float ru, float fringe) {
 
   float rx0, ry0, rx1, ry1;
@@ -2338,7 +2338,7 @@ cVg::s2dVertex* cVg::cShape::bevelJoin (s2dVertex* vertexPtr, sShapePoint* point
 //}}}
 
 //{{{
-cVg::s2dVertex* cVg::cShape::buttCapStart (s2dVertex* vertexPtr, sShapePoint* point, float dx, float dy, float w, float d, float aa) {
+cVg::sVertex* cVg::cShape::buttCapStart (sVertex* vertexPtr, sShapePoint* point, float dx, float dy, float w, float d, float aa) {
 
   float px = point->x - dx*d;
   float py = point->y - dy*d;
@@ -2354,7 +2354,7 @@ cVg::s2dVertex* cVg::cShape::buttCapStart (s2dVertex* vertexPtr, sShapePoint* po
   }
 //}}}
 //{{{
-cVg::s2dVertex* cVg::cShape::buttCapEnd (s2dVertex* vertexPtr, sShapePoint* point, float dx, float dy, float w, float d, float aa) {
+cVg::sVertex* cVg::cShape::buttCapEnd (sVertex* vertexPtr, sShapePoint* point, float dx, float dy, float w, float d, float aa) {
 
   float px = point->x + dx * d;
   float py = point->y + dy * d;
@@ -2370,7 +2370,7 @@ cVg::s2dVertex* cVg::cShape::buttCapEnd (s2dVertex* vertexPtr, sShapePoint* poin
   }
 //}}}
 //{{{
-cVg::s2dVertex* cVg::cShape::roundCapStart (s2dVertex* vertexPtr, sShapePoint* point, float dx, float dy, float w, int ncap, float aa) {
+cVg::sVertex* cVg::cShape::roundCapStart (sVertex* vertexPtr, sShapePoint* point, float dx, float dy, float w, int ncap, float aa) {
 
   float px = point->x;
   float py = point->y;
@@ -2392,7 +2392,7 @@ cVg::s2dVertex* cVg::cShape::roundCapStart (s2dVertex* vertexPtr, sShapePoint* p
   }
 //}}}
 //{{{
-cVg::s2dVertex* cVg::cShape::roundCapEnd (s2dVertex* vertexPtr, sShapePoint* point, float dx, float dy, float w, int ncap, float aa) {
+cVg::sVertex* cVg::cShape::roundCapEnd (sVertex* vertexPtr, sShapePoint* point, float dx, float dy, float w, int ncap, float aa) {
 
   float px = point->x;
   float py = point->y;
@@ -2786,7 +2786,7 @@ void cVg::renderStroke (cShape& shape, sPaint& paint, cScissor& scissor, float f
   }
 //}}}
 //{{{
-void cVg::renderFrame (c2dVertices& vertices, sCompositeOpState compositeOp) {
+void cVg::renderFrame (cVertices& vertices, sCompositeOpState compositeOp) {
 
   mDrawArrays = 0;
   //{{{  init gl blendFunc
@@ -2834,13 +2834,13 @@ void cVg::renderFrame (c2dVertices& vertices, sCompositeOpState compositeOp) {
   //}}}
   //{{{  init gl vertices
   glBindBuffer (GL_ARRAY_BUFFER, mVertexBuffer);
-  glBufferData (GL_ARRAY_BUFFER, vertices.getNumVertices() * sizeof(s2dVertex), vertices.getVertexPtr(0), GL_STREAM_DRAW);
+  glBufferData (GL_ARRAY_BUFFER, vertices.getNumVertices() * sizeof(sVertex), vertices.getVertexPtr(0), GL_STREAM_DRAW);
 
   glEnableVertexAttribArray (0);
-  glVertexAttribPointer (0, 2, GL_FLOAT, GL_FALSE, sizeof(s2dVertex), (const GLvoid*)(size_t)0);
+  glVertexAttribPointer (0, 2, GL_FLOAT, GL_FALSE, sizeof(sVertex), (const GLvoid*)(size_t)0);
 
   glEnableVertexAttribArray (1);
-  glVertexAttribPointer (1, 2, GL_FLOAT, GL_FALSE, sizeof(s2dVertex), (const GLvoid*)(0 + 2*sizeof(float)));
+  glVertexAttribPointer (1, 2, GL_FLOAT, GL_FALSE, sizeof(sVertex), (const GLvoid*)(0 + 2*sizeof(float)));
   //}}}
 
   for (auto draw = mDraws; draw < mDraws + mNumDraws; draw++)
