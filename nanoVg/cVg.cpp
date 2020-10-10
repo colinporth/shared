@@ -221,12 +221,34 @@ void cVg::cTransform::getMatrix3x4 (float* matrix3x4) {
   }
 //}}}
 //{{{
-bool cVg::cTransform::getInverse (cTransform& inverse) {
+//bool cVg::cTransform::getInverse (cTransform& inverse) {
+
+  //double det = (double)mSx * mSy - (double)mKx * mKy;
+  //if (det > -1e-6 && det < 1e-6) {
+    //inverse.setIdentity();
+    //return false;
+    //}
+
+  //double inverseDet = 1.0 / det;
+  //inverse.mSx = (float)(mSy * inverseDet);
+  //inverse.mKx = (float)(-mKx * inverseDet);
+  //inverse.mTx = (float)(((double)mKx * mTy - (double)mSy * mTx) * inverseDet);
+  //inverse.mKy = (float)(-mKy * inverseDet);
+  //inverse.mSy = (float)(mSx * inverseDet);
+  //inverse.mTy = (float)(((double)mKy * mTx - (double)mSx * mTy) * inverseDet);
+
+  //return true;
+  //}
+//}}}
+//{{{
+cVg::cTransform cVg::cTransform::getInverse() {
+
+  cTransform inverse;
 
   double det = (double)mSx * mSy - (double)mKx * mKy;
   if (det > -1e-6 && det < 1e-6) {
     inverse.setIdentity();
-    return false;
+    return inverse;
     }
 
   double inverseDet = 1.0 / det;
@@ -237,7 +259,7 @@ bool cVg::cTransform::getInverse (cTransform& inverse) {
   inverse.mSy = (float)(mSx * inverseDet);
   inverse.mTy = (float)(((double)mKy * mTx - (double)mSx * mTy) * inverseDet);
 
-  return true;
+  return inverse;
   }
 //}}}
 
@@ -320,6 +342,23 @@ void cVg::cTransform::setRotateTranslate (float angle, float tx, float ty) {
 
   mTx = tx;
   mTy = ty;
+
+  mIdentity = isIdentity();
+  }
+//}}}
+//{{{
+void cVg::cTransform::setRotateTranslate (float angle, cPoint t) {
+
+  float cs = cosf (angle);
+  float sn = sinf (angle);
+
+  mSx = cs;
+  mKy = sn;
+  mKx = -sn;
+  mSy = cs;
+
+  mTx = t.x;
+  mTy = t.y;
 
   mIdentity = isIdentity();
   }
@@ -434,7 +473,7 @@ void cVg::saveState() {
   if (mNumStates >= kMaxStates)
     return;
   if (mNumStates > 0)
-    memcpy (&mStates[mNumStates], &mStates[mNumStates-1], sizeof (cState));
+    memcpy (&mStates[mNumStates], &mStates[mNumStates-1], sizeof (sState));
   mNumStates++;
   }
 //}}}
@@ -513,8 +552,7 @@ void cVg::intersectScissor (float x, float y, float width, float height) {
   float ex = state->scissor.extent[0];
   float ey = state->scissor.extent[1];
 
-  cTransform inverse;
-  state->mTransform.getInverse (inverse);
+  cTransform inverse = state->mTransform.getInverse();
   transform.multiply (inverse);
 
   // Intersect rects
@@ -824,23 +862,18 @@ void cVg::lineJoin (eLineCap join) { mStates[mNumStates-1].lineJoin = join; }
 void cVg::lineCap (eLineCap cap) { mStates[mNumStates-1].lineCap = cap; }
 
 //{{{
-cVg::cPaint cVg::linearGradient (cPoint start, cPoint end, const sVgColour& innerColor, const sVgColour& outerColor) {
+cVg::sPaint cVg::linearGradient (cPoint start, cPoint end, const sVgColour& innerColor, const sVgColour& outerColor) {
 
   // Calculate transform aligned to the line
-  float dx = end.x - start.x;
-  float dy = end.y - start.y;
-  float distance = sqrtf (dx * dx + dy * dy);
-  if (distance > 0.0001f) {
-    dx /= distance;
-    dy /= distance;
-    }
-  else {
-    dx = 0.f;
-    dy = 1.f;
-    }
+  cPoint diff = end- start;
+  float distance = diff.magnitude();
+  if (distance > 0.0001f)
+    diff / distance;
+  else
+    diff = { 0.f, 1.f };
 
-  cPaint paint;
-  paint.mTransform.set (dy, -dx, dx, dy, start.x - dx * kLarge, start.y - dy * kLarge);
+  sPaint paint;
+  paint.mTransform.set (diff.y, -diff.x, diff.x, diff.y, start.x - diff.x * kLarge, start.y - diff.y * kLarge);
   paint.extent[0] = kLarge;
   paint.extent[1] = kLarge + distance * 0.5f;
   paint.radius = 0.f;
@@ -853,11 +886,11 @@ cVg::cPaint cVg::linearGradient (cPoint start, cPoint end, const sVgColour& inne
   }
 //}}}
 //{{{
-cVg::cPaint cVg::boxGradient (cPoint p, float width, float height, float radius, float feather,
+cVg::sPaint cVg::boxGradient (cPoint p, cPoint size, float radius, float feather,
                               const sVgColour& innerColour, const sVgColour& outerColour) {
 
-  cPaint paint;
-  paint.mTransform.setTranslate (p.x + width * 0.5f, p.y + height * 0.5f);
+  sPaint paint;
+  paint.mTransform.setTranslate (p + (size / 2.f));
   paint.extent[0] = 0.f;
   paint.extent[1] = 0.f;
   paint.radius = radius;
@@ -870,18 +903,17 @@ cVg::cPaint cVg::boxGradient (cPoint p, float width, float height, float radius,
   }
 //}}}
 //{{{
-cVg::cPaint cVg::radialGradient (cPoint centre, float innerRadius, float outerRadius,
+cVg::sPaint cVg::radialGradient (cPoint centre, float innerRadius, float outerRadius,
                                  const sVgColour& innerColour, const sVgColour& outerColour) {
 
   float radius = (innerRadius + outerRadius) * 0.5f;
-  float feather = (outerRadius - innerRadius);
 
-  cPaint paint;
+  sPaint paint;
   paint.mTransform.setTranslate (centre);
   paint.extent[0] = radius;
   paint.extent[1] = radius;
   paint.radius = radius;
-  paint.feather = max (1.0f, feather);
+  paint.feather = max (1.0f, outerRadius - innerRadius);
   paint.innerColour = innerColour;
   paint.outerColour = outerColour;
   paint.mImageId = 0;
@@ -890,10 +922,10 @@ cVg::cPaint cVg::radialGradient (cPoint centre, float innerRadius, float outerRa
   }
 //}}}
 //{{{
-cVg::cPaint cVg::imagePattern (cPoint centre, cPoint size, float angle, int imageId, float alpha) {
+cVg::sPaint cVg::imagePattern (cPoint centre, cPoint size, float angle, int imageId, float alpha) {
 
-  cPaint paint;
-  paint.mTransform.setRotateTranslate (angle, centre.x, centre.y);
+  sPaint paint;
+  paint.mTransform.setRotateTranslate (angle, centre);
   paint.extent[0] = size.x;
   paint.extent[1] = size.y;
   paint.radius = 0.f;
@@ -907,14 +939,14 @@ cVg::cPaint cVg::imagePattern (cPoint centre, cPoint size, float angle, int imag
 //}}}
 
 //{{{
-void cVg::fillPaint (const cPaint& paint) {
+void cVg::fillPaint (const sPaint& paint) {
 
   mStates[mNumStates-1].fillPaint = paint;
   mStates[mNumStates-1].fillPaint.mTransform.multiply (mStates[mNumStates-1].mTransform);
   }
 //}}}
 //{{{
-void cVg::strokePaint (const cPaint& paint) {
+void cVg::strokePaint (const sPaint& paint) {
 
   mStates[mNumStates-1].strokePaint = paint;
   mStates[mNumStates-1].strokePaint.mTransform.multiply (mStates[mNumStates-1].mTransform);
@@ -971,8 +1003,8 @@ void cVg::arcTo (cPoint p1, cPoint p2, float radius) {
     return;
 
   // handle degenerate cases
-  if (pointEquals (x0,y0, p1.x,p1.y, kDistanceTolerance) ||
-      pointEquals (p1.x,p1.y, p2.x,p2.y, kDistanceTolerance) ||
+  if (equal (x0,y0, p1.x,p1.y, kDistanceTolerance) ||
+      equal (p1.x,p1.y, p2.x,p2.y, kDistanceTolerance) ||
       distPointSeg (p1.x,p1.y, x0,y0, p2.x,p2.y) < kDistanceTolerance*kDistanceTolerance ||
       radius < kDistanceTolerance) {
     lineTo (p1);
@@ -995,23 +1027,24 @@ void cVg::arcTo (cPoint p1, cPoint p2, float radius) {
     }
 
   int dir;
-  float cx,cy, a0,a1;
+  cPoint centre;
+  float a0,a1;
   if (cross (dx0,dy0, dx1,dy1) > 0.0f) {
     dir = eHOLE;
-    cx = p1.x + dx0 * d + dy0 * radius;
-    cy = p1.y + dy0 * d - dx0 * radius;
+    centre.x = p1.x + dx0 * d + dy0 * radius;
+    centre.y = p1.y + dy0 * d - dx0 * radius;
     a0 = atan2f (dx0, -dy0);
     a1 = atan2f (-dx1, dy1);
     }
   else {
     dir = eSOLID;
-    cx = p1.x + dx0 * d - dy0 * radius;
-    cy = p1.y + dy0 * d + dx0 * radius;
+    centre.x = p1.x + dx0 * d - dy0 * radius;
+    centre.y = p1.y + dy0 * d + dx0 * radius;
     a0 = atan2f (-dx0, dy0);
     a1 = atan2f (dx1, -dy1);
     }
 
-  arc (cPoint(cx, cy), radius, a0, a1, dir);
+  arc (centre, radius, a0, a1, dir);
   }
 //}}}
 //{{{
@@ -1083,12 +1116,12 @@ void cVg::arc (cPoint centre, float r, float a0, float a1, int dir) {
 //{{{
 void cVg::rect (cPoint p, cPoint size) {
 
-  float values[] = { 
-    eMOVETO, p.x, p.y, 
+  float values[] = {
+    eMOVETO, p.x, p.y,
     eLINETO, p.x, p.y + size.y,
     eLINETO, p.x + size.x, p.y + size.y,
     eLINETO, p.x + size.x, p.y,
-    eCLOSE 
+    eCLOSE
     };
 
   mShape.addCommand (values, 13, mStates[mNumStates-1].mTransform);
@@ -1236,7 +1269,7 @@ void cVg::globalCompositeOp (eCompositeOp op) {
 void cVg::globalCompositeBlendFuncSeparate (eBlendFactor srcRGB, eBlendFactor dstRGB,
                                             eBlendFactor srcAlpha, eBlendFactor dstAlpha) {
 
-  cCompositeOpState compositeOpState;
+  sCompositeOpState compositeOpState;
   compositeOpState.srcRGB = srcRGB;
   compositeOpState.dstRGB = dstRGB;
   compositeOpState.srcAlpha = srcAlpha;
@@ -1421,7 +1454,7 @@ void cVg::cShader::dumpProgramError (GLuint prog, const char* name) {
 //{{{  cVg::c2dVertices
 //{{{
 cVg::c2dVertices::c2dVertices() {
-  mVertices = (c2dVertex*)malloc (kInitNumVertices * sizeof(c2dVertex));
+  mVertices = (s2dVertex*)malloc (kInitNumVertices * sizeof(s2dVertex));
   mNumAllocatedVertices = kInitNumVertices;
   }
 //}}}
@@ -1444,7 +1477,7 @@ int cVg::c2dVertices::alloc (int numVertices) {
   if (mNumVertices + numVertices > mNumAllocatedVertices) {
     mNumAllocatedVertices = max (mNumVertices + numVertices, 4096) + mNumAllocatedVertices/2; // 1.5x Overallocate
     cLog::log (LOGINFO2, "realloc vertices " + dec(mNumAllocatedVertices));
-    mVertices = (c2dVertex*)realloc (mVertices, mNumAllocatedVertices * sizeof(c2dVertex));
+    mVertices = (s2dVertex*)realloc (mVertices, mNumAllocatedVertices * sizeof(s2dVertex));
     }
 
   int firstVertexIndex = mNumVertices;
@@ -1466,10 +1499,10 @@ void cVg::c2dVertices::trim (int numVertices) {
 //{{{  cVg::cShape
 //{{{
 cVg::cShape::cShape() {
-  mPaths = (cPath*)malloc (sizeof(cPath) * kInitPathSize);
+  mPaths = (sPath*)malloc (sizeof(sPath) * kInitPathSize);
   mNumAllocatedPaths = kInitPathSize;
 
-  mPoints = (cPoint*)malloc (sizeof(cPoint) * kInitPointsSize);
+  mPoints = (sShapePoint*)malloc (sizeof(sShapePoint) * kInitPointsSize);
   mNumAllocatedPoints = kInitPointsSize;
 
   mNumAllocatedCommands = kInitCommandsSize;
@@ -1575,7 +1608,7 @@ void cVg::cShape::flattenPaths() {
     auto points = &mPoints[path->mFirstPointIndex];
     auto point0 = &points[path->mNumPoints-1];
     auto point1 = &points[0];
-    if (pointEquals(point0->x, point0->y, point1->x, point1->y, kDistanceTolerance)) {
+    if (equal (point0->x, point0->y, point1->x, point1->y, kDistanceTolerance)) {
       path->mNumPoints--;
       point0 = &points[path->mNumPoints-1];
       path->mClosed = true;
@@ -1643,28 +1676,28 @@ void cVg::cShape::calculateJoins (float w, int lineJoin, float miterLimit) {
         }
 
       // Clear flags, but keep the corner.
-      point1->flags = (point1->flags & cPoint::PT_CORNER) ? cPoint::PT_CORNER : 0;
+      point1->flags = (point1->flags & sShapePoint::PT_CORNER) ? sShapePoint::PT_CORNER : 0;
 
       // Keep track of left turns.
       cross = point1->dx * point0->dy - point0->dx * point1->dy;
       if (cross > 0.0f) {
         nleft++;
-        point1->flags |= cPoint::PT_LEFT;
+        point1->flags |= sShapePoint::PT_LEFT;
         }
 
       // Calculate if we should use bevel or miter for inner join.
       limit = max (1.01f, min (point0->len, point1->len) * iw);
       if ((dmr2 * limit * limit) < 1.0f)
-        point1->flags |= cPoint::PT_INNERBEVEL;
+        point1->flags |= sShapePoint::PT_INNERBEVEL;
 
       // Check to see if the corner needs to be beveled.
-      if (point1->flags & cPoint::PT_CORNER) {
+      if (point1->flags & sShapePoint::PT_CORNER) {
         if (((dmr2 * miterLimit * miterLimit) < 1.0f) || (lineJoin == eBEVEL) || (lineJoin == eROUND)) {
-          point1->flags |= cPoint::PT_BEVEL;
+          point1->flags |= sShapePoint::PT_BEVEL;
           }
         }
 
-      if ((point1->flags & (cPoint::PT_BEVEL | cPoint::PT_INNERBEVEL)) != 0)
+      if ((point1->flags & (sShapePoint::PT_BEVEL | sShapePoint::PT_INNERBEVEL)) != 0)
         path->mNumBevel++;
       point0 = point1++;
       }
@@ -1716,12 +1749,12 @@ void cVg::cShape::expandFill (c2dVertices& vertices, float w, eLineCap lineJoin,
       auto point1 = &points[0];
 
       for (int j = 0; j < path->mNumPoints; ++j) {
-        if (point1->flags & cPoint::PT_BEVEL) {
+        if (point1->flags & sShapePoint::PT_BEVEL) {
           float dlx0 = point0->dy;
           float dly0 = -point0->dx;
           float dlx1 = point1->dy;
           float dly1 = -point1->dx;
-          if (point1->flags & cPoint::PT_LEFT) {
+          if (point1->flags & sShapePoint::PT_LEFT) {
             float lx = point1->x + point1->dmx * woff;
             float ly = point1->y + point1->dmy * woff;
             vertexPtr++->set (lx, ly, 0.5f,1);
@@ -1767,10 +1800,10 @@ void cVg::cShape::expandFill (c2dVertices& vertices, float w, eLineCap lineJoin,
         }
 
       // Looping
-      cPoint* point0 = &points[path->mNumPoints-1];
-      cPoint* point1 = &points[0];
+      sShapePoint* point0 = &points[path->mNumPoints-1];
+      sShapePoint* point1 = &points[0];
       for (int j = 0; j < path->mNumPoints; ++j) {
-        if ((point1->flags & (cPoint::PT_BEVEL | cPoint::PT_INNERBEVEL)) != 0)
+        if ((point1->flags & (sShapePoint::PT_BEVEL | sShapePoint::PT_INNERBEVEL)) != 0)
           vertexPtr = bevelJoin (vertexPtr, point0, point1, lw, rw, lu, ru, fringeWidth);
         else {
           vertexPtr++->set (point1->x + (point1->dmx * lw), point1->y + (point1->dmy * lw), lu, 1);
@@ -1864,8 +1897,8 @@ void cVg::cShape::expandStroke (c2dVertices& vertices, float w, eLineCap lineCap
     auto firstVertexPtr = vertexPtr;
     path->mPathVertices.mFirstStrokeVertexIndex = vertexIndex;
 
-    cPoint* point0;
-    cPoint* point1;
+    sShapePoint* point0;
+    sShapePoint* point1;
     int s, e;
     if (loop) {
       //{{{  looping
@@ -1900,7 +1933,7 @@ void cVg::cShape::expandStroke (c2dVertices& vertices, float w, eLineCap lineCap
       //}}}
 
     for (int j = s; j < e; ++j) {
-      if ((point1->flags & (cPoint::PT_BEVEL | cPoint::PT_INNERBEVEL)) != 0) {
+      if ((point1->flags & (sShapePoint::PT_BEVEL | sShapePoint::PT_INNERBEVEL)) != 0) {
         if (lineJoin == eROUND)
           vertexPtr = roundJoin (vertexPtr, point0, point1, w, w, 0, 1, ncap, fringeWidth);
         else
@@ -1962,14 +1995,7 @@ int cVg::cShape::curveDivs (float r, float arc, float tol) {
   }
 //}}}
 //{{{
-int cVg::cShape::pointEquals (float x1, float y1, float x2, float y2, float tol) {
-  float dx = x2 - x1;
-  float dy = y2 - y1;
-  return dx*dx + dy*dy < tol*tol;
-  }
-//}}}
-//{{{
-float cVg::cShape::polyArea (cPoint* points, int mNumPoints) {
+float cVg::cShape::polyArea (sShapePoint* points, int mNumPoints) {
 
   float area = 0;
   for (int i = 2; i < mNumPoints; i++)
@@ -1979,7 +2005,7 @@ float cVg::cShape::polyArea (cPoint* points, int mNumPoints) {
   }
 //}}}
 //{{{
-void cVg::cShape::polyReverse (cPoint* points, int numPoints) {
+void cVg::cShape::polyReverse (sShapePoint* points, int numPoints) {
 
   int i = 0;
   int j = numPoints - 1;
@@ -1994,7 +2020,7 @@ void cVg::cShape::polyReverse (cPoint* points, int numPoints) {
 //}}}
 
 //{{{
-cVg::cPath* cVg::cShape::lastPath() {
+cVg::sPath* cVg::cShape::lastPath() {
   return mNumPaths ? &mPaths[mNumPaths-1] : NULL;
   }
 //}}}
@@ -2019,7 +2045,7 @@ void cVg::cShape::addPath() {
   if (mNumPaths+1 > mNumAllocatedPaths) {
     mNumAllocatedPaths = mNumPaths+1 + mNumAllocatedPaths / 2;
     cLog::log (LOGINFO2, "realloc paths " + dec(mNumAllocatedPaths));
-    mPaths = (cPath*)realloc (mPaths, sizeof(cPath)* mNumAllocatedPaths);
+    mPaths = (sPath*)realloc (mPaths, sizeof(sPath)* mNumAllocatedPaths);
     }
 
   auto path = &mPaths[mNumPaths];
@@ -2040,7 +2066,7 @@ void cVg::cShape::addPath() {
 
 //{{{
 void cVg::cShape::tesselateBezier (float x1, float y1, float x2, float y2,
-                           float x3, float y3, float x4, float y4, int level, cPoint::eFlags type) {
+                           float x3, float y3, float x4, float y4, int level, sShapePoint::eFlags type) {
 
   if (level > 10)
     return;
@@ -2074,17 +2100,17 @@ void cVg::cShape::tesselateBezier (float x1, float y1, float x2, float y2,
   float x1234 = (x123+x234)*0.5f;
   float y1234 = (y123+y234)*0.5f;
 
-  tesselateBezier (x1,y1, x12,y12, x123,y123, x1234,y1234, level+1, cPoint::PT_NONE);
+  tesselateBezier (x1,y1, x12,y12, x123,y123, x1234,y1234, level+1, sShapePoint::PT_NONE);
   tesselateBezier (x1234,y1234, x234,y234, x34,y34, x4,y4, level+1, type);
   }
 //}}}
 //{{{
-cVg::cShape::cPoint* cVg::cShape::lastPoint() {
+cVg::cShape::sShapePoint* cVg::cShape::lastPoint() {
   return mNumPoints ? &mPoints[mNumPoints-1] : NULL;
   }
 //}}}
 //{{{
-void cVg::cShape::addPoint (float x, float y, cPoint::eFlags flags) {
+void cVg::cShape::addPoint (float x, float y, sShapePoint::eFlags flags) {
 
   auto path = lastPath();
   if (path == NULL)
@@ -2092,7 +2118,7 @@ void cVg::cShape::addPoint (float x, float y, cPoint::eFlags flags) {
 
   if ((path->mNumPoints > 0) && (mNumPoints > 0)) {
     auto point = lastPoint();
-    if (pointEquals(point->x, point->y, x, y, kDistanceTolerance)) {
+    if (equal (point->x, point->y, x, y, kDistanceTolerance)) {
       point->flags |= flags;
       return;
       }
@@ -2102,7 +2128,7 @@ void cVg::cShape::addPoint (float x, float y, cPoint::eFlags flags) {
   if (mNumPoints+1 > mNumAllocatedPoints) {
     mNumAllocatedPoints = mNumPoints+1 + mNumAllocatedPoints / 2;
     cLog::log (LOGINFO2, "realloc points " + dec(mNumAllocatedPoints));
-    mPoints = (cPoint*)realloc (mPoints, sizeof(cPoint)*mNumAllocatedPoints);
+    mPoints = (sShapePoint*)realloc (mPoints, sizeof(sShapePoint)*mNumAllocatedPoints);
     }
 
   // set point
@@ -2126,7 +2152,7 @@ void cVg::cShape::commandsToPaths() {
       case eMOVETO:
         addPath();
       case eLINETO:
-        addPoint (*command, *(command+1), cPoint::PT_CORNER);
+        addPoint (*command, *(command+1), sShapePoint::PT_CORNER);
         command += 2;
         break;
 
@@ -2137,7 +2163,7 @@ void cVg::cShape::commandsToPaths() {
                            *command, *(command+1),
                            *(command+2), *(command+3),
                            *(command+4), *(command+5),
-                           0, cPoint::PT_CORNER);
+                           0, sShapePoint::PT_CORNER);
         command += 6;
         break;
         }
@@ -2154,7 +2180,7 @@ void cVg::cShape::commandsToPaths() {
 //}}}
 
 //{{{
-void cVg::cShape::chooseBevel (int bevel, cPoint* p0, cPoint* p1, float w, float* x0, float* y0, float* x1, float* y1) {
+void cVg::cShape::chooseBevel (int bevel, sShapePoint* p0, sShapePoint* p1, float w, float* x0, float* y0, float* x1, float* y1) {
 
   if (bevel) {
     *x0 = p1->x + p0->dy * w;
@@ -2171,7 +2197,7 @@ void cVg::cShape::chooseBevel (int bevel, cPoint* p0, cPoint* p1, float w, float
   }
 //}}}
 //{{{
-cVg::c2dVertex* cVg::cShape::roundJoin (c2dVertex* vertexPtr, cPoint* point0, cPoint* point1,
+cVg::s2dVertex* cVg::cShape::roundJoin (s2dVertex* vertexPtr, sShapePoint* point0, sShapePoint* point1,
                     float lw, float rw, float lu, float ru, int ncap, float fringe) {
   int i, n;
   float dlx0 = point0->dy;
@@ -2179,9 +2205,9 @@ cVg::c2dVertex* cVg::cShape::roundJoin (c2dVertex* vertexPtr, cPoint* point0, cP
   float dlx1 = point1->dy;
   float dly1 = -point1->dx;
 
-  if (point1->flags & cPoint::PT_LEFT) {
+  if (point1->flags & sShapePoint::PT_LEFT) {
     float lx0,ly0,lx1,ly1,a0,a1;
-    chooseBevel (point1->flags & cPoint::PT_INNERBEVEL, point0, point1, lw, &lx0,&ly0, &lx1,&ly1);
+    chooseBevel (point1->flags & sShapePoint::PT_INNERBEVEL, point0, point1, lw, &lx0,&ly0, &lx1,&ly1);
     a0 = atan2f (-dly0, -dlx0);
     a1 = atan2f (-dly1, -dlx1);
     if (a1 > a0)
@@ -2206,7 +2232,7 @@ cVg::c2dVertex* cVg::cShape::roundJoin (c2dVertex* vertexPtr, cPoint* point0, cP
 
   else {
     float rx0,ry0,rx1,ry1,a0,a1;
-    chooseBevel (point1->flags & cPoint::PT_INNERBEVEL, point0, point1, -rw, &rx0,&ry0, &rx1,&ry1);
+    chooseBevel (point1->flags & sShapePoint::PT_INNERBEVEL, point0, point1, -rw, &rx0,&ry0, &rx1,&ry1);
     a0 = atan2f (dly0, dlx0);
     a1 = atan2f (dly1, dlx1);
     if (a1 < a0)
@@ -2233,8 +2259,8 @@ cVg::c2dVertex* cVg::cShape::roundJoin (c2dVertex* vertexPtr, cPoint* point0, cP
   }
 //}}}
 //{{{
-cVg::c2dVertex* cVg::cShape::bevelJoin (c2dVertex* vertexPtr, cPoint* point0, cPoint* point1,
-                    float lw, float rw, float lu, float ru, float fringe) {
+cVg::s2dVertex* cVg::cShape::bevelJoin (s2dVertex* vertexPtr, sShapePoint* point0, sShapePoint* point1,
+                                        float lw, float rw, float lu, float ru, float fringe) {
 
   float rx0, ry0, rx1, ry1;
   float lx0, ly0, lx1 ,ly1;
@@ -2244,12 +2270,12 @@ cVg::c2dVertex* cVg::cShape::bevelJoin (c2dVertex* vertexPtr, cPoint* point0, cP
   float dlx1 = point1->dy;
   float dly1 = -point1->dx;
 
-  if (point1->flags & cPoint::PT_LEFT) {
-    chooseBevel (point1->flags & cPoint::PT_INNERBEVEL, point0, point1, lw, &lx0, &ly0, &lx1, &ly1);
+  if (point1->flags & sShapePoint::PT_LEFT) {
+    chooseBevel (point1->flags & sShapePoint::PT_INNERBEVEL, point0, point1, lw, &lx0, &ly0, &lx1, &ly1);
     vertexPtr++->set (lx0, ly0, lu,1);
     vertexPtr++->set (point1->x - dlx0*rw, point1->y - dly0*rw, ru,1);
 
-    if (point1->flags & cPoint::PT_BEVEL) {
+    if (point1->flags & sShapePoint::PT_BEVEL) {
       vertexPtr++->set (lx0, ly0, lu,1);
       vertexPtr++->set (point1->x - dlx0*rw, point1->y - dly0*rw, ru,1);
       vertexPtr++->set (lx1, ly1, lu,1);
@@ -2270,11 +2296,11 @@ cVg::c2dVertex* cVg::cShape::bevelJoin (c2dVertex* vertexPtr, cPoint* point0, cP
     vertexPtr++->set (point1->x - dlx1*rw, point1->y - dly1*rw, ru,1);
     }
   else {
-    chooseBevel (point1->flags & cPoint::PT_INNERBEVEL, point0, point1, -rw, &rx0,&ry0, &rx1,&ry1);
+    chooseBevel (point1->flags & sShapePoint::PT_INNERBEVEL, point0, point1, -rw, &rx0,&ry0, &rx1,&ry1);
     vertexPtr++->set (point1->x + dlx0*lw, point1->y + dly0*lw, lu,1);
     vertexPtr++->set (rx0, ry0, ru,1);
 
-    if (point1->flags & cPoint::PT_BEVEL) {
+    if (point1->flags & sShapePoint::PT_BEVEL) {
       vertexPtr++->set (point1->x + dlx0*lw, point1->y + dly0*lw, lu,1);
       vertexPtr++->set (rx0, ry0, ru,1);
       vertexPtr++->set (point1->x + dlx1*lw, point1->y + dly1*lw, lu,1);
@@ -2301,7 +2327,7 @@ cVg::c2dVertex* cVg::cShape::bevelJoin (c2dVertex* vertexPtr, cPoint* point0, cP
 //}}}
 
 //{{{
-cVg::c2dVertex* cVg::cShape::buttCapStart (c2dVertex* vertexPtr, cPoint* point, float dx, float dy, float w, float d, float aa) {
+cVg::s2dVertex* cVg::cShape::buttCapStart (s2dVertex* vertexPtr, sShapePoint* point, float dx, float dy, float w, float d, float aa) {
 
   float px = point->x - dx*d;
   float py = point->y - dy*d;
@@ -2317,7 +2343,7 @@ cVg::c2dVertex* cVg::cShape::buttCapStart (c2dVertex* vertexPtr, cPoint* point, 
   }
 //}}}
 //{{{
-cVg::c2dVertex* cVg::cShape::buttCapEnd (c2dVertex* vertexPtr, cPoint* point, float dx, float dy, float w, float d, float aa) {
+cVg::s2dVertex* cVg::cShape::buttCapEnd (s2dVertex* vertexPtr, sShapePoint* point, float dx, float dy, float w, float d, float aa) {
 
   float px = point->x + dx * d;
   float py = point->y + dy * d;
@@ -2333,7 +2359,7 @@ cVg::c2dVertex* cVg::cShape::buttCapEnd (c2dVertex* vertexPtr, cPoint* point, fl
   }
 //}}}
 //{{{
-cVg::c2dVertex* cVg::cShape::roundCapStart (c2dVertex* vertexPtr, cPoint* point, float dx, float dy, float w, int ncap, float aa) {
+cVg::s2dVertex* cVg::cShape::roundCapStart (s2dVertex* vertexPtr, sShapePoint* point, float dx, float dy, float w, int ncap, float aa) {
 
   float px = point->x;
   float py = point->y;
@@ -2355,7 +2381,7 @@ cVg::c2dVertex* cVg::cShape::roundCapStart (c2dVertex* vertexPtr, cPoint* point,
   }
 //}}}
 //{{{
-cVg::c2dVertex* cVg::cShape::roundCapEnd (c2dVertex* vertexPtr, cPoint* point, float dx, float dy, float w, int ncap, float aa) {
+cVg::s2dVertex* cVg::cShape::roundCapEnd (s2dVertex* vertexPtr, sShapePoint* point, float dx, float dy, float w, int ncap, float aa) {
 
   float px = point->x;
   float py = point->y;
@@ -2379,9 +2405,9 @@ cVg::c2dVertex* cVg::cShape::roundCapEnd (c2dVertex* vertexPtr, cPoint* point, f
 
 // converts
 //{{{
-cVg::cCompositeOpState cVg::compositeOpState (eCompositeOp op) {
+cVg::sCompositeOpState cVg::compositeOpState (eCompositeOp op) {
 
-  cCompositeOpState compositeOpState;
+  sCompositeOpState compositeOpState;
   switch (op) {
     case NVG_SOURCE_OVER :
       compositeOpState.srcRGB = NVG_ONE;
@@ -2516,12 +2542,12 @@ void cVg::setUniforms (int firstFragIndex, int id) {
 
 // allocs
 //{{{
-cVg::cDraw* cVg::allocDraw() {
+cVg::sDraw* cVg::allocDraw() {
 // allocate a draw, return pointer to it
 
   if (mNumDraws + 1 > mNumAllocatedDraws) {
     mNumAllocatedDraws = max (mNumDraws + 1, 128) + mNumAllocatedDraws / 2; // 1.5x Overallocate
-    mDraws = (cDraw*)realloc (mDraws, sizeof(cDraw) * mNumAllocatedDraws);
+    mDraws = (sDraw*)realloc (mDraws, sizeof(sDraw) * mNumAllocatedDraws);
     }
 
   return &mDraws[mNumDraws++];
@@ -2533,7 +2559,7 @@ int cVg::allocFrags (int numFrags) {
 
   if (mNumFrags + numFrags > mNumAllocatedFrags) {
     mNumAllocatedFrags = max (mNumFrags + numFrags, 128) + mNumAllocatedFrags / 2; // 1.5x Overallocate
-    mFrags = (cFrag*)realloc (mFrags, mNumAllocatedFrags * sizeof(cFrag));
+    mFrags = (sFrag*)realloc (mFrags, mNumAllocatedFrags * sizeof(sFrag));
     }
 
   int firstFragIndex = mNumFrags;
@@ -2548,7 +2574,7 @@ int cVg::allocPathVertices (int numPaths) {
 
   if (mNumPathVertices + numPaths > mNumAllocatedPathVertices) {
     mNumAllocatedPathVertices = max (mNumPathVertices + numPaths, 128) + mNumAllocatedPathVertices / 2; // 1.5x Overallocate
-    mPathVertices = (cPathVertices*)realloc (mPathVertices, mNumAllocatedPathVertices * sizeof(cPathVertices));
+    mPathVertices = (sPathVertices*)realloc (mPathVertices, mNumAllocatedPathVertices * sizeof(sPathVertices));
     }
 
   int firstPathVerticeIndex = mNumPathVertices;
@@ -2564,7 +2590,7 @@ int cVg::createTexture (int type, int width, int height, int imageFlags, const u
 
   cLog::log (LOGINFO, "createTexture - " + debug + " " + dec(width) + "x" + dec(height));
 
-  cTexture* texture = nullptr;
+  sTexture* texture = nullptr;
   for (int i = 0; i < mNumTextures; i++) {
     if (mTextures[i].id == 0) {
       texture = &mTextures[i];
@@ -2575,7 +2601,7 @@ int cVg::createTexture (int type, int width, int height, int imageFlags, const u
   if (texture == nullptr) {
     if (mNumTextures + 1 > mNumAllocatedTextures) {
       mNumAllocatedTextures = max (mNumTextures + 1, 4) +  mNumAllocatedTextures / 2; // 1.5x Overallocate
-      mTextures = (cTexture*)realloc (mTextures, mNumAllocatedTextures * sizeof(cTexture));
+      mTextures = (sTexture*)realloc (mTextures, mNumAllocatedTextures * sizeof(sTexture));
       if (mTextures == nullptr)
         return 0;
       }
@@ -2632,7 +2658,7 @@ int cVg::createTexture (int type, int width, int height, int imageFlags, const u
   }
 //}}}
 //{{{
-cVg::cTexture* cVg::findTextureById (int id) {
+cVg::sTexture* cVg::findTextureById (int id) {
 
   for (int i = 0; i < mNumTextures; i++)
     if (mTextures[i].id == id)
@@ -2645,7 +2671,7 @@ cVg::cTexture* cVg::findTextureById (int id) {
 bool cVg::updateTexture (int id, int x, int y, int width, int height, const uint8_t* data) {
 
   //cLog::log (LOGINFO, "updateTexture");
-  cTexture* texture = findTextureById (id);
+  sTexture* texture = findTextureById (id);
   if (texture == nullptr) {
     cLog::log (LOGERROR, "updateTexture - cannot find texture id:" + dec(id) + " " + dec(width) + "x" + dec(height));
     return false;
@@ -2692,39 +2718,39 @@ bool cVg::getTextureSize (int id, int& width, int& height) {
 
 // render
 //{{{
-void cVg::renderText (int firstVertexIndex, int numVertices, cPaint& paint, cScissor& scissor) {
+void cVg::renderText (int firstVertexIndex, int numVertices, sPaint& paint, cScissor& scissor) {
 
   //cLog::log (LOGINFO, "renderText " + dec(firstVertexIndex) + " " + dec(numVertices) + " " + dec(paint.id));
 
   auto draw = allocDraw();
-  draw->set (cDraw::TEXT, paint.mImageId, 0, 0, allocFrags (1), firstVertexIndex, numVertices);
-  mFrags[draw->mFirstFragIndex].setImage (&paint, &scissor, findTextureById (paint.mImageId));
+  draw->set (sDraw::TEXT, paint.mImageId, 0, 0, allocFrags (1), firstVertexIndex, numVertices);
+  mFrags[draw->mFirstFragIndex].setImage (paint, scissor, findTextureById (paint.mImageId));
   }
 //}}}
 //{{{
-void cVg::renderTriangles (int firstVertexIndex, int numVertices, cPaint& paint, cScissor& scissor) {
+void cVg::renderTriangles (int firstVertexIndex, int numVertices, sPaint& paint, cScissor& scissor) {
 
   auto draw = allocDraw();
-  draw->set (cDraw::TRIANGLE, paint.mImageId, 0, 0, allocFrags (1), firstVertexIndex, numVertices);
-  mFrags[draw->mFirstFragIndex].setFill (&paint, &scissor, 1.0f, 1.0f, -1.0f, findTextureById (paint.mImageId));
+  draw->set (sDraw::TRIANGLE, paint.mImageId, 0, 0, allocFrags (1), firstVertexIndex, numVertices);
+  mFrags[draw->mFirstFragIndex].setFill (paint, scissor, 1.0f, 1.0f, -1.0f, findTextureById (paint.mImageId));
   }
 //}}}
 //{{{
-void cVg::renderFill (cShape& shape, cPaint& paint, cScissor& scissor, float fringe) {
+void cVg::renderFill (cShape& shape, sPaint& paint, cScissor& scissor, float fringe) {
 
   auto draw = allocDraw();
   if ((shape.mNumPaths == 1) && shape.mPaths[0].mConvex) {
     // convex
-    draw->set (cDraw::CONVEX_FILL, paint.mImageId, allocPathVertices (shape.mNumPaths), shape.mNumPaths,
+    draw->set (sDraw::CONVEX_FILL, paint.mImageId, allocPathVertices (shape.mNumPaths), shape.mNumPaths,
                allocFrags (1), 0,0);
-    mFrags[draw->mFirstFragIndex].setFill (&paint, &scissor, fringe, fringe, -1.0f, findTextureById (paint.mImageId));
+    mFrags[draw->mFirstFragIndex].setFill (paint, scissor, fringe, fringe, -1.0f, findTextureById (paint.mImageId));
     }
   else {
     // stencil
-    draw->set (cDraw::STENCIL_FILL, paint.mImageId, allocPathVertices (shape.mNumPaths), shape.mNumPaths,
+    draw->set (sDraw::STENCIL_FILL, paint.mImageId, allocPathVertices (shape.mNumPaths), shape.mNumPaths,
                allocFrags (2), shape.mBoundsVertexIndex, 4);
     mFrags[draw->mFirstFragIndex].setSimple();
-    mFrags[draw->mFirstFragIndex+1].setFill (&paint, &scissor, fringe, fringe, -1.0f, findTextureById(paint.mImageId));
+    mFrags[draw->mFirstFragIndex+1].setFill (paint, scissor, fringe, fringe, -1.0f, findTextureById(paint.mImageId));
     }
 
   auto fromPath = shape.mPaths;
@@ -2734,13 +2760,13 @@ void cVg::renderFill (cShape& shape, cPaint& paint, cScissor& scissor, float fri
   }
 //}}}
 //{{{
-void cVg::renderStroke (cShape& shape, cPaint& paint, cScissor& scissor, float fringe, float strokeWidth) {
+void cVg::renderStroke (cShape& shape, sPaint& paint, cScissor& scissor, float fringe, float strokeWidth) {
 // only uses toPathVertices firstStrokeVertexIndex, strokeVertexCount, no fill
 
   auto draw = allocDraw();
-  draw->set (cDraw::STROKE, paint.mImageId, allocPathVertices (shape.mNumPaths), shape.mNumPaths, allocFrags (2), 0,0);
-  mFrags[draw->mFirstFragIndex].setFill (&paint, &scissor, strokeWidth, fringe, -1.0f, findTextureById (paint.mImageId));
-  mFrags[draw->mFirstFragIndex+1].setFill (&paint, &scissor, strokeWidth, fringe, 1.0f - 0.5f/255.0f, findTextureById (paint.mImageId));
+  draw->set (sDraw::STROKE, paint.mImageId, allocPathVertices (shape.mNumPaths), shape.mNumPaths, allocFrags (2), 0,0);
+  mFrags[draw->mFirstFragIndex].setFill (paint, scissor, strokeWidth, fringe, -1.0f, findTextureById (paint.mImageId));
+  mFrags[draw->mFirstFragIndex+1].setFill (paint, scissor, strokeWidth, fringe, 1.0f - 0.5f/255.0f, findTextureById (paint.mImageId));
 
   auto fromPath = shape.mPaths;
   auto toPathVertices = &mPathVertices[draw->mFirstPathVerticesIndex];
@@ -2749,7 +2775,7 @@ void cVg::renderStroke (cShape& shape, cPaint& paint, cScissor& scissor, float f
   }
 //}}}
 //{{{
-void cVg::renderFrame (c2dVertices& vertices, cCompositeOpState compositeOp) {
+void cVg::renderFrame (c2dVertices& vertices, sCompositeOpState compositeOp) {
 
   mDrawArrays = 0;
   //{{{  init gl blendFunc
@@ -2797,18 +2823,18 @@ void cVg::renderFrame (c2dVertices& vertices, cCompositeOpState compositeOp) {
   //}}}
   //{{{  init gl vertices
   glBindBuffer (GL_ARRAY_BUFFER, mVertexBuffer);
-  glBufferData (GL_ARRAY_BUFFER, vertices.getNumVertices() * sizeof(c2dVertex), vertices.getVertexPtr(0), GL_STREAM_DRAW);
+  glBufferData (GL_ARRAY_BUFFER, vertices.getNumVertices() * sizeof(s2dVertex), vertices.getVertexPtr(0), GL_STREAM_DRAW);
 
   glEnableVertexAttribArray (0);
-  glVertexAttribPointer (0, 2, GL_FLOAT, GL_FALSE, sizeof(c2dVertex), (const GLvoid*)(size_t)0);
+  glVertexAttribPointer (0, 2, GL_FLOAT, GL_FALSE, sizeof(s2dVertex), (const GLvoid*)(size_t)0);
 
   glEnableVertexAttribArray (1);
-  glVertexAttribPointer (1, 2, GL_FLOAT, GL_FALSE, sizeof(c2dVertex), (const GLvoid*)(0 + 2*sizeof(float)));
+  glVertexAttribPointer (1, 2, GL_FLOAT, GL_FALSE, sizeof(s2dVertex), (const GLvoid*)(0 + 2*sizeof(float)));
   //}}}
 
   for (auto draw = mDraws; draw < mDraws + mNumDraws; draw++)
     switch (draw->mType) {
-      case cDraw::TEXT:
+      case sDraw::TEXT:
         //{{{  text triangles
         if (mDrawTriangles) {
           setUniforms (draw->mFirstFragIndex, draw->mId);
@@ -2817,7 +2843,7 @@ void cVg::renderFrame (c2dVertices& vertices, cCompositeOpState compositeOp) {
           }
         break;
         //}}}
-      case cDraw::TRIANGLE:
+      case sDraw::TRIANGLE:
         //{{{  fill triangles
         if (mDrawSolid) {
           setUniforms (draw->mFirstFragIndex, draw->mId);
@@ -2826,7 +2852,7 @@ void cVg::renderFrame (c2dVertices& vertices, cCompositeOpState compositeOp) {
           }
         break;
         //}}}
-      case cDraw::CONVEX_FILL: {
+      case sDraw::CONVEX_FILL: {
         //{{{  convexFill
         setUniforms (draw->mFirstFragIndex, draw->mId);
 
@@ -2848,7 +2874,7 @@ void cVg::renderFrame (c2dVertices& vertices, cCompositeOpState compositeOp) {
         break;
         }
         //}}}
-      case cDraw::STENCIL_FILL: {
+      case sDraw::STENCIL_FILL: {
         //{{{  stencilFill
         glEnable (GL_STENCIL_TEST);
 
@@ -2895,7 +2921,7 @@ void cVg::renderFrame (c2dVertices& vertices, cCompositeOpState compositeOp) {
         break;
         }
         //}}}
-      case cDraw::STROKE: {
+      case sDraw::STROKE: {
         //{{{  stroke
         glEnable (GL_STENCIL_TEST);
 
@@ -2949,7 +2975,7 @@ void cVg::renderFrame (c2dVertices& vertices, cCompositeOpState compositeOp) {
 
 // font
 //{{{
-float cVg::getFontScale (cState* state) {
+float cVg::getFontScale (sState* state) {
   return min (quantize (state->mTransform.getAverageScale(), 0.01f), 4.f);
   }
 //}}}

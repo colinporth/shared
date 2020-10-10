@@ -1,4 +1,4 @@
-// iDraw.h -  draw interface
+// sVgColour.h
 #pragma once
 
 struct sVgColour {
@@ -65,14 +65,14 @@ inline sVgColour nvgPremulColour (sVgColour colour) {
   }
 //}}}
 
-const sVgColour kVgWhite =      { 1.f, 1.f, 1.f, 1.f };
-const sVgColour kVgLightGrey =  { 0.75f, 0.75f, 0.75f, 1.f };
-const sVgColour kVgGrey  =      { 0.5f, 0.5f, 0.5f, 1.f };
-const sVgColour kVgDarkGrey =   { 0.25f, 0.25f, 0.25f, 1.f };
+const sVgColour kVgWhite =      { 1.f,    1.f,    1.f,    1.f };
+const sVgColour kVgLightGrey =  { 0.75f,  0.75f,  0.75f,  1.f };
+const sVgColour kVgGrey =       { 0.5f,   0.5f,   0.5f,   1.f };
+const sVgColour kVgDarkGrey =   { 0.25f,  0.25f,  0.25f,  1.f };
 const sVgColour kVgDarkerGrey = { 0.125f, 0.125f, 0.125f, 1.f };
-const sVgColour kVgBlack   =    { 0.f, 0.f, 0.f, 1.f };
+const sVgColour kVgBlack =      { 0.f,    0.f,    0.f,    1.f };
 
-const sVgColour kVgBlue  =      { 0.f, 0.f, 1.f, 1.f };
+const sVgColour kVgBlue =       { 0.f, 0.f, 1.f, 1.f };
 const sVgColour kVgGreen =      { 0.f, 1.f, 0.f, 1.f };
-const sVgColour kVgRed   =      { 1.f, 0.f, 0.f, 1.f };
+const sVgColour kVgRed =        { 1.f, 0.f, 0.f, 1.f };
 const sVgColour kVgYellow =     { 1.f, 1.f, 0.f, 1.f };

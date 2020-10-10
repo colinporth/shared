@@ -64,7 +64,7 @@ inline unsigned int nearestPow2 (unsigned int num) {
 //}}}
 
 //{{{
-inline int pointEquals (float x1, float y1, float x2, float y2, float tol) {
+inline int equal (float x1, float y1, float x2, float y2, float tol) {
   float dx = x2 - x1;
   float dy = y2 - y1;
   return dx*dx + dy*dy < tol*tol;
@@ -75,8 +75,8 @@ inline float distPointSeg (float x, float y, float px, float py, float qx, float
 
   float pqx = qx-px;
   float pqy = qy-py;
-  float dx = x-px;
-  float dy = y-py;
+  float dx = x - px;
+  float dy = y - py;
 
   float d = pqx*pqx + pqy*pqy;
   float t = pqx*dx + pqy*dy;
@@ -177,8 +177,8 @@ public:
     float getAverageScale();
     float getTranslateX() { return mTx; }
     float getTranslateY() { return mTy; }
-    bool getInverse (cTransform& inverse);
     void getMatrix3x4 (float* matrix3x4);
+    cTransform getInverse();
 
     void setIdentity();
     void setTranslate (cPoint t);
@@ -186,6 +186,7 @@ public:
     void setScale (float sx, float sy);
     void setRotate (float angle);
     void setRotateTranslate (float angle, float tx, float ty);
+    void setRotateTranslate (float angle, cPoint t);
     void set (float sx, float ky, float kx, float sy, float tx, float ty);
 
     void multiply (cTransform& t);
@@ -215,7 +216,7 @@ public:
     };
   //}}}
   //{{{
-  struct cPaint {
+  struct sPaint {
     //{{{
     void set (const sVgColour& colour) {
 
@@ -247,7 +248,7 @@ public:
     };
   //}}}
   //{{{
-  struct cCompositeOpState {
+  struct sCompositeOpState {
     eBlendFactor srcRGB;
     eBlendFactor dstRGB;
     eBlendFactor srcAlpha;
@@ -353,15 +354,15 @@ public:
   void lineCap (eLineCap cap);
   void lineJoin (eLineCap join);
 
-  cPaint linearGradient (cPoint start, cPoint end, const sVgColour& innerColour, const sVgColour& outerColour);
-  cPaint boxGradient (cPoint p, float width, float height, float radius, float feather,
+  sPaint linearGradient (cPoint start, cPoint end, const sVgColour& innerColour, const sVgColour& outerColour);
+  sPaint boxGradient (cPoint p, cPoint size, float radius, float feather,
                       const sVgColour& innerColour, const sVgColour& outerColour);
-  cPaint radialGradient (cPoint centre, float innerRadius, float outerRadius,
+  sPaint radialGradient (cPoint centre, float innerRadius, float outerRadius,
                          const sVgColour& innerColour, const sVgColour& outerColour);
-  cPaint imagePattern (cPoint centre, cPoint size, float angle, int imageId, float alpha);
+  sPaint imagePattern (cPoint centre, cPoint size, float angle, int imageId, float alpha);
 
-  void fillPaint (const cPaint& paint);
-  void strokePaint (const cPaint& paint);
+  void fillPaint (const sPaint& paint);
+  void strokePaint (const sPaint& paint);
 
   void beginPath();
   void pathWinding (eWinding dir);
@@ -409,7 +410,7 @@ private:
   //}}}
   enum eUniformBindings { FRAG_BINDING };
   enum eUniformLocation { LOCATION_VIEWSIZE, LOCATION_TEX, LOCATION_FRAG, MAX_LOCATIONS };
-  enum eShaderType { SHADER_FILL_GRADIENT = 0, SHADER_FILL_IMAGE, SHADER_SIMPLE, SHADER_IMAGE };
+  enum eShaderType { SHADER_FILL_GRADIENT, SHADER_FILL_IMAGE, SHADER_SIMPLE, SHADER_IMAGE };
   //{{{
   struct cScissor {
     cTransform mTransform;
@@ -417,13 +418,21 @@ private:
     };
   //}}}
   //{{{
-  struct c2dVertex {
+  struct s2dVertex {
     //{{{
     void set (float x, float y, float u, float v) {
       mX = x;
       mY = y;
       mU = u;
       mV = v;
+      }
+    //}}}
+    //{{{
+    void set (cPoint p, cPoint uv) {
+      mX = p.x;
+      mY = p.y;
+      mU = uv.x;
+      mV = uv.y;
       }
     //}}}
 
@@ -435,7 +444,7 @@ private:
     };
   //}}}
   //{{{
-  struct cPathVertices {
+  struct sPathVertices {
     int mNumFillVertices = 0;
     int mFirstFillVertexIndex = 0;
 
@@ -444,7 +453,7 @@ private:
     };
   //}}}
   //{{{
-  struct cPath {
+  struct sPath {
     int mNumPoints = 0;
     int mFirstPointIndex = 0;
 
@@ -453,11 +462,11 @@ private:
     bool mClosed = false;
     int mNumBevel = 0;
 
-    cPathVertices mPathVertices;
+    sPathVertices mPathVertices;
     };
   //}}}
   //{{{
-  struct cDraw {
+  struct sDraw {
     enum eType { TEXT, TRIANGLE, CONVEX_FILL, STENCIL_FILL, STROKE };
     //{{{
     void set (eType type, int id, int firstPathVerticesIndex, int numPaths, int firstFragIndex,
@@ -488,7 +497,7 @@ private:
     };
   //}}}
   //{{{
-  struct cTexture {
+  struct sTexture {
     //{{{
     void reset() {
       id = 0;
@@ -513,7 +522,7 @@ private:
     };
   //}}}
   //{{{
-  struct cFrag {
+  struct sFrag {
     //{{{
     void setSimple() {
       type = SHADER_SIMPLE;
@@ -521,31 +530,30 @@ private:
       }
     //}}}
     //{{{
-    void setImage (cPaint* paint, cScissor* scissor, cTexture* tex) {
+    void setImage (sPaint& paint, cScissor& scissor, sTexture* tex) {
 
-      innerColour = nvgPremulColour (paint->innerColour);
-      outerColour = nvgPremulColour (paint->outerColour);
+      innerColour = nvgPremulColour (paint.innerColour);
+      outerColour = nvgPremulColour (paint.outerColour);
 
-      if ((scissor->extent[0] < -0.5f) || (scissor->extent[1] < -0.5f)) {
+      if ((scissor.extent[0] < -0.5f) || (scissor.extent[1] < -0.5f)) {
         memset (scissorMatrix, 0, sizeof(scissorMatrix));
-        scissorExt[0] = 1.0f;
-        scissorExt[1] = 1.0f;
-        scissorScale[0] = 1.0f;
-        scissorScale[1] = 1.0f;
+        scissorExt[0] = 1.f;
+        scissorExt[1] = 1.f;
+        scissorScale[0] = 1.f;
+        scissorScale[1] = 1.f;
         }
       else {
-        cTransform inverse;
-        scissor->mTransform.getInverse (inverse);
+        cTransform inverse = scissor.mTransform.getInverse();
         inverse.getMatrix3x4 (scissorMatrix);
-        scissorExt[0] = scissor->extent[0];
-        scissorExt[1] = scissor->extent[1];
-        scissorScale[0] = scissor->mTransform.getAverageScaleX();
-        scissorScale[1] = scissor->mTransform.getAverageScaleY();
+        scissorExt[0] = scissor.extent[0];
+        scissorExt[1] = scissor.extent[1];
+        scissorScale[0] = scissor.mTransform.getAverageScaleX();
+        scissorScale[1] = scissor.mTransform.getAverageScaleY();
         }
 
-      memcpy (extent, paint->extent, sizeof(extent));
-      strokeMult = 1.0f;
-      strokeThreshold = -1.0f;
+      memcpy (extent, paint.extent, sizeof(extent));
+      strokeMult = 1.f;
+      strokeThreshold = -1.f;
 
       type = SHADER_IMAGE;
       if (tex->type == TEXTURE_RGBA)
@@ -553,57 +561,55 @@ private:
       else
         texType = 2.f;
 
-      cTransform inverse;
-      paint->mTransform.getInverse (inverse);
+      cTransform inverse = paint.mTransform.getInverse();
       inverse.getMatrix3x4 (paintMatrix);
       }
     //}}}
     //{{{
-    void setFill (cPaint* paint, cScissor* scissor, float width, float fringe, float strokeThreshold, cTexture* tex) {
+    void setFill (sPaint& paint, cScissor& scissor, float width, float fringe, float strokeThreshold, sTexture* tex) {
 
-      innerColour = nvgPremulColour (paint->innerColour);
-      outerColour = nvgPremulColour (paint->outerColour);
+      innerColour = nvgPremulColour (paint.innerColour);
+      outerColour = nvgPremulColour (paint.outerColour);
 
-      if ((scissor->extent[0] < -0.5f) || (scissor->extent[1] < -0.5f)) {
+      if ((scissor.extent[0] < -0.5f) || (scissor.extent[1] < -0.5f)) {
         memset (scissorMatrix, 0, sizeof(scissorMatrix));
-        scissorExt[0] = 1.0f;
-        scissorExt[1] = 1.0f;
-        scissorScale[0] = 1.0f;
-        scissorScale[1] = 1.0f;
+        scissorExt[0] = 1.f;
+        scissorExt[1] = 1.f;
+        scissorScale[0] = 1.f;
+        scissorScale[1] = 1.f;
         }
       else {
-        cTransform inverse;
-        scissor->mTransform.getInverse (inverse);
+        cTransform inverse = scissor.mTransform.getInverse();
         inverse.getMatrix3x4 (scissorMatrix);
-        scissorExt[0] = scissor->extent[0];
-        scissorExt[1] = scissor->extent[1];
-        scissorScale[0] = scissor->mTransform.getAverageScaleX() / fringe;
-        scissorScale[1] = scissor->mTransform.getAverageScaleY() / fringe;
+        scissorExt[0] = scissor.extent[0];
+        scissorExt[1] = scissor.extent[1];
+        scissorScale[0] = scissor.mTransform.getAverageScaleX() / fringe;
+        scissorScale[1] = scissor.mTransform.getAverageScaleY() / fringe;
         }
 
-      memcpy (extent, paint->extent, sizeof(extent));
+      memcpy (extent, paint.extent, sizeof(extent));
       strokeMult = (width * 0.5f + fringe * 0.5f) / fringe;
       this->strokeThreshold = strokeThreshold;
 
       cTransform inverse;
-      if (paint->mImageId) {
+      if (paint.mImageId) {
         type = SHADER_FILL_IMAGE;
         if ((tex->flags & cVg::IMAGE_FLIPY) != 0) {
           //{{{  flipY
           cTransform m1;
           m1.setTranslate (0.0f, extent[1] * 0.5f);
-          m1.multiply (paint->mTransform);
+          m1.multiply (paint.mTransform);
 
           cTransform m2;
           m2.setScale (1.0f, -1.0f);
           m2.multiply (m1);
           m1.setTranslate (0.0f, -extent[1] * 0.5f);
           m1.multiply (m2);
-          m1.getInverse (inverse);
+          inverse = m1.getInverse();
           }
           //}}}
         else
-          paint->mTransform.getInverse (inverse);
+          inverse = paint.mTransform.getInverse();
 
         if (tex->type == TEXTURE_RGBA)
           texType = (tex->flags & cVg::IMAGE_PREMULTIPLIED) ? 0.f : 1.f;
@@ -612,9 +618,9 @@ private:
         }
       else {
         type = SHADER_FILL_GRADIENT;
-        radius = paint->radius;
-        feather = paint->feather;
-        paint->mTransform.getInverse (inverse);
+        radius = paint.radius;
+        feather = paint.feather;
+        inverse = paint.mTransform.getInverse();
         }
       inverse.getMatrix3x4 (paintMatrix);
       }
@@ -643,10 +649,10 @@ private:
     };
   //}}}
   //{{{
-  struct cState {
-    cCompositeOpState compositeOp;
-    cPaint fillPaint;
-    cPaint strokePaint;
+  struct sState {
+    sCompositeOpState compositeOp;
+    sPaint fillPaint;
+    sPaint strokePaint;
 
     float strokeWidth;
     float miterLimit;
@@ -662,6 +668,120 @@ private:
     float lineHeight;
     int textAlign;
     int fontId;
+    };
+  //}}}
+  //{{{
+  class c2dVertices {
+  public:
+    c2dVertices();
+    ~c2dVertices();
+
+    void reset();
+
+    int getNumVertices() { return mNumVertices; }
+    s2dVertex* getVertexPtr (int vertexIndex) { return mVertices + vertexIndex; }
+
+    int alloc (int numVertices);
+    void trim (int numVertices);
+
+  private:
+    static constexpr int kInitNumVertices = 4000;
+
+    s2dVertex* mVertices = nullptr;
+
+    int mNumVertices = 0;
+    int mNumAllocatedVertices = 0;
+    };
+  //}}}
+  //{{{
+  class cShape {
+  public:
+    //{{{
+    class sShapePoint {
+    public:
+      float x,y;
+      float dx, dy;
+      float dmx, dmy;
+      float len;
+
+      // set of eFlags
+      enum eFlags { PT_NONE = 0, PT_CORNER = 0x01, PT_LEFT = 0x02, PT_BEVEL = 0x04, PT_INNERBEVEL = 0x08 };
+      uint8_t flags;
+      };
+    //}}}
+
+    cShape();
+    ~cShape();
+
+    float getLastX() { return mLastX; }
+    float getLastY() { return mLastY; }
+    int getNumCommands() { return mNumCommands; }
+    int getNumVertices();
+
+    void addCommand (float* values, int numValues, cTransform& transform);
+
+    void beginPath();
+    void flattenPaths();
+    void calculateJoins (float w, int lineJoin, float miterLimit);
+    void expandFill (c2dVertices& vertices, float w, eLineCap lineJoin, float miterLimit, float fringeWidth);
+    void triangleFill (c2dVertices& vertices, int& vertexIndex, int& numVertices);
+    void expandStroke (c2dVertices& vertices, float w, eLineCap lineCap, eLineCap lineJoin, float miterLimit, float fringeWidth);
+
+    // vars
+    int mNumPaths = 0;
+    sPath* mPaths = nullptr;
+
+    int mNumPoints = 0;
+    sShapePoint* mPoints = nullptr;
+
+    float mBounds[4]; // xmin,ymin,xmax,ymax
+    int mBoundsVertexIndex = 0;
+
+  private:
+    //{{{  static constexpr
+    static constexpr int kInitCommandsSize = 256;
+    static constexpr float kDistanceTolerance = 0.01f;
+    static constexpr float kTesselateTolerance = 0.25f;
+    //}}}
+
+    float normalize (float& x, float& y);
+    int curveDivs (float r, float arc, float tol);
+    float polyArea (sShapePoint* points, int mNumPoints);
+    void polyReverse (sShapePoint* points, int numPoints);
+
+    sPath* lastPath();
+    void lastPathWinding (eWinding winding);
+    void closeLastPath();
+    void addPath();
+
+    void tesselateBezier (float x1, float y1, float x2, float y2,
+                          float x3, float y3, float x4, float y4, int level, sShapePoint::eFlags type);
+    sShapePoint* lastPoint();
+    void addPoint (float x, float y, sShapePoint::eFlags flags);
+
+    void commandsToPaths();
+
+    void chooseBevel (int bevel, sShapePoint* p0, sShapePoint* p1, float w, float* x0, float* y0, float* x1, float* y1);
+    s2dVertex* roundJoin (s2dVertex* vertexPtr, sShapePoint* point0, sShapePoint* point1,
+                          float lw, float rw, float lu, float ru, int ncap, float fringe);
+    s2dVertex* bevelJoin (s2dVertex* vertexPtr, sShapePoint* point0, sShapePoint* point1,
+                          float lw, float rw, float lu, float ru, float fringe);
+
+    s2dVertex* buttCapStart (s2dVertex* vertexPtr, sShapePoint* point, float dx, float dy, float w, float d, float aa);
+    s2dVertex* buttCapEnd (s2dVertex* vertexPtr, sShapePoint* point, float dx, float dy, float w, float d, float aa);
+    s2dVertex* roundCapStart (s2dVertex* vertexPtr, sShapePoint* point, float dx, float dy, float w, int ncap, float aa);
+    s2dVertex* roundCapEnd (s2dVertex* vertexPtr, sShapePoint* point, float dx, float dy, float w, int ncap, float aa);
+
+    // private vars
+    int mNumCommands = 0;
+    float* mCommands = nullptr;
+
+    float mLastX = 0;
+    float mLastY = 0;
+
+    int mNumAllocatedPaths = 0;
+    int mNumAllocatedPoints = 0;
+    int mNumAllocatedCommands = 0;
     };
   //}}}
   //{{{
@@ -688,126 +808,9 @@ private:
     GLint location[MAX_LOCATIONS];
     };
   //}}}
-  //{{{
-  class c2dVertices {
-  public:
-    c2dVertices();
-    ~c2dVertices();
-
-    void reset();
-
-    int getNumVertices() { return mNumVertices; }
-    c2dVertex* getVertexPtr (int vertexIndex) { return mVertices + vertexIndex; }
-
-    int alloc (int numVertices);
-    void trim (int numVertices);
-
-  private:
-    static constexpr int kInitNumVertices = 4000;
-
-    c2dVertex* mVertices = nullptr;
-
-    int mNumVertices = 0;
-    int mNumAllocatedVertices = 0;
-    };
-  //}}}
-  //{{{
-  class cShape {
-  public:
-    //{{{
-    class cPoint {
-    public:
-      enum eFlags { PT_NONE = 0, PT_CORNER = 0x01, PT_LEFT = 0x02, PT_BEVEL = 0x04, PT_INNERBEVEL = 0x08 };
-
-      float x,y;
-
-      float dx, dy;
-      float len;
-      float dmx, dmy;
-
-      uint8_t flags;     // set of eFlags
-      };
-    //}}}
-
-    cShape();
-    ~cShape();
-
-    float getLastX() { return mLastX; }
-    float getLastY() { return mLastY; }
-    int getNumCommands() { return mNumCommands; }
-
-    void addCommand (float* values, int numValues, cTransform& transform);
-
-    int getNumVertices();
-
-    void beginPath();
-    void flattenPaths();
-    void calculateJoins (float w, int lineJoin, float miterLimit);
-    void expandFill (c2dVertices& vertices, float w, eLineCap lineJoin, float miterLimit, float fringeWidth);
-    void triangleFill (c2dVertices& vertices, int& vertexIndex, int& numVertices);
-    void expandStroke (c2dVertices& vertices, float w, eLineCap lineCap, eLineCap lineJoin, float miterLimit, float fringeWidth);
-
-    // vars
-    int mNumPaths = 0;
-    cPath* mPaths = nullptr;
-
-    int mNumPoints = 0;
-    cPoint* mPoints = nullptr;
-
-    float mBounds[4]; // xmin,ymin,xmax,ymax
-    int mBoundsVertexIndex = 0;
-
-  private:
-    //{{{  const
-    static constexpr int kInitCommandsSize = 256;
-    static constexpr float kDistanceTolerance = 0.01f;
-    static constexpr float kTesselateTolerance = 0.25f;
-    //}}}
-
-    float normalize (float& x, float& y);
-    int curveDivs (float r, float arc, float tol);
-    int pointEquals (float x1, float y1, float x2, float y2, float tol);
-    float polyArea (cPoint* points, int mNumPoints);
-    void polyReverse (cPoint* points, int numPoints);
-
-    cPath* lastPath();
-    void lastPathWinding (eWinding winding);
-    void closeLastPath();
-    void addPath();
-
-    void tesselateBezier (float x1, float y1, float x2, float y2,
-                               float x3, float y3, float x4, float y4, int level, cPoint::eFlags type);
-    cPoint* lastPoint();
-    void addPoint (float x, float y, cPoint::eFlags flags);
-
-    void commandsToPaths();
-
-    void chooseBevel (int bevel, cPoint* p0, cPoint* p1, float w, float* x0, float* y0, float* x1, float* y1);
-    c2dVertex* roundJoin (c2dVertex* vertexPtr, cPoint* point0, cPoint* point1,
-                        float lw, float rw, float lu, float ru, int ncap, float fringe);
-    c2dVertex* bevelJoin (c2dVertex* vertexPtr, cPoint* point0, cPoint* point1,
-                        float lw, float rw, float lu, float ru, float fringe);
-
-    c2dVertex* buttCapStart (c2dVertex* vertexPtr, cPoint* point, float dx, float dy, float w, float d, float aa);
-    c2dVertex* buttCapEnd (c2dVertex* vertexPtr, cPoint* point, float dx, float dy, float w, float d, float aa);
-    c2dVertex* roundCapStart (c2dVertex* vertexPtr, cPoint* point, float dx, float dy, float w, int ncap, float aa);
-    c2dVertex* roundCapEnd (c2dVertex* vertexPtr, cPoint* point, float dx, float dy, float w, int ncap, float aa);
-
-    // private vars
-    int mNumCommands = 0;
-    float* mCommands = nullptr;
-
-    float mLastX = 0;
-    float mLastY = 0;
-
-    int mNumAllocatedPaths = 0;
-    int mNumAllocatedPoints = 0;
-    int mNumAllocatedCommands = 0;
-    };
-  //}}}
 
   // converts
-  cCompositeOpState compositeOpState (eCompositeOp op);
+  sCompositeOpState compositeOpState (eCompositeOp op);
   GLenum convertBlendFuncFactor (eBlendFactor factor);
 
   // sets
@@ -818,25 +821,25 @@ private:
   void setDevicePixelRatio (float ratio) { devicePixelRatio = ratio; }
 
   // allocs
-  cDraw* allocDraw();
+  sDraw* allocDraw();
   int allocFrags (int numFrags);
   int allocPathVertices (int numPaths);
 
   // texture
   int createTexture (int type, int width, int height, int imageFlags, const uint8_t* data, const std::string& debug);
-  cTexture* findTextureById (int id);
+  sTexture* findTextureById (int id);
   bool updateTexture (int id, int x, int y, int width, int height, const uint8_t* data);
   bool getTextureSize (int id, int& width, int& height);
 
   // render
-  void renderText (int firstVertexIndex, int numVertices, cPaint& paint, cScissor& scissor);
-  void renderTriangles (int firstVertexIndex, int numVertices, cPaint& paint, cScissor& scissor);
-  void renderFill (cShape& shape, cPaint& paint, cScissor& scissor, float fringe);
-  void renderStroke (cShape& shape, cPaint& paint, cScissor& scissor, float fringe, float strokeWidth);
-  void renderFrame (c2dVertices& vertices, cCompositeOpState compositeOp);
+  void renderText (int firstVertexIndex, int numVertices, sPaint& paint, cScissor& scissor);
+  void renderTriangles (int firstVertexIndex, int numVertices, sPaint& paint, cScissor& scissor);
+  void renderFill (cShape& shape, sPaint& paint, cScissor& scissor, float fringe);
+  void renderStroke (cShape& shape, sPaint& paint, cScissor& scissor, float fringe, float strokeWidth);
+  void renderFrame (c2dVertices& vertices, sCompositeOpState compositeOp);
 
   // font
-  float getFontScale (cState* state);
+  float getFontScale (sState* state);
   bool allocAtlas();
   void flushAtlasTexture();
 
@@ -858,7 +861,7 @@ private:
   int mTextureId = 0;
   int mNumTextures = 0;
   int mNumAllocatedTextures = 0;
-  cTexture* mTextures = nullptr;
+  sTexture* mTextures = nullptr;
 
   GLuint mVertexBuffer = 0;
   GLuint mVertexArray = 0;
@@ -867,18 +870,18 @@ private:
   // per frame buffers
   int mNumDraws = 0;
   int mNumAllocatedDraws = 0;
-  cDraw* mDraws = nullptr;
+  sDraw* mDraws = nullptr;
 
   int mNumFrags = 0;
   int mNumAllocatedFrags = 0;
-  cFrag* mFrags = nullptr;
+  sFrag* mFrags = nullptr;
 
   int mNumPathVertices = 0;
   int mNumAllocatedPathVertices = 0;
-  cPathVertices* mPathVertices = nullptr;
+  sPathVertices* mPathVertices = nullptr;
 
   int mNumStates = 0;
-  cState mStates[kMaxStates];
+  sState mStates[kMaxStates];
 
   cShape mShape;
   c2dVertices mVertices;
