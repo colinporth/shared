@@ -58,40 +58,40 @@ public:
 
 private:
   //{{{
-  void drawSpinner (cVg* vg, cPoint centre, float inner, float outer, float loadFrac, float vidFrac, float audFrac) {
+  void drawSpinner (cVg* vg, cPoint centre, float innerRadius, float outerRadius, float loadFrac, float vidFrac, float audFrac) {
 
     float angle[4] = { 0.f, loadFrac * k2Pi, vidFrac * k2Pi, audFrac * k2Pi } ;
 
     cPoint p[4];
     for (int i = 0; i < 4; i++) {
-      p[i].x = centre.x + cosf (angle[i]) * ((outer + inner) / 2.f);
-      p[i].y = centre.y + sinf (angle[i]) * ((outer + inner) / 2.f);
+      p[i].x = centre.x + cosf (angle[i]) * ((outerRadius + innerRadius) / 2.f);
+      p[i].y = centre.y + sinf (angle[i]) * ((outerRadius + innerRadius) / 2.f);
       }
 
-    sVgColour colours[4] = { nvgRGBA(0,0,0,0), 
-                             nvgRGBA(32,255,32,192), 
-                             nvgRGBA(32,32,255,192), 
+    sVgColour colours[4] = { nvgRGBA(0,0,0,0),
+                             nvgRGBA(32,255,32,192),
+                             nvgRGBA(32,32,255,192),
                              nvgRGBA(255,32,32,192) };
 
     vg->saveState();
 
     vg->beginPath();
-    vg->arc (centre, outer, angle[0], angle[1], cVg::eHOLE);
-    vg->arc (centre, inner, angle[1], angle[0], cVg::eSOLID);
+    vg->arc (centre, outerRadius, angle[0], angle[1], cVg::eHOLE);
+    vg->arc (centre, innerRadius, angle[1], angle[0], cVg::eSOLID);
     vg->closePath();
     vg->fillPaint (vg->linearGradient (p[0], p[1], colours[0], colours[1]));
     vg->fill();
 
     vg->beginPath();
-    vg->arc (centre, outer, angle[0], angle[2], cVg::eHOLE);
-    vg->arc (centre, inner, angle[2], angle[0], cVg::eSOLID);
+    vg->arc (centre, outerRadius, angle[0], angle[2], cVg::eHOLE);
+    vg->arc (centre, innerRadius, angle[2], angle[0], cVg::eSOLID);
     vg->closePath();
     vg->fillPaint (vg->linearGradient (p[0], p[2], colours[0], colours[3]));
     vg->fill();
 
     vg->beginPath();
-    vg->arc (centre, outer, angle[0], angle[3], cVg::eHOLE);
-    vg->arc (centre, inner, angle[3], angle[0], cVg::eSOLID);
+    vg->arc (centre, outerRadius, angle[0], angle[3], cVg::eHOLE);
+    vg->arc (centre, innerRadius, angle[3], angle[0], cVg::eSOLID);
     vg->closePath();
     vg->fillPaint (vg->linearGradient (p[0], p[3], colours[0], colours[3]));
     vg->fill();
