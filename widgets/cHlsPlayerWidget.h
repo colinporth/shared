@@ -15,9 +15,10 @@ public:
 
   //{{{
   void onDraw (iDraw* draw) {
+
     cVg* vg = draw->getVg();
 
-    auto frame =  mHlsPlayer->getVideoDecode()->findPlayFrame();
+    auto frame = mHlsPlayer->getVideoDecode()->findPlayFrame();
     if (frame) {
       if (frame->getPts() != mPts) {
         mPts = frame->getPts();
@@ -57,8 +58,7 @@ public:
 
 private:
   //{{{
-  void drawSpinner (cVg* vg, cPoint centre, float inner, float outer,
-                    float loadFrac, float vidFrac, float audFrac) {
+  void drawSpinner (cVg* vg, cPoint centre, float inner, float outer, float loadFrac, float vidFrac, float audFrac) {
 
     float angle[4] = { 0.f, loadFrac * k2Pi, vidFrac * k2Pi, audFrac * k2Pi } ;
 
@@ -68,7 +68,10 @@ private:
       p[i].y = centre.y + sinf (angle[i]) * ((outer + inner) / 2.f);
       }
 
-    sVgColour colours[4] = { nvgRGBA(0,0,0,0), nvgRGBA(32,255,32,192), nvgRGBA(32,32,255,192), nvgRGBA(255,32,32,192) };
+    sVgColour colours[4] = { nvgRGBA(0,0,0,0), 
+                             nvgRGBA(32,255,32,192), 
+                             nvgRGBA(32,32,255,192), 
+                             nvgRGBA(255,32,32,192) };
 
     vg->saveState();
 
@@ -92,7 +95,6 @@ private:
     vg->closePath();
     vg->fillPaint (vg->linearGradient (p[0], p[3], colours[0], colours[3]));
     vg->fill();
-
 
     vg->restoreState();
     }

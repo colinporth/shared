@@ -244,20 +244,18 @@ void cVg::cTransform::getMatrix3x4 (float* matrix3x4) {
 cVg::cTransform cVg::cTransform::getInverse() {
 
   cTransform inverse;
-
   double det = (double)mSx * mSy - (double)mKx * mKy;
-  if (det > -1e-6 && det < 1e-6) {
+  if (det > -1e-6 && det < 1e-6) 
     inverse.setIdentity();
-    return inverse;
+  else {
+    double inverseDet = 1.0 / det;
+    inverse.mSx = (float)(mSy * inverseDet);
+    inverse.mKx = (float)(-mKx * inverseDet);
+    inverse.mTx = (float)(((double)mKx * mTy - (double)mSy * mTx) * inverseDet);
+    inverse.mKy = (float)(-mKy * inverseDet);
+    inverse.mSy = (float)(mSx * inverseDet);
+    inverse.mTy = (float)(((double)mKy * mTx - (double)mSx * mTy) * inverseDet);
     }
-
-  double inverseDet = 1.0 / det;
-  inverse.mSx = (float)(mSy * inverseDet);
-  inverse.mKx = (float)(-mKx * inverseDet);
-  inverse.mTx = (float)(((double)mKx * mTy - (double)mSy * mTx) * inverseDet);
-  inverse.mKy = (float)(-mKy * inverseDet);
-  inverse.mSy = (float)(mSx * inverseDet);
-  inverse.mTy = (float)(((double)mKy * mTx - (double)mSx * mTy) * inverseDet);
 
   return inverse;
   }
@@ -266,6 +264,7 @@ cVg::cTransform cVg::cTransform::getInverse() {
 // sets
 //{{{
 void cVg::cTransform::setIdentity() {
+
   mSx = 1.0f;
   mKy = 0.0f;
   mKx = 0.0f;
@@ -273,11 +272,13 @@ void cVg::cTransform::setIdentity() {
 
   mTx = 0.0f;
   mTy = 0.0f;
+
   mIdentity = true;
   }
 //}}}
 //{{{
 void cVg::cTransform::setTranslate (cPoint t) {
+
   mSx = 1.0f;
   mKy = 0.0f;
   mKx = 0.0f;
@@ -291,6 +292,7 @@ void cVg::cTransform::setTranslate (cPoint t) {
 //}}}
 //{{{
 void cVg::cTransform::setTranslate (float tx, float ty) {
+
   mSx = 1.0f;
   mKy = 0.0f;
   mKx = 0.0f;
@@ -304,6 +306,7 @@ void cVg::cTransform::setTranslate (float tx, float ty) {
 //}}}
 //{{{
 void cVg::cTransform::setScale (float sx, float sy) {
+
   mSx = sx;
   mKy = 0.0f;
   mKx = 0.0f;
@@ -317,8 +320,10 @@ void cVg::cTransform::setScale (float sx, float sy) {
 //}}}
 //{{{
 void cVg::cTransform::setRotate (float angle) {
+
   float cs = cosf (angle);
   float sn = sinf (angle);
+
   mSx = cs;
   mKy = sn;
   mKx = -sn;
@@ -332,6 +337,7 @@ void cVg::cTransform::setRotate (float angle) {
 //}}}
 //{{{
 void cVg::cTransform::setRotateTranslate (float angle, float tx, float ty) {
+
   float cs = cosf (angle);
   float sn = sinf (angle);
 
@@ -365,6 +371,7 @@ void cVg::cTransform::setRotateTranslate (float angle, cPoint t) {
 //}}}
 //{{{
 void cVg::cTransform::set (float sx, float ky, float kx, float sy, float tx, float ty) {
+
   mSx = sx;
   mKy = ky;
   mKx = kx;
@@ -397,6 +404,7 @@ void cVg::cTransform::multiply (cTransform& t) {
 //}}}
 //{{{
 void cVg::cTransform::premultiply (cTransform& t) {
+
   float t0 = t.mSx * mSx + t.mKy * mKx;
   float t2 = t.mKx * mSx + t.mSy * mKx;
   float t4 = t.mTx * mSx + t.mTy * mKx + mTx;
@@ -432,11 +440,11 @@ void cVg::cTransform::point (float srcx, float srcy, float& dstx, float& dsty) {
 //}}}
 //{{{
 void cVg::cTransform::pointScissor (float srcx, float srcy, float& dstx, float& dsty) {
+
   dstx = srcx * absf (mSx) + srcy * absf (mKx);
   dsty = srcx * absf (mKy) + srcy * absf (mSy);
   }
 //}}}
-
 //}}}
 
 //{{{  state
@@ -495,6 +503,7 @@ void cVg::resetTransform() {
 
 //{{{
 void cVg::transform (float a, float b, float c, float d, float e, float f) {
+
   cTransform transform (a, b, c, d, e, f);
   mStates[mNumStates - 1].mTransform.premultiply (transform);
   }
@@ -502,6 +511,7 @@ void cVg::transform (float a, float b, float c, float d, float e, float f) {
 
 //{{{
 void cVg::translate (float x, float y) {
+
   cTransform transform;
   transform.setTranslate (x, y);
   mStates[mNumStates - 1].mTransform.premultiply (transform);
@@ -509,6 +519,7 @@ void cVg::translate (float x, float y) {
 //}}}
 //{{{
 void cVg::scale (float x, float y) {
+
   cTransform transform;
   transform.setScale (x, y);
   mStates[mNumStates - 1].mTransform.premultiply (transform);
@@ -516,6 +527,7 @@ void cVg::scale (float x, float y) {
 //}}}
 //{{{
 void cVg::rotate (float angle) {
+
   cTransform transform;
   transform.setRotate (angle);
   mStates[mNumStates - 1].mTransform.premultiply (transform);
@@ -588,7 +600,7 @@ float cVg::getTextBounds (float x, float y, const string& str, float* bounds) {
 
   auto state = &mStates[mNumStates-1];
   if (state->fontId == cAtlasText::kInvalid)
-    return 0;
+    return 0.f;
 
   float scale = getFontScale (state) * devicePixelRatio;
   float inverseScale = 1.0f / scale;
@@ -865,10 +877,10 @@ void cVg::lineCap (eLineCap cap) { mStates[mNumStates-1].lineCap = cap; }
 cVg::sPaint cVg::linearGradient (cPoint start, cPoint end, const sVgColour& innerColor, const sVgColour& outerColor) {
 
   // Calculate transform aligned to the line
-  cPoint diff = end- start;
+  cPoint diff = end - start;
   float distance = diff.magnitude();
   if (distance > 0.0001f)
-    diff / distance;
+    diff /= distance;
   else
     diff = { 0.f, 1.f };
 
@@ -894,7 +906,7 @@ cVg::sPaint cVg::boxGradient (cPoint p, cPoint size, float radius, float feather
   paint.extent[0] = 0.f;
   paint.extent[1] = 0.f;
   paint.radius = radius;
-  paint.feather = max (1.0f, feather);
+  paint.feather = max (1.f, feather);
   paint.innerColour = innerColour;
   paint.outerColour = outerColour;
   paint.mImageId = 0;
@@ -906,10 +918,9 @@ cVg::sPaint cVg::boxGradient (cPoint p, cPoint size, float radius, float feather
 cVg::sPaint cVg::radialGradient (cPoint centre, float innerRadius, float outerRadius,
                                  const sVgColour& innerColour, const sVgColour& outerColour) {
 
-  float radius = (innerRadius + outerRadius) * 0.5f;
-
   sPaint paint;
   paint.mTransform.setTranslate (centre);
+  float radius = (innerRadius + outerRadius) / 2.f;
   paint.extent[0] = radius;
   paint.extent[1] = radius;
   paint.radius = radius;
