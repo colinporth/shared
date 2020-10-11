@@ -981,28 +981,31 @@ cVg::sPaint cVg::setImagePattern (cPoint centre, cPoint size, float angle, int i
 void cVg::beginPath() { mShape.beginPath(); }
 //{{{
 void cVg::pathWinding (eWinding dir) {
+
   float values[] = { eWINDING, (float)dir };
-  mShape.addCommand (values, 2, mStates[mNumStates-1].mTransform);
+  mShape.addCommand (values, sizeof(values)/4, mStates[mNumStates-1].mTransform);
   }
 //}}}
 
 //{{{
 void cVg::moveTo (cPoint p) {
+
   float values[] = { eMOVETO, p.x, p.y };
-  mShape.addCommand (values, 3, mStates[mNumStates-1].mTransform);
+  mShape.addCommand (values, sizeof(values)/4, mStates[mNumStates-1].mTransform);
   }
 //}}}
 //{{{
 void cVg::lineTo (cPoint p) {
+
   float values[] = { eLINETO, p.x, p.y };
-  mShape.addCommand (values, 3, mStates[mNumStates-1].mTransform);
+  mShape.addCommand (values, sizeof(values)/4, mStates[mNumStates-1].mTransform);
   }
 //}}}
 //{{{
 void cVg::bezierTo (cPoint c1, cPoint c2, cPoint p) {
 
   float values[] = { eBEZIERTO, c1.x,c1.y, c2.x,c2.y, p.x,p.y };
-  mShape.addCommand (values, 7, mStates[mNumStates-1].mTransform);
+  mShape.addCommand (values, sizeof(values)/4, mStates[mNumStates-1].mTransform);
   }
 //}}}
 //{{{
@@ -1015,7 +1018,7 @@ void cVg::quadTo (cPoint centre, cPoint p) {
                      x0 + 2.0f / 3.0f * (centre.x - x0), y0 + 2.0f / 3.0f * (centre.y - y0),
                      p.x + 2.0f / 3.0f * (centre.x - p.x), p.y + 2.0f / 3.0f * (centre.y - p.y),
                      p.x, p.y };
-  mShape.addCommand (values, 7, mStates[mNumStates-1].mTransform);
+  mShape.addCommand (values, sizeof(values)/4, mStates[mNumStates-1].mTransform);
   }
 //}}}
 //{{{
@@ -1141,15 +1144,12 @@ void cVg::arc (cPoint centre, float r, float a0, float a1, int dir) {
 //{{{
 void cVg::rect (cPoint p, cPoint size) {
 
-  float values[] = {
-    eMOVETO, p.x, p.y,
-    eLINETO, p.x, p.y + size.y,
-    eLINETO, p.x + size.x, p.y + size.y,
-    eLINETO, p.x + size.x, p.y,
-    eCLOSE
-    };
-
-  mShape.addCommand (values, 13, mStates[mNumStates-1].mTransform);
+  float values[] = { eMOVETO, p.x, p.y,
+                     eLINETO, p.x, p.y + size.y,
+                     eLINETO, p.x + size.x, p.y + size.y,
+                     eLINETO, p.x + size.x, p.y,
+                     eCLOSE };
+  mShape.addCommand (values, sizeof(values)/4, mStates[mNumStates-1].mTransform);
   }
 //}}}
 //{{{
@@ -1170,28 +1170,25 @@ void cVg::roundedRectVarying (cPoint p, cPoint size, float tlRadius, float trRad
     float rxBL = min (blRadius, halfw) * signf (size.x);
     float ryBL = min (blRadius, halfh) * signf (size.y);
 
-    float values[] = {
-      eMOVETO, p.x, p.y + ryTL,
-      eLINETO, p.x, p.y + size.y - ryBL,
-      eBEZIERTO, p.x, p.y + size.y - ryBL*(1 - kAppA90),
-                 p.x + rxBL*(1 - kAppA90), p.y + size.y,
-                 p.x + rxBL, p.y + size.y,
-      eLINETO, p.x + size.x - rxBR, p.y + size.y,
-      eBEZIERTO, p.x + size.x - rxBR*(1 - kAppA90), p.y + size.y,
-                 p.x + size.x,p.y + size.y - ryBR*(1 - kAppA90),
-                 p.x + size.x, p.y + size.y - ryBR,
-      eLINETO, p.x + size.x, p.y + ryTR,
-      eBEZIERTO, p.x + size.x, p.y + ryTR*(1 - kAppA90),
-                 p.x + size.x - rxTR*(1 - kAppA90), p.y,
-                 p.x + size.x - rxTR, p.y,
-      eLINETO, p.x + rxTL, p.y,
-      eBEZIERTO, p.x + rxTL*(1 - kAppA90), p.y,
-                 p.x, p.y + ryTL*(1 - kAppA90),
-                 p.x, p.y + ryTL,
-      eCLOSE
-      };
-
-    mShape.addCommand (values, 44, mStates[mNumStates-1].mTransform);
+    float values[] = { eMOVETO, p.x, p.y + ryTL,
+                       eLINETO, p.x, p.y + size.y - ryBL,
+                       eBEZIERTO, p.x, p.y + size.y - ryBL*(1 - kAppA90),
+                                  p.x + rxBL*(1 - kAppA90), p.y + size.y,
+                                  p.x + rxBL, p.y + size.y,
+                       eLINETO, p.x + size.x - rxBR, p.y + size.y,
+                       eBEZIERTO, p.x + size.x - rxBR*(1 - kAppA90), p.y + size.y,
+                                  p.x + size.x,p.y + size.y - ryBR*(1 - kAppA90),
+                                  p.x + size.x, p.y + size.y - ryBR,
+                       eLINETO, p.x + size.x, p.y + ryTR,
+                       eBEZIERTO, p.x + size.x, p.y + ryTR*(1 - kAppA90),
+                                  p.x + size.x - rxTR*(1 - kAppA90), p.y,
+                                  p.x + size.x - rxTR, p.y,
+                       eLINETO, p.x + rxTL, p.y,
+                       eBEZIERTO, p.x + rxTL*(1 - kAppA90), p.y,
+                                  p.x, p.y + ryTL*(1 - kAppA90),
+                                  p.x, p.y + ryTL,
+                       eCLOSE };
+    mShape.addCommand (values, sizeof(values)/4, mStates[mNumStates-1].mTransform);
     }
   }
 //}}}
@@ -1203,19 +1200,17 @@ void cVg::roundedRect (cPoint p, cPoint size, float radius) {
 //{{{
 void cVg::ellipse (cPoint centre, cPoint radius) {
 
-  float values[] = {
-    eMOVETO, centre.x-radius.x, centre.y,
-    eBEZIERTO, centre.x-radius.x, centre.y+kAppA90* kAppA90, centre.x- radius.x* kAppA90,
-               centre.y+radius.y, centre.x, centre.y+radius.y,
-    eBEZIERTO, centre.x+radius.x* kAppA90, centre.y+radius.y, centre.x+radius.x,
-               centre.y+radius.y* kAppA90, centre.x+radius.x, centre.y,
-    eBEZIERTO, centre.x+radius.x, centre.y-radius.y* kAppA90, centre.x+radius.x* kAppA90,
-               centre.y-radius.y, centre.x, centre.y-radius.y,
-    eBEZIERTO, centre.x-radius.x* kAppA90, centre.y-radius.y, centre.x-radius.x,
-               centre.y-radius.y* kAppA90, centre.x-radius.x, centre.y,
-    eCLOSE
-    };
-  mShape.addCommand (values, 32, mStates[mNumStates-1].mTransform);
+  float values[] = { eMOVETO, centre.x-radius.x, centre.y,
+                     eBEZIERTO, centre.x-radius.x, centre.y+kAppA90* kAppA90, centre.x- radius.x* kAppA90,
+                                centre.y+radius.y, centre.x, centre.y+radius.y,
+                     eBEZIERTO, centre.x+radius.x* kAppA90, centre.y+radius.y, centre.x+radius.x,
+                                centre.y+radius.y* kAppA90, centre.x+radius.x, centre.y,
+                     eBEZIERTO, centre.x+radius.x, centre.y-radius.y* kAppA90, centre.x+radius.x* kAppA90,
+                                centre.y-radius.y, centre.x, centre.y-radius.y,
+                     eBEZIERTO, centre.x-radius.x* kAppA90, centre.y-radius.y, centre.x-radius.x,
+                                centre.y-radius.y* kAppA90, centre.x-radius.x, centre.y,
+                     eCLOSE };
+  mShape.addCommand (values, sizeof(values)/4, mStates[mNumStates-1].mTransform);
   }
 //}}}
 //{{{
@@ -1227,7 +1222,7 @@ void cVg::circle (cPoint centre, float radius) {
 //{{{
 void cVg::closePath() {
   float values[] = { eCLOSE };
-  mShape.addCommand (values, 1, mStates[mNumStates-1].mTransform);
+  mShape.addCommand (values, sizeof(values)/4, mStates[mNumStates-1].mTransform);
   }
 //}}}
 
@@ -1581,12 +1576,14 @@ int cVg::cShape::getNumVertices() {
   int numVertices = 0;
   for (int i = 0; i < mNumPaths; i++)
     numVertices += mPaths[i].mNumPoints;
+
   return numVertices;
   }
 //}}}
 
 //{{{
 void cVg::cShape::beginPath() {
+
   mNumPaths = 0;
   mNumPoints = 0;
   mNumCommands = 0;
@@ -1990,6 +1987,7 @@ float cVg::cShape::normalize (float& x, float& y) {
 //}}}
 //{{{
 int cVg::cShape::curveDivs (float r, float arc, float tol) {
+
   float da = acosf (r / (r + tol)) * 2.0f;
   return max (2, (int)ceilf(arc / da));
   }
@@ -2026,6 +2024,7 @@ cVg::sPath* cVg::cShape::lastPath() {
 //}}}
 //{{{
 void cVg::cShape::lastPathWinding (eWinding winding) {
+
   auto path = lastPath();
   if (path == NULL)
     return;
@@ -2033,6 +2032,7 @@ void cVg::cShape::lastPathWinding (eWinding winding) {
 //}}}
 //{{{
 void cVg::cShape::closeLastPath() {
+
   auto path = lastPath();
   if (path == NULL)
     return;
@@ -2198,8 +2198,8 @@ void cVg::cShape::chooseBevel (int bevel, sShapePoint* p0, sShapePoint* p1, floa
 //}}}
 //{{{
 cVg::sVertex* cVg::cShape::roundJoin (sVertex* vertexPtr, sShapePoint* point0, sShapePoint* point1,
-                    float lw, float rw, float lu, float ru, int ncap, float fringe) {
-  int i, n;
+                                      float lw, float rw, float lu, float ru, int ncap, float fringe) {
+
   float dlx0 = point0->dy;
   float dly0 = -point0->dx;
   float dlx1 = point1->dy;
@@ -2216,8 +2216,8 @@ cVg::sVertex* cVg::cShape::roundJoin (sVertex* vertexPtr, sShapePoint* point0, s
     vertexPtr++->set (lx0, ly0, lu,1);
     vertexPtr++->set (point1->x - dlx0*rw, point1->y - dly0*rw, ru,1);
 
-    n = clampi ((int)ceilf (((a0 - a1) / kPi) * ncap), 2, ncap);
-    for (i = 0; i < n; i++) {
+    int n = clampi ((int)ceilf (((a0 - a1) / kPi) * ncap), 2, ncap);
+    for (int i = 0; i < n; i++) {
       float u = i/(float)(n-1);
       float a = a0 + u*(a1-a0);
       float rx = point1->x + cosf(a) * rw;
@@ -2241,8 +2241,8 @@ cVg::sVertex* cVg::cShape::roundJoin (sVertex* vertexPtr, sShapePoint* point0, s
     vertexPtr++->set (point1->x + dlx0*rw, point1->y + dly0*rw, lu,1);
     vertexPtr++->set (rx0, ry0, ru,1);
 
-    n = clampi ((int)ceilf(((a1 - a0) / kPi) * ncap), 2, ncap);
-    for (i = 0; i < n; i++) {
+    int n = clampi ((int)ceilf(((a1 - a0) / kPi) * ncap), 2, ncap);
+    for (int i = 0; i < n; i++) {
       float u = i/(float)(n-1);
       float a = a0 + u*(a1-a0);
       float lx = point1->x + cosf(a) * lw;
@@ -2547,7 +2547,7 @@ cVg::sDraw* cVg::allocDraw() {
 
   if (mNumDraws + 1 > mNumAllocatedDraws) {
     // 1.5x Overallocate
-    mNumAllocatedDraws = max (mNumDraws + 1, 128) + mNumAllocatedDraws / 2; 
+    mNumAllocatedDraws = max (mNumDraws + 1, 128) + mNumAllocatedDraws / 2;
     mDraws = (sDraw*)realloc (mDraws, sizeof(sDraw) * mNumAllocatedDraws);
     }
 
@@ -2560,7 +2560,7 @@ int cVg::allocFrags (int numFrags) {
 
   if (mNumFrags + numFrags > mNumAllocatedFrags) {
     // 1.5x Overallocate
-    mNumAllocatedFrags = max (mNumFrags + numFrags, 128) + mNumAllocatedFrags / 2; 
+    mNumAllocatedFrags = max (mNumFrags + numFrags, 128) + mNumAllocatedFrags / 2;
     mFrags = (sFrag*)realloc (mFrags, mNumAllocatedFrags * sizeof(sFrag));
     }
 
@@ -2576,7 +2576,7 @@ int cVg::allocPathVertices (int numPaths) {
 
   if (mNumPathVertices + numPaths > mNumAllocatedPathVertices) {
     // 1.5x Overallocate
-    mNumAllocatedPathVertices = max (mNumPathVertices + numPaths, 128) + mNumAllocatedPathVertices / 2; 
+    mNumAllocatedPathVertices = max (mNumPathVertices + numPaths, 128) + mNumAllocatedPathVertices / 2;
     mPathVertices = (sPathVertices*)realloc (mPathVertices, mNumAllocatedPathVertices * sizeof(sPathVertices));
     }
 
