@@ -36,7 +36,8 @@ private:
     mHls->getChunkInfo (chunk, loaded, loading, offset);
 
     draw->drawEllipseSolid (loading ? COL_DARKORANGE : loaded ? COL_DARKERGREEN : COL_DARKRED,
-                            mX + 2.f + ((mWidth-2.f) / 2.f), mY + (chunk * getBoxHeight()) + mHeight / 6.f, (mWidth-2.f) / 2.f, (mWidth-2.f) / 2.f);
+      cPoint(mX + 2.f + ((mWidth-2.f) / 2.f), mY + (chunk * getBoxHeight()) + mHeight / 6.f), 
+      cPoint((mWidth-2.f) / 2.f, (mWidth-2.f) / 2.f));
 
     if (loaded || loading)
       draw->drawText (COL_LIGHTGREY, getSmallFontHeight(), dec(offset),

@@ -22,12 +22,12 @@ float cGlWindow::getHeightPix() { return mRootContainer->getPixHeight(); }
 
 // iDraw
 //{{{
-void cGlWindow::drawRect (uint32_t colour, float x, float y, float width, float height) {
+void cGlWindow::drawRect (uint32_t colour, cPoint p, cPoint size) {
 
   setFillColour(nvgRGBA32 (colour));
 
   beginPath();
-  rect (cPoint(x, y), cPoint(width, height));
+  rect (p, size);
   triangleFill();
   }
 //}}}
@@ -58,20 +58,19 @@ float cGlWindow::drawTextRight (uint32_t colour, float fontHeight, string str, c
   }
 //}}}
 //{{{
-void cGlWindow::drawEllipseSolid (uint32_t colour, float x, float y, float xradius, float yradius) {
+void cGlWindow::drawEllipseSolid (uint32_t colour, cPoint p, float xradius, float yradius) {
 
   setFillColour(nvgRGBA32 (colour));
 
   beginPath();
-  ellipse (cPoint(x, y), cPoint (xradius, yradius));
+  ellipse (p, cPoint (xradius, yradius));
   fill();
   }
 //}}}
 
 // protected
 //{{{
-cRootContainer* cGlWindow::initialise (const string& title, int width, int height,
-                                       unsigned char* fontData, int fontDataSize) {
+cRootContainer* cGlWindow::initialise (const string& title, int width, int height, unsigned char* fontData, int fontDataSize) {
 
   mGlWindow = this;
 

@@ -33,9 +33,9 @@ public:
   void onDraw (iDraw* draw) {
 
     if (mWidth > mHeight)
-      draw->drawRectClipped (mOn ? COL_LIGHTRED : mColour, mX, mY, mWidth * limitValue (mValue), mHeight);
+      draw->drawRectClipped (mOn ? COL_LIGHTRED : mColour, cPoint(mX, mY), cPoint(mWidth * limitValue (mValue), mHeight));
     else
-      draw->drawRectClipped (mOn ? COL_LIGHTRED : mColour, mX, mY, mWidth, mHeight * limitValue (mValue));
+      draw->drawRectClipped (mOn ? COL_LIGHTRED : mColour, cPoint(mX, mY), cPoint(mWidth, mHeight * limitValue (mValue)));
     }
   //}}}
 

@@ -50,119 +50,116 @@ class iDraw : public iWindow {
 public:
   virtual ~iDraw() {}
 
-  virtual void drawRect (uint32_t colour, float x, float y, float width, float height) = 0;
-  virtual float drawText (uint32_t colour, float fontHeight, std::string str,  cPoint p, cPoint size) = 0;
-  virtual float drawTextRight (uint32_t colour, float fontHeight, std::string str,  cPoint p, cPoint size) = 0;
+  virtual void drawRect (uint32_t colour, cPoint p, cPoint size) = 0;
+  virtual float drawText (uint32_t colour, float fontHeight, std::string str, cPoint p, cPoint size) = 0;
+  virtual float drawTextRight (uint32_t colour, float fontHeight, std::string str, cPoint p, cPoint size) = 0;
 
-  virtual void drawPixel (uint32_t colour, float x, float y) { drawRect (colour, x, y, 1.f,1.f); }
+  virtual void drawPixel (uint32_t colour, cPoint p) { drawRect (colour, p, cPoint(1.f,1.f)); }
 
-  virtual void drawStamp (uint32_t colour, uint8_t* src, float x, float y, float width, float height) {}
-  virtual void drawCopy (uint8_t* src, float x, float y, float width, float height) {}
-  virtual void drawCopy (uint8_t* src, float srcx, float srcy, float srcWidth, float srcHeight,
-                         float dstx, float dsty, float dstWidth, float dstHeight) {}
+  virtual void drawStamp (uint32_t colour, uint8_t* src, cPoint p, cPoint size) {}
+  virtual void drawCopy (uint8_t* src, cPoint p, cPoint size) {}
+  virtual void drawCopy (uint8_t* src, cPoint srcp, cPoint srcSize, cPoint dstp, cPoint dstSize) {}
 
   //{{{
-  virtual void drawPixelClipped (uint32_t colour, float x, float y) {
+  virtual void drawPixelClipped (uint32_t colour, cPoint p) {
 
-    drawRectClipped (colour, x, y, 1, 1);
+    drawRectClipped (colour, p, cPoint(1.f, 1.f));
     }
   //}}}
   //{{{
-  virtual void drawStampClipped (uint32_t colour, uint8_t* src, float x, float y, float width, float height) {
+  virtual void drawStampClipped (uint32_t colour, uint8_t* src, cPoint p, cPoint size) {
 
-    if (!width || !height || x < 0)
+    if (!size.x || !size.y || p.x < 0)
       return;
 
-    if (y < 0) {
+    if (p.y < 0) {
       // top clip
-      if (y + height <= 0)
+      if (p.y + size.y <= 0)
         return;
-      height += y;
-      src += int(-y * width);
-      y = 0;
+      size.y += p.y;
+      src += int(-p.y * size.x);
+      p.y = 0;
       }
 
-    if (y + height > getHeightPix()) {
+    if (p.y + size.y > getHeightPix()) {
       // bottom yclip
-      if (y >= getHeightPix())
+      if (p.y >= getHeightPix())
         return;
-      height = getHeightPix() - y;
+      size.y = getHeightPix() - p.y;
       }
 
-    drawStamp (colour, src, x, y, width, height);
+    drawStamp (colour, src, p, size);
     }
   //}}}
   //{{{
-  virtual void drawRectClipped (uint32_t colour, float x, float y, float width, float height) {
+  virtual void drawRectClipped (uint32_t colour, cPoint p, cPoint size) {
 
-    if (x >= getWidthPix())
+    if (p.x >= getWidthPix())
       return;
-    if (y >= getHeightPix())
-      return;
-
-    float xend = x + width;
-    if (xend <= 0)
+    if (p.y >= getHeightPix())
       return;
 
-    float yend = y + height;
-    if (yend <= 0)
+    cPoint end = p + size;
+    if (end.x <= 0)
+      return;
+    if (end.y <= 0)
       return;
 
-    if (x < 0)
-      x = 0;
-    if (xend > getWidthPix())
-      xend = getWidthPix();
+    if (p.x < 0)
+      p.x = 0;
+    if (end.x > getWidthPix())
+      end.x = getWidthPix();
 
-    if (y < 0)
-      y = 0;
-    if (yend > getHeightPix())
-      yend = getHeightPix();
+    if (p.y < 0)
+      p.y = 0;
+    if (end.y > getHeightPix())
+      end.y = getHeightPix();
 
-    if (!width)
+    if (!size.x)
       return;
-    if (!height)
+    if (!size.y)
       return;
 
-    drawRect (colour, x, y, xend - x, yend - y);
+    drawRect (colour, p, end - p);
     }
   //}}}
   //{{{
-  virtual void drawRectOutline (uint32_t colour, float x, float y, float width, float height, float thickness) {
+  virtual void drawRectOutline (uint32_t colour, cPoint p, cPoint size, float thickness) {
 
-    drawRectClipped (colour, x, y, width, thickness);
-    drawRectClipped (colour, x + width-thickness, y, thickness, height);
-    drawRectClipped (colour, x, y + height-thickness, width, thickness);
-    drawRectClipped (colour, x, y, thickness, height);
+    drawRectClipped (colour, p, cPoint(size.x, thickness));
+    drawRectClipped (colour, p + cPoint (size.x -thickness, 0.f), cPoint(thickness, size.y));
+    drawRectClipped (colour, p + cPoint (0.f, size.y -thickness), cPoint(size.x, thickness));
+    drawRectClipped (colour, p, cPoint(thickness, size.y));
     }
   //}}}
   //{{{
   virtual void drawClear (uint32_t colour) {
 
-    drawRect (colour, 0, 0, getWidthPix(), getHeightPix());
+    drawRect (colour, cPoint(0.f, 0.f), cPoint(getWidthPix(), getHeightPix()));
     }
   //}}}
 
   //{{{
-  virtual void drawEllipseSolid (uint32_t colour, float x, float y, float xradius, float yradius) {
+  virtual void drawEllipseSolid (uint32_t colour, cPoint p, cPoint radius) {
 
-    if (!xradius)
+    if (!radius.x)
       return;
-    if (!yradius)
+    if (!radius.y)
       return;
 
     float x1 = 0.f;
-    float y1 = -yradius;
-    float err = 2.f - 2.f*xradius;
-    float k = (float)yradius / xradius;
+    float y1 = -radius.y;
+    float err = 2.f - 2.f*radius.x;
+    float k = (float)radius.y / radius.x;
 
     do {
-      drawRectClipped (colour, (x-(x1 / k)), y + y1, (2*(x1 / k) + 1), 1);
-      drawRectClipped (colour, (x-(x1 / k)), y - y1, (2*(x1 / k) + 1), 1);
+      drawRectClipped (colour, cPoint(p.x-(x1 / k), p.y + y1), cPoint(2*(x1 / k) + 1, 1));
+      drawRectClipped (colour, cPoint(p.x-(x1 / k), p.y - y1), cPoint(2*(x1 / k) + 1, 1));
 
       float e2 = err;
       if (e2 <= x1) {
         err += ++x1 * 2 + 1;
-        if (-y1 == x && e2 <= y1)
+        if (-y1 == p.x && e2 <= y1)
           e2 = 0;
         }
       if (e2 > y1)
@@ -171,19 +168,19 @@ public:
     }
   //}}}
   //{{{
-  virtual void drawEllipseOutline (uint32_t colour, float x, float y, float xradius, float yradius) {
+  virtual void drawEllipseOutline (uint32_t colour, cPoint p, cPoint radius) {
 
-    if (xradius && yradius) {
+    if (radius.x && radius.y) {
       float x1 = 0;
-      float y1 = -yradius;
-      float err = 2 - 2*xradius;
-      float k = (float)yradius / xradius;
+      float y1 = -radius.y;
+      float err = 2 - 2*radius.x;
+      float k = (float)radius.y / radius.x;
 
       do {
-        drawRectClipped (colour, x - (x1 / k), y + y1, 1, 1);
-        drawRectClipped (colour, x + (x1 / k), y + y1, 1, 1);
-        drawRectClipped (colour, x + (x1 / k), y - y1, 1, 1);
-        drawRectClipped (colour, x - (x1 / k), y - y1, 1, 1);
+        drawRectClipped (colour, cPoint(p.x - (x1 / k), p.y + y1), cPoint(1, 1));
+        drawRectClipped (colour, cPoint(p.x + (x1 / k), p.y + y1), cPoint(1, 1));
+        drawRectClipped (colour, cPoint(p.x + (x1 / k), p.y - y1), cPoint(1, 1));
+        drawRectClipped (colour, cPoint(p.x - (x1 / k), p.y - y1), cPoint(1, 1));
 
         float e2 = err;
         if (e2 <= x1) {
@@ -199,16 +196,16 @@ public:
   //}}}
 
   //{{{
-  virtual void drawLine (uint32_t colour, float x1, float y1, float x2, float y2) {
+  virtual void drawLine (uint32_t colour, cPoint p1, cPoint p2) {
 
-    float deltax = (x2 - x1) > 0 ? (x2 - x1) : -(x2 - x1);        /* The difference between the x's */
-    float deltay = (y2 - y1) > 0 ? (y2 - y1) : -(y2 - y1);        /* The difference between the y's */
-    float x = x1;                       /* Start x off at the first pixel */
-    float y = y1;                       /* Start y off at the first pixel */
+    float deltax = (p2.x - p1.x) > 0 ? (p2.x - p1.x) : -(p2.x - p2.x);        /* The difference between the x's */
+    float deltay = (p2.y - p1.y) > 0 ? (p2.y - p1.y) : -(p2.y - p1.y);        /* The difference between the y's */
+    float x = p1.x;                       /* Start x off at the first pixel */
+    float y = p1.y;                       /* Start y off at the first pixel */
 
     float xinc1;
     float xinc2;
-    if (x2 >= x1) {               /* The x-values are increasing */
+    if (p2.x >= p1.x) {               /* The x-values are increasing */
       xinc1 = 1;
       xinc2 = 1;
       }
@@ -219,7 +216,7 @@ public:
 
     int yinc1;
     int yinc2;
-    if (y2 >= y1) {                 /* The y-values are increasing */
+    if (p2.y >= p1.y) {                 /* The y-values are increasing */
       yinc1 = 1;
       yinc2 = 1;
       }
@@ -250,7 +247,7 @@ public:
     }
 
     for (int curpixel = 0; curpixel <= num_pixels; curpixel++) {
-      drawRectClipped (colour, x, y, 1, 1);   /* Draw the current pixel */
+      drawRectClipped (colour, cPoint (x,y), cPoint(1, 1));   /* Draw the current pixel */
       num += num_add;                            /* Increase the numerator by the top of the fraction */
       if (num >= den) {                          /* Check if numerator >= denominator */
         num -= den;                             /* Calculate the new numerator value */

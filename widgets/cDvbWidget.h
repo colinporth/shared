@@ -61,7 +61,7 @@ public:
 
       if ((pidInfo.mSid != lastSid) && (pidInfo.mStreamType != 5) && (pidInfo.mStreamType != 11)) 
         // spacer on change of service
-        draw->drawRect (COL_GREY, x, y, mWidth, 1.f);
+        draw->drawRect (COL_GREY, cPoint(x, y), cPoint(mWidth, 1.f));
 
       auto pidString = dec (pidInfo.mPackets,mPacketDigits) +
                        (mContDigits ? (":" + dec(pidInfo.mErrors, mContDigits)) : "") +
@@ -92,7 +92,7 @@ public:
                 }
 
               // draw bgnd
-              draw->drawRect (COL_DARKGREY, visx, ySub, dstWidth, dstHeight);
+              draw->drawRect (COL_DARKGREY, cPoint(visx, ySub), cPoint(dstWidth, dstHeight));
 
               // create or update rect image
               if (mImage[imageIndex] == -1) {
@@ -123,7 +123,7 @@ public:
               for (int i = 0; i < subtitle->mRects[line]->mClutSize; i++) {
                 float cx = clutX + (i % 8) * lineHeight / 2.f;
                 float cy = ySub + (i / 8) * lineHeight / 2.f;
-                draw->drawRect (subtitle->mRects[line]->mClut[i], cx, cy, (lineHeight/2.f)-1.f, (lineHeight / 2.f) - 1.f);
+                draw->drawRect (subtitle->mRects[line]->mClut[i], cPoint(cx, cy), cPoint((lineHeight/2.f)-1.f, (lineHeight / 2.f) - 1.f));
                 }
 
               // next subtitle line
@@ -139,7 +139,7 @@ public:
 
       mMaxPidPackets = std::max (mMaxPidPackets, (float)pidInfo.mPackets);
       float frac = pidInfo.mPackets / mMaxPidPackets;
-      draw->drawRect (COL_DARKORANGE, visx, y, frac * (mWidth - textWidth), lineHeight-1.f);
+      draw->drawRect (COL_DARKORANGE, cPoint(visx, y), cPoint(frac * (mWidth - textWidth), lineHeight-1.f));
 
       std::string str;
       if ((pidInfo.mStreamType == 0) && (pidInfo.mSid > 0))

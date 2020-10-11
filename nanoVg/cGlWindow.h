@@ -27,39 +27,38 @@ public:
   //}}}
 
   // iDraw
-  void drawRect (uint32_t colour, float x, float y, float width, float height);
+  void drawRect (uint32_t colour, cPoint p, cPoint size);
   float drawText (uint32_t colour, float fontHeight, std::string str, cPoint p, cPoint size);
-  float drawTextRight (uint32_t colour, float fontHeight, std::string str,  cPoint p, cPoint size);
-  void drawEllipseSolid (uint32_t colour, float x, float y, float xradius, float yradius);
-  void drawPixel (uint32_t colour, float x, float y) {}
-  void drawStamp (uint32_t colour, uint8_t* src, float x, float y, float width, float height) {}
+  float drawTextRight (uint32_t colour, float fontHeight, std::string str, cPoint p, cPoint size);
+  void drawEllipseSolid (uint32_t colour, cPoint p, float xradius, float yradius);
+  void drawPixel (uint32_t colour, cPoint p) {}
+  void drawStamp (uint32_t colour, uint8_t* src, cPoint p, cPoint size) {}
   //{{{
-  void drawPixelClipped (uint32_t colour, float x, float y) {
-    drawRectClipped (colour, x, y, 1, 1);
+  void drawPixelClipped (uint32_t colour, cPoint p) {
+    drawRectClipped (colour, p, cPoint(1, 1));
     }
   //}}}
   //{{{
-  void drawStampClipped (uint32_t colour, uint8_t* src, float x, float y, float width, float height) {
-    drawStamp (colour, src, x, y, width, height);
+  void drawStampClipped (uint32_t colour, uint8_t* src, cPoint p, cPoint size) {
+    drawStamp (colour, src, p, size);
     }
   //}}}
   //{{{
-  void drawRectClipped (uint32_t colour, float x, float y, float width, float height) {
-    drawRect (colour, x, y, width, height);
+  void drawRectClipped (uint32_t colour, cPoint p, cPoint size) {
+    drawRect (colour, p, size);
     }
   //}}}
   //{{{
-  void drawRectOutline (uint32_t colour, float x, float y, float width, float height, float thickness) {
-    drawRect (colour, x, y, width, thickness);
-    drawRect (colour, x + width-thickness, y, thickness, height);
-    drawRect (colour, x, y + height-thickness, width, thickness);
-    drawRect (colour, x, y, thickness, height);
+  void drawRectOutline (uint32_t colour, cPoint p, cPoint size, float thickness) {
+    drawRect (colour, p, cPoint(size.x, thickness));
+    drawRect (colour, cPoint(p.x + size.x -thickness, p.y), cPoint(thickness, size.y));
+    drawRect (colour, cPoint(p.x, p.y + size.y -thickness), cPoint(size.x, thickness));
+    drawRect (colour, p, cPoint(thickness, size.y));
     }
   //}}}
 
 protected:
-  cRootContainer* initialise (const std::string& title, int width, int height,
-                              unsigned char* sansFont, int sansFontSize);
+  cRootContainer* initialise (const std::string& title, int width, int height, unsigned char* sansFont, int sansFontSize);
 
   cWidget* add (cWidget* widget) { return mRootContainer->add (widget); }
   cWidget* addAt (cWidget* widget, float x, float y) { return mRootContainer->addAt (widget,x,y); }
