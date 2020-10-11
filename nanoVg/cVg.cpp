@@ -439,8 +439,8 @@ void cVg::resetState() {
 
   state->strokeWidth = 1.0f;
   state->miterLimit = 10.0f;
-  state->lineCap = eBUTT;
-  state->lineJoin = eMITER;
+  state->lineCap = eButt;
+  state->lineJoin = eMiter;
   state->alpha = 1.0f;
 
   state->mTransform.setIdentity();
@@ -871,16 +871,7 @@ void cVg::setAlpha (float alpha) { mStates[mNumStates-1].alpha = alpha; }
 void cVg::setFillColour (const sVgColour& color) { mStates[mNumStates-1].fillPaint.set (color); }
 void cVg::setStrokeColour (const sVgColour& color) { mStates[mNumStates-1].strokePaint.set (color); }
 void cVg::setStrokeWidth (float width) { mStates[mNumStates-1].strokeWidth = width; }
-//{{{
-void cVg::setFringeWidth (float width) {
-
-  mFringeWidth = width;
-  if (mFringeWidth < 0.0f)
-    mFringeWidth = 0.0f;
-  else if (mFringeWidth > 10.0f)
-   mFringeWidth = 10.0f;
-  }
-//}}}
+void cVg::setFringeWidth (float width) { mFringeWidth = max (0.f, min (10.f, width)); }
 
 void cVg::setLineCap (eLineCap cap) { mStates[mNumStates-1].lineCap = cap; }
 void cVg::setLineJoin (eLineCap join) { mStates[mNumStates-1].lineJoin = join; }
@@ -982,7 +973,7 @@ void cVg::beginPath() { mShape.beginPath(); }
 //{{{
 void cVg::pathWinding (eWinding dir) {
 
-  float values[] = { eWINDING, (float)dir };
+  float values[] = { eWindingDirection, (float)dir };
   mShape.addCommand (values, sizeof(values)/4, mStates[mNumStates-1].mTransform);
   }
 //}}}
@@ -990,21 +981,21 @@ void cVg::pathWinding (eWinding dir) {
 //{{{
 void cVg::moveTo (cPoint p) {
 
-  float values[] = { eMOVETO, p.x, p.y };
+  float values[] = { eMoveTo, p.x, p.y };
   mShape.addCommand (values, sizeof(values)/4, mStates[mNumStates-1].mTransform);
   }
 //}}}
 //{{{
 void cVg::lineTo (cPoint p) {
 
-  float values[] = { eLINETO, p.x, p.y };
+  float values[] = { eLineTo, p.x, p.y };
   mShape.addCommand (values, sizeof(values)/4, mStates[mNumStates-1].mTransform);
   }
 //}}}
 //{{{
 void cVg::bezierTo (cPoint c1, cPoint c2, cPoint p) {
 
-  float values[] = { eBEZIERTO, c1.x,c1.y, c2.x,c2.y, p.x,p.y };
+  float values[] = { eBezierTo, c1.x,c1.y, c2.x,c2.y, p.x,p.y };
   mShape.addCommand (values, sizeof(values)/4, mStates[mNumStates-1].mTransform);
   }
 //}}}
@@ -1014,7 +1005,7 @@ void cVg::quadTo (cPoint centre, cPoint p) {
   float x0 = mShape.getLastX();
   float y0 = mShape.getLastY();
 
-  float values[] = { eBEZIERTO,
+  float values[] = { eBezierTo,
                      x0 + 2.0f / 3.0f * (centre.x - x0), y0 + 2.0f / 3.0f * (centre.y - y0),
                      p.x + 2.0f / 3.0f * (centre.x - p.x), p.y + 2.0f / 3.0f * (centre.y - p.y),
                      p.x, p.y };
@@ -1078,7 +1069,7 @@ void cVg::arcTo (cPoint p1, cPoint p2, float radius) {
 //{{{
 void cVg::arc (cPoint centre, float r, float a0, float a1, int dir) {
 
-  int move = mShape.getNumCommands() ? eLINETO : eMOVETO;
+  int move = mShape.getNumCommands() ? eLineTo : eMoveTo;
 
   // clamp angles
   float da = a1 - a0;
@@ -1086,13 +1077,13 @@ void cVg::arc (cPoint centre, float r, float a0, float a1, int dir) {
     if (absf(da) >= k2Pi)
       da = k2Pi;
     else
-      while (da < 0.0f) 
+      while (da < 0.0f)
         da += k2Pi;
     }
   else if (absf(da) >= k2Pi)
     da = -k2Pi;
   else
-    while (da > 0.0f) 
+    while (da > 0.0f)
       da -= k2Pi;
 
   // split arc into max 90 degree segments
@@ -1124,7 +1115,7 @@ void cVg::arc (cPoint centre, float r, float a0, float a1, int dir) {
       values[numValues++] = y;
       }
     else {
-      values[numValues++] = eBEZIERTO;
+      values[numValues++] = eBezierTo;
       values[numValues++] = px + ptanx;
       values[numValues++] = py + ptany;
       values[numValues++] = x - tanx;
@@ -1146,11 +1137,11 @@ void cVg::arc (cPoint centre, float r, float a0, float a1, int dir) {
 //{{{
 void cVg::rect (cPoint p, cPoint size) {
 
-  float values[] = { eMOVETO, p.x, p.y,
-                     eLINETO, p.x, p.y + size.y,
-                     eLINETO, p.x + size.x, p.y + size.y,
-                     eLINETO, p.x + size.x, p.y,
-                     eCLOSE };
+  float values[] = { eMoveTo, p.x, p.y,
+                     eLineTo, p.x, p.y + size.y,
+                     eLineTo, p.x + size.x, p.y + size.y,
+                     eLineTo, p.x + size.x, p.y,
+                     eClose };
   mShape.addCommand (values, sizeof(values)/4, mStates[mNumStates-1].mTransform);
   }
 //}}}
@@ -1173,24 +1164,24 @@ void cVg::roundedRectVarying (cPoint p, cPoint size, float tlRadius, float trRad
     float rxBL = min (blRadius, halfw) * signf (size.x);
     float ryBL = min (blRadius, halfh) * signf (size.y);
 
-    float values[] = { eMOVETO, p.x, p.y + ryTL,
-                       eLINETO, p.x, p.y + size.y - ryBL,
-                       eBEZIERTO, p.x, p.y + size.y - ryBL*(1 - kAppA90),
+    float values[] = { eMoveTo, p.x, p.y + ryTL,
+                       eLineTo, p.x, p.y + size.y - ryBL,
+                       eBezierTo, p.x, p.y + size.y - ryBL*(1 - kAppA90),
                                   p.x + rxBL*(1 - kAppA90), p.y + size.y,
                                   p.x + rxBL, p.y + size.y,
-                       eLINETO, p.x + size.x - rxBR, p.y + size.y,
-                       eBEZIERTO, p.x + size.x - rxBR*(1 - kAppA90), p.y + size.y,
+                       eLineTo, p.x + size.x - rxBR, p.y + size.y,
+                       eBezierTo, p.x + size.x - rxBR*(1 - kAppA90), p.y + size.y,
                                   p.x + size.x,p.y + size.y - ryBR*(1 - kAppA90),
                                   p.x + size.x, p.y + size.y - ryBR,
-                       eLINETO, p.x + size.x, p.y + ryTR,
-                       eBEZIERTO, p.x + size.x, p.y + ryTR*(1 - kAppA90),
+                       eLineTo, p.x + size.x, p.y + ryTR,
+                       eBezierTo, p.x + size.x, p.y + ryTR*(1 - kAppA90),
                                   p.x + size.x - rxTR*(1 - kAppA90), p.y,
                                   p.x + size.x - rxTR, p.y,
-                       eLINETO, p.x + rxTL, p.y,
-                       eBEZIERTO, p.x + rxTL*(1 - kAppA90), p.y,
+                       eLineTo, p.x + rxTL, p.y,
+                       eBezierTo, p.x + rxTL*(1 - kAppA90), p.y,
                                   p.x, p.y + ryTL*(1 - kAppA90),
                                   p.x, p.y + ryTL,
-                       eCLOSE };
+                       eClose };
     mShape.addCommand (values, sizeof(values)/4, mStates[mNumStates-1].mTransform);
     }
   }
@@ -1203,16 +1194,16 @@ void cVg::roundedRect (cPoint p, cPoint size, float radius) {
 //{{{
 void cVg::ellipse (cPoint centre, cPoint radius) {
 
-  float values[] = { eMOVETO, centre.x - radius.x, centre.y,
-                     eBEZIERTO, centre.x - radius.x, centre.y + radius.y*kAppA90, centre.x - radius.x*kAppA90,
+  float values[] = { eMoveTo, centre.x - radius.x, centre.y,
+                     eBezierTo, centre.x - radius.x, centre.y + radius.y*kAppA90, centre.x - radius.x*kAppA90,
                                 centre.y + radius.y, centre.x, centre.y + radius.y,
-                     eBEZIERTO, centre.x + radius.x*kAppA90, centre.y + radius.y, centre.x + radius.x,
+                     eBezierTo, centre.x + radius.x*kAppA90, centre.y + radius.y, centre.x + radius.x,
                                 centre.y + radius.y*kAppA90, centre.x + radius.x, centre.y,
-                     eBEZIERTO, centre.x + radius.x, centre.y - radius.y*kAppA90, centre.x + radius.x*kAppA90,
+                     eBezierTo, centre.x + radius.x, centre.y - radius.y*kAppA90, centre.x + radius.x*kAppA90,
                                 centre.y - radius.y, centre.x, centre.y - radius.y,
-                     eBEZIERTO, centre.x - radius.x*kAppA90, centre.y - radius.y, centre.x - radius.x,
+                     eBezierTo, centre.x - radius.x*kAppA90, centre.y - radius.y, centre.x - radius.x,
                                 centre.y - radius.y*kAppA90, centre.x - radius.x, centre.y,
-                     eCLOSE };
+                     eClose };
   mShape.addCommand (values, sizeof(values)/4, mStates[mNumStates-1].mTransform);
   }
 //}}}
@@ -1224,7 +1215,7 @@ void cVg::circle (cPoint centre, float radius) {
 
 //{{{
 void cVg::closePath() {
-  float values[] = { eCLOSE };
+  float values[] = { eClose };
   mShape.addCommand (values, sizeof(values)/4, mStates[mNumStates-1].mTransform);
   }
 //}}}
@@ -1233,7 +1224,7 @@ void cVg::closePath() {
 void cVg::fill() {
 
   mShape.flattenPaths();
-  mShape.expandFill (mVertices, mDrawEdges ? mFringeWidth : 0.0f, eMITER, 2.4f, mFringeWidth);
+  mShape.expandFill (mVertices, mDrawEdges ? mFringeWidth : 0.0f, eMiter, 2.4f, mFringeWidth);
 
   sPaint fillPaint = mStates[mNumStates-1].fillPaint;
   fillPaint.innerColour.a *= mStates[mNumStates-1].alpha;
@@ -1518,9 +1509,9 @@ cVg::cShape::~cShape() {
 //{{{
 void cVg::cShape::addCommand (float* values, int numValues, cTransform& transform) {
 
-  if (((int)values[0] == eMOVETO) ||
-      ((int)values[0] == eLINETO) ||
-      ((int)values[0] == eBEZIERTO)) {
+  if (((int)values[0] == eMoveTo) ||
+      ((int)values[0] == eLineTo) ||
+      ((int)values[0] == eBezierTo)) {
     mLastX = values[numValues-2];
     mLastY = values[numValues-1];
     }
@@ -1530,8 +1521,8 @@ void cVg::cShape::addCommand (float* values, int numValues, cTransform& transfor
     //{{{  state xform nonIdentity, transform points
     for (int i = 0; i < numValues;) {
       switch ((int)values[i++]) {
-        case eMOVETO:
-        case eLINETO:
+        case eMoveTo:
+        case eLineTo:
           if (i+1 < numValues) // ensure enough values supplied for command type
             transform.point (values[i], values[i+1]);
           else
@@ -1539,7 +1530,7 @@ void cVg::cShape::addCommand (float* values, int numValues, cTransform& transfor
           i += 2;
           break;
 
-        case eBEZIERTO:
+        case eBezierTo:
           if (i+5 < numValues) { // ensure enough values supplied for command type
             transform.point (values[i], values[i+1]);
             transform.point (values[i+2], values[i+3]);
@@ -1551,11 +1542,11 @@ void cVg::cShape::addCommand (float* values, int numValues, cTransform& transfor
           i += 6;
           break;
 
-        case eWINDING:
+        case eWindingDirection:
           i += 1;
           break;
 
-        case eCLOSE:;
+        case eClose:;
         }
       }
     }
@@ -1676,28 +1667,28 @@ void cVg::cShape::calculateJoins (float w, int lineJoin, float miterLimit) {
         }
 
       // Clear flags, but keep the corner.
-      point1->flags = (point1->flags & sShapePoint::PT_CORNER) ? sShapePoint::PT_CORNER : 0;
+      point1->flags = (point1->flags & sShapePoint::ePtCORNER) ? sShapePoint::ePtCORNER : 0;
 
       // Keep track of left turns.
       cross = point1->dx * point0->dy - point0->dx * point1->dy;
       if (cross > 0.0f) {
         nleft++;
-        point1->flags |= sShapePoint::PT_LEFT;
+        point1->flags |= sShapePoint::ePtLEFT;
         }
 
       // Calculate if we should use bevel or miter for inner join.
       limit = max (1.01f, min (point0->len, point1->len) * iw);
       if ((dmr2 * limit * limit) < 1.0f)
-        point1->flags |= sShapePoint::PT_INNERBEVEL;
+        point1->flags |= sShapePoint::ePtINNERBEVEL;
 
       // Check to see if the corner needs to be beveled.
-      if (point1->flags & sShapePoint::PT_CORNER) {
-        if (((dmr2 * miterLimit * miterLimit) < 1.0f) || (lineJoin == eBEVEL) || (lineJoin == eROUND)) {
-          point1->flags |= sShapePoint::PT_BEVEL;
+      if (point1->flags & sShapePoint::ePtCORNER) {
+        if (((dmr2 * miterLimit * miterLimit) < 1.0f) || (lineJoin == eBevel) || (lineJoin == eRound)) {
+          point1->flags |= sShapePoint::ePtBEVEL;
           }
         }
 
-      if ((point1->flags & (sShapePoint::PT_BEVEL | sShapePoint::PT_INNERBEVEL)) != 0)
+      if ((point1->flags & (sShapePoint::ePtBEVEL | sShapePoint::ePtINNERBEVEL)) != 0)
         path->mNumBevel++;
       point0 = point1++;
       }
@@ -1749,12 +1740,12 @@ void cVg::cShape::expandFill (cVertices& vertices, float w, eLineCap lineJoin, f
       auto point1 = &points[0];
 
       for (int j = 0; j < path->mNumPoints; ++j) {
-        if (point1->flags & sShapePoint::PT_BEVEL) {
+        if (point1->flags & sShapePoint::ePtBEVEL) {
           float dlx0 = point0->dy;
           float dly0 = -point0->dx;
           float dlx1 = point1->dy;
           float dly1 = -point1->dx;
-          if (point1->flags & sShapePoint::PT_LEFT) {
+          if (point1->flags & sShapePoint::ePtLEFT) {
             float lx = point1->x + point1->dmx * woff;
             float ly = point1->y + point1->dmy * woff;
             vertexPtr++->set (lx, ly, 0.5f,1);
@@ -1803,7 +1794,7 @@ void cVg::cShape::expandFill (cVertices& vertices, float w, eLineCap lineJoin, f
       sShapePoint* point0 = &points[path->mNumPoints-1];
       sShapePoint* point1 = &points[0];
       for (int j = 0; j < path->mNumPoints; ++j) {
-        if ((point1->flags & (sShapePoint::PT_BEVEL | sShapePoint::PT_INNERBEVEL)) != 0)
+        if ((point1->flags & (sShapePoint::ePtBEVEL | sShapePoint::ePtINNERBEVEL)) != 0)
           vertexPtr = bevelJoin (vertexPtr, point0, point1, lw, rw, lu, ru, fringeWidth);
         else {
           vertexPtr++->set (point1->x + (point1->dmx * lw), point1->y + (point1->dmy * lw), lu, 1);
@@ -1868,13 +1859,13 @@ void cVg::cShape::expandStroke (cVertices& vertices, float w, eLineCap lineCap, 
   int numVertices = 0;
   for (auto path = mPaths; path < mPaths + mNumPaths; path++) {
     bool loop = path->mClosed;
-    if (lineJoin == eROUND)
+    if (lineJoin == eRound)
       numVertices += (path->mNumPoints + path->mNumBevel * (ncap+2) + 1) * 2; // plus one for loop
     else
       numVertices += (path->mNumPoints + path->mNumBevel*5 + 1) * 2; // plus one for loop
     if (!loop) {
       // space for caps
-      if (lineCap == eROUND)
+      if (lineCap == eRound)
         numVertices += (ncap*2 + 2)*2;
       else
         numVertices += (3+3)*2;
@@ -1923,18 +1914,18 @@ void cVg::cShape::expandStroke (cVertices& vertices, float w, eLineCap lineCap, 
       dx = point1->x - point0->x;
       dy = point1->y - point0->y;
       normalize (dx, dy);
-      if (lineCap == eBUTT)
+      if (lineCap == eButt)
         vertexPtr = buttCapStart (vertexPtr, point0, dx, dy, w, -fringeWidth*0.5f, fringeWidth);
-      else if (lineCap == eBUTT || lineCap == eSQUARE)
+      else if (lineCap == eButt || lineCap == eSquare)
         vertexPtr = buttCapStart (vertexPtr, point0, dx, dy, w, w-fringeWidth, fringeWidth);
-      else if (lineCap == eROUND)
+      else if (lineCap == eRound)
         vertexPtr = roundCapStart (vertexPtr, point0, dx, dy, w, ncap, fringeWidth);
       }
       //}}}
 
     for (int j = s; j < e; ++j) {
-      if ((point1->flags & (sShapePoint::PT_BEVEL | sShapePoint::PT_INNERBEVEL)) != 0) {
-        if (lineJoin == eROUND)
+      if ((point1->flags & (sShapePoint::ePtBEVEL | sShapePoint::ePtINNERBEVEL)) != 0) {
+        if (lineJoin == eRound)
           vertexPtr = roundJoin (vertexPtr, point0, point1, w, w, 0, 1, ncap, fringeWidth);
         else
           vertexPtr = bevelJoin (vertexPtr, point0, point1, w, w, 0, 1, fringeWidth);
@@ -1958,11 +1949,11 @@ void cVg::cShape::expandStroke (cVertices& vertices, float w, eLineCap lineCap, 
       dy = point1->y - point0->y;
       normalize (dx, dy);
 
-      if (lineCap == eBUTT)
+      if (lineCap == eButt)
         vertexPtr = buttCapEnd (vertexPtr, point1, dx, dy, w, -fringeWidth * 0.5f, fringeWidth);
-      else if (lineCap == eBUTT || lineCap == eSQUARE)
+      else if (lineCap == eButt || lineCap == eSquare)
         vertexPtr = buttCapEnd (vertexPtr, point1, dx, dy, w, w - fringeWidth, fringeWidth);
-      else if (lineCap == eROUND)
+      else if (lineCap == eRound)
         vertexPtr = roundCapEnd (vertexPtr, point1, dx, dy, w, ncap, fringeWidth);
       }
       //}}}
@@ -1975,6 +1966,7 @@ void cVg::cShape::expandStroke (cVertices& vertices, float w, eLineCap lineCap, 
   vertices.trim (vertexIndex);
   }
 //}}}
+
 //{{{
 float cVg::cShape::normalize (float& x, float& y) {
 
@@ -2002,6 +1994,7 @@ float cVg::cShape::polyArea (sShapePoint* points, int mNumPoints) {
   for (int i = 2; i < mNumPoints; i++)
     area += (points[i].x - points[0].x) * (points[i-1].y - points[0].y) -
             (points[i-1].x - points[0].x) *  (points[i].y - points[0].y);
+
   return area * 0.5f;
   }
 //}}}
@@ -2069,7 +2062,8 @@ void cVg::cShape::addPath() {
 
 //{{{
 void cVg::cShape::tesselateBezier (float x1, float y1, float x2, float y2,
-                           float x3, float y3, float x4, float y4, int level, sShapePoint::eFlags type) {
+                                   float x3, float y3, float x4, float y4,
+                                   int level, sShapePoint::eFlags type) {
 
   if (level > 10)
     return;
@@ -2103,10 +2097,11 @@ void cVg::cShape::tesselateBezier (float x1, float y1, float x2, float y2,
   float x1234 = (x123+x234)*0.5f;
   float y1234 = (y123+y234)*0.5f;
 
-  tesselateBezier (x1,y1, x12,y12, x123,y123, x1234,y1234, level+1, sShapePoint::PT_NONE);
+  tesselateBezier (x1,y1, x12,y12, x123,y123, x1234,y1234, level+1, sShapePoint::ePtNONE);
   tesselateBezier (x1234,y1234, x234,y234, x34,y34, x4,y4, level+1, type);
   }
 //}}}
+
 //{{{
 cVg::cShape::sShapePoint* cVg::cShape::lastPoint() {
   return mNumPoints ? &mPoints[mNumPoints-1] : NULL;
@@ -2152,30 +2147,27 @@ void cVg::cShape::commandsToPaths() {
   auto command = mCommands;
   while (command < mCommands + mNumCommands) {
     switch ((int)*command++) {
-      case eMOVETO:
+      case eMoveTo:
         addPath();
-      case eLINETO:
-        addPoint (*command, *(command+1), sShapePoint::PT_CORNER);
+
+      case eLineTo:
+        addPoint (*command, *(command+1), sShapePoint::ePtCORNER);
         command += 2;
         break;
 
-      case eBEZIERTO: {
+      case eBezierTo: {
         auto last = lastPoint();
         if (last != NULL)
-          tesselateBezier (last->x, last->y,
-                           *command, *(command+1),
-                           *(command+2), *(command+3),
-                           *(command+4), *(command+5),
-                           0, sShapePoint::PT_CORNER);
+          tesselateBezier (last->x, last->y, *command, *(command+1), *(command+2), *(command+3), *(command+4), *(command+5), 0, sShapePoint::ePtCORNER);
         command += 6;
         break;
         }
 
-      case eWINDING:
+      case eWindingDirection:
         lastPathWinding ((eWinding)(int)*command++);
         break;
 
-      case eCLOSE:
+      case eClose:
         closeLastPath();
       }
     }
@@ -2208,9 +2200,9 @@ cVg::sVertex* cVg::cShape::roundJoin (sVertex* vertexPtr, sShapePoint* point0, s
   float dlx1 = point1->dy;
   float dly1 = -point1->dx;
 
-  if (point1->flags & sShapePoint::PT_LEFT) {
+  if (point1->flags & sShapePoint::ePtLEFT) {
     float lx0,ly0,lx1,ly1,a0,a1;
-    chooseBevel (point1->flags & sShapePoint::PT_INNERBEVEL, point0, point1, lw, &lx0,&ly0, &lx1,&ly1);
+    chooseBevel (point1->flags & sShapePoint::ePtINNERBEVEL, point0, point1, lw, &lx0,&ly0, &lx1,&ly1);
     a0 = atan2f (-dly0, -dlx0);
     a1 = atan2f (-dly1, -dlx1);
     if (a1 > a0)
@@ -2235,7 +2227,7 @@ cVg::sVertex* cVg::cShape::roundJoin (sVertex* vertexPtr, sShapePoint* point0, s
 
   else {
     float rx0,ry0,rx1,ry1,a0,a1;
-    chooseBevel (point1->flags & sShapePoint::PT_INNERBEVEL, point0, point1, -rw, &rx0,&ry0, &rx1,&ry1);
+    chooseBevel (point1->flags & sShapePoint::ePtINNERBEVEL, point0, point1, -rw, &rx0,&ry0, &rx1,&ry1);
     a0 = atan2f (dly0, dlx0);
     a1 = atan2f (dly1, dlx1);
     if (a1 < a0)
@@ -2273,12 +2265,12 @@ cVg::sVertex* cVg::cShape::bevelJoin (sVertex* vertexPtr, sShapePoint* point0, s
   float dlx1 = point1->dy;
   float dly1 = -point1->dx;
 
-  if (point1->flags & sShapePoint::PT_LEFT) {
-    chooseBevel (point1->flags & sShapePoint::PT_INNERBEVEL, point0, point1, lw, &lx0, &ly0, &lx1, &ly1);
+  if (point1->flags & sShapePoint::ePtLEFT) {
+    chooseBevel (point1->flags & sShapePoint::ePtINNERBEVEL, point0, point1, lw, &lx0, &ly0, &lx1, &ly1);
     vertexPtr++->set (lx0, ly0, lu,1);
     vertexPtr++->set (point1->x - dlx0*rw, point1->y - dly0*rw, ru,1);
 
-    if (point1->flags & sShapePoint::PT_BEVEL) {
+    if (point1->flags & sShapePoint::ePtBEVEL) {
       vertexPtr++->set (lx0, ly0, lu,1);
       vertexPtr++->set (point1->x - dlx0*rw, point1->y - dly0*rw, ru,1);
       vertexPtr++->set (lx1, ly1, lu,1);
@@ -2299,11 +2291,11 @@ cVg::sVertex* cVg::cShape::bevelJoin (sVertex* vertexPtr, sShapePoint* point0, s
     vertexPtr++->set (point1->x - dlx1*rw, point1->y - dly1*rw, ru,1);
     }
   else {
-    chooseBevel (point1->flags & sShapePoint::PT_INNERBEVEL, point0, point1, -rw, &rx0,&ry0, &rx1,&ry1);
+    chooseBevel (point1->flags & sShapePoint::ePtINNERBEVEL, point0, point1, -rw, &rx0,&ry0, &rx1,&ry1);
     vertexPtr++->set (point1->x + dlx0*lw, point1->y + dly0*lw, lu,1);
     vertexPtr++->set (rx0, ry0, ru,1);
 
-    if (point1->flags & sShapePoint::PT_BEVEL) {
+    if (point1->flags & sShapePoint::ePtBEVEL) {
       vertexPtr++->set (point1->x + dlx0*lw, point1->y + dly0*lw, lu,1);
       vertexPtr++->set (rx0, ry0, ru,1);
       vertexPtr++->set (point1->x + dlx1*lw, point1->y + dly1*lw, lu,1);

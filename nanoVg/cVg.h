@@ -318,13 +318,13 @@ public:
   float text (float x, float y, const std::string& str);
   //}}}
   //{{{  image
-  enum eImageFlags {
-    eImageGenerateMipmaps = 1<<0, // Generate mipmaps during creation of the image.
-    eImageRepeatX         = 1<<1, // Repeat image in X direction.
-    eImageRepeatY         = 1<<2, // Repeat image in Y direction.
-    eImageFlipY           = 1<<3, // Flips (inverses) image in Y direction when rendered.
-    eImagePreMultiplied   = 1<<4, // Image data has premultiplied alpha.
-    eImageNearestPixel    = 1<<5, // Image interpolation is Nearest instead Linear
+  enum eImageFlags {              // set of image flags
+    eImageGenerateMipmaps = 0x01, // generate mipmaps during creation of the image
+    eImageRepeatX         = 0x02, // repeat image in X direction
+    eImageRepeatY         = 0x04, // repeat image in Y direction
+    eImageFlipY           = 0x08, // flip image in Y direction when rendered
+    eImagePreMultiplied   = 0x10, // image data has premultiplied alpha
+    eImageNearestPixel    = 0x20, // image interpolation is nearestPixel rather than linear interpolatopn
     };
 
   enum eTexture { eTextureAlpha, eTextureRgba };
@@ -337,9 +337,9 @@ public:
   bool deleteImage (int id);
   //}}}
   //{{{  shape
-  enum eWinding { eCounterClockWise, eClockWise }; 
-  enum eLineCap { eBUTT, eROUND, eSQUARE, eBEVEL, eMITER };
-  enum eShapeCommands { eMOVETO, eLINETO, eBEZIERTO, eWINDING, eCLOSE };
+  enum eWinding { eCounterClockWise, eClockWise };
+  enum eLineCap { eButt, eRound, eSquare, eBevel, eMiter };
+  enum eShapeCommands { eMoveTo, eLineTo, eBezierTo, eWindingDirection, eClose };
 
   float getFringeWidth() { return mFringeWidth; }
 
@@ -679,7 +679,7 @@ private:
       float len;
 
       // set of eFlags
-      enum eFlags { PT_NONE = 0, PT_CORNER = 0x01, PT_LEFT = 0x02, PT_BEVEL = 0x04, PT_INNERBEVEL = 0x08 };
+      enum eFlags { ePtNONE = 0, ePtCORNER = 0x01, ePtLEFT = 0x02, ePtBEVEL = 0x04, ePtINNERBEVEL = 0x08 };
       uint8_t flags;
       };
     //}}}
@@ -729,7 +729,9 @@ private:
     void addPath();
 
     void tesselateBezier (float x1, float y1, float x2, float y2,
-                          float x3, float y3, float x4, float y4, int level, sShapePoint::eFlags type);
+                          float x3, float y3, float x4, float y4, 
+                          int level, sShapePoint::eFlags type);
+
     sShapePoint* lastPoint();
     void addPoint (float x, float y, sShapePoint::eFlags flags);
 

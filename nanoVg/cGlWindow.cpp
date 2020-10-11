@@ -312,8 +312,8 @@ void cGlWindow::drawLines (float x, float y, float w, float h, float t) {
   float fx;
   float fy;
 
-  cVg::eLineCap joins[3] = {cVg::eMITER, cVg::eROUND, cVg::eBEVEL};
-  cVg::eLineCap caps[3] = { cVg::eBUTT, cVg::eROUND, cVg::eSQUARE};
+  cVg::eLineCap joins[3] = {cVg::eMiter, cVg::eRound, cVg::eBevel };
+  cVg::eLineCap caps[3] = { cVg::eButt, cVg::eRound, cVg::eSquare };
 
   saveState();
   pts[0] = -s*0.25f + cosf(t*0.3f) * s*0.5f;
@@ -341,8 +341,8 @@ void cGlWindow::drawLines (float x, float y, float w, float h, float t) {
       lineTo (cPoint(fx+pts[6], fy+pts[7]));
       stroke();
 
-      setLineCap (cVg::eBUTT);
-      setLineJoin (cVg::eBEVEL);
+      setLineCap (cVg::eButt);
+      setLineJoin (cVg::eBevel);
       setStrokeWidth (1.5f);
       setStrokeColour (nvgRGBA (0,192,255,255));
       beginPath();
