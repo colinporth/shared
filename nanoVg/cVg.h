@@ -265,9 +265,12 @@ public:
   //}}}
   //{{{  transform
   void resetTransform();
+
+  void setTranslate (cPoint p);
   void setTranslate (float x, float y);
   void setScale (float x, float y);
   void setRotate (float angle);
+
   void setTransform (float a, float b, float c, float d, float e, float f);
   //}}}
   //{{{  scissor
@@ -522,12 +525,13 @@ private:
       }
     //}}}
     //{{{
-    void setImage (sPaint& paint, cScissor& scissor, sTexture* tex) {
+    void setImage (sPaint& paint, cScissor& scissor, sTexture* texture) {
 
       innerColour = nvgPremulColour (paint.innerColour);
       outerColour = nvgPremulColour (paint.outerColour);
 
       if ((scissor.extent[0] < -0.5f) || (scissor.extent[1] < -0.5f)) {
+        // unity transform, inverse
         memset (scissorMatrix, 0, sizeof(scissorMatrix));
         scissorExt[0] = 1.f;
         scissorExt[1] = 1.f;
@@ -535,8 +539,8 @@ private:
         scissorScale[1] = 1.f;
         }
       else {
-        cTransform inverse = scissor.mTransform.getInverse();
-        inverse.getMatrix3x4 (scissorMatrix);
+        // get scissorMatrix from inverse transform
+        scissor.mTransform.getInverse().getMatrix3x4 (scissorMatrix);
         scissorExt[0] = scissor.extent[0];
         scissorExt[1] = scissor.extent[1];
         scissorScale[0] = scissor.mTransform.getAverageScaleX();
@@ -548,13 +552,13 @@ private:
       strokeThreshold = -1.f;
 
       type = SHADER_IMAGE;
-      if (tex->type == eTextureRgba)
-        texType = (tex->flags & cVg::eImagePreMultiplied) ? 0.f : 1.f;
+      if (texture->type == eTextureRgba)
+        texType = (texture->flags & cVg::eImagePreMultiplied) ? 0.f : 1.f;
       else
         texType = 2.f;
 
-      cTransform inverse = paint.mTransform.getInverse();
-      inverse.getMatrix3x4 (paintMatrix);
+      // get paintMatrix from inverse transform
+      paint.mTransform.getInverse().getMatrix3x4 (paintMatrix);
       }
     //}}}
     //{{{
@@ -564,6 +568,7 @@ private:
       outerColour = nvgPremulColour (paint.outerColour);
 
       if ((scissor.extent[0] < -0.5f) || (scissor.extent[1] < -0.5f)) {
+        // unity transform, inverse
         memset (scissorMatrix, 0, sizeof(scissorMatrix));
         scissorExt[0] = 1.f;
         scissorExt[1] = 1.f;
@@ -571,8 +576,8 @@ private:
         scissorScale[1] = 1.f;
         }
       else {
-        cTransform inverse = scissor.mTransform.getInverse();
-        inverse.getMatrix3x4 (scissorMatrix);
+        // get scissorMatrix from inverse transform
+        scissor.mTransform.getInverse().getMatrix3x4 (scissorMatrix);
         scissorExt[0] = scissor.extent[0];
         scissorExt[1] = scissor.extent[1];
         scissorScale[0] = scissor.mTransform.getAverageScaleX() / fringe;

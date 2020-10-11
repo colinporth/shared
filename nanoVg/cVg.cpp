@@ -504,6 +504,15 @@ void cVg::resetTransform() {
   mStates[mNumStates - 1].mTransform.setIdentity();
   }
 //}}}
+
+//{{{
+void cVg::setTranslate (cPoint p) {
+
+  cTransform transform;
+  transform.setTranslate (p);
+  mStates[mNumStates - 1].mTransform.premultiply (transform);
+  }
+//}}}
 //{{{
 void cVg::setTranslate (float x, float y) {
 
@@ -528,6 +537,7 @@ void cVg::setRotate (float angle) {
   mStates[mNumStates - 1].mTransform.premultiply (transform);
   }
 //}}}
+
 //{{{
 void cVg::setTransform (float a, float b, float c, float d, float e, float f) {
 
