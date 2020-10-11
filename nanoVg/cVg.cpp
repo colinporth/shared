@@ -1080,7 +1080,7 @@ void cVg::arc (cPoint centre, float r, float a0, float a1, int dir) {
 
   int move = mShape.getNumCommands() ? eLINETO : eMOVETO;
 
-  // Clamp angles
+  // clamp angles
   float da = a1 - a0;
   if (dir == eHOLE) {
     if (absf(da) >= k2Pi)
@@ -1093,7 +1093,7 @@ void cVg::arc (cPoint centre, float r, float a0, float a1, int dir) {
   else
     while (da > 0.0f) da -= k2Pi;
 
-  // Split arc into max 90 degree segments.
+  // split arc into max 90 degree segments
   int ndivs = max (1, min((int)(absf(da) / kPiDiv2 + 0.5f), 5));
   float hda = (da / (float)ndivs) / 2.0f;
   float kappa = absf (4.0f / 3.0f * (1.0f - cosf (hda)) / sinf (hda));
@@ -1157,6 +1157,7 @@ void cVg::roundedRectVarying (cPoint p, cPoint size, float tlRadius, float trRad
 
   if ((tlRadius < 0.1f) && (trRadius < 0.1f) && (brRadius < 0.1f) && (blRadius < 0.1f))
     rect (p, size);
+
   else {
     float halfw = absf (size.x) * 0.5f;
     float halfh = absf (size.y) * 0.5f;
@@ -1200,15 +1201,15 @@ void cVg::roundedRect (cPoint p, cPoint size, float radius) {
 //{{{
 void cVg::ellipse (cPoint centre, cPoint radius) {
 
-  float values[] = { eMOVETO, centre.x-radius.x, centre.y,
-                     eBEZIERTO, centre.x-radius.x, centre.y+kAppA90* kAppA90, centre.x- radius.x* kAppA90,
-                                centre.y+radius.y, centre.x, centre.y+radius.y,
-                     eBEZIERTO, centre.x+radius.x* kAppA90, centre.y+radius.y, centre.x+radius.x,
-                                centre.y+radius.y* kAppA90, centre.x+radius.x, centre.y,
-                     eBEZIERTO, centre.x+radius.x, centre.y-radius.y* kAppA90, centre.x+radius.x* kAppA90,
-                                centre.y-radius.y, centre.x, centre.y-radius.y,
-                     eBEZIERTO, centre.x-radius.x* kAppA90, centre.y-radius.y, centre.x-radius.x,
-                                centre.y-radius.y* kAppA90, centre.x-radius.x, centre.y,
+  float values[] = { eMOVETO, centre.x - radius.x, centre.y,
+                     eBEZIERTO, centre.x - radius.x, centre.y + radius.y*kAppA90, centre.x - radius.x*kAppA90,
+                                centre.y + radius.y, centre.x, centre.y + radius.y,
+                     eBEZIERTO, centre.x + radius.x*kAppA90, centre.y + radius.y, centre.x + radius.x,
+                                centre.y + radius.y*kAppA90, centre.x + radius.x, centre.y,
+                     eBEZIERTO, centre.x + radius.x, centre.y - radius.y*kAppA90, centre.x + radius.x*kAppA90,
+                                centre.y - radius.y, centre.x, centre.y - radius.y,
+                     eBEZIERTO, centre.x - radius.x*kAppA90, centre.y - radius.y, centre.x - radius.x,
+                                centre.y - radius.y*kAppA90, centre.x - radius.x, centre.y,
                      eCLOSE };
   mShape.addCommand (values, sizeof(values)/4, mStates[mNumStates-1].mTransform);
   }
