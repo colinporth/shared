@@ -105,7 +105,7 @@ public:
     if (!mName.empty()) {
       //{{{  name graph
       vg->setFontSize (14.f);
-      vg->setTextAlign (cVg::ALIGN_LEFT | cVg::ALIGN_TOP);
+      vg->setTextAlign (cVg::eAlignLeft | cVg::eAlignTop);
       vg->setFillColour (nvgRGBA(240,240,240,192));
       vg->text (x+3, y+1, mName);
       }
@@ -116,7 +116,7 @@ public:
     if (mStyle == eRenderFps) {
       //{{{  fps graph
       vg->setFontSize (18.f);
-      vg->setTextAlign (cVg::ALIGN_RIGHT | cVg::ALIGN_TOP);
+      vg->setTextAlign (cVg::eAlignRight | cVg::eAlignTop);
       vg->setFillColour (nvgRGBA (240,240,240,255));
 
       char str[64];
@@ -124,7 +124,7 @@ public:
       vg->text (x+w-3,y+1, str);
 
       vg->setFontSize (15.f);
-      vg->setTextAlign (cVg::ALIGN_RIGHT | cVg::ALIGN_BOTTOM);
+      vg->setTextAlign (cVg::eAlignRight | cVg::eAlignBottom);
       vg->setFillColour(nvgRGBA (240,240,240,160));
 
       sprintf (str, "%.2fms", avg * 1000.f);
@@ -134,7 +134,7 @@ public:
     else if (mStyle == eRenderPercent) {
       //{{{  percent graph
       vg->setFontSize (18.f);
-      vg->setTextAlign (cVg::ALIGN_RIGHT | cVg::ALIGN_TOP);
+      vg->setTextAlign (cVg::eAlignRight | cVg::eAlignTop);
       vg->setFillColour(nvgRGBA (240,240,240,255));
 
       char str[64];
@@ -145,7 +145,7 @@ public:
     else {
       //{{{  ms graph
       vg->setFontSize (18.f);
-      vg->setTextAlign (cVg::ALIGN_RIGHT | cVg::ALIGN_TOP);
+      vg->setTextAlign (cVg::eAlignRight | cVg::eAlignTop);
       vg->setFillColour(nvgRGBA (240,240,240,255));
 
       char str[64];

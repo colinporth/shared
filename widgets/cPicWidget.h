@@ -57,7 +57,7 @@ public:
 
     if (mPic) {
       auto vg = draw->getVg();
-      int imageFlags = cVg::IMAGE_GENERATE_MIPMAPS;
+      int imageFlags = cVg::eImageGenerateMipmaps;
 
       if (mImage == -1)
         mImage = vg->createImageRGBA (mPicWidth, mPicHeight, imageFlags, mPic);

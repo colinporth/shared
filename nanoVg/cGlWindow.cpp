@@ -35,7 +35,7 @@ void cGlWindow::drawRect (uint32_t colour, float x, float y, float width, float 
 float cGlWindow::drawText (uint32_t colour, float fontHeight, string str, float x, float y, float width, float height) {
 
   setFontSize (fontHeight);
-  setTextAlign (cVg::ALIGN_LEFT | cVg::ALIGN_TOP);
+  setTextAlign (cVg::eAlignLeft | cVg::eAlignTop);
   setFillColour(nvgRGBA32 (colour));
   text (x+3.f, y+1.f, str);
 
@@ -48,7 +48,7 @@ float cGlWindow::drawText (uint32_t colour, float fontHeight, string str, float 
 float cGlWindow::drawTextRight (uint32_t colour, float fontHeight, string str, float x, float y, float width, float height) {
 
   setFontSize (fontHeight);
-  setTextAlign (cVg::ALIGN_RIGHT | cVg::ALIGN_TOP);
+  setTextAlign (cVg::eAlignRight | cVg::eAlignTop);
   setFillColour(nvgRGBA32 (colour));
   text (x, y+1.f, str);
 
@@ -197,7 +197,7 @@ void cGlWindow::draw() {
   if (mDrawStats) {
     //{{{  draw stats
     setFontSize (12.0f);
-    setTextAlign (cVg::ALIGN_LEFT | cVg::ALIGN_BOTTOM);
+    setTextAlign (cVg::eAlignLeft | cVg::eAlignBottom);
     setFillColour(nvgRGBA (255, 255, 255, 255));
     text (0.0f, (float)winHeight, getFrameStats() + (mVsync ? " vsyncOn" : " vsyncOff"));
     }

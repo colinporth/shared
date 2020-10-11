@@ -281,15 +281,15 @@ public:
   //{{{
   enum eAlign {
     // Horizontal align
-    ALIGN_LEFT    = 1<<0, // Default, align text horizontally to left.
-    ALIGN_CENTER  = 1<<1, // Align text horizontally to center.
-    ALIGN_RIGHT   = 1<<2, // Align text horizontally to right.
+    eAlignLeft   = 1<<0, // Default, align text horizontally to left.
+    eAlignCentre = 1<<1, // Align text horizontally to center.
+    eAlignRight  = 1<<2, // Align text horizontally to right.
 
     // Vertical align
-    ALIGN_TOP     = 1<<3, // Align text vertically to top.
-    ALIGN_MIDDLE  = 1<<4, // Align text vertically to middle.
-    ALIGN_BOTTOM  = 1<<5, // Align text vertically to bottom.
-    ALIGN_BASELINE  = 1<<6, // Default, align text vertically to baseline.
+    eAlignTop      = 1<<3, // Align text vertically to top.
+    eAlignMiddle   = 1<<4, // Align text vertically to middle.
+    eAlignBottom   = 1<<5, // Align text vertically to bottom.
+    eAlignBaseline = 1<<6, // Default, align text vertically to baseline.
     };
   //}}}
   //{{{
@@ -317,15 +317,15 @@ public:
   //}}}
   //{{{  image
   enum eImageFlags {
-    IMAGE_GENERATE_MIPMAPS = 1<<0, // Generate mipmaps during creation of the image.
-    IMAGE_REPEATX          = 1<<1, // Repeat image in X direction.
-    IMAGE_REPEATY          = 1<<2, // Repeat image in Y direction.
-    IMAGE_FLIPY            = 1<<3, // Flips (inverses) image in Y direction when rendered.
-    IMAGE_PREMULTIPLIED    = 1<<4, // Image data has premultiplied alpha.
-    IMAGE_NEAREST          = 1<<5, // Image interpolation is Nearest instead Linear
+    eImageGenerateMipmaps = 1<<0, // Generate mipmaps during creation of the image.
+    eImageRepeatX         = 1<<1, // Repeat image in X direction.
+    eImageRepeatY         = 1<<2, // Repeat image in Y direction.
+    eImageFlipY           = 1<<3, // Flips (inverses) image in Y direction when rendered.
+    eImagePreMultiplied   = 1<<4, // Image data has premultiplied alpha.
+    eImageNearestPixel    = 1<<5, // Image interpolation is Nearest instead Linear
     };
 
-  enum eTexture { TEXTURE_ALPHA = 0x01, TEXTURE_RGBA = 0x02 };
+  enum eTexture { eTextureAlpha, eTextureRgba };
 
   int createImageRGBA (int width, int height, int imageFlags, const uint8_t* data);
   int createImage (int imageFlags, uint8_t* data, int dataSize);
@@ -358,7 +358,7 @@ public:
                          const sVgColour& innerColour, const sVgColour& outerColour);
   sPaint setRadialGradient (cPoint centre, float innerRadius, float outerRadius,
                             const sVgColour& innerColour, const sVgColour& outerColour);
-  sPaint setLinearGradient (cPoint start, cPoint end, 
+  sPaint setLinearGradient (cPoint start, cPoint end,
                             const sVgColour& innerColour, const sVgColour& outerColour);
   sPaint setImagePattern (cPoint centre, cPoint size, float angle, int imageId, float alpha);
 
@@ -549,8 +549,8 @@ private:
       strokeThreshold = -1.f;
 
       type = SHADER_IMAGE;
-      if (tex->type == TEXTURE_RGBA)
-        texType = (tex->flags & cVg::IMAGE_PREMULTIPLIED) ? 0.f : 1.f;
+      if (tex->type == eTextureRgba)
+        texType = (tex->flags & cVg::eImagePreMultiplied) ? 0.f : 1.f;
       else
         texType = 2.f;
 
@@ -587,7 +587,7 @@ private:
       cTransform inverse;
       if (paint.mImageId) {
         type = SHADER_FILL_IMAGE;
-        if ((tex->flags & cVg::IMAGE_FLIPY) != 0) {
+        if ((tex->flags & cVg::eImageFlipY) != 0) {
           //{{{  flipY
           cTransform m1;
           m1.setTranslate (0.0f, extent[1] * 0.5f);
@@ -604,8 +604,8 @@ private:
         else
           inverse = paint.mTransform.getInverse();
 
-        if (tex->type == TEXTURE_RGBA)
-          texType = (tex->flags & cVg::IMAGE_PREMULTIPLIED) ? 0.f : 1.f;
+        if (tex->type == eTextureRgba)
+          texType = (tex->flags & cVg::eImagePreMultiplied) ? 0.f : 1.f;
         else
           texType = 2.f;
         }

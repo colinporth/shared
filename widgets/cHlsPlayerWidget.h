@@ -48,7 +48,7 @@ public:
                              "x" + dec(mHlsPlayer->getVideoDecode()->getHeight()) +
                              " " + dec(mHlsPlayer->getVideoDecode()->getFramePoolSize());
     vg->setFontSize ((float)getFontHeight());
-    vg->setTextAlign (cVg::ALIGN_LEFT | cVg::ALIGN_TOP);
+    vg->setTextAlign (cVg::eAlignLeft | cVg::eAlignTop);
     vg->setFillColour (kVgBlack);
     vg->text (mX+2.f, mY+2.f, infoString);
     vg->setFillColour (kVgWhite);

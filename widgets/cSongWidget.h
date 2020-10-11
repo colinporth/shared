@@ -370,8 +370,8 @@ private:
                  const std::string& playFrameString, const std::string& lastFrameString) {
 
     // small lastFrameString, coloured, right
-    vg->setFontSize ((float)getFontHeight());
-    vg->setTextAlign (cVg::ALIGN_RIGHT | cVg::ALIGN_BOTTOM);
+    vg->setFontSize (getFontHeight());
+    vg->setTextAlign (cVg::eAlignRight | cVg::eAlignBottom);
     if (mSong->getHlsLoad() == cSong::eHlsIdle)
       vg->setFillColour (kVgWhite);
     else if (mSong->getHlsLoad() == cSong::eHlsFailed)
@@ -382,12 +382,12 @@ private:
 
     // small firstFrameString, white, left
     vg->setFillColour (kVgWhite);
-    vg->setTextAlign (cVg::ALIGN_LEFT | cVg::ALIGN_BOTTOM);
+    vg->setTextAlign (cVg::eAlignLeft | cVg::eAlignBottom);
     vg->text (0.f, mHeight, firstFrameString);
 
     // big playFrameString, white, centred
-    vg->setFontSize ((float)getBigFontHeight());
-    vg->setTextAlign (cVg::ALIGN_CENTER | cVg::ALIGN_BOTTOM);
+    vg->setFontSize (getBigFontHeight());
+    vg->setTextAlign (cVg::eAlignCentre | cVg::eAlignBottom);
     vg->text (mWidth/2.f, mHeight, playFrameString);
     }
   //}}}

@@ -167,7 +167,7 @@ void cVg::initialise() {
   // initialise cAtlasText and its matching texture
   constexpr int kInitAtlasSize = 512;
   mAtlasText = new cAtlasText (kInitAtlasSize, kInitAtlasSize);
-  mFontTextureIds[0] = createTexture (TEXTURE_ALPHA, kInitAtlasSize, kInitAtlasSize, 0, NULL, "initFont");
+  mFontTextureIds[0] = createTexture (eTextureAlpha, kInitAtlasSize, kInitAtlasSize, 0, NULL, "initFont");
   }
 //}}}
 //{{{  cVg::cTransform members
@@ -471,7 +471,7 @@ void cVg::resetState() {
   state->fontSize = 16.0f;
   state->letterSpacing = 0.0f;
   state->lineHeight = 1.0f;
-  state->textAlign = ALIGN_LEFT | ALIGN_BASELINE;
+  state->textAlign = eAlignLeft | eAlignBaseline;
   state->fontId = 0;
   }
 //}}}
@@ -829,7 +829,7 @@ float cVg::text (float x, float y, const string& str) {
 //{{{  image
 //{{{
 int cVg::createImageRGBA (int width, int height, int imageFlags, const uint8_t* data) {
-  return createTexture (TEXTURE_RGBA, width, height, imageFlags, data, "rgba");
+  return createTexture (eTextureRgba, width, height, imageFlags, data, "rgba");
   }
 //}}}
 //{{{
@@ -2627,14 +2627,14 @@ int cVg::createTexture (int type, int width, int height, int imageFlags, const u
   texture->type = type;
   if (nearestPow2 (width) != (unsigned int)width || nearestPow2(height) != (unsigned int)height) {
     //{{{  check non-power of 2 restrictions
-    if ((imageFlags & IMAGE_REPEATX) != 0 || (imageFlags & IMAGE_REPEATY) != 0) {
+    if ((imageFlags & eImageRepeatX) != 0 || (imageFlags & eImageRepeatY) != 0) {
       cLog::log (LOGINFO, "no repeat x,y for non powerOfTwo textures %dx%d", width, height);
-      imageFlags &= ~(IMAGE_REPEATX | IMAGE_REPEATY);
+      imageFlags &= ~(eImageRepeatX | eImageRepeatY);
       }
 
-    if (imageFlags & IMAGE_GENERATE_MIPMAPS) {
+    if (imageFlags & eImageGenerateMipmaps) {
       cLog::log (LOGINFO, "no mipmap for non powerOfTwo textures %dx%d", width, height);
-      imageFlags &= ~IMAGE_GENERATE_MIPMAPS;
+      imageFlags &= ~eImageGenerateMipmaps;
       }
     }
     //}}}
@@ -2645,23 +2645,23 @@ int cVg::createTexture (int type, int width, int height, int imageFlags, const u
 
   glPixelStorei (GL_UNPACK_ALIGNMENT,1);
 
-  if (type == TEXTURE_RGBA)
+  if (type == eTextureRgba)
     glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
   else // alpha
     glTexImage2D (GL_TEXTURE_2D, 0, GL_LUMINANCE, width, height, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, data);
 
-  if (imageFlags & cVg::IMAGE_GENERATE_MIPMAPS)
+  if (imageFlags & cVg::eImageGenerateMipmaps)
     glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
-                     (imageFlags & cVg::IMAGE_NEAREST) ? GL_NEAREST_MIPMAP_NEAREST : GL_LINEAR_MIPMAP_LINEAR);
+                     (imageFlags & cVg::eImageNearestPixel) ? GL_NEAREST_MIPMAP_NEAREST : GL_LINEAR_MIPMAP_LINEAR);
 
-  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, (imageFlags & cVg::IMAGE_NEAREST) ? GL_NEAREST : GL_LINEAR);
-  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, (imageFlags & cVg::IMAGE_NEAREST) ? GL_NEAREST : GL_LINEAR);
-  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, (imageFlags & cVg::IMAGE_REPEATX) ? GL_REPEAT : GL_CLAMP_TO_EDGE);
-  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, (imageFlags & cVg::IMAGE_REPEATY) ? GL_REPEAT : GL_CLAMP_TO_EDGE);
+  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, (imageFlags & cVg::eImageNearestPixel) ? GL_NEAREST : GL_LINEAR);
+  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, (imageFlags & cVg::eImageNearestPixel) ? GL_NEAREST : GL_LINEAR);
+  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, (imageFlags & cVg::eImageRepeatX) ? GL_REPEAT : GL_CLAMP_TO_EDGE);
+  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, (imageFlags & cVg::eImageRepeatY) ? GL_REPEAT : GL_CLAMP_TO_EDGE);
 
   glPixelStorei (GL_UNPACK_ALIGNMENT, 4);
 
-  if (imageFlags & cVg::IMAGE_GENERATE_MIPMAPS)
+  if (imageFlags & cVg::eImageGenerateMipmaps)
     glGenerateMipmap (GL_TEXTURE_2D);
 
   setBindTexture (0);
@@ -2693,7 +2693,7 @@ bool cVg::updateTexture (int id, int x, int y, int width, int height, const uint
   glPixelStorei (GL_UNPACK_ALIGNMENT, 1);
 
   // no support for all of skip, need to update a whole row at a time.
-  if (texture->type == TEXTURE_RGBA)
+  if (texture->type == eTextureRgba)
     data += y * texture->width * 4;
   else // alpha
     data += y * texture->width;
@@ -2701,7 +2701,7 @@ bool cVg::updateTexture (int id, int x, int y, int width, int height, const uint
   x = 0;
   width = texture->width;
 
-  if (texture->type == TEXTURE_RGBA)
+  if (texture->type == eTextureRgba)
     glTexSubImage2D (GL_TEXTURE_2D, 0, x,y, width,height, GL_RGBA, GL_UNSIGNED_BYTE, data);
   else // alpha
     glTexSubImage2D (GL_TEXTURE_2D, 0, x,y, width,height, GL_LUMINANCE, GL_UNSIGNED_BYTE, data);
@@ -3020,7 +3020,7 @@ bool cVg::allocAtlas() {
       height = 2048;
       }
 
-    mFontTextureIds[mFontTextureIndex +1] = createTexture (TEXTURE_ALPHA, width, height, 0, NULL, "allocAtlas");
+    mFontTextureIds[mFontTextureIndex +1] = createTexture (eTextureAlpha, width, height, 0, NULL, "allocAtlas");
     }
   ++mFontTextureIndex;
 
