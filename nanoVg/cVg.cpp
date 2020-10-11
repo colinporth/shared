@@ -619,7 +619,7 @@ float cVg::getTextBounds (cPoint p, const string& str, float* bounds) {
 
   mAtlasText->setFontSizeSpacingAlign (state->fontId, state->fontSize * scale, state->letterSpacing * scale, state->textAlign);
 
-  float width = mAtlasText->getTextBounds (p*scale, str.c_str(), str.c_str() + str.size(), bounds);
+  float width = mAtlasText->getTextBounds (p*scale, str, bounds);
 
   // Use line bounds for height.
   mAtlasText->getLineBounds (p.y * scale, bounds[1], bounds[3]);
@@ -670,7 +670,7 @@ int cVg::getTextGlyphPositions (cPoint p, const string& str, sGlyphPosition* pos
     state->fontId, state->fontSize * scale, state->letterSpacing * scale, state->textAlign);
 
   cAtlasText::sTextIt it;
-  mAtlasText->textIt (&it, p*scale, str.c_str(), str.c_str() + str.size());
+  mAtlasText->textIt (&it, p*scale, str);
   cAtlasText::sTextIt prevIt = it;
 
   int npos = 0;
@@ -745,7 +745,7 @@ float cVg::text (cPoint p, const string& str) {
   auto firstVertex = vertices;
 
   cAtlasText::sTextIt it;
-  mAtlasText->textIt (&it, p*scale, str.c_str(), str.c_str() + str.size());
+  mAtlasText->textIt (&it, p*scale, str);
   cAtlasText::sTextIt prevIt = it;
 
   cAtlasText::sQuad quad;

@@ -423,7 +423,7 @@ void cAtlasText::getLineBounds (float y, float& miny, float& maxy) {
   }
 //}}}
 //{{{
-float cAtlasText::getTextBounds (cPoint p, const char* str, const char* end, float* bounds) {
+float cAtlasText::getTextBounds (cPoint p, const string& text, float* bounds) {
 
   auto state = getState();
 
@@ -442,7 +442,8 @@ float cAtlasText::getTextBounds (cPoint p, const char* str, const char* end, flo
   float startx = p.x;
   unsigned int codepoint;
   unsigned int utf8state = 0;
-  for (; str != end; ++str) {
+  const char* str = text.c_str();
+  for (; str != text.c_str() + text.size(); ++str) {
     if (decUtf8 (utf8state, codepoint, *(const uint8_t*)str))
       continue;
     auto glyph = getGlyph (font, codepoint, isize);
@@ -527,7 +528,7 @@ void cAtlasText::setFontSizeSpacingAlign (int font, float size, float spacing, i
 //}}}
 
 //{{{
-int cAtlasText::textIt (sTextIt* it, cPoint p, const char* str, const char* end) {
+int cAtlasText::textIt (sTextIt* it, cPoint p, const string& text) {
 
   auto state = getState();
   if (state->font < 0)
@@ -540,12 +541,12 @@ int cAtlasText::textIt (sTextIt* it, cPoint p, const char* str, const char* end)
   // align horizontally
   if (state->align & ALIGN_RIGHT) {
     float textBounds[4];
-    float width = getTextBounds (p, str,end, textBounds);
+    float width = getTextBounds (p, text, textBounds);
     p.x -= width;
     }
   else if (state->align & ALIGN_CENTER) {
     float textBounds[4];
-    float width = getTextBounds (p, str,end, textBounds);
+    float width = getTextBounds (p, text, textBounds);
     p.x -= width * 0.5f;
     }
 
@@ -559,9 +560,9 @@ int cAtlasText::textIt (sTextIt* it, cPoint p, const char* str, const char* end)
   it->nexty = p.y;
 
   it->spacing = state->spacing;
-  it->str = str;
-  it->next = str;
-  it->end = end;
+  it->str = text.c_str();
+  it->next = text.c_str();
+  it->end = text.c_str() + text.size();
 
   it->codepoint = 0;
   it->prevGlyphIndex = -1;

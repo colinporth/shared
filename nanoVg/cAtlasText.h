@@ -133,7 +133,7 @@ public:
   float getVertAlign (cFont* font, int align, short isize);
   float getVertMetrics (float& ascender, float& descender);
   void getLineBounds (float y, float& miny, float& maxy);
-  float getTextBounds (cPoint p, const char* str, const char* end, float* bounds);
+  float getTextBounds (cPoint p, const std::string& text, float* bounds);
 
   bool getAtlasDirty (int* dirty);
   const uint8_t* getAtlasTextureData (int& width, int& height);
@@ -147,7 +147,7 @@ public:
   void setFontSizeSpacingAlign (int font, float size, float spacing, int align);
 
   // textIt
-  int textIt (sTextIt* it, cPoint p, const char* str, const char* end);
+  int textIt (sTextIt* it, cPoint p, const std::string& text);
   int textItNext (sTextIt* it, sQuad* quad);
 
   int addFont (const std::string& name, uint8_t* data, int dataSize);
