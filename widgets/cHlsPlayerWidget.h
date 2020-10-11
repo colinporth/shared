@@ -23,7 +23,7 @@ public:
       if (frame->getPts() != mPts) {
         mPts = frame->getPts();
         if (mImageId == -1)
-          mImageId = vg->createImageRGBA (mHlsPlayer->getVideoDecode()->getWidth(),  mHlsPlayer->getVideoDecode()->getHeight(),
+          mImageId = vg->createImageRGBA (mHlsPlayer->getVideoDecode()->getWidth(), mHlsPlayer->getVideoDecode()->getHeight(),
                                           0, (uint8_t*)frame->get32());
         else
           vg->updateImage (mImageId, (uint8_t*)frame->get32());
@@ -67,7 +67,7 @@ public:
 private:
   //{{{
   void drawSpinner (cVg* vg, cPoint centre, float outerRadius, float innerRadius,
-                    float fracFrom, float fracTo, sVgColour& colourFrom, sVgColour& colourTo) {
+                    float fracFrom, float fracTo, const sVgColour& colourFrom, const sVgColour& colourTo) {
 
     if ((fracTo - fracFrom)  > 0.f) {
       float angleFrom = -kPiDiv2 + (fracFrom * k2Pi);
@@ -83,7 +83,6 @@ private:
         vg->setLinearGradient (centre + cPoint (cosf (angleFrom), sinf (angleFrom)) * midRadius,
                                centre + cPoint (cosf (angleTo), sinf (angleTo)) * midRadius,
                                colourFrom, colourTo));
-
       vg->fill();
       }
     }
