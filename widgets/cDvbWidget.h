@@ -106,10 +106,10 @@ public:
                 vg->updateImage (mImage[imageIndex], (uint8_t*)subtitle->mRects[line]->mPixData);
 
               // draw rect image
-              auto imagePaint = vg->imagePattern (cPoint(visx, ySub), cPoint(dstWidth, dstHeight), 0.f, mImage[imageIndex], 1.f);
+              auto imagePaint = vg->setImagePattern (cPoint(visx, ySub), cPoint(dstWidth, dstHeight), 0.f, mImage[imageIndex], 1.f);
               vg->beginPath();
               vg->rect (cPoint(visx, ySub), cPoint(dstWidth, dstHeight));
-              vg->fillPaint (imagePaint);
+              vg->setFillPaint (imagePaint);
               vg->fill();
 
               imageIndex++;

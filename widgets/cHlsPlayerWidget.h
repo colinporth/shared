@@ -32,7 +32,7 @@ public:
       // paint image rect
       vg->beginPath();
       vg->rect (cPoint(0.f,0.f), cPoint(mWidth, mHeight));
-      vg->fillPaint (vg->imagePattern (cPoint(0.f,0.f), cPoint(mWidth, mHeight), 0.f, mImageId, 1.f));
+      vg->setFillPaint (vg->setImagePattern (cPoint(0.f,0.f), cPoint(mWidth, mHeight), 0.f, mImageId, 1.f));
       vg->triangleFill();
       }
 
@@ -49,9 +49,9 @@ public:
                              " " + dec(mHlsPlayer->getVideoDecode()->getFramePoolSize());
     vg->setFontSize ((float)getFontHeight());
     vg->setTextAlign (cVg::ALIGN_LEFT | cVg::ALIGN_TOP);
-    vg->fillColour (kVgBlack);
+    vg->setFillColour (kVgBlack);
     vg->text (mX+2.f, mY+2.f, infoString);
-    vg->fillColour (kVgWhite);
+    vg->setFillColour (kVgWhite);
     vg->text (mX, mY, infoString);
     }
   //}}}
@@ -79,21 +79,21 @@ private:
     vg->arc (centre, outerRadius, angle[0], angle[1], cVg::eHOLE);
     vg->arc (centre, innerRadius, angle[1], angle[0], cVg::eSOLID);
     vg->closePath();
-    vg->fillPaint (vg->linearGradient (p[0], p[1], colours[0], colours[1]));
+    vg->setFillPaint (vg->setLinearGradient (p[0], p[1], colours[0], colours[1]));
     vg->fill();
 
     vg->beginPath();
     vg->arc (centre, outerRadius, angle[0], angle[2], cVg::eHOLE);
     vg->arc (centre, innerRadius, angle[2], angle[0], cVg::eSOLID);
     vg->closePath();
-    vg->fillPaint (vg->linearGradient (p[0], p[2], colours[0], colours[3]));
+    vg->setFillPaint (vg->setLinearGradient (p[0], p[2], colours[0], colours[3]));
     vg->fill();
 
     vg->beginPath();
     vg->arc (centre, outerRadius, angle[0], angle[3], cVg::eHOLE);
     vg->arc (centre, innerRadius, angle[3], angle[0], cVg::eSOLID);
     vg->closePath();
-    vg->fillPaint (vg->linearGradient (p[0], p[3], colours[0], colours[3]));
+    vg->setFillPaint (vg->setLinearGradient (p[0], p[3], colours[0], colours[3]));
     vg->fill();
 
     vg->restoreState();

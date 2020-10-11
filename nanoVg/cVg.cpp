@@ -453,7 +453,7 @@ void cVg::resetState() {
 
   auto state = &mStates[mNumStates-1];
 
-  state->compositeOp = compositeOpState (NVG_SOURCE_OVER);
+  state->composite = compositeState (NVG_SOURCE_OVER);
   state->fillPaint.set (nvgRGBA (255, 255, 255, 255));
   state->strokePaint.set (nvgRGBA (0, 0, 0, 255));
 
@@ -491,6 +491,30 @@ void cVg::restoreState() {
   if (mNumStates <= 1)
     return;
   mNumStates--;
+  }
+//}}}
+
+//{{{
+void cVg::setCompositeState (eCompositeOp compositeOp) {
+  mStates[mNumStates-1].composite = compositeState (compositeOp);
+  }
+//}}}
+//{{{
+void cVg::setCompositeBlendFuncSeparate (eBlendFactor srcRGB, eBlendFactor dstRGB,
+                                            eBlendFactor srcAlpha, eBlendFactor dstAlpha) {
+
+  sCompositeState compositeState;
+  compositeState.srcRGB = srcRGB;
+  compositeState.dstRGB = dstRGB;
+  compositeState.srcAlpha = srcAlpha;
+  compositeState.dstAlpha = dstAlpha;
+
+  mStates[mNumStates-1].composite = compositeState;
+  }
+//}}}
+//{{{
+void cVg::setCompositeBlendFunc (eBlendFactor sfactor, eBlendFactor dfactor) {
+  setCompositeBlendFuncSeparate (sfactor, dfactor, sfactor, dfactor);
   }
 //}}}
 //}}}
@@ -853,13 +877,14 @@ bool cVg::deleteImage (int image) {
   }
 //}}}
 //}}}
-//{{{  basic shapes
-void cVg::fillColour (const sVgColour& color) { mStates[mNumStates-1].fillPaint.set (color); }
-void cVg::strokeColour (const sVgColour& color) { mStates[mNumStates-1].strokePaint.set (color); }
-void cVg::strokeWidth (float width) { mStates[mNumStates-1].strokeWidth = width; }
-void cVg::globalAlpha (float alpha) { mStates[mNumStates-1].alpha = alpha; }
+//{{{  shape
+void cVg::setAlpha (float alpha) { mStates[mNumStates-1].alpha = alpha; }
+
+void cVg::setFillColour (const sVgColour& color) { mStates[mNumStates-1].fillPaint.set (color); }
+void cVg::setStrokeColour (const sVgColour& color) { mStates[mNumStates-1].strokePaint.set (color); }
+void cVg::setStrokeWidth (float width) { mStates[mNumStates-1].strokeWidth = width; }
 //{{{
-void cVg::fringeWidth (float width) {
+void cVg::setFringeWidth (float width) {
 
   mFringeWidth = width;
   if (mFringeWidth < 0.0f)
@@ -869,12 +894,12 @@ void cVg::fringeWidth (float width) {
   }
 //}}}
 
-void cVg::miterLimit (float limit) { mStates[mNumStates-1].miterLimit = limit; }
-void cVg::lineJoin (eLineCap join) { mStates[mNumStates-1].lineJoin = join; }
-void cVg::lineCap (eLineCap cap) { mStates[mNumStates-1].lineCap = cap; }
+void cVg::setMiterLimit (float limit) { mStates[mNumStates-1].miterLimit = limit; }
+void cVg::setLineJoin (eLineCap join) { mStates[mNumStates-1].lineJoin = join; }
+void cVg::setLineCap (eLineCap cap) { mStates[mNumStates-1].lineCap = cap; }
 
 //{{{
-cVg::sPaint cVg::linearGradient (cPoint start, cPoint end, const sVgColour& innerColor, const sVgColour& outerColor) {
+cVg::sPaint cVg::setLinearGradient (cPoint start, cPoint end, const sVgColour& innerColor, const sVgColour& outerColor) {
 
   // Calculate transform aligned to the line
   cPoint diff = end - start;
@@ -898,7 +923,7 @@ cVg::sPaint cVg::linearGradient (cPoint start, cPoint end, const sVgColour& inne
   }
 //}}}
 //{{{
-cVg::sPaint cVg::boxGradient (cPoint p, cPoint size, float radius, float feather,
+cVg::sPaint cVg::setBoxGradient (cPoint p, cPoint size, float radius, float feather,
                               const sVgColour& innerColour, const sVgColour& outerColour) {
 
   sPaint paint;
@@ -915,7 +940,7 @@ cVg::sPaint cVg::boxGradient (cPoint p, cPoint size, float radius, float feather
   }
 //}}}
 //{{{
-cVg::sPaint cVg::radialGradient (cPoint centre, float innerRadius, float outerRadius,
+cVg::sPaint cVg::setRadialGradient (cPoint centre, float innerRadius, float outerRadius,
                                  const sVgColour& innerColour, const sVgColour& outerColour) {
 
   sPaint paint;
@@ -933,7 +958,7 @@ cVg::sPaint cVg::radialGradient (cPoint centre, float innerRadius, float outerRa
   }
 //}}}
 //{{{
-cVg::sPaint cVg::imagePattern (cPoint centre, cPoint size, float angle, int imageId, float alpha) {
+cVg::sPaint cVg::setImagePattern (cPoint centre, cPoint size, float angle, int imageId, float alpha) {
 
   sPaint paint;
   paint.mTransform.setRotateTranslate (angle, centre);
@@ -950,14 +975,14 @@ cVg::sPaint cVg::imagePattern (cPoint centre, cPoint size, float angle, int imag
 //}}}
 
 //{{{
-void cVg::fillPaint (const sPaint& paint) {
+void cVg::setFillPaint (const sPaint& paint) {
 
   mStates[mNumStates-1].fillPaint = paint;
   mStates[mNumStates-1].fillPaint.mTransform.multiply (mStates[mNumStates-1].mTransform);
   }
 //}}}
 //{{{
-void cVg::strokePaint (const sPaint& paint) {
+void cVg::setStrokePaint (const sPaint& paint) {
 
   mStates[mNumStates-1].strokePaint = paint;
   mStates[mNumStates-1].strokePaint.mTransform.multiply (mStates[mNumStates-1].mTransform);
@@ -1270,31 +1295,6 @@ void cVg::triangleFill() {
   }
 //}}}
 //}}}
-//{{{  composite
-//{{{
-void cVg::globalCompositeOp (eCompositeOp op) {
-  mStates[mNumStates-1].compositeOp = compositeOpState (op);
-  }
-//}}}
-//{{{
-void cVg::globalCompositeBlendFuncSeparate (eBlendFactor srcRGB, eBlendFactor dstRGB,
-                                            eBlendFactor srcAlpha, eBlendFactor dstAlpha) {
-
-  sCompositeOpState compositeOpState;
-  compositeOpState.srcRGB = srcRGB;
-  compositeOpState.dstRGB = dstRGB;
-  compositeOpState.srcAlpha = srcAlpha;
-  compositeOpState.dstAlpha = dstAlpha;
-
-  mStates[mNumStates-1].compositeOp = compositeOpState;
-  }
-//}}}
-//{{{
-void cVg::globalCompositeBlendFunc (eBlendFactor sfactor, eBlendFactor dfactor) {
-  globalCompositeBlendFuncSeparate (sfactor, dfactor, sfactor, dfactor);
-  }
-//}}}
-//}}}
 //{{{  frame
 //{{{
 string cVg::getFrameStats() {
@@ -1319,7 +1319,7 @@ void cVg::beginFrame (int width, int height, float devicePixelRatio) {
 void cVg::endFrame() {
 
   auto state = &mStates[mNumStates-1];
-  renderFrame (mVertices, state->compositeOp);
+  renderFrame (mVertices, state->composite);
 
   if (mFontTextureIndex) {
     // delete fontImages smaller than current one
@@ -2416,63 +2416,63 @@ cVg::sVertex* cVg::cShape::roundCapEnd (sVertex* vertexPtr, sShapePoint* point, 
 
 // converts
 //{{{
-cVg::sCompositeOpState cVg::compositeOpState (eCompositeOp op) {
+cVg::sCompositeState cVg::compositeState (eCompositeOp compositeOp) {
 
-  sCompositeOpState compositeOpState;
-  switch (op) {
+  sCompositeState compositeState;
+  switch (compositeOp) {
     case NVG_SOURCE_OVER :
-      compositeOpState.srcRGB = NVG_ONE;
-      compositeOpState.dstRGB = NVG_ONE_MINUS_SRC_ALPHA;
+      compositeState.srcRGB = NVG_ONE;
+      compositeState.dstRGB = NVG_ONE_MINUS_SRC_ALPHA;
       break;
     case NVG_SOURCE_IN:
-      compositeOpState.srcRGB = NVG_DST_ALPHA;
-      compositeOpState.dstRGB = NVG_ZERO;
+      compositeState.srcRGB = NVG_DST_ALPHA;
+      compositeState.dstRGB = NVG_ZERO;
       break;
     case NVG_SOURCE_OUT:
-      compositeOpState.srcRGB = NVG_ONE_MINUS_DST_ALPHA;
-      compositeOpState.dstRGB = NVG_ZERO;
+      compositeState.srcRGB = NVG_ONE_MINUS_DST_ALPHA;
+      compositeState.dstRGB = NVG_ZERO;
       break;
     case NVG_ATOP:
-      compositeOpState.srcRGB = NVG_DST_ALPHA;
-      compositeOpState.dstRGB = NVG_ONE_MINUS_SRC_ALPHA;
+      compositeState.srcRGB = NVG_DST_ALPHA;
+      compositeState.dstRGB = NVG_ONE_MINUS_SRC_ALPHA;
       break;
     case NVG_DESTINATION_OVER:
-      compositeOpState.srcRGB = NVG_ONE_MINUS_DST_ALPHA;
-      compositeOpState.dstRGB = NVG_ONE;
+      compositeState.srcRGB = NVG_ONE_MINUS_DST_ALPHA;
+      compositeState.dstRGB = NVG_ONE;
       break;
     case NVG_DESTINATION_IN:
-      compositeOpState.srcRGB = NVG_ZERO;
-      compositeOpState.dstRGB = NVG_SRC_ALPHA;
+      compositeState.srcRGB = NVG_ZERO;
+      compositeState.dstRGB = NVG_SRC_ALPHA;
       break;
     case NVG_DESTINATION_OUT:
-      compositeOpState.srcRGB = NVG_ZERO;
-      compositeOpState.dstRGB = NVG_ONE_MINUS_SRC_ALPHA;
+      compositeState.srcRGB = NVG_ZERO;
+      compositeState.dstRGB = NVG_ONE_MINUS_SRC_ALPHA;
       break;
     case NVG_DESTINATION_ATOP:
-      compositeOpState.srcRGB = NVG_ONE_MINUS_DST_ALPHA;
-      compositeOpState.dstRGB = NVG_SRC_ALPHA;
+      compositeState.srcRGB = NVG_ONE_MINUS_DST_ALPHA;
+      compositeState.dstRGB = NVG_SRC_ALPHA;
       break;
     case NVG_LIGHTER:
-      compositeOpState.srcRGB = NVG_ONE;
-      compositeOpState.dstRGB = NVG_ONE;
+      compositeState.srcRGB = NVG_ONE;
+      compositeState.dstRGB = NVG_ONE;
       break;
     case NVG_COPY:
-      compositeOpState.srcRGB = NVG_ONE;
-      compositeOpState.dstRGB = NVG_ZERO;
+      compositeState.srcRGB = NVG_ONE;
+      compositeState.dstRGB = NVG_ZERO;
       break;
     case NVG_XOR:
-      compositeOpState.srcRGB = NVG_ONE_MINUS_DST_ALPHA;
-      compositeOpState.dstRGB = NVG_ONE_MINUS_SRC_ALPHA;
+      compositeState.srcRGB = NVG_ONE_MINUS_DST_ALPHA;
+      compositeState.dstRGB = NVG_ONE_MINUS_SRC_ALPHA;
       break;
     default:
-      compositeOpState.srcRGB = NVG_ONE;
-      compositeOpState.dstRGB = NVG_ZERO;
+      compositeState.srcRGB = NVG_ONE;
+      compositeState.dstRGB = NVG_ZERO;
       break;
     }
 
-  compositeOpState.srcAlpha = compositeOpState.srcRGB;
-  compositeOpState.dstAlpha = compositeOpState.dstRGB;
-  return compositeOpState;
+  compositeState.srcAlpha = compositeState.srcRGB;
+  compositeState.dstAlpha = compositeState.dstRGB;
+  return compositeState;
   }
 //}}}
 //{{{
@@ -2786,14 +2786,14 @@ void cVg::renderStroke (cShape& shape, sPaint& paint, cScissor& scissor, float f
   }
 //}}}
 //{{{
-void cVg::renderFrame (cVertices& vertices, sCompositeOpState compositeOp) {
+void cVg::renderFrame (cVertices& vertices, sCompositeState composite) {
 
   mDrawArrays = 0;
   //{{{  init gl blendFunc
-  GLenum srcRGB = convertBlendFuncFactor (compositeOp.srcRGB);
-  GLenum dstRGB = convertBlendFuncFactor (compositeOp.dstRGB);
-  GLenum srcAlpha = convertBlendFuncFactor (compositeOp.srcAlpha);
-  GLenum dstAlpha = convertBlendFuncFactor (compositeOp.dstAlpha);
+  GLenum srcRGB = convertBlendFuncFactor (composite.srcRGB);
+  GLenum dstRGB = convertBlendFuncFactor (composite.dstRGB);
+  GLenum srcAlpha = convertBlendFuncFactor (composite.srcAlpha);
+  GLenum dstAlpha = convertBlendFuncFactor (composite.dstAlpha);
 
   if (srcRGB == GL_INVALID_ENUM || dstRGB == GL_INVALID_ENUM ||
       srcAlpha == GL_INVALID_ENUM || dstAlpha == GL_INVALID_ENUM)

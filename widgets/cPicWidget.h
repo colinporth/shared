@@ -71,10 +71,10 @@ public:
       float x = mScale >= 1.0 ? mX : mX + (mWidth - width)/2.f;
       float y = mScale >= 1.0 ? mY : mY + (mHeight - height)/2.f;
 
-      auto imgPaint = vg->imagePattern (cPoint(x, y), cPoint(width, height), mAngle / k180Pi, mImage, 1.0f);
+      auto imgPaint = vg->setImagePattern (cPoint(x, y), cPoint(width, height), mAngle / k180Pi, mImage, 1.0f);
       vg->beginPath();
       vg->rect (cPoint(x, y), cPoint(width, height));
-      vg->fillPaint (imgPaint);
+      vg->setFillPaint (imgPaint);
       vg->fill();
       }
     }

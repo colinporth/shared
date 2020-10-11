@@ -247,14 +247,6 @@ public:
     int mImageId;
     };
   //}}}
-  //{{{
-  struct sCompositeOpState {
-    eBlendFactor srcRGB;
-    eBlendFactor dstRGB;
-    eBlendFactor srcAlpha;
-    eBlendFactor dstAlpha;
-    };
-  //}}}
 
   cVg() : cVg(0) {}
   cVg (int flags);
@@ -265,6 +257,11 @@ public:
   void saveState();
   void restoreState();
   void resetState();
+
+  void setCompositeState (eCompositeOp compositeOp);
+  void setCompositeBlendFunc (eBlendFactor sfactor, eBlendFactor dfactor);
+  void setCompositeBlendFuncSeparate (eBlendFactor srcRGB, eBlendFactor dstRGB,
+                                      eBlendFactor srcAlpha, eBlendFactor dstAlpha);
   //}}}
   //{{{  transform
   void resetTransform();
@@ -337,32 +334,32 @@ public:
 
   bool deleteImage (int id);
   //}}}
-  //{{{  basic shapes
+  //{{{  shape
   enum eWinding { eSOLID = 1, eHOLE = 2 };  // CCW, CW
   enum eLineCap { eBUTT, eROUND, eSQUARE, eBEVEL, eMITER };
   enum eShapeCommands { eMOVETO, eLINETO, eBEZIERTO, eWINDING, eCLOSE };
 
   float getFringeWidth() { return mFringeWidth; }
 
-  void fillColour (const sVgColour& colour);
-  void strokeColour (const sVgColour& colour);
-  void strokeWidth (float size);
-  void globalAlpha (float alpha);
-  void fringeWidth (float width);
+  void setAlpha (float alpha);
+  void setFillColour (const sVgColour& colour);
+  void setStrokeColour (const sVgColour& colour);
+  void setStrokeWidth (float size);
+  void setFringeWidth (float width);
 
-  void miterLimit (float limit);
-  void lineCap (eLineCap cap);
-  void lineJoin (eLineCap join);
+  void setMiterLimit (float limit);
+  void setLineCap (eLineCap cap);
+  void setLineJoin (eLineCap join);
 
-  sPaint linearGradient (cPoint start, cPoint end, const sVgColour& innerColour, const sVgColour& outerColour);
-  sPaint boxGradient (cPoint p, cPoint size, float radius, float feather,
-                      const sVgColour& innerColour, const sVgColour& outerColour);
-  sPaint radialGradient (cPoint centre, float innerRadius, float outerRadius,
+  sPaint setLinearGradient (cPoint start, cPoint end, const sVgColour& innerColour, const sVgColour& outerColour);
+  sPaint setBoxGradient (cPoint p, cPoint size, float radius, float feather,
                          const sVgColour& innerColour, const sVgColour& outerColour);
-  sPaint imagePattern (cPoint centre, cPoint size, float angle, int imageId, float alpha);
+  sPaint setRadialGradient (cPoint centre, float innerRadius, float outerRadius,
+                            const sVgColour& innerColour, const sVgColour& outerColour);
+  sPaint setImagePattern (cPoint centre, cPoint size, float angle, int imageId, float alpha);
 
-  void fillPaint (const sPaint& paint);
-  void strokePaint (const sPaint& paint);
+  void setFillPaint (const sPaint& paint);
+  void setStrokePaint (const sPaint& paint);
 
   void beginPath();
   void pathWinding (eWinding dir);
@@ -385,12 +382,6 @@ public:
   void fill();
   void stroke();
   void triangleFill();
-  //}}}
-  //{{{  composite
-  void globalCompositeOp (eCompositeOp op);
-  void globalCompositeBlendFunc (eBlendFactor sfactor, eBlendFactor dfactor);
-  void globalCompositeBlendFuncSeparate (eBlendFactor srcRGB, eBlendFactor dstRGB,
-                                         eBlendFactor srcAlpha, eBlendFactor dstAlpha);
   //}}}
   //{{{  frame
   std::string getFrameStats();
@@ -649,28 +640,6 @@ private:
     };
   //}}}
   //{{{
-  struct sState {
-    sCompositeOpState compositeOp;
-    sPaint fillPaint;
-    sPaint strokePaint;
-
-    float strokeWidth;
-    float miterLimit;
-    eLineCap lineJoin;
-    eLineCap lineCap;
-    float alpha;
-
-    cTransform mTransform;
-
-    cScissor scissor;
-    float fontSize;
-    float letterSpacing;
-    float lineHeight;
-    int textAlign;
-    int fontId;
-    };
-  //}}}
-  //{{{
   class cVertices {
   public:
     cVertices();
@@ -687,10 +656,9 @@ private:
   private:
     static constexpr int kInitNumVertices = 4000;
 
-    sVertex* mVertices = nullptr;
-
     int mNumVertices = 0;
     int mNumAllocatedVertices = 0;
+    sVertex* mVertices = nullptr;
     };
   //}}}
   //{{{
@@ -808,9 +776,39 @@ private:
     GLint location[MAX_LOCATIONS];
     };
   //}}}
+  //{{{
+  struct sCompositeState {
+    eBlendFactor srcRGB;
+    eBlendFactor dstRGB;
+    eBlendFactor srcAlpha;
+    eBlendFactor dstAlpha;
+    };
+  //}}}
+  //{{{
+  struct sState {
+    sCompositeState composite;
+    sPaint fillPaint;
+    sPaint strokePaint;
+
+    float strokeWidth;
+    float miterLimit;
+    eLineCap lineJoin;
+    eLineCap lineCap;
+    float alpha;
+
+    cTransform mTransform;
+
+    cScissor scissor;
+    float fontSize;
+    float letterSpacing;
+    float lineHeight;
+    int textAlign;
+    int fontId;
+    };
+  //}}}
 
   // converts
-  sCompositeOpState compositeOpState (eCompositeOp op);
+  sCompositeState compositeState (eCompositeOp compositeOp);
   GLenum convertBlendFuncFactor (eBlendFactor factor);
 
   // sets
@@ -836,7 +834,7 @@ private:
   void renderTriangles (int firstVertexIndex, int numVertices, sPaint& paint, cScissor& scissor);
   void renderFill (cShape& shape, sPaint& paint, cScissor& scissor, float fringe);
   void renderStroke (cShape& shape, sPaint& paint, cScissor& scissor, float fringe, float strokeWidth);
-  void renderFrame (cVertices& vertices, sCompositeOpState compositeOp);
+  void renderFrame (cVertices& vertices, sCompositeState composite);
 
   // font
   float getFontScale (sState* state);
