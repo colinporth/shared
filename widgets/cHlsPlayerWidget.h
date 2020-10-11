@@ -36,15 +36,15 @@ public:
       vg->triangleFill();
       }
 
-    // progress spinner
+    // draw progress spinner
     vg->saveState();
     cPoint centre (mWidth-20.f,20.f);
     float loadFrac = mHlsPlayer->getLoadFrac();
-    drawSpinner (vg, centre, 18.f,12.f, 
+    drawSpinner (vg, centre, 18.f,12.f,
                  0.f, loadFrac, nvgRGBA(32,255,32,0), nvgRGBA(32,255,32,192));
-    drawSpinner (vg, centre, 18.f, 12.f,
+    drawSpinner (vg, centre, 18.f,12.f,
                  loadFrac * (1.f - mHlsPlayer->getVideoFrac()), loadFrac, nvgRGBA(255,32,32,0), nvgRGBA(255,32,32,192));
-    drawSpinner (vg, centre, 18.f, 12.f,
+    drawSpinner (vg, centre, 18.f,12.f,
                  loadFrac * (1.f - mHlsPlayer->getAudioFrac()), loadFrac, nvgRGBA(32,32,255,0), nvgRGBA(32,32,255,192));
     vg->restoreState();
 
@@ -67,8 +67,7 @@ public:
 private:
   //{{{
   void drawSpinner (cVg* vg, cPoint centre, float outerRadius, float innerRadius,
-                    float fracFrom, float fracTo, 
-                    sVgColour& colourFrom, sVgColour& colourTo) {
+                    float fracFrom, float fracTo, sVgColour& colourFrom, sVgColour& colourTo) {
 
     if ((fracTo - fracFrom)  > 0.f) {
       float angleFrom = -kPiDiv2 + (fracFrom * k2Pi);
