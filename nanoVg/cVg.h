@@ -73,8 +73,8 @@ inline int equal (float x1, float y1, float x2, float y2, float tol) {
 //{{{
 inline float distPointSeg (float x, float y, float px, float py, float qx, float qy) {
 
-  float pqx = qx-px;
-  float pqy = qy-py;
+  float pqx = qx - px;
+  float pqy = qy - py;
   float dx = x - px;
   float dy = y - py;
 
@@ -94,7 +94,9 @@ inline float distPointSeg (float x, float y, float px, float py, float qx, float
   }
 //}}}
 //{{{
-inline void intersectRects (float* dst, float ax, float ay, float aw, float ah, float bx, float by, float bw, float bh) {
+inline void intersectRects (float* dst,
+                            float ax, float ay, float aw, float ah,
+                            float bx, float by, float bw, float bh) {
 
   float minx = std::max (ax, bx);
   float miny = std::max (ay, by);
@@ -304,9 +306,9 @@ public:
 
   int createFont (const std::string& fontName, uint8_t* data, int dataSize);
 
-  float getTextBounds (float x, float y, const std::string& str, float* bounds);
+  float getTextBounds (cPoint p, const std::string& str, float* bounds);
   float getTextMetrics (float& ascender, float& descender);
-  int getTextGlyphPositions (float x, float y, const std::string& str, sGlyphPosition* positions, int maxPositions);
+  int getTextGlyphPositions (cPoint p, const std::string& str, sGlyphPosition* positions, int maxPositions);
 
   void setFontById (int font);
   void setFontByName (const std::string& fontName);
@@ -315,7 +317,7 @@ public:
   void setTextLetterSpacing (float spacing);
   void setTextLineHeight (float lineHeight);
 
-  float text (float x, float y, const std::string& str);
+  float text (cPoint p, const std::string& str);
   //}}}
   //{{{  image
   enum eImageFlags {              // set of image flags

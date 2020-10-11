@@ -423,7 +423,7 @@ void cAtlasText::getLineBounds (float y, float& miny, float& maxy) {
   }
 //}}}
 //{{{
-float cAtlasText::getTextBounds (float x, float y, const char* str, const char* end, float* bounds) {
+float cAtlasText::getTextBounds (cPoint p, const char* str, const char* end, float* bounds) {
 
   auto state = getState();
 
@@ -433,13 +433,13 @@ float cAtlasText::getTextBounds (float x, float y, const char* str, const char* 
   float scale = ttGetPixelHeightScale (font->mFontInfo, (float)isize / 10.0f);
 
   // align vertically.
-  y += getVertAlign (font, state->align, isize);
+  p.y += getVertAlign (font, state->align, isize);
 
-  float minx = x;
-  float maxx = x;
-  float miny = y;
-  float maxy = y;
-  float startx = x;
+  float minx = p.x;
+  float maxx = p.x;
+  float miny = p.y;
+  float maxy = p.y;
+  float startx = p.x;
   unsigned int codepoint;
   unsigned int utf8state = 0;
   for (; str != end; ++str) {
@@ -448,7 +448,7 @@ float cAtlasText::getTextBounds (float x, float y, const char* str, const char* 
     auto glyph = getGlyph (font, codepoint, isize);
     if (glyph != NULL) {
       sQuad q;
-      getQuad (font, prevGlyphIndex, glyph, scale, state->spacing, &x, &y, &q);
+      getQuad (font, prevGlyphIndex, glyph, scale, state->spacing, &p.x, &p.y, &q);
       if (q.x0 < minx)
         minx = q.x0;
       if (q.x1 > maxx)
@@ -461,7 +461,7 @@ float cAtlasText::getTextBounds (float x, float y, const char* str, const char* 
     prevGlyphIndex = glyph != NULL ? glyph->index : -1;
     }
 
-  float advance = x - startx;
+  float advance = p.x - startx;
 
   // align horizontally
   if (state->align & ALIGN_RIGHT) {
@@ -527,7 +527,7 @@ void cAtlasText::setFontSizeSpacingAlign (int font, float size, float spacing, i
 //}}}
 
 //{{{
-int cAtlasText::textIt (sTextIt* it, float x, float y, const char* str, const char* end) {
+int cAtlasText::textIt (sTextIt* it, cPoint p, const char* str, const char* end) {
 
   auto state = getState();
   if (state->font < 0)
@@ -540,23 +540,23 @@ int cAtlasText::textIt (sTextIt* it, float x, float y, const char* str, const ch
   // align horizontally
   if (state->align & ALIGN_RIGHT) {
     float textBounds[4];
-    float width = getTextBounds (x,y, str,end, textBounds);
-    x -= width;
+    float width = getTextBounds (p, str,end, textBounds);
+    p.x -= width;
     }
   else if (state->align & ALIGN_CENTER) {
     float textBounds[4];
-    float width = getTextBounds (x,y, str,end, textBounds);
-    x -= width * 0.5f;
+    float width = getTextBounds (p, str,end, textBounds);
+    p.x -= width * 0.5f;
     }
 
   // align vertically
-  y += getVertAlign (it->font, state->align, it->isize);
+  p.y += getVertAlign (it->font, state->align, it->isize);
 
-  it->x = x;
-  it->nextx = x;
+  it->x = p.x;
+  it->nextx = p.x;
 
-  it->y = y;
-  it->nexty = y;
+  it->y = p.y;
+  it->nexty = p.y;
 
   it->spacing = state->spacing;
   it->str = str;

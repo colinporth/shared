@@ -51,8 +51,8 @@ public:
   virtual ~iDraw() {}
 
   virtual void drawRect (uint32_t colour, float x, float y, float width, float height) = 0;
-  virtual float drawText (uint32_t colour, float fontHeight, std::string str, float x, float y, float width, float height) = 0;
-  virtual float drawTextRight (uint32_t colour, float fontHeight, std::string str, float x, float y, float width, float height) = 0;
+  virtual float drawText (uint32_t colour, float fontHeight, std::string str,  cPoint p, cPoint size) = 0;
+  virtual float drawTextRight (uint32_t colour, float fontHeight, std::string str,  cPoint p, cPoint size) = 0;
 
   virtual void drawPixel (uint32_t colour, float x, float y) { drawRect (colour, x, y, 1.f,1.f); }
 

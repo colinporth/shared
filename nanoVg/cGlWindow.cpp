@@ -32,29 +32,29 @@ void cGlWindow::drawRect (uint32_t colour, float x, float y, float width, float 
   }
 //}}}
 //{{{
-float cGlWindow::drawText (uint32_t colour, float fontHeight, string str, float x, float y, float width, float height) {
+float cGlWindow::drawText (uint32_t colour, float fontHeight, string str, cPoint p, cPoint size) {
 
   setFontSize (fontHeight);
   setTextAlign (cVg::eAlignLeft | cVg::eAlignTop);
   setFillColour(nvgRGBA32 (colour));
-  text (x+3.f, y+1.f, str);
+  text (p + cPoint (3.f, 1.f), str);
 
   // get width
   float bounds[4];
-  return getTextBounds (x+3.f, y+1.f, str, bounds);
+  return getTextBounds (p + cPoint(3.f, 1.f), str, bounds);
   }
 //}}}
 //{{{
-float cGlWindow::drawTextRight (uint32_t colour, float fontHeight, string str, float x, float y, float width, float height) {
+float cGlWindow::drawTextRight (uint32_t colour, float fontHeight, string str, cPoint p, cPoint size) {
 
   setFontSize (fontHeight);
   setTextAlign (cVg::eAlignRight | cVg::eAlignTop);
   setFillColour(nvgRGBA32 (colour));
-  text (x, y+1.f, str);
+  text (p + cPoint (0.f, 1.f), str);
 
   // get width
   float bounds[4];
-  return getTextBounds (x, y+1.f, str, bounds);
+  return getTextBounds (p + cPoint (0.f,1.f), str, bounds);
   }
 //}}}
 //{{{
@@ -189,8 +189,8 @@ void cGlWindow::draw() {
 
   if (mDrawPerf) {
     //{{{  draw perf stats
-    mFpsGraph->render (this, 0.f, winHeight-35.f, winWidth/2.f -2.f, 35.f);
-    mCpuGraph->render (this, winWidth/2.f, winHeight-35.f, winWidth/2.f - 2.f, 35.f);
+    mFpsGraph->render (this, cPoint(0.f, winHeight-35.f), cPoint(winWidth/2.f -2.f, 35.f));
+    mCpuGraph->render (this, cPoint(winWidth/2.f, winHeight-35.f), cPoint(winWidth/2.f - 2.f, 35.f));
     }
     //}}}
 
@@ -199,7 +199,7 @@ void cGlWindow::draw() {
     setFontSize (12.0f);
     setTextAlign (cVg::eAlignLeft | cVg::eAlignBottom);
     setFillColour(nvgRGBA (255, 255, 255, 255));
-    text (0.0f, (float)winHeight, getFrameStats() + (mVsync ? " vsyncOn" : " vsyncOff"));
+    text (cPoint(0.f, (float)winHeight), getFrameStats() + (mVsync ? " vsyncOn" : " vsyncOff"));
     }
     //}}}
 

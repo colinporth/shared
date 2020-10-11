@@ -58,9 +58,9 @@ public:
     vg->setFontSize ((float)getFontHeight());
     vg->setTextAlign (cVg::eAlignLeft | cVg::eAlignTop);
     vg->setFillColour (kVgBlack);
-    vg->text (mX+2.f, mY+2.f, infoString);
+    vg->text (cPoint(mX+2.f, mY+2.f), infoString);
     vg->setFillColour (kVgWhite);
-    vg->text (mX, mY, infoString);
+    vg->text (cPoint(mX, mY), infoString);
     }
   //}}}
 

@@ -378,17 +378,17 @@ private:
       vg->setFillColour (kVgRed);
     else
       vg->setFillColour (kVgGreen);
-    vg->text (mWidth, mHeight, lastFrameString);
+    vg->text (cPoint(mWidth, mHeight), lastFrameString);
 
     // small firstFrameString, white, left
     vg->setFillColour (kVgWhite);
     vg->setTextAlign (cVg::eAlignLeft | cVg::eAlignBottom);
-    vg->text (0.f, mHeight, firstFrameString);
+    vg->text (cPoint(0.f, mHeight), firstFrameString);
 
     // big playFrameString, white, centred
     vg->setFontSize (getBigFontHeight());
     vg->setTextAlign (cVg::eAlignCentre | cVg::eAlignBottom);
-    vg->text (mWidth/2.f, mHeight, playFrameString);
+    vg->text (cPoint(mWidth/2.f, mHeight), playFrameString);
     }
   //}}}
 

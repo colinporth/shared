@@ -40,7 +40,7 @@ private:
 
     if (loaded || loading)
       draw->drawText (COL_LIGHTGREY, getSmallFontHeight(), dec(offset),
-                      mX + mWidth / 3.f, mY + (chunk * getBoxHeight()) + mWidth/6.f, mWidth, mWidth);
+                      cPoint(mX + mWidth / 3.f, mY + (chunk * getBoxHeight()) + mWidth/6.f), cPoint(mWidth, mWidth));
     }
 
   cHls* mHls;
@@ -121,7 +121,7 @@ public:
     context->setFontSize ((float)getBigFontHeight());
     context->setTextAlign (cVg::eAlignLeft | cVg::eAlignTop);
     context->setFillColour (kVgWhite);
-    context->text (midx-60.0f+3.0f, y+1.0f, getTimeString (mHls->getPlayTzSeconds()));
+    context->text (cPoint(midx-60.0f+3.0f, y+1.0f), getTimeString (mHls->getPlayTzSeconds()));
 
     float midy = (float)mY + (mHeight/2);
     float midWidth = midx + int(mHls->getPlaying() == cHls::eScrub ? kScrubFrames*mZoom : mZoom);

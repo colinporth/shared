@@ -42,17 +42,17 @@ public:
   //}}}
 
   //{{{
-  void render (cVg* vg, float x, float y, float w, float h) {
+  void render (cVg* vg, cPoint p, cPoint size) {
 
     // bgnd
     vg->beginPath();
-    vg->rect (cPoint(x,y), cPoint(w,h));
+    vg->rect (p, size);
     vg->setFillColour (nvgRGBA (0,0,0,128));
     vg->fill();
 
     // graph
     vg->beginPath();
-    vg->moveTo (cPoint(x, y+h));
+    vg->moveTo (p + cPoint(0.f, size.y));
     if (mStyle == eRenderFps) {
       //{{{  fps graph
       for (int i = 0; i < kGraphHistorySize; i++) {
@@ -61,10 +61,7 @@ public:
         if (v > 100.f)
           v = 100.f;
 
-        float vx = x + ((float)i/(kGraphHistorySize -1)) * w;
-        float vy = y + h - ((v / 100.f) * h);
-
-        vg->lineTo (cPoint(vx, vy));
+        vg->lineTo (cPoint (p.x + ((float)i/(kGraphHistorySize -1)) * size.x, p.y + size.y - ((v / 100.f) * size.y)));
         }
       }
       //}}}
@@ -75,10 +72,7 @@ public:
         if (v > 100.f)
           v = 100.f;
 
-        float vx = x + ((float)i / (kGraphHistorySize -1)) * w;
-        float vy = y + h - ((v / 100.f) * h);
-
-        vg->lineTo (cPoint(vx, vy));
+        vg->lineTo (cPoint (p.x + ((float)i / (kGraphHistorySize -1)) * size.x, p.y + size.y - ((v / 100.f) * size.y)));
         }
       }
       //}}}
@@ -89,14 +83,11 @@ public:
         if (v > 20.f)
           v = 20.f;
 
-        float vx = x + ((float)i / (kGraphHistorySize -1)) * w;
-        float vy = y + h - ((v / 20.f) * h);
-
-        vg->lineTo (cPoint(vx, vy));
+        vg->lineTo (cPoint (p.x + ((float)i / (kGraphHistorySize -1)) * size.x, p.y + size.y - ((v / 20.f) * size.y)));
         }
       }
       //}}}
-    vg->lineTo (cPoint(x+w, y+h));
+    vg->lineTo (p + size);
     vg->setFillColour (nvgRGBA (255,192,0,128));
     vg->fill();
 
@@ -107,7 +98,7 @@ public:
       vg->setFontSize (14.f);
       vg->setTextAlign (cVg::eAlignLeft | cVg::eAlignTop);
       vg->setFillColour (nvgRGBA(240,240,240,192));
-      vg->text (x+3, y+1, mName);
+      vg->text (p + cPoint (3.f,1.f), mName);
       }
       //}}}
 
@@ -121,14 +112,14 @@ public:
 
       char str[64];
       sprintf (str, "%.2ffps", 1.f / avg);
-      vg->text (x+w-3,y+1, str);
+      vg->text (p + cPoint (size.x-3.f, 1.f), str);
 
       vg->setFontSize (15.f);
       vg->setTextAlign (cVg::eAlignRight | cVg::eAlignBottom);
       vg->setFillColour(nvgRGBA (240,240,240,160));
 
       sprintf (str, "%.2fms", avg * 1000.f);
-      vg->text (x+w-3, y+h-1, str);
+      vg->text (p + size + cPoint (-3.f, -1.f), str);
       }
       //}}}
     else if (mStyle == eRenderPercent) {
@@ -139,7 +130,7 @@ public:
 
       char str[64];
       sprintf (str, "%.1f%%", avg * 1.f);
-      vg->text (x+w-3, y+1, str);
+      vg->text (p + cPoint (size.x-3.f, 1.f), str);
       }
       //}}}
     else {
@@ -150,7 +141,7 @@ public:
 
       char str[64];
       sprintf (str, "%.2fms", avg * 1000.f);
-      vg->text (x+w-3, y+1, str);
+      vg->text (p+ cPoint(size.x-3.f, 1.f), str);
       }
       //}}}
     }

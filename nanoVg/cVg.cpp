@@ -608,7 +608,7 @@ int cVg::createFont (const string& fontName, uint8_t* data, int dataSize) {
 //}}}
 
 //{{{
-float cVg::getTextBounds (float x, float y, const string& str, float* bounds) {
+float cVg::getTextBounds (cPoint p, const string& str, float* bounds) {
 
   auto state = &mStates[mNumStates-1];
   if (state->fontId == cAtlasText::kInvalid)
@@ -617,13 +617,12 @@ float cVg::getTextBounds (float x, float y, const string& str, float* bounds) {
   float scale = getFontScale (state) * devicePixelRatio;
   float inverseScale = 1.0f / scale;
 
-  mAtlasText->setFontSizeSpacingAlign (
-    state->fontId, state->fontSize * scale, state->letterSpacing * scale, state->textAlign);
+  mAtlasText->setFontSizeSpacingAlign (state->fontId, state->fontSize * scale, state->letterSpacing * scale, state->textAlign);
 
-  float width = mAtlasText->getTextBounds (x*scale, y*scale, str.c_str(), str.c_str() + str.size(), bounds);
+  float width = mAtlasText->getTextBounds (p*scale, str.c_str(), str.c_str() + str.size(), bounds);
 
   // Use line bounds for height.
-  mAtlasText->getLineBounds (y * scale, bounds[1], bounds[3]);
+  mAtlasText->getLineBounds (p.y * scale, bounds[1], bounds[3]);
   bounds[0] *= inverseScale;
   bounds[1] *= inverseScale;
   bounds[2] *= inverseScale;
@@ -655,7 +654,7 @@ float cVg::getTextMetrics (float& ascender, float& descender) {
   }
 //}}}
 //{{{
-int cVg::getTextGlyphPositions (float x, float y, const string& str, sGlyphPosition* positions, int maxPositions) {
+int cVg::getTextGlyphPositions (cPoint p, const string& str, sGlyphPosition* positions, int maxPositions) {
 
   if (str.empty())
     return 0;
@@ -671,7 +670,7 @@ int cVg::getTextGlyphPositions (float x, float y, const string& str, sGlyphPosit
     state->fontId, state->fontSize * scale, state->letterSpacing * scale, state->textAlign);
 
   cAtlasText::sTextIt it;
-  mAtlasText->textIt (&it, x*scale, y*scale, str.c_str(), str.c_str() + str.size());
+  mAtlasText->textIt (&it, p*scale, str.c_str(), str.c_str() + str.size());
   cAtlasText::sTextIt prevIt = it;
 
   int npos = 0;
@@ -729,11 +728,11 @@ void cVg::setTextLetterSpacing (float spacing) {
 //}}}
 
 //{{{
-float cVg::text (float x, float y, const string& str) {
+float cVg::text (cPoint p, const string& str) {
 
   auto state = &mStates[mNumStates-1];
   if (state->fontId == cAtlasText::kInvalid)
-    return x;
+    return p.x;
 
   float scale = getFontScale (state) * devicePixelRatio;
   float inverseScale = 1.f / scale;
@@ -746,7 +745,7 @@ float cVg::text (float x, float y, const string& str) {
   auto firstVertex = vertices;
 
   cAtlasText::sTextIt it;
-  mAtlasText->textIt (&it, x*scale, y*scale, str.c_str(), str.c_str() + str.size());
+  mAtlasText->textIt (&it, p*scale, str.c_str(), str.c_str() + str.size());
   cAtlasText::sTextIt prevIt = it;
 
   cAtlasText::sQuad quad;

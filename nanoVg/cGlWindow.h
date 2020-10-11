@@ -28,8 +28,8 @@ public:
 
   // iDraw
   void drawRect (uint32_t colour, float x, float y, float width, float height);
-  float drawText (uint32_t colour, float fontHeight, std::string str, float x, float y, float width, float height);
-  float drawTextRight (uint32_t colour, float fontHeight, std::string str, float x, float y, float width, float height);
+  float drawText (uint32_t colour, float fontHeight, std::string str, cPoint p, cPoint size);
+  float drawTextRight (uint32_t colour, float fontHeight, std::string str,  cPoint p, cPoint size);
   void drawEllipseSolid (uint32_t colour, float x, float y, float xradius, float yradius);
   void drawPixel (uint32_t colour, float x, float y) {}
   void drawStamp (uint32_t colour, uint8_t* src, float x, float y, float width, float height) {}

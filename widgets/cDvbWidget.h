@@ -68,7 +68,7 @@ public:
                        " " + dec(pid, 4) +
                        " " + getFullPtsString (pidInfo.mPts) +
                        " " + pidInfo.getTypeString();
-      float textWidth = draw->drawText (COL_LIGHTGREY, lineHeight, pidString, x,  y, mWidth-3.f, lineHeight);
+      float textWidth = draw->drawText (COL_LIGHTGREY, lineHeight, pidString, cPoint(x, y), cPoint(mWidth-3.f, lineHeight));
       float visx = x + textWidth + lineHeight/2.f;
 
       if (pidInfo.mStreamType == 6) {
@@ -116,7 +116,7 @@ public:
 
               // draw rect position
               std::string text = dec(subtitle->mRects[line]->mX) + "," + dec(subtitle->mRects[line]->mY,3);
-              float posWidth = draw->drawTextRight (COL_WHITE, lineHeight, text, mX + mWidth,  ySub, mWidth - mX, dstHeight);
+              float posWidth = draw->drawTextRight (COL_WHITE, lineHeight, text, cPoint(mX + mWidth,  ySub), cPoint(mWidth - mX, dstHeight));
 
               // draw clut
               float clutX = mWidth - mX - posWidth - lineHeight * 4.f;
@@ -145,7 +145,7 @@ public:
       if ((pidInfo.mStreamType == 0) && (pidInfo.mSid > 0))
         str += dec(pidInfo.mSid) + " ";
       str += pidInfo.getInfoString();
-      draw->drawText (COL_LIGHTGREY, lineHeight, str, visx,  y, mWidth - textWidth, lineHeight);
+      draw->drawText (COL_LIGHTGREY, lineHeight, str, cPoint(visx,  y), cPoint(mWidth - textWidth, lineHeight));
 
       if (pidInfo.mPackets > pow (10, mPacketDigits))
         mPacketDigits++;
