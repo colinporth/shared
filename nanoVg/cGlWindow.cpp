@@ -220,8 +220,8 @@ void cGlWindow::drawSpinner (cPoint centre, float inner, float outer, float frac
   beginPath();
   float angle0 = (frac * k2Pi);
   float angle1 = kPi + angle0;
-  arc (centre, outer, angle0, angle1, cVg::eHOLE);
-  arc (centre, inner, angle1, angle0, cVg::eSOLID);
+  arc (centre, outer, angle0, angle1, cVg::eClockWise);
+  arc (centre, inner, angle1, angle0, cVg::eCounterClockWise);
   closePath();
 
   cPoint a (centre.x + cosf (angle0) * (outer + inner) * 0.5f, centre.y + sinf (angle0) * (outer + inner) * 0.5f);

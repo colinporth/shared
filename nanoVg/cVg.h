@@ -337,7 +337,7 @@ public:
   bool deleteImage (int id);
   //}}}
   //{{{  shape
-  enum eWinding { eSOLID = 1, eHOLE = 2 };  // CCW, CW
+  enum eWinding { eCounterClockWise, eClockWise }; 
   enum eLineCap { eBUTT, eROUND, eSQUARE, eBEVEL, eMITER };
   enum eShapeCommands { eMOVETO, eLINETO, eBEZIERTO, eWINDING, eCLOSE };
 
@@ -445,7 +445,7 @@ private:
     int mNumPoints = 0;
     int mFirstPointIndex = 0;
 
-    eWinding mWinding = eSOLID;
+    eWinding mWinding = eCounterClockWise;
     bool mConvex = false;
     bool mClosed = false;
     int mNumBevel = 0;

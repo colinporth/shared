@@ -1058,14 +1058,14 @@ void cVg::arcTo (cPoint p1, cPoint p2, float radius) {
   cPoint centre;
   float a0,a1;
   if (cross (dx0,dy0, dx1,dy1) > 0.0f) {
-    dir = eHOLE;
+    dir = eClockWise;
     centre.x = p1.x + dx0 * d + dy0 * radius;
     centre.y = p1.y + dy0 * d - dx0 * radius;
     a0 = atan2f (dx0, -dy0);
     a1 = atan2f (-dx1, dy1);
     }
   else {
-    dir = eSOLID;
+    dir = eCounterClockWise;
     centre.x = p1.x + dx0 * d - dy0 * radius;
     centre.y = p1.y + dy0 * d + dx0 * radius;
     a0 = atan2f (-dx0, dy0);
@@ -1082,23 +1082,25 @@ void cVg::arc (cPoint centre, float r, float a0, float a1, int dir) {
 
   // clamp angles
   float da = a1 - a0;
-  if (dir == eHOLE) {
+  if (dir == eClockWise) {
     if (absf(da) >= k2Pi)
       da = k2Pi;
     else
-      while (da < 0.0f) da += k2Pi;
+      while (da < 0.0f) 
+        da += k2Pi;
     }
   else if (absf(da) >= k2Pi)
     da = -k2Pi;
   else
-    while (da > 0.0f) da -= k2Pi;
+    while (da > 0.0f) 
+      da -= k2Pi;
 
   // split arc into max 90 degree segments
   int ndivs = max (1, min((int)(absf(da) / kPiDiv2 + 0.5f), 5));
   float hda = (da / (float)ndivs) / 2.0f;
   float kappa = absf (4.0f / 3.0f * (1.0f - cosf (hda)) / sinf (hda));
 
-  if (dir == eSOLID)
+  if (dir == eCounterClockWise)
     kappa = -kappa;
 
   float px = 0;
@@ -1615,9 +1617,9 @@ void cVg::cShape::flattenPaths() {
     // enforce winding direction
     if (path->mNumPoints > 2) {
      float area = polyArea (points, path->mNumPoints);
-      if ((path->mWinding == eSOLID) && (area < 0.0f))
+      if ((path->mWinding == eCounterClockWise) && (area < 0.0f))
         polyReverse (points, path->mNumPoints);
-      if ((path->mWinding == eHOLE) && (area > 0.0f))
+      if ((path->mWinding == eClockWise) && (area > 0.0f))
         polyReverse (points, path->mNumPoints);
       }
 
@@ -2052,7 +2054,7 @@ void cVg::cShape::addPath() {
   auto path = &mPaths[mNumPaths];
   path->mNumPoints = 0;
   path->mFirstPointIndex = mNumPoints;
-  path->mWinding = eSOLID;
+  path->mWinding = eCounterClockWise;
   path->mConvex = false;
   path->mClosed = false;
   path->mNumBevel = 0;

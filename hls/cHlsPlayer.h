@@ -25,12 +25,12 @@ public:
 
   float getLoadFrac() { return mLoadFrac; }
   //{{{
-  float getVideoDecodeFrac() {
+  float getVideoFrac() {
     return (float)vidPesQueue.size_approx() / vidPesQueue.max_capacity();
     }
   //}}}
   //{{{
-  float getAudioDecodeFrac() {
+  float getAudioFrac() {
     return (float)audPesQueue.size_approx() / audPesQueue.max_capacity();
     }
   //}}}
