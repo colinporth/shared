@@ -91,8 +91,8 @@ private:
 
   void drawSpinner (cPoint centre, float inner, float outer, float frac,
                     const sVgColour& color1, const sVgColour& color2);
-  void drawEyes (float x, float y, float w, float h, float cursorX, float cursorY, float t);
-  void drawLines (float x, float y, float w, float h, float t);
+  void drawEyes (cPoint p, cPoint size, float cursorX, float cursorY, float t);
+  void drawLines (cPoint p, cPoint size, float t);
 
   //{{{  static glfw callbacks
   static void glfwKey (GLFWwindow* window, int key, int scancode, int action, int mods);

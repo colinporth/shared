@@ -64,6 +64,13 @@ public:
     }
   //}}}
   //{{{
+  const cPoint& operator *= (const cPoint& size)  {
+    x *= size.x;
+    y *= size.y;
+    return *this;
+    }
+  //}}}
+  //{{{
   const cPoint& operator /= (const float s)  {
     x /= s;
     y /= s;

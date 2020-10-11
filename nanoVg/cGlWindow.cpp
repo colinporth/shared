@@ -178,9 +178,9 @@ void cGlWindow::draw() {
 
   if (mDrawTests) {
     //{{{  draw tests
-    drawEyes (winWidth*3.0f/4.0f, winHeight/2.0f, winWidth/4.0f, winHeight/2.0f,
+    drawEyes (cPoint(winWidth*3.0f/4.0f, winHeight/2.0f), cPoint(winWidth/4.0f, winHeight/2.0f),
               mMouseX, mMouseY, (float)glfwGetTime());
-    drawLines (0.0f, 50.0f, (float)winWidth, (float)winHeight, (float)glfwGetTime());
+    drawLines (cPoint(0.0f, 50.0f), cPoint((float)winWidth, (float)winHeight), (float)glfwGetTime());
     drawSpinner (cPoint(winWidth/2.f, winHeight/2.f), 20.f, 16.f, (float)glfwGetTime(),
                  nvgRGBA(0, 0, 0, 0), nvgRGBA(255, 255, 255, 128));
     }
@@ -233,80 +233,73 @@ void cGlWindow::drawSpinner (cPoint centre, float inner, float outer, float frac
   }
 //}}}
 //{{{
-void cGlWindow::drawEyes (float x, float y, float w, float h, float cursorX, float cursorY, float t) {
+void cGlWindow::drawEyes (cPoint p, cPoint size, float cursorX, float cursorY, float t) {
 
-  float ex = w *0.23f;
-  float ey = h * 0.5f;
-  float lx = x + ex;
-  float ly = y + ey;
-  float rx = x + w - ex;
-  float ry = y + ey;
-  float dx,dy,d;
-  float br = (ex < ey ? ex : ey) * 0.5f;
-  float blink = 1 - powf (sinf(t*0.5f),200)*0.8f;
+  cPoint eyeSize (size.x * 0.23f, size.y * 0.5f);
+  cPoint left = p + eyeSize;
+  cPoint right = p + cPoint (size.x - eyeSize.x, eyeSize.y);
+  float br = (eyeSize.x < eyeSize.y ? eyeSize.x : eyeSize.y) * 0.5f;
+  float blink = 1 - powf (sinf(t*0.5f), 200) * 0.8f;
 
-  auto bg = setLinearGradient (cPoint(x,y+h*0.5f),cPoint(x+w*0.1f,y+h), nvgRGBA(0,0,0,32), nvgRGBA(0,0,0,16));
   beginPath();
-  ellipse (cPoint(lx+3.0f,ly+16.0f), cPoint(ex,ey));
-  ellipse (cPoint(rx+3.0f,ry+16.0f), cPoint(ex,ey));
-  setFillPaint (bg);
+  ellipse (left + cPoint(3.0f,16.0f), eyeSize);
+  ellipse (right + cPoint(3.0f,16.0f), eyeSize);
+  setFillPaint (setLinearGradient (p + cPoint(0.f,size.y *0.5f), p + cPoint(size.x *0.1f, size.y),
+                                   nvgRGBA(0,0,0,32), nvgRGBA(0,0,0,16)));
   fill();
 
-  bg = setLinearGradient (cPoint(x,y+h*0.25f),cPoint(x+w*0.1f,y+h), nvgRGBA(220,220,220,255), nvgRGBA(128,128,128,255));
   beginPath();
-  ellipse (cPoint(lx,ly), cPoint(ex,ey));
-  ellipse (cPoint(rx,ry), cPoint(ex,ey));
-  setFillPaint (bg);
+  ellipse (left, eyeSize);
+  ellipse (right, eyeSize);
+  setFillPaint (setLinearGradient (p + cPoint(0.f,size.y * 0.25f), p + cPoint(size.x * 0.1f, size.y),
+                                   nvgRGBA(220,220,220,255), nvgRGBA(128,128,128,255)));
   fill();
 
-  dx = (cursorX - rx) / (ex * 10);
-  dy = (cursorY - ry) / (ey * 10);
-  d = sqrtf (dx*dx+dy*dy);
-  if (d > 1.0f) {
-    dx /= d; dy /= d;
-    }
-  dx *= ex*0.4f;
-  dy *= ey*0.5f;
+  cPoint diff1 ((cursorX - right.x) / (eyeSize.x * 10), (cursorY - right.y) / (eyeSize.y * 10));
+  float d = diff1.magnitude();
+  if (d > 1.0f)
+    diff1 /= d;
+  diff1 *= eyeSize;
+  diff1 *= cPoint (0.4f, 0.5f);
 
   beginPath();
-  ellipse (cPoint(lx+dx,ly+dy+ey*0.25f*(1-blink)), cPoint(br,br*blink));
+  ellipse (left + diff1 + cPoint(0.f, eyeSize.y * 0.25f * (1-blink)), cPoint(br, br*blink));
   setFillColour (nvgRGBA(32,32,32,255));
   fill();
 
-  dx = (cursorX - rx) / (ex * 10);
-  dy = (cursorY - ry) / (ey * 10);
-  d = sqrtf (dx*dx+dy*dy);
-  if (d > 1.0f) {
-    dx /= d;
-    dy /= d;
-    }
-  dx *= ex*0.4f;
-  dy *= ey*0.5f;
+  cPoint diff2 ((cursorX - right.x) / (eyeSize.x * 10), (cursorY - right.y) / (eyeSize.y * 10));
+  d = diff2.magnitude();
+  if (d > 1.0f)
+    diff2 /= d;
+  diff2 *= eyeSize;
+  diff2 *= cPoint (0.4f, 0.5f);
 
   beginPath();
-  ellipse (cPoint(rx+dx,ry+dy+ey*0.25f*(1-blink)), cPoint(br,br*blink));
+  ellipse (right + diff2 + cPoint(0.f, eyeSize.y * 0.25f * (1-blink)), cPoint(br, br*blink));
   setFillColour (nvgRGBA(32,32,32,255));
   fill();
 
-  auto gloss = setRadialGradient (cPoint(lx-ex*0.25f,ly-ey*0.5f), ex*0.1f,ex*0.75f, nvgRGBA(255,255,255,128), nvgRGBA(255,255,255,0));
   beginPath();
-  ellipse (cPoint(lx,ly), cPoint(ex,ey));
-  setFillPaint (gloss);
+  ellipse (left, eyeSize);
+  setFillPaint (setRadialGradient (left + cPoint(eyeSize.x * 0.25f, eyeSize.y * 0.5f), 
+                                   eyeSize.x * 0.1f, eyeSize.x * 0.75f,
+                                   nvgRGBA(255,255,255,128), nvgRGBA(255,255,255,0)));
   fill();
 
-  gloss = setRadialGradient (cPoint(rx-ex*0.25f,ry-ey*0.5f), ex*0.1f,ex*0.75f, nvgRGBA(255,255,255,128), nvgRGBA(255,255,255,0));
   beginPath();
-  ellipse (cPoint(rx,ry), cPoint(ex,ey));
-  setFillPaint (gloss);
+  ellipse (right, eyeSize);
+  setFillPaint (setRadialGradient (right + cPoint(eyeSize.x*0.25f,-eyeSize.y*0.5f), 
+                                   eyeSize.x * 0.1f, eyeSize.x * 0.75f,
+                                   nvgRGBA(255,255,255,128), nvgRGBA(255,255,255,0)));
   fill();
   }
 //}}}
 //{{{
-void cGlWindow::drawLines (float x, float y, float w, float h, float t) {
+void cGlWindow::drawLines (cPoint p, cPoint size, float t) {
 
   int i, j;
   float pad = 5.0f;
-  float s = w/9.0f - pad*2;
+  float s = size.x/9.0f - pad*2;
   float pts[4*2];
   float fx;
   float fy;
@@ -326,8 +319,8 @@ void cGlWindow::drawLines (float x, float y, float w, float h, float t) {
 
   for (i = 0; i < 3; i++) {
     for (j = 0; j < 3; j++) {
-      fx = x + s*0.5f + (i*3+j)/9.0f*w + pad;
-      fy = y - s*0.5f + pad;
+      fx = p.x + s*0.5f + (i*3+j)/9.0f*size.x + pad;
+      fy = p.y - s*0.5f + pad;
 
       setLineCap (caps[i]);
       setLineJoin (joins[j]);
