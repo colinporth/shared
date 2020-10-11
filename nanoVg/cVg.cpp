@@ -201,46 +201,6 @@ float cVg::cTransform::getAverageScaleX() { return sqrtf (mSx*mSx + mKx*mKx); }
 float cVg::cTransform::getAverageScaleY() { return sqrtf (mKy*mKy + mSy*mSy); }
 float cVg::cTransform::getAverageScale() { return (getAverageScaleX() + getAverageScaleY()) * 0.5f; }
 //{{{
-void cVg::cTransform::getMatrix3x4 (float* matrix3x4) {
-
-  matrix3x4[0] = mSx;
-  matrix3x4[1] = mKy;
-  matrix3x4[2] = 0.0f;
-
-  matrix3x4[3] = 0.0f;
-  matrix3x4[4] = mKx;
-  matrix3x4[5] = mSy;
-
-  matrix3x4[6] = 0.0f;
-  matrix3x4[7] = 0.0f;
-  matrix3x4[8] = mTx;
-
-  matrix3x4[9] = mTy;
-  matrix3x4[10] = 1.0f;
-  matrix3x4[11] = 0.0f;
-  }
-//}}}
-//{{{
-//bool cVg::cTransform::getInverse (cTransform& inverse) {
-
-  //double det = (double)mSx * mSy - (double)mKx * mKy;
-  //if (det > -1e-6 && det < 1e-6) {
-    //inverse.setIdentity();
-    //return false;
-    //}
-
-  //double inverseDet = 1.0 / det;
-  //inverse.mSx = (float)(mSy * inverseDet);
-  //inverse.mKx = (float)(-mKx * inverseDet);
-  //inverse.mTx = (float)(((double)mKx * mTy - (double)mSy * mTx) * inverseDet);
-  //inverse.mKy = (float)(-mKy * inverseDet);
-  //inverse.mSy = (float)(mSx * inverseDet);
-  //inverse.mTy = (float)(((double)mKy * mTx - (double)mSx * mTy) * inverseDet);
-
-  //return true;
-  //}
-//}}}
-//{{{
 cVg::cTransform cVg::cTransform::getInverse() {
 
   cTransform inverse;
@@ -258,6 +218,26 @@ cVg::cTransform cVg::cTransform::getInverse() {
     }
 
   return inverse;
+  }
+//}}}
+//{{{
+void cVg::cTransform::getMatrix3x4 (float* matrix3x4) {
+
+  matrix3x4[0] = mSx;
+  matrix3x4[1] = mKy;
+  matrix3x4[2] = 0.0f;
+
+  matrix3x4[3] = 0.0f;
+  matrix3x4[4] = mKx;
+  matrix3x4[5] = mSy;
+
+  matrix3x4[6] = 0.0f;
+  matrix3x4[7] = 0.0f;
+  matrix3x4[8] = mTx;
+
+  matrix3x4[9] = mTy;
+  matrix3x4[10] = 1.0f;
+  matrix3x4[11] = 0.0f;
   }
 //}}}
 
@@ -524,17 +504,8 @@ void cVg::resetTransform() {
   mStates[mNumStates - 1].mTransform.setIdentity();
   }
 //}}}
-
 //{{{
-void cVg::transform (float a, float b, float c, float d, float e, float f) {
-
-  cTransform transform (a, b, c, d, e, f);
-  mStates[mNumStates - 1].mTransform.premultiply (transform);
-  }
-//}}}
-
-//{{{
-void cVg::translate (float x, float y) {
+void cVg::setTranslate (float x, float y) {
 
   cTransform transform;
   transform.setTranslate (x, y);
@@ -542,7 +513,7 @@ void cVg::translate (float x, float y) {
   }
 //}}}
 //{{{
-void cVg::scale (float x, float y) {
+void cVg::setScale (float x, float y) {
 
   cTransform transform;
   transform.setScale (x, y);
@@ -550,10 +521,17 @@ void cVg::scale (float x, float y) {
   }
 //}}}
 //{{{
-void cVg::rotate (float angle) {
+void cVg::setRotate (float angle) {
 
   cTransform transform;
   transform.setRotate (angle);
+  mStates[mNumStates - 1].mTransform.premultiply (transform);
+  }
+//}}}
+//{{{
+void cVg::setTransform (float a, float b, float c, float d, float e, float f) {
+
+  cTransform transform (a, b, c, d, e, f);
   mStates[mNumStates - 1].mTransform.premultiply (transform);
   }
 //}}}
@@ -949,7 +927,7 @@ cVg::sPaint cVg::setRadialGradient (cPoint centre, float innerRadius, float oute
   }
 //}}}
 //{{{
-cVg::sPaint cVg::setLinearGradient (cPoint start, cPoint end, 
+cVg::sPaint cVg::setLinearGradient (cPoint start, cPoint end,
                                     const sVgColour& innerColor, const sVgColour& outerColor) {
 
   // Calculate transform aligned to the line

@@ -177,8 +177,8 @@ public:
     float getAverageScale();
     float getTranslateX() { return mTx; }
     float getTranslateY() { return mTy; }
-    void getMatrix3x4 (float* matrix3x4);
     cTransform getInverse();
+    void getMatrix3x4 (float* matrix3x4);
 
     void setIdentity();
     void setTranslate (cPoint t);
@@ -265,11 +265,10 @@ public:
   //}}}
   //{{{  transform
   void resetTransform();
-  void transform (float a, float b, float c, float d, float e, float f);
-
-  void translate (float x, float y);
-  void scale (float x, float y);
-  void rotate (float angle);
+  void setTranslate (float x, float y);
+  void setScale (float x, float y);
+  void setRotate (float angle);
+  void setTransform (float a, float b, float c, float d, float e, float f);
   //}}}
   //{{{  scissor
   void scissor (float x, float y, float width, float height);
