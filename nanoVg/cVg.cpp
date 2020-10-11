@@ -2405,6 +2405,37 @@ cVg::sVertex* cVg::cShape::roundCapEnd (sVertex* vertexPtr, sShapePoint* point, 
 
 // converts
 //{{{
+GLenum cVg::convertBlendFuncFactor (eBlendFactor factor) {
+
+  switch (factor) {
+    case NVG_ZERO:
+      return GL_ZERO;
+    case NVG_ONE:
+      return GL_ONE;
+    case NVG_SRC_COLOR:
+      return GL_SRC_COLOR;
+    case NVG_ONE_MINUS_SRC_COLOR:
+      return GL_ONE_MINUS_SRC_COLOR;
+    case NVG_DST_COLOR:
+      return GL_DST_COLOR;
+    case NVG_ONE_MINUS_DST_COLOR:
+      return GL_ONE_MINUS_DST_COLOR;
+    case NVG_SRC_ALPHA:
+      return GL_SRC_ALPHA;
+    case  NVG_ONE_MINUS_SRC_ALPHA:
+      return GL_ONE_MINUS_SRC_ALPHA;
+    case NVG_DST_ALPHA:
+      return GL_DST_ALPHA;
+    case NVG_ONE_MINUS_DST_ALPHA:
+      return GL_ONE_MINUS_DST_ALPHA;
+    case NVG_SRC_ALPHA_SATURATE:
+      return GL_SRC_ALPHA_SATURATE;
+    default:
+      return GL_INVALID_ENUM;
+    }
+  }
+//}}}
+//{{{
 cVg::sCompositeState cVg::compositeState (eCompositeOp compositeOp) {
 
   sCompositeState compositeState;
@@ -2464,37 +2495,6 @@ cVg::sCompositeState cVg::compositeState (eCompositeOp compositeOp) {
   return compositeState;
   }
 //}}}
-//{{{
-GLenum cVg::convertBlendFuncFactor (eBlendFactor factor) {
-
-  switch (factor) {
-    case NVG_ZERO:
-      return GL_ZERO;
-    case NVG_ONE:
-      return GL_ONE;
-    case NVG_SRC_COLOR:
-      return GL_SRC_COLOR;
-    case NVG_ONE_MINUS_SRC_COLOR:
-      return GL_ONE_MINUS_SRC_COLOR;
-    case NVG_DST_COLOR:
-      return GL_DST_COLOR;
-    case NVG_ONE_MINUS_DST_COLOR:
-      return GL_ONE_MINUS_DST_COLOR;
-    case NVG_SRC_ALPHA:
-      return GL_SRC_ALPHA;
-    case  NVG_ONE_MINUS_SRC_ALPHA:
-      return GL_ONE_MINUS_SRC_ALPHA;
-    case NVG_DST_ALPHA:
-      return GL_DST_ALPHA;
-    case NVG_ONE_MINUS_DST_ALPHA:
-      return GL_ONE_MINUS_DST_ALPHA;
-    case NVG_SRC_ALPHA_SATURATE:
-      return GL_SRC_ALPHA_SATURATE;
-    default:
-      return GL_INVALID_ENUM;
-    }
-  }
-//}}}
 
 // sets
 //{{{
@@ -2532,8 +2532,8 @@ void cVg::setUniforms (int firstFragIndex, int id) {
   mShader.setFrags ((float*)(&mFrags[firstFragIndex]));
 
   if (id) {
-    auto tex = findTextureById (id);
-    setBindTexture (tex ? tex->tex : 0);
+    auto texture = findTextureById (id);
+    setBindTexture (texture ? texture->tex : 0);
     }
   else
     setBindTexture (0);
@@ -2546,7 +2546,8 @@ cVg::sDraw* cVg::allocDraw() {
 // allocate a draw, return pointer to it
 
   if (mNumDraws + 1 > mNumAllocatedDraws) {
-    mNumAllocatedDraws = max (mNumDraws + 1, 128) + mNumAllocatedDraws / 2; // 1.5x Overallocate
+    // 1.5x Overallocate
+    mNumAllocatedDraws = max (mNumDraws + 1, 128) + mNumAllocatedDraws / 2; 
     mDraws = (sDraw*)realloc (mDraws, sizeof(sDraw) * mNumAllocatedDraws);
     }
 
@@ -2558,7 +2559,8 @@ int cVg::allocFrags (int numFrags) {
 // allocate numFrags, return index of first
 
   if (mNumFrags + numFrags > mNumAllocatedFrags) {
-    mNumAllocatedFrags = max (mNumFrags + numFrags, 128) + mNumAllocatedFrags / 2; // 1.5x Overallocate
+    // 1.5x Overallocate
+    mNumAllocatedFrags = max (mNumFrags + numFrags, 128) + mNumAllocatedFrags / 2; 
     mFrags = (sFrag*)realloc (mFrags, mNumAllocatedFrags * sizeof(sFrag));
     }
 
@@ -2573,7 +2575,8 @@ int cVg::allocPathVertices (int numPaths) {
 // allocate numPaths pathVertices, return index of first
 
   if (mNumPathVertices + numPaths > mNumAllocatedPathVertices) {
-    mNumAllocatedPathVertices = max (mNumPathVertices + numPaths, 128) + mNumAllocatedPathVertices / 2; // 1.5x Overallocate
+    // 1.5x Overallocate
+    mNumAllocatedPathVertices = max (mNumPathVertices + numPaths, 128) + mNumAllocatedPathVertices / 2; 
     mPathVertices = (sPathVertices*)realloc (mPathVertices, mNumAllocatedPathVertices * sizeof(sPathVertices));
     }
 

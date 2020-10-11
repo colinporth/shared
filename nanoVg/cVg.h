@@ -814,8 +814,8 @@ private:
   //}}}
 
   // converts
-  sCompositeState compositeState (eCompositeOp compositeOp);
   GLenum convertBlendFuncFactor (eBlendFactor factor);
+  sCompositeState compositeState (eCompositeOp compositeOp);
 
   // sets
   void setStencilMask (GLuint mask);
