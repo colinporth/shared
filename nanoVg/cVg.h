@@ -347,19 +347,20 @@ public:
   void setStrokeWidth (float size);
   void setFringeWidth (float width);
 
-  void setMiterLimit (float limit);
   void setLineCap (eLineCap cap);
   void setLineJoin (eLineCap join);
+  void setMiterLimit (float limit);
 
-  sPaint setLinearGradient (cPoint start, cPoint end, const sVgColour& innerColour, const sVgColour& outerColour);
+  void setFillPaint (const sPaint& paint);
+  void setStrokePaint (const sPaint& paint);
+
   sPaint setBoxGradient (cPoint p, cPoint size, float radius, float feather,
                          const sVgColour& innerColour, const sVgColour& outerColour);
   sPaint setRadialGradient (cPoint centre, float innerRadius, float outerRadius,
                             const sVgColour& innerColour, const sVgColour& outerColour);
+  sPaint setLinearGradient (cPoint start, cPoint end, 
+                            const sVgColour& innerColour, const sVgColour& outerColour);
   sPaint setImagePattern (cPoint centre, cPoint size, float angle, int imageId, float alpha);
-
-  void setFillPaint (const sPaint& paint);
-  void setStrokePaint (const sPaint& paint);
 
   void beginPath();
   void pathWinding (eWinding dir);
@@ -452,10 +453,11 @@ private:
   //}}}
   //{{{
   struct sDraw {
-    enum eType { TEXT, TRIANGLE, CONVEX_FILL, STENCIL_FILL, STROKE };
+    enum eType { eStroke, eConvexFill, eStencilFill, eTriangle, eText };
     //{{{
     void set (eType type, int id, int firstPathVerticesIndex, int numPaths, int firstFragIndex,
               int firstVertexIndex, int numVertices) {
+
       mType = type;
       mId = id;
 
@@ -818,7 +820,7 @@ private:
   void setUniforms (int firstFragIndex, int id);
   void setDevicePixelRatio (float ratio) { devicePixelRatio = ratio; }
 
-  // allocs
+  // allocates
   sDraw* allocDraw();
   int allocFrags (int numFrags);
   int allocPathVertices (int numPaths);
@@ -830,10 +832,10 @@ private:
   bool getTextureSize (int id, int& width, int& height);
 
   // render
+  void renderStroke (cShape& shape, sPaint& paint, cScissor& scissor, float fringe, float strokeWidth);
+  void renderFill (cShape& shape, sPaint& paint, cScissor& scissor, float fringe);
   void renderText (int firstVertexIndex, int numVertices, sPaint& paint, cScissor& scissor);
   void renderTriangles (int firstVertexIndex, int numVertices, sPaint& paint, cScissor& scissor);
-  void renderFill (cShape& shape, sPaint& paint, cScissor& scissor, float fringe);
-  void renderStroke (cShape& shape, sPaint& paint, cScissor& scissor, float fringe, float strokeWidth);
   void renderFrame (cVertices& vertices, sCompositeState composite);
 
   // font

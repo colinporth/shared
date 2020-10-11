@@ -894,34 +894,25 @@ void cVg::setFringeWidth (float width) {
   }
 //}}}
 
-void cVg::setMiterLimit (float limit) { mStates[mNumStates-1].miterLimit = limit; }
-void cVg::setLineJoin (eLineCap join) { mStates[mNumStates-1].lineJoin = join; }
 void cVg::setLineCap (eLineCap cap) { mStates[mNumStates-1].lineCap = cap; }
+void cVg::setLineJoin (eLineCap join) { mStates[mNumStates-1].lineJoin = join; }
+void cVg::setMiterLimit (float limit) { mStates[mNumStates-1].miterLimit = limit; }
 
 //{{{
-cVg::sPaint cVg::setLinearGradient (cPoint start, cPoint end, const sVgColour& innerColor, const sVgColour& outerColor) {
+void cVg::setFillPaint (const sPaint& paint) {
 
-  // Calculate transform aligned to the line
-  cPoint diff = end - start;
-  float distance = diff.magnitude();
-  if (distance > 0.0001f)
-    diff /= distance;
-  else
-    diff = { 0.f, 1.f };
-
-  sPaint paint;
-  paint.mTransform.set (diff.y, -diff.x, diff.x, diff.y, start.x - diff.x * kLarge, start.y - diff.y * kLarge);
-  paint.extent[0] = kLarge;
-  paint.extent[1] = kLarge + distance * 0.5f;
-  paint.radius = 0.f;
-  paint.feather = max (1.0f, distance);
-  paint.innerColour = innerColor;
-  paint.outerColour = outerColor;
-  paint.mImageId = 0;
-
-  return paint;
+  mStates[mNumStates-1].fillPaint = paint;
+  mStates[mNumStates-1].fillPaint.mTransform.multiply (mStates[mNumStates-1].mTransform);
   }
 //}}}
+//{{{
+void cVg::setStrokePaint (const sPaint& paint) {
+
+  mStates[mNumStates-1].strokePaint = paint;
+  mStates[mNumStates-1].strokePaint.mTransform.multiply (mStates[mNumStates-1].mTransform);
+  }
+//}}}
+
 //{{{
 cVg::sPaint cVg::setBoxGradient (cPoint p, cPoint size, float radius, float feather,
                               const sVgColour& innerColour, const sVgColour& outerColour) {
@@ -958,6 +949,31 @@ cVg::sPaint cVg::setRadialGradient (cPoint centre, float innerRadius, float oute
   }
 //}}}
 //{{{
+cVg::sPaint cVg::setLinearGradient (cPoint start, cPoint end, 
+                                    const sVgColour& innerColor, const sVgColour& outerColor) {
+
+  // Calculate transform aligned to the line
+  cPoint diff = end - start;
+  float distance = diff.magnitude();
+  if (distance > 0.0001f)
+    diff /= distance;
+  else
+    diff = { 0.f, 1.f };
+
+  sPaint paint;
+  paint.mTransform.set (diff.y, -diff.x, diff.x, diff.y, start.x - diff.x * kLarge, start.y - diff.y * kLarge);
+  paint.extent[0] = kLarge;
+  paint.extent[1] = kLarge + distance * 0.5f;
+  paint.radius = 0.f;
+  paint.feather = max (1.0f, distance);
+  paint.innerColour = innerColor;
+  paint.outerColour = outerColor;
+  paint.mImageId = 0;
+
+  return paint;
+  }
+//}}}
+//{{{
 cVg::sPaint cVg::setImagePattern (cPoint centre, cPoint size, float angle, int imageId, float alpha) {
 
   sPaint paint;
@@ -971,21 +987,6 @@ cVg::sPaint cVg::setImagePattern (cPoint centre, cPoint size, float angle, int i
   paint.mImageId = imageId;
 
   return paint;
-  }
-//}}}
-
-//{{{
-void cVg::setFillPaint (const sPaint& paint) {
-
-  mStates[mNumStates-1].fillPaint = paint;
-  mStates[mNumStates-1].fillPaint.mTransform.multiply (mStates[mNumStates-1].mTransform);
-  }
-//}}}
-//{{{
-void cVg::setStrokePaint (const sPaint& paint) {
-
-  mStates[mNumStates-1].strokePaint = paint;
-  mStates[mNumStates-1].strokePaint.mTransform.multiply (mStates[mNumStates-1].mTransform);
   }
 //}}}
 
@@ -1248,7 +1249,7 @@ void cVg::fill() {
   mShape.flattenPaths();
   mShape.expandFill (mVertices, mDrawEdges ? mFringeWidth : 0.0f, eMITER, 2.4f, mFringeWidth);
 
-  auto fillPaint = mStates[mNumStates-1].fillPaint;
+  sPaint fillPaint = mStates[mNumStates-1].fillPaint;
   fillPaint.innerColour.a *= mStates[mNumStates-1].alpha;
   fillPaint.outerColour.a *= mStates[mNumStates-1].alpha;
   renderFill (mShape, fillPaint, mStates[mNumStates-1].scissor, mFringeWidth);
@@ -1288,7 +1289,7 @@ void cVg::triangleFill() {
   mShape.triangleFill (mVertices, vertexIndex, numVertices);
 
   // set up opengl call
-  auto fillPaint = mStates[mNumStates-1].fillPaint;
+  sPaint fillPaint = mStates[mNumStates-1].fillPaint;
   fillPaint.innerColour.a *= mStates[mNumStates-1].alpha;
   fillPaint.outerColour.a *= mStates[mNumStates-1].alpha;
   renderTriangles (vertexIndex, numVertices, fillPaint, mStates[mNumStates-1].scissor);
@@ -2729,21 +2730,18 @@ bool cVg::getTextureSize (int id, int& width, int& height) {
 
 // render
 //{{{
-void cVg::renderText (int firstVertexIndex, int numVertices, sPaint& paint, cScissor& scissor) {
-
-  //cLog::log (LOGINFO, "renderText " + dec(firstVertexIndex) + " " + dec(numVertices) + " " + dec(paint.id));
-
-  auto draw = allocDraw();
-  draw->set (sDraw::TEXT, paint.mImageId, 0, 0, allocFrags (1), firstVertexIndex, numVertices);
-  mFrags[draw->mFirstFragIndex].setImage (paint, scissor, findTextureById (paint.mImageId));
-  }
-//}}}
-//{{{
-void cVg::renderTriangles (int firstVertexIndex, int numVertices, sPaint& paint, cScissor& scissor) {
+void cVg::renderStroke (cShape& shape, sPaint& paint, cScissor& scissor, float fringe, float strokeWidth) {
+// only uses toPathVertices firstStrokeVertexIndex, strokeVertexCount, no fill
 
   auto draw = allocDraw();
-  draw->set (sDraw::TRIANGLE, paint.mImageId, 0, 0, allocFrags (1), firstVertexIndex, numVertices);
-  mFrags[draw->mFirstFragIndex].setFill (paint, scissor, 1.0f, 1.0f, -1.0f, findTextureById (paint.mImageId));
+  draw->set (sDraw::eStroke, paint.mImageId, allocPathVertices (shape.mNumPaths), shape.mNumPaths, allocFrags (2), 0,0);
+  mFrags[draw->mFirstFragIndex].setFill (paint, scissor, strokeWidth, fringe, -1.0f, findTextureById (paint.mImageId));
+  mFrags[draw->mFirstFragIndex+1].setFill (paint, scissor, strokeWidth, fringe, 1.0f - 0.5f/255.0f, findTextureById (paint.mImageId));
+
+  auto fromPath = shape.mPaths;
+  auto toPathVertices = &mPathVertices[draw->mFirstPathVerticesIndex];
+  while (fromPath < shape.mPaths + shape.mNumPaths)
+    *toPathVertices++ = fromPath++->mPathVertices;
   }
 //}}}
 //{{{
@@ -2752,13 +2750,13 @@ void cVg::renderFill (cShape& shape, sPaint& paint, cScissor& scissor, float fri
   auto draw = allocDraw();
   if ((shape.mNumPaths == 1) && shape.mPaths[0].mConvex) {
     // convex
-    draw->set (sDraw::CONVEX_FILL, paint.mImageId, allocPathVertices (shape.mNumPaths), shape.mNumPaths,
+    draw->set (sDraw::eConvexFill, paint.mImageId, allocPathVertices (shape.mNumPaths), shape.mNumPaths,
                allocFrags (1), 0,0);
     mFrags[draw->mFirstFragIndex].setFill (paint, scissor, fringe, fringe, -1.0f, findTextureById (paint.mImageId));
     }
   else {
     // stencil
-    draw->set (sDraw::STENCIL_FILL, paint.mImageId, allocPathVertices (shape.mNumPaths), shape.mNumPaths,
+    draw->set (sDraw::eStencilFill, paint.mImageId, allocPathVertices (shape.mNumPaths), shape.mNumPaths,
                allocFrags (2), shape.mBoundsVertexIndex, 4);
     mFrags[draw->mFirstFragIndex].setSimple();
     mFrags[draw->mFirstFragIndex+1].setFill (paint, scissor, fringe, fringe, -1.0f, findTextureById(paint.mImageId));
@@ -2771,18 +2769,21 @@ void cVg::renderFill (cShape& shape, sPaint& paint, cScissor& scissor, float fri
   }
 //}}}
 //{{{
-void cVg::renderStroke (cShape& shape, sPaint& paint, cScissor& scissor, float fringe, float strokeWidth) {
-// only uses toPathVertices firstStrokeVertexIndex, strokeVertexCount, no fill
+void cVg::renderText (int firstVertexIndex, int numVertices, sPaint& paint, cScissor& scissor) {
+
+  //cLog::log (LOGINFO, "renderText " + dec(firstVertexIndex) + " " + dec(numVertices) + " " + dec(paint.id));
 
   auto draw = allocDraw();
-  draw->set (sDraw::STROKE, paint.mImageId, allocPathVertices (shape.mNumPaths), shape.mNumPaths, allocFrags (2), 0,0);
-  mFrags[draw->mFirstFragIndex].setFill (paint, scissor, strokeWidth, fringe, -1.0f, findTextureById (paint.mImageId));
-  mFrags[draw->mFirstFragIndex+1].setFill (paint, scissor, strokeWidth, fringe, 1.0f - 0.5f/255.0f, findTextureById (paint.mImageId));
+  draw->set (sDraw::eText, paint.mImageId, 0, 0, allocFrags (1), firstVertexIndex, numVertices);
+  mFrags[draw->mFirstFragIndex].setImage (paint, scissor, findTextureById (paint.mImageId));
+  }
+//}}}
+//{{{
+void cVg::renderTriangles (int firstVertexIndex, int numVertices, sPaint& paint, cScissor& scissor) {
 
-  auto fromPath = shape.mPaths;
-  auto toPathVertices = &mPathVertices[draw->mFirstPathVerticesIndex];
-  while (fromPath < shape.mPaths + shape.mNumPaths)
-    *toPathVertices++ = fromPath++->mPathVertices;
+  auto draw = allocDraw();
+  draw->set (sDraw::eTriangle, paint.mImageId, 0, 0, allocFrags (1), firstVertexIndex, numVertices);
+  mFrags[draw->mFirstFragIndex].setFill (paint, scissor, 1.0f, 1.0f, -1.0f, findTextureById (paint.mImageId));
   }
 //}}}
 //{{{
@@ -2845,25 +2846,50 @@ void cVg::renderFrame (cVertices& vertices, sCompositeState composite) {
 
   for (auto draw = mDraws; draw < mDraws + mNumDraws; draw++)
     switch (draw->mType) {
-      case sDraw::TEXT:
-        //{{{  text triangles
-        if (mDrawTriangles) {
-          setUniforms (draw->mFirstFragIndex, draw->mId);
-          glDrawArrays (GL_TRIANGLES, draw->mTriangleFirstVertexIndex, draw->mNumTriangleVertices);
-          mDrawArrays++;
-          }
-        break;
-        //}}}
-      case sDraw::TRIANGLE:
-        //{{{  fill triangles
+      case sDraw::eStroke: {
+        //{{{  stroke
+        glEnable (GL_STENCIL_TEST);
+
+        auto pathVertices = &mPathVertices[draw->mFirstPathVerticesIndex];
+
+        // fill stroke base without overlap
         if (mDrawSolid) {
-          setUniforms (draw->mFirstFragIndex, draw->mId);
-          glDrawArrays (GL_TRIANGLES, draw->mTriangleFirstVertexIndex, draw->mNumTriangleVertices);
-          mDrawArrays++;
+          glStencilOp (GL_KEEP, GL_KEEP, GL_INCR);
+          setStencilFunc (GL_EQUAL, 0x00, 0xFF);
+          setUniforms (draw->mFirstFragIndex + 1, draw->mId);
+          for (int i = 0; i < draw->mNumPaths; i++) {
+            glDrawArrays (GL_TRIANGLE_STRIP, pathVertices[i].mFirstStrokeVertexIndex, pathVertices[i].mNumStrokeVertices);
+            mDrawArrays++;
+            }
           }
+
+        setUniforms (draw->mFirstFragIndex, draw->mId);
+        if (mDrawEdges) {
+          glStencilOp (GL_KEEP, GL_KEEP, GL_KEEP);
+          setStencilFunc (GL_EQUAL, 0x00, 0xFF);
+          for (int i = 0; i < draw->mNumPaths; i++)  {
+            glDrawArrays (GL_TRIANGLE_STRIP, pathVertices[i].mFirstStrokeVertexIndex, pathVertices[i].mNumStrokeVertices);
+            mDrawArrays++;
+            }
+          }
+
+        // clear stencilBuffer
+        if (mDrawSolid || mDrawEdges) {
+          glColorMask (GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+          glStencilOp (GL_ZERO, GL_ZERO, GL_ZERO);
+          setStencilFunc (GL_ALWAYS, 0x00, 0xFF);
+          for (int i = 0; i < draw->mNumPaths; i++) {
+            glDrawArrays (GL_TRIANGLE_STRIP, pathVertices[i].mFirstStrokeVertexIndex, pathVertices[i].mNumStrokeVertices);
+            mDrawArrays++;
+            }
+          glColorMask (GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+          }
+
+        glDisable (GL_STENCIL_TEST);
         break;
+        }
         //}}}
-      case sDraw::CONVEX_FILL: {
+      case sDraw::eConvexFill: {
         //{{{  convexFill
         setUniforms (draw->mFirstFragIndex, draw->mId);
 
@@ -2885,7 +2911,7 @@ void cVg::renderFrame (cVertices& vertices, sCompositeState composite) {
         break;
         }
         //}}}
-      case sDraw::STENCIL_FILL: {
+      case sDraw::eStencilFill: {
         //{{{  stencilFill
         glEnable (GL_STENCIL_TEST);
 
@@ -2932,48 +2958,23 @@ void cVg::renderFrame (cVertices& vertices, sCompositeState composite) {
         break;
         }
         //}}}
-      case sDraw::STROKE: {
-        //{{{  stroke
-        glEnable (GL_STENCIL_TEST);
-
-        auto pathVertices = &mPathVertices[draw->mFirstPathVerticesIndex];
-
-        // fill stroke base without overlap
-        if (mDrawSolid) {
-          glStencilOp (GL_KEEP, GL_KEEP, GL_INCR);
-          setStencilFunc (GL_EQUAL, 0x00, 0xFF);
-          setUniforms (draw->mFirstFragIndex + 1, draw->mId);
-          for (int i = 0; i < draw->mNumPaths; i++) {
-            glDrawArrays (GL_TRIANGLE_STRIP, pathVertices[i].mFirstStrokeVertexIndex, pathVertices[i].mNumStrokeVertices);
-            mDrawArrays++;
-            }
+      case sDraw::eText:
+        //{{{  text triangles
+        if (mDrawTriangles) {
+          setUniforms (draw->mFirstFragIndex, draw->mId);
+          glDrawArrays (GL_TRIANGLES, draw->mTriangleFirstVertexIndex, draw->mNumTriangleVertices);
+          mDrawArrays++;
           }
-
-        setUniforms (draw->mFirstFragIndex, draw->mId);
-        if (mDrawEdges) {
-          glStencilOp (GL_KEEP, GL_KEEP, GL_KEEP);
-          setStencilFunc (GL_EQUAL, 0x00, 0xFF);
-          for (int i = 0; i < draw->mNumPaths; i++)  {
-            glDrawArrays (GL_TRIANGLE_STRIP, pathVertices[i].mFirstStrokeVertexIndex, pathVertices[i].mNumStrokeVertices);
-            mDrawArrays++;
-            }
-          }
-
-        // clear stencilBuffer
-        if (mDrawSolid || mDrawEdges) {
-          glColorMask (GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
-          glStencilOp (GL_ZERO, GL_ZERO, GL_ZERO);
-          setStencilFunc (GL_ALWAYS, 0x00, 0xFF);
-          for (int i = 0; i < draw->mNumPaths; i++) {
-            glDrawArrays (GL_TRIANGLE_STRIP, pathVertices[i].mFirstStrokeVertexIndex, pathVertices[i].mNumStrokeVertices);
-            mDrawArrays++;
-            }
-          glColorMask (GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-          }
-
-        glDisable (GL_STENCIL_TEST);
         break;
-        }
+        //}}}
+      case sDraw::eTriangle:
+        //{{{  fill triangles
+        if (mDrawSolid) {
+          setUniforms (draw->mFirstFragIndex, draw->mId);
+          glDrawArrays (GL_TRIANGLES, draw->mTriangleFirstVertexIndex, draw->mNumTriangleVertices);
+          mDrawArrays++;
+          }
+        break;
         //}}}
       }
 
