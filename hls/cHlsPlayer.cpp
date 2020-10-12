@@ -75,37 +75,15 @@ class cPesParser {
 // extract pes from ts, possible queue, decode
 public:
   //{{{
-  class cPesQueueItem {
-  public:
-    //{{{
-    cPesQueueItem (uint8_t* pes, int size, int num, uint64_t pts) : mSize(size), mNum(num), mPts(pts) {
-      mPes = (uint8_t*)malloc (size);
-      memcpy (mPes, pes, size);
-      }
-    //}}}
-    //{{{
-    ~cPesQueueItem() {
-      free (mPes);
-      }
-    //}}}
-
-    uint8_t* mPes;
-    const int mSize;
-    const int mNum;
-    const uint64_t mPts;
-    };
-  //}}}
-  //{{{
   cPesParser (cHlsPlayer* hlsPlayer, bool useQueue, const string& name)
       : mHlsPlayer(hlsPlayer), mUseQueue(useQueue), mName(name) {
 
     mPes = (uint8_t*)malloc (kInitPesSize);
 
     if (useQueue)
-      thread ([=](){ dequePesThread(); }).detach();
+      thread ([=](){ dequeThread(); }).detach();
     }
   //}}}
-
   virtual ~cPesParser() {}
 
   //{{{
@@ -116,7 +94,7 @@ public:
     }
   //}}}
 
-  float getFrac() { return mUseQueue ? (float)mPesQueue.size_approx() / mPesQueue.max_capacity() : 0.f; }
+  float getFrac() { return mUseQueue ? (float)mQueue.size_approx() / mQueue.max_capacity() : 0.f; }
 
   //{{{
   void parseTs (bool payStart, uint8_t* ts, int tsBodySize) {
@@ -136,7 +114,7 @@ public:
     if (mPesSize + tsBodySize > mAllocSize) {
       mAllocSize *= 2;
       mPes = (uint8_t*)realloc (mPes, mAllocSize);
-      cLog::log (LOGINFO,  mName + " pes allocSize doubled to " + dec(mAllocSize));
+      cLog::log (LOGINFO, mName + " pes allocSize doubled to " + dec(mAllocSize));
       }
 
     memcpy (mPes + mPesSize, ts, tsBodySize);
@@ -153,7 +131,30 @@ public:
   //}}}
 
 protected:
+  //{{{
+  class cQueueItem {
+  public:
+    //{{{
+    cQueueItem (uint8_t* pes, int size, int num, uint64_t pts) : mSize(size), mNum(num), mPts(pts) {
+      mPes = (uint8_t*)malloc (size);
+      memcpy (mPes, pes, size);
+      }
+    //}}}
+    //{{{
+    ~cQueueItem() {
+      free (mPes);
+      }
+    //}}}
+
+    uint8_t* mPes;
+    const int mSize;
+    const int mNum;
+    const uint64_t mPts;
+    };
+  //}}}
+
   virtual void processPes() = 0;
+  virtual void decodePes (uint8_t* pes, int size, int num, uint64_t pts) = 0;
 
   // vars
   cHlsPlayer* mHlsPlayer = nullptr;
@@ -166,12 +167,24 @@ protected:
   int mPesSize = 0;
   uint64_t mPesPts = 0;
 
-  readerWriterQueue::cBlockingReaderWriterQueue <cPesQueueItem*> mPesQueue;
+  readerWriterQueue::cBlockingReaderWriterQueue <cQueueItem*> mQueue;
 
 private:
   static constexpr int kInitPesSize = 4096;
 
-  virtual void dequePesThread() = 0;
+  //{{{
+  void dequeThread() {
+
+    cLog::setThreadName (mName + "Q");
+
+    while (true) {
+      cQueueItem* pes;
+      mQueue.wait_dequeue (pes);
+      decodePes (pes->mPes, pes->mSize, pes->mNum, pes->mPts);
+      delete pes;
+      }
+    }
+  //}}}
   };
 //}}}
 //{{{
@@ -190,37 +203,24 @@ protected:
 
       // decode a single frame from pes
       if (mUseQueue)
-        mPesQueue.enqueue (new cPesQueueItem (framePes, framePesSize, mNum, mPesPts));
-      else {
-        float* samples = mHlsPlayer->getAudioDecode()->decodeFrame (framePes, framePesSize, mNum);
-        mHlsPlayer->getSong()->addAudioFrame (mNum, samples, true, mHlsPlayer->getSong()->getNumFrames(), nullptr, mPesPts);
-        }
+        mQueue.enqueue (new cQueueItem (framePes, framePesSize, mNum, mPesPts));
+      else
+        decodePes (mPes, mPesSize, mNum, mPesPts);
 
       // point to next frame in pes, assumes 48000 sample rate
       mPesPts += (mHlsPlayer->getAudioDecode()->getNumSamples() * 90) / 48;
       mNum++;
       framePes += framePesSize;
       }
-
-    mHlsPlayer->startPlayer();
     }
   //}}}
-
-private:
   //{{{
-  void dequePesThread() {
+  void decodePes (uint8_t* pes, int size, int num, uint64_t pts) {
 
-    cLog::setThreadName ("audQ");
+    float* samples = mHlsPlayer->getAudioDecode()->decodeFrame (pes, size, num);
+    mHlsPlayer->getSong()->addAudioFrame (num, samples, true, mHlsPlayer->getSong()->getNumFrames(), nullptr, pts);
 
-    while (true) {
-      cPesQueueItem* pes;
-      mPesQueue.wait_dequeue (pes);
-
-      float* samples = mHlsPlayer->getAudioDecode()->decodeFrame (pes->mPes, pes->mSize, pes->mNum);
-      mHlsPlayer->getSong()->addAudioFrame (pes->mNum, samples, true, mHlsPlayer->getSong()->getNumFrames(), nullptr, pes->mPts);
-
-      delete pes;
-      }
+    mHlsPlayer->startPlayer();
     }
   //}}}
   };
@@ -236,11 +236,16 @@ protected:
   void processPes() {
 
     if (mUseQueue)
-      mPesQueue.enqueue (new cPesQueueItem(mPes, mPesSize, mNum, mPesPts));
+      mQueue.enqueue (new cQueueItem(mPes, mPesSize, mNum, mPesPts));
     else
-      mHlsPlayer->getVideoDecode()->decode (mPes, mPesSize, mNum, mPesPts);
+      decodePes (mPes, mPesSize, mNum, mPesPts);
 
     mNum++;
+    }
+  //}}}
+  //{{{
+  void decodePes (uint8_t* pes, int size, int num, uint64_t pts) {
+    mHlsPlayer->getVideoDecode()->decode (pes, size, num, pts);
     }
   //}}}
 
@@ -251,10 +256,10 @@ private:
     cLog::setThreadName ("vidQ");
 
     while (true) {
-      cPesQueueItem* pes;
-      mPesQueue.wait_dequeue (pes);
-      mHlsPlayer->getVideoDecode()->decode (pes->mPes, pes->mSize, pes->mNum, pes->mPts);
-      delete pes;
+      cQueueItem* queueItem;
+      mQueue.wait_dequeue (queueItem);
+      mHlsPlayer->getVideoDecode()->decode (queueItem->mPes, queueItem->mSize, queueItem->mNum, queueItem->mPts);
+      delete queueItem;
       }
     }
   //}}}
