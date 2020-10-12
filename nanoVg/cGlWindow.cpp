@@ -163,12 +163,13 @@ void cGlWindow::draw() {
   int winWidth;
   int winHeight;
   glfwGetWindowSize (mWindow, &winWidth, &winHeight);
+  cPointF winSize ((float)winWidth, (float)winHeight);
 
   int frameBufferWidth;
   int frameBufferHeight;
   glfwGetFramebufferSize (mWindow, &frameBufferWidth, &frameBufferHeight);
-
   glViewport (0, 0, frameBufferWidth, frameBufferHeight);
+
   glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
   beginFrame (winWidth, winHeight, (float)frameBufferWidth / (float)winWidth);
@@ -178,18 +179,17 @@ void cGlWindow::draw() {
 
   if (mDrawTests) {
     //{{{  draw tests
-    drawEyes (cPointF(winWidth*3.0f/4.0f, winHeight/2.0f), cPointF(winWidth/4.0f, winHeight/2.0f),
-              mMouseX, mMouseY, (float)glfwGetTime());
-    drawLines (cPointF(0.0f, 50.0f), cPointF((float)winWidth, (float)winHeight), (float)glfwGetTime());
-    drawSpinner (cPointF(winWidth/2.f, winHeight/2.f), 20.f, 16.f, (float)glfwGetTime(),
-                 sColourF(0,0,0,0), sColourF(1.f, 1.f, 1.f, .5f));
+    drawEyes (winSize * cPointF(0.75f, 0.5f), winSize * cPointF(0.25f, 0.5f), mMouseX, mMouseY, (float)glfwGetTime());
+    drawLines (cPointF(0.f, 70.f), cPointF((float)winWidth, (float)winHeight), (float)glfwGetTime());
+    drawSpinner (winSize/2.f, 20.f, 16.f, (float)glfwGetTime(),
+                 kOpaqueBlackF, kSemiOpaqueWhiteF);
     }
     //}}}
 
   if (mDrawPerf) {
     //{{{  draw perf stats
-    mFpsGraph->render (this, cPointF(0.f, winHeight-35.f), cPointF(winWidth/2.f -2.f, 35.f));
-    mCpuGraph->render (this, cPointF(winWidth/2.f, winHeight-35.f), cPointF(winWidth/2.f - 2.f, 35.f));
+    mFpsGraph->render (this, cPointF(0.f, winSize.y-35.f), cPointF(winSize.x/2.f -2.f, 35.f));
+    mCpuGraph->render (this, cPointF(winSize.x/2.f, winSize.y-35.f), cPointF(winSize.x/2.f - 2.f, 35.f));
     }
     //}}}
 
@@ -198,7 +198,7 @@ void cGlWindow::draw() {
     setFontSize (12.0f);
     setTextAlign (cVg::eAlignLeft | cVg::eAlignBottom);
     setFillColour (kWhiteF);
-    text (cPointF(0.f, (float)winHeight), getFrameStats() + (mVsync ? " vsyncOn" : " vsyncOff"));
+    text (cPointF(0.f, winSize.y), getFrameStats() + (mVsync ? " vsyncOn" : " vsyncOff"));
     }
     //}}}
 
@@ -297,54 +297,52 @@ void cGlWindow::drawEyes (cPointF p, cPointF size, float cursorX, float cursorY,
 //{{{
 void cGlWindow::drawLines (cPointF p, cPointF size, float t) {
 
-  int i, j;
   float pad = 5.0f;
   float s = size.x/9.0f - pad*2;
-  float pts[4*2];
-  float fx;
-  float fy;
 
-  cVg::eLineCap joins[3] = {cVg::eMiter, cVg::eRound, cVg::eBevel };
-  cVg::eLineCap caps[3] = { cVg::eButt, cVg::eRound, cVg::eSquare };
+
+  cVg::eLineCap joins[3] = { cVg::eMiter, cVg::eRound, cVg::eBevel };
+  cVg::eLineCap caps[3] =  { cVg::eButt, cVg::eRound, cVg::eSquare };
+
+
+  cPointF pts[4];
+  pts[0] = {  s*0.25f + cosf(t*0.3f) * s*0.5f, sinf(t*0.3f) * s*0.5f };
+  pts[1] = { -s*0.25f, 0.f };
+  pts[2] = {  s*0.25f, 0.f };
+  pts[3] = {  s*0.25f + cosf(-t*0.3f) * s*0.5f, sinf(-t*0.3f) * s*0.5f };
 
   saveState();
-  pts[0] = -s*0.25f + cosf(t*0.3f) * s*0.5f;
-  pts[1] = sinf(t*0.3f) * s*0.5f;
-  pts[2] = -s*0.25f;
-  pts[3] = 0;
-  pts[4] = s*0.25f;
-  pts[5] = 0;
-  pts[6] = s*0.25f + cosf(-t*0.3f) * s*0.5f;
-  pts[7] = sinf(-t*0.3f) * s*0.5f;
 
-  for (i = 0; i < 3; i++) {
-    for (j = 0; j < 3; j++) {
-      fx = p.x + s*0.5f + (i*3+j)/9.0f*size.x + pad;
-      fy = p.y - s*0.5f + pad;
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; j++) {
+      cPointF f = p + cPointF (s*0.5f + (i*3+j)/9.0f*size.x + pad,  s*0.5f + pad);
 
       setLineCap (caps[i]);
       setLineJoin (joins[j]);
       setStrokeWidth (s*0.3f);
       setStrokeColour (sColourF(0.f,0.f,0.f, 0.7f));
+
       beginPath();
-      moveTo (cPointF(fx+pts[0], fy+pts[1]));
-      lineTo (cPointF(fx+pts[2], fy+pts[3]));
-      lineTo (cPointF(fx+pts[4], fy+pts[5]));
-      lineTo (cPointF(fx+pts[6], fy+pts[7]));
+      moveTo (f + pts[0]);
+      lineTo (f + pts[1]);
+      lineTo (f + pts[2]);
+      lineTo (f + pts[3]);
       stroke();
 
       setLineCap (cVg::eButt);
       setLineJoin (cVg::eBevel);
       setStrokeWidth (1.5f);
       setStrokeColour (sColourF (0.f,0.75f,1.f,1.f));
+
       beginPath();
-      moveTo (cPointF(fx+pts[0], fy+pts[1]));
-      lineTo (cPointF(fx+pts[2], fy+pts[3]));
-      lineTo (cPointF(fx+pts[4], fy+pts[5]));
-      lineTo (cPointF(fx+pts[6], fy+pts[7]));
+      moveTo (f + pts[0]);
+      lineTo (f + pts[1]);
+      lineTo (f + pts[2]);
+      lineTo (f + pts[3]);
       stroke();
       }
     }
+
   restoreState();
   }
 //}}}

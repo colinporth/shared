@@ -47,7 +47,7 @@ public:
     // bgnd
     vg->beginPath();
     vg->rect (p, size);
-    vg->setFillColour (sColourF (0.f,0.f,0.f,0.5f));
+    vg->setFillColour (kSemiOpaqueBlackF);
     vg->fill();
 
     // graph
@@ -91,13 +91,15 @@ public:
     vg->setFillColour (sColourF(1.f,0.75f,0.f,0.5f));
     vg->fill();
 
+    // text
+    vg->setFillColour (kWhiteF);
+
     // title text
     vg->setFontByName ("sans");
     if (!mName.empty()) {
       //{{{  name graph
       vg->setFontSize (14.f);
       vg->setTextAlign (cVg::eAlignLeft | cVg::eAlignTop);
-      vg->setFillColour (sColourF(0.9f,0.9f,0.9f, 0.75f));
       vg->text (p + cPointF (3.f,1.f), mName);
       }
       //}}}
@@ -108,7 +110,6 @@ public:
       //{{{  fps graph
       vg->setFontSize (18.f);
       vg->setTextAlign (cVg::eAlignRight | cVg::eAlignTop);
-      vg->setFillColour (sColourF(0.9f, 0.9f, 0.9f, 1.f));
 
       char str[64];
       sprintf (str, "%.2ffps", 1.f / avg);
@@ -116,8 +117,6 @@ public:
 
       vg->setFontSize (15.f);
       vg->setTextAlign (cVg::eAlignRight | cVg::eAlignBottom);
-      vg->setFillColour(sColourF(0.9f, 0.9f, 0.9f, 0.6f));
-
       sprintf (str, "%.2fms", avg * 1000.f);
       vg->text (p + size + cPointF (-3.f, -1.f), str);
       }
@@ -126,7 +125,6 @@ public:
       //{{{  percent graph
       vg->setFontSize (18.f);
       vg->setTextAlign (cVg::eAlignRight | cVg::eAlignTop);
-      vg->setFillColour(sColourF(0.9f, 0.9f, 0.9f, 1.f));
 
       char str[64];
       sprintf (str, "%.1f%%", avg * 1.f);
@@ -137,7 +135,6 @@ public:
       //{{{  ms graph
       vg->setFontSize (18.f);
       vg->setTextAlign (cVg::eAlignRight | cVg::eAlignTop);
-      vg->setFillColour(sColourF(0.9f, 0.9f, 0.9f, 1.f));
 
       char str[64];
       sprintf (str, "%.2fms", avg * 1000.f);
