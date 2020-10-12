@@ -10,7 +10,7 @@
 class cHlsPlayerWidget : public cWidget {
 public:
   cHlsPlayerWidget (cHlsPlayer* hlsPlayer, cPoint size)
-    : cWidget (COL_BLACK, size.x, size.y), mHlsPlayer(hlsPlayer) {}
+    : cWidget (kBlackF, size.x, size.y), mHlsPlayer(hlsPlayer) {}
   virtual ~cHlsPlayerWidget() {}
 
   //{{{
@@ -40,13 +40,11 @@ public:
     vg->saveState();
     cPoint centre (mWidth-20.f,20.f);
     float loadFrac = mHlsPlayer->getLoadFrac();
-    drawSpinner (vg, centre, 18.f,12.f,
-                 0.f, loadFrac, sColourF(0.f,1.f,0.f,0.f), sColourF(0.f,1.f,0.f,0.75f));
-    drawSpinner (vg, centre, 18.f,12.f,
-                 loadFrac * (1.f - mHlsPlayer->getVideoFrac()), loadFrac, 
+    drawSpinner (vg, centre, 18.f,12.f, 0.f, loadFrac,
+                 sColourF(0.f,1.f,0.f,0.f), sColourF(0.f,1.f,0.f,0.75f));
+    drawSpinner (vg, centre, 18.f,12.f, loadFrac * (1.f - mHlsPlayer->getVideoFrac()), loadFrac,
                  sColourF(1.f, 0.f, 0.f, 0.f), sColourF(1.f, 0.f, 0.f, 0.75f));
-    drawSpinner (vg, centre, 18.f,12.f,
-                 loadFrac * (1.f - mHlsPlayer->getAudioFrac()), loadFrac, 
+    drawSpinner (vg, centre, 18.f,12.f, loadFrac * (1.f - mHlsPlayer->getAudioFrac()), loadFrac,
                  sColourF(0.f, 0.f, 1.f, 0.f), sColourF(0.f, 0.f, 1.f, 0.75f));
     vg->restoreState();
 
@@ -59,9 +57,9 @@ public:
                              " " + dec(mHlsPlayer->getVideoDecode()->getFramePoolSize());
     vg->setFontSize ((float)getFontHeight());
     vg->setTextAlign (cVg::eAlignLeft | cVg::eAlignTop);
-    vg->setFillColour (kVgBlack);
+    vg->setFillColour (kBlackF);
     vg->text (cPoint(mX+2.f, mY+2.f), infoString);
-    vg->setFillColour (kVgWhite);
+    vg->setFillColour (kWhiteF);
     vg->text (cPoint(mX, mY), infoString);
     }
   //}}}

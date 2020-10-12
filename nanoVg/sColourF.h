@@ -12,7 +12,7 @@ struct sColourF {
     }
   //}}}
   //{{{
-  sColourF(float rValue, float gValue, float bValue) {
+  sColourF (float rValue, float gValue, float bValue) {
     r = rValue;
     g = gValue;
     b = bValue;
@@ -20,7 +20,7 @@ struct sColourF {
     }
   //}}}
   //{{{
-  sColourF(uint32_t colour) {
+  sColourF (uint32_t colour) {
     r = ((colour & 0xFF0000) >> 16) / 255.0f;
     g = ((colour & 0xFF00) >> 8) / 255.0f;
     b =  (colour & 0xFF) / 255.0f;
@@ -40,14 +40,18 @@ struct sColourF {
   float a;
   };
 
-const sColourF kVgBlack =      { 0.f,    0.f,    0.f,    1.f };
-const sColourF kVgDarkerGrey = { 0.125f, 0.125f, 0.125f, 1.f };
-const sColourF kVgDarkGrey =   { 0.25f,  0.25f,  0.25f,  1.f };
-const sColourF kVgGrey =       { 0.5f,   0.5f,   0.5f,   1.f };
-const sColourF kVgLightGrey =  { 0.75f,  0.75f,  0.75f,  1.f };
-const sColourF kVgWhite =      { 1.f,    1.f,    1.f,    1.f };
+const sColourF kBlackF =      { 0.f,    0.f,    0.f,    1.f };
+const sColourF kDarkerGreyF = { 0.125f, 0.125f, 0.125f, 1.f };
+const sColourF kDarkGreyF =   { 0.25f,  0.25f,  0.25f,  1.f };
+const sColourF kGreyF =       { 0.5f,   0.5f,   0.5f,   1.f };
+const sColourF kLightGreyF =  { 0.75f,  0.75f,  0.75f,  1.f };
+const sColourF kWhiteF =      { 1.f,    1.f,    1.f,    1.f };
 
-const sColourF kVgRed =        { 1.f, 0.f, 0.f, 1.f };
-const sColourF kVgGreen =      { 0.f, 1.f, 0.f, 1.f };
-const sColourF kVgBlue =       { 0.f, 0.f, 1.f, 1.f };
-const sColourF kVgYellow =     { 1.f, 1.f, 0.f, 1.f };
+const sColourF kRedF =        { 1.f,  0.f,   0.f,  1.f };
+const sColourF kDarkRedF =    { 0.5f, 0.f,   0.f,  1.f };
+const sColourF kLightRedF =   { 1.f,  0.5f,  0.5f, 1.f };
+const sColourF kGreenF =      { 0.f,  1.f,   0.f,  1.f };
+const sColourF kDarkGreenF =  { 0.f,  0.75f, 0.f,  1.f };
+const sColourF kBlueF =       { 0.f,  0.f,   1.f,  1.f };
+const sColourF kYellowF =     { 1.f,  1.f,   0.f,  1.f };
+const sColourF kDarkOrangeF = { 0.5f, 0.5f,  0.f,  1.f };

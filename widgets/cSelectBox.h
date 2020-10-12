@@ -37,5 +37,5 @@ private :
   int mMyValue;
   int& mValue;
   bool& mChanged;
-  uint32_t mTextColour = COL_DARKGREY;
+  sColourF = kDarkGreyF;
   };

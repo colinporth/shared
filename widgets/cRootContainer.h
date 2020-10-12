@@ -60,7 +60,7 @@ public:
   virtual void onDraw (iDraw* draw) {
 
     if (mOn)
-      draw->drawRect (COL_DARKGREEN, cPoint(mX, mY), cPoint(mWidth, mHeight));
+      draw->drawRect (kDarkGreenF, cPoint(mX, mY), cPoint(mWidth, mHeight));
 
     cContainer::onDraw  (draw);
     }

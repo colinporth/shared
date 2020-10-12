@@ -27,7 +27,7 @@ public:
       mLayoutWidth(width * getBoxHeight()), mLayoutHeight(height * getBoxHeight()) {}
   //}}}
   //{{{
-  cWidget (uint32_t colour, float width, float height)
+  cWidget (const sColourF& colour, float width, float height)
     : mColour(colour),
       mWidth(width * getBoxHeight()), mHeight(height * getBoxHeight()),
       mLayoutWidth(width * getBoxHeight()), mLayoutHeight(height * getBoxHeight()) {}
@@ -81,7 +81,7 @@ public:
     }
   //}}}
 
-  void setColour (uint32_t colour) { mColour = colour; }
+  void setColour (const sColourF& colour) { mColour = colour; }
   void setParent (cContainer* parent) { mParent = parent; }
 
   void setOn (bool on) { mOn = on; }
@@ -120,12 +120,12 @@ public:
 
   //{{{
   virtual void onDraw (iDraw* draw) {
-    draw->drawRect (mOn ? COL_LIGHTRED : mColour, cPoint(mX+1.f, mY+1.f), cPoint(mWidth-1.f, mHeight-1.f));
+    draw->drawRect (mOn ? kLightRedF : mColour, cPoint(mX+1.f, mY+1.f), cPoint(mWidth-1.f, mHeight-1.f));
     }
   //}}}
 
 protected:
-  uint32_t mColour = COL_LIGHTGREY;
+  sColourF mColour = kLightGreyF;
 
   float mX = 0;
   float mY = 0;

@@ -27,7 +27,7 @@ public:
   //}}}
   //{{{
   void onDraw (iDraw* draw) {
-    draw->drawText (mOn ? COL_YELLOW : (mMyValue == mValue) ? COL_WHITE : COL_GREY, getFontHeight(), mText, 
+    draw->drawText (mOn ?kYellowF : (mMyValue == mValue) ? kWhiteF : kGreyF, getFontHeight(), mText, 
                     cPoint(mX+2.f, mY+1.f), cPoint(mWidth-1.f, mHeight-1.f));
     }
   //}}}

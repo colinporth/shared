@@ -22,9 +22,9 @@ float cGlWindow::getHeightPix() { return mRootContainer->getPixHeight(); }
 
 // iDraw
 //{{{
-void cGlWindow::drawRect (uint32_t colour, cPoint p, cPoint size) {
+void cGlWindow::drawRect (const sColourF& colour, cPoint p, cPoint size) {
 
-  setFillColour (sColourF (colour));
+  setFillColour (colour);
 
   beginPath();
   rect (p, size);
@@ -32,7 +32,7 @@ void cGlWindow::drawRect (uint32_t colour, cPoint p, cPoint size) {
   }
 //}}}
 //{{{
-float cGlWindow::drawText (uint32_t colour, float fontHeight, string str, cPoint p, cPoint size) {
+float cGlWindow::drawText (const sColourF& colour, float fontHeight, string str, cPoint p, cPoint size) {
 
   setFontSize (fontHeight);
   setTextAlign (cVg::eAlignLeft | cVg::eAlignTop);
@@ -45,7 +45,7 @@ float cGlWindow::drawText (uint32_t colour, float fontHeight, string str, cPoint
   }
 //}}}
 //{{{
-float cGlWindow::drawTextRight (uint32_t colour, float fontHeight, string str, cPoint p, cPoint size) {
+float cGlWindow::drawTextRight (const sColourF& colour, float fontHeight, string str, cPoint p, cPoint size) {
 
   setFontSize (fontHeight);
   setTextAlign (cVg::eAlignRight | cVg::eAlignTop);
@@ -58,7 +58,7 @@ float cGlWindow::drawTextRight (uint32_t colour, float fontHeight, string str, c
   }
 //}}}
 //{{{
-void cGlWindow::drawEllipseSolid (uint32_t colour, cPoint p, float xradius, float yradius) {
+void cGlWindow::drawEllipseSolid (const sColourF& colour, cPoint p, float xradius, float yradius) {
 
   setFillColour (sColourF(colour));
 
@@ -197,7 +197,7 @@ void cGlWindow::draw() {
     //{{{  draw stats
     setFontSize (12.0f);
     setTextAlign (cVg::eAlignLeft | cVg::eAlignBottom);
-    setFillColour (kVgWhite);
+    setFillColour (kWhiteF);
     text (cPoint(0.f, (float)winHeight), getFrameStats() + (mVsync ? " vsyncOn" : " vsyncOff"));
     }
     //}}}
@@ -252,7 +252,7 @@ void cGlWindow::drawEyes (cPoint p, cPoint size, float cursorX, float cursorY, f
   ellipse (left, eyeSize);
   ellipse (right, eyeSize);
   setFillPaint (setLinearGradient (p + cPoint(0.f,size.y * 0.25f), p + cPoint(size.x * 0.1f, size.y),
-                                   sColourF(0.9f,0.9f,0.9f,1.f), kVgGrey));
+                                   sColourF(0.9f,0.9f,0.9f,1.f), kGreyF));
   fill();
 
   cPoint diff1 ((cursorX - right.x) / (eyeSize.x * 10), (cursorY - right.y) / (eyeSize.y * 10));
@@ -264,7 +264,7 @@ void cGlWindow::drawEyes (cPoint p, cPoint size, float cursorX, float cursorY, f
 
   beginPath();
   ellipse (left + diff1 + cPoint(0.f, eyeSize.y * 0.25f * (1-blink)), cPoint(br, br*blink));
-  setFillColour (kVgDarkerGrey);
+  setFillColour (kDarkerGreyF);
   fill();
 
   cPoint diff2 ((cursorX - right.x) / (eyeSize.x * 10), (cursorY - right.y) / (eyeSize.y * 10));
@@ -276,7 +276,7 @@ void cGlWindow::drawEyes (cPoint p, cPoint size, float cursorX, float cursorY, f
 
   beginPath();
   ellipse (right + diff2 + cPoint(0.f, eyeSize.y * 0.25f * (1-blink)), cPoint(br, br*blink));
-  setFillColour (kVgDarkerGrey);
+  setFillColour (kDarkerGreyF);
   fill();
 
   beginPath();

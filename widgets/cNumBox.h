@@ -32,5 +32,5 @@ private :
   bool& mChanged;
 
   std::string mText;
-  uint32_t mTextColour = COL_DARKGREY;
+  sColourF mTextColour = kDarkGrey;
   };

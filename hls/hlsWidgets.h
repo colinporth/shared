@@ -35,12 +35,12 @@ private:
     int offset;
     mHls->getChunkInfo (chunk, loaded, loading, offset);
 
-    draw->drawEllipseSolid (loading ? COL_DARKORANGE : loaded ? COL_DARKERGREEN : COL_DARKRED,
+    draw->drawEllipseSolid (loading ? kDarkOrangeF : loaded ? kDarkGreenF : kDarkRedF,
       cPoint(mX + 2.f + ((mWidth-2.f) / 2.f), mY + (chunk * getBoxHeight()) + mHeight / 6.f),
       cPoint((mWidth-2.f) / 2.f, (mWidth-2.f) / 2.f));
 
     if (loaded || loading)
-      draw->drawText (COL_LIGHTGREY, getSmallFontHeight(), dec(offset),
+      draw->drawText (kLightGreyF, getSmallFontHeight(), dec(offset),
                       cPoint(mX + mWidth / 3.f, mY + (chunk * getBoxHeight()) + mWidth/6.f), cPoint(mWidth, mWidth));
     }
 
@@ -50,7 +50,7 @@ private:
 //{{{
 class cHlsPeakWidget : public cWidget {
 public:
-  cHlsPeakWidget (cHls* hls, float width, float height) : cWidget (COL_BLUE, width, height), mHls(hls) {}
+  cHlsPeakWidget (cHls* hls, float width, float height) : cWidget (kBlueF, width, height), mHls(hls) {}
   virtual ~cHlsPeakWidget() {}
 
   void onDown (float x, float y) {
@@ -108,7 +108,7 @@ public:
     //{{{  draw waveform rects
     auto context = draw->getVg();
 
-    context->setFillColour (kVgDarkGrey);
+    context->setFillColour (kDarkGreyF);
     context->beginPath();
     for (float x = 0; x < mWidth; secs++, nextxF += pixPerSec) {
       if (secs & 1)
@@ -121,7 +121,7 @@ public:
 
     context->setFontSize ((float)getBigFontHeight());
     context->setTextAlign (cVg::eAlignLeft | cVg::eAlignTop);
-    context->setFillColour (kVgWhite);
+    context->setFillColour (kWhiteF);
     context->text (cPoint(midx-60.0f+3.0f, y+1.0f), getTimeString (mHls->getPlayTzSeconds()));
 
     float midy = (float)mY + (mHeight/2);
@@ -139,12 +139,12 @@ public:
 
       if (samples) {
         if (x == midx) {
-          context->setFillColour (sColourF(COL_BLUE));
+          context->setFillColour (kBlueF);
           context->triangleFill();
           context->beginPath();
           }
         else if (x == midWidth) {
-          context->setFillColour (sColourF(COL_DARKGREEN));
+          context->setFillColour (kDarkGreenF);
           context->triangleFill();
           context->beginPath();
           }
@@ -158,7 +158,7 @@ public:
         sample += samplesPerPixF;
       }
 
-    context->setFillColour (sColourF(COL_DARKGREY));
+    context->setFillColour (kDarkGreyF);
     context->triangleFill();
     //}}}
     }

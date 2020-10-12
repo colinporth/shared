@@ -8,8 +8,8 @@
 
 class cContainer : public cWidget {
 public:
-  cContainer() : cWidget() { mColour = COL_BLACK; }
-  cContainer (float width, float height) : cWidget (COL_BLACK, width, height) {}
+  cContainer() : cWidget() { mColour = kBlackF; }
+  cContainer (float width, float height) : cWidget (kBlackF, width, height) {}
   virtual ~cContainer() {}
 
   //{{{
@@ -119,7 +119,7 @@ public:
   virtual void layout (float width, float height) {
 
     setPixSize (width, height);
-    for (auto widget : mSubWidgets) 
+    for (auto widget : mSubWidgets)
       widget->layout (width, height);
     }
   //}}}

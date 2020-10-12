@@ -4,56 +4,19 @@
 
 #include <string>
 #include "iWindow.h"
-//}}}
 
-//{{{  uint32_t colour
-#define COL_WHITE          0xFFFFFFFF
-#define COL_LIGHTGREY      0xFFD3D3D3
-#define COL_GREY           0xFF808080
-#define COL_DARKGREY       0xFF404040
-#define COL_DARKERGREY     0xFF202020
-#define COL_BLACK          0xFF000000
-
-#define COL_BLUE           0xFF0000FF
-#define COL_LIGHTBLUE      0xFF8080FF
-#define COL_DARKBLUE       0xFF000080
-
-#define COL_GREEN          0xFF00FF00
-#define COL_LIGHTGREEN     0xFF80FF80
-#define COL_DARKGREEN      0xFF008000
-#define COL_DARKERGREEN    0xFF004000
-
-#define COL_RED            0xFFFF0000
-#define COL_LIGHTRED       0xFFFF8080
-#define COL_DARKRED        0xFF800000
-
-#define COL_CYAN           0xFF00FFFF
-#define COL_LIGHTCYAN      0xFF80FFFF
-#define COL_DARKCYAN       0xFF008080
-
-#define COL_MAGENTA        0xFFFF00FF
-#define COL_LIGHTMAGENTA   0xFFFF80FF
-#define COL_DARKMAGENTA    0xFF800080
-
-#define COL_YELLOW         0xFFFFFF00
-#define COL_LIGHTYELLOW    0xFFFFFF80
-#define COL_DARKYELLOW     0xFF808000
-#define COL_DARKERYELLOW   0xFF202000
-
-#define COL_BROWN          0xFFA52A2A
-#define COL_ORANGE         0xFFFFA500
-#define COL_DARKORANGE     0xFFC07800
-#define COL_DARKERORANGE   0xFF805000
+#include "../nanoVg/sColourF.h"
+#include "../nanoVg/cPoint.h"
 //}}}
 
 class iDraw : public iWindow {
 public:
   virtual ~iDraw() {}
 
-  virtual void drawRect (uint32_t colour, cPoint p, cPoint size) = 0;
-  virtual void drawPixel (uint32_t colour, cPoint p) { drawRect (colour, p, cPoint(1.f,1.f)); }
+  virtual void drawRect (const sColourF& colour, cPoint p, cPoint size) = 0;
+  virtual void drawPixel (const sColourF& colour, cPoint p) { drawRect (colour, p, cPoint(1.f,1.f)); }
   //{{{
-  virtual void drawRectOutline (uint32_t colour, cPoint p, cPoint size, float thickness) {
+  virtual void drawRectOutline (const sColourF& colour, cPoint p, cPoint size, float thickness) {
 
     drawRect (colour, p, cPoint(size.x, thickness));
     drawRect (colour, p + cPoint (size.x -thickness, 0.f), cPoint(thickness, size.y));
@@ -62,21 +25,21 @@ public:
     }
   //}}}
   //{{{
-  virtual void drawClear (uint32_t colour) {
+  virtual void drawClear (const sColourF& colour) {
 
     drawRect (colour, cPoint(0.f, 0.f), cPoint(getWidthPix(), getHeightPix()));
     }
   //}}}
 
-  virtual float drawText (uint32_t colour, float fontHeight, std::string str, cPoint p, cPoint size) = 0;
-  virtual float drawTextRight (uint32_t colour, float fontHeight, std::string str, cPoint p, cPoint size) = 0;
+  virtual float drawText (const sColourF& colourr, float fontHeight, std::string str, cPoint p, cPoint size) = 0;
+  virtual float drawTextRight (const sColourF& colour, float fontHeight, std::string str, cPoint p, cPoint size) = 0;
 
   virtual void drawCopy (uint8_t* src, cPoint p, cPoint size) {}
   virtual void drawCopy (uint8_t* src, cPoint srcp, cPoint srcSize, cPoint dstp, cPoint dstSize) {}
-  virtual void drawStamp (uint32_t colour, uint8_t* src, cPoint p, cPoint size) {}
+  virtual void drawStamp (const sColourF& colour, uint8_t* src, cPoint p, cPoint size) {}
 
   //{{{
-  virtual void drawEllipseSolid (uint32_t colour, cPoint p, cPoint radius) {
+  virtual void drawEllipseSolid (const sColourF& colour, cPoint p, cPoint radius) {
 
     if (!radius.x)
       return;
@@ -104,7 +67,7 @@ public:
     }
   //}}}
   //{{{
-  virtual void drawEllipseOutline (uint32_t colour, cPoint p, cPoint radius) {
+  virtual void drawEllipseOutline (const sColourF& colour, cPoint p, cPoint radius) {
 
     if (radius.x && radius.y) {
       float x1 = 0;
@@ -132,7 +95,7 @@ public:
   //}}}
 
   //{{{
-  virtual void drawLine (uint32_t colour, cPoint p1, cPoint p2) {
+  virtual void drawLine (const sColourF& colour, cPoint p1, cPoint p2) {
 
     float deltax = (p2.x - p1.x) > 0 ? (p2.x - p1.x) : -(p2.x - p2.x);        /* The difference between the x's */
     float deltay = (p2.y - p1.y) > 0 ? (p2.y - p1.y) : -(p2.y - p1.y);        /* The difference between the y's */

@@ -6,7 +6,7 @@
 
 class cValueBox : public cWidget {
 public:
-  cValueBox (float& value, bool& changed, uint32_t colour, float width, float height) :
+  cValueBox (float& value, bool& changed, const sColourF& colour, float width, float height) :
     cWidget (colour, width, height), mValue(value), mChanged(changed) { mChanged = false; }
   virtual ~cValueBox() {}
 
@@ -33,9 +33,9 @@ public:
   void onDraw (iDraw* draw) {
 
     if (mWidth > mHeight)
-      draw->drawRect (mOn ? COL_LIGHTRED : mColour, cPoint(mX, mY), cPoint(mWidth * limitValue (mValue), mHeight));
+      draw->drawRect (mOn ? kLightRedF : mColour, cPoint(mX, mY), cPoint(mWidth * limitValue (mValue), mHeight));
     else
-      draw->drawRect (mOn ? COL_LIGHTRED : mColour, cPoint(mX, mY), cPoint(mWidth, mHeight * limitValue (mValue)));
+      draw->drawRect (mOn ? kLightRedF : mColour, cPoint(mX, mY), cPoint(mWidth, mHeight * limitValue (mValue)));
     }
   //}}}
 
