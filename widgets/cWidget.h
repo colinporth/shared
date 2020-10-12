@@ -54,12 +54,6 @@ public:
 
   //{{{  sets
   //{{{
-  void setBoxOrg (float x, float y) {
-    setPixOrg (x*getBoxHeight(), y*getBoxHeight());
-    }
-  //}}}
-
-  //{{{
   void setPixOrg (float x, float y) {
     mPixOrg.x = x;
     mPixOrg.y = y;

@@ -195,5 +195,5 @@ void hlsMenu (cRootContainer* root, cHls* hls) {
   root->add (new cDecodePicWidget (r6x80, sizeof(r6x80), 3, 3, 6, hls->mChan,  hls->mChanChanged));
 
   root->add (new cHlsDotsBox (hls, 1, 3));
-  root->addAt (new cHlsPeakWidget (hls, 0, -4), 0, 4);
+  root->addAtBox (new cHlsPeakWidget (hls, 0, -4), 0.f, 4.f);
   }

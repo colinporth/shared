@@ -18,34 +18,34 @@ public:
     adjustWidthHeight (widget);
 
     if (mSubWidgets.empty())
-      return addAtPix (widget, 0, 0);
+      return addAtPix (widget, cPointF());
     else if (mSubWidgets.back()->getPixX() + mSubWidgets.back()->getPixWidth() + widget->getPixWidth() <= getPixWidth())
-      return addAtPix (widget, mSubWidgets.back()->getPixX() + mSubWidgets.back()->getPixWidth(), mSubWidgets.back()->getPixY());
+      return addAtPix (widget, cPointF (mSubWidgets.back()->getPixX() + mSubWidgets.back()->getPixWidth(), mSubWidgets.back()->getPixY()));
     else if (mSubWidgets.back()->getPixY() + mSubWidgets.back()->getPixHeight() + widget->getPixHeight() <= getPixHeight())
-      return addAtPix (widget, 0, mSubWidgets.back()->getPixY() + mSubWidgets.back()->getPixHeight());
+      return addAtPix (widget, cPointF(0.f, mSubWidgets.back()->getPixY() + mSubWidgets.back()->getPixHeight()));
     else
       return widget;
     }
   //}}}
   //{{{
-  cWidget* addAt (cWidget* widget, float x, float y) {
+  cWidget* addAtBox (cWidget* widget, float x, float y) {
 
     mSubWidgets.push_back (widget);
     widget->setParent (this);
 
-    widget->setBoxOrg (x, y);
+    widget->setPixOrg (cPointF (x * getBoxHeight(), y * getBoxHeight()));
     adjustWidthHeight (widget);
 
     return widget;
     }
   //}}}
   //{{{
-  cWidget* addAtPix (cWidget* widget, float x, float y) {
+  cWidget* addAtPix (cWidget* widget, const cPointF& p) {
 
-    widget->setParent (this);
     mSubWidgets.push_back (widget);
+    widget->setParent (this);
 
-    widget->setBoxOrg (x, y);
+    widget->setPixOrg (p);
     adjustWidthHeight (widget);
 
     return widget;
@@ -54,44 +54,41 @@ public:
 
   //{{{
   cWidget* addTopLeft (cWidget* widget) {
-    return addAtPix (widget, 0, 0);
+    return addAtPix (widget, cPointF());
     }
   //}}}
   //{{{
   cWidget* addTopRight (cWidget* widget) {
-    return addAtPix (widget, mPixSize.x - widget->getPixWidth(), 0);
+    return addAtPix (widget, cPointF(mPixSize.x - widget->getPixWidth(), 0.f));
     }
   //}}}
   //{{{
   cWidget* addBottomLeft (cWidget* widget) {
-    return addAtPix (widget, 0, mPixSize.y - widget->getPixHeight());
+    return addAtPix (widget, cPointF(0.f, mPixSize.y - widget->getPixHeight()));
     }
   //}}}
   //{{{
   cWidget* addBottomRight (cWidget* widget) {
-    return addAtPix (widget, mPixSize.x - widget->getPixWidth(), mPixSize.y - widget->getPixHeight());
+    return addAtPix (widget, cPointF(mPixSize.x - widget->getPixWidth(), mPixSize.y - widget->getPixHeight()));
     }
   //}}}
 
   //{{{
   cWidget* addBelow (cWidget* widget) {
-    return addAtPix (widget,
-                     mSubWidgets.empty() ? 0 : mSubWidgets.back()->getPixX(),
-                     mSubWidgets.empty() ? 0 : mSubWidgets.back()->getPixY() + mSubWidgets.back()->getPixHeight());
+    return addAtPix (widget, cPointF(mSubWidgets.empty() ? 0 : mSubWidgets.back()->getPixX(),
+                                     mSubWidgets.empty() ? 0 : mSubWidgets.back()->getPixY() + mSubWidgets.back()->getPixHeight()));
     }
   //}}}
   //{{{
   cWidget* addLeft (cWidget* widget) {
-    return addAtPix (widget,
-                     mSubWidgets.empty() ? 0 : mSubWidgets.back()->getPixX() - mSubWidgets.back()->getPixWidth(),
-                     mSubWidgets.empty() ? 0 : mSubWidgets.back()->getPixY());
+    return addAtPix (widget, cPointF(mSubWidgets.empty() ? 0 : mSubWidgets.back()->getPixX() - mSubWidgets.back()->getPixWidth(),
+                                     mSubWidgets.empty() ? 0 : mSubWidgets.back()->getPixY()));
     }
   //}}}
   //{{{
   cWidget* addAbove (cWidget* widget) {
-    return addAtPix (widget,
-                     mSubWidgets.empty() ? 0 : mSubWidgets.back()->getPixX(),
-                     mSubWidgets.empty() ? 0 : mSubWidgets.back()->getPixY() - mSubWidgets.back()->getPixHeight());
+    return addAtPix (widget, cPointF(mSubWidgets.empty() ? 0 : mSubWidgets.back()->getPixX(),
+                                     mSubWidgets.empty() ? 0 : mSubWidgets.back()->getPixY() - mSubWidgets.back()->getPixHeight()));
     }
   //}}}
 
