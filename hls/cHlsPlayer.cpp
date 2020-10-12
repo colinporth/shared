@@ -144,8 +144,8 @@ protected:
   virtual void processPes() = 0;
 
   // vars
-  bool mUseQueue = false;
   cHlsPlayer* mHlsPlayer = nullptr;
+  bool mUseQueue = false;
   uint8_t* mPes = nullptr;
   int mNum = 0;
   int mPesSize = 0;

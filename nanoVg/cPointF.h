@@ -6,8 +6,8 @@ class cPointF {
 public:
   //{{{
   cPointF()  {
-    x = 0;
-    y = 0;
+    x = 0.f;
+    y = 0.f;
     }
   //}}}
   //{{{
@@ -96,7 +96,7 @@ public:
   //{{{
   bool inside (const cPointF& pos) const {
   // return pos inside rect formed by us as size
-    return pos.x >= 0 && pos.x < x && pos.y >= 0 && pos.y < y;
+    return pos.x >= 0.f && pos.x < x && pos.y >= 0.f && pos.y < y;
     }
   //}}}
   //{{{
