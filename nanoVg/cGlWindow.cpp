@@ -281,14 +281,14 @@ void cGlWindow::drawEyes (cPoint p, cPoint size, float cursorX, float cursorY, f
 
   beginPath();
   ellipse (left, eyeSize);
-  setFillPaint (setRadialGradient (left + cPoint(eyeSize.x * 0.25f, eyeSize.y * 0.5f), 
+  setFillPaint (setRadialGradient (left + cPoint(eyeSize.x * 0.25f, eyeSize.y * 0.5f),
                                    eyeSize.x * 0.1f, eyeSize.x * 0.75f,
                                    nvgRGBA(255,255,255,128), nvgRGBA(255,255,255,0)));
   fill();
 
   beginPath();
   ellipse (right, eyeSize);
-  setFillPaint (setRadialGradient (right + cPoint(eyeSize.x*0.25f,-eyeSize.y*0.5f), 
+  setFillPaint (setRadialGradient (right + cPoint(eyeSize.x*0.25f,-eyeSize.y*0.5f),
                                    eyeSize.x * 0.1f, eyeSize.x * 0.75f,
                                    nvgRGBA(255,255,255,128), nvgRGBA(255,255,255,0)));
   fill();

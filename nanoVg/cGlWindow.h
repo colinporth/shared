@@ -28,26 +28,7 @@ public:
 
   // iDraw
   void drawRect (uint32_t colour, cPoint p, cPoint size);
-  float drawText (uint32_t colour, float fontHeight, std::string str, cPoint p, cPoint size);
-  float drawTextRight (uint32_t colour, float fontHeight, std::string str, cPoint p, cPoint size);
-  void drawEllipseSolid (uint32_t colour, cPoint p, float xradius, float yradius);
   void drawPixel (uint32_t colour, cPoint p) {}
-  void drawStamp (uint32_t colour, uint8_t* src, cPoint p, cPoint size) {}
-  //{{{
-  void drawPixelClipped (uint32_t colour, cPoint p) {
-    drawRectClipped (colour, p, cPoint(1, 1));
-    }
-  //}}}
-  //{{{
-  void drawStampClipped (uint32_t colour, uint8_t* src, cPoint p, cPoint size) {
-    drawStamp (colour, src, p, size);
-    }
-  //}}}
-  //{{{
-  void drawRectClipped (uint32_t colour, cPoint p, cPoint size) {
-    drawRect (colour, p, size);
-    }
-  //}}}
   //{{{
   void drawRectOutline (uint32_t colour, cPoint p, cPoint size, float thickness) {
     drawRect (colour, p, cPoint(size.x, thickness));
@@ -56,6 +37,11 @@ public:
     drawRect (colour, p, cPoint(thickness, size.y));
     }
   //}}}
+
+  float drawText (uint32_t colour, float fontHeight, std::string str, cPoint p, cPoint size);
+  float drawTextRight (uint32_t colour, float fontHeight, std::string str, cPoint p, cPoint size);
+  void drawEllipseSolid (uint32_t colour, cPoint p, float xradius, float yradius);
+  void drawStamp (uint32_t colour, uint8_t* src, cPoint p, cPoint size) {}
 
 protected:
   cRootContainer* initialise (const std::string& title, int width, int height, unsigned char* sansFont, int sansFontSize);

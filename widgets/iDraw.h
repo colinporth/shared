@@ -51,85 +51,14 @@ public:
   virtual ~iDraw() {}
 
   virtual void drawRect (uint32_t colour, cPoint p, cPoint size) = 0;
-  virtual float drawText (uint32_t colour, float fontHeight, std::string str, cPoint p, cPoint size) = 0;
-  virtual float drawTextRight (uint32_t colour, float fontHeight, std::string str, cPoint p, cPoint size) = 0;
-
   virtual void drawPixel (uint32_t colour, cPoint p) { drawRect (colour, p, cPoint(1.f,1.f)); }
-
-  virtual void drawStamp (uint32_t colour, uint8_t* src, cPoint p, cPoint size) {}
-  virtual void drawCopy (uint8_t* src, cPoint p, cPoint size) {}
-  virtual void drawCopy (uint8_t* src, cPoint srcp, cPoint srcSize, cPoint dstp, cPoint dstSize) {}
-
-  //{{{
-  virtual void drawPixelClipped (uint32_t colour, cPoint p) {
-
-    drawRectClipped (colour, p, cPoint(1.f, 1.f));
-    }
-  //}}}
-  //{{{
-  virtual void drawStampClipped (uint32_t colour, uint8_t* src, cPoint p, cPoint size) {
-
-    if (!size.x || !size.y || p.x < 0)
-      return;
-
-    if (p.y < 0) {
-      // top clip
-      if (p.y + size.y <= 0)
-        return;
-      size.y += p.y;
-      src += int(-p.y * size.x);
-      p.y = 0;
-      }
-
-    if (p.y + size.y > getHeightPix()) {
-      // bottom yclip
-      if (p.y >= getHeightPix())
-        return;
-      size.y = getHeightPix() - p.y;
-      }
-
-    drawStamp (colour, src, p, size);
-    }
-  //}}}
-  //{{{
-  virtual void drawRectClipped (uint32_t colour, cPoint p, cPoint size) {
-
-    if (p.x >= getWidthPix())
-      return;
-    if (p.y >= getHeightPix())
-      return;
-
-    cPoint end = p + size;
-    if (end.x <= 0)
-      return;
-    if (end.y <= 0)
-      return;
-
-    if (p.x < 0)
-      p.x = 0;
-    if (end.x > getWidthPix())
-      end.x = getWidthPix();
-
-    if (p.y < 0)
-      p.y = 0;
-    if (end.y > getHeightPix())
-      end.y = getHeightPix();
-
-    if (!size.x)
-      return;
-    if (!size.y)
-      return;
-
-    drawRect (colour, p, end - p);
-    }
-  //}}}
   //{{{
   virtual void drawRectOutline (uint32_t colour, cPoint p, cPoint size, float thickness) {
 
-    drawRectClipped (colour, p, cPoint(size.x, thickness));
-    drawRectClipped (colour, p + cPoint (size.x -thickness, 0.f), cPoint(thickness, size.y));
-    drawRectClipped (colour, p + cPoint (0.f, size.y -thickness), cPoint(size.x, thickness));
-    drawRectClipped (colour, p, cPoint(thickness, size.y));
+    drawRect (colour, p, cPoint(size.x, thickness));
+    drawRect (colour, p + cPoint (size.x -thickness, 0.f), cPoint(thickness, size.y));
+    drawRect (colour, p + cPoint (0.f, size.y -thickness), cPoint(size.x, thickness));
+    drawRect (colour, p, cPoint(thickness, size.y));
     }
   //}}}
   //{{{
@@ -138,6 +67,13 @@ public:
     drawRect (colour, cPoint(0.f, 0.f), cPoint(getWidthPix(), getHeightPix()));
     }
   //}}}
+
+  virtual float drawText (uint32_t colour, float fontHeight, std::string str, cPoint p, cPoint size) = 0;
+  virtual float drawTextRight (uint32_t colour, float fontHeight, std::string str, cPoint p, cPoint size) = 0;
+
+  virtual void drawCopy (uint8_t* src, cPoint p, cPoint size) {}
+  virtual void drawCopy (uint8_t* src, cPoint srcp, cPoint srcSize, cPoint dstp, cPoint dstSize) {}
+  virtual void drawStamp (uint32_t colour, uint8_t* src, cPoint p, cPoint size) {}
 
   //{{{
   virtual void drawEllipseSolid (uint32_t colour, cPoint p, cPoint radius) {
@@ -153,8 +89,8 @@ public:
     float k = (float)radius.y / radius.x;
 
     do {
-      drawRectClipped (colour, cPoint(p.x-(x1 / k), p.y + y1), cPoint(2*(x1 / k) + 1, 1));
-      drawRectClipped (colour, cPoint(p.x-(x1 / k), p.y - y1), cPoint(2*(x1 / k) + 1, 1));
+      drawRect (colour, cPoint(p.x-(x1 / k), p.y + y1), cPoint(2*(x1 / k) + 1, 1));
+      drawRect (colour, cPoint(p.x-(x1 / k), p.y - y1), cPoint(2*(x1 / k) + 1, 1));
 
       float e2 = err;
       if (e2 <= x1) {
@@ -177,10 +113,10 @@ public:
       float k = (float)radius.y / radius.x;
 
       do {
-        drawRectClipped (colour, cPoint(p.x - (x1 / k), p.y + y1), cPoint(1, 1));
-        drawRectClipped (colour, cPoint(p.x + (x1 / k), p.y + y1), cPoint(1, 1));
-        drawRectClipped (colour, cPoint(p.x + (x1 / k), p.y - y1), cPoint(1, 1));
-        drawRectClipped (colour, cPoint(p.x - (x1 / k), p.y - y1), cPoint(1, 1));
+        drawRect (colour, cPoint(p.x - (x1 / k), p.y + y1), cPoint(1, 1));
+        drawRect (colour, cPoint(p.x + (x1 / k), p.y + y1), cPoint(1, 1));
+        drawRect (colour, cPoint(p.x + (x1 / k), p.y - y1), cPoint(1, 1));
+        drawRect (colour, cPoint(p.x - (x1 / k), p.y - y1), cPoint(1, 1));
 
         float e2 = err;
         if (e2 <= x1) {
@@ -247,7 +183,7 @@ public:
     }
 
     for (int curpixel = 0; curpixel <= num_pixels; curpixel++) {
-      drawRectClipped (colour, cPoint (x,y), cPoint(1, 1));   /* Draw the current pixel */
+      drawRect (colour, cPoint (x,y), cPoint(1, 1));   /* Draw the current pixel */
       num += num_add;                            /* Increase the numerator by the top of the fraction */
       if (num >= den) {                          /* Check if numerator >= denominator */
         num -= den;                             /* Calculate the new numerator value */
