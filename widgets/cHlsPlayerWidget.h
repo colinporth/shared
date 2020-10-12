@@ -41,13 +41,13 @@ public:
     cPoint centre (mWidth-20.f,20.f);
     float loadFrac = mHlsPlayer->getLoadFrac();
     drawSpinner (vg, centre, 18.f,12.f,
-                 0.f, loadFrac, getRgbA(32,255,32,0), getRgbA(32,255,32,192));
+                 0.f, loadFrac, sVgColour(0.f,1.f,0.f,0.f), sVgColour(0.f,1.f,0.f,0.75f));
     drawSpinner (vg, centre, 18.f,12.f,
                  loadFrac * (1.f - mHlsPlayer->getVideoFrac()), loadFrac, 
-                 getRgbA(255,32,32,0), getRgbA(255,32,32,192));
+                 sVgColour(1.f, 0.f, 0.f, 0.f), sVgColour(1.f, 0.f, 0.f, 0.75f));
     drawSpinner (vg, centre, 18.f,12.f,
                  loadFrac * (1.f - mHlsPlayer->getAudioFrac()), loadFrac, 
-                 getRgbA(32,32,255,0), getRgbA(32,32,255,192));
+                 sVgColour(0.f, 0.f, 1.f, 0.f), sVgColour(0.f, 0.f, 1.f, 0.75f));
     vg->restoreState();
 
     // info text

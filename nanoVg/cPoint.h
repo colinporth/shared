@@ -38,6 +38,11 @@ public:
     }
   //}}}
   //{{{
+  cPoint operator * (const cPoint& scale) const {
+    return cPoint (x * scale.x, y * scale.y);
+    }
+  //}}}
+  //{{{
   cPoint operator / (const float s) const {
     return cPoint (x / s, y / s);
     }
@@ -64,9 +69,9 @@ public:
     }
   //}}}
   //{{{
-  const cPoint& operator *= (const cPoint& size)  {
-    x *= size.x;
-    y *= size.y;
+  const cPoint& operator *= (const cPoint& scale)  {
+    x *= scale.x;
+    y *= scale.y;
     return *this;
     }
   //}}}

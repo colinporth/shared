@@ -529,8 +529,8 @@ private:
     //{{{
     void setImage (sPaint& paint, cScissor& scissor, sTexture* texture) {
 
-      innerColour = nvgPremulColour (paint.innerColour);
-      outerColour = nvgPremulColour (paint.outerColour);
+      innerColour = paint.innerColour.getPremultipliedColour();
+      outerColour = paint.outerColour.getPremultipliedColour();
 
       if ((scissor.extent[0] < -0.5f) || (scissor.extent[1] < -0.5f)) {
         // unity transform, inverse
@@ -566,8 +566,8 @@ private:
     //{{{
     void setFill (sPaint& paint, cScissor& scissor, float width, float fringe, float strokeThreshold, sTexture* tex) {
 
-      innerColour = nvgPremulColour (paint.innerColour);
-      outerColour = nvgPremulColour (paint.outerColour);
+      innerColour = paint.innerColour.getPremultipliedColour();
+      outerColour = paint.outerColour.getPremultipliedColour();
 
       if ((scissor.extent[0] < -0.5f) || (scissor.extent[1] < -0.5f)) {
         // unity transform, inverse

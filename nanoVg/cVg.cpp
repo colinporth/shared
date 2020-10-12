@@ -434,8 +434,8 @@ void cVg::resetState() {
   auto state = &mStates[mNumStates-1];
 
   state->composite = compositeState (NVG_SOURCE_OVER);
-  state->fillPaint.set (getRgbA (255, 255, 255, 255));
-  state->strokePaint.set (getRgbA (0, 0, 0, 255));
+  state->fillPaint.set (sVgColour (255, 255, 255, 255));
+  state->strokePaint.set (sVgColour (0, 0, 0, 255));
 
   state->strokeWidth = 1.0f;
   state->miterLimit = 10.0f;
@@ -960,8 +960,8 @@ cVg::sPaint cVg::setImagePattern (cPoint centre, cPoint size, float angle, int i
   paint.extent[1] = size.y;
   paint.radius = 0.f;
   paint.feather = 0.f;
-  paint.innerColour = getRgbAf (1, 1, 1, alpha);
-  paint.outerColour = getRgbAf (1, 1, 1, alpha);
+  paint.innerColour = sVgColour (1.f, 1.f, 1.f, alpha);
+  paint.outerColour = sVgColour (1.f, 1.f, 1.f, alpha);
   paint.mImageId = imageId;
 
   return paint;
