@@ -420,7 +420,7 @@ void cHlsPlayer::loaderThread() {
 void cHlsPlayer::startPlayer() {
 
   if (!mPlayer.joinable()) {
-    mPlayer = std::thread ([=]() { 
+    mPlayer = std::thread ([=]() {
       // player thread lambda
       cLog::setThreadName ("play");
 
@@ -428,7 +428,6 @@ void cHlsPlayer::startPlayer() {
       float samples [2048*2] = { 0.f };
 
       cAudioDecode decode (mSong->getFrameType());
-      cSong::cFrame* framePtr;
 
       #ifdef _WIN32
         SetThreadPriority (GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
@@ -439,6 +438,8 @@ void cHlsPlayer::startPlayer() {
           cLog::log (LOGINFO, "device @ %d", mSong->getSampleRate());
           device->setSampleRate (mSong->getSampleRate());
           device->start();
+
+          cSong::cFrame* framePtr;
           while (!mExit && !mSong->getChanged()) {
             device->process ([&](float*& srcSamples, int& numSrcSamples) mutable noexcept {
               // lambda callback - load srcSamples
@@ -482,6 +483,7 @@ void cHlsPlayer::startPlayer() {
         //{{{  audio16 player thread, video just follows play pts
         cAudio audio (2, mSong->getSampleRate(), 40000, false);
 
+        cSong::cFrame* framePtr;
         while (!mExit && !mSong->getChanged()) {
           float* playSamples = silence;
             {
