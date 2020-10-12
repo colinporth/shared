@@ -2,7 +2,7 @@
 #pragma once
 #include <math.h>
 
-struct cPointF {
+class cPointF {
 public:
   //{{{
   cPointF()  {
