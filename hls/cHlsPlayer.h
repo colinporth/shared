@@ -22,9 +22,9 @@ public:
   void init (const std::string& host, const std::string& channel, int audBitrate, int vidBitrate,
              bool useFFmpeg = true, bool videoQueue = true, bool audioQueue = true, bool streaming = true);
 
+  cSong* getSong() { return mSong; }
   cVideoDecode* getVideoDecode() { return mVideoDecode; }
   cAudioDecode* getAudioDecode() { return mAudioDecode; }
-  cSong* getSong() { return mSong; }
 
   float getLoadFrac() { return mLoadFrac; }
   //{{{
@@ -59,12 +59,14 @@ protected:
   void videoFollowAudio();
   void loaderThread();
 
-  cSong* mSong;
   bool mPlaying = true;
   std::thread mPlayer;
 
+  cSong* mSong;
+
   cVideoDecode* mVideoDecode = nullptr;
   cAudioDecode* mAudioDecode = nullptr;
+
   cPesParser* mVideoPesParser = nullptr;
   cPesParser* mAudioPesParser = nullptr;
 
