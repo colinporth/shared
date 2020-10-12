@@ -10,9 +10,9 @@
 //}}}
 
 class cSong;
+class cPesParser;
 class cAudioDecode;
 class cVideoDecode;
-class cPesParser;
 
 class cHlsPlayer {
 public:
@@ -27,18 +27,9 @@ public:
   cAudioDecode* getAudioDecode() { return mAudioDecode; }
 
   float getLoadFrac() { return mLoadFrac; }
-  //{{{
-  float getVideoFrac() {
-    //return (float)vidPesQueue.size_approx() / vidPesQueue.max_capacity();
-    return 0.f;
-    }
-  //}}}
-  //{{{
-  float getAudioFrac() {
-    //return (float)mQueue.size_approx() / audPesQueue.max_capacity();
-    return 0.f;
-    }
-  //}}}
+  float getVideoFrac();
+  float getAudioFrac();
+
   std::string getChannel() { return mChannel; }
   int getVidBitrate() { return mVidBitrate; }
   int getAudBitrate() { return mAudBitrate; }
@@ -59,18 +50,17 @@ protected:
   void videoFollowAudio();
   void loaderThread();
 
-  bool mPlaying = true;
-  std::thread mPlayer;
-
   cSong* mSong;
-
-  cVideoDecode* mVideoDecode = nullptr;
-  cAudioDecode* mAudioDecode = nullptr;
 
   cPesParser* mVideoPesParser = nullptr;
   cPesParser* mAudioPesParser = nullptr;
 
+  cVideoDecode* mVideoDecode = nullptr;
+  cAudioDecode* mAudioDecode = nullptr;
+
   bool mExit = false;
+  bool mPlaying = true;
+  std::thread mPlayer;
 
 private:
   void playerThread();

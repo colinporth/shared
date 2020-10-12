@@ -74,16 +74,16 @@ namespace {
 class cPesParser {
 public:
   //{{{
-  class cPes {
+  class cPesQueueItem {
   public:
     //{{{
-    cPes (uint8_t* pes, int size, int num, uint64_t pts) : mSize(size), mNum(num), mPts(pts) {
+    cPesQueueItem (uint8_t* pes, int size, int num, uint64_t pts) : mSize(size), mNum(num), mPts(pts) {
       mPes = (uint8_t*)malloc (size);
       memcpy (mPes, pes, size);
       }
     //}}}
     //{{{
-    ~cPes() {
+    ~cPesQueueItem() {
       free (mPes);
       }
     //}}}
@@ -109,6 +109,8 @@ public:
     mPesPts = 0;
     }
   //}}}
+
+  float getFrac() { return mUseQueue ? (float)mPesQueue.size_approx() / mPesQueue.max_capacity() : 0.f; }
 
   //{{{
   void parsePes (bool payStart, uint8_t* ts, int tsBodySize) {
@@ -141,13 +143,14 @@ public:
 protected:
   virtual void processPes() = 0;
 
+  // vars
   bool mUseQueue = false;
   cHlsPlayer* mHlsPlayer = nullptr;
   uint8_t* mPes = nullptr;
   int mNum = 0;
   int mPesSize = 0;
   uint64_t mPesPts = 0;
-  readerWriterQueue::cBlockingReaderWriterQueue <cPes*> mPesQueue;
+  readerWriterQueue::cBlockingReaderWriterQueue <cPesQueueItem*> mPesQueue;
 
 private:
   static constexpr int kPesSize = 1000000;
@@ -176,7 +179,7 @@ protected:
 
       // decode a single frame from pes
       if (mUseQueue)
-        mPesQueue.enqueue (new cPes (framePes, framePesSize, mNum, mPesPts));
+        mPesQueue.enqueue (new cPesQueueItem (framePes, framePesSize, mNum, mPesPts));
       else {
         float* samples = mHlsPlayer->getAudioDecode()->decodeFrame (framePes, framePesSize, mNum);
         mHlsPlayer->getSong()->addAudioFrame (mNum, samples, true, mHlsPlayer->getSong()->getNumFrames(), nullptr, mPesPts);
@@ -199,7 +202,7 @@ private:
     cLog::setThreadName ("audQ");
 
     while (true) {
-      cPes* pes;
+      cPesQueueItem* pes;
       mPesQueue.wait_dequeue (pes);
 
       float* samples = mHlsPlayer->getAudioDecode()->decodeFrame (pes->mPes, pes->mSize, pes->mNum);
@@ -226,7 +229,7 @@ protected:
   //{{{
   void processPes() {
     if (mUseQueue)
-      mPesQueue.enqueue (new cPes (mPes, mPesSize, mNum, mPesPts));
+      mPesQueue.enqueue (new cPesQueueItem(mPes, mPesSize, mNum, mPesPts));
     else
       mHlsPlayer->getVideoDecode()->decode (mPes, mPesSize, mNum, mPesPts);
 
@@ -241,7 +244,7 @@ private:
     cLog::setThreadName ("vidQ");
 
     while (true) {
-      cPes* pes;
+      cPesQueueItem* pes;
       mPesQueue.wait_dequeue (pes);
       mHlsPlayer->getVideoDecode()->decode (pes->mPes, pes->mSize, pes->mNum, pes->mPts);
       delete pes;
@@ -292,6 +295,9 @@ void cHlsPlayer::init (const string& host, const string& channel, int audBitrate
   mStreaming = streaming;
   }
 //}}}
+
+float cHlsPlayer::getVideoFrac() { return mVideoPesParser->getFrac(); }
+float cHlsPlayer::getAudioFrac() { return mVideoPesParser->getFrac(); }
 
 // protected
 //{{{
