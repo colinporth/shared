@@ -65,8 +65,8 @@ protected:
 
   cVideoDecode* mVideoDecode = nullptr;
   cAudioDecode* mAudioDecode = nullptr;
-  cPesParser* mVidPesParser = nullptr;
-  cPesParser* mAudPesParser = nullptr;
+  cPesParser* mVideoPesParser = nullptr;
+  cPesParser* mAudioPesParser = nullptr;
 
   bool mExit = false;
 

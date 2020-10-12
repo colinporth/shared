@@ -103,14 +103,12 @@ public:
   virtual ~cPesParser() {}
 
   //{{{
-  void clear() {
-    int mNum = 0;
-    int mPesSize = 0;
-    uint64_t mPesPts = 0;
+  void clear (int num) {
+    mNum = num;
+    mPesSize = 0;
+    mPesPts = 0;
     }
   //}}}
-  int getNum() { return mNum; }
-  void setNum (int num) { mNum = num; }
 
   //{{{
   void parsePes (bool payStart, uint8_t* ts, int tsBodySize) {
@@ -157,15 +155,15 @@ private:
   };
 //}}}
 //{{{
-class cAudPesParser : public cPesParser {
+class cAudioPesParser : public cPesParser {
 public:
   //{{{
-  cAudPesParser (cHlsPlayer* hlsPlayer, bool useQueue) : cPesParser(hlsPlayer, useQueue) {
+  cAudioPesParser (cHlsPlayer* hlsPlayer, bool useQueue) : cPesParser(hlsPlayer, useQueue) {
     if (useQueue)
       thread ([=](){ dequePesThread(); }).detach();
     }
   //}}}
-  virtual ~cAudPesParser() {}
+  virtual ~cAudioPesParser() {}
 
 protected:
   //{{{
@@ -213,15 +211,15 @@ private:
   };
 //}}}
 //{{{
-class cVidPesParser : public cPesParser {
+class cVideoPesParser : public cPesParser {
 public:
   //{{{
-  cVidPesParser (cHlsPlayer* hlsPlayer, bool useQueue) : cPesParser(hlsPlayer, useQueue) {
+  cVideoPesParser (cHlsPlayer* hlsPlayer, bool useQueue) : cPesParser(hlsPlayer, useQueue) {
     if (useQueue)
       thread ([=](){ dequePesThread(); }).detach();
     }
   //}}}
-  virtual ~cVidPesParser() {}
+  virtual ~cVideoPesParser() {}
 
 protected:
   //{{{
@@ -260,8 +258,8 @@ cHlsPlayer::~cHlsPlayer() {
   delete mSong;
   delete mVideoDecode;
   delete mAudioDecode;
-  delete mVidPesParser;
-  delete mAudPesParser;
+  delete mVideoPesParser;
+  delete mAudioPesParser;
   }
 //}}}
 //{{{
@@ -285,10 +283,10 @@ void cHlsPlayer::init (const string& host, const string& channel, int audBitrate
   #endif
 
   mQueueVideo = queueVideo;
-  mVidPesParser = new cVidPesParser (this, queueVideo);
+  mVideoPesParser = new cVideoPesParser (this, queueVideo);
 
   mQueueAudio = queueAudio;
-  mAudPesParser = new cAudPesParser (this, queueAudio);
+  mAudioPesParser = new cAudioPesParser (this, queueAudio);
 
   mStreaming = streaming;
   }
@@ -339,15 +337,11 @@ void cHlsPlayer::loaderThread() {
       while (!mExit && !mSong->getChanged()) {
         int chunkNum = mSong->getHlsLoadChunkNum (system_clock::now(), 12s, 2);
         if (chunkNum) {
-          //{{{  init pes states
           int contentUsed = 0;
-          mAudPesParser->clear();
-          mVidPesParser->clear();
-          //}}}
-
-          // get hls chunkNum chunk
-          mAudPesParser->setNum (mSong->getFrameNumFromChunkNum (chunkNum));
-          cLog::log (LOGINFO, "get chunkNum:" + dec(chunkNum) + " frameNum:" + dec(mAudPesParser->getNum()));
+          mVideoPesParser->clear(0);
+          int audioFrameNum = mSong->getFrameNumFromChunkNum (chunkNum);
+          mAudioPesParser->clear (audioFrameNum);
+          cLog::log (LOGINFO, "get chunkNum:" + dec(chunkNum) + " audioFrameNum:" + dec(audioFrameNum));
           if (http.get (redirectedHost, path + '-' + dec(chunkNum) + ".ts", "",
                         [&] (const string& key, const string& value) noexcept { /* headerCallback lambda */ },
                         [&] (const uint8_t* data, int length) noexcept {
@@ -362,9 +356,9 @@ void cHlsPlayer::loaderThread() {
                                auto pid = ((ts[0] & 0x1F) << 8) | ts[1];
                                auto headerSize = (ts[2] & 0x20) ? 4 + ts[3] : 3;
                                if (pid == 33)
-                                 mVidPesParser->parsePes (ts[0] & 0x40, ts + headerSize, 187 - headerSize);
+                                 mVideoPesParser->parsePes (ts[0] & 0x40, ts + headerSize, 187 - headerSize);
                                else if (pid == 34)
-                                 mAudPesParser->parsePes (ts[0] & 0x40, ts + headerSize, 187 - headerSize);
+                                 mAudioPesParser->parsePes (ts[0] & 0x40, ts + headerSize, 187 - headerSize);
                                else if (pid && (pid != 32))
                                  cLog::log (LOGERROR, "other pid %d", pid);
 
@@ -380,8 +374,8 @@ void cHlsPlayer::loaderThread() {
                            }
                            //}}}
                         ) == 200) {
-            mAudPesParser->processLastPes();
-            mVidPesParser->processLastPes();
+            mAudioPesParser->processLastPes();
+            mVideoPesParser->processLastPes();
             mLoadFrac = 0.f;
             http.freeContent();
             }
