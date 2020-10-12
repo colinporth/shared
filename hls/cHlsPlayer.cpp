@@ -90,7 +90,7 @@ public:
   void clear (int num) {
     mNum = num;
     mPesSize = 0;
-    mPesPts = 0;
+    mPts = 0;
     }
   //}}}
 
@@ -104,7 +104,7 @@ public:
       processLastPes();
 
       if (ts[7] & 0x80)
-        mPesPts = getPts (ts+9);
+        mPts = getPts (ts+9);
 
       int headerSize = 9 + ts[8];
       ts += headerSize;
@@ -135,7 +135,7 @@ protected:
   class cQueueItem {
   public:
     //{{{
-    cQueueItem (uint8_t* pes, int size, int num, uint64_t pts) : mSize(size), mNum(num), mPts(pts) {
+    cQueueItem (uint8_t* pes, int size, int num, uint64_t pts) : mPesSize(size), mNum(num), mPts(pts) {
       mPes = (uint8_t*)malloc (size);
       memcpy (mPes, pes, size);
       }
@@ -147,7 +147,7 @@ protected:
     //}}}
 
     uint8_t* mPes;
-    const int mSize;
+    const int mPesSize;
     const int mNum;
     const uint64_t mPts;
     };
@@ -165,7 +165,7 @@ protected:
   uint8_t* mPes = nullptr;
   int mPesSize = 0;
   int mNum = 0;
-  uint64_t mPesPts = 0;
+  uint64_t mPts = 0;
 
   readerWriterQueue::cBlockingReaderWriterQueue <cQueueItem*> mQueue;
 
@@ -180,47 +180,9 @@ private:
     while (true) {
       cQueueItem* queueItem;
       mQueue.wait_dequeue (queueItem);
-      decodePes (queueItem->mPes, queueItem->mSize, queueItem->mNum, queueItem->mPts);
+      decodePes (queueItem->mPes, queueItem->mPesSize, queueItem->mNum, queueItem->mPts);
       delete queueItem;
       }
-    }
-  //}}}
-  };
-//}}}
-//{{{
-class cAudioPesParser : public cPesParser {
-public:
-  cAudioPesParser (cHlsPlayer* hlsPlayer, bool useQueue) : cPesParser(hlsPlayer, useQueue, "aud") {}
-  virtual ~cAudioPesParser() {}
-
-protected:
-  //{{{
-  void processPes() {
-    // split audio pes into frames, queue or decode now
-    uint8_t* framePes = mPes;
-    while (mHlsPlayer->getAudioDecode()->parseFrame (framePes, mPes + mPesSize)) {
-      int framePesSize = mHlsPlayer->getAudioDecode()->getNextFrameOffset();
-
-      // decode a single frame from pes
-      if (mUseQueue)
-        mQueue.enqueue (new cQueueItem (framePes, framePesSize, mNum, mPesPts));
-      else
-        decodePes (mPes, mPesSize, mNum, mPesPts);
-
-      // point to next frame in pes, assumes 48000 sample rate
-      mPesPts += (mHlsPlayer->getAudioDecode()->getNumSamples() * 90) / 48;
-      mNum++;
-      framePes += framePesSize;
-      }
-    }
-  //}}}
-  //{{{
-  void decodePes (uint8_t* pes, int size, int num, uint64_t pts) {
-
-    float* samples = mHlsPlayer->getAudioDecode()->decodeFrame (pes, size, num);
-    mHlsPlayer->getSong()->addAudioFrame (num, samples, true, mHlsPlayer->getSong()->getNumFrames(), nullptr, pts);
-
-    mHlsPlayer->startPlayer();
     }
   //}}}
   };
@@ -236,9 +198,9 @@ protected:
   void processPes() {
 
     if (mUseQueue)
-      mQueue.enqueue (new cQueueItem(mPes, mPesSize, mNum, mPesPts));
+      mQueue.enqueue (new cQueueItem(mPes, mPesSize, mNum, mPts));
     else
-      decodePes (mPes, mPesSize, mNum, mPesPts);
+      decodePes (mPes, mPesSize, mNum, mPts);
 
     mNum++;
     }
@@ -246,6 +208,45 @@ protected:
   //{{{
   void decodePes (uint8_t* pes, int size, int num, uint64_t pts) {
     mHlsPlayer->getVideoDecode()->decode (pes, size, num, pts);
+    }
+  //}}}
+  };
+//}}}
+//{{{
+class cAudioPesParser : public cPesParser {
+public:
+  cAudioPesParser (cHlsPlayer* hlsPlayer, bool useQueue) : cPesParser(hlsPlayer, useQueue, "aud") {}
+  virtual ~cAudioPesParser() {}
+
+protected:
+  //{{{
+  void processPes() {
+  // pes may have several frames, split pes up into frames, queue or decode
+
+    uint8_t* framePes = mPes;
+    while (mHlsPlayer->getAudioDecode()->parseFrame (framePes, mPes + mPesSize)) {
+      int framePesSize = mHlsPlayer->getAudioDecode()->getNextFrameOffset();
+
+      // decode a single frame from pes
+      if (mUseQueue)
+        mQueue.enqueue (new cQueueItem (framePes, framePesSize, mNum, mPts));
+      else
+        decodePes (framePes, framePesSize, mNum, mPts);
+
+      // point to next frame in pes, assumes 48000 sample rate
+      mPts += (mHlsPlayer->getAudioDecode()->getNumSamples() * 90) / 48;
+      mNum++;
+      framePes += framePesSize;
+      }
+    }
+  //}}}
+  //{{{
+  void decodePes (uint8_t* pes, int size, int num, uint64_t pts) {
+
+    float* samples = mHlsPlayer->getAudioDecode()->decodeFrame (pes, size, num);
+    mHlsPlayer->getSong()->addAudioFrame (num, samples, true, mHlsPlayer->getSong()->getNumFrames(), nullptr, pts);
+
+    mHlsPlayer->startPlayer();
     }
   //}}}
   };
