@@ -9,7 +9,7 @@
 #include "../nanoVg/cPointF.h"
 //}}}
 
-class iDraw : public iWindow {
+class iDraw : public iWindow  {
 public:
   virtual ~iDraw() {}
 
@@ -22,12 +22,6 @@ public:
     drawRect (colour, p + cPointF (size.x -thickness, 0.f), cPointF(thickness, size.y));
     drawRect (colour, p + cPointF (0.f, size.y -thickness), cPointF(size.x, thickness));
     drawRect (colour, p, cPointF(thickness, size.y));
-    }
-  //}}}
-  //{{{
-  virtual void drawClear (const sColourF& colour) {
-
-    drawRect (colour, cPointF(), getPixSize());
     }
   //}}}
 

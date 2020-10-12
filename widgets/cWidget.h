@@ -16,20 +16,25 @@ public:
 
   cWidget() {}
   //{{{
+  cWidget (uint16_t width, uint16_t height)
+    : mPixSize (width, height), mLayoutSize(width, height) {}
+  //}}}
+  //{{{
+  cWidget (const sColourF& colour, uint16_t width, uint16_t height)
+    : mColour(colour), mPixSize(width, height), mLayoutSize(mPixSize) {}
+  //}}}
+  //{{{
   cWidget (float widthInBoxes)
-    : mPixSize (widthInBoxes * getBoxHeight(), getBoxHeight()),
-      mLayoutWidth (widthInBoxes * getBoxHeight()), mLayoutHeight(getBoxHeight()) {}
+    : mPixSize (widthInBoxes * getBoxHeight(), getBoxHeight()), mLayoutSize(mPixSize) {}
   //}}}
   //{{{
   cWidget (float widthInBoxes, float heightInBoxes)
-    : mPixSize (widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()),
-      mLayoutWidth(widthInBoxes * getBoxHeight()), mLayoutHeight(heightInBoxes * getBoxHeight()) {}
+    : mPixSize (widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()), mLayoutSize(mPixSize) {}
   //}}}
   //{{{
   cWidget (const sColourF& colour, float widthInBoxes, float heightInBoxes)
     : mColour(colour),
-      mPixSize(widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()),
-      mLayoutWidth(widthInBoxes * getBoxHeight()), mLayoutHeight(heightInBoxes * getBoxHeight()) {}
+      mPixSize(widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()), mLayoutSize(mPixSize) {}
   //}}}
   virtual ~cWidget() {}
 
@@ -102,9 +107,9 @@ public:
     }
   //}}}
   //{{{
-  virtual void layout (float width, float height) {
-    setPixSize ((mLayoutWidth <= 0.f) ? width + mLayoutWidth : mPixSize.x,
-                (mLayoutHeight <= 0.f) ? height + mLayoutHeight : mPixSize.y);
+  virtual void layout (const cPointF& size) {
+    setPixSize ((mLayoutSize.x <= 0.f) ? size.x + mLayoutSize.x : mPixSize.x,
+                (mLayoutSize.y <= 0.f) ? size.y + mLayoutSize.y : mPixSize.y);
     }
   //}}}
 
@@ -134,10 +139,9 @@ public:
 protected:
   sColourF mColour = kLightGreyF;
 
-  cPointF mPixOrg = {0.f, 0.f};
-  cPointF mPixSize = {0.f, 0.f};
-  float mLayoutWidth = 0;
-  float mLayoutHeight = 0;
+  cPointF mPixOrg = { 0.f,0.f };
+  cPointF mPixSize = { 0.f,0.f };
+  cPointF mLayoutSize = { 0.f,0.f };
 
   int mPressedCount = 0;
   bool mOn = false;

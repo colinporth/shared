@@ -446,7 +446,7 @@ void cGlWindow::glfWindowPos (GLFWwindow* window, int xsize, int ysize) {
 //}}}
 //{{{
 void cGlWindow::glfWindowSize (GLFWwindow* window, int xsize, int ysize) {
-  mRootContainer->layout ((float)xsize, (float)ysize);
+  mRootContainer->layout (cPointF((float)xsize, (float)ysize));
   mGlWindow->draw();
   }
 //}}}

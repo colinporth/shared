@@ -9,7 +9,7 @@
 class cContainer : public cWidget {
 public:
   cContainer() : cWidget() { mColour = kBlackF; }
-  cContainer (float width, float height) : cWidget (kBlackF, width, height) {}
+  cContainer (uint16_t width, uint16_t height) : cWidget (kBlackF, width, height) {}
   virtual ~cContainer() {}
 
   //{{{
@@ -116,11 +116,11 @@ public:
     }
   //}}}
   //{{{
-  virtual void layout (float width, float height) {
+  virtual void layout (const cPointF& size) {
 
-    setPixSize (width, height);
+    setPixSize (size);
     for (auto widget : mSubWidgets)
-      widget->layout (width, height);
+      widget->layout (size);
     }
   //}}}
   //{{{
