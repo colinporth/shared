@@ -22,7 +22,7 @@ float cGlWindow::getHeightPix() { return mRootContainer->getPixHeight(); }
 
 // iDraw
 //{{{
-void cGlWindow::drawRect (const sColourF& colour, cPointF p, cPointF size) {
+void cGlWindow::drawRect (const sColourF& colour, const cPointF& p, const cPointF& size) {
 
   setFillColour (colour);
 
@@ -32,7 +32,7 @@ void cGlWindow::drawRect (const sColourF& colour, cPointF p, cPointF size) {
   }
 //}}}
 //{{{
-float cGlWindow::drawText (const sColourF& colour, float fontHeight, string str, cPointF p, cPointF size) {
+float cGlWindow::drawText (const sColourF& colour, float fontHeight, string str, const cPointF& p, const cPointF& size) {
 
   setFontSize (fontHeight);
   setTextAlign (cVg::eAlignLeft | cVg::eAlignTop);
@@ -45,7 +45,7 @@ float cGlWindow::drawText (const sColourF& colour, float fontHeight, string str,
   }
 //}}}
 //{{{
-float cGlWindow::drawTextRight (const sColourF& colour, float fontHeight, string str, cPointF p, cPointF size) {
+float cGlWindow::drawTextRight (const sColourF& colour, float fontHeight, string str, const cPointF& p, const cPointF& size) {
 
   setFontSize (fontHeight);
   setTextAlign (cVg::eAlignRight | cVg::eAlignTop);
@@ -58,12 +58,12 @@ float cGlWindow::drawTextRight (const sColourF& colour, float fontHeight, string
   }
 //}}}
 //{{{
-void cGlWindow::drawEllipseSolid (const sColourF& colour, cPointF p, float xradius, float yradius) {
+void cGlWindow::drawEllipseSolid (const sColourF& colour, const cPointF& p, const cPointF& radius) {
 
   setFillColour (sColourF(colour));
 
   beginPath();
-  ellipse (p, cPointF (xradius, yradius));
+  ellipse (p, radius);
   fill();
   }
 //}}}
@@ -211,8 +211,8 @@ void cGlWindow::draw() {
 //}}}
 
 //{{{
-void cGlWindow::drawSpinner (cPointF centre, float inner, float outer, float frac,
-                             const sColourF& color1, const sColourF& color2) {
+void cGlWindow::drawSpinner (const cPointF& centre, float inner, float outer, float frac,
+                             const sColourF& colour1, const sColourF& colour2) {
 
   saveState();
 
@@ -223,9 +223,10 @@ void cGlWindow::drawSpinner (cPointF centre, float inner, float outer, float fra
   arc (centre, inner, angle1, angle0, cVg::eCounterClockWise);
   closePath();
 
-  cPointF a (centre.x + cosf (angle0) * (outer + inner) * 0.5f, centre.y + sinf (angle0) * (outer + inner) * 0.5f);
-  cPointF b (centre.x + cosf (angle1) * (outer + inner) * 0.5f, centre.y + sinf (angle1) * (outer + inner) * 0.5f);
-  auto paint = setLinearGradient (a, b, color1, color2);
+  float mid = (outer + inner) * 0.5f;
+  auto paint = setLinearGradient (centre + cPointF(cosf (angle0) * mid, sinf (angle0) * mid), 
+                                  centre + cPointF(cosf (angle1) * mid, sinf (angle1) * mid), 
+                                  colour1, colour2);
   setFillPaint (paint);
   fill();
 
@@ -233,7 +234,7 @@ void cGlWindow::drawSpinner (cPointF centre, float inner, float outer, float fra
   }
 //}}}
 //{{{
-void cGlWindow::drawEyes (cPointF p, cPointF size, float cursorX, float cursorY, float t) {
+void cGlWindow::drawEyes (const cPointF& p, const cPointF& size, float cursorX, float cursorY, float t) {
 
   cPointF eyeSize (size.x * 0.23f, size.y * 0.5f);
   cPointF left = p + eyeSize;
@@ -295,7 +296,7 @@ void cGlWindow::drawEyes (cPointF p, cPointF size, float cursorX, float cursorY,
   }
 //}}}
 //{{{
-void cGlWindow::drawLines (cPointF p, cPointF size, float t) {
+void cGlWindow::drawLines (const cPointF& p, const cPointF& size, float t) {
 
   float pad = 5.0f;
   float s = size.x/9.0f - pad*2;

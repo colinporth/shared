@@ -13,10 +13,10 @@ class iDraw : public iWindow {
 public:
   virtual ~iDraw() {}
 
-  virtual void drawRect (const sColourF& colour, cPointF p, cPointF size) = 0;
-  virtual void drawPixel (const sColourF& colour, cPointF p) { drawRect (colour, p, cPointF(1.f,1.f)); }
+  virtual void drawRect (const sColourF& colour, const cPointF& p, const cPointF& size) = 0;
+  virtual void drawPixel (const sColourF& colour, const cPointF& p) { drawRect (colour, p, cPointF(1.f,1.f)); }
   //{{{
-  virtual void drawRectOutline (const sColourF& colour, cPointF p, cPointF size, float thickness) {
+  virtual void drawRectOutline (const sColourF& colour, const cPointF& p, const cPointF& size, float thickness) {
 
     drawRect (colour, p, cPointF(size.x, thickness));
     drawRect (colour, p + cPointF (size.x -thickness, 0.f), cPointF(thickness, size.y));
@@ -31,15 +31,15 @@ public:
     }
   //}}}
 
-  virtual float drawText (const sColourF& colourr, float fontHeight, std::string str, cPointF p, cPointF size) = 0;
-  virtual float drawTextRight (const sColourF& colour, float fontHeight, std::string str, cPointF p, cPointF size) = 0;
+  virtual float drawText (const sColourF& colourr, float fontHeight, std::string str, const cPointF& p, const cPointF& size) = 0;
+  virtual float drawTextRight (const sColourF& colour, float fontHeight, std::string str, const cPointF& p, const cPointF& size) = 0;
 
-  virtual void drawCopy (uint8_t* src, cPointF p, cPointF size) {}
-  virtual void drawCopy (uint8_t* src, cPointF srcp, cPointF srcSize, cPointF dstp, cPointF dstSize) {}
-  virtual void drawStamp (const sColourF& colour, uint8_t* src, cPointF p, cPointF size) {}
+  virtual void drawCopy (uint8_t* src, const cPointF& p, const cPointF& size) {}
+  virtual void drawCopy (uint8_t* src, const cPointF& srcp, const cPointF& srcSize, const cPointF& dstp, const cPointF& dstSize) {}
+  virtual void drawStamp (const sColourF& colour, uint8_t* src, const cPointF& p, const cPointF& size) {}
 
   //{{{
-  virtual void drawEllipseSolid (const sColourF& colour, cPointF p, cPointF radius) {
+  virtual void drawEllipseSolid (const sColourF& colour, const cPointF& p, const cPointF& radius) {
 
     if (!radius.x)
       return;
@@ -67,7 +67,7 @@ public:
     }
   //}}}
   //{{{
-  virtual void drawEllipseOutline (const sColourF& colour, cPointF p, cPointF radius) {
+  virtual void drawEllipseOutline (const sColourF& colour, const cPointF& p, const cPointF& radius) {
 
     if (radius.x && radius.y) {
       float x1 = 0;
@@ -95,7 +95,7 @@ public:
   //}}}
 
   //{{{
-  virtual void drawLine (const sColourF& colour, cPointF p1, cPointF p2) {
+  virtual void drawLine (const sColourF& colour, const cPointF& p1, const cPointF& p2) {
 
     float deltax = (p2.x - p1.x) > 0 ? (p2.x - p1.x) : -(p2.x - p2.x);        /* The difference between the x's */
     float deltay = (p2.y - p1.y) > 0 ? (p2.y - p1.y) : -(p2.y - p1.y);        /* The difference between the y's */

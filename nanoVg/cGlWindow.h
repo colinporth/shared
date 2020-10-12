@@ -27,10 +27,10 @@ public:
   //}}}
 
   // iDraw
-  void drawRect (const sColourF& colour, cPointF p, cPointF size);
-  void drawPixel (const sColourF& colour, cPointF p) {}
+  void drawRect (const sColourF& colour, const cPointF& p, const cPointF& size);
+  void drawPixel (const sColourF& colour, const cPointF& p) {}
   //{{{
-  void drawRectOutline (const sColourF& colour, cPointF p, cPointF size, float thickness) {
+  void drawRectOutline (const sColourF& colour, const cPointF& p, const cPointF& size, float thickness) {
     drawRect (colour, p, cPointF(size.x, thickness));
     drawRect (colour, cPointF(p.x + size.x -thickness, p.y), cPointF(thickness, size.y));
     drawRect (colour, cPointF(p.x, p.y + size.y -thickness), cPointF(size.x, thickness));
@@ -38,10 +38,10 @@ public:
     }
   //}}}
 
-  float drawText (const sColourF& colour, float fontHeight, std::string str, cPointF p, cPointF size);
-  float drawTextRight (const sColourF& colour, float fontHeight, std::string str, cPointF p, cPointF size);
-  void drawEllipseSolid (const sColourF& colour, cPointF p, float xradius, float yradius);
-  void drawStamp (const sColourF& colour, uint8_t* src, cPointF p, cPointF size) {}
+  float drawText (const sColourF& colour, float fontHeight, std::string str, const cPointF& p,  const cPointF& size);
+  float drawTextRight (const sColourF& colour, float fontHeight, std::string str, const cPointF& p, const cPointF& size);
+  void drawEllipseSolid (const sColourF& colour, const cPointF& p, const cPointF& radius);
+  void drawStamp (const sColourF& colour, uint8_t* src, const cPointF& p, const cPointF& size) {}
 
 protected:
   cRootContainer* initialise (const std::string& title, int width, int height, unsigned char* sansFont, int sansFontSize);
@@ -75,10 +75,10 @@ protected:
 private:
   void draw();
 
-  void drawSpinner (cPointF centre, float inner, float outer, float frac,
-                    const sColourF& color1, const sColourF& color2);
-  void drawEyes (cPointF p, cPointF size, float cursorX, float cursorY, float t);
-  void drawLines (cPointF p, cPointF size, float t);
+  void drawSpinner (const cPointF& centre, float inner, float outer, float frac,
+                    const sColourF& colour1, const sColourF& colour2);
+  void drawEyes (const cPointF& p, const cPointF& size, float cursorX, float cursorY, float t);
+  void drawLines (const cPointF& p, const cPointF& size, float t);
 
   //{{{  static glfw callbacks
   static void glfwKey (GLFWwindow* window, int key, int scancode, int action, int mods);
