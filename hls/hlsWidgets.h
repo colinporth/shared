@@ -36,12 +36,12 @@ private:
     mHls->getChunkInfo (chunk, loaded, loading, offset);
 
     draw->drawEllipseSolid (loading ? kDarkOrangeF : loaded ? kDarkGreenF : kDarkRedF,
-      cPoint(mX + 2.f + ((mWidth-2.f) / 2.f), mY + (chunk * getBoxHeight()) + mHeight / 6.f),
-      cPoint((mWidth-2.f) / 2.f, (mWidth-2.f) / 2.f));
+      mPixOrg + cPointF(2.f + ((mPixSize.x-2.f) / 2.f), (chunk * getBoxHeight()) + mPixSize.y / 6.f),
+      cPointF((mPixSize.x-2.f) / 2.f, (mPixSize.x-2.f) / 2.f));
 
     if (loaded || loading)
       draw->drawText (kLightGreyF, getSmallFontHeight(), dec(offset),
-                      cPoint(mX + mWidth / 3.f, mY + (chunk * getBoxHeight()) + mWidth/6.f), cPoint(mWidth, mWidth));
+                      mPixOrg + cPointF(mPixSize.x / 3.f, (chunk * getBoxHeight()) + mPixSize.x /6.f), cPointF(mPixSize.x, mPixSize.x));
     }
 
   cHls* mHls;
@@ -56,9 +56,9 @@ public:
   void onDown (float x, float y) {
     cWidget::onDown (x, y);
     mMove = 0;
-    mPressInc = x - (mWidth/2.f);
+    mPressInc = x - (mPixSize.x/2.f);
     mHls->setScrub();
-    setZoomAnim (1.0f + ((mWidth/2.f) - abs(x - (mWidth/2.f))) / (mWidth/6.f), 4);
+    setZoomAnim (1.0f + ((mPixSize.x /2.f) - abs(x - (mPixSize.x /2.f))) / (mPixSize.x /6.f), 4);
     }
 
   void onMove (float x, float y, float xinc, float yinc) {
@@ -95,12 +95,12 @@ public:
         mZoom += mZoomInc;
       }
     //}}}
-    float midx = mX + (mWidth/2.f);
+    float midx = mPixOrg.x + (mPixSize.x /2.f);
     float samplesPerPixF = kSamplesPerFrame / mZoom;
     float pixPerSec = kSamplesPerSecondF / samplesPerPixF;
-    double sample = mHls->getPlaySample() - ((mWidth/2.f) + mAnimation) * samplesPerPixF;
+    double sample = mHls->getPlaySample() - ((mPixSize.x /2.f) + mAnimation) * samplesPerPixF;
 
-    float y = mY + mHeight - getBoxHeight()/2.f;
+    float y = mPixOrg.y + mPixSize.y - getBoxHeight()/2.f;
     int secs = int (sample / kSamplesPerSecond);
     float subSecSamples = (float)fmod (sample, kSamplesPerSecondD);
     float nextxF = (kSamplesPerSecondF - subSecSamples) / samplesPerPixF;
@@ -110,27 +110,27 @@ public:
 
     context->setFillColour (kDarkGreyF);
     context->beginPath();
-    for (float x = 0; x < mWidth; secs++, nextxF += pixPerSec) {
+    for (float x = 0; x < mPixSize.x; secs++, nextxF += pixPerSec) {
       if (secs & 1)
-        context->rect (cPoint(mX+x, y), cPoint(nextxF - x, getBoxHeight()/2.0f));
+        context->rect (cPointF(mPixOrg.x + x, y), cPointF(nextxF - x, getBoxHeight()/2.0f));
       x = nextxF;
       }
     context->triangleFill();
 
-    y = mY + mHeight - getBigFontHeight();
+    y = mPixOrg.y + mPixSize.y - getBigFontHeight();
 
     context->setFontSize ((float)getBigFontHeight());
     context->setTextAlign (cVg::eAlignLeft | cVg::eAlignTop);
     context->setFillColour (kWhiteF);
-    context->text (cPoint(midx-60.0f+3.0f, y+1.0f), getTimeString (mHls->getPlayTzSeconds()));
+    context->text (cPointF(midx-60.0f+3.0f, y+1.0f), getTimeString (mHls->getPlayTzSeconds()));
 
-    float midy = (float)mY + (mHeight/2);
+    float midy = (float)mPixOrg.y + (mPixSize.y /2.f);
     float midWidth = midx + int(mHls->getPlaying() == cHls::eScrub ? kScrubFrames*mZoom : mZoom);
 
     context->beginPath();
     uint8_t* samples = nullptr;
     uint32_t numSamples = 0;
-    for (float x = mX; x < mX+mWidth; x++) {
+    for (float x = mPixOrg.x; x < mPixOrg.x+mPixSize.x; x++) {
       if (!numSamples) {
         samples = mHls->getPeakSamples (sample, numSamples, mZoom);
         if (samples)
@@ -149,9 +149,9 @@ public:
           context->beginPath();
           }
 
-        auto left = (*samples++ * mHeight) / 0x100;
-        auto right = (*samples++ * mHeight) / 0x100;
-        context->rect (cPoint(x, midy - left), cPoint(1.f, (float)(left+right)));
+        auto left = (*samples++ * mPixSize.y) / 0x100;
+        auto right = (*samples++ * mPixSize.y) / 0x100;
+        context->rect (cPointF(x, midy - left), cPointF(1.f, (float)(left+right)));
         numSamples--;
         }
       else

@@ -6,40 +6,40 @@
 #include "iWindow.h"
 
 #include "../nanoVg/sColourF.h"
-#include "../nanoVg/cPoint.h"
+#include "../nanoVg/cPointF.h"
 //}}}
 
 class iDraw : public iWindow {
 public:
   virtual ~iDraw() {}
 
-  virtual void drawRect (const sColourF& colour, cPoint p, cPoint size) = 0;
-  virtual void drawPixel (const sColourF& colour, cPoint p) { drawRect (colour, p, cPoint(1.f,1.f)); }
+  virtual void drawRect (const sColourF& colour, cPointF p, cPointF size) = 0;
+  virtual void drawPixel (const sColourF& colour, cPointF p) { drawRect (colour, p, cPointF(1.f,1.f)); }
   //{{{
-  virtual void drawRectOutline (const sColourF& colour, cPoint p, cPoint size, float thickness) {
+  virtual void drawRectOutline (const sColourF& colour, cPointF p, cPointF size, float thickness) {
 
-    drawRect (colour, p, cPoint(size.x, thickness));
-    drawRect (colour, p + cPoint (size.x -thickness, 0.f), cPoint(thickness, size.y));
-    drawRect (colour, p + cPoint (0.f, size.y -thickness), cPoint(size.x, thickness));
-    drawRect (colour, p, cPoint(thickness, size.y));
+    drawRect (colour, p, cPointF(size.x, thickness));
+    drawRect (colour, p + cPointF (size.x -thickness, 0.f), cPointF(thickness, size.y));
+    drawRect (colour, p + cPointF (0.f, size.y -thickness), cPointF(size.x, thickness));
+    drawRect (colour, p, cPointF(thickness, size.y));
     }
   //}}}
   //{{{
   virtual void drawClear (const sColourF& colour) {
 
-    drawRect (colour, cPoint(0.f, 0.f), cPoint(getWidthPix(), getHeightPix()));
+    drawRect (colour, cPointF(0.f, 0.f), cPointF(getWidthPix(), getHeightPix()));
     }
   //}}}
 
-  virtual float drawText (const sColourF& colourr, float fontHeight, std::string str, cPoint p, cPoint size) = 0;
-  virtual float drawTextRight (const sColourF& colour, float fontHeight, std::string str, cPoint p, cPoint size) = 0;
+  virtual float drawText (const sColourF& colourr, float fontHeight, std::string str, cPointF p, cPointF size) = 0;
+  virtual float drawTextRight (const sColourF& colour, float fontHeight, std::string str, cPointF p, cPointF size) = 0;
 
-  virtual void drawCopy (uint8_t* src, cPoint p, cPoint size) {}
-  virtual void drawCopy (uint8_t* src, cPoint srcp, cPoint srcSize, cPoint dstp, cPoint dstSize) {}
-  virtual void drawStamp (const sColourF& colour, uint8_t* src, cPoint p, cPoint size) {}
+  virtual void drawCopy (uint8_t* src, cPointF p, cPointF size) {}
+  virtual void drawCopy (uint8_t* src, cPointF srcp, cPointF srcSize, cPointF dstp, cPointF dstSize) {}
+  virtual void drawStamp (const sColourF& colour, uint8_t* src, cPointF p, cPointF size) {}
 
   //{{{
-  virtual void drawEllipseSolid (const sColourF& colour, cPoint p, cPoint radius) {
+  virtual void drawEllipseSolid (const sColourF& colour, cPointF p, cPointF radius) {
 
     if (!radius.x)
       return;
@@ -52,8 +52,8 @@ public:
     float k = (float)radius.y / radius.x;
 
     do {
-      drawRect (colour, cPoint(p.x-(x1 / k), p.y + y1), cPoint(2*(x1 / k) + 1, 1));
-      drawRect (colour, cPoint(p.x-(x1 / k), p.y - y1), cPoint(2*(x1 / k) + 1, 1));
+      drawRect (colour, cPointF(p.x-(x1 / k), p.y + y1), cPointF(2*(x1 / k) + 1, 1));
+      drawRect (colour, cPointF(p.x-(x1 / k), p.y - y1), cPointF(2*(x1 / k) + 1, 1));
 
       float e2 = err;
       if (e2 <= x1) {
@@ -67,7 +67,7 @@ public:
     }
   //}}}
   //{{{
-  virtual void drawEllipseOutline (const sColourF& colour, cPoint p, cPoint radius) {
+  virtual void drawEllipseOutline (const sColourF& colour, cPointF p, cPointF radius) {
 
     if (radius.x && radius.y) {
       float x1 = 0;
@@ -76,10 +76,10 @@ public:
       float k = (float)radius.y / radius.x;
 
       do {
-        drawRect (colour, cPoint(p.x - (x1 / k), p.y + y1), cPoint(1, 1));
-        drawRect (colour, cPoint(p.x + (x1 / k), p.y + y1), cPoint(1, 1));
-        drawRect (colour, cPoint(p.x + (x1 / k), p.y - y1), cPoint(1, 1));
-        drawRect (colour, cPoint(p.x - (x1 / k), p.y - y1), cPoint(1, 1));
+        drawRect (colour, cPointF(p.x - (x1 / k), p.y + y1), cPointF(1, 1));
+        drawRect (colour, cPointF(p.x + (x1 / k), p.y + y1), cPointF(1, 1));
+        drawRect (colour, cPointF(p.x + (x1 / k), p.y - y1), cPointF(1, 1));
+        drawRect (colour, cPointF(p.x - (x1 / k), p.y - y1), cPointF(1, 1));
 
         float e2 = err;
         if (e2 <= x1) {
@@ -95,7 +95,7 @@ public:
   //}}}
 
   //{{{
-  virtual void drawLine (const sColourF& colour, cPoint p1, cPoint p2) {
+  virtual void drawLine (const sColourF& colour, cPointF p1, cPointF p2) {
 
     float deltax = (p2.x - p1.x) > 0 ? (p2.x - p1.x) : -(p2.x - p2.x);        /* The difference between the x's */
     float deltay = (p2.y - p1.y) > 0 ? (p2.y - p1.y) : -(p2.y - p1.y);        /* The difference between the y's */
@@ -146,7 +146,7 @@ public:
     }
 
     for (int curpixel = 0; curpixel <= num_pixels; curpixel++) {
-      drawRect (colour, cPoint (x,y), cPoint(1, 1));   /* Draw the current pixel */
+      drawRect (colour, cPointF (x,y), cPointF(1, 1));   /* Draw the current pixel */
       num += num_add;                            /* Increase the numerator by the top of the fraction */
       if (num >= den) {                          /* Check if numerator >= denominator */
         num -= den;                             /* Calculate the new numerator value */

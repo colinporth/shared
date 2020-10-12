@@ -42,7 +42,7 @@ public:
   //}}}
 
   //{{{
-  void render (cVg* vg, cPoint p, cPoint size) {
+  void render (cVg* vg, cPointF p, cPointF size) {
 
     // bgnd
     vg->beginPath();
@@ -52,7 +52,7 @@ public:
 
     // graph
     vg->beginPath();
-    vg->moveTo (p + cPoint(0.f, size.y));
+    vg->moveTo (p + cPointF(0.f, size.y));
     if (mStyle == eRenderFps) {
       //{{{  fps graph
       for (int i = 0; i < kGraphHistorySize; i++) {
@@ -61,7 +61,7 @@ public:
         if (v > 100.f)
           v = 100.f;
 
-        vg->lineTo (cPoint (p.x + ((float)i/(kGraphHistorySize -1)) * size.x, p.y + size.y - ((v / 100.f) * size.y)));
+        vg->lineTo (cPointF (p.x + ((float)i/(kGraphHistorySize -1)) * size.x, p.y + size.y - ((v / 100.f) * size.y)));
         }
       }
       //}}}
@@ -72,7 +72,7 @@ public:
         if (v > 100.f)
           v = 100.f;
 
-        vg->lineTo (cPoint (p.x + ((float)i / (kGraphHistorySize -1)) * size.x, p.y + size.y - ((v / 100.f) * size.y)));
+        vg->lineTo (cPointF (p.x + ((float)i / (kGraphHistorySize -1)) * size.x, p.y + size.y - ((v / 100.f) * size.y)));
         }
       }
       //}}}
@@ -83,7 +83,7 @@ public:
         if (v > 20.f)
           v = 20.f;
 
-        vg->lineTo (cPoint (p.x + ((float)i / (kGraphHistorySize -1)) * size.x, p.y + size.y - ((v / 20.f) * size.y)));
+        vg->lineTo (cPointF (p.x + ((float)i / (kGraphHistorySize -1)) * size.x, p.y + size.y - ((v / 20.f) * size.y)));
         }
       }
       //}}}
@@ -98,7 +98,7 @@ public:
       vg->setFontSize (14.f);
       vg->setTextAlign (cVg::eAlignLeft | cVg::eAlignTop);
       vg->setFillColour (sColourF(0.9f,0.9f,0.9f, 0.75f));
-      vg->text (p + cPoint (3.f,1.f), mName);
+      vg->text (p + cPointF (3.f,1.f), mName);
       }
       //}}}
 
@@ -112,14 +112,14 @@ public:
 
       char str[64];
       sprintf (str, "%.2ffps", 1.f / avg);
-      vg->text (p + cPoint (size.x-3.f, 1.f), str);
+      vg->text (p + cPointF (size.x-3.f, 1.f), str);
 
       vg->setFontSize (15.f);
       vg->setTextAlign (cVg::eAlignRight | cVg::eAlignBottom);
       vg->setFillColour(sColourF(0.9f, 0.9f, 0.9f, 0.6f));
 
       sprintf (str, "%.2fms", avg * 1000.f);
-      vg->text (p + size + cPoint (-3.f, -1.f), str);
+      vg->text (p + size + cPointF (-3.f, -1.f), str);
       }
       //}}}
     else if (mStyle == eRenderPercent) {
@@ -130,7 +130,7 @@ public:
 
       char str[64];
       sprintf (str, "%.1f%%", avg * 1.f);
-      vg->text (p + cPoint (size.x-3.f, 1.f), str);
+      vg->text (p + cPointF (size.x-3.f, 1.f), str);
       }
       //}}}
     else {
@@ -141,7 +141,7 @@ public:
 
       char str[64];
       sprintf (str, "%.2fms", avg * 1000.f);
-      vg->text (p+ cPoint(size.x-3.f, 1.f), str);
+      vg->text (p+ cPointF(size.x-3.f, 1.f), str);
       }
       //}}}
     }

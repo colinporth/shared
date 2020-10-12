@@ -52,8 +52,8 @@ public:
   virtual void onDraw (iDraw* draw) {
 
     mScale = isOn() ? 0.7f : (mSelectValue == mValue) ? 0.85f : 1.0f;
-    uint16_t width = int((mWidth-1) * mScale);
-    uint16_t height = int((mHeight-1) * mScale);
+    uint16_t width = int((mPixSize.x-1) * mScale);
+    uint16_t height = int((mPixSize.y -1) * mScale);
 
     if (mPic) {
       auto vg = draw->getVg();
@@ -68,12 +68,12 @@ public:
         }
       mUpdateTexture = false;
 
-      float x = mScale >= 1.0 ? mX : mX + (mWidth - width)/2.f;
-      float y = mScale >= 1.0 ? mY : mY + (mHeight - height)/2.f;
+      float x = mScale >= 1.0 ? mPixOrg.x : mPixOrg.x + (mPixSize.x - width)/2.f;
+      float y = mScale >= 1.0 ? mPixOrg.y : mPixOrg.y + (mPixSize.y - height)/2.f;
 
-      auto imgPaint = vg->setImagePattern (cPoint(x, y), cPoint(width, height), mAngle / k180Pi, mImage, 1.0f);
+      auto imgPaint = vg->setImagePattern (cPointF(x, y), cPointF(width, height), mAngle / k180Pi, mImage, 1.0f);
       vg->beginPath();
-      vg->rect (cPoint(x, y), cPoint(width, height));
+      vg->rect (cPointF(x, y), cPointF(width, height));
       vg->setFillPaint (imgPaint);
       vg->fill();
       }

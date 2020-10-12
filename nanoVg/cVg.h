@@ -10,7 +10,7 @@
 #include <string.h>
 #include <math.h>
 
-#include "cPoint.h"
+#include "cPointF.h"
 #include "sColourF.h"
 
 #include "../glad/glad.h"
@@ -183,12 +183,12 @@ public:
     void getMatrix3x4 (float* matrix3x4);
 
     void setIdentity();
-    void setTranslate (cPoint t);
+    void setTranslate (cPointF t);
     void setTranslate (float tx, float ty);
     void setScale (float sx, float sy);
     void setRotate (float angle);
     void setRotateTranslate (float angle, float tx, float ty);
-    void setRotateTranslate (float angle, cPoint t);
+    void setRotateTranslate (float angle, cPointF t);
     void set (float sx, float ky, float kx, float sy, float tx, float ty);
 
     void multiply (cTransform& t);
@@ -268,7 +268,7 @@ public:
   //{{{  transform
   void resetTransform();
 
-  void setTranslate (cPoint p);
+  void setTranslate (cPointF p);
   void setTranslate (float x, float y);
   void setScale (float x, float y);
   void setRotate (float angle);
@@ -276,8 +276,8 @@ public:
   void setTransform (float a, float b, float c, float d, float e, float f);
   //}}}
   //{{{  scissor
-  void scissor (float x, float y, float width, float height);
-  void intersectScissor (float x, float y, float width, float height);
+  void scissor (const cPointF& p, const cPointF& size);
+  void intersectScissor (const cPointF& p, const cPointF& size);
 
   void resetScissor();
   //}}}
@@ -306,9 +306,9 @@ public:
 
   int createFont (const std::string& fontName, uint8_t* data, int dataSize);
 
-  float getTextBounds (cPoint p, const std::string& str, float* bounds);
+  float getTextBounds (cPointF p, const std::string& str, float* bounds);
   float getTextMetrics (float& ascender, float& descender);
-  int getTextGlyphPositions (cPoint p, const std::string& str, sGlyphPosition* positions, int maxPositions);
+  int getTextGlyphPositions (cPointF p, const std::string& str, sGlyphPosition* positions, int maxPositions);
 
   void setFontById (int font);
   void setFontByName (const std::string& fontName);
@@ -317,7 +317,7 @@ public:
   void setTextLetterSpacing (float spacing);
   void setTextLineHeight (float lineHeight);
 
-  float text (cPoint p, const std::string& str);
+  float text (cPointF p, const std::string& str);
   //}}}
   //{{{  image
   enum eImageFlags {              // set of image flags
@@ -358,29 +358,29 @@ public:
   void setFillPaint (const sPaint& paint);
   void setStrokePaint (const sPaint& paint);
 
-  sPaint setBoxGradient (cPoint p, cPoint size, float radius, float feather,
+  sPaint setBoxGradient (cPointF p, cPointF size, float radius, float feather,
                          const sColourF& innerColour, const sColourF& outerColour);
-  sPaint setRadialGradient (cPoint centre, float innerRadius, float outerRadius,
+  sPaint setRadialGradient (cPointF centre, float innerRadius, float outerRadius,
                             const sColourF& innerColour, const sColourF& outerColour);
-  sPaint setLinearGradient (cPoint start, cPoint end,
+  sPaint setLinearGradient (cPointF start, cPointF end,
                             const sColourF& innerColour, const sColourF& outerColour);
-  sPaint setImagePattern (cPoint centre, cPoint size, float angle, int imageId, float alpha);
+  sPaint setImagePattern (cPointF centre, cPointF size, float angle, int imageId, float alpha);
 
   void beginPath();
   void pathWinding (eWinding dir);
 
-  void moveTo (cPoint p);
-  void lineTo (cPoint p);
-  void bezierTo (cPoint c1, cPoint c2, cPoint p);
-  void quadTo (cPoint centre, cPoint p);
-  void arcTo (cPoint p1, cPoint p2, float radius);
-  void arc (cPoint centre, float r, float a0, float a1, int dir);
+  void moveTo (cPointF p);
+  void lineTo (cPointF p);
+  void bezierTo (cPointF c1, cPointF c2, cPointF p);
+  void quadTo (cPointF centre, cPointF p);
+  void arcTo (cPointF p1, cPointF p2, float radius);
+  void arc (cPointF centre, float r, float a0, float a1, int dir);
 
-  void rect (cPoint p, cPoint size);
-  void roundedRectVarying (cPoint p, cPoint size, float tlRadius, float trRadius, float brRadius, float blRadius);
-  void roundedRect (cPoint p, cPoint size, float radius);
-  void ellipse (cPoint centre, cPoint radius);
-  void circle (cPoint centre, float radius);
+  void rect (cPointF p, cPointF size);
+  void roundedRectVarying (cPointF p, cPointF size, float tlRadius, float trRadius, float brRadius, float blRadius);
+  void roundedRect (cPointF p, cPointF size, float radius);
+  void ellipse (cPointF centre, cPointF radius);
+  void circle (cPointF centre, float radius);
 
   void closePath();
 
@@ -418,7 +418,7 @@ private:
       }
     //}}}
     //{{{
-    void set (cPoint p, cPoint uv) {
+    void set (cPointF p, cPointF uv) {
       mX = p.x;
       mY = p.y;
       mU = uv.x;
@@ -522,87 +522,87 @@ private:
   struct sFrag {
     //{{{
     void setSimple() {
-      type = SHADER_SIMPLE;
-      strokeThreshold = -1.0f;
+      sUniform.type = SHADER_SIMPLE;
+      sUniform.strokeThreshold = -1.0f;
       }
     //}}}
     //{{{
     void setImage (sPaint& paint, cScissor& scissor, sTexture* texture) {
 
-      innerColour = paint.innerColour.getPremultiplied();
-      outerColour = paint.outerColour.getPremultiplied();
+      sUniform.innerColour = paint.innerColour.getPremultiplied();
+      sUniform.outerColour = paint.outerColour.getPremultiplied();
 
       if ((scissor.extent[0] < -0.5f) || (scissor.extent[1] < -0.5f)) {
         // unity transform, inverse
-        memset (scissorMatrix, 0, sizeof(scissorMatrix));
-        scissorExt[0] = 1.f;
-        scissorExt[1] = 1.f;
-        scissorScale[0] = 1.f;
-        scissorScale[1] = 1.f;
+        memset (sUniform.scissorMatrix, 0, sizeof(sUniform.scissorMatrix));
+        sUniform.scissorExt[0] = 1.f;
+        sUniform.scissorExt[1] = 1.f;
+        sUniform.scissorScale[0] = 1.f;
+        sUniform.scissorScale[1] = 1.f;
         }
       else {
         // get scissorMatrix from inverse transform
-        scissor.mTransform.getInverse().getMatrix3x4 (scissorMatrix);
-        scissorExt[0] = scissor.extent[0];
-        scissorExt[1] = scissor.extent[1];
-        scissorScale[0] = scissor.mTransform.getAverageScaleX();
-        scissorScale[1] = scissor.mTransform.getAverageScaleY();
+        scissor.mTransform.getInverse().getMatrix3x4 (sUniform.scissorMatrix);
+        sUniform.scissorExt[0] = scissor.extent[0];
+        sUniform.scissorExt[1] = scissor.extent[1];
+        sUniform.scissorScale[0] = scissor.mTransform.getAverageScaleX();
+        sUniform.scissorScale[1] = scissor.mTransform.getAverageScaleY();
         }
 
-      memcpy (extent, paint.extent, sizeof(extent));
-      strokeMult = 1.f;
-      strokeThreshold = -1.f;
+      memcpy (sUniform.extent, paint.extent, sizeof(sUniform.extent));
+      sUniform.strokeMult = 1.f;
+      sUniform.strokeThreshold = -1.f;
 
-      type = SHADER_IMAGE;
+      sUniform.type = SHADER_IMAGE;
       if (texture->type == eTextureRgba)
-        texType = (texture->flags & cVg::eImagePreMultiplied) ? 0.f : 1.f;
+        sUniform.texType = (texture->flags & cVg::eImagePreMultiplied) ? 0.f : 1.f;
       else
-        texType = 2.f;
+        sUniform.texType = 2.f;
 
       // get paintMatrix from inverse transform
-      paint.mTransform.getInverse().getMatrix3x4 (paintMatrix);
+      paint.mTransform.getInverse().getMatrix3x4 (sUniform.paintMatrix);
       }
     //}}}
     //{{{
     void setFill (sPaint& paint, cScissor& scissor, float width, float fringe, float strokeThreshold, sTexture* tex) {
 
-      innerColour = paint.innerColour.getPremultiplied();
-      outerColour = paint.outerColour.getPremultiplied();
+      sUniform.innerColour = paint.innerColour.getPremultiplied();
+      sUniform.outerColour = paint.outerColour.getPremultiplied();
 
       if ((scissor.extent[0] < -0.5f) || (scissor.extent[1] < -0.5f)) {
         // unity transform, inverse
-        memset (scissorMatrix, 0, sizeof(scissorMatrix));
-        scissorExt[0] = 1.f;
-        scissorExt[1] = 1.f;
-        scissorScale[0] = 1.f;
-        scissorScale[1] = 1.f;
+        memset (sUniform.scissorMatrix, 0, sizeof(sUniform.scissorMatrix));
+        sUniform.scissorExt[0] = 1.f;
+        sUniform.scissorExt[1] = 1.f;
+        sUniform.scissorScale[0] = 1.f;
+        sUniform.scissorScale[1] = 1.f;
         }
       else {
         // get scissorMatrix from inverse transform
-        scissor.mTransform.getInverse().getMatrix3x4 (scissorMatrix);
-        scissorExt[0] = scissor.extent[0];
-        scissorExt[1] = scissor.extent[1];
-        scissorScale[0] = scissor.mTransform.getAverageScaleX() / fringe;
-        scissorScale[1] = scissor.mTransform.getAverageScaleY() / fringe;
+        scissor.mTransform.getInverse().getMatrix3x4 (sUniform.scissorMatrix);
+        sUniform.scissorExt[0] = scissor.extent[0];
+        sUniform.scissorExt[1] = scissor.extent[1];
+        sUniform.scissorScale[0] = scissor.mTransform.getAverageScaleX() / fringe;
+        sUniform.scissorScale[1] = scissor.mTransform.getAverageScaleY() / fringe;
         }
 
-      memcpy (extent, paint.extent, sizeof(extent));
-      strokeMult = (width * 0.5f + fringe * 0.5f) / fringe;
-      this->strokeThreshold = strokeThreshold;
+      memcpy (sUniform.extent, paint.extent, sizeof(sUniform.extent));
+      sUniform.strokeMult = (width * 0.5f + fringe * 0.5f) / fringe;
+      this->sUniform.strokeThreshold = strokeThreshold;
 
       cTransform inverse;
       if (paint.mImageId) {
-        type = SHADER_FILL_IMAGE;
+        sUniform.type = SHADER_FILL_IMAGE;
         if ((tex->flags & cVg::eImageFlipY) != 0) {
           //{{{  flipY
           cTransform m1;
-          m1.setTranslate (0.0f, extent[1] * 0.5f);
+          m1.setTranslate (0.0f, sUniform.extent[1] * 0.5f);
           m1.multiply (paint.mTransform);
 
           cTransform m2;
           m2.setScale (1.0f, -1.0f);
           m2.multiply (m1);
-          m1.setTranslate (0.0f, -extent[1] * 0.5f);
+          m1.setTranslate (0.0f, -sUniform.extent[1] * 0.5f);
           m1.multiply (m2);
           inverse = m1.getInverse();
           }
@@ -611,17 +611,17 @@ private:
           inverse = paint.mTransform.getInverse();
 
         if (tex->type == eTextureRgba)
-          texType = (tex->flags & cVg::eImagePreMultiplied) ? 0.f : 1.f;
+          sUniform.texType = (tex->flags & cVg::eImagePreMultiplied) ? 0.f : 1.f;
         else
-          texType = 2.f;
+          sUniform.texType = 2.f;
         }
       else {
-        type = SHADER_FILL_GRADIENT;
-        radius = paint.radius;
-        feather = paint.feather;
+        sUniform.type = SHADER_FILL_GRADIENT;
+        sUniform.radius = paint.radius;
+        sUniform.feather = paint.feather;
         inverse = paint.mTransform.getInverse();
         }
-      inverse.getMatrix3x4 (paintMatrix);
+      inverse.getMatrix3x4 (sUniform.paintMatrix);
       }
     //}}}
 
@@ -640,7 +640,7 @@ private:
         float strokeThreshold;
         float texType;
         float type;
-        };
+        } sUniform;
 
       #define NANOVG_GL_UNIFORMARRAY_SIZE 11
       float uniformArray[NANOVG_GL_UNIFORMARRAY_SIZE][4];

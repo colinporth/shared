@@ -1,82 +1,83 @@
-// cPoint.h
+// cPointF.h
 #pragma once
+#include <math.h>
 
-struct cPoint {
+struct cPointF {
 public:
   //{{{
-  cPoint()  {
+  cPointF()  {
     x = 0;
     y = 0;
     }
   //}}}
   //{{{
-  cPoint (const cPoint& p) {
+  cPointF (const cPointF& p) {
     this->x = p.x;
     this->y = p.y;
     }
   //}}}
   //{{{
-  cPoint (float x, float y) {
+  cPointF (float x, float y) {
     this->x = x;
     this->y = y;
     }
   //}}}
 
   //{{{
-  cPoint operator - (const cPoint& point) const {
-    return cPoint (x - point.x, y - point.y);
+  cPointF operator - (const cPointF& point) const {
+    return cPointF (x - point.x, y - point.y);
     }
   //}}}
   //{{{
-  cPoint operator + (const cPoint& point) const {
-    return cPoint (x + point.x, y + point.y);
+  cPointF operator + (const cPointF& point) const {
+    return cPointF (x + point.x, y + point.y);
     }
   //}}}
   //{{{
-  cPoint operator * (const float s) const {
-    return cPoint (x * s, y * s);
+  cPointF operator * (const float s) const {
+    return cPointF (x * s, y * s);
     }
   //}}}
   //{{{
-  cPoint operator * (const cPoint& scale) const {
-    return cPoint (x * scale.x, y * scale.y);
+  cPointF operator * (const cPointF& scale) const {
+    return cPointF (x * scale.x, y * scale.y);
     }
   //}}}
   //{{{
-  cPoint operator / (const float s) const {
-    return cPoint (x / s, y / s);
+  cPointF operator / (const float s) const {
+    return cPointF (x / s, y / s);
     }
   //}}}
   //{{{
-  const cPoint& operator += (const cPoint& point)  {
+  const cPointF& operator += (const cPointF& point)  {
     x += point.x;
     y += point.y;
     return *this;
     }
   //}}}
   //{{{
-  const cPoint& operator -= (const cPoint& point)  {
+  const cPointF& operator -= (const cPointF& point)  {
     x -= point.x;
     y -= point.y;
     return *this;
     }
   //}}}
   //{{{
-  const cPoint& operator *= (const float s)  {
+  const cPointF& operator *= (const float s)  {
     x *= s;
     y *= s;
     return *this;
     }
   //}}}
   //{{{
-  const cPoint& operator *= (const cPoint& scale)  {
+  const cPointF& operator *= (const cPointF& scale)  {
     x *= scale.x;
     y *= scale.y;
     return *this;
     }
   //}}}
   //{{{
-  const cPoint& operator /= (const float s)  {
+  const cPointF& operator /= (const float s)  {
     x /= s;
     y /= s;
     return *this;
@@ -84,7 +85,7 @@ public:
   //}}}
 
   //{{{
-  bool equalWithinTolerance (cPoint p, float tolerance) {
+  bool equalWithinTolerance (cPointF p, float tolerance) {
 
     float dx = p.x - x;
     float dy = p.y - y;
@@ -93,7 +94,7 @@ public:
   //}}}
 
   //{{{
-  bool inside (const cPoint& pos) const {
+  bool inside (const cPointF& pos) const {
   // return pos inside rect formed by us as size
     return pos.x >= 0 && pos.x < x && pos.y >= 0 && pos.y < y;
     }
@@ -105,9 +106,9 @@ public:
     }
   //}}}
   //{{{
-  cPoint perp() {
+  cPointF perp() {
     float mag = magnitude();
-    return cPoint (-y / mag, x / mag);
+    return cPointF (-y / mag, x / mag);
     }
   //}}}
 

@@ -257,7 +257,7 @@ void cVg::cTransform::setIdentity() {
   }
 //}}}
 //{{{
-void cVg::cTransform::setTranslate (cPoint t) {
+void cVg::cTransform::setTranslate (cPointF t) {
 
   mSx = 1.0f;
   mKy = 0.0f;
@@ -333,7 +333,7 @@ void cVg::cTransform::setRotateTranslate (float angle, float tx, float ty) {
   }
 //}}}
 //{{{
-void cVg::cTransform::setRotateTranslate (float angle, cPoint t) {
+void cVg::cTransform::setRotateTranslate (float angle, cPointF t) {
 
   float cs = cosf (angle);
   float sn = sinf (angle);
@@ -506,7 +506,7 @@ void cVg::resetTransform() {
 //}}}
 
 //{{{
-void cVg::setTranslate (cPoint p) {
+void cVg::setTranslate (cPointF p) {
 
   cTransform transform;
   transform.setTranslate (p);
@@ -548,13 +548,13 @@ void cVg::setTransform (float a, float b, float c, float d, float e, float f) {
 //}}}
 //{{{  scissor
 //{{{
-void cVg::scissor (float x, float y, float width, float height) {
+void cVg::scissor (const cPointF& p, const cPointF& size) {
 
   auto state = &mStates[mNumStates-1];
-  width = max (0.0f, width);
-  height = max (0.0f, height);
+  float width = max (0.0f, size.x);
+  float height = max (0.0f, size.y);
 
-  state->scissor.mTransform.setTranslate (x + width * 0.5f, y + height * 0.5f);
+  state->scissor.mTransform.setTranslate (p + cPointF(width * 0.5f, height * 0.5f));
   state->scissor.mTransform.multiply (state->mTransform);
 
   state->scissor.extent[0] = width * 0.5f;
@@ -562,12 +562,12 @@ void cVg::scissor (float x, float y, float width, float height) {
   }
 //}}}
 //{{{
-void cVg::intersectScissor (float x, float y, float width, float height) {
+void cVg::intersectScissor (const cPointF& p, const cPointF& size) {
 
   // if no previous scissor has been set, set the scissor as current scissor.
   auto state = &mStates[mNumStates-1];
   if (state->scissor.extent[0] < 0) {
-    scissor (x, y, width, height);
+    scissor (p, size);
     return;
     }
 
@@ -585,8 +585,8 @@ void cVg::intersectScissor (float x, float y, float width, float height) {
   transform.pointScissor (ex, ey, tex, tey);
   float rect[4];
   intersectRects (rect, transform.getTranslateX() - tex, transform.getTranslateY() - tey, tex*2, tey*2,
-                  x, y, width, height);
-  scissor (rect[0], rect[1], rect[2], rect[3]);
+                  p.x, p.y, size.x, size.y);
+  scissor (cPointF(rect[0], rect[1]), cPointF(rect[2], rect[3]));
   }
 //}}}
 //{{{
@@ -608,7 +608,7 @@ int cVg::createFont (const string& fontName, uint8_t* data, int dataSize) {
 //}}}
 
 //{{{
-float cVg::getTextBounds (cPoint p, const string& str, float* bounds) {
+float cVg::getTextBounds (cPointF p, const string& str, float* bounds) {
 
   auto state = &mStates[mNumStates-1];
   if (state->fontId == cAtlasText::kInvalid)
@@ -654,7 +654,7 @@ float cVg::getTextMetrics (float& ascender, float& descender) {
   }
 //}}}
 //{{{
-int cVg::getTextGlyphPositions (cPoint p, const string& str, sGlyphPosition* positions, int maxPositions) {
+int cVg::getTextGlyphPositions (cPointF p, const string& str, sGlyphPosition* positions, int maxPositions) {
 
   if (str.empty())
     return 0;
@@ -728,7 +728,7 @@ void cVg::setTextLetterSpacing (float spacing) {
 //}}}
 
 //{{{
-float cVg::text (cPoint p, const string& str) {
+float cVg::text (cPointF p, const string& str) {
 
   auto state = &mStates[mNumStates-1];
   if (state->fontId == cAtlasText::kInvalid)
@@ -892,7 +892,7 @@ void cVg::setStrokePaint (const sPaint& paint) {
 //}}}
 
 //{{{
-cVg::sPaint cVg::setBoxGradient (cPoint p, cPoint size, float radius, float feather,
+cVg::sPaint cVg::setBoxGradient (cPointF p, cPointF size, float radius, float feather,
                               const sColourF& innerColour, const sColourF& outerColour) {
 
   sPaint paint;
@@ -909,7 +909,7 @@ cVg::sPaint cVg::setBoxGradient (cPoint p, cPoint size, float radius, float feat
   }
 //}}}
 //{{{
-cVg::sPaint cVg::setRadialGradient (cPoint centre, float innerRadius, float outerRadius,
+cVg::sPaint cVg::setRadialGradient (cPointF centre, float innerRadius, float outerRadius,
                                  const sColourF& innerColour, const sColourF& outerColour) {
 
   sPaint paint;
@@ -927,11 +927,11 @@ cVg::sPaint cVg::setRadialGradient (cPoint centre, float innerRadius, float oute
   }
 //}}}
 //{{{
-cVg::sPaint cVg::setLinearGradient (cPoint start, cPoint end,
+cVg::sPaint cVg::setLinearGradient (cPointF start, cPointF end,
                                     const sColourF& innerColor, const sColourF& outerColor) {
 
   // Calculate transform aligned to the line
-  cPoint diff = end - start;
+  cPointF diff = end - start;
   float distance = diff.magnitude();
   if (distance > 0.0001f)
     diff /= distance;
@@ -952,7 +952,7 @@ cVg::sPaint cVg::setLinearGradient (cPoint start, cPoint end,
   }
 //}}}
 //{{{
-cVg::sPaint cVg::setImagePattern (cPoint centre, cPoint size, float angle, int imageId, float alpha) {
+cVg::sPaint cVg::setImagePattern (cPointF centre, cPointF size, float angle, int imageId, float alpha) {
 
   sPaint paint;
   paint.mTransform.setRotateTranslate (angle, centre);
@@ -978,28 +978,28 @@ void cVg::pathWinding (eWinding dir) {
 //}}}
 
 //{{{
-void cVg::moveTo (cPoint p) {
+void cVg::moveTo (cPointF p) {
 
   float values[] = { eMoveTo, p.x, p.y };
   mShape.addCommand (values, sizeof(values)/4, mStates[mNumStates-1].mTransform);
   }
 //}}}
 //{{{
-void cVg::lineTo (cPoint p) {
+void cVg::lineTo (cPointF p) {
 
   float values[] = { eLineTo, p.x, p.y };
   mShape.addCommand (values, sizeof(values)/4, mStates[mNumStates-1].mTransform);
   }
 //}}}
 //{{{
-void cVg::bezierTo (cPoint c1, cPoint c2, cPoint p) {
+void cVg::bezierTo (cPointF c1, cPointF c2, cPointF p) {
 
   float values[] = { eBezierTo, c1.x,c1.y, c2.x,c2.y, p.x,p.y };
   mShape.addCommand (values, sizeof(values)/4, mStates[mNumStates-1].mTransform);
   }
 //}}}
 //{{{
-void cVg::quadTo (cPoint centre, cPoint p) {
+void cVg::quadTo (cPointF centre, cPointF p) {
 
   float x0 = mShape.getLastX();
   float y0 = mShape.getLastY();
@@ -1012,7 +1012,7 @@ void cVg::quadTo (cPoint centre, cPoint p) {
   }
 //}}}
 //{{{
-void cVg::arcTo (cPoint p1, cPoint p2, float radius) {
+void cVg::arcTo (cPointF p1, cPointF p2, float radius) {
 
   float x0 = mShape.getLastX();
   float y0 = mShape.getLastY();
@@ -1045,7 +1045,7 @@ void cVg::arcTo (cPoint p1, cPoint p2, float radius) {
     }
 
   int dir;
-  cPoint centre;
+  cPointF centre;
   float a0,a1;
   if (cross (dx0,dy0, dx1,dy1) > 0.0f) {
     dir = eClockWise;
@@ -1066,7 +1066,7 @@ void cVg::arcTo (cPoint p1, cPoint p2, float radius) {
   }
 //}}}
 //{{{
-void cVg::arc (cPoint centre, float r, float a0, float a1, int dir) {
+void cVg::arc (cPointF centre, float r, float a0, float a1, int dir) {
 
   int move = mShape.getNumCommands() ? eLineTo : eMoveTo;
 
@@ -1134,7 +1134,7 @@ void cVg::arc (cPoint centre, float r, float a0, float a1, int dir) {
 //}}}
 
 //{{{
-void cVg::rect (cPoint p, cPoint size) {
+void cVg::rect (cPointF p, cPointF size) {
 
   float values[] = { eMoveTo, p.x, p.y,
                      eLineTo, p.x, p.y + size.y,
@@ -1145,7 +1145,7 @@ void cVg::rect (cPoint p, cPoint size) {
   }
 //}}}
 //{{{
-void cVg::roundedRectVarying (cPoint p, cPoint size, float tlRadius, float trRadius, float brRadius, float blRadius) {
+void cVg::roundedRectVarying (cPointF p, cPointF size, float tlRadius, float trRadius, float brRadius, float blRadius) {
 
   if ((tlRadius < 0.1f) && (trRadius < 0.1f) && (brRadius < 0.1f) && (blRadius < 0.1f))
     rect (p, size);
@@ -1186,12 +1186,12 @@ void cVg::roundedRectVarying (cPoint p, cPoint size, float tlRadius, float trRad
   }
 //}}}
 //{{{
-void cVg::roundedRect (cPoint p, cPoint size, float radius) {
+void cVg::roundedRect (cPointF p, cPointF size, float radius) {
   roundedRectVarying (p, size, radius, radius, radius, radius);
   }
 //}}}
 //{{{
-void cVg::ellipse (cPoint centre, cPoint radius) {
+void cVg::ellipse (cPointF centre, cPointF radius) {
 
   float values[] = { eMoveTo, centre.x - radius.x, centre.y,
                      eBezierTo, centre.x - radius.x, centre.y + radius.y*kAppA90, centre.x - radius.x*kAppA90,
@@ -1207,8 +1207,8 @@ void cVg::ellipse (cPoint centre, cPoint radius) {
   }
 //}}}
 //{{{
-void cVg::circle (cPoint centre, float radius) {
-  ellipse (centre, cPoint(radius,radius));
+void cVg::circle (cPointF centre, float radius) {
+  ellipse (centre, cPointF(radius,radius));
   }
 //}}}
 

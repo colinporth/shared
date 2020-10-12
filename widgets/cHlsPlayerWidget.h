@@ -9,7 +9,7 @@
 
 class cHlsPlayerWidget : public cWidget {
 public:
-  cHlsPlayerWidget (cHlsPlayer* hlsPlayer, cPoint size)
+  cHlsPlayerWidget (cHlsPlayer* hlsPlayer, cPointF size)
     : cWidget (kBlackF, size.x, size.y), mHlsPlayer(hlsPlayer) {}
   virtual ~cHlsPlayerWidget() {}
 
@@ -31,14 +31,14 @@ public:
 
       // paint image rect
       vg->beginPath();
-      vg->rect (cPoint(0.f,0.f), cPoint(mWidth, mHeight));
-      vg->setFillPaint (vg->setImagePattern (cPoint(0.f,0.f), cPoint(mWidth, mHeight), 0.f, mImageId, 1.f));
+      vg->rect (cPointF(), mPixSize);
+      vg->setFillPaint (vg->setImagePattern (cPointF(), mPixSize, 0.f, mImageId, 1.f));
       vg->triangleFill();
       }
 
     // draw progress spinner
     vg->saveState();
-    cPoint centre (mWidth-20.f,20.f);
+    cPointF centre (mPixSize.x-20.f,20.f);
     float loadFrac = mHlsPlayer->getLoadFrac();
     drawSpinner (vg, centre, 18.f,12.f, 0.f, loadFrac,
                  sColourF(0.f,1.f,0.f,0.f), sColourF(0.f,1.f,0.f,0.75f));
@@ -58,15 +58,15 @@ public:
     vg->setFontSize ((float)getFontHeight());
     vg->setTextAlign (cVg::eAlignLeft | cVg::eAlignTop);
     vg->setFillColour (kBlackF);
-    vg->text (cPoint(mX+2.f, mY+2.f), infoString);
+    vg->text (mPixOrg + cPointF(2.f, 2.f), infoString);
     vg->setFillColour (kWhiteF);
-    vg->text (cPoint(mX, mY), infoString);
+    vg->text (mPixOrg, infoString);
     }
   //}}}
 
 private:
   //{{{
-  void drawSpinner (cVg* vg, cPoint centre, float outerRadius, float innerRadius,
+  void drawSpinner (cVg* vg, cPointF centre, float outerRadius, float innerRadius,
                     float fracFrom, float fracTo, const sColourF& colourFrom, const sColourF& colourTo) {
 
     if ((fracTo - fracFrom)  > 0.f) {
@@ -80,8 +80,8 @@ private:
 
       float midRadius = (outerRadius + innerRadius) / 2.f;
       vg->setFillPaint (
-        vg->setLinearGradient (centre + cPoint (cosf (angleFrom), sinf (angleFrom)) * midRadius,
-                               centre + cPoint (cosf (angleTo), sinf (angleTo)) * midRadius,
+        vg->setLinearGradient (centre + cPointF (cosf (angleFrom), sinf (angleFrom)) * midRadius,
+                               centre + cPointF (cosf (angleTo), sinf (angleTo)) * midRadius,
                                colourFrom, colourTo));
       vg->fill();
       }

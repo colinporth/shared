@@ -423,7 +423,7 @@ void cAtlasText::getLineBounds (float y, float& miny, float& maxy) {
   }
 //}}}
 //{{{
-float cAtlasText::getTextBounds (cPoint p, const string& text, float* bounds) {
+float cAtlasText::getTextBounds (cPointF p, const string& text, float* bounds) {
 
   auto state = getState();
 
@@ -528,7 +528,7 @@ void cAtlasText::setFontSizeSpacingAlign (int font, float size, float spacing, i
 //}}}
 
 //{{{
-int cAtlasText::textIt (sTextIt* it, cPoint p, const string& text) {
+int cAtlasText::textIt (sTextIt* it, cPointF p, const string& text) {
 
   auto state = getState();
   if (state->font < 0)

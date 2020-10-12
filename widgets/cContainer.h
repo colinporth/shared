@@ -33,7 +33,7 @@ public:
     mSubWidgets.push_back (widget);
     widget->setParent (this);
 
-    widget->setXY (x, y);
+    widget->setBoxOrg (x, y);
     adjustWidthHeight (widget);
 
     return widget;
@@ -45,7 +45,7 @@ public:
     widget->setParent (this);
     mSubWidgets.push_back (widget);
 
-    widget->setPixXY (x, y);
+    widget->setBoxOrg (x, y);
     adjustWidthHeight (widget);
 
     return widget;
@@ -59,17 +59,17 @@ public:
   //}}}
   //{{{
   cWidget* addTopRight (cWidget* widget) {
-    return addAtPix (widget, mWidth - widget->getPixWidth(), 0);
+    return addAtPix (widget, mPixSize.x - widget->getPixWidth(), 0);
     }
   //}}}
   //{{{
   cWidget* addBottomLeft (cWidget* widget) {
-    return addAtPix (widget, 0, mHeight - widget->getPixHeight());
+    return addAtPix (widget, 0, mPixSize.y - widget->getPixHeight());
     }
   //}}}
   //{{{
   cWidget* addBottomRight (cWidget* widget) {
-    return addAtPix (widget, mWidth - widget->getPixWidth(),  mHeight - widget->getPixHeight());
+    return addAtPix (widget, mPixSize.x - widget->getPixWidth(), mPixSize.y - widget->getPixHeight());
     }
   //}}}
 
@@ -137,9 +137,9 @@ protected:
   void adjustWidthHeight (cWidget* widget) {
 
     if (widget->getPixWidth() <= 0) // non +ve width means parent width minus our -ve width
-      widget->setPixWidth (mWidth + widget->getPixWidth());
+      widget->setPixWidth (mPixSize.x + widget->getPixWidth());
     if (widget->getPixHeight() <= 0) // non +ve height means parent height minus our -ve height
-      widget->setPixHeight (mHeight + widget->getPixHeight());
+      widget->setPixHeight (mPixSize.y + widget->getPixHeight());
     }
   //}}}
 

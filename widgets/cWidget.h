@@ -8,42 +8,39 @@ class cContainer;
 
 class cWidget {
 public:
-  static uint16_t getBoxHeight()       { return 19; }
-  static uint16_t getSmallFontHeight() { return 16; }
-  static uint16_t getFontHeight()      { return 18; }
-  static uint16_t getBigFontHeight()   { return 40; }
-
-  static float getPixel() { return 1.0f / getBoxHeight(); }
+  static constexpr uint16_t getBoxHeight()       { return 19; }
+  static constexpr uint16_t getSmallFontHeight() { return 16; }
+  static constexpr uint16_t getFontHeight()      { return 18; }
+  static constexpr uint16_t getBigFontHeight()   { return 40; }
+  static constexpr float getPixel() { return 1.0f / getBoxHeight(); }
 
   cWidget() {}
   //{{{
-  cWidget (float width)
-    : mWidth(width * getBoxHeight()), mHeight(getBoxHeight()),
-      mLayoutWidth (width * getBoxHeight()), mLayoutHeight(getBoxHeight()) {}
+  cWidget (float widthInBoxes)
+    : mPixSize (widthInBoxes * getBoxHeight(), getBoxHeight()),
+      mLayoutWidth (widthInBoxes * getBoxHeight()), mLayoutHeight(getBoxHeight()) {}
   //}}}
   //{{{
-  cWidget (float width, float height)
-    : mWidth(width * getBoxHeight()), mHeight(height * getBoxHeight()),
-      mLayoutWidth(width * getBoxHeight()), mLayoutHeight(height * getBoxHeight()) {}
+  cWidget (float widthInBoxes, float heightInBoxes)
+    : mPixSize (widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()),
+      mLayoutWidth(widthInBoxes * getBoxHeight()), mLayoutHeight(heightInBoxes * getBoxHeight()) {}
   //}}}
   //{{{
-  cWidget (const sColourF& colour, float width, float height)
+  cWidget (const sColourF& colour, float widthInBoxes, float heightInBoxes)
     : mColour(colour),
-      mWidth(width * getBoxHeight()), mHeight(height * getBoxHeight()),
-      mLayoutWidth(width * getBoxHeight()), mLayoutHeight(height * getBoxHeight()) {}
+      mPixSize(widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()),
+      mLayoutWidth(widthInBoxes * getBoxHeight()), mLayoutHeight(heightInBoxes * getBoxHeight()) {}
   //}}}
   virtual ~cWidget() {}
 
   // gets
-  float getX() { return mX / getBoxHeight(); }
-  float getY() { return mY / getBoxHeight(); }
-  float getWidth() { return mWidth / getBoxHeight(); }
-  float getHeight() { return mHeight / getBoxHeight(); }
+  float getPixX() { return mPixOrg.x; }
+  float getPixY() { return mPixOrg.y; }
+  cPointF getPixOrg() { return mPixOrg; }
 
-  float getPixX() { return mX; }
-  float getPixY() { return mY; }
-  float getPixWidth() { return mWidth; }
-  float getPixHeight() { return mHeight; }
+  float getPixWidth() { return mPixSize.x; }
+  float getPixHeight() { return mPixSize.y; }
+  cPointF getPixSize() { return mPixSize; }
 
   int getPressedCount() { return mPressedCount; }
   bool isPressed() { return mPressedCount > 0; }
@@ -52,32 +49,42 @@ public:
 
   //{{{  sets
   //{{{
-  void setXY (float x, float y) {
-    setPixXY (x*getBoxHeight(), y*getBoxHeight());
+  void setBoxOrg (float x, float y) {
+    setPixOrg (x*getBoxHeight(), y*getBoxHeight());
     }
   //}}}
 
   //{{{
-  void setPixXY (float x, float y) {
-    mX = x;
-    mY = y;
+  void setPixOrg (float x, float y) {
+    mPixOrg.x = x;
+    mPixOrg.y = y;
+    }
+  //}}}
+  //{{{
+  void setPixOrg (const cPointF& p) {
+    mPixOrg = p;
     }
   //}}}
 
   //{{{
   void setPixWidth (float width) {
-    mWidth = width;
+    mPixSize.x = width;
     }
   //}}}
   //{{{
   void setPixHeight (float height) {
-    mHeight = height;
+    mPixSize.y = height;
     }
   //}}}
   //{{{
   void setPixSize (float width, float height) {
-    mWidth = width;
-    mHeight = height;
+    mPixSize.x = width;
+    mPixSize.y = height;
+    }
+  //}}}
+  //{{{
+  void setPixSize (const cPointF& size) {
+    mPixSize = size;
     }
   //}}}
 
@@ -90,14 +97,14 @@ public:
 
   //{{{
   virtual cWidget* isPicked (float x, float y) {
-    return (x >= mX) && (x < mX + mWidth) &&
-           (y >= mY) && (y < mY + mHeight) ? this : nullptr;
+    return (x >= mPixOrg.x) && (x < mPixOrg.x + mPixSize.x) &&
+           (y >= mPixOrg.y) && (y < mPixOrg.y + mPixSize.y) ? this : nullptr;
     }
   //}}}
   //{{{
   virtual void layout (float width, float height) {
-    setPixSize ((mLayoutWidth <= 0.f) ? width + mLayoutWidth : mWidth,
-                (mLayoutHeight <= 0.f) ? height + mLayoutHeight : mHeight);
+    setPixSize ((mLayoutWidth <= 0.f) ? width + mLayoutWidth : mPixSize.x,
+                (mLayoutHeight <= 0.f) ? height + mLayoutHeight : mPixSize.y);
     }
   //}}}
 
@@ -120,17 +127,15 @@ public:
 
   //{{{
   virtual void onDraw (iDraw* draw) {
-    draw->drawRect (mOn ? kLightRedF : mColour, cPoint(mX+1.f, mY+1.f), cPoint(mWidth-1.f, mHeight-1.f));
+    draw->drawRect (mOn ? kLightRedF : mColour, cPointF(mPixOrg.x+1.f, mPixOrg.y+1.f), cPointF(mPixSize.x -1.f, mPixSize.y -1.f));
     }
   //}}}
 
 protected:
   sColourF mColour = kLightGreyF;
 
-  float mX = 0;
-  float mY = 0;
-  float mWidth = 0;
-  float mHeight = 0;
+  cPointF mPixOrg = {0.f, 0.f};
+  cPointF mPixSize = {0.f, 0.f};
   float mLayoutWidth = 0;
   float mLayoutHeight = 0;
 

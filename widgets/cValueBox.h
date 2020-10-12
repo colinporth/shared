@@ -14,28 +14,28 @@ public:
   void onDown (float x, float y) {
 
     cWidget::onDown (x, y);
-    if (mWidth > mHeight)
-      setValue (x / mWidth);
+    if (mPixSize.x > mPixSize.y)
+      setValue (x / mPixSize.x);
     else
-      setValue (y / mHeight);
+      setValue (y / mPixSize.y);
     }
   //}}}
   //{{{
   void onMove (float x, float y, float xinc, float yinc) {
     cWidget::onMove (x, y, xinc, yinc);
-    if (mWidth > mHeight)
-      setValue (x / mWidth);
+    if (mPixSize.x > mPixSize.y)
+      setValue (x / mPixSize.x);
     else
-      setValue (y / mHeight);
+      setValue (y / mPixSize.y);
     }
   //}}}
   //{{{
   void onDraw (iDraw* draw) {
 
-    if (mWidth > mHeight)
-      draw->drawRect (mOn ? kLightRedF : mColour, cPoint(mX, mY), cPoint(mWidth * limitValue (mValue), mHeight));
+    if (mPixSize.x > mPixSize.y)
+      draw->drawRect (mOn ? kLightRedF : mColour, mPixOrg, cPointF(mPixSize.x * limitValue (mValue), mPixSize.y));
     else
-      draw->drawRect (mOn ? kLightRedF : mColour, cPoint(mX, mY), cPoint(mWidth, mHeight * limitValue (mValue)));
+      draw->drawRect (mOn ? kLightRedF : mColour, mPixOrg, cPointF(mPixSize.x, mPixSize.y * limitValue (mValue)));
     }
   //}}}
 
