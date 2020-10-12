@@ -113,6 +113,7 @@ public:
   //{{{
   void parsePes (bool payStart, uint8_t* ts, int tsBodySize) {
 
+    // could check pes type ts[0,1,2,3] as well
     if (payStart) {
       processLastPes();
 
@@ -353,12 +354,14 @@ void cHlsPlayer::loaderThread() {
                              uint8_t* ts = http.getContent() + contentUsed;
                              if (*ts++ == 0x47) {
                                // is a ts packet
+                               bool payStart = ts[0] & 0x40;
                                auto pid = ((ts[0] & 0x1F) << 8) | ts[1];
                                auto headerSize = (ts[2] & 0x20) ? 4 + ts[3] : 3;
+
                                if (pid == 33)
-                                 mVideoPesParser->parsePes (ts[0] & 0x40, ts + headerSize, 187 - headerSize);
+                                 mVideoPesParser->parsePes (payStart, ts + headerSize, 187 - headerSize);
                                else if (pid == 34)
-                                 mAudioPesParser->parsePes (ts[0] & 0x40, ts + headerSize, 187 - headerSize);
+                                 mAudioPesParser->parsePes (payStart, ts + headerSize, 187 - headerSize);
                                else if (pid && (pid != 32))
                                  cLog::log (LOGERROR, "other pid %d", pid);
 
