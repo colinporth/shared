@@ -163,8 +163,8 @@ protected:
 
   int mAllocSize = kInitPesSize;
   uint8_t* mPes = nullptr;
-  int mNum = 0;
   int mPesSize = 0;
+  int mNum = 0;
   uint64_t mPesPts = 0;
 
   readerWriterQueue::cBlockingReaderWriterQueue <cQueueItem*> mQueue;
@@ -178,10 +178,10 @@ private:
     cLog::setThreadName (mName + "Q");
 
     while (true) {
-      cQueueItem* pes;
-      mQueue.wait_dequeue (pes);
-      decodePes (pes->mPes, pes->mSize, pes->mNum, pes->mPts);
-      delete pes;
+      cQueueItem* queueItem;
+      mQueue.wait_dequeue (queueItem);
+      decodePes (queueItem->mPes, queueItem->mSize, queueItem->mNum, queueItem->mPts);
+      delete queueItem;
       }
     }
   //}}}
@@ -246,21 +246,6 @@ protected:
   //{{{
   void decodePes (uint8_t* pes, int size, int num, uint64_t pts) {
     mHlsPlayer->getVideoDecode()->decode (pes, size, num, pts);
-    }
-  //}}}
-
-private:
-  //{{{
-  void dequePesThread() {
-
-    cLog::setThreadName ("vidQ");
-
-    while (true) {
-      cQueueItem* queueItem;
-      mQueue.wait_dequeue (queueItem);
-      mHlsPlayer->getVideoDecode()->decode (queueItem->mPes, queueItem->mSize, queueItem->mNum, queueItem->mPts);
-      delete queueItem;
-      }
     }
   //}}}
   };
