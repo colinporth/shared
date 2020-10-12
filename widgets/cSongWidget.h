@@ -71,6 +71,17 @@ public:
   //}}}
 
   //{{{
+  virtual void layout (const cPointF& size) {
+
+    mOverviewTotalFrames = 0;
+    mOverviewLastFrame = 0;
+    mOverviewFirstFrame = 0;
+    mOverviewValueScale = 0.f;
+
+    cWidget::layout (size);
+    }
+  //}}}
+  //{{{
   void onDraw (iDraw* draw) {
 
     mWaveHeight = 100.f;
