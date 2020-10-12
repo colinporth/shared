@@ -24,7 +24,7 @@ float cGlWindow::getHeightPix() { return mRootContainer->getPixHeight(); }
 //{{{
 void cGlWindow::drawRect (uint32_t colour, cPoint p, cPoint size) {
 
-  setFillColour (sVgColour (colour));
+  setFillColour (sColourF (colour));
 
   beginPath();
   rect (p, size);
@@ -36,7 +36,7 @@ float cGlWindow::drawText (uint32_t colour, float fontHeight, string str, cPoint
 
   setFontSize (fontHeight);
   setTextAlign (cVg::eAlignLeft | cVg::eAlignTop);
-  setFillColour (sVgColour(colour));
+  setFillColour (sColourF(colour));
   text (p + cPoint (3.f, 1.f), str);
 
   // get width
@@ -49,7 +49,7 @@ float cGlWindow::drawTextRight (uint32_t colour, float fontHeight, string str, c
 
   setFontSize (fontHeight);
   setTextAlign (cVg::eAlignRight | cVg::eAlignTop);
-  setFillColour (sVgColour(colour));
+  setFillColour (sColourF(colour));
   text (p + cPoint (0.f, 1.f), str);
 
   // get width
@@ -60,7 +60,7 @@ float cGlWindow::drawTextRight (uint32_t colour, float fontHeight, string str, c
 //{{{
 void cGlWindow::drawEllipseSolid (uint32_t colour, cPoint p, float xradius, float yradius) {
 
-  setFillColour (sVgColour(colour));
+  setFillColour (sColourF(colour));
 
   beginPath();
   ellipse (p, cPoint (xradius, yradius));
@@ -182,7 +182,7 @@ void cGlWindow::draw() {
               mMouseX, mMouseY, (float)glfwGetTime());
     drawLines (cPoint(0.0f, 50.0f), cPoint((float)winWidth, (float)winHeight), (float)glfwGetTime());
     drawSpinner (cPoint(winWidth/2.f, winHeight/2.f), 20.f, 16.f, (float)glfwGetTime(),
-                 sVgColour(0,0,0,0), sVgColour(1.f, 1.f, 1.f, .5f));
+                 sColourF(0,0,0,0), sColourF(1.f, 1.f, 1.f, .5f));
     }
     //}}}
 
@@ -212,7 +212,7 @@ void cGlWindow::draw() {
 
 //{{{
 void cGlWindow::drawSpinner (cPoint centre, float inner, float outer, float frac,
-                             const sVgColour& color1, const sVgColour& color2) {
+                             const sColourF& color1, const sColourF& color2) {
 
   saveState();
 
@@ -245,14 +245,14 @@ void cGlWindow::drawEyes (cPoint p, cPoint size, float cursorX, float cursorY, f
   ellipse (left + cPoint(3.0f,16.0f), eyeSize);
   ellipse (right + cPoint(3.0f,16.0f), eyeSize);
   setFillPaint (setLinearGradient (p + cPoint(0.f,size.y *0.5f), p + cPoint(size.x *0.1f, size.y),
-                                   sVgColour(0.f,0.f,0.f,0.125f), sVgColour(0.f,0.f,0.f,0.0625f)));
+                                   sColourF(0.f,0.f,0.f,0.125f), sColourF(0.f,0.f,0.f,0.0625f)));
   fill();
 
   beginPath();
   ellipse (left, eyeSize);
   ellipse (right, eyeSize);
   setFillPaint (setLinearGradient (p + cPoint(0.f,size.y * 0.25f), p + cPoint(size.x * 0.1f, size.y),
-                                   sVgColour(0.9f,0.9f,0.9f,1.f), kVgGrey));
+                                   sColourF(0.9f,0.9f,0.9f,1.f), kVgGrey));
   fill();
 
   cPoint diff1 ((cursorX - right.x) / (eyeSize.x * 10), (cursorY - right.y) / (eyeSize.y * 10));
@@ -283,14 +283,14 @@ void cGlWindow::drawEyes (cPoint p, cPoint size, float cursorX, float cursorY, f
   ellipse (left, eyeSize);
   setFillPaint (setRadialGradient (left + cPoint(eyeSize.x * 0.25f, eyeSize.y * 0.5f),
                                    eyeSize.x * 0.1f, eyeSize.x * 0.75f,
-                                   sVgColour(1.f,1.f,1.f,0.5f), sVgColour(1.f,1.f,1.f,0.f)));
+                                   sColourF(1.f,1.f,1.f,0.5f), sColourF(1.f,1.f,1.f,0.f)));
   fill();
 
   beginPath();
   ellipse (right, eyeSize);
   setFillPaint (setRadialGradient (right + cPoint(eyeSize.x*0.25f,-eyeSize.y*0.5f),
                                    eyeSize.x * 0.1f, eyeSize.x * 0.75f,
-                                   sVgColour(1.f,1.f,1.f,0.5f), sVgColour(1.f,1.f,1.f,0.f)));
+                                   sColourF(1.f,1.f,1.f,0.5f), sColourF(1.f,1.f,1.f,0.f)));
   fill();
   }
 //}}}
@@ -325,7 +325,7 @@ void cGlWindow::drawLines (cPoint p, cPoint size, float t) {
       setLineCap (caps[i]);
       setLineJoin (joins[j]);
       setStrokeWidth (s*0.3f);
-      setStrokeColour (sVgColour(0.f,0.f,0.f, 0.7f));
+      setStrokeColour (sColourF(0.f,0.f,0.f, 0.7f));
       beginPath();
       moveTo (cPoint(fx+pts[0], fy+pts[1]));
       lineTo (cPoint(fx+pts[2], fy+pts[3]));
@@ -336,7 +336,7 @@ void cGlWindow::drawLines (cPoint p, cPoint size, float t) {
       setLineCap (cVg::eButt);
       setLineJoin (cVg::eBevel);
       setStrokeWidth (1.5f);
-      setStrokeColour (sVgColour (0.f,0.75f,1.f,1.f));
+      setStrokeColour (sColourF (0.f,0.75f,1.f,1.f));
       beginPath();
       moveTo (cPoint(fx+pts[0], fy+pts[1]));
       lineTo (cPoint(fx+pts[2], fy+pts[3]));

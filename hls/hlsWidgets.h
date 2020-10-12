@@ -139,12 +139,12 @@ public:
 
       if (samples) {
         if (x == midx) {
-          context->setFillColour (sVgColour (COL_BLUE));
+          context->setFillColour (sColourF(COL_BLUE));
           context->triangleFill();
           context->beginPath();
           }
         else if (x == midWidth) {
-          context->setFillColour (sVgColour (COL_DARKGREEN));
+          context->setFillColour (sColourF(COL_DARKGREEN));
           context->triangleFill();
           context->beginPath();
           }
@@ -158,7 +158,7 @@ public:
         sample += samplesPerPixF;
       }
 
-    context->setFillColour (sVgColour (COL_DARKGREY));
+    context->setFillColour (sColourF(COL_DARKGREY));
     context->triangleFill();
     //}}}
     }

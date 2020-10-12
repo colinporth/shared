@@ -41,13 +41,13 @@ public:
     cPoint centre (mWidth-20.f,20.f);
     float loadFrac = mHlsPlayer->getLoadFrac();
     drawSpinner (vg, centre, 18.f,12.f,
-                 0.f, loadFrac, sVgColour(0.f,1.f,0.f,0.f), sVgColour(0.f,1.f,0.f,0.75f));
+                 0.f, loadFrac, sColourF(0.f,1.f,0.f,0.f), sColourF(0.f,1.f,0.f,0.75f));
     drawSpinner (vg, centre, 18.f,12.f,
                  loadFrac * (1.f - mHlsPlayer->getVideoFrac()), loadFrac, 
-                 sVgColour(1.f, 0.f, 0.f, 0.f), sVgColour(1.f, 0.f, 0.f, 0.75f));
+                 sColourF(1.f, 0.f, 0.f, 0.f), sColourF(1.f, 0.f, 0.f, 0.75f));
     drawSpinner (vg, centre, 18.f,12.f,
                  loadFrac * (1.f - mHlsPlayer->getAudioFrac()), loadFrac, 
-                 sVgColour(0.f, 0.f, 1.f, 0.f), sVgColour(0.f, 0.f, 1.f, 0.75f));
+                 sColourF(0.f, 0.f, 1.f, 0.f), sColourF(0.f, 0.f, 1.f, 0.75f));
     vg->restoreState();
 
     // info text
@@ -69,7 +69,7 @@ public:
 private:
   //{{{
   void drawSpinner (cVg* vg, cPoint centre, float outerRadius, float innerRadius,
-                    float fracFrom, float fracTo, const sVgColour& colourFrom, const sVgColour& colourTo) {
+                    float fracFrom, float fracTo, const sColourF& colourFrom, const sColourF& colourTo) {
 
     if ((fracTo - fracFrom)  > 0.f) {
       float angleFrom = -kPiDiv2 + (fracFrom * k2Pi);

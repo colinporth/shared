@@ -11,7 +11,7 @@
 #include <math.h>
 
 #include "cPoint.h"
-#include "sVgColour.h"
+#include "sColourF.h"
 
 #include "../glad/glad.h"
 #include "../GLFW/glfw3.h"
@@ -220,7 +220,7 @@ public:
   //{{{
   struct sPaint {
     //{{{
-    void set (const sVgColour& colour) {
+    void set (const sColourF& colour) {
 
       mTransform.setIdentity();
 
@@ -243,8 +243,8 @@ public:
     float radius;
     float feather;
 
-    sVgColour innerColour;
-    sVgColour outerColour;
+    sColourF innerColour;
+    sColourF outerColour;
 
     int mImageId;
     };
@@ -346,8 +346,8 @@ public:
   float getFringeWidth() { return mFringeWidth; }
 
   void setAlpha (float alpha);
-  void setFillColour (const sVgColour& colour);
-  void setStrokeColour (const sVgColour& colour);
+  void setFillColour (const sColourF& colour);
+  void setStrokeColour (const sColourF& colour);
   void setStrokeWidth (float size);
   void setFringeWidth (float width);
 
@@ -359,11 +359,11 @@ public:
   void setStrokePaint (const sPaint& paint);
 
   sPaint setBoxGradient (cPoint p, cPoint size, float radius, float feather,
-                         const sVgColour& innerColour, const sVgColour& outerColour);
+                         const sColourF& innerColour, const sColourF& outerColour);
   sPaint setRadialGradient (cPoint centre, float innerRadius, float outerRadius,
-                            const sVgColour& innerColour, const sVgColour& outerColour);
+                            const sColourF& innerColour, const sColourF& outerColour);
   sPaint setLinearGradient (cPoint start, cPoint end,
-                            const sVgColour& innerColour, const sVgColour& outerColour);
+                            const sColourF& innerColour, const sColourF& outerColour);
   sPaint setImagePattern (cPoint centre, cPoint size, float angle, int imageId, float alpha);
 
   void beginPath();
@@ -529,8 +529,8 @@ private:
     //{{{
     void setImage (sPaint& paint, cScissor& scissor, sTexture* texture) {
 
-      innerColour = paint.innerColour.getPremultipliedColour();
-      outerColour = paint.outerColour.getPremultipliedColour();
+      innerColour = paint.innerColour.getPremultiplied();
+      outerColour = paint.outerColour.getPremultiplied();
 
       if ((scissor.extent[0] < -0.5f) || (scissor.extent[1] < -0.5f)) {
         // unity transform, inverse
@@ -566,8 +566,8 @@ private:
     //{{{
     void setFill (sPaint& paint, cScissor& scissor, float width, float fringe, float strokeThreshold, sTexture* tex) {
 
-      innerColour = paint.innerColour.getPremultipliedColour();
-      outerColour = paint.outerColour.getPremultipliedColour();
+      innerColour = paint.innerColour.getPremultiplied();
+      outerColour = paint.outerColour.getPremultiplied();
 
       if ((scissor.extent[0] < -0.5f) || (scissor.extent[1] < -0.5f)) {
         // unity transform, inverse
@@ -629,8 +629,8 @@ private:
       struct {
         float scissorMatrix[12]; // 3vec4's
         float paintMatrix[12];   // 3vec4's
-        sVgColour innerColour;
-        sVgColour outerColour;
+        sColourF innerColour;
+        sColourF outerColour;
         float scissorExt[2];
         float scissorScale[2];
         float extent[2];

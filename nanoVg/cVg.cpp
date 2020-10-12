@@ -434,8 +434,8 @@ void cVg::resetState() {
   auto state = &mStates[mNumStates-1];
 
   state->composite = compositeState (NVG_SOURCE_OVER);
-  state->fillPaint.set (sVgColour (255, 255, 255, 255));
-  state->strokePaint.set (sVgColour (0, 0, 0, 255));
+  state->fillPaint.set (sColourF (255, 255, 255, 255));
+  state->strokePaint.set (sColourF (0, 0, 0, 255));
 
   state->strokeWidth = 1.0f;
   state->miterLimit = 10.0f;
@@ -867,8 +867,8 @@ bool cVg::deleteImage (int image) {
 //{{{  shape
 void cVg::setAlpha (float alpha) { mStates[mNumStates-1].alpha = alpha; }
 
-void cVg::setFillColour (const sVgColour& color) { mStates[mNumStates-1].fillPaint.set (color); }
-void cVg::setStrokeColour (const sVgColour& color) { mStates[mNumStates-1].strokePaint.set (color); }
+void cVg::setFillColour (const sColourF& color) { mStates[mNumStates-1].fillPaint.set (color); }
+void cVg::setStrokeColour (const sColourF& color) { mStates[mNumStates-1].strokePaint.set (color); }
 void cVg::setStrokeWidth (float width) { mStates[mNumStates-1].strokeWidth = width; }
 void cVg::setFringeWidth (float width) { mFringeWidth = max (0.f, min (10.f, width)); }
 
@@ -893,7 +893,7 @@ void cVg::setStrokePaint (const sPaint& paint) {
 
 //{{{
 cVg::sPaint cVg::setBoxGradient (cPoint p, cPoint size, float radius, float feather,
-                              const sVgColour& innerColour, const sVgColour& outerColour) {
+                              const sColourF& innerColour, const sColourF& outerColour) {
 
   sPaint paint;
   paint.mTransform.setTranslate (p + (size / 2.f));
@@ -910,7 +910,7 @@ cVg::sPaint cVg::setBoxGradient (cPoint p, cPoint size, float radius, float feat
 //}}}
 //{{{
 cVg::sPaint cVg::setRadialGradient (cPoint centre, float innerRadius, float outerRadius,
-                                 const sVgColour& innerColour, const sVgColour& outerColour) {
+                                 const sColourF& innerColour, const sColourF& outerColour) {
 
   sPaint paint;
   paint.mTransform.setTranslate (centre);
@@ -928,7 +928,7 @@ cVg::sPaint cVg::setRadialGradient (cPoint centre, float innerRadius, float oute
 //}}}
 //{{{
 cVg::sPaint cVg::setLinearGradient (cPoint start, cPoint end,
-                                    const sVgColour& innerColor, const sVgColour& outerColor) {
+                                    const sColourF& innerColor, const sColourF& outerColor) {
 
   // Calculate transform aligned to the line
   cPoint diff = end - start;
@@ -960,8 +960,8 @@ cVg::sPaint cVg::setImagePattern (cPoint centre, cPoint size, float angle, int i
   paint.extent[1] = size.y;
   paint.radius = 0.f;
   paint.feather = 0.f;
-  paint.innerColour = sVgColour (1.f, 1.f, 1.f, alpha);
-  paint.outerColour = sVgColour (1.f, 1.f, 1.f, alpha);
+  paint.innerColour = sColourF (1.f, 1.f, 1.f, alpha);
+  paint.outerColour = sColourF (1.f, 1.f, 1.f, alpha);
   paint.mImageId = imageId;
 
   return paint;

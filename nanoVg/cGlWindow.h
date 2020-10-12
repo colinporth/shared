@@ -76,7 +76,7 @@ private:
   void draw();
 
   void drawSpinner (cPoint centre, float inner, float outer, float frac,
-                    const sVgColour& color1, const sVgColour& color2);
+                    const sColourF& color1, const sColourF& color2);
   void drawEyes (cPoint p, cPoint size, float cursorX, float cursorY, float t);
   void drawLines (cPoint p, cPoint size, float t);
 
