@@ -27,7 +27,7 @@ public:
   //{{{
   virtual void drawClear (const sColourF& colour) {
 
-    drawRect (colour, cPointF(0.f, 0.f), cPointF(getWidthPix(), getHeightPix()));
+    drawRect (colour, cPointF(), getPixSize());
     }
   //}}}
 

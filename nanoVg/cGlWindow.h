@@ -16,10 +16,8 @@ public:
 
   //{{{  iWindow gets
   cVg* getVg();
-  float getWidth() { return 800; }
-  float getHeight() { return 480; }
-  float getWidthPix();
-  float getHeightPix();
+
+  cPointF getPixSize();
 
   bool getShift() { return mShifted; }
   bool getControl() { return mControlled; }

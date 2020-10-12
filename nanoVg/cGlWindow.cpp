@@ -17,8 +17,7 @@ cGlWindow::~cGlWindow() {
 
 // iWindow
 cVg* cGlWindow::getVg() { return this; }
-float cGlWindow::getWidthPix() { return mRootContainer->getPixWidth(); }
-float cGlWindow::getHeightPix() { return mRootContainer->getPixHeight(); }
+cPointF cGlWindow::getPixSize() { return mRootContainer->getPixSize(); }
 
 // iDraw
 //{{{
@@ -224,8 +223,8 @@ void cGlWindow::drawSpinner (const cPointF& centre, float inner, float outer, fl
   closePath();
 
   float mid = (outer + inner) * 0.5f;
-  auto paint = setLinearGradient (centre + cPointF(cosf (angle0) * mid, sinf (angle0) * mid), 
-                                  centre + cPointF(cosf (angle1) * mid, sinf (angle1) * mid), 
+  auto paint = setLinearGradient (centre + cPointF(cosf (angle0) * mid, sinf (angle0) * mid),
+                                  centre + cPointF(cosf (angle1) * mid, sinf (angle1) * mid),
                                   colour1, colour2);
   setFillPaint (paint);
   fill();
