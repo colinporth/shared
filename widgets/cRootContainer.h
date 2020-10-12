@@ -11,29 +11,29 @@ public:
   virtual ~cRootContainer() {}
 
   //{{{
-  virtual void onProx (float x, float y) {
+  virtual void onProx (const cPointF& p) {
 
-    mProxWidget = isPicked (x, y);
+    mProxWidget = isPicked (p);
 
     if (mProxWidget)
-      mProxWidget->onProx (x - mProxWidget->getPixX(), y - mProxWidget->getPixY());
+      mProxWidget->onProx (p - mProxWidget->getPixOrg());
     else
       mProxWidget = this;
     }
   //}}}
   //{{{
-  virtual void onDown (float x, float y) {
+  virtual void onDown (const cPointF& p) {
 
-    mPressedWidget = isPicked (x, y);
+    mPressedWidget = isPicked (p);
     if (mPressedWidget)
-      mPressedWidget->onDown (x - mPressedWidget->getPixX(), y - mPressedWidget->getPixY());
+      mPressedWidget->onDown (p - mPressedWidget->getPixOrg());
     }
   //}}}
   //{{{
-  virtual void onMove (float x, float y, float xinc, float yinc) {
+  virtual void onMove (const cPointF& p, const cPointF& inc) {
 
     if (mPressedWidget)
-      mPressedWidget->onMove (x - mPressedWidget->getPixX(), y - mPressedWidget->getPixY(), xinc, yinc);
+      mPressedWidget->onMove (p - mPressedWidget->getPixOrg(), inc);
     }
   //}}}
   //{{{

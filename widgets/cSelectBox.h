@@ -17,8 +17,8 @@ public:
   virtual ~cSelectBox() {}
 
   //{{{
-  void onDown (float x, float y) {
-    cWidget::pressed (x, y);
+  void onDown (const cPointF& p) {
+    cWidget::pressed (p);
     if (mMyValue != mValue) {
       mValue = mMyValue;
       mChanged = true;

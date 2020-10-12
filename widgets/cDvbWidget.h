@@ -23,10 +23,10 @@ public:
   virtual ~cDvbWidget() {}
 
   //{{{
-  virtual void onMove (float x, float y, float xinc, float yinc) {
+  virtual void onMove (const cPointF& p, const cPointF& inc) {
   // inc and clip mScroll to top
 
-    mScroll = std::max (mScroll - yinc, -1.f);
+    mScroll = std::max (mScroll - inc.y, -1.f);
 
     // clip mScroll to bottom
     if (mLastHeight > mPixSize.y)

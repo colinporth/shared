@@ -178,7 +178,7 @@ void cGlWindow::draw() {
 
   if (mDrawTests) {
     //{{{  draw tests
-    drawEyes (winSize * cPointF(0.75f, 0.5f), winSize * cPointF(0.25f, 0.5f), mMouseX, mMouseY, (float)glfwGetTime());
+    drawEyes (winSize * cPointF(0.75f, 0.5f), winSize * cPointF(0.25f, 0.5f), mMousePos, (float)glfwGetTime());
     drawLines (cPointF(0.f, 70.f), cPointF((float)winWidth, (float)winHeight), (float)glfwGetTime());
     drawSpinner (winSize/2.f, 20.f, 16.f, (float)glfwGetTime(),
                  kOpaqueBlackF, kSemiOpaqueWhiteF);
@@ -233,7 +233,7 @@ void cGlWindow::drawSpinner (const cPointF& centre, float inner, float outer, fl
   }
 //}}}
 //{{{
-void cGlWindow::drawEyes (const cPointF& p, const cPointF& size, float cursorX, float cursorY, float t) {
+void cGlWindow::drawEyes (const cPointF& p, const cPointF& size, const cPointF& mousePos, float t) {
 
   cPointF eyeSize (size.x * 0.23f, size.y * 0.5f);
   cPointF left = p + eyeSize;
@@ -255,7 +255,7 @@ void cGlWindow::drawEyes (const cPointF& p, const cPointF& size, float cursorX, 
                                    sColourF(0.9f,0.9f,0.9f,1.f), kGreyF));
   fill();
 
-  cPointF diff1 ((cursorX - right.x) / (eyeSize.x * 10), (cursorY - right.y) / (eyeSize.y * 10));
+  cPointF diff1 ((mousePos.x - right.x) / (eyeSize.x * 10), (mousePos.y - right.y) / (eyeSize.y * 10));
   float d = diff1.magnitude();
   if (d > 1.0f)
     diff1 /= d;
@@ -267,7 +267,7 @@ void cGlWindow::drawEyes (const cPointF& p, const cPointF& size, float cursorX, 
   setFillColour (kDarkerGreyF);
   fill();
 
-  cPointF diff2 ((cursorX - right.x) / (eyeSize.x * 10), (cursorY - right.y) / (eyeSize.y * 10));
+  cPointF diff2 ((mousePos.x - right.x) / (eyeSize.x * 10), (mousePos.y - right.y) / (eyeSize.y * 10));
   d = diff2.magnitude();
   if (d > 1.0f)
     diff2 /= d;
@@ -401,9 +401,8 @@ void cGlWindow::glfwMouseButton (GLFWwindow* window, int button, int action, int
     mMouseDown = true;
     mMouseMoved = false;
     mMouseRightButton = button == GLFW_MOUSE_BUTTON_RIGHT;
-    mRootContainer->onDown (mMouseX, mMouseY);
-    mMouseLastX = mMouseX;
-    mMouseLastY = mMouseY;
+    mRootContainer->onDown (mMousePos);
+    mMouseLastPos = mMousePos;
     }
 
   else if (action == GLFW_RELEASE) {
@@ -417,21 +416,18 @@ void cGlWindow::glfwMouseButton (GLFWwindow* window, int button, int action, int
 //{{{
 void cGlWindow::glfwCursorPos (GLFWwindow* window, double xpos, double ypos) {
 
-  mMouseX = (float)xpos;
-  mMouseY = (float)ypos;
+  mMousePos = { (float)xpos, (float)ypos };
 
   if (mMouseDown) {
-    float xinc = mMouseX - mMouseLastX;
-    float yinc = mMouseY - mMouseLastY;
-    if ((fabs(xinc) >  0.5f) || (fabs(yinc) > 0.5f)) {
+    cPointF inc = mMousePos - mMouseLastPos;
+    if ((fabs(inc.x) > 0.5f) || (fabs(inc.y) > 0.5f)) {
       mMouseMoved = true;
-      mRootContainer->onMove (mMouseX, mMouseY, xinc, yinc);
-      mMouseLastX = mMouseX;
-      mMouseLastY = mMouseY;
+      mRootContainer->onMove (mMousePos, inc);
+      mMouseLastPos = mMousePos;
       }
     }
   else
-    mRootContainer->onProx (mMouseX, mMouseY);
+    mRootContainer->onProx (mMousePos);
   }
 //}}}
 //{{{

@@ -95,9 +95,9 @@ public:
   //}}}
 
   //{{{
-  virtual cWidget* isPicked (float x, float y) {
-    return (x >= mPixOrg.x) && (x < mPixOrg.x + mPixSize.x) &&
-           (y >= mPixOrg.y) && (y < mPixOrg.y + mPixSize.y) ? this : nullptr;
+  virtual cWidget* isPicked (const cPointF& p) {
+    return (p.x >= mPixOrg.x) && (p.x < mPixOrg.x + mPixSize.x) &&
+           (p.y >= mPixOrg.y) && (p.y < mPixOrg.y + mPixSize.y) ? this : nullptr;
     }
   //}}}
   //{{{
@@ -107,15 +107,15 @@ public:
     }
   //}}}
 
-  virtual void onProx (float x, float y) {}
+  virtual void onProx (const cPointF& p) {}
   //{{{
-  virtual void onDown (float x, float y) {
+  virtual void onDown (const cPointF& p) {
     if (!mPressedCount)
       mOn = true;
     mPressedCount++;
     }
   //}}}
-  virtual void onMove (float x, float y, float xinc, float yinc) {}
+  virtual void onMove (const cPointF& p, const cPointF& inc) {}
   //{{{
   virtual void onUp() {
     mPressedCount = 0;

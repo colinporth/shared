@@ -19,8 +19,8 @@ public:
   cHlsDotsBox (cHls* hls, float width, float height) : cWidget(width, height), mHls(hls) {}
   virtual ~cHlsDotsBox() {}
 
-  void onDown (float x, float y) {
-    cWidget::onDown (x, y);
+  void onDown (const cPointF& p) {
+    cWidget::onDown (p);
     }
 
   virtual void onDraw (iDraw* draw) {
@@ -53,18 +53,18 @@ public:
   cHlsPeakWidget (cHls* hls, float width, float height) : cWidget (kBlueF, width, height), mHls(hls) {}
   virtual ~cHlsPeakWidget() {}
 
-  void onDown (float x, float y) {
-    cWidget::onDown (x, y);
+  void onDown (const cPointF& p) {
+    cWidget::onDown (p);
     mMove = 0;
-    mPressInc = x - (mPixSize.x/2.f);
+    mPressInc = p.x - (mPixSize.x/2.f);
     mHls->setScrub();
-    setZoomAnim (1.0f + ((mPixSize.x /2.f) - abs(x - (mPixSize.x /2.f))) / (mPixSize.x /6.f), 4);
+    setZoomAnim (1.0f + ((mPixSize.x /2.f) - abs(p.x - (mPixSize.x/2.f))) / (mPixSize.x/6.f), 4);
     }
 
-  void onMove (float x, float y, float xinc, float yinc) {
-    cWidget::onMove (x, y, xinc, yinc);
-    mMove += abs(xinc) + abs(yinc);
-    mHls->incPlaySample ((-xinc * kSamplesPerFrame) / mZoom);
+  void onMove (const cPointF& p, const cPointF& inc) {
+    cWidget::onMove (p, inc);
+    mMove += abs(inc.x) + abs(inc.y);
+    mHls->incPlaySample ((-inc.x * kSamplesPerFrame) / mZoom);
     }
 
   void onUp() {

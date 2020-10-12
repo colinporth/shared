@@ -11,22 +11,22 @@ public:
   virtual ~cValueBox() {}
 
   //{{{
-  void onDown (float x, float y) {
+  void onDown (const cPointF& p) {
 
-    cWidget::onDown (x, y);
+    cWidget::onDown (p);
     if (mPixSize.x > mPixSize.y)
-      setValue (x / mPixSize.x);
+      setValue (p.x / mPixSize.x);
     else
-      setValue (y / mPixSize.y);
+      setValue (p.y / mPixSize.y);
     }
   //}}}
   //{{{
-  void onMove (float x, float y, float xinc, float yinc) {
-    cWidget::onMove (x, y, xinc, yinc);
+  void onMove (const cPointF& p, const cPointF& inc) {
+    cWidget::onMove (p, inc);
     if (mPixSize.x > mPixSize.y)
-      setValue (x / mPixSize.x);
+      setValue (p.x / mPixSize.x);
     else
-      setValue (y / mPixSize.y);
+      setValue (p.y / mPixSize.y);
     }
   //}}}
   //{{{

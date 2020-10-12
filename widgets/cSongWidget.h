@@ -11,19 +11,19 @@ public:
   virtual ~cSongWidget() {}
 
   //{{{
-  void onDown (float x, float y) {
+  void onDown (const cPointF& p) {
 
-    cWidget::onDown (x, y);
+    cWidget::onDown (p);
 
     //std::shared_lock<std::shared_mutex> lock (mSong->getSharedMutex());
-    if (y > mDstOverviewTop) {
-      auto frame = mSong->getFirstFrame() + int((x * mSong->getTotalFrames()) / getPixWidth());
+    if (p.y > mDstOverviewTop) {
+      auto frame = mSong->getFirstFrame() + int((p.x * mSong->getTotalFrames()) / getPixWidth());
       mSong->setPlayFrame (frame);
       mOverviewPressed = true;
       }
 
-    else if (y > mDstRangeTop) {
-      mPressedFrame = mSong->getPlayFrame() + ((x - (getPixWidth()/2.f)) * mFrameStep / mFrameWidth);
+    else if (p.y > mDstRangeTop) {
+      mPressedFrame = mSong->getPlayFrame() + ((p.x - (getPixWidth()/2.f)) * mFrameStep / mFrameWidth);
       mSong->getSelect().start (int(mPressedFrame));
       mRangePressed = true;
       //mWindow->changed();
@@ -34,22 +34,22 @@ public:
     }
   //}}}
   //{{{
-  void onMove (float x, float y, float xinc, float yinc) {
+  void onMove (const cPointF& p, const cPointF& inc) {
 
-    cWidget::onMove (x, y, xinc, yinc);
+    cWidget::onMove (p, inc);
 
     //std::shared_lock<std::shared_mutex> lock (mSong.getSharedMutex());
     if (mOverviewPressed)
-      mSong->setPlayFrame (mSong->getFirstFrame() + int((x * mSong->getTotalFrames()) / getPixWidth()));
+      mSong->setPlayFrame (mSong->getFirstFrame() + int((p.x * mSong->getTotalFrames()) / getPixWidth()));
 
     else if (mRangePressed) {
-      mPressedFrame += (xinc / mFrameWidth) * mFrameStep;
+      mPressedFrame += (inc.x / mFrameWidth) * mFrameStep;
       mSong->getSelect().move ((int)mPressedFrame);
       //mWindow->changed();
       }
 
     else {
-      mPressedFrame -= (xinc / mFrameWidth) * mFrameStep;
+      mPressedFrame -= (inc.x / mFrameWidth) * mFrameStep;
       mSong->setPlayFrame ((int)mPressedFrame);
       }
     }

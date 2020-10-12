@@ -65,17 +65,15 @@ protected:
   virtual void onChar (char ch, int mods) = 0;
 
   static inline cGlWindow* mGlWindow = nullptr;
-  static inline float mMouseX = 0;
-  static inline float mMouseY = 0;
-
   struct GLFWwindow* mWindow = nullptr;
+  static inline cPointF mMousePos = { 0.f, 0.f };
 
 private:
   void draw();
 
   void drawSpinner (const cPointF& centre, float inner, float outer, float frac,
                     const sColourF& colour1, const sColourF& colour2);
-  void drawEyes (const cPointF& p, const cPointF& size, float cursorX, float cursorY, float t);
+  void drawEyes (const cPointF& p, const cPointF& size, const cPointF& mousePos, float t);
   void drawLines (const cPointF& p, const cPointF& size, float t);
 
   //{{{  static glfw callbacks
@@ -103,8 +101,7 @@ private:
   static inline bool mMouseDown =  false;
   static inline bool mMouseMoved = false;
   static inline bool mMouseRightButton = false;
-  static inline float mMouseLastX = 0;
-  static inline float mMouseLastY = 0;
+  static inline cPointF mMouseLastPos = { 0.f,0.f };
 
   static inline bool mAlted = false;
   static inline bool mSupered = false;

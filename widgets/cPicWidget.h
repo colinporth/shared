@@ -39,8 +39,8 @@ public:
   //}}}
 
   //{{{
-  virtual void onDown (float x, float y) {
-    cWidget::onDown (x, y);
+  virtual void onDown (const cPointF& p) {
+    cWidget::onDown (p);
     if (mSelectValue != mValue) {
       mValue = mSelectValue;
       mChanged = true;

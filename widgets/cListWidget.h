@@ -13,10 +13,10 @@ public:
   virtual ~cListWidget() {}
 
   //{{{
-  void onDown (float x, float y) {
+  void onDown (const cPointF& p) {
 
-    mPressedIndex = ((int)mScroll + y) / getBoxHeight();
-    mTextPressed = x < mMeasure[y / getBoxHeight()];
+    mPressedIndex = ((int)mScroll + p.y) / getBoxHeight();
+    mTextPressed = p.x < mMeasure[y / getBoxHeight()];
 
     mMoved = false;
     mMoveInc = 0;
@@ -24,15 +24,15 @@ public:
     }
   //}}}
   //{{{
-  void onMove (float x, float y, float xinc, float yinc) {
+  void onMove (const cPointF& p, const cPointF& inc) {
 
-    mMoveInc += yinc;
+    mMoveInc += inc.y;
 
     if (abs(mMoveInc) > 2)
       mMoved = true;
 
     if (mMoved)
-      incScroll (-(float)yinc);
+      incScroll (-(float)inc.y);
     }
   //}}}
   //{{{
