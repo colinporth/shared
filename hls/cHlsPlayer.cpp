@@ -72,6 +72,7 @@ namespace {
 
 //{{{
 class cPesParser {
+// extract pes from ts, possible queue, decode
 public:
   //{{{
   class cPesQueueItem {
@@ -95,8 +96,13 @@ public:
     };
   //}}}
   //{{{
-  cPesParser (cHlsPlayer* hlsPlayer, bool useQueue) : mHlsPlayer(hlsPlayer), mUseQueue(useQueue) {
-    mPes = (uint8_t*)malloc (kPesSize);
+  cPesParser (cHlsPlayer* hlsPlayer, bool useQueue, const string& name)
+      : mHlsPlayer(hlsPlayer), mUseQueue(useQueue), mName(name) {
+
+    mPes = (uint8_t*)malloc (kInitPesSize);
+
+    if (useQueue)
+      thread ([=](){ dequePesThread(); }).detach();
     }
   //}}}
 
@@ -113,7 +119,7 @@ public:
   float getFrac() { return mUseQueue ? (float)mPesQueue.size_approx() / mPesQueue.max_capacity() : 0.f; }
 
   //{{{
-  void parsePes (bool payStart, uint8_t* ts, int tsBodySize) {
+  void parseTs (bool payStart, uint8_t* ts, int tsBodySize) {
 
     // could check pes type ts[0,1,2,3] as well
     if (payStart) {
@@ -125,6 +131,12 @@ public:
       int headerSize = 9 + ts[8];
       ts += headerSize;
       tsBodySize -= headerSize;
+      }
+
+    if (mPesSize + tsBodySize > mAllocSize) {
+      mAllocSize *= 2;
+      mPes = (uint8_t*)realloc (mPes, mAllocSize);
+      cLog::log (LOGINFO,  mName + " pes allocSize doubled to " + dec(mAllocSize));
       }
 
     memcpy (mPes + mPesSize, ts, tsBodySize);
@@ -146,14 +158,18 @@ protected:
   // vars
   cHlsPlayer* mHlsPlayer = nullptr;
   bool mUseQueue = false;
+  string mName;
+
+  int mAllocSize = kInitPesSize;
   uint8_t* mPes = nullptr;
   int mNum = 0;
   int mPesSize = 0;
   uint64_t mPesPts = 0;
+
   readerWriterQueue::cBlockingReaderWriterQueue <cPesQueueItem*> mPesQueue;
 
 private:
-  static constexpr int kPesSize = 1000000;
+  static constexpr int kInitPesSize = 4096;
 
   virtual void dequePesThread() = 0;
   };
@@ -161,12 +177,7 @@ private:
 //{{{
 class cAudioPesParser : public cPesParser {
 public:
-  //{{{
-  cAudioPesParser (cHlsPlayer* hlsPlayer, bool useQueue) : cPesParser(hlsPlayer, useQueue) {
-    if (useQueue)
-      thread ([=](){ dequePesThread(); }).detach();
-    }
-  //}}}
+  cAudioPesParser (cHlsPlayer* hlsPlayer, bool useQueue) : cPesParser(hlsPlayer, useQueue, "aud") {}
   virtual ~cAudioPesParser() {}
 
 protected:
@@ -217,17 +228,13 @@ private:
 //{{{
 class cVideoPesParser : public cPesParser {
 public:
-  //{{{
-  cVideoPesParser (cHlsPlayer* hlsPlayer, bool useQueue) : cPesParser(hlsPlayer, useQueue) {
-    if (useQueue)
-      thread ([=](){ dequePesThread(); }).detach();
-    }
-  //}}}
+  cVideoPesParser (cHlsPlayer* hlsPlayer, bool useQueue) : cPesParser(hlsPlayer, useQueue, "vid") {}
   virtual ~cVideoPesParser() {}
 
 protected:
   //{{{
   void processPes() {
+
     if (mUseQueue)
       mPesQueue.enqueue (new cPesQueueItem(mPes, mPesSize, mNum, mPesPts));
     else
@@ -355,27 +362,26 @@ void cHlsPlayer::loaderThread() {
                            //{{{  data callback lambda
                            mLoadFrac = float(http.getContentSize()) / http.getHeaderContentSize();
 
-                           while (http.getContentSize() - contentUsed >= 188) {
-                             // whole ts packet left to parse
+                           while (http.getContentSize() - contentUsed >= 188) { // have a whole ts packet
                              uint8_t* ts = http.getContent() + contentUsed;
-                             if (*ts++ == 0x47) {
-                               // is a ts packet
+                             if (*ts++ == 0x47) { // ts packet start
                                bool payStart = ts[0] & 0x40;
                                auto pid = ((ts[0] & 0x1F) << 8) | ts[1];
                                auto headerSize = (ts[2] & 0x20) ? 4 + ts[3] : 3;
 
                                if (pid == 33)
-                                 mVideoPesParser->parsePes (payStart, ts + headerSize, 187 - headerSize);
+                                 mVideoPesParser->parseTs (payStart, ts + headerSize, 187 - headerSize);
                                else if (pid == 34)
-                                 mAudioPesParser->parsePes (payStart, ts + headerSize, 187 - headerSize);
+                                 mAudioPesParser->parseTs (payStart, ts + headerSize, 187 - headerSize);
                                else if (pid && (pid != 32))
                                  cLog::log (LOGERROR, "other pid %d", pid);
 
                                ts += 187;
                                }
-                             else
+                             else {
                                cLog::log (LOGERROR, "packet not ts %d", contentUsed);
-
+                               return false;
+                               }
                              contentUsed += 188;
                              }
 
@@ -398,6 +404,8 @@ void cHlsPlayer::loaderThread() {
         else // no chunk available, back off for 100ms
           this_thread::sleep_for (100ms);
         }
+
+      // wait for playerThread to end
       mPlayer.join();
       }
     }
