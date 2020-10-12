@@ -36,15 +36,9 @@ public:
 
   int processVideoPes (uint8_t* pes, int size, int num, uint64_t pts);
   int processAudioPes (uint8_t* pes, int size, int num, uint64_t pts);
-  void dequeVideoPesThread();
-  void dequeAudioPesThread();
 
-  //{{{
-  void startPlayer() {
-    if (!mPlayer.joinable())
-      mPlayer = std::thread ([=](){ playerThread(); });
-    }
-  //}}}
+  void videoDecode (uint8_t* pes, int size, int num, uint64_t pts);
+  void audioDecode (uint8_t* pes, int size, int num, uint64_t pts);
 
 protected:
   void videoFollowAudio();
@@ -63,7 +57,7 @@ protected:
   std::thread mPlayer;
 
 private:
-  void playerThread();
+  void startPlayer();
 
   //{{{  private vars
   std::string mHost;
