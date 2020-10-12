@@ -12,6 +12,7 @@
 class cSong;
 class cAudioDecode;
 class cVideoDecode;
+class cPesParser;
 
 class cHlsPlayer {
 public:
@@ -22,21 +23,37 @@ public:
              bool useFFmpeg = true, bool videoQueue = true, bool audioQueue = true, bool streaming = true);
 
   cVideoDecode* getVideoDecode() { return mVideoDecode; }
+  cAudioDecode* getAudioDecode() { return mAudioDecode; }
+  cSong* getSong() { return mSong; }
 
   float getLoadFrac() { return mLoadFrac; }
   //{{{
   float getVideoFrac() {
-    return (float)vidPesQueue.size_approx() / vidPesQueue.max_capacity();
+    //return (float)vidPesQueue.size_approx() / vidPesQueue.max_capacity();
+    return 0.f;
     }
   //}}}
   //{{{
   float getAudioFrac() {
-    return (float)audPesQueue.size_approx() / audPesQueue.max_capacity();
+    //return (float)mQueue.size_approx() / audPesQueue.max_capacity();
+    return 0.f;
     }
   //}}}
   std::string getChannel() { return mChannel; }
   int getVidBitrate() { return mVidBitrate; }
   int getAudBitrate() { return mAudBitrate; }
+
+  int processVideoPes (uint8_t* pes, int size, int num, uint64_t pts);
+  int processAudioPes (uint8_t* pes, int size, int num, uint64_t pts);
+  void dequeVideoPesThread();
+  void dequeAudioPesThread();
+
+  //{{{
+  void startPlayer() {
+    if (!mPlayer.joinable())
+      mPlayer = std::thread ([=](){ playerThread(); });
+    }
+  //}}}
 
 protected:
   void videoFollowAudio();
@@ -44,48 +61,19 @@ protected:
 
   cSong* mSong;
   bool mPlaying = true;
+  std::thread mPlayer;
 
   cVideoDecode* mVideoDecode = nullptr;
   cAudioDecode* mAudioDecode = nullptr;
-
-  //{{{
-  class cPes {
-  public:
-    //{{{
-    cPes (uint8_t* pes, int size, int num, uint64_t pts) : mSize(size), mNum(num), mPts(pts) {
-      mPes = (uint8_t*)malloc (size);
-      memcpy (mPes, pes, size);
-      }
-    //}}}
-    //{{{
-    ~cPes() {
-      free (mPes);
-      }
-    //}}}
-
-    uint8_t* mPes;
-    const int mSize;
-    const int mNum;
-    const uint64_t mPts;
-    };
-  //}}}
-  readerWriterQueue::cBlockingReaderWriterQueue <cPes*> vidPesQueue;
-  readerWriterQueue::cBlockingReaderWriterQueue <cPes*> audPesQueue;
-
-  std::thread mPlayer;
+  cPesParser* mVidPesParser = nullptr;
+  cPesParser* mAudPesParser = nullptr;
 
   bool mExit = false;
 
 private:
-  int processVideoPes (uint8_t* pes, int size, int num, uint64_t pts);
-  void dequeVideoPesThread();
+  void playerThread();
 
-  int processAudioPes (uint8_t* pes, int size, int num, uint64_t pts);
-  void dequeAudioPesThread();
-
-  void playThread();
-
-  // vars
+  //{{{  private vars
   std::string mHost;
   std::string mChannel;
   int mVidBitrate = 0;
@@ -97,4 +85,5 @@ private:
   bool mStreaming = false;
 
   float mLoadFrac = 0.f;
+  //}}}
   };

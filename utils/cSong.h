@@ -150,7 +150,6 @@ public:
                       uint64_t pts = 0xFFFFFFFFFFFFFFFF);
   void clear();
 
-  enum eHlsLoad { eHlsIdle, eHlsLoading, eHlsFailed };
   //{{{  gets
   std::shared_mutex& getSharedMutex() { return mSharedMutex; }
   int getId() { return mId; }
@@ -194,11 +193,10 @@ public:
 
   // hls
   bool hasHlsBase() { return mHlsBaseValid; }
-  eHlsLoad getHlsLoad() { return mHlsLoad; }
   int getHlsLoadChunkNum (std::chrono::system_clock::time_point now, std::chrono::seconds secs, int preload);
   //{{{
-  int getFrameNumFromChunkNum (int chunkNum) { 
-    return mHlsBaseFrame + (chunkNum - mHlsBaseChunkNum) * mHlsFramesPerChunk; 
+  int getFrameNumFromChunkNum (int chunkNum) {
+    return mHlsBaseFrame + (chunkNum - mHlsBaseChunkNum) * mHlsFramesPerChunk;
     }
   //}}}
   //}}}
@@ -232,7 +230,6 @@ public:
 
   // hls
   void setHlsBase (int chunkNum, std::chrono::system_clock::time_point timePoint, std::chrono::seconds offset, int startSecs);
-  void setHlsLoad (eHlsLoad hlsLoad, int chunkNum);
   //}}}
 
   // actions
@@ -283,8 +280,6 @@ private:
   std::chrono::system_clock::time_point mHlsBaseTimePoint;
 
   int mHlsFramesPerChunk = 0;
-  int eHlsFailedChunkNum = 0;
-  eHlsLoad mHlsLoad = eHlsIdle;
   //}}}
   //{{{  fft vars
   kiss_fftr_cfg fftrConfig;

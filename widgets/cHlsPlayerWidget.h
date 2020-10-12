@@ -4,7 +4,6 @@
 #include "cWidget.h"
 
 #include "../hls/cHlsPlayer.h"
-#include "../utils/cVideoDecode.h"
 //}}}
 
 class cHlsPlayerWidget : public cWidget {
@@ -17,7 +16,6 @@ public:
   void onDraw (iDraw* draw) {
 
     cVg* vg = draw->getVg();
-
     auto frame = mHlsPlayer->getVideoDecode()->findPlayFrame();
     if (frame) {
       if (frame->getPts() != mPts) {
@@ -38,6 +36,7 @@ public:
 
     // draw progress spinner
     vg->saveState();
+
     cPointF centre (mPixSize.x-20.f,20.f);
     float loadFrac = mHlsPlayer->getLoadFrac();
     drawSpinner (vg, centre, 18.f,12.f, 0.f, loadFrac,
@@ -46,6 +45,7 @@ public:
                  sColourF(1.f, 0.f, 0.f, 0.f), sColourF(1.f, 0.f, 0.f, 0.75f));
     drawSpinner (vg, centre, 18.f,12.f, loadFrac * (1.f - mHlsPlayer->getAudioFrac()), loadFrac,
                  sColourF(0.f, 0.f, 1.f, 0.f), sColourF(0.f, 0.f, 1.f, 0.75f));
+
     vg->restoreState();
 
     // info text

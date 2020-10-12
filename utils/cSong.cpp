@@ -309,30 +309,6 @@ void cSong::setHlsBase (int chunkNum, system_clock::time_point timePoint, second
   mHlsBaseValid = true;
   }
 //}}}
-//{{{
-void cSong::setHlsLoad (eHlsLoad hlsLoad, int chunkNum) {
-// latch failed till success, might elaborate later
-
-  switch (hlsLoad) {
-    case eHlsLoading:
-      if (chunkNum != eHlsFailedChunkNum) {
-        mHlsLoad = eHlsLoading;
-        eHlsFailedChunkNum = 0;
-        }
-      break;
-
-    case eHlsFailed:
-      mHlsLoad = eHlsFailed;
-      eHlsFailedChunkNum = chunkNum;
-      break;
-
-    case eHlsIdle:
-      mHlsLoad = eHlsIdle;
-      eHlsFailedChunkNum = 0;
-      break;
-    }
-  }
-//}}}
 
 // cSong actions
 //{{{

@@ -380,19 +380,14 @@ private:
   void drawTime (cVg* vg, const std::string& firstFrameString,
                  const std::string& playFrameString, const std::string& lastFrameString) {
 
-    // small lastFrameString, coloured, right
+    vg->setFillColour (kWhiteF);
+
+    // small lastFrameString, white, right
     vg->setFontSize (getFontHeight());
     vg->setTextAlign (cVg::eAlignRight | cVg::eAlignBottom);
-    if (mSong->getHlsLoad() == cSong::eHlsIdle)
-      vg->setFillColour (kWhiteF);
-    else if (mSong->getHlsLoad() == cSong::eHlsFailed)
-      vg->setFillColour (kRedF);
-    else
-      vg->setFillColour (kGreenF);
     vg->text (mPixSize, lastFrameString);
 
     // small firstFrameString, white, left
-    vg->setFillColour (kWhiteF);
     vg->setTextAlign (cVg::eAlignLeft | cVg::eAlignBottom);
     vg->text (cPointF(0.f, mPixSize.y), firstFrameString);
 

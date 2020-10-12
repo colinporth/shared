@@ -70,6 +70,188 @@ namespace {
   //}}}
   }
 
+//{{{
+class cPesParser {
+public:
+  //{{{
+  class cPes {
+  public:
+    //{{{
+    cPes (uint8_t* pes, int size, int num, uint64_t pts) : mSize(size), mNum(num), mPts(pts) {
+      mPes = (uint8_t*)malloc (size);
+      memcpy (mPes, pes, size);
+      }
+    //}}}
+    //{{{
+    ~cPes() {
+      free (mPes);
+      }
+    //}}}
+
+    uint8_t* mPes;
+    const int mSize;
+    const int mNum;
+    const uint64_t mPts;
+    };
+  //}}}
+  //{{{
+  cPesParser (cHlsPlayer* hlsPlayer, bool useQueue) : mHlsPlayer(hlsPlayer), mUseQueue(useQueue) {
+    mPes = (uint8_t*)malloc (kPesSize);
+    }
+  //}}}
+
+  virtual ~cPesParser() {}
+
+  //{{{
+  void clear() {
+    int mNum = 0;
+    int mPesSize = 0;
+    uint64_t mPesPts = 0;
+    }
+  //}}}
+  int getNum() { return mNum; }
+  void setNum (int num) { mNum = num; }
+
+  //{{{
+  void parsePes (bool payStart, uint8_t* ts, int tsBodySize) {
+
+    if (payStart) {
+      processLastPes();
+
+      if (ts[7] & 0x80)
+        mPesPts = getPts (ts+9);
+
+      int headerSize = 9 + ts[8];
+      ts += headerSize;
+      tsBodySize -= headerSize;
+      }
+
+    memcpy (mPes + mPesSize, ts, tsBodySize);
+    mPesSize += tsBodySize;
+    }
+  //}}}
+  //{{{
+  void processLastPes() {
+    if (mPesSize) {
+      processPes();
+      mPesSize = 0;
+      }
+    }
+  //}}}
+
+protected:
+  virtual void processPes() = 0;
+
+  bool mUseQueue = false;
+  cHlsPlayer* mHlsPlayer = nullptr;
+  uint8_t* mPes = nullptr;
+  int mNum = 0;
+  int mPesSize = 0;
+  uint64_t mPesPts = 0;
+  readerWriterQueue::cBlockingReaderWriterQueue <cPes*> mPesQueue;
+
+private:
+  static constexpr int kPesSize = 1000000;
+
+  virtual void dequePesThread() = 0;
+  };
+//}}}
+//{{{
+class cAudPesParser : public cPesParser {
+public:
+  //{{{
+  cAudPesParser (cHlsPlayer* hlsPlayer, bool useQueue) : cPesParser(hlsPlayer, useQueue) {
+    if (useQueue)
+      thread ([=](){ dequePesThread(); }).detach();
+    }
+  //}}}
+  virtual ~cAudPesParser() {}
+
+protected:
+  //{{{
+  void processPes() {
+    // split audio pes into frames, queue or decode now
+    uint8_t* framePes = mPes;
+    while (mHlsPlayer->getAudioDecode()->parseFrame (framePes, mPes + mPesSize)) {
+      int framePesSize = mHlsPlayer->getAudioDecode()->getNextFrameOffset();
+
+      // decode a single frame from pes
+      if (mUseQueue)
+        mPesQueue.enqueue (new cPes (framePes, framePesSize, mNum, mPesPts));
+      else {
+        float* samples = mHlsPlayer->getAudioDecode()->decodeFrame (framePes, framePesSize, mNum);
+        mHlsPlayer->getSong()->addAudioFrame (mNum, samples, true, mHlsPlayer->getSong()->getNumFrames(), nullptr, mPesPts);
+        }
+
+      // point to next frame in pes, assumes 48000 sample rate
+      mPesPts += (mHlsPlayer->getAudioDecode()->getNumSamples() * 90) / 48;
+      mNum++;
+      framePes += framePesSize;
+      }
+
+    mHlsPlayer->startPlayer();
+    }
+  //}}}
+
+private:
+  //{{{
+  void dequePesThread() {
+
+    cLog::setThreadName ("audQ");
+
+    while (true) {
+      cPes* pes;
+      mPesQueue.wait_dequeue (pes);
+
+      float* samples = mHlsPlayer->getAudioDecode()->decodeFrame (pes->mPes, pes->mSize, pes->mNum);
+      mHlsPlayer->getSong()->addAudioFrame (pes->mNum, samples, true, mHlsPlayer->getSong()->getNumFrames(), nullptr, pes->mPts);
+
+      delete pes;
+      }
+    }
+  //}}}
+  };
+//}}}
+//{{{
+class cVidPesParser : public cPesParser {
+public:
+  //{{{
+  cVidPesParser (cHlsPlayer* hlsPlayer, bool useQueue) : cPesParser(hlsPlayer, useQueue) {
+    if (useQueue)
+      thread ([=](){ dequePesThread(); }).detach();
+    }
+  //}}}
+  virtual ~cVidPesParser() {}
+
+protected:
+  //{{{
+  void processPes() {
+    if (mUseQueue)
+      mPesQueue.enqueue (new cPes (mPes, mPesSize, mNum, mPesPts));
+    else
+      mHlsPlayer->getVideoDecode()->decode (mPes, mPesSize, mNum, mPesPts);
+
+    mNum++;
+    }
+  //}}}
+
+private:
+  //{{{
+  void dequePesThread() {
+
+    cLog::setThreadName ("vidQ");
+
+    while (true) {
+      cPes* pes;
+      mPesQueue.wait_dequeue (pes);
+      mHlsPlayer->getVideoDecode()->decode (pes->mPes, pes->mSize, pes->mNum, pes->mPts);
+      delete pes;
+      }
+    }
+  //}}}
+  };
+//}}}
+
 // public
 cHlsPlayer::cHlsPlayer() {}
 //{{{
@@ -77,6 +259,9 @@ cHlsPlayer::~cHlsPlayer() {
 
   delete mSong;
   delete mVideoDecode;
+  delete mAudioDecode;
+  delete mVidPesParser;
+  delete mAudPesParser;
   }
 //}}}
 //{{{
@@ -100,12 +285,10 @@ void cHlsPlayer::init (const string& host, const string& channel, int audBitrate
   #endif
 
   mQueueVideo = queueVideo;
-  if (queueVideo)
-    thread ([=](){ dequeVideoPesThread(); }).detach();
+  mVidPesParser = new cVidPesParser (this, queueVideo);
 
   mQueueAudio = queueAudio;
-  if (queueAudio)
-    thread ([=](){ dequeAudioPesThread(); }).detach();
+  mAudPesParser = new cAudPesParser (this, queueAudio);
 
   mStreaming = streaming;
   }
@@ -127,10 +310,6 @@ void cHlsPlayer::loaderThread() {
 // hls http chunk load and possible decode thread
 
   cLog::setThreadName ("hls ");
-
-  constexpr int kPesSize = 1000000;
-  uint8_t* audPes = (uint8_t*)malloc (kPesSize);
-  uint8_t* vidPes = (uint8_t*)malloc (kPesSize);
 
   mSong->setChannel (mChannel);
   mSong->setBitrate (mAudBitrate, mAudBitrate < 128000 ? 180 : 360); // audBitrate, audioFrames per chunk
@@ -160,21 +339,15 @@ void cHlsPlayer::loaderThread() {
       while (!mExit && !mSong->getChanged()) {
         int chunkNum = mSong->getHlsLoadChunkNum (system_clock::now(), 12s, 2);
         if (chunkNum) {
-          // get hls chunkNum chunk
-          int audioFrameNum = mSong->getFrameNumFromChunkNum (chunkNum);
-          cLog::log (LOGINFO, "get chunkNum:" + dec(chunkNum) + " frameNum:" + dec(audioFrameNum));
-          mSong->setHlsLoad (cSong::eHlsLoading, chunkNum);
-
           //{{{  init pes states
           int contentUsed = 0;
-
-          int audPesSize = 0;
-          uint64_t audPesPts = 0;
-
-          int vidPesNum = 0;
-          int vidPesSize = 0;
-          uint64_t vidPesPts = 0;
+          mAudPesParser->clear();
+          mVidPesParser->clear();
           //}}}
+
+          // get hls chunkNum chunk
+          mAudPesParser->setNum (mSong->getFrameNumFromChunkNum (chunkNum));
+          cLog::log (LOGINFO, "get chunkNum:" + dec(chunkNum) + " frameNum:" + dec(mAudPesParser->getNum()));
           if (http.get (redirectedHost, path + '-' + dec(chunkNum) + ".ts", "",
                         [&] (const string& key, const string& value) noexcept { /* headerCallback lambda */ },
                         [&] (const uint8_t* data, int length) noexcept {
@@ -186,51 +359,20 @@ void cHlsPlayer::loaderThread() {
                              uint8_t* ts = http.getContent() + contentUsed;
                              if (*ts++ == 0x47) {
                                // is a ts packet
-                               auto payStart = ts[0] & 0x40;
                                auto pid = ((ts[0] & 0x1F) << 8) | ts[1];
                                auto headerSize = (ts[2] & 0x20) ? 4 + ts[3] : 3;
-                               ts += headerSize;
-                               auto tsBodySize = 187 - headerSize;
-
-                               if (pid == 33) {
-                                 // video pid
-                                 if (payStart && !ts[0] && !ts[1] && (ts[2] == 1) && (ts[3] == 0xe0)) {
-                                   if (vidPesSize) {
-                                     vidPesNum = processVideoPes (vidPes, vidPesSize, vidPesNum, vidPesPts);
-                                     vidPesSize = 0;
-                                     }
-                                   if (ts[7] & 0x80)
-                                     vidPesPts = getPts (ts+9);
-                                   headerSize = 9 + ts[8];
-                                   ts += headerSize;
-                                   tsBodySize -= headerSize;
-                                   }
-                                 memcpy (vidPes + vidPesSize, ts, tsBodySize);
-                                 vidPesSize += tsBodySize;
-                                 }
-                               else if (pid == 34) {
-                                 // audio pid
-                                 if (payStart && !ts[0] && !ts[1] && (ts[2] == 1) && (ts[3] == 0xC0)) {
-                                   if (audPesSize) {
-                                     audioFrameNum = processAudioPes (audPes, audPesSize, audioFrameNum, audPesPts);
-                                     audPesSize = 0;
-                                     }
-                                   if (ts[7] & 0x80)
-                                     audPesPts = getPts (ts+9);
-                                   headerSize = 9 + ts[8];
-                                   ts += headerSize;
-                                   tsBodySize -= headerSize;
-                                   }
-                                 memcpy (audPes + audPesSize, ts, tsBodySize);
-                                 audPesSize += tsBodySize;
-                                 }
+                               if (pid == 33)
+                                 mVidPesParser->parsePes (ts[0] & 0x40, ts + headerSize, 187 - headerSize);
+                               else if (pid == 34)
+                                 mAudPesParser->parsePes (ts[0] & 0x40, ts + headerSize, 187 - headerSize);
                                else if (pid && (pid != 32))
-                                 cLog::log (LOGERROR, "got other pid %d", pid);
+                                 cLog::log (LOGERROR, "other pid %d", pid);
 
-                               ts += tsBodySize;
+                               ts += 187;
                                }
                              else
                                cLog::log (LOGERROR, "packet not ts %d", contentUsed);
+
                              contentUsed += 188;
                              }
 
@@ -238,18 +380,13 @@ void cHlsPlayer::loaderThread() {
                            }
                            //}}}
                         ) == 200) {
-            if (audPesSize)
-              audioFrameNum = processAudioPes (audPes, audPesSize, audioFrameNum, audPesPts);
-            if (vidPesSize)
-              vidPesNum = processVideoPes (vidPes, vidPesSize, vidPesNum, vidPesPts);
+            mAudPesParser->processLastPes();
+            mVidPesParser->processLastPes();
             mLoadFrac = 0.f;
-
-            mSong->setHlsLoad (cSong::eHlsIdle, chunkNum);
             http.freeContent();
             }
           else {
             //{{{  failed to load expected available chunk, back off for 250ms
-            mSong->setHlsLoad (cSong::eHlsFailed, chunkNum);
             cLog::log (LOGERROR, "late " + dec(chunkNum));
             this_thread::sleep_for (250ms);
             }
@@ -262,89 +399,13 @@ void cHlsPlayer::loaderThread() {
       }
     }
 
-  free (audPes);
-  free (vidPes);
   cLog::log (LOGINFO, "exit");
-  }
-//}}}
-
-// private:
-//{{{
-int cHlsPlayer::processVideoPes (uint8_t* pes, int size, int num, uint64_t pts) {
-// queue or decode now
-
-  if (mQueueVideo)
-    vidPesQueue.enqueue (new cPes (pes, size, num, pts));
-  else
-    mVideoDecode->decode (pes, size, num, pts);
-
-  return num + 1;
-  }
-//}}}
-//{{{
-void cHlsPlayer::dequeVideoPesThread() {
-
-  cLog::setThreadName ("vidQ");
-
-  while (!mExit) {
-    cPes* pes;
-    vidPesQueue.wait_dequeue (pes);
-    mVideoDecode->decode (pes->mPes, pes->mSize, pes->mNum, pes->mPts);
-    delete pes;
-    }
-  }
-//}}}
-
-//{{{
-int cHlsPlayer::processAudioPes (uint8_t* pes, int size, int num, uint64_t pts) {
-// split audio pes into frames, queue or decode now
-
-  uint8_t* framePes = pes;
-  while (mAudioDecode->parseFrame (framePes, pes + size)) {
-    int framePesSize = mAudioDecode->getNextFrameOffset();
-
-    // decode a single frame from pes
-    if (mQueueAudio)
-      audPesQueue.enqueue (new cPes (framePes, framePesSize, num, pts));
-    else {
-      float* samples = mAudioDecode->decodeFrame (framePes, framePesSize, num);
-      mSong->addAudioFrame (num, samples, true, mSong->getNumFrames(), nullptr, pts);
-      }
-
-    // point to next frame in pes, assumes 48000 sample rate
-    pts += (mAudioDecode->getNumSamples() * 90) / 48;
-    num++;
-    framePes += framePesSize;
-    }
-
-
-  if (!mPlayer.joinable())
-    // start player
-    mPlayer = thread ([=](){ playThread(); });
-
-  return num;
-  }
-//}}}
-//{{{
-void cHlsPlayer::dequeAudioPesThread() {
-
-  cLog::setThreadName ("audQ");
-
-  while (!mExit) {
-    cPes* pes;
-    audPesQueue.wait_dequeue (pes);
-
-    float* samples = mAudioDecode->decodeFrame (pes->mPes, pes->mSize, pes->mNum);
-    mSong->addAudioFrame (pes->mNum, samples, true, mSong->getNumFrames(), nullptr, pes->mPts);
-
-    delete pes;
-    }
   }
 //}}}
 
 #ifdef _WIN32
   //{{{
-  void cHlsPlayer::playThread() {
+  void cHlsPlayer::playerThread() {
   // WSAPI player thread, video just follows play pts
 
     cLog::setThreadName ("play");
@@ -403,7 +464,7 @@ void cHlsPlayer::dequeAudioPesThread() {
   //}}}
 #else
   //{{{
-  void cHlsPlayer::playThread() {
+  void cHlsPlayer::playerThread() {
   // audio16 player thread, video just follows play pts
 
     cLog::setThreadName ("play");
