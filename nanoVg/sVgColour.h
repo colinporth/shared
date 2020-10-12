@@ -14,7 +14,7 @@ struct sVgColour {
   };
 
 //{{{
-inline sVgColour nvgRGBA32 (uint32_t colour) {
+inline sVgColour getRgbA32 (uint32_t colour) {
 
   sVgColour vgColour;
   vgColour.r = ((colour & 0xFF0000) >> 16) / 255.0f;
@@ -26,7 +26,7 @@ inline sVgColour nvgRGBA32 (uint32_t colour) {
   }
 //}}}
 //{{{
-inline sVgColour nvgRGBA (uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+inline sVgColour getRgbA (uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
 
   sVgColour vgColour;
   vgColour.r = r / 255.0f;
@@ -37,12 +37,12 @@ inline sVgColour nvgRGBA (uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
   }
 //}}}
 //{{{
-inline sVgColour nvgRGB (uint8_t r, uint8_t g, uint8_t b) {
-  return nvgRGBA (r,g,b,255);
+inline sVgColour getRgb (uint8_t r, uint8_t g, uint8_t b) {
+  return getRgbA (r,g,b,255);
   }
 //}}}
 //{{{
-inline sVgColour nvgRGBAf (float r, float g, float b, float a) {
+inline sVgColour getRgbAf (float r, float g, float b, float a) {
   sVgColour vgColour;
   vgColour.r = r;
   vgColour.g = g;
@@ -52,8 +52,8 @@ inline sVgColour nvgRGBAf (float r, float g, float b, float a) {
   }
 //}}}
 //{{{
-inline sVgColour nvgRGBf (float r, float g, float b) {
-  return nvgRGBAf (r,g,b,1.0f);
+inline sVgColour getRgbf (float r, float g, float b) {
+  return getRgbAf (r,g,b,1.0f);
   }
 //}}}
 //{{{

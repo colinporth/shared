@@ -36,7 +36,7 @@ private:
     mHls->getChunkInfo (chunk, loaded, loading, offset);
 
     draw->drawEllipseSolid (loading ? COL_DARKORANGE : loaded ? COL_DARKERGREEN : COL_DARKRED,
-      cPoint(mX + 2.f + ((mWidth-2.f) / 2.f), mY + (chunk * getBoxHeight()) + mHeight / 6.f), 
+      cPoint(mX + 2.f + ((mWidth-2.f) / 2.f), mY + (chunk * getBoxHeight()) + mHeight / 6.f),
       cPoint((mWidth-2.f) / 2.f, (mWidth-2.f) / 2.f));
 
     if (loaded || loading)
@@ -139,12 +139,12 @@ public:
 
       if (samples) {
         if (x == midx) {
-          context->setFillColour (nvgRGBA32 (COL_BLUE));
+          context->setFillColour (getRgbA32 (COL_BLUE));
           context->triangleFill();
           context->beginPath();
           }
         else if (x == midWidth) {
-          context->setFillColour (nvgRGBA32 (COL_DARKGREEN));
+          context->setFillColour (getRgbA32 (COL_DARKGREEN));
           context->triangleFill();
           context->beginPath();
           }
@@ -158,7 +158,7 @@ public:
         sample += samplesPerPixF;
       }
 
-    context->setFillColour (nvgRGBA32 (COL_DARKGREY));
+    context->setFillColour (getRgbA32 (COL_DARKGREY));
     context->triangleFill();
     //}}}
     }
