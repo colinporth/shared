@@ -1275,7 +1275,8 @@ void cVg::triangleFill() {
 //{{{  frame
 //{{{
 string cVg::getFrameStats() {
-  return "vertices:" + dec (mVertices.getNumVertices()) + " drawArrays:" + dec (mDrawArrays);
+  return "vertices:" + dec (mVertices.getNumVertices()) +
+         " drawArrays:" + dec (mDrawArrays);
   }
 //}}}
 
@@ -1337,108 +1338,6 @@ void cVg::endFrame() {
 //}}}
 
 // private
-//{{{  cVg::cShader
-//{{{
-cVg::cShader::~cShader() {
-  if (prog)
-    glDeleteProgram (prog);
-  if (vert)
-    glDeleteShader (vert);
-  if (frag)
-    glDeleteShader (frag);
-  }
-//}}}
-//{{{
-bool cVg::cShader::create (const char* opts) {
-
-  const char* str[3];
-  str[0] = kShaderHeader;
-  str[1] = opts != nullptr ? opts : "";
-
-  prog = glCreateProgram();
-  vert = glCreateShader (GL_VERTEX_SHADER);
-  str[2] = kVertShader;
-  glShaderSource (vert, 3, str, 0);
-
-  frag = glCreateShader (GL_FRAGMENT_SHADER);
-  str[2] = kFragShader;
-  glShaderSource (frag, 3, str, 0);
-
-  glCompileShader (vert);
-  GLint status;
-  glGetShaderiv (vert, GL_COMPILE_STATUS, &status);
-  if (status != GL_TRUE) {
-    //{{{  error return
-    dumpShaderError (vert, "shader", "vert");
-    return false;
-    }
-    //}}}
-
-  glCompileShader (frag);
-  glGetShaderiv (frag, GL_COMPILE_STATUS, &status);
-  if (status != GL_TRUE) {
-    //{{{  error return
-    dumpShaderError (frag, "shader", "frag");
-    return false;
-    }
-    //}}}
-
-  glAttachShader (prog, vert);
-  glAttachShader (prog, frag);
-
-  glBindAttribLocation (prog, 0, "vertex");
-  glBindAttribLocation (prog, 1, "tcoord");
-
-  glLinkProgram (prog);
-  glGetProgramiv (prog, GL_LINK_STATUS, &status);
-  if (status != GL_TRUE) {
-    //{{{  error return
-    dumpProgramError (prog, "shader");
-    return false;
-    }
-    //}}}
-
-  glUseProgram (prog);
-
-  return true;
-  }
-//}}}
-
-//{{{
-void cVg::cShader::getUniforms() {
-  location[LOCATION_VIEWSIZE] = glGetUniformLocation (prog, "viewSize");
-  location[LOCATION_TEX] = glGetUniformLocation (prog, "tex");
-  location[LOCATION_FRAG] = glGetUniformLocation (prog, "frag");
-  }
-//}}}
-
-//{{{
-void cVg::cShader::dumpShaderError (GLuint shader, const char* name, const char* type) {
-
-  GLchar str[512+1];
-  GLsizei len = 0;
-  glGetShaderInfoLog (shader, 512, &len, str);
-  if (len > 512)
-    len = 512;
-  str[len] = '\0';
-
-  printf ("Shader %s/%s error:%s\n", name, type, str);
-  }
-//}}}
-//{{{
-void cVg::cShader::dumpProgramError (GLuint prog, const char* name) {
-
-  GLchar str[512+1];
-  GLsizei len = 0;
-  glGetProgramInfoLog (prog, 512, &len, str);
-  if (len > 512)
-    len = 512;
-  str[len] = '\0';
-
-  printf ("Program %s error:%s\n", name, str);
-  }
-//}}}
-//}}}
 //{{{  cVg::cVertices
 //{{{
 cVg::cVertices::cVertices() {
@@ -1516,8 +1415,8 @@ void cVg::cShape::addCommand (float* values, int numValues, cTransform& transfor
     }
 
   // transform commands
-  if (transform.mIdentity) {
-    //{{{  state xform nonIdentity, transform points
+  if (!transform.mIdentity) {
+    //{{{  transform points
     for (int i = 0; i < numValues;) {
       switch ((int)values[i++]) {
         case eMoveTo:
@@ -1558,6 +1457,7 @@ void cVg::cShape::addCommand (float* values, int numValues, cTransform& transfor
     mCommands = (float*)realloc (mCommands, sizeof(float) * mNumAllocatedCommands);
     cLog::log (LOGINFO2, "realloc commmands " + dec(mNumAllocatedCommands));
     }
+
   memcpy (&mCommands[mNumCommands], values, numValues * sizeof(float));
   mNumCommands += numValues;
   }
@@ -2393,6 +2293,108 @@ cVg::sVertex* cVg::cShape::roundCapEnd (sVertex* vertexPtr, sShapePoint* point, 
     }
 
   return vertexPtr;
+  }
+//}}}
+//}}}
+//{{{  cVg::cShader
+//{{{
+cVg::cShader::~cShader() {
+  if (prog)
+    glDeleteProgram (prog);
+  if (vert)
+    glDeleteShader (vert);
+  if (frag)
+    glDeleteShader (frag);
+  }
+//}}}
+//{{{
+bool cVg::cShader::create (const char* opts) {
+
+  const char* str[3];
+  str[0] = kShaderHeader;
+  str[1] = opts != nullptr ? opts : "";
+
+  prog = glCreateProgram();
+  vert = glCreateShader (GL_VERTEX_SHADER);
+  str[2] = kVertShader;
+  glShaderSource (vert, 3, str, 0);
+
+  frag = glCreateShader (GL_FRAGMENT_SHADER);
+  str[2] = kFragShader;
+  glShaderSource (frag, 3, str, 0);
+
+  glCompileShader (vert);
+  GLint status;
+  glGetShaderiv (vert, GL_COMPILE_STATUS, &status);
+  if (status != GL_TRUE) {
+    //{{{  error return
+    dumpShaderError (vert, "shader", "vert");
+    return false;
+    }
+    //}}}
+
+  glCompileShader (frag);
+  glGetShaderiv (frag, GL_COMPILE_STATUS, &status);
+  if (status != GL_TRUE) {
+    //{{{  error return
+    dumpShaderError (frag, "shader", "frag");
+    return false;
+    }
+    //}}}
+
+  glAttachShader (prog, vert);
+  glAttachShader (prog, frag);
+
+  glBindAttribLocation (prog, 0, "vertex");
+  glBindAttribLocation (prog, 1, "tcoord");
+
+  glLinkProgram (prog);
+  glGetProgramiv (prog, GL_LINK_STATUS, &status);
+  if (status != GL_TRUE) {
+    //{{{  error return
+    dumpProgramError (prog, "shader");
+    return false;
+    }
+    //}}}
+
+  glUseProgram (prog);
+
+  return true;
+  }
+//}}}
+
+//{{{
+void cVg::cShader::getUniforms() {
+  location[LOCATION_VIEWSIZE] = glGetUniformLocation (prog, "viewSize");
+  location[LOCATION_TEX] = glGetUniformLocation (prog, "tex");
+  location[LOCATION_FRAG] = glGetUniformLocation (prog, "frag");
+  }
+//}}}
+
+//{{{
+void cVg::cShader::dumpShaderError (GLuint shader, const char* name, const char* type) {
+
+  GLchar str[512+1];
+  GLsizei len = 0;
+  glGetShaderInfoLog (shader, 512, &len, str);
+  if (len > 512)
+    len = 512;
+  str[len] = '\0';
+
+  printf ("Shader %s/%s error:%s\n", name, type, str);
+  }
+//}}}
+//{{{
+void cVg::cShader::dumpProgramError (GLuint prog, const char* name) {
+
+  GLchar str[512+1];
+  GLsizei len = 0;
+  glGetProgramInfoLog (prog, 512, &len, str);
+  if (len > 512)
+    len = 512;
+  str[len] = '\0';
+
+  printf ("Program %s error:%s\n", name, str);
   }
 //}}}
 //}}}
