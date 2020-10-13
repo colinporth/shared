@@ -197,29 +197,29 @@ void cHlsPlayer::loaderThread() {
 
   mSong->setChannel (mChannelName);
   mSong->setBitrate (mAudBitrate, mAudBitrate < 128000 ? 180 : 360); // audBitrate, audioFrames per chunk
+  mSong->init (cAudioDecode::eAac, 2, 48000, mSong->getBitrate() < 128000 ? 2048 : 1024); // samplesPerFrame
 
   while (!mExit && !mSong->getChanged()) {
     mSong->setChanged (false);
-    const string path = "pool_902/live/uk/" + mSong->getChannel() +
-                        "/" + mSong->getChannel() +
-                        ".isml/" + mSong->getChannel() +
-                        (mSong->getBitrate() < 128000 ? "-pa3=" : "-pa4=") + dec(mSong->getBitrate()) +
-                        "-video=" + dec(mVidBitrate);
+    const string pathName = "pool_902/live/uk/" + mSong->getChannel() +
+                            "/" + mSong->getChannel() +
+                            ".isml/" + mSong->getChannel() +
+                            (mSong->getBitrate() < 128000 ? "-pa3=" : "-pa4=") + dec(mSong->getBitrate()) +
+                            "-video=" + dec(mVidBitrate);
     cPlatformHttp http;
-    string redirectedHost = http.getRedirect (mHostName, path + ".m3u8");
+    string redirectedHostName = http.getRedirect (mHostName, pathName + ".m3u8");
     if (http.getContent()) {
-      //{{{  got .m3u8, parse for mediaSequence, programDateTimePoint
-      int mediaSequence = stoi (getTagValue (http.getContent(), "#EXT-X-MEDIA-SEQUENCE:"));
-
+      //{{{  parse m3u8 for mediaSequence,programDateTimePoint
+      int extXMediaSequence = stoi (getTagValue (http.getContent(), "#EXT-X-MEDIA-SEQUENCE:"));
       istringstream inputStream (getTagValue (http.getContent(), "#EXT-X-PROGRAM-DATE-TIME:"));
-      system_clock::time_point programDateTimePoint;
-      inputStream >> date::parse ("%FT%T", programDateTimePoint);
+
+      system_clock::time_point extXProgramDateTimePoint;
+      inputStream >> date::parse ("%FT%T", extXProgramDateTimePoint);
 
       http.freeContent();
-      //}}}
-      mSong->init (cAudioDecode::eAac, 2, 48000, mSong->getBitrate() < 128000 ? 2048 : 1024); // samplesPerFrame
-      mSong->setHlsBase (mediaSequence, programDateTimePoint, -37s, (2*60*60) - 25);
 
+      mSong->setHlsBase (extXMediaSequence, extXProgramDateTimePoint, -37s, (2*60*60) - 25);
+      //}}}
       while (!mExit && !mSong->getChanged()) {
         int audioFrameNum;
         int chunkNum = mSong->getLoadChunkNum (system_clock::now(), 12s, 2, audioFrameNum);
@@ -231,7 +231,7 @@ void cHlsPlayer::loaderThread() {
           cLog::log (LOGINFO, "get chunkNum:" + dec(chunkNum) + " audioFrameNum:" + dec(audioFrameNum));
 
           int contentUsed = 0;
-          if (http.get (redirectedHost, path + '-' + dec(chunkNum) + ".ts", "",
+          if (http.get (redirectedHostName, pathName + '-' + dec(chunkNum) + ".ts", "",
                         [&] (const string& key, const string& value) noexcept {}, // header lambda
                         [&] (const uint8_t* data, int length) noexcept {
                            //{{{  data lambda
@@ -246,7 +246,7 @@ void cHlsPlayer::loaderThread() {
                                ts += 188;
                                }
                              else {
-                               cLog::log (LOGERROR, "packet not ts %d", contentUsed);
+                               cLog::log (LOGERROR, "ts packet sync:%d", contentUsed);
                                return false;
                                }
 
