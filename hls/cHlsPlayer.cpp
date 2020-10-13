@@ -61,55 +61,21 @@ cHlsPlayer::~cHlsPlayer() {
   delete mSong;
   delete mVideoDecode;
   delete mAudioDecode;
-  delete mVideoPesParser;
-  delete mAudioPesParser;
   }
 //}}}
 //{{{
-void cHlsPlayer::init (const string& host, const string& channel, int audBitrate, int vidBitrate,
+void cHlsPlayer::init (const string& hostName, const string& channelName, int audBitrate, int vidBitrate,
                        bool useFFmpeg, bool queueVideo, bool queueAudio, bool streaming) {
-  mHost = host;
-  mChannel = channel;
+  mHostName = hostName;
+  mChannelName = channelName;
 
   // audio
   mAudBitrate = audBitrate;
   mSong = new cSong();
   mAudioDecode = new cAudioDecode (cAudioDecode::eAac);
 
-  mAudioPesParser = new cPesParser (34, queueAudio, "aud",
-    [&] (uint8_t* pes, int size, int num, uint64_t pts,
-         bool useQueue, readerWriterQueue::cBlockingReaderWriterQueue <cPesParser::cPesItem*>& queue) noexcept {
-      //{{{  audio pes process callback lambda
-      uint8_t* framePes = pes;
-      while (getAudioDecode()->parseFrame (framePes, pes + size)) {
-        int framePesSize = getAudioDecode()->getNextFrameOffset();
-
-        // decode a single frame from pes
-        if (useQueue)
-          queue.enqueue (new cPesParser::cPesItem (framePes, framePesSize, num, pts));
-        else {
-          mSong->addAudioFrame (num, mAudioDecode->decodeFrame (framePes, framePesSize, num, pts), true, mSong->getNumFrames(), nullptr, pts);
-          startPlayer();
-          }
-
-        // point to next frame in pes, assumes 48000 sample rate
-        pts += (getAudioDecode()->getNumSamples() * 90) / 48;
-        num++;
-
-        framePes += framePesSize;
-        }
-
-      return num;
-      },
-      //}}}
-    [&] (uint8_t* pes, int size, int num, uint64_t pts) noexcept {
-      //{{{  audio pes decode callback lambda
-      mSong->addAudioFrame (num, mAudioDecode->decodeFrame (pes, size, num, pts), true, mSong->getNumFrames(), nullptr, pts);
-      startPlayer();
-      }
-      //}}}
-    );
-
+  // video
+  mVidBitrate = vidBitrate;
   mUseFFmpeg = useFFmpeg;
   if (useFFmpeg)
     mVideoDecode = new cFFmpegVideoDecode();
@@ -118,36 +84,73 @@ void cHlsPlayer::init (const string& host, const string& channel, int audBitrate
       mVideoDecode = new cMfxVideoDecode();
   #endif
 
-  // video
-  mVidBitrate = vidBitrate;
-  mVideoPesParser = new cPesParser (33, queueVideo, "vid",
-    [&] (uint8_t* pes, int size, int num, uint64_t pts,
-         bool useQueue, readerWriterQueue::cBlockingReaderWriterQueue <cPesParser::cPesItem*>& queue) noexcept {
-      //{{{  video pes process callback lambda
-      if (useQueue)
-        queue.enqueue (new cPesParser::cPesItem(pes, size, num, pts));
-      else
-        mVideoDecode->decodeFrame (pes, size, num, pts);
+  // audio
+  mPesParsers.push_back (
+    new cPesParser (34, queueAudio, "aud",
+      [&] (uint8_t* pes, int size, int num, uint64_t pts,
+           bool useQueue, readerWriterQueue::cBlockingReaderWriterQueue <cPesParser::cPesItem*>& queue) noexcept {
+        //{{{  audio pes process callback lambda
+        uint8_t* framePes = pes;
+        while (getAudioDecode()->parseFrame (framePes, pes + size)) {
+          int framePesSize = getAudioDecode()->getNextFrameOffset();
 
-      num++;
-      return num;
-      },
-      //}}}
-    [&] (uint8_t* pes, int size, int num, uint64_t pts) noexcept {
-      //{{{  video pes decode callback lambda
-      mVideoDecode->decodeFrame (pes, size, num, pts);
-      }
-      //}}}
+          // decode a single frame from pes
+          if (useQueue)
+            queue.enqueue (new cPesParser::cPesItem (framePes, framePesSize, num, pts));
+          else {
+            mSong->addAudioFrame (num, mAudioDecode->decodeFrame (framePes, framePesSize, num, pts), true, mSong->getNumFrames(), nullptr, pts);
+            startPlayer();
+            }
+
+          // point to next frame in pes, assumes 48000 sample rate
+          pts += (getAudioDecode()->getNumSamples() * 90) / 48;
+          num++;
+
+          framePes += framePesSize;
+          }
+
+        return num;
+        },
+        //}}}
+      [&] (uint8_t* pes, int size, int num, uint64_t pts) noexcept {
+        //{{{  audio pes decode callback lambda
+        mSong->addAudioFrame (num, mAudioDecode->decodeFrame (pes, size, num, pts), true, mSong->getNumFrames(), nullptr, pts);
+        startPlayer();
+        }
+        //}}}
+      )
+    );
+
+  // video
+  mPesParsers.push_back (
+    new cPesParser (33, queueVideo, "vid",
+      [&] (uint8_t* pes, int size, int num, uint64_t pts,
+           bool useQueue, readerWriterQueue::cBlockingReaderWriterQueue <cPesParser::cPesItem*>& queue) noexcept {
+        //{{{  video pes process callback lambda
+        if (useQueue)
+          queue.enqueue (new cPesParser::cPesItem(pes, size, num, pts));
+        else
+          mVideoDecode->decodeFrame (pes, size, num, pts);
+
+        num++;
+        return num;
+        },
+        //}}}
+      [&] (uint8_t* pes, int size, int num, uint64_t pts) noexcept {
+        //{{{  video pes decode callback lambda
+        mVideoDecode->decodeFrame (pes, size, num, pts);
+        }
+        //}}}
+      )
     );
 
   mStreaming = streaming;
   }
 //}}}
 
-float cHlsPlayer::getAudioFrac() { return mVideoPesParser->getFrac(); }
-float cHlsPlayer::getVideoFrac() { return mVideoPesParser->getFrac(); }
+float cHlsPlayer::getAudioFrac() { return mPesParsers.size() > 0 ? mPesParsers[0]->getFrac() : 0.f; }
+float cHlsPlayer::getVideoFrac() { return mPesParsers.size() > 1 ? mPesParsers[1]->getFrac() : 0.f; }
 
-// protected
 //{{{
 void cHlsPlayer::videoFollowAudio() {
 
@@ -164,7 +167,7 @@ void cHlsPlayer::loaderThread() {
 
   cLog::setThreadName ("hls ");
 
-  mSong->setChannel (mChannel);
+  mSong->setChannel (mChannelName);
   mSong->setBitrate (mAudBitrate, mAudBitrate < 128000 ? 180 : 360); // audBitrate, audioFrames per chunk
 
   while (!mExit && !mSong->getChanged()) {
@@ -175,7 +178,7 @@ void cHlsPlayer::loaderThread() {
                         (mSong->getBitrate() < 128000 ? "-pa3=" : "-pa4=") + dec(mSong->getBitrate()) +
                         "-video=" + dec(mVidBitrate);
     cPlatformHttp http;
-    string redirectedHost = http.getRedirect (mHost, path + ".m3u8");
+    string redirectedHost = http.getRedirect (mHostName, path + ".m3u8");
     if (http.getContent()) {
       //{{{  got .m3u8, parse for mediaSequence, programDateTimePoint
       int mediaSequence = stoi (getTagValue (http.getContent(), "#EXT-X-MEDIA-SEQUENCE:"));
@@ -190,39 +193,35 @@ void cHlsPlayer::loaderThread() {
       mSong->setHlsBase (mediaSequence, programDateTimePoint, -37s, (2*60*60) - 25);
 
       while (!mExit && !mSong->getChanged()) {
-        int chunkNum = mSong->getHlsLoadChunkNum (system_clock::now(), 12s, 2);
+        int audioFrameNum;
+        int chunkNum = mSong->getLoadChunkNum (system_clock::now(), 12s, 2, audioFrameNum);
         if (chunkNum) {
-          int contentUsed = 0;
-          mVideoPesParser->clear(0);
-          int audioFrameNum = mSong->getFrameNumFromChunkNum (chunkNum);
-          mAudioPesParser->clear (audioFrameNum);
+          for (auto pesParser : mPesParsers)
+            pesParser->clear (0);
+          // !||!! need to unfudge this !!!!!!!
+          mPesParsers[0]->clear (audioFrameNum);
           cLog::log (LOGINFO, "get chunkNum:" + dec(chunkNum) + " audioFrameNum:" + dec(audioFrameNum));
+
+          int contentUsed = 0;
           if (http.get (redirectedHost, path + '-' + dec(chunkNum) + ".ts", "",
-                        [&] (const string& key, const string& value) noexcept { /* headerCallback lambda */ },
+                        [&] (const string& key, const string& value) noexcept {}, // header lambda
                         [&] (const uint8_t* data, int length) noexcept {
-                           //{{{  data callback lambda
+                           //{{{  data lambda
                            mLoadFrac = float(http.getContentSize()) / http.getHeaderContentSize();
 
-                           while (http.getContentSize() - contentUsed >= 188) { // have a whole ts packet
+                           while (http.getContentSize() - contentUsed >= 188) {
                              uint8_t* ts = http.getContent() + contentUsed;
-                             if (*ts++ == 0x47) { // ts packet start
-                               bool payStart = ts[0] & 0x40;
-                               auto pid = ((ts[0] & 0x1F) << 8) | ts[1];
-                               auto headerSize = (ts[2] & 0x20) ? 4 + ts[3] : 3;
-
-                               if (pid == mVideoPesParser->getPid())
-                                 mVideoPesParser->parseTs (payStart, ts + headerSize, 187 - headerSize);
-                               else if (pid == mAudioPesParser->getPid())
-                                 mAudioPesParser->parseTs (payStart, ts + headerSize, 187 - headerSize);
-                               else if (pid && (pid != 32))
-                                 cLog::log (LOGERROR, "other pid %d", pid);
-
-                               ts += 187;
+                             if (*ts == 0x47) {
+                               for (auto pesParser : mPesParsers)
+                                 if (pesParser->parseTs (ts))
+                                   break;
+                               ts += 188;
                                }
                              else {
                                cLog::log (LOGERROR, "packet not ts %d", contentUsed);
                                return false;
                                }
+
                              contentUsed += 188;
                              }
 
@@ -230,8 +229,8 @@ void cHlsPlayer::loaderThread() {
                            }
                            //}}}
                         ) == 200) {
-            mAudioPesParser->processLastPes();
-            mVideoPesParser->processLastPes();
+            for (auto pesParser : mPesParsers)
+              pesParser->processLast();
             mLoadFrac = 0.f;
             http.freeContent();
             }

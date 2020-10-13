@@ -1,4 +1,4 @@
-// cPesparser.h
+// cPesParser.h - parse Pes from tsBody packets, queue or call decode immediately
 #pragma once
 //{{{  includes
 #include <string>
@@ -10,13 +10,14 @@
 //}}}
 
 class cPesParser {
-// extract pes from ts, possible queue, decode
+// extract pes from ts, queue?, decode
 public:
   //{{{
   class cPesItem {
   public:
     //{{{
-    cPesItem (uint8_t* pes, int size, int num, uint64_t pts) : mPesSize(size), mNum(num), mPts(pts) {
+    cPesItem (uint8_t* pes, int size, int sequenceNum, uint64_t pts) 
+        : mPesSize(size), mSequenceNum(sequenceNum), mPts(pts) {
       mPes = (uint8_t*)malloc (size);
       memcpy (mPes, pes, size);
       }
@@ -29,15 +30,15 @@ public:
 
     uint8_t* mPes;
     const int mPesSize;
-    const int mNum;
+    const int mSequenceNum;
     const uint64_t mPts;
     };
   //}}}
   //{{{
   cPesParser (int pid, bool useQueue, const std::string& name,
-              std::function<int (uint8_t* pes, int size, int num, uint64_t pts, bool useQueue,
+              std::function <int (uint8_t* pes, int size, int sequenceNum, uint64_t pts, bool useQueue,
                              readerWriterQueue::cBlockingReaderWriterQueue <cPesItem*>& mQueue)> process,
-              std::function<void (uint8_t* pes, int size, int num, uint64_t pts)> decode)
+              std::function <void (uint8_t* pes, int size, int sequenceNum, uint64_t pts)> decode)
       : mPid(pid), mName(name), mProcess(process), mDecode(decode), mUseQueue(useQueue) {
 
     mPes = (uint8_t*)malloc (kInitPesSize);
@@ -49,8 +50,8 @@ public:
   virtual ~cPesParser() {}
 
   //{{{
-  void clear (int num) {
-    mNum = num;
+  void clear (int sequenceNum) {
+    mSequenceNum = sequenceNum;
     mPesSize = 0;
     mPts = 0;
     }
@@ -58,36 +59,48 @@ public:
 
   int getPid() { return mPid; }
   float getFrac() { return mUseQueue ? (float)mQueue.size_approx() / mQueue.max_capacity() : 0.f; }
+
   //{{{
-  void parseTs (bool payStart, uint8_t* ts, int tsBodySize) {
+  bool parseTs (uint8_t* ts) {
 
-    // could check pes type ts[0,1,2,3] as well
-    if (payStart) {
-      processLastPes();
-
-      if (ts[7] & 0x80)
-        mPts = getPts (ts+9);
-
-      int headerSize = 9 + ts[8];
+    int pid = ((ts[1] & 0x1F) << 8) | ts[2];
+    if (pid == mPid) {
+      bool payloadStart = ts[1] & 0x40;
+      auto headerSize = 1 + ((ts[3] & 0x20) ? 4 + ts[4] : 3);
       ts += headerSize;
-      tsBodySize -= headerSize;
-      }
+      int tsLeft = 188 - headerSize;
 
-    if (mPesSize + tsBodySize > mAllocSize) {
-      mAllocSize *= 2;
-      mPes = (uint8_t*)realloc (mPes, mAllocSize);
-      cLog::log (LOGINFO, mName + " pes allocSize doubled to " + dec(mAllocSize));
-      }
+      if (payloadStart) {
+        // could check pes type as well
+        processLast();
 
-    memcpy (mPes + mPesSize, ts, tsBodySize);
-    mPesSize += tsBodySize;
+        if (ts[7] & 0x80)
+          mPts = getPts (ts+9);
+
+        int headerSize = 9 + ts[8];
+        ts += headerSize;
+        tsLeft -= headerSize;
+        }
+
+      if (mPesSize + tsLeft > mAllocSize) {
+        mAllocSize *= 2;
+        mPes = (uint8_t*)realloc (mPes, mAllocSize);
+        cLog::log (LOGINFO, mName + " pes allocSize doubled to " + dec(mAllocSize));
+        }
+
+      memcpy (mPes + mPesSize, ts, tsLeft);
+      mPesSize += tsLeft;
+      return true;
+      }
+    else
+      return false;
     }
   //}}}
-
   //{{{
-  void processLastPes() {
+  void processLast() {
+
     if (mPesSize) {
-      mNum = mProcess (mPes, mPesSize, mNum, mPts, mUseQueue, mQueue);
+      mSequenceNum = mProcess (mPes, mPesSize, mSequenceNum, mPts, mUseQueue, mQueue);
       mPesSize = 0;
       }
     }
@@ -95,7 +108,6 @@ public:
 
 private:
   static constexpr int kInitPesSize = 4096;
-
   //{{{
   static uint64_t getPts (const uint8_t* ts) {
   // return 33 bits of pts,dts
@@ -123,7 +135,7 @@ private:
     while (true) {
       cPesItem* queueItem;
       mQueue.wait_dequeue (queueItem);
-      mDecode (queueItem->mPes, queueItem->mPesSize, queueItem->mNum, queueItem->mPts);
+      mDecode (queueItem->mPes, queueItem->mPesSize, queueItem->mSequenceNum, queueItem->mPts);
       delete queueItem;
       }
     }
@@ -133,16 +145,17 @@ private:
   int mPid = 0;
   std::string mName;
 
-  std::function<int (uint8_t* pes, int size, int num, uint64_t pts, bool useQueue,
-                     readerWriterQueue::cBlockingReaderWriterQueue <cPesItem*>& mQueue)> mProcess;
-  std::function<void (uint8_t* pes, int size, int num, uint64_t pts)> mDecode;
+  std::function <int (uint8_t* pes, int size, int sequenceNum, uint64_t pts, bool useQueue,
+                      readerWriterQueue::cBlockingReaderWriterQueue <cPesItem*>& mQueue)> mProcess;
+  std::function <void (uint8_t* pes, int size, int sequenceNum, uint64_t pts)> mDecode;
 
   bool mUseQueue = false;
   readerWriterQueue::cBlockingReaderWriterQueue <cPesItem*> mQueue;
 
   int mAllocSize = kInitPesSize;
+
   uint8_t* mPes = nullptr;
   int mPesSize = 0;
-  int mNum = 0;
+  int mSequenceNum = 0;
   uint64_t mPts = 0;
   };

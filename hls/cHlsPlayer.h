@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstring>
 #include <string>
+#include <vector>
 #include <thread>
 //}}}
 
@@ -17,7 +18,7 @@ public:
   cHlsPlayer();
   virtual ~cHlsPlayer();
 
-  void init (const std::string& host, const std::string& channel, int audBitrate, int vidBitrate,
+  void init (const std::string& hostName, const std::string& channelName, int audBitrate, int vidBitrate,
              bool useFFmpeg = true, bool videoQueue = true, bool audioQueue = true, bool streaming = true);
 
   cSong* getSong() { return mSong; }
@@ -28,7 +29,7 @@ public:
   float getVideoFrac();
   float getAudioFrac();
 
-  std::string getChannel() { return mChannel; }
+  std::string getChannelName() { return mChannelName; }
   int getVidBitrate() { return mVidBitrate; }
   int getAudBitrate() { return mAudBitrate; }
 
@@ -36,14 +37,15 @@ public:
   void loaderThread();
 
   cSong* mSong;
+  int mChunkNum = 0;
   bool mPlaying = true;
   bool mExit = false;
 
 private:
   void startPlayer();
 
-  std::string mHost;
-  std::string mChannel;
+  std::string mHostName;
+  std::string mChannelName;
   int mVidBitrate = 0;
   int mAudBitrate = 0;
 
@@ -52,8 +54,7 @@ private:
 
   float mLoadFrac = 0.f;
 
-  cPesParser* mAudioPesParser = nullptr;
-  cPesParser* mVideoPesParser = nullptr;
+  std::vector<cPesParser*> mPesParsers;
   cAudioDecode* mAudioDecode = nullptr;
   cVideoDecode* mVideoDecode = nullptr;
 

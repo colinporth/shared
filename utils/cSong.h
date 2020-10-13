@@ -193,12 +193,7 @@ public:
 
   // hls
   bool hasHlsBase() { return mHlsBaseValid; }
-  int getHlsLoadChunkNum (std::chrono::system_clock::time_point now, std::chrono::seconds secs, int preload);
-  //{{{
-  int getFrameNumFromChunkNum (int chunkNum) {
-    return mHlsBaseFrame + (chunkNum - mHlsBaseChunkNum) * mHlsFramesPerChunk;
-    }
-  //}}}
+  int getLoadChunkNum (std::chrono::system_clock::time_point now, std::chrono::seconds secs, int preload, int& frameNum);
   //}}}
   //{{{  sets
   void setNumChannels (int numChannels) { mNumChannels = numChannels; }

@@ -235,7 +235,7 @@ void cSong::clear() {
 
 // cSong gets
 //{{{
-int cSong::getHlsLoadChunkNum (system_clock::time_point now, chrono::seconds secs, int preload) {
+int cSong::getLoadChunkNum (system_clock::time_point now, chrono::seconds secs, int preload, int& frameNum) {
 
   // get offsets of playFrame from baseFrame, handle -v offsets correctly
   int frameOffset = mPlayFrame - mHlsBaseFrame;
@@ -246,9 +246,12 @@ int cSong::getHlsLoadChunkNum (system_clock::time_point now, chrono::seconds sec
   int loaded = 0;
   while ((loaded < preload) && ((now - (mHlsBaseTimePoint + (chunkNumOffset * 6400ms))) > secs))
     // chunkNum chunk should be available
-    if (!getAudioFramePtr (mHlsBaseFrame + (chunkNumOffset * mHlsFramesPerChunk)))
+    if (!getAudioFramePtr (mHlsBaseFrame + (chunkNumOffset * mHlsFramesPerChunk))) {
       // not loaded, return chunkNum to load
-      return mHlsBaseChunkNum + chunkNumOffset;
+      int chunkNum = mHlsBaseChunkNum + chunkNumOffset;
+      frameNum = mHlsBaseFrame + (chunkNum - mHlsBaseChunkNum) * mHlsFramesPerChunk;
+      return chunkNum;
+      }
     else {
       // already loaded, next
       loaded++;
@@ -256,6 +259,7 @@ int cSong::getHlsLoadChunkNum (system_clock::time_point now, chrono::seconds sec
       }
 
   // return 0, no chunkNum available to load
+  frameNum = 0;
   return 0;
   }
 //}}}

@@ -49,7 +49,7 @@ public:
     vg->restoreState();
 
     // info text
-    std::string infoString = mHlsPlayer->getChannel() +
+    std::string infoString = mHlsPlayer->getChannelName() +
                              " - " + dec(mHlsPlayer->getVidBitrate()) +
                              ":" + dec(mHlsPlayer->getAudBitrate()) +
                              " " + dec(mHlsPlayer->getVideoDecode()->getWidth()) +
