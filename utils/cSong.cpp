@@ -135,11 +135,12 @@ cSong::~cSong() {
 //}}}
 
 //{{{
-void cSong::init (cAudioDecode::eFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame, int mapSize) {
+void cSong::init (cAudioDecode::eFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame, 
+                  int maxMapSize) {
 
   unique_lock<shared_mutex> lock (mSharedMutex);
 
-  mMapSize = mapSize;
+  mMaxMapSize = maxMapSize;
 
   // reset frame type
   mFrameType = frameType;
@@ -210,7 +211,7 @@ void cSong::addFrame (int frameNum, float* samples, bool owned, int totalFrames,
   unique_lock<shared_mutex> lock (mSharedMutex);
 
   // totalFrames can be a changing estimate for file, or increasing value for streaming
-  if (mFrameMap.size() > mMapSize)
+  if (mMaxMapSize && (mFrameMap.size() > mMaxMapSize))
     mFrameMap.erase(mFrameMap.begin());
 
   mFrameMap.insert (map<int,cFrame*>::value_type (frameNum,

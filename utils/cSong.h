@@ -145,7 +145,8 @@ public:
   //}}}
   virtual ~cSong();
 
-  void init (cAudioDecode::eFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame, int mapSize);
+  void init (cAudioDecode::eFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame, 
+             int maxMapSize = 0);
   void addFrame (int frameNum, float* samples, bool owned, int totalFrames, uint8_t* framePtr = nullptr,
                  uint64_t pts = 0xFFFFFFFFFFFFFFFF);
   void clear();
@@ -247,7 +248,7 @@ private:
   static constexpr int kMaxFreqBytes = 512; // arbitrary graphics max
 
   // vars
-  int mMapSize = 0;
+  int mMaxMapSize = 0;
   std::shared_mutex mSharedMutex;
   std::map <int, cFrame*> mFrameMap;
 
