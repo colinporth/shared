@@ -142,10 +142,10 @@ private:
     cLog::setThreadName (mName + "Q");
 
     while (true) {
-      cPesItem* queueItem;
-      mQueue.wait_dequeue (queueItem);
-      mDecodeCallback (queueItem->mPes, queueItem->mPesSize, queueItem->mSequenceNum, queueItem->mPts);
-      delete queueItem;
+      cPesItem* pesItem;
+      mQueue.wait_dequeue (pesItem);
+      mDecodeCallback (pesItem->mPes, pesItem->mPesSize, pesItem->mSequenceNum, pesItem->mPts);
+      delete pesItem;
       }
     }
   //}}}

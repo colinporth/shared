@@ -207,8 +207,8 @@ void cHlsPlayer::loaderThread() {
   cLog::setThreadName ("hls ");
 
   mSong->setChannel (mChannelName);
-  mSong->setBitrate (mAudBitrate, mAudBitrate < 128000 ? 180 : 360); // audBitrate, audioFrames per chunk
-  mSong->init (cAudioDecode::eAac, 2, 48000, mSong->getBitrate() < 128000 ? 2048 : 1024, 3000); // samplesPerFrame
+  mSong->setBitrate (mAudBitrate, mAudBitrate < 128000 ? 180 : 360);
+  mSong->init (cAudioDecode::eAac, 2, 48000, mSong->getBitrate() < 128000 ? 2048 : 1024, 1000);
 
   while (!mExit && !mSong->getChanged()) {
     mSong->setChanged (false);

@@ -1,8 +1,12 @@
 // cSong.cpp - set of audioFrames, videoFrames added with own timing
 //{{{  includes
+#define _CRT_SECURE_NO_WARNINGS
+#define _SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING
+
 #include "cSong.h"
 
 #include "../date/date.h"
+#include "../utils/utils.h"
 #include "../utils/cLog.h"
 
 using namespace std;
@@ -14,7 +18,40 @@ constexpr static float kMinPeakValue = 0.25f;
 constexpr static float kMinFreqValue = 256.f;
 constexpr static int kSilenceWindowFrames = 4;
 
-//cSong::cSelect
+namespace {
+  int gOtherFrame = 0;
+  int gSampleAllocs = 0;
+  }
+
+// cSong::cFrame
+//{{{
+cSong::cFrame::~cFrame() {
+
+  gOtherFrame--;
+
+  if (mOurSamples) {
+    assert (mSamples);
+    gSampleAllocs--;
+    free (mSamples);
+    }
+
+  #ifdef _DEBUG
+    cLog::log (LOGINFO, "~cFrame owned:%d pts:%u sample:%d other:%d", mOurSamples, mPts, gSampleAllocs, gOtherFrame);
+  #endif _DEBUG
+
+  assert (mPowerValues);
+  assert (mPeakValues);
+  assert (mFreqValues);
+  assert (mFreqLuma);
+
+  free (mPowerValues);
+  free (mPeakValues);
+  free (mFreqValues);
+  free (mFreqLuma);
+  }
+//}}}
+
+// cSong::cSelect
 //{{{
 bool cSong::cSelect::inRange (int frame) {
 
@@ -128,6 +165,7 @@ void cSong::cSelect::end() {
   }
 //}}}
 
+// cSong
 //{{{
 cSong::~cSong() {
   clearFrames();
@@ -135,7 +173,7 @@ cSong::~cSong() {
 //}}}
 
 //{{{
-void cSong::init (cAudioDecode::eFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame, 
+void cSong::init (cAudioDecode::eFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame,
                   int maxMapSize) {
 
   unique_lock<shared_mutex> lock (mSharedMutex);
@@ -156,7 +194,11 @@ void cSong::init (cAudioDecode::eFrameType frameType, int numChannels, int sampl
   }
 //}}}
 //{{{
-void cSong::addFrame (int frameNum, float* samples, bool owned, int totalFrames, uint8_t* framePtr, uint64_t pts) {
+void cSong::addFrame (int frameNum, float* samples, bool ourSamples, int totalFrames, uint8_t* framePtr, uint64_t pts) {
+
+  gOtherFrame++;
+  if (ourSamples)
+    gSampleAllocs++;
 
   // sum of squares channel power
   auto powerValues = (float*)malloc (mNumChannels * 4);
@@ -194,7 +236,7 @@ void cSong::addFrame (int frameNum, float* samples, bool owned, int totalFrames,
   auto freqValuesPtr = freqValues;
   auto lumaValuesPtr = lumaValues + getNumFreqBytes() - 1;
   for (auto i = 0; i < getNumFreqBytes(); i++) {
-    float value = float(sqrt (((*freqBufPtr).r * (*freqBufPtr).r) + ((*freqBufPtr).i * (*freqBufPtr).i)));
+    float value = sqrtf (((*freqBufPtr).r * (*freqBufPtr).r) + ((*freqBufPtr).i * (*freqBufPtr).i));
     mMaxFreqValue = std::max (mMaxFreqValue, value);
 
     // freq scaled to byte, only used for display
@@ -211,11 +253,15 @@ void cSong::addFrame (int frameNum, float* samples, bool owned, int totalFrames,
   unique_lock<shared_mutex> lock (mSharedMutex);
 
   // totalFrames can be a changing estimate for file, or increasing value for streaming
-  if (mMaxMapSize && (mFrameMap.size() > mMaxMapSize))
-    mFrameMap.erase(mFrameMap.begin());
+  if (mMaxMapSize && (mFrameMap.size() > mMaxMapSize)) {
+    // !!!!! reuse !!!!!!
+    auto it = mFrameMap.begin();
+    delete (*it).second;
+    mFrameMap.erase (it);
+    }
 
   mFrameMap.insert (map<int,cFrame*>::value_type (frameNum,
-    new cFrame (samples, owned, framePtr, powerValues, peakValues, freqValues, lumaValues, pts)));
+    new cFrame (samples, ourSamples, framePtr, powerValues, peakValues, freqValues, lumaValues, pts)));
   mTotalFrames = totalFrames;
 
   checkSilenceWindow (frameNum);
@@ -239,7 +285,55 @@ void cSong::clear() {
   }
 //}}}
 
-// cSong gets
+// playFrame
+//{{{
+void cSong::setPlayFrame (int frame) {
+
+  if (hasHlsBase())
+    mPlayFrame = min (frame, getLastFrame()+1);
+  else
+    mPlayFrame = min (max (frame, 0), getLastFrame()+1);
+  }
+//}}}
+//{{{
+void cSong::incPlayFrame (int frames, bool constrainToRange) {
+
+  int playFrame = mPlayFrame + frames;
+  if (constrainToRange)
+    playFrame = mSelect.constrainToRange (mPlayFrame, playFrame);
+
+  setPlayFrame (playFrame);
+  }
+//}}}
+//{{{
+void cSong::incPlaySec (int secs, bool useSelectRange) {
+  incPlayFrame ((secs * mSampleRate) / mSamplesPerFrame, useSelectRange);
+  }
+//}}}
+
+// hls
+//{{{
+void cSong::setHlsBase (int chunkNum, system_clock::time_point timePoint, seconds offset, int startSecs) {
+// set baseChunkNum, baseTimePoint and baseFrame (sinceMidnight)
+
+  unique_lock<shared_mutex> lock (mSharedMutex);
+
+  mHlsBaseChunkNum = chunkNum;
+
+  timePoint += offset;
+  mHlsBaseTimePoint = timePoint;
+
+  // calc hlsBaseFrame
+  auto midnightTimePoint = date::floor<date::days>(timePoint);
+  uint64_t msSinceMidnight = duration_cast<milliseconds>(timePoint - midnightTimePoint).count();
+  mHlsBaseFrame = int((msSinceMidnight * mSampleRate) / mSamplesPerFrame / 1000);
+
+  // add inn startSecs offset to playFrame for curious case of tv reporting 2 hours late in .m3u8
+  mPlayFrame = mHlsBaseFrame + ((startSecs * mSampleRate) / mSamplesPerFrame);
+
+  mHlsBaseValid = true;
+  }
+//}}}
 //{{{
 bool cSong::loadChunk (system_clock::time_point now, chrono::seconds secs, int preload, int& chunkNum, int& frameNum) {
 // return true if a chunk load needed
@@ -277,57 +371,7 @@ bool cSong::loadChunk (system_clock::time_point now, chrono::seconds secs, int p
   }
 //}}}
 
-// cSong playFrame
-//{{{
-void cSong::setPlayFrame (int frame) {
-
-  if (hasHlsBase())
-    mPlayFrame = min (frame, getLastFrame()+1);
-  else
-    mPlayFrame = min (max (frame, 0), getLastFrame()+1);
-  }
-//}}}
-//{{{
-void cSong::incPlayFrame (int frames, bool constrainToRange) {
-
-  int playFrame = mPlayFrame + frames;
-  if (constrainToRange)
-    playFrame = mSelect.constrainToRange (mPlayFrame, playFrame);
-
-  setPlayFrame (playFrame);
-  }
-//}}}
-//{{{
-void cSong::incPlaySec (int secs, bool useSelectRange) {
-  incPlayFrame ((secs * mSampleRate) / mSamplesPerFrame, useSelectRange);
-  }
-//}}}
-
-// cSong hls
-//{{{
-void cSong::setHlsBase (int chunkNum, system_clock::time_point timePoint, seconds offset, int startSecs) {
-// set baseChunkNum, baseTimePoint and baseFrame (sinceMidnight)
-
-  unique_lock<shared_mutex> lock (mSharedMutex);
-
-  mHlsBaseChunkNum = chunkNum;
-
-  timePoint += offset;
-  mHlsBaseTimePoint = timePoint;
-
-  // calc hlsBaseFrame
-  auto midnightTimePoint = date::floor<date::days>(timePoint);
-  uint64_t msSinceMidnight = duration_cast<milliseconds>(timePoint - midnightTimePoint).count();
-  mHlsBaseFrame = int((msSinceMidnight * mSampleRate) / mSamplesPerFrame / 1000);
-
-  // add inn startSecs offset to playFrame for curious case of tv reporting 2 hours late in .m3u8
-  mPlayFrame = mHlsBaseFrame + ((startSecs * mSampleRate) / mSamplesPerFrame);
-
-  mHlsBaseValid = true;
-  }
-//}}}
-
-// cSong actions
+// actions
 //{{{
 void cSong::prevSilencePlayFrame() {
   mPlayFrame = skipPrev (mPlayFrame, false);
@@ -343,7 +387,7 @@ void cSong::nextSilencePlayFrame() {
   }
 //}}}
 
-// cSong private
+// private
 //{{{
 void cSong::clearFrames() {
 
@@ -356,8 +400,7 @@ void cSong::clearFrames() {
   mSelect.clearAll();
 
   for (auto frame : mFrameMap)
-    if (frame.second)
-      delete (frame.second);
+    delete (frame.second);
   mFrameMap.clear();
 
   // reset maxValues

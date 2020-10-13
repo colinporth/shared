@@ -22,25 +22,14 @@ public:
   public:
     static constexpr float kQuietThreshold = 0.01f;
     //{{{
-    cFrame (float* samples, bool owned, uint8_t* framePtr,
+    cFrame (float* samples, bool ourSamples, uint8_t* framePtr,
             float* powerValues, float* peakValues, uint8_t* freqValues, uint8_t* lumaValues,
             uint64_t pts) :
-        mSamples(samples), mOwned(owned), mMuted(false), mSilence(false), mPtr(framePtr),
+        mSamples(samples), mOurSamples(ourSamples), mMuted(false), mSilence(false), mPtr(framePtr),
         mPowerValues(powerValues), mPeakValues(peakValues), mFreqValues(freqValues), mFreqLuma(lumaValues),
         mPts(pts) {}
     //}}}
-    //{{{
-    ~cFrame() {
-
-      if (mOwned)
-        free (mSamples);
-
-      free (mPowerValues);
-      free (mPeakValues);
-      free (mFreqValues);
-      free (mFreqLuma);
-      }
-    //}}}
+    virtual ~cFrame();
 
     // gets
     float* getSamples() { return mSamples; }
@@ -65,7 +54,7 @@ public:
   private:
     // vars
     float* mSamples;
-    bool mOwned;
+    bool mOurSamples;
     bool mMuted;
     bool mSilence;
 
@@ -145,9 +134,9 @@ public:
   //}}}
   virtual ~cSong();
 
-  void init (cAudioDecode::eFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame, 
+  void init (cAudioDecode::eFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame,
              int maxMapSize = 0);
-  void addFrame (int frameNum, float* samples, bool owned, int totalFrames, uint8_t* framePtr = nullptr,
+  void addFrame (int frameNum, float* samples, bool ourSamples, int totalFrames, uint8_t* framePtr = nullptr,
                  uint64_t pts = 0xFFFFFFFFFFFFFFFF);
   void clear();
 
@@ -253,7 +242,7 @@ private:
   std::map <int, cFrame*> mFrameMap;
 
   cAudioDecode::eFrameType mFrameType = cAudioDecode::eUnknown;
-  bool mOwned = false;
+  bool mOurSamples = false;
   bool mChanged = false;
 
   int mId = 0;
