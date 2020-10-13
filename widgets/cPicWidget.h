@@ -8,17 +8,16 @@
 
 class cPicWidget : public cWidget {
 public:
-  //{{{
-  cPicWidget (int selectValue, int& value, bool& changed)
-    : cWidget(), mSelectValue(selectValue), mValue(value), mChanged(changed) {}
-  //}}}
-  //{{{
-  cPicWidget (float width, float height, int selectValue, int& value, bool& changed)
-    : cWidget(width, height), mSelectValue(selectValue), mValue(value), mChanged(changed) {}
-  //}}}
+  cPicWidget (int value,
+              std::function<void (cPicWidget* widget, int value)> hitCallback = [](cPicWidget*, int){})
+    : cWidget(), mValue(value), mHitCallback(hitCallback) {}
+  cPicWidget (float width, float height, int value,
+              std::function<void (cPicWidget* widget, int value)> hitCallback = [](cPicWidget*, int){})
+    : cWidget(width, height), mValue(value), mHitCallback(hitCallback) {}
   virtual ~cPicWidget() {}
 
   virtual void setFileName (std::string fileName) {}
+  void setValue (int value) { mValue = value; }
   //{{{
   void setPic (uint8_t* pic, uint16_t picWidth, uint16_t picHeight, uint16_t components) {
 
@@ -32,26 +31,19 @@ public:
     mUpdateTexture = true;
     }
   //}}}
-  //{{{
-  void setSelectValue (int selectValue) {
-    mSelectValue = selectValue;
-    }
-  //}}}
 
   //{{{
   virtual void onDown (const cPointF& p) {
+
     cWidget::onDown (p);
-    if (mSelectValue != mValue) {
-      mValue = mSelectValue;
-      mChanged = true;
-      }
+    mHitCallback (this, mValue);
     }
   //}}}
 
   //{{{
   virtual void onDraw (iDraw* draw) {
 
-    mScale = isOn() ? 0.7f : (mSelectValue == mValue) ? 0.85f : 1.0f;
+    mScale = isOn() ? 0.7f : mSelected ? 0.85f : 1.0f;
     uint16_t width = int((mPixSize.x-1) * mScale);
     uint16_t height = int((mPixSize.y -1) * mScale);
 
@@ -81,15 +73,16 @@ public:
   //}}}
 
 private:
+  std::function <void (cPicWidget* box, int index)> mHitCallback;
+
   uint8_t* mPic = nullptr;
   uint16_t mPicWidth = 0;
   uint16_t mPicHeight = 0;
   uint16_t mPicComponents = 0;
 
   float mScale = 1.0f;
-  int mSelectValue;
-  int& mValue;
-  bool& mChanged;
+  int mValue = 0;
+  bool mSelected = false;
 
   int mImage = -1;
   bool mUpdateTexture = false;

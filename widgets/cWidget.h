@@ -4,6 +4,8 @@
 
 class cContainer;
 #include "iDraw.h"
+
+#include <functional>
 //}}}
 
 class cWidget {

@@ -75,8 +75,32 @@ class cPesParser {
 // extract pes from ts, possible queue, decode
 public:
   //{{{
-  cPesParser (cHlsPlayer* hlsPlayer, bool useQueue, const string& name)
-      : mHlsPlayer(hlsPlayer), mUseQueue(useQueue), mName(name) {
+  class cPesItem {
+  public:
+    //{{{
+    cPesItem (uint8_t* pes, int size, int num, uint64_t pts) : mPesSize(size), mNum(num), mPts(pts) {
+      mPes = (uint8_t*)malloc (size);
+      memcpy (mPes, pes, size);
+      }
+    //}}}
+    //{{{
+    ~cPesItem() {
+      free (mPes);
+      }
+    //}}}
+
+    uint8_t* mPes;
+    const int mPesSize;
+    const int mNum;
+    const uint64_t mPts;
+    };
+  //}}}
+  //{{{
+  cPesParser (int pid, bool useQueue, const string& name,
+              function<int (uint8_t* pes, int size, int num, uint64_t pts, bool useQueue,
+                             readerWriterQueue::cBlockingReaderWriterQueue <cPesItem*>& mQueue)> process,
+              function<void (uint8_t* pes, int size, int num, uint64_t pts)> decode)
+      : mPid(pid), mName(name), mProcess(process), mDecode(decode), mUseQueue(useQueue) {
 
     mPes = (uint8_t*)malloc (kInitPesSize);
 
@@ -94,8 +118,8 @@ public:
     }
   //}}}
 
+  int getPid() { return mPid; }
   float getFrac() { return mUseQueue ? (float)mQueue.size_approx() / mQueue.max_capacity() : 0.f; }
-
   //{{{
   void parseTs (bool payStart, uint8_t* ts, int tsBodySize) {
 
@@ -121,53 +145,15 @@ public:
     mPesSize += tsBodySize;
     }
   //}}}
+
   //{{{
   void processLastPes() {
     if (mPesSize) {
-      processPes();
+      mNum = mProcess (mPes, mPesSize, mNum, mPts, mUseQueue, mQueue);
       mPesSize = 0;
       }
     }
   //}}}
-
-protected:
-  //{{{
-  class cQueueItem {
-  public:
-    //{{{
-    cQueueItem (uint8_t* pes, int size, int num, uint64_t pts) : mPesSize(size), mNum(num), mPts(pts) {
-      mPes = (uint8_t*)malloc (size);
-      memcpy (mPes, pes, size);
-      }
-    //}}}
-    //{{{
-    ~cQueueItem() {
-      free (mPes);
-      }
-    //}}}
-
-    uint8_t* mPes;
-    const int mPesSize;
-    const int mNum;
-    const uint64_t mPts;
-    };
-  //}}}
-
-  virtual void processPes() = 0;
-  virtual void decodePes (uint8_t* pes, int size, int num, uint64_t pts) = 0;
-
-  // vars
-  cHlsPlayer* mHlsPlayer = nullptr;
-  bool mUseQueue = false;
-  string mName;
-
-  int mAllocSize = kInitPesSize;
-  uint8_t* mPes = nullptr;
-  int mPesSize = 0;
-  int mNum = 0;
-  uint64_t mPts = 0;
-
-  readerWriterQueue::cBlockingReaderWriterQueue <cQueueItem*> mQueue;
 
 private:
   static constexpr int kInitPesSize = 4096;
@@ -178,73 +164,30 @@ private:
     cLog::setThreadName (mName + "Q");
 
     while (true) {
-      cQueueItem* queueItem;
+      cPesItem* queueItem;
       mQueue.wait_dequeue (queueItem);
-      decodePes (queueItem->mPes, queueItem->mPesSize, queueItem->mNum, queueItem->mPts);
+      mDecode (queueItem->mPes, queueItem->mPesSize, queueItem->mNum, queueItem->mPts);
       delete queueItem;
       }
     }
   //}}}
-  };
-//}}}
-//{{{
-class cVideoPesParser : public cPesParser {
-public:
-  cVideoPesParser (cHlsPlayer* hlsPlayer, bool useQueue) : cPesParser(hlsPlayer, useQueue, "vid") {}
-  virtual ~cVideoPesParser() {}
 
-protected:
-  //{{{
-  void processPes() {
+  // vars
+  int mPid = 0;
+  string mName;
 
-    if (mUseQueue)
-      mQueue.enqueue (new cQueueItem(mPes, mPesSize, mNum, mPts));
-    else
-      decodePes (mPes, mPesSize, mNum, mPts);
+  function<int (uint8_t* pes, int size, int num, uint64_t pts, bool useQueue,
+                 readerWriterQueue::cBlockingReaderWriterQueue <cPesItem*>& mQueue)> mProcess;
+  function<void (uint8_t* pes, int size, int num, uint64_t pts)> mDecode;
 
-    mNum++;
-    }
-  //}}}
-  //{{{
-  void decodePes (uint8_t* pes, int size, int num, uint64_t pts) {
-    mHlsPlayer->videoDecode (pes, size, num, pts);
-    }
-  //}}}
-  };
-//}}}
-//{{{
-class cAudioPesParser : public cPesParser {
-public:
-  cAudioPesParser (cHlsPlayer* hlsPlayer, bool useQueue) : cPesParser(hlsPlayer, useQueue, "aud") {}
-  virtual ~cAudioPesParser() {}
+  bool mUseQueue = false;
+  readerWriterQueue::cBlockingReaderWriterQueue <cPesItem*> mQueue;
 
-protected:
-  //{{{
-  void processPes() {
-  // pes may have several frames, split pes up into frames, queue or decode
-
-    uint8_t* framePes = mPes;
-    while (mHlsPlayer->getAudioDecode()->parseFrame (framePes, mPes + mPesSize)) {
-      int framePesSize = mHlsPlayer->getAudioDecode()->getNextFrameOffset();
-
-      // decode a single frame from pes
-      if (mUseQueue)
-        mQueue.enqueue (new cQueueItem (framePes, framePesSize, mNum, mPts));
-      else
-        decodePes (framePes, framePesSize, mNum, mPts);
-
-      // point to next frame in pes, assumes 48000 sample rate
-      mPts += (mHlsPlayer->getAudioDecode()->getNumSamples() * 90) / 48;
-      mNum++;
-      framePes += framePesSize;
-      }
-    }
-  //}}}
-  //{{{
-  void decodePes (uint8_t* pes, int size, int num, uint64_t pts) {
-    mHlsPlayer->audioDecode (pes, size, num, pts);
-    }
-  //}}}
+  int mAllocSize = kInitPesSize;
+  uint8_t* mPes = nullptr;
+  int mPesSize = 0;
+  int mNum = 0;
+  uint64_t mPts = 0;
   };
 //}}}
 
@@ -263,14 +206,47 @@ cHlsPlayer::~cHlsPlayer() {
 //{{{
 void cHlsPlayer::init (const string& host, const string& channel, int audBitrate, int vidBitrate,
                        bool useFFmpeg, bool queueVideo, bool queueAudio, bool streaming) {
-
   mHost = host;
   mChannel = channel;
-  mAudBitrate = audBitrate;
-  mVidBitrate = vidBitrate;
 
+  // audio
+  mAudBitrate = audBitrate;
   mSong = new cSong();
   mAudioDecode = new cAudioDecode (cAudioDecode::eAac);
+
+  mAudioPesParser = new cPesParser (34, queueAudio, "aud",
+    [&] (uint8_t* pes, int size, int num, uint64_t pts,
+         bool useQueue, readerWriterQueue::cBlockingReaderWriterQueue <cPesParser::cPesItem*>& queue) noexcept {
+      //{{{  audio pes process callback lambda
+      uint8_t* framePes = pes;
+      while (getAudioDecode()->parseFrame (framePes, pes + size)) {
+        int framePesSize = getAudioDecode()->getNextFrameOffset();
+
+        // decode a single frame from pes
+        if (useQueue)
+          queue.enqueue (new cPesParser::cPesItem (framePes, framePesSize, num, pts));
+        else {
+          mSong->addAudioFrame (num, mAudioDecode->decodeFrame (framePes, framePesSize, num), true, mSong->getNumFrames(), nullptr, pts);
+          startPlayer();
+          }
+
+        // point to next frame in pes, assumes 48000 sample rate
+        pts += (getAudioDecode()->getNumSamples() * 90) / 48;
+        num++;
+
+        framePes += framePesSize;
+        }
+
+      return num;
+      },
+      //}}}
+    [&] (uint8_t* pes, int size, int num, uint64_t pts) noexcept {
+      //{{{  audio pes decode callback lambda
+      mSong->addAudioFrame (num, mAudioDecode->decodeFrame (pes, size, num), true, mSong->getNumFrames(), nullptr, pts);
+      startPlayer();
+      }
+      //}}}
+    );
 
   mUseFFmpeg = useFFmpeg;
   if (useFFmpeg)
@@ -280,32 +256,34 @@ void cHlsPlayer::init (const string& host, const string& channel, int audBitrate
       mVideoDecode = new cMfxVideoDecode();
   #endif
 
-  mQueueVideo = queueVideo;
-  mVideoPesParser = new cVideoPesParser (this, queueVideo);
+  // video
+  mVidBitrate = vidBitrate;
+  mVideoPesParser = new cPesParser (33, queueVideo, "vid",
+    [&] (uint8_t* pes, int size, int num, uint64_t pts,
+         bool useQueue, readerWriterQueue::cBlockingReaderWriterQueue <cPesParser::cPesItem*>& queue) noexcept {
+      //{{{  video pes process callback lambda
+      if (useQueue)
+        queue.enqueue (new cPesParser::cPesItem(pes, size, num, pts));
+      else
+        mVideoDecode->decode (pes, size, num, pts);
 
-  mQueueAudio = queueAudio;
-  mAudioPesParser = new cAudioPesParser (this, queueAudio);
+      num++;
+      return num;
+      },
+      //}}}
+    [&] (uint8_t* pes, int size, int num, uint64_t pts) noexcept {
+      //{{{  video pes decode callback lambda
+      mVideoDecode->decode (pes, size, num, pts);
+      }
+      //}}}
+    );
 
   mStreaming = streaming;
   }
 //}}}
 
-float cHlsPlayer::getVideoFrac() { return mVideoPesParser->getFrac(); }
 float cHlsPlayer::getAudioFrac() { return mVideoPesParser->getFrac(); }
-//{{{
-void cHlsPlayer::videoDecode (uint8_t* pes, int size, int num, uint64_t pts) {
-  mVideoDecode->decode (pes, size, num, pts);
-  }
-//}}}
-//{{{
-void cHlsPlayer::audioDecode (uint8_t* pes, int size, int num, uint64_t pts) {
-
-  float* samples = mAudioDecode->decodeFrame (pes, size, num);
-  mSong->addAudioFrame (num, samples, true, mSong->getNumFrames(), nullptr, pts);
-
-  startPlayer();
-  }
-//}}}
+float cHlsPlayer::getVideoFrac() { return mVideoPesParser->getFrac(); }
 
 // protected
 //{{{
@@ -370,9 +348,9 @@ void cHlsPlayer::loaderThread() {
                                auto pid = ((ts[0] & 0x1F) << 8) | ts[1];
                                auto headerSize = (ts[2] & 0x20) ? 4 + ts[3] : 3;
 
-                               if (pid == 33)
+                               if (pid == mVideoPesParser->getPid())
                                  mVideoPesParser->parseTs (payStart, ts + headerSize, 187 - headerSize);
-                               else if (pid == 34)
+                               else if (pid == mAudioPesParser->getPid())
                                  mAudioPesParser->parseTs (payStart, ts + headerSize, 187 - headerSize);
                                else if (pid && (pid != 32))
                                  cLog::log (LOGERROR, "other pid %d", pid);

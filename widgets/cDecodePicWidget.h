@@ -12,15 +12,21 @@ extern "C" {
 
 class cDecodePicWidget : public cPicWidget {
 public:
-  cDecodePicWidget() : cPicWidget (-1, mMyValue, mMyChanged) {}
-  cDecodePicWidget (float width, float height) : cPicWidget (width, height, -1, mMyValue, mMyChanged) {}
+  cDecodePicWidget() : cPicWidget (mMyValue) {}
   //{{{
-  cDecodePicWidget (float width, float height, int selectValue, int& value, bool& changed)
-    : cPicWidget (width, height, selectValue, value, changed) {}
+  cDecodePicWidget (float width, float height,
+                    std::function<void (cPicWidget* widget, int index)> hitCallback = [](cPicWidget*, int) {})
+    : cPicWidget (width, height, mMyValue, hitCallback) {}
   //}}}
   //{{{
-  cDecodePicWidget (const uint8_t* buffer, int size, float width, float height, int selectValue, int& value, bool& changed)
-      : cPicWidget (width, height, selectValue, value, changed) {
+  cDecodePicWidget (float width, float height, int value,
+                    std::function<void (cPicWidget* widget, int index)> hitCallback = [](cPicWidget*, int) {})
+    : cPicWidget (width, height, value, hitCallback) {}
+  //}}}
+  //{{{
+  cDecodePicWidget (const uint8_t* buffer, int size, float width, float height, int value,
+                    std::function<void (cPicWidget* widget, int index)> hitCallback = [](cPicWidget*, int) {})
+      : cPicWidget (width, height, value, hitCallback) {
     setPic (buffer, size);
     }
   //}}}

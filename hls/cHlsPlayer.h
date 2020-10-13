@@ -34,42 +34,30 @@ public:
   int getVidBitrate() { return mVidBitrate; }
   int getAudBitrate() { return mAudBitrate; }
 
-  int processVideoPes (uint8_t* pes, int size, int num, uint64_t pts);
-  int processAudioPes (uint8_t* pes, int size, int num, uint64_t pts);
-
-  void videoDecode (uint8_t* pes, int size, int num, uint64_t pts);
-  void audioDecode (uint8_t* pes, int size, int num, uint64_t pts);
-
-protected:
   void videoFollowAudio();
   void loaderThread();
 
   cSong* mSong;
-
-  cPesParser* mVideoPesParser = nullptr;
-  cPesParser* mAudioPesParser = nullptr;
-
-  cVideoDecode* mVideoDecode = nullptr;
-  cAudioDecode* mAudioDecode = nullptr;
-
-  bool mExit = false;
   bool mPlaying = true;
-  std::thread mPlayer;
+  bool mExit = false;
 
 private:
   void startPlayer();
 
-  //{{{  private vars
   std::string mHost;
   std::string mChannel;
   int mVidBitrate = 0;
   int mAudBitrate = 0;
 
   bool mUseFFmpeg = false;
-  bool mQueueVideo = true;
-  bool mQueueAudio= true;
   bool mStreaming = false;
 
   float mLoadFrac = 0.f;
-  //}}}
+
+  cPesParser* mAudioPesParser = nullptr;
+  cPesParser* mVideoPesParser = nullptr;
+  cAudioDecode* mAudioDecode = nullptr;
+  cVideoDecode* mVideoDecode = nullptr;
+
+  std::thread mPlayer;
   };

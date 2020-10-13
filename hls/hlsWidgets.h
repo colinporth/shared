@@ -187,12 +187,18 @@ private:
 
 void hlsMenu (cRootContainer* root, cHls* hls) {
 
-  root->addTopLeft (new cDecodePicWidget (r1x80, sizeof(r1x80), 3, 3, 1, hls->mChan, hls->mChanChanged));
-  root->add (new cDecodePicWidget (r2x80, sizeof(r2x80), 3, 3, 2, hls->mChan,  hls->mChanChanged));
-  root->add (new cDecodePicWidget (r3x80, sizeof(r3x80), 3, 3, 3, hls->mChan,  hls->mChanChanged));
-  root->add (new cDecodePicWidget (r4x80, sizeof(r4x80), 3, 3, 4, hls->mChan,  hls->mChanChanged));
-  root->add (new cDecodePicWidget (r5x80, sizeof(r5x80), 3, 3, 5, hls->mChan,  hls->mChanChanged));
-  root->add (new cDecodePicWidget (r6x80, sizeof(r6x80), 3, 3, 6, hls->mChan,  hls->mChanChanged));
+  root->addTopLeft (new cDecodePicWidget (r1x80, sizeof(r1x80), 3, 3, 1,
+    [&](cPicWidget* widget, int value) noexcept { hls->mChan = value; hls->mChanChanged = true; } ));
+  root->add (new cDecodePicWidget (r2x80, sizeof(r2x80), 3, 3, 2,
+    [&](cPicWidget* widget, int value) noexcept { hls->mChan = value; hls->mChanChanged = true; } ));
+  root->add (new cDecodePicWidget (r3x80, sizeof(r3x80), 3, 3, 3,
+    [&](cPicWidget* widget, int value) noexcept { hls->mChan = value; hls->mChanChanged = true; } ));
+  root->add (new cDecodePicWidget (r4x80, sizeof(r4x80), 3, 3, 4,
+    [&](cPicWidget* widget, int value) noexcept { hls->mChan = value; hls->mChanChanged = true; } ));
+  root->add (new cDecodePicWidget (r5x80, sizeof(r5x80), 3, 3, 5,
+    [&](cPicWidget* widget, int value) noexcept { hls->mChan = value; hls->mChanChanged = true; } ));
+  root->add (new cDecodePicWidget (r6x80, sizeof(r6x80), 3, 3, 6,
+    [&](cPicWidget* widget, int value) noexcept { hls->mChan = value; hls->mChanChanged = true; } ));
 
   root->add (new cHlsDotsBox (hls, 1, 3));
   root->addAtBox (new cHlsPeakWidget (hls, 0, -4), 0.f, 4.f);
