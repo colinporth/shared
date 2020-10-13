@@ -135,9 +135,11 @@ cSong::~cSong() {
 //}}}
 
 //{{{
-void cSong::init (cAudioDecode::eFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame) {
+void cSong::init (cAudioDecode::eFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame, int mapSize) {
 
   unique_lock<shared_mutex> lock (mSharedMutex);
+
+  mMapSize = mapSize;
 
   // reset frame type
   mFrameType = frameType;
@@ -153,7 +155,7 @@ void cSong::init (cAudioDecode::eFrameType frameType, int numChannels, int sampl
   }
 //}}}
 //{{{
-void cSong::addAudioFrame (int frameNum, float* samples, bool owned, int totalFrames, uint8_t* framePtr, uint64_t pts) {
+void cSong::addFrame (int frameNum, float* samples, bool owned, int totalFrames, uint8_t* framePtr, uint64_t pts) {
 
   // sum of squares channel power
   auto powerValues = (float*)malloc (mNumChannels * 4);
@@ -208,6 +210,9 @@ void cSong::addAudioFrame (int frameNum, float* samples, bool owned, int totalFr
   unique_lock<shared_mutex> lock (mSharedMutex);
 
   // totalFrames can be a changing estimate for file, or increasing value for streaming
+  if (mFrameMap.size() > mMapSize)
+    mFrameMap.erase(mFrameMap.begin());
+
   mFrameMap.insert (map<int,cFrame*>::value_type (frameNum,
     new cFrame (samples, owned, framePtr, powerValues, peakValues, freqValues, lumaValues, pts)));
   mTotalFrames = totalFrames;
@@ -235,7 +240,9 @@ void cSong::clear() {
 
 // cSong gets
 //{{{
-int cSong::getLoadChunkNum (system_clock::time_point now, chrono::seconds secs, int preload, int& frameNum) {
+bool cSong::loadChunk (system_clock::time_point now, chrono::seconds secs, int preload, int& chunkNum, int& frameNum) {
+// return true if a chunk load needed
+// - update chunkNum and frameNum
 
   // get offsets of playFrame from baseFrame, handle -v offsets correctly
   int frameOffset = mPlayFrame - mHlsBaseFrame;
@@ -248,9 +255,11 @@ int cSong::getLoadChunkNum (system_clock::time_point now, chrono::seconds secs, 
     // chunkNum chunk should be available
     if (!getAudioFramePtr (mHlsBaseFrame + (chunkNumOffset * mHlsFramesPerChunk))) {
       // not loaded, return chunkNum to load
-      int chunkNum = mHlsBaseChunkNum + chunkNumOffset;
+      chunkNum = mHlsBaseChunkNum + chunkNumOffset;
       frameNum = mHlsBaseFrame + (chunkNum - mHlsBaseChunkNum) * mHlsFramesPerChunk;
-      return chunkNum;
+      mLastChunkNum = chunkNum;
+      mLastFrameNum = frameNum;;
+      return true;
       }
     else {
       // already loaded, next
@@ -258,9 +267,12 @@ int cSong::getLoadChunkNum (system_clock::time_point now, chrono::seconds secs, 
       chunkNumOffset++;
       }
 
-  // return 0, no chunkNum available to load
+  // return false, no chunkNum available to load
+  chunkNum = 0;
   frameNum = 0;
-  return 0;
+  mLastChunkNum = chunkNum;
+  mLastFrameNum = frameNum;
+  return false;
   }
 //}}}
 

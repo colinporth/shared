@@ -145,9 +145,9 @@ public:
   //}}}
   virtual ~cSong();
 
-  void init (cAudioDecode::eFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame);
-  void addAudioFrame (int frameNum, float* samples, bool owned, int totalFrames, uint8_t* framePtr = nullptr,
-                      uint64_t pts = 0xFFFFFFFFFFFFFFFF);
+  void init (cAudioDecode::eFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame, int mapSize);
+  void addFrame (int frameNum, float* samples, bool owned, int totalFrames, uint8_t* framePtr = nullptr,
+                 uint64_t pts = 0xFFFFFFFFFFFFFFFF);
   void clear();
 
   //{{{  gets
@@ -190,10 +190,6 @@ public:
   // info
   int getBitrate() { return mBitrate; }
   std::string getChannel() { return mChannel; }
-
-  // hls
-  bool hasHlsBase() { return mHlsBaseValid; }
-  int getLoadChunkNum (std::chrono::system_clock::time_point now, std::chrono::seconds secs, int preload, int& frameNum);
   //}}}
   //{{{  sets
   void setNumChannels (int numChannels) { mNumChannels = numChannels; }
@@ -227,6 +223,13 @@ public:
   void setHlsBase (int chunkNum, std::chrono::system_clock::time_point timePoint, std::chrono::seconds offset, int startSecs);
   //}}}
 
+  // hls
+  bool hasHlsBase() { return mHlsBaseValid; }
+  bool loadChunk (std::chrono::system_clock::time_point now, std::chrono::seconds secs, int preload,
+                  int& chunkNum, int& frameNum);
+  int getLastChunkNum() { return mLastChunkNum; }
+  int getLastFrameNum() { return mLastFrameNum; }
+
   // actions
   void prevSilencePlayFrame();
   void nextSilencePlayFrame();
@@ -244,6 +247,7 @@ private:
   static constexpr int kMaxFreqBytes = 512; // arbitrary graphics max
 
   // vars
+  int mMapSize = 0;
   std::shared_mutex mSharedMutex;
   std::map <int, cFrame*> mFrameMap;
 
@@ -275,6 +279,9 @@ private:
   std::chrono::system_clock::time_point mHlsBaseTimePoint;
 
   int mHlsFramesPerChunk = 0;
+
+  int mLastChunkNum;
+  int mLastFrameNum;
   //}}}
   //{{{  fft vars
   kiss_fftr_cfg fftrConfig;

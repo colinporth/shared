@@ -25,19 +25,15 @@ public:
   cVideoDecode* getVideoDecode() { return mVideoDecode; }
   cAudioDecode* getAudioDecode() { return mAudioDecode; }
 
-  float getLoadFrac() { return mLoadFrac; }
-  float getVideoFrac();
-  float getAudioFrac();
-
   std::string getChannelName() { return mChannelName; }
   int getVidBitrate() { return mVidBitrate; }
   int getAudBitrate() { return mAudBitrate; }
+  bool getFrac (float& loadFrac, float& videoFrac, float& audioFrac);
 
   void videoFollowAudio();
   void loaderThread();
 
   cSong* mSong;
-  int mChunkNum = 0;
   bool mPlaying = true;
   bool mExit = false;
 

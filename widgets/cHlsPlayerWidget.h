@@ -36,24 +36,50 @@ public:
       vg->triangleFill();
       }
 
-    // draw progress spinners
-    cPointF centre (mPixSize.x-20.f, 20.f);
-    float loadFrac = mHlsPlayer->getLoadFrac();
-    drawSpinner (vg, centre, 18.f,12.f, 0.f, loadFrac,
-                 sColourF(0.f,1.f,0.f,0.f), sColourF(0.f,1.f,0.f,0.75f));
-    drawSpinner (vg, centre, 18.f,12.f, loadFrac * (1.f - mHlsPlayer->getVideoFrac()), loadFrac,
-                 sColourF(1.f, 0.f, 0.f, 0.f), sColourF(1.f, 0.f, 0.f, 0.75f));
-    drawSpinner (vg, centre, 18.f,12.f, loadFrac * (1.f - mHlsPlayer->getAudioFrac()), loadFrac,
-                 sColourF(0.f, 0.f, 1.f, 0.f), sColourF(0.f, 0.f, 1.f, 0.75f));
-
     drawInfo (vg);
+
+    // draw progress spinners
+    float loadFrac;
+    float videoFrac;
+    float audioFrac;
+    if (mHlsPlayer->getFrac (loadFrac, videoFrac, audioFrac)) {
+      cPointF centre (mPixSize.x-20.f, 20.f);
+      drawSpinner (vg, centre, 18.f,12.f, 0.f, loadFrac,
+                   sColourF(0.f,1.f,0.f,0.f), sColourF(0.f,1.f,0.f,0.75f));
+      if (videoFrac > 0.f)
+        drawSpinner (vg, centre, 18.f,12.f, loadFrac * (1.f - videoFrac), loadFrac,
+                     sColourF(1.f, 0.f, 0.f, 0.25f), sColourF(1.f, 0.f, 0.f, 0.75f));
+      if (audioFrac > 0.f)
+        drawSpinner (vg, centre, 18.f,12.f, loadFrac * (1.f - audioFrac), loadFrac,
+                     sColourF(0.f, 0.f, 1.f, 0.25f), sColourF(0.f, 0.f, 1.f, 0.75f));
+      }
     }
   //}}}
 
 private:
   //{{{
-  void drawSpinner (cVg* vg, cPointF centre, float outerRadius, float innerRadius,
-                    float fracFrom, float fracTo, const sColourF& colourFrom, const sColourF& colourTo) {
+  void drawInfo (cVg* vg) {
+  // info text
+
+    std::string infoString = mHlsPlayer->getChannelName() +
+                             " - " + dec(mHlsPlayer->getVidBitrate()) +
+                             ":" + dec(mHlsPlayer->getAudBitrate()) +
+                             " " + dec(mHlsPlayer->getVideoDecode()->getWidth()) +
+                             "x" + dec(mHlsPlayer->getVideoDecode()->getHeight()) +
+                             " " + dec(mHlsPlayer->getVideoDecode()->getFramePoolSize());
+
+    vg->setFontSize ((float)getFontHeight());
+    vg->setTextAlign (cVg::eAlignLeft | cVg::eAlignTop);
+    vg->setFillColour (kBlackF);
+    vg->text (mPixOrg + cPointF(2.f, 2.f), infoString);
+    vg->setFillColour (kWhiteF);
+    vg->text (mPixOrg, infoString);
+    }
+  //}}}
+  //{{{
+  void drawSpinner (cVg* vg, const cPointF& centre, float outerRadius, float innerRadius,
+                    float fracFrom, float fracTo, 
+                    const sColourF& colourFrom, const sColourF& colourTo) {
 
     if ((fracTo - fracFrom)  > 0.f) {
       float angleFrom = -kPiDiv2 + (fracFrom * k2Pi);
@@ -65,30 +91,11 @@ private:
       vg->closePath();
 
       float midRadius = (outerRadius + innerRadius) / 2.f;
-      vg->setFillPaint (
-        vg->setLinearGradient (centre + cPointF (cosf (angleFrom), sinf (angleFrom)) * midRadius,
-                               centre + cPointF (cosf (angleTo), sinf (angleTo)) * midRadius,
-                               colourFrom, colourTo));
+      vg->setFillPaint (vg->setLinearGradient (centre + cPointF (cosf (angleFrom), sinf (angleFrom)) * midRadius,
+                                               centre + cPointF (cosf (angleTo), sinf (angleTo)) * midRadius,
+                                               colourFrom, colourTo));
       vg->fill();
       }
-    }
-  //}}}
-  //{{{
-  void drawInfo (cVg* vg) {
-  // info text
-
-    std::string infoString = mHlsPlayer->getChannelName() +
-                             " - " + dec(mHlsPlayer->getVidBitrate()) +
-                             ":" + dec(mHlsPlayer->getAudBitrate()) +
-                             " " + dec(mHlsPlayer->getVideoDecode()->getWidth()) +
-                             "x" + dec(mHlsPlayer->getVideoDecode()->getHeight()) +
-                             " " + dec(mHlsPlayer->getVideoDecode()->getFramePoolSize());
-    vg->setFontSize ((float)getFontHeight());
-    vg->setTextAlign (cVg::eAlignLeft | cVg::eAlignTop);
-    vg->setFillColour (kBlackF);
-    vg->text (mPixOrg + cPointF(2.f, 2.f), infoString);
-    vg->setFillColour (kWhiteF);
-    vg->text (mPixOrg, infoString);
     }
   //}}}
 

@@ -110,9 +110,9 @@ void cHlsPlayer::init (const string& hostName, const string& channelName, int au
         //}}}
       [&](uint8_t* pes, int size, int sequenceNum, uint64_t pts) noexcept {
         //{{{  audio pes decode callback lambda
-        mSong->addAudioFrame (sequenceNum, 
-                              mAudioDecode->decodeFrame (pes, size, sequenceNum, pts),
-                              true, mSong->getNumFrames(), nullptr, pts);
+        mSong->addFrame (sequenceNum,
+                         mAudioDecode->decodeFrame (pes, size, sequenceNum, pts),
+                         true, mSong->getNumFrames(), nullptr, pts);
         startPlayer();
         }
         //}}}
@@ -178,8 +178,17 @@ void cHlsPlayer::init (const string& hostName, const string& channelName, int au
   }
 //}}}
 
-float cHlsPlayer::getAudioFrac() { return mPesParsers.size() > 0 ? mPesParsers[0]->getFrac() : 0.f; }
-float cHlsPlayer::getVideoFrac() { return mPesParsers.size() > 1 ? mPesParsers[1]->getFrac() : 0.f; }
+//{{{
+bool cHlsPlayer::getFrac (float& loadFrac, float& videoFrac, float& audioFrac) {
+// return fracs for spinner graphic, true if ok to display
+
+  loadFrac = mLoadFrac;
+  audioFrac = mPesParsers.size() > 0 ? mPesParsers[0]->getFrac() : 0.f;
+  videoFrac = mPesParsers.size() > 1 ? mPesParsers[1]->getFrac() : 0.f;
+
+  return (loadFrac > 0.f) && ((loadFrac < 1.f) || (audioFrac > 0.f) || (videoFrac > 0.f));
+  }
+//}}}
 
 //{{{
 void cHlsPlayer::videoFollowAudio() {
@@ -199,7 +208,7 @@ void cHlsPlayer::loaderThread() {
 
   mSong->setChannel (mChannelName);
   mSong->setBitrate (mAudBitrate, mAudBitrate < 128000 ? 180 : 360); // audBitrate, audioFrames per chunk
-  mSong->init (cAudioDecode::eAac, 2, 48000, mSong->getBitrate() < 128000 ? 2048 : 1024); // samplesPerFrame
+  mSong->init (cAudioDecode::eAac, 2, 48000, mSong->getBitrate() < 128000 ? 2048 : 1024, 3000); // samplesPerFrame
 
   while (!mExit && !mSong->getChanged()) {
     mSong->setChanged (false);
@@ -223,24 +232,20 @@ void cHlsPlayer::loaderThread() {
       mSong->setHlsBase (extXMediaSequence, extXProgramDateTimePoint, -37s, (2*60*60) - 25);
       //}}}
       while (!mExit && !mSong->getChanged()) {
-        int audioFrameNum;
-        int chunkNum = mSong->getLoadChunkNum (system_clock::now(), 12s, 2, audioFrameNum);
-        if (chunkNum) {
-          for (auto pesParser : mPesParsers)
-            pesParser->clear (0);
-          // !||!! need to unfudge this !!!!!!!
-          mPesParsers[0]->clear (audioFrameNum);
-          cLog::log (LOGINFO, "get chunkNum:" + dec(chunkNum) + " audioFrameNum:" + dec(audioFrameNum));
-
-          int contentUsed = 0;
+        int chunkNum;
+        int frameNum;
+        if (mSong->loadChunk (system_clock::now(), 12s, 2, chunkNum, frameNum)) {
+          cLog::log (LOGINFO, "get chunkNum:" + dec(chunkNum) + " frameNum:" + dec(frameNum));
+          mPesParsers[0]->clear (frameNum);
+          mPesParsers[1]->clear (0);
+          int contentParsed = 0;
           if (http.get (redirectedHostName, pathName + '-' + dec(chunkNum) + ".ts", "",
                         [&] (const string& key, const string& value) noexcept {}, // header lambda
                         [&] (const uint8_t* data, int length) noexcept {
                            //{{{  data lambda
                            mLoadFrac = float(http.getContentSize()) / http.getHeaderContentSize();
-
-                           while (http.getContentSize() - contentUsed >= 188) {
-                             uint8_t* ts = http.getContent() + contentUsed;
+                           while (http.getContentSize() - contentParsed >= 188) {
+                             uint8_t* ts = http.getContent() + contentParsed;
                              if (*ts == 0x47) {
                                for (auto pesParser : mPesParsers)
                                  if (pesParser->parseTs (ts))
@@ -248,20 +253,17 @@ void cHlsPlayer::loaderThread() {
                                ts += 188;
                                }
                              else {
-                               cLog::log (LOGERROR, "ts packet sync:%d", contentUsed);
+                               cLog::log (LOGERROR, "ts packet sync:%d", contentParsed);
                                return false;
                                }
-
-                             contentUsed += 188;
+                             contentParsed += 188;
                              }
-
                            return true;
                            }
                            //}}}
                         ) == 200) {
             for (auto pesParser : mPesParsers)
               pesParser->process();
-            mLoadFrac = 0.f;
             http.freeContent();
             }
           else {
