@@ -73,7 +73,9 @@ public:
   //}}}
 
 private:
+  int mValue = 0;
   std::function <void (cPicWidget* box, int index)> mHitCallback;
+  bool mSelected = false;
 
   uint8_t* mPic = nullptr;
   uint16_t mPicWidth = 0;
@@ -81,9 +83,6 @@ private:
   uint16_t mPicComponents = 0;
 
   float mScale = 1.0f;
-  int mValue = 0;
-  bool mSelected = false;
-
   int mImage = -1;
   bool mUpdateTexture = false;
   float mAngle = 0;
