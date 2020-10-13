@@ -98,20 +98,20 @@ public:
     }
   //}}}
   //{{{
+  void process() {
+    if (mPesSize) {
+      mSequenceNum = mProcessCallback (mPes, mPesSize, mSequenceNum, mPts, this);
+      mPesSize = 0;
+      }
+    }
+  //}}}
+  //{{{
   void decode (uint8_t* pes, int size, int sequenceNum, uint64_t pts) {
 
     if (mUseQueue)
       mQueue.enqueue (new cPesParser::cPesItem (pes, size, sequenceNum, pts));
     else
       mDecodeCallback (pes, size, sequenceNum, pts);
-    }
-  //}}}
-  //{{{
-  void process() {
-    if (mPesSize) {
-      mSequenceNum = mProcessCallback (mPes, mPesSize, mSequenceNum, mPts, this);
-      mPesSize = 0;
-      }
     }
   //}}}
 

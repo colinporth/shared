@@ -16,15 +16,17 @@ public:
   void onDraw (iDraw* draw) {
 
     cVg* vg = draw->getVg();
+
     auto frame = mHlsPlayer->getVideoDecode()->findPlayFrame();
     if (frame) {
-      if (frame->getPts() != mPts) {
-        mPts = frame->getPts();
-        if (mImageId == -1)
-          mImageId = vg->createImageRGBA (mHlsPlayer->getVideoDecode()->getWidth(), mHlsPlayer->getVideoDecode()->getHeight(),
-                                          0, (uint8_t*)frame->get32());
-        else
+      if (frame->getPts() != mImagePts) {
+        mImagePts = frame->getPts();
+        if (mImageId > -1)
           vg->updateImage (mImageId, (uint8_t*)frame->get32());
+        else
+          mImageId = vg->createImageRGBA (mHlsPlayer->getVideoDecode()->getWidth(),
+                                          mHlsPlayer->getVideoDecode()->getHeight(),
+                                          0, (uint8_t*)frame->get32());
         }
 
       // paint image rect
@@ -34,10 +36,8 @@ public:
       vg->triangleFill();
       }
 
-    // draw progress spinner
-    vg->saveState();
-
-    cPointF centre (mPixSize.x-20.f,20.f);
+    // draw progress spinners
+    cPointF centre (mPixSize.x-20.f, 20.f);
     float loadFrac = mHlsPlayer->getLoadFrac();
     drawSpinner (vg, centre, 18.f,12.f, 0.f, loadFrac,
                  sColourF(0.f,1.f,0.f,0.f), sColourF(0.f,1.f,0.f,0.75f));
@@ -46,21 +46,7 @@ public:
     drawSpinner (vg, centre, 18.f,12.f, loadFrac * (1.f - mHlsPlayer->getAudioFrac()), loadFrac,
                  sColourF(0.f, 0.f, 1.f, 0.f), sColourF(0.f, 0.f, 1.f, 0.75f));
 
-    vg->restoreState();
-
-    // info text
-    std::string infoString = mHlsPlayer->getChannelName() +
-                             " - " + dec(mHlsPlayer->getVidBitrate()) +
-                             ":" + dec(mHlsPlayer->getAudBitrate()) +
-                             " " + dec(mHlsPlayer->getVideoDecode()->getWidth()) +
-                             "x" + dec(mHlsPlayer->getVideoDecode()->getHeight()) +
-                             " " + dec(mHlsPlayer->getVideoDecode()->getFramePoolSize());
-    vg->setFontSize ((float)getFontHeight());
-    vg->setTextAlign (cVg::eAlignLeft | cVg::eAlignTop);
-    vg->setFillColour (kBlackF);
-    vg->text (mPixOrg + cPointF(2.f, 2.f), infoString);
-    vg->setFillColour (kWhiteF);
-    vg->text (mPixOrg, infoString);
+    drawInfo (vg);
     }
   //}}}
 
@@ -87,8 +73,26 @@ private:
       }
     }
   //}}}
+  //{{{
+  void drawInfo (cVg* vg) {
+  // info text
+
+    std::string infoString = mHlsPlayer->getChannelName() +
+                             " - " + dec(mHlsPlayer->getVidBitrate()) +
+                             ":" + dec(mHlsPlayer->getAudBitrate()) +
+                             " " + dec(mHlsPlayer->getVideoDecode()->getWidth()) +
+                             "x" + dec(mHlsPlayer->getVideoDecode()->getHeight()) +
+                             " " + dec(mHlsPlayer->getVideoDecode()->getFramePoolSize());
+    vg->setFontSize ((float)getFontHeight());
+    vg->setTextAlign (cVg::eAlignLeft | cVg::eAlignTop);
+    vg->setFillColour (kBlackF);
+    vg->text (mPixOrg + cPointF(2.f, 2.f), infoString);
+    vg->setFillColour (kWhiteF);
+    vg->text (mPixOrg, infoString);
+    }
+  //}}}
 
   cHlsPlayer* mHlsPlayer;
-  uint64_t mPts = 0;
+  uint64_t mImagePts = 0;
   int mImageId = -1;
   };
