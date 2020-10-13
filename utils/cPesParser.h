@@ -16,7 +16,7 @@ public:
   class cPesItem {
   public:
     //{{{
-    cPesItem (uint8_t* pes, int size, int sequenceNum, uint64_t pts) 
+    cPesItem (uint8_t* pes, int size, int sequenceNum, uint64_t pts)
         : mPesSize(size), mSequenceNum(sequenceNum), mPts(pts) {
       mPes = (uint8_t*)malloc (size);
       memcpy (mPes, pes, size);
@@ -36,8 +36,7 @@ public:
   //}}}
   //{{{
   cPesParser (int pid, bool useQueue, const std::string& name,
-              std::function <int (uint8_t* pes, int size, int sequenceNum, uint64_t pts, bool useQueue,
-                             readerWriterQueue::cBlockingReaderWriterQueue <cPesItem*>& mQueue)> process,
+              std::function <int (uint8_t* pes, int size, int sequenceNum, uint64_t pts, cPesParser* parserPes)> process,
               std::function <void (uint8_t* pes, int size, int sequenceNum, uint64_t pts)> decode)
       : mPid(pid), mName(name), mProcess(process), mDecode(decode), mUseQueue(useQueue) {
 
@@ -72,7 +71,7 @@ public:
 
       if (payloadStart) {
         // could check pes type as well
-        processLast();
+        process();
 
         if (ts[7] & 0x80)
           mPts = getPts (ts+9);
@@ -97,10 +96,19 @@ public:
     }
   //}}}
   //{{{
-  void processLast() {
+  void decode (uint8_t* pes, int size, int sequenceNum, uint64_t pts) {
+
+    if (mUseQueue)
+      mQueue.enqueue (new cPesParser::cPesItem (pes, size, sequenceNum, pts));
+    else
+      mDecode (pes, size, sequenceNum, pts);
+    }
+  //}}}
+  //{{{
+  void process() {
 
     if (mPesSize) {
-      mSequenceNum = mProcess (mPes, mPesSize, mSequenceNum, mPts, mUseQueue, mQueue);
+      mSequenceNum = mProcess (mPes, mPesSize, mSequenceNum, mPts, this);
       mPesSize = 0;
       }
     }
@@ -145,8 +153,7 @@ private:
   int mPid = 0;
   std::string mName;
 
-  std::function <int (uint8_t* pes, int size, int sequenceNum, uint64_t pts, bool useQueue,
-                      readerWriterQueue::cBlockingReaderWriterQueue <cPesItem*>& mQueue)> mProcess;
+  std::function <int (uint8_t* pes, int size, int sequenceNum, uint64_t pts, cPesParser* parserPes)> mProcess;
   std::function <void (uint8_t* pes, int size, int sequenceNum, uint64_t pts)> mDecode;
 
   bool mUseQueue = false;

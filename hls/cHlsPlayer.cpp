@@ -61,6 +61,8 @@ cHlsPlayer::~cHlsPlayer() {
   delete mSong;
   delete mVideoDecode;
   delete mAudioDecode;
+
+  // !!!!! should clear down mPesParsers !!!!
   }
 //}}}
 //{{{
@@ -86,21 +88,15 @@ void cHlsPlayer::init (const string& hostName, const string& channelName, int au
 
   // audio
   mPesParsers.push_back (
-    new cPesParser (34, queueAudio, "aud",
-      [&] (uint8_t* pes, int size, int num, uint64_t pts,
-           bool useQueue, readerWriterQueue::cBlockingReaderWriterQueue <cPesParser::cPesItem*>& queue) noexcept {
+    new cPesParser (0x22, queueAudio, "aud",
+      [&](uint8_t* pes, int size, int num, uint64_t pts, cPesParser* pesParser) noexcept {
         //{{{  audio pes process callback lambda
         uint8_t* framePes = pes;
         while (getAudioDecode()->parseFrame (framePes, pes + size)) {
           int framePesSize = getAudioDecode()->getNextFrameOffset();
 
           // decode a single frame from pes
-          if (useQueue)
-            queue.enqueue (new cPesParser::cPesItem (framePes, framePesSize, num, pts));
-          else {
-            mSong->addAudioFrame (num, mAudioDecode->decodeFrame (framePes, framePesSize, num, pts), true, mSong->getNumFrames(), nullptr, pts);
-            startPlayer();
-            }
+          pesParser->decode (framePes, framePesSize, num, pts);
 
           // point to next frame in pes, assumes 48000 sample rate
           pts += (getAudioDecode()->getNumSamples() * 90) / 48;
@@ -112,7 +108,7 @@ void cHlsPlayer::init (const string& hostName, const string& channelName, int au
         return num;
         },
         //}}}
-      [&] (uint8_t* pes, int size, int num, uint64_t pts) noexcept {
+      [&](uint8_t* pes, int size, int num, uint64_t pts) noexcept {
         //{{{  audio pes decode callback lambda
         mSong->addAudioFrame (num, mAudioDecode->decodeFrame (pes, size, num, pts), true, mSong->getNumFrames(), nullptr, pts);
         startPlayer();
@@ -123,26 +119,58 @@ void cHlsPlayer::init (const string& hostName, const string& channelName, int au
 
   // video
   mPesParsers.push_back (
-    new cPesParser (33, queueVideo, "vid",
-      [&] (uint8_t* pes, int size, int num, uint64_t pts,
-           bool useQueue, readerWriterQueue::cBlockingReaderWriterQueue <cPesParser::cPesItem*>& queue) noexcept {
+    new cPesParser (0x21, queueVideo, "vid",
+      [&](uint8_t* pes, int size, int num, uint64_t pts, cPesParser* pesParser) noexcept {
         //{{{  video pes process callback lambda
-        if (useQueue)
-          queue.enqueue (new cPesParser::cPesItem(pes, size, num, pts));
-        else
-          mVideoDecode->decodeFrame (pes, size, num, pts);
-
+        pesParser->decode (pes, size, num, pts);
         num++;
         return num;
         },
         //}}}
-      [&] (uint8_t* pes, int size, int num, uint64_t pts) noexcept {
+      [&](uint8_t* pes, int size, int num, uint64_t pts) noexcept {
         //{{{  video pes decode callback lambda
         mVideoDecode->decodeFrame (pes, size, num, pts);
         }
         //}}}
       )
     );
+
+  //{{{  parse PAT
+  //mPesParsers.push_back (
+    //new cPesParser (0x00, false, "pat",
+      //[&] (uint8_t* pes, int size, int num, uint64_t pts, cPesParser* pesParser) noexcept {
+        //{{{  pat callback
+        //string info;
+        //for (int i = 0; i < size; i++) {
+          //int value = pes[i];
+          //info += hex (value, 2) + " ";
+          //}
+        //cLog::log (LOGINFO, "PAT process " + dec (size) + ":" + info);
+        //return num;
+        //},
+        //}}}
+      //[&] (uint8_t* pes, int size, int num, uint64_t pts) noexcept {}
+      //)
+    //);
+  //}}}
+  //{{{  parse pgm 0x20
+  //mPesParsers.push_back (
+    //new cPesParser (0x20, false, "pgm",
+      //[&] (uint8_t* pes, int size, int num, uint64_t pts, cPesParser* pesParser) noexcept {
+        //{{{  pgm callback
+        //string info;
+        //for (int i = 0; i < size; i++) {
+          //int value = pes[i];
+          //info += hex (value, 2) + " ";
+          //}
+        //cLog::log (LOGINFO, "pgm process " + dec (size) + ":" + info);
+        //return num;
+        //},
+        //}}}
+      //[&] (uint8_t* pes, int size, int num, uint64_t pts) noexcept {}
+      //)
+    //);
+  //}}}
 
   mStreaming = streaming;
   }
@@ -230,7 +258,7 @@ void cHlsPlayer::loaderThread() {
                            //}}}
                         ) == 200) {
             for (auto pesParser : mPesParsers)
-              pesParser->processLast();
+              pesParser->process();
             mLoadFrac = 0.f;
             http.freeContent();
             }
