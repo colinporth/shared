@@ -417,7 +417,7 @@ public:
     }
   //}}}
 
-  virtual void decode (uint8_t* pes, unsigned int pesSize, int pesNumInChunk, uint64_t pts) = 0;
+  virtual void decodeFrame (uint8_t* pes, unsigned int pesSize, int pesNumInChunk, uint64_t pts) = 0;
 
 protected:
   //{{{
@@ -471,7 +471,7 @@ protected:
 
     int getSurfacePoolSize() { return (int)mSurfacePool.size(); }
     //{{{
-    void decode (uint8_t* pes, unsigned int pesSize, int pesNumInChunk, uint64_t pts) {
+    void decodeFrame (uint8_t* pes, unsigned int pesSize, int pesNumInChunk, uint64_t pts) {
 
       mBitstream.Data = pes;
       mBitstream.DataOffset = 0;
@@ -591,7 +591,7 @@ public:
   //}}}
 
   //{{{
-  void decode (uint8_t* pes, unsigned int pesSize, int pesNumInChunk, uint64_t pts) {
+  void decodeFrame (uint8_t* pes, unsigned int pesSize, int pesNumInChunk, uint64_t pts) {
 
     // ffmpeg doesn't maintain correct avFrame.pts, but does decode frames in presentation order
     if (pesNumInChunk == 0)
