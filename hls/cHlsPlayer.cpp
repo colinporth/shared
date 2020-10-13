@@ -86,50 +86,52 @@ void cHlsPlayer::init (const string& hostName, const string& channelName, int au
       mVideoDecode = new cMfxVideoDecode();
   #endif
 
-  // audio
+  // audio pesParser
   mPesParsers.push_back (
     new cPesParser (0x22, queueAudio, "aud",
-      [&](uint8_t* pes, int size, int num, uint64_t pts, cPesParser* pesParser) noexcept {
+      [&](uint8_t* pes, int size, int sequenceNum, uint64_t pts, cPesParser* pesParser) noexcept {
         //{{{  audio pes process callback lambda
         uint8_t* framePes = pes;
         while (getAudioDecode()->parseFrame (framePes, pes + size)) {
-          int framePesSize = getAudioDecode()->getNextFrameOffset();
-
           // decode a single frame from pes
-          pesParser->decode (framePes, framePesSize, num, pts);
+          int framePesSize = getAudioDecode()->getNextFrameOffset();
+          pesParser->decode (framePes, framePesSize, sequenceNum, pts);
 
-          // point to next frame in pes, assumes 48000 sample rate
+          // pts of next frame in pes, assumes 48000 sample rate
           pts += (getAudioDecode()->getNumSamples() * 90) / 48;
-          num++;
+          sequenceNum++;
 
+          // point to next frame in pes
           framePes += framePesSize;
           }
 
-        return num;
+        return sequenceNum;
         },
         //}}}
-      [&](uint8_t* pes, int size, int num, uint64_t pts) noexcept {
+      [&](uint8_t* pes, int size, int sequenceNum, uint64_t pts) noexcept {
         //{{{  audio pes decode callback lambda
-        mSong->addAudioFrame (num, mAudioDecode->decodeFrame (pes, size, num, pts), true, mSong->getNumFrames(), nullptr, pts);
+        mSong->addAudioFrame (sequenceNum, 
+                              mAudioDecode->decodeFrame (pes, size, sequenceNum, pts),
+                              true, mSong->getNumFrames(), nullptr, pts);
         startPlayer();
         }
         //}}}
       )
     );
 
-  // video
+  // video pesParser
   mPesParsers.push_back (
     new cPesParser (0x21, queueVideo, "vid",
-      [&](uint8_t* pes, int size, int num, uint64_t pts, cPesParser* pesParser) noexcept {
+      [&](uint8_t* pes, int size, int sequenceNum, uint64_t pts, cPesParser* pesParser) noexcept {
         //{{{  video pes process callback lambda
-        pesParser->decode (pes, size, num, pts);
-        num++;
-        return num;
+        pesParser->decode (pes, size, sequenceNum, pts);
+        sequenceNum++;
+        return sequenceNum;
         },
         //}}}
-      [&](uint8_t* pes, int size, int num, uint64_t pts) noexcept {
+      [&](uint8_t* pes, int size, int sequenceNum, uint64_t pts) noexcept {
         //{{{  video pes decode callback lambda
-        mVideoDecode->decodeFrame (pes, size, num, pts);
+        mVideoDecode->decodeFrame (pes, size, sequenceNum, pts);
         }
         //}}}
       )
