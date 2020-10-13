@@ -71,6 +71,8 @@ public:
 
       if (payloadStart) {
         // could check pes type as well
+
+        // end of last pes, if any, process it
         process();
 
         if (ts[7] & 0x80)
@@ -106,7 +108,6 @@ public:
   //}}}
   //{{{
   void process() {
-
     if (mPesSize) {
       mSequenceNum = mProcessCallback (mPes, mPesSize, mSequenceNum, mPts, this);
       mPesSize = 0;
