@@ -109,9 +109,9 @@ void cLoaderPlayer::initialise (bool radio,
         //}}}
       [&](uint8_t* pes, int size, int sequenceNum, uint64_t pts) noexcept {
         //{{{  audio pes decode callback lambda
-        mSong->addFrame (sequenceNum,
-                         mAudioDecode->decodeFrame (pes, size, sequenceNum, pts),
-                         true, mSong->getNumFrames(), nullptr, pts);
+        float* samples = mAudioDecode->decodeFrame (pes, size, sequenceNum, pts);
+        mSong->setFixups (mAudioDecode->getNumChannels(), mAudioDecode->getSampleRate(), mAudioDecode->getNumSamples());
+        mSong->addFrame (sequenceNum, samples, true, mSong->getNumFrames(), nullptr, pts);
         startPlayer();
         }
         //}}}
@@ -219,7 +219,8 @@ void cLoaderPlayer::hlsLoaderThread() {
   while (!mExit && !mSong->getChanged()) {
     mSong->setChanged (false);
     cPlatformHttp http;
-    string redirectedHostName = http.getRedirect (mHostName, getHlsPathName() + ".m3u8");
+    string pathName = getHlsPathName();
+    string redirectedHostName = http.getRedirect (mHostName, pathName + ".m3u8");
     if (http.getContent()) {
       //{{{  parse m3u8 for mediaSequence,programDateTimePoint
       int extXMediaSequence = stoi (getTagValue (http.getContent(), "#EXT-X-MEDIA-SEQUENCE:"));
@@ -241,7 +242,7 @@ void cLoaderPlayer::hlsLoaderThread() {
           if (mPesParsers.size() > 1)
             mPesParsers[1]->clear (0);
           int contentParsed = 0;
-          if (http.get (redirectedHostName, getHlsPathName() + '-' + dec(chunkNum) + ".ts", "",
+          if (http.get (redirectedHostName, pathName + '-' + dec(chunkNum) + ".ts", "",
                         [&] (const string& key, const string& value) noexcept {}, // header lambda
                         [&] (const uint8_t* data, int length) noexcept {
                            //{{{  data lambda
