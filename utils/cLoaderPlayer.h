@@ -1,4 +1,4 @@
-// cHlsPlayer.h - video, audio - loader,player
+// cLoaderPlayer.h - video, audio - loader,player
 #pragma once
 //{{{  includes
 #include <cstdint>
@@ -13,13 +13,14 @@ class cPesParser;
 class cAudioDecode;
 class cVideoDecode;
 
-class cHlsPlayer {
+class cLoaderPlayer {
 public:
-  cHlsPlayer();
-  virtual ~cHlsPlayer();
+  cLoaderPlayer();
+  virtual ~cLoaderPlayer();
 
-  void init (const std::string& hostName, const std::string& channelName, int audBitrate, int vidBitrate,
-             bool useFFmpeg = true, bool videoQueue = true, bool audioQueue = true, bool streaming = true);
+  void initialise (const std::string& hostName, const std::string& channelName, 
+                   int audBitrate, int vidBitrate,
+                   bool useFFmpeg, bool videoQueue, bool audioQueue, bool streaming);
 
   cSong* getSong() { return mSong; }
   cVideoDecode* getVideoDecode() { return mVideoDecode; }

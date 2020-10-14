@@ -1,50 +1,59 @@
-// cHlsPlayerWidget.h
+// cLoaderPlayerWidget.h
 #pragma once
 //{{{  includes
 #include "cWidget.h"
 
-#include "../hls/cHlsPlayer.h"
+#include "../utils/cLoaderPlayer.h"
 //}}}
 
-class cHlsPlayerWidget : public cWidget {
+class cLoaderPlayerWidget : public cWidget {
 public:
-  cHlsPlayerWidget (cHlsPlayer* hlsPlayer, cPointF size)
-    : cWidget (kBlackF, size.x, size.y), mHlsPlayer(hlsPlayer) {}
-  virtual ~cHlsPlayerWidget() {}
+  cLoaderPlayerWidget (cLoaderPlayer* loaderPlayer, cPointF size)
+    : cWidget (kBlackF, size.x, size.y), mLoaderPlayer(loaderPlayer) {}
+  virtual ~cLoaderPlayerWidget() {}
 
   //{{{
   void onDraw (iDraw* draw) {
 
     cVg* vg = draw->getVg();
+    auto videoDecode = mLoaderPlayer->getVideoDecode();
 
-    auto frame = mHlsPlayer->getVideoDecode()->findPlayFrame();
-    if (frame) {
-      if (frame->getPts() != mImagePts) {
-        mImagePts = frame->getPts();
-        if (mImageId > -1)
-          vg->updateImage (mImageId, (uint8_t*)frame->get32());
-        else
-          mImageId = vg->createImageRGBA (mHlsPlayer->getVideoDecode()->getWidth(),
-                                          mHlsPlayer->getVideoDecode()->getHeight(),
-                                          0, (uint8_t*)frame->get32());
+    if (videoDecode) {
+      auto frame = videoDecode->findPlayFrame();
+      if (frame) {
+        if (frame->getPts() != mImagePts) {
+          mImagePts = frame->getPts();
+          if (mImageId > -1)
+            vg->updateImage (mImageId, (uint8_t*)frame->get32());
+          else
+            mImageId = vg->createImageRGBA (videoDecode->getWidth(), videoDecode->getHeight(),
+                                            0, (uint8_t*)frame->get32());
+          }
+
+        // paint image rect
+        vg->beginPath();
+        vg->rect (cPointF(), mPixSize);
+        vg->setFillPaint (vg->setImagePattern (cPointF(), mPixSize, 0.f, mImageId, 1.f));
+        vg->triangleFill();
         }
-
-      // paint image rect
-      vg->beginPath();
-      vg->rect (cPointF(), mPixSize);
-      vg->setFillPaint (vg->setImagePattern (cPointF(), mPixSize, 0.f, mImageId, 1.f));
-      vg->triangleFill();
       }
 
-    drawInfo (vg);
+    std::string infoString = mLoaderPlayer->getChannelName() +
+                             " - " + dec(mLoaderPlayer->getVidBitrate()) +
+                             ":" + dec(mLoaderPlayer->getAudBitrate());
+    if (videoDecode)
+      infoString += " " + dec(videoDecode->getWidth()) +
+                    "x" + dec(videoDecode->getHeight()) +
+                    " " + dec(videoDecode->getFramePoolSize());
+    drawInfo (vg, infoString);
 
     // draw progress spinners
     float loadFrac;
     float videoFrac;
     float audioFrac;
-    if (mHlsPlayer->getFrac (loadFrac, videoFrac, audioFrac)) {
+    if (mLoaderPlayer->getFrac (loadFrac, videoFrac, audioFrac)) {
       cPointF centre (mPixSize.x-20.f, 20.f);
-      drawSpinner (vg, centre, 18.f,12.f, 0.f, loadFrac,
+      drawSpinner (vg, centre, 18.f,12.f, 0.1f, loadFrac,
                    sColourF(0.f,1.f,0.f,0.f), sColourF(0.f,1.f,0.f,0.75f));
       if (videoFrac > 0.f)
         drawSpinner (vg, centre, 18.f,12.f, loadFrac * (1.f - videoFrac), loadFrac,
@@ -58,15 +67,8 @@ public:
 
 private:
   //{{{
-  void drawInfo (cVg* vg) {
+  void drawInfo (cVg* vg, const std::string& infoString) {
   // info text
-
-    std::string infoString = mHlsPlayer->getChannelName() +
-                             " - " + dec(mHlsPlayer->getVidBitrate()) +
-                             ":" + dec(mHlsPlayer->getAudBitrate()) +
-                             " " + dec(mHlsPlayer->getVideoDecode()->getWidth()) +
-                             "x" + dec(mHlsPlayer->getVideoDecode()->getHeight()) +
-                             " " + dec(mHlsPlayer->getVideoDecode()->getFramePoolSize());
 
     vg->setFontSize ((float)getFontHeight());
     vg->setTextAlign (cVg::eAlignLeft | cVg::eAlignTop);
@@ -78,7 +80,7 @@ private:
   //}}}
   //{{{
   void drawSpinner (cVg* vg, const cPointF& centre, float outerRadius, float innerRadius,
-                    float fracFrom, float fracTo, 
+                    float fracFrom, float fracTo,
                     const sColourF& colourFrom, const sColourF& colourTo) {
 
     if ((fracTo - fracFrom)  > 0.f) {
@@ -99,7 +101,7 @@ private:
     }
   //}}}
 
-  cHlsPlayer* mHlsPlayer;
+  cLoaderPlayer* mLoaderPlayer;
   uint64_t mImagePts = 0;
   int mImageId = -1;
   };

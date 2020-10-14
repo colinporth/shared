@@ -3,7 +3,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 #define WIN32_LEAN_AND_MEAN
 
-#include "cHlsPlayer.h"
+#include "cLoaderPlayer.h"
 
 // utils
 #include "../date/date.h"
@@ -54,9 +54,9 @@ namespace {
   }
 
 // public
-cHlsPlayer::cHlsPlayer() {}
+cLoaderPlayer::cLoaderPlayer() {}
 //{{{
-cHlsPlayer::~cHlsPlayer() {
+cLoaderPlayer::~cLoaderPlayer() {
 
   delete mSong;
   delete mVideoDecode;
@@ -66,8 +66,10 @@ cHlsPlayer::~cHlsPlayer() {
   }
 //}}}
 //{{{
-void cHlsPlayer::init (const string& hostName, const string& channelName, int audBitrate, int vidBitrate,
-                       bool useFFmpeg, bool queueVideo, bool queueAudio, bool streaming) {
+void cLoaderPlayer::initialise (const string& hostName, const string& channelName,
+                                int audBitrate, int vidBitrate,
+                                bool useFFmpeg, bool queueVideo, bool queueAudio, bool streaming) {
+
   mHostName = hostName;
   mChannelName = channelName;
 
@@ -77,14 +79,16 @@ void cHlsPlayer::init (const string& hostName, const string& channelName, int au
   mAudioDecode = new cAudioDecode (cAudioDecode::eAac);
 
   // video
-  mVidBitrate = vidBitrate;
   mUseFFmpeg = useFFmpeg;
-  if (useFFmpeg)
-    mVideoDecode = new cFFmpegVideoDecode();
-  #ifdef _WIN32
-    else
-      mVideoDecode = new cMfxVideoDecode();
-  #endif
+  mVidBitrate = vidBitrate;
+  if (vidBitrate) {
+    if (useFFmpeg)
+      mVideoDecode = new cFFmpegVideoDecode();
+    #ifdef _WIN32
+      else
+        mVideoDecode = new cMfxVideoDecode();
+    #endif
+    }
 
   // audio pesParser
   mPesParsers.push_back (
@@ -119,23 +123,25 @@ void cHlsPlayer::init (const string& hostName, const string& channelName, int au
       )
     );
 
-  // video pesParser
-  mPesParsers.push_back (
-    new cPesParser (0x21, queueVideo, "vid",
-      [&](uint8_t* pes, int size, int sequenceNum, uint64_t pts, cPesParser* pesParser) noexcept {
-        //{{{  video pes process callback lambda
-        pesParser->decode (pes, size, sequenceNum, pts);
-        sequenceNum++;
-        return sequenceNum;
-        },
-        //}}}
-      [&](uint8_t* pes, int size, int sequenceNum, uint64_t pts) noexcept {
-        //{{{  video pes decode callback lambda
-        mVideoDecode->decodeFrame (pes, size, sequenceNum, pts);
-        }
-        //}}}
-      )
-    );
+  if (vidBitrate) {
+    // video pesParser
+    mPesParsers.push_back (
+      new cPesParser (0x21, queueVideo, "vid",
+        [&](uint8_t* pes, int size, int sequenceNum, uint64_t pts, cPesParser* pesParser) noexcept {
+          //{{{  video pes process callback lambda
+          pesParser->decode (pes, size, sequenceNum, pts);
+          sequenceNum++;
+          return sequenceNum;
+          },
+          //}}}
+        [&](uint8_t* pes, int size, int sequenceNum, uint64_t pts) noexcept {
+          //{{{  video pes decode callback lambda
+          mVideoDecode->decodeFrame (pes, size, sequenceNum, pts);
+          }
+          //}}}
+        )
+      );
+    }
 
   //{{{  parse PAT
   //mPesParsers.push_back (
@@ -179,7 +185,7 @@ void cHlsPlayer::init (const string& hostName, const string& channelName, int au
 //}}}
 
 //{{{
-bool cHlsPlayer::getFrac (float& loadFrac, float& videoFrac, float& audioFrac) {
+bool cLoaderPlayer::getFrac (float& loadFrac, float& videoFrac, float& audioFrac) {
 // return fracs for spinner graphic, true if ok to display
 
   loadFrac = mLoadFrac;
@@ -191,17 +197,18 @@ bool cHlsPlayer::getFrac (float& loadFrac, float& videoFrac, float& audioFrac) {
 //}}}
 
 //{{{
-void cHlsPlayer::videoFollowAudio() {
+void cLoaderPlayer::videoFollowAudio() {
 
   auto framePtr = mSong->getAudioFramePtr (mSong->getPlayFrame());
   if (framePtr) {
-    mVideoDecode->setPlayPts (framePtr->getPts());
+    if (mVideoDecode)
+      mVideoDecode->setPlayPts (framePtr->getPts());
     mVideoDecode->clear (framePtr->getPts());
     }
   }
 //}}}
 //{{{
-void cHlsPlayer::loaderThread() {
+void cLoaderPlayer::loaderThread() {
 // hls http chunk load and possible decode thread
 
   cLog::setThreadName ("hls ");
@@ -216,7 +223,7 @@ void cHlsPlayer::loaderThread() {
                             "/" + mSong->getChannel() +
                             ".isml/" + mSong->getChannel() +
                             (mSong->getBitrate() < 128000 ? "-pa3=" : "-pa4=") + dec(mSong->getBitrate()) +
-                            "-video=" + dec(mVidBitrate);
+                            (mVidBitrate ? "-video=" + dec(mVidBitrate) : "");
     cPlatformHttp http;
     string redirectedHostName = http.getRedirect (mHostName, pathName + ".m3u8");
     if (http.getContent()) {
@@ -237,7 +244,8 @@ void cHlsPlayer::loaderThread() {
         if (mSong->loadChunk (system_clock::now(), 12s, 2, chunkNum, frameNum)) {
           cLog::log (LOGINFO, "get chunkNum:" + dec(chunkNum) + " frameNum:" + dec(frameNum));
           mPesParsers[0]->clear (frameNum);
-          mPesParsers[1]->clear (0);
+          if (mPesParsers.size() > 1)
+            mPesParsers[1]->clear (0);
           int contentParsed = 0;
           if (http.get (redirectedHostName, pathName + '-' + dec(chunkNum) + ".ts", "",
                         [&] (const string& key, const string& value) noexcept {}, // header lambda
@@ -288,7 +296,7 @@ void cHlsPlayer::loaderThread() {
 
 // private
 //{{{
-void cHlsPlayer::startPlayer() {
+void cLoaderPlayer::startPlayer() {
 
   if (!mPlayer.joinable()) {
     mPlayer = std::thread ([=]() {

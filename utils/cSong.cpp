@@ -37,7 +37,7 @@ cSong::cFrame::~cFrame() {
 
   #ifdef _DEBUG
     cLog::log (LOGINFO, "~cFrame owned:%d pts:%u sample:%d other:%d", mOurSamples, mPts, gSampleAllocs, gOtherFrame);
-  #endif _DEBUG
+  #endif
 
   assert (mPowerValues);
   assert (mPeakValues);
@@ -253,7 +253,7 @@ void cSong::addFrame (int frameNum, float* samples, bool ourSamples, int totalFr
   unique_lock<shared_mutex> lock (mSharedMutex);
 
   // totalFrames can be a changing estimate for file, or increasing value for streaming
-  if (mMaxMapSize && (mFrameMap.size() > mMaxMapSize)) {
+  if (mMaxMapSize && (int(mFrameMap.size()) > mMaxMapSize)) {
     // !!!!! reuse !!!!!!
     auto it = mFrameMap.begin();
     delete (*it).second;
