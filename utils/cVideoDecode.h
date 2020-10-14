@@ -36,12 +36,9 @@ public:
 
     // sets
     void set (uint64_t pts);
-    #ifdef _WIN32
-      void setNv12mfxBgra (int width, int height, uint8_t* buffer, int stride);
-      void setNv12mfxRgba (int width, int height, uint8_t* buffer, int stride);
-      void setNv12ffmpeg (int width, int height, uint8_t** data, int* linesize);
-    #endif
-    void setNv12ffmpegSws (int width, int height, uint8_t** data, int* linesize);
+    void setNv12mfxBgra (int width, int height, uint8_t* buffer, int stride);
+    void setNv12mfxRgba (int width, int height, uint8_t* buffer, int stride);
+    void setNv12PlanarRgba (int width, int height, uint8_t** data, int* linesize);
 
   private:
     eState mState = eFree;
