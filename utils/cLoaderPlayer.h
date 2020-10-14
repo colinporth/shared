@@ -42,7 +42,6 @@ public:
   bool mPlaying = true;
   bool mExit = false;
 
-  std::string mUrl;
   std::string mLastTitleStr;
 
   cFileList* mFileList = nullptr;

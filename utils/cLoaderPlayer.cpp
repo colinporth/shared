@@ -293,7 +293,6 @@ void cLoaderPlayer::icyLoaderThread (const string& url) {
 
   cLog::setThreadName ("icy ");
 
-  mUrl = url;
   while (!mExit) {
     int icySkipCount = 0;
     int icySkipLen = 0;
@@ -313,7 +312,7 @@ void cLoaderPlayer::icyLoaderThread (const string& url) {
 
     cPlatformHttp http;
     cUrl parsedUrl;
-    parsedUrl.parse (mUrl);
+    parsedUrl.parse (url);
     http.get (parsedUrl.getHost(), parsedUrl.getPath(), "Icy-MetaData: 1",
       //{{{  headerCallback lambda
       [&](const string& key, const string& value) noexcept {
@@ -500,13 +499,13 @@ string cLoaderPlayer::getHlsPathName() {
                     "/" + mSong->getChannel() +
                     ".isml/" + mSong->getChannel();
   if (mRadio)
-    pathName += "-audio=";
-  else
-    pathName += mSong->getBitrate() < 128000 ? "-pa3=" : "-pa4=";
-  pathName += dec(mSong->getBitrate());
+    pathName += "-audio=" + dec(mSong->getBitrate());
+  else {
+    pathName += mSong->getBitrate() < 128000 ? "-pa3=" : "-pa4=" + dec(mSong->getBitrate());
+    if (mVidBitrate)
+      pathName += "-video=" + dec(mVidBitrate);
+    }
 
-  if (mVidBitrate)
-    pathName += "-video=" + dec(mVidBitrate);
   return pathName;
   }
 //}}}
