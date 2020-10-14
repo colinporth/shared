@@ -1,4 +1,4 @@
-// cSong.h - set of audio frames, power, peak, fft, range select and some hls handling
+// cSong.h - container of audio frames,power,peak,fft,range select, hls numbering
 #pragma once
 //{{{  includes
 #include <cstdint>
@@ -203,7 +203,7 @@ public:
   // stream
   void setChannel (const std::string& channel) { mChannel = channel; }
   //{{{
-  void setBitrate (int bitrate, int framesPerChunk) {
+  void setBitrateFramesPerChunk (int bitrate, int framesPerChunk) {
     mBitrate = bitrate;
     mHlsFramesPerChunk = framesPerChunk;
     }
@@ -214,11 +214,11 @@ public:
   //}}}
 
   // hls
+  int getLastChunkNum() { return mLastChunkNum; }
+  int getLastFrameNum() { return mLastFrameNum; }
   bool hasHlsBase() { return mHlsBaseValid; }
   bool loadChunk (std::chrono::system_clock::time_point now, std::chrono::seconds secs, int preload,
                   int& chunkNum, int& frameNum);
-  int getLastChunkNum() { return mLastChunkNum; }
-  int getLastFrameNum() { return mLastFrameNum; }
 
   // actions
   void prevSilencePlayFrame();

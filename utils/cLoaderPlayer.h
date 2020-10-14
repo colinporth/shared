@@ -19,7 +19,8 @@ public:
   cLoaderPlayer();
   virtual ~cLoaderPlayer();
 
-  void initialise (bool radio, const std::string& hostName, const std::string& channelName,
+  void initialise (bool radio,
+                   const std::string& hostName, const std::string& poolName, const std::string& channelName,
                    int audBitrate, int vidBitrate,
                    bool useFFmpeg, bool videoQueue, bool audioQueue, bool streaming);
 
@@ -33,9 +34,9 @@ public:
   bool getFrac (float& loadFrac, float& videoFrac, float& audioFrac);
 
   void videoFollowAudio();
-  void loaderThread();
-  void icyThread (const std::string& url);
-  void fileThread();
+  void hlsLoaderThread();
+  void icyLoaderThread (const std::string& url);
+  void fileLoaderThread();
 
   cSong* mSong;
   bool mPlaying = true;
@@ -47,13 +48,15 @@ public:
   cFileList* mFileList = nullptr;
 
 private:
+  std::string getHlsPathName();
+  static std::string getTagValue (uint8_t* buffer, const char* tag);
   void addIcyInfo (int frame, const std::string& icyInfo);
   void startPlayer();
 
-  std::string mHostName;
-  std::string mChannelName;
-  std::string mPoolName;
   bool mRadio = false;
+  std::string mHostName;
+  std::string mPoolName;
+  std::string mChannelName;
 
   int mVidBitrate = 0;
   int mAudBitrate = 0;

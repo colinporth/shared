@@ -1,4 +1,4 @@
-// cSong.cpp - set of audioFrames, videoFrames added with own timing
+// cSong.cpp - container of audioFrames
 //{{{  includes
 #define _CRT_SECURE_NO_WARNINGS
 #define _SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING

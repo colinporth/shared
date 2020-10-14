@@ -45,19 +45,6 @@ using namespace std;
 using namespace chrono;
 //}}}
 
-namespace {
-  //{{{
-  string getTagValue (uint8_t* buffer, const char* tag) {
-
-    const char* tagPtr = strstr ((const char*)buffer, tag);
-    const char* valuePtr = tagPtr + strlen (tag);
-    const char* endPtr = strchr (valuePtr, '\n');
-
-    return string (valuePtr, endPtr - valuePtr);
-    }
-  //}}}
-  }
-
 // public
 cLoaderPlayer::cLoaderPlayer() {}
 //{{{
@@ -71,14 +58,15 @@ cLoaderPlayer::~cLoaderPlayer() {
   }
 //}}}
 //{{{
-void cLoaderPlayer::initialise (bool radio, const string& hostName, const string& channelName,
+void cLoaderPlayer::initialise (bool radio,
+                                const string& hostName, const string& poolName, const string& channelName,
                                 int audBitrate, int vidBitrate,
                                 bool useFFmpeg, bool queueVideo, bool queueAudio, bool streaming) {
 
   mRadio = radio;
   mHostName = hostName;
+  mPoolName = poolName;
   mChannelName = channelName;
-  mPoolName = radio ? "pool_904/live/uk/" : "pool_902/live/uk/";
 
   // audio
   mAudBitrate = audBitrate;
@@ -216,34 +204,22 @@ void cLoaderPlayer::videoFollowAudio() {
 //}}}
 
 //{{{
-void cLoaderPlayer::loaderThread() {
+void cLoaderPlayer::hlsLoaderThread() {
 // hls http chunk load and possible decode thread
 
   cLog::setThreadName ("hls ");
 
+  mSong->init (cAudioDecode::eAac, 2, 48000, mAudBitrate < 128000 ? 2048 : 1024, 1000);
   mSong->setChannel (mChannelName);
   if (mRadio)
-    mSong->setBitrate (mAudBitrate, mAudBitrate >= 128000 ? 150 : 300);
+    mSong->setBitrateFramesPerChunk (mAudBitrate, mAudBitrate < 128000 ? 150 : 300);
   else
-    mSong->setBitrate (mAudBitrate, mAudBitrate < 128000 ? 180 : 360);
-  mSong->init (cAudioDecode::eAac, 2, 48000, mSong->getBitrate() < 128000 ? 2048 : 1024, 1000);
+    mSong->setBitrateFramesPerChunk (mAudBitrate, mAudBitrate < 128000 ? 180 : 360);
 
   while (!mExit && !mSong->getChanged()) {
     mSong->setChanged (false);
-    //const string pathName = "pool_904/live/uk/" + mSong->getChannel() +
-    //                        "/" + mSong->getChannel() +
-    //                        ".isml/" + mSong->getChannel() +
-    //                        "-audio=" + dec(mSong->getBitrate());
-
-    const string pathName = mPoolName + mSong->getChannel() +
-                            "/" + mSong->getChannel() +
-                            ".isml/" + mSong->getChannel() +
-                            (mRadio ?
-                              ("-audio=" + dec(mSong->getBitrate())) :
-                              (mSong->getBitrate() < 128000 ? "-pa3=" : "-pa4=") + dec(mSong->getBitrate())) +
-                            (mVidBitrate ? "-video=" + dec(mVidBitrate) : "");
     cPlatformHttp http;
-    string redirectedHostName = http.getRedirect (mHostName, pathName + ".m3u8");
+    string redirectedHostName = http.getRedirect (mHostName, getHlsPathName() + ".m3u8");
     if (http.getContent()) {
       //{{{  parse m3u8 for mediaSequence,programDateTimePoint
       int extXMediaSequence = stoi (getTagValue (http.getContent(), "#EXT-X-MEDIA-SEQUENCE:"));
@@ -265,7 +241,7 @@ void cLoaderPlayer::loaderThread() {
           if (mPesParsers.size() > 1)
             mPesParsers[1]->clear (0);
           int contentParsed = 0;
-          if (http.get (redirectedHostName, pathName + '-' + dec(chunkNum) + ".ts", "",
+          if (http.get (redirectedHostName, getHlsPathName() + '-' + dec(chunkNum) + ".ts", "",
                         [&] (const string& key, const string& value) noexcept {}, // header lambda
                         [&] (const uint8_t* data, int length) noexcept {
                            //{{{  data lambda
@@ -312,7 +288,7 @@ void cLoaderPlayer::loaderThread() {
   }
 //}}}
 //{{{
-void cLoaderPlayer::icyThread (const string& url) {
+void cLoaderPlayer::icyLoaderThread (const string& url) {
 
   cLog::setThreadName ("icy ");
 
@@ -428,7 +404,7 @@ void cLoaderPlayer::icyThread (const string& url) {
   }
 //}}}
 //{{{
-void cLoaderPlayer::fileThread() {
+void cLoaderPlayer::fileLoaderThread() {
 
   cLog::setThreadName ("file");
 
@@ -516,6 +492,33 @@ void cLoaderPlayer::fileThread() {
 //}}}
 
 // private
+//{{{
+string cLoaderPlayer::getHlsPathName() {
+
+  string pathName = mPoolName + mSong->getChannel() +
+                    "/" + mSong->getChannel() +
+                    ".isml/" + mSong->getChannel();
+  if (mRadio)
+    pathName += "-audio=";
+  else
+    pathName += mSong->getBitrate() < 128000 ? "-pa3=" : "-pa4=";
+  pathName += dec(mSong->getBitrate());
+
+  if (mVidBitrate)
+    pathName += "-video=" + dec(mVidBitrate);
+  return pathName;
+  }
+//}}}
+//{{{
+string cLoaderPlayer:: getTagValue (uint8_t* buffer, const char* tag) {
+
+  const char* tagPtr = strstr ((const char*)buffer, tag);
+  const char* valuePtr = tagPtr + strlen (tag);
+  const char* endPtr = strchr (valuePtr, '\n');
+
+  return string (valuePtr, endPtr - valuePtr);
+  }
+//}}}
 //{{{
 void cLoaderPlayer::addIcyInfo (int frame, const string& icyInfo) {
 
