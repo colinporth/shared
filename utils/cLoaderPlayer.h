@@ -6,19 +6,20 @@
 #include <string>
 #include <vector>
 #include <thread>
-//}}}
 
 class cSong;
 class cPesParser;
 class cAudioDecode;
 class cVideoDecode;
+class cFileList;
+//}}}
 
 class cLoaderPlayer {
 public:
   cLoaderPlayer();
   virtual ~cLoaderPlayer();
 
-  void initialise (const std::string& hostName, const std::string& channelName, 
+  void initialise (bool radio, const std::string& hostName, const std::string& channelName,
                    int audBitrate, int vidBitrate,
                    bool useFFmpeg, bool videoQueue, bool audioQueue, bool streaming);
 
@@ -33,16 +34,27 @@ public:
 
   void videoFollowAudio();
   void loaderThread();
+  void icyThread (const std::string& url);
+  void fileThread();
 
   cSong* mSong;
   bool mPlaying = true;
   bool mExit = false;
 
+  std::string mUrl;
+  std::string mLastTitleStr;
+
+  cFileList* mFileList = nullptr;
+
 private:
+  void addIcyInfo (int frame, const std::string& icyInfo);
   void startPlayer();
 
   std::string mHostName;
   std::string mChannelName;
+  std::string mPoolName;
+  bool mRadio = false;
+
   int mVidBitrate = 0;
   int mAudBitrate = 0;
 
