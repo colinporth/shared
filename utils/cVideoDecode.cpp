@@ -250,25 +250,25 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
       __m128i* dstrgb128r1 = (__m128i*)(m32 + argbStride * y + argbStride);
 
       for (int x = 0; x < width; x += 16) {
-        __m128i y0r0 = _mm_load_si128 (srcy128r0++);       // loads yyyyyyyy yyyyyyyy for row 0
+        __m128i y0r0 = _mm_load_si128 (srcy128r0++); // load yyyyyyyy yyyyyyyy for row 0
         __m128i y00r0 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (y0r0, zero), ysub), facy);
         __m128i y01r0 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (y0r0, zero), ysub), facy);
 
-        __m128i y0r1 = _mm_load_si128 (srcy128r1++);       // loads yyyyyyyy yyyyyyyy for row 1
+        __m128i y0r1 = _mm_load_si128 (srcy128r1++); // load yyyyyyyy yyyyyyyy for row 1
         __m128i y00r1 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (y0r1, zero), ysub), facy);
         __m128i y01r1 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (y0r1, zero), ysub), facy);
 
         // load,expand u to align with y
-        __m128i u0 = _mm_loadl_epi64 ((__m128i*)srcu64++); // loads vvvvvvvv for row 0,1
+        __m128i u0 = _mm_loadl_epi64 ((__m128i*)srcu64++); // load vvvvvvvv for row 0,1
         u0 = _mm_unpacklo_epi8 (u0, zero);
-        __m128i u00 = _mm_sub_epi16 (_mm_unpacklo_epi16 (u0, u0), uvsub); // uuuuuuuu uuuuuuuu row 0 ?
-        __m128i u01 = _mm_sub_epi16 (_mm_unpackhi_epi16 (u0, u0), uvsub); // uuuuuuuu uuuuuuuu row 1 ?
+        __m128i u00 = _mm_sub_epi16 (_mm_unpacklo_epi16 (u0, u0), uvsub); // uuuuuuuu uuuuuuuu row 0,1 ?
+        __m128i u01 = _mm_sub_epi16 (_mm_unpackhi_epi16 (u0, u0), uvsub); // uuuuuuuu uuuuuuuu row 0,1 ?
 
         // load,expand v to align with y
-        __m128i v0 = _mm_loadl_epi64 ((__m128i*)srcv64++); // loads vvvvvvvv for row 0,1
+        __m128i v0 = _mm_loadl_epi64 ((__m128i*)srcv64++); // load vvvvvvvv for row 0,1
         v0 = _mm_unpacklo_epi8 (v0,  zero );
-        __m128i v00 = _mm_sub_epi16 (_mm_unpacklo_epi16 (v0, v0), uvsub); // vvvvvvvv vvvvvvvv row 0 ?
-        __m128i v01 = _mm_sub_epi16 (_mm_unpackhi_epi16 (v0, v0), uvsub); // vvvvvvvv vvvvvvvv row 0 ?
+        __m128i v00 = _mm_sub_epi16 (_mm_unpacklo_epi16 (v0, v0), uvsub); // vvvvvvvv vvvvvvvv row 0,1 ?
+        __m128i v01 = _mm_sub_epi16 (_mm_unpackhi_epi16 (v0, v0), uvsub); // vvvvvvvv vvvvvvvv row 0,1 ?
 
         __m128i rv00 = _mm_mullo_epi16 (facrv, v00);
         __m128i rv01 = _mm_mullo_epi16 (facrv, v01);
