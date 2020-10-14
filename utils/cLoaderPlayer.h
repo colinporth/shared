@@ -22,7 +22,7 @@ public:
   void initialise (bool radio,
                    const std::string& hostName, const std::string& poolName, const std::string& channelName,
                    int audBitrate, int vidBitrate,
-                   bool useFFmpeg, bool videoQueue, bool audioQueue, bool streaming);
+                   bool useMfx, bool videoQueue, bool audioQueue, bool streaming);
 
   cSong* getSong() { return mSong; }
   cVideoDecode* getVideoDecode() { return mVideoDecode; }
@@ -60,7 +60,6 @@ private:
   int mVidBitrate = 0;
   int mAudBitrate = 0;
 
-  bool mUseFFmpeg = false;
   bool mStreaming = false;
 
   float mLoadFrac = 0.f;

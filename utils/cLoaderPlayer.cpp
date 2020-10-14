@@ -61,7 +61,7 @@ cLoaderPlayer::~cLoaderPlayer() {
 void cLoaderPlayer::initialise (bool radio,
                                 const string& hostName, const string& poolName, const string& channelName,
                                 int audBitrate, int vidBitrate,
-                                bool useFFmpeg, bool queueVideo, bool queueAudio, bool streaming) {
+                                bool useMfx, bool queueVideo, bool queueAudio, bool streaming) {
 
   mRadio = radio;
   mHostName = hostName;
@@ -74,14 +74,15 @@ void cLoaderPlayer::initialise (bool radio,
   mAudioDecode = new cAudioDecode (cAudioDecode::eAac);
 
   // video
-  mUseFFmpeg = useFFmpeg;
   mVidBitrate = vidBitrate;
   if (vidBitrate) {
-    if (useFFmpeg)
-      mVideoDecode = new cFFmpegVideoDecode();
     #ifdef _WIN32
-      else
+      if (useMfx)
         mVideoDecode = new cMfxVideoDecode();
+      else
+        mVideoDecode = new cFFmpegVideoDecode();
+    #else // must use ffmpeg for now
+      mVideoDecode = new cFFmpegVideoDecode();
     #endif
     }
 
