@@ -60,13 +60,14 @@ cLoaderPlayer::~cLoaderPlayer() {
 //{{{
 void cLoaderPlayer::initialise (bool radio,
                                 const string& hostName, const string& poolName, const string& channelName,
-                                int audBitrate, int vidBitrate,
-                                bool useMfx, bool queueVideo, bool queueAudio, bool streaming) {
+                                int audBitrate, int vidBitrate, eLoader loader) {
 
   mRadio = radio;
   mHostName = hostName;
   mPoolName = poolName;
   mChannelName = channelName;
+  mStreaming = true;
+  mLoader = loader;
 
   // audio
   mAudBitrate = audBitrate;
@@ -77,18 +78,18 @@ void cLoaderPlayer::initialise (bool radio,
   mVidBitrate = vidBitrate;
   if (vidBitrate) {
     #ifdef _WIN32
-      if (useMfx)
-        mVideoDecode = new cMfxVideoDecode();
+      if (loader && eMfx)
+        mVideoDecode = new cMfxVideoDecode ((loader & eBgra) != 0);
       else
-        mVideoDecode = new cFFmpegVideoDecode();
+        mVideoDecode = new cFFmpegVideoDecode (false);
     #else // must use ffmpeg for now
-      mVideoDecode = new cFFmpegVideoDecode();
+      mVideoDecode = new cFFmpegVideoDecode (false);
     #endif
     }
 
   // audio pesParser
   mPesParsers.push_back (
-    new cPesParser (0x22, queueAudio, "aud",
+    new cPesParser (0x22, loader & eQueueAudio, "aud",
       [&](uint8_t* pes, int size, int sequenceNum, uint64_t pts, cPesParser* pesParser) noexcept {
         //{{{  audio pes process callback lambda
         uint8_t* framePes = pes;
@@ -122,7 +123,7 @@ void cLoaderPlayer::initialise (bool radio,
   if (vidBitrate) {
     // video pesParser
     mPesParsers.push_back (
-      new cPesParser (0x21, queueVideo, "vid",
+      new cPesParser (0x21, loader & eQueueVideo, "vid",
         [&](uint8_t* pes, int size, int sequenceNum, uint64_t pts, cPesParser* pesParser) noexcept {
           //{{{  video pes process callback lambda
           pesParser->decode (pes, size, sequenceNum, pts);
@@ -175,8 +176,6 @@ void cLoaderPlayer::initialise (bool radio,
       //)
     //);
   //}}}
-
-  mStreaming = streaming;
   }
 //}}}
 

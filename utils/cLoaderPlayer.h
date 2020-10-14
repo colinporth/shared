@@ -14,6 +14,7 @@ class cVideoDecode;
 class cFileList;
 //}}}
 
+enum eLoader { eMfx = 0x01, eBgra = 0x02, eQueueAudio = 0x04,  eQueueVideo = 0x08 };
 class cLoaderPlayer {
 public:
   cLoaderPlayer();
@@ -21,8 +22,7 @@ public:
 
   void initialise (bool radio,
                    const std::string& hostName, const std::string& poolName, const std::string& channelName,
-                   int audBitrate, int vidBitrate,
-                   bool useMfx, bool videoQueue, bool audioQueue, bool streaming);
+                   int audBitrate, int vidBitrate, eLoader loader);
 
   cSong* getSong() { return mSong; }
   cVideoDecode* getVideoDecode() { return mVideoDecode; }
@@ -59,6 +59,7 @@ private:
 
   int mVidBitrate = 0;
   int mAudBitrate = 0;
+  eLoader mLoader = {};
 
   bool mStreaming = false;
 

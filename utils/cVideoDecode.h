@@ -37,7 +37,8 @@ public:
     // sets
     void set (uint64_t pts);
     #ifdef _WIN32
-      void setNv12mfx (int width, int height, uint8_t* buffer, int stride);
+      void setNv12mfxBgra (int width, int height, uint8_t* buffer, int stride);
+      void setNv12mfxRgba (int width, int height, uint8_t* buffer, int stride);
       void setNv12ffmpeg (int width, int height, uint8_t** data, int* linesize);
     #endif
     void setNv12ffmpegSws (int width, int height, uint8_t** data, int* linesize);
@@ -49,24 +50,26 @@ public:
     };
   //}}}
 
-  cVideoDecode() {}
+  cVideoDecode (bool bgra) : mBgra(bgra) {}
   virtual ~cVideoDecode();
 
   void clear (uint64_t pts);
 
+  // gets
   int getWidth() { return mWidth; }
   int getHeight() { return mHeight; }
   int getFramePoolSize() { return (int)mFramePool.size(); }
 
+  // sets
   void setPlayPts (uint64_t playPts) { mPlayPts = playPts; }
 
   cFrame* findPlayFrame();
-
   virtual void decodeFrame (uint8_t* pes, unsigned int pesSize, int pesNumInChunk, uint64_t pts) = 0;
 
 protected:
   cFrame* getFreeFrame (uint64_t pts);
 
+  const bool mBgra;
   int mWidth = 0;
   int mHeight = 0;
   uint64_t mPlayPts = 0;
@@ -77,7 +80,7 @@ protected:
   //{{{
   class cMfxVideoDecode : public cVideoDecode {
   public:
-    cMfxVideoDecode();
+    cMfxVideoDecode (bool bgra);
     virtual ~cMfxVideoDecode();
     int getSurfacePoolSize() { return (int)mSurfacePool.size(); }
     void decodeFrame (uint8_t* pes, unsigned int pesSize, int pesNumInChunk, uint64_t pts);
@@ -96,7 +99,7 @@ protected:
 //{{{
 class cFFmpegVideoDecode : public cVideoDecode {
 public:
-  cFFmpegVideoDecode() ;
+  cFFmpegVideoDecode (bool bgra);
   virtual ~cFFmpegVideoDecode();
 
   void decodeFrame (uint8_t* pes, unsigned int pesSize, int pesNumInChunk, uint64_t pts);

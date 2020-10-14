@@ -481,7 +481,7 @@ void cVg::setCompositeState (eCompositeOp compositeOp) {
 //}}}
 //{{{
 void cVg::setCompositeBlendFuncSeparate (eBlendFactor srcRGB, eBlendFactor dstRGB,
-                                            eBlendFactor srcAlpha, eBlendFactor dstAlpha) {
+                                         eBlendFactor srcAlpha, eBlendFactor dstAlpha) {
 
   sCompositeState compositeState;
   compositeState.srcRGB = srcRGB;
