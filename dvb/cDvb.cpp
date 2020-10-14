@@ -59,13 +59,16 @@
   //}}}
 #endif
 //{{{  common includes
+#include <cstdlib>
+#include <cstring>
+#include <string>
+#include <vector>
+#include <map>
+#include <thread>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include <chrono>
-#include <thread>
-#include <map>
 
 #include "../date/date.h"
 #include "../utils/utils.h"
@@ -80,7 +83,7 @@
 using namespace std;
 //}}}
 
-const bool kDebug = false;
+constexpr bool kDebug = false;
 
 namespace { // anonymous
 #ifdef _WIN32
@@ -755,12 +758,13 @@ namespace { // anonymous
   class cDvbTransportStream : public cTransportStream {
   public:
     //{{{
-    cDvbTransportStream (const std::string& rootName,
-                         const std::vector <std::string>& channelStrings,
-                         const std::vector <std::string>& saveStrings)
+    cDvbTransportStream (const string& rootName,
+                         const vector <string>& channelStrings, const vector <string>& saveStrings,
+                         bool decodeSubtitle)
       : mRootName(rootName),
         mChannelStrings(channelStrings), mSaveStrings(saveStrings),
-        mRecordAll ((channelStrings.size() == 1) && (channelStrings[0] == "all")) {}
+        mRecordAll ((channelStrings.size() == 1) && (channelStrings[0] == "all")),
+        mDecodeSubtitle(decodeSubtitle) {}
     //}}}
     //{{{
     virtual ~cDvbTransportStream() {
@@ -782,17 +786,17 @@ namespace { // anonymous
 
   protected:
     //{{{
-    virtual void start (cService* service, const std::string& name,
-                        std::chrono::system_clock::time_point time,
-                        std::chrono::system_clock::time_point starttime,
+    virtual void start (cService* service, const string& name,
+                        chrono::system_clock::time_point time,
+                        chrono::system_clock::time_point starttime,
                         bool selected) {
 
-      std::lock_guard<std::mutex> lockGuard (mFileMutex);
+      lock_guard<mutex> lockGuard (mFileMutex);
 
       service->closeFile();
 
       bool record = selected || mRecordAll;
-      std::string saveName;
+      string saveName;
 
       if (!mRecordAll) {
         // filter and rename channel prefix
@@ -808,7 +812,7 @@ namespace { // anonymous
           }
         }
 
-      saveName += date::format ("%d %b %y %a %H.%M.%S ", date::floor<std::chrono::seconds>(time));
+      saveName += date::format ("%d %b %y %a %H.%M.%S ", date::floor<chrono::seconds>(time));
 
       if (record) {
         if ((service->getVidPid() > 0) &&
@@ -826,7 +830,7 @@ namespace { // anonymous
     virtual void pesPacket (int sid, int pid, uint8_t* ts) {
     // look up service and write it
 
-      std::lock_guard<std::mutex> lockGuard (mFileMutex);
+      lock_guard<mutex> lockGuard (mFileMutex);
 
       auto serviceIt = mServiceMap.find (sid);
       if (serviceIt != mServiceMap.end())
@@ -836,7 +840,7 @@ namespace { // anonymous
     //{{{
     virtual void stop (cService* service) {
 
-      std::lock_guard<std::mutex> lockGuard (mFileMutex);
+      lock_guard<mutex> lockGuard (mFileMutex);
 
       service->closeFile();
       }
@@ -844,56 +848,56 @@ namespace { // anonymous
 
     //{{{
     virtual bool audDecodePes (cPidInfo* pidInfo, bool skip) {
-
       //cLog::log (LOGINFO, getPtsString (pidInfo->mPts) + " a - " + dec(pidInfo->getBufUsed());
       return false;
       }
     //}}}
     //{{{
     virtual bool vidDecodePes (cPidInfo* pidInfo, bool skip) {
-
       //cLog::log (LOGINFO, getPtsString (pidInfo->mPts) + " v - " + dec(pidInfo->getBufUsed());
-
       return false;
       }
     //}}}
     //{{{
     virtual bool subDecodePes (cPidInfo* pidInfo) {
 
-      //if (kDebug)
+      if (kDebug)
         cLog::log (LOGINFO1, "subtitle pid:" + dec(pidInfo->mPid,4) +
                              " sid:" + dec(pidInfo->mSid,5) +
                              " size:" + dec(pidInfo->getBufUsed(),4) +
                              " " + getFullPtsString (pidInfo->mPts) +
                              " " + getChannelStringBySid (pidInfo->mSid));
 
-      // find or create sid service cSubtitleContext
-      auto it = mSubtitleMap.find (pidInfo->mSid);
-      if (it == mSubtitleMap.end()) {
-        auto insertPair = mSubtitleMap.insert (map <int, cSubtitle*>::value_type (pidInfo->mSid, new cSubtitle()));
-        it = insertPair.first;
-        cLog::log (LOGINFO1, "cDvb::subDecodePes - create serviceStuff sid:" + dec(pidInfo->mSid));
-        }
-      auto subtitle = it->second;
+      if (mDecodeSubtitle) {
+        // find or create sid service cSubtitleContext
+        auto it = mSubtitleMap.find (pidInfo->mSid);
+        if (it == mSubtitleMap.end()) {
+          auto insertPair = mSubtitleMap.insert (map <int, cSubtitle*>::value_type (pidInfo->mSid, new cSubtitle()));
+          it = insertPair.first;
+          cLog::log (LOGINFO1, "cDvb::subDecodePes - create serviceStuff sid:" + dec(pidInfo->mSid));
+          }
+        auto subtitle = it->second;
 
-      subtitle->decode (pidInfo->mBuffer, pidInfo->getBufUsed());
-      if (kDebug)
-        subtitle->debug ("- ");
+        subtitle->decode (pidInfo->mBuffer, pidInfo->getBufUsed());
+        if (kDebug)
+          subtitle->debug ("- ");
+        }
 
       return false;
       }
     //}}}
 
   private:
-    std::string mRootName;
+    string mRootName;
 
-    std::vector<std::string> mChannelStrings;
-    std::vector<std::string> mSaveStrings;
+    vector<string> mChannelStrings;
+    vector<string> mSaveStrings;
     bool mRecordAll;
+    bool mDecodeSubtitle;
 
-    std::mutex mFileMutex;
+    mutex mFileMutex;
 
-    std::map <int, cSubtitle*> mSubtitleMap; // indexed by sid
+    map <int, cSubtitle*> mSubtitleMap; // indexed by sid
     };
   //}}}
   cDvbTransportStream* mDvbTransportStream;
@@ -903,10 +907,10 @@ namespace { // anonymous
 // public:
 //{{{
 cDvb::cDvb (int frequency, const string& root,
-            const std::vector <std::string>& channelNames,
-            const std::vector <std::string>& recordNames) {
+            const vector <string>& channelNames, const vector <string>& recordNames,
+            bool decodeSubtitle) : mDecodeSubtitle(decodeSubtitle) {
 
-  mDvbTransportStream = new cDvbTransportStream (root, channelNames, recordNames);
+  mDvbTransportStream = new cDvbTransportStream (root, channelNames, recordNames, decodeSubtitle);
 
   if (frequency) {
     #ifdef _WIN32
@@ -1312,7 +1316,7 @@ void cDvb::grabThread (const string& root, const string& multiplexName) {
   }
 //}}}
 //{{{
-void cDvb::readThread (const std::string& fileName) {
+void cDvb::readThread (const string& fileName) {
 
   cLog::setThreadName ("read");
 

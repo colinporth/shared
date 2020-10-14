@@ -1,6 +1,7 @@
 // cDvb.h
 //{{{  includes
 #pragma once
+
 #include <string>
 #include <vector>
 //}}}
@@ -11,7 +12,8 @@ class cTransportStream;
 class cDvb {
 public:
   cDvb (int frequency, const std::string& root,
-        const std::vector<std::string>& channelNames, const std::vector<std::string>& recordNames);
+        const std::vector<std::string>& channelNames, const std::vector<std::string>& recordNames,
+        bool decodeSubtitle);
 
   virtual ~cDvb();
 
@@ -25,6 +27,8 @@ public:
   void readThread (const std::string& fileName);
 
   // public for widget observe
+  bool mDecodeSubtitle = false;
+
   std::string mErrorStr = "waiting";
   std::string mTuneStr = "untuned";
   std::string mSignalStr = "no signal";
