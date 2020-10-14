@@ -1,4 +1,4 @@
-// cSong.cpp - container of audioFrames
+// cSong.cpp - audioFrames container
 //{{{  includes
 #define _CRT_SECURE_NO_WARNINGS
 #define _SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING
