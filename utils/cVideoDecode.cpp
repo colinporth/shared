@@ -18,6 +18,7 @@ extern "C" {
 
 #ifdef _WIN32
   #include <emmintrin.h>
+  #include <tmmintrin.h>
   #include "../../libmfx/include/mfxvideo++.h"
 #endif
 
@@ -57,7 +58,7 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
 
 #ifdef _WIN32
   //{{{
-  void cVideoDecode::cFrame::setNv12mfxBgra (int width, int height, uint8_t* buffer, int stride) {
+  void cVideoDecode::cFrame::setYuv420Bgra (int width, int height, uint8_t* buffer, int stride) {
 
     int uvStride = stride/2;
     int argbStride = width;
@@ -204,7 +205,7 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
     }
   //}}}
   //{{{
-  void cVideoDecode::cFrame::setNv12mfxRgba (int width, int height, uint8_t* buffer, int stride) {
+  void cVideoDecode::cFrame::setYuv420Rgba (int width, int height, uint8_t* buffer, int stride) {
 
     int uvStride = stride/2;
     int argbStride = width;
@@ -348,133 +349,7 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
     }
   //}}}
   //{{{
-  //void cVideoDecode::cFrame::setNv12mfxRgba (int width, int height, uint8_t* buffer, int stride) {
-
-    //int uvStride = stride/2;
-    //int argbStride = width;
-    //uint8_t* uvBuffer = buffer + (height * stride);
-
-    ////  allocate buffers, unpack nv12 interleaved uv to planar uv
-    //if (!m32)
-      //#ifdef __linux__
-        //m32 = (uint32_t*)aligned_alloc (128, width * height * 4);
-      //#else
-        //m32 = (uint32_t*)_aligned_malloc (width * height * 4, 128);
-      //#endif
-
-    //__m128i ysub  = _mm_set1_epi32 (0x00100010);
-    //__m128i uvsub = _mm_set1_epi32 (0x00800080);
-    //__m128i facy  = _mm_set1_epi32 (0x004a004a);
-    //__m128i facrv = _mm_set1_epi32 (0x00660066);
-    //__m128i facgu = _mm_set1_epi32 (0x00190019);
-    //__m128i facgv = _mm_set1_epi32 (0x00340034);
-    //__m128i facbu = _mm_set1_epi32 (0x00810081);
-    //__m128i zero  = _mm_set1_epi32 (0x00000000);
-    //__m128i alpha = _mm_set1_epi32 (0xFFFFFFFF);
-
-    //for (int y = 0; y < height; y += 2) {
-      //__m128i* srcy128r0 = (__m128i*)(buffer + (stride*y));
-      //__m128i* srcy128r1 = (__m128i*)(buffer + (stride*y) + stride);
-      //__m64* srcuv64 = (__m64*)(uvBuffer + (uvStride*y));
-      //__m128i* dstrgb128r0 = (__m128i*)(m32 + argbStride * y);
-      //__m128i* dstrgb128r1 = (__m128i*)(m32 + argbStride * y + argbStride);
-
-      //for (int x = 0; x < width; x += 16) {
-        //__m128i u0 = _mm_loadl_epi64 ((__m128i*)srcuv64); // loads uvuvuvuv for row 0,1
-        //srcuv64++;
-        //__m128i v0 = _mm_loadl_epi64 ((__m128i*)srcuv64); // loads uvuvuvuv for row 0,1
-        //srcuv64++;
-
-        //__m128i y0r0 = _mm_load_si128 (srcy128r0++);      // loads yyyyyyyy yyyyyyyy for row 0
-        //__m128i y0r1 = _mm_load_si128 (srcy128r1++);      // loads yyyyyyyy yyyyyyyy for row 1
-
-        //// constant y factors
-        //__m128i y00r0 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (y0r0, zero), ysub), facy);
-        //__m128i y01r0 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (y0r0, zero), ysub), facy);
-        //__m128i y00r1 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (y0r1, zero), ysub), facy);
-        //__m128i y01r1 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (y0r1, zero), ysub), facy);
-
-        //// expand u and v so they're aligned with y values
-        //u0 = _mm_unpacklo_epi8 (u0, zero);
-        //__m128i u00 = _mm_sub_epi16 (_mm_unpacklo_epi16 (u0, u0), uvsub);
-        //__m128i u01 = _mm_sub_epi16 (_mm_unpackhi_epi16 (u0, u0), uvsub);
-
-        //v0 = _mm_unpacklo_epi8 (v0,  zero );
-        //__m128i v00 = _mm_sub_epi16 (_mm_unpacklo_epi16 (v0, v0), uvsub);
-        //__m128i v01 = _mm_sub_epi16 (_mm_unpackhi_epi16 (v0, v0), uvsub);
-
-        //{{{  common factors on both rows.
-        //__m128i rv00 = _mm_mullo_epi16 (facrv, v00);
-        //__m128i rv01 = _mm_mullo_epi16 (facrv, v01);
-        //__m128i gu00 = _mm_mullo_epi16 (facgu, u00);
-        //__m128i gu01 = _mm_mullo_epi16 (facgu, u01);
-        //__m128i gv00 = _mm_mullo_epi16 (facgv, v00);
-        //__m128i gv01 = _mm_mullo_epi16 (facgv, v01);
-        //__m128i bu00 = _mm_mullo_epi16 (facbu, u00);
-        //__m128i bu01 = _mm_mullo_epi16 (facbu, u01);
-        //}}}
-        //{{{  row 0
-        //__m128i r00 = _mm_srai_epi16 (_mm_add_epi16 (y00r0, rv00), 6);
-        //__m128i r01 = _mm_srai_epi16 (_mm_add_epi16 (y01r0, rv01), 6);
-        //__m128i g00 = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (y00r0, gu00), gv00), 6);
-        //__m128i g01 = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (y01r0, gu01), gv01), 6);
-        //__m128i b00 = _mm_srai_epi16 (_mm_add_epi16 (y00r0, bu00), 6);
-        //__m128i b01 = _mm_srai_epi16 (_mm_add_epi16 (y01r0, bu01), 6);
-
-        //r00 = _mm_packus_epi16 (r00, r01); // rrrr.. saturated
-        //g00 = _mm_packus_epi16 (g00, g01); // gggg.. saturated
-        //b00 = _mm_packus_epi16 (b00, b01); // bbbb.. saturated
-
-        //r01 = _mm_unpacklo_epi8 (b00, alpha);             // abab..
-        //__m128i gbgb    = _mm_unpacklo_epi8 (r00, g00);   // grgr..
-        //__m128i rgb0123 = _mm_unpacklo_epi16 (gbgb, r01); // abgrabgr..
-        //__m128i rgb4567 = _mm_unpackhi_epi16 (gbgb, r01); // abgrabgr..
-
-        //r01 = _mm_unpackhi_epi8 (b00, alpha);
-        //gbgb = _mm_unpackhi_epi8 (r00, g00);
-        //__m128i rgb89ab = _mm_unpacklo_epi16 (gbgb, r01);
-        //__m128i rgbcdef = _mm_unpackhi_epi16 (gbgb, r01);
-
-        //_mm_stream_si128 (dstrgb128r0++, rgb0123);
-        //_mm_stream_si128 (dstrgb128r0++, rgb4567);
-        //_mm_stream_si128 (dstrgb128r0++, rgb89ab);
-        //_mm_stream_si128 (dstrgb128r0++, rgbcdef);
-        //}}}
-        //{{{  row 1
-        //r00 = _mm_srai_epi16 (_mm_add_epi16 (y00r1, rv00), 6);
-        //r01 = _mm_srai_epi16 (_mm_add_epi16 (y01r1, rv01), 6);
-        //g00 = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (y00r1, gu00), gv00), 6);
-        //g01 = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (y01r1, gu01), gv01), 6);
-        //b00 = _mm_srai_epi16 (_mm_add_epi16 (y00r1, bu00), 6);
-        //b01 = _mm_srai_epi16 (_mm_add_epi16 (y01r1, bu01), 6);
-
-        //r00 = _mm_packus_epi16 (r00, r01);        // rrrr.. saturated
-        //g00 = _mm_packus_epi16 (g00, g01);        // gggg.. saturated
-        //b00 = _mm_packus_epi16 (b00, b01);        // bbbb.. saturated
-
-        //r01     = _mm_unpacklo_epi8 (b00, alpha); // abab..
-        //gbgb    = _mm_unpacklo_epi8 (r00, g00);   // grgr..
-        //rgb0123 = _mm_unpacklo_epi16 (gbgb, r01); // abgrabgr..
-        //rgb4567 = _mm_unpackhi_epi16 (gbgb, r01); // abgrabgr..
-
-        //r01     = _mm_unpackhi_epi8 (b00, alpha);
-        //gbgb    = _mm_unpackhi_epi8 (r00, g00);
-        //rgb89ab = _mm_unpacklo_epi16 (gbgb, r01);
-        //rgbcdef = _mm_unpackhi_epi16 (gbgb, r01);
-
-        //_mm_stream_si128 (dstrgb128r1++, rgb0123);
-        //_mm_stream_si128 (dstrgb128r1++, rgb4567);
-        //_mm_stream_si128 (dstrgb128r1++, rgb89ab);
-        //_mm_stream_si128 (dstrgb128r1++, rgbcdef);
-        //}}}
-        //}
-      //}
-
-    //mState = eLoaded;
-    //}
-  //}}}
-  //{{{
-  void cVideoDecode::cFrame::setNv12PlanarRgba (int width, int height, uint8_t** data, int* linesize) {
+  void cVideoDecode::cFrame::setYuv420PlanarRgba (int width, int height, uint8_t** data, int* linesize) {
 
     uint8_t* yBuffer = data[0];
     uint8_t* uBuffer = data[1];
@@ -604,17 +479,17 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
   //}}}
 #else
   //{{{
-  void cVideoDecode::cFrame::setNv12mfxBgra (int width, int height, uint8_t* buffer, int stride) {
+  void cVideoDecode::cFrame::setYuv420Bgra (int width, int height, uint8_t* buffer, int stride) {
     cLog::log (LOGERROR, "setNv12mfxBgra not implemented for linux");
     }
   //}}}
   //{{{
-  void cVideoDecode::cFrame::setNv12mfxRgba (int width, int height, uint8_t* buffer, int stride) {
+  void cVideoDecode::cFrame::setYuv420Rgba (int width, int height, uint8_t* buffer, int stride) {
     cLog::log (LOGERROR, "setNv12mfxRgba not implemented  for linux");
     }
   //}}}
   //{{{
-  void cVideoDecode::cFrame::setNv12PlanarRgba (int width, int height, uint8_t** data, int* linesize) {
+  void cVideoDecode::cFrame::setYuv420PlanarRgba (int width, int height, uint8_t** data, int* linesize) {
 
     if (!m32) {
       #ifdef __linux__
@@ -772,9 +647,9 @@ void cMfxVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int pesNu
                              surface->Data.TimeStamp, surface->Info.Width, surface->Info.Height, surface->Data.Pitch);
         auto frame = getFreeFrame (surface->Data.TimeStamp);
         if (mBgra)
-          frame->setNv12mfxBgra (surface->Info.Width, surface->Info.Height, surface->Data.Y, surface->Data.Pitch);
+          frame->setYuv420Bgra (surface->Info.Width, surface->Info.Height, surface->Data.Y, surface->Data.Pitch);
         else
-          frame->setNv12mfxRgba (surface->Info.Width, surface->Info.Height, surface->Data.Y, surface->Data.Pitch);
+          frame->setYuv420Rgba (surface->Info.Width, surface->Info.Height, surface->Data.Y, surface->Data.Pitch);
         }
       }
     }
@@ -863,7 +738,7 @@ void cFFmpegVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int pe
         cVideoDecode::cFrame* frame = getFreeFrame (mDecodePts);
         //cLog::log (LOGINFO, "decode done");
         //frame->setNv12ffmpegSws (mWidth, mHeight, avFrame->data, avFrame->linesize);
-        frame->setNv12PlanarRgba (mWidth, mHeight, avFrame->data, avFrame->linesize);
+        frame->setYuv420PlanarRgba (mWidth, mHeight, avFrame->data, avFrame->linesize);
         //cLog::log (LOGINFO, "yuv2rgb done");
 
         // fake pts from avContext framerate

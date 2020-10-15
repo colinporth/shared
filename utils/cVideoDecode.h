@@ -8,7 +8,6 @@
 #include <vector>
 
 #ifdef _WIN32
-  #include <emmintrin.h>
   #include "../../libmfx/include/mfxvideo++.h"
   //class mfxFrameSurface1;
 #endif
@@ -36,9 +35,9 @@ public:
 
     // sets
     void set (uint64_t pts);
-    void setNv12mfxBgra (int width, int height, uint8_t* buffer, int stride);
-    void setNv12mfxRgba (int width, int height, uint8_t* buffer, int stride);
-    void setNv12PlanarRgba (int width, int height, uint8_t** data, int* linesize);
+    void setYuv420Bgra (int width, int height, uint8_t* buffer, int stride);
+    void setYuv420Rgba (int width, int height, uint8_t* buffer, int stride);
+    void setYuv420PlanarRgba (int width, int height, uint8_t** data, int* linesize);
 
   private:
     eState mState = eFree;
