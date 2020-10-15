@@ -16,9 +16,13 @@ extern "C" {
   #include <libswscale/swscale.h>
   }
 
-#ifdef _WIN32
+#if defined (__i386__) || defined(__x86_64__) || defined(_M_IX86) || defined(_M_X64)
+  #define INTEL_SSE3 1
   #include <emmintrin.h>
   #include <tmmintrin.h>
+#endif
+
+#ifdef _WIN32
   #include "../../libmfx/include/mfxvideo++.h"
 #endif
 
@@ -56,7 +60,7 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
   }
 //}}}
 
-#ifdef _WIN32
+#if defined(INTEL_SSE3)
   //{{{
   void cVideoDecode::cFrame::setYuv420Rgba (int width, int height, uint8_t* buffer, int stride) {
 
