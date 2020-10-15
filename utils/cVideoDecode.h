@@ -31,18 +31,22 @@ public:
     // gets
     eState getState() { return mState; }
     uint64_t getPts() { return mPts; }
-    uint32_t* get32() { return m32; }
+    uint32_t* getBuffer() { return mBuffer; }
 
     // sets
     void set (uint64_t pts);
-    void setYuv420Bgra (int width, int height, uint8_t* buffer, int stride);
+
     void setYuv420Rgba (int width, int height, uint8_t* buffer, int stride);
+    void setYuv420Bgra (int width, int height, uint8_t* buffer, int stride);
     void setYuv420PlanarRgba (int width, int height, uint8_t** data, int* linesize);
+    void setYuv420PlanarBgra (int width, int height, uint8_t** data, int* linesize);
 
   private:
+    void allocateBuffer (int width, int height);
+
     eState mState = eFree;
     uint64_t mPts = 0;
-    uint32_t* m32 = nullptr;
+    uint32_t* mBuffer = nullptr;
     };
   //}}}
 

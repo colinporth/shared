@@ -24,10 +24,10 @@ public:
         if (frame->getPts() != mImagePts) {
           mImagePts = frame->getPts();
           if (mImageId > -1)
-            vg->updateImage (mImageId, (uint8_t*)frame->get32());
+            vg->updateImage (mImageId, (uint8_t*)frame->getBuffer());
           else
             mImageId = vg->createImageRGBA (videoDecode->getWidth(), videoDecode->getHeight(),
-                                            0, (uint8_t*)frame->get32());
+                                            0, (uint8_t*)frame->getBuffer());
           }
 
         // paint image rect
