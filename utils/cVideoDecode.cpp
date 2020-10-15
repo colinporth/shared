@@ -477,6 +477,368 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
     mState = eLoaded;
     }
   //}}}
+  //{{{
+  //void cVideoDecode::cFrame::setYuv420Rgba (int width, int height, uint8_t* buffer, int stride) {
+
+    //int uvStride = stride/2;
+    //uint8_t* uvBuffer = buffer + (height * stride);
+
+    //if (!m32) // allocate aligned buffer
+      //m32 = (uint32_t*)
+      //#ifdef __linux__
+        //aligned_alloc (128, width * height * 4);
+      //#else
+        //_aligned_malloc (width * height * 4, 128);
+      //#endif
+
+    //__m128i ysub  = _mm_set1_epi32 (0x00100010);
+    //__m128i uvsub = _mm_set1_epi32 (0x00800080);
+    //__m128i facy  = _mm_set1_epi32 (0x004a004a);
+    //__m128i facrv = _mm_set1_epi32 (0x00660066);
+    //__m128i facgu = _mm_set1_epi32 (0x00190019);
+    //__m128i facgv = _mm_set1_epi32 (0x00340034);
+    //__m128i facbu = _mm_set1_epi32 (0x00810081);
+    //__m128i zero  = _mm_set1_epi32 (0x00000000);
+    //__m128i alpha = _mm_set1_epi32 (0xFFFFFFFF);
+    //__m128i masku = _mm_set_epi8 (-1,14, -1,12, -1,10, -1,8, -1,6, -1,4, -1,2, -1,0);
+    //__m128i maskv = _mm_set_epi8 (-1,15, -1,13, -1,11, -1,9, -1,7, -1,5, -1,3, -1,1);
+
+    //for (int y = 0; y < height; y += 2) {
+      //// calc row pointers
+      //__m128i* srcY128r0 = (__m128i*)(buffer + (stride*y));
+      //__m128i* srcY128r1 = srcY128r0 + stride;
+      //__m128* srcUv128 = (__m128*)(uvBuffer + (uvStride*y));
+      //__m128i* dstrgb128r0 = (__m128i*)(m32 + width * y);
+      //__m128i* dstrgb128r1 = dstrgb128r0 + width;
+
+      //for (int x = 0; x < width; x += 16) {
+        //// row0 y, could shuffle
+        //__m128i r0y0 = _mm_load_si128 (srcY128r0++); // y0 y1 y2 y3 y4 y5 y6 y7 y8 y9 y10 y11 y12 y13 y14 y15
+        //__m128i r0y00 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (r0y0, zero), ysub), facy); // ((0.y0 0.y1 0.y2  0.y3  0.y4  0.y5  0.y6  0.y7)  - ysub) * facy
+        //__m128i r0y01 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (r0y0, zero), ysub), facy); // ((0.y8 0.y9 0.y10 0.y11 0.y12 0.y13 0.y14 0.y15) - ysub) * facy
+
+        //// row1 y, could shuffle
+        //__m128i r1y0 = _mm_load_si128 (srcY128r1++); // y0 y1 y2 y3 y4 y5 y6 y7 y8 y9 y10 y11 y12 y13 y14 y15
+        //__m128i r1y00 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (r1y0, zero), ysub), facy); // ((0.y0 0.y1 0.y2  0.y3  0.y4  0.y5  0.y6  0.y7)  - ysub) * facy
+        //__m128i r1y01 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (r1y0, zero), ysub), facy); // ((0.y8 0.y9 0.y10 0.y11 0.y12 0.y13 0.y14 0.y15) - ysub) * facy
+
+        //// row01 u,v - align with y
+        //__m128i uv = _mm_load_si128 ((__m128i*)srcUv128++);               //  u0 v0 u1 v1 u2 v2 u3 v3 u4 v4 u5 v5 u6 v6 u7 v7
+        //__m128i u0 = _mm_shuffle_epi8 (uv, masku);                        //  0.u0 0.u1 0.u2 0.u3 0.u4 0.u5 0.u6 0.u7
+        //__m128i u00 = _mm_sub_epi16 (_mm_unpacklo_epi16 (u0, u0), uvsub); // (0.u0 0.u0 0.u1 0.u1 0.u2 0.u2 0.u3 0.u3) - uvsub
+        //__m128i u01 = _mm_sub_epi16 (_mm_unpackhi_epi16 (u0, u0), uvsub); // (0.u4 0.u4 0.u5 0.u5 0.u6 0.u6 0.u7 0.u7) - uvsub
+        //__m128i v0 = _mm_shuffle_epi8 (uv, maskv);                        //  0.v0 0.v1 0.v2 0.v3 0.v4 0.v5 0.v6 0.v7
+        //__m128i v00 = _mm_sub_epi16 (_mm_unpacklo_epi16 (v0, v0), uvsub); // (0.v0 0.v0 0.v1 0.v1 0.v2 0.v2 0.v3 0.v3) - uvsub
+        //__m128i v01 = _mm_sub_epi16 (_mm_unpackhi_epi16 (v0, v0), uvsub); // (0.v4 0.v4 0.v5 0.v5 0.v6 0.v6 0.v7 0.v7) - uvsub
+
+        //{{{  common factors on both rows
+        //__m128i rv00 = _mm_mullo_epi16 (facrv, v00);
+        //__m128i rv01 = _mm_mullo_epi16 (facrv, v01);
+        //__m128i gu00 = _mm_mullo_epi16 (facgu, u00);
+        //__m128i gu01 = _mm_mullo_epi16 (facgu, u01);
+        //__m128i gv00 = _mm_mullo_epi16 (facgv, v00);
+        //__m128i gv01 = _mm_mullo_epi16 (facgv, v01);
+        //__m128i bu00 = _mm_mullo_epi16 (facbu, u00);
+        //__m128i bu01 = _mm_mullo_epi16 (facbu, u01);
+        //}}}
+        //{{{  row 0
+        //__m128i r00 = _mm_srai_epi16 (_mm_add_epi16 (r0y00, rv00), 6);
+        //__m128i r01 = _mm_srai_epi16 (_mm_add_epi16 (r0y01, rv01), 6);
+
+        //__m128i g00 = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (r0y00, gu00), gv00), 6);
+        //__m128i g01 = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (r0y01, gu01), gv01), 6);
+
+        //__m128i b00 = _mm_srai_epi16 (_mm_add_epi16 (r0y00, bu00), 6);
+        //__m128i b01 = _mm_srai_epi16 (_mm_add_epi16 (r0y01, bu01), 6);
+
+        //r00 = _mm_packus_epi16 (r00, r01); // rrrr.. saturated
+        //g00 = _mm_packus_epi16 (g00, g01); // gggg.. saturated
+        //b00 = _mm_packus_epi16 (b00, b01); // bbbb.. saturated
+
+        //r01 = _mm_unpacklo_epi8 (b00, alpha);             // abab..
+        //__m128i gbgb    = _mm_unpacklo_epi8 (r00, g00);   // grgr..
+        //__m128i rgb0123 = _mm_unpacklo_epi16 (gbgb, r01); // abgrabgr..
+        //__m128i rgb4567 = _mm_unpackhi_epi16 (gbgb, r01); // abgrabgr..
+
+        //r01 = _mm_unpackhi_epi8 (b00, alpha);
+        //gbgb = _mm_unpackhi_epi8 (r00, g00);
+        //__m128i rgb89ab = _mm_unpacklo_epi16 (gbgb, r01);
+        //__m128i rgbcdef = _mm_unpackhi_epi16 (gbgb, r01);
+
+        //_mm_stream_si128 (dstrgb128r0++, rgb0123);
+        //_mm_stream_si128 (dstrgb128r0++, rgb4567);
+
+        //_mm_stream_si128 (dstrgb128r0++, rgb89ab);
+        //_mm_stream_si128 (dstrgb128r0++, rgbcdef);
+        //}}}
+        //{{{  row 1
+        //r00 = _mm_srai_epi16 (_mm_add_epi16 (r1y00, rv00), 6);
+        //r01 = _mm_srai_epi16 (_mm_add_epi16 (r1y01, rv01), 6);
+        //g00 = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (r1y00, gu00), gv00), 6);
+        //g01 = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (r1y01, gu01), gv01), 6);
+        //b00 = _mm_srai_epi16 (_mm_add_epi16 (r1y00, bu00), 6);
+        //b01 = _mm_srai_epi16 (_mm_add_epi16 (r1y01, bu01), 6);
+
+        //r00 = _mm_packus_epi16 (r00, r01);        // rrrr.. saturated
+        //g00 = _mm_packus_epi16 (g00, g01);        // gggg.. saturated
+        //b00 = _mm_packus_epi16 (b00, b01);        // bbbb.. saturated
+
+        //r01     = _mm_unpacklo_epi8 (b00, alpha); // abab..
+        //gbgb    = _mm_unpacklo_epi8 (r00, g00);   // grgr..
+        //rgb0123 = _mm_unpacklo_epi16 (gbgb, r01); // abgrabgr..
+        //rgb4567 = _mm_unpackhi_epi16 (gbgb, r01); // abgrabgr..
+
+        //r01     = _mm_unpackhi_epi8 (b00, alpha);
+        //gbgb    = _mm_unpackhi_epi8 (r00, g00);
+        //rgb89ab = _mm_unpacklo_epi16 (gbgb, r01);
+        //rgbcdef = _mm_unpackhi_epi16 (gbgb, r01);
+
+        //_mm_stream_si128 (dstrgb128r1++, rgb0123);
+        //_mm_stream_si128 (dstrgb128r1++, rgb4567);
+        //_mm_stream_si128 (dstrgb128r1++, rgb89ab);
+        //_mm_stream_si128 (dstrgb128r1++, rgbcdef);
+        //}}}
+        //}
+      //}
+
+    //mState = eLoaded;
+    //}
+  //}}}
+  //{{{
+  //void cVideoDecode::cFrame::setYuv420Bgra (int width, int height, uint8_t* buffer, int stride) {
+
+    //int uvStride = stride/2;
+    //uint8_t* uvBuffer = buffer + (height * stride);
+
+    //if (!m32) //  allocate aligned buffer
+      //m32 = (uint32_t*)
+      //#ifdef __linux__
+        //aligned_alloc (128, width * height * 4);
+      //#else
+        //_aligned_malloc (width * height * 4, 128);
+      //#endif
+
+    //__m128i ysub  = _mm_set1_epi32 (0x00100010);
+    //__m128i uvsub = _mm_set1_epi32 (0x00800080);
+    //__m128i facy  = _mm_set1_epi32 (0x004a004a);
+    //__m128i facrv = _mm_set1_epi32 (0x00660066);
+    //__m128i facgu = _mm_set1_epi32 (0x00190019);
+    //__m128i facgv = _mm_set1_epi32 (0x00340034);
+    //__m128i facbu = _mm_set1_epi32 (0x00810081);
+    //__m128i zero  = _mm_set1_epi32 (0x00000000);
+    //__m128i alpha = _mm_set1_epi32 (0xFFFFFFFF);
+    //__m128i masku = _mm_set_epi8 (-1,14, -1,12, -1,10, -1,8, -1,6, -1,4, -1,2, -1,0);
+    //__m128i maskv = _mm_set_epi8 (-1,15, -1,13, -1,11, -1,9, -1,7, -1,5, -1,3, -1,1);
+
+    //for (int y = 0; y < height; y += 2) {
+      //// calc row pointers
+      //__m128i* srcY128r0 = (__m128i*)(buffer + (stride*y));
+      //__m128i* srcY128r1 = srcY128r0 + stride;
+      //__m128* srcUv128 = (__m128*)(uvBuffer + (uvStride*y));
+      //__m128i* dstrgb128r0 = (__m128i*)(m32 + width * y);
+      //__m128i* dstrgb128r1 = dstrgb128r0 + width;
+
+      //for (int x = 0; x < width; x += 16) {
+        //// row0 y, could shuffle
+        //__m128i r0y0 = _mm_load_si128 (srcY128r0++); // y0 y1 y2 y3 y4 y5 y6 y7 y8 y9 y10 y11 y12 y13 y14 y15
+        //__m128i r0y00 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (r0y0, zero), ysub), facy); // ((0.y0 0.y1 0.y2  0.y3  0.y4  0.y5  0.y6  0.y7)  - ysub) * facy
+        //__m128i r0y01 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (r0y0, zero), ysub), facy); // ((0.y8 0.y9 0.y10 0.y11 0.y12 0.y13 0.y14 0.y15) - ysub) * facy
+
+        //// row1 y, could shuffle
+        //__m128i r1y0 = _mm_load_si128 (srcY128r1++); // y0 y1 y2 y3 y4 y5 y6 y7 y8 y9 y10 y11 y12 y13 y14 y15
+        //__m128i r1y00 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (r1y0, zero), ysub), facy); // ((0.y0 0.y1 0.y2  0.y3  0.y4  0.y5  0.y6  0.y7)  - ysub) * facy
+        //__m128i r1y01 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (r1y0, zero), ysub), facy); // ((0.y8 0.y9 0.y10 0.y11 0.y12 0.y13 0.y14 0.y15) - ysub) * facy
+
+        //// row01 u,v - align with y, could shuffle
+        //__m128i uv = _mm_load_si128 ((__m128i*)srcUv128++);               //  u0 v0 u1 v1 u2 v2 u3 v3 u4 v4 u5 v5 u6 v6 u7 v7
+        //__m128i u0 = _mm_shuffle_epi8 (uv, masku);                        //  0.u0 0.u1 0.u2 0.u3 0.u4 0.u5 0.u6 0.u7
+        //__m128i u00 = _mm_sub_epi16 (_mm_unpacklo_epi16 (u0, u0), uvsub); // (0.u0 0.u0 0.u1 0.u1 0.u2 0.u2 0.u3 0.u3) - uvsub
+        //__m128i u01 = _mm_sub_epi16 (_mm_unpackhi_epi16 (u0, u0), uvsub); // (0.u4 0.u4 0.u5 0.u5 0.u6 0.u6 0.u7 0.u7) - uvsub
+        //__m128i v0 = _mm_shuffle_epi8 (uv, maskv);                        //  0.v0 0.v1 0.v2 0.v3 0.v4 0.v5 0.v6 0.v7
+        //__m128i v00 = _mm_sub_epi16 (_mm_unpacklo_epi16 (v0, v0), uvsub); // (0.v0 0.v0 0.v1 0.v1 0.v2 0.v2 0.v3 0.v3) - uvsub
+        //__m128i v01 = _mm_sub_epi16 (_mm_unpackhi_epi16 (v0, v0), uvsub); // (0.v4 0.v4 0.v5 0.v5 0.v6 0.v6 0.v7 0.v7) - uvsub
+
+        //{{{  common factors on both rows
+        //__m128i rv00 = _mm_mullo_epi16 (facrv, v00);
+        //__m128i rv01 = _mm_mullo_epi16 (facrv, v01);
+        //__m128i gu00 = _mm_mullo_epi16 (facgu, u00);
+        //__m128i gu01 = _mm_mullo_epi16 (facgu, u01);
+        //__m128i gv00 = _mm_mullo_epi16 (facgv, v00);
+        //__m128i gv01 = _mm_mullo_epi16 (facgv, v01);
+        //__m128i bu00 = _mm_mullo_epi16 (facbu, u00);
+        //__m128i bu01 = _mm_mullo_epi16 (facbu, u01);
+        //}}}
+        //{{{  row 0
+        //__m128i r00 = _mm_srai_epi16 (_mm_add_epi16 (r0y00, rv00), 6);
+        //__m128i r01 = _mm_srai_epi16 (_mm_add_epi16 (r0y01, rv01), 6);
+        //__m128i g00 = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (r0y00, gu00), gv00), 6);
+        //__m128i g01 = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (r0y01, gu01), gv01), 6);
+        //__m128i b00 = _mm_srai_epi16 (_mm_add_epi16 (r0y00, bu00), 6);
+        //__m128i b01 = _mm_srai_epi16 (_mm_add_epi16 (r0y01, bu01), 6);
+
+        //r00 = _mm_packus_epi16 (r00, r01); // rrrr.. saturated
+        //g00 = _mm_packus_epi16 (g00, g01); // gggg.. saturated
+        //b00 = _mm_packus_epi16 (b00, b01); // bbbb.. saturated
+
+        //r01 = _mm_unpacklo_epi8 (r00, alpha);             // arar..
+        //__m128i gbgb    = _mm_unpacklo_epi8 (b00, g00);   // gbgb..
+        //__m128i rgb0123 = _mm_unpacklo_epi16 (gbgb, r01); // argbargb..
+        //__m128i rgb4567 = _mm_unpackhi_epi16 (gbgb, r01); // argbargb..
+
+        //r01 = _mm_unpackhi_epi8 (r00, alpha);
+        //gbgb = _mm_unpackhi_epi8 (b00, g00);
+        //__m128i rgb89ab = _mm_unpacklo_epi16 (gbgb, r01);
+        //__m128i rgbcdef = _mm_unpackhi_epi16 (gbgb, r01);
+
+        //_mm_stream_si128 (dstrgb128r0++, rgb0123);
+        //_mm_stream_si128 (dstrgb128r0++, rgb4567);
+        //_mm_stream_si128 (dstrgb128r0++, rgb89ab);
+        //_mm_stream_si128 (dstrgb128r0++, rgbcdef);
+        //}}}
+        //{{{  row 1
+        //r00 = _mm_srai_epi16 (_mm_add_epi16 (r1y00, rv00), 6);
+        //r01 = _mm_srai_epi16 (_mm_add_epi16 (r1y01, rv01), 6);
+        //g00 = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (r1y00, gu00), gv00), 6);
+        //g01 = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (r1y01, gu01), gv01), 6);
+        //b00 = _mm_srai_epi16 (_mm_add_epi16 (r1y00, bu00), 6);
+        //b01 = _mm_srai_epi16 (_mm_add_epi16 (r1y01, bu01), 6);
+
+        //r00 = _mm_packus_epi16 (r00, r01);        // rrrr.. saturated
+        //g00 = _mm_packus_epi16 (g00, g01);        // gggg.. saturated
+        //b00 = _mm_packus_epi16 (b00, b01);        // bbbb.. saturated
+
+        //r01     = _mm_unpacklo_epi8 (r00, alpha); // arar..
+        //gbgb    = _mm_unpacklo_epi8 (b00, g00);   // gbgb..
+        //rgb0123 = _mm_unpacklo_epi16 (gbgb, r01); // argbargb..
+        //rgb4567 = _mm_unpackhi_epi16 (gbgb, r01); // argbargb..
+
+        //r01     = _mm_unpackhi_epi8 (r00, alpha);
+        //gbgb    = _mm_unpackhi_epi8 (b00, g00);
+        //rgb89ab = _mm_unpacklo_epi16 (gbgb, r01);
+        //rgbcdef = _mm_unpackhi_epi16 (gbgb, r01);
+
+        //_mm_stream_si128 (dstrgb128r1++, rgb0123);
+        //_mm_stream_si128 (dstrgb128r1++, rgb4567);
+        //_mm_stream_si128 (dstrgb128r1++, rgb89ab);
+        //_mm_stream_si128 (dstrgb128r1++, rgbcdef);
+        //}}}
+        //}
+      //}
+
+    //mState = eLoaded;
+    //}
+  //}}}
+  //{{{
+  //void cVideoDecode::cFrame::setYuv420PlanarRgba (int width, int height, uint8_t** data, int* linesize) {
+
+    //uint8_t* yBuffer = data[0];
+    //uint8_t* uBuffer = data[1];
+    //uint8_t* vBuffer = data[2];
+
+    //int yStride = linesize[0];
+    //int uvStride = linesize[1];
+
+    //if (!m32) // allocate aligned buffer
+      //m32 = (uint32_t*)
+      //#ifdef __linux__
+        //aligned_alloc (128, width * height * 4);
+      //#else
+        //_aligned_malloc (width * height * 4, 128);
+      //#endif
+
+    //__m128i ysub  = _mm_set1_epi32 (0x00100010);
+    //__m128i uvsub = _mm_set1_epi32 (0x00800080);
+    //__m128i facy  = _mm_set1_epi32 (0x004a004a);
+    //__m128i facrv = _mm_set1_epi32 (0x00660066);
+    //__m128i facgu = _mm_set1_epi32 (0x00190019);
+    //__m128i facgv = _mm_set1_epi32 (0x00340034);
+    //__m128i facbu = _mm_set1_epi32 (0x00810081);
+    //__m128i zero  = _mm_set1_epi32 (0x00000000);
+    //__m128i alpha = _mm_set1_epi32 (0xFFFFFFFF);
+
+    //for (int y = 0; y < height; y += 2) {
+      //// calc row pointers
+      //__m128i* srcY128r0 = (__m128i*)(yBuffer + (yStride * y));
+      //__m128i* srcY128r1 = srcY128r0 + yStride;
+      //__m64* srcU64 = (__m64*)(uBuffer + uvStride * (y / 2));
+      //__m64* srcV64 = (__m64*)(vBuffer + uvStride * (y / 2));
+      //__m128i* dstrgb128r0 = (__m128i*)(m32 + (width * y));
+      //__m128i* dstrgb128r1 = dstrgb128r0 + width;
+
+      //for (int x = 0; x < width; x += 16) {
+        //{{{  read src into y00r0,y01r0, y00r1,y01r1, u00,u01, v00,v01
+        //// row0 y
+        //__m128i temp = _mm_load_si128 (srcY128r0++);
+        //__m128i y00r0 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (temp, zero), ysub), facy);
+        //__m128i y01r0 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (temp, zero), ysub), facy);
+
+        //// row1 y
+        //temp = _mm_load_si128 (srcY128r1++);
+        //__m128i y00r1 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (temp, zero), ysub), facy);
+        //__m128i y01r1 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (temp, zero), ysub), facy);
+
+        //// row01 u, could shuffle
+        //temp = _mm_unpacklo_epi8 (_mm_loadl_epi64 ((__m128i*)srcU64++), zero); // 0.u0 0.u1 0.u2 0.u3 0.u4 0.u5 0.u6 0.u7
+        //__m128i u00 = _mm_sub_epi16 (_mm_unpacklo_epi16 (temp, temp), uvsub);
+        //__m128i u01 = _mm_sub_epi16 (_mm_unpackhi_epi16 (temp, temp), uvsub);
+
+        //// row01 v, could shuffle
+        //temp = _mm_unpacklo_epi8 (_mm_loadl_epi64 ((__m128i*)srcV64++), zero); // 0.v0 0.v1 0.v2 0.v3 0.v4 0.v5 0.v6 0.v7
+        //__m128i v00 = _mm_sub_epi16 (_mm_unpacklo_epi16 (temp, temp), uvsub);
+        //__m128i v01 = _mm_sub_epi16 (_mm_unpackhi_epi16 (temp, temp), uvsub);
+        //}}}
+        //{{{  write convert to rgba and write to dst
+        //__m128i rv00 = _mm_mullo_epi16 (facrv, v00);
+        //__m128i rv01 = _mm_mullo_epi16 (facrv, v01);
+        //__m128i r00 = _mm_packus_epi16 (_mm_srai_epi16 (_mm_add_epi16 (y00r0, rv00), 6),
+                                        //_mm_srai_epi16 (_mm_add_epi16 (y01r0, rv01), 6)); // rrrr.. saturated
+
+        //__m128i gu00 = _mm_mullo_epi16 (facgu, u00);
+        //__m128i gu01 = _mm_mullo_epi16 (facgu, u01);
+        //__m128i gv00 = _mm_mullo_epi16 (facgv, v00);
+        //__m128i gv01 = _mm_mullo_epi16 (facgv, v01);
+        //__m128i g00 = _mm_packus_epi16 (_mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (y00r0, gu00), gv00), 6),
+                                        //_mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (y01r0, gu01), gv01), 6)); // gggg.. saturated
+
+        //__m128i bu00 = _mm_mullo_epi16 (facbu, u00);
+        //__m128i bu01 = _mm_mullo_epi16 (facbu, u01);
+        //__m128i b00 = _mm_packus_epi16 (_mm_srai_epi16 (_mm_add_epi16 (y00r0, bu00), 6),
+                                        //_mm_srai_epi16 (_mm_add_epi16 (y01r0, bu01), 6)); // bbbb.. saturated
+        //// row0
+        //temp = _mm_unpacklo_epi8 (r00, alpha); // arar..
+        //__m128i temp1 = _mm_unpacklo_epi8 (b00, g00);  // gbgb..
+        //_mm_stream_si128 (dstrgb128r0++, _mm_unpacklo_epi16 (temp1, temp)); // lo argbargb lo
+        //_mm_stream_si128 (dstrgb128r0++, _mm_unpackhi_epi16 (temp1, temp)); // lo argbargb hi
+
+        //temp = _mm_unpackhi_epi8 (r00, alpha);
+        //temp1 = _mm_unpackhi_epi8 (b00, g00);
+        //_mm_stream_si128 (dstrgb128r0++, _mm_unpacklo_epi16 (temp1, temp)); // hi argbargb lo
+        //_mm_stream_si128 (dstrgb128r0++, _mm_unpackhi_epi16 (temp1, temp)); // hi argbargb hi
+
+        //// row1
+        //r00 = _mm_packus_epi16 (_mm_srai_epi16 (_mm_add_epi16 (y00r1, rv00), 6),
+                                //_mm_srai_epi16 (_mm_add_epi16 (y01r1, rv01), 6)); // rrrr.. saturated
+        //g00 = _mm_packus_epi16 (_mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (y00r1, gu00), gv00), 6),
+                                //_mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (y01r1, gu01), gv01), 6)); // gggg.. saturated
+        //b00 = _mm_packus_epi16 (_mm_srai_epi16 (_mm_add_epi16 (y00r1, bu00), 6),
+                                //_mm_srai_epi16 (_mm_add_epi16 (y01r1, bu01), 6)); // bbbb.. saturated
+
+        //temp = _mm_unpacklo_epi8 (r00, alpha); // arar..
+        //temp1 = _mm_unpacklo_epi8 (b00, g00);  // gbgb..
+        //_mm_stream_si128 (dstrgb128r1++, _mm_unpacklo_epi16 (temp1, temp)); // lo argbargb lo
+        //_mm_stream_si128 (dstrgb128r1++, _mm_unpackhi_epi16 (temp1, temp)); // lo argbargb hi
+
+        //temp = _mm_unpackhi_epi8 (r00, alpha);
+        //temp1 = _mm_unpackhi_epi8 (b00, g00);
+        //_mm_stream_si128 (dstrgb128r1++, _mm_unpacklo_epi16 (temp1, temp)); // hi argbargb lo
+        //_mm_stream_si128 (dstrgb128r1++, _mm_unpackhi_epi16 (temp1, temp)); // hi argbargb hi
+        //}}}
+        //}
+      //}
+
+    //mState = eLoaded;
+    //}
+  //}}}
 #else
   //{{{
   void cVideoDecode::cFrame::setYuv420Bgra (int width, int height, uint8_t* buffer, int stride) {
