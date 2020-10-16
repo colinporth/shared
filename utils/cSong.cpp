@@ -168,7 +168,7 @@ cSong::~cSong() {
 //}}}
 
 //{{{
-void cSong::init (cAudioDecode::eFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame,
+void cSong::initialise (cAudioDecode::eFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame,
                   int maxMapSize) {
 
   unique_lock<shared_mutex> lock (mSharedMutex);
@@ -194,7 +194,7 @@ void cSong::addFrame (int frameNum, float* samples, bool ourSamples, int totalFr
   cFrame* frame;
   if (mMaxMapSize && (int(mFrameMap.size()) > mMaxMapSize)) {
     // remove front of map, reuse frame
-      { 
+      {
       unique_lock<shared_mutex> lock (mSharedMutex);
       auto it = mFrameMap.begin();
       frame = (*it).second;

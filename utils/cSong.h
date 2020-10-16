@@ -122,8 +122,8 @@ public:
   //}}}
   virtual ~cSong();
 
-  void init (cAudioDecode::eFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame,
-             int maxMapSize = 0);
+  void initialise (cAudioDecode::eFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame,
+                   int maxMapSize = 0);
   void addFrame (int frameNum, float* samples, bool ourSamples, int totalFrames, uint64_t pts);
   void clear();
 

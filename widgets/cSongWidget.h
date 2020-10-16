@@ -206,7 +206,7 @@ private:
       vg->beginPath();
 
       for (auto frame = leftFrame; frame < rightFrame; frame += mFrameStep) {
-        auto framePtr = mSong->getAudioFramePtr (frame);
+        auto framePtr = mSong->getFramePtr (frame);
         if (framePtr) {
           // draw frame peak values scaled to maxPeak
           if (framePtr->getPowerValues()) {
@@ -229,7 +229,7 @@ private:
     vg->beginPath();
 
     for (auto frame = leftFrame; frame < playFrame; frame += mFrameStep) {
-      auto framePtr = mSong->getAudioFramePtr (frame);
+      auto framePtr = mSong->getFramePtr (frame);
       if (framePtr) {
         if (mFrameStep == 1) {
           // power scaled to maxPeak
@@ -247,7 +247,7 @@ private:
           auto alignedFrame = frame - (frame % mFrameStep);
           auto toSumFrame = std::min (alignedFrame + mFrameStep, rightFrame);
           for (auto sumFrame = alignedFrame; sumFrame < toSumFrame; sumFrame++) {
-            auto framePtr = mSong->getAudioFramePtr (sumFrame);
+            auto framePtr = mSong->getFramePtr (sumFrame);
             if (framePtr) {
               if (framePtr->getPowerValues()) {
                 auto powerValuesPtr = framePtr->getPowerValues();
@@ -273,7 +273,7 @@ private:
     // power scaled to maxPeak
     vg->beginPath();
 
-    auto framePtr = mSong->getAudioFramePtr (playFrame);
+    auto framePtr = mSong->getFramePtr (playFrame);
     if (framePtr) {
       //  draw play frame power scaled to maxPeak
       if (framePtr->getPowerValues()) {
@@ -293,7 +293,7 @@ private:
     vg->beginPath();
 
     for (auto frame = playFrame+mFrameStep; frame < rightFrame; frame += mFrameStep) {
-      auto framePtr = mSong->getAudioFramePtr (frame);
+      auto framePtr = mSong->getFramePtr (frame);
       if (framePtr) {
         if (mFrameStep == 1) {
           // power scaled to maxPeak
@@ -311,7 +311,7 @@ private:
           auto alignedFrame = frame - (frame % mFrameStep);
           auto toSumFrame = std::min (alignedFrame + mFrameStep, rightFrame);
           for (auto sumFrame = alignedFrame; sumFrame < toSumFrame; sumFrame++) {
-            auto framePtr = mSong->getAudioFramePtr (sumFrame);
+            auto framePtr = mSong->getFramePtr (sumFrame);
             if (framePtr) {
               if (framePtr->getPowerValues()) {
                 auto powerValuesPtr = framePtr->getPowerValues();
@@ -361,7 +361,7 @@ private:
     vg->beginPath();
 
     float xorg = mPixOrg.x;
-    auto framePtr = mSong->getAudioFramePtr (playFrame);
+    auto framePtr = mSong->getFramePtr (playFrame);
     if (framePtr && framePtr->getFreqValues()) {
       auto freqValues = framePtr->getFreqValues();
       for (auto i = 0; (i < mSong->getNumFreqBytes()) && ((i*2) < int(mPixSize.x)); i++) {
@@ -423,7 +423,7 @@ private:
         if (toFrame > lastFrame)
           toFrame = lastFrame+1;
 
-        auto framePtr = mSong->getAudioFramePtr (frame);
+        auto framePtr = mSong->getFramePtr (frame);
         if (framePtr && framePtr->getPowerValues()) {
           // accumulate frame, handle silence better
           float* powerValues = framePtr->getPowerValues();
@@ -434,7 +434,7 @@ private:
             int numSummedFrames = 1;
             frame++;
             while (frame < toFrame) {
-              framePtr = mSong->getAudioFramePtr (frame);
+              framePtr = mSong->getFramePtr (frame);
               if (framePtr) {
                 if (framePtr->getPowerValues()) {
                   auto powerValues = framePtr->getPowerValues();
@@ -495,7 +495,7 @@ private:
     // calc lens max power
     float maxPowerValue = 0.f;
     for (auto frame = int(leftFrame); frame <= rightFrame; frame++) {
-      auto framePtr = mSong->getAudioFramePtr (frame);
+      auto framePtr = mSong->getFramePtr (frame);
       if (framePtr && framePtr->getPowerValues()) {
         auto powerValues = framePtr->getPowerValues();
         maxPowerValue = std::max (maxPowerValue, powerValues[0]);
@@ -509,7 +509,7 @@ private:
     float xorg = mPixOrg.x + firstX;
     float valueScale = mOverviewHeight / 2.f / maxPowerValue;
     for (auto frame = int(leftFrame); frame <= rightFrame; frame++) {
-      auto framePtr = mSong->getAudioFramePtr (frame);
+      auto framePtr = mSong->getFramePtr (frame);
       if (framePtr && framePtr->getPowerValues()) {
         //if (framePtr->hasTitle()) {
           //{{{  draw song title yellow bar and text
@@ -607,7 +607,7 @@ private:
     else {
       //  draw playFrame
 
-      auto framePtr = mSong->getAudioFramePtr (playFrame);
+      auto framePtr = mSong->getFramePtr (playFrame);
       if (framePtr && framePtr->getPowerValues()) {
         vg->beginPath();
         auto powerValues = framePtr->getPowerValues();

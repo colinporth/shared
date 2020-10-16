@@ -209,7 +209,7 @@ void cLoaderPlayer::hlsLoaderThread() {
 
   cLog::setThreadName ("hls ");
 
-  mSong->init (cAudioDecode::eAac, 2, 48000, mAudBitrate < 128000 ? 2048 : 1024, 1000);
+  mSong->initialise (cAudioDecode::eAac, 2, 48000, mAudBitrate < 128000 ? 2048 : 1024, 1000);
   mSong->setChannel (mChannelName);
   if (mRadio)
     mSong->setBitrateFramesPerChunk (mAudBitrate, mAudBitrate < 128000 ? 150 : 300);
@@ -374,7 +374,7 @@ void cLoaderPlayer::icyLoaderThread (const string& url) {
           frameNum = 0;
           int sampleRate;
           auto frameType = cAudioDecode::parseSomeFrames (bufferFirst, bufferEnd, sampleRate);
-          mSong->init (frameType, 2, 44100, (frameType == cAudioDecode::eMp3) ? 1152 : 2048, 3000);
+          mSong->initialise(frameType, 2, 44100, (frameType == cAudioDecode::eMp3) ? 1152 : 2048, 3000);
           }
 
         while (decode.parseFrame (buffer, bufferEnd)) {
@@ -447,7 +447,7 @@ void cLoaderPlayer::fileLoaderThread() {
       if (frameType == cAudioDecode::eWav) {
         //{{{  parse wav
         auto frameSamples = 1024;
-        mSong->init (frameType, 2, sampleRate, frameSamples);
+        mSong->initialise (frameType, 2, sampleRate, frameSamples);
         decode.parseFrame (fileMapPtr, fileMapEnd);
         auto samples = decode.getFramePtr();
         while (!mExit && !mSong->getChanged() && ((samples + (frameSamples * 2 * sizeof(float))) <= fileMapEnd)) {
@@ -459,7 +459,7 @@ void cLoaderPlayer::fileLoaderThread() {
         //}}}
       else {
         //{{{  parse coded
-        mSong->init (frameType, 2, sampleRate, (frameType == cAudioDecode::eMp3) ? 1152 : 2048);
+        mSong->initialise (frameType, 2, sampleRate, (frameType == cAudioDecode::eMp3) ? 1152 : 2048);
         while (!mExit && !mSong->getChanged() && decode.parseFrame (fileMapPtr, fileMapEnd)) {
           if (decode.getFrameType() == mSong->getFrameType()) {
             auto samples = decode.decodeFrame (frameNum);
