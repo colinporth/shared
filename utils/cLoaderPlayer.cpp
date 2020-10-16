@@ -194,7 +194,7 @@ bool cLoaderPlayer::getFrac (float& loadFrac, float& videoFrac, float& audioFrac
 //{{{
 void cLoaderPlayer::videoFollowAudio() {
 
-  auto framePtr = mSong->getAudioFramePtr (mSong->getPlayFrame());
+  auto framePtr = mSong->getFramePtr (mSong->getPlayFrame());
   if (framePtr) {
     if (mVideoDecode)
       mVideoDecode->setPlayPts (framePtr->getPts());
@@ -586,7 +586,7 @@ void cLoaderPlayer::startPlayer() {
               // lambda callback - load srcSamples
               shared_lock<shared_mutex> lock (mSong->getSharedMutex());
 
-              framePtr = mSong->getAudioFramePtr (mSong->getPlayFrame());
+              framePtr = mSong->getFramePtr (mSong->getPlayFrame());
               if (mPlaying && framePtr && framePtr->getSamples()) {
                 if (mSong->getNumChannels() == 1) {
                   //{{{  mono to stereo

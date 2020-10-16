@@ -193,16 +193,17 @@ void cSong::addFrame (int frameNum, float* samples, bool ourSamples, int totalFr
 
   cFrame* frame;
   if (mMaxMapSize && (int(mFrameMap.size()) > mMaxMapSize)) {
-    // remove from front of map, reuse frame
-    unique_lock<shared_mutex> lock (mSharedMutex);
-    auto it = mFrameMap.begin();
-    frame = (*it).second;
-    mFrameMap.erase (it);
+    // remove front of map, reuse frame
+      { 
+      unique_lock<shared_mutex> lock (mSharedMutex);
+      auto it = mFrameMap.begin();
+      frame = (*it).second;
+      mFrameMap.erase (it);
+      }
 
     // reuse power,peak,fft buffers, but free samples if we own them
     if (frame->mOurSamples)
       free (frame->mSamples);
-
     frame->mSamples = samples;
     frame->mOurSamples = ourSamples;
     frame->mPts = pts;
@@ -254,10 +255,11 @@ void cSong::addFrame (int frameNum, float* samples, bool ourSamples, int totalFr
     freqBufPtr++;
     }
 
-  unique_lock<shared_mutex> lock (mSharedMutex);
-
-  mFrameMap.insert (map<int,cFrame*>::value_type (frameNum, frame));
-  mTotalFrames = totalFrames;
+    {
+    unique_lock<shared_mutex> lock (mSharedMutex);
+    mFrameMap.insert (map<int,cFrame*>::value_type (frameNum, frame));
+    mTotalFrames = totalFrames;
+    }
 
   checkSilenceWindow (frameNum);
   }
@@ -343,7 +345,7 @@ bool cSong::loadChunk (system_clock::time_point now, chrono::seconds secs, int p
   int loaded = 0;
   while ((loaded < preload) && ((now - (mHlsBaseTimePoint + (chunkNumOffset * 6400ms))) > secs))
     // chunkNum chunk should be available
-    if (!getAudioFramePtr (mHlsBaseFrame + (chunkNumOffset * mHlsFramesPerChunk))) {
+    if (!getFramePtr (mHlsBaseFrame + (chunkNumOffset * mHlsFramesPerChunk))) {
       // not loaded, return chunkNum to load
       chunkNum = mHlsBaseChunkNum + chunkNumOffset;
       frameNum = mHlsBaseFrame + (chunkNum - mHlsBaseChunkNum) * mHlsFramesPerChunk;
@@ -407,10 +409,12 @@ void cSong::clearFrames() {
 //{{{
 void cSong::checkSilenceWindow (int frameNum) {
 
+  unique_lock<shared_mutex> lock (mSharedMutex);
+
   // walk backwards looking for continuous loaded quiet frames
   auto windowSize = 0;
   while (true) {
-    auto framePtr = getAudioFramePtr (frameNum);
+    auto framePtr = getFramePtr (frameNum);
     if (framePtr && framePtr->isQuiet()) {
       windowSize++;
       frameNum--;
@@ -422,7 +426,7 @@ void cSong::checkSilenceWindow (int frameNum) {
   if (windowSize > kSilenceWindowFrames) {
     // walk forward setting silence for continuous loaded quiet frames
     while (true) {
-      auto framePtr = getAudioFramePtr (++frameNum);
+      auto framePtr = getFramePtr (++frameNum);
       if (framePtr && framePtr->isQuiet())
         framePtr->setSilence (true);
       else
@@ -436,7 +440,7 @@ void cSong::checkSilenceWindow (int frameNum) {
 int cSong::skipPrev (int fromFrame, bool silence) {
 
   for (int frame = fromFrame-1; frame >= getFirstFrame(); frame--) {
-    auto framePtr = getAudioFramePtr (frame);
+    auto framePtr = getFramePtr (frame);
     if (framePtr && (framePtr->isSilence() ^ silence))
       return frame;
     }
@@ -448,7 +452,7 @@ int cSong::skipPrev (int fromFrame, bool silence) {
 int cSong::skipNext (int fromFrame, bool silence) {
 
   for (int frame = fromFrame; frame <= getLastFrame(); frame++) {
-    auto framePtr = getAudioFramePtr (frame);
+    auto framePtr = getFramePtr (frame);
     if (framePtr && (framePtr->isSilence() ^ silence))
       return frame;
     }

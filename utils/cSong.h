@@ -146,7 +146,7 @@ public:
   int getBasePlayFrame() { return mPlayFrame - mHlsBaseFrame; }
 
   //{{{
-  cFrame* getAudioFramePtr (int frame) {
+  cFrame* getFramePtr (int frame) {
     auto it = mFrameMap.find (frame);
     return (it == mFrameMap.end()) ? nullptr : it->second;
     }
