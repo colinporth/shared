@@ -82,12 +82,14 @@ protected:
   public:
     cMfxVideoDecode (bool bgra);
     virtual ~cMfxVideoDecode();
+
     int getSurfacePoolSize() { return (int)mSurfacePool.size(); }
     void decodeFrame (uint8_t* pes, unsigned int pesSize, int pesNumInChunk, uint64_t pts);
 
   private:
     mfxFrameSurface1* getFreeSurface();
 
+    // vars
     MFXVideoSession mSession;
     mfxVideoParam mVideoParams;
     mfxBitstream mBitstream;
@@ -105,6 +107,7 @@ public:
   void decodeFrame (uint8_t* pes, unsigned int pesSize, int pesNumInChunk, uint64_t pts);
 
 private:
+  // vars
   AVCodecParserContext* mAvParser = nullptr;
   AVCodec* mAvCodec = nullptr;
   AVCodecContext* mAvContext = nullptr;

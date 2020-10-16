@@ -124,11 +124,12 @@ public:
 
   void initialise (cAudioDecode::eFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame,
                    int maxMapSize = 0);
-  void addFrame (int frameNum, float* samples, bool ourSamples, int totalFrames, uint64_t pts);
   void clear();
+  void addFrame (int frameNum, float* samples, bool ourSamples, int totalFrames, uint64_t pts);
 
   //{{{  gets
   std::shared_mutex& getSharedMutex() { return mSharedMutex; }
+
   int getId() { return mId; }
   bool getChanged() { return mChanged; }
 

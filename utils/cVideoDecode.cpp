@@ -18,6 +18,7 @@ extern "C" {
   }
 
 #if defined (__i386__) || defined(__x86_64__) || defined(_M_IX86) || defined(_M_X64)
+  #define INTEL_SSE2
   #define INTEL_SSSE3 1
   #include <emmintrin.h>
   #include <tmmintrin.h>
@@ -60,6 +61,7 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
 //}}}
 
 #if defined(INTEL_SSSE3)
+  // uses shuffle
   //{{{
   void cVideoDecode::cFrame::setYuv420Rgba (int width, int height, uint8_t* buffer, int stride) {
 
@@ -76,6 +78,7 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
     __m128i mask1 = _mm_set_epi8 (-1,14, -1,14, -1,12, -1,12, -1,10, -1,10, -1,8, -1,8);
     __m128i mask2 = _mm_set_epi8 (-1,7,  -1,7,  -1,5,  -1,5,  -1,3,  -1,3,  -1,1, -1,1);
     __m128i mask3 = _mm_set_epi8 (-1,15, -1,15, -1,13, -1,13, -1,11, -1,11, -1,9, -1,9);
+
     __m128i uvsub = _mm_set1_epi32 (0x00800080);
     __m128i facrv = _mm_set1_epi32 (0x00660066);
     __m128i facgu = _mm_set1_epi32 (0x00190019);
@@ -205,6 +208,7 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
     __m128i mask1 = _mm_set_epi8 (-1,14, -1,14, -1,12, -1,12, -1,10, -1,10, -1,8, -1,8);
     __m128i mask2 = _mm_set_epi8 (-1,7,  -1,7,  -1,5,  -1,5,  -1,3,  -1,3,  -1,1, -1,1);
     __m128i mask3 = _mm_set_epi8 (-1,15, -1,15, -1,13, -1,13, -1,11, -1,11, -1,9, -1,9);
+
     __m128i uvsub = _mm_set1_epi32 (0x00800080);
     __m128i facrv = _mm_set1_epi32 (0x00660066);
     __m128i facgu = _mm_set1_epi32 (0x00190019);
@@ -316,6 +320,20 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
     mState = eLoaded;
     }
   //}}}
+#else
+  //{{{
+  void cVideoDecode::cFrame::setYuv420Bgra (int width, int height, uint8_t* buffer, int stride) {
+    cLog::log (LOGERROR, "setNv12mfxBgra not implemented for non x86");
+    }
+  //}}}
+  //{{{
+  void cVideoDecode::cFrame::setYuv420Rgba (int width, int height, uint8_t* buffer, int stride) {
+    cLog::log (LOGERROR, "setNv12mfxRgba not implemented  for non x86");
+    }
+  //}}}
+#endif
+
+#if defined(INTEL_SSE2)
   //{{{
   void cVideoDecode::cFrame::setYuv420PlanarRgba (int width, int height, uint8_t** data, int* linesize) {
 
@@ -547,16 +565,6 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
   //}}}
 #else
   //{{{
-  void cVideoDecode::cFrame::setYuv420Bgra (int width, int height, uint8_t* buffer, int stride) {
-    cLog::log (LOGERROR, "setNv12mfxBgra not implemented for non x86");
-    }
-  //}}}
-  //{{{
-  void cVideoDecode::cFrame::setYuv420Rgba (int width, int height, uint8_t* buffer, int stride) {
-    cLog::log (LOGERROR, "setNv12mfxRgba not implemented  for non x86");
-    }
-  //}}}
-  //{{{
   void cVideoDecode::cFrame::setYuv420PlanarRgba (int width, int height, uint8_t** data, int* linesize) {
 
     system_clock::time_point timePoint = system_clock::now();
@@ -570,6 +578,7 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
                                              width, height, AV_PIX_FMT_RGBA,
                                              SWS_BILINEAR, NULL, NULL, NULL);
     sws_scale (swsContext, data, linesize, 0, height, dstData, dstStride);
+    sws_freeContext (swsContext);
 
     if (kTiming)
       cLog::log (LOGINFO, "ffmpeg setYuv420PlanarRgba:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
@@ -689,6 +698,7 @@ cMfxVideoDecode::~cMfxVideoDecode() {
 //{{{
 void cMfxVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int pesNumInChunk, uint64_t pts) {
 
+  memset (&mBitstream, 0, sizeof(mfxBitstream));
   mBitstream.Data = pes;
   mBitstream.DataOffset = 0;
   mBitstream.DataLength = pesSize;
@@ -826,6 +836,8 @@ void cFFmpegVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int pe
           frame->setYuv420PlanarBgra (mWidth, mHeight, avFrame->data, avFrame->linesize);
         else
           frame->setYuv420PlanarRgba (mWidth, mHeight, avFrame->data, avFrame->linesize);
+
+        av_frame_unref (avFrame);
 
         // fake pts from avContext framerate
         mDecodePts += (90000 * mAvContext->framerate.den) / mAvContext->framerate.num;

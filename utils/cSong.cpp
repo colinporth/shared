@@ -189,6 +189,23 @@ void cSong::initialise (cAudioDecode::eFrameType frameType, int numChannels, int
   }
 //}}}
 //{{{
+void cSong::clear() {
+
+  unique_lock<shared_mutex> lock (mSharedMutex);
+
+  mFrameType = cAudioDecode::eUnknown;
+  mNumChannels = 0;
+  mSampleRate = 0;
+  mSamplesPerFrame = 0;
+  mHlsBaseValid = false;
+
+  clearFrames();
+
+  // ??? should deallocate ???
+  //fftrConfig = kiss_fftr_alloc (mSamplesPerFrame, 0, 0, 0);
+  }
+//}}}
+//{{{
 void cSong::addFrame (int frameNum, float* samples, bool ourSamples, int totalFrames, uint64_t pts) {
 
   cFrame* frame;
@@ -262,23 +279,6 @@ void cSong::addFrame (int frameNum, float* samples, bool ourSamples, int totalFr
     }
 
   checkSilenceWindow (frameNum);
-  }
-//}}}
-//{{{
-void cSong::clear() {
-
-  unique_lock<shared_mutex> lock (mSharedMutex);
-
-  mFrameType = cAudioDecode::eUnknown;
-  mNumChannels = 0;
-  mSampleRate = 0;
-  mSamplesPerFrame = 0;
-  mHlsBaseValid = false;
-
-  clearFrames();
-
-  // ??? should deallocate ???
-  //fftrConfig = kiss_fftr_alloc (mSamplesPerFrame, 0, 0, 0);
   }
 //}}}
 
