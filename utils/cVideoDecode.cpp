@@ -346,10 +346,10 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
 
     for (int y = 0; y < height; y += 2) {
       // calc src row pointers
-      __m128i* srcY128r0 = (__m128i*)(yBuffer + yStride *y);
-      __m128i* srcY128r1 = (__m128i*)(yBuffer + yStride *y + yStride);
-      __m64* srcU64 = (__m64*)(uBuffer + uvStride * (y / 2));
-      __m64* srcV64 = (__m64*)(vBuffer + uvStride * (y / 2));
+      __m128i* srcY128r0 = (__m128i*)(yBuffer + yStride*y);
+      __m128i* srcY128r1 = (__m128i*)(yBuffer + yStride*y + yStride);
+      __m64* srcU64 = (__m64*)(uBuffer + uvStride * (y/2));
+      __m64* srcV64 = (__m64*)(vBuffer + uvStride * (y/2));
 
       for (int x = 0; x < width; x += 16) {
         //{{{  process row
@@ -460,10 +460,10 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
 
     for (int y = 0; y < height; y += 2) {
       // calc src row pointers
-      __m128i* srcY128r0 = (__m128i*)(yBuffer + yStride *y);
-      __m128i* srcY128r1 = (__m128i*)(yBuffer + yStride *y + yStride);
-      __m64* srcU64 = (__m64*)(uBuffer + uvStride * (y / 2));
-      __m64* srcV64 = (__m64*)(vBuffer + uvStride * (y / 2));
+      __m128i* srcY128r0 = (__m128i*)(yBuffer + yStride*y);
+      __m128i* srcY128r1 = (__m128i*)(yBuffer + yStride*y + yStride);
+      __m64* srcU64 = (__m64*)(uBuffer + uvStride * (y/2));
+      __m64* srcV64 = (__m64*)(vBuffer + uvStride * (y/2));
       __m128i* dstrgb128r1 = (__m128i*)(mBuffer + width * y + width);
 
       for (int x = 0; x < width; x += 16) {
