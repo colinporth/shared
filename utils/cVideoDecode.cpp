@@ -133,32 +133,25 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
 
         __m128i rLo = _mm_srai_epi16 (_mm_add_epi16 (yLo, rvLo), 6);
         __m128i rHi = _mm_srai_epi16 (_mm_add_epi16 (yHi, rvHi), 6);
+        __m128i r = _mm_packus_epi16 (rLo, rHi); // rrrr.. saturated
 
         __m128i gLo = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (yLo, guLo), gvLo), 6);
         __m128i gHi = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (yHi, guHi), gvHi), 6);
+        __m128i g = _mm_packus_epi16 (gLo, gHi); // gggg.. saturated
 
         __m128i bLo = _mm_srai_epi16 (_mm_add_epi16 (yLo, buLo), 6);
         __m128i bHi = _mm_srai_epi16 (_mm_add_epi16 (yHi, buHi), 6);
+        __m128i b = _mm_packus_epi16 (bLo, bHi); // bbbb.. saturated
 
-        rLo = _mm_packus_epi16 (rLo, rHi); // rrrr.. saturated
-        gLo = _mm_packus_epi16 (gLo, gHi); // gggg.. saturated
-        bLo = _mm_packus_epi16 (bLo, bHi); // bbbb.. saturated
+        __m128i abab = _mm_unpacklo_epi8 (b, alpha);
+        __m128i grgr = _mm_unpacklo_epi8 (r, g);
+        _mm_stream_si128 (dstrgb128r0++, _mm_unpacklo_epi16 (grgr, abab));
+        _mm_stream_si128 (dstrgb128r0++, _mm_unpackhi_epi16 (grgr, abab));
 
-        rHi = _mm_unpacklo_epi8 (bLo, alpha);             // abab..
-        __m128i gbgb    = _mm_unpacklo_epi8 (rLo, gLo);   // grgr..
-        __m128i rgb0123 = _mm_unpacklo_epi16 (gbgb, rHi); // abgrabgr..
-        __m128i rgb4567 = _mm_unpackhi_epi16 (gbgb, rHi); // abgrabgr..
-
-        rHi = _mm_unpackhi_epi8 (bLo, alpha);
-        gbgb = _mm_unpackhi_epi8 (rLo, gLo);
-        __m128i rgb89ab = _mm_unpacklo_epi16 (gbgb, rHi);
-        __m128i rgbcdef = _mm_unpackhi_epi16 (gbgb, rHi);
-
-        _mm_stream_si128 (dstrgb128r0++, rgb0123);
-        _mm_stream_si128 (dstrgb128r0++, rgb4567);
-
-        _mm_stream_si128 (dstrgb128r0++, rgb89ab);
-        _mm_stream_si128 (dstrgb128r0++, rgbcdef);
+        abab = _mm_unpackhi_epi8 (b, alpha);
+        grgr = _mm_unpackhi_epi8 (r, g);
+        _mm_stream_si128 (dstrgb128r0++, _mm_unpacklo_epi16 (grgr, abab));
+        _mm_stream_si128 (dstrgb128r0++, _mm_unpackhi_epi16 (grgr, abab));
         //}}}
         //{{{  row 1
         y = _mm_load_si128 (srcY128r1++); // y0 y1 y2 y3 y4 y5 y6 y7 y8 y9 y10 y11 y12 y13 y14 y15
@@ -167,31 +160,25 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
 
         rLo = _mm_srai_epi16 (_mm_add_epi16 (yLo, rvLo), 6);
         rHi = _mm_srai_epi16 (_mm_add_epi16 (yHi, rvHi), 6);
+        r = _mm_packus_epi16 (rLo, rHi); // rrrr.. saturated
 
         gLo = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (yLo, guLo), gvLo), 6);
         gHi = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (yHi, guHi), gvHi), 6);
+        g = _mm_packus_epi16 (gLo, gHi); // gggg.. saturated
 
         bLo = _mm_srai_epi16 (_mm_add_epi16 (yLo, buLo), 6);
         bHi = _mm_srai_epi16 (_mm_add_epi16 (yHi, buHi), 6);
+        b = _mm_packus_epi16 (bLo, bHi); // bbbb.. saturated
 
-        rLo = _mm_packus_epi16 (rLo, rHi);        // rrrr.. saturated
-        gLo = _mm_packus_epi16 (gLo, gHi);        // gggg.. saturated
-        bLo = _mm_packus_epi16 (bLo, bHi);        // bbbb.. saturated
+        abab = _mm_unpacklo_epi8 (b, alpha);
+        grgr = _mm_unpacklo_epi8 (r, g);
+        _mm_stream_si128 (dstrgb128r1++, _mm_unpacklo_epi16 (grgr, abab));
+        _mm_stream_si128 (dstrgb128r1++, _mm_unpackhi_epi16 (grgr, abab));
 
-        rHi     = _mm_unpacklo_epi8 (bLo, alpha); // abab..
-        gbgb    = _mm_unpacklo_epi8 (rLo, gLo);   // grgr..
-        rgb0123 = _mm_unpacklo_epi16 (gbgb, rHi); // abgrabgr..
-        rgb4567 = _mm_unpackhi_epi16 (gbgb, rHi); // abgrabgr..
-
-        rHi     = _mm_unpackhi_epi8 (bLo, alpha);
-        gbgb    = _mm_unpackhi_epi8 (rLo, gLo);
-        rgb89ab = _mm_unpacklo_epi16 (gbgb, rHi);
-        rgbcdef = _mm_unpackhi_epi16 (gbgb, rHi);
-
-        _mm_stream_si128 (dstrgb128r1++, rgb0123);
-        _mm_stream_si128 (dstrgb128r1++, rgb4567);
-        _mm_stream_si128 (dstrgb128r1++, rgb89ab);
-        _mm_stream_si128 (dstrgb128r1++, rgbcdef);
+        abab = _mm_unpackhi_epi8 (b, alpha);
+        grgr = _mm_unpackhi_epi8 (r, g);
+        _mm_stream_si128 (dstrgb128r1++, _mm_unpacklo_epi16 (grgr, abab));
+        _mm_stream_si128 (dstrgb128r1++, _mm_unpackhi_epi16 (grgr, abab));
         //}}}
         }
 
