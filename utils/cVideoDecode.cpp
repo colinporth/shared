@@ -17,7 +17,7 @@ extern "C" {
   }
 
 #if defined (__i386__) || defined(__x86_64__) || defined(_M_IX86) || defined(_M_X64)
-  #define INTEL_SSE3 1
+  #define INTEL_SSSE3 1
   #include <emmintrin.h>
   #include <tmmintrin.h>
 #endif
@@ -38,10 +38,10 @@ cVideoDecode::cFrame::~cFrame() {
     cLog::log (LOGINFO, "cVideoDecode::~cFrame %u", mPts);
   #endif
 
-  #ifdef __linux__
-    free (mBuffer);
-  #else
+  #ifdef _WIN32
     _aligned_free (mBuffer);
+  #else
+    free (mBuffer);
   #endif
   }
 //}}}
@@ -60,9 +60,11 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
   }
 //}}}
 
-#if defined(INTEL_SSE3)
+#if defined(INTEL_SSSE3)
   //{{{
   void cVideoDecode::cFrame::setYuv420Rgba (int width, int height, uint8_t* buffer, int stride) {
+
+    system_clock::time_point timePoint = system_clock::now();
 
     allocateBuffer (width, height);
 
@@ -178,6 +180,7 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
         //}}}
         }
       }
+    cLog::log (LOGINFO, "setYuv420Rgba:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
     mState = eLoaded;
     }
@@ -408,6 +411,7 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
   //{{{
   void cVideoDecode::cFrame::setYuv420PlanarBgra (int width, int height, uint8_t** data, int* linesize) {
 
+    system_clock::time_point timePoint = system_clock::now();
     allocateBuffer (width, height);
 
     uint8_t* yBuffer = data[0];
@@ -506,6 +510,7 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
         //}}}
         }
       }
+    cLog::log (LOGINFO, "setYuv420PlanarBgra:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
     mState = eLoaded;
     }
@@ -513,12 +518,12 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
 #else
   //{{{
   void cVideoDecode::cFrame::setYuv420Bgra (int width, int height, uint8_t* buffer, int stride) {
-    cLog::log (LOGERROR, "setNv12mfxBgra not implemented for linux");
+    cLog::log (LOGERROR, "setNv12mfxBgra not implemented for non x86");
     }
   //}}}
   //{{{
   void cVideoDecode::cFrame::setYuv420Rgba (int width, int height, uint8_t* buffer, int stride) {
-    cLog::log (LOGERROR, "setNv12mfxRgba not implemented  for linux");
+    cLog::log (LOGERROR, "setNv12mfxRgba not implemented  for non x86");
     }
   //}}}
   //{{{
@@ -539,7 +544,7 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
   //}}}
   //{{{
   void cVideoDecode::cFrame::setYuv420PlanarBgra (int width, int height, uint8_t** data, int* linesize) {
-    cLog::log (LOGERROR, "setYuv420PlanarBgra not implemented  for linux");
+    cLog::log (LOGERROR, "setYuv420PlanarBgra not implemented  for non x86");
     }
   //}}}
 #endif
@@ -548,10 +553,10 @@ void cVideoDecode::cFrame::allocateBuffer (int width, int height) {
 
   if (!mBuffer) // allocate aligned buffer
     mBuffer = (uint32_t*)
-    #ifdef __linux__
-      aligned_alloc (128, width * height * 4);
-    #else
+    #ifdef _WIN32
       _aligned_malloc (width * height * 4, 128);
+    #else
+      aligned_alloc (128, width * height * 4);
     #endif
   }
 //}}}
@@ -670,15 +675,10 @@ void cMfxVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int pesNu
       }
     }
 
-  //cLog::log (LOGINFO, "cMfxVideoDecode PES " + dec(pesNumInChunk) +
-  //                     " pts:" + getPtsString (pts) + " size:" + dec(pesSize));
-
-  // reset decoder on skip
-  //mfxStatus status = MFXVideoDECODE_Reset (mSession, &mVideoParams);
-
   // decode video pes
   // - could be none or multiple frames
   // - returned by decode order, not presentation order
+  //mfxStatus status = MFXVideoDECODE_Reset (mSession, &mVideoParams);
   mfxStatus status = MFX_ERR_NONE;
   while ((status >= MFX_ERR_NONE) || (status == MFX_ERR_MORE_SURFACE)) {
     mfxFrameSurface1* surface = nullptr;
@@ -687,8 +687,6 @@ void cMfxVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int pesNu
     if (status == MFX_ERR_NONE) {
       status = mSession.SyncOperation (syncDecode, 60000);
       if (status == MFX_ERR_NONE) {
-        cLog::log (LOGINFO1, "decoded pts:%u %dx%d:%d",
-                             surface->Data.TimeStamp, surface->Info.Width, surface->Info.Height, surface->Data.Pitch);
         auto frame = getFreeFrame (surface->Data.TimeStamp);
         if (mBgra)
           frame->setYuv420Bgra (surface->Info.Width, surface->Info.Height, surface->Data.Y, surface->Data.Pitch);
@@ -699,6 +697,7 @@ void cMfxVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int pesNu
     }
   }
 //}}}
+// private
 //{{{
 mfxFrameSurface1* cMfxVideoDecode::getFreeSurface() {
 // return first unlocked surface, allocate new if none
@@ -751,12 +750,8 @@ void cFFmpegVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int pe
   if (pesNumInChunk == 0)
     mDecodePts = pts;
 
-  //cLog::log (LOGINFO, "cFFmpegVideoDecode PES " + dec(pesNumInChunk) +
-  //                     " pts:" + getPtsString (pts) + " decodePts:" + getPtsString (mDecodePts) + " size:" + dec(pesSize));
-
   AVPacket avPacket;
   av_init_packet (&avPacket);
-
   auto avFrame = av_frame_alloc();
 
   auto pesPtr = pes;
@@ -770,7 +765,6 @@ void cFFmpegVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int pe
     pesPtr += bytesUsed;
     pesLeft -= bytesUsed;
     if (avPacket.size) {
-      //cLog::log (LOGINFO, "decode  start");
       auto ret = avcodec_send_packet (mAvContext, &avPacket);
       while (ret >= 0) {
         ret = avcodec_receive_frame (mAvContext, avFrame);
@@ -780,13 +774,11 @@ void cFFmpegVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int pe
         mWidth = avFrame->width;
         mHeight = avFrame->height;
         cVideoDecode::cFrame* frame = getFreeFrame (mDecodePts);
-        //cLog::log (LOGINFO, "decode done");
-        //frame->setNv12ffmpegSws (mWidth, mHeight, avFrame->data, avFrame->linesize);
+
         if (mBgra)
           frame->setYuv420PlanarBgra (mWidth, mHeight, avFrame->data, avFrame->linesize);
         else
           frame->setYuv420PlanarRgba (mWidth, mHeight, avFrame->data, avFrame->linesize);
-        //cLog::log (LOGINFO, "yuv2rgb done");
 
         // fake pts from avContext framerate
         mDecodePts += (90000 * mAvContext->framerate.den) / mAvContext->framerate.num;
