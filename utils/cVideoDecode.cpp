@@ -68,9 +68,7 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
 
     allocateBuffer (width, height);
 
-    int uvStride = stride/2;
-    uint8_t* uvBuffer = buffer + (height * stride);
-
+    // const
     __m128i ysub  = _mm_set1_epi32 (0x00100010);
     __m128i uvsub = _mm_set1_epi32 (0x00800080);
     __m128i facy  = _mm_set1_epi32 (0x004a004a);
@@ -80,38 +78,28 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
     __m128i facbu = _mm_set1_epi32 (0x00810081);
     __m128i zero  = _mm_set1_epi32 (0x00000000);
     __m128i alpha = _mm_set1_epi32 (0xFFFFFFFF);
-    __m128i masku = _mm_set_epi8 (-1,14, -1,12, -1,10, -1,8, -1,6, -1,4, -1,2, -1,0);
-    __m128i maskv = _mm_set_epi8 (-1,15, -1,13, -1,11, -1,9, -1,7, -1,5, -1,3, -1,1);
+    __m128i mask0 = _mm_set_epi8 (-1,6, -1,6, -1,4, -1,4, -1,2, -1,2, -1,0, -1,0);
+    __m128i mask1 = _mm_set_epi8 (-1,14, -1,14, -1,12, -1,12, -1,10, -1,10, -1,8, -1,8);
+    __m128i mask2 = _mm_set_epi8 (-1,7, -1,7, -1,5, -1,5, -1,3, -1,3, -1,1, -1,1);
+    __m128i mask3 = _mm_set_epi8 (-1,15, -1,15, -1,13, -1,13, -1,11, -1,11, -1,9, -1,9);
+
+    // buffer pointers
+    __m128i* dstrgb128r0 = (__m128i*)mBuffer;
+    __m128i* dstrgb128r1 = (__m128i*)(mBuffer + width);
+    __m128i* srcY128r0 = (__m128i*)buffer;
+    __m128i* srcY128r1 = (__m128i*)(buffer + stride);
+    __m128* srcUv128 = (__m128*)(buffer + (height*stride));
 
     for (int y = 0; y < height; y += 2) {
-      // calc row pointers
-      __m128i* srcY128r0 = (__m128i*)(buffer + stride*y);
-      __m128i* srcY128r1 = (__m128i*)(buffer + stride*y + stride);
-      __m128* srcUv128 = (__m128*)(uvBuffer + (uvStride*y));
-      __m128i* dstrgb128r0 = (__m128i*)(mBuffer + width * y);
-      __m128i* dstrgb128r1 = (__m128i*)(mBuffer + width * y + width);
-
       for (int x = 0; x < width; x += 16) {
-        // row0 y, could shuffle
-        __m128i r0y0 = _mm_load_si128 (srcY128r0++); // y0 y1 y2 y3 y4 y5 y6 y7 y8 y9 y10 y11 y12 y13 y14 y15
-        __m128i r0y00 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (r0y0, zero), ysub), facy); // ((0.y0 0.y1 0.y2  0.y3  0.y4  0.y5  0.y6  0.y7)  - ysub) * facy
-        __m128i r0y01 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (r0y0, zero), ysub), facy); // ((0.y8 0.y9 0.y10 0.y11 0.y12 0.y13 0.y14 0.y15) - ysub) * facy
-
-        // row1 y, could shuffle
-        __m128i r1y0 = _mm_load_si128 (srcY128r1++); // y0 y1 y2 y3 y4 y5 y6 y7 y8 y9 y10 y11 y12 y13 y14 y15
-        __m128i r1y00 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (r1y0, zero), ysub), facy); // ((0.y0 0.y1 0.y2  0.y3  0.y4  0.y5  0.y6  0.y7)  - ysub) * facy
-        __m128i r1y01 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (r1y0, zero), ysub), facy); // ((0.y8 0.y9 0.y10 0.y11 0.y12 0.y13 0.y14 0.y15) - ysub) * facy
-
         // row01 u,v - align with y
-        __m128i uv = _mm_load_si128 ((__m128i*)srcUv128++);               //  u0 v0 u1 v1 u2 v2 u3 v3 u4 v4 u5 v5 u6 v6 u7 v7
-        __m128i u0 = _mm_shuffle_epi8 (uv, masku);                        //  0.u0 0.u1 0.u2 0.u3 0.u4 0.u5 0.u6 0.u7
-        __m128i u00 = _mm_sub_epi16 (_mm_unpacklo_epi16 (u0, u0), uvsub); // (0.u0 0.u0 0.u1 0.u1 0.u2 0.u2 0.u3 0.u3) - uvsub
-        __m128i u01 = _mm_sub_epi16 (_mm_unpackhi_epi16 (u0, u0), uvsub); // (0.u4 0.u4 0.u5 0.u5 0.u6 0.u6 0.u7 0.u7) - uvsub
-        __m128i v0 = _mm_shuffle_epi8 (uv, maskv);                        //  0.v0 0.v1 0.v2 0.v3 0.v4 0.v5 0.v6 0.v7
-        __m128i v00 = _mm_sub_epi16 (_mm_unpacklo_epi16 (v0, v0), uvsub); // (0.v0 0.v0 0.v1 0.v1 0.v2 0.v2 0.v3 0.v3) - uvsub
-        __m128i v01 = _mm_sub_epi16 (_mm_unpackhi_epi16 (v0, v0), uvsub); // (0.v4 0.v4 0.v5 0.v5 0.v6 0.v6 0.v7 0.v7) - uvsub
+        __m128i uv = _mm_load_si128 ((__m128i*)srcUv128++);               //   u0 v0 u1 v1 u2 v2 u3 v3 u4 v4 u5 v5 u6 v6 u7 v7
+        __m128i u00 = _mm_sub_epi16 (_mm_shuffle_epi8 (uv, mask0), uvsub); // (0.u0 0.u0 0.u1 0.u1 0.u2 0.u2 0.u3 0.u3) - uvsub
+        __m128i u01 = _mm_sub_epi16 (_mm_shuffle_epi8 (uv, mask1), uvsub); // (0.u4 0.u4 0.u5 0.u5 0.u6 0.u6 0.u7 0.u7) - uvsub
+        __m128i v00 = _mm_sub_epi16 (_mm_shuffle_epi8 (uv, mask2), uvsub); // (0.v0 0.v0 0.v1 0.v1 0.v2 0.v2 0.v3 0.v3) - uvsub
+        __m128i v01 = _mm_sub_epi16 (_mm_shuffle_epi8 (uv, mask3), uvsub); // (0.v4 0.v4 0.v5 0.v5 0.v6 0.v6 0.v7 0.v7) - uvsub
 
-        //{{{  common factors on both rows
+       // common factors on both rows
         __m128i rv00 = _mm_mullo_epi16 (facrv, v00);
         __m128i rv01 = _mm_mullo_epi16 (facrv, v01);
         __m128i gu00 = _mm_mullo_epi16 (facgu, u00);
@@ -120,8 +108,12 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
         __m128i gv01 = _mm_mullo_epi16 (facgv, v01);
         __m128i bu00 = _mm_mullo_epi16 (facbu, u00);
         __m128i bu01 = _mm_mullo_epi16 (facbu, u01);
-        //}}}
         //{{{  row 0
+        // row0 y, could shuffle
+        __m128i r0y0 = _mm_load_si128 (srcY128r0++); // y0 y1 y2 y3 y4 y5 y6 y7 y8 y9 y10 y11 y12 y13 y14 y15
+        __m128i r0y00 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (r0y0, zero), ysub), facy); // ((0.y0 0.y1 0.y2  0.y3  0.y4  0.y5  0.y6  0.y7)  - ysub) * facy
+        __m128i r0y01 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (r0y0, zero), ysub), facy); // ((0.y8 0.y9 0.y10 0.y11 0.y12 0.y13 0.y14 0.y15) - ysub) * facy
+
         __m128i r00 = _mm_srai_epi16 (_mm_add_epi16 (r0y00, rv00), 6);
         __m128i r01 = _mm_srai_epi16 (_mm_add_epi16 (r0y01, rv01), 6);
 
@@ -152,6 +144,11 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
         _mm_stream_si128 (dstrgb128r0++, rgbcdef);
         //}}}
         //{{{  row 1
+        // row1 y, could shuffle
+        __m128i r1y0 = _mm_load_si128 (srcY128r1++); // y0 y1 y2 y3 y4 y5 y6 y7 y8 y9 y10 y11 y12 y13 y14 y15
+        __m128i r1y00 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (r1y0, zero), ysub), facy); // ((0.y0 0.y1 0.y2  0.y3  0.y4  0.y5  0.y6  0.y7)  - ysub) * facy
+        __m128i r1y01 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (r1y0, zero), ysub), facy); // ((0.y8 0.y9 0.y10 0.y11 0.y12 0.y13 0.y14 0.y15) - ysub) * facy
+
         r00 = _mm_srai_epi16 (_mm_add_epi16 (r1y00, rv00), 6);
         r01 = _mm_srai_epi16 (_mm_add_epi16 (r1y01, rv01), 6);
         g00 = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (r1y00, gu00), gv00), 6);
@@ -179,6 +176,12 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
         _mm_stream_si128 (dstrgb128r1++, rgbcdef);
         //}}}
         }
+
+      // skip another row
+      dstrgb128r0 += width / 4;
+      dstrgb128r1 += width / 4;
+      srcY128r0 += stride / 16;
+      srcY128r1 += stride / 16;
       }
     cLog::log (LOGINFO, "setYuv420Rgba:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
