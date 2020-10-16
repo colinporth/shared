@@ -78,12 +78,12 @@ void cLoaderPlayer::initialise (bool radio,
   mVidBitrate = vidBitrate;
   if (vidBitrate) {
     #ifdef _WIN32
-      if ((loader && eMfx) != 0)
-        mVideoDecode = new cMfxVideoDecode ((loader & eBgra) != 0);
+      if (loader & eMfx)
+        mVideoDecode = new cMfxVideoDecode (loader & eBgra);
       else
-        mVideoDecode = new cFFmpegVideoDecode ((loader & eBgra) != 0);
+        mVideoDecode = new cFFmpegVideoDecode (loader & eBgra);
     #else // must use ffmpeg for now
-      mVideoDecode = new cFFmpegVideoDecode ((loader & eBgra) != 0);
+      mVideoDecode = new cFFmpegVideoDecode (loader & eBgra);
     #endif
     }
 
