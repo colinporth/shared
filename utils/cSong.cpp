@@ -20,6 +20,20 @@ constexpr static int kSilenceWindowFrames = 4;
 
 // cSong::cFrame
 //{{{
+cSong::cFrame::cFrame (int numChannels, int numFreqBytes, float* samples, bool ourSamples, uint64_t pts)
+   : mSamples(samples), mOurSamples(ourSamples), mPts (pts), mMuted(false), mSilence(false) {
+
+  mPowerValues = (float*)malloc (numChannels * 4);
+  memset (mPowerValues, 0, numChannels * 4);
+
+  mPeakValues = (float*)malloc (numChannels * 4);
+  memset (mPeakValues, 0, numChannels * 4);
+
+  mFreqValues = (uint8_t*)malloc (numFreqBytes);
+  mFreqLuma = (uint8_t*)malloc (numFreqBytes);
+  }
+//}}}
+//{{{
 cSong::cFrame::~cFrame() {
 
   if (mOurSamples)
@@ -171,47 +185,60 @@ void cSong::init (cAudioDecode::eFrameType frameType, int numChannels, int sampl
   clearFrames();
 
   // ??? should deallocate ???
-  fftrConfig = kiss_fftr_alloc (mSamplesPerFrame, 0, 0, 0);
+  mFftrConfig = kiss_fftr_alloc (mSamplesPerFrame, 0, 0, 0);
   }
 //}}}
 //{{{
-void cSong::addFrame (int frameNum, float* samples, bool ourSamples, int totalFrames, uint8_t* framePtr, uint64_t pts) {
+void cSong::addFrame (int frameNum, float* samples, bool ourSamples, int totalFrames, uint64_t pts) {
 
-  // sum of squares channel power
-  auto powerValues = (float*)malloc (mNumChannels * 4);
-  memset (powerValues, 0, mNumChannels * 4);
+  cFrame* frame;
+  if (mMaxMapSize && (int(mFrameMap.size()) > mMaxMapSize)) {
+    // remove from front of map, reuse frame
+    unique_lock<shared_mutex> lock (mSharedMutex);
+    auto it = mFrameMap.begin();
+    frame = (*it).second;
+    mFrameMap.erase (it);
+
+    // reuse power,peak,fft buffers, but free samples if we own them
+    if (frame->mOurSamples)
+      free (frame->mSamples);
+
+    frame->mSamples = samples;
+    frame->mOurSamples = ourSamples;
+    frame->mPts = pts;
+    }
+  else
+    frame = new cFrame (mNumChannels, getNumFreqBytes(), samples,ourSamples, pts);
+
+  // totalFrames can be a changing estimate for file, or increasing value for streaming
+  mTotalFrames = totalFrames;
 
   // peak
-  auto peakValues = (float*)malloc (mNumChannels * 4);
-  memset (peakValues, 0, mNumChannels * 4);
-
   auto samplePtr = samples;
   for (int sample = 0; sample < mSamplesPerFrame; sample++) {
-    timeBuf[sample] = 0;
+    mTimeBuf[sample] = 0;
     for (auto channel = 0; channel < mNumChannels; channel++) {
       auto value = *samplePtr++;
-      timeBuf[sample] += value;
-      powerValues[channel] += value * value;
-      peakValues[channel] = max (abs(peakValues[channel]), value);
+      mTimeBuf[sample] += value;
+      frame->mPowerValues[channel] += value * value;
+      frame->mPeakValues[channel] = max (abs(frame->mPeakValues[channel]), value);
       }
     }
 
   for (auto channel = 0; channel < mNumChannels; channel++) {
-    powerValues[channel] = sqrtf (powerValues[channel] / mSamplesPerFrame);
-    mMaxPowerValue = max (mMaxPowerValue, powerValues[channel]);
-    mMaxPeakValue = max (mMaxPeakValue, peakValues[channel]);
+    frame->mPowerValues[channel] = sqrtf (frame->mPowerValues[channel] / mSamplesPerFrame);
+    mMaxPowerValue = max (mMaxPowerValue, frame->mPowerValues[channel]);
+    mMaxPeakValue = max (mMaxPeakValue, frame->mPeakValues[channel]);
     }
 
   // ??? lock against init fftrConfig recalc???
-  kiss_fftr (fftrConfig, timeBuf, freqBuf);
+  kiss_fftr (mFftrConfig, mTimeBuf, mFreqBuf);
 
-  auto freqValues = (uint8_t*)malloc (getNumFreqBytes());
-  auto lumaValues = (uint8_t*)malloc (getNumFreqBytes());
   float freqScale = 255.f / mMaxFreqValue;
 
-  auto freqBufPtr = freqBuf;
-  auto freqValuesPtr = freqValues;
-  auto lumaValuesPtr = lumaValues + getNumFreqBytes() - 1;
+  auto freqBufPtr = mFreqBuf;
+  auto freqValuesPtr = frame->mFreqValues;
+  auto lumaValuesPtr = frame->mFreqLuma + getNumFreqBytes() - 1;
   for (auto i = 0; i < getNumFreqBytes(); i++) {
     float value = sqrtf (((*freqBufPtr).r * (*freqBufPtr).r) + ((*freqBufPtr).i * (*freqBufPtr).i));
     mMaxFreqValue = std::max (mMaxFreqValue, value);
@@ -229,16 +256,7 @@ void cSong::addFrame (int frameNum, float* samples, bool ourSamples, int totalFr
 
   unique_lock<shared_mutex> lock (mSharedMutex);
 
-  // totalFrames can be a changing estimate for file, or increasing value for streaming
-  if (mMaxMapSize && (int(mFrameMap.size()) > mMaxMapSize)) {
-    // !!!!! reuse !!!!!!
-    auto it = mFrameMap.begin();
-    delete (*it).second;
-    mFrameMap.erase (it);
-    }
-
-  mFrameMap.insert (map<int,cFrame*>::value_type (frameNum,
-    new cFrame (samples, ourSamples, framePtr, powerValues, peakValues, freqValues, lumaValues, pts)));
+  mFrameMap.insert (map<int,cFrame*>::value_type (frameNum, frame));
   mTotalFrames = totalFrames;
 
   checkSilenceWindow (frameNum);

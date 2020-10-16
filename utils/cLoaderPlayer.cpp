@@ -113,7 +113,7 @@ void cLoaderPlayer::initialise (bool radio,
         //{{{  audio pes decode callback lambda
         float* samples = mAudioDecode->decodeFrame (pes, size, sequenceNum, pts);
         mSong->setFixups (mAudioDecode->getNumChannels(), mAudioDecode->getSampleRate(), mAudioDecode->getNumSamples());
-        mSong->addFrame (sequenceNum, samples, true, mSong->getNumFrames(), nullptr, pts);
+        mSong->addFrame (sequenceNum, samples, true, mSong->getNumFrames(), pts);
         startPlayer();
         }
         //}}}
@@ -382,7 +382,7 @@ void cLoaderPlayer::icyLoaderThread (const string& url) {
             auto samples = decode.decodeFrame (frameNum);
             if (samples) {
               mSong->setFixups (decode.getNumChannels(), decode.getSampleRate(), decode.getNumSamples());
-              mSong->addFrame (frameNum++, samples, true, mSong->getNumFrames()+1);
+              mSong->addFrame (frameNum++, samples, true, mSong->getNumFrames()+1, 0);
               startPlayer();
               }
             }
@@ -451,7 +451,7 @@ void cLoaderPlayer::fileLoaderThread() {
         decode.parseFrame (fileMapPtr, fileMapEnd);
         auto samples = decode.getFramePtr();
         while (!mExit && !mSong->getChanged() && ((samples + (frameSamples * 2 * sizeof(float))) <= fileMapEnd)) {
-          mSong->addFrame (frameNum++, (float*)samples, false, fileMapSize / (frameSamples * 2 * sizeof(float)));
+          mSong->addFrame (frameNum++, (float*)samples, false, fileMapSize / (frameSamples * 2 * sizeof(float)), 0);
           samples += frameSamples * 2 * sizeof(float);
           startPlayer();
           }
@@ -467,7 +467,7 @@ void cLoaderPlayer::fileLoaderThread() {
               int numFrames = mSong->getNumFrames();
               int totalFrames = (numFrames > 0) ? int(fileMapEnd - fileMapFirst) / (int(decode.getFramePtr() - fileMapFirst) / numFrames) : 0;
               mSong->setFixups (decode.getNumChannels(), decode.getSampleRate(), decode.getNumSamples());
-              mSong->addFrame (frameNum++, samples, true, totalFrames+1, decode.getFramePtr());
+              mSong->addFrame (frameNum++, samples, true, totalFrames+1, 0);
               startPlayer();
               }
             }

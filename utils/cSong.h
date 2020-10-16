@@ -21,25 +21,15 @@ public:
   class cFrame {
   public:
     static constexpr float kQuietThreshold = 0.01f;
-    //{{{
-    cFrame (float* samples, bool ourSamples, uint8_t* framePtr,
-            float* powerValues, float* peakValues, uint8_t* freqValues, uint8_t* lumaValues,
-            uint64_t pts) :
-        mSamples(samples), mOurSamples(ourSamples), mMuted(false), mSilence(false), mPtr(framePtr),
-        mPowerValues(powerValues), mPeakValues(peakValues), mFreqValues(freqValues), mFreqLuma(lumaValues),
-        mPts(pts) {}
-    //}}}
+    cFrame (int numChannels, int numFreqBytes, float* samples, bool ourSamples, uint64_t pts);
     virtual ~cFrame();
 
     // gets
     float* getSamples() { return mSamples; }
-    uint8_t* getPtr() { return mPtr; }
-
     float* getPowerValues() { return mPowerValues;  }
     float* getPeakValues() { return mPeakValues;  }
     uint8_t* getFreqValues() { return mFreqValues; }
     uint8_t* getFreqLuma() { return mFreqLuma; }
-
     uint64_t getPts() { return mPts; }
 
     bool isQuiet() { return mPeakValues[0] + mPeakValues[1] < kQuietThreshold; }
@@ -51,15 +41,8 @@ public:
     bool hasTitle() { return !mTitle.empty(); }
     std::string getTitle() { return mTitle; }
 
-  private:
-    // vars
     float* mSamples;
     bool mOurSamples;
-    bool mMuted;
-    bool mSilence;
-
-    // hold onto mapped file framePtr
-    uint8_t* mPtr;
 
     float* mPowerValues;
     float* mPeakValues;
@@ -67,6 +50,11 @@ public:
     uint8_t* mFreqLuma;
 
     uint64_t mPts;
+
+  private:
+    // vars
+    bool mMuted;
+    bool mSilence;
 
     std::string mTitle;
     };
@@ -136,8 +124,7 @@ public:
 
   void init (cAudioDecode::eFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame,
              int maxMapSize = 0);
-  void addFrame (int frameNum, float* samples, bool ourSamples, int totalFrames, uint8_t* framePtr = nullptr,
-                 uint64_t pts = 0xFFFFFFFFFFFFFFFF);
+  void addFrame (int frameNum, float* samples, bool ourSamples, int totalFrames, uint64_t pts);
   void clear();
 
   //{{{  gets
@@ -274,8 +261,8 @@ private:
   int mLastFrameNum;
   //}}}
   //{{{  fft vars
-  kiss_fftr_cfg fftrConfig;
-  kiss_fft_scalar timeBuf[kMaxNumSamplesPerFrame];
-  kiss_fft_cpx freqBuf[kMaxFreq];
+  kiss_fftr_cfg mFftrConfig;
+  kiss_fft_scalar mTimeBuf[kMaxNumSamplesPerFrame];
+  kiss_fft_cpx mFreqBuf[kMaxFreq];
   //}}}
   };
