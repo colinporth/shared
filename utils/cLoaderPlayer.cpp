@@ -245,7 +245,7 @@ void cLoaderPlayer::hlsLoaderThread() {
                         [&] (const string& key, const string& value) noexcept {
                           //{{{  header lambda
                           if (key == "content-length")
-                            cLog::log (LOGINFO, "chunkNum:" + dec(chunkNum) +
+                            cLog::log (LOGINFO, "chunk:" + dec(chunkNum) +
                                                 " frame:" + dec(frameNum) +
                                                 " size:" + dec(http.getHeaderContentSize()/1000) + "k");
                           },
