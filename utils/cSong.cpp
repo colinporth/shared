@@ -18,31 +18,12 @@ constexpr static float kMinPeakValue = 0.25f;
 constexpr static float kMinFreqValue = 256.f;
 constexpr static int kSilenceWindowFrames = 4;
 
-namespace {
-  int gOtherFrame = 0;
-  int gSampleAllocs = 0;
-  }
-
 // cSong::cFrame
 //{{{
 cSong::cFrame::~cFrame() {
 
-  gOtherFrame--;
-
-  if (mOurSamples) {
-    assert (mSamples);
-    gSampleAllocs--;
+  if (mOurSamples)
     free (mSamples);
-    }
-
-  #ifdef _DEBUG
-    cLog::log (LOGINFO, "~cFrame owned:%d pts:%u sample:%d other:%d", mOurSamples, mPts, gSampleAllocs, gOtherFrame);
-  #endif
-
-  assert (mPowerValues);
-  assert (mPeakValues);
-  assert (mFreqValues);
-  assert (mFreqLuma);
 
   free (mPowerValues);
   free (mPeakValues);
@@ -195,10 +176,6 @@ void cSong::init (cAudioDecode::eFrameType frameType, int numChannels, int sampl
 //}}}
 //{{{
 void cSong::addFrame (int frameNum, float* samples, bool ourSamples, int totalFrames, uint8_t* framePtr, uint64_t pts) {
-
-  gOtherFrame++;
-  if (ourSamples)
-    gSampleAllocs++;
 
   // sum of squares channel power
   auto powerValues = (float*)malloc (mNumChannels * 4);

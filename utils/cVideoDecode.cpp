@@ -29,14 +29,11 @@ extern "C" {
 using namespace std;
 using namespace chrono;
 //}}}
+constexpr bool kTiming = false;
 
 // cVideoDecode::cFrame
 //{{{
 cVideoDecode::cFrame::~cFrame() {
-
-  #ifdef _DEBUG
-    cLog::log (LOGINFO, "cVideoDecode::~cFrame %u", mPts);
-  #endif
 
   #ifdef _WIN32
     _aligned_free (mBuffer);
@@ -123,7 +120,7 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
         __m128i gvLo = _mm_mullo_epi16 (facgv, vLo);
         __m128i gvHi = _mm_mullo_epi16 (facgv, vHi);
         //}}}
-        //{{{  dst 
+        //{{{  dst
         // y0 y1 y2 y3 y4 y5 y6 y7 y8 y9 y10 y11 y12 y13 y14 y15
         __m128i y = _mm_load_si128 (srcY128r0++);
         // ((0.y0 0.y1 0.y2  0.y3  0.y4  0.y5  0.y6  0.y7)  - ysub) * facy
@@ -187,7 +184,9 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
       srcY128r0 += stride / 16;
       srcY128r1 += stride / 16;
       }
-    cLog::log (LOGINFO, "setYuv420Rgba:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+
+    if (kTiming)
+      cLog::log (LOGINFO, "setYuv420Rgba:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
     mState = eLoaded;
     }
@@ -195,123 +194,139 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
   //{{{
   void cVideoDecode::cFrame::setYuv420Bgra (int width, int height, uint8_t* buffer, int stride) {
 
+    system_clock::time_point timePoint = system_clock::now();
+
     allocateBuffer (width, height);
 
-    int uvStride = stride/2;
-    uint8_t* uvBuffer = buffer + (height * stride);
-
+    // const
+    __m128i zero  = _mm_set1_epi32 (0x00000000);
     __m128i ysub  = _mm_set1_epi32 (0x00100010);
-    __m128i uvsub = _mm_set1_epi32 (0x00800080);
     __m128i facy  = _mm_set1_epi32 (0x004a004a);
+
+    __m128i mask0 = _mm_set_epi8 (-1,6,  -1,6,  -1,4,  -1,4,  -1,2,  -1,2,  -1,0, -1,0);
+    __m128i mask1 = _mm_set_epi8 (-1,14, -1,14, -1,12, -1,12, -1,10, -1,10, -1,8, -1,8);
+    __m128i mask2 = _mm_set_epi8 (-1,7,  -1,7,  -1,5,  -1,5,  -1,3,  -1,3,  -1,1, -1,1);
+    __m128i mask3 = _mm_set_epi8 (-1,15, -1,15, -1,13, -1,13, -1,11, -1,11, -1,9, -1,9);
+    __m128i uvsub = _mm_set1_epi32 (0x00800080);
     __m128i facrv = _mm_set1_epi32 (0x00660066);
     __m128i facgu = _mm_set1_epi32 (0x00190019);
     __m128i facgv = _mm_set1_epi32 (0x00340034);
     __m128i facbu = _mm_set1_epi32 (0x00810081);
-    __m128i zero  = _mm_set1_epi32 (0x00000000);
+
     __m128i alpha = _mm_set1_epi32 (0xFFFFFFFF);
-    __m128i masku = _mm_set_epi8 (-1,14, -1,12, -1,10, -1,8, -1,6, -1,4, -1,2, -1,0);
-    __m128i maskv = _mm_set_epi8 (-1,15, -1,13, -1,11, -1,9, -1,7, -1,5, -1,3, -1,1);
+
+    // buffer pointers
+    __m128i* dstrgb128r0 = (__m128i*)mBuffer;
+    __m128i* dstrgb128r1 = (__m128i*)(mBuffer + width);
+    __m128i* srcY128r0 = (__m128i*)buffer;
+    __m128i* srcY128r1 = (__m128i*)(buffer + stride);
+    __m128* srcUv128 = (__m128*)(buffer + (height*stride));
 
     for (int y = 0; y < height; y += 2) {
-      // calc row pointers
-      __m128i* srcY128r0 = (__m128i*)(buffer + stride*y);
-      __m128i* srcY128r1 = (__m128i*)(buffer + stride*y + stride);
-      __m128* srcUv128 = (__m128*)(uvBuffer + (uvStride*y));
-      __m128i* dstrgb128r0 = (__m128i*)(mBuffer + width * y);
-      __m128i* dstrgb128r1 = (__m128i*)(mBuffer + width * y + width);
-
       for (int x = 0; x < width; x += 16) {
-        // row0 y, could shuffle
-        __m128i r0y0 = _mm_load_si128 (srcY128r0++); // y0 y1 y2 y3 y4 y5 y6 y7 y8 y9 y10 y11 y12 y13 y14 y15
-        __m128i r0y00 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (r0y0, zero), ysub), facy); // ((0.y0 0.y1 0.y2  0.y3  0.y4  0.y5  0.y6  0.y7)  - ysub) * facy
-        __m128i r0y01 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (r0y0, zero), ysub), facy); // ((0.y8 0.y9 0.y10 0.y11 0.y12 0.y13 0.y14 0.y15) - ysub) * facy
+        //{{{  row0,1 uv
+        // row01 u,v - u0 v0 u1 v1 u2 v2 u3 v3 u4 v4 u5 v5 u6 v6 u7 v7
+        __m128i uv = _mm_load_si128 ((__m128i*)srcUv128++);
 
-        // row1 y, could shuffle
-        __m128i r1y0 = _mm_load_si128 (srcY128r1++); // y0 y1 y2 y3 y4 y5 y6 y7 y8 y9 y10 y11 y12 y13 y14 y15
-        __m128i r1y00 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (r1y0, zero), ysub), facy); // ((0.y0 0.y1 0.y2  0.y3  0.y4  0.y5  0.y6  0.y7)  - ysub) * facy
-        __m128i r1y01 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (r1y0, zero), ysub), facy); // ((0.y8 0.y9 0.y10 0.y11 0.y12 0.y13 0.y14 0.y15) - ysub) * facy
+        // row01 u - align with y
+        // - (0.u0 0.u0 0.u1 0.u1 0.u2 0.u2 0.u3 0.u3) - uvsub
+        __m128i uLo = _mm_sub_epi16 (_mm_shuffle_epi8 (uv, mask0), uvsub);
 
-        // row01 u,v - align with y, could shuffle
-        __m128i uv = _mm_load_si128 ((__m128i*)srcUv128++);               //  u0 v0 u1 v1 u2 v2 u3 v3 u4 v4 u5 v5 u6 v6 u7 v7
-        __m128i u0 = _mm_shuffle_epi8 (uv, masku);                        //  0.u0 0.u1 0.u2 0.u3 0.u4 0.u5 0.u6 0.u7
-        __m128i u00 = _mm_sub_epi16 (_mm_unpacklo_epi16 (u0, u0), uvsub); // (0.u0 0.u0 0.u1 0.u1 0.u2 0.u2 0.u3 0.u3) - uvsub
-        __m128i u01 = _mm_sub_epi16 (_mm_unpackhi_epi16 (u0, u0), uvsub); // (0.u4 0.u4 0.u5 0.u5 0.u6 0.u6 0.u7 0.u7) - uvsub
-        __m128i v0 = _mm_shuffle_epi8 (uv, maskv);                        //  0.v0 0.v1 0.v2 0.v3 0.v4 0.v5 0.v6 0.v7
-        __m128i v00 = _mm_sub_epi16 (_mm_unpacklo_epi16 (v0, v0), uvsub); // (0.v0 0.v0 0.v1 0.v1 0.v2 0.v2 0.v3 0.v3) - uvsub
-        __m128i v01 = _mm_sub_epi16 (_mm_unpackhi_epi16 (v0, v0), uvsub); // (0.v4 0.v4 0.v5 0.v5 0.v6 0.v6 0.v7 0.v7) - uvsub
+        // - (0.u4 0.u4 0.u5 0.u5 0.u6 0.u6 0.u7 0.u7) - uvsub
+        __m128i uHi = _mm_sub_epi16 (_mm_shuffle_epi8 (uv, mask1), uvsub);
 
-        //{{{  common factors on both rows
-        __m128i rv00 = _mm_mullo_epi16 (facrv, v00);
-        __m128i rv01 = _mm_mullo_epi16 (facrv, v01);
-        __m128i gu00 = _mm_mullo_epi16 (facgu, u00);
-        __m128i gu01 = _mm_mullo_epi16 (facgu, u01);
-        __m128i gv00 = _mm_mullo_epi16 (facgv, v00);
-        __m128i gv01 = _mm_mullo_epi16 (facgv, v01);
-        __m128i bu00 = _mm_mullo_epi16 (facbu, u00);
-        __m128i bu01 = _mm_mullo_epi16 (facbu, u01);
+        __m128i guLo = _mm_mullo_epi16 (facgu, uLo);
+        __m128i guHi = _mm_mullo_epi16 (facgu, uHi);
+
+        __m128i buLo = _mm_mullo_epi16 (facbu, uLo);
+        __m128i buHi = _mm_mullo_epi16 (facbu, uHi);
+
+        // row01 v - align with y
+        // - (0.v0 0.v0 0.v1 0.v1 0.v2 0.v2 0.v3 0.v3) - uvsub
+        __m128i vLo = _mm_sub_epi16 (_mm_shuffle_epi8 (uv, mask2), uvsub);
+        // - (0.v4 0.v4 0.v5 0.v5 0.v6 0.v6 0.v7 0.v7) - uvsub
+        __m128i vHi = _mm_sub_epi16 (_mm_shuffle_epi8 (uv, mask3), uvsub);
+
+        __m128i rvLo = _mm_mullo_epi16 (facrv, vLo);
+        __m128i rvHi = _mm_mullo_epi16 (facrv, vHi);
+
+        __m128i gvLo = _mm_mullo_epi16 (facgv, vLo);
+        __m128i gvHi = _mm_mullo_epi16 (facgv, vHi);
         //}}}
-        //{{{  row 0
-        __m128i r00 = _mm_srai_epi16 (_mm_add_epi16 (r0y00, rv00), 6);
-        __m128i r01 = _mm_srai_epi16 (_mm_add_epi16 (r0y01, rv01), 6);
-        __m128i g00 = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (r0y00, gu00), gv00), 6);
-        __m128i g01 = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (r0y01, gu01), gv01), 6);
-        __m128i b00 = _mm_srai_epi16 (_mm_add_epi16 (r0y00, bu00), 6);
-        __m128i b01 = _mm_srai_epi16 (_mm_add_epi16 (r0y01, bu01), 6);
+        //{{{  dst
+        // row 0 - y0 y1 y2 y3 y4 y5 y6 y7 y8 y9 y10 y11 y12 y13 y14 y15
+        __m128i y = _mm_load_si128 (srcY128r0++);
+        // - ((0.y0 0.y1 0.y2  0.y3  0.y4  0.y5  0.y6  0.y7)  - ysub) * facy
+        __m128i yLo = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (y, zero), ysub), facy);
+        // - ((0.y8 0.y9 0.y10 0.y11 0.y12 0.y13 0.y14 0.y15) - ysub) * facy
+        __m128i yHi = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (y, zero), ysub), facy);
 
-        r00 = _mm_packus_epi16 (r00, r01); // rrrr.. saturated
-        g00 = _mm_packus_epi16 (g00, g01); // gggg.. saturated
-        b00 = _mm_packus_epi16 (b00, b01); // bbbb.. saturated
+        // rrrr.. saturated
+        __m128i r = _mm_packus_epi16 (_mm_srai_epi16 (_mm_add_epi16 (yLo, rvLo), 6),
+                                      _mm_srai_epi16 (_mm_add_epi16 (yHi, rvHi), 6));
+         // gggg.. saturated
+        __m128i g = _mm_packus_epi16 (_mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (yLo, guLo), gvLo), 6),
+                                      _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (yHi, guHi), gvHi), 6));
+        // bbbb.. saturated
+        __m128i b = _mm_packus_epi16 (_mm_srai_epi16 (_mm_add_epi16 (yLo, buLo), 6),
+                                      _mm_srai_epi16 (_mm_add_epi16 (yHi, buHi), 6));
 
-        r01 = _mm_unpacklo_epi8 (r00, alpha);             // arar..
-        __m128i gbgb    = _mm_unpacklo_epi8 (b00, g00);   // gbgb..
-        __m128i rgb0123 = _mm_unpacklo_epi16 (gbgb, r01); // argbargb..
-        __m128i rgb4567 = _mm_unpackhi_epi16 (gbgb, r01); // argbargb..
+        __m128i arar = _mm_unpacklo_epi8 (r, alpha);
+        __m128i gbgb = _mm_unpacklo_epi8 (b, g);
+        _mm_stream_si128 (dstrgb128r0++, _mm_unpacklo_epi16 (gbgb, arar));
+        _mm_stream_si128 (dstrgb128r0++, _mm_unpackhi_epi16 (gbgb, arar));
 
-        r01 = _mm_unpackhi_epi8 (r00, alpha);
-        gbgb = _mm_unpackhi_epi8 (b00, g00);
-        __m128i rgb89ab = _mm_unpacklo_epi16 (gbgb, r01);
-        __m128i rgbcdef = _mm_unpackhi_epi16 (gbgb, r01);
+        arar = _mm_unpackhi_epi8 (r, alpha);
+        gbgb = _mm_unpackhi_epi8 (b, g);
+        _mm_stream_si128 (dstrgb128r0++, _mm_unpacklo_epi16 (gbgb, arar));
+        _mm_stream_si128 (dstrgb128r0++, _mm_unpackhi_epi16 (gbgb, arar));
 
-        _mm_stream_si128 (dstrgb128r0++, rgb0123);
-        _mm_stream_si128 (dstrgb128r0++, rgb4567);
-        _mm_stream_si128 (dstrgb128r0++, rgb89ab);
-        _mm_stream_si128 (dstrgb128r0++, rgbcdef);
-        //}}}
-        //{{{  row 1
-        r00 = _mm_srai_epi16 (_mm_add_epi16 (r1y00, rv00), 6);
-        r01 = _mm_srai_epi16 (_mm_add_epi16 (r1y01, rv01), 6);
-        g00 = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (r1y00, gu00), gv00), 6);
-        g01 = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (r1y01, gu01), gv01), 6);
-        b00 = _mm_srai_epi16 (_mm_add_epi16 (r1y00, bu00), 6);
-        b01 = _mm_srai_epi16 (_mm_add_epi16 (r1y01, bu01), 6);
+        // row 1 -  y0 y1 y2 y3 y4 y5 y6 y7 y8 y9 y10 y11 y12 y13 y14 y15
+        y = _mm_load_si128 (srcY128r1++);
+        // - ((0.y0 0.y1 0.y2  0.y3  0.y4  0.y5  0.y6  0.y7)  - ysub) * facy
+        yLo = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (y, zero), ysub), facy);
+        // - ((0.y8 0.y9 0.y10 0.y11 0.y12 0.y13 0.y14 0.y15) - ysub) * facy
+        yHi = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (y, zero), ysub), facy);
 
-        r00 = _mm_packus_epi16 (r00, r01);        // rrrr.. saturated
-        g00 = _mm_packus_epi16 (g00, g01);        // gggg.. saturated
-        b00 = _mm_packus_epi16 (b00, b01);        // bbbb.. saturated
+        // rrrr.. saturated
+        r = _mm_packus_epi16 (_mm_srai_epi16 (_mm_add_epi16 (yLo, rvLo), 6),
+                              _mm_srai_epi16 (_mm_add_epi16 (yHi, rvHi), 6));
+         // gggg.. saturated
+        g = _mm_packus_epi16 (_mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (yLo, guLo), gvLo), 6),
+                              _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (yHi, guHi), gvHi), 6));
+        // bbbb.. saturated
+        b = _mm_packus_epi16 (_mm_srai_epi16 (_mm_add_epi16 (yLo, buLo), 6),
+                              _mm_srai_epi16 (_mm_add_epi16 (yHi, buHi), 6));
 
-        r01     = _mm_unpacklo_epi8 (r00, alpha); // arar..
-        gbgb    = _mm_unpacklo_epi8 (b00, g00);   // gbgb..
-        rgb0123 = _mm_unpacklo_epi16 (gbgb, r01); // argbargb..
-        rgb4567 = _mm_unpackhi_epi16 (gbgb, r01); // argbargb..
+        arar = _mm_unpacklo_epi8 (r, alpha);
+        gbgb = _mm_unpacklo_epi8 (b, g);
+        _mm_stream_si128 (dstrgb128r1++, _mm_unpacklo_epi16 (gbgb, arar));
+        _mm_stream_si128 (dstrgb128r1++, _mm_unpackhi_epi16 (gbgb, arar));
 
-        r01     = _mm_unpackhi_epi8 (r00, alpha);
-        gbgb    = _mm_unpackhi_epi8 (b00, g00);
-        rgb89ab = _mm_unpacklo_epi16 (gbgb, r01);
-        rgbcdef = _mm_unpackhi_epi16 (gbgb, r01);
-
-        _mm_stream_si128 (dstrgb128r1++, rgb0123);
-        _mm_stream_si128 (dstrgb128r1++, rgb4567);
-        _mm_stream_si128 (dstrgb128r1++, rgb89ab);
-        _mm_stream_si128 (dstrgb128r1++, rgbcdef);
+        arar = _mm_unpackhi_epi8 (r, alpha);
+        gbgb = _mm_unpackhi_epi8 (b, g);
+        _mm_stream_si128 (dstrgb128r1++, _mm_unpacklo_epi16 (gbgb, arar));
+        _mm_stream_si128 (dstrgb128r1++, _mm_unpackhi_epi16 (gbgb, arar));
         //}}}
         }
+
+      // skip another row
+      dstrgb128r0 += width / 4;
+      dstrgb128r1 += width / 4;
+      srcY128r0 += stride / 16;
+      srcY128r1 += stride / 16;
       }
+
+    if (kTiming)
+      cLog::log (LOGINFO, "setYuv420Bgra:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
     mState = eLoaded;
     }
   //}}}
   //{{{
   void cVideoDecode::cFrame::setYuv420PlanarRgba (int width, int height, uint8_t** data, int* linesize) {
+
+    system_clock::time_point timePoint = system_clock::now();
 
     allocateBuffer (width, height);
 
@@ -353,7 +368,7 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
         __m128i v00 = _mm_sub_epi16 (_mm_unpacklo_epi16 (temp, temp), uvsub);
         __m128i v01 = _mm_sub_epi16 (_mm_unpackhi_epi16 (temp, temp), uvsub);
 
-        // row0 
+        // row0
         temp = _mm_load_si128 (srcY128r0++);
         __m128i y00r0 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (temp, zero), ysub), facy);
         __m128i y01r0 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (temp, zero), ysub), facy);
@@ -410,6 +425,9 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
         //}}}
       }
 
+    if (kTiming)
+      cLog::log (LOGINFO, "setYuv420PlanarRgba:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+
     mState = eLoaded;
     }
   //}}}
@@ -417,6 +435,7 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
   void cVideoDecode::cFrame::setYuv420PlanarBgra (int width, int height, uint8_t** data, int* linesize) {
 
     system_clock::time_point timePoint = system_clock::now();
+
     allocateBuffer (width, height);
 
     uint8_t* yBuffer = data[0];
@@ -515,7 +534,9 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
         //}}}
         }
       }
-    cLog::log (LOGINFO, "setYuv420PlanarBgra:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+
+    if (kTiming)
+      cLog::log (LOGINFO, "setYuv420PlanarBgra:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
     mState = eLoaded;
     }
@@ -534,6 +555,8 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
   //{{{
   void cVideoDecode::cFrame::setYuv420PlanarRgba (int width, int height, uint8_t** data, int* linesize) {
 
+    system_clock::time_point timePoint = system_clock::now();
+
     allocateBuffer (width, height);
 
     // convert yuv to rgba
@@ -543,6 +566,9 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
                                              width, height, AV_PIX_FMT_RGBA,
                                              SWS_BILINEAR, NULL, NULL, NULL);
     sws_scale (swsContext, data, linesize, 0, height, dstData, dstStride);
+
+    if (kTiming)
+      cLog::log (LOGINFO, "ffmpeg setYuv420PlanarRgba:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
     mState = eLoaded;
     }
