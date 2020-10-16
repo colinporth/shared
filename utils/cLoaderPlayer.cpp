@@ -630,7 +630,7 @@ void cLoaderPlayer::startPlayer() {
             {
             // scoped song mutex
             shared_lock<shared_mutex> lock (mSong->getSharedMutex());
-            framePtr = mSong->getAudioFramePtr (mSong->getPlayFrame());
+            framePtr = mSong->getFramePtr (mSong->getPlayFrame());
             bool gotSamples = mPlaying && framePtr && framePtr->getSamples();
             if (gotSamples) {
               memcpy (samples, framePtr->getSamples(), mSong->getSamplesPerFrame() * 8);
