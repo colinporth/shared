@@ -249,7 +249,6 @@ bool cHttp::parseData (const uint8_t* data, int length, int& bytesParsed,
             //{{{  key value
             string key = string (mHeaderBuffer, size_t (mKeyLen));
             string value = string (mHeaderBuffer + mKeyLen, size_t (mValueLen));
-            headerCallback (key, value);
 
             //cLog::log (LOGINFO, "header key:" + key + " value:" + value);
             if (key == "content-length") {
@@ -268,6 +267,8 @@ bool cHttp::parseData (const uint8_t* data, int length, int& bytesParsed,
 
             mKeyLen = 0;
             mValueLen = 0;
+
+            headerCallback (key, value);
 
             break;
             }

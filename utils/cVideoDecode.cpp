@@ -4,6 +4,7 @@
 #define WIN32_LEAN_AND_MEAN
 
 #include "cVideoDecode.h"
+#include <thread>
 
 // utils
 #include "../date/date.h"
@@ -30,6 +31,7 @@ using namespace std;
 using namespace chrono;
 //}}}
 constexpr bool kTiming = false;
+constexpr int kMaxFramePoolSize = 8;
 
 // cVideoDecode::cFrame
 //{{{
@@ -634,21 +636,33 @@ cVideoDecode::cFrame* cVideoDecode::findPlayFrame() {
 cVideoDecode::cFrame* cVideoDecode::getFreeFrame (uint64_t pts) {
 // return first frame older than mPlayPts - 2 frames just in case, otherwise add new frame
 
-  uint64_t playFramePts = mPlayPts - 2 * (90000 / 25);
+  while (true) {
+    uint64_t playFramePts = mPlayPts - 2 * (90000 / 25);
 
-  for (auto frame : mFramePool) {
-    if ((frame->getState() == cFrame::eFree) ||
-        ((frame->getState() == cFrame::eLoaded) && (frame->getPts() < playFramePts))) {
-      // reuse frame before playPts minus a couple of frames
-      frame->set (pts);
+    for (auto frame : mFramePool) {
+      if ((frame->getState() == cFrame::eFree) ||
+          ((frame->getState() == cFrame::eLoaded) && (frame->getPts() < playFramePts))) {
+        // reuse frame before playPts minus a couple of frames
+        frame->set (pts);
+        return frame;
+        }
+      }
+
+    if (mFramePool.size() >= kMaxFramePoolSize) {
+      // free frame should come along in a frame
+      std::this_thread::sleep_for (20ms);
+      }
+    else {
+      // allocate new frame
+      //cLog::log (LOGINFO, "allocate newFrame %d for %u at play:%u", mFramePool.size(), pts, mPlayPts);
+      auto frame = new cFrame (pts);
+      mFramePool.push_back (frame);
       return frame;
       }
     }
 
-  //cLog::log (LOGINFO, "allocate newFrame %d for %u at play:%u", mFramePool.size(), pts, mPlayPts);
-  auto frame = new cFrame (pts);
-  mFramePool.push_back (frame);
-  return frame;
+  // never gets here
+  return 0;
   }
 //}}}
 

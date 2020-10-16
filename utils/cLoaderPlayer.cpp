@@ -237,13 +237,19 @@ void cLoaderPlayer::hlsLoaderThread() {
         int chunkNum;
         int frameNum;
         if (mSong->loadChunk (system_clock::now(), 12s, 2, chunkNum, frameNum)) {
-          cLog::log (LOGINFO, "get chunkNum:" + dec(chunkNum) + " frameNum:" + dec(frameNum));
           mPesParsers[0]->clear (frameNum);
           if (mPesParsers.size() > 1)
             mPesParsers[1]->clear (0);
           int contentParsed = 0;
           if (http.get (redirectedHostName, pathName + '-' + dec(chunkNum) + ".ts", "",
-                        [&] (const string& key, const string& value) noexcept {}, // header lambda
+                        [&] (const string& key, const string& value) noexcept {
+                          //{{{  header lambda
+                          if (key == "content-length")
+                            cLog::log (LOGINFO, "chunkNum:" + dec(chunkNum) +
+                                                " frame:" + dec(frameNum) +
+                                                " size:" + dec(http.getHeaderContentSize()/1000) + "k");
+                          },
+                          //}}}
                         [&] (const uint8_t* data, int length) noexcept {
                            //{{{  data lambda
                            mLoadFrac = float(http.getContentSize()) / http.getHeaderContentSize();
