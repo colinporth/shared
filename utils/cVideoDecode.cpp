@@ -92,50 +92,67 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
 
     for (int y = 0; y < height; y += 2) {
       for (int x = 0; x < width; x += 16) {
-        // row01 u,v - align with y
-        __m128i uv = _mm_load_si128 ((__m128i*)srcUv128++);               //   u0 v0 u1 v1 u2 v2 u3 v3 u4 v4 u5 v5 u6 v6 u7 v7
-        __m128i u00 = _mm_sub_epi16 (_mm_shuffle_epi8 (uv, mask0), uvsub); // (0.u0 0.u0 0.u1 0.u1 0.u2 0.u2 0.u3 0.u3) - uvsub
-        __m128i u01 = _mm_sub_epi16 (_mm_shuffle_epi8 (uv, mask1), uvsub); // (0.u4 0.u4 0.u5 0.u5 0.u6 0.u6 0.u7 0.u7) - uvsub
-        __m128i v00 = _mm_sub_epi16 (_mm_shuffle_epi8 (uv, mask2), uvsub); // (0.v0 0.v0 0.v1 0.v1 0.v2 0.v2 0.v3 0.v3) - uvsub
-        __m128i v01 = _mm_sub_epi16 (_mm_shuffle_epi8 (uv, mask3), uvsub); // (0.v4 0.v4 0.v5 0.v5 0.v6 0.v6 0.v7 0.v7) - uvsub
+        //{{{  row0,1 uv
+        // row01 u,v - u0 v0 u1 v1 u2 v2 u3 v3 u4 v4 u5 v5 u6 v6 u7 v7
+        __m128i uv = _mm_load_si128 ((__m128i*)srcUv128++);
 
-       // common factors on both rows
-        __m128i rv00 = _mm_mullo_epi16 (facrv, v00);
-        __m128i rv01 = _mm_mullo_epi16 (facrv, v01);
-        __m128i gu00 = _mm_mullo_epi16 (facgu, u00);
-        __m128i gu01 = _mm_mullo_epi16 (facgu, u01);
-        __m128i gv00 = _mm_mullo_epi16 (facgv, v00);
-        __m128i gv01 = _mm_mullo_epi16 (facgv, v01);
-        __m128i bu00 = _mm_mullo_epi16 (facbu, u00);
-        __m128i bu01 = _mm_mullo_epi16 (facbu, u01);
+        // row01 u - align with y
+        // - (0.u0 0.u0 0.u1 0.u1 0.u2 0.u2 0.u3 0.u3) - uvsub
+        __m128i uLo = _mm_sub_epi16 (_mm_shuffle_epi8 (uv, mask0), uvsub);
+
+        // - (0.u4 0.u4 0.u5 0.u5 0.u6 0.u6 0.u7 0.u7) - uvsub
+        __m128i uHi = _mm_sub_epi16 (_mm_shuffle_epi8 (uv, mask1), uvsub);
+
+        __m128i guLo = _mm_mullo_epi16 (facgu, uLo);
+        __m128i guHi = _mm_mullo_epi16 (facgu, uHi);
+
+        __m128i buLo = _mm_mullo_epi16 (facbu, uLo);
+        __m128i buHi = _mm_mullo_epi16 (facbu, uHi);
+
+        // row01 v - align with y
+        // - (0.v0 0.v0 0.v1 0.v1 0.v2 0.v2 0.v3 0.v3) - uvsub
+        __m128i vLo = _mm_sub_epi16 (_mm_shuffle_epi8 (uv, mask2), uvsub);
+        // - (0.v4 0.v4 0.v5 0.v5 0.v6 0.v6 0.v7 0.v7) - uvsub
+        __m128i vHi = _mm_sub_epi16 (_mm_shuffle_epi8 (uv, mask3), uvsub);
+
+        __m128i rvLo = _mm_mullo_epi16 (facrv, vLo);
+        __m128i rvHi = _mm_mullo_epi16 (facrv, vHi);
+
+        __m128i gvLo = _mm_mullo_epi16 (facgv, vLo);
+        __m128i gvHi = _mm_mullo_epi16 (facgv, vHi);
+        //}}}
         //{{{  row 0
-        // row0 y, could shuffle
-        __m128i r0y0 = _mm_load_si128 (srcY128r0++); // y0 y1 y2 y3 y4 y5 y6 y7 y8 y9 y10 y11 y12 y13 y14 y15
-        __m128i r0y00 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (r0y0, zero), ysub), facy); // ((0.y0 0.y1 0.y2  0.y3  0.y4  0.y5  0.y6  0.y7)  - ysub) * facy
-        __m128i r0y01 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (r0y0, zero), ysub), facy); // ((0.y8 0.y9 0.y10 0.y11 0.y12 0.y13 0.y14 0.y15) - ysub) * facy
+        // y0 y1 y2 y3 y4 y5 y6 y7 y8 y9 y10 y11 y12 y13 y14 y15
+        __m128i y = _mm_load_si128 (srcY128r0++);
 
-        __m128i r00 = _mm_srai_epi16 (_mm_add_epi16 (r0y00, rv00), 6);
-        __m128i r01 = _mm_srai_epi16 (_mm_add_epi16 (r0y01, rv01), 6);
+        // ((0.y0 0.y1 0.y2  0.y3  0.y4  0.y5  0.y6  0.y7)  - ysub) * facy
+        __m128i yLo = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (y, zero), ysub), facy);
 
-        __m128i g00 = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (r0y00, gu00), gv00), 6);
-        __m128i g01 = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (r0y01, gu01), gv01), 6);
+        // ((0.y8 0.y9 0.y10 0.y11 0.y12 0.y13 0.y14 0.y15) - ysub) * facy
+        __m128i yHi = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (y, zero), ysub), facy);
 
-        __m128i b00 = _mm_srai_epi16 (_mm_add_epi16 (r0y00, bu00), 6);
-        __m128i b01 = _mm_srai_epi16 (_mm_add_epi16 (r0y01, bu01), 6);
+        __m128i rLo = _mm_srai_epi16 (_mm_add_epi16 (yLo, rvLo), 6);
+        __m128i rHi = _mm_srai_epi16 (_mm_add_epi16 (yHi, rvHi), 6);
 
-        r00 = _mm_packus_epi16 (r00, r01); // rrrr.. saturated
-        g00 = _mm_packus_epi16 (g00, g01); // gggg.. saturated
-        b00 = _mm_packus_epi16 (b00, b01); // bbbb.. saturated
+        __m128i gLo = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (yLo, guLo), gvLo), 6);
+        __m128i gHi = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (yHi, guHi), gvHi), 6);
 
-        r01 = _mm_unpacklo_epi8 (b00, alpha);             // abab..
-        __m128i gbgb    = _mm_unpacklo_epi8 (r00, g00);   // grgr..
-        __m128i rgb0123 = _mm_unpacklo_epi16 (gbgb, r01); // abgrabgr..
-        __m128i rgb4567 = _mm_unpackhi_epi16 (gbgb, r01); // abgrabgr..
+        __m128i bLo = _mm_srai_epi16 (_mm_add_epi16 (yLo, buLo), 6);
+        __m128i bHi = _mm_srai_epi16 (_mm_add_epi16 (yHi, buHi), 6);
 
-        r01 = _mm_unpackhi_epi8 (b00, alpha);
-        gbgb = _mm_unpackhi_epi8 (r00, g00);
-        __m128i rgb89ab = _mm_unpacklo_epi16 (gbgb, r01);
-        __m128i rgbcdef = _mm_unpackhi_epi16 (gbgb, r01);
+        rLo = _mm_packus_epi16 (rLo, rHi); // rrrr.. saturated
+        gLo = _mm_packus_epi16 (gLo, gHi); // gggg.. saturated
+        bLo = _mm_packus_epi16 (bLo, bHi); // bbbb.. saturated
+
+        rHi = _mm_unpacklo_epi8 (bLo, alpha);             // abab..
+        __m128i gbgb    = _mm_unpacklo_epi8 (rLo, gLo);   // grgr..
+        __m128i rgb0123 = _mm_unpacklo_epi16 (gbgb, rHi); // abgrabgr..
+        __m128i rgb4567 = _mm_unpackhi_epi16 (gbgb, rHi); // abgrabgr..
+
+        rHi = _mm_unpackhi_epi8 (bLo, alpha);
+        gbgb = _mm_unpackhi_epi8 (rLo, gLo);
+        __m128i rgb89ab = _mm_unpacklo_epi16 (gbgb, rHi);
+        __m128i rgbcdef = _mm_unpackhi_epi16 (gbgb, rHi);
 
         _mm_stream_si128 (dstrgb128r0++, rgb0123);
         _mm_stream_si128 (dstrgb128r0++, rgb4567);
@@ -144,31 +161,32 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
         _mm_stream_si128 (dstrgb128r0++, rgbcdef);
         //}}}
         //{{{  row 1
-        // row1 y, could shuffle
-        __m128i r1y0 = _mm_load_si128 (srcY128r1++); // y0 y1 y2 y3 y4 y5 y6 y7 y8 y9 y10 y11 y12 y13 y14 y15
-        __m128i r1y00 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (r1y0, zero), ysub), facy); // ((0.y0 0.y1 0.y2  0.y3  0.y4  0.y5  0.y6  0.y7)  - ysub) * facy
-        __m128i r1y01 = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (r1y0, zero), ysub), facy); // ((0.y8 0.y9 0.y10 0.y11 0.y12 0.y13 0.y14 0.y15) - ysub) * facy
+        y = _mm_load_si128 (srcY128r1++); // y0 y1 y2 y3 y4 y5 y6 y7 y8 y9 y10 y11 y12 y13 y14 y15
+        yLo = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (y, zero), ysub), facy); // ((0.y0 0.y1 0.y2  0.y3  0.y4  0.y5  0.y6  0.y7)  - ysub) * facy
+        yHi = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (y, zero), ysub), facy); // ((0.y8 0.y9 0.y10 0.y11 0.y12 0.y13 0.y14 0.y15) - ysub) * facy
 
-        r00 = _mm_srai_epi16 (_mm_add_epi16 (r1y00, rv00), 6);
-        r01 = _mm_srai_epi16 (_mm_add_epi16 (r1y01, rv01), 6);
-        g00 = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (r1y00, gu00), gv00), 6);
-        g01 = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (r1y01, gu01), gv01), 6);
-        b00 = _mm_srai_epi16 (_mm_add_epi16 (r1y00, bu00), 6);
-        b01 = _mm_srai_epi16 (_mm_add_epi16 (r1y01, bu01), 6);
+        rLo = _mm_srai_epi16 (_mm_add_epi16 (yLo, rvLo), 6);
+        rHi = _mm_srai_epi16 (_mm_add_epi16 (yHi, rvHi), 6);
 
-        r00 = _mm_packus_epi16 (r00, r01);        // rrrr.. saturated
-        g00 = _mm_packus_epi16 (g00, g01);        // gggg.. saturated
-        b00 = _mm_packus_epi16 (b00, b01);        // bbbb.. saturated
+        gLo = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (yLo, guLo), gvLo), 6);
+        gHi = _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (yHi, guHi), gvHi), 6);
 
-        r01     = _mm_unpacklo_epi8 (b00, alpha); // abab..
-        gbgb    = _mm_unpacklo_epi8 (r00, g00);   // grgr..
-        rgb0123 = _mm_unpacklo_epi16 (gbgb, r01); // abgrabgr..
-        rgb4567 = _mm_unpackhi_epi16 (gbgb, r01); // abgrabgr..
+        bLo = _mm_srai_epi16 (_mm_add_epi16 (yLo, buLo), 6);
+        bHi = _mm_srai_epi16 (_mm_add_epi16 (yHi, buHi), 6);
 
-        r01     = _mm_unpackhi_epi8 (b00, alpha);
-        gbgb    = _mm_unpackhi_epi8 (r00, g00);
-        rgb89ab = _mm_unpacklo_epi16 (gbgb, r01);
-        rgbcdef = _mm_unpackhi_epi16 (gbgb, r01);
+        rLo = _mm_packus_epi16 (rLo, rHi);        // rrrr.. saturated
+        gLo = _mm_packus_epi16 (gLo, gHi);        // gggg.. saturated
+        bLo = _mm_packus_epi16 (bLo, bHi);        // bbbb.. saturated
+
+        rHi     = _mm_unpacklo_epi8 (bLo, alpha); // abab..
+        gbgb    = _mm_unpacklo_epi8 (rLo, gLo);   // grgr..
+        rgb0123 = _mm_unpacklo_epi16 (gbgb, rHi); // abgrabgr..
+        rgb4567 = _mm_unpackhi_epi16 (gbgb, rHi); // abgrabgr..
+
+        rHi     = _mm_unpackhi_epi8 (bLo, alpha);
+        gbgb    = _mm_unpackhi_epi8 (rLo, gLo);
+        rgb89ab = _mm_unpacklo_epi16 (gbgb, rHi);
+        rgbcdef = _mm_unpackhi_epi16 (gbgb, rHi);
 
         _mm_stream_si128 (dstrgb128r1++, rgb0123);
         _mm_stream_si128 (dstrgb128r1++, rgb4567);
