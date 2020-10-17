@@ -656,76 +656,73 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
     uint8_t* v = (uint8_t*)data[2];
     uint8_t* dst = (uint8_t*)mBuffer;
 
-    if (true)
-      simpleDecodeYuv420Planar (dst, y, u, v, width, height);
-    else {
-      // constants
-      int const stride = width * 4;
-      int const itHeight = height >> 1;
-      int const itWidth = width >> 3;
+    // constants
+    int const stride = width * 4;
+    int const itHeight = height >> 1;
+    int const itWidth = width >> 3;
 
-      uint8x8_t const Yshift = vdup_n_u8 (16);
-      int16x8_t const half = vdupq_n_u16 (128);
-      int32x4_t const rounding = vdupq_n_s32 (128);
+    uint8x8_t const Yshift = vdup_n_u8 (16);
+    int16x8_t const half = vdupq_n_u16 (128);
+    int32x4_t const rounding = vdupq_n_s32 (128);
 
-      uint8x8x4_t block;
-      block.val[3] = vdup_n_u8 (0xFF);
+    uint8x8x4_t block;
+    block.val[3] = vdup_n_u8 (0xFF);
 
-      for (int j = 0; j < itHeight; ++j, y += width, dst += stride)
-        for (int i = 0; i < itWidth; ++i, y += 8, u += 4, v += 4, dst += (8 * 4)) {
-          //{{{  process 8pix with ARM NEON intrinsics, 2 rows at a time
-          // yrow0
-          uint16x8_t t = vmovl_u8 (vqsub_u8 (vld1_u8 (y), Yshift));
-          int32x4_t const Y00 = vmulq_n_u32 (vmovl_u16(vget_low_u16 (t)), 298);
-          int32x4_t const Y01 = vmulq_n_u32 (vmovl_u16(vget_high_u16 (t)), 298);
+    for (int j = 0; j < itHeight; ++j, y += width, dst += stride)
+      for (int i = 0; i < itWidth; ++i, y += 8, u += 4, v += 4, dst += (8 * 4)) {
+        //{{{  process 8pix with ARM NEON intrinsics, 2 rows at a time
+        // yrow0
+        uint16x8_t t = vmovl_u8 (vqsub_u8 (vld1_u8 (y), Yshift));
+        int32x4_t const Y00 = vmulq_n_u32 (vmovl_u16(vget_low_u16 (t)), 298);
+        int32x4_t const Y01 = vmulq_n_u32 (vmovl_u16(vget_high_u16 (t)), 298);
 
-          // yrow1
-          t = vmovl_u8 (vqsub_u8 (vld1_u8(y+width), Yshift));
-          int32x4_t const Y10 = vmulq_n_u32 (vmovl_u16 (vget_low_u16 (t)), 298);
-          int32x4_t const Y11 = vmulq_n_u32 (vmovl_u16 (vget_high_u16 (t)), 298);
+        // yrow1
+        t = vmovl_u8 (vqsub_u8 (vld1_u8(y+width), Yshift));
+        int32x4_t const Y10 = vmulq_n_u32 (vmovl_u16 (vget_low_u16 (t)), 298);
+        int32x4_t const Y11 = vmulq_n_u32 (vmovl_u16 (vget_high_u16 (t)), 298);
 
-          // interleaved
-          // loadvu pack 4 sets of uv into a uint8x8_t { v0,u0, v1,u1, v2,u2, v3,u3 }
-          // uint16x8_t t = vsubq_s16 ((int16x8_t)vmovl_u8 (vld1_u8 (uv)), half);
-          // UV.val[0] : v0, v1, v2, v3, UV.val[1] : u0, u1, u2, u3
-          // int16x4x2_t const UV = vuzp_s16 (vget_low_s16 (t), vget_high_s16 (t));
+        // interleaved
+        // loadvu pack 4 sets of uv into a uint8x8_t { v0,u0, v1,u1, v2,u2, v3,u3 }
+        // uint16x8_t t = vsubq_s16 ((int16x8_t)vmovl_u8 (vld1_u8 (uv)), half);
+        // UV.val[0] : v0, v1, v2, v3, UV.val[1] : u0, u1, u2, u3
+        // int16x4x2_t const UV = vuzp_s16 (vget_low_s16 (t), vget_high_s16 (t));
 
-          // load 4 sets of u  u0 u1 u2 u3 u4 u5 u6 u7
-          uint16x8_t const u0123 = vsubq_s16 ((int16x8_t)vmovl_u8 (vld1_u8 (u)), half);
-          // load 4 sets of v  v0 v1 v2 v3 v4 v5 v6 v7
-          uint16x8_t const v0123 = vsubq_s16 ((int16x8_t)vmovl_u8 (vld1_u8 (v)), half);
+        // load 4 sets of u  u0 u1 u2 u3 u4 u5 u6 u7
+        uint16x8_t const u0123 = vsubq_s16 ((int16x8_t)vmovl_u8 (vld1_u8 (u)), half);
+        // load 4 sets of v  v0 v1 v2 v3 v4 v5 v6 v7
+        uint16x8_t const v0123 = vsubq_s16 ((int16x8_t)vmovl_u8 (vld1_u8 (v)), half);
 
-          // UV.val[0] v0 v1 v2 v3, UV.val[1] u0 u1 u2 u3
-          int16x4x2_t const UV = vuzp_s16 (vget_low_s16 (u0123), vget_low_s16 (v0123));
+        // UV.val[0] v0 v1 v2 v3, UV.val[1] u0 u1 u2 u3
+        int16x4x2_t const UV = vuzp_s16 (vget_low_s16 (u0123), vget_low_s16 (v0123));
 
-          // tR 128+409V, tG 128-100U-208V, tB 128+516U
-          int32x4_t const tR = vmlal_n_s16 (rounding, UV.val[0], 409);
-          int32x4_t const tG = vmlal_n_s16 (vmlal_n_s16 (rounding, UV.val[0], -208), UV.val[1], -100);
-          int32x4_t const tB = vmlal_n_s16 (rounding, UV.val[1], 516);
+        // tR 128+409V, tG 128-100U-208V, tB 128+516U
+        int32x4_t const tR = vmlal_n_s16 (rounding, UV.val[0], 409);
+        int32x4_t const tG = vmlal_n_s16 (vmlal_n_s16 (rounding, UV.val[0], -208), UV.val[1], -100);
+        int32x4_t const tB = vmlal_n_s16 (rounding, UV.val[1], 516);
 
-          int32x4x2_t const R = vzipq_s32 (tR, tR); // [tR0, tR0, tR1, tR1] [ tR2, tR2, tR3, tR3]
-          int32x4x2_t const G = vzipq_s32 (tG, tG); // [tG0, tG0, tG1, tG1] [ tG2, tG2, tG3, tG3]
-          int32x4x2_t const B = vzipq_s32 (tB, tB); // [tB0, tB0, tB1, tB1] [ tB2, tB2, tB3, tB3]
+        int32x4x2_t const R = vzipq_s32 (tR, tR); // [tR0, tR0, tR1, tR1] [ tR2, tR2, tR3, tR3]
+        int32x4x2_t const G = vzipq_s32 (tG, tG); // [tG0, tG0, tG1, tG1] [ tG2, tG2, tG3, tG3]
+        int32x4x2_t const B = vzipq_s32 (tB, tB); // [tB0, tB0, tB1, tB1] [ tB2, tB2, tB3, tB3]
 
-          // upper 8 pixels
-          block.val[0] = vshrn_n_u16 (vcombine_u16 (vqmovun_s32 (vaddq_s32 (B.val[0], Y00)),
-                                                    vqmovun_s32 (vaddq_s32 (B.val[1], Y01))), 8);
-          block.val[1] = vshrn_n_u16 (vcombine_u16 (vqmovun_s32 (vaddq_s32 (G.val[0], Y00)),
-                                                    vqmovun_s32 (vaddq_s32 (G.val[1], Y01))), 8),
-          block.val[2] = vshrn_n_u16 (vcombine_u16 (vqmovun_s32 (vaddq_s32 (R.val[0], Y00)),
-                                                    vqmovun_s32 (vaddq_s32 (R.val[1], Y01))), 8),
-          vst4_u8 (dst, block);
+        // upper 8 pixels
+        block.val[0] = vshrn_n_u16 (vcombine_u16 (vqmovun_s32 (vaddq_s32 (B.val[0], Y00)),
+                                                  vqmovun_s32 (vaddq_s32 (B.val[1], Y01))), 8);
+        block.val[1] = vshrn_n_u16 (vcombine_u16 (vqmovun_s32 (vaddq_s32 (G.val[0], Y00)),
+                                                  vqmovun_s32 (vaddq_s32 (G.val[1], Y01))), 8),
+        block.val[2] = vshrn_n_u16 (vcombine_u16 (vqmovun_s32 (vaddq_s32 (R.val[0], Y00)),
+                                                  vqmovun_s32 (vaddq_s32 (R.val[1], Y01))), 8),
+        vst4_u8 (dst, block);
 
-          // lower 8 pixels
-          block.val[0] = vshrn_n_u16 (vcombine_u16 (vqmovun_s32 (vaddq_s32 (B.val[0], Y10)),
-                                                    vqmovun_s32 (vaddq_s32 (B.val[1], Y11))), 8);
-          block.val[1] = vshrn_n_u16 (vcombine_u16 (vqmovun_s32 (vaddq_s32 (G.val[0], Y10)),
-                                                    vqmovun_s32 (vaddq_s32 (G.val[1], Y11))), 8),
-          block.val[2] = vshrn_n_u16 (vcombine_u16 (vqmovun_s32 (vaddq_s32 (R.val[0], Y10)),
-                                                    vqmovun_s32 (vaddq_s32 (R.val[1], Y11))), 8),
-          vst4_u8 (dst+stride, block);
-          }
-          //}}}
+        // lower 8 pixels
+        block.val[0] = vshrn_n_u16 (vcombine_u16 (vqmovun_s32 (vaddq_s32 (B.val[0], Y10)),
+                                                  vqmovun_s32 (vaddq_s32 (B.val[1], Y11))), 8);
+        block.val[1] = vshrn_n_u16 (vcombine_u16 (vqmovun_s32 (vaddq_s32 (G.val[0], Y10)),
+                                                  vqmovun_s32 (vaddq_s32 (G.val[1], Y11))), 8),
+        block.val[2] = vshrn_n_u16 (vcombine_u16 (vqmovun_s32 (vaddq_s32 (R.val[0], Y10)),
+                                                  vqmovun_s32 (vaddq_s32 (R.val[1], Y11))), 8),
+        vst4_u8 (dst+stride, block);
+        }
+        //}}}
       }
 
     if (kTiming)
