@@ -32,7 +32,7 @@ using namespace std;
 using namespace chrono;
 //}}}
 constexpr bool kTiming = false;
-constexpr int kMaxFramePoolSize = 8;
+constexpr int kMaxFramePoolSize = 16;
 
 // cVideoDecode::cFrame
 //{{{
@@ -587,7 +587,7 @@ void cVideoDecode::cFrame::setYuv420PlanarRgbaSws (SwsContext* swsContext, int w
   int dstStride[1] = { width * 4 };
   sws_scale (swsContext, data, linesize, 0, height, dstData, dstStride);
 
-  //if (kTiming)
+  if (kTiming)
     cLog::log (LOGINFO, "ffmpeg setYuv420PlanarRgba:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
   mState = eLoaded;
