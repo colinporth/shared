@@ -723,7 +723,6 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
         vst4_u8 (dst+stride, block);
         }
         //}}}
-      }
 
     if (kTiming)
       cLog::log (LOGINFO, "setYuv420RgbaPlanar - NEON:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
