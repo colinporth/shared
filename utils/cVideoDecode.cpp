@@ -108,33 +108,32 @@ static void decode_yuv (uint8_t* dst, uint8_t const* y, uint8_t const* u,uint8_t
   int const halfHeight = height>>1;
   int const halfWidth = width>>1;
 
-  int Y00, Y01, Y10, Y11;
-  int V, U;
-  int tR, tG, tB;
+  uint8_t* dst0 = dst;
   for (int h = 0; h < halfHeight; ++h) {
-    unsigned char const* y1 = y0 + width;
-    unsigned char* dst0 = dst;
-    unsigned char* dst1 = dst0 + width * 4;
+    uint8_t const* y1 = y0 + width;
+    uint8_t* dst1 = dst0 + width * 4;
     for (int w = 0; w < halfWidth; ++w) {
       // shift
-      Y00 = (*y0++) - 16;  Y01 = (*y0++) - 16;
-      Y10 = (*y1++) - 16;  Y11 = (*y1++) - 16;
+      int Y00 = (*y0++) - 16;  
+      int Y01 = (*y0++) - 16;
+      int Y10 = (*y1++) - 16;  
+      int Y11 = (*y1++) - 16;
 
-      V = (*u++) - 128;
-      U = (*v++) - 128;
+      int V = (*u++) - 128;
+      int U = (*v++) - 128;
 
       Y00 = (Y00 > 0) ? (298*Y00) : 0;
       Y01 = (Y01 > 0) ? (298*Y01) : 0;
       Y10 = (Y10 > 0) ? (298*Y10) : 0;
       Y11 = (Y11 > 0) ? (298*Y11) : 0;
 
-      tR = 128 + 409*V;
-      tG = 128 - 100*U - 208*V;
-      tB = 128 + 516*U;
+      int tR = 128 + 409*V;
+      int tG = 128 - 100*U - 208*V;
+      int tB = 128 + 516*U;
 
       *dst0++ = (Y00 + tR > 0) ? (Y00+tR < 65535 ? (uint8_t)((Y00+tR) >> 8):0xff) : 0;
       *dst0++ = (Y00 + tG > 0) ? (Y00+tG < 65535 ? (uint8_t)((Y00+tG) >> 8):0xff) : 0;
-      *dst0++ = (Y00 + tB > 0) ? (Y00+tB < 65535 ? (uint8_t)((Y00+tB) >> 8):0xff):0;
+      *dst0++ = (Y00 + tB > 0) ? (Y00+tB < 65535 ? (uint8_t)((Y00+tB) >> 8):0xff): 0;
       *dst0++ = 0xFF;
       *dst0++ = (Y01 + tR > 0) ? (Y01+tR < 65535 ? (uint8_t)((Y01+tR) >> 8):0xff) : 0;
       *dst0++ = (Y01 + tG > 0) ? (Y01+tG < 65535 ? (uint8_t)((Y01+tG) >> 8):0xff) : 0;
