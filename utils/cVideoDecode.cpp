@@ -102,7 +102,7 @@ constexpr bool kTiming = true;
 constexpr int kMaxFramePoolSize = 16;
 
 //{{{
-static void dumbDecodeYuv420Planar (uint8_t* dst, uint8_t const* y, uint8_t const* u,uint8_t const* v, int width, int height) {
+static void simpleDecodeYuv420Planar (uint8_t* dst, uint8_t const* y, uint8_t const* u,uint8_t const* v, int width, int height) {
 
   int const halfWidth = width >> 1;
   int const halfHeight = height >> 1;
@@ -713,7 +713,7 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
     uint8_t* dst = (uint8_t*)mBuffer;
 
     if (true)
-      decode_yuv (dst, y, u, v, width, height);
+      simpleDecodeYuv420Planar (dst, y, u, v, width, height);
     else {
       // constants
       int const stride = width * 4;
