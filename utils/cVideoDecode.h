@@ -15,6 +15,7 @@
 struct AVCodecParserContext;
 struct AVCodec;
 struct AVCodecContext;
+struct SwsContext;
 //}}}
 
 class cVideoDecode {
@@ -40,6 +41,8 @@ public:
     void setYuv420Bgra (int width, int height, uint8_t* buffer, int stride);
     void setYuv420PlanarRgba (int width, int height, uint8_t** data, int* linesize);
     void setYuv420PlanarBgra (int width, int height, uint8_t** data, int* linesize);
+
+    void setYuv420PlanarRgbaSws (SwsContext* swsContext, int width, int height, uint8_t** data, int* linesize);
 
   private:
     void allocateBuffer (int width, int height);
@@ -111,8 +114,8 @@ private:
   AVCodecParserContext* mAvParser = nullptr;
   AVCodec* mAvCodec = nullptr;
   AVCodecContext* mAvContext = nullptr;
+  SwsContext* mSwsContext = nullptr;
 
   uint64_t mDecodePts = 0;
   };
-
 //}}}

@@ -442,7 +442,7 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
       dstrgb128r1 += width / 4;
       }
 
-    if (kTiming)
+    //if (kTiming)
       cLog::log (LOGINFO, "setYuv420PlanarRgba:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
     mState = eLoaded;
@@ -566,31 +566,34 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
   //{{{
   void cVideoDecode::cFrame::setYuv420PlanarRgba (int width, int height, uint8_t** data, int* linesize) {
 
-    system_clock::time_point timePoint = system_clock::now();
-
-    allocateBuffer (width, height);
-
-    // convert yuv to rgba
-    uint8_t* dstData[1] = { (uint8_t*)mBuffer };
-    int dstStride[1] = { width * 4 };
-    SwsContext* swsContext = sws_getContext (width, height, AV_PIX_FMT_YUV420P,
-                                             width, height, AV_PIX_FMT_RGBA,
-                                             SWS_BILINEAR, NULL, NULL, NULL);
-    sws_scale (swsContext, data, linesize, 0, height, dstData, dstStride);
-    sws_freeContext (swsContext);
-
-    if (kTiming)
-      cLog::log (LOGINFO, "ffmpeg setYuv420PlanarRgba:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
-
-    mState = eLoaded;
+    cLog::log (LOGERROR, "setYuv420PlanarRgba not implemented for non x86");
     }
   //}}}
   //{{{
   void cVideoDecode::cFrame::setYuv420PlanarBgra (int width, int height, uint8_t** data, int* linesize) {
-    cLog::log (LOGERROR, "setYuv420PlanarBgra not implemented  for non x86");
+    cLog::log (LOGERROR, "setYuv420PlanarBgra not implemented for non x86");
     }
   //}}}
 #endif
+//{{{
+void cVideoDecode::cFrame::setYuv420PlanarRgbaSws (SwsContext* swsContext, int width, int height, uint8_t** data, int* linesize) {
+
+  system_clock::time_point timePoint = system_clock::now();
+
+  allocateBuffer (width, height);
+
+  // convert yuv to rgba
+  uint8_t* dstData[1] = { (uint8_t*)mBuffer };
+  int dstStride[1] = { width * 4 };
+  sws_scale (swsContext, data, linesize, 0, height, dstData, dstStride);
+
+  //if (kTiming)
+    cLog::log (LOGINFO, "ffmpeg setYuv420PlanarRgba:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+
+  mState = eLoaded;
+  }
+//}}}
+
 //{{{
 void cVideoDecode::cFrame::allocateBuffer (int width, int height) {
 
@@ -797,6 +800,8 @@ cFFmpegVideoDecode::~cFFmpegVideoDecode() {
     avcodec_close (mAvContext);
   if (mAvParser)
     av_parser_close (mAvParser);
+
+  sws_freeContext (mSwsContext);
   }
 //}}}
 //{{{
@@ -827,14 +832,19 @@ void cFFmpegVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int pe
         if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF || ret < 0)
           break;
 
+        if (!mSwsContext)
+          mSwsContext = sws_getContext (avFrame->width, avFrame->height, AV_PIX_FMT_YUV420P,
+                                        avFrame->width, avFrame->height, AV_PIX_FMT_RGBA,
+                                        SWS_BILINEAR, NULL, NULL, NULL);
         mWidth = avFrame->width;
         mHeight = avFrame->height;
         cVideoDecode::cFrame* frame = getFreeFrame (mDecodePts);
 
-        if (mBgra)
-          frame->setYuv420PlanarBgra (mWidth, mHeight, avFrame->data, avFrame->linesize);
-        else
-          frame->setYuv420PlanarRgba (mWidth, mHeight, avFrame->data, avFrame->linesize);
+        //if (mBgra)
+        //  frame->setYuv420PlanarBgra (mWidth, mHeight, avFrame->data, avFrame->linesize);
+        //else
+        //  frame->setYuv420PlanarRgba (mWidth, mHeight, avFrame->data, avFrame->linesize);
+        frame->setYuv420PlanarRgbaSws (mSwsContext, mWidth, mHeight, avFrame->data, avFrame->linesize);
 
         av_frame_unref (avFrame);
 
