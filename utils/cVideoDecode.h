@@ -37,12 +37,12 @@ public:
     // sets
     void set (uint64_t pts);
 
-    void setYuv420Rgba (int width, int height, uint8_t* buffer, int stride);
-    void setYuv420Bgra (int width, int height, uint8_t* buffer, int stride);
-    void setYuv420PlanarRgba (int width, int height, uint8_t** data, int* linesize);
-    void setYuv420PlanarBgra (int width, int height, uint8_t** data, int* linesize);
+    void setYuv420RgbaInterleaved (int width, int height, uint8_t* buffer, int stride);
+    void setYuv420BgraInterleaved (int width, int height, uint8_t* buffer, int stride);
+    void setYuv420RgbaPlanar (int width, int height, uint8_t** data, int* linesize);
+    void setYuv420BgraPlanar (int width, int height, uint8_t** data, int* linesize);
 
-    void setYuv420PlanarRgbaSws (SwsContext* swsContext, int width, int height, uint8_t** data, int* linesize);
+    void setYuv420RgbaPlanarSws (SwsContext* swsContext, int width, int height, uint8_t** data, int* linesize);
 
   private:
     void allocateBuffer (int width, int height);

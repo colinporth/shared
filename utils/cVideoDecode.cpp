@@ -118,10 +118,11 @@ extern "C" {
          int32x4_t const Y10 = vmulq_n_u32 (vmovl_u16 (vget_low_u16 (t)), 298);
          int32x4_t const Y11 = vmulq_n_u32 (vmovl_u16 (vget_high_u16 (t)), 298);
 
-         // loadvu pack 4 sets of uv into a uint8x8_t, layout : { v0,u0, v1,u1, v2,u2, v3,u3 }
-         //t = vsubq_s16 ((int16x8_t)vmovl_u8 (vld1_u8 (uv)), half);
+         // interleaved
+         // loadvu pack 4 sets of uv into a uint8x8_t { v0,u0, v1,u1, v2,u2, v3,u3 }
+         // uint16x8_t t = vsubq_s16 ((int16x8_t)vmovl_u8 (vld1_u8 (uv)), half);
          // UV.val[0] : v0, v1, v2, v3, UV.val[1] : u0, u1, u2, u3
-         //int16x4x2_t const UV = vuzp_s16 (vget_low_s16 (t), vget_high_s16 (t));
+         // int16x4x2_t const UV = vuzp_s16 (vget_low_s16 (t), vget_high_s16 (t));
 
          // load 4 sets of u  u0 u1 u2 u3 u4 u5 u6 u7
          uint16x8_t const u0123 = vsubq_s16 ((int16x8_t)vmovl_u8 (vld1_u8 (u)), half);
@@ -170,7 +171,7 @@ extern "C" {
 using namespace std;
 using namespace chrono;
 //}}}
-constexpr bool kTiming = false;
+constexpr bool kTiming = true;
 constexpr int kMaxFramePoolSize = 16;
 
 // cVideoDecode::cFrame
@@ -202,7 +203,7 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
 #if defined(INTEL_SSSE3)
   // uses shuffle
   //{{{
-  void cVideoDecode::cFrame::setYuv420Rgba (int width, int height, uint8_t* buffer, int stride) {
+  void cVideoDecode::cFrame::setYuv420RgbaInterleaved (int width, int height, uint8_t* buffer, int stride) {
 
     system_clock::time_point timePoint = system_clock::now();
 
@@ -326,13 +327,13 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
       }
 
     if (kTiming)
-      cLog::log (LOGINFO, "setYuv420Rgba:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+      cLog::log (LOGINFO, "setYuv420RgbaInterleaved:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
     mState = eLoaded;
     }
   //}}}
   //{{{
-  void cVideoDecode::cFrame::setYuv420Bgra (int width, int height, uint8_t* buffer, int stride) {
+  void cVideoDecode::cFrame::setYuv420BgraInterleaved (int width, int height, uint8_t* buffer, int stride) {
 
     system_clock::time_point timePoint = system_clock::now();
 
@@ -454,27 +455,27 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
       }
 
     if (kTiming)
-      cLog::log (LOGINFO, "setYuv420Bgra:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+      cLog::log (LOGINFO, "setYuv420BgraInterleaved:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
     mState = eLoaded;
     }
   //}}}
 #else
   //{{{
-  void cVideoDecode::cFrame::setYuv420Bgra (int width, int height, uint8_t* buffer, int stride) {
-    cLog::log (LOGERROR, "setNv12mfxBgra not implemented for non x86");
+  void cVideoDecode::cFrame::setYuv420BgraInterleaved (int width, int height, uint8_t* buffer, int stride) {
+    cLog::log (LOGERROR, "setYuv420BgraInterleaved not implemented for non x86");
     }
   //}}}
   //{{{
-  void cVideoDecode::cFrame::setYuv420Rgba (int width, int height, uint8_t* buffer, int stride) {
-    cLog::log (LOGERROR, "setNv12mfxRgba not implemented  for non x86");
+  void cVideoDecode::cFrame::setYuv420RgbaInterleaved (int width, int height, uint8_t* buffer, int stride) {
+    cLog::log (LOGERROR, "setYuv420RgbaInterleaved not implemented  for non x86");
     }
   //}}}
 #endif
 
 #if defined(INTEL_SSE2)
   //{{{
-  void cVideoDecode::cFrame::setYuv420PlanarRgba (int width, int height, uint8_t** data, int* linesize) {
+  void cVideoDecode::cFrame::setYuv420RgbaPlanar (int width, int height, uint8_t** data, int* linesize) {
 
     system_clock::time_point timePoint = system_clock::now();
 
@@ -581,14 +582,14 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
       dstrgb128r1 += width / 4;
       }
 
-    //if (kTiming)
-      cLog::log (LOGINFO, "setYuv420PlanarRgba:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+    if (kTiming)
+      cLog::log (LOGINFO, "setYuv420setYuv420RgbaPlanarPlanarRgba:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
     mState = eLoaded;
     }
   //}}}
   //{{{
-  void cVideoDecode::cFrame::setYuv420PlanarBgra (int width, int height, uint8_t** data, int* linesize) {
+  void cVideoDecode::cFrame::setYuv420BgraPlanar (int width, int height, uint8_t** data, int* linesize) {
 
     system_clock::time_point timePoint = system_clock::now();
 
@@ -696,20 +697,16 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
       }
 
     if (kTiming)
-      cLog::log (LOGINFO, "setYuv420PlanarRgba:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+      cLog::log (LOGINFO, "setYuv420BgraPlanar:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
     mState = eLoaded;
     }
   //}}}
 #else
   //{{{
-  void cVideoDecode::cFrame::setYuv420PlanarRgba (int width, int height, uint8_t** data, int* linesize) {
+  void cVideoDecode::cFrame::setYuv420RgbaPlanar (int width, int height, uint8_t** data, int* linesize) {
 
-    system_clock::time_point timePoint = system_clock::now();
-    uint8_t* yBuffer = data[0];
-    uint8_t* uBuffer = data[1];
-    uint8_t* vBuffer = data[2];
-
+    //{{{  convert to interleaved
     //uint8_t* uvBuffer = (uint8_t*)malloc ((width/2) * (height/2) * 2);
     //uint8_t* dst = uvBuffer;
     //uint8_t* srcu = data[1];
@@ -720,28 +717,28 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
     //    *dst++ = *srcv++;
     //    }
     //  }
+    //decode_yuv_neon ((uint8_t*)mBuffer, yBuffer, uvBuffer, width, height, 0xFF);
+    //free (uvBuffer);
+    //}}}
+    system_clock::time_point timePoint = system_clock::now();
 
     allocateBuffer (width, height);
+    decode_yuv_neon_planar ((uint8_t*)mBuffer, data[0], data[1], data[2], width, height, 0xFF);
 
-    //decode_yuv_neon ((uint8_t*)mBuffer, yBuffer, uvBuffer, width, height, 0xFF);
-    decode_yuv_neon_planar ((uint8_t*)mBuffer, yBuffer, uBuffer, vBuffer, width, height, 0xFF);
-
-    //if (kTiming)
-      cLog::log (LOGINFO, "setYuv420PlanarRgbaNneon:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
-
-    //free (uvBuffer);
+    if (kTiming)
+      cLog::log (LOGINFO, "setYuv420RgbaPlanar - NEON:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
     mState = eLoaded;
     }
   //}}}
   //{{{
-  void cVideoDecode::cFrame::setYuv420PlanarBgra (int width, int height, uint8_t** data, int* linesize) {
-    cLog::log (LOGERROR, "setYuv420PlanarBgra not implemented for non x86");
+  void cVideoDecode::cFrame::setYuv420BgraPlanar (int width, int height, uint8_t** data, int* linesize) {
+    cLog::log (LOGERROR, "setYuv420BgraPlanar not implemented for non x86");
     }
   //}}}
 #endif
 //{{{
-void cVideoDecode::cFrame::setYuv420PlanarRgbaSws (SwsContext* swsContext, int width, int height, uint8_t** data, int* linesize) {
+void cVideoDecode::cFrame::setYuv420RgbaPlanarSws (SwsContext* swsContext, int width, int height, uint8_t** data, int* linesize) {
 
   system_clock::time_point timePoint = system_clock::now();
 
@@ -753,7 +750,7 @@ void cVideoDecode::cFrame::setYuv420PlanarRgbaSws (SwsContext* swsContext, int w
   sws_scale (swsContext, data, linesize, 0, height, dstData, dstStride);
 
   if (kTiming)
-    cLog::log (LOGINFO, "ffmpeg setYuv420PlanarRgba:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+    cLog::log (LOGINFO, "setYuv420RgbaPlanarSws:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
   mState = eLoaded;
   }
@@ -913,9 +910,9 @@ void cMfxVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int pesNu
       if (status == MFX_ERR_NONE) {
         auto frame = getFreeFrame (surface->Data.TimeStamp);
         if (mBgra)
-          frame->setYuv420Bgra (surface->Info.Width, surface->Info.Height, surface->Data.Y, surface->Data.Pitch);
+          frame->setYuv420BgraInterleaved (surface->Info.Width, surface->Info.Height, surface->Data.Y, surface->Data.Pitch);
         else
-          frame->setYuv420Rgba (surface->Info.Width, surface->Info.Height, surface->Data.Y, surface->Data.Pitch);
+          frame->setYuv420RgbaInterleaved (surface->Info.Width, surface->Info.Height, surface->Data.Y, surface->Data.Pitch);
         }
       }
     }
@@ -1006,10 +1003,10 @@ void cFFmpegVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int pe
         cVideoDecode::cFrame* frame = getFreeFrame (mDecodePts);
 
         if (mBgra)
-          frame->setYuv420PlanarBgra (mWidth, mHeight, avFrame->data, avFrame->linesize);
+          frame->setYuv420BgraPlanar (mWidth, mHeight, avFrame->data, avFrame->linesize);
         else
-          frame->setYuv420PlanarRgba (mWidth, mHeight, avFrame->data, avFrame->linesize);
-        //frame->setYuv420PlanarRgbaSws (mSwsContext, mWidth, mHeight, avFrame->data, avFrame->linesize);
+          frame->setYuv420RgbaPlanar (mWidth, mHeight, avFrame->data, avFrame->linesize);
+        //frame->setYuv420RgbaPlanarSws (mSwsContext, mWidth, mHeight, avFrame->data, avFrame->linesize);
 
         av_frame_unref (avFrame);
 
