@@ -510,7 +510,7 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
       }
 
     if (kTiming)
-      cLog::log (LOGINFO, "setYuv420setYuv420RgbaPlanarPlanarRgba:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+      cLog::log (LOGINFO, "setYuv420RgbaPlanar:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
     mState = eLoaded;
     }
@@ -725,7 +725,7 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
         //}}}
 
     if (kTiming)
-      cLog::log (LOGINFO, "setYuv420RgbaPlanar - NEON:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+      cLog::log (LOGINFO, "setYuv420RgbaPlanar Neon:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
     mState = eLoaded;
     }
@@ -736,6 +736,24 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
     }
   //}}}
 #endif
+//{{{
+void cVideoDecode::cFrame::setYuv420RgbaPlanarSws (SwsContext* swsContext, int width, int height, uint8_t** data, int* linesize) {
+
+  system_clock::time_point timePoint = system_clock::now();
+
+  allocateBuffer (width, height);
+
+  // convert yuv420Planar to rgba
+  uint8_t* dstData[1] = { (uint8_t*)mBuffer };
+  int dstStride[1] = { width * 4 };
+  sws_scale (swsContext, data, linesize, 0, height, dstData, dstStride);
+
+  if (kTiming)
+    cLog::log (LOGINFO, "setYuv420RgbaPlanarSws:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+
+  mState = eLoaded;
+  }
+//}}}
 //{{{
 void cVideoDecode::cFrame::setYuv420RgbaPlanarSimple (int width, int height, uint8_t** data, int* linesize) {
 
@@ -800,25 +818,7 @@ void cVideoDecode::cFrame::setYuv420RgbaPlanarSimple (int width, int height, uin
     }
 
   if (kTiming)
-    cLog::log (LOGINFO, "setYuv420RgbaPlanar - NEON:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
-
-  mState = eLoaded;
-  }
-//}}}
-//{{{
-void cVideoDecode::cFrame::setYuv420RgbaPlanarSws (SwsContext* swsContext, int width, int height, uint8_t** data, int* linesize) {
-
-  system_clock::time_point timePoint = system_clock::now();
-
-  allocateBuffer (width, height);
-
-  // convert yuv420Planar to rgba
-  uint8_t* dstData[1] = { (uint8_t*)mBuffer };
-  int dstStride[1] = { width * 4 };
-  sws_scale (swsContext, data, linesize, 0, height, dstData, dstStride);
-
-  if (kTiming)
-    cLog::log (LOGINFO, "setYuv420RgbaPlanarSws:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+    cLog::log (LOGINFO, "setYuv420RgbaPlanarSimple :%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
   mState = eLoaded;
   }
@@ -1062,20 +1062,20 @@ void cFFmpegVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int pe
         if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF || ret < 0)
           break;
 
-        //if (!mSwsContext)
-        //  mSwsContext = sws_getContext (avFrame->width, avFrame->height, AV_PIX_FMT_YUV420P,
-        //                                avFrame->width, avFrame->height, AV_PIX_FMT_RGBA,
-        //                                SWS_BILINEAR, NULL, NULL, NULL);
         mWidth = avFrame->width;
         mHeight = avFrame->height;
         cVideoDecode::cFrame* frame = getFreeFrame (mDecodePts);
 
+        if (!mSwsContext)
+          mSwsContext = sws_getContext (avFrame->width, avFrame->height, AV_PIX_FMT_YUV420P,
+                                        avFrame->width, avFrame->height, AV_PIX_FMT_RGBA,
+                                        SWS_BILINEAR, NULL, NULL, NULL);
+        frame->setYuv420RgbaPlanarSws (mSwsContext, mWidth, mHeight, avFrame->data, avFrame->linesize);
         //if (mBgra)
         //  frame->setYuv420BgraPlanar (mWidth, mHeight, avFrame->data, avFrame->linesize);
         //else
         //  frame->setYuv420RgbaPlanar (mWidth, mHeight, avFrame->data, avFrame->linesize);
-        //frame->setYuv420RgbaPlanarSws (mSwsContext, mWidth, mHeight, avFrame->data, avFrame->linesize);
-        frame->setYuv420RgbaPlanarSimple (mWidth, mHeight, avFrame->data, avFrame->linesize);
+        //frame->setYuv420RgbaPlanarSimple (mWidth, mHeight, avFrame->data, avFrame->linesize);
 
         av_frame_unref (avFrame);
 
