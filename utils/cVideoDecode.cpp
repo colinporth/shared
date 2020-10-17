@@ -89,79 +89,6 @@ extern "C" {
        }
     }
   //}}}
-  //{{{
-  void decode_yuv_neon_planar (uint8_t* dst, uint8_t const* y, uint8_t const* u, uint8_t const* v, int width, int height, uint8_t fill_alpha) {
-
-    // constants
-    int const stride = width * 4;
-    int const itHeight = height >> 1;
-    int const itWidth = width >> 3;
-
-    uint8x8_t const Yshift = vdup_n_u8 (16);
-    int16x8_t const half = vdupq_n_u16 (128);
-    int32x4_t const rounding = vdupq_n_s32 (128);
-
-    // tmp variable
-
-    uint8x8x4_t block;
-    block.val[3] = vdup_n_u8 (fill_alpha);
-
-    for (int j = 0; j < itHeight; ++j, y += width, dst += stride) {
-      for (int i = 0; i < itWidth; ++i, y += 8, u += 4, v += 4, dst += (8 * 4)) {
-         // yrow0
-         uint16x8_t t = vmovl_u8 (vqsub_u8 (vld1_u8 (y), Yshift));
-         int32x4_t const Y00 = vmulq_n_u32 (vmovl_u16(vget_low_u16 (t)), 298);
-         int32x4_t const Y01 = vmulq_n_u32 (vmovl_u16(vget_high_u16 (t)), 298);
-
-         // yrow1
-         t = vmovl_u8 (vqsub_u8 (vld1_u8(y+width), Yshift));
-         int32x4_t const Y10 = vmulq_n_u32 (vmovl_u16 (vget_low_u16 (t)), 298);
-         int32x4_t const Y11 = vmulq_n_u32 (vmovl_u16 (vget_high_u16 (t)), 298);
-
-         // interleaved
-         // loadvu pack 4 sets of uv into a uint8x8_t { v0,u0, v1,u1, v2,u2, v3,u3 }
-         // uint16x8_t t = vsubq_s16 ((int16x8_t)vmovl_u8 (vld1_u8 (uv)), half);
-         // UV.val[0] : v0, v1, v2, v3, UV.val[1] : u0, u1, u2, u3
-         // int16x4x2_t const UV = vuzp_s16 (vget_low_s16 (t), vget_high_s16 (t));
-
-         // load 4 sets of u  u0 u1 u2 u3 u4 u5 u6 u7
-         uint16x8_t const u0123 = vsubq_s16 ((int16x8_t)vmovl_u8 (vld1_u8 (u)), half);
-         // load 4 sets of v  v0 v1 v2 v3 v4 v5 v6 v7
-         uint16x8_t const v0123 = vsubq_s16 ((int16x8_t)vmovl_u8 (vld1_u8 (v)), half);
-
-         // UV.val[0] v0 v1 v2 v3, UV.val[1] u0 u1 u2 u3
-         int16x4x2_t const UV = vuzp_s16 (vget_low_s16 (u0123), vget_low_s16 (v0123));
-
-         // tR 128+409V, tG 128-100U-208V, tB 128+516U
-         int32x4_t const tR = vmlal_n_s16 (rounding, UV.val[0], 409);
-         int32x4_t const tG = vmlal_n_s16 (vmlal_n_s16 (rounding, UV.val[0], -208), UV.val[1], -100);
-         int32x4_t const tB = vmlal_n_s16 (rounding, UV.val[1], 516);
-
-         int32x4x2_t const R = vzipq_s32 (tR, tR); // [tR0, tR0, tR1, tR1] [ tR2, tR2, tR3, tR3]
-         int32x4x2_t const G = vzipq_s32 (tG, tG); // [tG0, tG0, tG1, tG1] [ tG2, tG2, tG3, tG3]
-         int32x4x2_t const B = vzipq_s32 (tB, tB); // [tB0, tB0, tB1, tB1] [ tB2, tB2, tB3, tB3]
-
-         // upper 8 pixels
-         block.val[0] = vshrn_n_u16 (vcombine_u16 (vqmovun_s32 (vaddq_s32 (B.val[0], Y00)),
-                                                   vqmovun_s32 (vaddq_s32 (B.val[1], Y01))), 8);
-         block.val[1] = vshrn_n_u16 (vcombine_u16 (vqmovun_s32 (vaddq_s32 (G.val[0], Y00)),
-                                                   vqmovun_s32 (vaddq_s32 (G.val[1], Y01))), 8),
-         block.val[2] = vshrn_n_u16 (vcombine_u16 (vqmovun_s32 (vaddq_s32 (R.val[0], Y00)),
-                                                   vqmovun_s32 (vaddq_s32 (R.val[1], Y01))), 8),
-         vst4_u8 (dst, block);
-
-         // lower 8 pixels
-         block.val[0] = vshrn_n_u16 (vcombine_u16 (vqmovun_s32 (vaddq_s32 (B.val[0], Y10)),
-                                                   vqmovun_s32 (vaddq_s32 (B.val[1], Y11))), 8);
-         block.val[1] = vshrn_n_u16 (vcombine_u16 (vqmovun_s32 (vaddq_s32 (G.val[0], Y10)),
-                                                   vqmovun_s32 (vaddq_s32 (G.val[1], Y11))), 8),
-         block.val[2] = vshrn_n_u16 (vcombine_u16 (vqmovun_s32 (vaddq_s32 (R.val[0], Y10)),
-                                                   vqmovun_s32 (vaddq_s32 (R.val[1], Y11))), 8),
-         vst4_u8 (dst+stride, block);
-         }
-       }
-    }
-  //}}}
 #endif
 
 #ifdef _WIN32
@@ -173,6 +100,62 @@ using namespace chrono;
 //}}}
 constexpr bool kTiming = true;
 constexpr int kMaxFramePoolSize = 16;
+
+//{{{
+static void decode_yuv (uint8_t* dst, uint8_t const* y, uint8_t const* u,uint8_t const* v, int width, int height) {
+
+  unsigned char const* y0 = y;
+  int const halfHeight = height>>1;
+  int const halfWidth = width>>1;
+
+  int Y00, Y01, Y10, Y11;
+  int V, U;
+  int tR, tG, tB;
+  for (int h = 0; h < halfHeight; ++h) {
+    unsigned char const* y1 = y0 + width;
+    unsigned char* dst0 = dst;
+    unsigned char* dst1 = dst0 + width * 4;
+    for (int w = 0; w < halfWidth; ++w) {
+      // shift
+      Y00 = (*y0++) - 16;  Y01 = (*y0++) - 16;
+      Y10 = (*y1++) - 16;  Y11 = (*y1++) - 16;
+
+      V = (*u++) - 128;
+      U = (*v++) - 128;
+
+      Y00 = (Y00 > 0) ? (298*Y00) : 0;
+      Y01 = (Y01 > 0) ? (298*Y01) : 0;
+      Y10 = (Y10 > 0) ? (298*Y10) : 0;
+      Y11 = (Y11 > 0) ? (298*Y11) : 0;
+
+      tR = 128 + 409*V;
+      tG = 128 - 100*U - 208*V;
+      tB = 128 + 516*U;
+
+      *dst0++ = (Y00 + tR > 0) ? (Y00+tR < 65535 ? (uint8_t)((Y00+tR) >> 8):0xff) : 0;
+      *dst0++ = (Y00 + tG > 0) ? (Y00+tG < 65535 ? (uint8_t)((Y00+tG) >> 8):0xff) : 0;
+      *dst0++ = (Y00 + tB > 0) ? (Y00+tB < 65535 ? (uint8_t)((Y00+tB) >> 8):0xff):0;
+      *dst0++ = 0xFF;
+      *dst0++ = (Y01 + tR > 0) ? (Y01+tR < 65535 ? (uint8_t)((Y01+tR) >> 8):0xff) : 0;
+      *dst0++ = (Y01 + tG > 0) ? (Y01+tG < 65535 ? (uint8_t)((Y01+tG) >> 8):0xff) : 0;
+      *dst0++ = (Y01 + tB > 0) ? (Y01+tB < 65535 ? (uint8_t)((Y01+tB) >> 8):0xff) : 0;
+      *dst0++ = 0xFF;
+
+      *dst1++ = (Y10 + tR > 0) ? (Y10+tR < 65535 ? (uint8_t)((Y10+tR) >> 8) : 0xff) : 0;
+      *dst1++ = (Y10 + tG > 0) ? (Y10+tG < 65535 ? (uint8_t)((Y10+tG) >> 8) : 0xff) : 0;
+      *dst1++ = (Y10 + tB > 0) ? (Y10+tB < 65535 ? (uint8_t)((Y10+tB) >> 8) : 0xff) : 0;
+      *dst1++ = 0xFF;
+      *dst1++ = (Y11 + tR > 0) ? (Y11+tR < 65535 ? (uint8_t)((Y11+tR) >> 8) : 0xff) : 0;
+      *dst1++ = (Y11 + tG > 0) ? (Y11+tG < 65535 ? (uint8_t)((Y11+tG) >> 8) : 0xff) : 0;
+      *dst1++ = (Y11 + tB > 0) ? (Y11+tB < 65535 ? (uint8_t)((Y11+tB) >> 8) : 0xff) : 0;
+      *dst1++ = 0xFF;
+      }
+
+    y0 = y1;
+    dst0 = dst1;
+    }
+  }
+//}}}
 
 // cVideoDecode::cFrame
 //{{{
@@ -463,12 +446,12 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
 #else
   //{{{
   void cVideoDecode::cFrame::setYuv420BgraInterleaved (int width, int height, uint8_t* buffer, int stride) {
-    cLog::log (LOGERROR, "setYuv420BgraInterleaved not implemented for non x86");
+    cLog::log (LOGERROR, "setYuv420BgraInterleaved not implemented for nonx86");
     }
   //}}}
   //{{{
   void cVideoDecode::cFrame::setYuv420RgbaInterleaved (int width, int height, uint8_t* buffer, int stride) {
-    cLog::log (LOGERROR, "setYuv420RgbaInterleaved not implemented  for non x86");
+    cLog::log (LOGERROR, "setYuv420RgbaInterleaved not implemented  for nonx86");
     }
   //}}}
 #endif
@@ -723,7 +706,83 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
     system_clock::time_point timePoint = system_clock::now();
 
     allocateBuffer (width, height);
-    decode_yuv_neon_planar ((uint8_t*)mBuffer, data[0], data[1], data[2], width, height, 0xFF);
+
+    uint8_t* y = (uint8_t*)data[0];
+    uint8_t* u = (uint8_t*)data[1];
+    uint8_t* v = (uint8_t*)data[2];
+    uint8_t* dst = (uint8_t*)mBuffer;
+
+    if (true)
+      decode_yuv (dst, y, u, v, width, height);
+    else {
+      // constants
+      int const stride = width * 4;
+      int const itHeight = height >> 1;
+      int const itWidth = width >> 3;
+
+      uint8x8_t const Yshift = vdup_n_u8 (16);
+      int16x8_t const half = vdupq_n_u16 (128);
+      int32x4_t const rounding = vdupq_n_s32 (128);
+
+      uint8x8x4_t block;
+      block.val[3] = vdup_n_u8 (0xFF);
+
+      for (int j = 0; j < itHeight; ++j, y += width, dst += stride)
+        for (int i = 0; i < itWidth; ++i, y += 8, u += 4, v += 4, dst += (8 * 4)) {
+          //{{{  process 8pix with ARM NEON intrinsics, 2 rows at a time
+          // yrow0
+          uint16x8_t t = vmovl_u8 (vqsub_u8 (vld1_u8 (y), Yshift));
+          int32x4_t const Y00 = vmulq_n_u32 (vmovl_u16(vget_low_u16 (t)), 298);
+          int32x4_t const Y01 = vmulq_n_u32 (vmovl_u16(vget_high_u16 (t)), 298);
+
+          // yrow1
+          t = vmovl_u8 (vqsub_u8 (vld1_u8(y+width), Yshift));
+          int32x4_t const Y10 = vmulq_n_u32 (vmovl_u16 (vget_low_u16 (t)), 298);
+          int32x4_t const Y11 = vmulq_n_u32 (vmovl_u16 (vget_high_u16 (t)), 298);
+
+          // interleaved
+          // loadvu pack 4 sets of uv into a uint8x8_t { v0,u0, v1,u1, v2,u2, v3,u3 }
+          // uint16x8_t t = vsubq_s16 ((int16x8_t)vmovl_u8 (vld1_u8 (uv)), half);
+          // UV.val[0] : v0, v1, v2, v3, UV.val[1] : u0, u1, u2, u3
+          // int16x4x2_t const UV = vuzp_s16 (vget_low_s16 (t), vget_high_s16 (t));
+
+          // load 4 sets of u  u0 u1 u2 u3 u4 u5 u6 u7
+          uint16x8_t const u0123 = vsubq_s16 ((int16x8_t)vmovl_u8 (vld1_u8 (u)), half);
+          // load 4 sets of v  v0 v1 v2 v3 v4 v5 v6 v7
+          uint16x8_t const v0123 = vsubq_s16 ((int16x8_t)vmovl_u8 (vld1_u8 (v)), half);
+
+          // UV.val[0] v0 v1 v2 v3, UV.val[1] u0 u1 u2 u3
+          int16x4x2_t const UV = vuzp_s16 (vget_low_s16 (u0123), vget_low_s16 (v0123));
+
+          // tR 128+409V, tG 128-100U-208V, tB 128+516U
+          int32x4_t const tR = vmlal_n_s16 (rounding, UV.val[0], 409);
+          int32x4_t const tG = vmlal_n_s16 (vmlal_n_s16 (rounding, UV.val[0], -208), UV.val[1], -100);
+          int32x4_t const tB = vmlal_n_s16 (rounding, UV.val[1], 516);
+
+          int32x4x2_t const R = vzipq_s32 (tR, tR); // [tR0, tR0, tR1, tR1] [ tR2, tR2, tR3, tR3]
+          int32x4x2_t const G = vzipq_s32 (tG, tG); // [tG0, tG0, tG1, tG1] [ tG2, tG2, tG3, tG3]
+          int32x4x2_t const B = vzipq_s32 (tB, tB); // [tB0, tB0, tB1, tB1] [ tB2, tB2, tB3, tB3]
+
+          // upper 8 pixels
+          block.val[0] = vshrn_n_u16 (vcombine_u16 (vqmovun_s32 (vaddq_s32 (B.val[0], Y00)),
+                                                    vqmovun_s32 (vaddq_s32 (B.val[1], Y01))), 8);
+          block.val[1] = vshrn_n_u16 (vcombine_u16 (vqmovun_s32 (vaddq_s32 (G.val[0], Y00)),
+                                                    vqmovun_s32 (vaddq_s32 (G.val[1], Y01))), 8),
+          block.val[2] = vshrn_n_u16 (vcombine_u16 (vqmovun_s32 (vaddq_s32 (R.val[0], Y00)),
+                                                    vqmovun_s32 (vaddq_s32 (R.val[1], Y01))), 8),
+          vst4_u8 (dst, block);
+
+          // lower 8 pixels
+          block.val[0] = vshrn_n_u16 (vcombine_u16 (vqmovun_s32 (vaddq_s32 (B.val[0], Y10)),
+                                                    vqmovun_s32 (vaddq_s32 (B.val[1], Y11))), 8);
+          block.val[1] = vshrn_n_u16 (vcombine_u16 (vqmovun_s32 (vaddq_s32 (G.val[0], Y10)),
+                                                    vqmovun_s32 (vaddq_s32 (G.val[1], Y11))), 8),
+          block.val[2] = vshrn_n_u16 (vcombine_u16 (vqmovun_s32 (vaddq_s32 (R.val[0], Y10)),
+                                                    vqmovun_s32 (vaddq_s32 (R.val[1], Y11))), 8),
+          vst4_u8 (dst+stride, block);
+          }
+          //}}}
+      }
 
     if (kTiming)
       cLog::log (LOGINFO, "setYuv420RgbaPlanar - NEON:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
@@ -733,7 +792,7 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
   //}}}
   //{{{
   void cVideoDecode::cFrame::setYuv420BgraPlanar (int width, int height, uint8_t** data, int* linesize) {
-    cLog::log (LOGERROR, "setYuv420BgraPlanar not implemented for non x86");
+    cLog::log (LOGERROR, "setYuv420BgraPlanar not implemented for nonx86");
     }
   //}}}
 #endif
@@ -744,7 +803,7 @@ void cVideoDecode::cFrame::setYuv420RgbaPlanarSws (SwsContext* swsContext, int w
 
   allocateBuffer (width, height);
 
-  // convert yuv to rgba
+  // convert yuv420Planar to rgba
   uint8_t* dstData[1] = { (uint8_t*)mBuffer };
   int dstStride[1] = { width * 4 };
   sws_scale (swsContext, data, linesize, 0, height, dstData, dstStride);
