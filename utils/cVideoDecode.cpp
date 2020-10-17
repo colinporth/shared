@@ -254,7 +254,7 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
       }
 
     if (kTiming)
-      cLog::log (LOGINFO, "setYuv420RgbaInterleaved:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+      cLog::log (LOGINFO1, "setYuv420RgbaInterleaved:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
     mState = eLoaded;
     }
@@ -382,7 +382,7 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
       }
 
     if (kTiming)
-      cLog::log (LOGINFO, "setYuv420BgraInterleaved:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+      cLog::log (LOGINFO1, "setYuv420BgraInterleaved:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
     mState = eLoaded;
     }
@@ -510,7 +510,7 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
       }
 
     if (kTiming)
-      cLog::log (LOGINFO, "setYuv420RgbaPlanar:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+      cLog::log (LOGINFO1, "setYuv420RgbaPlanar:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
     mState = eLoaded;
     }
@@ -624,7 +624,7 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
       }
 
     if (kTiming)
-      cLog::log (LOGINFO, "setYuv420BgraPlanar:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+      cLog::log (LOGINFO1, "setYuv420BgraPlanar:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
     mState = eLoaded;
     }
@@ -725,7 +725,7 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
         //}}}
 
     if (kTiming)
-      cLog::log (LOGINFO, "setYuv420RgbaPlanar Neon:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+      cLog::log (LOGINFO1, "setYuv420RgbaPlanar Neon:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
     mState = eLoaded;
     }
@@ -749,7 +749,7 @@ void cVideoDecode::cFrame::setYuv420RgbaPlanarSws (SwsContext* swsContext, int w
   sws_scale (swsContext, data, linesize, 0, height, dstData, dstStride);
 
   if (kTiming)
-    cLog::log (LOGINFO, "setYuv420RgbaPlanarSws:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+    cLog::log (LOGINFO1, "setYuv420RgbaPlanarSws:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
   mState = eLoaded;
   }
@@ -818,7 +818,7 @@ void cVideoDecode::cFrame::setYuv420RgbaPlanarSimple (int width, int height, uin
     }
 
   if (kTiming)
-    cLog::log (LOGINFO, "setYuv420RgbaPlanarSimple :%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+    cLog::log (LOGINFO1, "setYuv420RgbaPlanarSimple :%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
   mState = eLoaded;
   }
