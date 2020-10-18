@@ -2433,7 +2433,7 @@ float* cAacDecoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int3
 
   auto took = duration_cast<microseconds>(system_clock::now() - timePoint).count();
   cLog::log (LOGINFO1, "aac frameNum:%d %dx%d %3dus %c%c%c%c",
-             frameNum, mNumSamples, mNumChannels, took,
+             frameNum, mNumSamples, mNumChannels, int(took),
              jumped ? 'j':' ', mSbrEnabled ? 's':' ', mTnsUsed ? 't':' ', mPnsUsed ? 'p':' ');
 
   return outBuffer;
