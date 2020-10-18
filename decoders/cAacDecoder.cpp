@@ -9,6 +9,7 @@
 #include "../utils/cLog.h"
 
 using namespace std;
+using namespace chrono;
 //}}}
 constexpr bool kMoreLog = false;
 
@@ -2346,7 +2347,7 @@ cAacDecoder::~cAacDecoder() {
 //{{{
 float* cAacDecoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int32_t frameNum) {
 
-  auto timePoint = chrono::system_clock::now();
+  auto timePoint = system_clock::now();
 
   mNumChannels = 0;
   mSampleRate = 0;
@@ -2430,9 +2431,9 @@ float* cAacDecoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int3
 
   mNumSamples = AAC_MAX_NSAMPS * (mSbrEnabled ? 2 : 1);
 
-  auto took = chrono::duration_cast<chrono::microseconds>(chrono::system_clock::now() - timePoint);
+  auto took = duration_cast<microseconds>(system_clock::now() - timePoint).count();
   cLog::log (LOGINFO1, "aac frameNum:%d %dx%d %3dus %c%c%c%c",
-             frameNum, mNumSamples, mNumChannels, took.count(),
+             frameNum, mNumSamples, mNumChannels, took,
              jumped ? 'j':' ', mSbrEnabled ? 's':' ', mTnsUsed ? 't':' ', mPnsUsed ? 'p':' ');
 
   return outBuffer;
