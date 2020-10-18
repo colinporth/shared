@@ -491,20 +491,20 @@ void cLog::cycleLogLevel() {
 
   switch (mLogLevel) {
     case LOGTITLE:  setLogLevel (LOGNOTICE); break;
-    case LOGNOTICE: setLogLevel(LOGERROR);  break;
-    case LOGERROR:  setLogLevel(LOGNOTICE); break;
-    case LOGINFO:   setLogLevel(LOGINFO1);  break;
-    case LOGINFO1:  setLogLevel(LOGINFO2);  break;
-    case LOGINFO2:  setLogLevel(LOGINFO3);  break;
-    case LOGINFO3:  setLogLevel(LOGERROR);  break;
+    case LOGNOTICE: setLogLevel(LOGERROR);   break;
+    case LOGERROR:  setLogLevel(LOGINFO);    break;
+    case LOGINFO:   setLogLevel(LOGINFO1);   break;
+    case LOGINFO1:  setLogLevel(LOGINFO2);   break;
+    case LOGINFO2:  setLogLevel(LOGINFO3);   break;
+    case LOGINFO3:  setLogLevel(LOGERROR);   break;
     }
   }
 //}}}
 //{{{
 void cLog::setLogLevel (enum eLogLevel logLevel) {
+// limit to valid, change if different
 
-  logLevel = max (LOGNOTICE, min (LOGERROR, logLevel));
-
+  logLevel = max (LOGNOTICE, min (LOGINFO3, logLevel));
   if (mLogLevel != logLevel) {
     switch (logLevel) {
       case LOGTITLE:  cLog::log (LOGNOTICE, "setLogLevel to LOGTITLE"); break;
