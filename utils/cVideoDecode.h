@@ -42,6 +42,7 @@ public:
     void setYuv420RgbaPlanar (int width, int height, uint8_t** data, int* linesize);
     void setYuv420BgraPlanar (int width, int height, uint8_t** data, int* linesize);
     void setYuv420RgbaPlanarSws (SwsContext* swsContext, int width, int height, uint8_t** data, int* linesize);
+    void setYuv420RgbaPlanarTable (int width, int height, uint8_t** data, int* linesize);
     void setYuv420RgbaPlanarSimple (int width, int height, uint8_t** data, int* linesize);
 
   private:
