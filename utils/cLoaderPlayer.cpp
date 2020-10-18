@@ -188,20 +188,27 @@ void cLoaderPlayer::getFrac (float& loadFrac, float& videoFrac, float& audioFrac
   videoFrac = mPesParsers.size() > 1 ? mPesParsers[1]->getQueueFrac() : 0.f;
   }
 //}}}
+//{{{
 void cLoaderPlayer::getSizes (int& loadSize, int& videoQueueSize, int& audioQueueSize) {
+// return sizes
+
   loadSize = mLoadSize;
   audioQueueSize = mPesParsers.size() > 0 ? mPesParsers[0]->getQueueSize() : 0;
   videoQueueSize = mPesParsers.size() > 1 ? mPesParsers[1]->getQueueSize() : 0;
   }
+//}}}
 
 //{{{
 void cLoaderPlayer::videoFollowAudio() {
 
-  auto framePtr = mSong->getFramePtr (mSong->getPlayFrame());
-  if (framePtr) {
-    if (mVideoDecode)
-      mVideoDecode->setPlayPts (framePtr->getPts());
-    mVideoDecode->clear (framePtr->getPts());
+  if (mVideoDecode) {
+    // get play frame
+    auto framePtr = mSong->getFramePtr (mSong->getPlayFrame());
+    if (framePtr) {
+      auto pts = framePtr->getPts();
+      mVideoDecode->clear (pts);
+      mVideoDecode->setPlayPts (pts);
+      }
     }
   }
 //}}}

@@ -210,12 +210,22 @@ void cSong::addFrame (int frameNum, float* samples, bool ourSamples, int totalFr
 
   cFrame* frame;
   if (mMaxMapSize && (int(mFrameMap.size()) > mMaxMapSize)) {
-    // remove front of map, reuse frame
       {
       unique_lock<shared_mutex> lock (mSharedMutex);
-      auto it = mFrameMap.begin();
-      frame = (*it).second;
-      mFrameMap.erase (it);
+      if (frameNum > mPlayFrame) {
+        //{{{  remove frame from map begin, reuse it
+        auto it = mFrameMap.begin();
+        frame = (*it).second;
+        mFrameMap.erase (it);
+        }
+        //}}}
+      else {
+        //{{{  remove frame from map end, reuse it
+        auto it = prev (mFrameMap.end());
+        frame = (*it).second;
+        mFrameMap.erase (it);
+        }
+        //}}}
       }
 
     // reuse power,peak,fft buffers, but free samples if we own them
