@@ -762,7 +762,7 @@ void cVideoDecode::cFrame::setYuv420RgbaPlanarSws (SwsContext* swsContext, int w
 //}}}
 //{{{
 void cVideoDecode::cFrame::setYuv420RgbaPlanarTable (int width, int height, uint8_t** data, int* linesize) {
-// table lookup convert
+// table lookup convert, bug in first pix pos stride != width
 
   constexpr uint32_t kFix = 0x40080100;
   //{{{
@@ -1818,6 +1818,8 @@ cMfxVideoDecode::~cMfxVideoDecode() {
 //{{{
 void cMfxVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int pesNumInChunk, uint64_t pts) {
 
+  system_clock::time_point timePoint = system_clock::now();
+
   memset (&mBitstream, 0, sizeof(mfxBitstream));
   mBitstream.Data = pes;
   mBitstream.DataOffset = 0;
@@ -1864,6 +1866,9 @@ void cMfxVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int pesNu
     if (status == MFX_ERR_NONE) {
       status = mSession.SyncOperation (syncDecode, 60000);
       if (status == MFX_ERR_NONE) {
+        if (kTiming)
+          cLog::log (LOGINFO1, "decodeFrame mfx:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+
         auto frame = getFreeFrame (surface->Data.TimeStamp);
         if (mBgra)
           frame->setYuv420BgraInterleaved (surface->Info.Width, surface->Info.Height, surface->Data.Y, surface->Data.Pitch);
@@ -1925,6 +1930,8 @@ cFFmpegVideoDecode::~cFFmpegVideoDecode() {
 //{{{
 void cFFmpegVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int pesNumInChunk, uint64_t pts) {
 
+  system_clock::time_point timePoint = system_clock::now();
+
   // ffmpeg doesn't maintain correct avFrame.pts, but does decode frames in presentation order
   if (pesNumInChunk == 0)
     mDecodePts = pts;
@@ -1949,6 +1956,8 @@ void cFFmpegVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int pe
         ret = avcodec_receive_frame (mAvContext, avFrame);
         if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF || ret < 0)
           break;
+        if (kTiming)
+          cLog::log (LOGINFO1, "decodeFrame FFmpeg:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
         mWidth = avFrame->width;
         mHeight = avFrame->height;

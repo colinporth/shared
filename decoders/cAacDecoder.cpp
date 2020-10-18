@@ -10,15 +10,53 @@
 
 using namespace std;
 //}}}
+constexpr bool kMoreLog = false;
 
 #ifdef _WIN32
-  #define USE_INTRINSICS
-  #ifdef USE_INTRINSICS
-    //{{{  intrinsics
-    #include <intrin.h>
-    #include <immintrin.h>
-    //}}}
-  #endif
+  //{{{  use INTEL intrinsics
+  #include <intrin.h>
+  #include <immintrin.h>
+  //{{{
+   inline int32_t countLeadingZeros (int32_t x) {
+
+    unsigned long index;
+    return _BitScanReverse (&index, (unsigned long)x) ? 31 - index : 0;
+    }
+  //}}}
+  //}}}
+#else
+  // !!! could use ARM intrinsic CLZ !!!!
+  //{{{
+  inline int32_t countLeadingZeros (int32_t x) {
+  // count leading zeros with binary search
+
+    if (!x)
+      return 32;
+
+    int32_t numZeros = 1;
+    if (!((uint32_t)x >> 16)) {
+      numZeros += 16;
+      x <<= 16;
+      }
+
+    if (!((uint32_t)x >> 24)) {
+      numZeros +=  8;
+      x <<=  8;
+      }
+
+    if (!((uint32_t)x >> 28)) {
+      numZeros +=  4;
+      x <<=  4;
+      }
+
+    if (!((uint32_t)x >> 30)) {
+      numZeros +=  2;
+      x <<=  2;
+      }
+
+    return numZeros - ((uint32_t)x >> 31);
+    }
+  //}}}
 #endif
 
 //{{{  defines
@@ -520,48 +558,6 @@ inline int32_t FASTABS (int32_t x) {
     (y) = (y) << (n);            \
   }
 //}}}
-
-#ifdef USE_INTRINSICS
-  //{{{
-   inline int32_t countLeadingZeros (int32_t x) {
-
-    unsigned long index;
-    return _BitScanReverse (&index, (unsigned long)x) ? 31 - index : 0;
-    }
-  //}}}
-#else
-  //{{{
-  inline int32_t countLeadingZeros (int32_t x) {
-  // count leading zeros with binary search
-
-    if (!x)
-      return 32;
-
-    int32_t numZeros = 1;
-    if (!((uint32_t)x >> 16)) {
-      numZeros += 16;
-      x <<= 16;
-      }
-
-    if (!((uint32_t)x >> 24)) {
-      numZeros +=  8;
-      x <<=  8;
-      }
-
-    if (!((uint32_t)x >> 28)) {
-      numZeros +=  4;
-      x <<=  4;
-      }
-
-    if (!((uint32_t)x >> 30)) {
-      numZeros +=  2;
-      x <<=  2;
-      }
-
-    return numZeros - ((uint32_t)x >> 31);
-    }
-  //}}}
-#endif
 //}}}
 //{{{  static const tables
 //{{{
@@ -2435,8 +2431,8 @@ float* cAacDecoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int3
   mNumSamples = AAC_MAX_NSAMPS * (mSbrEnabled ? 2 : 1);
 
   auto took = chrono::duration_cast<chrono::microseconds>(chrono::system_clock::now() - timePoint);
-  cLog::log (LOGINFO1, "aac %dx%d %3dus %c%c%c%c",
-             mNumSamples, mNumChannels, took.count(),
+  cLog::log (LOGINFO1, "aac frameNum:%d %dx%d %3dus %c%c%c%c",
+             frameNum, mNumSamples, mNumChannels, took.count(),
              jumped ? 'j':' ', mSbrEnabled ? 's':' ', mTnsUsed ? 't':' ', mPnsUsed ? 'p':' ');
 
   return outBuffer;
@@ -3664,41 +3660,49 @@ bool cAacDecoder::decodeNextElement (uint8_t*& buffer, int32_t& bitOffset, int32
 
   switch (mCurrBlockID) {
     case AAC_ID_SCE: // 0
-      cLog::log (LOGINFO2, "AAC_ID_SCE");
+      if (kMoreLog)
+        cLog::log (LOGINFO2, "AAC_ID_SCE");
       decodeSingleChannelElement (&bsi);
       break;
 
     case AAC_ID_CPE: // 1
-      cLog::log (LOGINFO2, "AAC_ID_CPE");
+      if (kMoreLog)
+        cLog::log (LOGINFO2, "AAC_ID_CPE");
       decodeChannelPairElement (&bsi);
       break;
 
     case AAC_ID_CCE: // 2
-      cLog::log (LOGERROR, "aac unexpected decodeNextElement CCE");
+      if (kMoreLog)
+        cLog::log (LOGERROR, "aac unexpected decodeNextElement CCE");
       break;
 
     case AAC_ID_LFE: // 3
-      cLog::log (LOGINFO2, "AAC_ID_LFE");
+      if (kMoreLog)
+        cLog::log (LOGINFO2, "AAC_ID_LFE");
       decodeLFEChannelElement (&bsi);
       break;
 
     case AAC_ID_DSE: // 4
-      cLog::log (LOGINFO3, "AAC_ID_DSE");
+      if (kMoreLog)
+        cLog::log (LOGINFO3, "AAC_ID_DSE");
       decodeDataStreamElement (&bsi);
       break;
 
     case AAC_ID_PCE: // 5
-      cLog::log (LOGINFO2, "AAC_ID_PCE");
+      if (kMoreLog)
+        cLog::log (LOGINFO2, "AAC_ID_PCE");
       decodeProgramConfigElement (&bsi, mInfoBase->pce + 0);
       break;
 
     case AAC_ID_FIL: // 6
-      cLog::log (LOGINFO2, "AAC_ID_FIL");
+      if (kMoreLog)
+        cLog::log (LOGINFO2, "AAC_ID_FIL");
       decodeFillElement (&bsi);
       break;
 
     case AAC_ID_END: // 7
-      cLog::log (LOGINFO2, "AAC_ID_END");
+      if (kMoreLog)
+        cLog::log (LOGINFO2, "AAC_ID_END");
       break;
     }
 
@@ -3714,7 +3718,8 @@ bool cAacDecoder::decodeNextElement (uint8_t*& buffer, int32_t& bitOffset, int32
 //{{{
 void cAacDecoder::decodeNoiselessData (uint8_t*& buffer, int32_t& bitOffset, int32_t& bitsAvail, int32_t channel) {
 
-  cLog::log (LOGINFO3, "decodeNoiselessData %d", channel);
+  if (kMoreLog)
+    cLog::log (LOGINFO3, "decodeNoiselessData %d", channel);
 
   cBitStream bsi (buffer, (bitsAvail+7) >> 3);
   bsi.getBits (bitOffset);
@@ -5119,7 +5124,8 @@ void cAacDecoder::dequantize (int32_t channel) {
  *              minimum guard bit count for dequantized coefficients
  **************************************************************************************/
 
-  cLog::log (LOGINFO3, "dequantize %d", channel);
+  if (kMoreLog)
+    cLog::log (LOGINFO3, "dequantize %d", channel);
 
   auto icsInfo = (channel == 1 && mInfoBase->commonWin == 1) ?
                    &(mInfoBase->icsInfo[0]) : &(mInfoBase->icsInfo[channel]);
@@ -5296,7 +5302,8 @@ void cAacDecoder::applyStereoProcess() {
   if (!mInfoBase->msMaskPresent && !mInfoBase->intensityUsed[1])
     return;
 
-  cLog::log (LOGINFO3, "applyStereoProcess");
+  if (kMoreLog)
+    cLog::log (LOGINFO3, "applyStereoProcess");
 
   int32_t numSamples;
   const short* sfbTab;
@@ -5507,7 +5514,8 @@ void cAacDecoder::applyPns (int32_t channel) {
   if (!mInfoBase->pnsUsed[channel])
     return;
 
-  cLog::log (LOGINFO3, "applyPns %d", channel);
+  if (kMoreLog)
+    cLog::log (LOGINFO3, "applyPns %d", channel);
 
   int32_t numSamples;
   const short* sfbTab;
@@ -5690,7 +5698,8 @@ void cAacDecoder::applyTns (int32_t channel) {
   if (!ti->tnsDataPresent)
     return;
 
-  cLog::log (LOGINFO3, "applyTns %d", channel);
+  if (kMoreLog)
+    cLog::log (LOGINFO3, "applyTns %d", channel);
 
   const short* sfbTab;
   const uint8_t* tnsMaxBandTab;
@@ -6631,7 +6640,8 @@ void cAacDecoder::imdct (int32_t channel, int32_t channelOut, float* outBuffer) 
  * Outputs:     complete frame of decoded PCM, if sbr
  **************************************************************************************/
 
-  cLog::log (LOGINFO3, "imdct %d", channel);
+  if (kMoreLog)
+    cLog::log (LOGINFO3, "imdct %d", channel);
 
   auto icsInfo = (channel == 1 && mInfoBase->commonWin == 1) ?
                    &(mInfoBase->icsInfo[0]) : &(mInfoBase->icsInfo[channel]);
@@ -8616,7 +8626,8 @@ void cAacDecoder::applySbr (int32_t channelBase, float* outBuffer) {
  * Outputs:     2048 samples of decoded float PCM, after SBR
  **************************************************************************************/
 
-  cLog::log (LOGINFO3, "applySbr");
+  if (kMoreLog)
+    cLog::log (LOGINFO3, "applySbr");
 
   // same header and freq tables for both channels in CPE
   auto sbrHdr = &(mInfoSbr->sbrHdr[channelBase]);
