@@ -749,7 +749,7 @@ void cVideoDecode::cFrame::setYuv420RgbaPlanarSws (SwsContext* swsContext, int w
 
   allocateBuffer (width, height);
 
-  // convert yuv420Planar to rgba
+  // ffmpeg libswscale convert data to mBuffer using swsContext
   uint8_t* dstData[1] = { (uint8_t*)mBuffer };
   int dstStride[1] = { width * 4 };
   sws_scale (swsContext, data, linesize, 0, height, dstData, dstStride);

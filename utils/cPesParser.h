@@ -57,7 +57,8 @@ public:
   //}}}
 
   int getPid() { return mPid; }
-  float getFrac() { return mUseQueue ? (float)mQueue.size_approx() / mQueue.max_capacity() : 0.f; }
+  float getQueueFrac() { return mUseQueue ? (float)mQueue.size_approx() / mQueue.max_capacity() : 0.f; }
+  int getQueueSize() { return mUseQueue ? (int)mQueue.size_approx() : 0; }
 
   //{{{
   bool parseTs (uint8_t* ts) {

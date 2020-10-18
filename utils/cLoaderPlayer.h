@@ -31,7 +31,8 @@ public:
   std::string getChannelName() { return mChannelName; }
   int getVidBitrate() { return mVidBitrate; }
   int getAudBitrate() { return mAudBitrate; }
-  bool getFrac (float& loadFrac, float& videoFrac, float& audioFrac);
+  void getFrac (float& loadFrac, float& videoFrac, float& audioFrac);
+  void getSizes (int& loadSize, int& videoQueueSize, int& audioQueueSize);
 
   void videoFollowAudio();
   void hlsLoaderThread();
@@ -63,6 +64,7 @@ private:
 
   bool mStreaming = false;
 
+  int mLoadSize = 0;
   float mLoadFrac = 0.f;
 
   std::vector<cPesParser*> mPesParsers;

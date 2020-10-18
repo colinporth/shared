@@ -39,19 +39,24 @@ public:
       }
 
     std::string infoString = mLoaderPlayer->getChannelName() +
-                             " - " + dec(mLoaderPlayer->getVidBitrate()) +
+                             " " + dec(mLoaderPlayer->getVidBitrate()) +
                              ":" + dec(mLoaderPlayer->getAudBitrate());
     if (videoDecode)
-      infoString += " " + dec(videoDecode->getWidth()) +
-                    "x" + dec(videoDecode->getHeight()) +
+      infoString += " " + dec(videoDecode->getWidth()) + "x" + dec(videoDecode->getHeight()) +
                     " " + dec(videoDecode->getFramePoolSize());
+    int loadSize;
+    int videoQueueSize;
+    int audioQueueSize;
+    mLoaderPlayer->getSizes (loadSize, videoQueueSize, audioQueueSize);
+    infoString += " l:" + dec(loadSize/1000) + "k vq:" + dec(videoQueueSize) + " aq:" + dec(audioQueueSize);
     drawInfo (vg, infoString);
 
     // draw progress spinners
     float loadFrac;
     float videoFrac;
     float audioFrac;
-    if (mLoaderPlayer->getFrac (loadFrac, videoFrac, audioFrac)) {
+    mLoaderPlayer->getFrac (loadFrac, videoFrac, audioFrac);
+    if (loadFrac > 0.f) {
       cPointF centre (mPixSize.x-20.f, 20.f);
       drawSpinner (vg, centre, 18.f,12.f, 0.1f, loadFrac,
                    sColourF(0.f,1.f,0.f,0.f), sColourF(0.f,1.f,0.f,0.75f));

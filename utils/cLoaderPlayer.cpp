@@ -180,16 +180,19 @@ void cLoaderPlayer::initialise (bool radio,
 //}}}
 
 //{{{
-bool cLoaderPlayer::getFrac (float& loadFrac, float& videoFrac, float& audioFrac) {
+void cLoaderPlayer::getFrac (float& loadFrac, float& videoFrac, float& audioFrac) {
 // return fracs for spinner graphic, true if ok to display
 
   loadFrac = mLoadFrac;
-  audioFrac = mPesParsers.size() > 0 ? mPesParsers[0]->getFrac() : 0.f;
-  videoFrac = mPesParsers.size() > 1 ? mPesParsers[1]->getFrac() : 0.f;
-
-  return (loadFrac > 0.f) && ((loadFrac < 1.f) || (audioFrac > 0.f) || (videoFrac > 0.f));
+  audioFrac = mPesParsers.size() > 0 ? mPesParsers[0]->getQueueFrac() : 0.f;
+  videoFrac = mPesParsers.size() > 1 ? mPesParsers[1]->getQueueFrac() : 0.f;
   }
 //}}}
+void cLoaderPlayer::getSizes (int& loadSize, int& videoQueueSize, int& audioQueueSize) {
+  loadSize = mLoadSize;
+  audioQueueSize = mPesParsers.size() > 0 ? mPesParsers[0]->getQueueSize() : 0;
+  videoQueueSize = mPesParsers.size() > 1 ? mPesParsers[1]->getQueueSize() : 0;
+  }
 
 //{{{
 void cLoaderPlayer::videoFollowAudio() {
@@ -252,7 +255,9 @@ void cLoaderPlayer::hlsLoaderThread() {
                           //}}}
                         [&] (const uint8_t* data, int length) noexcept {
                            //{{{  data lambda
+                           mLoadSize = http.getContentSize();
                            mLoadFrac = float(http.getContentSize()) / http.getHeaderContentSize();
+
                            while (http.getContentSize() - contentParsed >= 188) {
                              uint8_t* ts = http.getContent() + contentParsed;
                              if (*ts == 0x47) {
