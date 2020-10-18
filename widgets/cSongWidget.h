@@ -10,6 +10,8 @@ public:
   cSongWidget (cSong* song, float width, float height) : cWidget (kBlueF, width, height), mSong(song) {}
   virtual ~cSongWidget() {}
 
+  void setShowOverview (bool showOverview) { mShowOverview = showOverview; }
+
   //{{{
   void onDown (const cPointF& p) {
 
@@ -85,9 +87,9 @@ public:
   void onDraw (iDraw* draw) {
 
     mWaveHeight = 100.f;
-    mOverviewHeight = 100.f;
+    mOverviewHeight = mShowOverview ? 100.f : 0.f;
     mRangeHeight = 8.f;
-    mFreqHeight = mPixSize.y - mOverviewHeight - mRangeHeight - mWaveHeight;
+    mFreqHeight = mPixSize.y - mRangeHeight - mWaveHeight - mOverviewHeight;
 
     mDstFreqTop = 0;
     mDstWaveTop = mDstFreqTop + mFreqHeight;
@@ -110,9 +112,11 @@ public:
     if (mSong->getNumFrames()) {
       bool mono = mSong->getNumChannels() == 1;
       drawWave (vg, playFrame, leftWaveFrame, rightWaveFrame, mono);
-      drawOverview (vg, playFrame, mono);
+      if (mShowOverview)
+        drawOverview (vg, playFrame, mono);
       drawFreq (vg, playFrame);
       }
+
     drawTime (vg,
               mSong->hasHlsBase() ? getFrameString (mSong->getFirstFrame()) : "",
               getFrameString (mSong->getPlayFrame()),
@@ -639,6 +643,7 @@ private:
   bool mOverviewPressed = false;
   bool mRangePressed = false;
 
+  bool mShowOverview = false;
   float mOverviewLens = 0.f;
 
   // vertical layout
