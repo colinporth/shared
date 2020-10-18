@@ -131,6 +131,7 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
   // uses shuffle
   //{{{
   void cVideoDecode::cFrame::setYuv420RgbaInterleaved (int width, int height, uint8_t* buffer, int stride) {
+  // intel intrinsics ssse3 convert, fast
 
     system_clock::time_point timePoint = system_clock::now();
 
@@ -261,6 +262,7 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
   //}}}
   //{{{
   void cVideoDecode::cFrame::setYuv420BgraInterleaved (int width, int height, uint8_t* buffer, int stride) {
+  // intel intrinsics ssse3 convert, fast
 
     system_clock::time_point timePoint = system_clock::now();
 
@@ -403,6 +405,7 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
 #if defined(INTEL_SSE2)
   //{{{
   void cVideoDecode::cFrame::setYuv420RgbaPlanar (int width, int height, uint8_t** data, int* linesize) {
+  // intel intrinsics sse2 convert, fast, but sws is same sort of thing may be a bit faster in the loops
 
     system_clock::time_point timePoint = system_clock::now();
 
@@ -517,6 +520,7 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
   //}}}
   //{{{
   void cVideoDecode::cFrame::setYuv420BgraPlanar (int width, int height, uint8_t** data, int* linesize) {
+  // intel intrinsics sse2 convert, fast, but sws is same sort of thing may be a bit faster in the loops
 
     system_clock::time_point timePoint = system_clock::now();
 
@@ -632,6 +636,7 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
 #else
   //{{{
   void cVideoDecode::cFrame::setYuv420RgbaPlanar (int width, int height, uint8_t** data, int* linesize) {
+  // ARM nenon covert, not quite working, seems slow to sws table lookup
 
     //{{{  convert to interleaved
     //uint8_t* uvBuffer = (uint8_t*)malloc ((width/2) * (height/2) * 2);
@@ -738,6 +743,7 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
 #endif
 //{{{
 void cVideoDecode::cFrame::setYuv420RgbaPlanarSws (SwsContext* swsContext, int width, int height, uint8_t** data, int* linesize) {
+// ffmpeg convert
 
   system_clock::time_point timePoint = system_clock::now();
 
@@ -756,6 +762,7 @@ void cVideoDecode::cFrame::setYuv420RgbaPlanarSws (SwsContext* swsContext, int w
 //}}}
 //{{{
 void cVideoDecode::cFrame::setYuv420RgbaPlanarTable (int width, int height, uint8_t** data, int* linesize) {
+// table lookup convert
 
   constexpr uint32_t kFix = 0x40080100;
   //{{{
@@ -1559,13 +1566,13 @@ void cVideoDecode::cFrame::setYuv420RgbaPlanarTable (int width, int height, uint
 
       // row 0 pix 0
       uint32_t yuv = kTableY[*yPtr++] + uv;
-      uint32_t tmp = yuv & kFix;
-      if (tmp) {
-        //{{{  fixup
-        tmp -= tmp >> 8;
-        yuv |= tmp;
-        tmp = kFix & ~(yuv >> 1);
-        yuv += tmp >> 8;
+      uint32_t fix = yuv & kFix;
+      if (fix) {
+        //{{{  fix
+        fix -= fix >> 8;
+        yuv |= fix;
+        fix = kFix & ~(yuv >> 1);
+        yuv += fix >> 8;
         }
         //}}}
       *dstPtr++ = yuv;
@@ -1575,13 +1582,13 @@ void cVideoDecode::cFrame::setYuv420RgbaPlanarTable (int width, int height, uint
 
       // row 0 pix 1
       yuv = kTableY[*yPtr++] + uv;
-      tmp = yuv & kFix;
-      if (tmp) {
-        //{{{  fixup
-        tmp -= tmp >> 8;
-        yuv |= tmp;
-        tmp = kFix & ~(yuv >> 1);
-        yuv += tmp >> 8;
+      fix = yuv & kFix;
+      if (fix) {
+        //{{{  fix
+        fix -= fix >> 8;
+        yuv |= fix;
+        fix = kFix & ~(yuv >> 1);
+        yuv += fix >> 8;
         }
         //}}}
       *dstPtr++ = yuv;
@@ -1591,13 +1598,13 @@ void cVideoDecode::cFrame::setYuv420RgbaPlanarTable (int width, int height, uint
 
       // row 1 pix 0
       yuv = kTableY[*yPtr1++] + uv;
-      tmp = yuv & kFix;
-      if (tmp) {
-        //{{{  fixup
-        tmp -= tmp >> 8;
-        yuv |= tmp;
-        tmp = kFix & ~(yuv >> 1);
-        yuv += tmp >> 8;
+      fix = yuv & kFix;
+      if (fix) {
+        //{{{  fix
+        fix -= fix >> 8;
+        yuv |= fix;
+        fix = kFix & ~(yuv >> 1);
+        yuv += fix >> 8;
         }
         //}}}
       *dstPtr1++ = yuv;
@@ -1607,13 +1614,13 @@ void cVideoDecode::cFrame::setYuv420RgbaPlanarTable (int width, int height, uint
 
       // row 1 pix 1
       yuv = kTableY[*yPtr1++] + uv;
-      tmp = yuv & kFix;
-      if (tmp) {
-        //{{{  fixup
-        tmp -= tmp >> 8;
-        yuv |= tmp;
-        tmp = kFix & ~(yuv >> 1);
-        yuv += tmp >> 8;
+      fix = yuv & kFix;
+      if (fix) {
+        //{{{  fix
+        fix -= fix >> 8;
+        yuv |= fix;
+        fix = kFix & ~(yuv >> 1);
+        yuv += fix >> 8;
         }
         //}}}
       *dstPtr1++ = yuv;
@@ -1636,6 +1643,7 @@ void cVideoDecode::cFrame::setYuv420RgbaPlanarTable (int width, int height, uint
 //}}}
 //{{{
 void cVideoDecode::cFrame::setYuv420RgbaPlanarSimple (int width, int height, uint8_t** data, int* linesize) {
+// fixed point convert
 
   system_clock::time_point timePoint = system_clock::now();
 
