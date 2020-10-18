@@ -1636,7 +1636,7 @@ void cVideoDecode::cFrame::setYuv420RgbaPlanarTable (int width, int height, uint
     }
 
   if (kTiming)
-    cLog::log (LOGINFO1, "setYuv420RgbaPlanarSimpler :%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+    cLog::log (LOGINFO1, "setYuv420RgbaPlanarTable :%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
   mState = eLoaded;
   }
@@ -1959,12 +1959,15 @@ void cFFmpegVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int pe
                                         avFrame->width, avFrame->height, AV_PIX_FMT_RGBA,
                                         SWS_BILINEAR, NULL, NULL, NULL);
         frame->setYuv420RgbaPlanarSws (mSwsContext, mWidth, mHeight, avFrame->data, avFrame->linesize);
-        frame->setYuv420RgbaPlanarTable (mWidth, mHeight, avFrame->data, avFrame->linesize);
+
+        // same as sws for intel
         //if (mBgra)
         //  frame->setYuv420BgraPlanar (mWidth, mHeight, avFrame->data, avFrame->linesize);
         //else
         //  frame->setYuv420RgbaPlanar (mWidth, mHeight, avFrame->data, avFrame->linesize);
+        // slower
         //frame->setYuv420RgbaPlanarSimple (mWidth, mHeight, avFrame->data, avFrame->linesize);
+        //frame->setYuv420RgbaPlanarTable (mWidth, mHeight, avFrame->data, avFrame->linesize);
 
         av_frame_unref (avFrame);
 
