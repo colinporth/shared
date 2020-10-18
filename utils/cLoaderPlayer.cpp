@@ -236,7 +236,7 @@ void cLoaderPlayer::hlsLoaderThread() {
       while (!mExit && !mSong->getChanged()) {
         int chunkNum;
         int frameNum;
-        if (mSong->loadChunk (system_clock::now(), 12s, 2, chunkNum, frameNum)) {
+        if (mSong->loadChunk (system_clock::now(), 2, chunkNum, frameNum)) {
           mPesParsers[0]->clear (frameNum);
           if (mPesParsers.size() > 1)
             mPesParsers[1]->clear (0);

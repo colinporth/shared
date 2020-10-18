@@ -205,8 +205,7 @@ public:
   int getLastChunkNum() { return mLastChunkNum; }
   int getLastFrameNum() { return mLastFrameNum; }
   bool hasHlsBase() { return mHlsBaseValid; }
-  bool loadChunk (std::chrono::system_clock::time_point now, std::chrono::seconds secs, int preload,
-                  int& chunkNum, int& frameNum);
+  bool loadChunk (std::chrono::system_clock::time_point now, int preloadChunks, int& chunkNum, int& frameNum);
 
   // actions
   void prevSilencePlayFrame();

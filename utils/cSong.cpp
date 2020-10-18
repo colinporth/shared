@@ -169,7 +169,7 @@ cSong::~cSong() {
 
 //{{{
 void cSong::initialise (cAudioDecode::eFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame,
-                  int maxMapSize) {
+                        int maxMapSize) {
 
   unique_lock<shared_mutex> lock (mSharedMutex);
 
@@ -325,14 +325,15 @@ void cSong::setHlsBase (int chunkNum, system_clock::time_point timePoint, second
   uint64_t msSinceMidnight = duration_cast<milliseconds>(timePoint - midnightTimePoint).count();
   mHlsBaseFrame = int((msSinceMidnight * mSampleRate) / mSamplesPerFrame / 1000);
 
-  // add inn startSecs offset to playFrame for curious case of tv reporting 2 hours late in .m3u8
-  mPlayFrame = mHlsBaseFrame + ((startSecs * mSampleRate) / mSamplesPerFrame);
+  // add startSecs offset to playFrame for curious case of tv reporting 2 hours late in .m3u8
+  int startOffset = (((startSecs * mSampleRate) / mSamplesPerFrame) / mHlsFramesPerChunk) * mHlsFramesPerChunk;
+  mPlayFrame = mHlsBaseFrame + startOffset;
 
   mHlsBaseValid = true;
   }
 //}}}
 //{{{
-bool cSong::loadChunk (system_clock::time_point now, chrono::seconds secs, int preload, int& chunkNum, int& frameNum) {
+bool cSong::loadChunk (system_clock::time_point now,  int preloadChunks, int& chunkNum, int& frameNum) {
 // return true if a chunk load needed
 // - update chunkNum and frameNum
 
@@ -342,8 +343,9 @@ bool cSong::loadChunk (system_clock::time_point now, chrono::seconds secs, int p
                                              -((mHlsFramesPerChunk - 1 - frameOffset) / mHlsFramesPerChunk);
 
   // loop until chunkNum with unloaded frame, chunkNum not available yet, or preload ahead of playFrame loaded
-  int loaded = 0;
-  while ((loaded < preload) && ((now - (mHlsBaseTimePoint + (chunkNumOffset * 6400ms))) > secs))
+  int loadedChunks = 0;
+  int secs = (preloadChunks * mHlsFramesPerChunk * mSamplesPerFrame) / mSampleRate;
+  while ((loadedChunks < preloadChunks) && ((now - (mHlsBaseTimePoint + (chunkNumOffset * 6400ms))).count() > secs))
     // chunkNum chunk should be available
     if (!getFramePtr (mHlsBaseFrame + (chunkNumOffset * mHlsFramesPerChunk))) {
       // not loaded, return chunkNum to load
@@ -355,7 +357,7 @@ bool cSong::loadChunk (system_clock::time_point now, chrono::seconds secs, int p
       }
     else {
       // already loaded, next
-      loaded++;
+      loadedChunks++;
       chunkNumOffset++;
       }
 
