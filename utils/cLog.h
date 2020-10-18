@@ -6,7 +6,7 @@
 #include <chrono>
 //}}}
 
-enum eLogLevel { LOGTITLE, LOGNOTICE, LOGERROR, LOGINFO, LOGINFO1, LOGINFO2, LOGINFO3, LOGMAX };
+enum eLogLevel { LOGTITLE, LOGNOTICE, LOGERROR, LOGINFO, LOGINFO1, LOGINFO2, LOGINFO3 };
 const int kBst = 1;
 
 class cLog {
@@ -39,6 +39,7 @@ public:
   static std::string getThreadNameString (uint64_t threadId);
   static std::wstring getThreadNameWstring (uint64_t threadId);
 
+  static void cycleLogLevel();
   static void setLogLevel (enum eLogLevel logLevel);
   static void setThreadName (const std::string& name);
 

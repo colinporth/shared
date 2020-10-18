@@ -486,9 +486,24 @@ wstring cLog::getThreadNameWstring (uint64_t threadId) {
 //}}}
 
 //{{{
+void cLog::cycleLogLevel() {
+// cycle log level for L key presses in gui
+
+  switch (mLogLevel) {
+    case LOGTITLE:  setLogLevel (LOGNOTICE); break;
+    case LOGNOTICE: setLogLevel(LOGERROR);  break;
+    case LOGERROR:  setLogLevel(LOGNOTICE); break;
+    case LOGINFO:   setLogLevel(LOGINFO1);  break;
+    case LOGINFO1:  setLogLevel(LOGINFO2);  break;
+    case LOGINFO2:  setLogLevel(LOGINFO3);  break;
+    case LOGINFO3:  setLogLevel(LOGERROR);  break;
+    }
+  }
+//}}}
+//{{{
 void cLog::setLogLevel (enum eLogLevel logLevel) {
 
-  logLevel = max (LOGNOTICE, min (eLogLevel(LOGMAX-1), logLevel));
+  logLevel = max (LOGNOTICE, min (LOGERROR, logLevel));
 
   if (mLogLevel != logLevel) {
     switch (logLevel) {
@@ -499,7 +514,6 @@ void cLog::setLogLevel (enum eLogLevel logLevel) {
       case LOGINFO1:  cLog::log (LOGNOTICE, "setLogLevel to LOGINFO1"); break;
       case LOGINFO2:  cLog::log (LOGNOTICE, "setLogLevel to LOGINFO2"); break;
       case LOGINFO3:  cLog::log (LOGNOTICE, "setLogLevel to LOGINFO3"); break;
-      default: break;
       }
     mLogLevel = logLevel;
     }
