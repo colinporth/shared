@@ -90,14 +90,21 @@ cRootContainer* cGlWindow::initialise (const string& title, int width, int heigh
   if (!mWindow) {
     //{{{  error, return
     cLog::log (LOGERROR, "failed to create Glfw window " + dec(width) + "x" + dec(height) + " " + title);
+
     glfwTerminate();
     return nullptr;
     }
     //}}}
 
+  mMonitor = glfwGetPrimaryMonitor();
+  glfwGetWindowSize (mWindow, &mWindowSize[0], &mWindowSize[1]);
+  glfwGetWindowPos (mWindow, &mWindowPos[0], &mWindowPos[1]);
+
   // setup callbacks
   glfwMakeContextCurrent (mWindow);
   gladLoadGLLoader ((GLADloadproc)glfwGetProcAddress);
+
+  glfwSetWindowUserPointer (mWindow, this);
 
   glfwSetKeyCallback (mWindow, glfwKey);
   glfwSetCharModsCallback (mWindow, glfwCharMods);
@@ -129,6 +136,8 @@ cRootContainer* cGlWindow::initialise (const string& title, int width, int heigh
 void cGlWindow::run() {
 // runs in app main thread after initialising everything
 
+  updateWindowSize();
+
   while (!glfwWindowShouldClose (mWindow)) {
     glfwPollEvents();
     draw();
@@ -136,6 +145,25 @@ void cGlWindow::run() {
   }
 //}}}
 
+//{{{
+void cGlWindow::toggleFullScreen() {
+
+  if (glfwGetWindowMonitor (mWindow) == nullptr) {
+    // backup window position and window size
+    glfwGetWindowPos (mWindow, &mWindowPos[0], &mWindowPos[1]);
+    glfwGetWindowSize (mWindow, &mWindowSize[0], &mWindowSize[1]);
+
+    // get resolution of monitor
+    const GLFWvidmode* mode = glfwGetVideoMode (glfwGetPrimaryMonitor());
+
+    // switch to full screen
+    glfwSetWindowMonitor  (mWindow, mMonitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+    }
+  else
+    // restore last window size and position
+    glfwSetWindowMonitor (mWindow, nullptr, mWindowPos[0], mWindowPos[1], mWindowSize[0], mWindowSize[1], 0);
+  }
+//}}}
 //{{{
 void cGlWindow::toggleVsync() {
   mVsync = !mVsync;
@@ -146,7 +174,6 @@ void cGlWindow::toggleVsync() {
 void cGlWindow::togglePerf() {
 
   mDrawPerf = !mDrawPerf;
-
   mFpsGraph->clear();
   mCpuGraph->clear();
   }
@@ -154,50 +181,52 @@ void cGlWindow::togglePerf() {
 
 // private
 //{{{
-void cGlWindow::draw() {
+void cGlWindow::updateWindowSize() {
 
-  mCpuGraph->start ((float)glfwGetTime());
-
-  // Update and render
-  int winWidth;
-  int winHeight;
-  glfwGetWindowSize (mWindow, &winWidth, &winHeight);
-  cPointF winSize ((float)winWidth, (float)winHeight);
+  glfwGetWindowSize (mWindow, &mWinWidth, &mWinHeight);
+  mWinSize = { (float)mWinWidth, (float)mWinHeight };
 
   int frameBufferWidth;
   int frameBufferHeight;
   glfwGetFramebufferSize (mWindow, &frameBufferWidth, &frameBufferHeight);
   glViewport (0, 0, frameBufferWidth, frameBufferHeight);
 
-  glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+  mAspectRatio = (float)frameBufferWidth / (float)mWinWidth;
+  }
+//}}}
 
-  beginFrame (winWidth, winHeight, (float)frameBufferWidth / (float)winWidth);
+//{{{
+void cGlWindow::draw() {
+
+  mCpuGraph->start ((float)glfwGetTime());
+
+  glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+  beginFrame (mWinWidth, mWinHeight, mAspectRatio);
 
   if (mRootContainer)
     mRootContainer->onDraw (this);
 
   if (mDrawTests) {
     //{{{  draw tests
-    drawEyes (winSize * cPointF(0.75f, 0.5f), winSize * cPointF(0.25f, 0.5f), mMousePos, (float)glfwGetTime());
-    drawLines (cPointF(0.f, 70.f), cPointF((float)winWidth, (float)winHeight), (float)glfwGetTime());
-    drawSpinner (winSize/2.f, 20.f, 16.f, (float)glfwGetTime(),
-                 kOpaqueBlackF, kSemiOpaqueWhiteF);
+    drawEyes (mWinSize * cPointF(0.75f, 0.5f), mWinSize * cPointF(0.25f, 0.5f), mMousePos, (float)glfwGetTime());
+    drawLines (cPointF(0.f, 70.f), mWinSize, (float)glfwGetTime());
+    drawSpinner (mWinSize / 2.f, 20.f, 16.f, (float)glfwGetTime(), kOpaqueBlackF, kSemiOpaqueWhiteF);
     }
     //}}}
 
   if (mDrawPerf) {
     //{{{  draw perf stats
-    mFpsGraph->render (this, cPointF(0.f, winSize.y-35.f), cPointF(winSize.x/2.f -2.f, 35.f));
-    mCpuGraph->render (this, cPointF(winSize.x/2.f, winSize.y-35.f), cPointF(winSize.x/2.f - 2.f, 35.f));
+    mFpsGraph->render (this, cPointF(0.f, mWinSize.y - 35.f), cPointF((mWinSize.x / 2.f) - 2.f, 35.f));
+    mCpuGraph->render (this, cPointF(mWinSize.x / 2.f, mWinSize.y - 35.f), cPointF((mWinSize.x / 2.f) - 2.f, 35.f));
     }
     //}}}
 
   if (mDrawStats) {
     //{{{  draw stats
-    setFontSize (12.0f);
+    setFontSize (16.f);
     setTextAlign (cVg::eAlignLeft | cVg::eAlignBottom);
     setFillColour (kWhiteF);
-    text (cPointF(0.f, winSize.y), getFrameStats() + (mVsync ? " vsyncOn" : " vsyncOff"));
+    text (cPointF(0.f, mWinSize.y), getFrameStats() + (mVsync ? " vsyncOn" : " vsyncOff"));
     }
     //}}}
 
@@ -208,7 +237,6 @@ void cGlWindow::draw() {
   mFpsGraph->updateTime ((float)glfwGetTime());
   }
 //}}}
-
 //{{{
 void cGlWindow::drawSpinner (const cPointF& centre, float inner, float outer, float frac,
                              const sColourF& colour1, const sColourF& colour2) {
@@ -347,6 +375,26 @@ void cGlWindow::drawLines (const cPointF& p, const cPointF& size, float t) {
   }
 //}}}
 
+//{{{
+void cGlWindow::glfWindowPos (GLFWwindow* window, int xsize, int ysize) {
+
+  mGlWindow->draw();
+  }
+//}}}
+//{{{
+void cGlWindow::glfWindowSize (GLFWwindow* window, int xsize, int ysize) {
+
+  mGlWindow->updateWindowSize();
+  mRootContainer->layout (cPointF((float)xsize, (float)ysize));
+  mGlWindow->draw();
+  }
+//}}}
+//{{{
+void cGlWindow::errorCallback (int error, const char* desc) {
+  cLog::log (LOGERROR, "GLFW error %d: %s\n", error, desc);
+  }
+//}}}
+
 // static keyboard - route to mRootContainer
 //{{{
 void cGlWindow::glfwKey (GLFWwindow* window, int key, int scancode, int action, int mods) {
@@ -433,22 +481,5 @@ void cGlWindow::glfwCursorPos (GLFWwindow* window, double xpos, double ypos) {
 //{{{
 void cGlWindow::glfMouseScroll (GLFWwindow* window, double xoffset, double yoffset) {
   mRootContainer->onWheel (float (yoffset));
-  }
-//}}}
-//{{{
-void cGlWindow::glfWindowPos (GLFWwindow* window, int xsize, int ysize) {
-  mGlWindow->draw();
-  }
-//}}}
-//{{{
-void cGlWindow::glfWindowSize (GLFWwindow* window, int xsize, int ysize) {
-  mRootContainer->layout (cPointF((float)xsize, (float)ysize));
-  mGlWindow->draw();
-  }
-//}}}
-
-//{{{
-void cGlWindow::errorCallback (int error, const char* desc) {
-  cLog::log (LOGERROR, "GLFW error %d: %s\n", error, desc);
   }
 //}}}

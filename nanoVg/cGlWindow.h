@@ -3,6 +3,7 @@
 #pragma once
 #include "cVg.h"
 
+#include <array>
 #include "cPerfGraph.h"
 
 #include "../utils/iChange.h"
@@ -44,6 +45,7 @@ public:
 protected:
   cRootContainer* initialise (const std::string& title, int width, int height, unsigned char* sansFont, int sansFontSize);
 
+
   cWidget* add (cWidget* widget) { return mRootContainer->add (widget); }
   cWidget* addAtBox (cWidget* widget, float width, float height) { return mRootContainer->addAtBox (widget, width, height); }
   cWidget* addAtPix (cWidget* widget, const cPointF& p) { return mRootContainer->addAtPix (widget, p); }
@@ -56,6 +58,7 @@ protected:
   cWidget* addAbove (cWidget* widget) { return mRootContainer->addAbove (widget); }
   void run();
 
+  void toggleFullScreen();
   void toggleVsync();
   void togglePerf();
   void toggleStats() { mDrawStats = !mDrawStats; }
@@ -65,26 +68,38 @@ protected:
   virtual void onChar (char ch, int mods) = 0;
 
   static inline cGlWindow* mGlWindow = nullptr;
-  struct GLFWwindow* mWindow = nullptr;
-  static inline cPointF mMousePos = { 0.f, 0.f };
+  static inline cPointF mMousePos { 0.f,0.f };
+
+  GLFWwindow* mWindow = nullptr;
+  int mWinWidth = 0;
+  int mWinHeight = 0;
+  cPointF mWinSize  { 0.f,0.f };
+  float mAspectRatio = 0.f;
+
+  GLFWmonitor* mMonitor = nullptr;
+  std::array <int, 2> mWindowPos { 0,0 };
+  std::array <int, 2> mWindowSize { 0,0 };
 
 private:
-  void draw();
+  void updateWindowSize();
 
+  void draw();
   void drawSpinner (const cPointF& centre, float inner, float outer, float frac,
                     const sColourF& colour1, const sColourF& colour2);
   void drawEyes (const cPointF& p, const cPointF& size, const cPointF& mousePos, float t);
   void drawLines (const cPointF& p, const cPointF& size, float t);
 
   //{{{  static glfw callbacks
-  static void glfwKey (GLFWwindow* window, int key, int scancode, int action, int mods);
-  static void glfwCharMods (GLFWwindow* window, unsigned int ch, int mods);
-  static void glfwCursorPos (GLFWwindow* window, double xpos, double ypos);
-  static void glfwMouseButton (GLFWwindow* window, int button, int action, int mods);
-  static void glfMouseScroll (GLFWwindow* window, double xoffset, double yoffset);
   static void glfWindowPos (GLFWwindow* window, int xsize, int ysize);
   static void glfWindowSize (GLFWwindow* window, int xsize, int ysize);
   static void errorCallback (int error, const char* desc);
+
+  static void glfwKey (GLFWwindow* window, int key, int scancode, int action, int mods);
+  static void glfwCharMods (GLFWwindow* window, unsigned int ch, int mods);
+
+  static void glfwCursorPos (GLFWwindow* window, double xpos, double ypos);
+  static void glfwMouseButton (GLFWwindow* window, int button, int action, int mods);
+  static void glfMouseScroll (GLFWwindow* window, double xoffset, double yoffset);
   //}}}
 
   //{{{  vars
