@@ -692,11 +692,11 @@ void cVideoDecode::cFrame:: set (uint64_t pts) {
         // UV.val[0] : v0, v1, v2, v3, UV.val[1] : u0, u1, u2, u3
         // int16x4x2_t const UV = vuzp_s16 (vget_low_s16 (t), vget_high_s16 (t));
 
+        // !!!!!!! wrong !!!!!!!!!!!!!!!!! FIX
         // load 4 sets of u  u0 u1 u2 u3 u4 u5 u6 u7
         uint16x8_t const u0123 = vsubq_s16 ((int16x8_t)vmovl_u8 (vld1_u8 (u)), half);
         // load 4 sets of v  v0 v1 v2 v3 v4 v5 v6 v7
         uint16x8_t const v0123 = vsubq_s16 ((int16x8_t)vmovl_u8 (vld1_u8 (v)), half);
-
         // UV.val[0] v0 v1 v2 v3, UV.val[1] u0 u1 u2 u3
         int16x4x2_t const UV = vuzp_s16 (vget_low_s16 (u0123), vget_low_s16 (v0123));
 
