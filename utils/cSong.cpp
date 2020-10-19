@@ -209,24 +209,24 @@ void cSong::clear() {
 void cSong::addFrame (int frameNum, float* samples, bool ourSamples, int totalFrames, uint64_t pts) {
 
   cFrame* frame;
-  if (mMaxMapSize && (int(mFrameMap.size()) > mMaxMapSize)) {
-      {
-      unique_lock<shared_mutex> lock (mSharedMutex);
-      if (frameNum > mPlayFrame) {
-        //{{{  remove frame from map begin, reuse it
-        auto it = mFrameMap.begin();
-        frame = (*it).second;
-        mFrameMap.erase (it);
-        }
-        //}}}
-      else {
-        //{{{  remove frame from map end, reuse it
-        auto it = prev (mFrameMap.end());
-        frame = (*it).second;
-        mFrameMap.erase (it);
-        }
-        //}}}
+  if (mMaxMapSize && (int(mFrameMap.size()) > mMaxMapSize)) { // reuse a cFrame
+    { // remove with locked mutex
+    unique_lock<shared_mutex> lock (mSharedMutex);
+    if (frameNum > mPlayFrame) {
+      //{{{  remove frame from map begin, reuse it
+      auto it = mFrameMap.begin();
+      frame = (*it).second;
+      mFrameMap.erase (it);
       }
+      //}}}
+    else {
+      //{{{  remove frame from map end, reuse it
+      auto it = prev (mFrameMap.end());
+      frame = (*it).second;
+      mFrameMap.erase (it);
+      }
+      //}}}
+    } // end of locked mutex
 
     // reuse power,peak,fft buffers, but free samples if we own them
     if (frame->mOurSamples)
@@ -235,13 +235,10 @@ void cSong::addFrame (int frameNum, float* samples, bool ourSamples, int totalFr
     frame->mOurSamples = ourSamples;
     frame->mPts = pts;
     }
-  else
+  else // allocate new cFrame
     frame = new cFrame (mNumChannels, getNumFreqBytes(), samples,ourSamples, pts);
 
-  // totalFrames can be a changing estimate for file, or increasing value for streaming
-  mTotalFrames = totalFrames;
-
-  // peak
+  // power,peak
   auto samplePtr = samples;
   for (int sample = 0; sample < mSamplesPerFrame; sample++) {
     mTimeBuf[sample] = 0;
@@ -253,6 +250,7 @@ void cSong::addFrame (int frameNum, float* samples, bool ourSamples, int totalFr
       }
     }
 
+  // max power,peak
   for (auto channel = 0; channel < mNumChannels; channel++) {
     frame->mPowerValues[channel] = sqrtf (frame->mPowerValues[channel] / mSamplesPerFrame);
     mMaxPowerValue = max (mMaxPowerValue, frame->mPowerValues[channel]);
@@ -263,7 +261,6 @@ void cSong::addFrame (int frameNum, float* samples, bool ourSamples, int totalFr
   kiss_fftr (mFftrConfig, mTimeBuf, mFreqBuf);
 
   float freqScale = 255.f / mMaxFreqValue;
-
   auto freqBufPtr = mFreqBuf;
   auto freqValuesPtr = frame->mFreqValues;
   auto lumaValuesPtr = frame->mFreqLuma + getNumFreqBytes() - 1;
@@ -271,22 +268,23 @@ void cSong::addFrame (int frameNum, float* samples, bool ourSamples, int totalFr
     float value = sqrtf (((*freqBufPtr).r * (*freqBufPtr).r) + ((*freqBufPtr).i * (*freqBufPtr).i));
     mMaxFreqValue = std::max (mMaxFreqValue, value);
 
-    // freq scaled to byte, only used for display
+    // freq scaled to byte, used by gui
     value *= freqScale;
     *freqValuesPtr++ = value > 255 ? 255 : uint8_t(value);
 
-    // luma crushed, reversed index, for quicker copyMem to bitmap later
+    // crush luma, reverse index, used by gui copy to bitmap
     value *= 4.f;
     *lumaValuesPtr-- = value > 255 ? 255 : uint8_t(value);
 
     freqBufPtr++;
     }
 
-    {
-    unique_lock<shared_mutex> lock (mSharedMutex);
-    mFrameMap.insert (map<int,cFrame*>::value_type (frameNum, frame));
-    mTotalFrames = totalFrames;
-    }
+  { // insert with locked mutex
+  unique_lock<shared_mutex> lock (mSharedMutex);
+  mFrameMap.insert (map<int,cFrame*>::value_type (frameNum, frame));
+  // totalFrames can be a changing estimate for file, or increasing value for streaming
+  mTotalFrames = totalFrames;
+  } // end of locked mutex
 
   checkSilenceWindow (frameNum);
   }
