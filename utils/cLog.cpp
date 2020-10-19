@@ -343,7 +343,7 @@ namespace { // anonymous
       #if defined(__arm__)
         traces[1] = reinterpret_cast<void*>(ucontext->uc_mcontext.arm_pc);
       #elif defined(__aarch64__)
-        traces[1] = reinterpret_cast<void*>(ucontext->uc_mcontext.arm_pc);
+        traces[1] = reinterpret_cast<void*>(ucontext->uc_mcontext.pc);
       #elif defined(__x86_64__)
         traces[1] = reinterpret_cast<void*>(ucontext->uc_mcontext.gregs[REG_RIP]);
       #else
