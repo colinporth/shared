@@ -113,6 +113,7 @@ private:
   //{{{
   void drawVideoPool (cVg* vg, cVideoDecode* videoDecode) {
 
+    cPointF org { getPixSize().x/2.f, getPixSize().y - 120.f };
     float ptsPerPix = float((90 * mLoaderPlayer->getSong()->getSamplesPerFrame()) / 48);
 
     // get playFrame pts
@@ -125,14 +126,32 @@ private:
       int i = 0;
       for (auto frame : videoDecode->mFramePool) {
         float pix = (frame->getPts() - playPts) / ptsPerPix;
-        vg->rect (cPointF (pix + getPixSize().x/2.f, getPixSize().y - 160.f - i), cPointF(2.f, float(i)));
-        vg->rect (cPointF (pix + getPixSize().x/2.f, getPixSize().y - 160.f - frame->getNum()), cPointF(2.f, float(frame->getNum())));
-        vg->rect (cPointF (pix + getPixSize().x/2.f, getPixSize().y - 160.f), cPointF(2.f, 15.f+frame->getPesSize()/500.f));
+        vg->rect (org + cPointF (pix, -float(i)), cPointF (1.f, float(i)));
         i++;
         }
       vg->setFillColour (sColourF(1.f,1.f,0.f,0.5f));
       vg->triangleFill();
+
+      // draw any frame in framePool offset to playFrame by pts
+      vg->beginPath();
+      for (auto frame : videoDecode->mFramePool) {
+        float pix = (frame->getPts() - playPts) / ptsPerPix;
+        vg->rect (org + cPointF (pix, -(float)frame->getNum()), cPointF(1.f, float(frame->getNum())));
+        }
+      vg->setFillColour (sColourF(0.f,0.f,1.f,0.5f));
+      vg->triangleFill();
+
+      // draw any frame in framePool offset to playFrame by pts
+      vg->beginPath();
+      for (auto frame : videoDecode->mFramePool) {
+        float pix = (frame->getPts() - playPts) / ptsPerPix;
+        float pes = frame->getPesSize() / 500.f;
+        vg->rect (org + cPointF (pix, -pes), cPointF(1.f,pes));
+        }
+      vg->setFillColour (sColourF(1.f,1.f,1.f,0.5f));
+      vg->triangleFill();
       }
+
     }
   //}}}
 
