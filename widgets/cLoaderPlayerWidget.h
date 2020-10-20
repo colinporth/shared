@@ -50,7 +50,7 @@ public:
     int videoQueueSize;
     int audioQueueSize;
     mLoaderPlayer->getSizes (loadSize, videoQueueSize, audioQueueSize);
-    infoString += " l:" + dec(loadSize/1000) + "k vq:" + dec(videoQueueSize) + " aq:" + dec(audioQueueSize);
+    infoString += " " + dec(loadSize/1000) + "k v" + dec(videoQueueSize) + " a" + dec(audioQueueSize);
     drawInfo (vg, infoString);
 
     // draw progress spinners

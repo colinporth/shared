@@ -1875,7 +1875,7 @@ void cMfxVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int pesNu
         if (kTiming)
           cLog::log (LOGINFO1, "decodeFrame mfx:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
-        int ptsDuration = 90000 / 25; // or 50
+        int ptsDuration = (90000 * surface->Info.FrameRateExtD) / surface->Info.FrameRateExtN;
         auto frame = getFreeFrame (surface->Data.TimeStamp, ptsDuration, pesSize, pesNumInChunk);
         if (mBgra)
           frame->setYuv420BgraInterleaved (surface->Info.Width, surface->Info.Height, surface->Data.Y, surface->Data.Pitch);
