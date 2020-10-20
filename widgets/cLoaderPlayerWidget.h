@@ -121,32 +121,35 @@ private:
     if (framePtr) {
       uint64_t playPts = framePtr->mPts;
 
-      // draw any frame in framePool offset to playFrame by pts
+      // draw buffer num
       vg->beginPath();
       int i = 0;
       for (auto frame : videoDecode->mFramePool) {
-        float pix = (frame->getPts() - playPts) / ptsPerPix;
-        vg->rect (org + cPointF (pix, -float(i)), cPointF (1.f, float(i)));
+        float pix = floor ((frame->getPts() - playPts) / ptsPerPix);
+        float pixEnd = floor ((frame->getPts() + frame->getPtsDuration() - playPts) / ptsPerPix);
+        vg->rect (org + cPointF (pix, -float(i)), cPointF (pixEnd - pix, float(i)));
         i++;
         }
       vg->setFillColour (sColourF(1.f,1.f,0.f,0.5f));
       vg->triangleFill();
 
-      // draw any frame in framePool offset to playFrame by pts
+      // draw frame num
       vg->beginPath();
       for (auto frame : videoDecode->mFramePool) {
-        float pix = (frame->getPts() - playPts) / ptsPerPix;
-        vg->rect (org + cPointF (pix, -(float)frame->getNum()), cPointF(1.f, float(frame->getNum())));
+        float pix = floor ((frame->getPts() - playPts) / ptsPerPix);
+        float pixEnd = floor ((frame->getPts() + frame->getPtsDuration() - playPts) / ptsPerPix);
+        vg->rect (org + cPointF (pix, -(float)frame->getNum()), cPointF(pixEnd - pix, float(frame->getNum())));
         }
       vg->setFillColour (sColourF(0.f,0.f,1.f,0.5f));
       vg->triangleFill();
 
-      // draw any frame in framePool offset to playFrame by pts
+      // draw frame pesSize
       vg->beginPath();
       for (auto frame : videoDecode->mFramePool) {
-        float pix = (frame->getPts() - playPts) / ptsPerPix;
+        float pix = floor ((frame->getPts() - playPts) / ptsPerPix);
+        float pixEnd = floor ((frame->getPts() + frame->getPtsDuration() - playPts) / ptsPerPix);
         float pes = frame->getPesSize() / 500.f;
-        vg->rect (org + cPointF (pix, -pes), cPointF(1.f,pes));
+        vg->rect (org + cPointF (pix, -pes), cPointF(pixEnd - pix, pes));
         }
       vg->setFillColour (sColourF(1.f,1.f,1.f,0.5f));
       vg->triangleFill();

@@ -121,10 +121,11 @@ void cVideoDecode::cFrame::clear() {
 //}}}
 
 //{{{
-void cVideoDecode::cFrame:: set (uint64_t pts, int pesSize, int num) {
+void cVideoDecode::cFrame:: set (uint64_t pts, int ptsDuration, int pesSize, int num) {
 
   mState = eAllocated;
   mPts = pts;
+  mPtsDuration = ptsDuration;
   mPesSize = pesSize;
   mNum = num;
   }
@@ -1769,7 +1770,7 @@ cVideoDecode::cFrame* cVideoDecode::findPlayFrame() {
   }
 //}}}
 //{{{
-cVideoDecode::cFrame* cVideoDecode::getFreeFrame (uint64_t pts, int pesSize, int frameInChunk) {
+cVideoDecode::cFrame* cVideoDecode::getFreeFrame (uint64_t pts, int ptsDuration, int pesSize, int num) {
 // return first frame older than mPlayPts - 2 frames just in case, otherwise add new frame
 
   while (true) {
@@ -1779,7 +1780,7 @@ cVideoDecode::cFrame* cVideoDecode::getFreeFrame (uint64_t pts, int pesSize, int
       if ((frame->getState() == cFrame::eFree) ||
           ((frame->getState() == cFrame::eLoaded) && (frame->getPts() < playFramePts))) {
         // reuse frame before playPts minus a couple of frames
-        frame->set (pts, pesSize, frameInChunk);
+        frame->set (pts, ptsDuration, pesSize, num);
         return frame;
         }
       }
@@ -1791,7 +1792,7 @@ cVideoDecode::cFrame* cVideoDecode::getFreeFrame (uint64_t pts, int pesSize, int
     else {
       // allocate new frame
       //cLog::log (LOGINFO, "allocate newFrame %d for %u at play:%u", mFramePool.size(), pts, mPlayPts);
-      auto frame = new cFrame (pts, pesSize, frameInChunk);
+      auto frame = new cFrame (pts, ptsDuration, pesSize, num);
       mFramePool.push_back (frame);
       return frame;
       }
@@ -1874,7 +1875,8 @@ void cMfxVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int pesNu
         if (kTiming)
           cLog::log (LOGINFO1, "decodeFrame mfx:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
-        auto frame = getFreeFrame (surface->Data.TimeStamp, pesSize, pesNumInChunk);
+        int ptsDuration = 90000 / 25; // or 50
+        auto frame = getFreeFrame (surface->Data.TimeStamp, ptsDuration, pesSize, pesNumInChunk);
         if (mBgra)
           frame->setYuv420BgraInterleaved (surface->Info.Width, surface->Info.Height, surface->Data.Y, surface->Data.Pitch);
         else
@@ -1966,14 +1968,15 @@ void cFFmpegVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int pe
 
         mWidth = avFrame->width;
         mHeight = avFrame->height;
-        cVideoDecode::cFrame* frame = getFreeFrame (mDecodePts, pesSize, pesNumInChunk);
+        int ptsDuration = (90000 * mAvContext->framerate.den) / mAvContext->framerate.num;
+        cVideoDecode::cFrame* frame = getFreeFrame (mDecodePts, ptsDuration, pesSize, pesNumInChunk);
+        mDecodePts += ptsDuration;
 
         if (!mSwsContext)
           mSwsContext = sws_getContext (avFrame->width, avFrame->height, AV_PIX_FMT_YUV420P,
                                         avFrame->width, avFrame->height, AV_PIX_FMT_RGBA,
                                         SWS_BILINEAR, NULL, NULL, NULL);
         frame->setYuv420RgbaPlanarSws (mSwsContext, mWidth, mHeight, avFrame->data, avFrame->linesize);
-
         // same as sws for intel
         //if (mBgra)
         //  frame->setYuv420BgraPlanar (mWidth, mHeight, avFrame->data, avFrame->linesize);
@@ -1984,9 +1987,6 @@ void cFFmpegVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int pe
         //frame->setYuv420RgbaPlanarTable (mWidth, mHeight, avFrame->data, avFrame->linesize);
 
         av_frame_unref (avFrame);
-
-        // fake pts from avContext framerate
-        mDecodePts += (90000 * mAvContext->framerate.den) / mAvContext->framerate.num;
         }
       }
     }
