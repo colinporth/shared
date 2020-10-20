@@ -121,34 +121,34 @@ private:
     if (framePtr) {
       uint64_t playPts = framePtr->mPts;
 
-      // draw buffer num
+      // draw pool num
       vg->beginPath();
       int i = 0;
       for (auto frame : videoDecode->mFramePool) {
         float pix = floor ((frame->getPts() - playPts) / ptsPerPix);
         float pixEnd = floor ((frame->getPts() + frame->getPtsDuration() - playPts) / ptsPerPix);
-        vg->rect (org + cPointF (pix, -float(i)), cPointF (pixEnd - pix, float(i)));
+        vg->rect (org + cPointF (pix, -i/2.f), cPointF (pixEnd - pix, i/2.f));
         i++;
         }
-      vg->setFillColour (sColourF(1.f,1.f,0.f,0.5f));
+      vg->setFillColour (sColourF(0.f,1.f,0.f,0.5f));
       vg->triangleFill();
 
-      // draw frame num
+      // draw pool frame num
       vg->beginPath();
       for (auto frame : videoDecode->mFramePool) {
         float pix = floor ((frame->getPts() - playPts) / ptsPerPix);
         float pixEnd = floor ((frame->getPts() + frame->getPtsDuration() - playPts) / ptsPerPix);
-        vg->rect (org + cPointF (pix, -(float)frame->getNum()), cPointF(pixEnd - pix, float(frame->getNum())));
+        vg->rect (org + cPointF (pix, -frame->getNum()/2.f), cPointF(pixEnd - pix, frame->getNum()/2.f));
         }
       vg->setFillColour (sColourF(0.f,0.f,1.f,0.5f));
       vg->triangleFill();
 
-      // draw frame pesSize
+      // draw pool frame pesSize
       vg->beginPath();
       for (auto frame : videoDecode->mFramePool) {
         float pix = floor ((frame->getPts() - playPts) / ptsPerPix);
         float pixEnd = floor ((frame->getPts() + frame->getPtsDuration() - playPts) / ptsPerPix);
-        float pes = frame->getPesSize() / 500.f;
+        float pes = frame->getPesSize() / 1000.f;
         vg->rect (org + cPointF (pix, -pes), cPointF(pixEnd - pix, pes));
         }
       vg->setFillColour (sColourF(1.f,1.f,1.f,0.5f));

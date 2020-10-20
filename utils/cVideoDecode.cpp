@@ -1771,15 +1771,13 @@ cVideoDecode::cFrame* cVideoDecode::findPlayFrame() {
 //}}}
 //{{{
 cVideoDecode::cFrame* cVideoDecode::getFreeFrame (uint64_t pts, int ptsDuration, int pesSize, int num) {
-// return first frame older than mPlayPts - 2 frames just in case, otherwise add new frame
+// return first frame older than mPlayPts
 
   while (true) {
-    uint64_t playFramePts = mPlayPts - 2 * (90000 / 25);
-
     for (auto frame : mFramePool) {
       if ((frame->getState() == cFrame::eFree) ||
-          ((frame->getState() == cFrame::eLoaded) && (frame->getPts() < playFramePts))) {
-        // reuse frame before playPts minus a couple of frames
+          ((frame->getState() == cFrame::eLoaded) && ((frame->getPts() + frame->getPtsDuration()) < mPlayPts))) {
+        // reuse first frame before playPts
         frame->set (pts, ptsDuration, pesSize, num);
         return frame;
         }
@@ -1822,7 +1820,7 @@ cMfxVideoDecode::~cMfxVideoDecode() {
   }
 //}}}
 //{{{
-void cMfxVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int pesNumInChunk, uint64_t pts) {
+void cMfxVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int num, uint64_t pts) {
 
   system_clock::time_point timePoint = system_clock::now();
 
@@ -1850,10 +1848,9 @@ void cMfxVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int pesNu
       cLog::log (LOGERROR, "MFXVideoDECODE_QueryIOSurf failed");
       return;
       }
+
     mWidth = ((mfxU32)((frameAllocRequest.Info.Width)+31)) & (~(mfxU32)31);
     mHeight = frameAllocRequest.Info.Height;
-    // unsure why this was done ??? trace it back for height as well as width ???
-    //mHeight = ((mfxU32)((frameAllocRequest.Info.Height)+31)) & (~(mfxU32)31);
     if (MFXVideoDECODE_Init (mSession, &mVideoParams) != MFX_ERR_NONE) {
       cLog::log (LOGERROR, "MFXVideoDECODE_Init failed");
       return;
@@ -1873,10 +1870,10 @@ void cMfxVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int pesNu
       status = mSession.SyncOperation (syncDecode, 60000);
       if (status == MFX_ERR_NONE) {
         if (kTiming)
-          cLog::log (LOGINFO1, "decodeFrame mfx:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+          cLog::log (LOGINFO, "decodeFrame mfx:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
         int ptsDuration = (90000 * surface->Info.FrameRateExtD) / surface->Info.FrameRateExtN;
-        auto frame = getFreeFrame (surface->Data.TimeStamp, ptsDuration, pesSize, pesNumInChunk);
+        auto frame = getFreeFrame (surface->Data.TimeStamp, ptsDuration, pesSize, num);
         if (mBgra)
           frame->setYuv420BgraInterleaved (surface->Info.Width, surface->Info.Height, surface->Data.Y, surface->Data.Pitch);
         else
@@ -1935,12 +1932,12 @@ cFFmpegVideoDecode::~cFFmpegVideoDecode() {
   }
 //}}}
 //{{{
-void cFFmpegVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int pesNumInChunk, uint64_t pts) {
+void cFFmpegVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int num, uint64_t pts) {
 
   system_clock::time_point timePoint = system_clock::now();
 
   // ffmpeg doesn't maintain correct avFrame.pts, but does decode frames in presentation order
-  if (pesNumInChunk == 0)
+  if (num == 0)
     mDecodePts = pts;
 
   AVPacket avPacket;
@@ -1964,12 +1961,12 @@ void cFFmpegVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int pe
         if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF || ret < 0)
           break;
         if (kTiming)
-          cLog::log (LOGINFO1, "decodeFrame FFmpeg:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+          cLog::log (LOGINFO, "decodeFrame FFmpeg:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
         mWidth = avFrame->width;
         mHeight = avFrame->height;
         int ptsDuration = (90000 * mAvContext->framerate.den) / mAvContext->framerate.num;
-        cVideoDecode::cFrame* frame = getFreeFrame (mDecodePts, ptsDuration, pesSize, pesNumInChunk);
+        cVideoDecode::cFrame* frame = getFreeFrame (mDecodePts, ptsDuration, pesSize, num);
         mDecodePts += ptsDuration;
 
         if (!mSwsContext)
