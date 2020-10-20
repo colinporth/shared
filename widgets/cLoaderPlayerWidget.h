@@ -6,6 +6,8 @@
 #include "../utils/cLoaderPlayer.h"
 //}}}
 
+constexpr bool kVideoPoolDebug = true;
+
 class cLoaderPlayerWidget : public cWidget {
 public:
   cLoaderPlayerWidget (cLoaderPlayer* loaderPlayer, cPointF size)
@@ -67,6 +69,9 @@ public:
         drawSpinner (vg, centre, 18.f,12.f, loadFrac * (1.f - audioFrac), loadFrac,
                      sColourF(0.f, 0.f, 1.f, 0.25f), sColourF(0.f, 0.f, 1.f, 0.75f));
       }
+
+    if (kVideoPoolDebug)
+      drawVideoPool (vg, videoDecode);
     }
   //}}}
 
@@ -102,6 +107,31 @@ private:
                                                centre + cPointF (cosf (angleTo), sinf (angleTo)) * midRadius,
                                                colourFrom, colourTo));
       vg->fill();
+      }
+    }
+  //}}}
+  //{{{
+  void drawVideoPool (cVg* vg, cVideoDecode* videoDecode) {
+
+    float ptsPerPix = float((90 * mLoaderPlayer->getSong()->getSamplesPerFrame()) / 48);
+
+    // get playFrame pts
+    auto framePtr =  mLoaderPlayer->getSong()->getFramePtr (mLoaderPlayer->getSong()->getPlayFrame());
+    if (framePtr) {
+      uint64_t playPts = framePtr->mPts;
+
+      // draw any frame in framePool offset to playFrame by pts
+      vg->beginPath();
+      int i = 0;
+      for (auto frame : videoDecode->mFramePool) {
+        float pix = (frame->getPts() - playPts) / ptsPerPix;
+        vg->rect (cPointF (pix + getPixSize().x/2.f, getPixSize().y - 160.f - i), cPointF(2.f, float(i)));
+        vg->rect (cPointF (pix + getPixSize().x/2.f, getPixSize().y - 160.f - frame->getNum()), cPointF(2.f, float(frame->getNum())));
+        vg->rect (cPointF (pix + getPixSize().x/2.f, getPixSize().y - 160.f), cPointF(2.f, 15.f+frame->getPesSize()/500.f));
+        i++;
+        }
+      vg->setFillColour (sColourF(1.f,1.f,0.f,0.5f));
+      vg->triangleFill();
       }
     }
   //}}}

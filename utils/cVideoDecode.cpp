@@ -99,7 +99,7 @@ using namespace std;
 using namespace chrono;
 //}}}
 constexpr bool kTiming = true;
-constexpr int kMaxFramePoolSize = 16;
+constexpr int kMaxFramePoolSize = 128;
 
 // cVideoDecode::cFrame
 //{{{
@@ -114,16 +114,19 @@ cVideoDecode::cFrame::~cFrame() {
 //}}}
 //{{{
 void cVideoDecode::cFrame::clear() {
+
   mState = eFree;
   mPts = 0;
   }
 //}}}
 
 //{{{
-void cVideoDecode::cFrame:: set (uint64_t pts) {
+void cVideoDecode::cFrame:: set (uint64_t pts, int pesSize, int num) {
 
   mState = eAllocated;
   mPts = pts;
+  mPesSize = pesSize;
+  mNum = num;
   }
 //}}}
 
@@ -1715,13 +1718,15 @@ void cVideoDecode::cFrame::setYuv420RgbaPlanarSimple (int width, int height, uin
 //{{{
 void cVideoDecode::cFrame::allocateBuffer (int width, int height) {
 
-  if (!mBuffer) // allocate aligned buffer
-    mBuffer = (uint32_t*)
-    #ifdef _WIN32
-      _aligned_malloc (width * height * 4, 128);
-    #else
-      aligned_alloc (128, width * height * 4);
-    #endif
+  #ifdef _WIN32
+    if (!mBuffer)
+      // allocate aligned buffer
+      mBuffer = (uint32_t*)_aligned_malloc (width * height * 4, 128);
+  #else
+    if (!mBuffer)
+      // allocate aligned buffer
+      mBuffer = (uint32_t*)aligned_alloc (128, width * height * 4);
+  #endif
   }
 //}}}
 
@@ -1764,7 +1769,7 @@ cVideoDecode::cFrame* cVideoDecode::findPlayFrame() {
   }
 //}}}
 //{{{
-cVideoDecode::cFrame* cVideoDecode::getFreeFrame (uint64_t pts) {
+cVideoDecode::cFrame* cVideoDecode::getFreeFrame (uint64_t pts, int pesSize, int frameInChunk) {
 // return first frame older than mPlayPts - 2 frames just in case, otherwise add new frame
 
   while (true) {
@@ -1774,7 +1779,7 @@ cVideoDecode::cFrame* cVideoDecode::getFreeFrame (uint64_t pts) {
       if ((frame->getState() == cFrame::eFree) ||
           ((frame->getState() == cFrame::eLoaded) && (frame->getPts() < playFramePts))) {
         // reuse frame before playPts minus a couple of frames
-        frame->set (pts);
+        frame->set (pts, pesSize, frameInChunk);
         return frame;
         }
       }
@@ -1786,7 +1791,7 @@ cVideoDecode::cFrame* cVideoDecode::getFreeFrame (uint64_t pts) {
     else {
       // allocate new frame
       //cLog::log (LOGINFO, "allocate newFrame %d for %u at play:%u", mFramePool.size(), pts, mPlayPts);
-      auto frame = new cFrame (pts);
+      auto frame = new cFrame (pts, pesSize, frameInChunk);
       mFramePool.push_back (frame);
       return frame;
       }
@@ -1800,7 +1805,7 @@ cVideoDecode::cFrame* cVideoDecode::getFreeFrame (uint64_t pts) {
 #ifdef _WIN32
 // cMfxVideoDecode
 //{{{
-cMfxVideoDecode::cMfxVideoDecode (bool bgra) : cVideoDecode (bgra) {
+cMfxVideoDecode::cMfxVideoDecode (bool bgra) : cVideoDecode(bgra) {
 
   mfxVersion kMfxVersion = { 0,1 };
   mSession.Init (MFX_IMPL_AUTO, &kMfxVersion);
@@ -1869,7 +1874,7 @@ void cMfxVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int pesNu
         if (kTiming)
           cLog::log (LOGINFO1, "decodeFrame mfx:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
-        auto frame = getFreeFrame (surface->Data.TimeStamp);
+        auto frame = getFreeFrame (surface->Data.TimeStamp, pesSize, pesNumInChunk);
         if (mBgra)
           frame->setYuv420BgraInterleaved (surface->Info.Width, surface->Info.Height, surface->Data.Y, surface->Data.Pitch);
         else
@@ -1908,7 +1913,7 @@ mfxFrameSurface1* cMfxVideoDecode::getFreeSurface() {
 
 // cFFmpegVideoDecode
 //{{{
-cFFmpegVideoDecode::cFFmpegVideoDecode (bool bgra) : cVideoDecode (bgra) {
+cFFmpegVideoDecode::cFFmpegVideoDecode (bool bgra) : cVideoDecode(bgra) {
 
   mAvParser = av_parser_init (AV_CODEC_ID_H264);
   mAvCodec = avcodec_find_decoder (AV_CODEC_ID_H264);
@@ -1961,7 +1966,7 @@ void cFFmpegVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int pe
 
         mWidth = avFrame->width;
         mHeight = avFrame->height;
-        cVideoDecode::cFrame* frame = getFreeFrame (mDecodePts);
+        cVideoDecode::cFrame* frame = getFreeFrame (mDecodePts, pesSize, pesNumInChunk);
 
         if (!mSwsContext)
           mSwsContext = sws_getContext (avFrame->width, avFrame->height, AV_PIX_FMT_YUV420P,

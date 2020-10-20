@@ -163,6 +163,8 @@ void cSong::cSelect::end() {
 // cSong
 //{{{
 cSong::~cSong() {
+
+  unique_lock<shared_mutex> lock (mSharedMutex);
   clearFrames();
   }
 //}}}
@@ -344,6 +346,7 @@ void cSong::setHlsBase (int chunkNum, system_clock::time_point timePoint, second
 bool cSong::loadChunk (system_clock::time_point now,  int preloadChunks, int& chunkNum, int& frameNum) {
 // return true if a chunk load needed
 // - update chunkNum and frameNum
+// !!!! dodgy hard coding of chunk duration 6400ms !!!!
 
   // get offsets of playFrame from baseFrame, handle -v offsets correctly
   int frameOffset = mPlayFrame - mHlsBaseFrame;
@@ -353,7 +356,8 @@ bool cSong::loadChunk (system_clock::time_point now,  int preloadChunks, int& ch
   // loop until chunkNum with unloaded frame, chunkNum not available yet, or preload ahead of playFrame loaded
   int loadedChunks = 0;
   int secs = (preloadChunks * mHlsFramesPerChunk * mSamplesPerFrame) / mSampleRate;
-  while ((loadedChunks < preloadChunks) && ((now - (mHlsBaseTimePoint + (chunkNumOffset * 6400ms))).count() > secs))
+  while ((loadedChunks < preloadChunks) &&
+         ((now - (mHlsBaseTimePoint + (chunkNumOffset * 6400ms))).count() > secs))
     // chunkNum chunk should be available
     if (!getFramePtr (mHlsBaseFrame + (chunkNumOffset * mHlsFramesPerChunk))) {
       // not loaded, return chunkNum to load

@@ -24,7 +24,7 @@ public:
   class cFrame {
   public:
     enum eState { eFree, eAllocated, eLoaded };
-    cFrame (uint64_t pts) : mPts(pts) {}
+    cFrame (uint64_t pts, int pesSize, int num) : mPts(pts), mPesSize(pesSize), mNum(num) {}
     virtual ~cFrame();
 
     void clear();
@@ -32,10 +32,12 @@ public:
     // gets
     eState getState() { return mState; }
     uint64_t getPts() { return mPts; }
+    int getPesSize() { return mPesSize; }
+    int getNum() { return mNum; }
     uint32_t* getBuffer() { return mBuffer; }
 
     // sets
-    void set (uint64_t pts);
+    void set (uint64_t pts, int pesSize, int num);
 
     void setYuv420RgbaInterleaved (int width, int height, uint8_t* buffer, int stride);
     void setYuv420BgraInterleaved (int width, int height, uint8_t* buffer, int stride);
@@ -50,6 +52,8 @@ public:
 
     eState mState = eFree;
     uint64_t mPts = 0;
+    int mPesSize = 0;
+    int mNum = 0;
     uint32_t* mBuffer = nullptr;
     };
   //}}}
@@ -68,16 +72,18 @@ public:
   void setPlayPts (uint64_t playPts) { mPlayPts = playPts; }
 
   cFrame* findPlayFrame();
-  virtual void decodeFrame (uint8_t* pes, unsigned int pesSize, int pesNumInChunk, uint64_t pts) = 0;
+  virtual void decodeFrame (uint8_t* pes, unsigned int pesSize, int pesNum, uint64_t pts) = 0;
+
+  // make visible to widget
+  std::vector <cFrame*> mFramePool;
 
 protected:
-  cFrame* getFreeFrame (uint64_t pts);
+  cFrame* getFreeFrame (uint64_t pts, int pesSize, int pesNum);
 
   const bool mBgra;
   int mWidth = 0;
   int mHeight = 0;
   uint64_t mPlayPts = 0;
-  std::vector <cFrame*> mFramePool;
   };
 
 #ifdef _WIN32
@@ -88,7 +94,7 @@ protected:
     virtual ~cMfxVideoDecode();
 
     int getSurfacePoolSize() { return (int)mSurfacePool.size(); }
-    void decodeFrame (uint8_t* pes, unsigned int pesSize, int pesNumInChunk, uint64_t pts);
+    void decodeFrame (uint8_t* pes, unsigned int pesSize, int pesNum, uint64_t pts);
 
   private:
     mfxFrameSurface1* getFreeSurface();
@@ -108,7 +114,7 @@ public:
   cFFmpegVideoDecode (bool bgra);
   virtual ~cFFmpegVideoDecode();
 
-  void decodeFrame (uint8_t* pes, unsigned int pesSize, int pesNumInChunk, uint64_t pts);
+  void decodeFrame (uint8_t* pes, unsigned int pesSize, int pesNum, uint64_t pts);
 
 private:
   // vars
