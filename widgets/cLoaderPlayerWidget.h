@@ -39,7 +39,11 @@ public:
         vg->setFillPaint (vg->setImagePattern (cPointF(), mPixSize, 0.f, mImageId, 1.f));
         vg->triangleFill();
         }
+      else
+        draw->clear (kBlackF);
       }
+    else
+      draw->clear (kBlackF);
 
     drawInfo (vg, videoDecode);
 
@@ -115,7 +119,7 @@ private:
   //{{{
   void drawVideoPool (cVg* vg, cVideoDecode* videoDecode) {
 
-    cPointF org { getPixSize().x/2.f, getPixSize().y - 100.f };
+    cPointF org { getPixCentre().x, getPixSize().y - 100.f };
     float ptsPerPix = float((90 * mLoaderPlayer->getSong()->getSamplesPerFrame()) / 48);
 
     // get playFrame pts

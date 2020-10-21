@@ -133,14 +133,15 @@ cRootContainer* cGlWindow::initialise (const string& title, int width, int heigh
   }
 //}}}
 //{{{
-void cGlWindow::run() {
+void cGlWindow::run (bool clear) {
 // runs in app main thread after initialising everything
 
+  glClearColor (0, 0, 0, 1.f);
   updateWindowSize();
 
   while (!glfwWindowShouldClose (mWindow)) {
     glfwPollEvents();
-    draw();
+    draw (clear);
     }
   }
 //}}}
@@ -196,11 +197,13 @@ void cGlWindow::updateWindowSize() {
 //}}}
 
 //{{{
-void cGlWindow::draw() {
+void cGlWindow::draw (bool clear) {
 
   mCpuGraph->start ((float)glfwGetTime());
 
-  glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+  if (clear)
+    glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
   beginFrame (mWinWidth, mWinHeight, mAspectRatio);
 
   if (mRootContainer)
@@ -378,7 +381,7 @@ void cGlWindow::drawLines (const cPointF& p, const cPointF& size, float t) {
 //{{{
 void cGlWindow::glfWindowPos (GLFWwindow* window, int xsize, int ysize) {
 
-  mGlWindow->draw();
+  mGlWindow->draw (true);
   }
 //}}}
 //{{{
@@ -386,7 +389,7 @@ void cGlWindow::glfWindowSize (GLFWwindow* window, int xsize, int ysize) {
 
   mGlWindow->updateWindowSize();
   mRootContainer->layout (cPointF((float)xsize, (float)ysize));
-  mGlWindow->draw();
+  mGlWindow->draw (true);
   }
 //}}}
 //{{{

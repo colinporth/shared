@@ -48,6 +48,7 @@ public:
   float getPixWidth() { return mPixSize.x; }
   float getPixHeight() { return mPixSize.y; }
   cPointF getPixSize() { return mPixSize; }
+  cPointF getPixCentre() { return mPixSize / 2.f; }
 
   int getPressedCount() { return mPressedCount; }
   bool isPressed() { return mPressedCount > 0; }

@@ -24,6 +24,11 @@ public:
     drawRect (colour, p, cPointF(thickness, size.y));
     }
   //}}}
+  //{{{
+  virtual void clear (const sColourF& colour) {
+    drawRect (colour, cPointF(), getPixSize());
+    }
+  //}}}
 
   virtual float drawText (const sColourF& colourr, float fontHeight, std::string str, const cPointF& p, const cPointF& size) = 0;
   virtual float drawTextRight (const sColourF& colour, float fontHeight, std::string str, const cPointF& p, const cPointF& size) = 0;

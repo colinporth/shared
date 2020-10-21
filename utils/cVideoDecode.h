@@ -65,7 +65,7 @@ public:
     };
   //}}}
 
-  cVideoDecode (bool bgra) : mBgra(bgra) {}
+  cVideoDecode (bool bgra, int poolSize) : mBgra(bgra), mPoolSize(poolSize) {}
   virtual ~cVideoDecode();
 
   void clear (int64_t pts);
@@ -86,6 +86,8 @@ protected:
   cFrame* getFreeFrame (int64_t pts, int pesSize, int num);
 
   const bool mBgra;
+  const int mPoolSize;
+
   int mWidth = 0;
   int mHeight = 0;
   int64_t mPlayPts = 0;
@@ -98,7 +100,7 @@ protected:
   //{{{
   class cMfxVideoDecode : public cVideoDecode {
   public:
-    cMfxVideoDecode (bool bgra);
+    cMfxVideoDecode (bool bgra, int poolSize);
     virtual ~cMfxVideoDecode();
 
     int getSurfacePoolSize() { return (int)mSurfacePool.size(); }
@@ -119,7 +121,7 @@ protected:
 //{{{
 class cFFmpegVideoDecode : public cVideoDecode {
 public:
-  cFFmpegVideoDecode (bool bgra);
+  cFFmpegVideoDecode (bool bgra, int poolSize);
   virtual ~cFFmpegVideoDecode();
 
   void decodeFrame (uint8_t* pes, unsigned int pesSize, int num, int64_t pts);

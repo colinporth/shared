@@ -56,7 +56,7 @@ protected:
   cWidget* addBelow (cWidget* widget) { return mRootContainer->addBelow (widget); }
   cWidget* addLeft (cWidget* widget) { return mRootContainer->addLeft (widget); }
   cWidget* addAbove (cWidget* widget) { return mRootContainer->addAbove (widget); }
-  void run();
+  void run (bool clear);
 
   void toggleFullScreen();
   void toggleVsync();
@@ -83,7 +83,7 @@ protected:
 private:
   void updateWindowSize();
 
-  void draw();
+  void draw (bool clear);
   void drawSpinner (const cPointF& centre, float inner, float outer, float frac,
                     const sColourF& colour1, const sColourF& colour2);
   void drawEyes (const cPointF& p, const cPointF& size, const cPointF& mousePos, float t);

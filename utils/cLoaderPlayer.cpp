@@ -46,7 +46,7 @@ using namespace chrono;
 //}}}
 
 // public
-cLoaderPlayer::cLoaderPlayer() {}
+cLoaderPlayer::cLoaderPlayer (int videoPoolSize) : mVideoPoolSize(videoPoolSize) {}
 //{{{
 cLoaderPlayer::~cLoaderPlayer() {
 
@@ -79,11 +79,11 @@ void cLoaderPlayer::initialise (bool radio,
   if (vidBitrate) {
     #ifdef _WIN32
       if (loader & eMfx)
-        mVideoDecode = new cMfxVideoDecode (loader & eBgra);
+        mVideoDecode = new cMfxVideoDecode (loader & eBgra, mVideoPoolSize);
       else
-        mVideoDecode = new cFFmpegVideoDecode (loader & eBgra);
+        mVideoDecode = new cFFmpegVideoDecode (loader & eBgra, mVideoPoolSize);
     #else // must use ffmpeg for now
-      mVideoDecode = new cFFmpegVideoDecode (loader & eBgra);
+      mVideoDecode = new cFFmpegVideoDecode (loader & eBgra, mVideoPoolSize);
     #endif
     }
 

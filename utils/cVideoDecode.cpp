@@ -99,7 +99,6 @@ using namespace std;
 using namespace chrono;
 //}}}
 constexpr bool kTiming = true;
-constexpr int kMaxFramePoolSize = 128;
 
 // cVideoDecode::cFrame
 //{{{
@@ -1751,10 +1750,6 @@ cVideoDecode::~cVideoDecode() {
 //}}}
 //{{{
 void cVideoDecode::clear (int64_t pts) {
-
-  //for (auto frame : mFramePool)
-  //  if ((frame->getState() != cFrame::eLoaded) || (frame->getPts() < pts))
-  //    frame->clear();
   }
 //}}}
 //{{{
@@ -1773,7 +1768,7 @@ cVideoDecode::cFrame* cVideoDecode::getFreeFrame (int64_t pts, int pesSize, int 
 // return first frame older than mPlayPts
 
   while (true) {
-    if (mFramePool.size() < kMaxFramePoolSize) {
+    if ((int)mFramePool.size() < mPoolSize) {
       // new frame
       auto frame = new cFrame (pts, mPtsDuration, pesSize, num);
       mFramePool.push_back (frame);
@@ -1801,7 +1796,7 @@ cVideoDecode::cFrame* cVideoDecode::getFreeFrame (int64_t pts, int pesSize, int 
 #ifdef _WIN32
 // cMfxVideoDecode
 //{{{
-cMfxVideoDecode::cMfxVideoDecode (bool bgra) : cVideoDecode(bgra) {
+cMfxVideoDecode::cMfxVideoDecode (bool bgra, int poolSize) : cVideoDecode(bgra, poolSize) {
 
   mfxVersion kMfxVersion = { 0,1 };
   mSession.Init (MFX_IMPL_AUTO, &kMfxVersion);
@@ -1909,7 +1904,7 @@ mfxFrameSurface1* cMfxVideoDecode::getFreeSurface() {
 
 // cFFmpegVideoDecode
 //{{{
-cFFmpegVideoDecode::cFFmpegVideoDecode (bool bgra) : cVideoDecode(bgra) {
+cFFmpegVideoDecode::cFFmpegVideoDecode (bool bgra, int poolSize) : cVideoDecode(bgra, poolSize) {
 
   mAvParser = av_parser_init (AV_CODEC_ID_H264);
   mAvCodec = avcodec_find_decoder (AV_CODEC_ID_H264);
