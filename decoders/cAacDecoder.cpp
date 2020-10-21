@@ -26,39 +26,44 @@ constexpr bool kMoreLog = false;
   //}}}
   //}}}
 #else
-  // !!! could use ARM intrinsic CLZ !!!!
   //{{{
   inline int32_t countLeadingZeros (int32_t x) {
   // count leading zeros with binary search
-
-    if (!x)
-      return 32;
-
-    int32_t numZeros = 1;
-    if (!((uint32_t)x >> 16)) {
-      numZeros += 16;
-      x <<= 16;
-      }
-
-    if (!((uint32_t)x >> 24)) {
-      numZeros +=  8;
-      x <<=  8;
-      }
-
-    if (!((uint32_t)x >> 28)) {
-      numZeros +=  4;
-      x <<=  4;
-      }
-
-    if (!((uint32_t)x >> 30)) {
-      numZeros +=  2;
-      x <<=  2;
-      }
-
-    return numZeros - ((uint32_t)x >> 31);
+    return __builtin_clz (x);
     }
   //}}}
 #endif
+//{{{
+//inline int32_t countLeadingZeros (int32_t x) {
+//// count leading zeros with binary search
+
+  //if (!x)
+    //return 32;
+
+  //int32_t numZeros = 1;
+  //if (!((uint32_t)x >> 16)) {
+    //numZeros += 16;
+    //x <<= 16;
+    //}
+
+  //if (!((uint32_t)x >> 24)) {
+    //numZeros +=  8;
+    //x <<=  8;
+    //}
+
+  //if (!((uint32_t)x >> 28)) {
+    //numZeros +=  4;
+    //x <<=  4;
+    //}
+
+  //if (!((uint32_t)x >> 30)) {
+    //numZeros +=  2;
+    //x <<=  2;
+    //}
+
+  //return numZeros - ((uint32_t)x >> 31);
+  //}
+//}}}
 
 //{{{  defines
 // 12-bit syncword
