@@ -90,7 +90,7 @@ void cLoaderPlayer::initialise (bool radio,
   // audio pesParser
   mPesParsers.push_back (
     new cPesParser (0x22, loader & eQueueAudio, "aud",
-      [&](uint8_t* pes, int size, int sequenceNum, uint64_t pts, cPesParser* pesParser) noexcept {
+      [&](uint8_t* pes, int size, int sequenceNum, int64_t pts, cPesParser* pesParser) noexcept {
         //{{{  audio pes process callback lambda
         uint8_t* framePes = pes;
         while (getAudioDecode()->parseFrame (framePes, pes + size)) {
@@ -109,7 +109,7 @@ void cLoaderPlayer::initialise (bool radio,
         return sequenceNum;
         },
         //}}}
-      [&](uint8_t* pes, int size, int sequenceNum, uint64_t pts) noexcept {
+      [&](uint8_t* pes, int size, int sequenceNum, int64_t pts) noexcept {
         //{{{  audio pes decode callback lambda
         float* samples = mAudioDecode->decodeFrame (pes, size, sequenceNum, pts);
         mSong->setFixups (mAudioDecode->getNumChannels(), mAudioDecode->getSampleRate(), mAudioDecode->getNumSamples());
@@ -124,14 +124,14 @@ void cLoaderPlayer::initialise (bool radio,
     // video pesParser
     mPesParsers.push_back (
       new cPesParser (0x21, loader & eQueueVideo, "vid",
-        [&](uint8_t* pes, int size, int sequenceNum, uint64_t pts, cPesParser* pesParser) noexcept {
+        [&](uint8_t* pes, int size, int sequenceNum, int64_t pts, cPesParser* pesParser) noexcept {
           //{{{  video pes process callback lambda
           pesParser->decode (pes, size, sequenceNum, pts);
           sequenceNum++;
           return sequenceNum;
           },
           //}}}
-        [&](uint8_t* pes, int size, int sequenceNum, uint64_t pts) noexcept {
+        [&](uint8_t* pes, int size, int sequenceNum, int64_t pts) noexcept {
           //{{{  video pes decode callback lambda
           mVideoDecode->decodeFrame (pes, size, sequenceNum, pts);
           }
@@ -143,7 +143,7 @@ void cLoaderPlayer::initialise (bool radio,
   //{{{  parse PAT
   //mPesParsers.push_back (
     //new cPesParser (0x00, false, "pat",
-      //[&] (uint8_t* pes, int size, int num, uint64_t pts, cPesParser* pesParser) noexcept {
+      //[&] (uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
         //{{{  pat callback
         //string info;
         //for (int i = 0; i < size; i++) {
@@ -154,14 +154,14 @@ void cLoaderPlayer::initialise (bool radio,
         //return num;
         //},
         //}}}
-      //[&] (uint8_t* pes, int size, int num, uint64_t pts) noexcept {}
+      //[&] (uint8_t* pes, int size, int num, int64_t pts) noexcept {}
       //)
     //);
   //}}}
   //{{{  parse pgm 0x20
   //mPesParsers.push_back (
     //new cPesParser (0x20, false, "pgm",
-      //[&] (uint8_t* pes, int size, int num, uint64_t pts, cPesParser* pesParser) noexcept {
+      //[&] (uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
         //{{{  pgm callback
         //string info;
         //for (int i = 0; i < size; i++) {
@@ -172,7 +172,7 @@ void cLoaderPlayer::initialise (bool radio,
         //return num;
         //},
         //}}}
-      //[&] (uint8_t* pes, int size, int num, uint64_t pts) noexcept {}
+      //[&] (uint8_t* pes, int size, int num, int64_t pts) noexcept {}
       //)
     //);
   //}}}

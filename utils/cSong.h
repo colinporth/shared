@@ -21,7 +21,7 @@ public:
   class cFrame {
   public:
     static constexpr float kQuietThreshold = 0.01f;
-    cFrame (int numChannels, int numFreqBytes, float* samples, bool ourSamples, uint64_t pts);
+    cFrame (int numChannels, int numFreqBytes, float* samples, bool ourSamples, int64_t pts);
     virtual ~cFrame();
 
     // gets
@@ -30,7 +30,7 @@ public:
     float* getPeakValues() { return mPeakValues;  }
     uint8_t* getFreqValues() { return mFreqValues; }
     uint8_t* getFreqLuma() { return mFreqLuma; }
-    uint64_t getPts() { return mPts; }
+    int64_t getPts() { return mPts; }
 
     bool isQuiet() { return mPeakValues[0] + mPeakValues[1] < kQuietThreshold; }
 
@@ -49,7 +49,7 @@ public:
     uint8_t* mFreqValues;
     uint8_t* mFreqLuma;
 
-    uint64_t mPts;
+    int64_t mPts;
 
   private:
     // vars
@@ -125,7 +125,7 @@ public:
   void initialise (cAudioDecode::eFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame,
                    int maxMapSize = 0);
   void clear();
-  void addFrame (int frameNum, float* samples, bool ourSamples, int totalFrames, uint64_t pts);
+  void addFrame (int frameNum, float* samples, bool ourSamples, int totalFrames, int64_t pts);
 
   //{{{  gets
   std::shared_mutex& getSharedMutex() { return mSharedMutex; }

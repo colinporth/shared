@@ -20,7 +20,7 @@ constexpr static int kSilenceWindowFrames = 4;
 
 // cSong::cFrame
 //{{{
-cSong::cFrame::cFrame (int numChannels, int numFreqBytes, float* samples, bool ourSamples, uint64_t pts)
+cSong::cFrame::cFrame (int numChannels, int numFreqBytes, float* samples, bool ourSamples, int64_t pts)
    : mSamples(samples), mOurSamples(ourSamples), mPts (pts), mMuted(false), mSilence(false) {
 
   mPowerValues = (float*)malloc (numChannels * 4);
@@ -208,7 +208,7 @@ void cSong::clear() {
   }
 //}}}
 //{{{
-void cSong::addFrame (int frameNum, float* samples, bool ourSamples, int totalFrames, uint64_t pts) {
+void cSong::addFrame (int frameNum, float* samples, bool ourSamples, int totalFrames, int64_t pts) {
 
   cFrame* frame;
   if (mMaxMapSize && (int(mFrameMap.size()) > mMaxMapSize)) { // reuse a cFrame

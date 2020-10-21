@@ -119,14 +119,14 @@ private:
     // get playFrame pts
     auto framePtr =  mLoaderPlayer->getSong()->getFramePtr (mLoaderPlayer->getSong()->getPlayFrame());
     if (framePtr) {
-      uint64_t playPts = framePtr->mPts;
+      int64_t playPts = framePtr->mPts;
 
       // draw pool num
       vg->beginPath();
       int i = 0;
       for (auto frame : videoDecode->mFramePool) {
         float pix = floor ((frame->getPts() - playPts) / ptsPerPix);
-        float pixEnd = floor ((frame->getPts() + frame->getPtsDuration() - playPts) / ptsPerPix);
+        float pixEnd = floor ((frame->getPtsEnd() - playPts) / ptsPerPix);
         vg->rect (org + cPointF (pix, -i/2.f), cPointF (pixEnd - pix, i/2.f));
         i++;
         }
@@ -137,7 +137,7 @@ private:
       vg->beginPath();
       for (auto frame : videoDecode->mFramePool) {
         float pix = floor ((frame->getPts() - playPts) / ptsPerPix);
-        float pixEnd = floor ((frame->getPts() + frame->getPtsDuration() - playPts) / ptsPerPix);
+        float pixEnd = floor ((frame->getPtsEnd() - playPts) / ptsPerPix);
         vg->rect (org + cPointF (pix, -frame->getNum()/2.f), cPointF(pixEnd - pix, frame->getNum()/2.f));
         }
       vg->setFillColour (sColourF(0.f,0.f,1.f,0.5f));
@@ -147,7 +147,7 @@ private:
       vg->beginPath();
       for (auto frame : videoDecode->mFramePool) {
         float pix = floor ((frame->getPts() - playPts) / ptsPerPix);
-        float pixEnd = floor ((frame->getPts() + frame->getPtsDuration() - playPts) / ptsPerPix);
+        float pixEnd = floor ((frame->getPtsEnd() - playPts) / ptsPerPix);
         float pes = frame->getPesSize() / 1000.f;
         vg->rect (org + cPointF (pix, -pes), cPointF(pixEnd - pix, pes));
         }
@@ -159,6 +159,6 @@ private:
   //}}}
 
   cLoaderPlayer* mLoaderPlayer;
-  uint64_t mImagePts = 0;
+  int64_t mImagePts = 0;
   int mImageId = -1;
   };

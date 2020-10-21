@@ -25,7 +25,7 @@ public:
   public:
     enum eState { eFree, eAllocated, eLoaded };
     //{{{
-    cFrame (uint64_t pts, int ptsDuration, int pesSize, int num)
+    cFrame (int64_t pts, int64_t ptsDuration, int pesSize, int num)
       : mPts(pts), mPtsDuration(ptsDuration), mPesSize(pesSize), mNum(num) {}
     //}}}
     virtual ~cFrame();
@@ -34,15 +34,16 @@ public:
 
     // gets
     eState getState() { return mState; }
-    uint64_t getPts() { return mPts; }
-    uint64_t getPtsDuration() { return mPtsDuration; }
+    int64_t getPts() { return mPts; }
+    int64_t getPtsDuration() { return mPtsDuration; }
+    int64_t getPtsEnd() { return mPts + mPtsDuration; }
     int getPesSize() { return mPesSize; }
     int getNum() { return mNum; }
     uint32_t* getBuffer() { return mBuffer; }
-    bool isPtsWithinFrame (uint64_t pts);
+    bool isPtsWithinFrame (int64_t pts);
 
     // sets
-    void set (uint64_t pts, int ptsDuration, int pesSize, int num);
+    void set (int64_t pts, int64_t ptsDuration, int pesSize, int num);
 
     void setYuv420RgbaInterleaved (int width, int height, uint8_t* buffer, int stride);
     void setYuv420BgraInterleaved (int width, int height, uint8_t* buffer, int stride);
@@ -56,8 +57,8 @@ public:
     void allocateBuffer (int width, int height);
 
     eState mState = eFree;
-    uint64_t mPts = 0;
-    int mPtsDuration = 0;
+    int64_t mPts = 0;
+    int64_t mPtsDuration = 0;
     int mPesSize = 0;
     int mNum = 0;
     uint32_t* mBuffer = nullptr;
@@ -67,7 +68,7 @@ public:
   cVideoDecode (bool bgra) : mBgra(bgra) {}
   virtual ~cVideoDecode();
 
-  void clear (uint64_t pts);
+  void clear (int64_t pts);
 
   // gets
   int getWidth() { return mWidth; }
@@ -75,23 +76,22 @@ public:
   int getFramePoolSize() { return (int)mFramePool.size(); }
 
   // sets
-  void setPlayPts (uint64_t playPts) { mPlayPts = playPts; }
+  void setPlayPts (int64_t playPts) { mPlayPts = playPts; }
 
   cFrame* findPlayFrame();
-  virtual void decodeFrame (uint8_t* pes, unsigned int pesSize, int num, uint64_t pts) = 0;
+  virtual void decodeFrame (uint8_t* pes, unsigned int pesSize, int num, int64_t pts) = 0;
 
   // make visible to widget
-  int mNextPool = 0;
   std::vector <cFrame*> mFramePool;
 
 protected:
-  cFrame* getFreeFrame (uint64_t pts, int pesSize, int num);
+  cFrame* getFreeFrame (int64_t pts, int pesSize, int num);
 
   const bool mBgra;
   int mWidth = 0;
   int mHeight = 0;
-  uint64_t mPlayPts = 0;
-  int mPtsDuration = 0;
+  int64_t mPlayPts = 0;
+  int64_t mPtsDuration = 0;
   };
 
 #ifdef _WIN32
@@ -102,7 +102,7 @@ protected:
     virtual ~cMfxVideoDecode();
 
     int getSurfacePoolSize() { return (int)mSurfacePool.size(); }
-    void decodeFrame (uint8_t* pes, unsigned int pesSize, int num, uint64_t pts);
+    void decodeFrame (uint8_t* pes, unsigned int pesSize, int num, int64_t pts);
 
   private:
     mfxFrameSurface1* getFreeSurface();
@@ -122,7 +122,7 @@ public:
   cFFmpegVideoDecode (bool bgra);
   virtual ~cFFmpegVideoDecode();
 
-  void decodeFrame (uint8_t* pes, unsigned int pesSize, int num, uint64_t pts);
+  void decodeFrame (uint8_t* pes, unsigned int pesSize, int num, int64_t pts);
 
 private:
   // vars
@@ -131,6 +131,6 @@ private:
   AVCodecContext* mAvContext = nullptr;
   SwsContext* mSwsContext = nullptr;
 
-  uint64_t mDecodePts = 0;
+  int64_t mDecodePts = 0;
   };
 //}}}

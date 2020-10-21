@@ -16,7 +16,7 @@ public:
   class cPesItem {
   public:
     //{{{
-    cPesItem (uint8_t* pes, int size, int sequenceNum, uint64_t pts)
+    cPesItem (uint8_t* pes, int size, int sequenceNum, int64_t pts)
         : mPesSize(size), mSequenceNum(sequenceNum), mPts(pts) {
       mPes = (uint8_t*)malloc (size);
       memcpy (mPes, pes, size);
@@ -31,13 +31,13 @@ public:
     uint8_t* mPes;
     const int mPesSize;
     const int mSequenceNum;
-    const uint64_t mPts;
+    const int64_t mPts;
     };
   //}}}
   //{{{
   cPesParser (int pid, bool useQueue, const std::string& name,
-              std::function <int (uint8_t* pes, int size, int sequenceNum, uint64_t pts, cPesParser* parserPes)> process,
-              std::function <void (uint8_t* pes, int size, int sequenceNum, uint64_t pts)> decode)
+              std::function <int (uint8_t* pes, int size, int sequenceNum, int64_t pts, cPesParser* parserPes)> process,
+              std::function <void (uint8_t* pes, int size, int sequenceNum, int64_t pts)> decode)
       : mPid(pid), mName(name), mProcessCallback(process), mDecodeCallback(decode), mUseQueue(useQueue) {
 
     mPes = (uint8_t*)malloc (kInitPesSize);
@@ -107,7 +107,7 @@ public:
     }
   //}}}
   //{{{
-  void decode (uint8_t* pes, int size, int sequenceNum, uint64_t pts) {
+  void decode (uint8_t* pes, int size, int sequenceNum, int64_t pts) {
 
     if (mUseQueue)
       mQueue.enqueue (new cPesParser::cPesItem (pes, size, sequenceNum, pts));
@@ -119,12 +119,12 @@ public:
 private:
   static constexpr int kInitPesSize = 4096;
   //{{{
-  static uint64_t getPts (const uint8_t* ts) {
+  static int64_t getPts (const uint8_t* ts) {
   // return 33 bits of pts,dts
 
     if ((ts[0] & 0x01) && (ts[2] & 0x01) && (ts[4] & 0x01)) {
       // valid marker bits
-      uint64_t pts = ts[0] & 0x0E;
+      int64_t pts = ts[0] & 0x0E;
       pts = (pts << 7) | ts[1];
       pts = (pts << 8) | (ts[2] & 0xFE);
       pts = (pts << 7) | ts[3];
@@ -155,8 +155,8 @@ private:
   int mPid = 0;
   std::string mName;
 
-  std::function <int (uint8_t* pes, int size, int sequenceNum, uint64_t pts, cPesParser* parserPes)> mProcessCallback;
-  std::function <void (uint8_t* pes, int size, int sequenceNum, uint64_t pts)> mDecodeCallback;
+  std::function <int (uint8_t* pes, int size, int sequenceNum, int64_t pts, cPesParser* parserPes)> mProcessCallback;
+  std::function <void (uint8_t* pes, int size, int sequenceNum, int64_t pts)> mDecodeCallback;
 
   bool mUseQueue = false;
   readerWriterQueue::cBlockingReaderWriterQueue <cPesItem*> mQueue;
@@ -166,5 +166,5 @@ private:
   uint8_t* mPes = nullptr;
   int mPesSize = 0;
   int mSequenceNum = 0;
-  uint64_t mPts = 0;
+  int64_t mPts = 0;
   };

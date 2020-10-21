@@ -116,20 +116,19 @@ cVideoDecode::cFrame::~cFrame() {
 void cVideoDecode::cFrame::clear() {
 
   mState = eFree;
-
   mPts = 0;
   mPtsDuration = 0;
   mNum = 0;
   }
 //}}}
 //{{{
-bool cVideoDecode::cFrame::isPtsWithinFrame (uint64_t pts) {
-  return (mState == eLoaded) && (pts >= mPts) && (pts < (mPts + mPtsDuration));
+bool cVideoDecode::cFrame::isPtsWithinFrame (int64_t pts) {
+  return (mState == eLoaded) && (pts >= mPts) && (pts < mPts + mPtsDuration);
   }
 //}}}
 
 //{{{
-void cVideoDecode::cFrame::set (uint64_t pts, int ptsDuration, int pesSize, int num) {
+void cVideoDecode::cFrame::set (int64_t pts, int64_t ptsDuration, int pesSize, int num) {
 
   mState = eAllocated;
   mPts = pts;
@@ -1750,15 +1749,16 @@ cVideoDecode::~cVideoDecode() {
   }
 //}}}
 //{{{
-void cVideoDecode::clear (uint64_t pts) {
+void cVideoDecode::clear (int64_t pts) {
 
-  for (auto frame : mFramePool)
-    if ((frame->getState() != cFrame::eLoaded) || (frame->getPts() < pts))
-      frame->clear();
+  //for (auto frame : mFramePool)
+  //  if ((frame->getState() != cFrame::eLoaded) || (frame->getPts() < pts))
+  //    frame->clear();
   }
 //}}}
 //{{{
 cVideoDecode::cFrame* cVideoDecode::findPlayFrame() {
+// return frame containing playPts
 
   for (auto frame : mFramePool)
     if (frame->isPtsWithinFrame (mPlayPts))
@@ -1768,7 +1768,7 @@ cVideoDecode::cFrame* cVideoDecode::findPlayFrame() {
   }
 //}}}
 //{{{
-cVideoDecode::cFrame* cVideoDecode::getFreeFrame (uint64_t pts, int pesSize, int num) {
+cVideoDecode::cFrame* cVideoDecode::getFreeFrame (int64_t pts, int pesSize, int num) {
 // return first frame older than mPlayPts
 
   while (true) {
@@ -1776,22 +1776,20 @@ cVideoDecode::cFrame* cVideoDecode::getFreeFrame (uint64_t pts, int pesSize, int
       // new frame
       auto frame = new cFrame (pts, mPtsDuration, pesSize, num);
       mFramePool.push_back (frame);
-      mNextPool = mFramePool.size() % kMaxFramePoolSize;
       return frame;
       }
 
-    cFrame* frame = mFramePool [mNextPool];
-    if ((frame->getState() == cFrame::eFree) ||
-        (mPlayPts > (frame->getPts() + frame->getPtsDuration()))) {
-      // resuse oldest
-      frame->set (pts, mPtsDuration, pesSize, num);
-      mNextPool = (mNextPool + 1) % kMaxFramePoolSize;
-      return frame;
+    for (auto frame : mFramePool) {
+      if ((frame->getState() == cFrame::eFree) ||
+          ((frame->getState() == cFrame::eLoaded) &&
+           (mPlayPts - (50 * mPtsDuration) > frame->getPtsEnd()))) {
+        frame->set (pts, mPtsDuration, pesSize, num);
+        return frame;
+        }
       }
 
-    if (mFramePool.size() >= kMaxFramePoolSize)
-      // free frame should come along in a frame
-      std::this_thread::sleep_for (20ms);
+    // pool maxSize and no freeFrame before playPts, one should come along in a frame in normal play
+    std::this_thread::sleep_for (20ms);
     }
 
   // never gets here
@@ -1818,7 +1816,7 @@ cMfxVideoDecode::~cMfxVideoDecode() {
   }
 //}}}
 //{{{
-void cMfxVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int num, uint64_t pts) {
+void cMfxVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int num, int64_t pts) {
 
   system_clock::time_point timePoint = system_clock::now();
 
@@ -1931,7 +1929,7 @@ cFFmpegVideoDecode::~cFFmpegVideoDecode() {
   }
 //}}}
 //{{{
-void cFFmpegVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int num, uint64_t pts) {
+void cFFmpegVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int num, int64_t pts) {
 
   system_clock::time_point timePoint = system_clock::now();
 
@@ -1965,6 +1963,7 @@ void cFFmpegVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int nu
 
         mWidth = avFrame->width;
         mHeight = avFrame->height;
+
         mPtsDuration = (90000 * mAvContext->framerate.den) / mAvContext->framerate.num;
         cVideoDecode::cFrame* frame = getFreeFrame (mDecodePts, pesSize, num);
         mDecodePts += mPtsDuration;
