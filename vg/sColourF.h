@@ -62,3 +62,8 @@ const sColourF kDarkOrangeF = { 0.6f, 0.6f,  0.f,  1.f };
 const sColourF kOpaqueBlackF =      { 0.f,  0.f,  0.f,  0.f };
 const sColourF kSemiOpaqueBlackF =  { 0.f,  0.f,  0.f,  0.5f };
 const sColourF kSemiOpaqueWhiteF =  { 1.f,  1.f,  1.f,  0.5f };
+
+const sColourF kSemiOpaqueRedF =    { 1.f,  0.f,  0.f,  0.5f };
+const sColourF kSemiOpaqueGreenF =  { 0.f,  1.f,  0.f,  0.5f };
+const sColourF kSemiOpaqueBlueF =   { 0.f,  0.f,  1.f,  0.5f };
+const sColourF kSemiOpaqueYellowF = { 1.f,  0.f,  1.f,  0.5f };

@@ -74,15 +74,13 @@ public:
   int getWidth() { return mWidth; }
   int getHeight() { return mHeight; }
   int getFramePoolSize() { return (int)mFramePool.size(); }
+  std::vector <cFrame*>& getFramePool() { return mFramePool; }
 
   // sets
   void setPlayPts (int64_t playPts) { mPlayPts = playPts; }
 
   cFrame* findPlayFrame();
   virtual void decodeFrame (uint8_t* pes, unsigned int pesSize, int num, int64_t pts) = 0;
-
-  // make visible to widget
-  std::vector <cFrame*> mFramePool;
 
 protected:
   cFrame* getFreeFrame (int64_t pts, int pesSize, int num);
@@ -92,6 +90,8 @@ protected:
   int mHeight = 0;
   int64_t mPlayPts = 0;
   int64_t mPtsDuration = 0;
+
+  std::vector <cFrame*> mFramePool;
   };
 
 #ifdef _WIN32

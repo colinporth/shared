@@ -5,8 +5,8 @@
 #include <string>
 #include "iWindow.h"
 
-#include "../nanoVg/sColourF.h"
-#include "../nanoVg/cPointF.h"
+#include "../vg/sColourF.h"
+#include "../vg/cPointF.h"
 //}}}
 
 class iDraw : public iWindow  {

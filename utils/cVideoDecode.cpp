@@ -131,6 +131,7 @@ bool cVideoDecode::cFrame::isPtsWithinFrame (int64_t pts) {
 void cVideoDecode::cFrame::set (int64_t pts, int64_t ptsDuration, int pesSize, int num) {
 
   mState = eAllocated;
+
   mPts = pts;
   mPtsDuration = ptsDuration;
   mPesSize = pesSize;
@@ -1857,7 +1858,6 @@ void cMfxVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int num, 
   // decode video pes
   // - could be none or multiple frames
   // - returned by decode order, not presentation order
-  //mfxStatus status = MFXVideoDECODE_Reset (mSession, &mVideoParams);
   mfxStatus status = MFX_ERR_NONE;
   while ((status >= MFX_ERR_NONE) || (status == MFX_ERR_MORE_SURFACE)) {
     mfxFrameSurface1* surface = nullptr;

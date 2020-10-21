@@ -21,6 +21,7 @@ public:
     auto videoDecode = mLoaderPlayer->getVideoDecode();
 
     if (videoDecode) {
+      // draw picture
       auto frame = videoDecode->findPlayFrame();
       if (frame) {
         if (frame->getPts() != mImagePts) {
@@ -40,18 +41,7 @@ public:
         }
       }
 
-    std::string infoString = mLoaderPlayer->getChannelName() +
-                             " " + dec(mLoaderPlayer->getVidBitrate()) +
-                             ":" + dec(mLoaderPlayer->getAudBitrate());
-    if (videoDecode)
-      infoString += " " + dec(videoDecode->getWidth()) + "x" + dec(videoDecode->getHeight()) +
-                    " " + dec(videoDecode->getFramePoolSize());
-    int loadSize;
-    int videoQueueSize;
-    int audioQueueSize;
-    mLoaderPlayer->getSizes (loadSize, videoQueueSize, audioQueueSize);
-    infoString += " " + dec(loadSize/1000) + "k v" + dec(videoQueueSize) + " a" + dec(audioQueueSize);
-    drawInfo (vg, infoString);
+    drawInfo (vg, videoDecode);
 
     // draw progress spinners
     float loadFrac;
@@ -77,8 +67,20 @@ public:
 
 private:
   //{{{
-  void drawInfo (cVg* vg, const std::string& infoString) {
+  void drawInfo (cVg* vg, cVideoDecode* videoDecode) {
   // info text
+
+    std::string infoString = mLoaderPlayer->getChannelName() +
+                             " " + dec(mLoaderPlayer->getVidBitrate()) +
+                             ":" + dec(mLoaderPlayer->getAudBitrate());
+    if (videoDecode)
+      infoString += " " + dec(videoDecode->getWidth()) + "x" + dec(videoDecode->getHeight()) +
+                    " " + dec(videoDecode->getFramePoolSize());
+    int loadSize;
+    int videoQueueSize;
+    int audioQueueSize;
+    mLoaderPlayer->getSizes (loadSize, videoQueueSize, audioQueueSize);
+    infoString += " " + dec(loadSize/1000) + "k v" + dec(videoQueueSize) + " a" + dec(audioQueueSize);
 
     vg->setFontSize ((float)getFontHeight());
     vg->setTextAlign (cVg::eAlignLeft | cVg::eAlignTop);
@@ -113,7 +115,7 @@ private:
   //{{{
   void drawVideoPool (cVg* vg, cVideoDecode* videoDecode) {
 
-    cPointF org { getPixSize().x/2.f, getPixSize().y - 120.f };
+    cPointF org { getPixSize().x/2.f, getPixSize().y - 100.f };
     float ptsPerPix = float((90 * mLoaderPlayer->getSong()->getSamplesPerFrame()) / 48);
 
     // get playFrame pts
@@ -124,34 +126,34 @@ private:
       // draw pool num
       vg->beginPath();
       int i = 0;
-      for (auto frame : videoDecode->mFramePool) {
+      for (auto frame : videoDecode->getFramePool()) {
         float pix = floor ((frame->getPts() - playPts) / ptsPerPix);
         float pixEnd = floor ((frame->getPtsEnd() - playPts) / ptsPerPix);
         vg->rect (org + cPointF (pix, -i/2.f), cPointF (pixEnd - pix, i/2.f));
         i++;
         }
-      vg->setFillColour (sColourF(0.f,1.f,0.f,0.5f));
+      vg->setFillColour (kSemiOpaqueGreenF);
       vg->triangleFill();
 
       // draw pool frame num
       vg->beginPath();
-      for (auto frame : videoDecode->mFramePool) {
+      for (auto frame : videoDecode->getFramePool()) {
         float pix = floor ((frame->getPts() - playPts) / ptsPerPix);
         float pixEnd = floor ((frame->getPtsEnd() - playPts) / ptsPerPix);
         vg->rect (org + cPointF (pix, -frame->getNum()/2.f), cPointF(pixEnd - pix, frame->getNum()/2.f));
         }
-      vg->setFillColour (sColourF(0.f,0.f,1.f,0.5f));
+      vg->setFillColour (kSemiOpaqueBlueF);
       vg->triangleFill();
 
       // draw pool frame pesSize
       vg->beginPath();
-      for (auto frame : videoDecode->mFramePool) {
+      for (auto frame : videoDecode->getFramePool()) {
         float pix = floor ((frame->getPts() - playPts) / ptsPerPix);
         float pixEnd = floor ((frame->getPtsEnd() - playPts) / ptsPerPix);
         float pes = frame->getPesSize() / 1000.f;
         vg->rect (org + cPointF (pix, -pes), cPointF(pixEnd - pix, pes));
         }
-      vg->setFillColour (sColourF(1.f,1.f,1.f,0.5f));
+      vg->setFillColour (kSemiOpaqueWhiteF);
       vg->triangleFill();
       }
 

@@ -12,11 +12,12 @@
 using namespace std;
 using namespace chrono;
 //}}}
-
+//{{{  constexpr
 constexpr static float kMinPowerValue = 0.25f;
 constexpr static float kMinPeakValue = 0.25f;
 constexpr static float kMinFreqValue = 256.f;
 constexpr static int kSilenceWindowFrames = 4;
+//}}}
 
 // cSong::cFrame
 //{{{
