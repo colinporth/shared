@@ -206,8 +206,8 @@ void cLoaderPlayer::videoFollowAudio() {
     auto framePtr = mSong->getFramePtr (mSong->getPlayFrame());
     if (framePtr) {
       auto pts = framePtr->getPts();
-      mVideoDecode->clear (pts);
       mVideoDecode->setPlayPts (pts);
+      mVideoDecode->clear (pts);
       }
     }
   }

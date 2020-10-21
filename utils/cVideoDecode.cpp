@@ -116,12 +116,20 @@ cVideoDecode::cFrame::~cFrame() {
 void cVideoDecode::cFrame::clear() {
 
   mState = eFree;
+
   mPts = 0;
+  mPtsDuration = 0;
+  mNum = 0;
+  }
+//}}}
+//{{{
+bool cVideoDecode::cFrame::isPtsWithinFrame (uint64_t pts) {
+  return (mState == eLoaded) && (pts >= mPts) && (pts < (mPts + mPtsDuration));
   }
 //}}}
 
 //{{{
-void cVideoDecode::cFrame:: set (uint64_t pts, int ptsDuration, int pesSize, int num) {
+void cVideoDecode::cFrame::set (uint64_t pts, int ptsDuration, int pesSize, int num) {
 
   mState = eAllocated;
   mPts = pts;
@@ -1751,49 +1759,39 @@ void cVideoDecode::clear (uint64_t pts) {
 //}}}
 //{{{
 cVideoDecode::cFrame* cVideoDecode::findPlayFrame() {
-// returns nearest frame within a 25fps frame of mPlayPts, nullptr if none
 
-  uint64_t nearDist = 90000 / 25;
+  for (auto frame : mFramePool)
+    if (frame->isPtsWithinFrame (mPlayPts))
+      return frame;
 
-  cVideoDecode::cFrame* nearFrame = nullptr;
-  for (auto frame : mFramePool) {
-    if (frame->getState() == cVideoDecode::cFrame::eLoaded) {
-      uint64_t dist = frame->getPts() > mPlayPts ? frame->getPts() - mPlayPts : mPlayPts - frame->getPts();
-      if (dist < nearDist) {
-        nearDist = dist;
-        nearFrame = frame;
-        }
-      }
-    }
-
-  return nearFrame;
+  return nullptr;
   }
 //}}}
 //{{{
-cVideoDecode::cFrame* cVideoDecode::getFreeFrame (uint64_t pts, int ptsDuration, int pesSize, int num) {
+cVideoDecode::cFrame* cVideoDecode::getFreeFrame (uint64_t pts, int pesSize, int num) {
 // return first frame older than mPlayPts
 
   while (true) {
-    for (auto frame : mFramePool) {
-      if ((frame->getState() == cFrame::eFree) ||
-          ((frame->getState() == cFrame::eLoaded) && ((frame->getPts() + frame->getPtsDuration()) < mPlayPts))) {
-        // reuse first frame before playPts
-        frame->set (pts, ptsDuration, pesSize, num);
-        return frame;
-        }
-      }
-
-    if (mFramePool.size() >= kMaxFramePoolSize) {
-      // free frame should come along in a frame
-      std::this_thread::sleep_for (20ms);
-      }
-    else {
-      // allocate new frame
-      //cLog::log (LOGINFO, "allocate newFrame %d for %u at play:%u", mFramePool.size(), pts, mPlayPts);
-      auto frame = new cFrame (pts, ptsDuration, pesSize, num);
+    if (mFramePool.size() < kMaxFramePoolSize) {
+      // new frame
+      auto frame = new cFrame (pts, mPtsDuration, pesSize, num);
       mFramePool.push_back (frame);
+      mNextPool = mFramePool.size() % kMaxFramePoolSize;
       return frame;
       }
+
+    cFrame* frame = mFramePool [mNextPool];
+    if ((frame->getState() == cFrame::eFree) ||
+        (mPlayPts > (frame->getPts() + frame->getPtsDuration()))) {
+      // resuse oldest
+      frame->set (pts, mPtsDuration, pesSize, num);
+      mNextPool = (mNextPool + 1) % kMaxFramePoolSize;
+      return frame;
+      }
+
+    if (mFramePool.size() >= kMaxFramePoolSize)
+      // free frame should come along in a frame
+      std::this_thread::sleep_for (20ms);
     }
 
   // never gets here
@@ -1855,6 +1853,7 @@ void cMfxVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int num, 
       cLog::log (LOGERROR, "MFXVideoDECODE_Init failed");
       return;
       }
+
     }
 
   // decode video pes
@@ -1870,10 +1869,10 @@ void cMfxVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int num, 
       status = mSession.SyncOperation (syncDecode, 60000);
       if (status == MFX_ERR_NONE) {
         if (kTiming)
-          cLog::log (LOGINFO, "decodeFrame mfx:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+          cLog::log (LOGINFO1, "decodeFrame mfx:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
-        int ptsDuration = (90000 * surface->Info.FrameRateExtD) / surface->Info.FrameRateExtN;
-        auto frame = getFreeFrame (surface->Data.TimeStamp, ptsDuration, pesSize, num);
+        mPtsDuration = (90000 * surface->Info.FrameRateExtD) / surface->Info.FrameRateExtN;
+        auto frame = getFreeFrame (surface->Data.TimeStamp, pesSize, num);
         if (mBgra)
           frame->setYuv420BgraInterleaved (surface->Info.Width, surface->Info.Height, surface->Data.Y, surface->Data.Pitch);
         else
@@ -1903,7 +1902,7 @@ mfxFrameSurface1* cMfxVideoDecode::getFreeSurface() {
   surface->Data.Pitch = mWidth;
   mSurfacePool.push_back (surface);
 
-  cLog::log (LOGINFO1, "allocating new mfxFrameSurface1");
+  cLog::log (LOGINFO, "allocating new mfxFrameSurface1 %dx%d", mWidth, mHeight);
 
   return nullptr;
   }
@@ -1961,13 +1960,14 @@ void cFFmpegVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int nu
         if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF || ret < 0)
           break;
         if (kTiming)
-          cLog::log (LOGINFO, "decodeFrame FFmpeg:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+          cLog::log (LOGINFO1, "decodeFrame FFmpeg:%d",
+                               duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
         mWidth = avFrame->width;
         mHeight = avFrame->height;
-        int ptsDuration = (90000 * mAvContext->framerate.den) / mAvContext->framerate.num;
-        cVideoDecode::cFrame* frame = getFreeFrame (mDecodePts, ptsDuration, pesSize, num);
-        mDecodePts += ptsDuration;
+        mPtsDuration = (90000 * mAvContext->framerate.den) / mAvContext->framerate.num;
+        cVideoDecode::cFrame* frame = getFreeFrame (mDecodePts, pesSize, num);
+        mDecodePts += mPtsDuration;
 
         if (!mSwsContext)
           mSwsContext = sws_getContext (avFrame->width, avFrame->height, AV_PIX_FMT_YUV420P,

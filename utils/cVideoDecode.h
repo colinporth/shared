@@ -39,6 +39,7 @@ public:
     int getPesSize() { return mPesSize; }
     int getNum() { return mNum; }
     uint32_t* getBuffer() { return mBuffer; }
+    bool isPtsWithinFrame (uint64_t pts);
 
     // sets
     void set (uint64_t pts, int ptsDuration, int pesSize, int num);
@@ -80,15 +81,17 @@ public:
   virtual void decodeFrame (uint8_t* pes, unsigned int pesSize, int num, uint64_t pts) = 0;
 
   // make visible to widget
+  int mNextPool = 0;
   std::vector <cFrame*> mFramePool;
 
 protected:
-  cFrame* getFreeFrame (uint64_t pts, int ptsDuration, int pesSize, int num);
+  cFrame* getFreeFrame (uint64_t pts, int pesSize, int num);
 
   const bool mBgra;
   int mWidth = 0;
   int mHeight = 0;
   uint64_t mPlayPts = 0;
+  int mPtsDuration = 0;
   };
 
 #ifdef _WIN32
