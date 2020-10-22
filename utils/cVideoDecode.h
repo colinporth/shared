@@ -16,51 +16,45 @@ public:
   class cFrame {
   public:
     enum eState { eFree, eAllocated, eLoaded };
-    //{{{
-    cFrame (int64_t pts, int64_t ptsDuration, int pesSize, int num)
-      : mPts(pts), mPtsDuration(ptsDuration), mPesSize(pesSize), mNum(num) {}
-    //}}}
     virtual ~cFrame();
 
     void clear();
 
     // gets
     eState getState() { return mState; }
+
+    bool isPtsWithinFrame (int64_t pts);
     int64_t getPts() { return mPts; }
     int64_t getPtsDuration() { return mPtsDuration; }
     int64_t getPtsEnd() { return mPts + mPtsDuration; }
+
     int getPesSize() { return mPesSize; }
     int getNum() { return mNum; }
     uint32_t* getBuffer() { return mBuffer; }
-    bool isPtsWithinFrame (int64_t pts);
 
     // sets
     void set (int64_t pts, int64_t ptsDuration, int pesSize, int num);
+    virtual void setYuv420Interleaved (int width, int height, uint8_t* buffer, int stride);
+    virtual void setYuv420Planar (SwsContext* swsContext, int width, int height, uint8_t** data, int* linesize);
 
-    void setYuv420RgbaInterleaved (int width, int height, uint8_t* buffer, int stride);
-    void setYuv420BgraInterleaved (int width, int height, uint8_t* buffer, int stride);
-    void setYuv420RgbaPlanar (int width, int height, uint8_t** data, int* linesize);
-    void setYuv420BgraPlanar (int width, int height, uint8_t** data, int* linesize);
-    void setYuv420RgbaPlanarSws (SwsContext* swsContext, int width, int height, uint8_t** data, int* linesize);
-    void setYuv420RgbaPlanarTable (int width, int height, uint8_t** data, int* linesize);
-    void setYuv420RgbaPlanarSimple (int width, int height, uint8_t** data, int* linesize);
-
-  private:
+  protected:
     void allocateBuffer (int width, int height);
 
     eState mState = eFree;
+    uint32_t* mBuffer = nullptr;
+
+  private:
     int64_t mPts = 0;
     int64_t mPtsDuration = 0;
     int mPesSize = 0;
     int mNum = 0;
-    uint32_t* mBuffer = nullptr;
     };
   //}}}
 
-  // dodgy factory create static
+  // dodgy static factory create
   static cVideoDecode* create (bool mfx, bool bgra, int poolSize);
 
-  cVideoDecode (bool bgra, int poolSize) : mBgra(bgra), mPoolSize(poolSize) {}
+  cVideoDecode (bool interleaved, bool bgra, int poolSize);
   virtual ~cVideoDecode();
 
   void clear (int64_t pts);
@@ -68,6 +62,7 @@ public:
   // gets
   int getWidth() { return mWidth; }
   int getHeight() { return mHeight; }
+
   int getFramePoolSize() { return (int)mFramePool.size(); }
   std::vector <cFrame*>& getFramePool() { return mFramePool; }
 
@@ -79,9 +74,6 @@ public:
 
 protected:
   cFrame* getFreeFrame (int64_t pts, int pesSize, int num);
-
-  const bool mBgra;
-  const int mPoolSize;
 
   int mWidth = 0;
   int mHeight = 0;
