@@ -1,10 +1,7 @@
 // cLoaderPlayerWidget.h
 #pragma once
-//{{{  includes
 #include "cWidget.h"
-
 #include "../utils/cLoaderPlayer.h"
-//}}}
 
 constexpr bool kVideoPoolDebug = true;
 
@@ -64,7 +61,7 @@ public:
                      sColourF(0.f, 0.f, 1.f, 0.25f), sColourF(0.f, 0.f, 1.f, 0.75f));
       }
 
-    if (kVideoPoolDebug)
+    if (kVideoPoolDebug && videoDecode)
       drawVideoPool (vg, videoDecode);
     }
   //}}}
@@ -77,9 +74,11 @@ private:
     std::string infoString = mLoaderPlayer->getChannelName() +
                              " " + dec(mLoaderPlayer->getVidBitrate()) +
                              ":" + dec(mLoaderPlayer->getAudBitrate());
+
     if (videoDecode)
       infoString += " " + dec(videoDecode->getWidth()) + "x" + dec(videoDecode->getHeight()) +
                     " " + dec(videoDecode->getFramePoolSize());
+
     int loadSize;
     int videoQueueSize;
     int audioQueueSize;

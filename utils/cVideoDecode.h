@@ -7,14 +7,6 @@
 #include <string>
 #include <vector>
 
-#ifdef _WIN32
-  #include "../../libmfx/include/mfxvideo++.h"
-  //class mfxFrameSurface1;
-#endif
-
-struct AVCodecParserContext;
-struct AVCodec;
-struct AVCodecContext;
 struct SwsContext;
 //}}}
 
@@ -65,6 +57,9 @@ public:
     };
   //}}}
 
+  // dodgy factory create static
+  static cVideoDecode* create (bool mfx, bool bgra, int poolSize);
+
   cVideoDecode (bool bgra, int poolSize) : mBgra(bgra), mPoolSize(poolSize) {}
   virtual ~cVideoDecode();
 
@@ -95,44 +90,3 @@ protected:
 
   std::vector <cFrame*> mFramePool;
   };
-
-#ifdef _WIN32
-  //{{{
-  class cMfxVideoDecode : public cVideoDecode {
-  public:
-    cMfxVideoDecode (bool bgra, int poolSize);
-    virtual ~cMfxVideoDecode();
-
-    int getSurfacePoolSize() { return (int)mSurfacePool.size(); }
-    void decodeFrame (uint8_t* pes, unsigned int pesSize, int num, int64_t pts);
-
-  private:
-    mfxFrameSurface1* getFreeSurface();
-
-    // vars
-    MFXVideoSession mSession;
-    mfxVideoParam mVideoParams;
-    mfxBitstream mBitstream;
-    std::vector <mfxFrameSurface1*> mSurfacePool;
-    };
-  //}}}
-#endif
-
-//{{{
-class cFFmpegVideoDecode : public cVideoDecode {
-public:
-  cFFmpegVideoDecode (bool bgra, int poolSize);
-  virtual ~cFFmpegVideoDecode();
-
-  void decodeFrame (uint8_t* pes, unsigned int pesSize, int num, int64_t pts);
-
-private:
-  // vars
-  AVCodecParserContext* mAvParser = nullptr;
-  AVCodec* mAvCodec = nullptr;
-  AVCodecContext* mAvContext = nullptr;
-  SwsContext* mSwsContext = nullptr;
-
-  int64_t mDecodePts = 0;
-  };
-//}}}

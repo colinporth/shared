@@ -17,12 +17,12 @@ class cFileList;
 enum eLoader { eMfx = 0x01, eBgra = 0x02, eQueueAudio = 0x04,  eQueueVideo = 0x08 };
 class cLoaderPlayer {
 public:
-  cLoaderPlayer (int videoPoolSize);
+  cLoaderPlayer() {}
   virtual ~cLoaderPlayer();
 
   void initialise (bool radio,
                    const std::string& hostName, const std::string& poolName, const std::string& channelName,
-                   int audBitrate, int vidBitrate, eLoader loader);
+                   int audBitrate, int vidBitrate, eLoader loader, int videoPoolSiz);
 
   cSong* getSong() { return mSong; }
   cVideoDecode* getVideoDecode() { return mVideoDecode; }
@@ -52,8 +52,6 @@ private:
   static std::string getTagValue (uint8_t* buffer, const char* tag);
   void addIcyInfo (int frame, const std::string& icyInfo);
   void startPlayer();
-
-  const int mVideoPoolSize;
 
   bool mRadio = false;
   std::string mHostName;

@@ -213,7 +213,8 @@ void cSong::addFrame (int frameNum, float* samples, bool ourSamples, int totalFr
 
   cFrame* frame;
   if (mMaxMapSize && (int(mFrameMap.size()) > mMaxMapSize)) { // reuse a cFrame
-    { // remove with locked mutex
+    //{{{  remove with locked mutex
+    {
     unique_lock<shared_mutex> lock (mSharedMutex);
     if (frameNum > mPlayFrame) {
       //{{{  remove frame from map begin, reuse it
@@ -230,18 +231,24 @@ void cSong::addFrame (int frameNum, float* samples, bool ourSamples, int totalFr
       }
       //}}}
     } // end of locked mutex
-
-    // reuse power,peak,fft buffers, but free samples if we own them
+    //}}}
+    //{{{  reuse power,peak,fft buffers, but free samples if we own them
     if (frame->mOurSamples)
       free (frame->mSamples);
     frame->mSamples = samples;
     frame->mOurSamples = ourSamples;
     frame->mPts = pts;
+    //}}}
     }
   else // allocate new cFrame
     frame = new cFrame (mNumChannels, getNumFreqBytes(), samples,ourSamples, pts);
 
-  // power,peak
+  //{{{  calc power,peak
+  for (auto channel = 0; channel < mNumChannels; channel++) {
+    frame->mPowerValues[channel] = 0.f;
+    frame->mPeakValues[channel] = 0.f;
+    }
+
   auto samplePtr = samples;
   for (int sample = 0; sample < mSamplesPerFrame; sample++) {
     mTimeBuf[sample] = 0;
@@ -253,16 +260,17 @@ void cSong::addFrame (int frameNum, float* samples, bool ourSamples, int totalFr
       }
     }
 
-  // max power,peak
+  // max
   for (auto channel = 0; channel < mNumChannels; channel++) {
     frame->mPowerValues[channel] = sqrtf (frame->mPowerValues[channel] / mSamplesPerFrame);
     mMaxPowerValue = max (mMaxPowerValue, frame->mPowerValues[channel]);
     mMaxPeakValue = max (mMaxPeakValue, frame->mPeakValues[channel]);
     }
+  //}}}
 
   // ??? lock against init fftrConfig recalc???
   kiss_fftr (mFftrConfig, mTimeBuf, mFreqBuf);
-
+  //{{{  calc frequency values,luma
   float freqScale = 255.f / mMaxFreqValue;
   auto freqBufPtr = mFreqBuf;
   auto freqValuesPtr = frame->mFreqValues;
@@ -281,13 +289,16 @@ void cSong::addFrame (int frameNum, float* samples, bool ourSamples, int totalFr
 
     freqBufPtr++;
     }
+  //}}}
 
-  { // insert with locked mutex
+  //{{{  insert with locked mutex
+  {
   unique_lock<shared_mutex> lock (mSharedMutex);
   mFrameMap.insert (map<int,cFrame*>::value_type (frameNum, frame));
   // totalFrames can be a changing estimate for file, or increasing value for streaming
   mTotalFrames = totalFrames;
   } // end of locked mutex
+  //}}}
 
   checkSilenceWindow (frameNum);
   }

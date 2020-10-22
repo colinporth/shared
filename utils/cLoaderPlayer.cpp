@@ -46,7 +46,6 @@ using namespace chrono;
 //}}}
 
 // public
-cLoaderPlayer::cLoaderPlayer (int videoPoolSize) : mVideoPoolSize(videoPoolSize) {}
 //{{{
 cLoaderPlayer::~cLoaderPlayer() {
 
@@ -60,7 +59,8 @@ cLoaderPlayer::~cLoaderPlayer() {
 //{{{
 void cLoaderPlayer::initialise (bool radio,
                                 const string& hostName, const string& poolName, const string& channelName,
-                                int audBitrate, int vidBitrate, eLoader loader) {
+                                int audBitrate, int vidBitrate, 
+                                eLoader loader, int videoPoolSize) {
 
   mRadio = radio;
   mHostName = hostName;
@@ -76,16 +76,8 @@ void cLoaderPlayer::initialise (bool radio,
 
   // video
   mVidBitrate = vidBitrate;
-  if (vidBitrate) {
-    #ifdef _WIN32
-      if (loader & eMfx)
-        mVideoDecode = new cMfxVideoDecode (loader & eBgra, mVideoPoolSize);
-      else
-        mVideoDecode = new cFFmpegVideoDecode (loader & eBgra, mVideoPoolSize);
-    #else // must use ffmpeg for now
-      mVideoDecode = new cFFmpegVideoDecode (loader & eBgra, mVideoPoolSize);
-    #endif
-    }
+  if (vidBitrate)
+    mVideoDecode = cVideoDecode::create (loader & eMfx, loader & eBgra, videoPoolSize);
 
   // audio pesParser
   mPesParsers.push_back (

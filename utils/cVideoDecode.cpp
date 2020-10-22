@@ -677,7 +677,7 @@ void cVideoDecode::cFrame::set (int64_t pts, int64_t ptsDuration, int pesSize, i
         //{{{  2 rows of 8 pix
         // U load 8 u8 - u01234567 = u0 u1 u2 u3 u4 u5 u6 u7
         uint8x8_t const u01234567 = vld1_u8 (u);
-        u += 4; 
+        u += 4;
         // - uu01234567 =  0.u0 0.u1 0.u2 0.u3 0.u4 0.u5 0.u6 0.u7
         int16x8_t const uu01234567 = (int16x8_t)vmovl_u8 (u01234567);
         // - u01234567o = (0.u0 0.u1 0.u2 0.u3 0.u4 0.u5 0.u6 0.u7) - half
@@ -1675,7 +1675,7 @@ void cVideoDecode::cFrame::setYuv420RgbaPlanarSimple (int width, int height, uin
   int const halfWidth = width >> 1;
   int const halfHeight = height >> 1;
 
-  unsigned char const* y0 = y;
+  uint8_t const* y0 = y;
   uint8_t* dst0 = dst;
   for (int h = 0; h < halfHeight; ++h) {
     uint8_t const* y1 = y0 + width;
@@ -1801,189 +1801,230 @@ cVideoDecode::cFrame* cVideoDecode::getFreeFrame (int64_t pts, int pesSize, int 
 //}}}
 
 #ifdef _WIN32
-// cMfxVideoDecode
 //{{{
-cMfxVideoDecode::cMfxVideoDecode (bool bgra, int poolSize) : cVideoDecode(bgra, poolSize) {
+class cMfxVideoDecode : public cVideoDecode {
+public:
+  //{{{
+  cMfxVideoDecode (bool bgra, int poolSize) : cVideoDecode(bgra, poolSize) {
 
-  mfxVersion kMfxVersion = { 0,1 };
-  mSession.Init (MFX_IMPL_AUTO, &kMfxVersion);
-  }
-//}}}
-//{{{
-cMfxVideoDecode::~cMfxVideoDecode() {
-
-  MFXVideoDECODE_Close (mSession);
-
-  for (auto surface : mSurfacePool)
-    delete surface;
-  }
-//}}}
-//{{{
-void cMfxVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int num, int64_t pts) {
-
-  system_clock::time_point timePoint = system_clock::now();
-
-  memset (&mBitstream, 0, sizeof(mfxBitstream));
-  mBitstream.Data = pes;
-  mBitstream.DataOffset = 0;
-  mBitstream.DataLength = pesSize;
-  mBitstream.MaxLength = pesSize;
-  mBitstream.TimeStamp = pts;
-
-  if (!mWidth) {
-    // firstTime, decode header, init decoder
-    memset (&mVideoParams, 0, sizeof(mVideoParams));
-    mVideoParams.mfx.CodecId = MFX_CODEC_AVC;
-    mVideoParams.IOPattern = MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
-    if (MFXVideoDECODE_DecodeHeader (mSession, &mBitstream, &mVideoParams) != MFX_ERR_NONE) {
-      cLog::log (LOGERROR, "MFXVideoDECODE_DecodeHeader failed");
-      return;
-      }
-
-    //  query surface for mWidth,mHeight
-    mfxFrameAllocRequest frameAllocRequest;
-    memset (&frameAllocRequest, 0, sizeof(frameAllocRequest));
-    if (MFXVideoDECODE_QueryIOSurf (mSession, &mVideoParams, &frameAllocRequest) != MFX_ERR_NONE) {
-      cLog::log (LOGERROR, "MFXVideoDECODE_QueryIOSurf failed");
-      return;
-      }
-
-    mWidth = ((mfxU32)((frameAllocRequest.Info.Width)+31)) & (~(mfxU32)31);
-    mHeight = frameAllocRequest.Info.Height;
-    if (MFXVideoDECODE_Init (mSession, &mVideoParams) != MFX_ERR_NONE) {
-      cLog::log (LOGERROR, "MFXVideoDECODE_Init failed");
-      return;
-      }
-
+    mfxVersion kMfxVersion = { 0,1 };
+    mSession.Init (MFX_IMPL_AUTO, &kMfxVersion);
     }
+  //}}}
+  //{{{
+  virtual ~cMfxVideoDecode() {
 
-  // decode video pes
-  // - could be none or multiple frames
-  // - returned by decode order, not presentation order
-  mfxStatus status = MFX_ERR_NONE;
-  while ((status >= MFX_ERR_NONE) || (status == MFX_ERR_MORE_SURFACE)) {
-    mfxFrameSurface1* surface = nullptr;
-    mfxSyncPoint syncDecode = nullptr;
-    status = MFXVideoDECODE_DecodeFrameAsync (mSession, &mBitstream, getFreeSurface(), &surface, &syncDecode);
-    if (status == MFX_ERR_NONE) {
-      status = mSession.SyncOperation (syncDecode, 60000);
+    MFXVideoDECODE_Close (mSession);
+
+    for (auto surface : mSurfacePool)
+      delete surface;
+    }
+  //}}}
+
+  int getSurfacePoolSize() { return (int)mSurfacePool.size(); }
+  //{{{
+  void decodeFrame (uint8_t* pes, unsigned int pesSize, int num, int64_t pts) {
+
+    system_clock::time_point timePoint = system_clock::now();
+
+    memset (&mBitstream, 0, sizeof(mfxBitstream));
+    mBitstream.Data = pes;
+    mBitstream.DataOffset = 0;
+    mBitstream.DataLength = pesSize;
+    mBitstream.MaxLength = pesSize;
+    mBitstream.TimeStamp = pts;
+
+    if (!mWidth) {
+      // firstTime, decode header, init decoder
+      memset (&mVideoParams, 0, sizeof(mVideoParams));
+      mVideoParams.mfx.CodecId = MFX_CODEC_AVC;
+      mVideoParams.IOPattern = MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
+      if (MFXVideoDECODE_DecodeHeader (mSession, &mBitstream, &mVideoParams) != MFX_ERR_NONE) {
+        cLog::log (LOGERROR, "MFXVideoDECODE_DecodeHeader failed");
+        return;
+        }
+
+      //  query surface for mWidth,mHeight
+      mfxFrameAllocRequest frameAllocRequest;
+      memset (&frameAllocRequest, 0, sizeof(frameAllocRequest));
+      if (MFXVideoDECODE_QueryIOSurf (mSession, &mVideoParams, &frameAllocRequest) != MFX_ERR_NONE) {
+        cLog::log (LOGERROR, "MFXVideoDECODE_QueryIOSurf failed");
+        return;
+        }
+
+      mWidth = ((mfxU32)((frameAllocRequest.Info.Width)+31)) & (~(mfxU32)31);
+      mHeight = frameAllocRequest.Info.Height;
+      if (MFXVideoDECODE_Init (mSession, &mVideoParams) != MFX_ERR_NONE) {
+        cLog::log (LOGERROR, "MFXVideoDECODE_Init failed");
+        return;
+        }
+
+      }
+
+    // decode video pes
+    // - could be none or multiple frames
+    // - returned by decode order, not presentation order
+    mfxStatus status = MFX_ERR_NONE;
+    while ((status >= MFX_ERR_NONE) || (status == MFX_ERR_MORE_SURFACE)) {
+      mfxFrameSurface1* surface = nullptr;
+      mfxSyncPoint syncDecode = nullptr;
+      status = MFXVideoDECODE_DecodeFrameAsync (mSession, &mBitstream, getFreeSurface(), &surface, &syncDecode);
       if (status == MFX_ERR_NONE) {
-        if (kTiming)
-          cLog::log (LOGINFO1, "decodeFrame mfx:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+        status = mSession.SyncOperation (syncDecode, 60000);
+        if (status == MFX_ERR_NONE) {
+          if (kTiming)
+            cLog::log (LOGINFO1, "decodeFrame mfx:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
-        mPtsDuration = (90000 * surface->Info.FrameRateExtD) / surface->Info.FrameRateExtN;
-        auto frame = getFreeFrame (surface->Data.TimeStamp, pesSize, num);
-        if (mBgra)
-          frame->setYuv420BgraInterleaved (surface->Info.Width, surface->Info.Height, surface->Data.Y, surface->Data.Pitch);
-        else
-          frame->setYuv420RgbaInterleaved (surface->Info.Width, surface->Info.Height, surface->Data.Y, surface->Data.Pitch);
+          mPtsDuration = (90000 * surface->Info.FrameRateExtD) / surface->Info.FrameRateExtN;
+          auto frame = getFreeFrame (surface->Data.TimeStamp, pesSize, num);
+          if (mBgra)
+            frame->setYuv420BgraInterleaved (surface->Info.Width, surface->Info.Height, surface->Data.Y, surface->Data.Pitch);
+          else
+            frame->setYuv420RgbaInterleaved (surface->Info.Width, surface->Info.Height, surface->Data.Y, surface->Data.Pitch);
+          }
         }
       }
     }
-  }
-//}}}
-// private
-//{{{
-mfxFrameSurface1* cMfxVideoDecode::getFreeSurface() {
-// return first unlocked surface, allocate new if none
+  //}}}
 
-  // reuse any unlocked surface
-  for (auto surface : mSurfacePool)
-    if (!surface->Data.Locked)
-      return surface;
+private:
+  //{{{
+  mfxFrameSurface1* getFreeSurface() {
+  // return first unlocked surface, allocate new if none
 
-  // allocate new surface
-  auto surface = new mfxFrameSurface1;
-  memset (surface, 0, sizeof (mfxFrameSurface1));
-  memcpy (&surface->Info, &mVideoParams.mfx.FrameInfo, sizeof(mfxFrameInfo));
-  surface->Data.Y = new mfxU8[mWidth * mHeight * 12 / 8];
-  surface->Data.U = surface->Data.Y + mWidth * mHeight;
-  surface->Data.V = nullptr; // NV12 ignores V pointer
-  surface->Data.Pitch = mWidth;
-  mSurfacePool.push_back (surface);
+    // reuse any unlocked surface
+    for (auto surface : mSurfacePool)
+      if (!surface->Data.Locked)
+        return surface;
 
-  cLog::log (LOGINFO, "allocating new mfxFrameSurface1 %dx%d", mWidth, mHeight);
+    // allocate new surface
+    auto surface = new mfxFrameSurface1;
+    memset (surface, 0, sizeof (mfxFrameSurface1));
+    memcpy (&surface->Info, &mVideoParams.mfx.FrameInfo, sizeof(mfxFrameInfo));
+    surface->Data.Y = new mfxU8[mWidth * mHeight * 12 / 8];
+    surface->Data.U = surface->Data.Y + mWidth * mHeight;
+    surface->Data.V = nullptr; // NV12 ignores V pointer
+    surface->Data.Pitch = mWidth;
+    mSurfacePool.push_back (surface);
 
-  return nullptr;
-  }
+    cLog::log (LOGINFO, "allocating new mfxFrameSurface1 %dx%d", mWidth, mHeight);
+
+    return nullptr;
+    }
+  //}}}
+
+  // vars
+  MFXVideoSession mSession;
+  mfxVideoParam mVideoParams;
+  mfxBitstream mBitstream;
+  std::vector <mfxFrameSurface1*> mSurfacePool;
+  };
 //}}}
 #endif
 
 // cFFmpegVideoDecode
 //{{{
-cFFmpegVideoDecode::cFFmpegVideoDecode (bool bgra, int poolSize) : cVideoDecode(bgra, poolSize) {
+class cFFmpegVideoDecode : public cVideoDecode {
+public:
+  //{{{
+  cFFmpegVideoDecode (bool bgra, int poolSize) : cVideoDecode(bgra, poolSize) {
 
-  mAvParser = av_parser_init (AV_CODEC_ID_H264);
-  mAvCodec = avcodec_find_decoder (AV_CODEC_ID_H264);
-  mAvContext = avcodec_alloc_context3 (mAvCodec);
-  avcodec_open2 (mAvContext, mAvCodec, NULL);
-  }
-//}}}
-//{{{
-cFFmpegVideoDecode::~cFFmpegVideoDecode() {
+    mAvParser = av_parser_init (AV_CODEC_ID_H264);
+    mAvCodec = avcodec_find_decoder (AV_CODEC_ID_H264);
+    mAvContext = avcodec_alloc_context3 (mAvCodec);
+    avcodec_open2 (mAvContext, mAvCodec, NULL);
+    }
+  //}}}
+  //{{{
+  virtual ~cFFmpegVideoDecode() {
 
-  if (mAvContext)
-    avcodec_close (mAvContext);
-  if (mAvParser)
-    av_parser_close (mAvParser);
+    if (mAvContext)
+      avcodec_close (mAvContext);
+    if (mAvParser)
+      av_parser_close (mAvParser);
 
-  sws_freeContext (mSwsContext);
-  }
-//}}}
-//{{{
-void cFFmpegVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int num, int64_t pts) {
+    sws_freeContext (mSwsContext);
+    }
+  //}}}
 
-  system_clock::time_point timePoint = system_clock::now();
+  //{{{
+  void cFFmpegVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int num, int64_t pts) {
 
-  // ffmpeg doesn't maintain correct avFrame.pts, but does decode frames in presentation order
-  if (num == 0)
-    mDecodePts = pts;
+    system_clock::time_point timePoint = system_clock::now();
 
-  AVPacket avPacket;
-  av_init_packet (&avPacket);
-  auto avFrame = av_frame_alloc();
+    // ffmpeg doesn't maintain correct avFrame.pts, but does decode frames in presentation order
+    if (num == 0)
+      mDecodePts = pts;
 
-  auto pesPtr = pes;
-  auto pesLeft = pesSize;
-  while (pesLeft) {
-    auto bytesUsed = av_parser_parse2 (mAvParser, mAvContext,
-                                       &avPacket.data, &avPacket.size,
-                                       pesPtr, (int)pesLeft, pts, AV_NOPTS_VALUE, 0);
-    avPacket.pts = pts;
+    AVPacket avPacket;
+    av_init_packet (&avPacket);
+    auto avFrame = av_frame_alloc();
 
-    pesPtr += bytesUsed;
-    pesLeft -= bytesUsed;
-    if (avPacket.size) {
-      auto ret = avcodec_send_packet (mAvContext, &avPacket);
-      while (ret >= 0) {
-        ret = avcodec_receive_frame (mAvContext, avFrame);
-        if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF || ret < 0)
-          break;
-        if (kTiming)
-          cLog::log (LOGINFO1, "decodeFrame FFmpeg:%d",
-                               duration_cast<microseconds>(system_clock::now() - timePoint).count());
+    auto pesPtr = pes;
+    auto pesLeft = pesSize;
+    while (pesLeft) {
+      auto bytesUsed = av_parser_parse2 (mAvParser, mAvContext,
+                                         &avPacket.data, &avPacket.size,
+                                         pesPtr, (int)pesLeft, pts, AV_NOPTS_VALUE, 0);
+      avPacket.pts = pts;
 
-        mWidth = avFrame->width;
-        mHeight = avFrame->height;
+      pesPtr += bytesUsed;
+      pesLeft -= bytesUsed;
+      if (avPacket.size) {
+        auto ret = avcodec_send_packet (mAvContext, &avPacket);
+        while (ret >= 0) {
+          ret = avcodec_receive_frame (mAvContext, avFrame);
+          if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF || ret < 0)
+            break;
+          if (kTiming)
+            cLog::log (LOGINFO1, "decodeFrame FFmpeg:%d",
+                                 duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
-        mPtsDuration = (90000 * mAvContext->framerate.den) / mAvContext->framerate.num;
-        cVideoDecode::cFrame* frame = getFreeFrame (mDecodePts, pesSize, num);
-        mDecodePts += mPtsDuration;
+          mWidth = avFrame->width;
+          mHeight = avFrame->height;
 
-        if (!mSwsContext)
-          mSwsContext = sws_getContext (avFrame->width, avFrame->height, AV_PIX_FMT_YUV420P,
-                                        avFrame->width, avFrame->height, AV_PIX_FMT_RGBA,
-                                        SWS_BILINEAR, NULL, NULL, NULL);
-        frame->setYuv420RgbaPlanarSws (mSwsContext, mWidth, mHeight, avFrame->data, avFrame->linesize);
-        //frame->setYuv420RgbaPlanar (mWidth, mHeight, avFrame->data, avFrame->linesize);
-        //frame->setYuv420RgbaPlanarSimple (mWidth, mHeight, avFrame->data, avFrame->linesize);
-        //frame->setYuv420RgbaPlanarTable (mWidth, mHeight, avFrame->data, avFrame->linesize);
+          mPtsDuration = (90000 * mAvContext->framerate.den) / mAvContext->framerate.num;
+          cVideoDecode::cFrame* frame = getFreeFrame (mDecodePts, pesSize, num);
+          mDecodePts += mPtsDuration;
 
-        av_frame_unref (avFrame);
+          if (!mSwsContext)
+            mSwsContext = sws_getContext (avFrame->width, avFrame->height, AV_PIX_FMT_YUV420P,
+                                          avFrame->width, avFrame->height, AV_PIX_FMT_RGBA,
+                                          SWS_BILINEAR, NULL, NULL, NULL);
+          frame->setYuv420RgbaPlanarSws (mSwsContext, mWidth, mHeight, avFrame->data, avFrame->linesize);
+          //frame->setYuv420RgbaPlanar (mWidth, mHeight, avFrame->data, avFrame->linesize);
+          //frame->setYuv420RgbaPlanarSimple (mWidth, mHeight, avFrame->data, avFrame->linesize);
+          //frame->setYuv420RgbaPlanarTable (mWidth, mHeight, avFrame->data, avFrame->linesize);
+
+          av_frame_unref (avFrame);
+          }
         }
       }
-    }
 
-  av_frame_free (&avFrame);
+    av_frame_free (&avFrame);
+    }
+  //}}}
+
+private:
+  // vars
+  AVCodecParserContext* mAvParser = nullptr;
+  AVCodec* mAvCodec = nullptr;
+  AVCodecContext* mAvContext = nullptr;
+  SwsContext* mSwsContext = nullptr;
+
+  int64_t mDecodePts = 0;
+  };
+//}}}
+
+//{{{
+cVideoDecode* cVideoDecode::create (bool mfx, bool bgra, int poolSize) {
+  #ifdef _WIN32
+    if (mfx)
+      return new cMfxVideoDecode (bgra, poolSize);
+    else
+      return new cFFmpegVideoDecode (bgra, poolSize);
+  #else // must use ffmpeg for now
+    return new cFFmpegVideoDecode (bgra, poolSize);
+  #endif
   }
 //}}}
