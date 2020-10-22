@@ -17,6 +17,7 @@ constexpr bool kMoreLog = false;
   //{{{  use INTEL intrinsics
   #include <intrin.h>
   #include <immintrin.h>
+
   //{{{
    inline int32_t countLeadingZeros (int32_t x) {
 
@@ -26,12 +27,7 @@ constexpr bool kMoreLog = false;
   //}}}
   //}}}
 #else
-  //{{{
-  inline int32_t countLeadingZeros (int32_t x) {
-  // count leading zeros with binary search
-    return __builtin_clz (x);
-    }
-  //}}}
+  inline int32_t countLeadingZeros (int32_t x) { return __builtin_clz (x); }
 #endif
 //{{{
 //inline int32_t countLeadingZeros (int32_t x) {

@@ -703,12 +703,17 @@ void cVideoDecode::cFrame::set (int64_t pts, int64_t ptsDuration, int pesSize, i
         // UV.val[0] : v0, v1, v2, v3, UV.val[1] : u0, u1, u2, u3
         // int16x4x2_t const UV = vuzp_s16 (vget_low_s16 (t), vget_high_s16 (t));
 
-        // !!!!!!! wrong !!!!!!!!!!!!!!!!! FIX
         // load 4 sets of u  u0 u1 u2 u3 u4 u5 u6 u7
-        uint16x8_t const u0123 = vsubq_s16 ((int16x8_t)vmovl_u8 (vld1_u8 (u)), half);
-        // load 4 sets of v  v0 v1 v2 v3 v4 v5 v6 v7
-        uint16x8_t const v0123 = vsubq_s16 ((int16x8_t)vmovl_u8 (vld1_u8 (v)), half);
-        // UV.val[0] v0 v1 v2 v3, UV.val[1] u0 u1 u2 u3
+        //uint16x8_t const u0123 = vsubq_s16 ((int16x8_t)vmovl_u8 (vld1_u8 (u)), half);
+        uint16x8_t ldu = vld1_u8 (u);
+        uint16x8_t lduu = (int16x8_t)vmovl_u8 (ldu, half);
+        uint16x8_t const u0123 = vsubq_s16 (lduu);
+
+        //uint16x8_t const v0123 = vsubq_s16 ((int16x8_t)vmovl_u8 (vld1_u8 (v)), half);
+        uint16x8_t ldv = vld1_u8 (v);
+        uint16x8_t ldvv = (int16x8_t)vmovl_u8 (ldv, half);
+        uint16x8_t const v0123 = vsubq_s16 (ldvv);
+
         int16x4x2_t const UV = vuzp_s16 (vget_low_s16 (u0123), vget_low_s16 (v0123));
 
         // tR 128+409V, tG 128-100U-208V, tB 128+516U
@@ -1963,16 +1968,16 @@ void cFFmpegVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int nu
         cVideoDecode::cFrame* frame = getFreeFrame (mDecodePts, pesSize, num);
         mDecodePts += mPtsDuration;
 
-        if (!mSwsContext)
-          mSwsContext = sws_getContext (avFrame->width, avFrame->height, AV_PIX_FMT_YUV420P,
-                                        avFrame->width, avFrame->height, AV_PIX_FMT_RGBA,
-                                        SWS_BILINEAR, NULL, NULL, NULL);
-        frame->setYuv420RgbaPlanarSws (mSwsContext, mWidth, mHeight, avFrame->data, avFrame->linesize);
+        //if (!mSwsContext)
+        //  mSwsContext = sws_getContext (avFrame->width, avFrame->height, AV_PIX_FMT_YUV420P,
+        //                                avFrame->width, avFrame->height, AV_PIX_FMT_RGBA,
+        //                                SWS_BILINEAR, NULL, NULL, NULL);
+        //frame->setYuv420RgbaPlanarSws (mSwsContext, mWidth, mHeight, avFrame->data, avFrame->linesize);
         // same as sws for intel
         //if (mBgra)
         //  frame->setYuv420BgraPlanar (mWidth, mHeight, avFrame->data, avFrame->linesize);
         //else
-        //  frame->setYuv420RgbaPlanar (mWidth, mHeight, avFrame->data, avFrame->linesize);
+        frame->setYuv420RgbaPlanar (mWidth, mHeight, avFrame->data, avFrame->linesize);
         // slower
         //frame->setYuv420RgbaPlanarSimple (mWidth, mHeight, avFrame->data, avFrame->linesize);
         //frame->setYuv420RgbaPlanarTable (mWidth, mHeight, avFrame->data, avFrame->linesize);
