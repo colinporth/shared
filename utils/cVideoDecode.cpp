@@ -653,11 +653,6 @@ void cVideoDecode::cFrame::set (int64_t pts, int64_t ptsDuration, int pesSize, i
 
     allocateBuffer (width, height);
 
-    uint8_t* y = (uint8_t*)data[0];
-    uint8_t* u = (uint8_t*)data[1];
-    uint8_t* v = (uint8_t*)data[2];
-    uint8_t* dst = (uint8_t*)mBuffer;
-
     // constants
     int const dstStride = width * 4;
     int const heightDiv2 = height >> 1;
@@ -667,14 +662,22 @@ void cVideoDecode::cFrame::set (int64_t pts, int64_t ptsDuration, int pesSize, i
     int16x8_t const uvOffset = vdupq_n_u16 (128);
     int32x4_t const rounding = vdupq_n_s32 (128);
 
+    uint8_t* y0 = (uint8_t*)data[0];
+    uint8_t* y1 = (uint8_t*)data[0] + width;
+    uint8_t* u = (uint8_t*)data[1];
+    uint8_t* v = (uint8_t*)data[2];
+    uint8_t* dst = (uint8_t*)mBuffer;
+    uint8_t* dst1 = (uint8_t*)mBuffer + stride;;
+
     uint8x8x4_t block;
     block.val[3] = vdup_n_u8 (0xFF);
 
-    for (int j = 0; j < heightDiv2; ++j, y += width, dst += dstStride)
-      for (int i = 0; i < widthDiv8; ++i, y += 8, u += 4, v += 4, dst += (8 * 4)) {
+    for (int j = 0; j < heightDiv2; ++j) {
+      for (int i = 0; i < widthDiv8; ++i) {
         //{{{  2 rows of 8 pix
         // U load 8 u8 - u01234567 = u0 u1 u2 u3 u4 u5 u6 u7
         uint8x8_t const u01234567 = vld1_u8 (u);
+        u += 4; 
         // - uu01234567 =  0.u0 0.u1 0.u2 0.u3 0.u4 0.u5 0.u6 0.u7
         int16x8_t const uu01234567 = (int16x8_t)vmovl_u8 (u01234567);
         // - u01234567o = (0.u0 0.u1 0.u2 0.u3 0.u4 0.u5 0.u6 0.u7) - half
@@ -684,6 +687,7 @@ void cVideoDecode::cFrame::set (int64_t pts, int64_t ptsDuration, int pesSize, i
 
         // V load 8 u8 - v01234567 = v0 v1 v2 v3 v4 v5 v6 v7
         uint8x8_t const v01234567 = vld1_u8 (v);
+        v += 4;
         // - vv01234567 =  0.v0 0.v1 0.v2 0.v3 0.v4 0.v5 0.v6 0.v7
         int16x8_t const vv01234567 = (int16x8_t)vmovl_u8 (v01234567);
         // - vv01234567o = (0.v0 0.v1 0.v2 0.v3 0.v4 0.v5 0.v6 0.v7) - half
@@ -702,7 +706,8 @@ void cVideoDecode::cFrame::set (int64_t pts, int64_t ptsDuration, int pesSize, i
         int32x4x2_t const b00112233os = vzipq_s32 (b0123os, b0123os);
 
         // row0
-        uint8x8_t const row0y01234567 = vld1_u8 (y);
+        uint8x8_t const row0y01234567 = vld1_u8 (y0);
+        y0 += 8;
         uint8x8_t const row0y01234567o = vqsub_u8 (row0y01234567, yOffset);
         uint16x8_t const row0yy01234567o = vmovl_u8 (row0y01234567o);
 
@@ -715,10 +720,12 @@ void cVideoDecode::cFrame::set (int64_t pts, int64_t ptsDuration, int pesSize, i
                                                   vqmovun_s32 (vaddq_s32 (g00112233os.val[1], row0y4567os))), 8),
         block.val[2] = vshrn_n_u16 (vcombine_u16 (vqmovun_s32 (vaddq_s32 (r00112233os.val[0], row0y0123os)),
                                                   vqmovun_s32 (vaddq_s32 (r00112233os.val[1], row0y4567os))), 8),
-        vst4_u8 (dst, block);
+        vst4_u8 (dst0, block);
+        dst0 += 8 * 4;
 
         // row1
-        uint8x8_t const row1y01234567 = vld1_u8 (y+width);
+        uint8x8_t const row1y01234567 = vld1_u8 (y1);
+        y1 += 8;
         uint8x8_t const row1y01234567o = vqsub_u8 (row1y01234567, yOffset);
         uint16x8_t const row1yy01234567o = vmovl_u8 (row1y01234567o);
 
@@ -731,9 +738,14 @@ void cVideoDecode::cFrame::set (int64_t pts, int64_t ptsDuration, int pesSize, i
                                                   vqmovun_s32 (vaddq_s32 (g00112233os.val[1], row1y4567os))), 8),
         block.val[2] = vshrn_n_u16 (vcombine_u16 (vqmovun_s32 (vaddq_s32 (r00112233os.val[0], row1y0123os)),
                                                   vqmovun_s32 (vaddq_s32 (r00112233os.val[1], row1y4567os))), 8),
-        vst4_u8 (dst + dstStride, block);
+        vst4_u8 (dst1, block);
+
+        dst1 += 8 * 4;
         }
         //}}}
+      y0 += width;
+      y1 += width;
+      }
 
     if (kTiming)
       cLog::log (LOGINFO1, "setYuv420RgbaPlanar Neon:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
@@ -1958,17 +1970,12 @@ void cFFmpegVideoDecode::decodeFrame (uint8_t* pes, unsigned int pesSize, int nu
         cVideoDecode::cFrame* frame = getFreeFrame (mDecodePts, pesSize, num);
         mDecodePts += mPtsDuration;
 
-        //if (!mSwsContext)
-        //  mSwsContext = sws_getContext (avFrame->width, avFrame->height, AV_PIX_FMT_YUV420P,
-        //                                avFrame->width, avFrame->height, AV_PIX_FMT_RGBA,
-        //                                SWS_BILINEAR, NULL, NULL, NULL);
-        //frame->setYuv420RgbaPlanarSws (mSwsContext, mWidth, mHeight, avFrame->data, avFrame->linesize);
-        // same as sws for intel
-        //if (mBgra)
-        //  frame->setYuv420BgraPlanar (mWidth, mHeight, avFrame->data, avFrame->linesize);
-        //else
-        frame->setYuv420RgbaPlanar (mWidth, mHeight, avFrame->data, avFrame->linesize);
-        // slower
+        if (!mSwsContext)
+          mSwsContext = sws_getContext (avFrame->width, avFrame->height, AV_PIX_FMT_YUV420P,
+                                        avFrame->width, avFrame->height, AV_PIX_FMT_RGBA,
+                                        SWS_BILINEAR, NULL, NULL, NULL);
+        frame->setYuv420RgbaPlanarSws (mSwsContext, mWidth, mHeight, avFrame->data, avFrame->linesize);
+        //frame->setYuv420RgbaPlanar (mWidth, mHeight, avFrame->data, avFrame->linesize);
         //frame->setYuv420RgbaPlanarSimple (mWidth, mHeight, avFrame->data, avFrame->linesize);
         //frame->setYuv420RgbaPlanarTable (mWidth, mHeight, avFrame->data, avFrame->linesize);
 
