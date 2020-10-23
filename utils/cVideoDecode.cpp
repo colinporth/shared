@@ -98,13 +98,13 @@ constexpr bool kTiming = true;
 constexpr int kPtsPerSecond = 90000;
 
 //{{{
-class cFrameInterleavedRgba : public cVideoDecode::cFrame {
+class cFrameRgba : public cVideoDecode::cFrame {
 public:
-  virtual ~cFrameInterleavedRgba() {}
+  virtual ~cFrameRgba() {}
 
   #if defined(INTEL_SSSE3)
     virtual void setYuv420 (void* context, uint8_t** data, int* linesize) {
-    // intel intrinsics ssse3 convert, fast, uses shuffle
+    // interleaved, intel intrinsics ssse3 convert, fast, uses shuffle
 
       system_clock::time_point timePoint = system_clock::now();
 
@@ -226,21 +226,22 @@ public:
         }
 
       if (kTiming)
-        cLog::log (LOGINFO1, "setYuv420RgbaInterleaved:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+        cLog::log (LOGINFO1, "setYuv420Rgba:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+
       mState = eLoaded;
       }
   #endif
   };
 //}}}
 //{{{
-class cFrameInterleavedBgra : public cVideoDecode::cFrame {
+class cFrameBgra : public cVideoDecode::cFrame {
 public:
-  virtual ~cFrameInterleavedBgra() {}
+  virtual ~cFrameBgra() {}
 
   #if defined(INTEL_SSSE3)
 
     virtual void setYuv420 (void* context, uint8_t** data, int* linesize) {
-    // intel intrinsics ssse3 convert, fast, uses shuffle
+    // interleaved, intel intrinsics ssse3 convert, fast, uses shuffle
 
       system_clock::time_point timePoint = system_clock::now();
 
@@ -359,7 +360,8 @@ public:
         }
 
       if (kTiming)
-        cLog::log (LOGINFO1, "setYuv420BgraInterleaved:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+        cLog::log (LOGINFO1, "setYuv420Bgra:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+
       mState = eLoaded;
       }
 
@@ -481,6 +483,7 @@ public:
 
       if (kTiming)
         cLog::log (LOGINFO1, "setYuv420RgbaPlanar:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+
       mState = eLoaded;
       }
     //}}}
@@ -587,6 +590,7 @@ public:
 
       if (kTiming)
         cLog::log (LOGINFO1, "setYuv420RgbaPlanar Neon:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+
       mState = eLoaded;
       }
     //}}}
@@ -599,7 +603,6 @@ public:
   virtual ~cFramePlanarBgra() {}
 
   #if defined(INTEL_SSE2)
-    //{{{
     virtual void setYuv420 (void* context, uint8_t** data, int* linesize) {
     // intel intrinsics sse2 convert, fast, but sws is same sort of thing may be a bit faster in the loops
 
@@ -708,9 +711,9 @@ public:
 
       if (kTiming)
         cLog::log (LOGINFO1, "setYuv420BgraPlanar:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+
       mState = eLoaded;
       }
-    //}}}
   #endif
   };
 //}}}
@@ -720,6 +723,7 @@ public:
   virtual ~cFramePlanarRgbaSws() {}
 
   virtual void setYuv420 (void* context, uint8_t** data, int* linesize) {
+
     system_clock::time_point timePoint = system_clock::now();
 
     // ffmpeg libswscale convert data to mBuffer using swsContext
@@ -729,6 +733,7 @@ public:
 
     if (kTiming)
       cLog::log (LOGINFO1, "setYuv420RgbaPlanarSws:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+
     mState = eLoaded;
     }
   };
@@ -1695,7 +1700,7 @@ public:
 class cFFmpegVideoDecode : public cVideoDecode {
 public:
   //{{{
-  cFFmpegVideoDecode (bool bgra, int poolSize) : cVideoDecode(false, bgra, poolSize) {
+  cFFmpegVideoDecode (bool bgra, int poolSize) : cVideoDecode(true, bgra, poolSize) {
 
     mAvParser = av_parser_init (AV_CODEC_ID_H264);
     mAvCodec = avcodec_find_decoder (AV_CODEC_ID_H264);
@@ -1731,8 +1736,7 @@ public:
     auto pesPtr = pes;
     auto pesLeft = pesSize;
     while (pesLeft) {
-      auto bytesUsed = av_parser_parse2 (mAvParser, mAvContext,
-                                         &avPacket.data, &avPacket.size,
+      auto bytesUsed = av_parser_parse2 (mAvParser, mAvContext, &avPacket.data, &avPacket.size,
                                          pesPtr, (int)pesLeft, pts, AV_NOPTS_VALUE, 0);
       avPacket.pts = pts;
 
@@ -1750,19 +1754,17 @@ public:
 
           mWidth = avFrame->width;
           mHeight = avFrame->height;
-
           mPtsDuration = (kPtsPerSecond * mAvContext->framerate.den) / mAvContext->framerate.num;
+
           auto frame = getFreeFrame (mDecodePts);
           frame->set (mDecodePts, mPtsDuration, pesSize, num, mWidth, mHeight);
-
-          mDecodePts += mPtsDuration;
-
           if (!mSwsContext)
             mSwsContext = sws_getContext (mWidth, mHeight, AV_PIX_FMT_YUV420P, mWidth, mHeight, AV_PIX_FMT_RGBA,
                                           SWS_BILINEAR, NULL, NULL, NULL);
           frame->setYuv420 (mSwsContext, avFrame->data, avFrame->linesize);
-
           av_frame_unref (avFrame);
+
+          mDecodePts += mPtsDuration;
           }
         }
       }
@@ -1787,7 +1789,7 @@ private:
   class cMfxVideoDecode : public cVideoDecode {
   public:
     //{{{
-    cMfxVideoDecode (bool bgra, int poolSize) : cVideoDecode(true, bgra, poolSize) {
+    cMfxVideoDecode (bool bgra, int poolSize) : cVideoDecode(false, bgra, poolSize) {
 
       mfxVersion kMfxVersion = { 0,1 };
       mSession.Init (MFX_IMPL_AUTO, &kMfxVersion);
@@ -1914,11 +1916,11 @@ private:
 
 // cVideoDecode - static factory create
 //{{{
-cVideoDecode* cVideoDecode::create (bool mfx, bool bgra, int poolSize) {
+cVideoDecode* cVideoDecode::create (bool ffmpeg, bool bgra, int poolSize) {
 // create cVideoDecode
 
   #ifdef _WIN32
-    if (mfx)
+    if (!ffmpeg)
       return new cMfxVideoDecode (bgra, poolSize);
   #endif
 
@@ -1944,6 +1946,9 @@ void cVideoDecode::cFrame::clear() {
   mPts = 0;
   mPtsDuration = 0;
   mNum = 0;
+
+  mWidth = 0;
+  mHeight = 0;
   }
 //}}}
 //{{{
@@ -1962,6 +1967,9 @@ void cVideoDecode::cFrame::set (int64_t pts, int64_t ptsDuration, int pesSize, i
   mPesSize = pesSize;
   mNum = num;
 
+  mWidth = width;
+  mHeight = height;
+
   #ifdef _WIN32
     if (!mBuffer)
       // allocate aligned buffer
@@ -1971,9 +1979,6 @@ void cVideoDecode::cFrame::set (int64_t pts, int64_t ptsDuration, int pesSize, i
       // allocate aligned buffer
       mBuffer = (uint32_t*)aligned_alloc (128, width * height * 4);
   #endif
-
-  mWidth = width;
-  mHeight = height;
   }
 //}}}
 //{{{
@@ -1984,12 +1989,12 @@ void cVideoDecode::cFrame::setYuv420 (void* context, uint8_t** data, int* linesi
 
 // cVideoDecode
 //{{{
-cVideoDecode::cVideoDecode (bool interleaved, bool bgra, int poolSize) {
+cVideoDecode::cVideoDecode (bool planar, bool bgra, int poolSize) {
 // allocate framePool frames with type needed to convert yuv420
 
   for (int i = 0; i < poolSize; i++) {
-    if (interleaved)
-      bgra ? mFramePool.push_back (new cFrameInterleavedBgra()) : mFramePool.push_back(new cFrameInterleavedRgba());
+    if (!planar)
+      bgra ? mFramePool.push_back (new cFrameBgra()) : mFramePool.push_back(new cFrameRgba());
     else
       #if defined(INTEL_SSE2)
         bgra ? mFramePool.push_back (new cFramePlanarBgra()) : mFramePool.push_back(new cFramePlanarRgba());
@@ -2032,7 +2037,7 @@ cVideoDecode::cFrame* cVideoDecode::getFreeFrame (int64_t pts) {
     for (auto frame : mFramePool) {
       if ((frame->getState() == cFrame::eFree) ||
           ((frame->getState() == cFrame::eLoaded) &&
-           (mPlayPts - (50 * mPtsDuration) > frame->getPtsEnd()))) {
+           (mPlayPts - ((int)(mFramePool.size()/2) * mPtsDuration) > frame->getPtsEnd()))) {
         return frame;
         }
       }

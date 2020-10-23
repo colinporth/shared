@@ -51,9 +51,9 @@ public:
   //}}}
 
   // dodgy static factory create
-  static cVideoDecode* create (bool mfx, bool bgra, int poolSize);
+  static cVideoDecode* create (bool ffmpeg, bool bgra, int poolSize);
 
-  cVideoDecode (bool interleaved, bool bgra, int poolSize);
+  cVideoDecode (bool planar, bool bgra, int poolSize);
   virtual ~cVideoDecode();
 
   void clear (int64_t pts);

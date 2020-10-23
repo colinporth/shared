@@ -59,7 +59,7 @@ cLoaderPlayer::~cLoaderPlayer() {
 //{{{
 void cLoaderPlayer::initialise (bool radio,
                                 const string& hostName, const string& poolName, const string& channelName,
-                                int audBitrate, int vidBitrate, 
+                                int audBitrate, int vidBitrate,
                                 int videoPoolSize, eLoader loader) {
 
   mRadio = radio;
@@ -77,7 +77,7 @@ void cLoaderPlayer::initialise (bool radio,
   // video
   mVidBitrate = vidBitrate;
   if (vidBitrate)
-    mVideoDecode = cVideoDecode::create (loader & eMfx, loader & eBgra, videoPoolSize);
+    mVideoDecode = cVideoDecode::create (loader & eFFmpeg, loader & eBgra, videoPoolSize);
 
   // audio pesParser
   mPesParsers.push_back (
