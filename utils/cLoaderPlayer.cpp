@@ -82,30 +82,31 @@ void cLoaderPlayer::initialise (bool radio,
   // audio pesParser
   mPesParsers.push_back (
     new cPesParser (0x22, loader & eQueueAudio, "aud",
-      [&](uint8_t* pes, int size, int sequenceNum, int64_t pts, cPesParser* pesParser) noexcept {
+      [&](uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
         //{{{  audio pes process callback lambda
         uint8_t* framePes = pes;
         while (getAudioDecode()->parseFrame (framePes, pes + size)) {
           // decode a single frame from pes
           int framePesSize = getAudioDecode()->getNextFrameOffset();
-          pesParser->decode (framePes, framePesSize, sequenceNum, pts);
+          cLog::log (LOGINFO, "%d %d", num, framePesSize);
+          pesParser->decode (framePes, framePesSize, num, pts);
 
           // pts of next frame in pes, assumes 48000 sample rate
           pts += (getAudioDecode()->getNumSamples() * 90) / 48;
-          sequenceNum++;
+          num++;
 
           // point to next frame in pes
           framePes += framePesSize;
           }
 
-        return sequenceNum;
+        return num;
         },
         //}}}
-      [&](uint8_t* pes, int size, int sequenceNum, int64_t pts) noexcept {
+      [&](uint8_t* pes, int size, int num, int64_t pts) noexcept {
         //{{{  audio pes decode callback lambda
-        float* samples = mAudioDecode->decodeFrame (pes, size, sequenceNum, pts);
+        float* samples = mAudioDecode->decodeFrame (pes, size, num, pts);
         mSong->setFixups (mAudioDecode->getNumChannels(), mAudioDecode->getSampleRate(), mAudioDecode->getNumSamples());
-        mSong->addFrame (sequenceNum, samples, true, mSong->getNumFrames(), pts);
+        mSong->addFrame (num, samples, true, mSong->getNumFrames(), pts);
         startPlayer();
         }
         //}}}
@@ -116,16 +117,16 @@ void cLoaderPlayer::initialise (bool radio,
     // video pesParser
     mPesParsers.push_back (
       new cPesParser (0x21, loader & eQueueVideo, "vid",
-        [&](uint8_t* pes, int size, int sequenceNum, int64_t pts, cPesParser* pesParser) noexcept {
+        [&](uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
           //{{{  video pes process callback lambda
-          pesParser->decode (pes, size, sequenceNum, pts);
-          sequenceNum++;
-          return sequenceNum;
+          pesParser->decode (pes, size, num, pts);
+          num++;
+          return num;
           },
           //}}}
-        [&](uint8_t* pes, int size, int sequenceNum, int64_t pts) noexcept {
+        [&](uint8_t* pes, int size, int num, int64_t pts) noexcept {
           //{{{  video pes decode callback lambda
-          mVideoDecode->decodeFrame (pes, size, sequenceNum, pts);
+          mVideoDecode->decodeFrame (pes, size, num, pts);
           }
           //}}}
         )
@@ -222,7 +223,8 @@ void cLoaderPlayer::hlsLoaderThread() {
     mSong->setChanged (false);
     cPlatformHttp http;
     string pathName = getHlsPathName();
-    string redirectedHostName = http.getRedirect (mHostName, pathName + ".m3u8");
+    string redirectedHostName = http.getRedirect (mHostName, pathName + ".norewind.m3u8");
+
     if (http.getContent()) {
       //{{{  parse m3u8 for mediaSequence,programDateTimePoint
       int extXMediaSequence = stoi (getTagValue (http.getContent(), "#EXT-X-MEDIA-SEQUENCE:"));
@@ -233,7 +235,7 @@ void cLoaderPlayer::hlsLoaderThread() {
 
       http.freeContent();
 
-      mSong->setHlsBase (extXMediaSequence, extXProgramDateTimePoint, -37s, (2*60*60) - 25);
+      mSong->setHlsBase (extXMediaSequence, extXProgramDateTimePoint, -37s);
       //}}}
       while (!mExit && !mSong->getChanged()) {
         int chunkNum;

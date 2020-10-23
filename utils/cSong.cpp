@@ -332,7 +332,7 @@ void cSong::incPlaySec (int secs, bool useSelectRange) {
 
 // hls
 //{{{
-void cSong::setHlsBase (int chunkNum, system_clock::time_point timePoint, seconds offset, int startSecs) {
+void cSong::setHlsBase (int chunkNum, system_clock::time_point timePoint, seconds offset) {
 // set baseChunkNum, baseTimePoint and baseFrame (sinceMidnight)
 
   unique_lock<shared_mutex> lock (mSharedMutex);
@@ -346,10 +346,7 @@ void cSong::setHlsBase (int chunkNum, system_clock::time_point timePoint, second
   auto midnightTimePoint = date::floor<date::days>(timePoint);
   uint64_t msSinceMidnight = duration_cast<milliseconds>(timePoint - midnightTimePoint).count();
   mHlsBaseFrame = int((msSinceMidnight * mSampleRate) / mSamplesPerFrame / 1000);
-
-  // add startSecs offset to playFrame for curious case of tv reporting 2 hours late in .m3u8
-  int startOffset = (((startSecs * mSampleRate) / mSamplesPerFrame) / mHlsFramesPerChunk) * mHlsFramesPerChunk;
-  mPlayFrame = mHlsBaseFrame + startOffset;
+  mPlayFrame = mHlsBaseFrame;
 
   mHlsBaseValid = true;
   }

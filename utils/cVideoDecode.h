@@ -28,17 +28,17 @@ public:
 
     int getPesSize() { return mPesSize; }
     int getNum() { return mNum; }
-    uint32_t* getBuffer() { return mBuffer; }
+    uint32_t* getBuffer8888() { return mBuffer8888; }
 
     // sets
     void set (int64_t pts, int64_t ptsDuration, int pesSize, int num, int width, int height);
     virtual void setYuv420 (void* context, uint8_t** data, int* linesize);
 
   protected:
-    void allocateBuffer (int width, int height);
+    void allocateBuffer8888 (int width, int height);
 
     eState mState = eFree;
-    uint32_t* mBuffer = nullptr;
+    uint32_t* mBuffer8888 = nullptr;
     int mWidth = 0;
     int mHeight = 0;
 
@@ -50,11 +50,10 @@ public:
     };
   //}}}
 
+  virtual ~cVideoDecode();
+
   // dodgy static factory create
   static cVideoDecode* create (bool ffmpeg, bool bgra, int poolSize);
-
-  cVideoDecode (bool planar, bool bgra, int poolSize);
-  virtual ~cVideoDecode();
 
   void clear (int64_t pts);
 
@@ -72,6 +71,8 @@ public:
   virtual void decodeFrame (uint8_t* pes, unsigned int pesSize, int num, int64_t pts) = 0;
 
 protected:
+  cVideoDecode (bool planar, bool bgra, int poolSize);
+
   cFrame* getFreeFrame (int64_t pts);
 
   int mWidth = 0;

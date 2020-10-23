@@ -127,8 +127,8 @@ public:
       __m128i alpha = _mm_set1_epi32 (0xFFFFFFFF);
 
       // buffer pointers
-      __m128i* dstrgb128r0 = (__m128i*)mBuffer;
-      __m128i* dstrgb128r1 = (__m128i*)(mBuffer + mWidth);
+      __m128i* dstrgb128r0 = (__m128i*)mBuffer8888;
+      __m128i* dstrgb128r1 = (__m128i*)(mBuffer8888 + mWidth);
       __m128i* srcY128r0 = (__m128i*)data[0];
       __m128i* srcY128r1 = (__m128i*)(data[0] + linesize[0]);
       __m128* srcUv128 = (__m128*)(data[1]);
@@ -264,8 +264,8 @@ public:
       __m128i alpha = _mm_set1_epi32 (0xFFFFFFFF);
 
       // buffer pointers
-      __m128i* dstrgb128r0 = (__m128i*)mBuffer;
-      __m128i* dstrgb128r1 = (__m128i*)(mBuffer + mWidth);
+      __m128i* dstrgb128r0 = (__m128i*)mBuffer8888;
+      __m128i* dstrgb128r1 = (__m128i*)(mBuffer8888 + mWidth);
       __m128i* srcY128r0 = (__m128i*)data[0];
       __m128i* srcY128r1 = (__m128i*)(data[0] + linesize[0]);
       __m128* srcUv128 = (__m128*)(data[1]);
@@ -398,8 +398,8 @@ public:
       __m128i alpha = _mm_set1_epi32 (0xFFFFFFFF);
 
       // dst row pointers
-      __m128i* dstrgb128r0 = (__m128i*)mBuffer;
-      __m128i* dstrgb128r1 = (__m128i*)(mBuffer + mWidth);
+      __m128i* dstrgb128r0 = (__m128i*)mBuffer8888;
+      __m128i* dstrgb128r1 = (__m128i*)(mBuffer8888 + mWidth);
 
       for (int y = 0; y < mHeight; y += 2) {
         // calc src row pointers
@@ -410,9 +410,11 @@ public:
 
         for (int x = 0; x < mWidth; x += 16) {
           //{{{  process row
-          // row01 u
-          __m128i temp = _mm_unpacklo_epi8 (_mm_loadl_epi64 ((__m128i*)srcU64++), zero); // 0.u0 0.u1 0.u2 0.u3 0.u4 0.u5 0.u6 0.u7
+          // row01 u = 0.u0 0.u1 0.u2 0.u3 0.u4 0.u5 0.u6 0.u7
+          __m128i temp = _mm_unpacklo_epi8 (_mm_loadl_epi64 ((__m128i*)srcU64++), zero);
+          // row01 u00 = 0.u0 0.u0 0.u1 0.u1 0.u2 0.u2 0.u3 0.u3
           __m128i u00 = _mm_sub_epi16 (_mm_unpacklo_epi16 (temp, temp), uvsub);
+          // row01 u01 = 0.u4 0.u4 0.u5 0.u5 0.u6 0.u6 0.u7 0.u7
           __m128i u01 = _mm_sub_epi16 (_mm_unpackhi_epi16 (temp, temp), uvsub);
 
           // row01 v
@@ -507,8 +509,8 @@ public:
       uint8_t* y1 = (uint8_t*)data[0] + width;
       uint8_t* u = (uint8_t*)data[1];
       uint8_t* v = (uint8_t*)data[2];
-      uint8_t* dst = (uint8_t*)mBuffer;
-      uint8_t* dst1 = (uint8_t*)mBuffer + stride;;
+      uint8_t* dst = (uint8_t*)mBuffer8888;
+      uint8_t* dst1 = (uint8_t*)mBuffer8888 + stride;;
 
       uint8x8x4_t block;
       block.val[3] = vdup_n_u8 (0xFF);
@@ -626,8 +628,8 @@ public:
       __m128i alpha = _mm_set1_epi32 (0xFFFFFFFF);
 
       // dst row pointers
-      __m128i* dstrgb128r0 = (__m128i*)mBuffer;
-      __m128i* dstrgb128r1 = (__m128i*)(mBuffer + mWidth);
+      __m128i* dstrgb128r0 = (__m128i*)mBuffer8888;
+      __m128i* dstrgb128r1 = (__m128i*)(mBuffer8888 + mWidth);
 
       for (int y = 0; y < mHeight; y += 2) {
         // calc src row pointers
@@ -726,8 +728,8 @@ public:
 
     system_clock::time_point timePoint = system_clock::now();
 
-    // ffmpeg libswscale convert data to mBuffer using swsContext
-    uint8_t* dstData[1] = { (uint8_t*)mBuffer };
+    // ffmpeg libswscale convert data to mBuffer8888 using swsContext
+    uint8_t* dstData[1] = { (uint8_t*)mBuffer8888 };
     int dstStride[1] = { mWidth * 4 };
     sws_scale ((SwsContext*)context, data, linesize, 0, mHeight, dstData, dstStride);
 
@@ -1533,7 +1535,7 @@ public:
     //uint8_t* yPtr = (uint8_t*)data[0];
     //uint8_t* uPtr = (uint8_t*)data[1];
     //uint8_t* vPtr = (uint8_t*)data[2];
-    //uint8_t* dstPtr = (uint8_t*)mBuffer;
+    //uint8_t* dstPtr = (uint8_t*)mBuffer8888;
     //const int stride = linesize[0];
 
     //uint8_t const* yPtr1 = yPtr + stride;
@@ -1635,7 +1637,7 @@ public:
     //uint8_t* y = (uint8_t*)data[0];
     //uint8_t* u = (uint8_t*)data[1];
     //uint8_t* v = (uint8_t*)data[2];
-    //uint8_t* dst = (uint8_t*)mBuffer;
+    //uint8_t* dst = (uint8_t*)mBuffer8888;
 
     //int const halfWidth = width >> 1;
     //int const halfHeight = height >> 1;
@@ -1783,6 +1785,7 @@ private:
   int64_t mDecodePts = 0;
   };
 //}}}
+
 #ifdef _WIN32
   #include "../../libmfx/include/mfxvideo++.h"
   //{{{
@@ -1869,7 +1872,7 @@ private:
             mPtsDuration = (kPtsPerSecond * surface->Info.FrameRateExtD) / surface->Info.FrameRateExtN;
 
             auto frame = getFreeFrame (surface->Data.TimeStamp);
-            frame->set (pts, mPtsDuration, pesSize, num, surface->Info.Width, surface->Info.Height);
+            frame->set (surface->Data.TimeStamp, mPtsDuration, pesSize, num, surface->Info.Width, surface->Info.Height);
             uint8_t* data[2] = { surface->Data.Y, surface->Data.UV };
             int linesize[2] = { surface->Data.Pitch, surface->Data.Pitch/2 };
             frame->setYuv420 (nullptr, data, linesize);
@@ -1933,9 +1936,9 @@ cVideoDecode* cVideoDecode::create (bool ffmpeg, bool bgra, int poolSize) {
 cVideoDecode::cFrame::~cFrame() {
 
   #ifdef _WIN32
-    _aligned_free (mBuffer);
+    _aligned_free (mBuffer8888);
   #else
-    free (mBuffer);
+    free (mBuffer8888);
   #endif
   }
 //}}}
@@ -1971,13 +1974,13 @@ void cVideoDecode::cFrame::set (int64_t pts, int64_t ptsDuration, int pesSize, i
   mHeight = height;
 
   #ifdef _WIN32
-    if (!mBuffer)
+    if (!mBuffer8888)
       // allocate aligned buffer
-      mBuffer = (uint32_t*)_aligned_malloc (width * height * 4, 128);
+      mBuffer8888 = (uint32_t*)_aligned_malloc (width * height * 4, 128);
   #else
-    if (!mBuffer)
+    if (!mBuffer8888)
       // allocate aligned buffer
-      mBuffer = (uint32_t*)aligned_alloc (128, width * height * 4);
+      mBuffer8888 = (uint32_t*)aligned_alloc (128, width * height * 4);
   #endif
   }
 //}}}

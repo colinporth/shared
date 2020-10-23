@@ -198,7 +198,7 @@ public:
   //}}}
 
   // hls
-  void setHlsBase (int chunkNum, std::chrono::system_clock::time_point timePoint, std::chrono::seconds offset, int startSecs);
+  void setHlsBase (int chunkNum, std::chrono::system_clock::time_point timePoint, std::chrono::seconds offset);
   //}}}
 
   // hls
