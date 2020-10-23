@@ -31,14 +31,16 @@ public:
     uint32_t* getBuffer() { return mBuffer; }
 
     // sets
-    void set (int64_t pts, int64_t ptsDuration, int pesSize, int num);
-    virtual void setYuv420 (void* context, int width, int height, uint8_t** data, int* linesize);
+    void set (int64_t pts, int64_t ptsDuration, int pesSize, int num, int width, int height);
+    virtual void setYuv420 (void* context, uint8_t** data, int* linesize);
 
   protected:
     void allocateBuffer (int width, int height);
 
     eState mState = eFree;
     uint32_t* mBuffer = nullptr;
+    int mWidth = 0;
+    int mHeight = 0;
 
   private:
     int64_t mPts = 0;
@@ -70,7 +72,7 @@ public:
   virtual void decodeFrame (uint8_t* pes, unsigned int pesSize, int num, int64_t pts) = 0;
 
 protected:
-  cFrame* getFreeFrame (int64_t pts, int pesSize, int num);
+  cFrame* getFreeFrame (int64_t pts);
 
   int mWidth = 0;
   int mHeight = 0;

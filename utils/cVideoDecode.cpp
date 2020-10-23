@@ -103,11 +103,10 @@ public:
   virtual ~cFrameInterleavedRgba() {}
 
   #if defined(INTEL_SSSE3)
-    virtual void setYuv420 (void* context, int width, int height, uint8_t** data, int* linesize) {
+    virtual void setYuv420 (void* context, uint8_t** data, int* linesize) {
     // intel intrinsics ssse3 convert, fast, uses shuffle
 
       system_clock::time_point timePoint = system_clock::now();
-      allocateBuffer (width, height);
 
       // const
       __m128i zero  = _mm_set1_epi32 (0x00000000);
@@ -129,13 +128,13 @@ public:
 
       // buffer pointers
       __m128i* dstrgb128r0 = (__m128i*)mBuffer;
-      __m128i* dstrgb128r1 = (__m128i*)(mBuffer + width);
+      __m128i* dstrgb128r1 = (__m128i*)(mBuffer + mWidth);
       __m128i* srcY128r0 = (__m128i*)data[0];
       __m128i* srcY128r1 = (__m128i*)(data[0] + linesize[0]);
       __m128* srcUv128 = (__m128*)(data[1]);
 
-      for (int y = 0; y < height; y += 2) {
-        for (int x = 0; x < width; x += 16) {
+      for (int y = 0; y < mHeight; y += 2) {
+        for (int x = 0; x < mWidth; x += 16) {
           //{{{  2 rows of 16 pixels
           // row01 u,v - u0 v0 u1 v1 u2 v2 u3 v3 u4 v4 u5 v5 u6 v6 u7 v7
           __m128i uv = _mm_load_si128 ((__m128i*)srcUv128++);
@@ -220,8 +219,8 @@ public:
           //}}}
 
         // skip a y row
-        dstrgb128r0 += width / 4;
-        dstrgb128r1 += width / 4;
+        dstrgb128r0 += mWidth / 4;
+        dstrgb128r1 += mWidth / 4;
         srcY128r0 += linesize[0] / 16;
         srcY128r1 += linesize[0] / 16;
         }
@@ -240,11 +239,10 @@ public:
 
   #if defined(INTEL_SSSE3)
 
-    virtual void setYuv420 (void* context, int width, int height, uint8_t** data, int* linesize) {
+    virtual void setYuv420 (void* context, uint8_t** data, int* linesize) {
     // intel intrinsics ssse3 convert, fast, uses shuffle
 
       system_clock::time_point timePoint = system_clock::now();
-      allocateBuffer (width, height);
 
       // const
       __m128i zero  = _mm_set1_epi32 (0x00000000);
@@ -266,13 +264,13 @@ public:
 
       // buffer pointers
       __m128i* dstrgb128r0 = (__m128i*)mBuffer;
-      __m128i* dstrgb128r1 = (__m128i*)(mBuffer + width);
+      __m128i* dstrgb128r1 = (__m128i*)(mBuffer + mWidth);
       __m128i* srcY128r0 = (__m128i*)data[0];
       __m128i* srcY128r1 = (__m128i*)(data[0] + linesize[0]);
       __m128* srcUv128 = (__m128*)(data[1]);
 
-      for (int y = 0; y < height; y += 2) {
-        for (int x = 0; x < width; x += 16) {
+      for (int y = 0; y < mHeight; y += 2) {
+        for (int x = 0; x < mWidth; x += 16) {
           //{{{  2 rows of 16 pixels
           // row01 u,v - u0 v0 u1 v1 u2 v2 u3 v3 u4 v4 u5 v5 u6 v6 u7 v7
           __m128i uv = _mm_load_si128 ((__m128i*)srcUv128++);
@@ -354,8 +352,8 @@ public:
           //}}}
 
         // skip a y row
-        dstrgb128r0 += width / 4;
-        dstrgb128r1 += width / 4;
+        dstrgb128r0 += mWidth / 4;
+        dstrgb128r1 += mWidth / 4;
         srcY128r0 += linesize[0] / 16;
         srcY128r1 += linesize[0] / 16;
         }
@@ -375,11 +373,10 @@ public:
 
   #if defined(INTEL_SSE2)
     //{{{
-    virtual void setYuv420 (void* context, int width, int height, uint8_t** data, int* linesize) {
+    virtual void setYuv420 (void* context, uint8_t** data, int* linesize) {
     // intel intrinsics sse2 convert, fast, but sws is same sort of thing may be a bit faster in the loops
 
       system_clock::time_point timePoint = system_clock::now();
-      allocateBuffer (width, height);
 
       uint8_t* yBuffer = data[0];
       uint8_t* uBuffer = data[1];
@@ -400,16 +397,16 @@ public:
 
       // dst row pointers
       __m128i* dstrgb128r0 = (__m128i*)mBuffer;
-      __m128i* dstrgb128r1 = (__m128i*)(mBuffer + width);
+      __m128i* dstrgb128r1 = (__m128i*)(mBuffer + mWidth);
 
-      for (int y = 0; y < height; y += 2) {
+      for (int y = 0; y < mHeight; y += 2) {
         // calc src row pointers
         __m128i* srcY128r0 = (__m128i*)(yBuffer + yStride*y);
         __m128i* srcY128r1 = (__m128i*)(yBuffer + yStride*y + yStride);
         __m64* srcU64 = (__m64*)(uBuffer + uvStride * (y/2));
         __m64* srcV64 = (__m64*)(vBuffer + uvStride * (y/2));
 
-        for (int x = 0; x < width; x += 16) {
+        for (int x = 0; x < mWidth; x += 16) {
           //{{{  process row
           // row01 u
           __m128i temp = _mm_unpacklo_epi8 (_mm_loadl_epi64 ((__m128i*)srcU64++), zero); // 0.u0 0.u1 0.u2 0.u3 0.u4 0.u5 0.u6 0.u7
@@ -478,8 +475,8 @@ public:
           //}}}
 
         // skip a dst row
-        dstrgb128r0 += width / 4;
-        dstrgb128r1 += width / 4;
+        dstrgb128r0 += mWidth / 4;
+        dstrgb128r1 += mWidth / 4;
         }
 
       if (kTiming)
@@ -489,11 +486,10 @@ public:
     //}}}
   #else // ARM NEON
     //{{{
-    virtual void setYuv420 (void* context, int width, int height, uint8_t** data, int* linesize) {
+    virtual void setYuv420 (void* context, uint8_t** data, int* linesize) {
     // ARM NEON covert, maybe slower than sws table lookup
 
       system_clock::time_point timePoint = system_clock::now();
-      allocateBuffer (width, height);
 
       // constants
       int const dstStride = width * 4;
@@ -604,11 +600,10 @@ public:
 
   #if defined(INTEL_SSE2)
     //{{{
-    virtual void setYuv420 (void* context, int width, int height, uint8_t** data, int* linesize) {
+    virtual void setYuv420 (void* context, uint8_t** data, int* linesize) {
     // intel intrinsics sse2 convert, fast, but sws is same sort of thing may be a bit faster in the loops
 
       system_clock::time_point timePoint = system_clock::now();
-      allocateBuffer (width, height);
 
       uint8_t* yBuffer = data[0];
       uint8_t* uBuffer = data[1];
@@ -629,16 +624,16 @@ public:
 
       // dst row pointers
       __m128i* dstrgb128r0 = (__m128i*)mBuffer;
-      __m128i* dstrgb128r1 = (__m128i*)(mBuffer + width);
+      __m128i* dstrgb128r1 = (__m128i*)(mBuffer + mWidth);
 
-      for (int y = 0; y < height; y += 2) {
+      for (int y = 0; y < mHeight; y += 2) {
         // calc src row pointers
         __m128i* srcY128r0 = (__m128i*)(yBuffer + yStride*y);
         __m128i* srcY128r1 = (__m128i*)(yBuffer + yStride*y + yStride);
         __m64* srcU64 = (__m64*)(uBuffer + uvStride * (y/2));
         __m64* srcV64 = (__m64*)(vBuffer + uvStride * (y/2));
 
-        for (int x = 0; x < width; x += 16) {
+        for (int x = 0; x < mWidth; x += 16) {
           //{{{  process row
           // row01 u
           __m128i temp = _mm_unpacklo_epi8 (_mm_loadl_epi64 ((__m128i*)srcU64++), zero); // 0.u0 0.u1 0.u2 0.u3 0.u4 0.u5 0.u6 0.u7
@@ -707,8 +702,8 @@ public:
           //}}}
 
         // skip a dst row
-        dstrgb128r0 += width / 4;
-        dstrgb128r1 += width / 4;
+        dstrgb128r0 += mWidth / 4;
+        dstrgb128r1 += mWidth / 4;
         }
 
       if (kTiming)
@@ -724,14 +719,13 @@ class cFramePlanarRgbaSws : public cVideoDecode::cFrame {
 public:
   virtual ~cFramePlanarRgbaSws() {}
 
-  virtual void setYuv420 (void* context, int width, int height, uint8_t** data, int* linesize) {
+  virtual void setYuv420 (void* context, uint8_t** data, int* linesize) {
     system_clock::time_point timePoint = system_clock::now();
-    allocateBuffer (width, height);
 
     // ffmpeg libswscale convert data to mBuffer using swsContext
     uint8_t* dstData[1] = { (uint8_t*)mBuffer };
-    int dstStride[1] = { width * 4 };
-    sws_scale ((SwsContext*)context, data, linesize, 0, height, dstData, dstStride);
+    int dstStride[1] = { mWidth * 4 };
+    sws_scale ((SwsContext*)context, data, linesize, 0, mHeight, dstData, dstStride);
 
     if (kTiming)
       cLog::log (LOGINFO1, "setYuv420RgbaPlanarSws:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
@@ -744,7 +738,7 @@ public:
 //public:
   //virtual ~cFramePlanarRgbaTable() {}
 
-  //virtual void setYuv420 (void* context, int width, int height, uint8_t** data, int* linesize) {
+  //virtual void setYuv420 (void* context, uint8_t** data, int* linesize) {
   //// table lookup convert, bug in first pix pos stride != width
 
     //constexpr uint32_t kFix = 0x40080100;
@@ -1530,7 +1524,6 @@ public:
     //}}}
 
     //system_clock::time_point timePoint = system_clock::now();
-    //allocateBuffer (width, height);
 
     //uint8_t* yPtr = (uint8_t*)data[0];
     //uint8_t* uPtr = (uint8_t*)data[1];
@@ -1630,10 +1623,9 @@ public:
 //public:
   //virtual ~cFramePlanarRgbaSimple() {}
 
-  //virtual void setYuv420 (void* context, int width, int height, uint8_t** data, int* linesize) {
+  //virtual void setYuv420 (void* context, uint8_t** data, int* linesize) {
 
     //system_clock::time_point timePoint = system_clock::now();
-    //allocateBuffer (width, height);
 
     //uint8_t* y = (uint8_t*)data[0];
     //uint8_t* u = (uint8_t*)data[1];
@@ -1760,14 +1752,15 @@ public:
           mHeight = avFrame->height;
 
           mPtsDuration = (kPtsPerSecond * mAvContext->framerate.den) / mAvContext->framerate.num;
-          auto frame = getFreeFrame (mDecodePts, pesSize, num);
+          auto frame = getFreeFrame (mDecodePts);
+          frame->set (mDecodePts, mPtsDuration, pesSize, num, mWidth, mHeight);
+
           mDecodePts += mPtsDuration;
 
           if (!mSwsContext)
-            mSwsContext = sws_getContext (avFrame->width, avFrame->height, AV_PIX_FMT_YUV420P,
-                                          avFrame->width, avFrame->height, AV_PIX_FMT_RGBA,
+            mSwsContext = sws_getContext (mWidth, mHeight, AV_PIX_FMT_YUV420P, mWidth, mHeight, AV_PIX_FMT_RGBA,
                                           SWS_BILINEAR, NULL, NULL, NULL);
-          frame->setYuv420 (mSwsContext, mWidth, mHeight, avFrame->data, avFrame->linesize);
+          frame->setYuv420 (mSwsContext, avFrame->data, avFrame->linesize);
 
           av_frame_unref (avFrame);
           }
@@ -1873,10 +1866,11 @@ private:
 
             mPtsDuration = (kPtsPerSecond * surface->Info.FrameRateExtD) / surface->Info.FrameRateExtN;
 
-            auto frame = getFreeFrame (surface->Data.TimeStamp, pesSize, num);
+            auto frame = getFreeFrame (surface->Data.TimeStamp);
+            frame->set (pts, mPtsDuration, pesSize, num, surface->Info.Width, surface->Info.Height);
             uint8_t* data[2] = { surface->Data.Y, surface->Data.UV };
             int linesize[2] = { surface->Data.Pitch, surface->Data.Pitch/2 };
-            frame->setYuv420 (nullptr, surface->Info.Width, surface->Info.Height, data, linesize);
+            frame->setYuv420 (nullptr, data, linesize);
             }
           }
         }
@@ -1959,7 +1953,7 @@ bool cVideoDecode::cFrame::isPtsWithinFrame (int64_t pts) {
 //}}}
 
 //{{{
-void cVideoDecode::cFrame::set (int64_t pts, int64_t ptsDuration, int pesSize, int num) {
+void cVideoDecode::cFrame::set (int64_t pts, int64_t ptsDuration, int pesSize, int num, int width, int height) {
 
   mState = eAllocated;
 
@@ -1967,16 +1961,6 @@ void cVideoDecode::cFrame::set (int64_t pts, int64_t ptsDuration, int pesSize, i
   mPtsDuration = ptsDuration;
   mPesSize = pesSize;
   mNum = num;
-  }
-//}}}
-//{{{
-void cVideoDecode::cFrame::setYuv420 (void* context, int width, int height, uint8_t** data, int* linesize) {
-  cLog::log (LOGERROR, "setYuv420 planar not implemented");
-  }
-//}}}
-
-//{{{
-void cVideoDecode::cFrame::allocateBuffer (int width, int height) {
 
   #ifdef _WIN32
     if (!mBuffer)
@@ -1987,6 +1971,14 @@ void cVideoDecode::cFrame::allocateBuffer (int width, int height) {
       // allocate aligned buffer
       mBuffer = (uint32_t*)aligned_alloc (128, width * height * 4);
   #endif
+
+  mWidth = width;
+  mHeight = height;
+  }
+//}}}
+//{{{
+void cVideoDecode::cFrame::setYuv420 (void* context, uint8_t** data, int* linesize) {
+  cLog::log (LOGERROR, "setYuv420 planar not implemented");
   }
 //}}}
 
@@ -2033,7 +2025,7 @@ cVideoDecode::cFrame* cVideoDecode::findPlayFrame() {
   }
 //}}}
 //{{{
-cVideoDecode::cFrame* cVideoDecode::getFreeFrame (int64_t pts, int pesSize, int num) {
+cVideoDecode::cFrame* cVideoDecode::getFreeFrame (int64_t pts) {
 // return first frame older than mPlayPts
 
   while (true) {
@@ -2041,7 +2033,6 @@ cVideoDecode::cFrame* cVideoDecode::getFreeFrame (int64_t pts, int pesSize, int 
       if ((frame->getState() == cFrame::eFree) ||
           ((frame->getState() == cFrame::eLoaded) &&
            (mPlayPts - (50 * mPtsDuration) > frame->getPtsEnd()))) {
-        frame->set (pts, mPtsDuration, pesSize, num);
         return frame;
         }
       }
