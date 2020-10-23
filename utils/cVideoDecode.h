@@ -6,8 +6,6 @@
 #include <algorithm>
 #include <string>
 #include <vector>
-
-struct SwsContext;
 //}}}
 
 class cVideoDecode {
@@ -34,8 +32,7 @@ public:
 
     // sets
     void set (int64_t pts, int64_t ptsDuration, int pesSize, int num);
-    virtual void setYuv420Interleaved (int width, int height, uint8_t* buffer, int stride);
-    virtual void setYuv420Planar (SwsContext* swsContext, int width, int height, uint8_t** data, int* linesize);
+    virtual void setYuv420 (void* context, int width, int height, uint8_t** data, int* linesize);
 
   protected:
     void allocateBuffer (int width, int height);

@@ -95,7 +95,279 @@ using namespace std;
 using namespace chrono;
 //}}}
 constexpr bool kTiming = true;
+constexpr int kPtsPerSecond = 90000;
 
+//{{{
+class cFrameInterleavedRgba : public cVideoDecode::cFrame {
+public:
+  virtual ~cFrameInterleavedRgba() {}
+
+  #if defined(INTEL_SSSE3)
+    virtual void setYuv420 (void* context, int width, int height, uint8_t** data, int* linesize) {
+    // intel intrinsics ssse3 convert, fast, uses shuffle
+
+      system_clock::time_point timePoint = system_clock::now();
+      allocateBuffer (width, height);
+
+      // const
+      __m128i zero  = _mm_set1_epi32 (0x00000000);
+      __m128i ysub  = _mm_set1_epi32 (0x00100010);
+      __m128i facy  = _mm_set1_epi32 (0x004a004a);
+
+      __m128i mask0 = _mm_set_epi8 (-1,6,  -1,6,  -1,4,  -1,4,  -1,2,  -1,2,  -1,0, -1,0);
+      __m128i mask1 = _mm_set_epi8 (-1,14, -1,14, -1,12, -1,12, -1,10, -1,10, -1,8, -1,8);
+      __m128i mask2 = _mm_set_epi8 (-1,7,  -1,7,  -1,5,  -1,5,  -1,3,  -1,3,  -1,1, -1,1);
+      __m128i mask3 = _mm_set_epi8 (-1,15, -1,15, -1,13, -1,13, -1,11, -1,11, -1,9, -1,9);
+
+      __m128i uvsub = _mm_set1_epi32 (0x00800080);
+      __m128i facrv = _mm_set1_epi32 (0x00660066);
+      __m128i facgu = _mm_set1_epi32 (0x00190019);
+      __m128i facgv = _mm_set1_epi32 (0x00340034);
+      __m128i facbu = _mm_set1_epi32 (0x00810081);
+
+      __m128i alpha = _mm_set1_epi32 (0xFFFFFFFF);
+
+      // buffer pointers
+      __m128i* dstrgb128r0 = (__m128i*)mBuffer;
+      __m128i* dstrgb128r1 = (__m128i*)(mBuffer + width);
+      __m128i* srcY128r0 = (__m128i*)data[0];
+      __m128i* srcY128r1 = (__m128i*)(data[0] + linesize[0]);
+      __m128* srcUv128 = (__m128*)(data[1]);
+
+      for (int y = 0; y < height; y += 2) {
+        for (int x = 0; x < width; x += 16) {
+          //{{{  2 rows of 16 pixels
+          // row01 u,v - u0 v0 u1 v1 u2 v2 u3 v3 u4 v4 u5 v5 u6 v6 u7 v7
+          __m128i uv = _mm_load_si128 ((__m128i*)srcUv128++);
+
+          // row01 u - align with y
+          // - (0.u0 0.u0 0.u1 0.u1 0.u2 0.u2 0.u3 0.u3) - uvsub
+          __m128i uLo = _mm_sub_epi16 (_mm_shuffle_epi8 (uv, mask0), uvsub);
+
+          // - (0.u4 0.u4 0.u5 0.u5 0.u6 0.u6 0.u7 0.u7) - uvsub
+          __m128i uHi = _mm_sub_epi16 (_mm_shuffle_epi8 (uv, mask1), uvsub);
+          __m128i guLo = _mm_mullo_epi16 (facgu, uLo);
+          __m128i guHi = _mm_mullo_epi16 (facgu, uHi);
+          __m128i buLo = _mm_mullo_epi16 (facbu, uLo);
+          __m128i buHi = _mm_mullo_epi16 (facbu, uHi);
+
+          // row01 v - align with y
+          // - (0.v0 0.v0 0.v1 0.v1 0.v2 0.v2 0.v3 0.v3) - uvsub
+          __m128i vLo = _mm_sub_epi16 (_mm_shuffle_epi8 (uv, mask2), uvsub);
+          // - (0.v4 0.v4 0.v5 0.v5 0.v6 0.v6 0.v7 0.v7) - uvsub
+          __m128i vHi = _mm_sub_epi16 (_mm_shuffle_epi8 (uv, mask3), uvsub);
+          __m128i rvLo = _mm_mullo_epi16 (facrv, vLo);
+          __m128i rvHi = _mm_mullo_epi16 (facrv, vHi);
+          __m128i gvLo = _mm_mullo_epi16 (facgv, vLo);
+          __m128i gvHi = _mm_mullo_epi16 (facgv, vHi);
+
+          // y0 y1 y2 y3 y4 y5 y6 y7 y8 y9 y10 y11 y12 y13 y14 y15
+          __m128i y = _mm_load_si128 (srcY128r0++);
+          // ((0.y0 0.y1 0.y2  0.y3  0.y4  0.y5  0.y6  0.y7)  - ysub) * facy
+          __m128i yLo = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (y, zero), ysub), facy);
+          // ((0.y8 0.y9 0.y10 0.y11 0.y12 0.y13 0.y14 0.y15) - ysub) * facy
+          __m128i yHi = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (y, zero), ysub), facy);
+
+          // rrrr.. saturated
+          __m128i r = _mm_packus_epi16 (_mm_srai_epi16 (_mm_add_epi16 (yLo, rvLo), 6),
+                                        _mm_srai_epi16 (_mm_add_epi16 (yHi, rvHi), 6));
+           // gggg.. saturated
+          __m128i g = _mm_packus_epi16 (_mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (yLo, guLo), gvLo), 6),
+                                        _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (yHi, guHi), gvHi), 6));
+          // bbbb.. saturated
+          __m128i b = _mm_packus_epi16 (_mm_srai_epi16 (_mm_add_epi16 (yLo, buLo), 6),
+                                        _mm_srai_epi16 (_mm_add_epi16 (yHi, buHi), 6));
+
+          __m128i abab = _mm_unpacklo_epi8 (b, alpha);
+          __m128i grgr = _mm_unpacklo_epi8 (r, g);
+          _mm_stream_si128 (dstrgb128r0++, _mm_unpacklo_epi16 (grgr, abab));
+          _mm_stream_si128 (dstrgb128r0++, _mm_unpackhi_epi16 (grgr, abab));
+
+          abab = _mm_unpackhi_epi8 (b, alpha);
+          grgr = _mm_unpackhi_epi8 (r, g);
+          _mm_stream_si128 (dstrgb128r0++, _mm_unpacklo_epi16 (grgr, abab));
+          _mm_stream_si128 (dstrgb128r0++, _mm_unpackhi_epi16 (grgr, abab));
+
+          //row 1
+          // y0 y1 y2 y3 y4 y5 y6 y7 y8 y9 y10 y11 y12 y13 y14 y15
+          y = _mm_load_si128 (srcY128r1++);
+          // ((0.y0 0.y1 0.y2  0.y3  0.y4  0.y5  0.y6  0.y7)  - ysub) * facy
+          yLo = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (y, zero), ysub), facy);
+          // ((0.y8 0.y9 0.y10 0.y11 0.y12 0.y13 0.y14 0.y15) - ysub) * facy
+          yHi = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (y, zero), ysub), facy);
+
+          // rrrr.. saturated
+          r = _mm_packus_epi16 (_mm_srai_epi16 (_mm_add_epi16 (yLo, rvLo), 6),
+                                _mm_srai_epi16 (_mm_add_epi16 (yHi, rvHi), 6));
+           // gggg.. saturated
+          g = _mm_packus_epi16 (_mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (yLo, guLo), gvLo), 6),
+                                _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (yHi, guHi), gvHi), 6));
+          // bbbb.. saturated
+          b = _mm_packus_epi16 (_mm_srai_epi16 (_mm_add_epi16 (yLo, buLo), 6),
+                                _mm_srai_epi16 (_mm_add_epi16 (yHi, buHi), 6));
+
+          abab = _mm_unpacklo_epi8 (b, alpha);
+          grgr = _mm_unpacklo_epi8 (r, g);
+          _mm_stream_si128 (dstrgb128r1++, _mm_unpacklo_epi16 (grgr, abab));
+          _mm_stream_si128 (dstrgb128r1++, _mm_unpackhi_epi16 (grgr, abab));
+
+          abab = _mm_unpackhi_epi8 (b, alpha);
+          grgr = _mm_unpackhi_epi8 (r, g);
+          _mm_stream_si128 (dstrgb128r1++, _mm_unpacklo_epi16 (grgr, abab));
+          _mm_stream_si128 (dstrgb128r1++, _mm_unpackhi_epi16 (grgr, abab));
+          }
+
+          //}}}
+
+        // skip a y row
+        dstrgb128r0 += width / 4;
+        dstrgb128r1 += width / 4;
+        srcY128r0 += linesize[0] / 16;
+        srcY128r1 += linesize[0] / 16;
+        }
+
+      if (kTiming)
+        cLog::log (LOGINFO1, "setYuv420RgbaInterleaved:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+      mState = eLoaded;
+      }
+  #endif
+  };
+//}}}
+//{{{
+class cFrameInterleavedBgra : public cVideoDecode::cFrame {
+public:
+  virtual ~cFrameInterleavedBgra() {}
+
+  #if defined(INTEL_SSSE3)
+
+    virtual void setYuv420 (void* context, int width, int height, uint8_t** data, int* linesize) {
+    // intel intrinsics ssse3 convert, fast, uses shuffle
+
+      system_clock::time_point timePoint = system_clock::now();
+      allocateBuffer (width, height);
+
+      // const
+      __m128i zero  = _mm_set1_epi32 (0x00000000);
+      __m128i ysub  = _mm_set1_epi32 (0x00100010);
+      __m128i facy  = _mm_set1_epi32 (0x004a004a);
+
+      __m128i mask0 = _mm_set_epi8 (-1,6,  -1,6,  -1,4,  -1,4,  -1,2,  -1,2,  -1,0, -1,0);
+      __m128i mask1 = _mm_set_epi8 (-1,14, -1,14, -1,12, -1,12, -1,10, -1,10, -1,8, -1,8);
+      __m128i mask2 = _mm_set_epi8 (-1,7,  -1,7,  -1,5,  -1,5,  -1,3,  -1,3,  -1,1, -1,1);
+      __m128i mask3 = _mm_set_epi8 (-1,15, -1,15, -1,13, -1,13, -1,11, -1,11, -1,9, -1,9);
+
+      __m128i uvsub = _mm_set1_epi32 (0x00800080);
+      __m128i facrv = _mm_set1_epi32 (0x00660066);
+      __m128i facgu = _mm_set1_epi32 (0x00190019);
+      __m128i facgv = _mm_set1_epi32 (0x00340034);
+      __m128i facbu = _mm_set1_epi32 (0x00810081);
+
+      __m128i alpha = _mm_set1_epi32 (0xFFFFFFFF);
+
+      // buffer pointers
+      __m128i* dstrgb128r0 = (__m128i*)mBuffer;
+      __m128i* dstrgb128r1 = (__m128i*)(mBuffer + width);
+      __m128i* srcY128r0 = (__m128i*)data[0];
+      __m128i* srcY128r1 = (__m128i*)(data[0] + linesize[0]);
+      __m128* srcUv128 = (__m128*)(data[1]);
+
+      for (int y = 0; y < height; y += 2) {
+        for (int x = 0; x < width; x += 16) {
+          //{{{  2 rows of 16 pixels
+          // row01 u,v - u0 v0 u1 v1 u2 v2 u3 v3 u4 v4 u5 v5 u6 v6 u7 v7
+          __m128i uv = _mm_load_si128 ((__m128i*)srcUv128++);
+
+          // row01 u - align with y
+          // - (0.u0 0.u0 0.u1 0.u1 0.u2 0.u2 0.u3 0.u3) - uvsub
+          __m128i uLo = _mm_sub_epi16 (_mm_shuffle_epi8 (uv, mask0), uvsub);
+          // - (0.u4 0.u4 0.u5 0.u5 0.u6 0.u6 0.u7 0.u7) - uvsub
+          __m128i uHi = _mm_sub_epi16 (_mm_shuffle_epi8 (uv, mask1), uvsub);
+          __m128i guLo = _mm_mullo_epi16 (facgu, uLo);
+          __m128i guHi = _mm_mullo_epi16 (facgu, uHi);
+          __m128i buLo = _mm_mullo_epi16 (facbu, uLo);
+          __m128i buHi = _mm_mullo_epi16 (facbu, uHi);
+
+          // row01 v - align with y
+          // - (0.v0 0.v0 0.v1 0.v1 0.v2 0.v2 0.v3 0.v3) - uvsub
+          __m128i vLo = _mm_sub_epi16 (_mm_shuffle_epi8 (uv, mask2), uvsub);
+          // - (0.v4 0.v4 0.v5 0.v5 0.v6 0.v6 0.v7 0.v7) - uvsub
+          __m128i vHi = _mm_sub_epi16 (_mm_shuffle_epi8 (uv, mask3), uvsub);
+          __m128i rvLo = _mm_mullo_epi16 (facrv, vLo);
+          __m128i rvHi = _mm_mullo_epi16 (facrv, vHi);
+          __m128i gvLo = _mm_mullo_epi16 (facgv, vLo);
+          __m128i gvHi = _mm_mullo_epi16 (facgv, vHi);
+
+          // row 0 - y0 y1 y2 y3 y4 y5 y6 y7 y8 y9 y10 y11 y12 y13 y14 y15
+          __m128i y = _mm_load_si128 (srcY128r0++);
+          // - ((0.y0 0.y1 0.y2  0.y3  0.y4  0.y5  0.y6  0.y7)  - ysub) * facy
+          __m128i yLo = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (y, zero), ysub), facy);
+          // - ((0.y8 0.y9 0.y10 0.y11 0.y12 0.y13 0.y14 0.y15) - ysub) * facy
+          __m128i yHi = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (y, zero), ysub), facy);
+
+          // rrrr.. saturated
+          __m128i r = _mm_packus_epi16 (_mm_srai_epi16 (_mm_add_epi16 (yLo, rvLo), 6),
+                                        _mm_srai_epi16 (_mm_add_epi16 (yHi, rvHi), 6));
+           // gggg.. saturated
+          __m128i g = _mm_packus_epi16 (_mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (yLo, guLo), gvLo), 6),
+                                        _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (yHi, guHi), gvHi), 6));
+          // bbbb.. saturated
+          __m128i b = _mm_packus_epi16 (_mm_srai_epi16 (_mm_add_epi16 (yLo, buLo), 6),
+                                        _mm_srai_epi16 (_mm_add_epi16 (yHi, buHi), 6));
+
+          __m128i arar = _mm_unpacklo_epi8 (r, alpha);
+          __m128i gbgb = _mm_unpacklo_epi8 (b, g);
+          _mm_stream_si128 (dstrgb128r0++, _mm_unpacklo_epi16 (gbgb, arar));
+          _mm_stream_si128 (dstrgb128r0++, _mm_unpackhi_epi16 (gbgb, arar));
+
+          arar = _mm_unpackhi_epi8 (r, alpha);
+          gbgb = _mm_unpackhi_epi8 (b, g);
+          _mm_stream_si128 (dstrgb128r0++, _mm_unpacklo_epi16 (gbgb, arar));
+          _mm_stream_si128 (dstrgb128r0++, _mm_unpackhi_epi16 (gbgb, arar));
+
+          // row 1 -  y0 y1 y2 y3 y4 y5 y6 y7 y8 y9 y10 y11 y12 y13 y14 y15
+          y = _mm_load_si128 (srcY128r1++);
+          // - ((0.y0 0.y1 0.y2  0.y3  0.y4  0.y5  0.y6  0.y7)  - ysub) * facy
+          yLo = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (y, zero), ysub), facy);
+          // - ((0.y8 0.y9 0.y10 0.y11 0.y12 0.y13 0.y14 0.y15) - ysub) * facy
+          yHi = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (y, zero), ysub), facy);
+
+          // rrrr.. saturated
+          r = _mm_packus_epi16 (_mm_srai_epi16 (_mm_add_epi16 (yLo, rvLo), 6),
+                                _mm_srai_epi16 (_mm_add_epi16 (yHi, rvHi), 6));
+           // gggg.. saturated
+          g = _mm_packus_epi16 (_mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (yLo, guLo), gvLo), 6),
+                                _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (yHi, guHi), gvHi), 6));
+          // bbbb.. saturated
+          b = _mm_packus_epi16 (_mm_srai_epi16 (_mm_add_epi16 (yLo, buLo), 6),
+                                _mm_srai_epi16 (_mm_add_epi16 (yHi, buHi), 6));
+
+          arar = _mm_unpacklo_epi8 (r, alpha);
+          gbgb = _mm_unpacklo_epi8 (b, g);
+          _mm_stream_si128 (dstrgb128r1++, _mm_unpacklo_epi16 (gbgb, arar));
+          _mm_stream_si128 (dstrgb128r1++, _mm_unpackhi_epi16 (gbgb, arar));
+
+          arar = _mm_unpackhi_epi8 (r, alpha);
+          gbgb = _mm_unpackhi_epi8 (b, g);
+          _mm_stream_si128 (dstrgb128r1++, _mm_unpacklo_epi16 (gbgb, arar));
+          _mm_stream_si128 (dstrgb128r1++, _mm_unpackhi_epi16 (gbgb, arar));
+          }
+          //}}}
+
+        // skip a y row
+        dstrgb128r0 += width / 4;
+        dstrgb128r1 += width / 4;
+        srcY128r0 += linesize[0] / 16;
+        srcY128r1 += linesize[0] / 16;
+        }
+
+      if (kTiming)
+        cLog::log (LOGINFO1, "setYuv420BgraInterleaved:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+      mState = eLoaded;
+      }
+
+  #endif
+  };
+//}}}
 //{{{
 class cFramePlanarRgba : public cVideoDecode::cFrame {
 public:
@@ -103,11 +375,10 @@ public:
 
   #if defined(INTEL_SSE2)
     //{{{
-    virtual void setYuv420Planar (SwsContext* swsContext, int width, int height, uint8_t** data, int* linesize) {
+    virtual void setYuv420 (void* context, int width, int height, uint8_t** data, int* linesize) {
     // intel intrinsics sse2 convert, fast, but sws is same sort of thing may be a bit faster in the loops
 
       system_clock::time_point timePoint = system_clock::now();
-
       allocateBuffer (width, height);
 
       uint8_t* yBuffer = data[0];
@@ -213,17 +484,15 @@ public:
 
       if (kTiming)
         cLog::log (LOGINFO1, "setYuv420RgbaPlanar:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
-
       mState = eLoaded;
       }
     //}}}
   #else // ARM NEON
     //{{{
-    virtual void setYuv420Planar (SwsContext* swsContext, int width, int height, uint8_t** data, int* linesize) {
+    virtual void setYuv420 (void* context, int width, int height, uint8_t** data, int* linesize) {
     // ARM NEON covert, maybe slower than sws table lookup
 
       system_clock::time_point timePoint = system_clock::now();
-
       allocateBuffer (width, height);
 
       // constants
@@ -322,7 +591,6 @@ public:
 
       if (kTiming)
         cLog::log (LOGINFO1, "setYuv420RgbaPlanar Neon:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
-
       mState = eLoaded;
       }
     //}}}
@@ -336,11 +604,10 @@ public:
 
   #if defined(INTEL_SSE2)
     //{{{
-    virtual void setYuv420Planar (SwsContext* swsContext, int width, int height, uint8_t** data, int* linesize) {
+    virtual void setYuv420 (void* context, int width, int height, uint8_t** data, int* linesize) {
     // intel intrinsics sse2 convert, fast, but sws is same sort of thing may be a bit faster in the loops
 
       system_clock::time_point timePoint = system_clock::now();
-
       allocateBuffer (width, height);
 
       uint8_t* yBuffer = data[0];
@@ -446,7 +713,6 @@ public:
 
       if (kTiming)
         cLog::log (LOGINFO1, "setYuv420BgraPlanar:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
-
       mState = eLoaded;
       }
     //}}}
@@ -458,303 +724,19 @@ class cFramePlanarRgbaSws : public cVideoDecode::cFrame {
 public:
   virtual ~cFramePlanarRgbaSws() {}
 
-  //{{{
-  virtual void setYuv420Planar (SwsContext* swsContext, int width, int height, uint8_t** data, int* linesize) {
-  // ffmpeg convert
-
+  virtual void setYuv420 (void* context, int width, int height, uint8_t** data, int* linesize) {
     system_clock::time_point timePoint = system_clock::now();
-
     allocateBuffer (width, height);
 
     // ffmpeg libswscale convert data to mBuffer using swsContext
     uint8_t* dstData[1] = { (uint8_t*)mBuffer };
     int dstStride[1] = { width * 4 };
-    sws_scale (swsContext, data, linesize, 0, height, dstData, dstStride);
+    sws_scale ((SwsContext*)context, data, linesize, 0, height, dstData, dstStride);
 
     if (kTiming)
       cLog::log (LOGINFO1, "setYuv420RgbaPlanarSws:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
-
     mState = eLoaded;
     }
-  //}}}
-  };
-//}}}
-//{{{
-class cFrameInterleavedRgba : public cVideoDecode::cFrame {
-public:
-  virtual ~cFrameInterleavedRgba() {}
-
-  #if defined(INTEL_SSSE3)
-    //{{{
-    virtual void setYuv420Interleaved (int width, int height, uint8_t* buffer, int stride) {
-    // intel intrinsics ssse3 convert, fast, uses shuffle
-
-      system_clock::time_point timePoint = system_clock::now();
-
-      allocateBuffer (width, height);
-
-      // const
-      __m128i zero  = _mm_set1_epi32 (0x00000000);
-      __m128i ysub  = _mm_set1_epi32 (0x00100010);
-      __m128i facy  = _mm_set1_epi32 (0x004a004a);
-
-      __m128i mask0 = _mm_set_epi8 (-1,6,  -1,6,  -1,4,  -1,4,  -1,2,  -1,2,  -1,0, -1,0);
-      __m128i mask1 = _mm_set_epi8 (-1,14, -1,14, -1,12, -1,12, -1,10, -1,10, -1,8, -1,8);
-      __m128i mask2 = _mm_set_epi8 (-1,7,  -1,7,  -1,5,  -1,5,  -1,3,  -1,3,  -1,1, -1,1);
-      __m128i mask3 = _mm_set_epi8 (-1,15, -1,15, -1,13, -1,13, -1,11, -1,11, -1,9, -1,9);
-
-      __m128i uvsub = _mm_set1_epi32 (0x00800080);
-      __m128i facrv = _mm_set1_epi32 (0x00660066);
-      __m128i facgu = _mm_set1_epi32 (0x00190019);
-      __m128i facgv = _mm_set1_epi32 (0x00340034);
-      __m128i facbu = _mm_set1_epi32 (0x00810081);
-
-      __m128i alpha = _mm_set1_epi32 (0xFFFFFFFF);
-
-      // buffer pointers
-      __m128i* dstrgb128r0 = (__m128i*)mBuffer;
-      __m128i* dstrgb128r1 = (__m128i*)(mBuffer + width);
-      __m128i* srcY128r0 = (__m128i*)buffer;
-      __m128i* srcY128r1 = (__m128i*)(buffer + stride);
-      __m128* srcUv128 = (__m128*)(buffer + (height*stride));
-
-      for (int y = 0; y < height; y += 2) {
-        for (int x = 0; x < width; x += 16) {
-          //{{{  process row
-          // row01 u,v - u0 v0 u1 v1 u2 v2 u3 v3 u4 v4 u5 v5 u6 v6 u7 v7
-          __m128i uv = _mm_load_si128 ((__m128i*)srcUv128++);
-
-          // row01 u - align with y
-          // - (0.u0 0.u0 0.u1 0.u1 0.u2 0.u2 0.u3 0.u3) - uvsub
-          __m128i uLo = _mm_sub_epi16 (_mm_shuffle_epi8 (uv, mask0), uvsub);
-
-          // - (0.u4 0.u4 0.u5 0.u5 0.u6 0.u6 0.u7 0.u7) - uvsub
-          __m128i uHi = _mm_sub_epi16 (_mm_shuffle_epi8 (uv, mask1), uvsub);
-          __m128i guLo = _mm_mullo_epi16 (facgu, uLo);
-          __m128i guHi = _mm_mullo_epi16 (facgu, uHi);
-          __m128i buLo = _mm_mullo_epi16 (facbu, uLo);
-          __m128i buHi = _mm_mullo_epi16 (facbu, uHi);
-
-          // row01 v - align with y
-          // - (0.v0 0.v0 0.v1 0.v1 0.v2 0.v2 0.v3 0.v3) - uvsub
-          __m128i vLo = _mm_sub_epi16 (_mm_shuffle_epi8 (uv, mask2), uvsub);
-          // - (0.v4 0.v4 0.v5 0.v5 0.v6 0.v6 0.v7 0.v7) - uvsub
-          __m128i vHi = _mm_sub_epi16 (_mm_shuffle_epi8 (uv, mask3), uvsub);
-          __m128i rvLo = _mm_mullo_epi16 (facrv, vLo);
-          __m128i rvHi = _mm_mullo_epi16 (facrv, vHi);
-          __m128i gvLo = _mm_mullo_epi16 (facgv, vLo);
-          __m128i gvHi = _mm_mullo_epi16 (facgv, vHi);
-
-          // y0 y1 y2 y3 y4 y5 y6 y7 y8 y9 y10 y11 y12 y13 y14 y15
-          __m128i y = _mm_load_si128 (srcY128r0++);
-          // ((0.y0 0.y1 0.y2  0.y3  0.y4  0.y5  0.y6  0.y7)  - ysub) * facy
-          __m128i yLo = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (y, zero), ysub), facy);
-          // ((0.y8 0.y9 0.y10 0.y11 0.y12 0.y13 0.y14 0.y15) - ysub) * facy
-          __m128i yHi = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (y, zero), ysub), facy);
-
-          // rrrr.. saturated
-          __m128i r = _mm_packus_epi16 (_mm_srai_epi16 (_mm_add_epi16 (yLo, rvLo), 6),
-                                        _mm_srai_epi16 (_mm_add_epi16 (yHi, rvHi), 6));
-           // gggg.. saturated
-          __m128i g = _mm_packus_epi16 (_mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (yLo, guLo), gvLo), 6),
-                                        _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (yHi, guHi), gvHi), 6));
-          // bbbb.. saturated
-          __m128i b = _mm_packus_epi16 (_mm_srai_epi16 (_mm_add_epi16 (yLo, buLo), 6),
-                                        _mm_srai_epi16 (_mm_add_epi16 (yHi, buHi), 6));
-
-          __m128i abab = _mm_unpacklo_epi8 (b, alpha);
-          __m128i grgr = _mm_unpacklo_epi8 (r, g);
-          _mm_stream_si128 (dstrgb128r0++, _mm_unpacklo_epi16 (grgr, abab));
-          _mm_stream_si128 (dstrgb128r0++, _mm_unpackhi_epi16 (grgr, abab));
-
-          abab = _mm_unpackhi_epi8 (b, alpha);
-          grgr = _mm_unpackhi_epi8 (r, g);
-          _mm_stream_si128 (dstrgb128r0++, _mm_unpacklo_epi16 (grgr, abab));
-          _mm_stream_si128 (dstrgb128r0++, _mm_unpackhi_epi16 (grgr, abab));
-
-          //row 1
-          // y0 y1 y2 y3 y4 y5 y6 y7 y8 y9 y10 y11 y12 y13 y14 y15
-          y = _mm_load_si128 (srcY128r1++);
-          // ((0.y0 0.y1 0.y2  0.y3  0.y4  0.y5  0.y6  0.y7)  - ysub) * facy
-          yLo = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (y, zero), ysub), facy);
-          // ((0.y8 0.y9 0.y10 0.y11 0.y12 0.y13 0.y14 0.y15) - ysub) * facy
-          yHi = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (y, zero), ysub), facy);
-
-          // rrrr.. saturated
-          r = _mm_packus_epi16 (_mm_srai_epi16 (_mm_add_epi16 (yLo, rvLo), 6),
-                                _mm_srai_epi16 (_mm_add_epi16 (yHi, rvHi), 6));
-           // gggg.. saturated
-          g = _mm_packus_epi16 (_mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (yLo, guLo), gvLo), 6),
-                                _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (yHi, guHi), gvHi), 6));
-          // bbbb.. saturated
-          b = _mm_packus_epi16 (_mm_srai_epi16 (_mm_add_epi16 (yLo, buLo), 6),
-                                _mm_srai_epi16 (_mm_add_epi16 (yHi, buHi), 6));
-
-          abab = _mm_unpacklo_epi8 (b, alpha);
-          grgr = _mm_unpacklo_epi8 (r, g);
-          _mm_stream_si128 (dstrgb128r1++, _mm_unpacklo_epi16 (grgr, abab));
-          _mm_stream_si128 (dstrgb128r1++, _mm_unpackhi_epi16 (grgr, abab));
-
-          abab = _mm_unpackhi_epi8 (b, alpha);
-          grgr = _mm_unpackhi_epi8 (r, g);
-          _mm_stream_si128 (dstrgb128r1++, _mm_unpacklo_epi16 (grgr, abab));
-          _mm_stream_si128 (dstrgb128r1++, _mm_unpackhi_epi16 (grgr, abab));
-          }
-
-          //}}}
-
-        // skip a y row
-        dstrgb128r0 += width / 4;
-        dstrgb128r1 += width / 4;
-        srcY128r0 += stride / 16;
-        srcY128r1 += stride / 16;
-        }
-
-      if (kTiming)
-        cLog::log (LOGINFO1, "setYuv420RgbaInterleaved:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
-
-      mState = eLoaded;
-      }
-    //}}}
-  #endif
-  };
-//}}}
-//{{{
-class cFrameInterleavedBgra : public cVideoDecode::cFrame {
-public:
-  virtual ~cFrameInterleavedBgra() {}
-
-  #if defined(INTEL_SSSE3)
-    //{{{
-    virtual void setYuv420Interleaved (int width, int height, uint8_t* buffer, int stride) {
-    // intel intrinsics ssse3 convert, fast, uses shuffle
-
-      system_clock::time_point timePoint = system_clock::now();
-
-      allocateBuffer (width, height);
-
-      // const
-      __m128i zero  = _mm_set1_epi32 (0x00000000);
-      __m128i ysub  = _mm_set1_epi32 (0x00100010);
-      __m128i facy  = _mm_set1_epi32 (0x004a004a);
-
-      __m128i mask0 = _mm_set_epi8 (-1,6,  -1,6,  -1,4,  -1,4,  -1,2,  -1,2,  -1,0, -1,0);
-      __m128i mask1 = _mm_set_epi8 (-1,14, -1,14, -1,12, -1,12, -1,10, -1,10, -1,8, -1,8);
-      __m128i mask2 = _mm_set_epi8 (-1,7,  -1,7,  -1,5,  -1,5,  -1,3,  -1,3,  -1,1, -1,1);
-      __m128i mask3 = _mm_set_epi8 (-1,15, -1,15, -1,13, -1,13, -1,11, -1,11, -1,9, -1,9);
-
-      __m128i uvsub = _mm_set1_epi32 (0x00800080);
-      __m128i facrv = _mm_set1_epi32 (0x00660066);
-      __m128i facgu = _mm_set1_epi32 (0x00190019);
-      __m128i facgv = _mm_set1_epi32 (0x00340034);
-      __m128i facbu = _mm_set1_epi32 (0x00810081);
-
-      __m128i alpha = _mm_set1_epi32 (0xFFFFFFFF);
-
-      // buffer pointers
-      __m128i* dstrgb128r0 = (__m128i*)mBuffer;
-      __m128i* dstrgb128r1 = (__m128i*)(mBuffer + width);
-      __m128i* srcY128r0 = (__m128i*)buffer;
-      __m128i* srcY128r1 = (__m128i*)(buffer + stride);
-      __m128* srcUv128 = (__m128*)(buffer + (height*stride));
-
-      for (int y = 0; y < height; y += 2) {
-        for (int x = 0; x < width; x += 16) {
-          //{{{  process row
-          //row0,1 uv
-          // row01 u,v - u0 v0 u1 v1 u2 v2 u3 v3 u4 v4 u5 v5 u6 v6 u7 v7
-          __m128i uv = _mm_load_si128 ((__m128i*)srcUv128++);
-
-          // row01 u - align with y
-          // - (0.u0 0.u0 0.u1 0.u1 0.u2 0.u2 0.u3 0.u3) - uvsub
-          __m128i uLo = _mm_sub_epi16 (_mm_shuffle_epi8 (uv, mask0), uvsub);
-          // - (0.u4 0.u4 0.u5 0.u5 0.u6 0.u6 0.u7 0.u7) - uvsub
-          __m128i uHi = _mm_sub_epi16 (_mm_shuffle_epi8 (uv, mask1), uvsub);
-          __m128i guLo = _mm_mullo_epi16 (facgu, uLo);
-          __m128i guHi = _mm_mullo_epi16 (facgu, uHi);
-          __m128i buLo = _mm_mullo_epi16 (facbu, uLo);
-          __m128i buHi = _mm_mullo_epi16 (facbu, uHi);
-
-          // row01 v - align with y
-          // - (0.v0 0.v0 0.v1 0.v1 0.v2 0.v2 0.v3 0.v3) - uvsub
-          __m128i vLo = _mm_sub_epi16 (_mm_shuffle_epi8 (uv, mask2), uvsub);
-          // - (0.v4 0.v4 0.v5 0.v5 0.v6 0.v6 0.v7 0.v7) - uvsub
-          __m128i vHi = _mm_sub_epi16 (_mm_shuffle_epi8 (uv, mask3), uvsub);
-          __m128i rvLo = _mm_mullo_epi16 (facrv, vLo);
-          __m128i rvHi = _mm_mullo_epi16 (facrv, vHi);
-          __m128i gvLo = _mm_mullo_epi16 (facgv, vLo);
-          __m128i gvHi = _mm_mullo_epi16 (facgv, vHi);
-
-          // row 0 - y0 y1 y2 y3 y4 y5 y6 y7 y8 y9 y10 y11 y12 y13 y14 y15
-          __m128i y = _mm_load_si128 (srcY128r0++);
-          // - ((0.y0 0.y1 0.y2  0.y3  0.y4  0.y5  0.y6  0.y7)  - ysub) * facy
-          __m128i yLo = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (y, zero), ysub), facy);
-          // - ((0.y8 0.y9 0.y10 0.y11 0.y12 0.y13 0.y14 0.y15) - ysub) * facy
-          __m128i yHi = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (y, zero), ysub), facy);
-
-          // rrrr.. saturated
-          __m128i r = _mm_packus_epi16 (_mm_srai_epi16 (_mm_add_epi16 (yLo, rvLo), 6),
-                                        _mm_srai_epi16 (_mm_add_epi16 (yHi, rvHi), 6));
-           // gggg.. saturated
-          __m128i g = _mm_packus_epi16 (_mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (yLo, guLo), gvLo), 6),
-                                        _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (yHi, guHi), gvHi), 6));
-          // bbbb.. saturated
-          __m128i b = _mm_packus_epi16 (_mm_srai_epi16 (_mm_add_epi16 (yLo, buLo), 6),
-                                        _mm_srai_epi16 (_mm_add_epi16 (yHi, buHi), 6));
-
-          __m128i arar = _mm_unpacklo_epi8 (r, alpha);
-          __m128i gbgb = _mm_unpacklo_epi8 (b, g);
-          _mm_stream_si128 (dstrgb128r0++, _mm_unpacklo_epi16 (gbgb, arar));
-          _mm_stream_si128 (dstrgb128r0++, _mm_unpackhi_epi16 (gbgb, arar));
-
-          arar = _mm_unpackhi_epi8 (r, alpha);
-          gbgb = _mm_unpackhi_epi8 (b, g);
-          _mm_stream_si128 (dstrgb128r0++, _mm_unpacklo_epi16 (gbgb, arar));
-          _mm_stream_si128 (dstrgb128r0++, _mm_unpackhi_epi16 (gbgb, arar));
-
-          // row 1 -  y0 y1 y2 y3 y4 y5 y6 y7 y8 y9 y10 y11 y12 y13 y14 y15
-          y = _mm_load_si128 (srcY128r1++);
-          // - ((0.y0 0.y1 0.y2  0.y3  0.y4  0.y5  0.y6  0.y7)  - ysub) * facy
-          yLo = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpacklo_epi8 (y, zero), ysub), facy);
-          // - ((0.y8 0.y9 0.y10 0.y11 0.y12 0.y13 0.y14 0.y15) - ysub) * facy
-          yHi = _mm_mullo_epi16 (_mm_sub_epi16 (_mm_unpackhi_epi8 (y, zero), ysub), facy);
-
-          // rrrr.. saturated
-          r = _mm_packus_epi16 (_mm_srai_epi16 (_mm_add_epi16 (yLo, rvLo), 6),
-                                _mm_srai_epi16 (_mm_add_epi16 (yHi, rvHi), 6));
-           // gggg.. saturated
-          g = _mm_packus_epi16 (_mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (yLo, guLo), gvLo), 6),
-                                _mm_srai_epi16 (_mm_sub_epi16 (_mm_sub_epi16 (yHi, guHi), gvHi), 6));
-          // bbbb.. saturated
-          b = _mm_packus_epi16 (_mm_srai_epi16 (_mm_add_epi16 (yLo, buLo), 6),
-                                _mm_srai_epi16 (_mm_add_epi16 (yHi, buHi), 6));
-
-          arar = _mm_unpacklo_epi8 (r, alpha);
-          gbgb = _mm_unpacklo_epi8 (b, g);
-          _mm_stream_si128 (dstrgb128r1++, _mm_unpacklo_epi16 (gbgb, arar));
-          _mm_stream_si128 (dstrgb128r1++, _mm_unpackhi_epi16 (gbgb, arar));
-
-          arar = _mm_unpackhi_epi8 (r, alpha);
-          gbgb = _mm_unpackhi_epi8 (b, g);
-          _mm_stream_si128 (dstrgb128r1++, _mm_unpacklo_epi16 (gbgb, arar));
-          _mm_stream_si128 (dstrgb128r1++, _mm_unpackhi_epi16 (gbgb, arar));
-          }
-          //}}}
-
-        // skip a y row
-        dstrgb128r0 += width / 4;
-        dstrgb128r1 += width / 4;
-        srcY128r0 += stride / 16;
-        srcY128r1 += stride / 16;
-        }
-
-      if (kTiming)
-        cLog::log (LOGINFO1, "setYuv420BgraInterleaved:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
-
-      mState = eLoaded;
-      }
-    //}}}
-  #endif
   };
 //}}}
 //{{{
@@ -762,8 +744,7 @@ public:
 //public:
   //virtual ~cFramePlanarRgbaTable() {}
 
-  //{{{
-  //virtual void setYuv420Planar (SwsContext* swsContext, int width, int height, uint8_t** data, int* linesize) {
+  //virtual void setYuv420 (void* context, int width, int height, uint8_t** data, int* linesize) {
   //// table lookup convert, bug in first pix pos stride != width
 
     //constexpr uint32_t kFix = 0x40080100;
@@ -1549,7 +1530,6 @@ public:
     //}}}
 
     //system_clock::time_point timePoint = system_clock::now();
-
     //allocateBuffer (width, height);
 
     //uint8_t* yPtr = (uint8_t*)data[0];
@@ -1564,6 +1544,7 @@ public:
 
     //for (int y = 0; y < height; y += 2) {
       //for (int x = 0; x < stride; x += 2) {
+        //{{{  2x2
         //uint32_t uv = kTableV[*uPtr++] | kTableU[*vPtr++];
 
         //// row 0 pix 0
@@ -1630,6 +1611,7 @@ public:
         //*dstPtr1++ = yuv >> 11;
         //*dstPtr1++ = 0xFF;
         //}
+        //}}}
 
       //dstPtr += dstRowInc;
       //dstPtr1 += dstRowInc;
@@ -1639,10 +1621,8 @@ public:
 
     //if (kTiming)
       //cLog::log (LOGINFO1, "setYuv420RgbaPlanarTable :%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
-
     //mState = eLoaded;
     //}
-  //}}}
   //};
 //}}}
 //{{{
@@ -1650,12 +1630,9 @@ public:
 //public:
   //virtual ~cFramePlanarRgbaSimple() {}
 
-  //{{{
-  //virtual void setYuv420Planar (SwsContext* swsContext, int width, int height, uint8_t** data, int* linesize) {
-  //// fixed point convert
+  //virtual void setYuv420 (void* context, int width, int height, uint8_t** data, int* linesize) {
 
     //system_clock::time_point timePoint = system_clock::now();
-
     //allocateBuffer (width, height);
 
     //uint8_t* y = (uint8_t*)data[0];
@@ -1672,6 +1649,7 @@ public:
       //uint8_t const* y1 = y0 + width;
       //uint8_t* dst1 = dst0 + width * 4;
       //for (int w = 0; w < halfWidth; ++w) {
+        //{{{  2 rows
         //// shift
         //int Y00 = (*y0++) - 16;
         //int Y01 = (*y0++) - 16;
@@ -1709,17 +1687,15 @@ public:
         //*dst1++ = (Y11 + tR > 0) ? (Y11+tR < 65535 ? (uint8_t)((Y11+tR) >> 8) : 0xff) : 0;
         //*dst1++ = 0xFF;
         //}
-
+        //}}}
       //y0 = y1;
       //dst0 = dst1;
       //}
 
     //if (kTiming)
       //cLog::log (LOGINFO1, "setYuv420RgbaPlanarSimple :%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
-
     //mState = eLoaded;
     //}
-  //}}}
   //};
 //}}}
 
@@ -1783,15 +1759,15 @@ public:
           mWidth = avFrame->width;
           mHeight = avFrame->height;
 
-          mPtsDuration = (90000 * mAvContext->framerate.den) / mAvContext->framerate.num;
-          cVideoDecode::cFrame* frame = getFreeFrame (mDecodePts, pesSize, num);
+          mPtsDuration = (kPtsPerSecond * mAvContext->framerate.den) / mAvContext->framerate.num;
+          auto frame = getFreeFrame (mDecodePts, pesSize, num);
           mDecodePts += mPtsDuration;
 
           if (!mSwsContext)
             mSwsContext = sws_getContext (avFrame->width, avFrame->height, AV_PIX_FMT_YUV420P,
                                           avFrame->width, avFrame->height, AV_PIX_FMT_RGBA,
                                           SWS_BILINEAR, NULL, NULL, NULL);
-          frame->setYuv420Planar (mSwsContext, mWidth, mHeight, avFrame->data, avFrame->linesize);
+          frame->setYuv420 (mSwsContext, mWidth, mHeight, avFrame->data, avFrame->linesize);
 
           av_frame_unref (avFrame);
           }
@@ -1812,7 +1788,6 @@ private:
   int64_t mDecodePts = 0;
   };
 //}}}
-
 #ifdef _WIN32
   #include "../../libmfx/include/mfxvideo++.h"
   //{{{
@@ -1841,6 +1816,7 @@ private:
 
       system_clock::time_point timePoint = system_clock::now();
 
+      // init bitstream
       memset (&mBitstream, 0, sizeof(mfxBitstream));
       mBitstream.Data = pes;
       mBitstream.DataOffset = 0;
@@ -1854,24 +1830,31 @@ private:
         mVideoParams.mfx.CodecId = MFX_CODEC_AVC;
         mVideoParams.IOPattern = MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
         if (MFXVideoDECODE_DecodeHeader (mSession, &mBitstream, &mVideoParams) != MFX_ERR_NONE) {
+          //{{{  error return
           cLog::log (LOGERROR, "MFXVideoDECODE_DecodeHeader failed");
           return;
           }
+          //}}}
 
-        //  query surface for mWidth,mHeight
+        //  querySurface for mWidth,mHeight
         mfxFrameAllocRequest frameAllocRequest;
         memset (&frameAllocRequest, 0, sizeof(frameAllocRequest));
         if (MFXVideoDECODE_QueryIOSurf (mSession, &mVideoParams, &frameAllocRequest) != MFX_ERR_NONE) {
+          //{{{  error return
           cLog::log (LOGERROR, "MFXVideoDECODE_QueryIOSurf failed");
           return;
           }
+          //}}}
 
+        // init decoder
         mWidth = ((mfxU32)((frameAllocRequest.Info.Width)+31)) & (~(mfxU32)31);
         mHeight = frameAllocRequest.Info.Height;
         if (MFXVideoDECODE_Init (mSession, &mVideoParams) != MFX_ERR_NONE) {
+          //{{{  error return
           cLog::log (LOGERROR, "MFXVideoDECODE_Init failed");
           return;
           }
+          //}}}
         }
 
       // decode video pes
@@ -1888,9 +1871,12 @@ private:
             if (kTiming)
               cLog::log (LOGINFO1, "decodeFrame mfx:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
-            mPtsDuration = (90000 * surface->Info.FrameRateExtD) / surface->Info.FrameRateExtN;
+            mPtsDuration = (kPtsPerSecond * surface->Info.FrameRateExtD) / surface->Info.FrameRateExtN;
+
             auto frame = getFreeFrame (surface->Data.TimeStamp, pesSize, num);
-            frame->setYuv420Interleaved (surface->Info.Width, surface->Info.Height, surface->Data.Y, surface->Data.Pitch);
+            uint8_t* data[2] = { surface->Data.Y, surface->Data.UV };
+            int linesize[2] = { surface->Data.Pitch, surface->Data.Pitch/2 };
+            frame->setYuv420 (nullptr, surface->Info.Width, surface->Info.Height, data, linesize);
             }
           }
         }
@@ -1984,12 +1970,7 @@ void cVideoDecode::cFrame::set (int64_t pts, int64_t ptsDuration, int pesSize, i
   }
 //}}}
 //{{{
-void cVideoDecode::cFrame::setYuv420Interleaved (int width, int height, uint8_t* buffer, int stride) {
-  cLog::log (LOGERROR, "setYuv420 interleaved not implemented");
-  }
-//}}}
-//{{{
-void cVideoDecode::cFrame::setYuv420Planar (SwsContext* swsContext, int width, int height, uint8_t** data, int* linesize) {
+void cVideoDecode::cFrame::setYuv420 (void* context, int width, int height, uint8_t** data, int* linesize) {
   cLog::log (LOGERROR, "setYuv420 planar not implemented");
   }
 //}}}
@@ -2012,22 +1993,18 @@ void cVideoDecode::cFrame::allocateBuffer (int width, int height) {
 // cVideoDecode
 //{{{
 cVideoDecode::cVideoDecode (bool interleaved, bool bgra, int poolSize) {
-// allocate poolFrames
+// allocate framePool frames with type needed to convert yuv420
 
-  for (int i = 0; i < poolSize; i++)
-    if (interleaved && bgra)
-      mFramePool.push_back (new cFrameInterleavedBgra());
-    else if (interleaved && !bgra)
-      mFramePool.push_back (new cFrameInterleavedRgba());
+  for (int i = 0; i < poolSize; i++) {
+    if (interleaved)
+      bgra ? mFramePool.push_back (new cFrameInterleavedBgra()) : mFramePool.push_back(new cFrameInterleavedRgba());
     else
       #if defined(INTEL_SSE2)
-        if (bgra)
-          mFramePool.push_back (new cFramePlanarBgra());
-        else
-          mFramePool.push_back (new cFramePlanarRgba());
+        bgra ? mFramePool.push_back (new cFramePlanarBgra()) : mFramePool.push_back(new cFramePlanarRgba());
       #else
-        mFramePool.push_back (new cFramePlanarRgbaSws());
+        frame = mFramePool.push_back (new cFramePlanarRgbaSws());
       #endif
+    }
   }
 //}}}
 //{{{

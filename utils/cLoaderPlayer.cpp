@@ -60,7 +60,7 @@ cLoaderPlayer::~cLoaderPlayer() {
 void cLoaderPlayer::initialise (bool radio,
                                 const string& hostName, const string& poolName, const string& channelName,
                                 int audBitrate, int vidBitrate, 
-                                eLoader loader, int videoPoolSize) {
+                                int videoPoolSize, eLoader loader) {
 
   mRadio = radio;
   mHostName = hostName;

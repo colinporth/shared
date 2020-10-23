@@ -22,7 +22,8 @@ public:
 
   void initialise (bool radio,
                    const std::string& hostName, const std::string& poolName, const std::string& channelName,
-                   int audBitrate, int vidBitrate, eLoader loader, int videoPoolSiz);
+                   int audBitrate, int vidBitrate,
+                   int videoPoolSize, eLoader loader);
 
   cSong* getSong() { return mSong; }
   cVideoDecode* getVideoDecode() { return mVideoDecode; }
