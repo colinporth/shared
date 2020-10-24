@@ -32,7 +32,7 @@ public:
 
   int32_t getNumChannels() { return mNumChannels; }
   int32_t getSampleRate() { return mSampleRate * (mSbrEnabled ? 2 : 1); }
-  int32_t getNumSamples() { return mNumSamples; }
+  int32_t getNumSamplesPerFrame() { return mNumSamples; }
 
   float* decodeFrame (const uint8_t* framePtr, int32_t frameLen, int32_t frameNum);
 

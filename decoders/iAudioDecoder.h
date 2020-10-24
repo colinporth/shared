@@ -8,6 +8,7 @@ public:
 
   virtual int32_t getNumChannels() = 0;
   virtual int32_t getSampleRate() = 0;
-  virtual int32_t getNumSamples() = 0;
+  virtual int32_t getNumSamplesPerFrame() = 0;
+
   virtual float* decodeFrame (const uint8_t* inbuf, int bytesLeft, int frameNum) = 0;
   };

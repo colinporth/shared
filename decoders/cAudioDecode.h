@@ -14,7 +14,7 @@ public:
   eFrameType getFrameType() { return mFrameType; }
   int32_t getNumChannels() { return mNumChannels; }
   int32_t getSampleRate() { return mSampleRate; }
-  int32_t getNumSamples() { return mNumSamples; }
+  int32_t getNumSamplesPerFrame() { return mNumSamplesPerFrame; }
 
   uint8_t* getFramePtr() { return mFramePtr; }
   int32_t getFrameLen() { return mFrameLen; }
@@ -45,7 +45,7 @@ private:
   eFrameType mFrameType = eUnknown;
   int32_t mNumChannels = 0;
   int32_t mSampleRate = 0;
-  int32_t mNumSamples = 0;
+  int32_t mNumSamplesPerFrame = 0;
 
   iAudioDecoder* mAudioDecoder = nullptr;
   };
