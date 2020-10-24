@@ -45,6 +45,41 @@ using namespace std;
 using namespace chrono;
 //}}}
 
+//{{{
+static uint8_t* extractAacFramesFromTs (uint8_t* ts, int tsLen) {
+// extract aacFrames from ts packets, pack back into ts, gets smaller ts gets stripped
+
+  auto aacFramesPtr = ts;
+
+  auto tsEnd = ts + tsLen;
+  while ((ts < tsEnd) && (*ts++ == 0x47)) {
+    // ts packet start
+    auto payStart = ts[0] & 0x40;
+    auto pid = ((ts[0] & 0x1F) << 8) | ts[1];
+    auto headerBytes = (ts[2] & 0x20) ? 4 + ts[3] : 3;
+    ts += headerBytes;
+    auto tsBodyBytes = 187 - headerBytes;
+
+    if (pid == 34) {
+      if (payStart &&
+          !ts[0] && !ts[1] && (ts[2] == 1) && (ts[3] == 0xC0)) {
+        int pesHeaderBytes = 9 + ts[8];
+        ts += pesHeaderBytes;
+        tsBodyBytes -= pesHeaderBytes;
+        }
+
+      // copy ts payload aacFrames back into buffer
+      memcpy (aacFramesPtr, ts, tsBodyBytes);
+      aacFramesPtr += tsBodyBytes;
+      }
+
+    ts += tsBodyBytes;
+    }
+
+  return aacFramesPtr;
+  }
+//}}}
+
 // public
 //{{{
 cLoaderPlayer::~cLoaderPlayer() {
@@ -92,7 +127,7 @@ void cLoaderPlayer::initialise (bool radio,
           pesParser->decode (framePes, framePesSize, num, pts);
 
           // pts of next frame in pes, assumes 48000 sample rate
-          pts += (getAudioDecode()->getNumSamples() * 90) / 48;
+          pts += (getAudioDecode()->getNumSamplesPerFrame() * 90) / 48;
           num++;
 
           // point to next frame in pes
@@ -105,9 +140,12 @@ void cLoaderPlayer::initialise (bool radio,
       [&](uint8_t* pes, int size, int num, int64_t pts) noexcept {
         //{{{  audio pes decode callback lambda
         float* samples = mAudioDecode->decodeFrame (pes, size, num, pts);
-        mSong->setFixups (mAudioDecode->getNumChannels(), mAudioDecode->getSampleRate(), mAudioDecode->getNumSamples());
-        mSong->addFrame (num, samples, true, mSong->getNumFrames(), pts);
-        startPlayer();
+        if (samples) {
+          mSong->addFrame (num, samples, true, mSong->getNumFrames(), pts);
+          startPlayer();
+          }
+        else
+          cLog::log (LOGERROR, "aud pesParser failed to decode %d %d", size, num);
         }
         //}}}
       )
@@ -212,12 +250,10 @@ void cLoaderPlayer::hlsLoaderThread() {
 
   cLog::setThreadName ("hls ");
 
+  // bitrates < 128 use aacHE, more samplesPerframe, less framesPerChunk
   mSong->initialise (cAudioDecode::eAac, 2, 48000, mAudBitrate < 128000 ? 2048 : 1024, 1000);
+  mSong->setBitrateFramesPerChunk (mAudBitrate, mAudBitrate < 128000 ? (mRadio ? 150 : 180) : (mRadio ? 300 : 360));
   mSong->setChannel (mChannelName);
-  if (mRadio)
-    mSong->setBitrateFramesPerChunk (mAudBitrate, mAudBitrate < 128000 ? 150 : 300);
-  else
-    mSong->setBitrateFramesPerChunk (mAudBitrate, mAudBitrate < 128000 ? 180 : 360);
 
   while (!mExit && !mSong->getChanged()) {
     mSong->setChanged (false);
@@ -259,26 +295,48 @@ void cLoaderPlayer::hlsLoaderThread() {
                            mLoadSize = http.getContentSize();
                            mLoadFrac = float(http.getContentSize()) / http.getHeaderContentSize();
 
-                           while (http.getContentSize() - contentParsed >= 188) {
-                             uint8_t* ts = http.getContent() + contentParsed;
-                             if (*ts == 0x47) {
-                               for (auto pesParser : mPesParsers)
-                                 if (pesParser->parseTs (ts))
-                                   break;
-                               ts += 188;
+                           if (!mRadio) {
+                             // parse as we get it
+                             while (http.getContentSize() - contentParsed >= 188) {
+                               uint8_t* ts = http.getContent() + contentParsed;
+                               if (*ts == 0x47) {
+                                 for (auto pesParser : mPesParsers)
+                                   if (pesParser->parseTs (ts))
+                                     break;
+                                 ts += 188;
+                                 }
+                               else {
+                                 cLog::log (LOGERROR, "ts packet sync:%d", contentParsed);
+                                 return false;
+                                 }
+                               contentParsed += 188;
                                }
-                             else {
-                               cLog::log (LOGERROR, "ts packet sync:%d", contentParsed);
-                               return false;
-                               }
-                             contentParsed += 188;
                              }
+
                            return true;
                            }
                            //}}}
                         ) == 200) {
-            for (auto pesParser : mPesParsers)
-              pesParser->process();
+            if (mRadio) {
+              //{{{  parse whole chunk
+              auto aacFrames = http.getContent();
+              auto aacFramesEnd = extractAacFramesFromTs (aacFrames, http.getContentSize());
+              while (getAudioDecode()->parseFrame (aacFrames, aacFramesEnd)) {
+                auto samples = getAudioDecode()->decodeFrame (frameNum);
+                if (samples) {
+                  mSong->addFrame (frameNum++, samples, true, mSong->getNumFrames(), 0);
+                  startPlayer();
+                  }
+                aacFrames += getAudioDecode()->getNextFrameOffset();
+                }
+              }
+              //}}}
+            else {
+              //{{{  finish pesParser method
+              for (auto pesParser : mPesParsers)
+                pesParser->process();
+              }
+              //}}}
             http.freeContent();
             }
           else {
@@ -387,7 +445,7 @@ void cLoaderPlayer::icyLoaderThread (const string& url) {
           if (decode.getFrameType() == mSong->getFrameType()) {
             auto samples = decode.decodeFrame (frameNum);
             if (samples) {
-              mSong->setFixups (decode.getNumChannels(), decode.getSampleRate(), decode.getNumSamples());
+              mSong->setFixups (decode.getNumChannels(), decode.getSampleRate(), decode.getNumSamplesPerFrame());
               mSong->addFrame (frameNum++, samples, true, mSong->getNumFrames()+1, 0);
               startPlayer();
               }
@@ -472,7 +530,7 @@ void cLoaderPlayer::fileLoaderThread() {
             if (samples) {
               int numFrames = mSong->getNumFrames();
               int totalFrames = (numFrames > 0) ? int(fileMapEnd - fileMapFirst) / (int(decode.getFramePtr() - fileMapFirst) / numFrames) : 0;
-              mSong->setFixups (decode.getNumChannels(), decode.getSampleRate(), decode.getNumSamples());
+              mSong->setFixups (decode.getNumChannels(), decode.getSampleRate(), decode.getNumSamplesPerFrame());
               mSong->addFrame (frameNum++, samples, true, totalFrames+1, 0);
               startPlayer();
               }
