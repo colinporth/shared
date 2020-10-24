@@ -1719,9 +1719,9 @@ public:
           mHeight = avFrame->height;
           mPtsDuration = (kPtsPerSecond * mAvContext->framerate.den) / mAvContext->framerate.num;
 
-          system_clock::time_point timePoint = system_clock::now();
-
           auto frame = getFreeFrame (mDecodePts);
+
+          timePoint = system_clock::now();
           frame->set (mDecodePts, mPtsDuration, pesSize, num, mWidth, mHeight);
           if (!mSwsContext)
             mSwsContext = sws_getContext (mWidth, mHeight, AV_PIX_FMT_YUV420P, mWidth, mHeight, AV_PIX_FMT_RGBA,
@@ -1838,9 +1838,9 @@ private:
 
             mPtsDuration = (kPtsPerSecond * surface->Info.FrameRateExtD) / surface->Info.FrameRateExtN;
 
-            system_clock::time_point timePoint = system_clock::now();
-
             auto frame = getFreeFrame (surface->Data.TimeStamp);
+
+            timePoint = system_clock::now();
             frame->set (surface->Data.TimeStamp, mPtsDuration, pesSize, num, surface->Info.Width, surface->Info.Height);
             uint8_t* data[2] = { surface->Data.Y, surface->Data.UV };
             int linesize[2] = { surface->Data.Pitch, surface->Data.Pitch/2 };
