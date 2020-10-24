@@ -497,20 +497,19 @@ public:
       system_clock::time_point timePoint = system_clock::now();
 
       // constants
-      int const dstStride = mWidth * 4;
-      int const heightDiv2 = mHeight >> 1;
-      int const widthDiv8 = mWidth >> 3;
+      int const heightDiv2 = mHeight / 2;
+      int const widthDiv8 = mWidth / 8;
 
       uint8x8_t const yOffset = vdup_n_u8 (16);
       int16x8_t const uvOffset = vdupq_n_u16 (128);
       int32x4_t const rounding = vdupq_n_s32 (128);
 
       uint8_t* y0 = (uint8_t*)data[0];
-      uint8_t* y1 = (uint8_t*)data[0] + mWidth;
+      uint8_t* y1 = (uint8_t*)data[0] + linesize[0];
       uint8_t* u = (uint8_t*)data[1];
       uint8_t* v = (uint8_t*)data[2];
-      uint8_t* dst = (uint8_t*)mBuffer8888;
-      uint8_t* dst1 = (uint8_t*)mBuffer8888 + stride;;
+      uint8_t* dst0 = (uint8_t*)mBuffer8888;
+      uint8_t* dst1 = (uint8_t*)mBuffer8888 + (mWidth * 4);
 
       uint8x8x4_t block;
       block.val[3] = vdup_n_u8 (0xFF);
@@ -586,8 +585,8 @@ public:
           dst1 += 8 * 4;
           }
           //}}}
-        y0 += mWidth;
-        y1 += mWidth;
+        y0 += linesize[0];
+        y1 += linesize[0];
         }
 
       if (kTiming)
