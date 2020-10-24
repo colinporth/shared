@@ -74,8 +74,9 @@ private:
 
     std::string infoString = mLoaderPlayer->getChannelName();
     if (videoDecode)
-      infoString += " v" + dec(mLoaderPlayer->getVidBitrate()) +
-    infoString += " a" + dec(mLoaderPlayer->getAudBitrate());
+      infoString += " " + dec(mLoaderPlayer->getVidBitrate()/1000) + "Kbits";
+
+    infoString += " " + dec(mLoaderPlayer->getAudBitrate()/1000) + "Kbits";
 
     if (videoDecode)
       infoString += " " + dec(videoDecode->getWidth()) + "x" + dec(videoDecode->getHeight()) +
@@ -84,7 +85,7 @@ private:
     int videoQueueSize;
     int audioQueueSize;
     mLoaderPlayer->getSizes (loadSize, videoQueueSize, audioQueueSize);
-    infoString += " " + dec(loadSize/1000) + "k";
+    infoString += " " + dec(loadSize/1000) + "Kbytes";
 
     if (videoDecode) {
       infoString += " v" + dec(videoQueueSize);
