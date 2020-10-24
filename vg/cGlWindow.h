@@ -3,14 +3,17 @@
 #pragma once
 #include "cVg.h"
 
+#include <chrono>
 #include <array>
 #include "cPerfGraph.h"
 
 #include "../utils/iChange.h"
 #include "../widgets/cRootContainer.h"
+
+#include "../widgets/iClockTime.h"
 //}}}
 
-class cGlWindow : public cVg, public iDraw {
+class cGlWindow : public cVg, public iClockTime, public iDraw {
 public:
   cGlWindow() {};
   virtual ~cGlWindow();
@@ -23,6 +26,12 @@ public:
   bool getShift() { return mShifted; }
   bool getControl() { return mControlled; }
   bool getMouseDown() { return mMouseDown; }
+  //}}}
+
+  //{{{  iTime gets
+  int getDayLightSeconds();
+  std::chrono::system_clock::time_point getNowRaw();
+  std::chrono::system_clock::time_point getNowDayLight();
   //}}}
 
   // iDraw
@@ -44,7 +53,6 @@ public:
 
 protected:
   cRootContainer* initialise (const std::string& title, int width, int height, unsigned char* sansFont, int sansFontSize);
-
 
   cWidget* add (cWidget* widget) { return mRootContainer->add (widget); }
   cWidget* addAtBox (cWidget* widget, float width, float height) { return mRootContainer->addAtBox (widget, width, height); }
@@ -122,5 +130,8 @@ private:
   static inline bool mSupered = false;
   static inline bool mShifted = false;
   static inline bool mControlled = false;
+
+
+  static inline int mDayLightSeconds = 0;
   //}}}
   };

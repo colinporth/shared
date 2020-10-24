@@ -129,7 +129,7 @@ public:
 
   //{{{
   virtual void onDraw (iDraw* draw) {
-    draw->drawRect (mOn ? kLightRedF : mColour, cPointF(mPixOrg.x+1.f, mPixOrg.y+1.f), cPointF(mPixSize.x -1.f, mPixSize.y -1.f));
+    draw->drawRect (mOn ? kLightRedF : mColour, mPixOrg + cPointF(1.f,1.f), mPixSize - cPointF(1.f,1.f));
     }
   //}}}
 

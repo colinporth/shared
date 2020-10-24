@@ -1,12 +1,19 @@
 // cGlWindow.cpp
 //{{{  includes
-#define _CRT_SECURE_NO_WARNINGS
+#ifdef _WIN32
+  #define _CRT_SECURE_NO_WARNINGS
+  #define WIN32_LEAN_AND_MEAN
+  #define NOMINMAX
+  #include <windows.h>
+#endif
+
 #include "cGlWindow.h"
 
 #include "../utils/utils.h"
 #include "../utils/cLog.h"
 
 using namespace std;
+using namespace chrono;
 //}}}
 
 //{{{
@@ -18,6 +25,22 @@ cGlWindow::~cGlWindow() {
 // iWindow
 cVg* cGlWindow::getVg() { return this; }
 cPointF cGlWindow::getPixSize() { return mRootContainer->getPixSize(); }
+
+//{{{
+int cGlWindow::getDayLightSeconds() {
+  return mDayLightSeconds;
+  }
+//}}}
+//{{{
+system_clock::time_point cGlWindow::getNowRaw() {
+  return system_clock::now();
+  }
+//}}}
+//{{{
+system_clock::time_point cGlWindow::getNowDayLight() {
+  return system_clock::now() + seconds (mDayLightSeconds);
+  }
+//}}}
 
 // iDraw
 //{{{
@@ -72,6 +95,12 @@ void cGlWindow::drawEllipseSolid (const sColourF& colour, const cPointF& p, cons
 cRootContainer* cGlWindow::initialise (const string& title, int width, int height, unsigned char* fontData, int fontDataSize) {
 
   mGlWindow = this;
+
+  #ifdef _WIN32
+    TIME_ZONE_INFORMATION timeZoneInfo;
+    if (GetTimeZoneInformation (&timeZoneInfo) == TIME_ZONE_ID_DAYLIGHT)
+      mDayLightSeconds = -timeZoneInfo.DaylightBias * 60;
+  #endif
 
   glfwSetErrorCallback (errorCallback);
   if (!glfwInit()) {

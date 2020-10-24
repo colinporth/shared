@@ -7,7 +7,8 @@
 
 class cSongWidget : public cWidget {
 public:
-  cSongWidget (cSong* song, float width, float height) : cWidget (kBlueF, width, height), mSong(song) {}
+  cSongWidget (cSong* song, iClockTime* clockTime, float width, float height)
+    : cWidget (kBlueF, width, height), mSong(song), mClockTime(clockTime) {}
   virtual ~cSongWidget() {}
 
   void setShowOverview (bool showOverview) { mShowOverview = showOverview; }
@@ -134,7 +135,7 @@ private:
       auto subSeconds = value % 100;
 
       value /= 100;
-      //value += mWindow->getDayLightSeconds();
+      value += mClockTime->getDayLightSeconds();
       auto seconds = value % 60;
 
       value /= 60;
@@ -628,6 +629,8 @@ private:
 
   //{{{  vars
   cSong* mSong;
+  iClockTime* mClockTime;
+
   float mMove = 0;
   bool mMoved = false;
   float mPressInc = 0;

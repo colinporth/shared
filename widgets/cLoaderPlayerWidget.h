@@ -72,24 +72,24 @@ private:
   void drawInfo (cVg* vg, cVideoDecode* videoDecode) {
   // info text
 
-    std::string infoString = mLoaderPlayer->getChannelName() +
-                             " " + dec(mLoaderPlayer->getVidBitrate()) +
-                             ":" + dec(mLoaderPlayer->getAudBitrate());
+    std::string infoString = mLoaderPlayer->getChannelName();
+    if (videoDecode)
+      infoString += " v" + dec(mLoaderPlayer->getVidBitrate()) +
+    infoString += " a" + dec(mLoaderPlayer->getAudBitrate());
 
     if (videoDecode)
       infoString += " " + dec(videoDecode->getWidth()) + "x" + dec(videoDecode->getHeight()) +
                     " " + dec(videoDecode->getFramePoolSize());
-
     int loadSize;
     int videoQueueSize;
     int audioQueueSize;
     mLoaderPlayer->getSizes (loadSize, videoQueueSize, audioQueueSize);
     infoString += " " + dec(loadSize/1000) + "k";
 
-    if (videoDecode) 
+    if (videoDecode) {
       infoString += " v" + dec(videoQueueSize);
-
-    infoString += " a" + dec(audioQueueSize);
+      infoString += " a" + dec(audioQueueSize);
+      }
 
     vg->setFontSize ((float)getFontHeight());
     vg->setTextAlign (cVg::eAlignLeft | cVg::eAlignTop);
