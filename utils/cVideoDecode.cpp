@@ -2001,7 +2001,7 @@ cVideoDecode::cVideoDecode (bool planar, bool bgra, int poolSize) {
       #if defined(INTEL_SSE2)
         bgra ? mFramePool.push_back (new cFramePlanarBgra()) : mFramePool.push_back(new cFramePlanarRgba());
       #else
-        frame = mFramePool.push_back (new cFramePlanarRgbaSws());
+        mFramePool.push_back (new cFramePlanarRgbaSws());
       #endif
     }
   }
