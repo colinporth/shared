@@ -49,7 +49,8 @@ public:
     float videoFrac;
     float audioFrac;
     mLoaderPlayer->getFrac (loadFrac, videoFrac, audioFrac);
-    if (loadFrac > 0.f) {
+    if ((loadFrac > 0.f) &&
+        ((loadFrac < 1.f) || (audioFrac > 0.f) || (videoFrac > 0.f))) {
       cPointF centre (mPixSize.x-20.f, 20.f);
       drawSpinner (vg, centre, 18.f,12.f, 0.1f, loadFrac,
                    sColourF(0.f,1.f,0.f,0.f), sColourF(0.f,1.f,0.f,0.75f));

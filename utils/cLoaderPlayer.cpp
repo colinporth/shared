@@ -1,4 +1,4 @@
-// cHlsPlayer.cpp - audio,video loader,player
+// cLoaderPlayer.cpp - audio,video loader,player
 //{{{  includes
 #define _CRT_SECURE_NO_WARNINGS
 #define WIN32_LEAN_AND_MEAN
@@ -44,6 +44,7 @@
 using namespace std;
 using namespace chrono;
 //}}}
+const string kM3u8 = ".norewind.m3u8";
 
 // public
 //{{{
@@ -52,15 +53,14 @@ cLoaderPlayer::~cLoaderPlayer() {
   delete mSong;
   delete mVideoDecode;
   delete mAudioDecode;
-
   // !!!!! should clear down mPesParsers !!!!
   }
 //}}}
 //{{{
 void cLoaderPlayer::initialise (bool radio,
                                 const string& hostName, const string& poolName, const string& channelName,
-                                int audBitrate, int vidBitrate,
-                                int videoPoolSize, eLoader loader) {
+                                int audBitrate, int vidBitrate, int videoPoolSize,
+                                eLoader loader) {
 
   mRadio = radio;
   mHostName = hostName;
@@ -80,41 +80,42 @@ void cLoaderPlayer::initialise (bool radio,
     mVideoDecode = cVideoDecode::create (loader & eFFmpeg, loader & eBgra, videoPoolSize);
 
   // audio pesParser, !!! inited but not used by mRadio until I fix it !!!
-  mPesParsers.push_back (
-    new cPesParser (0x22, loader & eQueueAudio, "aud",
-      [&](uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
-        //{{{  audio pes process callback lambda
-        uint8_t* framePes = pes;
-        while (getAudioDecode()->parseFrame (framePes, pes + size)) {
-          // decode a single frame from pes
-          int framePesSize = getAudioDecode()->getNextFrameOffset();
-          cLog::log (LOGINFO, "%d %d", num, framePesSize);
-          pesParser->decode (framePes, framePesSize, num, pts);
+  if (!mRadio)
+    mPesParsers.push_back (
+      new cPesParser (0x22, loader & eQueueAudio, "aud",
+        [&](uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
+          //{{{  audio pes process callback lambda
+          uint8_t* framePes = pes;
+          while (getAudioDecode()->parseFrame (framePes, pes + size)) {
+            // decode a single frame from pes
+            int framePesSize = getAudioDecode()->getNextFrameOffset();
+            cLog::log (LOGINFO, "%d %d", num, framePesSize);
+            pesParser->decode (framePes, framePesSize, num, pts);
 
-          // pts of next frame in pes, assumes 48000 sample rate
-          pts += (getAudioDecode()->getNumSamplesPerFrame() * 90) / 48;
-          num++;
+            // pts of next frame in pes, assumes 48000 sample rate
+            pts += (getAudioDecode()->getNumSamplesPerFrame() * 90) / 48;
+            num++;
 
-          // point to next frame in pes
-          framePes += framePesSize;
+            // point to next frame in pes
+            framePes += framePesSize;
+            }
+
+          return num;
+          },
+          //}}}
+        [&](uint8_t* pes, int size, int num, int64_t pts) noexcept {
+          //{{{  audio pes decode callback lambda
+          float* samples = mAudioDecode->decodeFrame (pes, size, num, pts);
+          if (samples) {
+            mSong->addFrame (num, samples, true, mSong->getNumFrames(), pts);
+            startPlayer();
+            }
+          else
+            cLog::log (LOGERROR, "aud pesParser failed to decode %d %d", size, num);
           }
-
-        return num;
-        },
-        //}}}
-      [&](uint8_t* pes, int size, int num, int64_t pts) noexcept {
-        //{{{  audio pes decode callback lambda
-        float* samples = mAudioDecode->decodeFrame (pes, size, num, pts);
-        if (samples) {
-          mSong->addFrame (num, samples, true, mSong->getNumFrames(), pts);
-          startPlayer();
-          }
-        else
-          cLog::log (LOGERROR, "aud pesParser failed to decode %d %d", size, num);
-        }
-        //}}}
-      )
-    );
+          //}}}
+        )
+      );
 
   if (vidBitrate) {
     // video pesParser
@@ -224,8 +225,7 @@ void cLoaderPlayer::hlsLoaderThread() {
     mSong->setChanged (false);
     cPlatformHttp http;
     string pathName = getHlsPathName();
-    string redirectedHostName = http.getRedirect (mHostName, pathName + ".norewind.m3u8");
-
+    string redirectedHostName = http.getRedirect (mHostName, pathName + kM3u8);
     if (http.getContent()) {
       //{{{  parse m3u8 for mediaSequence,programDateTimePoint
       int extXMediaSequence = stoi (getTagValue (http.getContent(), "#EXT-X-MEDIA-SEQUENCE:"));
@@ -242,16 +242,18 @@ void cLoaderPlayer::hlsLoaderThread() {
         int chunkNum;
         int frameNum;
         if (mSong->loadChunk (system_clock::now(), 2, chunkNum, frameNum)) {
-          //{{{  pesParser init
-          // always audio
-          mPesParsers[0]->clear (frameNum);
+          if (!mRadio) {
+            //{{{  pesParser init
+            // always audio
+            mPesParsers[0]->clear (frameNum);
 
-          // video
-          if (mPesParsers.size() > 1)
-            mPesParsers[1]->clear (0);
+            // video
+            if (mPesParsers.size() > 1)
+              mPesParsers[1]->clear (0);
+            }
+            //}}}
 
           int contentParsed = 0;
-          //}}}
           if (http.get (redirectedHostName, pathName + '-' + dec(chunkNum) + ".ts", "",
                         [&] (const string& key, const string& value) noexcept {
                           //{{{  header lambda
@@ -292,30 +294,31 @@ void cLoaderPlayer::hlsLoaderThread() {
             if (mRadio) {
               //{{{  parse chunk of ts
               // extract audio pes from chunk of ts packets, write it back crunched into ts, always gets smaller as ts stripped
-              uint8_t* ts = http.getContent();
-              uint8_t* tsEnd = ts + http.getContentSize();
-              uint8_t* pesPtr = ts;
-              while ((ts < tsEnd) && (*ts++ == 0x47)) {
+              uint8_t* tsPtr = http.getContent();
+              uint8_t* tsEndPtr = tsPtr + http.getContentSize();
+              uint8_t* pesPtr = tsPtr;
+              while ((tsPtr < tsEndPtr) && (*tsPtr++ == 0x47)) {
                 // ts packet start
-                auto pid = ((ts[0] & 0x1F) << 8) | ts[1];
+                auto pid = ((tsPtr[0] & 0x1F) << 8) | tsPtr[1];
                 if (pid == 34) {
-                  bool payStart = ts[0] & 0x40;
-                  int headerBytes = (ts[2] & 0x20) ? 4 + ts[3] : 3;
-                  ts += headerBytes;
+                  // audio pid
+                  bool payStart = tsPtr[0] & 0x40;
+                  int headerBytes = (tsPtr[2] & 0x20) ? 4 + tsPtr[3] : 3;
+                  tsPtr += headerBytes;
                   int tsBodyBytes = 187 - headerBytes;
                   if (payStart) {
-                    int pesHeaderBytes = 9 + ts[8];
-                    ts += pesHeaderBytes;
+                    int pesHeaderBytes = 9 + tsPtr[8];
+                    tsPtr += pesHeaderBytes;
                     tsBodyBytes -= pesHeaderBytes;
                     }
 
                   // copy ts payload back into same buffer, always getting smaller
-                  memcpy (pesPtr, ts, tsBodyBytes);
+                  memcpy (pesPtr, tsPtr, tsBodyBytes);
                   pesPtr += tsBodyBytes;
-                  ts += tsBodyBytes;
+                  tsPtr += tsBodyBytes;
                   }
-                else
-                  ts += 187;
+                else // PAT and pgm 0x20 pids expected
+                  tsPtr += 187;
                 }
 
               // parse pes frame by frame
@@ -335,6 +338,7 @@ void cLoaderPlayer::hlsLoaderThread() {
                 pesParser->process();
               }
               //}}}
+
             http.freeContent();
             }
           else {
