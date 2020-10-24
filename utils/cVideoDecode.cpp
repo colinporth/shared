@@ -1904,65 +1904,6 @@ cVideoDecode* cVideoDecode::create (bool ffmpeg, bool bgra, int poolSize) {
   }
 //}}}
 
-// cVideoDecode::cFrame
-//{{{
-cVideoDecode::cFrame::~cFrame() {
-
-  #ifdef _WIN32
-    _aligned_free (mBuffer8888);
-  #else
-    free (mBuffer8888);
-  #endif
-  }
-//}}}
-//{{{
-void cVideoDecode::cFrame::clear() {
-
-  mState = eFree;
-  mPts = 0;
-  mPtsDuration = 0;
-  mNum = 0;
-
-  mWidth = 0;
-  mHeight = 0;
-  }
-//}}}
-//{{{
-bool cVideoDecode::cFrame::isPtsWithinFrame (int64_t pts) {
-  return (mState == eLoaded) && (pts >= mPts) && (pts < mPts + mPtsDuration);
-  }
-//}}}
-
-//{{{
-void cVideoDecode::cFrame::set (int64_t pts, int64_t ptsDuration, int pesSize, int num, int width, int height) {
-
-  mState = eAllocated;
-
-  mPts = pts;
-  mPtsDuration = ptsDuration;
-  mPesSize = pesSize;
-  mNum = num;
-
-  mWidth = width;
-  mHeight = height;
-
-  #ifdef _WIN32
-    if (!mBuffer8888)
-      // allocate aligned buffer
-      mBuffer8888 = (uint32_t*)_aligned_malloc (width * height * 4, 128);
-  #else
-    if (!mBuffer8888)
-      // allocate aligned buffer
-      mBuffer8888 = (uint32_t*)aligned_alloc (128, width * height * 4);
-  #endif
-  }
-//}}}
-//{{{
-void cVideoDecode::cFrame::setYuv420 (void* context, uint8_t** data, int* linesize) {
-  cLog::log (LOGERROR, "setYuv420 planar not implemented");
-  }
-//}}}
-
 // cVideoDecode
 //{{{
 cVideoDecode::cVideoDecode (bool planar, bool bgra, int poolSize) {
@@ -2024,5 +1965,64 @@ cVideoDecode::cFrame* cVideoDecode::getFreeFrame (int64_t pts) {
 
   // never gets here
   return 0;
+  }
+//}}}
+
+// cVideoDecode::cFrame
+//{{{
+cVideoDecode::cFrame::~cFrame() {
+
+  #ifdef _WIN32
+    _aligned_free (mBuffer8888);
+  #else
+    free (mBuffer8888);
+  #endif
+  }
+//}}}
+//{{{
+void cVideoDecode::cFrame::clear() {
+
+  mState = eFree;
+  mPts = 0;
+  mPtsDuration = 0;
+  mNum = 0;
+
+  mWidth = 0;
+  mHeight = 0;
+  }
+//}}}
+//{{{
+bool cVideoDecode::cFrame::isPtsWithinFrame (int64_t pts) {
+  return (mState == eLoaded) && (pts >= mPts) && (pts < mPts + mPtsDuration);
+  }
+//}}}
+
+//{{{
+void cVideoDecode::cFrame::set (int64_t pts, int64_t ptsDuration, int pesSize, int num, int width, int height) {
+
+  mState = eAllocated;
+
+  mPts = pts;
+  mPtsDuration = ptsDuration;
+  mPesSize = pesSize;
+  mNum = num;
+
+  mWidth = width;
+  mHeight = height;
+
+  #ifdef _WIN32
+    if (!mBuffer8888)
+      // allocate aligned buffer
+      mBuffer8888 = (uint32_t*)_aligned_malloc (width * height * 4, 128);
+  #else
+    if (!mBuffer8888)
+      // allocate aligned buffer
+      mBuffer8888 = (uint32_t*)aligned_alloc (128, width * height * 4);
+  #endif
+  }
+//}}}
+//{{{
+void cVideoDecode::cFrame::setYuv420 (void* context, uint8_t** data, int* linesize) {
+  cLog::log (LOGERROR, "setYuv420 planar not implemented");
   }
 //}}}

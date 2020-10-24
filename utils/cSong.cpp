@@ -19,148 +19,6 @@ constexpr static float kMinFreqValue = 256.f;
 constexpr static int kSilenceWindowFrames = 4;
 //}}}
 
-// cSong::cFrame
-//{{{
-cSong::cFrame::cFrame (int numChannels, int numFreqBytes, float* samples, bool ourSamples, int64_t pts)
-   : mSamples(samples), mOurSamples(ourSamples), mPts (pts), mMuted(false), mSilence(false) {
-
-  mPowerValues = (float*)malloc (numChannels * 4);
-  memset (mPowerValues, 0, numChannels * 4);
-
-  mPeakValues = (float*)malloc (numChannels * 4);
-  memset (mPeakValues, 0, numChannels * 4);
-
-  mFreqValues = (uint8_t*)malloc (numFreqBytes);
-  mFreqLuma = (uint8_t*)malloc (numFreqBytes);
-  }
-//}}}
-//{{{
-cSong::cFrame::~cFrame() {
-
-  if (mOurSamples)
-    free (mSamples);
-
-  free (mPowerValues);
-  free (mPeakValues);
-  free (mFreqValues);
-  free (mFreqLuma);
-  }
-//}}}
-
-// cSong::cSelect
-//{{{
-bool cSong::cSelect::inRange (int frame) {
-
-  for (auto &item : mItems)
-    if (item.inRange (frame))
-      return true;
-
-  return false;
-  }
-//}}}
-//{{{
-int cSong::cSelect::constrainToRange (int frame, int constrainedFrame) {
-// if frame in a select range return frame constrained to it
-
-  for (auto &item : mItems) {
-    if (item.inRange (frame)) {
-      if (constrainedFrame > item.getLastFrame())
-        return item.getFirstFrame();
-      else if (constrainedFrame < item.getFirstFrame())
-        return item.getFirstFrame();
-      else
-        return constrainedFrame;
-      }
-    }
-
-  return constrainedFrame;
-  }
-//}}}
-
-//{{{
-void cSong::cSelect::clearAll() {
-
-  mItems.clear();
-
-  mEdit = eEditNone;
-  mEditFrame = 0;
-  }
-//}}}
-//{{{
-void cSong::cSelect::addMark (int frame, const std::string& title) {
-  mItems.push_back (cSelectItem (cSelectItem::eLoop, frame, frame, title));
-  mEdit = eEditLast;
-  mEditFrame = frame;
-  }
-//}}}
-//{{{
-void cSong::cSelect::start (int frame) {
-
-  mEditFrame = frame;
-
-  mItemNum = 0;
-  for (auto &item : mItems) {
-    // pick from select range
-    if (abs(frame - item.getLastFrame()) < 2) {
-      mEdit = eEditLast;
-      return;
-      }
-    else if (abs(frame - item.getFirstFrame()) < 2) {
-      mEdit = eEditFirst;
-      return;
-      }
-    else if (item.inRange (frame)) {
-      mEdit = eEditRange;
-      return;
-      }
-    mItemNum++;
-    }
-
-  // add new select item
-  mItems.push_back (cSelectItem (cSelectItem::eLoop, frame, frame, ""));
-  mEdit = eEditLast;
-  }
-//}}}
-//{{{
-void cSong::cSelect::move (int frame) {
-
-  if (mItemNum < (int)mItems.size()) {
-    switch (mEdit) {
-      case eEditFirst:
-        mItems[mItemNum].setFirstFrame (frame);
-        if (mItems[mItemNum].getFirstFrame() > mItems[mItemNum].getLastFrame()) {
-          mItems[mItemNum].setLastFrame (frame);
-          mItems[mItemNum].setFirstFrame (mItems[mItemNum].getLastFrame());
-          }
-        break;
-
-      case eEditLast:
-        mItems[mItemNum].setLastFrame (frame);
-        if (mItems[mItemNum].getLastFrame() < mItems[mItemNum].getFirstFrame()) {
-          mItems[mItemNum].setFirstFrame (frame);
-          mItems[mItemNum].setLastFrame (mItems[mItemNum].getFirstFrame());
-          }
-        break;
-
-      case eEditRange:
-        mItems[mItemNum].setFirstFrame (mItems[mItemNum].getFirstFrame() + frame - mEditFrame);
-        mItems[mItemNum].setLastFrame (mItems[mItemNum].getLastFrame() + frame - mEditFrame);
-        mEditFrame = frame;
-        break;
-
-      default:
-        cLog::log (LOGERROR, "moving invalid select");
-      }
-    }
-  }
-//}}}
-//{{{
-void cSong::cSelect::end() {
-  mEdit = eEditNone;
-  mEditFrame = 0;
-  }
-//}}}
-
 // cSong
 //{{{
 cSong::~cSong() {
@@ -458,7 +316,6 @@ void cSong::checkSilenceWindow (int frameNum) {
     }
   }
 //}}}
-
 //{{{
 int cSong::skipPrev (int fromFrame, bool silence) {
 
@@ -483,3 +340,146 @@ int cSong::skipNext (int fromFrame, bool silence) {
   return fromFrame;
   }
 //}}}
+
+// cSong::cFrame
+//{{{
+cSong::cFrame::cFrame (int numChannels, int numFreqBytes, float* samples, bool ourSamples, int64_t pts)
+   : mSamples(samples), mOurSamples(ourSamples), mPts (pts), mMuted(false), mSilence(false) {
+
+  mPowerValues = (float*)malloc (numChannels * 4);
+  memset (mPowerValues, 0, numChannels * 4);
+
+  mPeakValues = (float*)malloc (numChannels * 4);
+  memset (mPeakValues, 0, numChannels * 4);
+
+  mFreqValues = (uint8_t*)malloc (numFreqBytes);
+  mFreqLuma = (uint8_t*)malloc (numFreqBytes);
+  }
+//}}}
+//{{{
+cSong::cFrame::~cFrame() {
+
+  if (mOurSamples)
+    free (mSamples);
+
+  free (mPowerValues);
+  free (mPeakValues);
+  free (mFreqValues);
+  free (mFreqLuma);
+  }
+//}}}
+
+// cSong::cSelect
+//{{{
+bool cSong::cSelect::inRange (int frame) {
+
+  for (auto &item : mItems)
+    if (item.inRange (frame))
+      return true;
+
+  return false;
+  }
+//}}}
+//{{{
+int cSong::cSelect::constrainToRange (int frame, int constrainedFrame) {
+// if frame in a select range return frame constrained to it
+
+  for (auto &item : mItems) {
+    if (item.inRange (frame)) {
+      if (constrainedFrame > item.getLastFrame())
+        return item.getFirstFrame();
+      else if (constrainedFrame < item.getFirstFrame())
+        return item.getFirstFrame();
+      else
+        return constrainedFrame;
+      }
+    }
+
+  return constrainedFrame;
+  }
+//}}}
+
+//{{{
+void cSong::cSelect::clearAll() {
+
+  mItems.clear();
+
+  mEdit = eEditNone;
+  mEditFrame = 0;
+  }
+//}}}
+//{{{
+void cSong::cSelect::addMark (int frame, const std::string& title) {
+  mItems.push_back (cSelectItem (cSelectItem::eLoop, frame, frame, title));
+  mEdit = eEditLast;
+  mEditFrame = frame;
+  }
+//}}}
+//{{{
+void cSong::cSelect::start (int frame) {
+
+  mEditFrame = frame;
+
+  mItemNum = 0;
+  for (auto &item : mItems) {
+    // pick from select range
+    if (abs(frame - item.getLastFrame()) < 2) {
+      mEdit = eEditLast;
+      return;
+      }
+    else if (abs(frame - item.getFirstFrame()) < 2) {
+      mEdit = eEditFirst;
+      return;
+      }
+    else if (item.inRange (frame)) {
+      mEdit = eEditRange;
+      return;
+      }
+    mItemNum++;
+    }
+
+  // add new select item
+  mItems.push_back (cSelectItem (cSelectItem::eLoop, frame, frame, ""));
+  mEdit = eEditLast;
+  }
+//}}}
+//{{{
+void cSong::cSelect::move (int frame) {
+
+  if (mItemNum < (int)mItems.size()) {
+    switch (mEdit) {
+      case eEditFirst:
+        mItems[mItemNum].setFirstFrame (frame);
+        if (mItems[mItemNum].getFirstFrame() > mItems[mItemNum].getLastFrame()) {
+          mItems[mItemNum].setLastFrame (frame);
+          mItems[mItemNum].setFirstFrame (mItems[mItemNum].getLastFrame());
+          }
+        break;
+
+      case eEditLast:
+        mItems[mItemNum].setLastFrame (frame);
+        if (mItems[mItemNum].getLastFrame() < mItems[mItemNum].getFirstFrame()) {
+          mItems[mItemNum].setFirstFrame (frame);
+          mItems[mItemNum].setLastFrame (mItems[mItemNum].getFirstFrame());
+          }
+        break;
+
+      case eEditRange:
+        mItems[mItemNum].setFirstFrame (mItems[mItemNum].getFirstFrame() + frame - mEditFrame);
+        mItems[mItemNum].setLastFrame (mItems[mItemNum].getLastFrame() + frame - mEditFrame);
+        mEditFrame = frame;
+        break;
+
+      default:
+        cLog::log (LOGERROR, "moving invalid select");
+      }
+    }
+  }
+//}}}
+//{{{
+void cSong::cSelect::end() {
+  mEdit = eEditNone;
+  mEditFrame = 0;
+  }
+//}}}
+
