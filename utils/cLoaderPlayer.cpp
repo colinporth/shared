@@ -76,11 +76,9 @@ void cLoaderPlayer::initialise (bool radio,
 
   // video
   mVidBitrate = vidBitrate;
-  if (vidBitrate)
-    mVideoDecode = cVideoDecode::create (loader & eFFmpeg, loader & eBgra, videoPoolSize);
 
-  // audio pesParser, !!! inited but not used by mRadio until I fix it !!!
-  if (!mRadio)
+  if (!mRadio) {
+    // audio pesParser
     mPesParsers.push_back (
       new cPesParser (0x22, loader & eQueueAudio, "aud",
         [&](uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
@@ -117,62 +115,65 @@ void cLoaderPlayer::initialise (bool radio,
         )
       );
 
-  if (vidBitrate) {
-    // video pesParser
-    mPesParsers.push_back (
-      new cPesParser (0x21, loader & eQueueVideo, "vid",
-        [&](uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
-          //{{{  video pes process callback lambda
-          pesParser->decode (pes, size, num, pts);
-          num++;
-          return num;
-          },
-          //}}}
-        [&](uint8_t* pes, int size, int num, int64_t pts) noexcept {
-          //{{{  video pes decode callback lambda
-          mVideoDecode->decodeFrame (pes, size, num, pts);
-          }
-          //}}}
-        )
-      );
-    }
+    if (vidBitrate) {
+      mVideoDecode = cVideoDecode::create (loader & eFFmpeg, loader & eBgra, videoPoolSize);
 
-  //{{{  PAT pesParser
-  //mPesParsers.push_back (
-    //new cPesParser (0x00, false, "pat",
-      //[&] (uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
-        //{{{  pat callback
-        //string info;
-        //for (int i = 0; i < size; i++) {
-          //int value = pes[i];
-          //info += hex (value, 2) + " ";
-          //}
-        //cLog::log (LOGINFO, "PAT process " + dec (size) + ":" + info);
-        //return num;
-        //},
-        //}}}
-      //[&] (uint8_t* pes, int size, int num, int64_t pts) noexcept {}
-      //)
-    //);
-  //}}}
-  //{{{  pgm 0x20 pesParser
-  //mPesParsers.push_back (
-    //new cPesParser (0x20, false, "pgm",
-      //[&] (uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
-        //{{{  pgm callback
-        //string info;
-        //for (int i = 0; i < size; i++) {
-          //int value = pes[i];
-          //info += hex (value, 2) + " ";
-          //}
-        //cLog::log (LOGINFO, "pgm process " + dec (size) + ":" + info);
-        //return num;
-        //},
-        //}}}
-      //[&] (uint8_t* pes, int size, int num, int64_t pts) noexcept {}
-      //)
-    //);
-  //}}}
+      // video pesParser
+      mPesParsers.push_back (
+        new cPesParser (0x21, loader & eQueueVideo, "vid",
+          [&](uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
+            //{{{  video pes process callback lambda
+            pesParser->decode (pes, size, num, pts);
+            num++;
+            return num;
+            },
+            //}}}
+          [&](uint8_t* pes, int size, int num, int64_t pts) noexcept {
+            //{{{  video pes decode callback lambda
+            mVideoDecode->decodeFrame (pes, size, num, pts);
+            }
+            //}}}
+          )
+        );
+      }
+
+    //{{{  PAT pesParser
+    //mPesParsers.push_back (
+      //new cPesParser (0x00, false, "pat",
+        //[&] (uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
+          //{{{  pat callback
+          //string info;
+          //for (int i = 0; i < size; i++) {
+            //int value = pes[i];
+            //info += hex (value, 2) + " ";
+            //}
+          //cLog::log (LOGINFO, "PAT process " + dec (size) + ":" + info);
+          //return num;
+          //},
+          //}}}
+        //[&] (uint8_t* pes, int size, int num, int64_t pts) noexcept {}
+        //)
+      //);
+    //}}}
+    //{{{  pgm 0x20 pesParser
+    //mPesParsers.push_back (
+      //new cPesParser (0x20, false, "pgm",
+        //[&] (uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
+          //{{{  pgm callback
+          //string info;
+          //for (int i = 0; i < size; i++) {
+            //int value = pes[i];
+            //info += hex (value, 2) + " ";
+            //}
+          //cLog::log (LOGINFO, "pgm process " + dec (size) + ":" + info);
+          //return num;
+          //},
+          //}}}
+        //[&] (uint8_t* pes, int size, int num, int64_t pts) noexcept {}
+        //)
+      //);
+    //}}}
+    }
   }
 //}}}
 
@@ -394,7 +395,7 @@ void cLoaderPlayer::icyLoaderThread (const string& url) {
       //}}}
       //{{{  dataCallback lambda
       [&] (const uint8_t* data, int length) noexcept {
-      // return false to exit
+        // return false to exit
 
         // cLog::log (LOGINFO, "callback %d", length);
         if ((icyInfoCount >= icyInfoLen) && (icySkipCount + length <= icySkipLen)) {

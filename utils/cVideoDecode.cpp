@@ -497,16 +497,16 @@ public:
       system_clock::time_point timePoint = system_clock::now();
 
       // constants
-      int const dstStride = width * 4;
-      int const heightDiv2 = height >> 1;
-      int const widthDiv8 = width >> 3;
+      int const dstStride = mWidth * 4;
+      int const heightDiv2 = mHeight >> 1;
+      int const widthDiv8 = mWidth >> 3;
 
       uint8x8_t const yOffset = vdup_n_u8 (16);
       int16x8_t const uvOffset = vdupq_n_u16 (128);
       int32x4_t const rounding = vdupq_n_s32 (128);
 
       uint8_t* y0 = (uint8_t*)data[0];
-      uint8_t* y1 = (uint8_t*)data[0] + width;
+      uint8_t* y1 = (uint8_t*)data[0] + mWidth;
       uint8_t* u = (uint8_t*)data[1];
       uint8_t* v = (uint8_t*)data[2];
       uint8_t* dst = (uint8_t*)mBuffer8888;
@@ -586,8 +586,8 @@ public:
           dst1 += 8 * 4;
           }
           //}}}
-        y0 += width;
-        y1 += width;
+        y0 += mWidth;
+        y1 += mWidth;
         }
 
       if (kTiming)
