@@ -46,37 +46,39 @@ using namespace chrono;
 //}}}
 
 //{{{
-static uint8_t* extractAacFramesFromTs (uint8_t* ts, int tsLen) {
-// extract aacFrames from ts packets, pack back into ts, gets smaller ts gets stripped
+static uint8_t* tsToAudioPes (uint8_t* ts, int tsLen) {
+// extract audio pes from ts packets, write back into ts, gets smaller as ts gets stripped
+// return pointer to new pesEnd
 
-  auto aacFramesPtr = ts;
-
-  auto tsEnd = ts + tsLen;
+  uint8_t* dstPtr = ts;
+  uint8_t* tsEnd = ts + tsLen;
   while ((ts < tsEnd) && (*ts++ == 0x47)) {
     // ts packet start
-    auto payStart = ts[0] & 0x40;
     auto pid = ((ts[0] & 0x1F) << 8) | ts[1];
-    auto headerBytes = (ts[2] & 0x20) ? 4 + ts[3] : 3;
-    ts += headerBytes;
-    auto tsBodyBytes = 187 - headerBytes;
-
     if (pid == 34) {
-      if (payStart &&
-          !ts[0] && !ts[1] && (ts[2] == 1) && (ts[3] == 0xC0)) {
+      bool payStart = ts[0] & 0x40;
+
+      auto headerBytes = (ts[2] & 0x20) ? 4 + ts[3] : 3;
+      ts += headerBytes;
+      int tsBodyBytes = 187 - headerBytes;
+
+      if (payStart) {
         int pesHeaderBytes = 9 + ts[8];
         ts += pesHeaderBytes;
         tsBodyBytes -= pesHeaderBytes;
         }
 
       // copy ts payload aacFrames back into buffer
-      memcpy (aacFramesPtr, ts, tsBodyBytes);
-      aacFramesPtr += tsBodyBytes;
-      }
+      memcpy (dstPtr, ts, tsBodyBytes);
+      dstPtr += tsBodyBytes;
 
-    ts += tsBodyBytes;
+      ts += tsBodyBytes;
+      }
+    else
+      ts += 187;
     }
 
-  return aacFramesPtr;
+  return dstPtr;
   }
 //}}}
 
@@ -296,7 +298,7 @@ void cLoaderPlayer::hlsLoaderThread() {
                            mLoadFrac = float(http.getContentSize()) / http.getHeaderContentSize();
 
                            if (!mRadio) {
-                             // parse as we get it
+                             // pesParse as we go
                              while (http.getContentSize() - contentParsed >= 188) {
                                uint8_t* ts = http.getContent() + contentParsed;
                                if (*ts == 0x47) {
@@ -319,20 +321,19 @@ void cLoaderPlayer::hlsLoaderThread() {
                         ) == 200) {
             if (mRadio) {
               //{{{  parse whole chunk
-              auto aacFrames = http.getContent();
-              auto aacFramesEnd = extractAacFramesFromTs (aacFrames, http.getContentSize());
-              while (getAudioDecode()->parseFrame (aacFrames, aacFramesEnd)) {
-                auto samples = getAudioDecode()->decodeFrame (frameNum);
-                if (samples) {
-                  mSong->addFrame (frameNum++, samples, true, mSong->getNumFrames(), 0);
-                  startPlayer();
-                  }
-                aacFrames += getAudioDecode()->getNextFrameOffset();
+              auto pesEnd = tsToAudioPes (http.getContent(), http.getContentSize());
+              auto pes = http.getContent();
+
+              while (getAudioDecode()->parseFrame (pes, pesEnd)) {
+                float* samples = getAudioDecode()->decodeFrame (frameNum);
+                mSong->addFrame (frameNum++, samples, true, mSong->getNumFrames(), 0);
+                startPlayer();
+                pes += getAudioDecode()->getNextFrameOffset();
                 }
               }
               //}}}
             else {
-              //{{{  finish pesParser method
+              //{{{  pesParser finish
               for (auto pesParser : mPesParsers)
                 pesParser->process();
               }
