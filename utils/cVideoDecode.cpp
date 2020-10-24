@@ -106,8 +106,6 @@ public:
     virtual void setYuv420 (void* context, uint8_t** data, int* linesize) {
     // interleaved, intel intrinsics ssse3 convert, fast, uses shuffle
 
-      system_clock::time_point timePoint = system_clock::now();
-
       // const
       __m128i zero  = _mm_set1_epi32 (0x00000000);
       __m128i ysub  = _mm_set1_epi32 (0x00100010);
@@ -225,9 +223,6 @@ public:
         srcY128r1 += linesize[0] / 16;
         }
 
-      if (kTiming)
-        cLog::log (LOGINFO1, "setYuv420Rgba:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
-
       mState = eLoaded;
       }
   #endif
@@ -242,8 +237,6 @@ public:
 
     virtual void setYuv420 (void* context, uint8_t** data, int* linesize) {
     // interleaved, intel intrinsics ssse3 convert, fast, uses shuffle
-
-      system_clock::time_point timePoint = system_clock::now();
 
       // const
       __m128i zero  = _mm_set1_epi32 (0x00000000);
@@ -359,9 +352,6 @@ public:
         srcY128r1 += linesize[0] / 16;
         }
 
-      if (kTiming)
-        cLog::log (LOGINFO1, "setYuv420Bgra:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
-
       mState = eLoaded;
       }
 
@@ -377,8 +367,6 @@ public:
     //{{{
     virtual void setYuv420 (void* context, uint8_t** data, int* linesize) {
     // intel intrinsics sse2 convert, fast, but sws is same sort of thing may be a bit faster in the loops
-
-      system_clock::time_point timePoint = system_clock::now();
 
       uint8_t* yBuffer = data[0];
       uint8_t* uBuffer = data[1];
@@ -483,9 +471,6 @@ public:
         dstrgb128r1 += mWidth / 4;
         }
 
-      if (kTiming)
-        cLog::log (LOGINFO1, "setYuv420RgbaPlanar:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
-
       mState = eLoaded;
       }
     //}}}
@@ -493,8 +478,6 @@ public:
     //{{{
     virtual void setYuv420 (void* context, uint8_t** data, int* linesize) {
     // ARM NEON covert, maybe slower than sws table lookup
-
-      system_clock::time_point timePoint = system_clock::now();
 
       // constants
       int const heightDiv2 = mHeight / 2;
@@ -589,9 +572,6 @@ public:
         y1 += linesize[0];
         }
 
-      if (kTiming)
-        cLog::log (LOGINFO1, "setYuv420RgbaPlanar Neon:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
-
       mState = eLoaded;
       }
     //}}}
@@ -606,8 +586,6 @@ public:
   #if defined(INTEL_SSE2)
     virtual void setYuv420 (void* context, uint8_t** data, int* linesize) {
     // intel intrinsics sse2 convert, fast, but sws is same sort of thing may be a bit faster in the loops
-
-      system_clock::time_point timePoint = system_clock::now();
 
       uint8_t* yBuffer = data[0];
       uint8_t* uBuffer = data[1];
@@ -710,9 +688,6 @@ public:
         dstrgb128r1 += mWidth / 4;
         }
 
-      if (kTiming)
-        cLog::log (LOGINFO1, "setYuv420BgraPlanar:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
-
       mState = eLoaded;
       }
   #endif
@@ -725,15 +700,10 @@ public:
 
   virtual void setYuv420 (void* context, uint8_t** data, int* linesize) {
 
-    system_clock::time_point timePoint = system_clock::now();
-
     // ffmpeg libswscale convert data to mBuffer8888 using swsContext
     uint8_t* dstData[1] = { (uint8_t*)mBuffer8888 };
     int dstStride[1] = { mWidth * 4 };
     sws_scale ((SwsContext*)context, data, linesize, 0, mHeight, dstData, dstStride);
-
-    if (kTiming)
-      cLog::log (LOGINFO1, "setYuv420RgbaPlanarSws:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
     mState = eLoaded;
     }
@@ -1529,8 +1499,6 @@ public:
       //};
     //}}}
 
-    //system_clock::time_point timePoint = system_clock::now();
-
     //uint8_t* yPtr = (uint8_t*)data[0];
     //uint8_t* uPtr = (uint8_t*)data[1];
     //uint8_t* vPtr = (uint8_t*)data[2];
@@ -1618,8 +1586,6 @@ public:
       //yPtr1 += stride;
       //}
 
-    //if (kTiming)
-      //cLog::log (LOGINFO1, "setYuv420RgbaPlanarTable :%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
     //mState = eLoaded;
     //}
   //};
@@ -1630,8 +1596,6 @@ public:
   //virtual ~cFramePlanarRgbaSimple() {}
 
   //virtual void setYuv420 (void* context, uint8_t** data, int* linesize) {
-
-    //system_clock::time_point timePoint = system_clock::now();
 
     //uint8_t* y = (uint8_t*)data[0];
     //uint8_t* u = (uint8_t*)data[1];
@@ -1690,8 +1654,6 @@ public:
       //dst0 = dst1;
       //}
 
-    //if (kTiming)
-      //cLog::log (LOGINFO1, "setYuv420RgbaPlanarSimple :%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
     //mState = eLoaded;
     //}
   //};
@@ -1750,12 +1712,14 @@ public:
           if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF || ret < 0)
             break;
           if (kTiming)
-            cLog::log (LOGINFO1, "decodeFrame FFmpeg:%d",
+            cLog::log (LOGINFO1, "decode FFmpeg:%d",
                                  duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
           mWidth = avFrame->width;
           mHeight = avFrame->height;
           mPtsDuration = (kPtsPerSecond * mAvContext->framerate.den) / mAvContext->framerate.num;
+
+          system_clock::time_point timePoint = system_clock::now();
 
           auto frame = getFreeFrame (mDecodePts);
           frame->set (mDecodePts, mPtsDuration, pesSize, num, mWidth, mHeight);
@@ -1764,6 +1728,10 @@ public:
                                           SWS_BILINEAR, NULL, NULL, NULL);
           frame->setYuv420 (mSwsContext, avFrame->data, avFrame->linesize);
           av_frame_unref (avFrame);
+
+          if (kTiming)
+            cLog::log (LOGINFO1, "setYuv420 FFmpeg %d",
+                                 duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
           mDecodePts += mPtsDuration;
           }
@@ -1866,15 +1834,21 @@ private:
           status = mSession.SyncOperation (syncDecode, 60000);
           if (status == MFX_ERR_NONE) {
             if (kTiming)
-              cLog::log (LOGINFO1, "decodeFrame mfx:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+              cLog::log (LOGINFO1, "decode mfx:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
             mPtsDuration = (kPtsPerSecond * surface->Info.FrameRateExtD) / surface->Info.FrameRateExtN;
+
+            system_clock::time_point timePoint = system_clock::now();
 
             auto frame = getFreeFrame (surface->Data.TimeStamp);
             frame->set (surface->Data.TimeStamp, mPtsDuration, pesSize, num, surface->Info.Width, surface->Info.Height);
             uint8_t* data[2] = { surface->Data.Y, surface->Data.UV };
             int linesize[2] = { surface->Data.Pitch, surface->Data.Pitch/2 };
             frame->setYuv420 (nullptr, data, linesize);
+
+            if (kTiming)
+              cLog::log (LOGINFO1, "setYuv420 mfx %d",
+                                   duration_cast<microseconds>(system_clock::now() - timePoint).count());
             }
           }
         }

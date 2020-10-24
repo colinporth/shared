@@ -87,7 +87,6 @@ void cLoaderPlayer::initialise (bool radio,
           while (getAudioDecode()->parseFrame (framePes, pes + size)) {
             // decode a single frame from pes
             int framePesSize = getAudioDecode()->getNextFrameOffset();
-            cLog::log (LOGINFO, "%d %d", num, framePesSize);
             pesParser->decode (framePes, framePesSize, num, pts);
 
             // pts of next frame in pes, assumes 48000 sample rate
@@ -217,7 +216,7 @@ void cLoaderPlayer::hlsLoaderThread() {
 
   cLog::setThreadName ("hls ");
 
-  // bitrates < 128 use aacHE, more samplesPerframe, less framesPerChunk
+  // audBitrate < 128000 use aacHE, more samplesPerframe, less framesPerChunk
   mSong->initialise (cAudioDecode::eAac, 2, 48000, mAudBitrate < 128000 ? 2048 : 1024, 1000);
   mSong->setBitrateFramesPerChunk (mAudBitrate, mAudBitrate < 128000 ? (mRadio ? 150 : 180) : (mRadio ? 300 : 360));
   mSong->setChannel (mChannelName);
@@ -291,7 +290,7 @@ void cLoaderPlayer::hlsLoaderThread() {
                            }
                            //}}}
                         ) == 200) {
-            // ??? why does pesParser fail for radio audio pes only ???
+            // ??? why does pesParser fail for radio audio pes ???
             if (mRadio) {
               //{{{  parse chunk of ts
               // extract audio pes from chunk of ts packets, write it back crunched into ts, always gets smaller as ts stripped
@@ -313,7 +312,7 @@ void cLoaderPlayer::hlsLoaderThread() {
                     tsBodyBytes -= pesHeaderBytes;
                     }
 
-                  // copy ts payload back into same buffer, always getting smaller
+                  // copy ts payload back into same buffer, always copying to lower address in same buffer
                   memcpy (pesPtr, tsPtr, tsBodyBytes);
                   pesPtr += tsBodyBytes;
                   tsPtr += tsBodyBytes;
@@ -322,13 +321,18 @@ void cLoaderPlayer::hlsLoaderThread() {
                   tsPtr += 187;
                 }
 
-              // parse pes frame by frame
+              // parse audio pes for audio frames
               uint8_t* pesEnd = pesPtr;
               pesPtr = http.getContent();
               while (getAudioDecode()->parseFrame (pesPtr, pesEnd)) {
                 float* samples = getAudioDecode()->decodeFrame (frameNum);
-                mSong->addFrame (frameNum++, samples, true, mSong->getNumFrames(), 0);
-                startPlayer();
+                if (samples) {
+                  mSong->addFrame (frameNum++, samples, true, mSong->getNumFrames(), 0);
+                  startPlayer();
+                  }
+                else
+                  cLog::log (LOGERROR, "aud parser failed to decode %d", frameNum);
+
                 pesPtr += getAudioDecode()->getNextFrameOffset();
                 }
               }

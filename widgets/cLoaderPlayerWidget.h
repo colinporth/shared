@@ -84,7 +84,12 @@ private:
     int videoQueueSize;
     int audioQueueSize;
     mLoaderPlayer->getSizes (loadSize, videoQueueSize, audioQueueSize);
-    infoString += " " + dec(loadSize/1000) + "k v" + dec(videoQueueSize) + " a" + dec(audioQueueSize);
+    infoString += " " + dec(loadSize/1000) + "k";
+
+    if (videoDecode) 
+      infoString += " v" + dec(videoQueueSize);
+
+    infoString += " a" + dec(audioQueueSize);
 
     vg->setFontSize ((float)getFontHeight());
     vg->setTextAlign (cVg::eAlignLeft | cVg::eAlignTop);
