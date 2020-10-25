@@ -68,12 +68,12 @@ public:
   void setPlayPts (int64_t playPts) { mPlayPts = playPts; }
 
   cFrame* findPlayFrame();
-  virtual void decodeFrame (uint8_t* pes, unsigned int pesSize, int num, int64_t pts) = 0;
+  virtual void decodeFrame (bool afterPlay, uint8_t* pes, unsigned int pesSize, int num, int64_t pts) = 0;
 
 protected:
   cVideoDecode (bool planar, bool bgra, int poolSize);
 
-  cFrame* getFreeFrame (int64_t pts);
+  cFrame* getFreeFrame (bool afterPlay, int64_t pts);
 
   int mWidth = 0;
   int mHeight = 0;

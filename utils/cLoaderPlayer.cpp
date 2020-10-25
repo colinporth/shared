@@ -162,7 +162,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
             //}}}
           [&](bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) noexcept {
             //{{{  video pes decode callback lambda
-            mVideoDecode->decodeFrame (pes, size, num, pts);
+            mVideoDecode->decodeFrame (afterPlay, pes, size, num, pts);
             }
             //}}}
           )

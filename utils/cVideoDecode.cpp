@@ -1684,7 +1684,7 @@ public:
   //}}}
 
   //{{{
-  virtual void decodeFrame (uint8_t* pes, unsigned int pesSize, int num, int64_t pts) {
+  virtual void decodeFrame (bool afterPlay, uint8_t* pes, unsigned int pesSize, int num, int64_t pts) {
 
     system_clock::time_point timePoint = system_clock::now();
 
@@ -1719,7 +1719,7 @@ public:
           mHeight = avFrame->height;
           mPtsDuration = (kPtsPerSecond * mAvContext->framerate.den) / mAvContext->framerate.num;
 
-          auto frame = getFreeFrame (mDecodePts);
+          auto frame = getFreeFrame (afterPlay, mDecodePts);
 
           timePoint = system_clock::now();
           frame->set (mDecodePts, mPtsDuration, pesSize, num, mWidth, mHeight);
@@ -1777,7 +1777,7 @@ private:
 
     int getSurfacePoolSize() { return (int)mSurfacePool.size(); }
     //{{{
-    void decodeFrame (uint8_t* pes, unsigned int pesSize, int num, int64_t pts) {
+    void decodeFrame (bool afterPlay, uint8_t* pes, unsigned int pesSize, int num, int64_t pts) {
 
       system_clock::time_point timePoint = system_clock::now();
 
@@ -1838,7 +1838,7 @@ private:
 
             mPtsDuration = (kPtsPerSecond * surface->Info.FrameRateExtD) / surface->Info.FrameRateExtN;
 
-            auto frame = getFreeFrame (surface->Data.TimeStamp);
+            auto frame = getFreeFrame (afterPlay, surface->Data.TimeStamp);
 
             timePoint = system_clock::now();
             frame->set (surface->Data.TimeStamp, mPtsDuration, pesSize, num, surface->Info.Width, surface->Info.Height);
@@ -1947,8 +1947,9 @@ cVideoDecode::cFrame* cVideoDecode::findPlayFrame() {
   }
 //}}}
 //{{{
-cVideoDecode::cFrame* cVideoDecode::getFreeFrame (int64_t pts) {
+cVideoDecode::cFrame* cVideoDecode::getFreeFrame (bool afterPlay, int64_t pts) {
 // return first frame older than mPlayPts
+// !!! use afterPlay to get better reuse, may be use map with lock like audio !!!
 
   while (true) {
     for (auto frame : mFramePool) {
