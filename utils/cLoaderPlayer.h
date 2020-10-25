@@ -17,54 +17,37 @@ class cFileList;
 enum eLoader { eFFmpeg = 0x01, eBgra = 0x02, eQueueAudio = 0x04,  eQueueVideo = 0x08 };
 class cLoaderPlayer {
 public:
-  cLoaderPlayer() {}
+  cLoaderPlayer();
   virtual ~cLoaderPlayer();
-
-  void initialise (bool radio,
-                   const std::string& hostName, const std::string& poolName, const std::string& channelName,
-                   int audBitrate, int vidBitrate,
-                   int videoPoolSize, eLoader loader);
 
   cSong* getSong() { return mSong; }
   cVideoDecode* getVideoDecode() { return mVideoDecode; }
   cAudioDecode* getAudioDecode() { return mAudioDecode; }
 
-  std::string getChannelName() { return mChannelName; }
-  int getVidBitrate() { return mVidBitrate; }
-  int getAudBitrate() { return mAudBitrate; }
   void getFrac (float& loadFrac, float& videoFrac, float& audioFrac);
   void getSizes (int& loadSize, int& videoQueueSize, int& audioQueueSize);
 
   void videoFollowAudio();
-  void hlsLoaderThread();
+
+  void hlsLoaderThread (bool radio, const std::string& channelName,
+                        int audBitrate, int vidBitrate, eLoader loader);
   void icyLoaderThread (const std::string& url);
   void fileLoaderThread();
 
-  cSong* mSong;
-  bool mPlaying = true;
+  // vars
   bool mExit = false;
-
+  bool mPlaying = true;
   std::string mLastTitleStr;
-
   cFileList* mFileList = nullptr;
 
 private:
-  std::string getHlsPathName();
+  std::string getHlsPathName (bool radio, int vidBitrate);
   static std::string getTagValue (uint8_t* buffer, const char* tag);
   void addIcyInfo (int frame, const std::string& icyInfo);
-  void startPlayer();
+  void startPlayer (bool streaming);
 
-  bool mRadio = false;
-  std::string mHostName;
-  std::string mPoolName;
-  std::string mChannelName;
-
-  int mVidBitrate = 0;
-  int mAudBitrate = 0;
-  eLoader mLoader = {};
-
-  bool mStreaming = false;
-
+  // vars
+  cSong* mSong;
   int mLoadSize = 0;
   float mLoadFrac = 0.f;
 

@@ -44,9 +44,13 @@
 using namespace std;
 using namespace chrono;
 //}}}
-const string kM3u8 = ".norewind.m3u8";
 
 // public
+//{{{
+cLoaderPlayer::cLoaderPlayer() {
+  mSong = new cSong();
+  }
+//}}}
 //{{{
 cLoaderPlayer::~cLoaderPlayer() {
 
@@ -56,28 +60,57 @@ cLoaderPlayer::~cLoaderPlayer() {
   // !!!!! should clear down mPesParsers !!!!
   }
 //}}}
+
 //{{{
-void cLoaderPlayer::initialise (bool radio,
-                                const string& hostName, const string& poolName, const string& channelName,
-                                int audBitrate, int vidBitrate, int videoPoolSize,
-                                eLoader loader) {
+void cLoaderPlayer::getFrac (float& loadFrac, float& videoFrac, float& audioFrac) {
+// return fracs for spinner graphic, true if ok to display
 
-  mRadio = radio;
-  mHostName = hostName;
-  mPoolName = poolName;
-  mChannelName = channelName;
-  mStreaming = true;
-  mLoader = loader;
+  loadFrac = mLoadFrac;
+  audioFrac = mPesParsers.size() > 0 ? mPesParsers[0]->getQueueFrac() : 0.f;
+  videoFrac = mPesParsers.size() > 1 ? mPesParsers[1]->getQueueFrac() : 0.f;
+  }
+//}}}
+//{{{
+void cLoaderPlayer::getSizes (int& loadSize, int& videoQueueSize, int& audioQueueSize) {
+// return sizes
 
-  // audio
-  mAudBitrate = audBitrate;
-  mSong = new cSong();
+  loadSize = mLoadSize;
+  audioQueueSize = mPesParsers.size() > 0 ? mPesParsers[0]->getQueueSize() : 0;
+  videoQueueSize = mPesParsers.size() > 1 ? mPesParsers[1]->getQueueSize() : 0;
+  }
+//}}}
+
+//{{{
+void cLoaderPlayer::videoFollowAudio() {
+
+  if (mVideoDecode) {
+    // get play frame
+    auto framePtr = mSong->getFramePtr (mSong->getPlayFrame());
+    if (framePtr) {
+      auto pts = framePtr->getPts();
+      mVideoDecode->setPlayPts (pts);
+      mVideoDecode->clear (pts);
+      }
+    }
+  }
+//}}}
+
+//{{{
+void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
+                                     int audBitrate, int vidBitrate, eLoader loader) {
+// hls http chunk load and possible decode thread
+
+  constexpr int kVideoPoolSize = 128;
+  const string kM3u8 = ".norewind.m3u8";
+  const string hostName = radio ? "as-hls-uk-live.bbcfmt.s.llnwi.net" : "vs-hls-uk-live.akamaized.net";
+
+  cLog::setThreadName ("hls ");
+
   mAudioDecode = new cAudioDecode (cAudioDecode::eAac);
 
   // video
-  mVidBitrate = vidBitrate;
-
-  if (!mRadio) {
+  if (!radio) {
+    //{{{  init parsers
     // audio pesParser
     mPesParsers.push_back (
       new cPesParser (0x22, loader & eQueueAudio, "aud",
@@ -105,7 +138,7 @@ void cLoaderPlayer::initialise (bool radio,
           float* samples = mAudioDecode->decodeFrame (pes, size, num, pts);
           if (samples) {
             mSong->addFrame (num, samples, true, mSong->getNumFrames(), pts);
-            startPlayer();
+            startPlayer (true);
             }
           else
             cLog::log (LOGERROR, "aud pesParser failed to decode %d %d", size, num);
@@ -115,7 +148,7 @@ void cLoaderPlayer::initialise (bool radio,
       );
 
     if (vidBitrate) {
-      mVideoDecode = cVideoDecode::create (loader & eFFmpeg, loader & eBgra, videoPoolSize);
+      mVideoDecode = cVideoDecode::create (loader & eFFmpeg, loader & eBgra, kVideoPoolSize);
 
       // video pesParser
       mPesParsers.push_back (
@@ -173,59 +206,18 @@ void cLoaderPlayer::initialise (bool radio,
       //);
     //}}}
     }
-  }
-//}}}
-
-//{{{
-void cLoaderPlayer::getFrac (float& loadFrac, float& videoFrac, float& audioFrac) {
-// return fracs for spinner graphic, true if ok to display
-
-  loadFrac = mLoadFrac;
-  audioFrac = mPesParsers.size() > 0 ? mPesParsers[0]->getQueueFrac() : 0.f;
-  videoFrac = mPesParsers.size() > 1 ? mPesParsers[1]->getQueueFrac() : 0.f;
-  }
-//}}}
-//{{{
-void cLoaderPlayer::getSizes (int& loadSize, int& videoQueueSize, int& audioQueueSize) {
-// return sizes
-
-  loadSize = mLoadSize;
-  audioQueueSize = mPesParsers.size() > 0 ? mPesParsers[0]->getQueueSize() : 0;
-  videoQueueSize = mPesParsers.size() > 1 ? mPesParsers[1]->getQueueSize() : 0;
-  }
-//}}}
-
-//{{{
-void cLoaderPlayer::videoFollowAudio() {
-
-  if (mVideoDecode) {
-    // get play frame
-    auto framePtr = mSong->getFramePtr (mSong->getPlayFrame());
-    if (framePtr) {
-      auto pts = framePtr->getPts();
-      mVideoDecode->setPlayPts (pts);
-      mVideoDecode->clear (pts);
-      }
-    }
-  }
-//}}}
-
-//{{{
-void cLoaderPlayer::hlsLoaderThread() {
-// hls http chunk load and possible decode thread
-
-  cLog::setThreadName ("hls ");
+    //}}}
 
   // audBitrate < 128000 use aacHE, more samplesPerframe, less framesPerChunk
-  mSong->initialise (cAudioDecode::eAac, 2, 48000, mAudBitrate < 128000 ? 2048 : 1024, 1000);
-  mSong->setBitrateFramesPerChunk (mAudBitrate, mAudBitrate < 128000 ? (mRadio ? 150 : 180) : (mRadio ? 300 : 360));
-  mSong->setChannel (mChannelName);
+  mSong->initialise (cAudioDecode::eAac, 2, 48000, audBitrate < 128000 ? 2048 : 1024, 1000);
+  mSong->setBitrateFramesPerChunk (audBitrate, audBitrate < 128000 ? (radio ? 150 : 180) : (radio ? 300 : 360));
+  mSong->setChannel (channelName);
 
   while (!mExit && !mSong->getChanged()) {
     mSong->setChanged (false);
     cPlatformHttp http;
-    string pathName = getHlsPathName();
-    string redirectedHostName = http.getRedirect (mHostName, pathName + kM3u8);
+    string pathName = getHlsPathName (radio, vidBitrate);
+    string redirectedHostName = http.getRedirect (hostName, pathName + kM3u8);
     if (http.getContent()) {
       //{{{  parse m3u8 for mediaSequence,programDateTimePoint
       int extXMediaSequence = stoi (getTagValue (http.getContent(), "#EXT-X-MEDIA-SEQUENCE:"));
@@ -242,7 +234,7 @@ void cLoaderPlayer::hlsLoaderThread() {
         int chunkNum;
         int frameNum;
         if (mSong->loadChunk (system_clock::now(), 2, chunkNum, frameNum)) {
-          if (!mRadio) {
+          if (!radio) {
             //{{{  pesParser init
             // always audio
             mPesParsers[0]->clear (frameNum);
@@ -268,7 +260,7 @@ void cLoaderPlayer::hlsLoaderThread() {
                            mLoadSize = http.getContentSize();
                            mLoadFrac = float(http.getContentSize()) / http.getHeaderContentSize();
 
-                           if (!mRadio) {
+                           if (!radio) {
                              // pesParse as we go
                              while (http.getContentSize() - contentParsed >= 188) {
                                uint8_t* ts = http.getContent() + contentParsed;
@@ -291,7 +283,7 @@ void cLoaderPlayer::hlsLoaderThread() {
                            //}}}
                         ) == 200) {
             // ??? why does pesParser fail for radio audio pes ???
-            if (mRadio) {
+            if (radio) {
               //{{{  parse chunk of ts
               // extract audio pes from chunk of ts packets, write it back crunched into ts, always gets smaller as ts stripped
               uint8_t* tsPtr = http.getContent();
@@ -328,7 +320,7 @@ void cLoaderPlayer::hlsLoaderThread() {
                 float* samples = getAudioDecode()->decodeFrame (frameNum);
                 if (samples) {
                   mSong->addFrame (frameNum++, samples, true, mSong->getNumFrames(), 0);
-                  startPlayer();
+                  startPlayer (true);
                   }
                 else
                   cLog::log (LOGERROR, "aud parser failed to decode %d", frameNum);
@@ -454,7 +446,7 @@ void cLoaderPlayer::icyLoaderThread (const string& url) {
             if (samples) {
               mSong->setFixups (decode.getNumChannels(), decode.getSampleRate(), decode.getNumSamplesPerFrame());
               mSong->addFrame (frameNum++, samples, true, mSong->getNumFrames()+1, 0);
-              startPlayer();
+              startPlayer (true);
               }
             }
           buffer += decode.getNextFrameOffset();
@@ -524,7 +516,7 @@ void cLoaderPlayer::fileLoaderThread() {
         while (!mExit && !mSong->getChanged() && ((samples + (frameSamples * 2 * sizeof(float))) <= fileMapEnd)) {
           mSong->addFrame (frameNum++, (float*)samples, false, fileMapSize / (frameSamples * 2 * sizeof(float)), 0);
           samples += frameSamples * 2 * sizeof(float);
-          startPlayer();
+          startPlayer (false);
           }
         }
         //}}}
@@ -539,7 +531,7 @@ void cLoaderPlayer::fileLoaderThread() {
               int totalFrames = (numFrames > 0) ? int(fileMapEnd - fileMapFirst) / (int(decode.getFramePtr() - fileMapFirst) / numFrames) : 0;
               mSong->setFixups (decode.getNumChannels(), decode.getSampleRate(), decode.getNumSamplesPerFrame());
               mSong->addFrame (frameNum++, samples, true, totalFrames+1, 0);
-              startPlayer();
+              startPlayer (false);
               }
             }
           fileMapPtr += decode.getNextFrameOffset();
@@ -570,17 +562,19 @@ void cLoaderPlayer::fileLoaderThread() {
 
 // private
 //{{{
-string cLoaderPlayer::getHlsPathName() {
+string cLoaderPlayer::getHlsPathName (bool radio, int vidBitrate) {
+
+  const string mPoolName = radio ? "pool_904/live/uk/" : "pool_902/live/uk/";
 
   string pathName = mPoolName + mSong->getChannel() +
                     "/" + mSong->getChannel() +
                     ".isml/" + mSong->getChannel();
-  if (mRadio)
+  if (radio)
     pathName += "-audio=" + dec(mSong->getBitrate());
   else {
     pathName += mSong->getBitrate() < 128000 ? "-pa3=" : "-pa4=" + dec(mSong->getBitrate());
-    if (mVidBitrate)
-      pathName += "-video=" + dec(mVidBitrate);
+    if (vidBitrate)
+      pathName += "-video=" + dec(vidBitrate);
     }
 
   return pathName;
@@ -629,7 +623,7 @@ void cLoaderPlayer::addIcyInfo (int frame, const string& icyInfo) {
   }
 //}}}
 //{{{
-void cLoaderPlayer::startPlayer() {
+void cLoaderPlayer::startPlayer (bool streaming) {
 
   if (!mPlayer.joinable()) {
     mPlayer = std::thread ([=]() {
@@ -683,7 +677,7 @@ void cLoaderPlayer::startPlayer() {
                 mSong->incPlayFrame (1, true);
               });
 
-            if (!mStreaming && (mSong->getPlayFrame() > mSong->getLastFrame()))
+            if (!streaming && (mSong->getPlayFrame() > mSong->getLastFrame()))
               break;
             }
 
@@ -715,7 +709,7 @@ void cLoaderPlayer::startPlayer() {
           if (mPlaying && framePtr)
             mSong->incPlayFrame (1, true);
 
-          if (!mStreaming && (mSong->getPlayFrame() > mSong->getLastFrame()))
+          if (!streaming && (mSong->getPlayFrame() > mSong->getLastFrame()))
             break;
           }
         //}}}

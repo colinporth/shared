@@ -120,6 +120,7 @@ public:
     int mItemNum = 0;
     };
   //}}}
+  cSong();
   virtual ~cSong();
 
   void initialise (cAudioDecode::eFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame,
