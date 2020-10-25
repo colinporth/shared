@@ -20,22 +20,23 @@ public:
 
     cWidget::onDown (p);
 
-    //std::shared_lock<std::shared_mutex> lock (mLoaderPlayer->getSong()->getSharedMutex());
+    auto song = mLoaderPlayer->getSong();
+    //std::shared_lock<std::shared_mutex> lock (song->getSharedMutex());
     if (p.y > mDstOverviewTop) {
-      auto frame = mLoaderPlayer->getSong()->getFirstFrame() + int((p.x * mLoaderPlayer->getSong()->getTotalFrames()) / getPixWidth());
-      mLoaderPlayer->getSong()->setPlayFrame (frame);
+      auto frame = song->getFirstFrame() + int((p.x * song->getTotalFrames()) / getPixWidth());
+      song->setPlayFrame (frame);
       mOverviewPressed = true;
       }
 
     else if (p.y > mDstRangeTop) {
-      mPressedFrame = mLoaderPlayer->getSong()->getPlayFrame() + ((p.x - (getPixWidth()/2.f)) * mFrameStep / mFrameWidth);
-      mLoaderPlayer->getSong()->getSelect().start (int(mPressedFrame));
+      mPressedFrame = song->getPlayFrame() + ((p.x - (getPixWidth()/2.f)) * mFrameStep / mFrameWidth);
+      song->getSelect().start (int(mPressedFrame));
       mRangePressed = true;
       //mWindow->changed();
       }
 
     else
-      mPressedFrame = (float)mLoaderPlayer->getSong()->getPlayFrame();
+      mPressedFrame = (float)song->getPlayFrame();
     }
   //}}}
   //{{{
@@ -43,24 +44,26 @@ public:
 
     cWidget::onMove (p, inc);
 
-    //std::shared_lock<std::shared_mutex> lock (mLoaderPlayer->getSong().getSharedMutex());
+    auto song = mLoaderPlayer->getSong();
+    //std::shared_lock<std::shared_mutex> lock (song.getSharedMutex());
     if (mOverviewPressed)
-      mLoaderPlayer->getSong()->setPlayFrame (mLoaderPlayer->getSong()->getFirstFrame() + int((p.x * mLoaderPlayer->getSong()->getTotalFrames()) / getPixWidth()));
+      song->setPlayFrame (song->getFirstFrame() + int((p.x * song->getTotalFrames()) / getPixWidth()));
 
     else if (mRangePressed) {
       mPressedFrame += (inc.x / mFrameWidth) * mFrameStep;
-      mLoaderPlayer->getSong()->getSelect().move ((int)mPressedFrame);
+      song->getSelect().move ((int)mPressedFrame);
       //mWindow->changed();
       }
 
     else {
       mPressedFrame -= (inc.x / mFrameWidth) * mFrameStep;
-      mLoaderPlayer->getSong()->setPlayFrame ((int)mPressedFrame);
+      song->setPlayFrame ((int)mPressedFrame);
       }
     }
   //}}}
   //{{{
   void onUp() {
+
     cWidget::onUp();
     mLoaderPlayer->getSong()->getSelect().end();
     mOverviewPressed = false;
@@ -138,9 +141,6 @@ public:
       }
     //}}}
 
-    if (kVideoPoolDebug && videoDecode)
-      drawVideoPool (vg, videoDecode);
-
     // layout
     mWaveHeight = 100.f;
     mOverviewHeight = mShowOverview ? 100.f : 0.f;
@@ -154,6 +154,10 @@ public:
     mDstOverviewCentre = mDstOverviewTop + (mOverviewHeight/2.f);
 
     auto song = mLoaderPlayer->getSong();
+
+    if (kVideoPoolDebug && videoDecode)
+      drawVideoPool (vg, song, videoDecode);
+
     if (song) {
       { // locked scope
       std::shared_lock<std::shared_mutex> lock (song->getSharedMutex());
@@ -162,32 +166,32 @@ public:
       int playFrame = song->getPlayFrame();
       int leftWaveFrame = playFrame - (((int(mPixSize.x)+mFrameWidth)/2) * mFrameStep) / mFrameWidth;
       int rightWaveFrame = playFrame + (((int(mPixSize.x)+mFrameWidth)/2) * mFrameStep) / mFrameWidth;
-      rightWaveFrame = std::min (rightWaveFrame, mLoaderPlayer->getSong()->getLastFrame());
+      rightWaveFrame = std::min (rightWaveFrame, song->getLastFrame());
 
-      drawRange (vg, playFrame, leftWaveFrame, rightWaveFrame);
-      if (mLoaderPlayer->getSong()->getNumFrames()) {
+      drawRange (vg, song, playFrame, leftWaveFrame, rightWaveFrame);
+      if (song->getNumFrames()) {
         bool mono = song->getNumChannels() == 1;
-        drawWave (vg, playFrame, leftWaveFrame, rightWaveFrame, mono);
+        drawWave (vg, song, playFrame, leftWaveFrame, rightWaveFrame, mono);
         if (mShowOverview)
-          drawOverview (vg, playFrame, mono);
-        drawFreq (vg, playFrame);
+          drawOverview (vg, song, playFrame, mono);
+        drawFreq (vg, song, playFrame);
         }
       }
 
-      drawTime (vg, song->hasHlsBase() ? getFrameString (song->getFirstFrame()) : "",
-                    getFrameString (song->getPlayFrame()),
-                    song->hasHlsBase() ? getFrameString (song->getLastFrame()) : getFrameString (song->getTotalFrames()));
+      drawTime (vg, song->hasHlsBase() ? getFrameString (song, song->getFirstFrame()) : "",
+                    getFrameString (song, song->getPlayFrame()),
+                    song->hasHlsBase() ? getFrameString (song, song->getLastFrame()) : getFrameString (song, song->getTotalFrames()));
       }
     }
   //}}}
 
 private:
   //{{{
-  std::string getFrameString (int frame) {
+  std::string getFrameString (cSong* song, int frame) {
 
-    if (mLoaderPlayer->getSong()->getSamplesPerFrame() && mLoaderPlayer->getSong()->getSampleRate()) {
+    if (song->getSamplesPerFrame() && song->getSampleRate()) {
       // can turn frame into seconds
-      auto value = ((uint64_t)frame * mLoaderPlayer->getSong()->getSamplesPerFrame()) / (mLoaderPlayer->getSong()->getSampleRate() / 100);
+      auto value = ((uint64_t)frame * song->getSamplesPerFrame()) / (song->getSampleRate() / 100);
       auto subSeconds = value % 100;
 
       value /= 100;
@@ -274,13 +278,13 @@ private:
     }
   //}}}
   //{{{
-  void drawVideoPool (cVg* vg, cVideoDecode* videoDecode) {
+  void drawVideoPool (cVg* vg, cSong* song, cVideoDecode* videoDecode) {
 
     cPointF org { getPixCentre().x, getPixSize().y - 100.f };
-    float ptsPerPix = float((90 * mLoaderPlayer->getSong()->getSamplesPerFrame()) / 48);
+    float ptsPerPix = float((90 * song->getSamplesPerFrame()) / 48);
 
     // get playFrame pts
-    auto framePtr =  mLoaderPlayer->getSong()->getFramePtr (mLoaderPlayer->getSong()->getPlayFrame());
+    auto framePtr = song->getFramePtr (song->getPlayFrame());
     if (framePtr) {
       int64_t playPts = framePtr->mPts;
 
@@ -322,7 +326,7 @@ private:
   //}}}
 
   //{{{
-  void drawRange (cVg* vg, int playFrame, int leftFrame, int rightFrame) {
+  void drawRange (cVg* vg, cSong* song, int playFrame, int leftFrame, int rightFrame) {
 
     vg->beginPath();
     vg->rect (mPixOrg + cPointF(0.f, mDstRangeTop), cPointF(mPixSize.x, mRangeHeight));
@@ -330,7 +334,7 @@ private:
     vg->triangleFill();
 
     vg->beginPath();
-    for (auto &item : mLoaderPlayer->getSong()->getSelect().getItems()) {
+    for (auto &item : song->getSelect().getItems()) {
       auto firstx = (getPixWidth()/2.f) + (item.getFirstFrame() - playFrame) * mFrameWidth / mFrameStep;
       float lastx = item.getMark() ? firstx + 1.f :
                                      (getPixWidth()/2.f) + (item.getLastFrame() - playFrame) * mFrameWidth / mFrameStep;
@@ -350,12 +354,12 @@ private:
     }
   //}}}
   //{{{
-  void drawWave (cVg* vg, int playFrame, int leftFrame, int rightFrame, bool mono) {
+  void drawWave (cVg* vg, cSong* song, int playFrame, int leftFrame, int rightFrame, bool mono) {
 
     float values[2] = { 0.f };
 
-    float peakValueScale = mWaveHeight / mLoaderPlayer->getSong()->getMaxPeakValue() / 2.f;
-    float powerValueScale = mWaveHeight / mLoaderPlayer->getSong()->getMaxPowerValue() / 2.f;
+    float peakValueScale = mWaveHeight / song->getMaxPeakValue() / 2.f;
+    float powerValueScale = mWaveHeight / song->getMaxPowerValue() / 2.f;
 
     float xlen = (float)mFrameStep;
     if (mFrameStep == 1) {
@@ -365,7 +369,7 @@ private:
       vg->beginPath();
 
       for (auto frame = leftFrame; frame < rightFrame; frame += mFrameStep) {
-        auto framePtr = mLoaderPlayer->getSong()->getFramePtr (frame);
+        auto framePtr = song->getFramePtr (frame);
         if (framePtr) {
           // draw frame peak values scaled to maxPeak
           if (framePtr->getPowerValues()) {
@@ -388,7 +392,7 @@ private:
     vg->beginPath();
 
     for (auto frame = leftFrame; frame < playFrame; frame += mFrameStep) {
-      auto framePtr = mLoaderPlayer->getSong()->getFramePtr (frame);
+      auto framePtr = song->getFramePtr (frame);
       if (framePtr) {
         if (mFrameStep == 1) {
           // power scaled to maxPeak
@@ -406,7 +410,7 @@ private:
           auto alignedFrame = frame - (frame % mFrameStep);
           auto toSumFrame = std::min (alignedFrame + mFrameStep, rightFrame);
           for (auto sumFrame = alignedFrame; sumFrame < toSumFrame; sumFrame++) {
-            auto framePtr = mLoaderPlayer->getSong()->getFramePtr (sumFrame);
+            auto framePtr = song->getFramePtr (sumFrame);
             if (framePtr) {
               if (framePtr->getPowerValues()) {
                 auto powerValuesPtr = framePtr->getPowerValues();
@@ -432,7 +436,7 @@ private:
     // power scaled to maxPeak
     vg->beginPath();
 
-    auto framePtr = mLoaderPlayer->getSong()->getFramePtr (playFrame);
+    auto framePtr = song->getFramePtr (playFrame);
     if (framePtr) {
       //  draw play frame power scaled to maxPeak
       if (framePtr->getPowerValues()) {
@@ -452,7 +456,7 @@ private:
     vg->beginPath();
 
     for (auto frame = playFrame+mFrameStep; frame < rightFrame; frame += mFrameStep) {
-      auto framePtr = mLoaderPlayer->getSong()->getFramePtr (frame);
+      auto framePtr = song->getFramePtr (frame);
       if (framePtr) {
         if (mFrameStep == 1) {
           // power scaled to maxPeak
@@ -470,7 +474,7 @@ private:
           auto alignedFrame = frame - (frame % mFrameStep);
           auto toSumFrame = std::min (alignedFrame + mFrameStep, rightFrame);
           for (auto sumFrame = alignedFrame; sumFrame < toSumFrame; sumFrame++) {
-            auto framePtr = mLoaderPlayer->getSong()->getFramePtr (sumFrame);
+            auto framePtr = song->getFramePtr (sumFrame);
             if (framePtr) {
               if (framePtr->getPowerValues()) {
                 auto powerValuesPtr = framePtr->getPowerValues();
@@ -494,13 +498,13 @@ private:
     //}}}
 
     //{{{  copy reversed spectrum column to bitmap, clip high freqs to height
-    //int freqSize = std::min (mLoaderPlayer->getSong()->getNumFreqBytes(), (int)mFreqHeight);
-    //int freqOffset = mLoaderPlayer->getSong()->getNumFreqBytes() > (int)mFreqHeight ? mLoaderPlayer->getSong()->getNumFreqBytes() - (int)mFreqHeight : 0;
+    //int freqSize = std::min (song->getNumFreqBytes(), (int)mFreqHeight);
+    //int freqOffset = song->getNumFreqBytes() > (int)mFreqHeight ? song->getNumFreqBytes() - (int)mFreqHeight : 0;
 
     // bitmap sampled aligned to mFrameStep, !!! could sum !!! ?? ok if neg frame ???
     //auto alignedFromFrame = fromFrame - (fromFrame % mFrameStep);
     //for (auto frame = alignedFromFrame; frame < toFrame; frame += mFrameStep) {
-      //auto framePtr = mLoaderPlayer->getSong()->getAudioFramePtr (frame);
+      //auto framePtr = song->getAudioFramePtr (frame);
       //if (framePtr) {
         //if (framePtr->getFreqLuma()) {
           //uint32_t bitmapIndex = getSrcIndex (frame);
@@ -513,17 +517,17 @@ private:
     }
   //}}}
   //{{{
-  void drawFreq (cVg* vg, int playFrame) {
+  void drawFreq (cVg* vg, cSong* song, int playFrame) {
 
     float valueScale = 100.f / 255.f;
 
     vg->beginPath();
 
     float xorg = mPixOrg.x;
-    auto framePtr = mLoaderPlayer->getSong()->getFramePtr (playFrame);
+    auto framePtr = song->getFramePtr (playFrame);
     if (framePtr && framePtr->getFreqValues()) {
       auto freqValues = framePtr->getFreqValues();
-      for (auto i = 0; (i < mLoaderPlayer->getSong()->getNumFreqBytes()) && ((i*2) < int(mPixSize.x)); i++) {
+      for (auto i = 0; (i < song->getNumFreqBytes()) && ((i*2) < int(mPixSize.x)); i++) {
         auto value =  freqValues[i] * valueScale;
         if (value > 1.f)
           vg->rect (cPointF(xorg, mPixOrg.y + mPixSize.y - value), cPointF(2.f, value));
@@ -558,11 +562,11 @@ private:
   //}}}
 
   //{{{
-  void drawOverviewWave (cVg* vg, int firstFrame, int playFrame, float playFrameX, float valueScale, bool mono) {
+  void drawOverviewWave (cVg* vg, cSong* song, int firstFrame, int playFrame, float playFrameX, float valueScale, bool mono) {
   // simple overview cache, invalidate if anything changed
 
-    int lastFrame = mLoaderPlayer->getSong()->getLastFrame();
-    int totalFrames = mLoaderPlayer->getSong()->getTotalFrames();
+    int lastFrame = song->getLastFrame();
+    int totalFrames = song->getTotalFrames();
 
     bool changed = (mOverviewTotalFrames != totalFrames) ||
                    (mOverviewLastFrame != lastFrame) ||
@@ -582,7 +586,7 @@ private:
         if (toFrame > lastFrame)
           toFrame = lastFrame+1;
 
-        auto framePtr = mLoaderPlayer->getSong()->getFramePtr (frame);
+        auto framePtr = song->getFramePtr (frame);
         if (framePtr && framePtr->getPowerValues()) {
           // accumulate frame, handle silence better
           float* powerValues = framePtr->getPowerValues();
@@ -593,7 +597,7 @@ private:
             int numSummedFrames = 1;
             frame++;
             while (frame < toFrame) {
-              framePtr = mLoaderPlayer->getSong()->getFramePtr (frame);
+              framePtr = song->getFramePtr (frame);
               if (framePtr) {
                 if (framePtr->getPowerValues()) {
                   auto powerValues = framePtr->getPowerValues();
@@ -628,7 +632,7 @@ private:
     }
   //}}}
   //{{{
-  void drawOverviewLens (cVg* vg, int playFrame, float centreX, float width, bool mono) {
+  void drawOverviewLens (cVg* vg, cSong* song, int playFrame, float centreX, float width, bool mono) {
   // draw frames centred at playFrame -/+ width in pixels, centred at centreX
 
     cLog::log (LOGINFO, "drawOverviewLens %d %f %f", playFrame, centreX, width);
@@ -649,12 +653,12 @@ private:
       }
 
     int rightFrame = (int)(playFrame + width);
-    rightFrame = std::min (rightFrame, mLoaderPlayer->getSong()->getLastFrame());
+    rightFrame = std::min (rightFrame, song->getLastFrame());
 
     // calc lens max power
     float maxPowerValue = 0.f;
     for (auto frame = int(leftFrame); frame <= rightFrame; frame++) {
-      auto framePtr = mLoaderPlayer->getSong()->getFramePtr (frame);
+      auto framePtr = song->getFramePtr (frame);
       if (framePtr && framePtr->getPowerValues()) {
         auto powerValues = framePtr->getPowerValues();
         maxPowerValue = std::max (maxPowerValue, powerValues[0]);
@@ -668,7 +672,7 @@ private:
     float xorg = mPixOrg.x + firstX;
     float valueScale = mOverviewHeight / 2.f / maxPowerValue;
     for (auto frame = int(leftFrame); frame <= rightFrame; frame++) {
-      auto framePtr = mLoaderPlayer->getSong()->getFramePtr (frame);
+      auto framePtr = song->getFramePtr (frame);
       if (framePtr && framePtr->getPowerValues()) {
         //if (framePtr->hasTitle()) {
           //{{{  draw song title yellow bar and text
@@ -721,15 +725,15 @@ private:
     }
   //}}}
   //{{{
-  void drawOverview (cVg* vg, int playFrame, bool mono) {
+  void drawOverview (cVg* vg, cSong* song, int playFrame, bool mono) {
 
-    if (!mLoaderPlayer->getSong()->getTotalFrames())
+    if (!song->getTotalFrames())
       return;
 
-    int firstFrame = mLoaderPlayer->getSong()->getFirstFrame();
-    float playFrameX = ((playFrame - firstFrame) * mPixSize.x) / mLoaderPlayer->getSong()->getTotalFrames();
-    float valueScale = mOverviewHeight / 2.f / mLoaderPlayer->getSong()->getMaxPowerValue();
-    drawOverviewWave (vg, firstFrame, playFrame, playFrameX, valueScale, mono);
+    int firstFrame = song->getFirstFrame();
+    float playFrameX = ((playFrame - firstFrame) * mPixSize.x) / song->getTotalFrames();
+    float valueScale = mOverviewHeight / 2.f / song->getMaxPowerValue();
+    drawOverviewWave (vg, song, firstFrame, playFrame, playFrameX, valueScale, mono);
 
     if (mOverviewPressed) {
       //{{{  animate on
@@ -760,13 +764,13 @@ private:
       else if (overviewLensCentreX + mOverviewLens > mPixSize.x)
         overviewLensCentreX = mPixSize.x - mOverviewLens;
 
-      drawOverviewLens (vg, playFrame, overviewLensCentreX, mOverviewLens-1.f, mono);
+      drawOverviewLens (vg, song, playFrame, overviewLensCentreX, mOverviewLens-1.f, mono);
       }
 
     else {
       //  draw playFrame
 
-      auto framePtr = mLoaderPlayer->getSong()->getFramePtr (playFrame);
+      auto framePtr = song->getFramePtr (playFrame);
       if (framePtr && framePtr->getPowerValues()) {
         vg->beginPath();
         auto powerValues = framePtr->getPowerValues();
