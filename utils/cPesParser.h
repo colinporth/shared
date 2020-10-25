@@ -16,8 +16,8 @@ public:
   class cPesItem {
   public:
     //{{{
-    cPesItem (uint8_t* pes, int size, int num, int64_t pts)
-        : mPesSize(size), mNum(num), mPts(pts) {
+    cPesItem (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts)
+        : mAfterPlay(afterPlay), mPesSize(size), mNum(num), mPts(pts) {
       mPes = (uint8_t*)malloc (size);
       memcpy (mPes, pes, size);
       }
@@ -28,6 +28,7 @@ public:
       }
     //}}}
 
+    bool mAfterPlay;
     uint8_t* mPes;
     const int mPesSize;
     const int mNum;
@@ -36,8 +37,8 @@ public:
   //}}}
   //{{{
   cPesParser (int pid, bool useQueue, const std::string& name,
-              std::function <int (uint8_t* pes, int size, int num, int64_t pts, cPesParser* parserPes)> process,
-              std::function <void (uint8_t* pes, int size, int num, int64_t pts)> decode)
+              std::function <int (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cPesParser* parserPes)> process,
+              std::function <void (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts)> decode)
       : mPid(pid), mName(name), mProcessCallback(process), mDecodeCallback(decode), mUseQueue(useQueue) {
 
     mPes = (uint8_t*)malloc (kInitPesSize);
@@ -61,7 +62,7 @@ public:
   float getQueueFrac() { return mUseQueue ? (float)mQueue.size_approx() / mQueue.max_capacity() : 0.f; }
 
   //{{{
-  bool parseTs (uint8_t* ts) {
+  bool parseTs (uint8_t* ts, bool afterPlay) {
 
     int pid = ((ts[1] & 0x1F) << 8) | ts[2];
     if (pid == mPid) {
@@ -74,7 +75,7 @@ public:
         // could check pes type as well
 
         // end of last pes, if any, process it
-        process();
+        process (afterPlay);
 
         if (ts[7] & 0x80)
           mPts = getPts (ts+9);
@@ -99,20 +100,20 @@ public:
     }
   //}}}
   //{{{
-  void process() {
+  void process (bool afterPlay) {
     if (mPesSize) {
-      mNum = mProcessCallback (mPes, mPesSize, mNum, mPts, this);
+      mNum = mProcessCallback (afterPlay, mPes, mPesSize, mNum, mPts, this);
       mPesSize = 0;
       }
     }
   //}}}
   //{{{
-  void decode (uint8_t* pes, int size, int num, int64_t pts) {
+  void decode (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) {
 
     if (mUseQueue)
-      mQueue.enqueue (new cPesParser::cPesItem (pes, size, num, pts));
+      mQueue.enqueue (new cPesParser::cPesItem (afterPlay, pes, size, num, pts));
     else
-      mDecodeCallback (pes, size, num, pts);
+      mDecodeCallback (afterPlay, pes, size, num, pts);
     }
   //}}}
 
@@ -145,7 +146,7 @@ private:
     while (true) {
       cPesItem* pesItem;
       mQueue.wait_dequeue (pesItem);
-      mDecodeCallback (pesItem->mPes, pesItem->mPesSize, pesItem->mNum, pesItem->mPts);
+      mDecodeCallback (pesItem->mAfterPlay, pesItem->mPes, pesItem->mPesSize, pesItem->mNum, pesItem->mPts);
       delete pesItem;
       }
     }
@@ -155,8 +156,8 @@ private:
   int mPid = 0;
   std::string mName;
 
-  std::function <int (uint8_t* pes, int size, int num, int64_t pts, cPesParser* parserPes)> mProcessCallback;
-  std::function <void (uint8_t* pes, int size, int num, int64_t pts)> mDecodeCallback;
+  std::function <int (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cPesParser* parserPes)> mProcessCallback;
+  std::function <void (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts)> mDecodeCallback;
 
   bool mUseQueue = false;
   readerWriterQueue::cBlockingReaderWriterQueue <cPesItem*> mQueue;

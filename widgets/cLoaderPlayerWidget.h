@@ -93,7 +93,7 @@ public:
     auto videoDecode = mLoaderPlayer->getVideoDecode();
 
     if (videoDecode) {
-      //{{{  draw picture
+      //{{{  draw piccy
       auto frame = videoDecode->findPlayFrame();
       if (frame) {
         if (frame->getPts() != mImagePts) {
@@ -155,28 +155,30 @@ public:
       mDstWaveCentre = mDstWaveTop + (mWaveHeight/2.f);
       mDstOverviewCentre = mDstOverviewTop + (mOverviewHeight/2.f);
 
-      // lock
-      std::shared_lock<std::shared_mutex> lock (mLoaderPlayer->getSong()->getSharedMutex());
-
-      // wave left right frames, clip right not left
-      auto playFrame = mLoaderPlayer->getSong()->getPlayFrame();
-      auto leftWaveFrame = playFrame - (((int(mPixSize.x)+mFrameWidth)/2) * mFrameStep) / mFrameWidth;
-      auto rightWaveFrame = playFrame + (((int(mPixSize.x)+mFrameWidth)/2) * mFrameStep) / mFrameWidth;
-      rightWaveFrame = std::min (rightWaveFrame, mLoaderPlayer->getSong()->getLastFrame());
-
-      drawRange (vg, playFrame, leftWaveFrame, rightWaveFrame);
-      if (mLoaderPlayer->getSong()->getNumFrames()) {
-        bool mono = mLoaderPlayer->getSong()->getNumChannels() == 1;
-        drawWave (vg, playFrame, leftWaveFrame, rightWaveFrame, mono);
-        if (mShowOverview)
-          drawOverview (vg, playFrame, mono);
-        drawFreq (vg, playFrame);
-        }
 
       drawTime (vg,
                 mLoaderPlayer->getSong()->hasHlsBase() ? getFrameString (mLoaderPlayer->getSong()->getFirstFrame()) : "",
                 getFrameString (mLoaderPlayer->getSong()->getPlayFrame()),
                 mLoaderPlayer->getSong()->hasHlsBase() ? getFrameString (mLoaderPlayer->getSong()->getLastFrame()): getFrameString (mLoaderPlayer->getSong()->getTotalFrames()));
+
+        { // locked scope
+        std::shared_lock<std::shared_mutex> lock (mLoaderPlayer->getSong()->getSharedMutex());
+
+        // wave left right frames, clip right not left
+        auto playFrame = mLoaderPlayer->getSong()->getPlayFrame();
+        auto leftWaveFrame = playFrame - (((int(mPixSize.x)+mFrameWidth)/2) * mFrameStep) / mFrameWidth;
+        auto rightWaveFrame = playFrame + (((int(mPixSize.x)+mFrameWidth)/2) * mFrameStep) / mFrameWidth;
+        rightWaveFrame = std::min (rightWaveFrame, mLoaderPlayer->getSong()->getLastFrame());
+
+        drawRange (vg, playFrame, leftWaveFrame, rightWaveFrame);
+        if (mLoaderPlayer->getSong()->getNumFrames()) {
+          bool mono = mLoaderPlayer->getSong()->getNumChannels() == 1;
+          drawWave (vg, playFrame, leftWaveFrame, rightWaveFrame, mono);
+          if (mShowOverview)
+            drawOverview (vg, playFrame, mono);
+          drawFreq (vg, playFrame);
+          }
+        }
       }
       //}}}
     }
@@ -210,7 +212,6 @@ private:
       return ("--:--:--");
     }
   //}}}
-
   //{{{
   void setZoom (int zoom) {
 
@@ -224,6 +225,7 @@ private:
     }
   //}}}
 
+  // draws
   //{{{
   void drawInfo (cVg* vg, cVideoDecode* videoDecode) {
   // info text

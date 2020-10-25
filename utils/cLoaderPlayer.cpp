@@ -114,13 +114,13 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
     // audio pesParser
     mPesParsers.push_back (
       new cPesParser (0x22, loader & eQueueAudio, "aud",
-        [&](uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
+        [&](bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
           //{{{  audio pes process callback lambda
           uint8_t* framePes = pes;
           while (getAudioDecode()->parseFrame (framePes, pes + size)) {
             // decode a single frame from pes
             int framePesSize = getAudioDecode()->getNextFrameOffset();
-            pesParser->decode (framePes, framePesSize, num, pts);
+            pesParser->decode (afterPlay, framePes, framePesSize, num, pts);
 
             // pts of next frame in pes, assumes 48000 sample rate
             pts += (getAudioDecode()->getNumSamplesPerFrame() * 90) / 48;
@@ -133,11 +133,11 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
           return num;
           },
           //}}}
-        [&](uint8_t* pes, int size, int num, int64_t pts) noexcept {
+        [&](bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) noexcept {
           //{{{  audio pes decode callback lambda
           float* samples = mAudioDecode->decodeFrame (pes, size, num, pts);
           if (samples) {
-            mSong->addFrame (num, samples, true, mSong->getNumFrames(), pts);
+            mSong->addFrame (afterPlay, num, samples, true, mSong->getNumFrames(), pts);
             startPlayer (true);
             }
           else
@@ -153,14 +153,14 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
       // video pesParser
       mPesParsers.push_back (
         new cPesParser (0x21, loader & eQueueVideo, "vid",
-          [&](uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
+          [&](bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
             //{{{  video pes process callback lambda
-            pesParser->decode (pes, size, num, pts);
+            pesParser->decode (afterPlay, pes, size, num, pts);
             num++;
             return num;
             },
             //}}}
-          [&](uint8_t* pes, int size, int num, int64_t pts) noexcept {
+          [&](bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) noexcept {
             //{{{  video pes decode callback lambda
             mVideoDecode->decodeFrame (pes, size, num, pts);
             }
@@ -172,7 +172,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
     //{{{  PAT pesParser
     //mPesParsers.push_back (
       //new cPesParser (0x00, false, "pat",
-        //[&] (uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
+        //[&] (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
           //{{{  pat callback
           //string info;
           //for (int i = 0; i < size; i++) {
@@ -183,14 +183,14 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
           //return num;
           //},
           //}}}
-        //[&] (uint8_t* pes, int size, int num, int64_t pts) noexcept {}
+        //[&] (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) noexcept {}
         //)
       //);
     //}}}
     //{{{  pgm 0x20 pesParser
     //mPesParsers.push_back (
       //new cPesParser (0x20, false, "pgm",
-        //[&] (uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
+        //[&] (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
           //{{{  pgm callback
           //string info;
           //for (int i = 0; i < size; i++) {
@@ -201,7 +201,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
           //return num;
           //},
           //}}}
-        //[&] (uint8_t* pes, int size, int num, int64_t pts) noexcept {}
+        //[&] (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) noexcept {}
         //)
       //);
     //}}}
@@ -234,6 +234,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
         int chunkNum;
         int frameNum;
         if (mSong->loadChunk (system_clock::now(), 2, chunkNum, frameNum)) {
+          bool afterPlay = frameNum >= mSong->getPlayFrame();
           if (!radio) {
             //{{{  pesParser init
             // always audio
@@ -266,7 +267,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
                                uint8_t* ts = http.getContent() + contentParsed;
                                if (*ts == 0x47) {
                                  for (auto pesParser : mPesParsers)
-                                   if (pesParser->parseTs (ts))
+                                   if (pesParser->parseTs (ts, afterPlay))
                                      break;
                                  ts += 188;
                                  }
@@ -319,7 +320,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
               while (getAudioDecode()->parseFrame (pesPtr, pesEnd)) {
                 float* samples = getAudioDecode()->decodeFrame (frameNum);
                 if (samples) {
-                  mSong->addFrame (frameNum++, samples, true, mSong->getNumFrames(), 0);
+                  mSong->addFrame (afterPlay, frameNum++, samples, true, mSong->getNumFrames(), 0);
                   startPlayer (true);
                   }
                 else
@@ -332,7 +333,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
             else {
               //{{{  pesParser finish
               for (auto pesParser : mPesParsers)
-                pesParser->process();
+                pesParser->process (afterPlay);
               }
               //}}}
 
@@ -445,7 +446,7 @@ void cLoaderPlayer::icyLoaderThread (const string& url) {
             auto samples = decode.decodeFrame (frameNum);
             if (samples) {
               mSong->setFixups (decode.getNumChannels(), decode.getSampleRate(), decode.getNumSamplesPerFrame());
-              mSong->addFrame (frameNum++, samples, true, mSong->getNumFrames()+1, 0);
+              mSong->addFrame (true, frameNum++, samples, true, mSong->getNumFrames()+1, 0);
               startPlayer (true);
               }
             }
@@ -514,7 +515,7 @@ void cLoaderPlayer::fileLoaderThread() {
         decode.parseFrame (fileMapPtr, fileMapEnd);
         auto samples = decode.getFramePtr();
         while (!mExit && !mSong->getChanged() && ((samples + (frameSamples * 2 * sizeof(float))) <= fileMapEnd)) {
-          mSong->addFrame (frameNum++, (float*)samples, false, fileMapSize / (frameSamples * 2 * sizeof(float)), 0);
+          mSong->addFrame (true, frameNum++, (float*)samples, false, fileMapSize / (frameSamples * 2 * sizeof(float)), 0);
           samples += frameSamples * 2 * sizeof(float);
           startPlayer (false);
           }
@@ -530,7 +531,7 @@ void cLoaderPlayer::fileLoaderThread() {
               int numFrames = mSong->getNumFrames();
               int totalFrames = (numFrames > 0) ? int(fileMapEnd - fileMapFirst) / (int(decode.getFramePtr() - fileMapFirst) / numFrames) : 0;
               mSong->setFixups (decode.getNumChannels(), decode.getSampleRate(), decode.getNumSamplesPerFrame());
-              mSong->addFrame (frameNum++, samples, true, totalFrames+1, 0);
+              mSong->addFrame (true, frameNum++, samples, true, totalFrames+1, 0);
               startPlayer (false);
               }
             }

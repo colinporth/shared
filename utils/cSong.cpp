@@ -68,14 +68,14 @@ void cSong::clear() {
   }
 //}}}
 //{{{
-void cSong::addFrame (int frameNum, float* samples, bool ourSamples, int totalFrames, int64_t pts) {
+void cSong::addFrame (bool afterPlay, int frameNum, float* samples, bool ourSamples, int totalFrames, int64_t pts) {
 
   cFrame* frame;
   if (mMaxMapSize && (int(mFrameMap.size()) > mMaxMapSize)) { // reuse a cFrame
     //{{{  remove with locked mutex
     {
     unique_lock<shared_mutex> lock (mSharedMutex);
-    if (frameNum > mPlayFrame) {
+    if (afterPlay) {
       //{{{  remove frame from map begin, reuse it
       auto it = mFrameMap.begin();
       frame = (*it).second;
@@ -483,4 +483,3 @@ void cSong::cSelect::end() {
   mEditFrame = 0;
   }
 //}}}
-
