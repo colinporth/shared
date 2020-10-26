@@ -819,8 +819,6 @@ void cLoaderPlayer::startPlayer (bool streaming) {
       float silence [2048*2] = { 0.f };
       float samples [2048*2] = { 0.f };
 
-      cAudioDecode decode (mSong->getFrameType());
-
       #ifdef _WIN32
         SetThreadPriority (GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
         //{{{  WSAPI player thread, video just follows play pts

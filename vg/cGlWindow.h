@@ -52,7 +52,7 @@ public:
   void drawStamp (const sColourF& colour, uint8_t* src, const cPointF& p, const cPointF& size) {}
 
 protected:
-  cRootContainer* initialise (const std::string& title, int width, int height, unsigned char* sansFont, int sansFontSize);
+  cRootContainer* initialise (const std::string& title, int width, int height, uint8_t* font, int fontSize);
 
   cWidget* add (cWidget* widget) { return mRootContainer->add (widget); }
   cWidget* addAtBox (cWidget* widget, float width, float height) { return mRootContainer->addAtBox (widget, width, height); }

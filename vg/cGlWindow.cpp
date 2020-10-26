@@ -92,7 +92,7 @@ void cGlWindow::drawEllipseSolid (const sColourF& colour, const cPointF& p, cons
 
 // protected
 //{{{
-cRootContainer* cGlWindow::initialise (const string& title, int width, int height, unsigned char* fontData, int fontDataSize) {
+cRootContainer* cGlWindow::initialise (const string& title, int width, int height, uint8_t* font, int fontSize) {
 
   mGlWindow = this;
 
@@ -148,7 +148,7 @@ cRootContainer* cGlWindow::initialise (const string& title, int width, int heigh
   glfwSwapInterval (1);
 
   cVg::initialise();
-  createFont ("sans", (unsigned char*)fontData, fontDataSize);
+  createFont ("sans", (unsigned char*)font, fontSize);
   setFontByName ("sans");
 
   mRootContainer = new cRootContainer (width, height);
