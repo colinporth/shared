@@ -235,7 +235,8 @@ private:
 
     if (videoDecode)
       infoString += " " + dec(videoDecode->getWidth()) + "x" + dec(videoDecode->getHeight()) +
-                    " " + dec(videoDecode->getFramePoolSize());
+                    ":" + dec(videoDecode->getFramePoolSize());
+
     int loadSize;
     int videoQueueSize;
     int audioQueueSize;

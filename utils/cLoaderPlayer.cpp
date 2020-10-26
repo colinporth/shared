@@ -170,40 +170,38 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
       }
 
     //{{{  PAT pesParser
-    //mPesParsers.push_back (
-      //new cPesParser (0x00, false, "pat",
-        //[&] (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
-          //{{{  pat callback
-          //string info;
-          //for (int i = 0; i < size; i++) {
-            //int value = pes[i];
-            //info += hex (value, 2) + " ";
-            //}
-          //cLog::log (LOGINFO, "PAT process " + dec (size) + ":" + info);
-          //return num;
-          //},
-          //}}}
-        //[&] (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) noexcept {}
-        //)
-      //);
+    mPesParsers.push_back (
+      new cPesParser (0x00, false, "pat",
+        [&] (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
+          // pat callback
+          string info;
+          for (int i = 0; i < size; i++) {
+            int value = pes[i];
+            info += hex (value, 2) + " ";
+            }
+          cLog::log (LOGINFO, "PAT process " + dec (size) + ":" + info);
+          return num;
+          },
+        [&] (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) noexcept {}
+        )
+      );
     //}}}
-    //{{{  pgm 0x20 pesParser
-    //mPesParsers.push_back (
-      //new cPesParser (0x20, false, "pgm",
-        //[&] (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
-          //{{{  pgm callback
-          //string info;
-          //for (int i = 0; i < size; i++) {
-            //int value = pes[i];
-            //info += hex (value, 2) + " ";
-            //}
-          //cLog::log (LOGINFO, "pgm process " + dec (size) + ":" + info);
-          //return num;
-          //},
-          //}}}
-        //[&] (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) noexcept {}
-        //)
-      //);
+    //{{{  PMT pesParser 0x20
+    mPesParsers.push_back (
+      new cPesParser (0x20, false, "pgm",
+        [&] (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
+          // pgm callback
+          string info;
+          for (int i = 0; i < size; i++) {
+            int value = pes[i];
+            info += hex (value, 2) + " ";
+            }
+          cLog::log (LOGINFO, "pgm process " + dec (size) + ":" + info);
+          return num;
+          },
+        [&] (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) noexcept {}
+        )
+      );
     //}}}
     }
     //}}}
