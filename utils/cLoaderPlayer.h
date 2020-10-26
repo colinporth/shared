@@ -14,7 +14,7 @@ class cVideoDecode;
 class cFileList;
 //}}}
 
-enum eLoader { eFFmpeg = 0x01, eBgra = 0x02, eQueueAudio = 0x04,  eQueueVideo = 0x08 };
+enum eLoaderFlags { eFFmpeg = 0x01, eBgra = 0x02, eQueueAudio = 0x04,  eQueueVideo = 0x08 };
 class cLoaderPlayer {
 public:
   cLoaderPlayer();
@@ -30,7 +30,7 @@ public:
   void videoFollowAudio();
 
   void hlsLoaderThread (bool radio, const std::string& channelName,
-                        int audBitrate, int vidBitrate, eLoader loader);
+                        int audBitrate, int vidBitrate, eLoaderFlags loaderFlags);
   void icyLoaderThread (const std::string& url);
   void fileLoaderThread();
 
