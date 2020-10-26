@@ -8,16 +8,10 @@
 
 class cPicWidget : public cWidget {
 public:
-  cPicWidget (int value,
-              std::function<void (cPicWidget* widget, int value)> hitCallback = [](cPicWidget*, int){})
-    : cWidget(), mValue(value), mHitCallback(hitCallback) {}
-  cPicWidget (float width, float height, int value,
-              std::function<void (cPicWidget* widget, int value)> hitCallback = [](cPicWidget*, int){})
-    : cWidget(width, height), mValue(value), mHitCallback(hitCallback) {}
+ cPicWidget (float width, float height, std::function<void (cPicWidget* widget)> hitCallback = [](cPicWidget*){})
+    : cWidget(width, height), mHitCallback(hitCallback) {}
   virtual ~cPicWidget() {}
 
-  virtual void setFileName (std::string fileName) {}
-  void setValue (int value) { mValue = value; }
   //{{{
   void setPic (uint8_t* pic, uint16_t picWidth, uint16_t picHeight, uint16_t components) {
 
@@ -31,15 +25,15 @@ public:
     mUpdateTexture = true;
     }
   //}}}
+  void setAngle (float angle) { mAngle = angle; }
 
   //{{{
   virtual void onDown (const cPointF& p) {
 
     cWidget::onDown (p);
-    mHitCallback (this, mValue);
+    mHitCallback (this);
     }
   //}}}
-
   //{{{
   virtual void onDraw (iDraw* draw) {
 
@@ -49,8 +43,8 @@ public:
 
     if (mPic) {
       auto vg = draw->getVg();
-      int imageFlags = cVg::eImageGenerateMipmaps;
 
+      int imageFlags = cVg::eImageGenerateMipmaps;
       if (mImage == -1)
         mImage = vg->createImageRGBA (mPicWidth, mPicHeight, imageFlags, mPic);
       else if (mUpdateTexture) {
@@ -73,8 +67,7 @@ public:
   //}}}
 
 private:
-  int mValue = 0;
-  std::function <void (cPicWidget* box, int index)> mHitCallback;
+  std::function <void (cPicWidget* widget)> mHitCallback;
   bool mSelected = false;
 
   uint8_t* mPic = nullptr;

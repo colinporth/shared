@@ -14,9 +14,10 @@ using namespace chrono;
 constexpr bool kMoreLog = false;
 
 #ifdef _WIN32
-  //{{{  use INTEL intrinsics
+  //{{{  INTEL intrinsics
   #include <intrin.h>
   #include <immintrin.h>
+
   //{{{
    inline int32_t countLeadingZeros (int32_t x) {
 
@@ -25,7 +26,7 @@ constexpr bool kMoreLog = false;
     }
   //}}}
   //}}}
-#else
+#else // gcc intrinsics
   inline int32_t countLeadingZeros (int32_t x) { return __builtin_clz (x); }
 #endif
 //{{{
@@ -2227,7 +2228,7 @@ static const int32_t newBWTab [4][4] = {
 //{{{
 class cBitStream {
 public:
-  cBitStream (uint8_t* buffer, int32_t numBytes) 
+  cBitStream (uint8_t* buffer, int32_t numBytes)
     : mCache(0), mCacheBits(0), mBytePtr(buffer), mNumBytes(numBytes) {}
 
   //{{{
