@@ -36,6 +36,7 @@ public:
 
   // vars
   bool mExit = false;
+  bool mRunning = false;
   bool mPlaying = true;
   std::string mLastTitleStr;
   cFileList* mFileList = nullptr;

@@ -267,6 +267,8 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
   const string hostName = radio ? "as-hls-uk-live.bbcfmt.s.llnwi.net" : "vs-hls-uk-live.akamaized.net";
 
   cLog::setThreadName ("hls ");
+  mRunning = true;
+  mExit = false;
 
   mAudioDecode = new cAudioDecode (cAudioDecode::eAac);
   //{{{  init parsers
@@ -522,6 +524,8 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
   delete mAudioDecode;
 
   cLog::log (LOGINFO, "exit");
+
+  mRunning = false;
   }
 //}}}
 //{{{
