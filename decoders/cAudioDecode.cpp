@@ -59,7 +59,7 @@ bool cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast) {
         // Header consists of 7 or 9 bytes (without or with CRC).
         // AAAAAAAA AAAABCCD EEFFFFGH HHIJKLMM MMMMMMMM MMMOOOOO OOOOOOPP (QQQQQQQQ QQQQQQQQ)
         //
-        // A 12   syncword 0xFFF, all bits must be 1
+        // A 12  syncword 0xFFF, all bits must be 1
         // B  1  MPEG Version: 0 for MPEG-4, 1 for MPEG-2
         // C  2  Layer: always 0
         // D  1  protection absent, Warning, set to 1 if there is no CRC and 0 if there is CRC
