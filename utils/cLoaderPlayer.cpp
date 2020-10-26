@@ -209,17 +209,11 @@ private:
 //}}}
 
 // public
-//{{{
-cLoaderPlayer::cLoaderPlayer() {
-  mSong = new cSong();
-  }
-//}}}
+cLoaderPlayer::cLoaderPlayer() {}
 //{{{
 cLoaderPlayer::~cLoaderPlayer() {
 
-  delete mSong;
-  delete mVideoDecode;
-  delete mAudioDecode;
+  clear();
   }
 //}}}
 
@@ -367,6 +361,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
   //}}}
 
   // audBitrate < 128000 use aacHE, more samplesPerframe, less framesPerChunk
+  mSong = new cSong();
   mSong->initialise (cAudioDecode::eAac, 2, 48000, audBitrate < 128000 ? 2048 : 1024, 1000);
   mSong->setBitrateFramesPerChunk (audBitrate, audBitrate < 128000 ? (radio ? 150 : 180) : (radio ? 300 : 360));
   mSong->setChannel (channelName);
@@ -519,12 +514,9 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
       mPlayer.join();
       }
     }
-  delete mSong;
-  delete mVideoDecode;
-  delete mAudioDecode;
 
+  clear();
   cLog::log (LOGINFO, "exit");
-
   mRunning = false;
   }
 //}}}
@@ -547,7 +539,7 @@ void cLoaderPlayer::icyLoaderThread (const string& url) {
     int frameNum = -1;
     cAudioDecode decode (cAudioDecode::eAac);
 
-    thread player;
+    mSong = new cSong();
     mSong->setChanged (false);
 
     cPlatformHttp http;
@@ -637,11 +629,10 @@ void cLoaderPlayer::icyLoaderThread (const string& url) {
       );
 
     cLog::log (LOGINFO, "icyThread songChanged");
-    player.join();
+    mPlayer.join();
     }
 
-  delete mSong;
-  delete mAudioDecode;
+  clear();
   cLog::log (LOGINFO, "exit");
   }
 //}}}
@@ -673,13 +664,12 @@ void cLoaderPlayer::fileLoaderThread() {
       //if (cAudioDecode::mJpegPtr) // should delete old jpegImage, but we have memory to waste
       //  mJpegImageView->setImage (new cJpegImage (cAudioDecode::mJpegPtr, cAudioDecode::mJpegLen));
 
-      thread player;
-
       int frameNum = 0;
       bool songDone = false;
       auto fileMapPtr = fileMapFirst;
       cAudioDecode decode (frameType);
 
+      mSong = new cSong();
       if (frameType == cAudioDecode::eWav) {
         //{{{  parse wav
         auto frameSamples = 1024;
@@ -714,7 +704,7 @@ void cLoaderPlayer::fileLoaderThread() {
       cLog::log (LOGINFO, "loaded");
 
       // wait for play to end or abort
-      player.join();
+      mPlayer.join();
       //{{{  next file
       UnmapViewOfFile (fileMapFirst);
       CloseHandle (fileHandle);
@@ -729,13 +719,34 @@ void cLoaderPlayer::fileLoaderThread() {
     #endif
     }
 
-  delete mSong;
-  delete mAudioDecode;
+  clear();
   cLog::log (LOGINFO, "exit");
   }
 //}}}
 
 // private
+//{{{
+void cLoaderPlayer::clear() {
+
+  for (auto pesParser : mPesParsers)
+    delete pesParser;
+  mPesParsers.clear();
+
+  // remove main container
+  auto tempSong = mSong;
+  mSong = nullptr;
+  delete tempSong;
+
+  auto tempAudioDecode = mAudioDecode;
+  mAudioDecode = nullptr;
+  delete tempAudioDecode;
+
+  auto tempVideoDecode = mVideoDecode;
+  mVideoDecode = nullptr;
+  delete tempVideoDecode;
+  }
+//}}}
+
 //{{{
 string cLoaderPlayer::getHlsPathName (bool radio, int vidBitrate) {
 

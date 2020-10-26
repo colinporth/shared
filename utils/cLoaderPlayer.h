@@ -42,19 +42,21 @@ public:
   cFileList* mFileList = nullptr;
 
 private:
+  void clear();
   std::string getHlsPathName (bool radio, int vidBitrate);
   static std::string getTagValue (uint8_t* buffer, const char* tag);
   void addIcyInfo (int frame, const std::string& icyInfo);
   void startPlayer (bool streaming);
 
   // vars
-  cSong* mSong;
-  int mLoadSize = 0;
-  float mLoadFrac = 0.f;
+  cSong* mSong = nullptr;
 
   std::vector<cPesParser*> mPesParsers;
   cAudioDecode* mAudioDecode = nullptr;
   cVideoDecode* mVideoDecode = nullptr;
 
   std::thread mPlayer;
+
+  int mLoadSize = 0;
+  float mLoadFrac = 0.f;
   };
