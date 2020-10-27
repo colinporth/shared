@@ -228,6 +228,28 @@ private:
 
   // draws
   //{{{
+  void drawSpinner (cVg* vg, const cPointF& centre, float outerRadius, float innerRadius,
+                    float fracFrom, float fracTo,
+                    const sColourF& colourFrom, const sColourF& colourTo) {
+
+    if ((fracTo - fracFrom)  > 0.f) {
+      float angleFrom = -kPiDiv2 + (fracFrom * k2Pi);
+      float angleTo = -kPiDiv2 + (fracTo * k2Pi);
+
+      vg->beginPath();
+      vg->arc (centre, outerRadius, angleFrom, angleTo, cVg::eClockWise);
+      vg->arc (centre, innerRadius, angleTo, angleFrom, cVg::eCounterClockWise);
+      vg->closePath();
+
+      float midRadius = (outerRadius + innerRadius) / 2.f;
+      vg->setFillPaint (vg->setLinearGradient (centre + cPointF (cosf (angleFrom), sinf (angleFrom)) * midRadius,
+                                               centre + cPointF (cosf (angleTo), sinf (angleTo)) * midRadius,
+                                               colourFrom, colourTo));
+      vg->fill();
+      }
+    }
+  //}}}
+  //{{{
   void drawInfo (cVg* vg, cVideoDecode* videoDecode) {
   // info text
 
@@ -254,28 +276,6 @@ private:
     vg->text (mPixOrg + cPointF(2.f, 2.f), infoString);
     vg->setFillColour (kWhiteF);
     vg->text (mPixOrg, infoString);
-    }
-  //}}}
-  //{{{
-  void drawSpinner (cVg* vg, const cPointF& centre, float outerRadius, float innerRadius,
-                    float fracFrom, float fracTo,
-                    const sColourF& colourFrom, const sColourF& colourTo) {
-
-    if ((fracTo - fracFrom)  > 0.f) {
-      float angleFrom = -kPiDiv2 + (fracFrom * k2Pi);
-      float angleTo = -kPiDiv2 + (fracTo * k2Pi);
-
-      vg->beginPath();
-      vg->arc (centre, outerRadius, angleFrom, angleTo, cVg::eClockWise);
-      vg->arc (centre, innerRadius, angleTo, angleFrom, cVg::eCounterClockWise);
-      vg->closePath();
-
-      float midRadius = (outerRadius + innerRadius) / 2.f;
-      vg->setFillPaint (vg->setLinearGradient (centre + cPointF (cosf (angleFrom), sinf (angleFrom)) * midRadius,
-                                               centre + cPointF (cosf (angleTo), sinf (angleTo)) * midRadius,
-                                               colourFrom, colourTo));
-      vg->fill();
-      }
     }
   //}}}
   //{{{
@@ -561,7 +561,6 @@ private:
     vg->text (cPointF(mPixSize.x/2.f, mPixSize.y), playFrameString);
     }
   //}}}
-
   //{{{
   void drawOverviewWave (cVg* vg, cSong* song, int firstFrame, int playFrame, float playFrameX, float valueScale, bool mono) {
   // simple overview cache, invalidate if anything changed

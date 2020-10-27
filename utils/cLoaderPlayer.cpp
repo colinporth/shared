@@ -550,16 +550,15 @@ void cLoaderPlayer::icyLoaderThread (const string& url) {
     uint8_t* bufferEnd = bufferFirst;
     uint8_t* buffer = bufferFirst;
 
-    int frameNum = -1;
-
     mSong = new cSong();
     mSong->setChanged (false);
-
     cAudioDecode decode (cAudioDecode::eAac);
 
     cPlatformHttp http;
     cUrl parsedUrl;
     parsedUrl.parse (url);
+
+    int frameNum = -1;
     http.get (parsedUrl.getHost(), parsedUrl.getPath(), "Icy-MetaData: 1",
       //{{{  headerCallback lambda
       [&](const string& key, const string& value) noexcept {
@@ -615,7 +614,7 @@ void cLoaderPlayer::icyLoaderThread (const string& url) {
           frameNum = 0;
           int sampleRate;
           auto frameType = cAudioDecode::parseSomeFrames (bufferFirst, bufferEnd, sampleRate);
-          mSong->initialise(frameType, 2, 44100, (frameType == cAudioDecode::eMp3) ? 1152 : 2048, 3000);
+          mSong->initialise (frameType, 2, 44100, (frameType == cAudioDecode::eMp3) ? 1152 : 2048, 3000);
           }
 
         while (decode.parseFrame (buffer, bufferEnd)) {
@@ -673,22 +672,22 @@ void cLoaderPlayer::fileLoaderThread() {
       auto fileMapSize = GetFileSize (fileHandle, NULL);
       auto fileMapEnd = fileMapFirst + fileMapSize;
 
-      // sampleRate for aac-sbr wrong in header, fixup later, use a maxValue for samples alloc
+      // sampleRate for aacHE wrong in header, fixup later, use a maxValue for samples alloc
       int sampleRate;
       auto frameType = cAudioDecode::parseSomeFrames (fileMapFirst, fileMapEnd, sampleRate);
+      cAudioDecode decode (frameType);
+      mSong = new cSong();
+
       //if (cAudioDecode::mJpegPtr) // should delete old jpegImage, but we have memory to waste
       //  mJpegImageView->setImage (new cJpegImage (cAudioDecode::mJpegPtr, cAudioDecode::mJpegLen));
 
       int frameNum = 0;
       bool songDone = false;
       auto fileMapPtr = fileMapFirst;
-      cAudioDecode decode (frameType);
-
       if (frameType == cAudioDecode::eWav) {
         //{{{  parse wav
         auto frameSamples = 1024;
 
-        mSong = new cSong();
         mSong->initialise (frameType, 2, sampleRate, frameSamples);
 
         decode.parseFrame (fileMapPtr, fileMapEnd);
@@ -702,7 +701,6 @@ void cLoaderPlayer::fileLoaderThread() {
         //}}}
       else {
         //{{{  parse coded
-        mSong = new cSong();
         mSong->initialise (frameType, 2, sampleRate, (frameType == cAudioDecode::eMp3) ? 1152 : 2048);
 
         while (!mExit && !mSong->getChanged() && decode.parseFrame (fileMapPtr, fileMapEnd)) {
