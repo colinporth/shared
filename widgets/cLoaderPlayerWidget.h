@@ -16,7 +16,7 @@ public:
   void setShowOverview (bool showOverview) { mShowOverview = showOverview; }
 
   //{{{
-  void onDown (const cPointF& p) {
+  virtual void onDown (const cPointF& p) {
 
     cWidget::onDown (p);
 
@@ -40,7 +40,7 @@ public:
     }
   //}}}
   //{{{
-  void onMove (const cPointF& p, const cPointF& inc) {
+  virtual void onMove (const cPointF& p, const cPointF& inc) {
 
     cWidget::onMove (p, inc);
 
@@ -62,7 +62,7 @@ public:
     }
   //}}}
   //{{{
-  void onUp() {
+  virtual void onUp() {
 
     cWidget::onUp();
     mLoaderPlayer->getSong()->getSelect().end();
@@ -71,7 +71,7 @@ public:
     }
   //}}}
   //{{{
-  void onWheel (float delta) {
+  virtual void onWheel (float delta) {
 
     //if (getShow())
     setZoom (mZoom - (int)delta);
@@ -90,7 +90,7 @@ public:
   //}}}
 
   //{{{
-  void onDraw (iDraw* draw) {
+  virtual void onDraw (iDraw* draw) {
 
     cVg* vg = draw->getVg();
     auto videoDecode = mLoaderPlayer->getVideoDecode();

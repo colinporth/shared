@@ -5,6 +5,8 @@
 
 #include "cLoaderPlayer.h"
 
+#include <functional>
+
 // utils
 #include "../date/date.h"
 #include "../utils/utils.h"
@@ -86,7 +88,6 @@ public:
   //}}}
   virtual ~cPesParser() {}
 
-  int getPid() { return mPid; }
   int getQueueSize() { return mUseQueue ? (int)mQueue.size_approx() : 0; }
   float getQueueFrac() { return mUseQueue ? (float)mQueue.size_approx() / mQueue.max_capacity() : 0.f; }
 
@@ -203,11 +204,10 @@ private:
   //}}}
 
   // vars
-  int mPid = 0;
-  string mName;
-
-  function <int (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cPesParser* parserPes)> mProcessCallback;
-  function <void (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts)> mDecodeCallback;
+  const int mPid = 0;
+  const string mName;
+  const function <int (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cPesParser* parserPes)> mProcessCallback;
+  const function <void (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts)> mDecodeCallback;
 
   bool mExit = false;
   bool mRunning = false;
@@ -270,9 +270,9 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
                                      int audBitrate, int vidBitrate, eLoaderFlags loaderFlags) {
 // hls http chunk load and possible decode thread
 
-  constexpr int kVideoPoolSize = 128;
-  const string kM3u8 = ".norewind.m3u8";
   const string hostName = radio ? "as-hls-uk-live.bbcfmt.s.llnwi.net" : "vs-hls-uk-live.akamaized.net";
+  const string kM3u8 = ".norewind.m3u8";
+  constexpr int kVideoPoolSize = 128;
 
   cLog::setThreadName ("hlsL");
   mRunning = true;
@@ -786,7 +786,7 @@ string cLoaderPlayer::getHlsPathName (bool radio, int vidBitrate) {
   }
 //}}}
 //{{{
-string cLoaderPlayer:: getTagValue (uint8_t* buffer, const char* tag) {
+string cLoaderPlayer::getTagValue (uint8_t* buffer, const char* tag) {
 
   const char* tagPtr = strstr ((const char*)buffer, tag);
   const char* valuePtr = tagPtr + strlen (tag);
