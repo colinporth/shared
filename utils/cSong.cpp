@@ -270,9 +270,6 @@ void cSong::nextSilencePlayFrame() {
 //{{{
 void cSong::clearFrames() {
 
-  // new id for any cache
-  mId++;
-
   // reset frames
   mPlayFrame = 0;
   mTotalFrames = 0;

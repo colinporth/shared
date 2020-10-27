@@ -13,12 +13,16 @@ extern "C" {
 
 class cImageWidget : public cWidget {
 public:
-  cImageWidget (const uint8_t* bmp, int bmpSize, bool flip, float width, float height,
+  cImageWidget (const uint8_t* bmp, int bmpSize, float width, float height,
               std::function<void (cImageWidget* widget)> hitCallback = [](cImageWidget*) {})
       : cWidget(width, height), mHitCallback(hitCallback) {
 
-   stbi_set_flip_vertically_on_load (flip);
+   stbi_set_flip_vertically_on_load (true);
    mPic  = stbi_load_from_memory ((uint8_t* const*)bmp, bmpSize, &mPicWidth, &mPicHeight, &mPicComponents, 4);
+
+   //auto ptr = mPic;
+   //for (int i = 0; i < mPicWidth * mPicHeight; i++)
+   //  ptr[(i*4) + 3] = 0x80;
    }
 
   virtual ~cImageWidget() {}

@@ -131,7 +131,6 @@ public:
   //{{{  gets
   std::shared_mutex& getSharedMutex() { return mSharedMutex; }
 
-  int getId() { return mId; }
   bool getChanged() { return mChanged; }
 
   cAudioDecode::eFrameType getFrameType() { return mFrameType; }
@@ -233,7 +232,6 @@ private:
   bool mOurSamples = false;
   bool mChanged = false;
 
-  int mId = 0;
   int mNumChannels = kMaxNumChannels;
   int mSampleRate = 0;
   int mSamplesPerFrame = 0;
