@@ -11,17 +11,17 @@ extern "C" {
   }
 //}}}
 
-class cBmpWidget : public cWidget {
+class cImageWidget : public cWidget {
 public:
-  cBmpWidget (const uint8_t* bmp, int bmpSize, bool flip, float width, float height,
-              std::function<void (cBmpWidget* widget)> hitCallback = [](cBmpWidget*) {})
+  cImageWidget (const uint8_t* bmp, int bmpSize, bool flip, float width, float height,
+              std::function<void (cImageWidget* widget)> hitCallback = [](cImageWidget*) {})
       : cWidget(width, height), mHitCallback(hitCallback) {
 
    stbi_set_flip_vertically_on_load (flip);
    mPic  = stbi_load_from_memory ((uint8_t* const*)bmp, bmpSize, &mPicWidth, &mPicHeight, &mPicComponents, 4);
    }
 
-  virtual ~cBmpWidget() {}
+  virtual ~cImageWidget() {}
 
   //{{{
   virtual void onDown (const cPointF& p) {
@@ -40,7 +40,8 @@ public:
     uint16_t height = int((mPixSize.y -1) * mScale);
 
     if (mImage == -1)
-      mImage = vg->createImageRGBA (mPicWidth, mPicHeight, cVg::eImageGenerateMipmaps, mPic);
+      mImage = vg->createImageRGBA (mPicWidth, mPicHeight, 0, mPic);
+      //mImage = vg->createImageRGBA (mPicWidth, mPicHeight, cVg::eImageGenerateMipmaps, mPic);
 
     float x = mPixOrg.x + (mPixSize.x - width)/2.f;
     float y = mPixOrg.y + (mPixSize.y - height)/2.f;
@@ -54,7 +55,7 @@ public:
   //}}}
 
 private:
-  std::function <void (cBmpWidget* widget)> mHitCallback;
+  std::function <void (cImageWidget* widget)> mHitCallback;
 
   bool mSelected = false;
 
@@ -63,6 +64,6 @@ private:
   int mPicHeight = 0;
   int mPicComponents = 0;
 
-  float mScale = 1.0f;
   int mImage = -1;
+  float mScale = 1.0f;
   };
