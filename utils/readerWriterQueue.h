@@ -258,8 +258,10 @@ namespace readerWriterQueue {
     class cSemaphore {
     public:
       //{{{
-      cSemaphore(int initialCount = 0) {
+      cSemaphore (int initialCount = 0) {
+
         assert(initialCount >= 0);
+
         const long maxLong = 0x7fffffff;
         m_hSema = CreateSemaphoreW(nullptr, initialCount, maxLong, nullptr);
         assert(m_hSema);
@@ -267,30 +269,30 @@ namespace readerWriterQueue {
       //}}}
       //{{{
       ~cSemaphore() {
-        CloseHandle(m_hSema);
+        CloseHandle (m_hSema);
         }
       //}}}
 
       //{{{
       bool wait() {
         const unsigned long infinite = 0xffffffff;
-        return WaitForSingleObject(m_hSema, infinite) == 0;
+        return WaitForSingleObject (m_hSema, infinite) == 0;
         }
       //}}}
       //{{{
       bool try_wait() {
-        return WaitForSingleObject(m_hSema, 0) == 0;
+        return WaitForSingleObject (m_hSema, 0) == 0;
         }
       //}}}
       //{{{
-      bool timed_wait(std::uint64_t usecs) {
-        return WaitForSingleObject(m_hSema, (unsigned long)(usecs / 1000)) == 0;
+      bool timed_wait (std::uint64_t usecs) {
+        return WaitForSingleObject (m_hSema, (unsigned long)(usecs / 1000)) == 0;
         }
       //}}}
 
       //{{{
-      void signal(int count = 1) {
-        while (!ReleaseSemaphore(m_hSema, count, nullptr));
+      void signal (int count = 1) {
+        while (!ReleaseSemaphore (m_hSema, count, nullptr));
         }
       //}}}
 
@@ -306,25 +308,28 @@ namespace readerWriterQueue {
     class cSemaphore {
     public:
       //{{{
-      cSemaphore(int initialCount = 0) {
-        assert(initialCount >= 0);
-        int rc = sem_init(&m_sema, 0, initialCount);
-       assert(rc == 0);
+      cSemaphore (int initialCount = 0) {
+
+        assert (initialCount >= 0);
+        int rc = sem_init (&mSema, 0, initialCount);
+        assert (rc == 0);
         }
       //}}}
       //{{{
       ~cSemaphore() {
-        sem_destroy(&m_sema);
+        sem_destroy (&mSema);
         }
       //}}}
 
       //{{{
       bool wait() {
-        // http://stackoverflow.com/questions/2013181/gdb-causes-sem-wait-to-fail-with-eintr-error
+      // http://stackoverflow.com/questions/2013181/gdb-causes-sem-wait-to-fail-with-eintr-error
+
         int rc;
         do {
-          rc = sem_wait(&m_sema);
+          rc = sem_wait(&mSema);
           } while (rc == -1 && errno == EINTR);
+
         return rc == 0;
         }
       //}}}
@@ -333,43 +338,48 @@ namespace readerWriterQueue {
 
         int rc;
         do {
-          rc = sem_trywait(&m_sema);
+          rc = sem_trywait (&mSema);
           } while (rc == -1 && errno == EINTR);
+
         return rc == 0;
         }
       //}}}
       //{{{
-      bool timed_wait(std::uint64_t usecs) {
+      bool timed_wait (std::uint64_t usecs) {
+
         struct timespec ts;
         const int usecs_in_1_sec = 1000000;
         const int nsecs_in_1_sec = 1000000000;
-        clock_gettime(CLOCK_REALTIME, &ts);
+        clock_gettime (CLOCK_REALTIME, &ts);
         ts.tv_sec += static_cast<time_t>(usecs / usecs_in_1_sec);
         ts.tv_nsec += static_cast<long>(usecs % usecs_in_1_sec) * 1000;
+
         // sem_timedwait bombs if you have more than 1e9 in tv_nsec
         // so we have to clean things up before passing it in
         if (ts.tv_nsec >= nsecs_in_1_sec) {
           ts.tv_nsec -= nsecs_in_1_sec;
           ++ts.tv_sec;
-        }
+          }
 
         int rc;
         do {
-          rc = sem_timedwait(&m_sema, &ts);
+          rc = sem_timedwait (&mSema, &ts);
           } while (rc == -1 && errno == EINTR);
+
         return rc == 0;
         }
       //}}}
 
       //{{{
       void signal() {
-        while (sem_post(&m_sema) == -1);
+        while (sem_post (&mSema) == -1);
         }
       //}}}
       //{{{
-      void signal(int count) {
+      void signal (int count) {
+
         while (count-- > 0) {
-          while (sem_post(&m_sema) == -1);
+          while (sem_post (&mSema) == -1);
           }
         }
       //}}}
@@ -378,7 +388,7 @@ namespace readerWriterQueue {
       cSemaphore (const cSemaphore& other);
       cSemaphore& operator= (const cSemaphore& other);
 
-      sem_t m_sema;
+      sem_t mSema;
       };
     //}}}
   #else
@@ -390,47 +400,48 @@ namespace readerWriterQueue {
     typedef std::make_signed<std::size_t>::type ssize_t;
 
     //{{{
-    cLightweightSemaphore (ssize_t initialCount = 0) : m_count(initialCount) {
-        assert(initialCount >= 0);
-    }
+    cLightweightSemaphore (ssize_t initialCount = 0) : mCount(initialCount) {
+      assert (initialCount >= 0);
+      }
     //}}}
 
     //{{{
     bool tryWait() {
 
-      if (m_count.load() > 0) {
-        m_count.fetch_add_acquire(-1);
+      if (mCount.load() > 0) {
+        mCount.fetch_add_acquire (-1);
         return true;
         }
+
       return false;
       }
     //}}}
     //{{{
     bool wait() {
-
       return tryWait() || waitWithPartialSpinning();
       }
     //}}}
     //{{{
     bool wait (std::int64_t timeout_usecs) {
-
-      return tryWait() || waitWithPartialSpinning(timeout_usecs);
+      return tryWait() || waitWithPartialSpinning (timeout_usecs);
       }
     //}}}
     //{{{
     void signal (ssize_t count = 1) {
 
       assert(count >= 0);
-      ssize_t oldCount = m_count.fetch_add_release(count);
-      assert(oldCount >= -1);
+
+      ssize_t oldCount = mCount.fetch_add_release (count);
+      assert (oldCount >= -1);
+
       if (oldCount < 0)
-        m_sema.signal(1);
+        mSema.signal (1);
       }
     //}}}
     //{{{
     std::size_t availableApprox() const {
 
-      ssize_t count = m_count.load();
+      ssize_t count = mCount.load();
       return count > 0 ? static_cast<std::size_t>(count) : 0;
       }
     //}}}
@@ -446,24 +457,22 @@ namespace readerWriterQueue {
       // as threads start hitting the kernel semaphore.
       int spin = 1024;
       while (--spin >= 0) {
-        if (m_count.load() > 0) {
-          m_count.fetch_add_acquire(-1);
+        if (mCount.load() > 0) {
+          mCount.fetch_add_acquire (-1);
           return true;
           }
-        compiler_fence(memory_order_acquire);     // Prevent the compiler from collapsing the loop.
+        compiler_fence (memory_order_acquire);     // Prevent the compiler from collapsing the loop.
         }
 
-      oldCount = m_count.fetch_add_acquire(-1);
+      oldCount = mCount.fetch_add_acquire (-1);
       if (oldCount > 0)
         return true;
-          if (timeout_usecs < 0)
-
-        {
-        if (m_sema.wait())
+      if (timeout_usecs < 0) {
+        if (mSema.wait())
           return true;
         }
 
-      if (timeout_usecs > 0 && m_sema.timed_wait(static_cast<uint64_t>(timeout_usecs)))
+      if (timeout_usecs > 0 && mSema.timed_wait (static_cast<uint64_t>(timeout_usecs)))
         return true;
 
       // At this point, we've timed out waiting for the semaphore, but the
@@ -472,20 +481,20 @@ namespace readerWriterQueue {
       // wasn't signaled enough times for us too since then. If it was, we
       // need to release the semaphore too.
       while (true) {
-        oldCount = m_count.fetch_add_release(1);
+        oldCount = mCount.fetch_add_release (1);
         if (oldCount < 0)
           return false;    // successfully restored things to the way they were
 
         // Oh, the producer thread just signaled the semaphore after all. Try again:
-        oldCount = m_count.fetch_add_acquire(-1);
-        if (oldCount > 0 && m_sema.try_wait())
+        oldCount = mCount.fetch_add_acquire (-1);
+        if ((oldCount > 0) && mSema.try_wait())
           return true;
         }
       }
     //}}}
 
-    weak_atomic<ssize_t> m_count;
-    cSemaphore m_sema;
+    weak_atomic <ssize_t> mCount;
+    cSemaphore mSema;
     };
   //}}}
   }
