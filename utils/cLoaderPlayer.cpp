@@ -99,8 +99,11 @@ public:
   //}}}
   //{{{
   void stopAndWait() {
+
     mExit = true;
-    this_thread::sleep_for (40ms);
+
+    //while (mRunning)
+    this_thread::sleep_for (100ms);
     }
   //}}}
 
@@ -186,16 +189,16 @@ private:
 
     cLog::setThreadName (mName + "Q");
 
+    mRunning = true;
+
     while (!mExit) {
       cPesItem* pesItem;
-      mQueue.wait_dequeue (pesItem);
-      mDecodeCallback (pesItem->mAfterPlay, pesItem->mPes, pesItem->mPesSize, pesItem->mNum, pesItem->mPts);
-      delete pesItem;
+      if (mQueue.wait_dequeue_timed (pesItem, 40000)) {
+        mDecodeCallback (pesItem->mAfterPlay, pesItem->mPes, pesItem->mPesSize, pesItem->mNum, pesItem->mPts);
+        delete pesItem;
+        }
       }
-
-    cPesItem* pesItem;
-    while (mQueue.try_dequeue (pesItem))
-      delete pesItem;
+    mRunning = false;
     }
   //}}}
 
@@ -207,6 +210,7 @@ private:
   function <void (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts)> mDecodeCallback;
 
   bool mExit = false;
+  bool mRunning = false;
   bool mUseQueue = false;
   readerWriterQueue::cBlockingReaderWriterQueue <cPesItem*> mQueue;
 
@@ -547,10 +551,11 @@ void cLoaderPlayer::icyLoaderThread (const string& url) {
     uint8_t* buffer = bufferFirst;
 
     int frameNum = -1;
-    cAudioDecode decode (cAudioDecode::eAac);
 
     mSong = new cSong();
     mSong->setChanged (false);
+
+    cAudioDecode decode (cAudioDecode::eAac);
 
     cPlatformHttp http;
     cUrl parsedUrl;
@@ -679,11 +684,13 @@ void cLoaderPlayer::fileLoaderThread() {
       auto fileMapPtr = fileMapFirst;
       cAudioDecode decode (frameType);
 
-      mSong = new cSong();
       if (frameType == cAudioDecode::eWav) {
         //{{{  parse wav
         auto frameSamples = 1024;
+
+        mSong = new cSong();
         mSong->initialise (frameType, 2, sampleRate, frameSamples);
+
         decode.parseFrame (fileMapPtr, fileMapEnd);
         auto samples = decode.getFramePtr();
         while (!mExit && !mSong->getChanged() && ((samples + (frameSamples * 2 * sizeof(float))) <= fileMapEnd)) {
@@ -695,7 +702,9 @@ void cLoaderPlayer::fileLoaderThread() {
         //}}}
       else {
         //{{{  parse coded
+        mSong = new cSong();
         mSong->initialise (frameType, 2, sampleRate, (frameType == cAudioDecode::eMp3) ? 1152 : 2048);
+
         while (!mExit && !mSong->getChanged() && decode.parseFrame (fileMapPtr, fileMapEnd)) {
           if (decode.getFrameType() == mSong->getFrameType()) {
             auto samples = decode.decodeFrame (frameNum);
@@ -825,7 +834,7 @@ void cLoaderPlayer::addIcyInfo (int frame, const string& icyInfo) {
 void cLoaderPlayer::startPlayer (bool streaming) {
 
   if (!mPlayer.joinable()) {
-    mPlayer = std::thread ([=]() {
+    mPlayer = thread ([=]() {
       // lambda - player
       cLog::setThreadName ("play");
 
