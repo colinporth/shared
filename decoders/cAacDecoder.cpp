@@ -14,7 +14,7 @@ using namespace chrono;
 constexpr bool kMoreLog = false;
 
 #ifdef _WIN32
-  //{{{  INTEL intrinsics
+  //{{{  use INTEL intrinsics
   #include <intrin.h>
   #include <immintrin.h>
 
@@ -26,7 +26,7 @@ constexpr bool kMoreLog = false;
     }
   //}}}
   //}}}
-#else // gcc intrinsics
+#else
   inline int32_t countLeadingZeros (int32_t x) { return __builtin_clz (x); }
 #endif
 //{{{
@@ -165,14 +165,14 @@ constexpr bool kMoreLog = false;
 //{{{  types
 //{{{
 enum {
-  AAC_FF_Unknown = 0,   // should be 0 on init
+  AAC_FF_Unknown = 0,   /* should be 0 on init */
   AAC_FF_ADTS = 1,
   AAC_FF_ADIF = 2,
   AAC_FF_RAW =  3
   };
 //}}}
 //{{{
-// syntactic element type
+/* syntactic element type */
 enum {
   AAC_ID_INVALID = -1,
   AAC_ID_SCE =  0,
@@ -229,12 +229,12 @@ struct sPulseInfo {
 //{{{
 struct sTnsInfo {
   uint8_t tnsDataPresent;
-  uint8_t numFilt [MAX_TNS_FILTERS]; // max 1 filter each for 8 short windows, or 3 filters for 1 long window
+  uint8_t numFilt [MAX_TNS_FILTERS]; /* max 1 filter each for 8 short windows, or 3 filters for 1 long window */
   uint8_t coefRes [MAX_TNS_FILTERS];
   uint8_t length [MAX_TNS_FILTERS];
   uint8_t order [MAX_TNS_FILTERS];
   uint8_t dir [MAX_TNS_FILTERS];
-  int8_t  coef [MAX_TNS_COEFS];      // max 3 filters * 20 coefs for 1 long window, or 1 filter * 7 coefs for each of 8 short windows
+  int8_t  coef [MAX_TNS_COEFS];      /* max 3 filters * 20 coefs for 1 long window, or 1 filter * 7 coefs for each of 8 short windows */
   };
 //}}}
 //{{{
@@ -263,7 +263,7 @@ struct sIcsInfo {
 //}}}
 
 //{{{
-// need one sSbrHeader per element (SCE/CPE), updated only on new header
+/* need one sSbrHeader per element (SCE/CPE), updated only on new header */
 struct sSbrHeader {
   int32_t count;
 
@@ -286,42 +286,43 @@ struct sSbrHeader {
   };
 //}}}
 //{{{
-// need one sSbrGrid per channel, updated every frame
+/* need one sSbrGrid per channel, updated every frame */
 struct sSbrGrid {
   uint8_t frameClass;
   uint8_t ampResFrame;
   uint8_t pointer;
 
-  uint8_t numEnv;           // L_E
-  uint8_t envTimeBorder[MAX_NUM_ENV+1]; // t_E
-  uint8_t freqRes[MAX_NUM_ENV];     // r
+  uint8_t numEnv;           /* L_E */
+  uint8_t envTimeBorder[MAX_NUM_ENV+1]; /* t_E */
+  uint8_t freqRes[MAX_NUM_ENV];     /* r */
 
-  uint8_t numNoiseFloors;             // L_Q
-  uint8_t noiseTimeBorder[MAX_NUM_NOISE_FLOORS+1];  // t_Q
+  uint8_t numNoiseFloors;             /* L_Q */
+  uint8_t noiseTimeBorder[MAX_NUM_NOISE_FLOORS+1];  /* t_Q */
+
   uint8_t numEnvPrev;
   uint8_t numNoiseFloorsPrev;
   uint8_t freqResPrev;
   };
 //}}}
 //{{{
-// need one sSbrFreq per element (SCE/CPE/LFE), updated only on header reset
+/* need one sSbrFreq per element (SCE/CPE/LFE), updated only on header reset */
 struct sSbrFreq {
-  int32_t kStart;       // k_x
+  int32_t kStart;       /* k_x */
   int32_t nMaster;
   int32_t nHigh;
   int32_t nLow;
-  int32_t nLimiter;       // N_l
-  int32_t numQMFBands;      // M
-  int32_t numNoiseFloorBands; // Nq
+  int32_t nLimiter;       /* N_l */
+  int32_t numQMFBands;      /* M */
+  int32_t numNoiseFloorBands; /* Nq */
 
   int32_t kStartPrev;
   int32_t numQMFBandsPrev;
 
-  uint8_t freqMaster [MAX_QMF_BANDS + 1];  // not necessary to save this  after derived tables are generated
+  uint8_t freqMaster [MAX_QMF_BANDS + 1];  /* not necessary to save this  after derived tables are generated */
   uint8_t freqHigh [MAX_QMF_BANDS + 1];
-  uint8_t freqLow [MAX_QMF_BANDS / 2 + 1]; // nLow = nHigh - (nHigh >> 1)
+  uint8_t freqLow [MAX_QMF_BANDS / 2 + 1]; /* nLow = nHigh - (nHigh >> 1) */
   uint8_t freqNoise [MAX_NUM_NOISE_FLOOR_BANDS+1];
-  uint8_t freqLimiter [MAX_QMF_BANDS / 2 + MAX_NUM_PATCHES]; // max (intermediate) size = nLow + numPatches - 1
+  uint8_t freqLimiter [MAX_QMF_BANDS / 2 + MAX_NUM_PATCHES];   /* max (intermediate) size = nLow + numPatches - 1 */
 
   uint8_t numPatches;
   uint8_t patchNumSubbands [MAX_NUM_PATCHES + 1];
@@ -334,15 +335,15 @@ struct sSbrChan {
   uint8_t deltaFlagEnv [MAX_NUM_ENV];
   uint8_t deltaFlagNoise [MAX_NUM_NOISE_FLOORS];
 
-  int8_t  envDataQuant [MAX_NUM_ENV][MAX_QMF_BANDS];   // range = [0, 127]
+  int8_t  envDataQuant [MAX_NUM_ENV][MAX_QMF_BANDS];   /* range = [0, 127] */
   int8_t  noiseDataQuant [MAX_NUM_NOISE_FLOORS][MAX_NUM_NOISE_FLOOR_BANDS];
 
-  uint8_t invfMode [2][MAX_NUM_NOISE_FLOOR_BANDS]; // invfMode[0/1][band] = prev/curr
-  int32_t chirpFact [MAX_NUM_NOISE_FLOOR_BANDS];   // bwArray
-  uint8_t addHarmonicFlag [2];           // addHarmonicFlag[0/1] = prev/curr
-  uint8_t addHarmonic [2][64];           // addHarmonic[0/1][band] = prev/curr
+  uint8_t invfMode [2][MAX_NUM_NOISE_FLOOR_BANDS]; /* invfMode[0/1][band] = prev/curr */
+  int32_t chirpFact [MAX_NUM_NOISE_FLOOR_BANDS];   /* bwArray */
+  uint8_t addHarmonicFlag [2];           /* addHarmonicFlag[0/1] = prev/curr */
+  uint8_t addHarmonic [2][64];           /* addHarmonic[0/1][band] = prev/curr */
 
-  int32_t gbMask[2];  // gbMask[0/1] = XBuf[0-31]/XBuf[32-39]
+  int32_t gbMask[2];  /* gbMask[0/1] = XBuf[0-31]/XBuf[32-39] */
   int8_t  laPrev;
 
   int32_t noiseTabIndex;
@@ -378,7 +379,7 @@ struct sAdtsHeader {
   };
 //}}}
 //{{{
-// sizeof(ProgConfigElement) = 82 bytes (if KEEP_PCE_COMMENTS not defined)
+/* sizeof(ProgConfigElement) = 82 bytes (if KEEP_PCE_COMMENTS not defined) */
 struct sProgConfigElement {
   #define MAX_NUM_FCE        15
   #define MAX_NUM_SCE        15
@@ -388,25 +389,25 @@ struct sProgConfigElement {
   #define MAX_NUM_CCE        15
   #define MAX_COMMENT_BYTES  255
 
-  uint8_t elemInstTag;        // element instance tag
-  uint8_t profile;            // 0 = main, 1 = LC, 2 = SSR, 3 = reserved
-  uint8_t sampRateIdx;        // sample rate index range = [0, 11]
-  uint8_t numFCE;             // number of front channel elements (max = 15)
-  uint8_t numSCE;             // number of side channel elements (max = 15)
-  uint8_t numBCE;             // number of back channel elements (max = 15)
-  uint8_t numLCE;             // number of LFE channel elements (max = 3)
-  uint8_t numADE;             // number of associated data elements (max = 7)
-  uint8_t numCCE;             // number of valid channel coupling elements (max = 15)
-  uint8_t monoMixdown;        // mono mixdown: bit 4 = present flag, bits 3-0 = element number
-  uint8_t stereoMixdown;      // stereo mixdown: bit 4 = present flag, bits 3-0 = element number
-  uint8_t matrixMixdown;      // matrix mixdown: bit 4 = present flag, bit 3 = unused,
-                              // bits 2-1 = index, bit 0 = pseudo-surround enable
-  uint8_t fce [MAX_NUM_FCE];  // front element channel pair: bit 4 = SCE/CPE flag, bits 3-0 = inst tag
-  uint8_t sce [MAX_NUM_SCE];  // side element channel pair: bit 4 = SCE/CPE flag, bits 3-0 = inst tag
-  uint8_t bce [MAX_NUM_BCE];  // back element channel pair: bit 4 = SCE/CPE flag, bits 3-0 = inst tag
-  uint8_t lce [MAX_NUM_LCE];  // instance tag for LFE elements
-  uint8_t ade [MAX_NUM_ADE];  // instance tag for ADE elements
-  uint8_t cce [MAX_NUM_BCE];  // channel coupling elements: bit 4 = switching flag, bits 3-0 = inst tag
+  uint8_t elemInstTag;        /* element instance tag */
+  uint8_t profile;            /* 0 = main, 1 = LC, 2 = SSR, 3 = reserved */
+  uint8_t sampRateIdx;        /* sample rate index range = [0, 11] */
+  uint8_t numFCE;             /* number of front channel elements (max = 15) */
+  uint8_t numSCE;             /* number of side channel elements (max = 15) */
+  uint8_t numBCE;             /* number of back channel elements (max = 15) */
+  uint8_t numLCE;             /* number of LFE channel elements (max = 3) */
+  uint8_t numADE;             /* number of associated data elements (max = 7) */
+  uint8_t numCCE;             /* number of valid channel coupling elements (max = 15) */
+  uint8_t monoMixdown;        /* mono mixdown: bit 4 = present flag, bits 3-0 = element number */
+  uint8_t stereoMixdown;      /* stereo mixdown: bit 4 = present flag, bits 3-0 = element number */
+  uint8_t matrixMixdown;      /* matrix mixdown: bit 4 = present flag, bit 3 = unused,
+                                       bits 2-1 = index, bit 0 = pseudo-surround enable */
+  uint8_t fce [MAX_NUM_FCE];  /* front element channel pair: bit 4 = SCE/CPE flag, bits 3-0 = inst tag */
+  uint8_t sce [MAX_NUM_SCE];  /* side element channel pair: bit 4 = SCE/CPE flag, bits 3-0 = inst tag */
+  uint8_t bce [MAX_NUM_BCE];  /* back element channel pair: bit 4 = SCE/CPE flag, bits 3-0 = inst tag */
+  uint8_t lce [MAX_NUM_LCE];  /* instance tag for LFE elements */
+  uint8_t ade [MAX_NUM_ADE];  /* instance tag for ADE elements */
+  uint8_t cce [MAX_NUM_BCE];  /* channel coupling elements: bit 4 = switching flag, bits 3-0 = inst tag */
 
   uint8_t commentBytes;
   uint8_t commentField [MAX_COMMENT_BYTES];
@@ -542,23 +543,23 @@ inline int32_t FASTABS (int32_t x) {
   return x;
   }
 
-#define CLIP_2N(y, n) { \
-  int32_t sign = (y) >> 31;  \
-  if (sign != (y) >> (n))    \
+#define CLIP_2N(y, n) {            \
+  int32_t sign = (y) >> 31;        \
+  if (sign != (y) >> (n))          \
     (y) = sign ^ ((1 << (n)) - 1); \
   }
 
-#define CLIP_2N_SHIFT(y, n) { \
-  int32_t sign = (y) >> 31;  \
+#define CLIP_2N_SHIFT(y, n) {    \
+  int32_t sign = (y) >> 31;      \
   if (sign != (y) >> (30 - (n))) \
-    (y) = sign ^ (0x3fffffff);  \
-  else \
-    (y) = (y) << (n); \
+    (y) = sign ^ (0x3fffffff);   \
+  else                           \
+    (y) = (y) << (n);            \
   }
 //}}}
 //{{{  static const tables
 //{{{
-// channel mapping (table 1.6.3.4) (-1 = unknown, so need to determine mapping based on rules in 8.5.1)
+// channel mapping (table 1.6.3.4) (-1 = unknown, so need to determine mapping based on rules in 8.5.1) */
 static const int channelMapTab [NUM_DEF_CHAN_MAPS] = {
   -1, 1, 2, 3, 4, 5, 6, 8
   };
@@ -572,7 +573,7 @@ static const uint8_t elementNumChans [NUM_ELEMENTS] = {
 
 //{{{
 static const sHuffInfo huffTabSpecInfo [11] = {
-  // table 0 not used
+  /* table 0 not used */
   {11, {  1,  0,  0,  0,  8,  0, 24,  0, 24,  8, 16,  0,  0,  0,  0,  0,  0,  0,  0,  0},   0},
   { 9, {  0,  0,  1,  1,  7, 24, 15, 19, 14,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},  81},
   {16, {  1,  0,  0,  4,  2,  6,  3,  5, 15, 15,  8,  9,  3,  3,  5,  2,  0,  0,  0,  0}, 162},
@@ -588,67 +589,59 @@ static const sHuffInfo huffTabSpecInfo [11] = {
 //}}}
 //{{{
 static const int16_t huffTabSpec [1241] = {
-  //{{{  spectrum table 1 [81] (signed)
+  /* spectrum table 1 [81] (signed) */
   0x0000, 0x0200, 0x0e00, 0x0007, 0x0040, 0x0001, 0x0038, 0x0008, 0x01c0, 0x03c0, 0x0e40, 0x0039, 0x0078, 0x01c8, 0x000f, 0x0240,
   0x003f, 0x0fc0, 0x01f8, 0x0238, 0x0047, 0x0e08, 0x0009, 0x0208, 0x01c1, 0x0048, 0x0041, 0x0e38, 0x0201, 0x0e07, 0x0207, 0x0e01,
   0x01c7, 0x0278, 0x0e78, 0x03c8, 0x004f, 0x0079, 0x01c9, 0x01cf, 0x03f8, 0x0239, 0x007f, 0x0e48, 0x0e0f, 0x0fc8, 0x01f9, 0x03c1,
   0x03c7, 0x0e47, 0x0ff8, 0x01ff, 0x0049, 0x020f, 0x0241, 0x0e41, 0x0248, 0x0fc1, 0x0e3f, 0x0247, 0x023f, 0x0e39, 0x0fc7, 0x0e09,
   0x0209, 0x03cf, 0x0e79, 0x0e4f, 0x03f9, 0x0249, 0x0fc9, 0x027f, 0x0fcf, 0x0fff, 0x0279, 0x03c9, 0x0e49, 0x0e7f, 0x0ff9, 0x03ff,
   0x024f,
-  //}}}
-  //{{{  spectrum table 2 [81] (signed)
+  /* spectrum table 2 [81] (signed) */
   0x0000, 0x0200, 0x0e00, 0x0001, 0x0038, 0x0007, 0x01c0, 0x0008, 0x0040, 0x01c8, 0x0e40, 0x0078, 0x000f, 0x0047, 0x0039, 0x0e07,
   0x03c0, 0x0238, 0x0fc0, 0x003f, 0x0208, 0x0201, 0x01c1, 0x0e08, 0x0041, 0x01f8, 0x0e01, 0x01c7, 0x0e38, 0x0240, 0x0048, 0x0009,
   0x0207, 0x0079, 0x0239, 0x0e78, 0x01cf, 0x03c8, 0x0247, 0x0209, 0x0e48, 0x01f9, 0x0248, 0x0e0f, 0x0ff8, 0x0e39, 0x03f8, 0x0278,
   0x03c1, 0x0e47, 0x0fc8, 0x0e09, 0x0fc1, 0x0fc7, 0x01ff, 0x020f, 0x023f, 0x007f, 0x0049, 0x0e41, 0x0e3f, 0x004f, 0x03c7, 0x01c9,
   0x0241, 0x03cf, 0x0e79, 0x03f9, 0x0fff, 0x0e4f, 0x0e49, 0x0249, 0x0fcf, 0x03c9, 0x0e7f, 0x0fc9, 0x027f, 0x03ff, 0x0ff9, 0x0279,
   0x024f,
-  //}}}
-  //{{{  spectrum table 3 [81] (unsigned)
+  /* spectrum table 3 [81] (unsigned) */
   0x0000, 0x1200, 0x1001, 0x1040, 0x1008, 0x2240, 0x2009, 0x2048, 0x2041, 0x2208, 0x3049, 0x2201, 0x3248, 0x4249, 0x3209, 0x3241,
   0x1400, 0x1002, 0x200a, 0x2440, 0x3288, 0x2011, 0x3051, 0x2280, 0x304a, 0x3448, 0x1010, 0x2088, 0x2050, 0x1080, 0x2042, 0x2408,
   0x4289, 0x3089, 0x3250, 0x4251, 0x3281, 0x2210, 0x3211, 0x2081, 0x4449, 0x424a, 0x3441, 0x320a, 0x2012, 0x3052, 0x3488, 0x3290,
   0x2202, 0x2401, 0x3091, 0x2480, 0x4291, 0x3242, 0x3409, 0x4252, 0x4489, 0x2090, 0x308a, 0x3212, 0x3481, 0x3450, 0x3490, 0x3092,
   0x4491, 0x4451, 0x428a, 0x4292, 0x2082, 0x2410, 0x3282, 0x3411, 0x444a, 0x3442, 0x4492, 0x448a, 0x4452, 0x340a, 0x2402, 0x3482,
   0x3412,
-  //}}}
-  //{{{  spectrum table 4 [81] (unsigned)
+  /* spectrum table 4 [81] (unsigned) */
   0x4249, 0x3049, 0x3241, 0x3248, 0x3209, 0x1200, 0x2240, 0x0000, 0x2009, 0x2208, 0x2201, 0x2048, 0x1001, 0x2041, 0x1008, 0x1040,
   0x4449, 0x4251, 0x4289, 0x424a, 0x3448, 0x3441, 0x3288, 0x3409, 0x3051, 0x304a, 0x3250, 0x3089, 0x320a, 0x3281, 0x3242, 0x3211,
   0x2440, 0x2408, 0x2280, 0x2401, 0x2042, 0x2088, 0x200a, 0x2050, 0x2081, 0x2202, 0x2011, 0x2210, 0x1400, 0x1002, 0x1080, 0x1010,
   0x4291, 0x4489, 0x4451, 0x4252, 0x428a, 0x444a, 0x3290, 0x3488, 0x3450, 0x3091, 0x3052, 0x3481, 0x308a, 0x3411, 0x3212, 0x4491,
   0x3282, 0x340a, 0x3442, 0x4292, 0x4452, 0x448a, 0x2090, 0x2480, 0x2012, 0x2410, 0x2082, 0x2402, 0x4492, 0x3092, 0x3490, 0x3482,
   0x3412,
-  //}}}
-  //{{{  spectrum table 5 [81] (signed)
+  /* spectrum table 5 [81] (signed) */
   0x0000, 0x03e0, 0x0020, 0x0001, 0x001f, 0x003f, 0x03e1, 0x03ff, 0x0021, 0x03c0, 0x0002, 0x0040, 0x001e, 0x03df, 0x0041, 0x03fe,
   0x0022, 0x03c1, 0x005f, 0x03e2, 0x003e, 0x03a0, 0x0060, 0x001d, 0x0003, 0x03bf, 0x0023, 0x0061, 0x03fd, 0x03a1, 0x007f, 0x003d,
   0x03e3, 0x03c2, 0x0042, 0x03de, 0x005e, 0x03be, 0x007e, 0x03c3, 0x005d, 0x0062, 0x0043, 0x03a2, 0x03dd, 0x001c, 0x0380, 0x0081,
   0x0080, 0x039f, 0x0004, 0x009f, 0x03fc, 0x0024, 0x03e4, 0x0381, 0x003c, 0x007d, 0x03bd, 0x03a3, 0x03c4, 0x039e, 0x0082, 0x005c,
   0x0044, 0x0063, 0x0382, 0x03dc, 0x009e, 0x007c, 0x039d, 0x0383, 0x0064, 0x03a4, 0x0083, 0x009d, 0x03bc, 0x009c, 0x0384, 0x0084,
   0x039c,
-  //}}}
-  //{{{  spectrum table 6 [81] (signed)
+  /* spectrum table 6 [81] (signed) */
   0x0000, 0x0020, 0x001f, 0x0001, 0x03e0, 0x0021, 0x03e1, 0x003f, 0x03ff, 0x005f, 0x0041, 0x03c1, 0x03df, 0x03c0, 0x03e2, 0x0040,
   0x003e, 0x0022, 0x001e, 0x03fe, 0x0002, 0x005e, 0x03c2, 0x03de, 0x0042, 0x03a1, 0x0061, 0x007f, 0x03e3, 0x03bf, 0x0023, 0x003d,
   0x03fd, 0x0060, 0x03a0, 0x001d, 0x0003, 0x0062, 0x03be, 0x03c3, 0x0043, 0x007e, 0x005d, 0x03dd, 0x03a2, 0x0063, 0x007d, 0x03bd,
   0x03a3, 0x003c, 0x03fc, 0x0081, 0x0381, 0x039f, 0x0024, 0x009f, 0x03e4, 0x001c, 0x0382, 0x039e, 0x0044, 0x03dc, 0x0380, 0x0082,
   0x009e, 0x03c4, 0x0080, 0x005c, 0x0004, 0x03bc, 0x03a4, 0x007c, 0x009d, 0x0064, 0x0083, 0x0383, 0x039d, 0x0084, 0x0384, 0x039c,
   0x009c,
-  //}}}
-  //{{{  spectrum table 7 [64] (unsigned)
+  /* spectrum table 7 [64] (unsigned) */
   0x0000, 0x0420, 0x0401, 0x0821, 0x0841, 0x0822, 0x0440, 0x0402, 0x0861, 0x0823, 0x0842, 0x0460, 0x0403, 0x0843, 0x0862, 0x0824,
   0x0881, 0x0825, 0x08a1, 0x0863, 0x0844, 0x0404, 0x0480, 0x0882, 0x0845, 0x08a2, 0x0405, 0x08c1, 0x04a0, 0x0826, 0x0883, 0x0865,
   0x0864, 0x08a3, 0x0846, 0x08c2, 0x0827, 0x0866, 0x0406, 0x04c0, 0x0884, 0x08e1, 0x0885, 0x08e2, 0x08a4, 0x08c3, 0x0847, 0x08e3,
   0x08c4, 0x08a5, 0x0886, 0x0867, 0x04e0, 0x0407, 0x08c5, 0x08a6, 0x08e4, 0x0887, 0x08a7, 0x08e5, 0x08e6, 0x08c6, 0x08c7, 0x08e7,
-  //}}}
-  //{{{  spectrum table 8 [64] (unsigned)
+  /* spectrum table 8 [64] (unsigned) */
   0x0821, 0x0841, 0x0420, 0x0822, 0x0401, 0x0842, 0x0000, 0x0440, 0x0402, 0x0861, 0x0823, 0x0862, 0x0843, 0x0863, 0x0881, 0x0824,
   0x0882, 0x0844, 0x0460, 0x0403, 0x0883, 0x0864, 0x08a2, 0x08a1, 0x0845, 0x0825, 0x08a3, 0x0865, 0x0884, 0x08a4, 0x0404, 0x0885,
   0x0480, 0x0846, 0x08c2, 0x08c1, 0x0826, 0x0866, 0x08c3, 0x08a5, 0x04a0, 0x08c4, 0x0405, 0x0886, 0x08e1, 0x08e2, 0x0847, 0x08c5,
   0x08e3, 0x0827, 0x08a6, 0x0867, 0x08c6, 0x08e4, 0x04c0, 0x0887, 0x0406, 0x08e5, 0x08e6, 0x08c7, 0x08a7, 0x04e0, 0x0407, 0x08e7,
-  //}}}
-  //{{{  spectrum table 9 [169] (unsigned)
+  /* spectrum table 9 [169] (unsigned) */
   0x0000, 0x0420, 0x0401, 0x0821, 0x0841, 0x0822, 0x0440, 0x0402, 0x0861, 0x0842, 0x0823, 0x0460, 0x0403, 0x0843, 0x0862, 0x0824,
   0x0881, 0x0844, 0x0825, 0x0882, 0x0863, 0x0404, 0x0480, 0x08a1, 0x0845, 0x0826, 0x0864, 0x08a2, 0x08c1, 0x0883, 0x0405, 0x0846,
   0x04a0, 0x0827, 0x0865, 0x0828, 0x0901, 0x0884, 0x08a3, 0x08c2, 0x08e1, 0x0406, 0x0902, 0x0848, 0x0866, 0x0847, 0x0885, 0x0921,
@@ -660,8 +653,7 @@ static const int16_t huffTabSpec [1241] = {
   0x088c, 0x08e9, 0x08ab, 0x040b, 0x0986, 0x08ca, 0x0580, 0x0947, 0x08ac, 0x08ea, 0x0928, 0x040c, 0x0967, 0x0909, 0x0929, 0x0948,
   0x08eb, 0x0987, 0x08cb, 0x090b, 0x0968, 0x08ec, 0x08cc, 0x090a, 0x0949, 0x090c, 0x092a, 0x092b, 0x092c, 0x094b, 0x0989, 0x094a,
   0x0969, 0x0988, 0x096a, 0x098a, 0x098b, 0x094c, 0x096b, 0x096c, 0x098c,
-  //}}}
-  //{{{  spectrum table 10 [169] (unsigned)
+  /* spectrum table 10 [169] (unsigned) */
   0x0821, 0x0822, 0x0841, 0x0842, 0x0420, 0x0401, 0x0823, 0x0862, 0x0861, 0x0843, 0x0863, 0x0440, 0x0402, 0x0844, 0x0882, 0x0824,
   0x0881, 0x0000, 0x0883, 0x0864, 0x0460, 0x0403, 0x0884, 0x0845, 0x08a2, 0x0825, 0x08a1, 0x08a3, 0x0865, 0x08a4, 0x0885, 0x08c2,
   0x0846, 0x08c3, 0x0480, 0x08c1, 0x0404, 0x0826, 0x0866, 0x08a5, 0x08c4, 0x0886, 0x08c5, 0x08e2, 0x0867, 0x0847, 0x08a6, 0x0902,
@@ -673,8 +665,7 @@ static const int16_t huffTabSpec [1241] = {
   0x08cb, 0x0520, 0x0948, 0x0540, 0x0981, 0x0409, 0x088c, 0x0929, 0x0986, 0x084c, 0x090a, 0x092a, 0x082c, 0x0968, 0x0987, 0x08eb,
   0x08ac, 0x08cc, 0x0949, 0x090b, 0x0988, 0x040a, 0x08ec, 0x0560, 0x094a, 0x0969, 0x096a, 0x040b, 0x096b, 0x092b, 0x094b, 0x0580,
   0x090c, 0x0989, 0x094c, 0x092c, 0x096c, 0x098b, 0x040c, 0x098a, 0x098c,
-  //}}}
-  //{{{  spectrum table 11 [289] (unsigned)
+  /* spectrum table 11 [289] (unsigned) */
   0x0000, 0x2041, 0x2410, 0x1040, 0x1001, 0x2081, 0x2042, 0x2082, 0x2043, 0x20c1, 0x20c2, 0x1080, 0x2083, 0x1002, 0x20c3, 0x2101,
   0x2044, 0x2102, 0x2084, 0x2103, 0x20c4, 0x10c0, 0x1003, 0x2141, 0x2142, 0x2085, 0x2104, 0x2045, 0x2143, 0x20c5, 0x2144, 0x2105,
   0x2182, 0x2086, 0x2181, 0x2183, 0x20c6, 0x2046, 0x2110, 0x20d0, 0x2405, 0x2403, 0x2404, 0x2184, 0x2406, 0x1100, 0x2106, 0x1004,
@@ -694,8 +685,7 @@ static const int16_t huffTabSpec [1241] = {
   0x238a, 0x1280, 0x230b, 0x224f, 0x100a, 0x230c, 0x12c0, 0x230e, 0x228f, 0x234d, 0x100d, 0x238c, 0x23ca, 0x23cb, 0x22cf, 0x238d,
   0x1340, 0x100b, 0x234e, 0x23cc, 0x23cd, 0x230f, 0x1380, 0x238e, 0x234f, 0x1300, 0x238f, 0x100e, 0x100c, 0x23ce, 0x13c0, 0x100f,
   0x23cf,
-  //}}}
-  };
+};
 //}}}
 
 //{{{
@@ -703,17 +693,17 @@ static const sHuffInfo huffTabScaleFactInfo  =
   {19, { 1,  0,  1,  3,  2,  4,  3,  5,  4,  6,  6,  6,  5,  8,  4,  7,  3,  7, 46,  0},   0};
 //}}}
 //{{{
-// note - includes offset of -60 (4.6.2.3 in spec)
+// note - includes offset of -60 (4.6.2.3 in spec) */
 static const int16_t huffTabScaleFact [121] = {
-  // scale factor table [121]
-    0,   -1,    1,   -2,    2,   -3,    3,   -4,    4,   -5,    5,    6,   -6,    7,   -7,    8,
-   -8,    9,   -9,   10,  -10,  -11,   11,   12,  -12,   13,  -13,   14,  -14,   16,   15,   17,
-   18,  -15,  -17,  -16,   19,  -18,  -19,   20,  -20,   21,  -21,   22,  -22,   23,  -23,  -25,
-   25,  -27,  -24,  -26,   24,  -28,   27,   29,  -30,  -29,   26,  -31,  -34,  -33,  -32,  -36,
-   28,  -35,  -38,  -37,   30,  -39,  -41,  -57,  -59,  -58,  -60,   38,   39,   40,   41,   42,
-   57,   37,   31,   32,   33,   34,   35,   36,   44,   51,   52,   53,   54,   55,   56,   50,
-   45,   46,   47,   48,   49,   58,  -54,  -52,  -51,  -50,  -55,   43,   60,   59,  -56,  -53,
-  -45,  -44,  -42,  -40,  -43,  -49,  -48,  -46,  -47,
+    // scale factor table [121] */
+     0,   -1,    1,   -2,    2,   -3,    3,   -4,    4,   -5,    5,    6,   -6,    7,   -7,    8,
+    -8,    9,   -9,   10,  -10,  -11,   11,   12,  -12,   13,  -13,   14,  -14,   16,   15,   17,
+    18,  -15,  -17,  -16,   19,  -18,  -19,   20,  -20,   21,  -21,   22,  -22,   23,  -23,  -25,
+    25,  -27,  -24,  -26,   24,  -28,   27,   29,  -30,  -29,   26,  -31,  -34,  -33,  -32,  -36,
+    28,  -35,  -38,  -37,   30,  -39,  -41,  -57,  -59,  -58,  -60,   38,   39,   40,   41,   42,
+    57,   37,   31,   32,   33,   34,   35,   36,   44,   51,   52,   53,   54,   55,   56,   50,
+    45,   46,   47,   48,   49,   58,  -54,  -52,  -51,  -50,  -55,   43,   60,   59,  -56,  -53,
+   -45,  -44,  -42,  -40,  -43,  -49,  -48,  -46,  -47,
   };
 //}}}
 
@@ -732,82 +722,72 @@ static const sHuffInfo huffTabSBRInfo [10] = {
   };
 //}}}
 //{{{
-// Huffman tables from appendix 4.A.6.1, includes offset of -LAV[i] for table i
+// Huffman tables from appendix 4.A.6.1, includes offset of -LAV[i] for table i */
 static const int16_t huffTabSBR [604] = {
-  //{{{  SBR table sbr_tenv15 [121] (signed)
-    0,   -1,    1,   -2,    2,   -3,    3,   -4,    4,   -5,    5,   -6,    6,   -7,    7,   -8,
-   -9,    8,  -10,    9,  -11,   10,  -12,  -13,   11,  -14,   12,  -15,  -16,   13,  -19,  -18,
-  -17,   14,  -24,  -20,   16,  -26,  -21,   15,  -23,  -25,  -22,  -60,  -59,  -58,  -57,  -56,
-  -55,  -54,  -53,  -52,  -51,  -50,  -49,  -48,  -47,  -46,  -45,  -44,  -43,  -42,  -41,  -40,
-  -39,  -38,  -37,  -36,  -35,  -34,  -33,  -32,  -31,  -30,  -29,  -28,  -27,   17,   18,   19,
-   20,   21,   22,   23,   24,   25,   26,   27,   28,   29,   30,   31,   32,   33,   34,   35,
-   36,   37,   38,   39,   40,   41,   42,   43,   44,   45,   46,   47,   48,   49,   50,   51,
-   52,   53,   54,   55,   56,   57,   58,   59,   60,
-  //}}}
-  //{{{  SBR table sbr_fenv15 [121] (signed)
-    0,   -1,    1,   -2,   -3,    2,   -4,    3,   -5,    4,   -6,    5,   -7,    6,   -8,    7,
-   -9,    8,  -10,    9,  -11,   10,   11,  -12,   12,  -13,   13,   14,  -14,  -15,   15,   16,
-   17,  -16,  -17,  -18,  -19,   18,   19,  -20,  -21,   20,   21,  -24,  -23,  -22,  -26,  -28,
-   22,   23,   25,  -41,  -25,   26,   27,  -30,  -27,   24,   28,   44,  -51,  -46,  -44,  -43,
-  -37,  -33,  -31,  -29,   30,   37,   42,   47,   48,  -60,  -59,  -58,  -57,  -56,  -55,  -54,
-  -53,  -52,  -50,  -49,  -48,  -47,  -45,  -42,  -40,  -39,  -38,  -36,  -35,  -34,  -32,   29,
-   31,   32,   33,   34,   35,   36,   38,   39,   40,   41,   43,   45,   46,   49,   50,   51,
-   52,   53,   54,   55,   56,   57,   58,   59,   60,
-  //}}}
-  //{{{  SBR table sbr_tenv15b [49] (signed)
-    0,    1,   -1,    2,   -2,    3,   -3,    4,   -4,   -5,    5,   -6,    6,    7,   -7,    8,
-  -24,  -23,  -22,  -21,  -20,  -19,  -18,  -17,  -16,  -15,  -14,  -13,  -12,  -11,  -10,   -9,
-   -8,    9,   10,   11,   12,   13,   14,   15,   16,   17,   18,   19,   20,   21,   22,   23,
-   24,
-  //}}}
-  //{{{  SBR table sbr_fenv15b [49] (signed)
-    0,   -1,    1,   -2,    2,    3,   -3,   -4,    4,   -5,    5,   -6,    6,   -7,    7,    8,
-   -9,   -8,  -24,  -23,  -22,  -21,  -20,  -19,  -18,  -17,  -16,  -15,  -14,  -13,  -12,  -11,
-  -10,    9,   10,   11,   12,   13,   14,   15,   16,   17,   18,   19,   20,   21,   22,   23,
-   24,
-  //}}}
-  //{{{  SBR table sbr_tenv30 [63] (signed)
-    0,   -1,    1,   -2,    2,   -3,    3,   -4,    4,   -5,    5,   -6,   -7,    6,   -8,    7,
-   -9,  -10,    8,    9,   10,  -13,  -11,  -12,  -14,   11,   12,  -31,  -30,  -29,  -28,  -27,
-  -26,  -25,  -24,  -23,  -22,  -21,  -20,  -19,  -18,  -17,  -16,  -15,   13,   14,   15,   16,
-   17,   18,   19,   20,   21,   22,   23,   24,   25,   26,   27,   28,   29,   30,   31,
-  //}}}
-  //{{{  SBR table sbr_fenv30 [63] (signed)
-    0,   -1,    1,   -2,    2,   -3,    3,   -4,    4,   -5,    5,   -6,    6,   -7,    7,   -8,
-    8,    9,   -9,  -10,   10,   11,  -11,  -12,   12,   13,  -13,  -15,   14,   15,  -14,   18,
-  -18,  -24,  -19,   16,   17,  -22,  -21,  -16,   20,   21,   22,   25,  -23,  -20,   24,  -31,
-  -30,  -29,  -28,  -27,  -26,  -25,  -17,   19,   23,   26,   27,   28,   29,   30,   31,
-  //}}}
-  //{{{  SBR table sbr_tenv30b [25] (signed)
-    0,    1,   -1,   -2,    2,    3,   -3,   -4,    4,   -5,  -12,  -11,  -10,   -9,   -8,   -7,
-   -6,    5,    6,    7,    8,    9,   10,   11,   12,
-  //}}}
-  //{{{  SBR table sbr_fenv30b [25] (signed)
-    0,   -1,    1,   -2,    2,    3,   -3,   -4,    4,   -5,    5,    6,  -12,  -11,  -10,   -9,
-   -8,   -7,   -6,    7,    8,    9,   10,   11,   12,
-  //}}}
-  //{{{  SBR table sbr_tnoise30 [63] (signed)
-    0,    1,   -1,   -2,    2,   -3,    3,   -4,    4,   -5,    5,   11,  -31,  -30,  -29,  -28,
-  -27,  -26,  -25,  -24,  -23,  -22,  -21,  -20,  -19,  -18,  -17,  -16,  -15,  -14,  -13,  -12,
-  -11,  -10,   -9,   -8,   -7,   -6,    6,    7,    8,    9,   10,   12,   13,   14,   15,   16,
-   17,   18,   19,   20,   21,   22,   23,   24,   25,   26,   27,   28,   29,   30,   31,
-  //}}}
-  //{{{  SBR table sbr_tnoise30b [25] (signed)
-   0,   -1,    1,   -2,    2,  -12,  -11,  -10,   -9,   -8,   -7,   -6,   -5,   -4,   -3,    3,
-   4,    5,    6,    7,    8,    9,   10,   11,   12,
-  //}}}
+   /* SBR table sbr_tenv15 [121] (signed) */
+     0,   -1,    1,   -2,    2,   -3,    3,   -4,    4,   -5,    5,   -6,    6,   -7,    7,   -8,
+    -9,    8,  -10,    9,  -11,   10,  -12,  -13,   11,  -14,   12,  -15,  -16,   13,  -19,  -18,
+   -17,   14,  -24,  -20,   16,  -26,  -21,   15,  -23,  -25,  -22,  -60,  -59,  -58,  -57,  -56,
+   -55,  -54,  -53,  -52,  -51,  -50,  -49,  -48,  -47,  -46,  -45,  -44,  -43,  -42,  -41,  -40,
+   -39,  -38,  -37,  -36,  -35,  -34,  -33,  -32,  -31,  -30,  -29,  -28,  -27,   17,   18,   19,
+    20,   21,   22,   23,   24,   25,   26,   27,   28,   29,   30,   31,   32,   33,   34,   35,
+    36,   37,   38,   39,   40,   41,   42,   43,   44,   45,   46,   47,   48,   49,   50,   51,
+    52,   53,   54,   55,   56,   57,   58,   59,   60,
+   /* SBR table sbr_fenv15 [121] (signed) */
+     0,   -1,    1,   -2,   -3,    2,   -4,    3,   -5,    4,   -6,    5,   -7,    6,   -8,    7,
+    -9,    8,  -10,    9,  -11,   10,   11,  -12,   12,  -13,   13,   14,  -14,  -15,   15,   16,
+    17,  -16,  -17,  -18,  -19,   18,   19,  -20,  -21,   20,   21,  -24,  -23,  -22,  -26,  -28,
+    22,   23,   25,  -41,  -25,   26,   27,  -30,  -27,   24,   28,   44,  -51,  -46,  -44,  -43,
+   -37,  -33,  -31,  -29,   30,   37,   42,   47,   48,  -60,  -59,  -58,  -57,  -56,  -55,  -54,
+   -53,  -52,  -50,  -49,  -48,  -47,  -45,  -42,  -40,  -39,  -38,  -36,  -35,  -34,  -32,   29,
+    31,   32,   33,   34,   35,   36,   38,   39,   40,   41,   43,   45,   46,   49,   50,   51,
+    52,   53,   54,   55,   56,   57,   58,   59,   60,
+   /* SBR table sbr_tenv15b [49] (signed) */
+     0,    1,   -1,    2,   -2,    3,   -3,    4,   -4,   -5,    5,   -6,    6,    7,   -7,    8,
+   -24,  -23,  -22,  -21,  -20,  -19,  -18,  -17,  -16,  -15,  -14,  -13,  -12,  -11,  -10,   -9,
+    -8,    9,   10,   11,   12,   13,   14,   15,   16,   17,   18,   19,   20,   21,   22,   23,
+    24,
+   /* SBR table sbr_fenv15b [49] (signed) */
+     0,   -1,    1,   -2,    2,    3,   -3,   -4,    4,   -5,    5,   -6,    6,   -7,    7,    8,
+    -9,   -8,  -24,  -23,  -22,  -21,  -20,  -19,  -18,  -17,  -16,  -15,  -14,  -13,  -12,  -11,
+   -10,    9,   10,   11,   12,   13,   14,   15,   16,   17,   18,   19,   20,   21,   22,   23,
+    24,
+   /* SBR table sbr_tenv30 [63] (signed) */
+     0,   -1,    1,   -2,    2,   -3,    3,   -4,    4,   -5,    5,   -6,   -7,    6,   -8,    7,
+    -9,  -10,    8,    9,   10,  -13,  -11,  -12,  -14,   11,   12,  -31,  -30,  -29,  -28,  -27,
+   -26,  -25,  -24,  -23,  -22,  -21,  -20,  -19,  -18,  -17,  -16,  -15,   13,   14,   15,   16,
+    17,   18,   19,   20,   21,   22,   23,   24,   25,   26,   27,   28,   29,   30,   31,
+   /* SBR table sbr_fenv30 [63] (signed) */
+     0,   -1,    1,   -2,    2,   -3,    3,   -4,    4,   -5,    5,   -6,    6,   -7,    7,   -8,
+     8,    9,   -9,  -10,   10,   11,  -11,  -12,   12,   13,  -13,  -15,   14,   15,  -14,   18,
+   -18,  -24,  -19,   16,   17,  -22,  -21,  -16,   20,   21,   22,   25,  -23,  -20,   24,  -31,
+   -30,  -29,  -28,  -27,  -26,  -25,  -17,   19,   23,   26,   27,   28,   29,   30,   31,
+   /* SBR table sbr_tenv30b [25] (signed) */
+     0,    1,   -1,   -2,    2,    3,   -3,   -4,    4,   -5,  -12,  -11,  -10,   -9,   -8,   -7,
+    -6,    5,    6,    7,    8,    9,   10,   11,   12,
+   /* SBR table sbr_fenv30b [25] (signed) */
+     0,   -1,    1,   -2,    2,    3,   -3,   -4,    4,   -5,    5,    6,  -12,  -11,  -10,   -9,
+    -8,   -7,   -6,    7,    8,    9,   10,   11,   12,
+   /* SBR table sbr_tnoise30 [63] (signed) */
+     0,    1,   -1,   -2,    2,   -3,    3,   -4,    4,   -5,    5,   11,  -31,  -30,  -29,  -28,
+   -27,  -26,  -25,  -24,  -23,  -22,  -21,  -20,  -19,  -18,  -17,  -16,  -15,  -14,  -13,  -12,
+   -11,  -10,   -9,   -8,   -7,   -6,    6,    7,    8,    9,   10,   12,   13,   14,   15,   16,
+    17,   18,   19,   20,   21,   22,   23,   24,   25,   26,   27,   28,   29,   30,   31,
+   /* SBR table sbr_tnoise30b [25] (signed) */
+     0,   -1,    1,   -2,    2,  -12,  -11,  -10,   -9,   -8,   -7,   -6,   -5,   -4,   -3,    3,
+     4,    5,    6,    7,    8,    9,   10,   11,   12,
   };
 //}}}
 
 //{{{
-// sample rates (table 4.5.1)
+// sample rates (table 4.5.1) */
 static const int32_t sampRateTab [NUM_SAMPLE_RATES] = {
   96000, 88200, 64000, 48000, 44100, 32000,
   24000, 22050, 16000, 12000, 11025,  8000
   };
 //}}}
 //{{{
-// max scalefactor band for prediction (main profile only)
+// max scalefactor band for prediction (main profile only) */
 static const uint8_t predSFBMax [NUM_SAMPLE_RATES] = {
   33, 33, 38, 40, 40, 40, 41, 41, 37, 37, 37, 34
   };
@@ -826,55 +806,46 @@ static const uint32_t invQuant4 [16] = {
   0x7f7437ad, 0x7b1d1a49, 0x7294b5f2, 0x66256db2, 0x563ba8aa, 0x4362210e, 0x2e3d2abb, 0x17851aad,
   };
 //}}}
-//{{{
-static const int8_t sgnMask [3] = {
-  0x02,  0x04,  0x08
-  };
-//}}}
-//{{{
-static const int8_t negMask [3] = {
-  ~0x03, ~0x07, ~0x0f
-  };
-//}}}
+static const int8_t sgnMask [3] = { 0x02,  0x04,  0x08 };
+static const int8_t negMask [3] = { ~0x03, ~0x07, ~0x0f };
 
 // power
 //{{{
-// pow(2, i/4.0) for i = [0,1,2,3], format = Q30
-static const int32_t pow14 [4] = {
-  0x40000000, 0x4c1bf829, 0x5a82799a, 0x6ba27e65
-  };
+// pow(2, i/4.0) for i = [0,1,2,3], format = Q30 */
+static const int32_t pow14 [4] = { 0x40000000, 0x4c1bf829, 0x5a82799a, 0x6ba27e65 };
 //}}}
 //{{{
 // pow(2, i/4.0) * pow(j, 4.0/3.0) for i = [0,1,2,3],  j = [0,1,2,...,15]
 // format = Q28 for j = [0-3], Q25 for j = [4-15]
 static const int32_t pow43_14 [4][16] = {
-  { 0x00000000, 0x10000000, 0x285145f3, 0x453a5cdb, // Q28
-    0x0cb2ff53, 0x111989d6, 0x15ce31c8, 0x1ac7f203, // Q25
-    0x20000000, 0x257106b9, 0x2b16b4a3, 0x30ed74b4, // Q25
-    0x36f23fa5, 0x3d227bd3, 0x437be656, 0x49fc823c, // Q25
-    },
-
-  { 0x00000000, 0x1306fe0a, 0x2ff221af, 0x52538f52,
-    0x0f1a1bf4, 0x1455ccc2, 0x19ee62a8, 0x1fd92396,
-    0x260dfc14, 0x2c8694d8, 0x333dcb29, 0x3a2f5c7a,
-    0x4157aed5, 0x48b3aaa3, 0x50409f76, 0x57fc3010,
-    },
-
-  { 0x00000000, 0x16a09e66, 0x39047c0f, 0x61e734aa,
-    0x11f59ac4, 0x182ec633, 0x1ed66a45, 0x25dfc55a,
-    0x2d413ccd, 0x34f3462d, 0x3cefc603, 0x4531ab69,
-    0x4db4adf8, 0x56752054, 0x5f6fcfcd, 0x68a1eca1,
-    },
-
-  { 0x00000000, 0x1ae89f99, 0x43ce3e4b, 0x746d57b2,
-    0x155b8109, 0x1cc21cdc, 0x24ac1839, 0x2d0a479e,
-    0x35d13f33, 0x3ef80748, 0x48775c93, 0x524938cd,
-    0x5c68841d, 0x66d0df0a, 0x717e7bfe, 0x7c6e0305,
-    },
+  {
+  0x00000000, 0x10000000, 0x285145f3, 0x453a5cdb, /* Q28 */
+  0x0cb2ff53, 0x111989d6, 0x15ce31c8, 0x1ac7f203, /* Q25 */
+  0x20000000, 0x257106b9, 0x2b16b4a3, 0x30ed74b4, /* Q25 */
+  0x36f23fa5, 0x3d227bd3, 0x437be656, 0x49fc823c, /* Q25 */
+  },
+  {
+  0x00000000, 0x1306fe0a, 0x2ff221af, 0x52538f52,
+  0x0f1a1bf4, 0x1455ccc2, 0x19ee62a8, 0x1fd92396,
+  0x260dfc14, 0x2c8694d8, 0x333dcb29, 0x3a2f5c7a,
+  0x4157aed5, 0x48b3aaa3, 0x50409f76, 0x57fc3010,
+  },
+  {
+  0x00000000, 0x16a09e66, 0x39047c0f, 0x61e734aa,
+  0x11f59ac4, 0x182ec633, 0x1ed66a45, 0x25dfc55a,
+  0x2d413ccd, 0x34f3462d, 0x3cefc603, 0x4531ab69,
+  0x4db4adf8, 0x56752054, 0x5f6fcfcd, 0x68a1eca1,
+  },
+  {
+  0x00000000, 0x1ae89f99, 0x43ce3e4b, 0x746d57b2,
+  0x155b8109, 0x1cc21cdc, 0x24ac1839, 0x2d0a479e,
+  0x35d13f33, 0x3ef80748, 0x48775c93, 0x524938cd,
+  0x5c68841d, 0x66d0df0a, 0x717e7bfe, 0x7c6e0305,
+  },
   };
 //}}}
 //{{{
-// pow(j, 4.0 / 3.0) for j = [16,17,18,...,63], format = Q23
+/* pow(j, 4.0 / 3.0) for j = [16,17,18,...,63], format = Q23 */
 static const int32_t pow43 [48] = {
   0x1428a2fa, 0x15db1bd6, 0x1796302c, 0x19598d85,
   0x1b24e8bb, 0x1cf7fcfa, 0x1ed28af2, 0x20b4582a,
@@ -903,7 +874,7 @@ static const int32_t pow142 [2][4] = {
 static const int32_t pow2exp [8] = { 14, 13, 11, 10, 9, 7, 6, 5 };
 //}}}
 //{{{
-// pow2exp[i] = pow(2, i*4/3) fraction
+/* pow2exp[i] = pow(2, i*4/3) fraction */
 static const int32_t pow2frac [8] = {
   0x6597fa94, 0x50a28be6, 0x7fffffff, 0x6597fa94,
   0x50a28be6, 0x7fffffff, 0x6597fa94, 0x50a28be6
@@ -922,6 +893,7 @@ static const uint32_t cos4sin4tab64 [64] = {
   0x58fb0568, 0x2434f332, 0x595c3e2a, 0x33de87de, 0x59afaf4c, 0x26c0b162, 0x59f54bee, 0x31f79948,
   0x5a2d0957, 0x29348937, 0x5a56deec, 0x2ff1d9c7, 0x5a72c63b, 0x2b8ef77d, 0x5a80baf6, 0x2dce88aa,
   };
+
 //}}}
 //{{{
 static const int32_t cos1sin1tab64 [34] = {
@@ -935,7 +907,7 @@ static const int32_t cos1sin1tab64 [34] = {
 static const int32_t cos4sin4tabOffset [NUM_IMDCT_SIZES] = { 0, 128 };
 //{{{
 static const uint32_t cos4sin4tab [128 + 1024] = {
-  //{{{  128 - format = Q30 * 2^-7
+  /* 128 - format = Q30 * 2^-7 */
   0xbf9bc731, 0xff9b783c, 0xbed5332c, 0xc002c697, 0xbe112251, 0xfe096c8d, 0xbd4f9c30, 0xc00f1c4a,
   0xbc90a83f, 0xfc77ae5e, 0xbbd44dd9, 0xc0254e27, 0xbb1a9443, 0xfae67ba2, 0xba6382a6, 0xc04558c0,
   0xb9af200f, 0xf9561237, 0xb8fd7373, 0xc06f3726, 0xb84e83ac, 0xf7c6afdc, 0xb7a25779, 0xc0a2e2e3,
@@ -952,8 +924,7 @@ static const uint32_t cos4sin4tab [128 + 1024] = {
   0xa663e188, 0xd98f7fe6, 0xa63d9d2b, 0xcd4e2037, 0xa61aceaf, 0xd850fb8e, 0xa5fb776b, 0xce47759a,
   0xa5df9894, 0xd71895c9, 0xa5c7333e, 0xcf4875ca, 0xa5b2485a, 0xd5e67ec1, 0xa5a0d8b5, 0xd050f926,
   0xa592e4fd, 0xd4bae5ab, 0xa5886dba, 0xd160d6e5, 0xa5817354, 0xd395f8ba, 0xa57df60f, 0xd277e518,
-  //}}}
-  //{{{  1024 - format = Q30 * 2^-10
+  /* 1024 - format = Q30 * 2^-10 */
   0xbff3703e, 0xfff36f02, 0xbfda5824, 0xc0000b1a, 0xbfc149ed, 0xffc12b16, 0xbfa845a0, 0xc0003c74,
   0xbf8f4b3e, 0xff8ee750, 0xbf765acc, 0xc0009547, 0xbf5d744e, 0xff5ca3d0, 0xbf4497c8, 0xc0011594,
   0xbf2bc53d, 0xff2a60b4, 0xbf12fcb2, 0xc001bd5c, 0xbefa3e2a, 0xfef81e1d, 0xbee189a8, 0xc0028c9c,
@@ -1082,12 +1053,11 @@ static const uint32_t cos4sin4tab [128 + 1024] = {
   0xa5812154, 0xd38ced57, 0xa58087cd, 0xd205ac17, 0xa57ffc3b, 0xd368d0f3, 0xa57f7e9d, 0xd228b18d,
   0xa57f0ef5, 0xd344d011, 0xa57ead41, 0xd24bd34a, 0xa57e5982, 0xd320eac6, 0xa57e13b8, 0xd26f1138,
   0xa57ddbe4, 0xd2fd2129, 0xa57db204, 0xd2926b41, 0xa57d961a, 0xd2d97350, 0xa57d8825, 0xd2b5e151,
-  //}}}
   };
 //}}}
 //{{{
 static const int32_t cos1sin1tab [514] = {
-  // format = Q30
+  /* format = Q30 */
   0x40000000, 0x00000000, 0x40323034, 0x003243f1, 0x406438cf, 0x006487c4, 0x409619b2, 0x0096cb58,
   0x40c7d2bd, 0x00c90e90, 0x40f963d3, 0x00fb514b, 0x412accd4, 0x012d936c, 0x415c0da3, 0x015fd4d2,
   0x418d2621, 0x0192155f, 0x41be162f, 0x01c454f5, 0x41eeddaf, 0x01f69373, 0x421f7c84, 0x0228d0bb,
@@ -1159,7 +1129,7 @@ static const int32_t cos1sin1tab [514] = {
 static const int32_t sinWindowOffset [NUM_IMDCT_SIZES] = { 0, 128 };
 //{{{
 static const int32_t sinWindow [128 + 1024] = {
-  //{{{  128 - format = Q31 * 2^0
+  /* 128 - format = Q31 * 2^0 */
   0x00c90f88, 0x7fff6216, 0x025b26d7, 0x7ffa72d1, 0x03ed26e6, 0x7ff09478, 0x057f0035, 0x7fe1c76b,
   0x0710a345, 0x7fce0c3e, 0x08a2009a, 0x7fb563b3, 0x0a3308bd, 0x7f97cebd, 0x0bc3ac35, 0x7f754e80,
   0x0d53db92, 0x7f4de451, 0x0ee38766, 0x7f2191b4, 0x1072a048, 0x7ef05860, 0x120116d5, 0x7eba3a39,
@@ -1176,8 +1146,7 @@ static const int32_t sinWindow [128 + 1024] = {
   0x4ce10034, 0x66573cbb, 0x4e210617, 0x6563bf92, 0x4f5e08e3, 0x646c59bf, 0x5097fc5e, 0x637114cc,
   0x51ced46e, 0x6271fa69, 0x53028518, 0x616f146c, 0x5433027d, 0x60686ccf, 0x556040e2, 0x5f5e0db3,
   0x568a34a9, 0x5e50015d, 0x57b0d256, 0x5d3e5237, 0x58d40e8c, 0x5c290acc, 0x59f3de12, 0x5b1035cf,
-  //}}}
-  //{{{  1024 - format = Q31 * 2^0
+  /* 1024 - format = Q31 * 2^0 */
   0x001921fb, 0x7ffffd88, 0x004b65ee, 0x7fffe9cb, 0x007da9d4, 0x7fffc251, 0x00afeda8, 0x7fff8719,
   0x00e23160, 0x7fff3824, 0x011474f6, 0x7ffed572, 0x0146b860, 0x7ffe5f03, 0x0178fb99, 0x7ffdd4d7,
   0x01ab3e97, 0x7ffd36ee, 0x01dd8154, 0x7ffc8549, 0x020fc3c6, 0x7ffbbfe6, 0x024205e8, 0x7ffae6c7,
@@ -1306,14 +1275,13 @@ static const int32_t sinWindow [128 + 1024] = {
   0x58e62552, 0x5c179806, 0x590a4893, 0x5bf4a7d2, 0x592e5e19, 0x5bd1a971, 0x595265df, 0x5bae9ce7,
   0x59765fde, 0x5b8b8239, 0x599a4c12, 0x5b68596d, 0x59be2a74, 0x5b452288, 0x59e1faff, 0x5b21dd90,
   0x5a05bdae, 0x5afe8a8b, 0x5a29727b, 0x5adb297d, 0x5a4d1960, 0x5ab7ba6c, 0x5a70b258, 0x5a943d5e,
-  //}}}
   };
 //}}}
 
 static const int32_t kbdWindowOffset [NUM_IMDCT_SIZES] = { 0, 128 };
 //{{{
 static const int32_t kbdWindow [128 + 1024] = {
-  //{{{  128 - format = Q31 * 2^0
+  /* 128 - format = Q31 * 2^0 */
   0x00016f63, 0x7ffffffe, 0x0003e382, 0x7ffffff1, 0x00078f64, 0x7fffffc7, 0x000cc323, 0x7fffff5d,
   0x0013d9ed, 0x7ffffe76, 0x001d3a9d, 0x7ffffcaa, 0x0029581f, 0x7ffff953, 0x0038b1bd, 0x7ffff372,
   0x004bd34d, 0x7fffe98b, 0x00635538, 0x7fffd975, 0x007fdc64, 0x7fffc024, 0x00a219f1, 0x7fff995b,
@@ -1330,8 +1298,7 @@ static const int32_t kbdWindow [128 + 1024] = {
   0x3b5cdb7b, 0x7166f8e7, 0x3e28b770, 0x6fe4d8e8, 0x40f6702a, 0x6e4a3491, 0x43c40caa, 0x6c970bfc,
   0x468f9231, 0x6acb8483, 0x495707f5, 0x68e7e994, 0x4c187ac7, 0x66ecad1c, 0x4ed200c5, 0x64da6797,
   0x5181bcea, 0x62b1d7b7, 0x5425e28e, 0x6073e1ae, 0x56bcb8c2, 0x5e218e16, 0x59449d76, 0x5bbc0875,
-  //}}}
-  //{{{  1024 - format = Q31 * 2^0
+  /* 1024 - format = Q31 * 2^0 */
   0x0009962f, 0x7fffffa4, 0x000e16fb, 0x7fffff39, 0x0011ea65, 0x7ffffebf, 0x0015750e, 0x7ffffe34,
   0x0018dc74, 0x7ffffd96, 0x001c332e, 0x7ffffce5, 0x001f83f5, 0x7ffffc1f, 0x0022d59a, 0x7ffffb43,
   0x00262cc2, 0x7ffffa4f, 0x00298cc4, 0x7ffff942, 0x002cf81f, 0x7ffff81a, 0x003070c4, 0x7ffff6d6,
@@ -1460,35 +1427,26 @@ static const int32_t kbdWindow [128 + 1024] = {
   0x578f3d0d, 0x5d5ddc24, 0x57d1ccf2, 0x5d1f435d, 0x581432bd, 0x5ce078a0, 0x58566e04, 0x5ca17c45,
   0x58987e63, 0x5c624ea4, 0x58da6372, 0x5c22f016, 0x591c1ccc, 0x5be360f6, 0x595daa0d, 0x5ba3a19f,
   0x599f0ad1, 0x5b63b26c, 0x59e03eb6, 0x5b2393ba, 0x5a214558, 0x5ae345e7, 0x5a621e56, 0x5aa2c951,
-  //}}}
   };
 //}}}
 
-// invTab[x] = 1/(x+1), format = Q30
+// invTab[x] = 1/(x+1), format = Q30 */
 #define NUM_TERMS_RPI 5
-//{{{
-static const int32_t invTab [NUM_TERMS_RPI]  = {
-  0x40000000, 0x20000000, 0x15555555, 0x10000000, 0x0ccccccd
-  };
-//}}}
+static const int32_t invTab [NUM_TERMS_RPI]  = { 0x40000000, 0x20000000, 0x15555555, 0x10000000, 0x0ccccccd };
 
 //{{{
 // Minimax polynomial approximation to pow(x, 4/3), over the range
 //  poly43lo: x = [0.5, 0.7071]
 // Relative error < 1E-7
 // Coefs are scaled by 4, 2, 1, 0.5, 0.25
-static const uint32_t poly43lo [5] = {
-  0x29a0bda9, 0xb02e4828, 0x5957aa1b, 0x236c498d, 0xff581859
-  };
+static const uint32_t poly43lo [5] = { 0x29a0bda9, 0xb02e4828, 0x5957aa1b, 0x236c498d, 0xff581859 };
 //}}}
 //{{{
 //  poly43hi: x = [0.7071, 1.0]
-static const uint32_t poly43hi[5] = {
-  0x10852163, 0xd333f6a4, 0x46e9408b, 0x27c2cef0, 0xfef577b4
-  };
+static const uint32_t poly43hi[5] = { 0x10852163, 0xd333f6a4, 0x46e9408b, 0x27c2cef0, 0xfef577b4 };
 //}}}
 //{{{
-// log2Tab[x] = floor(log2(x)), format = Q28
+// log2Tab[x] = floor(log2(x)), format = Q28 */
 static const int32_t log2Tab [65] = {
   0x00000000, 0x00000000, 0x10000000, 0x195c01a3, 0x20000000, 0x25269e12, 0x295c01a3, 0x2ceaecfe,
   0x30000000, 0x32b80347, 0x35269e12, 0x3759d4f8, 0x395c01a3, 0x3b350047, 0x3ceaecfe, 0x3e829fb6,
@@ -1515,11 +1473,11 @@ static const uint8_t nfftlog2Tab [NUM_FFT_SIZES] = {6, 9};
 static const int32_t bitrevtabOffset [NUM_IMDCT_SIZES] = {0, 17};
 //{{{
 static const uint8_t bitrevtab [17 + 129]  = {
-  // nfft = 64
+  /* nfft = 64 */
   0x01, 0x08, 0x02, 0x04, 0x03, 0x0c, 0x05, 0x0a, 0x07, 0x0e, 0x0b, 0x0d, 0x00, 0x06, 0x09, 0x0f,
   0x00,
 
-  // nfft = 512
+  /* nfft = 512 */
   0x01, 0x40, 0x02, 0x20, 0x03, 0x60, 0x04, 0x10, 0x05, 0x50, 0x06, 0x30, 0x07, 0x70, 0x09, 0x48,
   0x0a, 0x28, 0x0b, 0x68, 0x0c, 0x18, 0x0d, 0x58, 0x0e, 0x38, 0x0f, 0x78, 0x11, 0x44, 0x12, 0x24,
   0x13, 0x64, 0x15, 0x54, 0x16, 0x34, 0x17, 0x74, 0x19, 0x4c, 0x1a, 0x2c, 0x1b, 0x6c, 0x1d, 0x5c,
@@ -1534,57 +1492,56 @@ static const uint8_t bitrevtab [17 + 129]  = {
 static const uint8_t uniqueIDTab [8] = {0x5f, 0x4b, 0x43, 0x5f, 0x5f, 0x4a, 0x52, 0x5f};
 
 //{{{
-// Twiddle tables
-// format = Q30
-//
-// for (k = 4; k <= N/4; k <<= 1) {
-//   for (j = 0; j < k; j++) {
-//     double wr1, wi1, wr2, wi2, wr3, wi3;
-//
-//     wr1 = cos(1.0 * M_PI * j / (2*k));
-//     wi1 = sin(1.0 * M_PI * j / (2*k));
-//     wr1 = (wr1 + wi1);
-//     wi1 = -wi1;
-//
-//     wr2 = cos(2.0 * M_PI * j / (2*k));
-//     wi2 = sin(2.0 * M_PI * j / (2*k));
-//     wr2 = (wr2 + wi2);
-//     wi2 = -wi2;
-//
-//     wr3 = cos(3.0 * M_PI * j / (2*k));
-//     wi3 = sin(3.0 * M_PI * j / (2*k));
-//     wr3 = (wr3 + wi3);
-//     wi3 = -wi3;
-//
-//     if (k & 0xaaaaaaaa) {
-//       w_odd[iodd++] = (float)wr2;
-//       w_odd[iodd++] = (float)wi2;
-//       w_odd[iodd++] = (float)wr1;
-//       w_odd[iodd++] = (float)wi1;
-//       w_odd[iodd++] = (float)wr3;
-//       w_odd[iodd++] = (float)wi3;
-//     } else {
-//       w_even[ieven++] = (float)wr2;
-//       w_even[ieven++] = (float)wi2;
-//       w_even[ieven++] = (float)wr1;
-//       w_even[ieven++] = (float)wi1;
-//       w_even[ieven++] = (float)wr3;
-//       w_even[ieven++] = (float)wi3;
-//     }
-//   }
-// }
+/* Twiddle tables
+ * format = Q30
+ *
+ * for (k = 4; k <= N/4; k <<= 1) {
+ *   for (j = 0; j < k; j++) {
+ *     double wr1, wi1, wr2, wi2, wr3, wi3;
+ *
+ *     wr1 = cos(1.0 * M_PI * j / (2*k));
+ *     wi1 = sin(1.0 * M_PI * j / (2*k));
+ *     wr1 = (wr1 + wi1);
+ *     wi1 = -wi1;
+ *
+ *     wr2 = cos(2.0 * M_PI * j / (2*k));
+ *     wi2 = sin(2.0 * M_PI * j / (2*k));
+ *     wr2 = (wr2 + wi2);
+ *     wi2 = -wi2;
+ *
+ *     wr3 = cos(3.0 * M_PI * j / (2*k));
+ *     wi3 = sin(3.0 * M_PI * j / (2*k));
+ *     wr3 = (wr3 + wi3);
+ *     wi3 = -wi3;
+ *
+ *     if (k & 0xaaaaaaaa) {
+ *       w_odd[iodd++] = (float)wr2;
+ *       w_odd[iodd++] = (float)wi2;
+ *       w_odd[iodd++] = (float)wr1;
+ *       w_odd[iodd++] = (float)wi1;
+ *       w_odd[iodd++] = (float)wr3;
+ *       w_odd[iodd++] = (float)wi3;
+ *     } else {
+ *       w_even[ieven++] = (float)wr2;
+ *       w_even[ieven++] = (float)wi2;
+ *       w_even[ieven++] = (float)wr1;
+ *       w_even[ieven++] = (float)wi1;
+ *       w_even[ieven++] = (float)wr3;
+ *       w_even[ieven++] = (float)wi3;
+ *     }
+ *   }
+ * }
+ */
 //}}}
 //{{{
 static const uint32_t twidTabOdd [8*6 + 32*6 + 128*6] = {
-  //{{{
   0x40000000, 0x00000000, 0x40000000, 0x00000000, 0x40000000, 0x00000000, 0x539eba45, 0xe7821d59,
   0x4b418bbe, 0xf383a3e2, 0x58c542c5, 0xdc71898d, 0x5a82799a, 0xd2bec333, 0x539eba45, 0xe7821d59,
   0x539eba45, 0xc4df2862, 0x539eba45, 0xc4df2862, 0x58c542c5, 0xdc71898d, 0x3248d382, 0xc13ad060,
   0x40000000, 0xc0000000, 0x5a82799a, 0xd2bec333, 0x00000000, 0xd2bec333, 0x22a2f4f8, 0xc4df2862,
   0x58c542c5, 0xcac933ae, 0xcdb72c7e, 0xf383a3e2, 0x00000000, 0xd2bec333, 0x539eba45, 0xc4df2862,
   0xac6145bb, 0x187de2a7, 0xdd5d0b08, 0xe7821d59, 0x4b418bbe, 0xc13ad060, 0xa73abd3b, 0x3536cc52,
-  //}}}
-  //{{{
+
   0x40000000, 0x00000000, 0x40000000, 0x00000000, 0x40000000, 0x00000000, 0x45f704f7, 0xf9ba1651,
   0x43103085, 0xfcdc1342, 0x48b2b335, 0xf69bf7c9, 0x4b418bbe, 0xf383a3e2, 0x45f704f7, 0xf9ba1651,
   0x4fd288dc, 0xed6bf9d1, 0x4fd288dc, 0xed6bf9d1, 0x48b2b335, 0xf69bf7c9, 0x553805f2, 0xe4a2eff6,
@@ -1609,8 +1566,7 @@ static const uint32_t twidTabOdd [8*6 + 32*6 + 128*6] = {
   0xdd5d0b08, 0xe7821d59, 0x4b418bbe, 0xc13ad060, 0xa73abd3b, 0x3536cc52, 0xd5558381, 0xed6bf9d1,
   0x48b2b335, 0xc0b15502, 0xaac7fa0e, 0x39daf5e8, 0xcdb72c7e, 0xf383a3e2, 0x45f704f7, 0xc04ee4b8,
   0xb02d7724, 0x3d3e82ae, 0xc694ce67, 0xf9ba1651, 0x43103085, 0xc013bc39, 0xb74d4ccb, 0x3f4eaafe,
-  //}}}
-  //{{{
+
   0x40000000, 0x00000000, 0x40000000, 0x00000000, 0x40000000, 0x00000000, 0x418d2621, 0xfe6deaa1,
   0x40c7d2bd, 0xff36f170, 0x424ff28f, 0xfda4f351, 0x43103085, 0xfcdc1342, 0x418d2621, 0xfe6deaa1,
   0x4488e37f, 0xfb4ab7db, 0x4488e37f, 0xfb4ab7db, 0x424ff28f, 0xfda4f351, 0x46aa0d6d, 0xf8f21e8e,
@@ -1707,17 +1663,14 @@ static const uint32_t twidTabOdd [8*6 + 32*6 + 128*6] = {
   0xc694ce67, 0xf9ba1651, 0x43103085, 0xc013bc39, 0xb74d4ccb, 0x3f4eaafe, 0xc4e1accb, 0xfb4ab7db,
   0x424ff28f, 0xc00b1a20, 0xb955f293, 0x3f9c2bfb, 0xc337a8f7, 0xfcdc1342, 0x418d2621, 0xc004ef3f,
   0xbb771c81, 0x3fd39b5a, 0xc197049e, 0xfe6deaa1, 0x40c7d2bd, 0xc0013bd3, 0xbdb00d71, 0x3ff4e5e0,
-  //}}}
-  };
+};
 //}}}
 //{{{
 static const uint32_t twidTabEven [4*6 + 16*6 + 64*6] = {
-  //{{{
   0x40000000, 0x00000000, 0x40000000, 0x00000000, 0x40000000, 0x00000000, 0x5a82799a, 0xd2bec333,
   0x539eba45, 0xe7821d59, 0x539eba45, 0xc4df2862, 0x40000000, 0xc0000000, 0x5a82799a, 0xd2bec333,
   0x00000000, 0xd2bec333, 0x00000000, 0xd2bec333, 0x539eba45, 0xc4df2862, 0xac6145bb, 0x187de2a7,
-  //}}}
-  //{{{
+
   0x40000000, 0x00000000, 0x40000000, 0x00000000, 0x40000000, 0x00000000, 0x4b418bbe, 0xf383a3e2,
   0x45f704f7, 0xf9ba1651, 0x4fd288dc, 0xed6bf9d1, 0x539eba45, 0xe7821d59, 0x4b418bbe, 0xf383a3e2,
   0x58c542c5, 0xdc71898d, 0x58c542c5, 0xdc71898d, 0x4fd288dc, 0xed6bf9d1, 0x5a12e720, 0xce86ff2a,
@@ -1730,8 +1683,7 @@ static const uint32_t twidTabEven [4*6 + 16*6 + 64*6] = {
   0x00000000, 0xd2bec333, 0x539eba45, 0xc4df2862, 0xac6145bb, 0x187de2a7, 0xee57aa21, 0xdc71898d,
   0x4fd288dc, 0xc2c17d52, 0xa5ed18e0, 0x2899e64a, 0xdd5d0b08, 0xe7821d59, 0x4b418bbe, 0xc13ad060,
   0xa73abd3b, 0x3536cc52, 0xcdb72c7e, 0xf383a3e2, 0x45f704f7, 0xc04ee4b8, 0xb02d7724, 0x3d3e82ae,
-  //}}}
-  //{{{
+
   0x40000000, 0x00000000, 0x40000000, 0x00000000, 0x40000000, 0x00000000, 0x43103085, 0xfcdc1342,
   0x418d2621, 0xfe6deaa1, 0x4488e37f, 0xfb4ab7db, 0x45f704f7, 0xf9ba1651, 0x43103085, 0xfcdc1342,
   0x48b2b335, 0xf69bf7c9, 0x48b2b335, 0xf69bf7c9, 0x4488e37f, 0xfb4ab7db, 0x4c77a88e, 0xf1fa3ecb,
@@ -1780,14 +1732,13 @@ static const uint32_t twidTabEven [4*6 + 16*6 + 64*6] = {
   0xcdb72c7e, 0xf383a3e2, 0x45f704f7, 0xc04ee4b8, 0xb02d7724, 0x3d3e82ae, 0xca155d39, 0xf69bf7c9,
   0x4488e37f, 0xc02c64a6, 0xb3885772, 0x3e71e759, 0xc694ce67, 0xf9ba1651, 0x43103085, 0xc013bc39,
   0xb74d4ccb, 0x3f4eaafe, 0xc337a8f7, 0xfcdc1342, 0x418d2621, 0xc004ef3f, 0xbb771c81, 0x3fd39b5a,
-  //}}}
-  };
+};
 //}}}
 //}}}
 
 // sfbands
 //{{{
-// total number of scale factor bands in one window
+/* total number of scale factor bands in one window */
 static const uint8_t sfBandTotalShort [NUM_SAMPLE_RATES] = {
   12, 12, 12, 14, 14, 14, 15, 15, 15, 15, 15, 15
   };
@@ -1799,19 +1750,19 @@ static const int16_t sfBandTabShortOffset [NUM_SAMPLE_RATES] = {
 //}}}
 //{{{
 static const int16_t sfBandTabShort [76] = {
-  // short block 64, 88, 96 kHz [13] (tables 4.5.24, 4.5.26)
+  /* short block 64, 88, 96 kHz [13] (tables 4.5.24, 4.5.26) */
   0,   4,   8,  12,  16,  20,  24,  32,  40,  48,  64,  92, 128,
 
-  // short block 32, 44, 48 kHz [15] (table 4.5.15)
+  /* short block 32, 44, 48 kHz [15] (table 4.5.15) */
   0,   4,   8,  12,  16,  20,  28,  36,  44,  56,  68,  80,  96, 112, 128,
 
-  // short block 22, 24 kHz [16] (table 4.5.22)
+  /* short block 22, 24 kHz [16] (table 4.5.22) */
   0,   4,   8,  12,  16,  20,  24,  28,  36,  44,  52,  64,  76,  92, 108, 128,
 
-  // short block 11, 12, 16 kHz [16] (table 4.5.20)
+  /* short block 11, 12, 16 kHz [16] (table 4.5.20) */
   0,   4,   8,  12,  16,  20,  24,  28,  32,  40,  48,  60,  72,  88, 108, 128,
 
-  // short block 8 kHz [16] (table 4.5.18)
+  /* short block 8 kHz [16] (table 4.5.18) */
   0,   4,   8,  12,  16,  20,  24,  28,  36,  44,  52,  60,  72,  88, 108, 128
   };
 //}}}
@@ -1827,37 +1778,37 @@ static const int32_t sfBandTabLongOffset [NUM_SAMPLE_RATES] = {
 //}}}
 //{{{
 static const int16_t sfBandTabLong [325] = {
-  // long block 88, 96 kHz [42] (table 4.5.25)
+  /* long block 88, 96 kHz [42] (table 4.5.25) */
     0,   4,   8,  12,  16,  20,  24,  28,  32,  36,  40,  44,  48,   52,
    56,  64,  72,  80,  88,  96, 108, 120, 132, 144, 156, 172, 188,  212,
   240, 276, 320, 384, 448, 512, 576, 640, 704, 768, 832, 896, 960, 1024,
 
-  // long block 64 kHz [48] (table 4.5.13)
+  /* long block 64 kHz [48] (table 4.5.13) */
     0,   4,   8,  12,  16,  20,  24,  28,  32,  36,  40,  44,  48,  52,  56,   64,
    72,  80,  88, 100, 112, 124, 140, 156, 172, 192, 216, 240, 268, 304, 344,  384,
   424, 464, 504, 544, 584, 624, 664, 704, 744, 784, 824, 864, 904, 944, 984, 1024,
 
-  // long block 44, 48 kHz [50] (table 4.5.14)
+  /* long block 44, 48 kHz [50] (table 4.5.14) */
     0,   4,   8,  12,  16,  20,  24,  28,  32,  36,  40,  48,  56,  64,  72,   80,  88,
    96, 108, 120, 132, 144, 160, 176, 196, 216, 240, 264, 292, 320, 352, 384,  416, 448,
   480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800, 832, 864, 896, 928, 1024,
 
-  // long block 32 kHz [52] (table 4.5.16)
+  /* long block 32 kHz [52] (table 4.5.16) */
     0,   4,   8,  12,  16,  20,  24,  28,  32,  36,  40,  48,  56,  64,  72,   80,  88,  96,
   108, 120, 132, 144, 160, 176, 196, 216, 240, 264, 292, 320, 352, 384, 416,  448, 480, 512,
   544, 576, 608, 640, 672, 704, 736, 768, 800, 832, 864, 896, 928, 960, 992, 1024,
 
-  // long block 22, 24 kHz [48] (table 4.5.21)
+  /* long block 22, 24 kHz [48] (table 4.5.21) */
     0,   4,   8,  12,  16,  20,  24,  28,  32,  36,  40,  44,  52,  60,  68,   76,
    84,  92, 100, 108, 116, 124, 136, 148, 160, 172, 188, 204, 220, 240, 260,  284,
   308, 336, 364, 396, 432, 468, 508, 552, 600, 652, 704, 768, 832, 896, 960, 1024,
 
-  // long block 11, 12, 16 kHz [44] (table 4.5.19)
+  /* long block 11, 12, 16 kHz [44] (table 4.5.19) */
     0,   8,  16,  24,  32,  40,  48,  56,  64,  72,  80,  88, 100,  112, 124,
   136, 148, 160, 172, 184, 196, 212, 228, 244, 260, 280, 300, 320,  344, 368,
   396, 424, 456, 492, 532, 572, 616, 664, 716, 772, 832, 896, 960, 1024,
 
-  // long block 8 kHz [41] (table 4.5.17)
+  /* long block 8 kHz [41] (table 4.5.17) */
     0,  12,  24,  36,  48,  60,  72,  84,  96, 108, 120, 132,  144, 156,
   172, 188, 204, 220, 236, 252, 268, 288, 308, 328, 348, 372,  396, 420,
   448, 476, 508, 544, 580, 620, 664, 712, 764, 820, 880, 944, 1024
@@ -1869,16 +1820,16 @@ static const uint8_t tnsMaxBandsShortOffset [AAC_NUM_PROFILES] = { 0, 0, 12 };
 static const uint8_t tnsMaxOrderShort [AAC_NUM_PROFILES] = { 7, 7, 7 };
 //{{{
 static const uint8_t tnsMaxBandsShort [2*NUM_SAMPLE_RATES]  = {
-  9,  9, 10, 14, 14, 14, 14, 14, 14, 14, 14, 14,   // short block, Main/LC
-  7,  7,  7,  6,  6,  6,  7,  7,  8,  8,  8,  7    // short block, SSR
+  9,  9, 10, 14, 14, 14, 14, 14, 14, 14, 14, 14,   /* short block, Main/LC */
+  7,  7,  7,  6,  6,  6,  7,  7,  8,  8,  8,  7    /* short block, SSR */
   };
 //}}}
 static const uint8_t tnsMaxBandsLongOffset[AAC_NUM_PROFILES] = { 0, 0, 12 };
 static const uint8_t tnsMaxOrderLong [AAC_NUM_PROFILES] = { 20, 12, 12 };
 //{{{
 static const uint8_t tnsMaxBandsLong [2*NUM_SAMPLE_RATES] = {
-  31, 31, 34, 40, 42, 51, 46, 46, 42, 42, 42, 39,   // long block, Main/LC
-  28, 28, 27, 26, 26, 26, 29, 29, 23, 23, 23, 19,   // long block, SSR
+  31, 31, 34, 40, 42, 51, 46, 46, 42, 42, 42, 39,   /* long block, Main/LC */
+  28, 28, 27, 26, 26, 26, 29, 29, 23, 23, 23, 19,   /* long block, SSR */
   };
 //}}}
 
@@ -1888,21 +1839,19 @@ static const uint8_t tnsMaxBandsLong [2*NUM_SAMPLE_RATES] = {
 //   gainBits[winSequence][1] = locBitsZero (bits for alocCode if window == 0)
 //   gainBits[winSequence][2] = locBits (bits for alocCode if window != 0)
 static const uint8_t gainBits [4][3] = {
-  {1, 5, 5},  // long
-  {2, 4, 2},  // start
-  {8, 2, 2},  // short
-  {2, 4, 5},  // stop
+  {1, 5, 5},  /* long */
+  {2, 4, 2},  /* start */
+  {8, 2, 2},  /* short */
+  {2, 4, 5},  /* stop */
 };
 //}}}
 
 //{{{
-// [1.0, sqrt(2)], format = Q29 (one guard bit for decoupling)
-static const int32_t envDQTab [2] = {
-  0x20000000, 0x2d413ccc
-  };
+// [1.0, sqrt(2)], format = Q29 (one guard bit for decoupling) */
+static const int32_t envDQTab [2] = { 0x20000000, 0x2d413ccc };
 //}}}
 //{{{
-// dqTabCouple[i] = 2 / (1 + 2^(12 - i)), format = Q30
+// dqTabCouple[i] = 2 / (1 + 2^(12 - i)), format = Q30 */
 static const int32_t dqTabCouple [25] = {
   0x0007ff80, 0x000ffe00, 0x001ff802, 0x003fe010, 0x007f8080, 0x00fe03f8, 0x01f81f82, 0x03e0f83e,
   0x07878788, 0x0e38e38e, 0x1999999a, 0x2aaaaaab, 0x40000000, 0x55555555, 0x66666666, 0x71c71c72,
@@ -1911,7 +1860,7 @@ static const int32_t dqTabCouple [25] = {
   };
 //}}}
 //{{{
-// twiddle table for radix 4 pass, format = Q31
+// twiddle table for radix 4 pass, format = Q31 */
 static const uint32_t twidTabOdd32 [8*6] = {
   0x40000000, 0x00000000, 0x40000000, 0x00000000, 0x40000000, 0x00000000, 0x539eba45, 0xe7821d59,
   0x4b418bbe, 0xf383a3e2, 0x58c542c5, 0xdc71898d, 0x5a82799a, 0xd2bec333, 0x539eba45, 0xe7821d59,
@@ -1922,59 +1871,65 @@ static const uint32_t twidTabOdd32 [8*6] = {
   };
 //}}}
 
-// cLog2[i] = ceil(log2(i)) (disregard i == 0)
-static const uint8_t cLog2 [9] = { 0, 0, 1, 2, 2, 3, 3, 3, 3 };
-
-// mBandTab[i] = temp1[i] / 2
-static const int32_t mBandTab [3] = { 6, 5, 4 };
-
 //{{{
-// invWarpTab[i] = 1.0 / temp2[i], Q30 (see 4.6.18.3.2.1)
+// cLog2[i] = ceil(log2(i)) (disregard i == 0) */
+static const uint8_t cLog2 [9] = { 0, 0, 1, 2, 2, 3, 3, 3, 3 };
+//}}}
+//{{{
+// mBandTab[i] = temp1[i] / 2 */
+static const int32_t mBandTab [3] = { 6, 5, 4 };
+//}}}
+//{{{
+// invWarpTab[i] = 1.0 / temp2[i], Q30 (see 4.6.18.3.2.1) */
 static const int32_t invWarpTab [2] = { 0x40000000, 0x313b13b1 };
 //}}}
 //{{{
-// squared version of table in 4.6.18.7.5
-// Q30 (0x80000000 = sentinel for GMAX)
+// squared version of table in 4.6.18.7.5 */
+// Q30 (0x80000000 = sentinel for GMAX) */
 static const uint32_t limGainTab [4] = { 0x20138ca7, 0x40000000, 0x7fb27dce, 0x80000000 };
 //}}}
 
 //{{{
-// hSmooth table from 4.7.18.7.6, format = Q31
+/* hSmooth table from 4.7.18.7.6, format = Q31 */
 static const int32_t hSmoothCoef [MAX_NUM_SMOOTH_COEFS] = {
-  0x2aaaaaab, 0x2697a512, 0x1becfa68, 0x0ebdb043, 0x04130598, };
+  0x2aaaaaab, 0x2697a512, 0x1becfa68, 0x0ebdb043, 0x04130598,
+};
 //}}}
 
 //{{{
 // k0Tab[sampRateIdx][k] = k0 = startMin + offset(bs_start_freq) for given sample rate (4.6.18.3.2.1)
 static const uint8_t k0Tab [NUM_SAMPLE_RATES_SBR][16] = {
-  {  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 16, 18, 20, 23, 27, 31 }, // 96 kHz
-  {  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 16, 18, 20, 23, 27, 31 }, // 88 kHz
-  {  6,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 19, 21, 23, 26, 30 }, // 64 kHz
-  {  7,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 20, 22, 24, 27, 31 }, // 48 kHz
-  {  8, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 21, 23, 25, 28, 32 }, // 44 kHz
-  { 10, 12, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 25, 27, 29, 32 }, // 32 kHz
-  { 11, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 25, 27, 29, 32 }, // 24 kHz
-  { 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 26, 28, 30 }, // 22 kHz
-  { 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31 }, // 16 kHz
-  };
+    {  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 16, 18, 20, 23, 27, 31 }, /* 96 kHz */
+    {  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 16, 18, 20, 23, 27, 31 }, /* 88 kHz */
+    {  6,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 19, 21, 23, 26, 30 }, /* 64 kHz */
+    {  7,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 20, 22, 24, 27, 31 }, /* 48 kHz */
+    {  8, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 21, 23, 25, 28, 32 }, /* 44 kHz */
+    { 10, 12, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 25, 27, 29, 32 }, /* 32 kHz */
+    { 11, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 25, 27, 29, 32 }, /* 24 kHz */
+    { 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 26, 28, 30 }, /* 22 kHz */
+    { 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31 }, /* 16 kHz */
+};
 //}}}
 //{{{
 // k2Tab[sampRateIdx][k] = stopVector(bs_stop_freq) for given sample rate, bs_stop_freq = [0, 13] (4.6.18.3.2.1)
 static const uint8_t k2Tab [NUM_SAMPLE_RATES_SBR][14] = {
-  { 13, 15, 17, 19, 21, 24, 27, 31, 35, 39, 44, 50, 57, 64 }, // 96 kHz
-  { 15, 17, 19, 21, 23, 26, 29, 33, 37, 41, 46, 51, 57, 64 }, // 88 kHz
-  { 20, 22, 24, 26, 28, 31, 34, 37, 41, 45, 49, 54, 59, 64 }, // 64 kHz
-  { 21, 23, 25, 27, 29, 32, 35, 38, 41, 45, 49, 54, 59, 64 }, // 48 kHz
-  { 23, 25, 27, 29, 31, 34, 37, 40, 43, 47, 51, 55, 59, 64 }, // 44 kHz
-  { 32, 34, 36, 38, 40, 42, 44, 46, 49, 52, 55, 58, 61, 64 }, // 32 kHz
-  { 32, 34, 36, 38, 40, 42, 44, 46, 49, 52, 55, 58, 61, 64 }, // 24 kHz
-  { 35, 36, 38, 40, 42, 44, 46, 48, 50, 52, 55, 58, 61, 64 }, // 22 kHz
-  { 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 60, 62, 64 }, // 16 kHz
+  { 13, 15, 17, 19, 21, 24, 27, 31, 35, 39, 44, 50, 57, 64 }, /* 96 kHz */
+  { 15, 17, 19, 21, 23, 26, 29, 33, 37, 41, 46, 51, 57, 64 }, /* 88 kHz */
+  { 20, 22, 24, 26, 28, 31, 34, 37, 41, 45, 49, 54, 59, 64 }, /* 64 kHz */
+  { 21, 23, 25, 27, 29, 32, 35, 38, 41, 45, 49, 54, 59, 64 }, /* 48 kHz */
+  { 23, 25, 27, 29, 31, 34, 37, 40, 43, 47, 51, 55, 59, 64 }, /* 44 kHz */
+  { 32, 34, 36, 38, 40, 42, 44, 46, 49, 52, 55, 58, 61, 64 }, /* 32 kHz */
+  { 32, 34, 36, 38, 40, 42, 44, 46, 49, 52, 55, 58, 61, 64 }, /* 24 kHz */
+  { 35, 36, 38, 40, 42, 44, 46, 48, 50, 52, 55, 58, 61, 64 }, /* 22 kHz */
+  { 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 60, 62, 64 }, /* 16 kHz */
+};
+//}}}
+//{{{
+// NINT(2.048E6 / Fs) (figure 4.47)
+static const uint8_t goalSBTab [NUM_SAMPLE_RATES_SBR] = {
+  21, 23, 32, 43, 46, 64, 85, 93, 128
   };
 //}}}
-
-// NINT(2.048E6 / Fs) (figure 4.47)
-static const uint8_t goalSBTab [NUM_SAMPLE_RATES_SBR] = { 21, 23, 32, 43, 46, 64, 85, 93, 128 };
 
 //{{{
 // coefficient table 4.A.87, format = Q31
@@ -1999,7 +1954,7 @@ static const uint32_t cTabA [165] = {
   };
 //}}}
 //{{{
-/// coefficient table 4.A.87, format = Q31
+//* coefficient table 4.A.87, format = Q31
 static const uint32_t cTabS [640] = {
   0x00000000, 0x0055dba1, 0x01b2e41d, 0x09015651, 0x2e3a7532, 0x6d474e1d, 0xd1c58ace, 0x09015651, 0xfe4d1be3, 0x0055dba1,
   0xffede50e, 0x005b5371, 0x01d78bfc, 0x08d3e41b, 0x2faa221c, 0x6d41d963, 0xd3337b3d, 0x09299ead, 0xfe70b8d1, 0x0050b177,
@@ -2068,7 +2023,7 @@ static const uint32_t cTabS [640] = {
   };
 //}}}
 //{{{
-// noise table 4.A.88, format = Q31
+// noise table 4.A.88, format = Q31 */
 static const uint32_t noiseTab [512*2] = {
   0x8010fd38, 0xb3dc7948, 0x7c4e2301, 0xa9904192, 0x121622a7, 0x86489625, 0xc3d53d25, 0xd0343fa9,
   0x674d6f70, 0x25f4e9fd, 0xce1a8c8b, 0x72a726c5, 0xfea6efc6, 0xaa4adb1a, 0x8b2dd628, 0xf14029e4,
@@ -2201,7 +2156,7 @@ static const uint32_t noiseTab [512*2] = {
   };
 //}}}
 //{{{
-// invBandTab[i] = 1.0 / (i + 1), Q31
+// invBandTab[i] = 1.0 / (i + 1), Q31 */
 static const int32_t invBandTab [64] = {
   0x7fffffff, 0x40000000, 0x2aaaaaab, 0x20000000, 0x1999999a, 0x15555555, 0x12492492, 0x10000000,
   0x0e38e38e, 0x0ccccccd, 0x0ba2e8ba, 0x0aaaaaab, 0x09d89d8a, 0x09249249, 0x08888889, 0x08000000,
@@ -2228,8 +2183,7 @@ static const int32_t newBWTab [4][4] = {
 //{{{
 class cBitStream {
 public:
-  cBitStream (uint8_t* buffer, int32_t numBytes)
-    : mCache(0), mCacheBits(0), mBytePtr(buffer), mNumBytes(numBytes) {}
+  cBitStream (uint8_t* buffer, int32_t numBytes) : mCache(0), mCacheBits(0), mBytePtr(buffer), mNumBytes(numBytes) {}
 
   //{{{
   inline uint32_t getBits (int32_t numBits) {
@@ -2265,8 +2219,8 @@ public:
       // get the low-order bits
       data |= mCache >> (32 - lowBits);
 
-      mCacheBits -= lowBits; // how many bits have we drawn from the cache so far
-      mCache <<= lowBits;    // left-justify cache
+      mCacheBits -= lowBits;  // how many bits have we drawn from the cache so far
+      mCache <<= lowBits;      // left-justify cache
       }
 
     return data;
@@ -2466,19 +2420,19 @@ float* cAacDecoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int3
   }
 //}}}
 
-#define GET_QUAD_SIGNBITS(v)  (((uint32_t)(v) << 17) >> 29) // bits 14-12, unsigned
-#define GET_QUAD_W(v)  (((int32_t)(v) << 20) >>   29) // bits 11-9, sign-extend
-#define GET_QUAD_X(v)  (((int32_t)(v) << 23) >>   29) // bits  8-6, sign-extend
-#define GET_QUAD_Y(v)  (((int32_t)(v) << 26) >>   29) // bits  5-3, sign-extend
-#define GET_QUAD_Z(v)  (((int32_t)(v) << 29) >>   29) // bits  2-0, sign-extend
+#define GET_QUAD_SIGNBITS(v) (((uint32_t)(v) << 17) >> 29) // bits 14-12, unsigned
+#define GET_QUAD_W(v) (((int32_t)(v) << 20) >>   29) // bits 11-9, sign-extend
+#define GET_QUAD_X(v) (((int32_t)(v) << 23) >>   29) // bits  8-6, sign-extend
+#define GET_QUAD_Y(v) (((int32_t)(v) << 26) >>   29) // bits  5-3, sign-extend
+#define GET_QUAD_Z(v) (((int32_t)(v) << 29) >>   29) // bits  2-0, sign-extend
 
-#define GET_PAIR_SIGNBITS(v)  (((uint32_t)(v) << 20) >> 30) // bits 11-10, unsigned
-#define GET_PAIR_Y(v)  (((int32_t)(v) << 22) >>   27) // bits  9-5, sign-extend
-#define GET_PAIR_Z(v)  (((int32_t)(v) << 27) >>   27) // bits  4-0, sign-extend
+#define GET_PAIR_SIGNBITS(v) (((uint32_t)(v) << 20) >> 30) // bits 11-10, unsigned
+#define GET_PAIR_Y(v) (((int32_t)(v) << 22) >>   27) // bits  9-5, sign-extend
+#define GET_PAIR_Z(v) (((int32_t)(v) << 27) >>   27) // bits  4-0, sign-extend
 
-#define GET_ESC_SIGNBITS(v)  (((uint32_t)(v) << 18) >> 30) // bits 13-12, unsigned
-#define GET_ESC_Y(v)  (((int32_t)(v) << 20) >>   26) // bits 11-6, sign-extend
-#define GET_ESC_Z(v)  (((int32_t)(v) << 26) >>   26) // bits  5-0, sign-extend
+#define GET_ESC_SIGNBITS(v) (((uint32_t)(v) << 18) >> 30) // bits 13-12, unsigned
+#define GET_ESC_Y(v) (((int32_t)(v) << 20) >>   26) // bits 11-6, sign-extend
+#define GET_ESC_Z(v) (((int32_t)(v) << 26) >>   26) // bits  5-0, sign-extend
 
 //{{{
 static int32_t decodeHuffmanScalar (const int16_t* huffTab, const sHuffInfo* huffTabInfo,
@@ -2896,7 +2850,7 @@ static void decodeSectionData (cBitStream* bsi, int32_t winSequence, int32_t num
   for (auto g = 0; g < numWinGrp; g++) {
     int32_t sfb = 0;
     while (sfb < maxSFB) {
-      int32_t cb = bsi->getBits (4); // next section codebook
+      int32_t cb = bsi->getBits (4); /* next section codebook */
 
       int32_t sectLenIncr;
       int32_t sectLen = 0;
@@ -2976,7 +2930,7 @@ static void decodePulseInfo (cBitStream* bsi, sPulseInfo* pi) {
  * Outputs:     updated sPulseInfo
  **************************************************************************************/
 
-  pi->numPulse = bsi->getBits (2) + 1;   // add 1 here
+  pi->numPulse = bsi->getBits (2) + 1;   /* add 1 here */
   pi->startSFB = bsi->getBits (6);
   for (auto i = 0; i < pi->numPulse; i++) {
     pi->offset[i] = bsi->getBits (5);
@@ -3009,7 +2963,7 @@ static void decodeTNSInfo (cBitStream* bsi, int32_t winSequence, sTnsInfo* ti, i
         if (*filtOrder) {
           *filtDir++ = bsi->getBits (1);
           int32_t compress = bsi->getBits (1);
-          int32_t coefBits = (int)ti->coefRes[w] - compress;  // 2, 3, or 4
+          int32_t coefBits = (int)ti->coefRes[w] - compress;  /* 2, 3, or 4 */
           int8_t s = sgnMask[coefBits - 2];
           int8_t n = negMask[coefBits - 2];
           for (auto i = 0; i < *filtOrder; i++) {
@@ -3035,7 +2989,7 @@ static void decodeTNSInfo (cBitStream* bsi, int32_t winSequence, sTnsInfo* ti, i
       if (*filtOrder) {
         *filtDir++ = bsi->getBits (1);
         int32_t compress = bsi->getBits (1);
-        int32_t coefBits = (int)ti->coefRes[0] - compress;  // 2, 3, or 4
+        int32_t coefBits = (int)ti->coefRes[0] - compress;  /* 2, 3, or 4 */
         int8_t s = sgnMask[coefBits - 2];
         int8_t n = negMask[coefBits - 2];
         for (auto i = 0; i < *filtOrder; i++) {
@@ -3215,7 +3169,7 @@ static void decodeSBREnvelope (cBitStream* bsi, sInfoSbr* psi, sSbrGrid* sbrGrid
     int32_t freqResPrev = (env == 0 ? sbrGrid->freqResPrev : sbrGrid->freqRes[env-1]);
     int32_t lastEnv = (env == 0 ? sbrGrid->numEnvPrev-1 : env-1);
     if (lastEnv < 0)
-      lastEnv = 0;  // first frame
+      lastEnv = 0;  /* first frame */
 
     if (sbrChan->deltaFlagEnv[env] == 0) {
       // delta coding in freq
@@ -3289,14 +3243,14 @@ static void dequantizeNoise (int32_t numBands, int8_t* noiseQuant, int32_t* nois
   // so range of noiseDequant = [2^-24, 2^6]
   do {
     int32_t exp = *noiseQuant++;
-    int32_t scalei = NOISE_FLOOR_OFFSET - exp + FBITS_OUT_DQ_NOISE; // 6 + 24 - exp, exp = [0,30]
+    int32_t scalei = NOISE_FLOOR_OFFSET - exp + FBITS_OUT_DQ_NOISE; /* 6 + 24 - exp, exp = [0,30] */
 
     if (scalei < 0)
       *noiseDequant++ = 0;
     else if (scalei < 30)
       *noiseDequant++ = 1 << scalei;
     else
-      *noiseDequant++ = 0x3fffffff; // leave 2 GB
+      *noiseDequant++ = 0x3fffffff; /* leave 2 GB */
     } while (--numBands);
   }
 //}}}
@@ -3514,44 +3468,44 @@ void cAacDecoder::decodeProgramConfigElement (cBitStream* bsi, sProgConfigElemen
   pce->numADE = bsi->getBits (3);
   pce->numCCE = bsi->getBits (4);
 
-  pce->monoMixdown = bsi->getBits (1) << 4; // present flag
+  pce->monoMixdown = bsi->getBits (1) << 4;  /* present flag */
   if (pce->monoMixdown)
-    pce->monoMixdown |= bsi->getBits (4);   // element number
+    pce->monoMixdown |= bsi->getBits (4);  /* element number */
 
-  pce->stereoMixdown = bsi->getBits (1) << 4; // present flag
+  pce->stereoMixdown = bsi->getBits (1) << 4;  /* present flag */
   if (pce->stereoMixdown)
-    pce->stereoMixdown  |= bsi->getBits (4);  // element number
+    pce->stereoMixdown  |= bsi->getBits (4); /* element number */
 
-  pce->matrixMixdown = bsi->getBits (1) << 4;  // present flag
+  pce->matrixMixdown = bsi->getBits (1) << 4;  /* present flag */
   if (pce->matrixMixdown) {
-    pce->matrixMixdown  |= bsi->getBits (2) << 1;  // index
-    pce->matrixMixdown  |= bsi->getBits (1);     // pseudo-surround enable
+    pce->matrixMixdown  |= bsi->getBits (2) << 1;  /* index */
+    pce->matrixMixdown  |= bsi->getBits (1);     /* pseudo-surround enable */
     }
 
   for (auto i = 0; i < pce->numFCE; i++) {
-    pce->fce[i]  = bsi->getBits (1) << 4;  // is_cpe flag
-    pce->fce[i] |= bsi->getBits (4);     // tag select
+    pce->fce[i]  = bsi->getBits (1) << 4;  /* is_cpe flag */
+    pce->fce[i] |= bsi->getBits (4);     /* tag select */
     }
 
   for (auto i = 0; i < pce->numSCE; i++) {
-    pce->sce[i]  = bsi->getBits (1) << 4;  // is_cpe flag
-    pce->sce[i] |= bsi->getBits (4);     // tag select
+    pce->sce[i]  = bsi->getBits (1) << 4;  /* is_cpe flag */
+    pce->sce[i] |= bsi->getBits (4);     /* tag select */
     }
 
   for (auto i = 0; i < pce->numBCE; i++) {
-    pce->bce[i]  = bsi->getBits (1) << 4;  // is_cpe flag
-    pce->bce[i] |= bsi->getBits (4);     // tag select
+    pce->bce[i]  = bsi->getBits (1) << 4;  /* is_cpe flag */
+    pce->bce[i] |= bsi->getBits (4);     /* tag select */
     }
 
   for (auto i = 0; i < pce->numLCE; i++)
-    pce->lce[i] = bsi->getBits (4);      // tag select
+    pce->lce[i] = bsi->getBits (4);      /* tag select */
 
   for (auto i = 0; i < pce->numADE; i++)
-    pce->ade[i] = bsi->getBits (4);      // tag select
+    pce->ade[i] = bsi->getBits (4);      /* tag select */
 
   for (auto i = 0; i < pce->numCCE; i++) {
-    pce->cce[i]  = bsi->getBits (1) << 4;  // independent/dependent flag
-    pce->cce[i] |= bsi->getBits (4);     // tag select
+    pce->cce[i]  = bsi->getBits (1) << 4;  /* independent/dependent flag */
+    pce->cce[i] |= bsi->getBits (4);     /* tag select */
     }
 
   bsi->byteAlignBitstream();
@@ -3874,9 +3828,9 @@ static int32_t InvRNormalized (int32_t r) {
 
   // xn = xn*(2.0 - r*xn)
   for (auto i = NUM_ITER_IRN; i != 0; i--) {
-    int32_t t = MULSHIFT32 (r, xn);        // Q31*Q29 = Q28
-    t = Q28_2 - t;                // Q28
-    xn = MULSHIFT32 (xn, t) << 4;  // Q29*Q28 << 4 = Q29
+    int32_t t = MULSHIFT32 (r, xn);        /* Q31*Q29 = Q28 */
+    t = Q28_2 - t;                /* Q28 */
+    xn = MULSHIFT32(xn, t) << 4;  /* Q29*Q28 << 4 = Q29 */
     }
 
   return xn;
@@ -3896,9 +3850,9 @@ static int32_t ratioPowInv (int32_t a, int32_t b, int32_t c) {
   if (a < 1 || b < 1 || c < 1 || a > 64 || b > 64 || c > 64 || a < b)
     return 0;
 
-  int32_t lna = MULSHIFT32 (log2Tab[a], LOG2_EXP_INV) << 1;  // ln(a), Q28
-  int32_t lnb = MULSHIFT32 (log2Tab[b], LOG2_EXP_INV) << 1;  // ln(b), Q28
-  int32_t p = (lna - lnb) / c;  // Q28
+  int32_t lna = MULSHIFT32 (log2Tab[a], LOG2_EXP_INV) << 1;  /* ln(a), Q28 */
+  int32_t lnb = MULSHIFT32 (log2Tab[b], LOG2_EXP_INV) << 1;  /* ln(b), Q28 */
+  int32_t p = (lna - lnb) / c;  /* Q28 */
 
   // sum in Q24
   int32_t y = (1 << 24);
@@ -3948,8 +3902,8 @@ static int32_t sqrtFix (int32_t q, int32_t fBitsIn, int32_t *fBitsOut) {
   // choose initial bounds
   int32_t lo = 1;
   if (q >= 0x10000000)
-    lo = 16384;    // (int)sqrt(0x10000000)
-  int32_t hi = 46340;  // (int)sqrt(0x7fffffff)
+    lo = 16384;    /* (int)sqrt(0x10000000) */
+  int32_t hi = 46340;  /* (int)sqrt(0x7fffffff) */
 
   // do binary search with 32x32->32 multiply test
   do {
@@ -4115,8 +4069,8 @@ static int32_t calcFreqMaster (uint8_t* freqMaster, int32_t freqScale, int32_t a
     }
 
   // tested for all k0 = [5, 64], k1 = [k0, 64], freqScale = [1,3]
-  int32_t t = (log2Tab[k1] - log2Tab[k0]) >> 3;       // log2(k1/k0), Q28 to Q25
-  int32_t numBands0 = 2 * (((bands * t) + (1 << 24)) >> 25);  // multiply by bands/2, round to nearest int32_t (mBandTab has factor of 1/2 rolled in)
+  int32_t t = (log2Tab[k1] - log2Tab[k0]) >> 3;       /* log2(k1/k0), Q28 to Q25 */
+  int32_t numBands0 = 2 * (((bands * t) + (1 << 24)) >> 25);  /* multiply by bands/2, round to nearest int32_t (mBandTab has factor of 1/2 rolled in) */
 
   // tested for all valid combinations of k0, k1, numBands (from sampRate, freqScale, alterScale)
   // roundoff error can be a problem with fixpt (e.g. pCurr = 12.499999 instead of 12.50003)
@@ -4125,9 +4079,9 @@ static int32_t calcFreqMaster (uint8_t* freqMaster, int32_t freqScale, int32_t a
   t = ratioPowInv(k1, k0, numBands0);
   int32_t pCurr = k0 << 24;
   int32_t vLast = k0;
-  uint8_t* vDelta = freqMaster + 1;  // operate in-place
+  uint8_t* vDelta = freqMaster + 1;  /* operate in-place */
   for (auto k = 0; k < numBands0; k++) {
-    pCurr = MULSHIFT32 (pCurr, t) << 8;  // keep in Q24
+    pCurr = MULSHIFT32 (pCurr, t) << 8;  /* keep in Q24 */
     int32_t vCurr = (pCurr + (1 << 23)) >> 24;
     vDelta[k] = (vCurr - vLast);
     vLast = vCurr;
@@ -4147,17 +4101,17 @@ static int32_t calcFreqMaster (uint8_t* freqMaster, int32_t freqScale, int32_t a
     return numBands0;
 
   // tested for all k1 = [10, 64], k2 = [k0, 64], freqScale = [1,3]
-  t = (log2Tab[k2] - log2Tab[k1]) >> 3;   // log2(k1/k0), Q28 to Q25
-  t = MULSHIFT32 (bands * t, invWarp) << 2;  // multiply by bands/2, divide by warp factor, keep Q25
-  int32_t numBands1 = 2 * ((t + (1 << 24)) >> 25);    // round to nearest int32_t
+  t = (log2Tab[k2] - log2Tab[k1]) >> 3;   /* log2(k1/k0), Q28 to Q25 */
+  t = MULSHIFT32 (bands * t, invWarp) << 2;  /* multiply by bands/2, divide by warp factor, keep Q25 */
+  int32_t numBands1 = 2 * ((t + (1 << 24)) >> 25);    /* round to nearest int32_t */
 
   // see comments above for calculations in first region
   t = ratioPowInv(k2, k1, numBands1);
   pCurr = k1 << 24;
   vLast = k1;
-  vDelta = freqMaster + numBands0 + 1;  // operate in-place
+  vDelta = freqMaster + numBands0 + 1;  /* operate in-place */
   for (auto k = 0; k < numBands1; k++) {
-    pCurr = MULSHIFT32 (pCurr, t) << 8;  // keep in Q24
+    pCurr = MULSHIFT32 (pCurr, t) << 8;  /* keep in Q24 */
     int32_t vCurr = (pCurr + (1 << 23)) >> 24;
     vDelta[k] = (vCurr - vLast);
     vLast = vCurr;
@@ -4237,7 +4191,7 @@ static int32_t calcFreqNoise (uint8_t* freqNoise, uint8_t* freqLow, int32_t nLow
 
   int32_t lTop = log2Tab[k2];
   int32_t lBottom = log2Tab[kStart];
-  int32_t nQ = noiseBands * ((lTop - lBottom) >> 2);  // Q28 to Q26, noiseBands = [0,3]
+  int32_t nQ = noiseBands * ((lTop - lBottom) >> 2);  // Q28 to Q26, noiseBands = [0,3] */
   nQ = (nQ + (1 << 25)) >> 26;
   if (nQ < 1)
     nQ = 1;
@@ -4245,7 +4199,7 @@ static int32_t calcFreqNoise (uint8_t* freqNoise, uint8_t* freqLow, int32_t nLow
   int32_t iLast = 0;
   freqNoise[0] = freqLow[0];
   for (auto k = 1; k <= nQ; k++) {
-    int32_t i = iLast + (nLow - iLast) / (nQ + 1 - k);  // truncating division
+    int32_t i = iLast + (nLow - iLast) / (nQ + 1 - k);  // truncating division */
     freqNoise[k] = freqLow[i];
     iLast = i;
     }
@@ -4288,7 +4242,6 @@ static void removeFreq (uint8_t* freq, int32_t nFreq, int32_t removeIdx) {
     freq[k] = freq[k+1];
   }
 //}}}
-
 //{{{
 static int32_t buildPatches (uint8_t* patchNumSubbands, uint8_t* patchStartSubband, uint8_t* freqMaster,
                              int32_t nMaster, int32_t k0, int32_t kStart, int32_t numQMFBands, int32_t sampRateIdx) {
@@ -4371,7 +4324,7 @@ static int32_t calcFreqLimiter (uint8_t* freqLimiter, uint8_t* patchNumSubbands,
  * Return:      number of bands in limiter frequency table
  **************************************************************************************/
 
-  int32_t limBandsPerOctave[3] = {120, 200, 300};   // [1.2, 2.0, 3.0] * 100
+  int32_t limBandsPerOctave[3] = {120, 200, 300};   /* [1.2, 2.0, 3.0] * 100 */
   uint8_t patchBorders[MAX_NUM_PATCHES + 1];
 
   // simple case
@@ -4447,24 +4400,24 @@ static int32_t calcFreqTables (sSbrHeader* sbrHdr, sSbrFreq* sbrFreq, int32_t sa
   if (k2 > 64)
     k2 = 64;
 
-  // calculate master frequency table
+  // calculate master frequency table */
   if (sbrHdr->freqScale == 0)
     sbrFreq->nMaster = calcFreqMasterScaleZero (sbrFreq->freqMaster, sbrHdr->alterScale, k0, k2);
   else
     sbrFreq->nMaster = calcFreqMaster (sbrFreq->freqMaster, sbrHdr->freqScale, sbrHdr->alterScale, k0, k2);
 
-  // calculate high frequency table and related parameters
+  // calculate high frequency table and related parameters */
   sbrFreq->nHigh = calcFreqHigh(sbrFreq->freqHigh, sbrFreq->freqMaster, sbrFreq->nMaster, sbrHdr->crossOverBand);
   sbrFreq->numQMFBands = sbrFreq->freqHigh[sbrFreq->nHigh] - sbrFreq->freqHigh[0];
   sbrFreq->kStart = sbrFreq->freqHigh[0];
 
-  // calculate low frequency table
+  // calculate low frequency table */
   sbrFreq->nLow = calcFreqLow (sbrFreq->freqLow, sbrFreq->freqHigh, sbrFreq->nHigh);
 
-  // calculate noise floor frequency table
+  // calculate noise floor frequency table */
   sbrFreq->numNoiseFloorBands = calcFreqNoise (sbrFreq->freqNoise, sbrFreq->freqLow, sbrFreq->nLow, sbrFreq->kStart, k2, sbrHdr->noiseBands);
 
-  // calculate limiter table
+  // calculate limiter table */
   sbrFreq->numPatches = buildPatches (sbrFreq->patchNumSubbands, sbrFreq->patchStartSubband, sbrFreq->freqMaster,
     sbrFreq->nMaster, k0, sbrFreq->kStart, sbrFreq->numQMFBands, sampRateIdx);
   sbrFreq->nLimiter = calcFreqLimiter (sbrFreq->freqLimiter, sbrFreq->patchNumSubbands, sbrFreq->freqLow, sbrFreq->nLow, sbrFreq->kStart,
@@ -4577,8 +4530,8 @@ static void unpackSBRGrid (cBitStream* bsi, sSbrHeader* sbrHdr, sSbrGrid* sbrGri
     //}}}
     //{{{
     case SBR_GRID_VARVAR:
-      absBordLead = bsi->getBits (2);  // absBorder0
-      absBordTrail = bsi->getBits (2) + NUM_TIME_SLOTS; // absBorder1
+      absBordLead = bsi->getBits (2);  /* absBorder0 */
+      absBordTrail = bsi->getBits (2) + NUM_TIME_SLOTS; /* absBorder1 */
       numRelBorder0 = bsi->getBits (2);
       numRelBorder1 = bsi->getBits (2);
 
@@ -4712,13 +4665,13 @@ static void copyCouplingGrid (sSbrGrid* sbrGridLeft, sSbrGrid* sbrGridRight) {
     sbrGridRight->envTimeBorder[env] = sbrGridLeft->envTimeBorder[env];
     sbrGridRight->freqRes[env] =       sbrGridLeft->freqRes[env];
     }
-  sbrGridRight->envTimeBorder[env] = sbrGridLeft->envTimeBorder[env]; // borders are [0, numEnv] inclusive
+  sbrGridRight->envTimeBorder[env] = sbrGridLeft->envTimeBorder[env]; /* borders are [0, numEnv] inclusive */
 
   sbrGridRight->numNoiseFloors = sbrGridLeft->numNoiseFloors;
   for (auto noiseFloor = 0; noiseFloor <= sbrGridLeft->numNoiseFloors; noiseFloor++)
     sbrGridRight->noiseTimeBorder[noiseFloor] = sbrGridLeft->noiseTimeBorder[noiseFloor];
 
-  // numEnvPrev, numNoiseFloorsPrev, freqResPrev are updated in DecodeSBREnvelope() and DecodeSBRNoise()
+  /* numEnvPrev, numNoiseFloorsPrev, freqResPrev are updated in DecodeSBREnvelope() and DecodeSBRNoise() */
   }
 //}}}
 //{{{
@@ -4749,7 +4702,7 @@ static void uncoupleSBREnvelope (sInfoSbr* psi, sSbrGrid* sbrGrid, sSbrFreq* sbr
   int32_t scalei = (sbrGrid->ampResFrame ? 0 : 1);
   for (auto env = 0; env < sbrGrid->numEnv; env++) {
     int32_t numBands = (sbrGrid->freqRes[env] ? sbrFreq->nHigh : sbrFreq->nLow);
-    psi->envDataDequantScale[1][env] = psi->envDataDequantScale[0][env]; // same scalefactor for L and R
+    psi->envDataDequantScale[1][env] = psi->envDataDequantScale[0][env]; /* same scalefactor for L and R */
     for (auto band = 0; band < numBands; band++) {
       // clip E_1 to [0, 24] (scalefactors approach 0 or 2)
       int32_t E_1 = sbrChanR->envDataQuant[env][band] >> scalei;
@@ -5010,7 +4963,7 @@ static int32_t dequantizeBlock (int32_t* inbuf, int32_t numSamples, int32_t scal
   if (numSamples <= 0)
     return 0;
 
-  scale -= SF_OFFSET; // new range = [-100, 156]
+  scale -= SF_OFFSET; /* new range = [-100, 156] */
 
   // with two's complement numbers, scalei/scalef factorization works for pos and neg values of scale:
   //  [+4...+7] >> 2 = +1, [ 0...+3] >> 2 = 0, [-4...-1] >> 2 = -1, [-8...-5] >> 2 = -2 ...
@@ -5035,7 +4988,7 @@ static int32_t dequantizeBlock (int32_t* inbuf, int32_t numSamples, int32_t scal
     for (auto x = 0; x < 4; x++) {
       int32_t y = tab16[x];
       if (y > (0x7fffffff >> shift))
-        y = 0x7fffffff;   // clip (rare)
+        y = 0x7fffffff;   /* clip (rare) */
       else
         y <<= shift;
       tab4[x] = y;
@@ -5097,7 +5050,7 @@ static int32_t dequantizeBlock (int32_t* inbuf, int32_t numSamples, int32_t scal
         y = MULSHIFT32 (y, pow2frac[shift]) << 3;
 
         // fractional scale result: y = Q21 (pow43tab[j] = Q23, scalef = Q30)
-        y = MULSHIFT32 (y, scalef);  // now y is Q24
+        y = MULSHIFT32 (y, scalef);  /* now y is Q24 */
         shift = 24 - scalei - pow2exp[shift];
         }
 
@@ -5108,7 +5061,7 @@ static int32_t dequantizeBlock (int32_t* inbuf, int32_t numSamples, int32_t scal
           shift = 31;
 
         if (y > (0x7fffffff >> shift))
-          y = 0x7fffffff;   // clip (rare)
+          y = 0x7fffffff;   /* clip (rare) */
         else
           y <<= shift;
         }
@@ -5224,17 +5177,17 @@ static void stereoProcessGroup (int32_t* coefL, int32_t* coefR, const short* sfb
   gbMaskR = 0;
 
   for (sfb = 0; sfb < maxSFB; sfb++) {
-    width = sfbTab[sfb+1] - sfbTab[sfb];  // assume >= 0 (see sfBandTabLong/sfBandTabShort)
+    width = sfbTab[sfb+1] - sfbTab[sfb];  /* assume >= 0 (see sfBandTabLong/sfBandTabShort) */
     cbIdx = cbRight[sfb];
 
     if (cbIdx == 14 || cbIdx == 15) {
-      // intensity stereo
+      /* intensity stereo */
       if (msMaskPres == 1 && (msMask & 0x01))
-        cbIdx ^= 0x01;        // invert_intensity(): 14 becomes 15, or 15 becomes 14
-      sf = -sfRight[sfb];     // negative since we use identity 0.5^(x) = 2^(-x) (see spec)
-      cbIdx &= 0x01;          // choose - or + scale factor
+        cbIdx ^= 0x01;        /* invert_intensity(): 14 becomes 15, or 15 becomes 14 */
+      sf = -sfRight[sfb];     /* negative since we use identity 0.5^(x) = 2^(-x) (see spec) */
+      cbIdx &= 0x01;          /* choose - or + scale factor */
       scalef = pow142[cbIdx][sf & 0x03];
-      scalei = (sf >> 2) + 2;     // +2 to compensate for scalef = Q30
+      scalei = (sf >> 2) + 2;     /* +2 to compensate for scalef = Q30 */
 
       if (scalei > 0) {
         if (scalei > 30)
@@ -5257,18 +5210,18 @@ static void stereoProcessGroup (int32_t* coefL, int32_t* coefR, const short* sfb
         } while (--width);
       }
     } else if ( cbIdx != 13 && ((msMaskPres == 1 && (msMask & 0x01)) || msMaskPres == 2) ) {
-      // mid-side stereo (assumes no GB in inputs)
+      /* mid-side stereo (assumes no GB in inputs) */
       do {
         cl = *coefL;
         cr = *coefR;
 
         if ( (FASTABS (cl) | FASTABS (cr)) >> 30 ) {
-          // avoid overflow (rare)
+          /* avoid overflow (rare) */
           cl >>= 1;
           sf = cl + (cr >> 1);  CLIP_2N(sf, 30);  sf <<= 1;
           cl = cl - (cr >> 1);  CLIP_2N(cl, 30);  cl <<= 1;
         } else {
-          // usual case
+          /* usual case */
           sf = cl + cr;
           cl -= cr;
         }
@@ -5280,12 +5233,12 @@ static void stereoProcessGroup (int32_t* coefL, int32_t* coefR, const short* sfb
       } while (--width);
 
     } else {
-      // nothing to do
+      /* nothing to do */
       coefL += width;
       coefR += width;
     }
 
-    // get next mask bit (should be branchless on ARM)
+    /* get next mask bit (should be branchless on ARM) */
     msMask >>= 1;
     if (++msMaskOffset == 8) {
       msMask = *msMaskPtr++;
@@ -5382,13 +5335,13 @@ static int32_t invRootR (int32_t r) {
 
   // use linear equation for initial guess
   // x0 = -2*r + 3 (so x0 always >= correct answer in range [0.25, 1))
-  /// xn = Q29 (at every step)
+  //* xn = Q29 (at every step)
   int32_t xn = (MULSHIFT32 (r, X0_COEF_2) << 2) + X0_OFF_2;
 
   for (auto i = 0; i < NUM_ITER_INVSQRT; i++) {
-    int32_t t = MULSHIFT32 (xn, xn);         // Q26 = Q29*Q29
-    t = Q26_3 - (MULSHIFT32 (r, t) << 2);  // Q26 = Q26 - (Q31*Q26 << 1)
-    xn = MULSHIFT32 (xn, t) << (6 - 1);    // Q29 = (Q29*Q26 << 6), and -1 for division by 2
+    int32_t t = MULSHIFT32 (xn, xn);         /* Q26 = Q29*Q29 */
+    t = Q26_3 - (MULSHIFT32 (r, t) << 2);  /* Q26 = Q26 - (Q31*Q26 << 1) */
+    xn = MULSHIFT32 (xn, t) << (6 - 1);    /* Q29 = (Q29*Q26 << 6), and -1 for division by 2 */
     }
 
   // clip to range (1.0, 2.0)
@@ -5434,16 +5387,16 @@ static int32_t scaleNoiseVector (int32_t* coef, int32_t nVals, int32_t sf) {
   for (auto i = 0; i < nVals; i++) {
     int32_t spec = coef[i];
 
-    // max nVals = max SFB width = 96, so energy can gain < 2^7 bits in accumulation
-    int32_t sq = (spec * spec) >> 8;    // spec*spec range = (-2^30, 2^30)
+    // max nVals = max SFB width = 96, so energy can gain < 2^7 bits in accumulation */
+    int32_t sq = (spec * spec) >> 8;    /* spec*spec range = (-2^30, 2^30) */
     energy += sq;
     }
 
-  // unless nVals == 1 (or the number generator is broken...), this should not happen
+  // unless nVals == 1 (or the number generator is broken...), this should not happen */
   if (energy == 0)
-    return 0; // coef[i] must = 0 for i = [0, nVals-1], so gbMask = 0
+    return 0; /* coef[i] must = 0 for i = [0, nVals-1], so gbMask = 0 */
 
-  // pow(2, sf/4) * pow(2, FBITS_OUT_DQ_OFF)
+  // pow(2, sf/4) * pow(2, FBITS_OUT_DQ_OFF) */
   int32_t scalef = pow14[sf & 0x3];
   int32_t scalei = (sf >> 2) + FBITS_OUT_DQ_OFF;
 
@@ -5455,16 +5408,16 @@ static int32_t scaleNoiseVector (int32_t* coef, int32_t nVals, int32_t sf) {
   // final scaling of invSqrtEnergy:
   //  2^(15 - z/2) to compensate for implicit 2^(30-z) factor in input
   //  +4 to compensate for implicit 2^-8 factor in input
-  int32_t z = countLeadingZeros (energy) - 2;          // energy has at least 2 leading zeros (see acc loop)
-  z &= 0xfffffffe;            // force even
-  int32_t invSqrtEnergy = invRootR(energy << z);  // energy << z must be in range [0x10000000, 0x40000000]
-  scalei -= (15 - z/2 + 4);       // nint32_t = 1/sqrt(energy) in Q29
+  int32_t z = countLeadingZeros (energy) - 2;          /* energy has at least 2 leading zeros (see acc loop) */
+  z &= 0xfffffffe;            /* force even */
+  int32_t invSqrtEnergy = invRootR(energy << z);  /* energy << z must be in range [0x10000000, 0x40000000] */
+  scalei -= (15 - z/2 + 4);       /* nint32_t = 1/sqrt(energy) in Q29 */
 
-  // normalize for final scaling
+  /* normalize for final scaling */
   z = countLeadingZeros (invSqrtEnergy) - 1;
   invSqrtEnergy <<= z;
-  scalei -= (z - 3 - 2);  // -2 for scalef, z-3 for invSqrtEnergy
-  scalef = MULSHIFT32 (scalef, invSqrtEnergy); // scalef (input) = Q30, invSqrtEnergy = Q29 * 2^z
+  scalei -= (z - 3 - 2);  /* -2 for scalef, z-3 for invSqrtEnergy */
+  scalef = MULSHIFT32 (scalef, invSqrtEnergy); /* scalef (input) = Q30, invSqrtEnergy = Q29 * 2^z */
   int32_t gbMask = 0;
   if (scalei < 0) {
     scalei = -scalei;
@@ -5636,7 +5589,7 @@ static void decodeLPCCoefs (int32_t order, int32_t res, int8_t* filtCoef, int32_
     return;
 
   for (auto m = 0; m < order; m++) {
-    int32_t t = invQuantTab[filtCoef[m] & 0x0f];  // t = Q31
+    int32_t t = invQuantTab[filtCoef[m] & 0x0f];  /* t = Q31 */
     for (auto i = 0; i < m; i++)
       b[i] = a[i] - (MULSHIFT32 (t, a[m-i-1]) << 1);
     for (auto i = 0; i < m; i++)
@@ -5670,7 +5623,7 @@ static int32_t filterRegion (int32_t size, int32_t dir, int32_t order, int32_t* 
     hist[i] = 0;
 
   U64 sum64;
-  sum64.w64 = 0;     // avoid warning
+  sum64.w64 = 0;     /* avoid warning */
   gbMask = 0;
   inc = (dir ? -1 : 1);
   do {
@@ -5986,8 +5939,8 @@ void cAacDecoder::applyTns (int32_t channel) {
         int32_t bi = xptr[1];
         int32_t wd = ws + 2*wi;
         int32_t tr = MULSHIFT32 (wi, br + bi);
-        br = MULSHIFT32 (wd, br) - tr; // cos*br + sin*bi
-        bi = MULSHIFT32 (ws, bi) + tr; // cos*bi - sin*br
+        br = MULSHIFT32 (wd, br) - tr; /* cos*br + sin*bi */
+        bi = MULSHIFT32 (ws, bi) + tr; /* cos*bi - sin*br */
         xptr += step;
 
         ws = wptr[2];
@@ -6069,7 +6022,7 @@ static void r4FFT (int32_t tabidx, int32_t* x) {
     }
 
   else {
-    // short block: order = 6, nfft = 64
+    // short block: order = 6, nfft = 64 */
     r4FirstPass (x, nfft >> 2);                       // gain 0 int32_t bits, lose 2 GB
     r4Core (x, nfft >> 4, 4, (int32_t*)twidTabEven); // gain 4 int32_t bits, lose 1 GB
     }
@@ -6113,15 +6066,15 @@ static void preMultiply (int32_t tabidx, int32_t* zbuf1) {
     int32_t z2 = MULSHIFT32 (cps2a, ai1) - t;
     int32_t cms2 = cps2a - 2*sin2a;
     int32_t z1 = MULSHIFT32 (cms2, ar1) + t;
-    *zbuf1++ = z1;  // cos*ar1 + sin*ai1
-    *zbuf1++ = z2;  // cos*ai1 - sin*ar1
+    *zbuf1++ = z1;  /* cos*ar1 + sin*ai1 */
+    *zbuf1++ = z2;  /* cos*ai1 - sin*ar1 */
 
     t  = MULSHIFT32 (sin2b, ar2 + ai2);
     z2 = MULSHIFT32 (cps2b, ai2) - t;
     cms2 = cps2b - 2*sin2b;
     z1 = MULSHIFT32 (cms2, ar2) + t;
-    *zbuf2-- = z2;  // cos*ai2 - sin*ar2
-    *zbuf2-- = z1;  // cos*ar2 + sin*ai2
+    *zbuf2-- = z2;  /* cos*ai2 - sin*ar2 */
+    *zbuf2-- = z1;  /* cos*ar2 + sin*ai2 */
     }
   }
 //}}}
@@ -6190,7 +6143,7 @@ static void postMultiply (int32_t tabidx, int32_t* fft1) {
 
   // whole thing should fit in registers - verify that compiler does this
   for (auto i = nmdct >> 2; i != 0; i--) {
-    // cps2 = (cos+sin), sin2 = sin, cms2 = (cos-sin)
+    // cps2 = (cos+sin), sin2 = sin, cms2 = (cos-sin) */
     int32_t cps2a = *csptr++;
     int32_t sin2a = *csptr++;
     int32_t cps2b = *csptr++;
@@ -6393,7 +6346,7 @@ static void decWindowOverlapLongStart (int32_t* buf0, int32_t* over0, int32_t* o
   int32_t* over1 = over0 + 1024 - 1;
 
   const int32_t* wndPrev = (winTypePrev == 1 ? kbdWindow + kbdWindowOffset[1] : sinWindow + sinWindowOffset[1]);
-  int32_t i = 448;  // 2 outputs, 2 overlaps per loop
+  int32_t i = 448;  /* 2 outputs, 2 overlaps per loop */
   do {
     int32_t w0 = *wndPrev++;
     int32_t w1 = *wndPrev++;
@@ -6406,8 +6359,8 @@ static void decWindowOverlapLongStart (int32_t* buf0, int32_t* over0, int32_t* o
     in = *over1;
     *out1-- = in + f1;
     in = *buf1--;
-    *over1-- = 0;   // Wn = 0 for n = (2047, 2046, ... 1600)
-    *over0++ = in >> 1; // Wn = 1 for n = (1024, 1025, ... 1471)
+    *over1-- = 0;   /* Wn = 0 for n = (2047, 2046, ... 1600) */
+    *over0++ = in >> 1; /* Wn = 1 for n = (1024, 1025, ... 1471) */
     } while (--i);
 
   // do 64 more loops - 2 outputs, 2 overlaps per loop
@@ -6424,11 +6377,11 @@ static void decWindowOverlapLongStart (int32_t* buf0, int32_t* over0, int32_t* o
     in = *over1;
     *out1-- = in + f1;
 
-    w0 = *wndCurr++;  // W[0], W[1], ... --> W[255], W[254], ...
-    w1 = *wndCurr++;  // W[127], W[126], ... --> W[128], W[129], ...
+    w0 = *wndCurr++;  /* W[0], W[1], ... --> W[255], W[254], ... */
+    w1 = *wndCurr++;  /* W[127], W[126], ... --> W[128], W[129], ... */
     in = *buf1--;
-    *over1-- = MULSHIFT32 (w0, in);  // Wn = short window for n = (1599, 1598, ... , 1536)
-    *over0++ = MULSHIFT32 (w1, in);  // Wn = short window for n = (1472, 1473, ... , 1535)
+    *over1-- = MULSHIFT32 (w0, in);  /* Wn = short window for n = (1599, 1598, ... , 1536) */
+    *over0++ = MULSHIFT32 (w1, in);  /* Wn = short window for n = (1472, 1473, ... , 1535) */
     } while (over0 < over1);
   }
 //}}}
@@ -6450,12 +6403,12 @@ static void decWindowOverlapLongStop (int32_t* buf0, int32_t* over0, int32_t* ou
   int32_t* over1 = over0 + 1024 - 1;
 
   const int32_t* wndCurr = (winTypeCurr == 1 ? kbdWindow + kbdWindowOffset[1] : sinWindow + sinWindowOffset[1]);
-  int32_t i = 448;  // 2 outputs, 2 overlaps per loop
+  int32_t i = 448;  /* 2 outputs, 2 overlaps per loop */
   do {
     // Wn = 0 for n = (0, 1, ... 447)
     // Wn = 1 for n = (576, 577, ... 1023)
     int32_t in = *buf0++;
-    int32_t f1 = in >> 1; // scale since skipping multiply by Q31
+    int32_t f1 = in >> 1; /* scale since skipping multiply by Q31 */
 
     in = *over0;
     *out0++ = in;
@@ -6471,8 +6424,8 @@ static void decWindowOverlapLongStop (int32_t* buf0, int32_t* over0, int32_t* ou
   // do 64 more loops - 2 outputs, 2 overlaps per loop
   const int32_t* wndPrev = (winTypePrev == 1 ? kbdWindow + kbdWindowOffset[0] : sinWindow + sinWindowOffset[0]);
   do {
-    int32_t w0 = *wndPrev++;  // W[0], W[1], ...W[63]
-    int32_t w1 = *wndPrev++;  // W[127], W[126], ... W[64]
+    int32_t w0 = *wndPrev++;  /* W[0], W[1], ...W[63] */
+    int32_t w1 = *wndPrev++;  /* W[127], W[126], ... W[64] */
     int32_t in = *buf0++;
 
     int32_t f0 = MULSHIFT32 (w0, in);
@@ -6524,8 +6477,8 @@ static void decWindowOverlapShort (int32_t* buf0, int32_t* over0, int32_t* out0,
   int32_t* buf1  = buf0  - 1;
 
   do {
-    int32_t w0 = *wndPrev++;  // W[0], W[1], ...W[63]
-    int32_t w1 = *wndPrev++;  // W[127], W[126], ... W[64]
+    int32_t w0 = *wndPrev++;  /* W[0], W[1], ...W[63] */
+    int32_t w1 = *wndPrev++;  /* W[127], W[126], ... W[64] */
     int32_t in = *buf0++;
 
     int32_t f0 = MULSHIFT32 (w0, in);
@@ -6539,7 +6492,7 @@ static void decWindowOverlapShort (int32_t* buf0, int32_t* over0, int32_t* out0,
     w1 = *wndCurr++;
     in = *buf1--;
 
-    // save over0/over1 for next short block, in the slots just vacated
+    // save over0/over1 for next short block, in the slots just vacated */
     *over1-- = MULSHIFT32 (w0, in);
     *over0++ = MULSHIFT32 (w1, in);
     } while (over0 < over1);
@@ -6558,20 +6511,20 @@ static void decWindowOverlapShort (int32_t* buf0, int32_t* over0, int32_t* out0,
     wndCurr -= 128;
 
     do {
-      int32_t w0 = *wndCurr++;  // W[0], W[1], ...W[63]
-      int32_t w1 = *wndCurr++;  // W[127], W[126], ... W[64]
+      int32_t w0 = *wndCurr++;  /* W[0], W[1], ...W[63] */
+      int32_t w1 = *wndCurr++;  /* W[127], W[126], ... W[64] */
       int32_t in = *buf0++;
 
       int32_t f0 = MULSHIFT32 (w0, in);
       int f1 = MULSHIFT32 (w1, in);
 
-      in  = *(over0 - 128); // from last short block
-      in += *(over0 + 0);   // from last full frame
+      in  = *(over0 - 128); /* from last short block */
+      in += *(over0 + 0);   /* from last full frame */
       *out0++ = in - f0;
-      in  = *(over1 - 128); // from last short block
-      in += *(over1 + 0);   // from last full frame
+      in  = *(over1 - 128); /* from last short block */
+      in += *(over1 + 0);   /* from last full frame */
       *out1-- = in + f1;
-      // save over0/over1 for next short block, in the slots just vacated
+      // save over0/over1 for next short block, in the slots just vacated */
       in = *buf1--;
       *over1-- = MULSHIFT32 (w0, in);
       *over0++ = MULSHIFT32 (w1, in);
@@ -6582,28 +6535,28 @@ static void decWindowOverlapShort (int32_t* buf0, int32_t* over0, int32_t* out0,
   //{{{  pcm[960-1023] = Wc[128-191] * block3[128-191] + Wc[0-63]   * block4[0-63] + overlap[960-1023]
   // over[0-63]    = Wc[192-255] * block3[192-255] + Wc[64-127] * block4[64-127]
   out0 += 64;
-  over0 -= 832;       // points at overlap[64]
-  over1 = over0 + 128 - 1;  // points at overlap[191]
+  over0 -= 832;       /* points at overlap[64] */
+  over1 = over0 + 128 - 1;  /* points at overlap[191] */
   buf0 += 64;
   buf1 = buf0 - 1;
   wndCurr -= 128;
 
   do {
-    int32_t w0 = *wndCurr++;  // W[0], W[1], ...W[63]
-    int32_t w1 = *wndCurr++;  // W[127], W[126], ... W[64]
+    int32_t w0 = *wndCurr++;  /* W[0], W[1], ...W[63] */
+    int32_t w1 = *wndCurr++;  /* W[127], W[126], ... W[64] */
     int32_t in = *buf0++;
 
     int32_t f0 = MULSHIFT32 (w0, in);
     int32_t f1 = MULSHIFT32 (w1, in);
 
-    in  = *(over0 + 768); // from last short block
-    in += *(over0 + 896); // from last full frame
+    in  = *(over0 + 768); /* from last short block */
+    in += *(over0 + 896); /* from last full frame */
     *out0++ = in - f0;
-    in  = *(over1 + 768); // from last short block
+    in  = *(over1 + 768); /* from last short block */
     *(over1 - 128) = in + f1;
     in = *buf1--;
-    *over1-- = MULSHIFT32 (w0, in);  // save in overlap[128-191]
-    *over0++ = MULSHIFT32 (w1, in);  // save in overlap[64-127]
+    *over1-- = MULSHIFT32 (w0, in);  /* save in overlap[128-191] */
+    *over0++ = MULSHIFT32 (w1, in);  /* save in overlap[64-127] */
     } while (over0 < over1);
   //}}}
 
@@ -6620,13 +6573,13 @@ static void decWindowOverlapShort (int32_t* buf0, int32_t* over0, int32_t* out0,
     wndCurr -= 128;
 
     do {
-      int32_t w0 = *wndCurr++;  // W[0], W[1], ...W[63]
-      int32_t w1 = *wndCurr++;  // W[127], W[126], ... W[64]
+      int32_t w0 = *wndCurr++;  /* W[0], W[1], ...W[63] */
+      int32_t w1 = *wndCurr++;  /* W[127], W[126], ... W[64] */
       int32_t in = *buf0++;
       int32_t f0 = MULSHIFT32 (w0, in);
       int32_t f1 = MULSHIFT32 (w1, in);
 
-      // from last short block
+      // from last short block */
       *(over0 - 128) -= f0;
       *(over1 - 128)+= f1;
       in = *buf1--;
@@ -6744,7 +6697,7 @@ static void estimateEnvelope (sInfoSbr* psi, sSbrHeader* sbrHdr,
         int32_t xim = (*XBuf) >> FBITS_OUT_QMFA;  XBuf += (2*64 - 1);
         eCurr.w64 = MADD64 (eCurr.w64, xre, xre);
         eCurr.w64 = MADD64 (eCurr.w64, xim, xim);
-        }
+      }
 
       // eCurr.w64 is now Q(64 - 2*FBITS_OUT_QMFA) (64-bit word)
       // if energy is too big to fit in 32-bit word (> 2^31) scale down by power of 2
@@ -6858,7 +6811,7 @@ static int32_t getSMapped (sSbrGrid*sbrGrid, sSbrFreq* sbrFreq, sSbrChan* sbrCha
 //}}}
 
 #define ACC_SCALE 6
-#define GBOOST_MAX  0x2830afd3  // Q28, 1.584893192 squared
+#define GBOOST_MAX  0x2830afd3  /* Q28, 1.584893192 squared */
 //{{{
 static void calcMaxGain (sInfoSbr* psi, sSbrHeader* sbrHdr, sSbrGrid* sbrGrid, sSbrFreq* sbrFreq,
                          int32_t ch, int32_t env, int32_t lim, int32_t fbitsDQ) {
@@ -6876,7 +6829,7 @@ static void calcMaxGain (sInfoSbr* psi, sSbrHeader* sbrHdr, sSbrGrid* sbrGrid, s
  * Outputs:     updated gainMax, gainMaxFBits, and sumEOrigMapped in mInfoSbr
  **************************************************************************************/
 
-  int32_t mStart = sbrFreq->freqLimiter[lim];   // these are offsets from kStart
+  int32_t mStart = sbrFreq->freqLimiter[lim];   /* these are offsets from kStart */
   int32_t mEnd = sbrFreq->freqLimiter[lim + 1];
   uint8_t* freqBandTab = (sbrGrid->freqRes[env] ? sbrFreq->freqHigh : sbrFreq->freqLow);
 
@@ -6890,7 +6843,7 @@ static void calcMaxGain (sInfoSbr* psi, sSbrHeader* sbrHdr, sSbrGrid* sbrGrid, s
     // map current QMF band to appropriate envelope band
     if (m == freqBandTab[envBand + 1] - sbrFreq->kStart) {
       envBand++;
-      eOMGainMax = psi->envDataDequant[ch][env][envBand] >> ACC_SCALE;  // summing max 48 bands
+      eOMGainMax = psi->envDataDequant[ch][env][envBand] >> ACC_SCALE;  /* summing max 48 bands */
       }
     sumEOrigMapped += eOMGainMax;
 
@@ -6907,7 +6860,7 @@ static void calcMaxGain (sInfoSbr* psi, sSbrHeader* sbrHdr, sSbrGrid* sbrGrid, s
   int32_t gainMax;
   psi->gainMaxFBits = 30; // Q30 tables
   if (sumECurr == 0)
-    // any non-zero numerator * 1/EPS_0 is > G_MAX
+    // any non-zero numerator * 1/EPS_0 is > G_MAX */
     gainMax = (sumEOrigMapped == 0 ? (int32_t)limGainTab[sbrHdr->limiterGains] : (int)0x80000000);
   else if (sumEOrigMapped == 0)
     // 1/(any non-zero denominator) * EPS_0 * limGainTab[x] is appx. 0
@@ -6916,10 +6869,10 @@ static void calcMaxGain (sInfoSbr* psi, sSbrHeader* sbrHdr, sSbrGrid* sbrGrid, s
     // sumEOrigMapped = Q(fbitsDQ - ACC_SCALE), sumECurr = Q(-eCurrExpMax)
     gainMax = (int32_t)limGainTab[sbrHdr->limiterGains];
     if (sbrHdr->limiterGains != 3) {
-      int32_t q = MULSHIFT32 (sumEOrigMapped, gainMax);  // Q(fbitsDQ - ACC_SCALE - 2), gainMax = Q30
+      int32_t q = MULSHIFT32 (sumEOrigMapped, gainMax);  // Q(fbitsDQ - ACC_SCALE - 2), gainMax = Q30  */
       int32_t z = countLeadingZeros (sumECurr) - 1;
-      int32_t r = InvRNormalized (sumECurr << z);  // in =  Q(z - eCurrExpMax), out = Q(29 + 31 - z + eCurrExpMax)
-      gainMax = MULSHIFT32 (q, r);         // Q(29 + 31 - z + eCurrExpMax + fbitsDQ - ACC_SCALE - 2 - 32)
+      int32_t r = InvRNormalized (sumECurr << z);  // in =  Q(z - eCurrExpMax), out = Q(29 + 31 - z + eCurrExpMax) */
+      gainMax = MULSHIFT32 (q, r);         // Q(29 + 31 - z + eCurrExpMax + fbitsDQ - ACC_SCALE - 2 - 32) */
       psi->gainMaxFBits = 26 - z + eCurrExpMax + fbitsDQ - ACC_SCALE;
       }
     }
@@ -6940,13 +6893,13 @@ static void calcNoiseDivFactors (int32_t q, int32_t* qp1Inv, int32_t* qqp1Inv) {
   int32_t qp1  = (q >> 1);
   qp1 += (1 << (FBITS_OUT_DQ_NOISE - 1));  // >> 1 to avoid overflow when adding 1.0
 
-  int32_t z = countLeadingZeros (qp1) - 1;  // z <= 31 - FBITS_OUT_DQ_NOISE
-  qp1 <<= z;                            // Q(FBITS_OUT_DQ_NOISE + z) = Q31 * 2^-(31 - (FBITS_OUT_DQ_NOISE + z))
-  int32_t t = InvRNormalized(qp1) << 1;     // Q30 * 2^(31 - (FBITS_OUT_DQ_NOISE + z)), guaranteed not to overflow
+  int32_t z = countLeadingZeros (qp1) - 1;  // z <= 31 - FBITS_OUT_DQ_NOISE */
+  qp1 <<= z;                            // Q(FBITS_OUT_DQ_NOISE + z) = Q31 * 2^-(31 - (FBITS_OUT_DQ_NOISE + z)) */
+  int32_t t = InvRNormalized(qp1) << 1;     // Q30 * 2^(31 - (FBITS_OUT_DQ_NOISE + z)), guaranteed not to overflow */
 
-  // normalize to Q31
-  int32_t s = (31 - (FBITS_OUT_DQ_NOISE - 1) - z - 1);  // clearly z >= 0, z <= (30 - (FBITS_OUT_DQ_NOISE - 1))
-  *qp1Inv = (t >> s);               // s = [0, 31 - FBITS_OUT_DQ_NOISE]
+  // normalize to Q31 */
+  int32_t s = (31 - (FBITS_OUT_DQ_NOISE - 1) - z - 1);  /* clearly z >= 0, z <= (30 - (FBITS_OUT_DQ_NOISE - 1)) */
+  *qp1Inv = (t >> s);               /* s = [0, 31 - FBITS_OUT_DQ_NOISE] */
   *qqp1Inv = MULSHIFT32 (t, q) << (32 - FBITS_OUT_DQ_NOISE - s);
   }
 //}}}
@@ -6988,7 +6941,7 @@ static void calcComponentGains (sInfoSbr* psi, sSbrGrid* sbrGrid, sSbrFreq* sbrF
   psi->sumSM = 0;
   psi->sumQM = 0;
 
-  // calculate energy of noise to add in this limiter band
+  // calculate energy of noise to add in this limiter band */
   for (auto m = mStart; m < mEnd; m++) {
     if (m == sbrFreq->freqNoise[psi->noiseFloorBand + 1] - sbrFreq->kStart) {
       // map current QMF band to appropriate noise floor band (NOTE: freqLimiter[0] == freqLow[0] = freqHigh[0])
@@ -7002,7 +6955,7 @@ static void calcComponentGains (sInfoSbr* psi, sSbrGrid* sbrGrid, sSbrFreq* sbrF
       psi->sMapped = getSMapped (sbrGrid, sbrFreq, sbrChan, env, psi->sBand, psi->la);
       }
 
-    // get sIndexMapped for this QMF subband
+    // get sIndexMapped for this QMF subband */
     int32_t sIndexMapped = 0;
     int32_t r = ((sbrFreq->freqHigh[psi->highBand+1] + sbrFreq->freqHigh[psi->highBand]) >> 1);
     if (m + sbrFreq->kStart == r)
@@ -7038,7 +6991,7 @@ static void calcComponentGains (sInfoSbr* psi, sSbrGrid* sbrGrid, sSbrFreq* sbrF
     int32_t eCurr = psi->eCurr[m];
     if (eCurr) {
       int32_t z = countLeadingZeros (eCurr) - 1;
-      int32_t r = InvRNormalized (eCurr << z);   // in = Q(z - eCurrExp), out = Q(29 + 31 - z + eCurrExp)
+      int32_t r = InvRNormalized(eCurr << z);   // in = Q(z - eCurrExp), out = Q(29 + 31 - z + eCurrExp)
       gainScale = MULSHIFT32 (gain, r);      // out = Q(29 + 31 - z + eCurrExp + fbitsDQ - 32)
       fbitsGain = 29 + 31 - z + psi->eCurrExp[m] + fbitsDQ - 32;
       }
@@ -7069,7 +7022,7 @@ static void calcComponentGains (sInfoSbr* psi, sSbrGrid* sbrGrid, sSbrFreq* sbrF
       int32_t z = countLeadingZeros (r);
       if (z < 16) {
         q = 16 - z;
-        r >>= q;  // out = Q(fbitsGain - q)
+        r >>= q;  // out = Q(fbitsGain - q) */
         }
 
       z = countLeadingZeros (gainMax) - 1;
@@ -7124,13 +7077,13 @@ static void applyBoost (sInfoSbr* psi, sSbrFreq* sbrFreq, int32_t lim, int32_t f
  * Notes:       after scaling, each component has at least 1 GB
  **************************************************************************************/
 
-  int32_t mStart = sbrFreq->freqLimiter[lim];   // these are offsets from kStart
+  int32_t mStart = sbrFreq->freqLimiter[lim];   /* these are offsets from kStart */
   int32_t mEnd = sbrFreq->freqLimiter[lim + 1];
 
   int32_t z;
   int32_t gBoost;
   int32_t sumEOrigMapped = psi->sumEOrigMapped >> 1;
-  int32_t r = (psi->sumECurrGLim >> 1) + (psi->sumSM >> 1) + (psi->sumQM >> 1); // 1 GB fine (sm and qm are mutually exclusive in acc)
+  int32_t r = (psi->sumECurrGLim >> 1) + (psi->sumSM >> 1) + (psi->sumQM >> 1); /* 1 GB fine (sm and qm are mutually exclusive in acc) */
   if (r < (1 << (31-28))) {
     // any non-zero numerator * 1/EPS_0 is > GBOOST_MAX
     // round very small r to zero to avoid scaling problems
@@ -7138,23 +7091,23 @@ static void applyBoost (sInfoSbr* psi, sSbrFreq* sbrFreq, int32_t lim, int32_t f
     z = 0;
     }
   else if (sumEOrigMapped == 0) {
-    // 1/(any non-zero denominator) * EPS_0 is appx. 0
+    // 1/(any non-zero denominator) * EPS_0 is appx. 0 */
     gBoost = 0;
     z = 0;
     }
   else {
-    // numerator (sumEOrigMapped) and denominator (r) have same Q format (before << z)
-    z = countLeadingZeros(r) - 1; // z = [0, 27]
+    // numerator (sumEOrigMapped) and denominator (r) have same Q format (before << z) */
+    z = countLeadingZeros(r) - 1; /* z = [0, 27] */
     r = InvRNormalized(r << z);
     gBoost = MULSHIFT32 (sumEOrigMapped, r);
     }
 
-  // gBoost = Q(28 - z)
+  // gBoost = Q(28 - z) */
   if (gBoost > (GBOOST_MAX >> z)) {
     gBoost = GBOOST_MAX;
     z = 0;
     }
-  gBoost <<= z; // gBoost = Q28, minimum 1 GB
+  gBoost <<= z; // gBoost = Q28, minimum 1 GB */
 
   // convert gain, noise, sinusoids to fixed Q format, clipping if necessary
   //   (rare, usually only happens at very low bitrates, introduces slight
@@ -7163,7 +7116,7 @@ static void applyBoost (sInfoSbr* psi, sSbrFreq* sbrFreq, int32_t lim, int32_t f
     // let gLimBoost = Q24, since in practice the max values are usually 16 to 20
     //   unless limiterGains == 3 (limiter off) and eCurr ~= 0 (i.e. huge gain, but only
     //   because the envelope has 0 power anyway)
-    int32_t q = MULSHIFT32 (psi->gLimBuf[m], gBoost) << 2; // Q(gLimFbits) * Q(28) --> Q(gLimFbits[m]-2)
+    int32_t q = MULSHIFT32 (psi->gLimBuf[m], gBoost) << 2; // Q(gLimFbits) * Q(28) --> Q(gLimFbits[m]-2) */
     r = sqrtFix (q, psi->gLimFbits[m] - 2, &z);
     z -= FBITS_GLIM_BOOST;
     if (z >= 0)
@@ -7174,9 +7127,9 @@ static void applyBoost (sInfoSbr* psi, sSbrFreq* sbrFreq, int32_t lim, int32_t f
       psi->gLimBoost[m] = r;
       }
 
-    q = MULSHIFT32 (psi->qmLimBuf[m], gBoost) << 2;  // Q(fbitsDQ) * Q(28) --> Q(fbitsDQ-2)
+    q = MULSHIFT32 (psi->qmLimBuf[m], gBoost) << 2;  // Q(fbitsDQ) * Q(28) --> Q(fbitsDQ-2) */
     r = sqrtFix (q, fbitsDQ - 2, &z);
-    z -= FBITS_QLIM_BOOST;    // << by 14, since integer sqrt of x < 2^16, and we want to leave 1 GB
+    z -= FBITS_QLIM_BOOST;    // << by 14, since integer sqrt of x < 2^16, and we want to leave 1 GB */
     if (z >= 0)
       psi->qmLimBoost[m] = r >> min (31, z);
     else {
@@ -7185,9 +7138,9 @@ static void applyBoost (sInfoSbr* psi, sSbrFreq* sbrFreq, int32_t lim, int32_t f
       psi->qmLimBoost[m] = r;
       }
 
-    q = MULSHIFT32 (psi->smBuf[m], gBoost) << 2;   // Q(fbitsDQ) * Q(28) --> Q(fbitsDQ-2)
+    q = MULSHIFT32 (psi->smBuf[m], gBoost) << 2;   // Q(fbitsDQ) * Q(28) --> Q(fbitsDQ-2) */
     r = sqrtFix (q, fbitsDQ - 2, &z);
-    z -= FBITS_OUT_QMFA;    // justify for adding to signal (xBuf) later
+    z -= FBITS_OUT_QMFA;    // justify for adding to signal (xBuf) later */
     if (z >= 0)
       psi->smBoost[m] = r >> min (31, z);
     else {
@@ -7249,10 +7202,10 @@ static void mapHF (sInfoSbr* psi, sSbrHeader* sbrHdr,
 
   int32_t noiseTabIndex = sbrChan->noiseTabIndex;
   int32_t sinIndex = sbrChan->sinIndex;
-  int32_t gainNoiseIndex = sbrChan->gainNoiseIndex;  // oldest entries in filter delay buffer
+  int32_t gainNoiseIndex = sbrChan->gainNoiseIndex;  /* oldest entries in filter delay buffer */
 
   if (hfReset)
-    noiseTabIndex = 2;  // starts at 1, double since complex
+    noiseTabIndex = 2;  /* starts at 1, double since complex */
   int32_t hSL = (sbrHdr->smoothMode ? 0 : 4);
 
   if (hfReset) {
@@ -7280,52 +7233,52 @@ static void mapHF (sInfoSbr* psi, sSbrHeader* sbrHdr,
         }
       }
 
-    // see 4.6.18.7.6
+    // see 4.6.18.7.6 */
     int32_t* XBuf = psi->XBuf[i + HF_ADJ][sbrFreq->kStart];
     int32_t gbMask = 0;
     for (auto m = 0; m < sbrFreq->numQMFBands; m++) {
       if (env == psi->la || env == sbrChan->laPrev) {
-        // no smoothing filter for gain, and qFilt = 0 (only need to do once)
+        // no smoothing filter for gain, and qFilt = 0 (only need to do once) */
         if (i == iStart) {
           psi->gFiltLast[m] = sbrChan->gTemp[gainNoiseIndex][m];
           psi->qFiltLast[m] = 0;
           }
         }
       else if (hSL == 0) {
-        // no smoothing filter for gain, (only need to do once)
+        // no smoothing filter for gain, (only need to do once) */
         if (i == iStart) {
           psi->gFiltLast[m] = sbrChan->gTemp[gainNoiseIndex][m];
           psi->qFiltLast[m] = sbrChan->qTemp[gainNoiseIndex][m];
           }
         }
       else {
-        // apply smoothing filter to gain and noise (after MAX_NUM_SMOOTH_COEFS, it's always the same)
+        // apply smoothing filter to gain and noise (after MAX_NUM_SMOOTH_COEFS, it's always the same) */
         if (i - iStart < MAX_NUM_SMOOTH_COEFS) {
           int32_t gFilt = 0;
           int32_t qFilt = 0;
           int32_t idx = gainNoiseIndex;
           for (auto j = 0; j < MAX_NUM_SMOOTH_COEFS; j++) {
-            // sum(abs(hSmoothCoef[j])) for all j < 1.0
+            // sum(abs(hSmoothCoef[j])) for all j < 1.0 */
             gFilt += MULSHIFT32 (sbrChan->gTemp[idx][m], hSmoothCoef[j]);
             qFilt += MULSHIFT32 (sbrChan->qTemp[idx][m], hSmoothCoef[j]);
             idx--;
             if (idx < 0)
               idx += MAX_NUM_SMOOTH_COEFS;
             }
-          psi->gFiltLast[m] = gFilt << 1; // restore to Q(FBITS_GLIM_BOOST) (gain of filter < 1.0, so no overflow)
-          psi->qFiltLast[m] = qFilt << 1; // restore to Q(FBITS_QLIM_BOOST)
+          psi->gFiltLast[m] = gFilt << 1; /* restore to Q(FBITS_GLIM_BOOST) (gain of filter < 1.0, so no overflow) */
+          psi->qFiltLast[m] = qFilt << 1; /* restore to Q(FBITS_QLIM_BOOST) */
           }
         }
 
       int32_t smre;
       int32_t smim;
       if (psi->smBoost[m] != 0) {
-        // add scaled signal and sinusoid, don't add noise (qFilt = 0)
+        // add scaled signal and sinusoid, don't add noise (qFilt = 0) */
         smre = psi->smBoost[m];
         smim = smre;
 
-        // sinIndex:  [0] xre += sm   [1] xim += sm*s   [2] xre -= sm   [3] xim -= sm*s
-        int32_t s = (sinIndex >> 1);  // if 2 or 3, flip sign to subtract sm
+        // sinIndex:  [0] xre += sm   [1] xim += sm*s   [2] xre -= sm   [3] xim -= sm*s  */
+        int32_t s = (sinIndex >> 1);  /* if 2 or 3, flip sign to subtract sm */
         s <<= 31;
         smre ^= (s >> 31);
         smre -= (s >> 31);
@@ -7333,16 +7286,16 @@ static void mapHF (sInfoSbr* psi, sSbrHeader* sbrHdr,
         smim ^= (s >> 31);
         smim -= (s >> 31);
 
-        // if sinIndex == 0 or 2, smim = 0; if sinIndex == 1 or 3, smre = 0
+        // if sinIndex == 0 or 2, smim = 0; if sinIndex == 1 or 3, smre = 0 */
         s = sinIndex << 31;
         smim &= (s >> 31);
         s ^= 0x80000000;
         smre &= (s >> 31);
 
-        noiseTabIndex += 2;   // noise filtered by 0, but still need to bump index
+        noiseTabIndex += 2;   /* noise filtered by 0, but still need to bump index */
         }
       else {
-        // add scaled signal and scaled noise
+        // add scaled signal and scaled noise */
         int32_t qFilt = psi->qFiltLast[m];
         int32_t n = (int32_t)noiseTab[noiseTabIndex++];
         smre = MULSHIFT32 (n, qFilt) >> (FBITS_QLIM_BOOST - 1 - FBITS_OUT_QMFA);
@@ -7350,7 +7303,7 @@ static void mapHF (sInfoSbr* psi, sSbrHeader* sbrHdr,
         n = (int32_t)noiseTab[noiseTabIndex++];
         smim = MULSHIFT32 (n, qFilt) >> (FBITS_QLIM_BOOST - 1 - FBITS_OUT_QMFA);
         }
-      noiseTabIndex &= 1023;  // 512 complex numbers
+      noiseTabIndex &= 1023;  /* 512 complex numbers */
 
       int32_t gFilt = psi->gFiltLast[m];
       int32_t xre = MULSHIFT32 (gFilt, XBuf[0]);
@@ -7367,7 +7320,7 @@ static void mapHF (sInfoSbr* psi, sSbrHeader* sbrHdr,
       gbMask |= FASTABS (xim);
       }
 
-    // update circular buffer index
+    // update circular buffer index */
     gainNoiseIndex++;
     if (gainNoiseIndex == MAX_NUM_SMOOTH_COEFS)
       gainNoiseIndex = 0;
@@ -7420,7 +7373,7 @@ static void adjustHighFreq (sInfoSbr* psi, sSbrHeader* sbrHdr,
   frameClass = sbrGrid->frameClass;
   pointer  = sbrGrid->pointer;
 
-  // derive la from table 4.159
+  // derive la from table 4.159 */
   if ((frameClass == SBR_GRID_FIXVAR || frameClass == SBR_GRID_VARVAR) && pointer > 0)
     psi->la = sbrGrid->numEnv + 1 - pointer;
   else if (frameClass == SBR_GRID_VARFIX && pointer > 1)
@@ -7452,9 +7405,9 @@ static void adjustHighFreq (sInfoSbr* psi, sSbrHeader* sbrHdr,
   }
 //}}}
 
-#define FBITS_LPCOEFS 29  // Q29 for range of (-4, 4)
-#define MAG_16  (16 * (1 << (32 - (2*(32-FBITS_LPCOEFS)))))   // i.e. 16 in Q26 format
-#define RELAX_COEF 0x7ffff79c  // 1.0 / (1.0 + 1e-6), Q31
+#define FBITS_LPCOEFS 29  /* Q29 for range of (-4, 4) */
+#define MAG_16  (16 * (1 << (32 - (2*(32-FBITS_LPCOEFS)))))   /* i.e. 16 in Q26 format */
+#define RELAX_COEF 0x7ffff79c  /* 1.0 / (1.0 + 1e-6), Q31 */
 //{{{
 static void cvKernel1 (int32_t* XBuf, int32_t* accBuf) {
 /**************************************************************************************
@@ -7489,7 +7442,7 @@ static void cvKernel1 (int32_t* XBuf, int32_t* accBuf) {
   p22re.w64 = MADD64 (p22re.w64,  x0re, x0re);
   p22re.w64 = MADD64 (p22re.w64,  x0im, x0im);
   for (n = (NUM_TIME_SLOTS*SAMPLES_PER_SLOT + 6); n != 0; n--) {
-    // 4 input, 3*2 acc, 1 ptr, 1 loop counter = 12 registers (use same for x0im, -x0im)
+    // 4 input, 3*2 acc, 1 ptr, 1 loop counter = 12 registers (use same for x0im, -x0im) */
     x0re = x1re;
     x0im = x1im;
     x1re = XBuf[0];
@@ -7505,7 +7458,7 @@ static void cvKernel1 (int32_t* XBuf, int32_t* accBuf) {
     XBuf += (2*64);
     }
 
-  // these can be derived by slight changes to account for boundary conditions
+  // these can be derived by slight changes to account for boundary conditions */
   p12re.w64 += p01re.w64;
   p12re.w64 = MADD64 (p12re.w64, x1re, -x0re);
   p12re.w64 = MADD64 (p12re.w64, x1im, -x0im);
@@ -7574,7 +7527,7 @@ static int32_t calcCovariance1 (int32_t* XBuf, int32_t* p01reN, int32_t* p01imN,
     z = countLeadingZeros (gbMask);
     }
 
-  n = 64 - z; // number of non-zero bits in bottom of 64-bit word
+  n = 64 - z; /* number of non-zero bits in bottom of 64-bit word */
   if (n <= 30) {
     loShift = (30 - n);
     *p01reN = p01re.r.lo32 << loShift;  *p01imN = p01im.r.lo32 << loShift;
@@ -7628,7 +7581,7 @@ static void cvKernel2 (int32_t *XBuf, int32_t* accBuf) {
   XBuf += (2*64);
 
   for (n = (NUM_TIME_SLOTS*SAMPLES_PER_SLOT + 6); n != 0; n--) {
-    // 6 input, 2*2 acc, 1 ptr, 1 loop counter = 12 registers (use same for x0im, -x0im)
+    /* 6 input, 2*2 acc, 1 ptr, 1 loop counter = 12 registers (use same for x0im, -x0im) */
     x2re = XBuf[0];
     x2im = XBuf[1];
 
@@ -7686,7 +7639,7 @@ static int32_t calcCovariance2 (int32_t* XBuf, int32_t* p02reN, int32_t* p02imN)
     gbMask  = FASTABS (p02re.r.hi32) | FASTABS (p02im.r.hi32);
     z = countLeadingZeros (gbMask);
     }
-  n = 64 - z; // number of non-zero bits in bottom of 64-bit word
+  n = 64 - z; // number of non-zero bits in bottom of 64-bit word */
 
   if (n <= 30) {
     loShift = (30 - n);
@@ -7745,7 +7698,7 @@ static void calcLPCoefs (int32_t* XBuf, int32_t* a0re, int32_t* a0im, int32_t* a
   n1 = calcCovariance1 (XBuf, &p01re, &p01im, &p12re, &p12im, &p11re, &p22re);
   n2 = calcCovariance2 (XBuf, &p02re, &p02im);
 
-  // normalize everything to larger power of 2 scalefactor, call it n1
+  // normalize everything to larger power of 2 scalefactor, call it n1 */
   if (n1 < n2) {
     nd = min (n2 - n1, 31);
     p01re >>= nd; p01im >>= nd;
@@ -7777,18 +7730,18 @@ static void calcLPCoefs (int32_t* XBuf, int32_t* a0re, int32_t* a0im, int32_t* a
     d <<= nd;
     dInv = InvRNormalized(d);
 
-    // 1 GB in pXX
+    // 1 GB in pXX */
     tre = MULSHIFT32 (p01re, p12re) - MULSHIFT32 (p01im, p12im) - MULSHIFT32 (p02re, p11re);
     tre = MULSHIFT32 (tre, dInv);
     tim = MULSHIFT32 (p01re, p12im) + MULSHIFT32 (p01im, p12re) - MULSHIFT32 (p02im, p11re);
     tim = MULSHIFT32 (tim, dInv);
 
-    // if d is extremely small, just set coefs to 0 (would have poor precision anyway)
+    // if d is extremely small, just set coefs to 0 (would have poor precision anyway) */
     if (nd > 28 || (FASTABS (tre) >> (28 - nd)) >= 4 || (FASTABS (tim) >> (28 - nd)) >= 4) {
       zFlag = 1;
       }
     else {
-      *a1re = tre << (FBITS_LPCOEFS - 28 + nd); // i.e. convert Q(28 - nd) to Q(29)
+      *a1re = tre << (FBITS_LPCOEFS - 28 + nd); /* i.e. convert Q(28 - nd) to Q(29) */
       *a1im = tim << (FBITS_LPCOEFS - 28 + nd);
       }
     }
@@ -7800,34 +7753,34 @@ static void calcLPCoefs (int32_t* XBuf, int32_t* a0re, int32_t* a0im, int32_t* a
     // so num * inverse = Q(-n1 - 3) * Q(29 + 31 + n1 - nd)
     //                  = Q(29 + 31 - 3 - nd), drop low 32 in MULSHIFT32
     //                  = Q(29 + 31 - 3 - 32 - nd) = Q(25 - nd)
-    nd = countLeadingZeros (p11re) - 1;  // assume positive
+    nd = countLeadingZeros (p11re) - 1;  /* assume positive */
     p11re <<= nd;
     dInv = InvRNormalized (p11re);
 
-    // a1re, a1im = Q29, so scaled by (n1 + 3)
+    // a1re, a1im = Q29, so scaled by (n1 + 3) */
     tre = (p01re >> 3) + MULSHIFT32 (p12re, *a1re) + MULSHIFT32 (p12im, *a1im);
-    tre = -MULSHIFT32(tre, dInv);
+    tre = -MULSHIFT32 (tre, dInv);
     tim = (p01im >> 3) - MULSHIFT32 (p12im, *a1re) + MULSHIFT32 (p12re, *a1im);
-    tim = -MULSHIFT32(tim, dInv);
+    tim = -MULSHIFT32 (tim, dInv);
 
     if (nd > 25 || (FASTABS (tre) >> (25 - nd)) >= 4 || (FASTABS (tim) >> (25 - nd)) >= 4) {
       zFlag = 1;
       }
     else {
-      *a0re = tre << (FBITS_LPCOEFS - 25 + nd); // i.e. convert Q(25 - nd) to Q(29)
+      *a0re = tre << (FBITS_LPCOEFS - 25 + nd); /* i.e. convert Q(25 - nd) to Q(29) */
       *a0im = tim << (FBITS_LPCOEFS - 25 + nd);
       }
     }
 
   // see 4.6.18.6.2 - if magnitude of a0 or a1 >= 4 then a0 = a1 = 0
   // i.e. a0re < 4, a0im < 4, a1re < 4, a1im < 4
-  /// Q29*Q29 = Q26
-  if (zFlag || MULSHIFT32 (*a0re, *a0re) + MULSHIFT32(*a0im, *a0im) >= MAG_16 || MULSHIFT32 (*a1re, *a1re) + MULSHIFT32 (*a1im, *a1im) >= MAG_16) {
+  //* Q29*Q29 = Q26
+  if (zFlag || MULSHIFT32 (*a0re, *a0re) + MULSHIFT32 (*a0im, *a0im) >= MAG_16 || MULSHIFT32 (*a1re, *a1re) + MULSHIFT32 (*a1im, *a1im) >= MAG_16) {
     *a0re = *a0im = 0;
     *a1re = *a1im = 0;
     }
 
-  // no need to clip - we never changed the XBuf data, just used it to calculate a0 and a1
+  // no need to clip - we never changed the XBuf data, just used it to calculate a0 and a1 */
   if (gb < 3) {
     nd = 3 - gb;
     for (n1 = (NUM_TIME_SLOTS*SAMPLES_PER_SLOT + 6 + 2); n1 != 0; n1--) {
@@ -7865,9 +7818,9 @@ static void generateHighFreq (sInfoSbr* psi, sSbrGrid* sbrGrid,
 
     // weighted average of new and old (can't overflow - total gain = 1.0)
     if (newBW < c)
-      t = MULSHIFT32 (newBW, 0x60000000) + MULSHIFT32(0x20000000, c);  // new is smaller: 0.75*new + 0.25*old
+      t = MULSHIFT32 (newBW, 0x60000000) + MULSHIFT32 (0x20000000, c);  // new is smaller: 0.75*new + 0.25*old
     else
-      t = MULSHIFT32 (newBW, 0x74000000) + MULSHIFT32(0x0c000000, c);  // new is larger: 0.90625*new + 0.09375*old
+      t = MULSHIFT32 (newBW, 0x74000000) + MULSHIFT32 (0x0c000000, c);  // new is larger: 0.90625*new + 0.09375*old
     t <<= 1;
 
     if (t < 0x02000000) // below 0.015625, clip to 0
@@ -7982,9 +7935,9 @@ static void preMultiply64 (int32_t* zbuf1) {
   int32_t* zbuf2 = zbuf1 + 64 - 1;
   const int32_t* csptr = (int32_t*)cos4sin4tab64;
 
-  // whole thing should fit in registers - verify that compiler does this
+  // whole thing should fit in registers - verify that compiler does this */
   for (auto i = 64 >> 2; i != 0; i--) {
-    // cps2 = (cos+sin), sin2 = sin, cms2 = (cos-sin)
+    // cps2 = (cos+sin), sin2 = sin, cms2 = (cos-sin) */
     int32_t cps2a = *csptr++;
     int32_t sin2a = *csptr++;
     int32_t cps2b = *csptr++;
@@ -8003,15 +7956,15 @@ static void preMultiply64 (int32_t* zbuf1) {
     int32_t z2 = MULSHIFT32 (cps2a, ai1) - t;
     int32_t cms2 = cps2a - 2*sin2a;
     int32_t z1 = MULSHIFT32 (cms2, ar1) + t;
-    *zbuf1++ = z1;  // cos*ar1 + sin*ai1
-    *zbuf1++ = z2;  // cos*ai1 - sin*ar1
+    *zbuf1++ = z1;  /* cos*ar1 + sin*ai1 */
+    *zbuf1++ = z2;  /* cos*ai1 - sin*ar1 */
 
     t  = MULSHIFT32 (sin2b, ar2 + ai2);
     z2 = MULSHIFT32 (cps2b, ai2) - t;
     cms2 = cps2b - 2*sin2b;
     z1 = MULSHIFT32 (cms2, ar2) + t;
-    *zbuf2-- = z2;  // cos*ai2 - sin*ar2
-    *zbuf2-- = z1;  // cos*ar2 + sin*ai2
+    *zbuf2-- = z2;  /* cos*ai2 - sin*ar2 */
+    *zbuf2-- = z1;  /* cos*ar2 + sin*ai2 */
     }
   }
 //}}}
@@ -8044,7 +7997,7 @@ static void postMultiply64 (int32_t* fft1, int32_t numSamplesOut) {
     int32_t ar2 = *(fft2 - 1);
     int ai2 = *(fft2 + 0);
 
-    // gain 2 int32_t bits (multiplying by Q30), max gain = sqrt(2)
+    // gain 2 int32_t bits (multiplying by Q30), max gain = sqrt(2) */
     int32_t t = MULSHIFT32 (sin2, ar1 + ai1);
     *fft2-- = t - MULSHIFT32 (cps2, ai1);
     *fft1++ = t + MULSHIFT32 (cms2, ar1);
@@ -8107,7 +8060,7 @@ static void r8FirstPass32 (int32_t *r0) {
  *              current instruction count (per pass): 16 LDR, 16 STR, 4 SMULL, 61 ALU
  **************************************************************************************/
 
-  // number of passes = fft size / 8 = 32 / 8 = 4
+  // number of passes = fft size / 8 = 32 / 8 = 4 */
   int32_t r1 = (32 >> 3);
   do {
     int32_t r2 = r0[8];
@@ -8139,7 +8092,7 @@ static void r8FirstPass32 (int32_t *r0) {
     r6 = r5 - r8;
     r7 = r5 + r8;
 
-    r2 = MULSHIFT32 (SQRT1_2, r2); // can use r4, r5, r8, or r9 for constant and lo32 scratch reg
+    r2 = MULSHIFT32 (SQRT1_2, r2); /* can use r4, r5, r8, or r9 for constant and lo32 scratch reg */
     r3 = MULSHIFT32 (SQRT1_2, r3);
     r6 = MULSHIFT32 (SQRT1_2, r6);
     r7 = MULSHIFT32 (SQRT1_2, r7);
@@ -8333,8 +8286,8 @@ static void fft32C (int32_t *x) {
   bitReverse32 (x);
 
   // 32-point32_t complex FFT
-  r8FirstPass32 (x); // gain 1 int32_t bit,  lose 2 GB (making assumptions about input)
-  r4Core32 (x);      // gain 2 int32_t bits, lose 0 GB (making assumptions about input)
+  r8FirstPass32 (x); // gain 1 int32_t bit,  lose 2 GB (making assumptions about input) */
+  r4Core32 (x);      // gain 2 int32_t bits, lose 0 GB (making assumptions about input) */
   }
 //}}}
 
@@ -8354,7 +8307,7 @@ static void qmfAnalysisConv (int32_t* cTab, int32_t *delay, int32_t dIdx, int32_
   int32_t* cPtr0 = cTab;
   int32_t* cPtr1 = cTab + 33*5 - 1;
 
-  // special first pass since we need to flip sign to create cTab[384], cTab[512]
+  // special first pass since we need to flip sign to create cTab[384], cTab[512] */
   U64 u64lo, u64hi;
   u64lo.w64 = 0;
   u64hi.w64 = 0;
@@ -8416,9 +8369,9 @@ static int32_t qmfAnalysis (int32_t* inbuf, int32_t* delay, int32_t* XBuf,
  *                (zero-filled from XBuf[2*qmfaBands] to XBuf[127])
  **************************************************************************************/
 
-  // use XBuf[128] as temp buffer for reordering
-  int32_t* uBuf = XBuf;    // first 64 samples
-  int32_t* tBuf = XBuf + 64; // second 64 samples
+  // use XBuf[128] as temp buffer for reordering */
+  int32_t* uBuf = XBuf;    /* first 64 samples */
+  int32_t* tBuf = XBuf + 64; /* second 64 samples */
 
   // overwrite oldest PCM with new PCM
   // delay[n] has 1 GB after shifting (either << or >>)
@@ -8444,7 +8397,7 @@ static int32_t qmfAnalysis (int32_t* inbuf, int32_t* delay, int32_t* XBuf,
   qmfAnalysisConv ((int32_t*)cTabA, delay, *delayIdx, uBuf);
 
   // uBuf has at least 2 GB right now (1 from clipping to Q(FBITS_IN_QMFA), one from
-  //   the scaling by cTab (MULSHIFT32(*delayPtr--, *cPtr++), with net gain of < 1.0)
+  //   the scaling by cTab (MULSHIFT32 (*delayPtr--, *cPtr++), with net gain of < 1.0)
   // TODO - fuse with QMFAnalysisConv to avoid separate reordering
   tBuf[2*0 + 0] = uBuf[0];
   tBuf[2*0 + 1] = uBuf[1];
@@ -8455,22 +8408,22 @@ static int32_t qmfAnalysis (int32_t* inbuf, int32_t* delay, int32_t* XBuf,
   tBuf[2*31 + 1] =  uBuf[32];
   tBuf[2*31 + 0] = -uBuf[33];
 
-  // fast in-place DCT-IV - only need 2*qmfaBands output samples
-  preMultiply64 (tBuf);  // 2 GB in, 3 GB out
-  fft32C (tBuf);     // 3 GB in, 1 GB out
-  postMultiply64 (tBuf, qmfaBands*2);  // 1 GB in, 2 GB out
+  // fast in-place DCT-IV - only need 2*qmfaBands output samples */
+  preMultiply64 (tBuf);  /* 2 GB in, 3 GB out */
+  fft32C (tBuf);     /* 3 GB in, 1 GB out */
+  postMultiply64 (tBuf, qmfaBands*2);  /* 1 GB in, 2 GB out */
 
-  // TODO - roll into PostMultiply (if enough registers)
+  // TODO - roll into PostMultiply (if enough registers) */
   int32_t gbMask = 0;
   int32_t n;
   for (n = 0; n < qmfaBands; n++) {
-    XBuf[2*n+0] = tBuf[ n + 0];  // implicit scaling of 2 in our output Q format
+    XBuf[2*n+0] = tBuf[ n + 0];  /* implicit scaling of 2 in our output Q format */
     gbMask |= FASTABS (XBuf[2*n+0]);
     XBuf[2*n+1] = -tBuf[63 - n];
     gbMask |= FASTABS (XBuf[2*n+1]);
     }
 
-  // fill top section with zeros for HF generation
+  // fill top section with zeros for HF generation */
   for ( ; n < 64; n++) {
     XBuf[2*n+0] = 0;
     XBuf[2*n+1] = 0;
@@ -8478,7 +8431,7 @@ static int32_t qmfAnalysis (int32_t* inbuf, int32_t* delay, int32_t* XBuf,
 
   *delayIdx = (*delayIdx == NUM_QMF_DELAY_BUFS - 1 ? 0 : *delayIdx + 1);
 
-  // minimum of 2 GB in output
+  // minimum of 2 GB in output */
   return gbMask;
   }
 //}}}
@@ -8502,7 +8455,7 @@ static void qmfSynthesisConv (int32_t* cPtr, int32_t* delay, int32_t dIdx, float
   if (dOff1 < 0)
     dOff1 += 1280;
 
-  // scaling note: total gain of coefs (cPtr[0]-cPtr[9] for any k) is < 2.0, so 1 GB in delay values is adequate
+  // scaling note: total gain of coefs (cPtr[0]-cPtr[9] for any k) is < 2.0, so 1 GB in delay values is adequate */
   for (auto k = 0; k <= 63; k++) {
     U64 sum64;
     sum64.w64 = 0;
@@ -8600,19 +8553,19 @@ static void qmfSynthesis (int32_t* inbuf, int32_t* delay, int32_t* delayIdx, int
   tBufLo = delay + dIdx*128 + 0;
   tBufHi = delay + dIdx*128 + 64;
 
-  // 2 GB in, 3 GB out
+  // 2 GB in, 3 GB out */
   preMultiply64 (tBufLo);
   preMultiply64 (tBufHi);
 
-  // 3 GB in, 1 GB out
+  // 3 GB in, 1 GB out */
   fft32C (tBufLo);
   fft32C (tBufHi);
 
-  // 1 GB in, 2 GB out
+  // 1 GB in, 2 GB out */
   postMultiply64 (tBufLo, 64);
   postMultiply64 (tBufHi, 64);
 
-  // could fuse with PostMultiply64 to avoid separate pass
+  // could fuse with PostMultiply64 to avoid separate pass */
   int32_t dOff0 = dIdx*128;
   int32_t dOff1 = dIdx*128 + 64;
   for (n = 32; n != 0; n--) {

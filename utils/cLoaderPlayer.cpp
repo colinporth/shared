@@ -212,7 +212,6 @@ private:
 cLoaderPlayer::cLoaderPlayer() {}
 //{{{
 cLoaderPlayer::~cLoaderPlayer() {
-
   clear();
   }
 //}}}
@@ -808,12 +807,13 @@ void cLoaderPlayer::addIcyInfo (int frame, const string& icyInfo) {
     }
   }
 //}}}
+
 //{{{
 void cLoaderPlayer::startPlayer (bool streaming) {
 
   if (!mPlayer.joinable()) {
     mPlayer = std::thread ([=]() {
-      // player thread lambda
+      // lambda - player 
       cLog::setThreadName ("play");
 
       float silence [2048*2] = { 0.f };
