@@ -86,6 +86,10 @@ public:
   //}}}
   virtual ~cPesParser() {}
 
+  int getPid() { return mPid; }
+  int getQueueSize() { return mUseQueue ? (int)mQueue.size_approx() : 0; }
+  float getQueueFrac() { return mUseQueue ? (float)mQueue.size_approx() / mQueue.max_capacity() : 0.f; }
+
   //{{{
   void clear (int num) {
     mNum = num;
@@ -93,10 +97,12 @@ public:
     mPts = 0;
     }
   //}}}
-
-  int getPid() { return mPid; }
-  int getQueueSize() { return mUseQueue ? (int)mQueue.size_approx() : 0; }
-  float getQueueFrac() { return mUseQueue ? (float)mQueue.size_approx() / mQueue.max_capacity() : 0.f; }
+  //{{{
+  void stopAndWait() {
+    mExit = true;
+    this_thread::sleep_for (40ms);
+    }
+  //}}}
 
   //{{{
   bool parseTs (uint8_t* ts, bool afterPlay) {
@@ -180,12 +186,16 @@ private:
 
     cLog::setThreadName (mName + "Q");
 
-    while (true) {
+    while (!mExit) {
       cPesItem* pesItem;
       mQueue.wait_dequeue (pesItem);
       mDecodeCallback (pesItem->mAfterPlay, pesItem->mPes, pesItem->mPesSize, pesItem->mNum, pesItem->mPts);
       delete pesItem;
       }
+
+    cPesItem* pesItem;
+    while (mQueue.try_dequeue (pesItem))
+      delete pesItem;
     }
   //}}}
 
@@ -196,6 +206,7 @@ private:
   function <int (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cPesParser* parserPes)> mProcessCallback;
   function <void (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts)> mDecodeCallback;
 
+  bool mExit = false;
   bool mUseQueue = false;
   readerWriterQueue::cBlockingReaderWriterQueue <cPesItem*> mQueue;
 
@@ -259,7 +270,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
   const string kM3u8 = ".norewind.m3u8";
   const string hostName = radio ? "as-hls-uk-live.bbcfmt.s.llnwi.net" : "vs-hls-uk-live.akamaized.net";
 
-  cLog::setThreadName ("hls ");
+  cLog::setThreadName ("hlsL");
   mRunning = true;
   mExit = false;
 
@@ -522,7 +533,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
 //{{{
 void cLoaderPlayer::icyLoaderThread (const string& url) {
 
-  cLog::setThreadName ("icy ");
+  cLog::setThreadName ("icyL");
 
   while (!mExit) {
     int icySkipCount = 0;
@@ -728,6 +739,8 @@ void cLoaderPlayer::fileLoaderThread() {
 void cLoaderPlayer::clear() {
 
   for (auto pesParser : mPesParsers)
+    pesParser->stopAndWait();
+  for (auto pesParser : mPesParsers)
     delete pesParser;
   mPesParsers.clear();
 
@@ -813,7 +826,7 @@ void cLoaderPlayer::startPlayer (bool streaming) {
 
   if (!mPlayer.joinable()) {
     mPlayer = std::thread ([=]() {
-      // lambda - player 
+      // lambda - player
       cLog::setThreadName ("play");
 
       float silence [2048*2] = { 0.f };
