@@ -421,31 +421,31 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
                           },
                           //}}}
                         [&] (const uint8_t* data, int length) noexcept {
-                           //{{{  data lambda
-                           mLoadSize = http.getContentSize();
-                           mLoadFrac = float(http.getContentSize()) / http.getHeaderContentSize();
+                          //{{{  data lambda
+                          mLoadSize = http.getContentSize();
+                          mLoadFrac = float(http.getContentSize()) / http.getHeaderContentSize();
 
-                           if (!radio) {
-                             // pesParse as we go
-                             while (http.getContentSize() - contentParsed >= 188) {
-                               uint8_t* ts = http.getContent() + contentParsed;
-                               if (*ts == 0x47) {
-                                 for (auto pesParser : mPesParsers)
-                                   if (pesParser->parseTs (ts, afterPlay))
-                                     break;
-                                 ts += 188;
-                                 }
-                               else {
-                                 cLog::log (LOGERROR, "ts packet sync:%d", contentParsed);
-                                 return false;
-                                 }
-                               contentParsed += 188;
-                               }
-                             }
+                          if (!radio) {
+                            // pesParse as we go
+                            while (http.getContentSize() - contentParsed >= 188) {
+                              uint8_t* ts = http.getContent() + contentParsed;
+                              if (*ts == 0x47) {
+                                for (auto pesParser : mPesParsers)
+                                  if (pesParser->parseTs (ts, afterPlay))
+                                    break;
+                                ts += 188;
+                                }
+                              else {
+                                cLog::log (LOGERROR, "ts packet sync:%d", contentParsed);
+                                return false;
+                                }
+                              contentParsed += 188;
+                              }
+                            }
 
-                           return true;
-                           }
-                           //}}}
+                          return true;
+                          }
+                          //}}}
                         ) == 200) {
             // ??? why does pesParser fail for radio audio pes ???
             if (radio) {
@@ -663,82 +663,209 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
       uint8_t* fileFirst = (uint8_t*)MapViewOfFile (fileMapping, FILE_MAP_READ, 0, 0, 0);
       int fileSize = GetFileSize (fileHandle, NULL);
       uint8_t* fileEnd = fileFirst + fileSize;
+    #else
+      // !!!! linux mmap to do !!!
+      uint8_t* fileFirst = nullptr;
+      int fileSize = 0;
+      uint8_t* fileEnd = fileFirst + fileSize;
+    #endif
+
+    if ((fileFirst[0] == 0x47) && (fileFirst[188] == 0x47)) {
+      //{{{  ts
+      cLog::log (LOGINFO, "Ts file %d", fileSize);
+
+      mAudioDecode = new cAudioDecode (cAudioDecode::eAac);
+      //{{{  init parsers
+      // audio pesParser
+      mPesParsers.push_back (
+        new cPesParser (0x22, false, "aud",
+          [&](bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
+            //{{{  audio pes process callback lambda
+            uint8_t* framePes = pes;
+            while (getAudioDecode()->parseFrame (framePes, pes + size)) {
+              // decode a single frame from pes
+              int framePesSize = getAudioDecode()->getNextFrameOffset();
+              pesParser->decode (afterPlay, framePes, framePesSize, num, pts);
+
+              // pts of next frame in pes, assumes 48000 sample rate
+              pts += (getAudioDecode()->getNumSamplesPerFrame() * 90) / 48;
+              num++;
+
+              // point to next frame in pes
+              framePes += framePesSize;
+              }
+
+            return num;
+            },
+            //}}}
+          [&](bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) noexcept {
+            //{{{  audio pes decode callback lambda
+            float* samples = mAudioDecode->decodeFrame (pes, size, num, pts);
+            if (samples) {
+              mSong->addFrame (afterPlay, num, samples, true, mSong->getNumFrames(), pts);
+              startPlayer (true);
+              }
+            else
+              cLog::log (LOGERROR, "aud pesParser failed to decode %d %d", size, num);
+            }
+            //}}}
+          )
+        );
+
+      mVideoDecode = cVideoDecode::create (true, false, 128);
+
+      // video pesParser
+      mPesParsers.push_back (
+        new cPesParser (0x21, false, "vid",
+          [&](bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
+            //{{{  video pes process callback lambda
+            pesParser->decode (afterPlay, pes, size, num, pts);
+            num++;
+            return num;
+            },
+            //}}}
+          [&](bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) noexcept {
+            //{{{  video pes decode callback lambda
+            mVideoDecode->decodeFrame (afterPlay, pes, size, num, pts);
+            }
+            //}}}
+          )
+        );
+
+      //{{{  PAT pesParser
+      mPesParsers.push_back (
+        new cPesParser (0x00, false, "pat",
+          [&] (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
+            // pat callback
+            string info;
+            for (int i = 0; i < size; i++) {
+              int value = pes[i];
+              info += hex (value, 2) + " ";
+              }
+            cLog::log (LOGINFO, "PAT process " + dec (size) + ":" + info);
+            return num;
+            },
+          [&] (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) noexcept {}
+          )
+        );
+      //}}}
+      //{{{  PMT pesParser 0x20
+      mPesParsers.push_back (
+        new cPesParser (0x20, false, "PMT",
+          [&] (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
+            // PMT callback
+            string info;
+            for (int i = 0; i < size; i++) {
+              int value = pes[i];
+              info += hex (value, 2) + " ";
+              }
+            cLog::log (LOGINFO, "PMT process " + dec (size) + ":" + info);
+            return num;
+            },
+          [&] (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) noexcept {}
+          )
+        );
+      //}}}
+      //}}}
 
       mSong = new cSong();
+      mSong->initialise (cAudioDecode::eAac, 2, 48000, 1024, 1000);
 
-      int sampleRate;
-      auto fileFrameType = cAudioDecode::parseSomeFrames (fileFirst, fileEnd, sampleRate);
-      cAudioDecode decode (fileFrameType);
-
-      if (cAudioDecode::mJpegPtr) {
-        //{{{  found jpegImage
-        cLog::log (LOGINFO, "found jpeg piccy in file, load it");
-
-        delete (cAudioDecode::mJpegPtr);
-        cAudioDecode::mJpegPtr = nullptr;
-        }
-        //}}}
-
-      int frameNum = 0;
-      auto filePtr = fileFirst;
-      if (fileFrameType == cAudioDecode::eWav) {
-        //{{{  parse wav
-        constexpr int kFrameSamples = 1024;
-
-        mSong->initialise (fileFrameType, 2, sampleRate, kFrameSamples, 0);
-
-        decode.parseFrame (filePtr, fileEnd);
-        auto samples = decode.getFramePtr();
-        while (!mExit && !mSong->getChanged() && ((samples + (kFrameSamples * 2 * sizeof(float))) <= fileEnd)) {
-          mSong->addFrame (true, frameNum++, (float*)samples, false, fileSize / (kFrameSamples * 2 * sizeof(float)), 0);
-          samples += kFrameSamples * 2 * sizeof(float);
-          startPlayer (false);
+      uint8_t* filePtr = fileFirst;
+      while ((filePtr + 188) <= fileEnd) {
+        if (*filePtr == 0x47) {
+          for (auto pesParser : mPesParsers)
+            if (pesParser->parseTs (filePtr, true))
+              break;
+          filePtr += 188;
           }
-        }
-        //}}}
-      else {
-        //{{{  parse coded
-        bool firstSamples = true;
-        while (!mExit && !mSong->getChanged() && decode.parseFrame (filePtr, fileEnd)) {
-          // parsed frame
-          if (decode.getFrameType() == fileFrameType) {
-            // frame is expected type, will get id3 which we ignore
-            float* samples = decode.decodeFrame (frameNum);
-            if (samples) {
-              if (firstSamples) // need to decode a frame to set sampleRate for aacHE, its wrong in the header
-                mSong->initialise (fileFrameType,
-                                   decode.getNumChannels(), decode.getSampleRate(), decode.getNumSamplesPerFrame(), 0);
-
-              int numFrames = mSong->getNumFrames();
-              int totalFrames = (numFrames > 0) ? (fileSize / (int(decode.getFramePtr() - fileFirst) / numFrames)) : 0;
-              mSong->addFrame (true, frameNum++, samples, true, totalFrames+1, 0);
-
-
-              if (!firstSamples)
-                startPlayer (false);
-              firstSamples = false;
-              }
-            }
-          filePtr += decode.getNextFrameOffset();
+        else {
+          cLog::log (LOGERROR, "ts packet sync");
+          filePtr++;
           }
+
+        mLoadFrac = float(filePtr - fileFirst) / fileSize;
         }
-        //}}}
-      cLog::log (LOGINFO, "loaded");
+      }
+      //}}}
+    else {
+     //{{{  assume aac or mp3
+     mSong = new cSong();
 
-      // wait for play to end or abort, wav uses the file mapping pointers to play
-      mPlayer.join();
+     int sampleRate;
+     auto fileFrameType = cAudioDecode::parseSomeFrames (fileFirst, fileEnd, sampleRate);
+     cAudioDecode decode (fileFrameType);
 
+     if (cAudioDecode::mJpegPtr) {
+       // found jpegImage
+       cLog::log (LOGINFO, "found jpeg piccy in file, load it");
+       delete (cAudioDecode::mJpegPtr);
+       cAudioDecode::mJpegPtr = nullptr;
+       }
+
+     int frameNum = 0;
+     if (fileFrameType == cAudioDecode::eWav) {
+       // parse wav
+       constexpr int kFrameSamples = 1024;
+       mSong->initialise (fileFrameType, 2, sampleRate, kFrameSamples, 0);
+
+       uint8_t* filePtr = fileFirst;
+       decode.parseFrame (filePtr, fileEnd);
+       auto samples = decode.getFramePtr();
+       while (!mExit && !mSong->getChanged() && ((samples + (kFrameSamples * 2 * sizeof(float))) <= fileEnd)) {
+         mSong->addFrame (true, frameNum++, (float*)samples, false, fileSize / (kFrameSamples * 2 * sizeof(float)), 0);
+         samples += kFrameSamples * 2 * sizeof(float);
+         startPlayer (false);
+         mLoadFrac = float(samples - fileFirst) / fileSize;
+         }
+       }
+
+     else {
+       // parse coded
+       bool firstSamples = true;
+       uint8_t* filePtr = fileFirst;
+       while (!mExit && !mSong->getChanged() && decode.parseFrame (filePtr, fileEnd)) {
+         // parsed frame
+         if (decode.getFrameType() == fileFrameType) {
+           // frame is expected type, will get id3 which we ignore
+           float* samples = decode.decodeFrame (frameNum);
+           if (samples) {
+             if (firstSamples) // need to decode a frame to set sampleRate for aacHE, its wrong in the header
+               mSong->initialise (fileFrameType,
+                                  decode.getNumChannels(), decode.getSampleRate(), decode.getNumSamplesPerFrame(), 0);
+
+             int numFrames = mSong->getNumFrames();
+             int totalFrames = (numFrames > 0) ? (fileSize / (int(decode.getFramePtr() - fileFirst) / numFrames)) : 0;
+             mSong->addFrame (true, frameNum++, samples, true, totalFrames+1, 0);
+
+             if (!firstSamples)
+               startPlayer (false);
+             firstSamples = false;
+             }
+           }
+         filePtr += decode.getNextFrameOffset();
+         mLoadFrac = float(filePtr - fileFirst) / fileSize;
+         }
+       }
+     }
+     //}}}
+    cLog::log (LOGINFO, "loaded");
+
+    // wait for play to end or abort, wav uses the file mapping pointers to play
+    mPlayer.join();
+
+    #ifdef _WIN32
       UnmapViewOfFile (fileFirst);
       CloseHandle (fileHandle);
-
-      // next file
-      //if (mSong->getChanged()) // use changed fileIndex
-      //  mSong->setChanged (false);
-      //else if (!mFileList->nextIndex())
-      mExit = true;;
     #else
-      this_thread::sleep_for (100ms);
+      // !!!! linux mmap to do !!!
     #endif
+    //{{{  next file
+    //if (mSong->getChanged()) // use changed fileIndex
+    //  mSong->setChanged (false);
+    //else if (!mFileList->nextIndex())
+    //}}}
+    mExit = true;;
     }
 
   clear();
