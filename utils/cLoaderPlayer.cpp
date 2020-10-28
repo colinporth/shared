@@ -666,10 +666,9 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
 
       mSong = new cSong();
 
-      // sampleRate for aacHE wrong in header, fixup later, use a maxValue for samples alloc
       int sampleRate;
-      auto frameType = cAudioDecode::parseSomeFrames (fileFirst, fileEnd, sampleRate);
-      cAudioDecode decode (frameType);
+      auto fileFrameType = cAudioDecode::parseSomeFrames (fileFirst, fileEnd, sampleRate);
+      cAudioDecode decode (fileFrameType);
 
       if (cAudioDecode::mJpegPtr) {
         //{{{  found jpegImage
@@ -682,34 +681,42 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
 
       int frameNum = 0;
       auto filePtr = fileFirst;
-      if (frameType == cAudioDecode::eWav) {
+      if (fileFrameType == cAudioDecode::eWav) {
         //{{{  parse wav
-        auto frameSamples = 1024;
+        constexpr int kFrameSamples = 1024;
 
-        mSong->initialise (frameType, 2, sampleRate, frameSamples, 0);
+        mSong->initialise (fileFrameType, 2, sampleRate, kFrameSamples, 0);
 
         decode.parseFrame (filePtr, fileEnd);
         auto samples = decode.getFramePtr();
-        while (!mExit && !mSong->getChanged() && ((samples + (frameSamples * 2 * sizeof(float))) <= fileEnd)) {
-          mSong->addFrame (true, frameNum++, (float*)samples, false, fileSize / (frameSamples * 2 * sizeof(float)), 0);
-          samples += frameSamples * 2 * sizeof(float);
+        while (!mExit && !mSong->getChanged() && ((samples + (kFrameSamples * 2 * sizeof(float))) <= fileEnd)) {
+          mSong->addFrame (true, frameNum++, (float*)samples, false, fileSize / (kFrameSamples * 2 * sizeof(float)), 0);
+          samples += kFrameSamples * 2 * sizeof(float);
           startPlayer (false);
           }
         }
         //}}}
       else {
         //{{{  parse coded
-        mSong->initialise (frameType, 2, sampleRate, (frameType == cAudioDecode::eMp3) ? 1152 : 2048, 0);
-
+        bool firstSamples = true;
         while (!mExit && !mSong->getChanged() && decode.parseFrame (filePtr, fileEnd)) {
-          if (decode.getFrameType() == mSong->getFrameType()) {
-            auto samples = decode.decodeFrame (frameNum);
+          // parsed frame
+          if (decode.getFrameType() == fileFrameType) {
+            // frame is expected type, will get id3 which we ignore
+            float* samples = decode.decodeFrame (frameNum);
             if (samples) {
+              if (firstSamples) // need to decode a frame to set sampleRate for aacHE, its wrong in the header
+                mSong->initialise (fileFrameType,
+                                   decode.getNumChannels(), decode.getSampleRate(), decode.getNumSamplesPerFrame(), 0);
+
               int numFrames = mSong->getNumFrames();
-              int totalFrames = (numFrames > 0) ? int(fileSize) / (int(decode.getFramePtr() - fileFirst) / numFrames) : 0;
-              mSong->setFixups (decode.getNumChannels(), decode.getSampleRate(), decode.getNumSamplesPerFrame());
+              int totalFrames = (numFrames > 0) ? (fileSize / (int(decode.getFramePtr() - fileFirst) / numFrames)) : 0;
               mSong->addFrame (true, frameNum++, samples, true, totalFrames+1, 0);
-              startPlayer (false);
+
+
+              if (!firstSamples)
+                startPlayer (false);
+              firstSamples = false;
               }
             }
           filePtr += decode.getNextFrameOffset();
