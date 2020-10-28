@@ -550,10 +550,11 @@ void cLoaderPlayer::icyLoaderThread (const string& url) {
     uint8_t* bufferEnd = bufferFirst;
     uint8_t* buffer = bufferFirst;
 
+    // init container and audDecode
     mSong = new cSong();
-    mSong->setChanged (false);
     cAudioDecode decode (cAudioDecode::eAac);
 
+    // init http
     cPlatformHttp http;
     cUrl parsedUrl;
     parsedUrl.parse (url);
@@ -651,49 +652,46 @@ void cLoaderPlayer::icyLoaderThread (const string& url) {
   }
 //}}}
 //{{{
-void cLoaderPlayer::fileLoaderThread() {
+void cLoaderPlayer::fileLoaderThread (const string& filename) {
 
   cLog::setThreadName ("file");
 
   while (!mExit) {
-    if (cAudioDecode::mJpegPtr) {
-      //{{{  delete any jpegImage
-      //mJpegImageView->setImage (nullptr);
-
-      //delete (cAudioDecode::mJpegPtr);
-      //cAudioDecode::mJpegPtr = nullptr;
-      }
-      //}}}
-
     #ifdef _WIN32
-      HANDLE fileHandle = CreateFile (mFileList->getCurFileItem().getFullName().c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
-      HANDLE mapping = CreateFileMapping (fileHandle, NULL, PAGE_READONLY, 0, 0, NULL);
-      auto fileMapFirst = (uint8_t*)MapViewOfFile (mapping, FILE_MAP_READ, 0, 0, 0);
-      auto fileMapSize = GetFileSize (fileHandle, NULL);
-      auto fileMapEnd = fileMapFirst + fileMapSize;
+      HANDLE fileHandle = CreateFile (filename.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+      HANDLE fileMapping = CreateFileMapping (fileHandle, NULL, PAGE_READONLY, 0, 0, NULL);
+      uint8_t* fileFirst = (uint8_t*)MapViewOfFile (fileMapping, FILE_MAP_READ, 0, 0, 0);
+      int fileSize = GetFileSize (fileHandle, NULL);
+      uint8_t* fileEnd = fileFirst + fileSize;
+
+      mSong = new cSong();
 
       // sampleRate for aacHE wrong in header, fixup later, use a maxValue for samples alloc
       int sampleRate;
-      auto frameType = cAudioDecode::parseSomeFrames (fileMapFirst, fileMapEnd, sampleRate);
+      auto frameType = cAudioDecode::parseSomeFrames (fileFirst, fileEnd, sampleRate);
       cAudioDecode decode (frameType);
-      mSong = new cSong();
 
-      //if (cAudioDecode::mJpegPtr) // should delete old jpegImage, but we have memory to waste
-      //  mJpegImageView->setImage (new cJpegImage (cAudioDecode::mJpegPtr, cAudioDecode::mJpegLen));
+      if (cAudioDecode::mJpegPtr) {
+        //{{{  found jpegImage
+        cLog::log (LOGINFO, "found jpeg piccy in file, load it");
+
+        delete (cAudioDecode::mJpegPtr);
+        cAudioDecode::mJpegPtr = nullptr;
+        }
+        //}}}
 
       int frameNum = 0;
-      bool songDone = false;
-      auto fileMapPtr = fileMapFirst;
+      auto filePtr = fileFirst;
       if (frameType == cAudioDecode::eWav) {
         //{{{  parse wav
         auto frameSamples = 1024;
 
-        mSong->initialise (frameType, 2, sampleRate, frameSamples);
+        mSong->initialise (frameType, 2, sampleRate, frameSamples, 0);
 
-        decode.parseFrame (fileMapPtr, fileMapEnd);
+        decode.parseFrame (filePtr, fileEnd);
         auto samples = decode.getFramePtr();
-        while (!mExit && !mSong->getChanged() && ((samples + (frameSamples * 2 * sizeof(float))) <= fileMapEnd)) {
-          mSong->addFrame (true, frameNum++, (float*)samples, false, fileMapSize / (frameSamples * 2 * sizeof(float)), 0);
+        while (!mExit && !mSong->getChanged() && ((samples + (frameSamples * 2 * sizeof(float))) <= fileEnd)) {
+          mSong->addFrame (true, frameNum++, (float*)samples, false, fileSize / (frameSamples * 2 * sizeof(float)), 0);
           samples += frameSamples * 2 * sizeof(float);
           startPlayer (false);
           }
@@ -701,36 +699,36 @@ void cLoaderPlayer::fileLoaderThread() {
         //}}}
       else {
         //{{{  parse coded
-        mSong->initialise (frameType, 2, sampleRate, (frameType == cAudioDecode::eMp3) ? 1152 : 2048);
+        mSong->initialise (frameType, 2, sampleRate, (frameType == cAudioDecode::eMp3) ? 1152 : 2048, 0);
 
-        while (!mExit && !mSong->getChanged() && decode.parseFrame (fileMapPtr, fileMapEnd)) {
+        while (!mExit && !mSong->getChanged() && decode.parseFrame (filePtr, fileEnd)) {
           if (decode.getFrameType() == mSong->getFrameType()) {
             auto samples = decode.decodeFrame (frameNum);
             if (samples) {
               int numFrames = mSong->getNumFrames();
-              int totalFrames = (numFrames > 0) ? int(fileMapEnd - fileMapFirst) / (int(decode.getFramePtr() - fileMapFirst) / numFrames) : 0;
+              int totalFrames = (numFrames > 0) ? int(fileSize) / (int(decode.getFramePtr() - fileFirst) / numFrames) : 0;
               mSong->setFixups (decode.getNumChannels(), decode.getSampleRate(), decode.getNumSamplesPerFrame());
               mSong->addFrame (true, frameNum++, samples, true, totalFrames+1, 0);
               startPlayer (false);
               }
             }
-          fileMapPtr += decode.getNextFrameOffset();
+          filePtr += decode.getNextFrameOffset();
           }
         }
         //}}}
       cLog::log (LOGINFO, "loaded");
 
-      // wait for play to end or abort
+      // wait for play to end or abort, wav uses the file mapping pointers to play
       mPlayer.join();
-      //{{{  next file
-      UnmapViewOfFile (fileMapFirst);
+
+      UnmapViewOfFile (fileFirst);
       CloseHandle (fileHandle);
 
-      if (mSong->getChanged()) // use changed fileIndex
-        mSong->setChanged (false);
-      else if (!mFileList->nextIndex())
-        mExit = true;;
-      //}}}
+      // next file
+      //if (mSong->getChanged()) // use changed fileIndex
+      //  mSong->setChanged (false);
+      //else if (!mFileList->nextIndex())
+      mExit = true;;
     #else
       this_thread::sleep_for (100ms);
     #endif

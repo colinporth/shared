@@ -32,7 +32,7 @@ public:
   void hlsLoaderThread (bool radio, const std::string& channelName,
                         int audBitrate, int vidBitrate, eLoaderFlags loaderFlags);
   void icyLoaderThread (const std::string& url);
-  void fileLoaderThread();
+  void fileLoaderThread (const std::string& filename);
 
   // vars
   bool mExit = false;
