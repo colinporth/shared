@@ -53,7 +53,7 @@ private:
   // vars
   cSong* mSong = nullptr;
 
-  std::map <int, cTsParser*> mTsParsers;
+  std::map <int, cTsParser*> mParsers;
   cAudioDecode* mAudioDecode = nullptr;
   cVideoDecode* mVideoDecode = nullptr;
 

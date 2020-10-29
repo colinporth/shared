@@ -47,40 +47,6 @@ using namespace std;
 using namespace chrono;
 //}}}
 
-//sPat
-typedef struct {
-  uint8_t table_id                  :8;
-
-  uint8_t section_length_hi         :4;
-  uint8_t dummy1                    :2;
-  uint8_t dummy                     :1;
-  uint8_t section_syntax_indicator  :1;
-
-  uint8_t section_length_lo         :8;
-
-  uint8_t transport_stream_id_hi    :8;
-  uint8_t transport_stream_id_lo    :8;
-
-  uint8_t current_next_indicator    :1;
-  uint8_t version_number            :5;
-  uint8_t dummy2                    :2;
-
-  uint8_t section_number            :8;
-  uint8_t last_section_number       :8;
-  } sPat;
-
-//sPatProg
-typedef struct {
-  uint8_t program_number_hi         :8;
-  uint8_t program_number_lo         :8;
-
-  uint8_t network_pid_hi            :5;
-  uint8_t                           :3;
-  uint8_t network_pid_lo            :8;
-  /* or program_map_pid (if prog_num=0)*/
-  } sPatProg;
-
-
 //{{{
 class cTsParser {
 // extract pes from ts
@@ -106,11 +72,11 @@ public:
     processBody (ts, tsLeft, payloadStart, continuityCount, afterPlay);
     }
   //}}}
-  virtual void processLast (bool afterPlay) = 0;
+  virtual void processLast (bool afterPlay) {}
 
 protected:
   //{{{
-  uint32_t getCrc32 (uint32_t crc, uint8_t* buf, unsigned int len) {
+  static uint32_t getCrc32 (uint32_t crc, uint8_t* buf, unsigned int len) {
 
     //{{{
     // CRC32 lookup table for polynomial 0x04c11db7
@@ -185,39 +151,155 @@ protected:
 //{{{
 class cPatTsParser : public cTsParser {
 public:
-  cPatTsParser() : cTsParser (0, "pat") {}
+  cPatTsParser(function<void (int pid, int sid)> programCallback)
+    : cTsParser (0, "pat"), mProgramCallback(programCallback) {}
   virtual ~cPatTsParser() {}
 
   virtual void processBody (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool afterPlay) {
-    string info;
-    for (int i = 0; i < tsLeft; i++) {
-      int value = ts[i];
-      info += hex (value, 2) + " ";
+
+    if (payloadStart) {
+      int pointerField = *ts++;
+      tsLeft--;
+
+      int tid = ts[0];
+      int sectionLength = ((ts[1] & 0x0F) << 8) + ts[2] + 3;
+      //cLog::log (LOGINFO, "PAT tid:%d len:%d", tid, sectionLength);
+
+      if (getCrc32 (0xffffffff, ts, sectionLength) != 0) {
+        //{{{  error return
+        cLog::log (LOGERROR, mName + " crc error");
+        return;
+        }
+        //}}}
+
+      // skip past pat header
+      ts += 8;
+      tsLeft -= 8;
+      sectionLength -= 8 + 4;
+
+      if (sectionLength > tsLeft) {
+        //{{{  error return
+        cLog::log (LOGERROR, mName + " sectionLength " + dec(sectionLength) + " tsLeft" + dec(tsLeft));
+        return;
+        }
+        //}}}
+
+      // iterate pat programs
+      while (sectionLength > 0) {
+        int sid = (ts[0] << 8) + ts[1];
+        int pid = ((ts[2] & 0x1F) << 8) + ts[3];
+        mProgramCallback (pid, sid);
+
+        ts += 4;
+        tsLeft -= 4;
+        sectionLength -= 4;
+        }
       }
-    cLog::log (LOGINFO, mName + " " + string(payloadStart ? "start ": "") + dec (tsLeft,3) + ":" + info);
-
-    int tid = ts[0];
-    int sectionLength = (ts[1] << 8) + ts[2];
-    cLog::log (LOGINFO, "PAT tid:%d len:%d", tid, sectionLength);
-
-    if (getCrc32 (0xffffffff, ts, sectionLength) != 0)
-      cLog::log (LOGERROR, "pat crc error");
-
-    ts += 8;
-    sectionLength -= 8;
-
-    while (sectionLength > 0) {
-      auto sid = (ts[0] << 8) + ts[1];
-      auto pid = (ts[2] << 8) + ts[3];
-      ts += 4;
-      sectionLength -= 4;
-      cLog::log (LOGINFO, "PAT sid:%d pid:%d", sid, pid);
-      }
-
-    //cLog::log (LOGINFO, "EIT ts " + dec (tsLeft) + ":" + info);
     }
 
-  virtual void processLast (bool afterPlay) {}
+private:
+  function <void (int pid, int sid)> mProgramCallback;
+  };
+//}}}
+//{{{
+class cPmtTsParser : public cTsParser {
+public:
+  cPmtTsParser (int pid, int sid, function<void (int sid, int streamPid, int streamType)> streamCallback)
+    : cTsParser (pid, "pmt"), mSid(sid), mStreamCallback(streamCallback) {}
+  virtual ~cPmtTsParser() {}
+
+  //{{{  sPmt
+  typedef struct {
+     unsigned char table_id            :8;
+
+     uint8_t section_length_hi         :4;
+     uint8_t                           :2;
+     uint8_t dummy                     :1; // has to be 0
+     uint8_t section_syntax_indicator  :1;
+     uint8_t section_length_lo         :8;
+
+     uint8_t program_number_hi         :8;
+     uint8_t program_number_lo         :8;
+     uint8_t current_next_indicator    :1;
+     uint8_t version_number            :5;
+     uint8_t                           :2;
+     uint8_t section_number            :8;
+     uint8_t last_section_number       :8;
+     uint8_t PCR_PID_hi                :5;
+     uint8_t                           :3;
+     uint8_t PCR_PID_lo                :8;
+     uint8_t program_info_length_hi    :4;
+     uint8_t                           :4;
+     uint8_t program_info_length_lo    :8;
+     //descrs
+    } sPmt;
+
+  //sPmtInfo
+  typedef struct {
+     uint8_t stream_type        :8;
+     uint8_t elementary_PID_hi  :5;
+     uint8_t                    :3;
+     uint8_t elementary_PID_lo  :8;
+     uint8_t ES_info_length_hi  :4;
+     uint8_t                    :4;
+     uint8_t ES_info_length_lo  :8;
+     // descrs
+    } sPmtInfo;
+  //}}}
+
+  virtual void processBody (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool afterPlay) {
+
+    if (payloadStart) {
+      int pointerField = *ts++;
+      tsLeft--;
+
+      int tid = ts[0];
+      int sectionLength = ((ts[1] & 0x0F) << 8) + ts[2] + 3;
+      //cLog::log (LOGINFO, "PMT tid:%d len:%d", tid, sectionLength);
+
+      if (getCrc32 (0xffffffff, ts, sectionLength) != 0) {
+        //{{{  error return
+        cLog::log (LOGERROR, mName + " crc error");
+        return;
+        }
+        //}}}
+
+      int sid = (ts[3] << 8) + ts[4];
+      int versionNumber = ts[5];
+      int sectionNumber = ts[6];
+      int lastSectionNumber = ts[7];
+      int pcrPid = ((ts[8] & 0x1f) << 8) + ts[9];
+      int programInfoLength = ((ts[10] & 0x0f) << 8) + ts[11];
+
+      // skip past pmt header
+      ts += 12 + programInfoLength;
+      tsLeft -= 12 - programInfoLength;
+      sectionLength -= 12 + 4 - programInfoLength;
+
+      if (sectionLength > tsLeft) {
+        //{{{  error return
+        cLog::log (LOGERROR, mName + " sectionLength " + dec(sectionLength) + " tsLeft" + dec(tsLeft));
+        return;
+        }
+        //}}}
+
+      // iterate pmt streams
+      while (sectionLength > 0) {
+        int streamType = ts[0];
+        int streamPid = ((ts[1] & 0x1F) << 8) + ts[2];
+        int streamInfoLength = ((ts[3] & 0x0F) << 8) + ts[4];
+        mStreamCallback (sid, streamPid, streamType);
+
+        ts += 5 + streamInfoLength;
+        tsLeft -= 5 + streamInfoLength;
+        sectionLength -= 5 + streamInfoLength;
+        }
+      }
+    }
+
+private:
+  int mSid;
+  function <void (int sid, int streamPid, int streamType)> mStreamCallback;
   };
 //}}}
 //{{{
@@ -225,8 +307,6 @@ class cNitTsParser : public cTsParser {
 public:
   cNitTsParser() : cTsParser (0x10, "nit") {}
   virtual ~cNitTsParser() {}
-
-  virtual void processLast (bool afterPlay) {}
   };
 //}}}
 //{{{
@@ -234,8 +314,6 @@ class cSdtTsParser : public cTsParser {
 public:
   cSdtTsParser() : cTsParser (0x11, "sdt") {}
   virtual ~cSdtTsParser() {}
-
-  virtual void processLast (bool afterPlay) {}
   };
 //}}}
 //{{{
@@ -247,8 +325,6 @@ public:
   virtual void processBody (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool afterPlay) {
     //cLog::log (LOGINFO, "EIT ts " + dec (tsLeft) + ":" + info);
     }
-
-  virtual void processLast (bool afterPlay) {}
   };
 //}}}
 //{{{
@@ -256,17 +332,6 @@ class cTdtTsParser : public cTsParser {
 public:
   cTdtTsParser() : cTsParser (0x14, "tdt") {}
   virtual ~cTdtTsParser() {}
-
-  virtual void processLast (bool afterPlay) {}
-  };
-//}}}
-//{{{
-class cPmtTsParser : public cTsParser {
-public:
-  cPmtTsParser (int pid) : cTsParser (pid, "pmt") {}
-  virtual ~cPmtTsParser() {}
-
-  virtual void processLast (bool afterPlay) {}
   };
 //}}}
 //{{{
@@ -418,7 +483,10 @@ private:
 //{{{
 class cAudioPesTsParser : public cPesTsParser {
 public:
-  cAudioPesTsParser (int pid, cLoaderPlayer* loaderPlayer) : cPesTsParser(pid, "aud"), mLoaderPlayer(loaderPlayer) {}
+  cAudioPesTsParser (int pid, cLoaderPlayer* loaderPlayer, int num)
+      : cPesTsParser(pid, "aud"), mLoaderPlayer(loaderPlayer) {
+    mNum = num;
+    }
   virtual ~cAudioPesTsParser() {}
 
   virtual void clear (int num) {
@@ -514,8 +582,8 @@ void cLoaderPlayer::getFrac (float& loadFrac, float& videoFrac, float& audioFrac
 // return fracs for spinner graphic, true if ok to display
 
   loadFrac = mLoadFrac;
-  //audioFrac = mTsParsers.size() > 0 ? mTsParsers[0]->getQueueFrac() : 0.f;
-  //videoFrac = mTsParsers.size() > 1 ? mTsParsers[1]->getQueueFrac() : 0.f;
+  //audioFrac = mParsers.size() > 0 ? mParsers[0]->getQueueFrac() : 0.f;
+  //videoFrac = mParsers.size() > 1 ? mParsers[1]->getQueueFrac() : 0.f;
   audioFrac = 0.f;
   videoFrac = 0.f;
   }
@@ -527,8 +595,8 @@ void cLoaderPlayer::getSizes (int& loadSize, int& videoQueueSize, int& audioQueu
   loadSize = mLoadSize;
   audioQueueSize = 0;
   videoQueueSize = 0;
-  //audioQueueSize = mTsParsers.size() > 0 ? mTsParsers[0]->getQueueSize() : 0;
-  //videoQueueSize = mTsParsers.size() > 1 ? mTsParsers[1]->getQueueSize() : 0;
+  //audioQueueSize = mParsers.size() > 0 ? mParsers[0]->getQueueSize() : 0;
+  //videoQueueSize = mParsers.size() > 1 ? mParsers[1]->getQueueSize() : 0;
   }
 //}}}
 
@@ -551,6 +619,8 @@ void cLoaderPlayer::videoFollowAudio() {
 void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
                                      int audBitrate, int vidBitrate, eLoaderFlags loaderFlags) {
 // hls http chunk load and possible decode thread
+//loaderFlags & eQueueAudio,
+//loaderFlags & eQueueVideo
 
   const string hostName = radio ? "as-hls-uk-live.bbcfmt.s.llnwi.net" : "vs-hls-uk-live.akamaized.net";
   const string kM3u8 = ".norewind.m3u8";
@@ -560,24 +630,46 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
   mRunning = true;
   mExit = false;
 
-  mAudioDecode = new cAudioDecode (cAudioDecode::eAac);
-  //{{{  init parsers
-  // audio pesParser
-  //loaderFlags & eQueueAudio,
-  mTsParsers.insert (map<int, cTsParser*>::value_type (0x22, new cAudioPesTsParser (0x22, this)));
+  int chunkNum;
+  int frameNum;
 
-  if (vidBitrate) {
-    mVideoDecode = cVideoDecode::create (loaderFlags & eFFmpeg, loaderFlags & eBgra, kVideoPoolSize);
-    //loaderFlags & eQueueVideo
-    mTsParsers.insert (map<int, cTsParser*>::value_type (0x21, new cVideoPesTsParser (0x21, mVideoDecode)));
+  // add PAT parser
+  mParsers.insert (map<int,cTsParser*>::value_type (0x00, new cPatTsParser ([&](int pid, int sid) noexcept {
+    //{{{  lambda program callback
+    if (mParsers.find (pid) == mParsers.end()) {
+      // add PMT parser
+      mParsers.insert (map<int,cTsParser*>::value_type (pid,
+        new cPmtTsParser (pid, sid, [&](int sid, int streamPid, int streamType) noexcept {
+          // lambda stream callback
+          if (mParsers.find (streamPid) == mParsers.end()) {
+            // add stream parser
+            switch (streamType) {
+              case 15:
+                mAudioDecode = new cAudioDecode (cAudioDecode::eAac);
+                mParsers.insert (
+                  map<int,cTsParser*>::value_type (streamPid,
+                    new cAudioPesTsParser (streamPid, this, frameNum)));
+                break;
+
+              case 27:
+                if (vidBitrate) {
+                  mVideoDecode = cVideoDecode::create (loaderFlags & eFFmpeg, loaderFlags & eBgra, kVideoPoolSize);
+                  mParsers.insert (
+                    map<int,cTsParser*>::value_type (streamPid,
+                      new cVideoPesTsParser (streamPid, mVideoDecode)));
+                  }
+                break;
+
+              default:
+                cLog::log (LOGERROR, "unrecognised stream type %d %d", streamPid, streamType);
+              }
+            }
+          }
+        )));
+      }
     }
-
-  // PAT pesParser
-  mTsParsers.insert (map<int, cTsParser*>::value_type (0x00, new cPatTsParser()));
-
-  // PMT pesParser 0x20
-  mTsParsers.insert (map<int, cTsParser*>::value_type (0x20, new cPmtTsParser (0x20)));
-  //}}}
+    //}}}
+    )));
 
   // audBitrate < 128000 use aacHE, more samplesPerframe, less framesPerChunk
   mSong = new cSong();
@@ -603,11 +695,9 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
       mSong->setHlsBase (extXMediaSequence, extXProgramDateTimePoint, -37s);
       //}}}
       while (!mExit && !mSong->getChanged()) {
-        int chunkNum;
-        int frameNum;
         if (mSong->loadChunk (system_clock::now(), 2, chunkNum, frameNum)) {
           bool afterPlay = frameNum >= mSong->getPlayFrame();
-          for (auto tsParser : mTsParsers)
+          for (auto tsParser : mParsers)
             tsParser.second->clear (frameNum);
           int contentParsed = 0;
           if (http.get (redirectedHostName, pathName + '-' + dec(chunkNum) + ".ts", "",
@@ -630,8 +720,8 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
                               uint8_t* ts = http.getContent() + contentParsed;
                               if (*ts == 0x47) {
                                 int pid = ((ts[1] & 0x1F) << 8) | ts[2];
-                                auto it = mTsParsers.find (pid);
-                                if (it != mTsParsers.end())
+                                auto it = mParsers.find (pid);
+                                if (it != mParsers.end())
                                   it->second->parseTs (ts, afterPlay);
                                 else
                                   cLog::log (LOGERROR, "pid parser not found %d", pid);
@@ -697,15 +787,15 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
               //uint8_t* ts = http.getContent();
               //uint8_t* tsEnd = ts + http.getContentSize();
               //while ((ts < tsEnd) && (*ts == 0x47)) {
-                //mTsParsers[0]->parseTs (ts, afterPlay);
+                //mParsers[0]->parseTs (ts, afterPlay);
                 //ts += 188;
                 //}
 
-              //mTsParsers[0]->process (afterPlay);
+              //mParsers[0]->process (afterPlay);
               //}
               //}}}
             else
-              for (auto tsParser : mTsParsers)
+              for (auto tsParser : mParsers)
                 tsParser.second->processLast (afterPlay);
             http.freeContent();
             }
@@ -873,12 +963,46 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
       //{{{  ts
       cLog::log (LOGINFO, "Ts file %d", fileSize);
 
-      // PAT pesParser
-      mTsParsers.insert (map<int,cTsParser*>::value_type (0x00, new cPatTsParser()));
-      mTsParsers.insert (map<int,cTsParser*>::value_type (0x10, new cNitTsParser()));
-      mTsParsers.insert (map<int,cTsParser*>::value_type (0x11, new cSdtTsParser()));
-      mTsParsers.insert (map<int,cTsParser*>::value_type (0x12, new cEitTsParser()));
-      mTsParsers.insert (map<int,cTsParser*>::value_type (0x14, new cTdtTsParser()));
+      // add PAT parser
+      mParsers.insert (map<int,cTsParser*>::value_type (0x00,
+        new cPatTsParser ([&](int pid, int sid) noexcept {
+          // lambda - program callback
+          if (mParsers.find (pid) == mParsers.end()) {
+            // add PMT parser
+            mParsers.insert (map<int,cTsParser*>::value_type (pid,
+              new cPmtTsParser (pid, sid, [&](int sid, int streamPid, int streamType) noexcept {
+                // lambda - stream callback
+                if (mParsers.find (streamPid) == mParsers.end()) {
+                  // add stream parser
+                  switch (streamType) {
+                    case 15:
+                      mAudioDecode = new cAudioDecode (cAudioDecode::eAac);
+                      mParsers.insert (
+                        map<int,cTsParser*>::value_type (streamPid,
+                          new cAudioPesTsParser (streamPid, this, 0)));
+                      break;
+
+                    case 27:
+                      if (true) {
+                        mVideoDecode = cVideoDecode::create (true, false, 128);
+                        mParsers.insert (
+                          map<int,cTsParser*>::value_type (streamPid,
+                            new cVideoPesTsParser (streamPid, mVideoDecode)));
+                        }
+                      break;
+
+                    default:;
+                      //cLog::log (LOGINFO, "unrecognised stream type %d %d", streamPid, streamType);
+                    }
+                  }
+                } )));
+            }
+          } )));
+
+      //mParsers.insert (map<int,cTsParser*>::value_type (0x10, new cNitTsParser()));
+      //mParsers.insert (map<int,cTsParser*>::value_type (0x11, new cSdtTsParser()));
+      //mTsParsers.insert (map<int,cTsParser*>::value_type (0x12, new cEitTsParser()));
+      mParsers.insert (map<int,cTsParser*>::value_type (0x14, new cTdtTsParser()));
 
       mAudioDecode = new cAudioDecode (cAudioDecode::eAac);
       mVideoDecode = cVideoDecode::create (true, false, 128);
@@ -886,16 +1010,16 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
       mSong = new cSong();
       mSong->initialise (cAudioDecode::eAac, 2, 48000, 1024, 1000);
 
-      // mTsParsers init
-      for (auto tsParser : mTsParsers)
-        tsParser.second->clear (0);
+      // mParsers init
+      for (auto parser : mParsers)
+        parser.second->clear (0);
 
       uint8_t* ts = fileFirst;
       while ((ts + 188) <= fileEnd) {
         if (*ts == 0x47) {
           int pid = ((ts[1] & 0x1F) << 8) | ts[2];
-          auto it = mTsParsers.find (pid);
-          if (it != mTsParsers.end())
+          auto it = mParsers.find (pid);
+          if (it != mParsers.end())
             it->second->parseTs (ts, true);
           //else
           //  cLog::log (LOGERROR, "pid parser not found %d", pid);
@@ -910,9 +1034,9 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
         }
       mLoadFrac = float(ts - fileFirst) / fileSize;
 
-      // mTsParsers finish
-      for (auto tsParser : mTsParsers)
-        tsParser.second->processLast (true);
+      // mParsers finish
+      for (auto parser : mParsers)
+        parser.second->processLast (true);
 
       cLog::log (LOGINFO, "loaded");
       }
@@ -1012,11 +1136,11 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
 //{{{
 void cLoaderPlayer::clear() {
 
-  for (auto tsParser : mTsParsers)
-    tsParser.second->stop();
-  for (auto tsParser : mTsParsers)
-    delete tsParser.second;
-  mTsParsers.clear();
+  for (auto parser : mParsers) {
+    parser.second->stop();
+    delete parser.second;
+    }
+  mParsers.clear();
 
   // remove main container
   auto tempSong = mSong;

@@ -14,7 +14,7 @@ extern "C" {
 class cImageWidget : public cWidget {
 public:
   cImageWidget (const uint8_t* bmp, int bmpSize, float width, float height,
-              std::function<void (cImageWidget* widget)> hitCallback = [](cImageWidget*) {})
+                std::function<void (cImageWidget* widget)> hitCallback = [](cImageWidget*) {})
       : cWidget(width, height), mHitCallback(hitCallback) {
 
    stbi_set_flip_vertically_on_load (true);
