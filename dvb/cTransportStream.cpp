@@ -642,19 +642,19 @@ void cService::writePat (int tsid) {
 
   auto sectionLength = 5+4 + 4;
   *tsPtr++ = TID_PAT;                                // PAT tid
-  *tsPtr++ = 0xb0 | ((sectionLength & 0x0F00) >> 8); // Pat sectionLength upper
-  *tsPtr++ = sectionLength & 0x0FF;                  // Pat sectionLength lower
+  *tsPtr++ = 0xb0 | ((sectionLength & 0x0F00) >> 8); // PAT sectionLength upper
+  *tsPtr++ = sectionLength & 0x0FF;                  // PAT sectionLength lower
 
   // sectionLength from here to end of crc
   *tsPtr++ = (tsid & 0xFF00) >> 8;                   // transportStreamId
   *tsPtr++ =  tsid & 0x00FF;
-  *tsPtr++ = 0xc1;                                   // For simplicity, we'll have a version_id of 0
-  *tsPtr++ = 0x00;                                   // First section number = 0
+  *tsPtr++ = 0xc1;                                   // for simplicity, we'll have a version_id of 0
+  *tsPtr++ = 0x00;                                   // first section number = 0
   *tsPtr++ = 0x00;                                   // last section number = 0
 
-  *tsPtr++ = (mSid & 0xFF00) >> 8;                    // first section serviceId
+  *tsPtr++ = (mSid & 0xFF00) >> 8;                   // first section serviceId
   *tsPtr++ =  mSid & 0x00FF;
-  *tsPtr++ = 0xE0 | ((mProgramPid & 0x1F00) >> 8);        // first section pgmPid
+  *tsPtr++ = 0xE0 | ((mProgramPid & 0x1F00) >> 8);   // first section pgmPid
   *tsPtr++ = mProgramPid & 0x00FF;
 
   writeSection (ts, tsSectionStart, tsPtr);
@@ -685,25 +685,25 @@ void cService::writePmt() {
   *tsPtr++ = 0xF0;
   *tsPtr++ = 0; // program_info_length;
 
-  // vid es
-  *tsPtr++ = mVidStreamType; // elementary stream_type
+  // video es
+  *tsPtr++ = mVidStreamType;                   // elementary stream_type
   *tsPtr++ = 0xE0 | ((mVidPid & 0x1F00) >> 8); // elementary_PID
   *tsPtr++ = mVidPid & 0x00FF;
-  *tsPtr++ = ((0 & 0xFF00) >> 8) | 0xF0;  // ES_info_length
+  *tsPtr++ = ((0 & 0xFF00) >> 8) | 0xF0;       // ES_info_length
   *tsPtr++ = 0 & 0x00FF;
 
-  // aud es
-  *tsPtr++ = mAudStreamType; // elementary stream_type
+  // audio es
+  *tsPtr++ = mAudStreamType;                   // elementary stream_type
   *tsPtr++ = 0xE0 | ((mAudPid & 0x1F00) >> 8); // elementary_PID
   *tsPtr++ = mAudPid & 0x00FF;
-  *tsPtr++ = ((0 & 0xFF00) >> 8) | 0xF0;  // ES_info_length
+  *tsPtr++ = ((0 & 0xFF00) >> 8) | 0xF0;       // ES_info_length
   *tsPtr++ = 0 & 0x00FF;
 
-  // sub es
-  *tsPtr++ = mSubStreamType; // elementary stream_type
+  // subtitle es
+  *tsPtr++ = mSubStreamType;                   // elementary stream_type
   *tsPtr++ = 0xE0 | ((mSubPid & 0x1F00) >> 8); // elementary_PID
   *tsPtr++ = mSubPid & 0x00FF;
-  *tsPtr++ = ((0 & 0xFF00) >> 8) | 0xF0;  // ES_info_length
+  *tsPtr++ = ((0 & 0xFF00) >> 8) | 0xF0;       // ES_info_length
   *tsPtr++ = 0 & 0x00FF;
 
   writeSection (ts, tsSectionStart, tsPtr);

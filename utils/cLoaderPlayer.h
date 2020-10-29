@@ -5,10 +5,11 @@
 #include <cstring>
 #include <string>
 #include <vector>
+#include <map>
 #include <thread>
 
 class cSong;
-class cPesParser;
+class cTsParser;
 class cAudioDecode;
 class cVideoDecode;
 class cFileList;
@@ -51,7 +52,7 @@ private:
   // vars
   cSong* mSong = nullptr;
 
-  std::vector<cPesParser*> mPesParsers;
+  std::map <int, cTsParser*> mTsParsers;
   cAudioDecode* mAudioDecode = nullptr;
   cVideoDecode* mVideoDecode = nullptr;
 

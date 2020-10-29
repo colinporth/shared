@@ -48,7 +48,7 @@ using namespace chrono;
 //}}}
 
 //{{{
-class cPesParser {
+class cTsParser {
 // extract pes from ts, queue?, decode
 public:
   //{{{
@@ -75,10 +75,10 @@ public:
     };
   //}}}
   //{{{
-  cPesParser (int pid, bool useQueue, const string& name,
-              function <int (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cPesParser* parserPes)> process,
-              function <void (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts)> decode)
-      : mPid(pid), mName(name), mProcessCallback(process), mDecodeCallback(decode), mUseQueue(useQueue) {
+  cTsParser (bool useQueue, const string& name,
+             function <int (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cTsParser* parserPes)> process,
+             function <void (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts)> decode)
+      : mName(name), mProcessCallback(process), mDecodeCallback(decode), mUseQueue(useQueue) {
 
     mPes = (uint8_t*)malloc (kInitPesSize);
 
@@ -86,14 +86,14 @@ public:
       thread ([=](){ dequeThread(); }).detach();
     }
   //}}}
-  virtual ~cPesParser() {}
+  virtual ~cTsParser() {}
 
   int getQueueSize() { return mUseQueue ? (int)mQueue.size_approx() : 0; }
   float getQueueFrac() { return mUseQueue ? (float)mQueue.size_approx() / mQueue.max_capacity() : 0.f; }
 
   //{{{
-  void clear (int num) {
-    mNum = num;
+  virtual void clear (int num) {
+
     mPesSize = 0;
     mPts = 0;
     }
@@ -109,41 +109,35 @@ public:
   //}}}
 
   //{{{
-  bool parseTs (uint8_t* ts, bool afterPlay) {
+  void parseTs (uint8_t* ts, bool afterPlay) {
 
-    int pid = ((ts[1] & 0x1F) << 8) | ts[2];
-    if (pid == mPid) {
-      bool payloadStart = ts[1] & 0x40;
-      auto headerSize = 1 + ((ts[3] & 0x20) ? 4 + ts[4] : 3);
+    bool payloadStart = ts[1] & 0x40;
+    auto headerSize = 1 + ((ts[3] & 0x20) ? 4 + ts[4] : 3);
+    ts += headerSize;
+    int tsLeft = 188 - headerSize;
+
+    if (payloadStart) {
+      // could check pes type as well
+
+      // end of last pes, if any, process it
+      process (afterPlay);
+
+      if (ts[7] & 0x80)
+        mPts = getPts (ts+9);
+
+      int headerSize = 9 + ts[8];
       ts += headerSize;
-      int tsLeft = 188 - headerSize;
-
-      if (payloadStart) {
-        // could check pes type as well
-
-        // end of last pes, if any, process it
-        process (afterPlay);
-
-        if (ts[7] & 0x80)
-          mPts = getPts (ts+9);
-
-        int headerSize = 9 + ts[8];
-        ts += headerSize;
-        tsLeft -= headerSize;
-        }
-
-      if (mPesSize + tsLeft > mAllocSize) {
-        mAllocSize *= 2;
-        mPes = (uint8_t*)realloc (mPes, mAllocSize);
-        cLog::log (LOGINFO, mName + " pes allocSize doubled to " + dec(mAllocSize));
-        }
-
-      memcpy (mPes + mPesSize, ts, tsLeft);
-      mPesSize += tsLeft;
-      return true;
+      tsLeft -= headerSize;
       }
-    else
-      return false;
+
+    if (mPesSize + tsLeft > mAllocSize) {
+      mAllocSize *= 2;
+      mPes = (uint8_t*)realloc (mPes, mAllocSize);
+      cLog::log (LOGINFO, mName + " pes allocSize doubled to " + dec(mAllocSize));
+      }
+
+    memcpy (mPes + mPesSize, ts, tsLeft);
+    mPesSize += tsLeft;
     }
   //}}}
   //{{{
@@ -158,13 +152,13 @@ public:
   void decode (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) {
 
     if (mUseQueue)
-      mQueue.enqueue (new cPesParser::cPesItem (afterPlay, pes, size, num, pts));
+      mQueue.enqueue (new cTsParser::cPesItem (afterPlay, pes, size, num, pts));
     else
       mDecodeCallback (afterPlay, pes, size, num, pts);
     }
   //}}}
 
-private:
+protected:
   static constexpr int kInitPesSize = 4096;
   //{{{
   static int64_t getPts (const uint8_t* ts) {
@@ -204,14 +198,13 @@ private:
   //}}}
 
   // vars
-  const int mPid = 0;
+  bool mUseQueue = false;
   const string mName;
-  const function <int (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cPesParser* parserPes)> mProcessCallback;
+  const function <int (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cTsParser* parserPes)> mProcessCallback;
   const function <void (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts)> mDecodeCallback;
 
   bool mExit = false;
   bool mRunning = false;
-  bool mUseQueue = false;
   readerWriterQueue::cBlockingReaderWriterQueue <cPesItem*> mQueue;
 
   int mAllocSize = kInitPesSize;
@@ -220,6 +213,109 @@ private:
   int mPesSize = 0;
   int mNum = 0;
   int64_t mPts = 0;
+  };
+//}}}
+//{{{
+class cQueueTsParser : public cTsParser {
+// extract pes from ts, queue?, decode
+public:
+  cQueueTsParser (const string& name,
+                  function <int (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cTsParser* parserPes)> process,
+                  function <void (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts)> decode)
+      : cTsParser (true, name, process, decode) {
+    }
+  virtual ~cQueueTsParser() {}
+
+  //{{{
+  virtual void clear (int num) {
+
+    mNum = num;
+    mPesSize = 0;
+    mPts = 0;
+    }
+  //}}}
+
+private:
+  };
+//}}}
+//{{{
+class cPatTsParser : public cTsParser {
+// extract pes from ts, queue?, decode
+public:
+  cPatTsParser (function <int (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cTsParser* parserPes)> process,
+                function <void (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts)> decode)
+      : cTsParser (false, "pat", process, decode) {
+    }
+  virtual ~cPatTsParser() {}
+
+  virtual void clear (int num) {
+    mPesSize = 0;
+    }
+
+private:
+  };
+//}}}
+//{{{
+class cPmtTsParser : public cTsParser {
+// extract pes from ts, queue?, decode
+public:
+  cPmtTsParser (function <int (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cTsParser* parserPes)> process,
+                function <void (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts)> decode)
+      : cTsParser (false, "pmt", process, decode) {
+    }
+  virtual ~cPmtTsParser() {}
+
+  //{{{
+  virtual void clear (int num) {
+    mPesSize = 0;
+    }
+  //}}}
+
+private:
+  };
+//}}}
+//{{{
+class cAudioQueueTsParser : public cQueueTsParser {
+// extract pes from ts, queue?, decode
+public:
+  cAudioQueueTsParser (function <int (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cTsParser* parserPes)> process,
+             function <void (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts)> decode)
+      : cQueueTsParser ("aud", process, decode) {
+    }
+  virtual ~cAudioQueueTsParser() {}
+
+  //{{{
+  virtual void clear (int num) {
+
+    mNum = num;
+    mPesSize = 0;
+    mPts = 0;
+    }
+  //}}}
+
+private:
+  };
+//}}}
+//{{{
+class cVideoQueueTsParser : public cQueueTsParser {
+// extract pes from ts, queue?, decode
+public:
+  cVideoQueueTsParser (
+             function <int (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cTsParser* parserPes)> process,
+             function <void (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts)> decode)
+      : cQueueTsParser ("vid", process, decode) {
+    }
+  virtual ~cVideoQueueTsParser() {}
+
+  //{{{
+  virtual void clear (int num) {
+
+    mPesSize = 0;
+    mPts = 0;
+    }
+  //}}}
+
+private:
   };
 //}}}
 
@@ -236,8 +332,10 @@ void cLoaderPlayer::getFrac (float& loadFrac, float& videoFrac, float& audioFrac
 // return fracs for spinner graphic, true if ok to display
 
   loadFrac = mLoadFrac;
-  audioFrac = mPesParsers.size() > 0 ? mPesParsers[0]->getQueueFrac() : 0.f;
-  videoFrac = mPesParsers.size() > 1 ? mPesParsers[1]->getQueueFrac() : 0.f;
+  //audioFrac = mTsParsers.size() > 0 ? mTsParsers[0]->getQueueFrac() : 0.f;
+  //videoFrac = mTsParsers.size() > 1 ? mTsParsers[1]->getQueueFrac() : 0.f;
+  audioFrac = 0.f;
+  videoFrac = 0.f;
   }
 //}}}
 //{{{
@@ -245,8 +343,10 @@ void cLoaderPlayer::getSizes (int& loadSize, int& videoQueueSize, int& audioQueu
 // return sizes
 
   loadSize = mLoadSize;
-  audioQueueSize = mPesParsers.size() > 0 ? mPesParsers[0]->getQueueSize() : 0;
-  videoQueueSize = mPesParsers.size() > 1 ? mPesParsers[1]->getQueueSize() : 0;
+  audioQueueSize = 0;
+  videoQueueSize = 0;
+  //audioQueueSize = mTsParsers.size() > 0 ? mTsParsers[0]->getQueueSize() : 0;
+  //videoQueueSize = mTsParsers.size() > 1 ? mTsParsers[1]->getQueueSize() : 0;
   }
 //}}}
 
@@ -281,38 +381,40 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
   mAudioDecode = new cAudioDecode (cAudioDecode::eAac);
   //{{{  init parsers
   // audio pesParser
-  mPesParsers.push_back (
-    new cPesParser (0x22, loaderFlags & eQueueAudio, "aud",
-      [&](bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
-        //{{{  audio pes process callback lambda
-        uint8_t* framePes = pes;
-        while (getAudioDecode()->parseFrame (framePes, pes + size)) {
-          // decode a single frame from pes
-          int framePesSize = getAudioDecode()->getNextFrameOffset();
-          pesParser->decode (afterPlay, framePes, framePesSize, num, pts);
+  mTsParsers.insert (
+    map <int, cTsParser*>::value_type (0x22,
+      new cAudioQueueTsParser (//loaderFlags & eQueueAudio,
+        [&](bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cTsParser* pesParser) noexcept {
+          //{{{  audio pes process callback lambda
+          uint8_t* framePes = pes;
+          while (getAudioDecode()->parseFrame (framePes, pes + size)) {
+            // decode a single frame from pes
+            int framePesSize = getAudioDecode()->getNextFrameOffset();
+            pesParser->decode (afterPlay, framePes, framePesSize, num, pts);
 
-          // pts of next frame in pes, assumes 48000 sample rate
-          pts += (getAudioDecode()->getNumSamplesPerFrame() * 90) / 48;
-          num++;
+            // pts of next frame in pes, assumes 48000 sample rate
+            pts += (getAudioDecode()->getNumSamplesPerFrame() * 90) / 48;
+            num++;
 
-          // point to next frame in pes
-          framePes += framePesSize;
+            // point to next frame in pes
+            framePes += framePesSize;
+            }
+
+          return num;
+          },
+          //}}}
+        [&](bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) noexcept {
+          //{{{  audio pes decode callback lambda
+          float* samples = mAudioDecode->decodeFrame (pes, size, num, pts);
+          if (samples) {
+            mSong->addFrame (afterPlay, num, samples, true, mSong->getNumFrames(), pts);
+            startPlayer (true);
+            }
+          else
+            cLog::log (LOGERROR, "aud pesParser failed to decode %d %d", size, num);
           }
-
-        return num;
-        },
-        //}}}
-      [&](bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) noexcept {
-        //{{{  audio pes decode callback lambda
-        float* samples = mAudioDecode->decodeFrame (pes, size, num, pts);
-        if (samples) {
-          mSong->addFrame (afterPlay, num, samples, true, mSong->getNumFrames(), pts);
-          startPlayer (true);
-          }
-        else
-          cLog::log (LOGERROR, "aud pesParser failed to decode %d %d", size, num);
-        }
-        //}}}
+          //}}}
+        )
       )
     );
 
@@ -320,55 +422,61 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
     mVideoDecode = cVideoDecode::create (loaderFlags & eFFmpeg, loaderFlags & eBgra, kVideoPoolSize);
 
     // video pesParser
-    mPesParsers.push_back (
-      new cPesParser (0x21, loaderFlags & eQueueVideo, "vid",
-        [&](bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
-          //{{{  video pes process callback lambda
-          pesParser->decode (afterPlay, pes, size, num, pts);
-          num++;
-          return num;
-          },
-          //}}}
-        [&](bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) noexcept {
-          //{{{  video pes decode callback lambda
-          mVideoDecode->decodeFrame (afterPlay, pes, size, num, pts);
-          }
-          //}}}
+    mTsParsers.insert (
+      map <int, cTsParser*>::value_type (0x21,
+        new cVideoQueueTsParser (//loaderFlags & eQueueVideo,
+          [&](bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cTsParser* pesParser) noexcept {
+            //{{{  video pes process callback lambda
+            pesParser->decode (afterPlay, pes, size, num, pts);
+            num++;
+            return num;
+            },
+            //}}}
+          [&](bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) noexcept {
+            //{{{  video pes decode callback lambda
+            mVideoDecode->decodeFrame (afterPlay, pes, size, num, pts);
+            }
+            //}}}
+          )
         )
       );
     }
 
   //{{{  PAT pesParser
-  mPesParsers.push_back (
-    new cPesParser (0x00, false, "pat",
-      [&] (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
-        // pat callback
-        string info;
-        for (int i = 0; i < size; i++) {
-          int value = pes[i];
-          info += hex (value, 2) + " ";
-          }
-        cLog::log (LOGINFO, "PAT process " + dec (size) + ":" + info);
-        return num;
-        },
-      [&] (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) noexcept {}
+  mTsParsers.insert (
+    map <int, cTsParser*>::value_type (0x00,
+      new cPatTsParser (
+        [&] (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cTsParser* pesParser) noexcept {
+          // pat callback
+          string info;
+          for (int i = 0; i < size; i++) {
+            int value = pes[i];
+            info += hex (value, 2) + " ";
+            }
+          cLog::log (LOGINFO, "PAT process " + dec (size) + ":" + info);
+          return num;
+          },
+        [&] (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) noexcept {}
+        )
       )
     );
   //}}}
   //{{{  PMT pesParser 0x20
-  mPesParsers.push_back (
-    new cPesParser (0x20, false, "PMT",
-      [&] (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
-        // PMT callback
-        string info;
-        for (int i = 0; i < size; i++) {
-          int value = pes[i];
-          info += hex (value, 2) + " ";
-          }
-        cLog::log (LOGINFO, "PMT process " + dec (size) + ":" + info);
-        return num;
-        },
-      [&] (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) noexcept {}
+  mTsParsers.insert (
+    map <int, cTsParser*>::value_type (0x20,
+      new cPmtTsParser (
+        [&] (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cTsParser* pesParser) noexcept {
+          // PMT callback
+          string info;
+          for (int i = 0; i < size; i++) {
+            int value = pes[i];
+            info += hex (value, 2) + " ";
+            }
+          cLog::log (LOGINFO, "PMT process " + dec (size) + ":" + info);
+          return num;
+          },
+        [&] (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) noexcept {}
+        )
       )
     );
   //}}}
@@ -402,14 +510,8 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
         int frameNum;
         if (mSong->loadChunk (system_clock::now(), 2, chunkNum, frameNum)) {
           bool afterPlay = frameNum >= mSong->getPlayFrame();
-          //{{{  pesParser init
-          // always audio
-          mPesParsers[0]->clear (frameNum);
-
-          // video
-          if (mPesParsers.size() > 1)
-            mPesParsers[1]->clear (0);
-          //}}}
+          for (auto tsParser : mTsParsers)
+            tsParser.second->clear (frameNum);
           int contentParsed = 0;
           if (http.get (redirectedHostName, pathName + '-' + dec(chunkNum) + ".ts", "",
                         [&] (const string& key, const string& value) noexcept {
@@ -426,23 +528,23 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
                           mLoadFrac = float(http.getContentSize()) / http.getHeaderContentSize();
 
                           if (!radio) {
-                            // pesParse as we go
+                            // tsParse as we go
                             while (http.getContentSize() - contentParsed >= 188) {
                               uint8_t* ts = http.getContent() + contentParsed;
                               if (*ts == 0x47) {
-                                for (auto pesParser : mPesParsers)
-                                  if (pesParser->parseTs (ts, afterPlay))
-                                    break;
+                                int pid = ((ts[1] & 0x1F) << 8) | ts[2];
+                                auto it = mTsParsers.find (pid);
+                                if (it != mTsParsers.end())
+                                  it->second->parseTs (ts, afterPlay);
+                                else
+                                  cLog::log (LOGERROR, "pid parser not found %d", pid);
                                 ts += 188;
                                 }
-                              else {
+                              else
                                 cLog::log (LOGERROR, "ts packet sync:%d", contentParsed);
-                                return false;
-                                }
                               contentParsed += 188;
                               }
                             }
-
                           return true;
                           }
                           //}}}
@@ -498,17 +600,17 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
               //uint8_t* ts = http.getContent();
               //uint8_t* tsEnd = ts + http.getContentSize();
               //while ((ts < tsEnd) && (*ts == 0x47)) {
-                //mPesParsers[0]->parseTs (ts, afterPlay);
+                //mTsParsers[0]->parseTs (ts, afterPlay);
                 //ts += 188;
                 //}
 
-              //mPesParsers[0]->process (afterPlay);
+              //mTsParsers[0]->process (afterPlay);
               //}
               //}}}
             else {
               //{{{  pesParser finish
-              for (auto pesParser : mPesParsers)
-                pesParser->process (afterPlay);
+              for (auto tsParser : mTsParsers)
+                tsParser.second->process (afterPlay);
               }
               //}}}
             http.freeContent();
@@ -658,208 +760,159 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
 
   while (!mExit) {
     #ifdef _WIN32
+      //{{{  windows file map
       HANDLE fileHandle = CreateFile (filename.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
       HANDLE fileMapping = CreateFileMapping (fileHandle, NULL, PAGE_READONLY, 0, 0, NULL);
       uint8_t* fileFirst = (uint8_t*)MapViewOfFile (fileMapping, FILE_MAP_READ, 0, 0, 0);
-      int fileSize = GetFileSize (fileHandle, NULL);
+      auto fileSize = GetFileSize (fileHandle, NULL);
       uint8_t* fileEnd = fileFirst + fileSize;
+      //}}}
     #else
-      // !!!! linux mmap to do !!!
+      //{{{  linux mmap to do
       uint8_t* fileFirst = nullptr;
-      int fileSize = 0;
+      auto fileSize = 0;
       uint8_t* fileEnd = fileFirst + fileSize;
+      //}}}
     #endif
 
     if ((fileFirst[0] == 0x47) && (fileFirst[188] == 0x47)) {
       //{{{  ts
       cLog::log (LOGINFO, "Ts file %d", fileSize);
 
-      mAudioDecode = new cAudioDecode (cAudioDecode::eAac);
-      //{{{  init parsers
-      // audio pesParser
-      mPesParsers.push_back (
-        new cPesParser (0x22, false, "aud",
-          [&](bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
-            //{{{  audio pes process callback lambda
-            uint8_t* framePes = pes;
-            while (getAudioDecode()->parseFrame (framePes, pes + size)) {
-              // decode a single frame from pes
-              int framePesSize = getAudioDecode()->getNextFrameOffset();
-              pesParser->decode (afterPlay, framePes, framePesSize, num, pts);
-
-              // pts of next frame in pes, assumes 48000 sample rate
-              pts += (getAudioDecode()->getNumSamplesPerFrame() * 90) / 48;
-              num++;
-
-              // point to next frame in pes
-              framePes += framePesSize;
-              }
-
-            return num;
-            },
-            //}}}
-          [&](bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) noexcept {
-            //{{{  audio pes decode callback lambda
-            float* samples = mAudioDecode->decodeFrame (pes, size, num, pts);
-            if (samples) {
-              mSong->addFrame (afterPlay, num, samples, true, mSong->getNumFrames(), pts);
-              startPlayer (true);
-              }
-            else
-              cLog::log (LOGERROR, "aud pesParser failed to decode %d %d", size, num);
-            }
-            //}}}
-          )
-        );
-
-      mVideoDecode = cVideoDecode::create (true, false, 128);
-
-      // video pesParser
-      mPesParsers.push_back (
-        new cPesParser (0x21, false, "vid",
-          [&](bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
-            //{{{  video pes process callback lambda
-            pesParser->decode (afterPlay, pes, size, num, pts);
-            num++;
-            return num;
-            },
-            //}}}
-          [&](bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) noexcept {
-            //{{{  video pes decode callback lambda
-            mVideoDecode->decodeFrame (afterPlay, pes, size, num, pts);
-            }
-            //}}}
-          )
-        );
-
       //{{{  PAT pesParser
-      mPesParsers.push_back (
-        new cPesParser (0x00, false, "pat",
-          [&] (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
-            // pat callback
-            string info;
-            for (int i = 0; i < size; i++) {
-              int value = pes[i];
-              info += hex (value, 2) + " ";
-              }
-            cLog::log (LOGINFO, "PAT process " + dec (size) + ":" + info);
-            return num;
-            },
-          [&] (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) noexcept {}
+      mTsParsers.insert (
+        map <int, cTsParser*>::value_type (0x20,
+          new cPatTsParser (
+            [&] (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cTsParser* pesParser) noexcept {
+              // pat callback
+              string info;
+              for (int i = 0; i < size; i++) {
+                int value = pes[i];
+                info += hex (value, 2) + " ";
+                }
+              cLog::log (LOGINFO, "PAT process " + dec (size) + ":" + info);
+              return num;
+              },
+            [&] (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) noexcept {}
+            )
           )
         );
       //}}}
-      //{{{  PMT pesParser 0x20
-      mPesParsers.push_back (
-        new cPesParser (0x20, false, "PMT",
-          [&] (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts, cPesParser* pesParser) noexcept {
-            // PMT callback
-            string info;
-            for (int i = 0; i < size; i++) {
-              int value = pes[i];
-              info += hex (value, 2) + " ";
-              }
-            cLog::log (LOGINFO, "PMT process " + dec (size) + ":" + info);
-            return num;
-            },
-          [&] (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) noexcept {}
-          )
-        );
-      //}}}
-      //}}}
+      mAudioDecode = new cAudioDecode (cAudioDecode::eAac);
+      mVideoDecode = cVideoDecode::create (true, false, 128);
 
       mSong = new cSong();
       mSong->initialise (cAudioDecode::eAac, 2, 48000, 1024, 1000);
 
-      uint8_t* filePtr = fileFirst;
-      while ((filePtr + 188) <= fileEnd) {
-        if (*filePtr == 0x47) {
-          for (auto pesParser : mPesParsers)
-            if (pesParser->parseTs (filePtr, true))
-              break;
-          filePtr += 188;
+      // mTsParsers init
+      for (auto tsParser : mTsParsers)
+        tsParser.second->clear (0);
+
+      uint8_t* ts = fileFirst;
+      while ((ts + 188) <= fileEnd) {
+        if (*ts == 0x47) {
+          int pid = ((ts[1] & 0x1F) << 8) | ts[2];
+          auto it = mTsParsers.find (pid);
+          if (it != mTsParsers.end())
+            it->second->parseTs (ts, true);
+          else
+            cLog::log (LOGERROR, "pid parser not found %d", pid);
+          ts += 188;
           }
         else {
           cLog::log (LOGERROR, "ts packet sync");
-          filePtr++;
+          ts++;
           }
 
-        mLoadFrac = float(filePtr - fileFirst) / fileSize;
+        mLoadFrac = float(ts - fileFirst) / fileSize;
         }
+      mLoadFrac = float(ts - fileFirst) / fileSize;
+
+      // mTsParsers finish
+      for (auto tsParser : mTsParsers)
+        tsParser.second->process (true);
+
+      cLog::log (LOGINFO, "loaded");
       }
       //}}}
     else {
-     //{{{  assume aac or mp3
-     mSong = new cSong();
+      //{{{  aac or mp3
+      int sampleRate;
+      auto fileFrameType = cAudioDecode::parseSomeFrames (fileFirst, fileEnd, sampleRate);
+      cAudioDecode decode (fileFrameType);
 
-     int sampleRate;
-     auto fileFrameType = cAudioDecode::parseSomeFrames (fileFirst, fileEnd, sampleRate);
-     cAudioDecode decode (fileFrameType);
+      if (cAudioDecode::mJpegPtr) {
+        //{{{  found jpegImage
+        cLog::log (LOGINFO, "found jpeg piccy in file, load it");
+        delete (cAudioDecode::mJpegPtr);
+        cAudioDecode::mJpegPtr = nullptr;
+        }
+        //}}}
 
-     if (cAudioDecode::mJpegPtr) {
-       // found jpegImage
-       cLog::log (LOGINFO, "found jpeg piccy in file, load it");
-       delete (cAudioDecode::mJpegPtr);
-       cAudioDecode::mJpegPtr = nullptr;
-       }
+      mSong = new cSong();
+      int frameNum = 0;
+      if (fileFrameType == cAudioDecode::eWav) {
+        // parse wav
+        constexpr int kFrameSamples = 1024;
+        mSong->initialise (fileFrameType, 2, sampleRate, kFrameSamples, 0);
 
-     int frameNum = 0;
-     if (fileFrameType == cAudioDecode::eWav) {
-       // parse wav
-       constexpr int kFrameSamples = 1024;
-       mSong->initialise (fileFrameType, 2, sampleRate, kFrameSamples, 0);
+        uint8_t* filePtr = fileFirst;
+        decode.parseFrame (filePtr, fileEnd);
+        auto samples = decode.getFramePtr();
+        while (!mExit && !mSong->getChanged() && ((samples + (kFrameSamples * 2 * sizeof(float))) <= fileEnd)) {
+          mSong->addFrame (true, frameNum++, (float*)samples, false, fileSize / (kFrameSamples * 2 * sizeof(float)), 0);
+          samples += kFrameSamples * 2 * sizeof(float);
+          startPlayer (false);
+          mLoadFrac = float(samples - fileFirst) / fileSize;
+          }
+        mLoadFrac = float(samples - fileFirst) / fileSize;
+        }
 
-       uint8_t* filePtr = fileFirst;
-       decode.parseFrame (filePtr, fileEnd);
-       auto samples = decode.getFramePtr();
-       while (!mExit && !mSong->getChanged() && ((samples + (kFrameSamples * 2 * sizeof(float))) <= fileEnd)) {
-         mSong->addFrame (true, frameNum++, (float*)samples, false, fileSize / (kFrameSamples * 2 * sizeof(float)), 0);
-         samples += kFrameSamples * 2 * sizeof(float);
-         startPlayer (false);
-         mLoadFrac = float(samples - fileFirst) / fileSize;
-         }
-       }
+      else {
+        // parse coded
+        bool firstSamples = true;
+        uint8_t* filePtr = fileFirst;
+        while (!mExit && !mSong->getChanged() && decode.parseFrame (filePtr, fileEnd)) {
+          // parsed frame
+          if (decode.getFrameType() == fileFrameType) {
+            // frame is expected type, will get id3 which we ignore
+            float* samples = decode.decodeFrame (frameNum);
+            if (samples) {
+              if (firstSamples) // need to decode a frame to set sampleRate for aacHE, its wrong in the header
+                mSong->initialise (fileFrameType,
+                                   decode.getNumChannels(), decode.getSampleRate(), decode.getNumSamplesPerFrame(), 0);
 
-     else {
-       // parse coded
-       bool firstSamples = true;
-       uint8_t* filePtr = fileFirst;
-       while (!mExit && !mSong->getChanged() && decode.parseFrame (filePtr, fileEnd)) {
-         // parsed frame
-         if (decode.getFrameType() == fileFrameType) {
-           // frame is expected type, will get id3 which we ignore
-           float* samples = decode.decodeFrame (frameNum);
-           if (samples) {
-             if (firstSamples) // need to decode a frame to set sampleRate for aacHE, its wrong in the header
-               mSong->initialise (fileFrameType,
-                                  decode.getNumChannels(), decode.getSampleRate(), decode.getNumSamplesPerFrame(), 0);
+              int numFrames = mSong->getNumFrames();
+              int totalFrames = (numFrames > 0) ? (fileSize / (int(decode.getFramePtr() - fileFirst) / numFrames)) : 0;
+              mSong->addFrame (true, frameNum++, samples, true, totalFrames+1, 0);
 
-             int numFrames = mSong->getNumFrames();
-             int totalFrames = (numFrames > 0) ? (fileSize / (int(decode.getFramePtr() - fileFirst) / numFrames)) : 0;
-             mSong->addFrame (true, frameNum++, samples, true, totalFrames+1, 0);
+              if (!firstSamples)
+                startPlayer (false);
+              firstSamples = false;
+              }
+            }
+          filePtr += decode.getNextFrameOffset();
+          mLoadFrac = float(filePtr - fileFirst) / fileSize;
+          }
+        mLoadFrac = float(filePtr - fileFirst) / fileSize;
+        }
 
-             if (!firstSamples)
-               startPlayer (false);
-             firstSamples = false;
-             }
-           }
-         filePtr += decode.getNextFrameOffset();
-         mLoadFrac = float(filePtr - fileFirst) / fileSize;
-         }
-       }
-     }
-     //}}}
-    cLog::log (LOGINFO, "loaded");
-
-    // wait for play to end or abort, wav uses the file mapping pointers to play
-    mPlayer.join();
+      cLog::log (LOGINFO, "loaded");
+      // wait for play to end or abort, wav uses the file mapping pointers to play
+      mPlayer.join();
+      }
+      //}}}
 
     #ifdef _WIN32
+      //{{{  windows file map close
       UnmapViewOfFile (fileFirst);
       CloseHandle (fileHandle);
+      //}}}
     #else
-      // !!!! linux mmap to do !!!
+      //{{{  linux mmap close to do
+      //}}}
     #endif
+
     //{{{  next file
     //if (mSong->getChanged()) // use changed fileIndex
     //  mSong->setChanged (false);
@@ -877,11 +930,11 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
 //{{{
 void cLoaderPlayer::clear() {
 
-  for (auto pesParser : mPesParsers)
-    pesParser->stopAndWait();
-  for (auto pesParser : mPesParsers)
-    delete pesParser;
-  mPesParsers.clear();
+  for (auto tsParser : mTsParsers)
+    tsParser.second->stopAndWait();
+  for (auto tsParser : mTsParsers)
+    delete tsParser.second;
+  mTsParsers.clear();
 
   // remove main container
   auto tempSong = mSong;
