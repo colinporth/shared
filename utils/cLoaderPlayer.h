@@ -35,6 +35,8 @@ public:
   void icyLoaderThread (const std::string& url);
   void fileLoaderThread (const std::string& filename);
 
+  void startPlayer (bool streaming);
+
   // vars
   bool mExit = false;
   bool mRunning = false;
@@ -47,7 +49,6 @@ private:
   std::string getHlsPathName (bool radio, int vidBitrate);
   static std::string getTagValue (uint8_t* buffer, const char* tag);
   void addIcyInfo (int frame, const std::string& icyInfo);
-  void startPlayer (bool streaming);
 
   // vars
   cSong* mSong = nullptr;
