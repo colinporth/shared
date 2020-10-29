@@ -508,8 +508,8 @@ private:
 //{{{
 class cVideoPesParser : public cPesParser {
 public:
-  cVideoPesParser (int pid, function <void (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts)> callback)
-    : cPesParser (pid, "vid"), mCallback(callback) {}
+  cVideoPesParser (int pid, cVideoDecode* videoDecode, function <void (int64_t pts)> callback)
+    : cPesParser (pid, "vid"), mVideoDecode(videoDecode), mCallback(callback) {}
   virtual ~cVideoPesParser() {}
 
   virtual void clear (int num) {
@@ -529,11 +529,13 @@ public:
 
     }
   void decode (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) {
-    mCallback (afterPlay, pes, size, num, pts);
+    mVideoDecode->decodeFrame (afterPlay, pes, size, num, pts);
+    mCallback (pts);
     }
 
 private:
-  function <void (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts)> mCallback;
+  cVideoDecode* mVideoDecode;
+  function <void (int64_t pts)> mCallback;
   };
 //}}}
 //{{{
@@ -644,8 +646,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
                 if (vidBitrate) {
                   mVideoDecode = cVideoDecode::create (loaderFlags & eFFmpeg, kVideoPoolSize);
                   mParsers.insert (map<int,cTsParser*>::value_type (streamPid,
-                    new cVideoPesParser (streamPid, [&](bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) noexcept {
-                      mVideoDecode->decodeFrame (afterPlay, pes, size, num, pts);
+                    new cVideoPesParser (streamPid, mVideoDecode, [&](int64_t pts) noexcept {
                       } )));
                   }
                 break;
@@ -984,9 +985,8 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
 
                     case 27:
                       mParsers.insert (map<int,cTsParser*>::value_type (streamPid,
-                        new cVideoPesParser (streamPid, [&] (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) noexcept {
-                          // mVideoDecode->decodeFrame (afterPlay, pes, size, num, pts);
-                          cLog::log (LOGINFO, "decode videoframe %d", num);
+                        new cVideoPesParser (streamPid, mVideoDecode, [&](int64_t pts) noexcept {
+                          //cLog::log (LOGINFO, "decode videoframe %d", num);
                           } )));
                       break;
 
