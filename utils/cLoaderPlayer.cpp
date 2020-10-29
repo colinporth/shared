@@ -299,6 +299,13 @@ private:
   };
 //}}}
 //{{{
+class cTdtParser : public cTsParser {
+public:
+  cTdtParser() : cTsParser (0x14, "tdt") {}
+  virtual ~cTdtParser() {}
+  };
+//}}}
+//{{{
 class cPesParser : public cTsParser {
 //{{{
 class cPesItem {
@@ -448,8 +455,9 @@ private:
 //{{{
 class cAudioPesParser : public cPesParser {
 public:
-  cAudioPesParser (int pid, cLoaderPlayer* loaderPlayer, int num)
-      : cPesParser(pid, "aud"), mLoaderPlayer(loaderPlayer) {
+  cAudioPesParser (int pid, cAudioDecode* audioDecode, int num,
+                   function <void (bool afterPlay, float* samples, int num, int64_t pts)> callback)
+      : cPesParser(pid, "aud"), mAudioDecode(audioDecode), mCallback(callback) {
     mNum = num;
     }
   virtual ~cAudioPesParser() {}
@@ -464,17 +472,15 @@ public:
   virtual void processLast (bool afterPlay) {
   // split audio pes into audio frames
     if (mPesSize) {
-      auto audioDecode = mLoaderPlayer->getAudioDecode();
-
       uint8_t* framePes = mPes;
-      while (audioDecode->parseFrame (framePes, mPes + mPesSize)) {
+      while (mAudioDecode->parseFrame (framePes, mPes + mPesSize)) {
         // decode a single frame from pes
-        int framePesSize = audioDecode->getNextFrameOffset();
+        int framePesSize = mAudioDecode->getNextFrameOffset();
 
         dispatchDecode (afterPlay, framePes, framePesSize, mNum, mPts);
 
         // pts of next frame in pes, assumes 48000 sample rate
-        mPts += (audioDecode->getNumSamplesPerFrame() * 90) / 48;
+        mPts += (mAudioDecode->getNumSamplesPerFrame() * 90) / 48;
         mNum++;
 
         // point to next frame in pes
@@ -485,22 +491,18 @@ public:
     }
 
   virtual void decode (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) {
-  // decode audio frame, add to cSong, startPlayer
+  // decode audio frame
 
-    auto song = mLoaderPlayer->getSong();
-    auto audioDecode = mLoaderPlayer->getAudioDecode();
-
-    float* samples = audioDecode->decodeFrame (pes, size, num, pts);
-    if (samples) {
-      song->addFrame (afterPlay, num, samples, true, song->getNumFrames(), pts);
-      mLoaderPlayer->startPlayer (true);
-      }
+    float* samples = mAudioDecode->decodeFrame (pes, size, num, pts);
+    if (samples)
+      mCallback (afterPlay, samples, num, pts);
     else
       cLog::log (LOGERROR, "cAudioPesParser decode failed %d %d", size, num);
     }
 
 private:
-  cLoaderPlayer* mLoaderPlayer;
+  function <void (bool afterPlay, float* samples, int num, int64_t pts)> mCallback;
+  cAudioDecode* mAudioDecode;
   };
 //}}}
 //{{{
@@ -532,13 +534,6 @@ public:
 
 private:
   function <void (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts)> mCallback;
-  };
-//}}}
-//{{{
-class cTdtParser : public cTsParser {
-public:
-  cTdtParser() : cTsParser (0x14, "tdt") {}
-  virtual ~cTdtParser() {}
   };
 //}}}
 //{{{
@@ -638,14 +633,18 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
               case 15:
                 mAudioDecode = new cAudioDecode (cAudioDecode::eAac);
                 mParsers.insert (map<int,cTsParser*>::value_type (streamPid,
-                  new cAudioPesParser (streamPid, this, frameNum)));
+                  new cAudioPesParser (streamPid, mAudioDecode, frameNum,
+                                       [&](bool afterPlay, float* samples, int num, int64_t pts) noexcept {
+                    mSong->addFrame (afterPlay, num, samples, true, mSong->getNumFrames(), pts);
+                    startPlayer (true);
+                    } )));
                 break;
 
               case 27:
                 if (vidBitrate) {
                   mVideoDecode = cVideoDecode::create (loaderFlags & eFFmpeg, kVideoPoolSize);
                   mParsers.insert (map<int,cTsParser*>::value_type (streamPid,
-                    new cVideoPesParser (streamPid, [&] (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) noexcept {
+                    new cVideoPesParser (streamPid, [&](bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) noexcept {
                       mVideoDecode->decodeFrame (afterPlay, pes, size, num, pts);
                       } )));
                   }
@@ -974,7 +973,13 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
                   switch (streamType) {
                     case 15:
                       mParsers.insert (map<int,cTsParser*>::value_type (streamPid,
-                        new cAudioPesParser (streamPid, this, 0)));
+                        new cAudioPesParser (streamPid, mAudioDecode, 0,
+                                             [&](bool afterPlay, float* samples, int num, int64_t pts) noexcept {
+                          mSong->addFrame (afterPlay, num, samples, true, mSong->getNumFrames(), pts);
+                          startPlayer (true);
+                          } )));
+                  break;
+
                       break;
 
                     case 27:
