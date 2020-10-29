@@ -15,7 +15,7 @@ class cVideoDecode;
 class cFileList;
 //}}}
 
-enum eLoaderFlags { eFFmpeg = 0x01, eBgra = 0x02, eQueueAudio = 0x04,  eQueueVideo = 0x08 };
+enum eLoaderFlags { eFFmpeg = 0x01, eQueueAudio = 0x02,  eQueueVideo = 0x04 };
 class cLoaderPlayer {
 public:
   cLoaderPlayer();

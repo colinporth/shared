@@ -53,7 +53,7 @@ public:
   virtual ~cVideoDecode();
 
   // dodgy static factory create
-  static cVideoDecode* create (bool ffmpeg, bool bgra, int poolSize);
+  static cVideoDecode* create (bool ffmpeg, int poolSize);
 
   void clear (int64_t pts);
 
@@ -71,7 +71,7 @@ public:
   virtual void decodeFrame (bool afterPlay, uint8_t* pes, unsigned int pesSize, int num, int64_t pts) = 0;
 
 protected:
-  cVideoDecode (bool planar, bool bgra, int poolSize);
+  cVideoDecode (bool planar, int poolSize);
 
   cFrame* getFreeFrame (bool afterPlay, int64_t pts);
 
