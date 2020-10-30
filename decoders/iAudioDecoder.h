@@ -4,6 +4,8 @@
 
 class iAudioDecoder {
 public:
+  enum class eFrameType { eUnknown, eId3Tag, eWav, eMp3, eAacAdts, eAacLatm } ;
+
   virtual ~iAudioDecoder() {}
 
   virtual int32_t getNumChannels() = 0;

@@ -29,7 +29,7 @@ cSong::~cSong() {
 //}}}
 
 //{{{
-void cSong::initialise (cAudioDecode::eFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame,
+void cSong::initialise (iAudioDecoder::eFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame,
                         int maxMapSize) {
 
   unique_lock<shared_mutex> lock (mSharedMutex);
@@ -54,7 +54,7 @@ void cSong::clear() {
 
   unique_lock<shared_mutex> lock (mSharedMutex);
 
-  mFrameType = cAudioDecode::eUnknown;
+  mFrameType = iAudioDecoder::eFrameType::eUnknown;
   mNumChannels = 0;
   mSampleRate = 0;
   mSamplesPerFrame = 0;

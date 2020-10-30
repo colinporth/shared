@@ -13,17 +13,19 @@
 
 // public
 //{{{
-cAudioDecode::cAudioDecode (eFrameType frameType) {
+cAudioDecode::cAudioDecode (iAudioDecoder::eFrameType frameType) {
 
   switch (frameType) {
-    case eMp3:
-      mAudioDecoder = new cMp3Decoder();
+    case iAudioDecoder::eFrameType::eMp3:
+      mAudioDecoder = new cFFmpegAacDecoder (frameType);
+      //mAudioDecoder = new cMp3Decoder();
       break;
-    case eAacAdts:
-      mAudioDecoder = new cAacDecoder();
+    case iAudioDecoder::eFrameType::eAacAdts:
+      mAudioDecoder = new cFFmpegAacDecoder (frameType);
+      //mAudioDecoder = new cAacDecoder();
       break;
-    case eAacLatm:
-      mAudioDecoder = new cFFmpegAacDecoder();
+    case iAudioDecoder::eFrameType::eAacLatm:
+      mAudioDecoder = new cFFmpegAacDecoder (frameType);
       break;
     default:
       cLog::log (LOGERROR, "cAudioDecode unrcognised type:%d", frameType);
@@ -52,7 +54,7 @@ bool cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast) {
 
   mFramePtr = nullptr;
   mFrameLen = 0;
-  mFrameType = eUnknown;
+  mFrameType = iAudioDecoder::eFrameType::eUnknown;
   mSkip = 0;
   mSampleRate = 0;
 
@@ -62,7 +64,7 @@ bool cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast) {
      mSampleRate = 48000;
      mFramePtr = framePtr;
      mFrameLen = 3 + ((framePtr[1] & 0x1F) << 8) | framePtr[2];
-     mFrameType = eAacLatm;
+     mFrameType = iAudioDecoder::eFrameType::eAacLatm;
 
      // check for enough bytes for frame body
      return (framePtr + mFrameLen) <= frameLast;
@@ -99,7 +101,7 @@ bool cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast) {
         // return aacFrame & size
         mFramePtr = framePtr;
         mFrameLen = (((unsigned int)framePtr[3] & 0x3) << 11) | (((unsigned int)framePtr[4]) << 3) | (framePtr[5] >> 5);
-        mFrameType = eAacAdts;
+        mFrameType = iAudioDecoder::eFrameType::eAacAdts;
 
         // check for enough bytes for frame body
         return (framePtr + mFrameLen) <= frameLast;
@@ -226,7 +228,7 @@ bool cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast) {
         // return mp3Frame & size
         mFramePtr = framePtr;
         mFrameLen = size;
-        mFrameType = eMp3;
+        mFrameType = iAudioDecoder::eFrameType::eMp3;
 
         // check for enough bytes for frame body
         return (framePtr + mFrameLen) <= frameLast;
@@ -269,7 +271,7 @@ bool cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast) {
           mFramePtr = framePtr;
           mFrameLen = int(frameLast - framePtr);
 
-          mFrameType = eWav;
+          mFrameType = iAudioDecoder::eFrameType::eWav;
           return true;
           }
         }
@@ -284,7 +286,7 @@ bool cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast) {
       // return tag & size
       mFramePtr = framePtr;
       mFrameLen = 10 + tagSize;
-      mFrameType = eId3Tag;
+      mFrameType = iAudioDecoder::eFrameType::eId3Tag;
 
       // check for enough bytes for frame body
       return (framePtr + mFrameLen) <= frameLast;
@@ -328,15 +330,16 @@ float* cAudioDecode::decodeFrame (uint8_t* framePtr, int frameLen, int32_t frame
 
 // static
 //{{{
-cAudioDecode::eFrameType cAudioDecode::parseSomeFrames (uint8_t* framePtr, uint8_t* frameEnd, int32_t& sampleRate) {
+iAudioDecoder::eFrameType cAudioDecode::parseSomeFrames (uint8_t* framePtr, uint8_t* frameEnd, int32_t& sampleRate) {
 // return fameType
 
-  eFrameType frameType = eUnknown;
+  iAudioDecoder::eFrameType frameType = iAudioDecoder::eFrameType::eUnknown;
   sampleRate = 0;
 
   cAudioDecode decode;
-  while (decode.parseFrame (framePtr, frameEnd) && ((frameType == eUnknown) || (frameType == eId3Tag))) {
-    if (decode.mFrameType == decode.eId3Tag) {
+  while (decode.parseFrame (framePtr, frameEnd) && 
+         ((frameType == iAudioDecoder::eFrameType::eUnknown) || (frameType == iAudioDecoder::eFrameType::eId3Tag))) {
+    if (decode.mFrameType == iAudioDecoder::eFrameType::eId3Tag) {
       if (parseId3Tag (framePtr, frameEnd))
         cLog::log (LOGINFO, "parseFrames found jpeg");
       }
@@ -355,10 +358,10 @@ cAudioDecode::eFrameType cAudioDecode::parseSomeFrames (uint8_t* framePtr, uint8
   }
 //}}}
 //{{{
-cAudioDecode::eFrameType cAudioDecode::parseAllFrames (uint8_t* framePtr, uint8_t* frameEnd, int32_t& sampleRate) {
+iAudioDecoder::eFrameType cAudioDecode::parseAllFrames (uint8_t* framePtr, uint8_t* frameEnd, int32_t& sampleRate) {
 // return frameType
 
-  eFrameType frameType = eUnknown;
+  iAudioDecoder::eFrameType frameType = iAudioDecoder::eFrameType::eUnknown;
   sampleRate = 0;
 
   int numTags = 0;
@@ -367,7 +370,7 @@ cAudioDecode::eFrameType cAudioDecode::parseAllFrames (uint8_t* framePtr, uint8_
 
   cAudioDecode decode;
   while (decode.parseFrame (framePtr, frameEnd)) {
-    if (decode.mFrameType == decode.eId3Tag) {
+    if (decode.mFrameType == iAudioDecoder::eFrameType::eId3Tag) {
       if (parseId3Tag (framePtr, frameEnd))
         cLog::log (LOGINFO, "parseFrames found jpeg");
       numTags++;
