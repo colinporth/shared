@@ -152,7 +152,7 @@ uint8_t* cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast,
       //{{{  aacLatm syncWord (0x02b7 << 5) found
       frameType = iAudioDecoder::eFrameType::eAacLatm;
       sampleRate = 48000; // guess
-      frameLength = 3 + ((framePtr[1] & 0x1F) << 8) | framePtr[2];
+      frameLength = 3 + (((framePtr[1] & 0x1F) << 8) | framePtr[2]);
 
       // check for enough bytes for frame body
       return (framePtr + frameLength <= frameLast) ? framePtr : nullptr;
