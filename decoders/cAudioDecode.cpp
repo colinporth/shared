@@ -4,6 +4,7 @@
 
 #include "cAudioDecode.h"
 
+#include "cFFmpegAacDecoder.h"
 #include "cAacDecoder.h"
 #include "cMp3Decoder.h"
 
@@ -20,6 +21,9 @@ cAudioDecode::cAudioDecode (eFrameType frameType) {
       break;
     case eAacAdts:
       mAudioDecoder = new cAacDecoder();
+      break;
+    case eAacLatm:
+      mAudioDecoder = new cFFmpegAacDecoder();
       break;
     default:
       cLog::log (LOGERROR, "cAudioDecode unrcognised type:%d", frameType);

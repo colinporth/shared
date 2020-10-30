@@ -578,7 +578,7 @@ public:
         numFrames++;
         }
 
-      cLog::log (LOGINFO, "aacLatm process %d", numFrames);
+      cLog::log (LOGINFO, "aacLatm process %d %d", mPesSize, numFrames);
       dispatchDecode (afterPlay, mPes, mPesSize, mNum, mPts);
       mNum += numFrames;
       mPesSize = 0;
@@ -586,7 +586,12 @@ public:
     }
 
   virtual void decode (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) {
-    cLog::log (LOGINFO, "aacLatm dummy decode %d", num);
+    string info;
+    for (int i = 0; i < 24; i++) {
+      int value = pes[i];
+      info += hex (value, 2) + " ";
+      }
+    cLog::log (LOGINFO, "aacLatm dummy decode " + dec(size) + " " + dec(num) + " " + info);
     }
 
 private:
