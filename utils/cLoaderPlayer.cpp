@@ -456,20 +456,24 @@ private:
 //{{{
 class cAudioPesParser : public cPesParser {
 public:
+  //{{{
   cAudioPesParser (int pid, cAudioDecode* audioDecode, int num,
                    function <void (bool afterPlay, float* samples, int num, int64_t pts)> callback)
       : cPesParser(pid, "aud"), mAudioDecode(audioDecode), mCallback(callback) {
     mNum = num;
     }
   virtual ~cAudioPesParser() {}
+  //}}}
 
+  //{{{
   virtual void clear (int num) {
   // num is cSong frameNum, audio frames since midnight
     mNum = num;
     mPesSize = 0;
     mPts = 0;
     }
-
+  //}}}
+  //{{{
   virtual void processLast (bool afterPlay) {
   // count audio frames in pes
 
@@ -487,7 +491,8 @@ public:
       mPesSize = 0;
       }
     }
-
+  //}}}
+  //{{{
   virtual void decode (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) {
   // decode pes to audio frames
 
@@ -509,6 +514,7 @@ public:
       framePes += framePesSize;
       }
     }
+  //}}}
 
 private:
   cAudioDecode* mAudioDecode;
@@ -518,10 +524,13 @@ private:
 //{{{
 class cVideoPesParser : public cPesParser {
 public:
+  //{{{
   cVideoPesParser (int pid, cVideoDecode* videoDecode, function <void (int64_t pts)> callback)
     : cPesParser (pid, "vid"), mVideoDecode(videoDecode), mCallback(callback) {}
+  //}}}
   virtual ~cVideoPesParser() {}
 
+  //{{{
   virtual void clear (int num) {
   // use num as frame in chunk for ffmpeg pts synthesis
 
@@ -529,7 +538,8 @@ public:
     mPesSize = 0;
     mPts = 0;
     }
-
+  //}}}
+  //{{{
   virtual void processLast (bool afterPlay) {
     if (mPesSize) {
       int numFrames = 1;
@@ -537,12 +547,14 @@ public:
       mNum += numFrames;
       mPesSize = 0;
       }
-
     }
+  //}}}
+  //{{{
   void decode (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) {
     mVideoDecode->decodeFrame (afterPlay, pes, size, num, pts);
     mCallback (pts);
     }
+  //}}}
 
 private:
   cVideoDecode* mVideoDecode;
@@ -550,22 +562,26 @@ private:
   };
 //}}}
 //{{{
-class cTestAudioPesParser : public cPesParser {
+class cFileAudioPesParser : public cPesParser {
 public:
-  cTestAudioPesParser (int pid, cAudioDecode* audioDecode, int num,
+  //{{{
+  cFileAudioPesParser (int pid, cAudioDecode* audioDecode, int num,
                        function <void (bool afterPlay, float* samples, int num, int64_t pts)> callback)
       : cPesParser(pid, "aud"), mAudioDecode(audioDecode), mCallback(callback) {
     mNum = num;
     }
-  virtual ~cTestAudioPesParser() {}
+  //}}}
+  virtual ~cFileAudioPesParser() {}
 
+  //{{{
   virtual void clear (int num) {
   // num is cSong frameNum, audio frames since midnight
     mNum = num;
     mPesSize = 0;
     mPts = 0;
     }
-
+  //}}}
+  //{{{
   virtual void processLast (bool afterPlay) {
   // count audio frames in pes
 
@@ -584,15 +600,36 @@ public:
       mPesSize = 0;
       }
     }
-
+  //}}}
+  //{{{
   virtual void decode (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) {
+
     string info;
     for (int i = 0; i < 24; i++) {
       int value = pes[i];
       info += hex (value, 2) + " ";
       }
-    cLog::log (LOGINFO, "aacLatm dummy decode " + dec(size) + " " + dec(num) + " " + info);
+    cLog::log (LOGINFO, "aacLatm decode " + dec(size) + " " + dec(num) + " " + info);
+
+    uint8_t* framePes = pes;
+    while (mAudioDecode->parseFrame (framePes, pes + size)) {
+      // decode a single frame from pes
+      int framePesSize = mAudioDecode->getNextFrameOffset();
+      float* samples = mAudioDecode->decodeFrame (framePes, framePesSize, num, pts);
+      if (samples)
+        mCallback (afterPlay, samples, num, pts);
+      else
+        cLog::log (LOGERROR, "cAudioPesParser decode failed %d %d", size, num);
+
+      // pts of next frame in pes, assumes 48000 sample rate
+      pts += (mAudioDecode->getNumSamplesPerFrame() * 90) / 48;
+      num++;
+
+      // point to next frame in pes
+      framePes += framePesSize;
+      }
     }
+  //}}}
 
 private:
   cAudioDecode* mAudioDecode;
@@ -600,12 +637,15 @@ private:
   };
 //}}}
 //{{{
-class cTestVideoPesParser : public cPesParser {
+class cFileVideoPesParser : public cPesParser {
 public:
-  cTestVideoPesParser(int pid, cVideoDecode* videoDecode, function <void (int64_t pts)> callback)
+  //{{{
+  cFileVideoPesParser(int pid, cVideoDecode* videoDecode, function <void (int64_t pts)> callback)
     : cPesParser (pid, "vid"), mVideoDecode(videoDecode), mCallback(callback) {}
-  virtual ~cTestVideoPesParser() {}
+  //}}}
+  virtual ~cFileVideoPesParser() {}
 
+  //{{{
   virtual void clear (int num) {
   // use num as frame in chunk for ffmpeg pts synthesis
 
@@ -613,7 +653,8 @@ public:
     mPesSize = 0;
     mPts = 0;
     }
-
+  //}}}
+  //{{{
   virtual void processLast (bool afterPlay) {
     if (mPesSize) {
       string info;
@@ -626,9 +667,11 @@ public:
       mPesSize = 0;
       }
     }
-
+  //}}}
+  //{{{
   void decode (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) {
     }
+  //}}}
 
 private:
   cVideoDecode* mVideoDecode;
@@ -1062,9 +1105,8 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
       cLog::log (LOGINFO, "Ts file %d", fileSize);
 
       mSong = new cSong();
-      mSong->initialise (iAudioDecoder::eFrameType::eAacAdts, 2, 48000, 1024, 1000);
+      mSong->initialise (iAudioDecoder::eFrameType::eAacAdts, 2, 48000, 1024, 0);
 
-      mAudioDecode = new cAudioDecode (iAudioDecoder::eFrameType::eAacAdts);
       mVideoDecode = cVideoDecode::create (true, 128);
 
       // parser callbacks
@@ -1087,21 +1129,23 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
               break;
 
             case 15: // aac adts
+              mAudioDecode = new cAudioDecode (iAudioDecoder::eFrameType::eAacAdts);
               mParsers.insert (
                 map<int,cTsParser*>::value_type (pid,
-                  new cTestAudioPesParser (pid, mAudioDecode, 0, addAudioFrameCallback)));
+                  new cFileAudioPesParser (pid, mAudioDecode, 0, addAudioFrameCallback)));
               break;
 
             case 17: // aac latm
+              mAudioDecode = new cAudioDecode (iAudioDecoder::eFrameType::eAacLatm);
               mParsers.insert (
                 map<int,cTsParser*>::value_type (pid,
-                  new cTestAudioPesParser (pid, mAudioDecode, 0, addAudioFrameCallback)));
+                  new cFileAudioPesParser (pid, mAudioDecode, 0, addAudioFrameCallback)));
               break;
 
             case 27: // h264
               mParsers.insert (
                 map<int,cTsParser*>::value_type (pid,
-                  new cTestVideoPesParser (pid, mVideoDecode, addVideoFrameCallback)));
+                  new cFileVideoPesParser (pid, mVideoDecode, addVideoFrameCallback)));
               break;
 
             default:

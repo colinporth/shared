@@ -60,8 +60,8 @@ bool cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast) {
 
   while ((frameLast - framePtr) >= 6) {
     if ((framePtr[0] == 0x56) && ((framePtr[1] & 0xE0) == 0xE0)) {
-     //{{{  aacLatm syncWord found
-     mSampleRate = 48000;
+     //{{{  aacLatm syncWord (0x02b7 << 5) found
+     mSampleRate = 48000; // guess
      mFramePtr = framePtr;
      mFrameLen = 3 + ((framePtr[1] & 0x1F) << 8) | framePtr[2];
      mFrameType = iAudioDecoder::eFrameType::eAacLatm;
@@ -337,7 +337,7 @@ iAudioDecoder::eFrameType cAudioDecode::parseSomeFrames (uint8_t* framePtr, uint
   sampleRate = 0;
 
   cAudioDecode decode;
-  while (decode.parseFrame (framePtr, frameEnd) && 
+  while (decode.parseFrame (framePtr, frameEnd) &&
          ((frameType == iAudioDecoder::eFrameType::eUnknown) || (frameType == iAudioDecoder::eFrameType::eId3Tag))) {
     if (decode.mFrameType == iAudioDecoder::eFrameType::eId3Tag) {
       if (parseId3Tag (framePtr, frameEnd))
