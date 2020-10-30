@@ -623,6 +623,7 @@ public:
         info1 += hex (value, 2) + " ";
         }
       cLog::log (LOGINFO, "latm decFrm:" + dec(frameSize) + " num:" + dec(num) + " "  + info1);
+
       float* samples = mAudioDecoder->decodeFrame (framePes, frameSize, num);
       if (samples) {
         mCallback (afterPlay, samples, num, pts);
@@ -669,8 +670,8 @@ public:
         int value = mPes[i];
         info += hex (value, 2) + " ";
         }
-      //cLog::log (LOGINFO, mName + dec (mNum,4) + " "+ dec (mPesSize,6) + " " + info);
 
+      dispatchDecode (afterPlay, mPes, mPesSize, mNum, mPts);
       mNum += 1;
       mPesSize = 0;
       }
@@ -678,6 +679,9 @@ public:
   //}}}
   //{{{
   void decode (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) {
+
+    mVideoDecode->decodeFrame (afterPlay, pes, size, num, pts);
+    mCallback (pts);
     }
   //}}}
 
@@ -777,6 +781,13 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
           mParsers.insert (
             map<int,cTsParser*>::value_type (pid,
               new cHlsAudioPesParser (pid, mAudioDecoder, frameNum, addAudioFrameCallback)));
+          break;
+
+        case 17: // aac latm
+          mAudioDecoder = cAudioDecode::createAudioDecoder (iAudioDecoder::eFrameType::eAacLatm);
+          mParsers.insert (
+            map<int,cTsParser*>::value_type (pid,
+              new cHlsAudioPesParser (pid, mAudioDecoder, 0, addAudioFrameCallback)));
           break;
 
         case 27:
@@ -1101,6 +1112,7 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
       mSong = new cSong();
       mSong->initialise (iAudioDecoder::eFrameType::eAacAdts, 2, 48000, 1024, 0);
 
+      int frameNum = 0;
       mVideoDecode = cVideoDecode::create (true, 128);
 
       // parser callbacks
@@ -1126,20 +1138,20 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
               mAudioDecoder = cAudioDecode::createAudioDecoder (iAudioDecoder::eFrameType::eAacAdts);
               mParsers.insert (
                 map<int,cTsParser*>::value_type (pid,
-                  new cFileAudioPesParser (pid, mAudioDecoder, 0, addAudioFrameCallback)));
+                  new cFileAudioPesParser (pid, mAudioDecoder, frameNum, addAudioFrameCallback)));
               break;
 
             case 17: // aac latm
               mAudioDecoder = cAudioDecode::createAudioDecoder (iAudioDecoder::eFrameType::eAacLatm);
               mParsers.insert (
                 map<int,cTsParser*>::value_type (pid,
-                  new cFileAudioPesParser (pid, mAudioDecoder, 0, addAudioFrameCallback)));
+                  new cHlsAudioPesParser (pid, mAudioDecoder, frameNum, addAudioFrameCallback)));
               break;
 
             case 27: // h264
               mParsers.insert (
                 map<int,cTsParser*>::value_type (pid,
-                  new cFileVideoPesParser (pid, mVideoDecode, addVideoFrameCallback)));
+                  new cHlsVideoPesParser (pid, mVideoDecode, addVideoFrameCallback)));
               break;
 
             default:
@@ -1186,6 +1198,7 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
         parser.second->processLast (true);
 
       cLog::log (LOGINFO, "loaded");
+      mPlayer.join();
       }
       //}}}
     else {
