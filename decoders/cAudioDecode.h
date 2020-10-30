@@ -13,6 +13,7 @@ public:
 
 private:
   static bool cAudioDecode::parseId3Tag (uint8_t* framePtr, uint8_t* frameEnd);
+
   static uint8_t* parseFrame (uint8_t* framePtr, uint8_t* frameLast,
                               iAudioDecoder::eFrameType& frameType, int& sampleRate, int& frameLength);
   };

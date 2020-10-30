@@ -42,7 +42,7 @@ iAudioDecoder* cAudioDecode::createAudioDecoder (iAudioDecoder::eFrameType frame
 //{{{
 uint8_t* cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast, int& frameLength) {
 
-  iAudioDecoder::eFrameType  frameType;
+  iAudioDecoder::eFrameType frameType;
   int sampleRate;
 
   framePtr = parseFrame (framePtr, frameLast, frameType, sampleRate, frameLength);
@@ -51,7 +51,7 @@ uint8_t* cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast, int& f
     // skip id3 frames
     framePtr += frameLength;
     framePtr = parseFrame (framePtr, frameLast, frameType, sampleRate, frameLength);
-    } 
+    }
 
   return framePtr;
   }
@@ -91,9 +91,57 @@ uint8_t* cAudioDecode::getJpeg (int& len) {
 
 // private
 //{{{
+bool cAudioDecode::parseId3Tag (uint8_t* framePtr, uint8_t* frameEnd) {
+// look for ID3 Jpeg tag
+
+  auto ptr = framePtr;
+  auto tag = (ptr[0] << 24) | (ptr[1] << 16) | (ptr[2] << 8) | ptr[3];
+
+  if (tag == 0x49443303)  {
+    // ID3 tag
+    auto tagSize = (ptr[6] << 21) | (ptr[7] << 14) | (ptr[8] << 7) | ptr[9];
+    cLog::log (LOGINFO, "parseId3Tag - %c%c%c ver:%d %02x flags:%02x tagSize:%d",
+                         ptr[0], ptr[1], ptr[2], ptr[3], ptr[4], ptr[5], tagSize);
+    ptr += 10;
+
+    while (ptr < framePtr + tagSize) {
+      auto tag = (ptr[0] << 24) | (ptr[1] << 16) | (ptr[2] << 8) | ptr[3];
+      auto frameSize = (ptr[4] << 24) | (ptr[5] << 16) | (ptr[6] << 8) | ptr[7];
+      if (!frameSize)
+        break;
+
+      auto frameFlags1 = ptr[8];
+      auto frameFlags2 = ptr[9];
+      std::string info;
+      for (auto i = 0; i < (frameSize < 40 ? frameSize : 40); i++)
+        if ((ptr[10+i] >= 0x20) && (ptr[10+i] < 0x7F))
+          info += ptr[10+i];
+
+      cLog::log (LOGINFO, "parseId3Tag - %c%c%c%c %02x %02x %d %s",
+                           ptr[0], ptr[1], ptr[2], ptr[3], frameFlags1, frameFlags2, frameSize, info.c_str());
+
+      if (tag == 0x41504943) {
+        // APIC tag
+        cLog::log (LOGINFO3, "parseId3Tag - APIC jpeg tag found");
+        mJpegLen = frameSize - 14;
+        mJpegPtr = (uint8_t*)malloc (mJpegLen);
+        if (mJpegPtr)
+          memcpy (mJpegPtr, ptr + 10 + 14, mJpegLen);
+        return true;
+        }
+
+      ptr += frameSize + 10;
+      }
+    }
+
+  return false;
+  }
+//}}}
+
+//{{{
 uint8_t* cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast,
                                    iAudioDecoder::eFrameType& frameType, int& sampleRate, int& frameLength) {
-// dumb mp3 / aacAdts / aacLatm / wav / id3Tag parser
+// simple mp3 / aacAdts / aacLatm / wav / id3Tag frame parser
 
   frameType = iAudioDecoder::eFrameType::eUnknown;
   sampleRate = 0;
@@ -332,52 +380,5 @@ uint8_t* cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast,
     }
 
   return nullptr;
-  }
-//}}}
-//{{{
-bool cAudioDecode::parseId3Tag (uint8_t* framePtr, uint8_t* frameEnd) {
-// look for ID3 Jpeg tag
-
-  auto ptr = framePtr;
-  auto tag = (ptr[0] << 24) | (ptr[1] << 16) | (ptr[2] << 8) | ptr[3];
-
-  if (tag == 0x49443303)  {
-    // ID3 tag
-    auto tagSize = (ptr[6] << 21) | (ptr[7] << 14) | (ptr[8] << 7) | ptr[9];
-    cLog::log (LOGINFO, "parseId3Tag - %c%c%c ver:%d %02x flags:%02x tagSize:%d",
-                         ptr[0], ptr[1], ptr[2], ptr[3], ptr[4], ptr[5], tagSize);
-    ptr += 10;
-
-    while (ptr < framePtr + tagSize) {
-      auto tag = (ptr[0] << 24) | (ptr[1] << 16) | (ptr[2] << 8) | ptr[3];
-      auto frameSize = (ptr[4] << 24) | (ptr[5] << 16) | (ptr[6] << 8) | ptr[7];
-      if (!frameSize)
-        break;
-
-      auto frameFlags1 = ptr[8];
-      auto frameFlags2 = ptr[9];
-      std::string info;
-      for (auto i = 0; i < (frameSize < 40 ? frameSize : 40); i++)
-        if ((ptr[10+i] >= 0x20) && (ptr[10+i] < 0x7F))
-          info += ptr[10+i];
-
-      cLog::log (LOGINFO, "parseId3Tag - %c%c%c%c %02x %02x %d %s",
-                           ptr[0], ptr[1], ptr[2], ptr[3], frameFlags1, frameFlags2, frameSize, info.c_str());
-
-      if (tag == 0x41504943) {
-        // APIC tag
-        cLog::log (LOGINFO3, "parseId3Tag - APIC jpeg tag found");
-        mJpegLen = frameSize - 14;
-        mJpegPtr = (uint8_t*)malloc (mJpegLen);
-        if (mJpegPtr)
-          memcpy (mJpegPtr, ptr + 10 + 14, mJpegLen);
-        return true;
-        }
-
-      ptr += frameSize + 10;
-      }
-    }
-
-  return false;
   }
 //}}}

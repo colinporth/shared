@@ -16,8 +16,8 @@
 #include "../utils/cSong.h"
 
 // audio decode
-#include "../decoders/cAudioDecode.h"
 #include "../decoders/iAudioDecoder.h"
+#include "../decoders/cAudioDecode.h"
 
 // audio device
 #ifdef _WIN32
@@ -455,16 +455,14 @@ private:
   };
 //}}}
 //{{{
-class cAudioPesParser : public cPesParser {
+class cHlsAudioPesParser : public cPesParser {
 public:
-  //{{{
-  cAudioPesParser (int pid, iAudioDecoder* audioDecoder, int num,
+  cHlsAudioPesParser (int pid, iAudioDecoder* audioDecoder, int num,
                    function <void (bool afterPlay, float* samples, int num, int64_t pts)> callback)
-      : cPesParser(pid, "aud", false), mAudioDecoder(audioDecoder), mCallback(callback) {
+      : cPesParser(pid, "aud", true), mAudioDecoder(audioDecoder), mCallback(callback) {
     mNum = num;
     }
-  //}}}
-  virtual ~cAudioPesParser() {}
+  virtual ~cHlsAudioPesParser() {}
 
   //{{{
   virtual void clear (int num) {
@@ -528,13 +526,11 @@ private:
   };
 //}}}
 //{{{
-class cVideoPesParser : public cPesParser {
+class cHlsVideoPesParser : public cPesParser {
 public:
-  //{{{
-  cVideoPesParser (int pid, cVideoDecode* videoDecode, function <void (int64_t pts)> callback)
+  cHlsVideoPesParser (int pid, cVideoDecode* videoDecode, function <void (int64_t pts)> callback)
     : cPesParser (pid, "vid", true), mVideoDecode(videoDecode), mCallback(callback) {}
-  //}}}
-  virtual ~cVideoPesParser() {}
+  virtual ~cHlsVideoPesParser() {}
 
   //{{{
   virtual void clear (int num) {
@@ -570,13 +566,11 @@ private:
 //{{{
 class cFileAudioPesParser : public cPesParser {
 public:
-  //{{{
   cFileAudioPesParser (int pid, iAudioDecoder* audioDecoder, int num,
                        function <void (bool afterPlay, float* samples, int num, int64_t pts)> callback)
       : cPesParser(pid, "aud", false), mAudioDecoder(audioDecoder), mCallback(callback) {
     mNum = num;
     }
-  //}}}
   virtual ~cFileAudioPesParser() {}
 
   //{{{
@@ -652,10 +646,8 @@ private:
 //{{{
 class cFileVideoPesParser : public cPesParser {
 public:
-  //{{{
   cFileVideoPesParser(int pid, cVideoDecode* videoDecode, function <void (int64_t pts)> callback)
     : cPesParser (pid, "vid", false), mVideoDecode(videoDecode), mCallback(callback) {}
-  //}}}
   virtual ~cFileVideoPesParser() {}
 
   //{{{
@@ -783,7 +775,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
           mAudioDecoder = cAudioDecode::createAudioDecoder (iAudioDecoder::eFrameType::eAacAdts);
           mParsers.insert (
             map<int,cTsParser*>::value_type (pid,
-              new cAudioPesParser (pid, mAudioDecoder, frameNum, addAudioFrameCallback)));
+              new cHlsAudioPesParser (pid, mAudioDecoder, frameNum, addAudioFrameCallback)));
           break;
 
         case 27:
@@ -791,7 +783,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
             mVideoDecode = cVideoDecode::create (loaderFlags & eFFmpeg, kVideoPoolSize);
             mParsers.insert (
               map<int,cTsParser*>::value_type (pid,
-                new cVideoPesParser (pid, mVideoDecode, addVideoFrameCallback)));
+                new cHlsVideoPesParser (pid, mVideoDecode, addVideoFrameCallback)));
             }
           break;
 
