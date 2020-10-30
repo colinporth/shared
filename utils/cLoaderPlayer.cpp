@@ -509,8 +509,8 @@ public:
     }
 
 private:
-  function <void (bool afterPlay, float* samples, int num, int64_t pts)> mCallback;
   cAudioDecode* mAudioDecode;
+  function <void (bool afterPlay, float* samples, int num, int64_t pts)> mCallback;
   };
 //}}}
 //{{{
@@ -540,6 +540,71 @@ public:
   void decode (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) {
     mVideoDecode->decodeFrame (afterPlay, pes, size, num, pts);
     mCallback (pts);
+    }
+
+private:
+  cVideoDecode* mVideoDecode;
+  function <void (int64_t pts)> mCallback;
+  };
+//}}}
+//{{{
+class cTestAudioPesParser : public cPesParser {
+public:
+  cTestAudioPesParser (int pid, cAudioDecode* audioDecode, int num,
+                       function <void (bool afterPlay, float* samples, int num, int64_t pts)> callback)
+      : cPesParser(pid, "aud"), mAudioDecode(audioDecode), mCallback(callback) {
+    mNum = num;
+    }
+  virtual ~cTestAudioPesParser() {}
+
+  virtual void clear (int num) {
+  // num is cSong frameNum, audio frames since midnight
+    mNum = num;
+    mPesSize = 0;
+    mPts = 0;
+    }
+
+  virtual void processLast (bool afterPlay) {
+
+    if (mPesSize) {
+      cLog::log (LOGINFO, "audio pes %d %d", mPesSize, mNum);
+      mNum += 1;
+      mPesSize = 0;
+      }
+    }
+
+  virtual void decode (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) {
+    }
+
+private:
+  cAudioDecode* mAudioDecode;
+  function <void (bool afterPlay, float* samples, int num, int64_t pts)> mCallback;
+  };
+//}}}
+//{{{
+class cTestVideoPesParser : public cPesParser {
+public:
+  cTestVideoPesParser(int pid, cVideoDecode* videoDecode, function <void (int64_t pts)> callback)
+    : cPesParser (pid, "vid"), mVideoDecode(videoDecode), mCallback(callback) {}
+  virtual ~cTestVideoPesParser() {}
+
+  virtual void clear (int num) {
+  // use num as frame in chunk for ffmpeg pts synthesis
+
+    mNum = 0;
+    mPesSize = 0;
+    mPts = 0;
+    }
+
+  virtual void processLast (bool afterPlay) {
+    if (mPesSize) {
+      cLog::log (LOGINFO, "video pes %d %d", mPesSize, mNum);
+      mNum += 1;
+      mPesSize = 0;
+      }
+    }
+
+  void decode (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) {
     }
 
 private:
@@ -616,8 +681,6 @@ void cLoaderPlayer::videoFollowAudio() {
 void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
                                      int audBitrate, int vidBitrate, eLoaderFlags loaderFlags) {
 // hls http chunk load and possible decode thread
-//loaderFlags & eQueueAudio,
-//loaderFlags & eQueueVideo
 
   const string hostName = radio ? "as-hls-uk-live.bbcfmt.s.llnwi.net" : "vs-hls-uk-live.akamaized.net";
   const string kM3u8 = ".norewind.m3u8";
@@ -627,63 +690,64 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
   mRunning = true;
   mExit = false;
 
-  int chunkNum;
-  int frameNum;
-
-  auto audioFrameCallback = [&](bool afterPlay, float* samples, int num, int64_t pts) noexcept {
-    //{{{  lambda - add audio frame
-    mSong->addFrame (afterPlay, num, samples, true, mSong->getNumFrames(), pts);
-    startPlayer (true);
-    };
-    //}}}
-  auto videoFrameCallback = [&](int64_t pts) noexcept {
-    //{{{  lambda - add video frame
-    // video frame decoded - nothing for now
-    };
-    //}}}
-  auto streamCallback = [&](int streamSid, int streamPid, int streamType) noexcept {
-    //{{{  lambda - add stream if new 
-    if (mParsers.find (streamPid) == mParsers.end()) {
-      // new stream seen, add stream parser
-      switch (streamType) {
-        case 15:
-          mAudioDecode = new cAudioDecode (cAudioDecode::eAac);
-          mParsers.insert (map<int,cTsParser*>::value_type (streamPid,
-            new cAudioPesParser (streamPid, mAudioDecode, frameNum, audioFrameCallback)));
-          break;
-
-        case 27:
-          if (vidBitrate) {
-            mVideoDecode = cVideoDecode::create (loaderFlags & eFFmpeg, kVideoPoolSize);
-            mParsers.insert (map<int,cTsParser*>::value_type (streamPid,
-              new cVideoPesParser (streamPid, mVideoDecode, videoFrameCallback)));
-            }
-          break;
-
-        default:
-          cLog::log (LOGERROR, "unrecognised stream type %d %d", streamPid, streamType);
-        }
-      }
-    };
-    //}}}
-  auto programCallback = [&](int programPid, int programSid) noexcept {
-    //{{{  lambda - add program if new
-    if (mParsers.find (programPid) == mParsers.end()) {
-      // add PMT parser
-      mParsers.insert (map<int,cTsParser*>::value_type (programPid,
-        new cPmtParser (programPid, programSid, streamCallback)));
-      }
-    };
-    //}}}
-
-  // add PAT parser
-  mParsers.insert (map<int,cTsParser*>::value_type (0x00, new cPatParser (programCallback)));
-
   // audBitrate < 128000 use aacHE, more samplesPerframe, less framesPerChunk
   mSong = new cSong();
   mSong->initialise (cAudioDecode::eAac, 2, 48000, audBitrate < 128000 ? 2048 : 1024, 1000);
   mSong->setBitrateFramesPerChunk (audBitrate, audBitrate < 128000 ? (radio ? 150 : 180) : (radio ? 300 : 360));
   mSong->setChannel (channelName);
+
+  int chunkNum;
+  int frameNum;
+
+  // parser callbacks
+  auto addAudioFrameCallback = [&](bool afterPlay, float* samples, int num, int64_t pts) noexcept {
+    //{{{  addAudioFrame lambda
+    mSong->addFrame (afterPlay, num, samples, true, mSong->getNumFrames(), pts);
+    startPlayer (true);
+    };
+    //}}}
+  auto addVideoFrameCallback = [&](int64_t pts) noexcept {
+    //{{{  addVideoFrame lambda
+    // video frame decoded - nothing for now
+    };
+    //}}}
+  auto addStreamCallback = [&](int sid, int pid, int type) noexcept {
+    //{{{  addStream lambda
+    if (mParsers.find (pid) == mParsers.end())
+      // new stream seen, add stream parser
+      switch (type) {
+        case 15:
+          mAudioDecode = new cAudioDecode (cAudioDecode::eAac);
+          mParsers.insert (
+            map<int,cTsParser*>::value_type (pid,
+              new cAudioPesParser (pid, mAudioDecode, frameNum, addAudioFrameCallback)));
+          break;
+
+        case 27:
+          if (vidBitrate) {
+            mVideoDecode = cVideoDecode::create (loaderFlags & eFFmpeg, kVideoPoolSize);
+            mParsers.insert (
+              map<int,cTsParser*>::value_type (pid,
+                new cVideoPesParser (pid, mVideoDecode, addVideoFrameCallback)));
+            }
+          break;
+
+        default:
+          cLog::log (LOGERROR, "unrecognised stream type %d %d", pid, type);
+        }
+    };
+    //}}}
+  auto addProgramCallback = [&](int pid, int sid) noexcept {
+    //{{{  addProgram lambda
+    if (mParsers.find (pid) == mParsers.end())
+      mParsers.insert (
+        map<int,cTsParser*>::value_type (pid,
+          new cPmtParser (pid, sid, addStreamCallback)));
+    };
+    //}}}
+
+  // add PAT parser
+  mParsers.insert (map<int,cTsParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
 
   while (!mExit && !mSong->getChanged()) {
     mSong->setChanged (false);
@@ -704,7 +768,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
       //}}}
       while (!mExit && !mSong->getChanged()) {
         if (mSong->loadChunk (system_clock::now(), 2, chunkNum, frameNum)) {
-          bool afterPlay = frameNum >= mSong->getPlayFrame();
+          bool chunkAfterPlay = frameNum >= mSong->getPlayFrame();
           for (auto parser : mParsers)
             parser.second->clear (frameNum);
           int contentParsed = 0;
@@ -730,7 +794,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
                                 int pid = ((ts[1] & 0x1F) << 8) | ts[2];
                                 auto it = mParsers.find (pid);
                                 if (it != mParsers.end())
-                                  it->second->parse (ts, afterPlay);
+                                  it->second->parse (ts, chunkAfterPlay);
                                 else
                                   cLog::log (LOGERROR, "pid parser not found %d", pid);
                                 ts += 188;
@@ -784,7 +848,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
               while (getAudioDecode()->parseFrame (pesPtr, pesEnd)) {
                 float* samples = getAudioDecode()->decodeFrame (frameNum);
                 if (samples) {
-                  mSong->addFrame (afterPlay, frameNum++, samples, true, mSong->getNumFrames(), 0);
+                  mSong->addFrame (chunkAfterPlay, frameNum++, samples, true, mSong->getNumFrames(), 0);
                   startPlayer (true);
                   }
                 else
@@ -798,7 +862,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
               //uint8_t* ts = http.getContent();
               //uint8_t* tsEnd = ts + http.getContentSize();
               //while ((ts < tsEnd) && (*ts == 0x47)) {
-                //mParsers[0]->parse (ts, afterPlay);
+                //mParsers[0]->parse (ts, chunkAfterPlay);
                 //ts += 188;
                 //}
 
@@ -807,7 +871,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
               //}}}
             else
               for (auto parser : mParsers)
-                parser.second->processLast (afterPlay);
+                parser.second->processLast (chunkAfterPlay);
             http.freeContent();
             }
           else {
@@ -974,68 +1038,82 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
       //{{{  ts
       cLog::log (LOGINFO, "Ts file %d", fileSize);
 
-      mAudioDecode = new cAudioDecode (cAudioDecode::eAac);
-      mVideoDecode = cVideoDecode::create (true, 128);
-
-      // add PAT parser
-      mParsers.insert (map<int,cTsParser*>::value_type (0x00,
-        new cPatParser ([&](int programPid, int programSid) noexcept {
-          // lambda - program callback
-          if (mParsers.find (programPid) == mParsers.end()) {
-            // add PMT parser
-            mParsers.insert (map<int,cTsParser*>::value_type (programPid,
-              new cPmtParser (programPid, programSid, [&](int streamSid, int streamPid, int streamType) noexcept {
-                // lambda - stream callback
-                if (mParsers.find (streamPid) == mParsers.end()) {
-                  // add stream parser
-                  switch (streamType) {
-                    case 15:
-                      mParsers.insert (map<int,cTsParser*>::value_type (streamPid,
-                        new cAudioPesParser (streamPid, mAudioDecode, 0,
-                                             [&](bool afterPlay, float* samples, int num, int64_t pts) noexcept {
-                          mSong->addFrame (afterPlay, num, samples, true, mSong->getNumFrames(), pts);
-                          startPlayer (true);
-                          } )));
-                      break;
-
-                    case 27:
-                      mParsers.insert (map<int,cTsParser*>::value_type (streamPid,
-                        new cVideoPesParser (streamPid, mVideoDecode, [&](int64_t pts) noexcept {
-                          // video frame decoded - nothing for now
-                          //cLog::log (LOGINFO, "decode videoframe %d", num);
-                          } )));
-                      break;
-
-                    default:;
-                      //cLog::log (LOGINFO, "unrecognised stream type %d %d", streamPid, streamType);
-                    }
-                  }
-                } )));
-            }
-          } )));
-
-      mParsers.insert (map<int,cTsParser*>::value_type (0x14, new cTdtParser()));
-
       mSong = new cSong();
       mSong->initialise (cAudioDecode::eAac, 2, 48000, 1024, 1000);
 
-      // mParsers init
+      mAudioDecode = new cAudioDecode (cAudioDecode::eAac);
+      mVideoDecode = cVideoDecode::create (true, 128);
+
+      // parser callbacks
+      auto addAudioFrameCallback = [&](bool afterPlay, float* samples, int num, int64_t pts) noexcept {
+        //{{{  addAudioFrame lambda
+        mSong->addFrame (afterPlay, num, samples, true, mSong->getNumFrames(), pts);
+        startPlayer (true);
+        };
+        //}}}
+      auto addVideoFrameCallback = [&](int64_t pts) noexcept {
+        //{{{  addVideoFrame lambda
+        // video frame decoded - nothing for now
+        };
+        //}}}
+      auto addStreamCallback = [&](int sid, int pid, int type) noexcept {
+        //{{{  addStream lambda
+        if (mParsers.find (pid) == mParsers.end())
+          switch (type) {
+            case 6:  // subtitle
+              break;
+
+            case 15: // aac adts
+              mParsers.insert (
+                map<int,cTsParser*>::value_type (pid,
+                  new cTestAudioPesParser (pid, mAudioDecode, 0, addAudioFrameCallback)));
+              break;
+
+            case 17: // aac latm
+              mParsers.insert (
+                map<int,cTsParser*>::value_type (pid,
+                  new cTestAudioPesParser (pid, mAudioDecode, 0, addAudioFrameCallback)));
+              break;
+
+            case 27: // h264
+              mParsers.insert (
+                map<int,cTsParser*>::value_type (pid,
+                  new cTestVideoPesParser (pid, mVideoDecode, addVideoFrameCallback)));
+              break;
+
+            default:
+              cLog::log (LOGERROR, "unrecognised stream type %d %d", pid, type);
+            }
+        };
+        //}}}
+      auto addProgramCallback = [&](int pid, int sid) noexcept {
+        //{{{  addProgram lambda
+        if (mParsers.find (pid) == mParsers.end())
+          mParsers.insert (
+            map<int,cTsParser*>::value_type (pid,
+              new cPmtParser (pid, sid, addStreamCallback)));
+        };
+        //}}}
+
+      // add PAT parser
+      mParsers.insert (map<int,cTsParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
+      mParsers.insert (map<int,cTsParser*>::value_type (0x14, new cTdtParser()));
+
+      // parsers init
       for (auto parser : mParsers)
         parser.second->clear (0);
 
       uint8_t* ts = fileFirst;
-      while ((ts + 188) <= fileEnd) {
-        if (*ts == 0x47) {
+      while (ts + 188 <= fileEnd) {
+        if (ts[0] == 0x47) {
           int pid = ((ts[1] & 0x1F) << 8) | ts[2];
           auto it = mParsers.find (pid);
           if (it != mParsers.end())
             it->second->parse (ts, true);
-          //else
-          //  cLog::log (LOGERROR, "pid parser not found %d", pid);
           ts += 188;
           }
         else {
-          cLog::log (LOGERROR, "ts packet sync");
+          cLog::log (LOGERROR, "ts packet nosync");
           ts++;
           }
 
@@ -1043,7 +1121,7 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
         }
       mLoadFrac = float(ts - fileFirst) / fileSize;
 
-      // mParsers finish
+      // parsers finish
       for (auto parser : mParsers)
         parser.second->processLast (true);
 
