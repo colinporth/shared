@@ -460,7 +460,7 @@ public:
   //{{{
   cAudioPesParser (int pid, iAudioDecoder* audioDecoder, int num,
                    function <void (bool afterPlay, float* samples, int num, int64_t pts)> callback)
-      : cPesParser(pid, "aud", true), mAudioDecoder(audioDecoder), mCallback(callback) {
+      : cPesParser(pid, "aud", false), mAudioDecoder(audioDecoder), mCallback(callback) {
     mNum = num;
     }
   //}}}
@@ -495,6 +495,7 @@ public:
       dispatchDecode (afterPlay, mPes, mPesSize, mNum, mPts);
 
       mNum += numFrames;
+      mPts += (numFrames * (mAudioDecoder->getNumSamplesPerFrame() * 90)) / 48;
       mPesSize = 0;
       }
     }
@@ -1224,7 +1225,7 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
       mSong = new cSong();
       int frameNum = 0;
       if (fileFrameType == iAudioDecoder::eFrameType::eWav) {
-        //{{{  parse wav, 
+        //{{{  parse wav,
         constexpr int kFrameSamples = 1024;
         mSong->initialise (fileFrameType, 2, sampleRate, kFrameSamples, 0);
 
