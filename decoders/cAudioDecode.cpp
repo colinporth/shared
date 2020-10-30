@@ -21,7 +21,8 @@ cAudioDecode::cAudioDecode (eFrameType frameType) {
     case eAacAdts:
       mAudioDecoder = new cAacDecoder();
       break;
-    default:;
+    default:
+      cLog::log (LOGERROR, "cAudioDecode unrcognised type:%d", frameType);
     }
   }
 //}}}
@@ -43,7 +44,7 @@ void cAudioDecode::setFrame (uint8_t* framePtr, int32_t frameLen) {
 
 //{{{
 bool cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast) {
-// dumb mp3 / aacAdts / wav / id3Tag parser
+// dumb mp3 / aacAdts / aacLatm / wav / id3Tag parser
 
   mFramePtr = nullptr;
   mFrameLen = 0;
@@ -52,10 +53,21 @@ bool cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast) {
   mSampleRate = 0;
 
   while ((frameLast - framePtr) >= 6) {
-    if ((framePtr[0] == 0xFF) && ((framePtr[1] & 0xF0) == 0xF0)) {
+    if ((framePtr[0] == 0x56) && ((framePtr[1] & 0xE0) == 0xE0)) {
+     //{{{  aacLatm syncWord found
+     mSampleRate = 48000;
+     mFramePtr = framePtr;
+     mFrameLen = 3 + ((framePtr[1] & 0x1F) << 8) | framePtr[2];
+     mFrameType = eAacLatm;
+
+     // check for enough bytes for frame body
+     return (framePtr + mFrameLen) <= frameLast;
+     }
+     //}}}
+    else if ((framePtr[0] == 0xFF) && ((framePtr[1] & 0xF0) == 0xF0)) {
       // syncWord found
       if ((framePtr[1] & 0x06) == 0) {
-        //{{{  got aac header
+        //{{{  got aacAdts header
         // Header consists of 7 or 9 bytes (without or with CRC).
         // AAAAAAAA AAAABCCD EEFFFFGH HHIJKLMM MMMMMMMM MMMOOOOO OOOOOOPP (QQQQQQQQ QQQQQQQQ)
         //

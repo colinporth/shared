@@ -567,22 +567,26 @@ public:
     }
 
   virtual void processLast (bool afterPlay) {
+  // count audio frames in pes
 
     if (mPesSize) {
-      string info;
-      for (int i = 0; i < 24; i++) {
-        int value = mPes[i];
-        info += hex (value, 2) + " ";
+      int numFrames = 0;
+      uint8_t* framePes = mPes;
+      while (mAudioDecode->parseFrame (framePes, mPes + mPesSize)) {
+        int framePesSize = mAudioDecode->getNextFrameOffset();
+        framePes += framePesSize;
+        numFrames++;
         }
-      cLog::log (LOGINFO, mName + dec (mNum,4) + " "+ dec (mPesSize,6) + " " + info);
 
-
-      mNum += 1;
+      cLog::log (LOGINFO, "aacLatm process %d", numFrames);
+      dispatchDecode (afterPlay, mPes, mPesSize, mNum, mPts);
+      mNum += numFrames;
       mPesSize = 0;
       }
     }
 
   virtual void decode (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) {
+    cLog::log (LOGINFO, "aacLatm dummy decode %d", num);
     }
 
 private:
@@ -1092,7 +1096,7 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
             case 27: // h264
               mParsers.insert (
                 map<int,cTsParser*>::value_type (pid,
-                  new cVideoPesParser (pid, mVideoDecode, addVideoFrameCallback)));
+                  new cTestVideoPesParser (pid, mVideoDecode, addVideoFrameCallback)));
               break;
 
             default:
