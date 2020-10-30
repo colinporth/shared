@@ -390,6 +390,7 @@ public:
   //}}}
   //{{{
   virtual void dispatchDecode (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) {
+
     if (mUseQueue)
       mQueue.enqueue (new cPesParser::cPesItem (afterPlay, pes, size, num, pts));
     else
