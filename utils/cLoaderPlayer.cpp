@@ -494,8 +494,6 @@ public:
 
       // increment by frames in pes
       mNum += numFrames;
-      mPts += (numFrames * (mAudioDecoder->getNumSamplesPerFrame() * 90)) / 48;
-
       mPesSize = 0;
       }
     }
@@ -509,14 +507,14 @@ public:
     while (cAudioDecode::parseFrame (framePes, pes + size, frameSize)) {
       // decode a single frame from pes
       float* samples = mAudioDecoder->decodeFrame (framePes, frameSize, num);
-      if (samples)
+      if (samples) {
         mCallback (afterPlay, samples, num, pts);
+        // pts of next frame in pes, assumes 48000 sample rate
+        pts += (mAudioDecoder->getNumSamplesPerFrame() * 90) / 48;
+        num++;
+        }
       else
         cLog::log (LOGERROR, "cAudioPesParser decode failed %d %d", size, num);
-
-      // pts of next frame in pes, assumes 48000 sample rate
-      pts += (mAudioDecoder->getNumSamplesPerFrame() * 90) / 48;
-      num++;
 
       // point to next frame in pes
       framePes += frameSize;
@@ -631,14 +629,14 @@ public:
         }
       cLog::log (LOGINFO, "latm decFrm:" + dec(frameSize) + " num:" + dec(num) + " "  + info1);
       float* samples = mAudioDecoder->decodeFrame (framePes, frameSize, num);
-      if (samples)
+      if (samples) {
         mCallback (afterPlay, samples, num, pts);
+        // pts of next frame in pes, assumes 48000 sample rate
+        pts += (mAudioDecoder->getNumSamplesPerFrame() * 90) / 48;
+        num++;
+        }
       else
         cLog::log (LOGERROR, "cAudioPesParser decode failed %d %d", size, num);
-
-      // pts of next frame in pes, assumes 48000 sample rate
-      pts += (mAudioDecoder->getNumSamplesPerFrame() * 90) / 48;
-      num++;
 
       // point to next frame in pes
       framePes += frameSize;
