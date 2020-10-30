@@ -16,7 +16,6 @@ extern "C" {
 using namespace std;
 using namespace chrono;
 //}}}
-constexpr bool kMoreLog = false;
 
 //{{{
 cFFmpegAacDecoder::cFFmpegAacDecoder (eFrameType frameType) {
@@ -49,6 +48,7 @@ cFFmpegAacDecoder::cFFmpegAacDecoder (eFrameType frameType) {
 //}}}
 //{{{
 cFFmpegAacDecoder::~cFFmpegAacDecoder() {
+
   if (mAvContext)
     avcodec_close (mAvContext);
   if (mAvParser)
@@ -86,37 +86,28 @@ float* cFFmpegAacDecoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen
           mSampleRate = avFrame->sample_rate;
           mSamplesPerFrame = avFrame->nb_samples;
           outBuffer = (float*)malloc (avFrame->channels * avFrame->nb_samples * sizeof(float));
-          //  convert planar avFrame->data to interleaved float samples
-          switch (mAvContext->sample_fmt) {
-            //{{{
-            case AV_SAMPLE_FMT_S16P:
-              // 16bit signed planar, copy planar to interleaved
-              for (auto channel = 0; channel < avFrame->channels; channel++) {
-                auto srcPtr = (short*)avFrame->data[channel];
-                auto dstPtr = outBuffer + channel;
-                for (auto sample = 0; sample < avFrame->nb_samples; sample++) {
-                  float value = *srcPtr++ / (float)0x8000;
-                  *dstPtr = value;
-                  dstPtr += avFrame->channels;
-                  }
-                }
-              break;
-            //}}}
-            //{{{
-            case AV_SAMPLE_FMT_FLTP:
-              // 32bit float planar, copy planar to interleaved
-              for (auto channel = 0; channel < avFrame->channels; channel++) {
+          for (auto channel = 0; channel < avFrame->channels; channel++) {
+            auto dstPtr = outBuffer + channel;
+            switch (mAvContext->sample_fmt) {
+              case AV_SAMPLE_FMT_FLTP: { // 32bit float planar, copy to interleaved
                 auto srcPtr = (float*)avFrame->data[channel];
-                auto dstPtr = outBuffer + channel;
-                for (auto sample = 0; sample < avFrame->nb_samples; sample++) {
+                for (auto sample = 0; sample < mSamplesPerFrame; sample++) {
                   *dstPtr = *srcPtr++;
-                  dstPtr += avFrame->channels;
+                  dstPtr += mChannels;
                   }
                 }
-              break;
-            //}}}
-            default:
-              cLog::log (LOGERROR, "audDecodePes - unrecognised sample_fmt " + dec (mAvContext->sample_fmt));
+                break;
+
+              case AV_SAMPLE_FMT_S16P: { // 16bit signed planar, copy scale and copy to interleaved
+                auto srcPtr = (short*)avFrame->data[channel];
+                for (auto sample = 0; sample < mSamplesPerFrame; sample++) {
+                  *dstPtr = *srcPtr++ / (float)0x8000;
+                  dstPtr += mChannels;
+                  }
+                } 
+                break;
+              default:;
+              }
             }
           }
         av_frame_unref (avFrame);

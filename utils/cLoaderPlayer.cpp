@@ -17,6 +17,7 @@
 
 // audio decode
 #include "../decoders/cAudioDecode.h"
+#include "../decoders/iAudioDecoder.h"
 
 // audio device
 #ifdef _WIN32
@@ -333,7 +334,7 @@ public:
 //}}}
 public:
   //{{{
-  cPesParser (int pid, const string& name, bool useQueue = true) : cTsParser(pid, name), mUseQueue(useQueue) {
+  cPesParser (int pid, const string& name, bool useQueue) : cTsParser(pid, name), mUseQueue(useQueue) {
 
     mPes = (uint8_t*)malloc (kInitPesSize);
     if (useQueue)
@@ -457,13 +458,13 @@ private:
 class cAudioPesParser : public cPesParser {
 public:
   //{{{
-  cAudioPesParser (int pid, cAudioDecode* audioDecode, int num,
+  cAudioPesParser (int pid, iAudioDecoder* audioDecoder, int num,
                    function <void (bool afterPlay, float* samples, int num, int64_t pts)> callback)
-      : cPesParser(pid, "aud"), mAudioDecode(audioDecode), mCallback(callback) {
+      : cPesParser(pid, "aud", true), mAudioDecoder(audioDecoder), mCallback(callback) {
     mNum = num;
     }
-  virtual ~cAudioPesParser() {}
   //}}}
+  virtual ~cAudioPesParser() {}
 
   //{{{
   virtual void clear (int num) {
@@ -478,15 +479,21 @@ public:
   // count audio frames in pes
 
     if (mPesSize) {
-      int numFrames = 0;
+
       uint8_t* framePes = mPes;
-      while (mAudioDecode->parseFrame (framePes, mPes + mPesSize)) {
-        int framePesSize = mAudioDecode->getNextFrameOffset();
-        framePes += framePesSize;
+      iAudioDecoder::eFrameType frameType;
+      int sampleRate;
+      int frameSize;
+
+      int numFrames = 0;
+      while (cAudioDecode::parseFrame (framePes, mPes + mPesSize, frameType, sampleRate, frameSize)) {
+        framePes += frameSize;
         numFrames++;
         }
 
+      // dispatch whole pes, maybe several frames
       dispatchDecode (afterPlay, mPes, mPesSize, mNum, mPts);
+
       mNum += numFrames;
       mPesSize = 0;
       }
@@ -497,27 +504,30 @@ public:
   // decode pes to audio frames
 
     uint8_t* framePes = pes;
-    while (mAudioDecode->parseFrame (framePes, pes + size)) {
+    iAudioDecoder::eFrameType frameType;
+    int sampleRate;
+    int frameSize;
+
+    while (cAudioDecode::parseFrame (framePes, mPes + mPesSize, frameType, sampleRate, frameSize)) {
       // decode a single frame from pes
-      int framePesSize = mAudioDecode->getNextFrameOffset();
-      float* samples = mAudioDecode->decodeFrame (framePes, framePesSize, num, pts);
+      float* samples = mAudioDecoder->decodeFrame (framePes, frameSize, num);
       if (samples)
         mCallback (afterPlay, samples, num, pts);
       else
         cLog::log (LOGERROR, "cAudioPesParser decode failed %d %d", size, num);
 
       // pts of next frame in pes, assumes 48000 sample rate
-      pts += (mAudioDecode->getNumSamplesPerFrame() * 90) / 48;
+      pts += (mAudioDecoder->getNumSamplesPerFrame() * 90) / 48;
       num++;
 
       // point to next frame in pes
-      framePes += framePesSize;
+      framePes += frameSize;
       }
     }
   //}}}
 
 private:
-  cAudioDecode* mAudioDecode;
+  iAudioDecoder* mAudioDecoder;
   function <void (bool afterPlay, float* samples, int num, int64_t pts)> mCallback;
   };
 //}}}
@@ -526,7 +536,7 @@ class cVideoPesParser : public cPesParser {
 public:
   //{{{
   cVideoPesParser (int pid, cVideoDecode* videoDecode, function <void (int64_t pts)> callback)
-    : cPesParser (pid, "vid"), mVideoDecode(videoDecode), mCallback(callback) {}
+    : cPesParser (pid, "vid", true), mVideoDecode(videoDecode), mCallback(callback) {}
   //}}}
   virtual ~cVideoPesParser() {}
 
@@ -565,9 +575,9 @@ private:
 class cFileAudioPesParser : public cPesParser {
 public:
   //{{{
-  cFileAudioPesParser (int pid, cAudioDecode* audioDecode, int num,
+  cFileAudioPesParser (int pid, iAudioDecoder* audioDecoder, int num,
                        function <void (bool afterPlay, float* samples, int num, int64_t pts)> callback)
-      : cPesParser(pid, "aud"), mAudioDecode(audioDecode), mCallback(callback) {
+      : cPesParser(pid, "aud", false), mAudioDecoder(audioDecoder), mCallback(callback) {
     mNum = num;
     }
   //}}}
@@ -576,6 +586,7 @@ public:
   //{{{
   virtual void clear (int num) {
   // num is cSong frameNum, audio frames since midnight
+
     mNum = num;
     mPesSize = 0;
     mPts = 0;
@@ -588,13 +599,15 @@ public:
     if (mPesSize) {
       int numFrames = 0;
       uint8_t* framePes = mPes;
-      while (mAudioDecode->parseFrame (framePes, mPes + mPesSize)) {
-        int framePesSize = mAudioDecode->getNextFrameOffset();
-        framePes += framePesSize;
+      iAudioDecoder::eFrameType frameType;
+      int sampleRate;
+      int frameSize;
+      while (cAudioDecode::parseFrame (framePes, mPes + mPesSize, frameType, sampleRate, frameSize)) {
+        cLog::log (LOGINFO, "latm process num:%d,%d frame:%d pes:%d", mNum, numFrames, frameSize, mPesSize);
+        framePes += frameSize;
         numFrames++;
         }
 
-      cLog::log (LOGINFO, "aacLatm process %d %d", mPesSize, numFrames);
       dispatchDecode (afterPlay, mPes, mPesSize, mNum, mPts);
       mNum += numFrames;
       mPesSize = 0;
@@ -609,30 +622,38 @@ public:
       int value = pes[i];
       info += hex (value, 2) + " ";
       }
-    cLog::log (LOGINFO, "aacLatm decode " + dec(size) + " " + dec(num) + " " + info);
+    cLog::log (LOGINFO, "latm decPes:" + dec(size) + " num:" + dec(num) + " " + info);
 
     uint8_t* framePes = pes;
-    while (mAudioDecode->parseFrame (framePes, pes + size)) {
+    iAudioDecoder::eFrameType frameType;
+    int sampleRate;
+    int frameSize;
+    while (cAudioDecode::parseFrame (framePes, pes + size, frameType, sampleRate, frameSize)) {
       // decode a single frame from pes
-      int framePesSize = mAudioDecode->getNextFrameOffset();
-      float* samples = mAudioDecode->decodeFrame (framePes, framePesSize, num, pts);
+      string info1;
+      for (int i = 0; i < 24; i++) {
+        int value = framePes[i];
+        info1 += hex (value, 2) + " ";
+        }
+      cLog::log (LOGINFO, "latm decFrm:" + dec(frameSize) + " num:" + dec(num) + " "  + info1);
+      float* samples = mAudioDecoder->decodeFrame (framePes, frameSize, num);
       if (samples)
         mCallback (afterPlay, samples, num, pts);
       else
         cLog::log (LOGERROR, "cAudioPesParser decode failed %d %d", size, num);
 
       // pts of next frame in pes, assumes 48000 sample rate
-      pts += (mAudioDecode->getNumSamplesPerFrame() * 90) / 48;
+      pts += (mAudioDecoder->getNumSamplesPerFrame() * 90) / 48;
       num++;
 
       // point to next frame in pes
-      framePes += framePesSize;
+      framePes += frameSize;
       }
     }
   //}}}
 
 private:
-  cAudioDecode* mAudioDecode;
+  iAudioDecoder* mAudioDecoder;
   function <void (bool afterPlay, float* samples, int num, int64_t pts)> mCallback;
   };
 //}}}
@@ -641,7 +662,7 @@ class cFileVideoPesParser : public cPesParser {
 public:
   //{{{
   cFileVideoPesParser(int pid, cVideoDecode* videoDecode, function <void (int64_t pts)> callback)
-    : cPesParser (pid, "vid"), mVideoDecode(videoDecode), mCallback(callback) {}
+    : cPesParser (pid, "vid", false), mVideoDecode(videoDecode), mCallback(callback) {}
   //}}}
   virtual ~cFileVideoPesParser() {}
 
@@ -656,13 +677,15 @@ public:
   //}}}
   //{{{
   virtual void processLast (bool afterPlay) {
+
     if (mPesSize) {
       string info;
       for (int i = 0; i < 24; i++) {
         int value = mPes[i];
         info += hex (value, 2) + " ";
         }
-      cLog::log (LOGINFO, mName + dec (mNum,4) + " "+ dec (mPesSize,6) + " " + info);
+      //cLog::log (LOGINFO, mName + dec (mNum,4) + " "+ dec (mPesSize,6) + " " + info);
+
       mNum += 1;
       mPesSize = 0;
       }
@@ -677,24 +700,6 @@ private:
   cVideoDecode* mVideoDecode;
   function <void (int64_t pts)> mCallback;
   };
-//}}}
-//{{{
-//class cSdtParser : public cTsParser {
-//public:
-  //cSdtParser() : cTsParser (0x11, "sdt") {}
-  //virtual ~cSdtParser() {}
-  //};
-//}}}
-//{{{
-//class cEitParser : public cTsParser {
-//public:
-  //cEitParser() : cTsParser (0x12, "eit") {}
-  //virtual ~cEitParser() {}
-
-  //virtual void processBody (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool afterPlay) {
-    ////cLog::log (LOGINFO, "EIT ts " + dec (tsLeft) + ":" + info);
-    //}
-  //};
 //}}}
 
 // public
@@ -783,10 +788,10 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
       // new stream seen, add stream parser
       switch (type) {
         case 15:
-          mAudioDecode = new cAudioDecode (iAudioDecoder::eFrameType::eAacAdts);
+          mAudioDecoder = cAudioDecode::createAudioDecoder (iAudioDecoder::eFrameType::eAacAdts);
           mParsers.insert (
             map<int,cTsParser*>::value_type (pid,
-              new cAudioPesParser (pid, mAudioDecode, frameNum, addAudioFrameCallback)));
+              new cAudioPesParser (pid, mAudioDecoder, frameNum, addAudioFrameCallback)));
           break;
 
         case 27:
@@ -905,14 +910,17 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
                   tsPtr += 187;
                 }
 
-              if (!mAudioDecode)
-                mAudioDecode = new cAudioDecode (iAudioDecoder::eFrameType::eAacAdts);
+              if (!mAudioDecoder)
+                mAudioDecoder = cAudioDecode::createAudioDecoder (iAudioDecoder::eFrameType::eAacAdts);
 
               // parse audio pes for audio frames
               uint8_t* pesEnd = pesPtr;
               pesPtr = http.getContent();
-              while (getAudioDecode()->parseFrame (pesPtr, pesEnd)) {
-                float* samples = getAudioDecode()->decodeFrame (frameNum);
+              iAudioDecoder::eFrameType frameType;
+              int sampleRate;
+              int frameSize;
+              while (cAudioDecode::parseFrame (pesPtr, pesEnd, frameType, sampleRate, frameSize)) {
+                float* samples = getAudioDecoder()->decodeFrame (pesPtr, frameSize, frameNum);
                 if (samples) {
                   mSong->addFrame (chunkAfterPlay, frameNum++, samples, true, mSong->getNumFrames(), 0);
                   startPlayer (true);
@@ -920,7 +928,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
                 else
                   cLog::log (LOGERROR, "aud parser failed to decode %d", frameNum);
 
-                pesPtr += getAudioDecode()->getNextFrameOffset();
+                pesPtr += frameSize;
                 }
               }
               //}}}
@@ -979,7 +987,7 @@ void cLoaderPlayer::icyLoaderThread (const string& url) {
 
     // init container and audDecode
     mSong = new cSong();
-    cAudioDecode decode (iAudioDecoder::eFrameType::eAacAdts);
+    iAudioDecoder* audioDecoder = cAudioDecode::createAudioDecoder (iAudioDecoder::eFrameType::eAacAdts);
 
     // init http
     cPlatformHttp http;
@@ -1040,21 +1048,24 @@ void cLoaderPlayer::icyLoaderThread (const string& url) {
         if (frameNum == -1) {
           // enough data to determine frameType and sampleRate (wrong for aac sbr)
           frameNum = 0;
-          int sampleRate;
+          int sampleRate = 0;
           auto frameType = cAudioDecode::parseSomeFrames (bufferFirst, bufferEnd, sampleRate);
-          mSong->initialise (frameType, 2, 44100, (frameType == iAudioDecoder::eFrameType::eMp3) ? 1152 : 2048, 3000);
+          mSong->initialise (frameType, 2, sampleRate, (frameType == iAudioDecoder::eFrameType::eMp3) ? 1152 : 2048, 3000);
           }
 
-        while (decode.parseFrame (buffer, bufferEnd)) {
-          if (decode.getFrameType() == mSong->getFrameType()) {
-            auto samples = decode.decodeFrame (frameNum);
+        iAudioDecoder::eFrameType frameType;
+        int sampleRate;
+        int frameSize;
+        while (cAudioDecode::parseFrame (buffer, bufferEnd, frameType, sampleRate, frameSize)) {
+          if (frameType == mSong->getFrameType()) {
+            auto samples = audioDecoder->decodeFrame (buffer, frameSize, frameNum);
             if (samples) {
-              mSong->setFixups (decode.getNumChannels(), decode.getSampleRate(), decode.getNumSamplesPerFrame());
+              mSong->setFixups (audioDecoder->getNumChannels(), audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame());
               mSong->addFrame (true, frameNum++, samples, true, mSong->getNumFrames()+1, 0);
               startPlayer (true);
               }
             }
-          buffer += decode.getNextFrameOffset();
+          buffer += frameSize;
           }
 
         if ((buffer > bufferFirst) && (buffer < bufferEnd)) {
@@ -1129,17 +1140,17 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
               break;
 
             case 15: // aac adts
-              mAudioDecode = new cAudioDecode (iAudioDecoder::eFrameType::eAacAdts);
+              mAudioDecoder = cAudioDecode::createAudioDecoder (iAudioDecoder::eFrameType::eAacAdts);
               mParsers.insert (
                 map<int,cTsParser*>::value_type (pid,
-                  new cFileAudioPesParser (pid, mAudioDecode, 0, addAudioFrameCallback)));
+                  new cFileAudioPesParser (pid, mAudioDecoder, 0, addAudioFrameCallback)));
               break;
 
             case 17: // aac latm
-              mAudioDecode = new cAudioDecode (iAudioDecoder::eFrameType::eAacLatm);
+              mAudioDecoder = cAudioDecode::createAudioDecoder (iAudioDecoder::eFrameType::eAacLatm);
               mParsers.insert (
                 map<int,cTsParser*>::value_type (pid,
-                  new cFileAudioPesParser (pid, mAudioDecode, 0, addAudioFrameCallback)));
+                  new cFileAudioPesParser (pid, mAudioDecoder, 0, addAudioFrameCallback)));
               break;
 
             case 27: // h264
@@ -1197,28 +1208,31 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
       //}}}
     else {
       //{{{  aac or mp3
-      int sampleRate;
+      int sampleRate = 0;
       auto fileFrameType = cAudioDecode::parseSomeFrames (fileFirst, fileEnd, sampleRate);
-      cAudioDecode decode (fileFrameType);
+      iAudioDecoder* audioDecoder = cAudioDecode::createAudioDecoder (fileFrameType);
 
-      if (cAudioDecode::mJpegPtr) {
+      //int jpegLen;
+      //if (getJpeg (jpegLen)) {
         //{{{  found jpegImage
-        cLog::log (LOGINFO, "found jpeg piccy in file, load it");
-        delete (cAudioDecode::mJpegPtr);
-        cAudioDecode::mJpegPtr = nullptr;
-        }
+        //cLog::log (LOGINFO, "found jpeg piccy in file, load it");
+        ////delete (cAudioDecode::mJpegPtr);
+        ////cAudioDecode::mJpegPtr = nullptr;
+        //}
         //}}}
 
       mSong = new cSong();
       int frameNum = 0;
       if (fileFrameType == iAudioDecoder::eFrameType::eWav) {
-        // parse wav
+        //{{{  parse wav, 
         constexpr int kFrameSamples = 1024;
         mSong->initialise (fileFrameType, 2, sampleRate, kFrameSamples, 0);
 
         uint8_t* filePtr = fileFirst;
-        decode.parseFrame (filePtr, fileEnd);
-        auto samples = decode.getFramePtr();
+        iAudioDecoder::eFrameType frameType;
+        int sampleRate;
+        int frameSize;
+        auto samples = cAudioDecode::parseFrame(filePtr, fileEnd, frameType, sampleRate, frameSize);
         while (!mExit && !mSong->getChanged() && ((samples + (kFrameSamples * 2 * sizeof(float))) <= fileEnd)) {
           mSong->addFrame (true, frameNum++, (float*)samples, false, fileSize / (kFrameSamples * 2 * sizeof(float)), 0);
           samples += kFrameSamples * 2 * sizeof(float);
@@ -1227,23 +1241,27 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
           }
         mLoadFrac = float(samples - fileFirst) / fileSize;
         }
-
+        //}}}
       else {
-        // parse coded
+        //{{{  parse coded
         bool firstSamples = true;
         uint8_t* filePtr = fileFirst;
-        while (!mExit && !mSong->getChanged() && decode.parseFrame (filePtr, fileEnd)) {
+        iAudioDecoder::eFrameType frameType;
+        int sampleRate;
+        int frameSize;
+        while (!mExit && !mSong->getChanged() &&
+               cAudioDecode::parseFrame (filePtr, fileEnd, frameType, sampleRate, frameSize)) {
           // parsed frame
-          if (decode.getFrameType() == fileFrameType) {
+          if (frameType == fileFrameType) {
             // frame is expected type, will get id3 which we ignore
-            float* samples = decode.decodeFrame (frameNum);
+            float* samples = audioDecoder->decodeFrame (filePtr, frameSize, frameNum);
             if (samples) {
               if (firstSamples) // need to decode a frame to set sampleRate for aacHE, its wrong in the header
                 mSong->initialise (fileFrameType,
-                                   decode.getNumChannels(), decode.getSampleRate(), decode.getNumSamplesPerFrame(), 0);
+                  audioDecoder->getNumChannels(), audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame(), 0);
 
               int numFrames = mSong->getNumFrames();
-              int totalFrames = (numFrames > 0) ? (fileSize / (int(decode.getFramePtr() - fileFirst) / numFrames)) : 0;
+              int totalFrames = (numFrames > 0) ? (fileSize / (int(filePtr - fileFirst) / numFrames)) : 0;
               mSong->addFrame (true, frameNum++, samples, true, totalFrames+1, 0);
 
               if (!firstSamples)
@@ -1251,11 +1269,12 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
               firstSamples = false;
               }
             }
-          filePtr += decode.getNextFrameOffset();
+          filePtr += frameSize;
           mLoadFrac = float(filePtr - fileFirst) / fileSize;
           }
         mLoadFrac = float(filePtr - fileFirst) / fileSize;
         }
+        //}}}
 
       cLog::log (LOGINFO, "loaded");
       // wait for play to end or abort, wav uses the file mapping pointers to play
@@ -1301,9 +1320,9 @@ void cLoaderPlayer::clear() {
   mSong = nullptr;
   delete tempSong;
 
-  auto tempAudioDecode = mAudioDecode;
-  mAudioDecode = nullptr;
-  delete tempAudioDecode;
+  auto tempAudioDecoder = mAudioDecoder;
+  mAudioDecoder = nullptr;
+  delete tempAudioDecoder;
 
   auto tempVideoDecode = mVideoDecode;
   mVideoDecode = nullptr;

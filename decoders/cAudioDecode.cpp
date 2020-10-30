@@ -1,75 +1,64 @@
 // cAudioDecode.cpp
 //{{{  includes
 #include <cstring>
-
 #include "cAudioDecode.h"
 
-#include "cFFmpegAacDecoder.h"
 #include "cAacDecoder.h"
 #include "cMp3Decoder.h"
+#include "cFFmpegAacDecoder.h"
 
 #include "../utils/cLog.h"
 //}}}
 
-// public
+static uint8_t* mJpegPtr = nullptr;
+static int mJpegLen = 0;
+
 //{{{
-cAudioDecode::cAudioDecode (iAudioDecoder::eFrameType frameType) {
+iAudioDecoder* cAudioDecode::createAudioDecoder (iAudioDecoder::eFrameType frameType) {
 
   switch (frameType) {
     case iAudioDecoder::eFrameType::eMp3:
-      mAudioDecoder = new cFFmpegAacDecoder (frameType);
+      return new cFFmpegAacDecoder (frameType);
       //mAudioDecoder = new cMp3Decoder();
       break;
+
     case iAudioDecoder::eFrameType::eAacAdts:
-      mAudioDecoder = new cFFmpegAacDecoder (frameType);
+      return new cFFmpegAacDecoder (frameType);
       //mAudioDecoder = new cAacDecoder();
       break;
+
     case iAudioDecoder::eFrameType::eAacLatm:
-      mAudioDecoder = new cFFmpegAacDecoder (frameType);
+      return new cFFmpegAacDecoder (frameType);
       break;
-    default:
-      cLog::log (LOGERROR, "cAudioDecode unrcognised type:%d", frameType);
+
+    default:;
     }
-  }
-//}}}
-//{{{
-cAudioDecode::~cAudioDecode() {
 
-  if (mAudioDecoder)
-    delete (mAudioDecoder);
+  cLog::log (LOGERROR, "createAudioDecoder frameType:%d", frameType);
+  return nullptr;
   }
 //}}}
 
 //{{{
-void cAudioDecode::setFrame (uint8_t* framePtr, int32_t frameLen) {
-
-  mFramePtr = framePtr;
-  mFrameLen = frameLen;
-  }
-//}}}
-
-//{{{
-bool cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast) {
+uint8_t* cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast,
+                     iAudioDecoder::eFrameType& frameType, int& sampleRate, int& frameLength) {
 // dumb mp3 / aacAdts / aacLatm / wav / id3Tag parser
 
-  mFramePtr = nullptr;
-  mFrameLen = 0;
-  mFrameType = iAudioDecoder::eFrameType::eUnknown;
-  mSkip = 0;
-  mSampleRate = 0;
+  frameType = iAudioDecoder::eFrameType::eUnknown;
+  sampleRate = 0;
+  frameLength = 0;
 
   while ((frameLast - framePtr) >= 6) {
     if ((framePtr[0] == 0x56) && ((framePtr[1] & 0xE0) == 0xE0)) {
-     //{{{  aacLatm syncWord (0x02b7 << 5) found
-     mSampleRate = 48000; // guess
-     mFramePtr = framePtr;
-     mFrameLen = 3 + ((framePtr[1] & 0x1F) << 8) | framePtr[2];
-     mFrameType = iAudioDecoder::eFrameType::eAacLatm;
+      //{{{  aacLatm syncWord (0x02b7 << 5) found
+      frameType = iAudioDecoder::eFrameType::eAacLatm;
+      sampleRate = 48000; // guess
+      frameLength = 3 + ((framePtr[1] & 0x1F) << 8) | framePtr[2];
 
-     // check for enough bytes for frame body
-     return (framePtr + mFrameLen) <= frameLast;
-     }
-     //}}}
+      // check for enough bytes for frame body
+      return (framePtr + frameLength <= frameLast) ? framePtr : nullptr;
+      }
+      //}}}
     else if ((framePtr[0] == 0xFF) && ((framePtr[1] & 0xF0) == 0xF0)) {
       // syncWord found
       if ((framePtr[1] & 0x06) == 0) {
@@ -94,17 +83,16 @@ bool cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast) {
         // P  2  Number of AAC frames (RDBs) in ADTS frame minus 1, for maximum compatibility always use 1 AAC frame per ADTS frame
         // Q 16  CRC if protection absent is 0
 
-        const int sampleRates[16] = { 96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350, 0,0,0};
+        frameType = iAudioDecoder::eFrameType::eAacAdts;
 
-        mSampleRate = sampleRates [(framePtr[2] & 0x3c) >> 2];
+        const int sampleRates[16] = { 96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350, 0,0,0};
+        sampleRate = sampleRates [(framePtr[2] & 0x3c) >> 2];
 
         // return aacFrame & size
-        mFramePtr = framePtr;
-        mFrameLen = (((unsigned int)framePtr[3] & 0x3) << 11) | (((unsigned int)framePtr[4]) << 3) | (framePtr[5] >> 5);
-        mFrameType = iAudioDecoder::eFrameType::eAacAdts;
+        frameLength = (((unsigned int)framePtr[3] & 0x3) << 11) | (((unsigned int)framePtr[4]) << 3) | (framePtr[5] >> 5);
 
         // check for enough bytes for frame body
-        return (framePtr + mFrameLen) <= frameLast;
+        return (framePtr + frameLength <= frameLast) ? framePtr : nullptr;
         }
         //}}}
       else {
@@ -195,19 +183,21 @@ bool cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast) {
         //   11 - CCIT J.17
         //}}}
 
-        const uint32_t bitRates[16] = {     0,  32000,  40000, 48000,
-                                        56000,  64000,  80000,  96000,
-                                       112000, 128000, 160000, 192000,
-                                       224000, 256000, 320000,      0};
-
-        const int sampleRates[4] = { 44100, 48000, 32000, 0};
+        frameType = iAudioDecoder::eFrameType::eMp3;
 
         //uint8_t version = (framePtr[1] & 0x08) >> 3;
         uint8_t layer = (framePtr[1] & 0x06) >> 1;
         //uint8_t errp = framePtr[1] & 0x01;
 
+        const uint32_t bitRates[16] = {     0,  32000,  40000, 48000,
+                                        56000,  64000,  80000,  96000,
+                                       112000, 128000, 160000, 192000,
+                                       224000, 256000, 320000,      0};
         uint8_t bitrateIndex = (framePtr[2] & 0xf0) >> 4;
+
+        const int sampleRates[4] = { 44100, 48000, 32000, 0};
         uint8_t sampleRateIndex = (framePtr[2] & 0x0c) >> 2;
+
         uint8_t pad = (framePtr[2] & 0x02) >> 1;
         //uint8_t priv = (framePtr[2] & 0x01);
 
@@ -218,20 +208,15 @@ bool cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast) {
         //uint8_t emphasis = (framePtr[3] & 0x03);
 
         uint32_t bitrate = bitRates[bitrateIndex];
-        mSampleRate = sampleRates[sampleRateIndex];
+        sampleRate = sampleRates[sampleRateIndex];
 
         int scale = (layer == 3) ? 48 : 144;
-        int size = (bitrate * scale) / mSampleRate;
+        frameLength = (bitrate * scale) / sampleRate;
         if (pad)
-          size++;
-
-        // return mp3Frame & size
-        mFramePtr = framePtr;
-        mFrameLen = size;
-        mFrameType = iAudioDecoder::eFrameType::eMp3;
+          frameLength++;
 
         // check for enough bytes for frame body
-        return (framePtr + mFrameLen) <= frameLast;
+        return (framePtr + frameLength <= frameLast) ? framePtr : nullptr;
         }
         //}}}
       }
@@ -253,7 +238,7 @@ bool cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast) {
 
           //uint16_t audioFormat = framePtr[0] + (framePtr[1] << 8);
           //int numChannels = framePtr[2] + (framePtr[3] << 8);
-          mSampleRate = framePtr[4] + (framePtr[5] << 8) + (framePtr[6] << 16) + (framePtr[7] << 24);
+          sampleRate = framePtr[4] + (framePtr[5] << 8) + (framePtr[6] << 16) + (framePtr[7] << 24);
           //int blockAlign = framePtr[12] + (framePtr[13] << 8);
           framePtr += fmtSize;
 
@@ -268,131 +253,68 @@ bool cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast) {
           //uint32_t dataSize = framePtr[0] + (framePtr[1] << 8) + (framePtr[2] << 16) + (framePtr[3] << 24);
           framePtr += 4;
 
-          mFramePtr = framePtr;
-          mFrameLen = int(frameLast - framePtr);
+          frameType = iAudioDecoder::eFrameType::eWav;
+          frameLength = int(frameLast - framePtr);
 
-          mFrameType = iAudioDecoder::eFrameType::eWav;
-          return true;
+          // check for some bytes for frame body
+          return framePtr < frameLast ? framePtr : nullptr;
           }
         }
 
-      return false;
+      return nullptr;
       }
       //}}}
     else if (framePtr[0] == 'I' && framePtr[1] == 'D' && framePtr[2] == '3') {
       //{{{  got id3 header
-      auto tagSize = (framePtr[6] << 21) | (framePtr[7] << 14) | (framePtr[8] << 7) | framePtr[9];
+      frameType = iAudioDecoder::eFrameType::eId3Tag;
 
       // return tag & size
-      mFramePtr = framePtr;
-      mFrameLen = 10 + tagSize;
-      mFrameType = iAudioDecoder::eFrameType::eId3Tag;
+      auto tagSize = (framePtr[6] << 21) | (framePtr[7] << 14) | (framePtr[8] << 7) | framePtr[9];
+      frameLength = 10 + tagSize;
 
       // check for enough bytes for frame body
-      return (framePtr + mFrameLen) <= frameLast;
+      return (framePtr + frameLength <= frameLast) ? framePtr : nullptr;
       }
       //}}}
-    else {
-      mSkip++;
+    else
       framePtr++;
-      }
     }
 
-  return false;
+  return nullptr;
   }
 //}}}
 //{{{
-float* cAudioDecode::decodeFrame (int32_t frameNum) {
-// decode parser frame to samples using codec context, fixup song samplerate and numSamplesPerFrame
-
-  auto samples = mAudioDecoder->decodeFrame (mFramePtr, mFrameLen, frameNum);
-
-  mNumChannels = mAudioDecoder->getNumChannels();
-  mSampleRate = mAudioDecoder->getSampleRate();
-  mNumSamplesPerFrame = mAudioDecoder->getNumSamplesPerFrame();
-
-  return samples;
-  }
-//}}}
-//{{{
-float* cAudioDecode::decodeFrame (uint8_t* framePtr, int frameLen, int32_t frameNum, uint64_t pts) {
-// decode parser frame to samples using codec context, fixup song samplerate and numSamplesPerFrame
-
-  auto samples = mAudioDecoder->decodeFrame (framePtr, frameLen, frameNum);
-
-  mNumChannels = mAudioDecoder->getNumChannels();
-  mSampleRate = mAudioDecoder->getSampleRate();
-  mNumSamplesPerFrame = mAudioDecoder->getNumSamplesPerFrame();
-
-  return samples;
-  }
-//}}}
-
-// static
-//{{{
-iAudioDecoder::eFrameType cAudioDecode::parseSomeFrames (uint8_t* framePtr, uint8_t* frameEnd, int32_t& sampleRate) {
+iAudioDecoder::eFrameType cAudioDecode::parseSomeFrames (uint8_t* framePtr, uint8_t* frameEnd, int& sampleRate) {
 // return fameType
 
   iAudioDecoder::eFrameType frameType = iAudioDecoder::eFrameType::eUnknown;
   sampleRate = 0;
 
-  cAudioDecode decode;
-  while (decode.parseFrame (framePtr, frameEnd) &&
-         ((frameType == iAudioDecoder::eFrameType::eUnknown) || (frameType == iAudioDecoder::eFrameType::eId3Tag))) {
-    if (decode.mFrameType == iAudioDecoder::eFrameType::eId3Tag) {
+  while ((framePtr < frameEnd) &&
+         ((frameType == iAudioDecoder::eFrameType::eUnknown) ||
+          (frameType == iAudioDecoder::eFrameType::eId3Tag))) {
+    int frameLen = 0;
+    framePtr = parseFrame (framePtr, frameEnd, frameType, sampleRate, frameLen);
+    if (frameType == iAudioDecoder::eFrameType::eId3Tag) {
       if (parseId3Tag (framePtr, frameEnd))
         cLog::log (LOGINFO, "parseFrames found jpeg");
       }
-    else {
-      frameType = decode.mFrameType;
-      sampleRate = decode.mSampleRate;
-      }
+    else
+      return frameType;
 
-    // onto next frame
-    framePtr += decode.mSkip + decode.mFrameLen;
+    framePtr += frameLen;
     }
-
-  cLog::log (LOGINFO, "parseSomeFrames type:%d sampleRate:%d", frameType, sampleRate);
 
   return frameType;
   }
 //}}}
 //{{{
-iAudioDecoder::eFrameType cAudioDecode::parseAllFrames (uint8_t* framePtr, uint8_t* frameEnd, int32_t& sampleRate) {
-// return frameType
-
-  iAudioDecoder::eFrameType frameType = iAudioDecoder::eFrameType::eUnknown;
-  sampleRate = 0;
-
-  int numTags = 0;
-  int numFrames = 0;
-  int numLostSync = 0;
-
-  cAudioDecode decode;
-  while (decode.parseFrame (framePtr, frameEnd)) {
-    if (decode.mFrameType == iAudioDecoder::eFrameType::eId3Tag) {
-      if (parseId3Tag (framePtr, frameEnd))
-        cLog::log (LOGINFO, "parseFrames found jpeg");
-      numTags++;
-      }
-    else {
-      frameType = decode.mFrameType;
-      sampleRate = decode.mSampleRate;
-      numFrames++;
-      }
-    // onto next frame
-    framePtr += decode.mSkip + decode.mFrameLen;
-    numLostSync += decode.mSkip;
-    }
-
-  cLog::log (LOGINFO, "parseAllFrames f:%d tags:%d lost:%d type:%d sampleRate:%d",
-                      numFrames, numLostSync, numTags, frameType, sampleRate);
-
-  return frameType;
+uint8_t* cAudioDecode::getJpeg (int& len) {
+  len = mJpegLen;
+  return mJpegPtr;
   }
 //}}}
 
-// private:
 //{{{
 bool cAudioDecode::parseId3Tag (uint8_t* framePtr, uint8_t* frameEnd) {
 // look for ID3 Jpeg tag

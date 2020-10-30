@@ -10,7 +10,7 @@
 
 class cSong;
 class cTsParser;
-class cAudioDecode;
+class iAudioDecoder;
 class cVideoDecode;
 class cFileList;
 //}}}
@@ -23,7 +23,7 @@ public:
 
   cSong* getSong() { return mSong; }
   cVideoDecode* getVideoDecode() { return mVideoDecode; }
-  cAudioDecode* getAudioDecode() { return mAudioDecode; }
+  iAudioDecoder* getAudioDecoder() { return mAudioDecoder; }
 
   void getFrac (float& loadFrac, float& videoFrac, float& audioFrac);
   void getSizes (int& loadSize, int& videoQueueSize, int& audioQueueSize);
@@ -54,7 +54,7 @@ private:
   cSong* mSong = nullptr;
 
   std::map <int, cTsParser*> mParsers;
-  cAudioDecode* mAudioDecode = nullptr;
+  iAudioDecoder* mAudioDecoder = nullptr;
   cVideoDecode* mVideoDecode = nullptr;
 
   std::thread mPlayer;
