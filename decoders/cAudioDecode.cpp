@@ -18,7 +18,7 @@ cAudioDecode::cAudioDecode (eFrameType frameType) {
     case eMp3:
       mAudioDecoder = new cMp3Decoder();
       break;
-    case eAac:
+    case eAacAdts:
       mAudioDecoder = new cAacDecoder();
       break;
     default:;
@@ -83,7 +83,7 @@ bool cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast) {
         // return aacFrame & size
         mFramePtr = framePtr;
         mFrameLen = (((unsigned int)framePtr[3] & 0x3) << 11) | (((unsigned int)framePtr[4]) << 3) | (framePtr[5] >> 5);
-        mFrameType = eAac;
+        mFrameType = eAacAdts;
 
         // check for enough bytes for frame body
         return (framePtr + mFrameLen) <= frameLast;

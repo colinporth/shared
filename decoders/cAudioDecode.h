@@ -4,7 +4,7 @@
 
 class cAudioDecode {
 public:
-  enum eFrameType { eUnknown, eId3Tag, eWav, eMp3, eAac } ;
+  enum eFrameType { eUnknown, eId3Tag, eWav, eMp3, eAacAdts, eAacLatm } ;
 
   cAudioDecode() {}
   cAudioDecode (eFrameType frameType);

@@ -569,7 +569,14 @@ public:
   virtual void processLast (bool afterPlay) {
 
     if (mPesSize) {
-      cLog::log (LOGINFO, "audio pes %d %d", mPesSize, mNum);
+      string info;
+      for (int i = 0; i < 24; i++) {
+        int value = mPes[i];
+        info += hex (value, 2) + " ";
+        }
+      cLog::log (LOGINFO, mName + dec (mNum,4) + " "+ dec (mPesSize,6) + " " + info);
+
+
       mNum += 1;
       mPesSize = 0;
       }
@@ -600,7 +607,12 @@ public:
 
   virtual void processLast (bool afterPlay) {
     if (mPesSize) {
-      cLog::log (LOGINFO, "video pes %d %d", mPesSize, mNum);
+      string info;
+      for (int i = 0; i < 24; i++) {
+        int value = mPes[i];
+        info += hex (value, 2) + " ";
+        }
+      cLog::log (LOGINFO, mName + dec (mNum,4) + " "+ dec (mPesSize,6) + " " + info);
       mNum += 1;
       mPesSize = 0;
       }
@@ -694,7 +706,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
 
   // audBitrate < 128000 use aacHE, more samplesPerframe, less framesPerChunk
   mSong = new cSong();
-  mSong->initialise (cAudioDecode::eAac, 2, 48000, audBitrate < 128000 ? 2048 : 1024, 1000);
+  mSong->initialise (cAudioDecode::eAacAdts, 2, 48000, audBitrate < 128000 ? 2048 : 1024, 1000);
   mSong->setBitrateFramesPerChunk (audBitrate, audBitrate < 128000 ? (radio ? 150 : 180) : (radio ? 300 : 360));
   mSong->setChannel (channelName);
 
@@ -719,7 +731,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
       // new stream seen, add stream parser
       switch (type) {
         case 15:
-          mAudioDecode = new cAudioDecode (cAudioDecode::eAac);
+          mAudioDecode = new cAudioDecode (cAudioDecode::eAacAdts);
           mParsers.insert (
             map<int,cTsParser*>::value_type (pid,
               new cAudioPesParser (pid, mAudioDecode, frameNum, addAudioFrameCallback)));
@@ -842,7 +854,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
                 }
 
               if (!mAudioDecode)
-                mAudioDecode = new cAudioDecode (cAudioDecode::eAac);
+                mAudioDecode = new cAudioDecode (cAudioDecode::eAacAdts);
 
               // parse audio pes for audio frames
               uint8_t* pesEnd = pesPtr;
@@ -915,7 +927,7 @@ void cLoaderPlayer::icyLoaderThread (const string& url) {
 
     // init container and audDecode
     mSong = new cSong();
-    cAudioDecode decode (cAudioDecode::eAac);
+    cAudioDecode decode (cAudioDecode::eAacAdts);
 
     // init http
     cPlatformHttp http;
@@ -1041,9 +1053,9 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
       cLog::log (LOGINFO, "Ts file %d", fileSize);
 
       mSong = new cSong();
-      mSong->initialise (cAudioDecode::eAac, 2, 48000, 1024, 1000);
+      mSong->initialise (cAudioDecode::eAacAdts, 2, 48000, 1024, 1000);
 
-      mAudioDecode = new cAudioDecode (cAudioDecode::eAac);
+      mAudioDecode = new cAudioDecode (cAudioDecode::eAacAdts);
       mVideoDecode = cVideoDecode::create (true, 128);
 
       // parser callbacks
@@ -1080,7 +1092,7 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
             case 27: // h264
               mParsers.insert (
                 map<int,cTsParser*>::value_type (pid,
-                  new cTestVideoPesParser (pid, mVideoDecode, addVideoFrameCallback)));
+                  new cVideoPesParser (pid, mVideoDecode, addVideoFrameCallback)));
               break;
 
             default:
