@@ -479,14 +479,12 @@ public:
   // count audio frames in pes
 
     if (mPesSize) {
+      int numFrames = 0;
 
       uint8_t* framePes = mPes;
-      iAudioDecoder::eFrameType frameType;
-      int sampleRate;
       int frameSize;
-
-      int numFrames = 0;
-      while (cAudioDecode::parseFrame (framePes, mPes + mPesSize, frameType, sampleRate, frameSize)) {
+      while (cAudioDecode::parseFrame (framePes, mPes + mPesSize, frameSize)) {
+        // count frames in pes
         framePes += frameSize;
         numFrames++;
         }
@@ -494,8 +492,10 @@ public:
       // dispatch whole pes, maybe several frames
       dispatchDecode (afterPlay, mPes, mPesSize, mNum, mPts);
 
+      // increment by frames in pes
       mNum += numFrames;
       mPts += (numFrames * (mAudioDecoder->getNumSamplesPerFrame() * 90)) / 48;
+
       mPesSize = 0;
       }
     }
@@ -505,11 +505,8 @@ public:
   // decode pes to audio frames
 
     uint8_t* framePes = pes;
-    iAudioDecoder::eFrameType frameType;
-    int sampleRate;
     int frameSize;
-
-    while (cAudioDecode::parseFrame (framePes, mPes + mPesSize, frameType, sampleRate, frameSize)) {
+    while (cAudioDecode::parseFrame (framePes, pes + size, frameSize)) {
       // decode a single frame from pes
       float* samples = mAudioDecoder->decodeFrame (framePes, frameSize, num);
       if (samples)
@@ -600,10 +597,8 @@ public:
     if (mPesSize) {
       int numFrames = 0;
       uint8_t* framePes = mPes;
-      iAudioDecoder::eFrameType frameType;
-      int sampleRate;
       int frameSize;
-      while (cAudioDecode::parseFrame (framePes, mPes + mPesSize, frameType, sampleRate, frameSize)) {
+      while (cAudioDecode::parseFrame (framePes, mPes + mPesSize, frameSize)) {
         cLog::log (LOGINFO, "latm process num:%d,%d frame:%d pes:%d", mNum, numFrames, frameSize, mPesSize);
         framePes += frameSize;
         numFrames++;
@@ -626,10 +621,8 @@ public:
     cLog::log (LOGINFO, "latm decPes:" + dec(size) + " num:" + dec(num) + " " + info);
 
     uint8_t* framePes = pes;
-    iAudioDecoder::eFrameType frameType;
-    int sampleRate;
     int frameSize;
-    while (cAudioDecode::parseFrame (framePes, pes + size, frameType, sampleRate, frameSize)) {
+    while (cAudioDecode::parseFrame (framePes, pes + size, frameSize)) {
       // decode a single frame from pes
       string info1;
       for (int i = 0; i < 24; i++) {
@@ -862,13 +855,10 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
                             // tsParse as we go
                             while (http.getContentSize() - contentParsed >= 188) {
                               uint8_t* ts = http.getContent() + contentParsed;
-                              if (*ts == 0x47) {
-                                int pid = ((ts[1] & 0x1F) << 8) | ts[2];
-                                auto it = mParsers.find (pid);
+                              if (ts[0] == 0x47) {
+                                auto it = mParsers.find (((ts[1] & 0x1F) << 8) | ts[2]);
                                 if (it != mParsers.end())
                                   it->second->parse (ts, chunkAfterPlay);
-                                else
-                                  cLog::log (LOGERROR, "pid parser not found %d", pid);
                                 ts += 188;
                                 }
                               else
@@ -917,10 +907,8 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
               // parse audio pes for audio frames
               uint8_t* pesEnd = pesPtr;
               pesPtr = http.getContent();
-              iAudioDecoder::eFrameType frameType;
-              int sampleRate;
               int frameSize;
-              while (cAudioDecode::parseFrame (pesPtr, pesEnd, frameType, sampleRate, frameSize)) {
+              while (cAudioDecode::parseFrame (pesPtr, pesEnd, frameSize)) {
                 float* samples = getAudioDecoder()->decodeFrame (pesPtr, frameSize, frameNum);
                 if (samples) {
                   mSong->addFrame (chunkAfterPlay, frameNum++, samples, true, mSong->getNumFrames(), 0);
@@ -936,12 +924,19 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
               //{{{  pesParse chunk of ts - should work but fails !!! find out why !!!
               //uint8_t* ts = http.getContent();
               //uint8_t* tsEnd = ts + http.getContentSize();
-              //while ((ts < tsEnd) && (*ts == 0x47)) {
-                //mParsers[0]->parse (ts, chunkAfterPlay);
+
+              //while ((ts < tsEnd) && (ts[0] == 0x47)) {
+                //auto it = mParsers.find (((ts[1] & 0x1F) << 8) | ts[2]);
+                //if (it != mParsers.end())
+                  //it->second->parse (ts, chunkAfterPlay);
+                //else
+                  //cLog::log (LOGERROR, "pid parser not found %d", pid);
+                //ts += 188;
                 //ts += 188;
                 //}
 
-              //mParsers[0]->process (afterPlay);
+              //for (auto parser : mParsers)
+                //parser.second->processLast (chunkAfterPlay);
               //}
               //}}}
             else
@@ -1054,17 +1049,13 @@ void cLoaderPlayer::icyLoaderThread (const string& url) {
           mSong->initialise (frameType, 2, sampleRate, (frameType == iAudioDecoder::eFrameType::eMp3) ? 1152 : 2048, 3000);
           }
 
-        iAudioDecoder::eFrameType frameType;
-        int sampleRate;
         int frameSize;
-        while (cAudioDecode::parseFrame (buffer, bufferEnd, frameType, sampleRate, frameSize)) {
-          if (frameType == mSong->getFrameType()) {
-            auto samples = audioDecoder->decodeFrame (buffer, frameSize, frameNum);
-            if (samples) {
-              mSong->setFixups (audioDecoder->getNumChannels(), audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame());
-              mSong->addFrame (true, frameNum++, samples, true, mSong->getNumFrames()+1, 0);
-              startPlayer (true);
-              }
+        while (cAudioDecode::parseFrame (buffer, bufferEnd, frameSize)) {
+          auto samples = audioDecoder->decodeFrame (buffer, frameSize, frameNum);
+          if (samples) {
+            mSong->setFixups (audioDecoder->getNumChannels(), audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame());
+            mSong->addFrame (true, frameNum++, samples, true, mSong->getNumFrames()+1, 0);
+            startPlayer (true);
             }
           buffer += frameSize;
           }
@@ -1185,8 +1176,7 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
       uint8_t* ts = fileFirst;
       while (ts + 188 <= fileEnd) {
         if (ts[0] == 0x47) {
-          int pid = ((ts[1] & 0x1F) << 8) | ts[2];
-          auto it = mParsers.find (pid);
+          auto it = mParsers.find (((ts[1] & 0x1F) << 8) | ts[2]);
           if (it != mParsers.end())
             it->second->parse (ts, true);
           ts += 188;
@@ -1230,10 +1220,8 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
         mSong->initialise (fileFrameType, 2, sampleRate, kFrameSamples, 0);
 
         uint8_t* filePtr = fileFirst;
-        iAudioDecoder::eFrameType frameType;
-        int sampleRate;
         int frameSize;
-        auto samples = cAudioDecode::parseFrame(filePtr, fileEnd, frameType, sampleRate, frameSize);
+        auto samples = cAudioDecode::parseFrame(filePtr, fileEnd, frameSize);
         while (!mExit && !mSong->getChanged() && ((samples + (kFrameSamples * 2 * sizeof(float))) <= fileEnd)) {
           mSong->addFrame (true, frameNum++, (float*)samples, false, fileSize / (kFrameSamples * 2 * sizeof(float)), 0);
           samples += kFrameSamples * 2 * sizeof(float);
@@ -1247,28 +1235,22 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
         //{{{  parse coded
         bool firstSamples = true;
         uint8_t* filePtr = fileFirst;
-        iAudioDecoder::eFrameType frameType;
-        int sampleRate;
         int frameSize;
         while (!mExit && !mSong->getChanged() &&
-               cAudioDecode::parseFrame (filePtr, fileEnd, frameType, sampleRate, frameSize)) {
-          // parsed frame
-          if (frameType == fileFrameType) {
-            // frame is expected type, will get id3 which we ignore
-            float* samples = audioDecoder->decodeFrame (filePtr, frameSize, frameNum);
-            if (samples) {
-              if (firstSamples) // need to decode a frame to set sampleRate for aacHE, its wrong in the header
-                mSong->initialise (fileFrameType,
-                  audioDecoder->getNumChannels(), audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame(), 0);
+               cAudioDecode::parseFrame (filePtr, fileEnd, frameSize)) {
+          float* samples = audioDecoder->decodeFrame (filePtr, frameSize, frameNum);
+          if (samples) {
+            if (firstSamples) // need to decode a frame to set sampleRate for aacHE, its wrong in the header
+              mSong->initialise (fileFrameType,
+                audioDecoder->getNumChannels(), audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame(), 0);
 
-              int numFrames = mSong->getNumFrames();
-              int totalFrames = (numFrames > 0) ? (fileSize / (int(filePtr - fileFirst) / numFrames)) : 0;
-              mSong->addFrame (true, frameNum++, samples, true, totalFrames+1, 0);
+            int numFrames = mSong->getNumFrames();
+            int totalFrames = (numFrames > 0) ? (fileSize / (int(filePtr - fileFirst) / numFrames)) : 0;
+            mSong->addFrame (true, frameNum++, samples, true, totalFrames+1, 0);
 
-              if (!firstSamples)
-                startPlayer (false);
-              firstSamples = false;
-              }
+            if (!firstSamples)
+              startPlayer (false);
+            firstSamples = false;
             }
           filePtr += frameSize;
           mLoadFrac = float(filePtr - fileFirst) / fileSize;

@@ -40,8 +40,59 @@ iAudioDecoder* cAudioDecode::createAudioDecoder (iAudioDecoder::eFrameType frame
 //}}}
 
 //{{{
+uint8_t* cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast, int& frameLength) {
+
+  iAudioDecoder::eFrameType  frameType;
+  int sampleRate;
+
+  framePtr = parseFrame (framePtr, frameLast, frameType, sampleRate, frameLength);
+
+  while (framePtr && (frameType == iAudioDecoder::eFrameType::eId3Tag)) {
+    // skip id3 frames
+    framePtr += frameLength;
+    framePtr = parseFrame (framePtr, frameLast, frameType, sampleRate, frameLength);
+    } 
+
+  return framePtr;
+  }
+//}}}
+
+//{{{
+iAudioDecoder::eFrameType cAudioDecode::parseSomeFrames (uint8_t* framePtr, uint8_t* frameEnd, int& sampleRate) {
+// return fameType
+
+  iAudioDecoder::eFrameType frameType = iAudioDecoder::eFrameType::eUnknown;
+  sampleRate = 0;
+
+  while ((framePtr < frameEnd) &&
+         ((frameType == iAudioDecoder::eFrameType::eUnknown) ||
+          (frameType == iAudioDecoder::eFrameType::eId3Tag))) {
+    int frameLen = 0;
+    framePtr = parseFrame (framePtr, frameEnd, frameType, sampleRate, frameLen);
+    if (frameType == iAudioDecoder::eFrameType::eId3Tag) {
+      if (parseId3Tag (framePtr, frameEnd))
+        cLog::log (LOGINFO, "parseFrames found jpeg");
+      }
+    else
+      return frameType;
+
+    framePtr += frameLen;
+    }
+
+  return frameType;
+  }
+//}}}
+//{{{
+uint8_t* cAudioDecode::getJpeg (int& len) {
+  len = mJpegLen;
+  return mJpegPtr;
+  }
+//}}}
+
+// private
+//{{{
 uint8_t* cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast,
-                     iAudioDecoder::eFrameType& frameType, int& sampleRate, int& frameLength) {
+                                   iAudioDecoder::eFrameType& frameType, int& sampleRate, int& frameLength) {
 // dumb mp3 / aacAdts / aacLatm / wav / id3Tag parser
 
   frameType = iAudioDecoder::eFrameType::eUnknown;
@@ -283,38 +334,6 @@ uint8_t* cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast,
   return nullptr;
   }
 //}}}
-//{{{
-iAudioDecoder::eFrameType cAudioDecode::parseSomeFrames (uint8_t* framePtr, uint8_t* frameEnd, int& sampleRate) {
-// return fameType
-
-  iAudioDecoder::eFrameType frameType = iAudioDecoder::eFrameType::eUnknown;
-  sampleRate = 0;
-
-  while ((framePtr < frameEnd) &&
-         ((frameType == iAudioDecoder::eFrameType::eUnknown) ||
-          (frameType == iAudioDecoder::eFrameType::eId3Tag))) {
-    int frameLen = 0;
-    framePtr = parseFrame (framePtr, frameEnd, frameType, sampleRate, frameLen);
-    if (frameType == iAudioDecoder::eFrameType::eId3Tag) {
-      if (parseId3Tag (framePtr, frameEnd))
-        cLog::log (LOGINFO, "parseFrames found jpeg");
-      }
-    else
-      return frameType;
-
-    framePtr += frameLen;
-    }
-
-  return frameType;
-  }
-//}}}
-//{{{
-uint8_t* cAudioDecode::getJpeg (int& len) {
-  len = mJpegLen;
-  return mJpegPtr;
-  }
-//}}}
-
 //{{{
 bool cAudioDecode::parseId3Tag (uint8_t* framePtr, uint8_t* frameEnd) {
 // look for ID3 Jpeg tag
