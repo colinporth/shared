@@ -144,8 +144,8 @@ protected:
   //}}}
 
   // vars
-  const string mName;
   const int mPid;
+  const string mName;
   };
 //}}}
 //{{{
@@ -158,10 +158,11 @@ public:
   virtual void processBody (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool afterPlay) {
 
     if (payloadStart) {
-      int pointerField = *ts++;
+      //int pointerField = ts[0]
+      ts++;
       tsLeft--;
 
-      int tid = ts[0];
+      //int tid = ts[0];
       int sectionLength = ((ts[1] & 0x0F) << 8) + ts[2] + 3;
       if (getCrc32 (0xffffffff, ts, sectionLength) != 0) {
         //{{{  error return
@@ -247,10 +248,11 @@ public:
   virtual void processBody (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool afterPlay) {
 
     if (payloadStart) {
-      int pointerField = *ts++;
+      //int pointerField = ts[0];
+      ts++;
       tsLeft--;
 
-      int tid = ts[0];
+      //int tid = ts[0];
       int sectionLength = ((ts[1] & 0x0F) << 8) + ts[2] + 3;
       if (getCrc32 (0xffffffff, ts, sectionLength) != 0) {
         //{{{  error return
@@ -260,10 +262,10 @@ public:
         //}}}
 
       int sid = (ts[3] << 8) + ts[4];
-      int versionNumber = ts[5];
-      int sectionNumber = ts[6];
-      int lastSectionNumber = ts[7];
-      int pcrPid = ((ts[8] & 0x1f) << 8) + ts[9];
+      //int versionNumber = ts[5];
+      //int sectionNumber = ts[6];
+      //int lastSectionNumber = ts[7];
+      //int pcrPid = ((ts[8] & 0x1f) << 8) + ts[9];
       int programInfoLength = ((ts[10] & 0x0f) << 8) + ts[11];
 
       // skip past pmt header
