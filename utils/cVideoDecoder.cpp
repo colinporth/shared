@@ -297,7 +297,7 @@ namespace {
         mNumOfBitsInBuffer_bookmark = mNumOfBitsInBuffer;
         mDecBuffer_bookmark = mDecBuffer;
         mDecBufferSize_bookmark = mDecBufferSize;
-        mBookmarkOn = 1;
+        mBookmarkOn = true;
         mDecData_bookmark = mDecData;
         }
 
@@ -306,7 +306,7 @@ namespace {
         mDecBuffer = mDecBuffer_bookmark;
         mDecBufferSize = mDecBufferSize_bookmark;
         mDecData = mDecData_bookmark;
-        mBookmarkOn = 0;
+        mBookmarkOn = false;
         }
 
       };
@@ -317,21 +317,20 @@ namespace {
     uint32_t mNumOfBitsInBuffer;
     bool mBookmarkOn;
 
-    uint8_t mDecData_bookmark = 0;
     uint8_t mDecData = 0;
-
+    uint8_t mDecData_bookmark = 0;
     uint32_t mNumOfBitsInBuffer_bookmark = 0;
-    const uint8_t* mDecBuffer_bookmark = 0;
     uint32_t mDecBufferSize_bookmark = 0;
+    const uint8_t* mDecBuffer_bookmark = nullptr;
     };
   //}}}
   //{{{
   char getH264FrameType (uint8_t* pes, int pesSize) {
-  // h264 minimal parser returns frameType of video pes
+  // minimal h264 parser to return frameType of video pes
 
     uint8_t* pesEnd = pes + pesSize;
     while (pes < pesEnd) {
-      //{{{  skip past startcode, find next startcode
+      //{{{  skip past startcode
       uint8_t* buf = pes;
       uint32_t bufSize = (uint32_t)pesSize;
 
@@ -346,11 +345,12 @@ namespace {
           startOffset = 3;
           }
         }
-
-      // find next start code
+      //}}}
+      //{{{  find next startcode
       uint32_t offset = startOffset;
       uint32_t nalSize = offset;
       uint32_t val = 0xffffffff;
+
       while (offset++ < bufSize - 3) {
         val = (val << 8) | *buf++;
         if (val == 0x0000001) {
