@@ -301,13 +301,6 @@ private:
   };
 //}}}
 //{{{
-class cTdtParser : public cTsParser {
-public:
-  cTdtParser() : cTsParser (0x14, "tdt") {}
-  virtual ~cTdtParser() {}
-  };
-//}}}
-//{{{
 class cPesParser : public cTsParser {
 //{{{
 class cPesItem {
@@ -1047,12 +1040,11 @@ void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loade
               new cPmtParser (pid, sid, addStreamCallback)));
         };
         //}}}
-
       mParsers.insert (map<int,cTsParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
 
       // parsers init
-      for (auto parser : mParsers)
-        parser.second->clear (frameNum);
+      //for (auto parser : mParsers)
+      //  parser.second->clear (frameNum);
 
       uint8_t* ts = fileFirst;
       while (ts + 188 <= fileEnd) {

@@ -40,6 +40,13 @@ iAudioDecoder* cAudioDecode::createAudioDecoder (iAudioDecoder::eFrameType frame
 //}}}
 
 //{{{
+uint8_t* cAudioDecode::getJpeg (int& len) {
+  len = mJpegLen;
+  return mJpegPtr;
+  }
+//}}}
+
+//{{{
 uint8_t* cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast, int& frameLength) {
 
   iAudioDecoder::eFrameType frameType;
@@ -56,7 +63,6 @@ uint8_t* cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast, int& f
   return framePtr;
   }
 //}}}
-
 //{{{
 iAudioDecoder::eFrameType cAudioDecode::parseSomeFrames (uint8_t* framePtr, uint8_t* frameEnd, int& sampleRate) {
 // return fameType
@@ -80,12 +86,6 @@ iAudioDecoder::eFrameType cAudioDecode::parseSomeFrames (uint8_t* framePtr, uint
     }
 
   return frameType;
-  }
-//}}}
-//{{{
-uint8_t* cAudioDecode::getJpeg (int& len) {
-  len = mJpegLen;
-  return mJpegPtr;
   }
 //}}}
 
@@ -137,7 +137,6 @@ bool cAudioDecode::parseId3Tag (uint8_t* framePtr, uint8_t* frameEnd) {
   return false;
   }
 //}}}
-
 //{{{
 uint8_t* cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast,
                                    iAudioDecoder::eFrameType& frameType, int& sampleRate, int& frameLength) {

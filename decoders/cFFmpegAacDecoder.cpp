@@ -82,33 +82,57 @@ float* cFFmpegAacDecoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen
           break;
 
         if (avFrame->nb_samples > 0) {
-          mChannels =  avFrame->channels;
-          mSampleRate = avFrame->sample_rate;
-          mSamplesPerFrame = avFrame->nb_samples;
-          outBuffer = (float*)malloc (avFrame->channels * avFrame->nb_samples * sizeof(float));
-          for (auto channel = 0; channel < avFrame->channels; channel++) {
-            auto dstPtr = outBuffer + channel;
-            switch (mAvContext->sample_fmt) {
-              case AV_SAMPLE_FMT_FLTP: { // 32bit float planar, copy to interleaved
-                auto srcPtr = (float*)avFrame->data[channel];
+          switch (mAvContext->sample_fmt) {
+            //{{{
+            case AV_SAMPLE_FMT_FLTP: { // 32bit float planar, copy to interleaved, mix down 5.1
+
+              mChannels = 2;
+              mSampleRate = avFrame->sample_rate;
+              mSamplesPerFrame = avFrame->nb_samples;
+
+              outBuffer = (float*)malloc (mChannels * mSamplesPerFrame * sizeof(float));
+              float* dstPtr = outBuffer;
+
+              float* srcPtr0 = (float*)avFrame->data[0];
+              float* srcPtr1 = (float*)avFrame->data[1];
+              if (avFrame->channels == 6) { // 5.1
+                float* srcPtr2 = (float*)avFrame->data[2];
+                float* srcPtr3 = (float*)avFrame->data[3];
+                float* srcPtr4 = (float*)avFrame->data[4];
+                float* srcPtr5 = (float*)avFrame->data[5];
                 for (auto sample = 0; sample < mSamplesPerFrame; sample++) {
-                  *dstPtr = *srcPtr++;
-                  dstPtr += mChannels;
+                  *dstPtr++ = *srcPtr0++ + *srcPtr2++ + *srcPtr4 + *srcPtr5; // left loud
+                  *dstPtr++ = *srcPtr1++ + *srcPtr3++ + *srcPtr4++ + *srcPtr5++; // right loud
                   }
                 }
-                break;
+              else // stereo
+                for (auto sample = 0; sample < mSamplesPerFrame; sample++) {
+                  *dstPtr++ = *srcPtr0++;
+                  *dstPtr++ = *srcPtr1++;
+                  }
+                }
+              break;
+            //}}}
+            //{{{
+            case AV_SAMPLE_FMT_S16P: // 16bit signed planar, copy scale and copy to interleaved
+              mChannels =  avFrame->channels;
+              mSampleRate = avFrame->sample_rate;
+              mSamplesPerFrame = avFrame->nb_samples;
+              outBuffer = (float*)malloc (avFrame->channels * avFrame->nb_samples * sizeof(float));
 
-              case AV_SAMPLE_FMT_S16P: { // 16bit signed planar, copy scale and copy to interleaved
+              for (auto channel = 0; channel < avFrame->channels; channel++) {
+                auto dstPtr = outBuffer + channel;
                 auto srcPtr = (short*)avFrame->data[channel];
                 for (auto sample = 0; sample < mSamplesPerFrame; sample++) {
                   *dstPtr = *srcPtr++ / (float)0x8000;
                   dstPtr += mChannels;
                   }
-                } 
-                break;
-              default:;
-              }
+                }
+              break;
+            //}}}
+            default:;
             }
+
           }
         av_frame_unref (avFrame);
         }
