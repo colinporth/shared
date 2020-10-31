@@ -1,9 +1,9 @@
-// cFFmpegAacDecoder.cpp
+// cFFmpegAudioDecoder.cpp
 //{{{  includes
 #define _CRT_SECURE_NO_WARNINGS
 #include <algorithm>
 
-#include "cFFmpegAacDecoder.h"
+#include "cFFmpegAudioDecoder.h"
 
 #include "../utils/utils.h"
 #include "../utils/cLog.h"
@@ -18,7 +18,7 @@ using namespace chrono;
 //}}}
 
 //{{{
-cFFmpegAacDecoder::cFFmpegAacDecoder (eAudioFrameType frameType) {
+cFFmpegAudioDecoder::cFFmpegAudioDecoder (eAudioFrameType frameType) {
 
   AVCodecID streamType;
 
@@ -47,7 +47,7 @@ cFFmpegAacDecoder::cFFmpegAacDecoder (eAudioFrameType frameType) {
   }
 //}}}
 //{{{
-cFFmpegAacDecoder::~cFFmpegAacDecoder() {
+cFFmpegAudioDecoder::~cFFmpegAudioDecoder() {
 
   if (mAvContext)
     avcodec_close (mAvContext);
@@ -57,7 +57,7 @@ cFFmpegAacDecoder::~cFFmpegAacDecoder() {
 //}}}
 
 //{{{
-float* cFFmpegAacDecoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int32_t frameNum) {
+float* cFFmpegAudioDecoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int32_t frameNum) {
 
   float* outBuffer = nullptr;
 

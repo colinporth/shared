@@ -6,10 +6,10 @@ struct AVCodec;
 struct AVCodecContext;
 struct AVCodecParserContext;
 
-class cFFmpegAacDecoder : public iAudioDecoder {
+class cFFmpegAudioDecoder : public iAudioDecoder {
 public:
-  cFFmpegAacDecoder (eAudioFrameType frameType);
-  ~cFFmpegAacDecoder();
+  cFFmpegAudioDecoder (eAudioFrameType frameType);
+  ~cFFmpegAudioDecoder();
 
   int32_t getNumChannels() { return mChannels; }
   int32_t getSampleRate() { return mSampleRate; }

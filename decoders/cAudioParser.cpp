@@ -5,7 +5,7 @@
 
 #include "cAacDecoder.h"
 #include "cMp3Decoder.h"
-#include "cFFmpegAacDecoder.h"
+#include "cFFmpegAudioDecoder.h"
 
 #include "../utils/cLog.h"
 //}}}
@@ -18,17 +18,17 @@ iAudioDecoder* cAudioParser::create (eAudioFrameType frameType) {
 
   switch (frameType) {
     case eAudioFrameType::eMp3:
-      return new cFFmpegAacDecoder (frameType);
+      return new cFFmpegAudioDecoder (frameType);
       //mAudioDecoder = new cMp3Decoder();
       break;
 
     case eAudioFrameType::eAacAdts:
-      return new cFFmpegAacDecoder (frameType);
+      return new cFFmpegAudioDecoder (frameType);
       //mAudioDecoder = new cAacDecoder();
       break;
 
     case eAudioFrameType::eAacLatm:
-      return new cFFmpegAacDecoder (frameType);
+      return new cFFmpegAudioDecoder (frameType);
       break;
 
     default:;
