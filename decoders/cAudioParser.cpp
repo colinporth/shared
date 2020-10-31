@@ -1,7 +1,7 @@
-// cAudioDecode.cpp
+// cAudioParser.cpp
 //{{{  includes
 #include <cstring>
-#include "cAudioDecode.h"
+#include "cAudioParser.h"
 
 #include "cAacDecoder.h"
 #include "cMp3Decoder.h"
@@ -14,20 +14,20 @@ static uint8_t* mJpegPtr = nullptr;
 static int mJpegLen = 0;
 
 //{{{
-iAudioDecoder* cAudioDecode::create (iAudioDecoder::eFrameType frameType) {
+iAudioDecoder* cAudioParser::create (eAudioFrameType frameType) {
 
   switch (frameType) {
-    case iAudioDecoder::eFrameType::eMp3:
+    case eAudioFrameType::eMp3:
       return new cFFmpegAacDecoder (frameType);
       //mAudioDecoder = new cMp3Decoder();
       break;
 
-    case iAudioDecoder::eFrameType::eAacAdts:
+    case eAudioFrameType::eAacAdts:
       return new cFFmpegAacDecoder (frameType);
       //mAudioDecoder = new cAacDecoder();
       break;
 
-    case iAudioDecoder::eFrameType::eAacLatm:
+    case eAudioFrameType::eAacLatm:
       return new cFFmpegAacDecoder (frameType);
       break;
 
@@ -40,21 +40,21 @@ iAudioDecoder* cAudioDecode::create (iAudioDecoder::eFrameType frameType) {
 //}}}
 
 //{{{
-uint8_t* cAudioDecode::getJpeg (int& len) {
+uint8_t* cAudioParser::getJpeg (int& len) {
   len = mJpegLen;
   return mJpegPtr;
   }
 //}}}
 
 //{{{
-uint8_t* cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast, int& frameLength) {
+uint8_t* cAudioParser::parseFrame (uint8_t* framePtr, uint8_t* frameLast, int& frameLength) {
 
-  iAudioDecoder::eFrameType frameType;
+  eAudioFrameType frameType;
   int sampleRate;
 
   framePtr = parseFrame (framePtr, frameLast, frameType, sampleRate, frameLength);
 
-  while (framePtr && (frameType == iAudioDecoder::eFrameType::eId3Tag)) {
+  while (framePtr && (frameType == eAudioFrameType::eId3Tag)) {
     // skip id3 frames
     framePtr += frameLength;
     framePtr = parseFrame (framePtr, frameLast, frameType, sampleRate, frameLength);
@@ -64,18 +64,18 @@ uint8_t* cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast, int& f
   }
 //}}}
 //{{{
-iAudioDecoder::eFrameType cAudioDecode::parseSomeFrames (uint8_t* framePtr, uint8_t* frameEnd, int& sampleRate) {
+eAudioFrameType cAudioParser::parseSomeFrames (uint8_t* framePtr, uint8_t* frameEnd, int& sampleRate) {
 // return fameType
 
-  iAudioDecoder::eFrameType frameType = iAudioDecoder::eFrameType::eUnknown;
+  eAudioFrameType frameType = eAudioFrameType::eUnknown;
   sampleRate = 0;
 
   while ((framePtr < frameEnd) &&
-         ((frameType == iAudioDecoder::eFrameType::eUnknown) ||
-          (frameType == iAudioDecoder::eFrameType::eId3Tag))) {
+         ((frameType == eAudioFrameType::eUnknown) ||
+          (frameType == eAudioFrameType::eId3Tag))) {
     int frameLen = 0;
     framePtr = parseFrame (framePtr, frameEnd, frameType, sampleRate, frameLen);
-    if (frameType == iAudioDecoder::eFrameType::eId3Tag) {
+    if (frameType == eAudioFrameType::eId3Tag) {
       if (parseId3Tag (framePtr, frameEnd))
         cLog::log (LOGINFO, "parseFrames found jpeg");
       }
@@ -91,7 +91,7 @@ iAudioDecoder::eFrameType cAudioDecode::parseSomeFrames (uint8_t* framePtr, uint
 
 // private
 //{{{
-bool cAudioDecode::parseId3Tag (uint8_t* framePtr, uint8_t* frameEnd) {
+bool cAudioParser::parseId3Tag (uint8_t* framePtr, uint8_t* frameEnd) {
 // look for ID3 Jpeg tag
 
   auto ptr = framePtr;
@@ -138,18 +138,18 @@ bool cAudioDecode::parseId3Tag (uint8_t* framePtr, uint8_t* frameEnd) {
   }
 //}}}
 //{{{
-uint8_t* cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast,
-                                   iAudioDecoder::eFrameType& frameType, int& sampleRate, int& frameLength) {
+uint8_t* cAudioParser::parseFrame (uint8_t* framePtr, uint8_t* frameLast,
+  eAudioFrameType& frameType, int& sampleRate, int& frameLength) {
 // simple mp3 / aacAdts / aacLatm / wav / id3Tag frame parser
 
-  frameType = iAudioDecoder::eFrameType::eUnknown;
+  frameType = eAudioFrameType::eUnknown;
   sampleRate = 0;
   frameLength = 0;
 
   while ((frameLast - framePtr) >= 6) {
     if ((framePtr[0] == 0x56) && ((framePtr[1] & 0xE0) == 0xE0)) {
       //{{{  aacLatm syncWord (0x02b7 << 5) found
-      frameType = iAudioDecoder::eFrameType::eAacLatm;
+      frameType = eAudioFrameType::eAacLatm;
       sampleRate = 48000; // guess
       frameLength = 3 + (((framePtr[1] & 0x1F) << 8) | framePtr[2]);
 
@@ -181,7 +181,7 @@ uint8_t* cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast,
         // P  2  Number of AAC frames (RDBs) in ADTS frame minus 1, for maximum compatibility always use 1 AAC frame per ADTS frame
         // Q 16  CRC if protection absent is 0
 
-        frameType = iAudioDecoder::eFrameType::eAacAdts;
+        frameType = eAudioFrameType::eAacAdts;
 
         const int sampleRates[16] = { 96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350, 0,0,0};
         sampleRate = sampleRates [(framePtr[2] & 0x3c) >> 2];
@@ -281,7 +281,7 @@ uint8_t* cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast,
         //   11 - CCIT J.17
         //}}}
 
-        frameType = iAudioDecoder::eFrameType::eMp3;
+        frameType = eAudioFrameType::eMp3;
 
         //uint8_t version = (framePtr[1] & 0x08) >> 3;
         uint8_t layer = (framePtr[1] & 0x06) >> 1;
@@ -351,7 +351,7 @@ uint8_t* cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast,
           //uint32_t dataSize = framePtr[0] + (framePtr[1] << 8) + (framePtr[2] << 16) + (framePtr[3] << 24);
           framePtr += 4;
 
-          frameType = iAudioDecoder::eFrameType::eWav;
+          frameType = eAudioFrameType::eWav;
           frameLength = int(frameLast - framePtr);
 
           // check for some bytes for frame body
@@ -364,7 +364,7 @@ uint8_t* cAudioDecode::parseFrame (uint8_t* framePtr, uint8_t* frameLast,
       //}}}
     else if (framePtr[0] == 'I' && framePtr[1] == 'D' && framePtr[2] == '3') {
       //{{{  got id3 header
-      frameType = iAudioDecoder::eFrameType::eId3Tag;
+      frameType = eAudioFrameType::eId3Tag;
 
       // return tag & size
       auto tagSize = (framePtr[6] << 21) | (framePtr[7] << 14) | (framePtr[8] << 7) | framePtr[9];

@@ -3,7 +3,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 #define WIN32_LEAN_AND_MEAN
 
-#include "iVideoDecode.h"
+#include "iVideoDecoder.h"
 
 #include <cstring>
 #include <algorithm>
@@ -1506,10 +1506,10 @@ public:
 
 // iVideoDecode classes
 //{{{
-class cVideoDecode : public iVideoDecode {
+class cVideoDecoder : public iVideoDecoder {
 public:
   //{{{
-  virtual ~cVideoDecode() {
+  virtual ~cVideoDecoder() {
     for (auto frame : mFramePool)
       delete frame;
 
@@ -1547,7 +1547,7 @@ public:
 
 protected:
   //{{{
-  cVideoDecode (bool planar, int poolSize) {
+  cVideoDecoder (bool planar, int poolSize) {
   // allocate framePool frames with type needed to convert yuv420
 
     for (int i = 0; i < poolSize; i++) {
@@ -1591,10 +1591,10 @@ protected:
   };
 //}}}
 //{{{
-class cFFmpegVideoDecode : public cVideoDecode {
+class cFFmpegVideoDecoder : public cVideoDecoder {
 public:
   //{{{
-  cFFmpegVideoDecode (int poolSize) : cVideoDecode(true, poolSize) {
+  cFFmpegVideoDecoder (int poolSize) : cVideoDecoder(true, poolSize) {
 
     mAvParser = av_parser_init (AV_CODEC_ID_H264);
     mAvCodec = avcodec_find_decoder (AV_CODEC_ID_H264);
@@ -1603,7 +1603,7 @@ public:
     }
   //}}}
   //{{{
-  virtual ~cFFmpegVideoDecode() {
+  virtual ~cFFmpegVideoDecoder() {
 
     if (mAvContext)
       avcodec_close (mAvContext);
@@ -1686,17 +1686,17 @@ private:
 #ifdef _WIN32
   #include "../../libmfx/include/mfxvideo++.h"
   //{{{
-  class cMfxVideoDecode : public cVideoDecode {
+  class cMfxVideoDecoder : public cVideoDecoder {
   public:
     //{{{
-    cMfxVideoDecode (int poolSize) : cVideoDecode(false, poolSize) {
+    cMfxVideoDecoder (int poolSize) : cVideoDecoder(false, poolSize) {
 
       mfxVersion kMfxVersion = { 0,1 };
       mSession.Init (MFX_IMPL_AUTO, &kMfxVersion);
       }
     //}}}
     //{{{
-    virtual ~cMfxVideoDecode() {
+    virtual ~cMfxVideoDecoder() {
 
       MFXVideoDECODE_Close (mSession);
 
@@ -1822,14 +1822,14 @@ private:
 
 // iVideoDecode static factory create
 //{{{
-iVideoDecode* iVideoDecode::create (bool ffmpeg, int poolSize) {
-// create cVideoDecode
+iVideoDecoder* iVideoDecoder::create (bool ffmpeg, int poolSize) {
+// create cVideoDecoder
 
   #ifdef _WIN32
     if (!ffmpeg)
-      return new cMfxVideoDecode (poolSize);
+      return new cMfxVideoDecoder (poolSize);
   #endif
 
-  return new cFFmpegVideoDecode (poolSize);
+  return new cFFmpegVideoDecoder (poolSize);
   }
 //}}}

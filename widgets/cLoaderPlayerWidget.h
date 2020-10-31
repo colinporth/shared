@@ -93,18 +93,18 @@ public:
   virtual void onDraw (iDraw* draw) {
 
     cVg* vg = draw->getVg();
-    auto videoDecode = mLoaderPlayer->getVideoDecode();
+    auto videoDecoder = mLoaderPlayer->getVideoDecoder();
 
-    if (videoDecode) {
+    if (videoDecoder) {
       //{{{  draw piccy
-      auto frame = videoDecode->findPlayFrame();
+      auto frame = videoDecoder->findPlayFrame();
       if (frame) {
         if (frame->getPts() != mImagePts) {
           mImagePts = frame->getPts();
           if (mImageId > -1)
             vg->updateImage (mImageId, (uint8_t*)frame->getBuffer8888());
           else
-            mImageId = vg->createImageRGBA (videoDecode->getWidth(), videoDecode->getHeight(),
+            mImageId = vg->createImageRGBA (videoDecoder->getWidth(), videoDecoder->getHeight(),
                                             0, (uint8_t*)frame->getBuffer8888());
           }
 
@@ -121,7 +121,7 @@ public:
     else
       draw->clear (kBlackF);
 
-    drawInfo (vg, videoDecode);
+    drawInfo (vg, videoDecoder);
     //{{{  draw progress spinners
     float loadFrac;
     float videoFrac;
@@ -155,8 +155,8 @@ public:
 
     auto song = mLoaderPlayer->getSong();
 
-    if (kVideoPoolDebug && videoDecode)
-      drawVideoPool (vg, song, videoDecode);
+    if (kVideoPoolDebug && videoDecoder)
+      drawVideoPool (vg, song, videoDecoder);
 
     if (song) {
       { // locked scope
@@ -250,14 +250,14 @@ private:
     }
   //}}}
   //{{{
-  void drawInfo (cVg* vg, iVideoDecode* videoDecode) {
+  void drawInfo (cVg* vg, iVideoDecoder* videoDecoder) {
   // info text
 
     std::string infoString;
 
-    if (videoDecode)
-      infoString += " " + dec(videoDecode->getWidth()) + "x" + dec(videoDecode->getHeight()) +
-                    ":" + dec(videoDecode->getFramePoolSize());
+    if (videoDecoder)
+      infoString += " " + dec(videoDecoder->getWidth()) + "x" + dec(videoDecoder->getHeight()) +
+                    ":" + dec(videoDecoder->getFramePoolSize());
 
     int loadSize;
     int videoQueueSize;
@@ -265,7 +265,7 @@ private:
     mLoaderPlayer->getSizes (loadSize, videoQueueSize, audioQueueSize);
     infoString += " " + dec(loadSize/1000) + "Kbytes";
 
-    if (videoDecode) {
+    if (videoDecoder) {
       infoString += " v" + dec(videoQueueSize);
       infoString += " a" + dec(audioQueueSize);
       }
@@ -279,7 +279,7 @@ private:
     }
   //}}}
   //{{{
-  void drawVideoPool (cVg* vg, cSong* song, iVideoDecode* videoDecode) {
+  void drawVideoPool (cVg* vg, cSong* song, iVideoDecoder* videoDecode) {
 
     cPointF org { getPixCentre().x, getPixSize().y - 100.f };
     float ptsPerPix = float((90 * song->getSamplesPerFrame()) / 48);

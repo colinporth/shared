@@ -18,20 +18,20 @@ using namespace chrono;
 //}}}
 
 //{{{
-cFFmpegAacDecoder::cFFmpegAacDecoder (eFrameType frameType) {
+cFFmpegAacDecoder::cFFmpegAacDecoder (eAudioFrameType frameType) {
 
   AVCodecID streamType;
 
   switch (frameType) {
-    case iAudioDecoder::eFrameType::eMp3:
+    case eAudioFrameType::eMp3:
       streamType =  AV_CODEC_ID_MP3;
       break;
 
-    case iAudioDecoder::eFrameType::eAacAdts:
+    case eAudioFrameType::eAacAdts:
       streamType =  AV_CODEC_ID_AAC;
       break;
 
-    case iAudioDecoder::eFrameType::eAacLatm:
+    case eAudioFrameType::eAacLatm:
       streamType =  AV_CODEC_ID_AAC_LATM;
       break;
 

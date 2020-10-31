@@ -11,7 +11,7 @@
 class cSong;
 class cTsParser;
 class iAudioDecoder;
-class iVideoDecode;
+class iVideoDecoder;
 class cFileList;
 //}}}
 
@@ -22,15 +22,14 @@ public:
   virtual ~cLoaderPlayer();
 
   cSong* getSong() { return mSong; }
-  iVideoDecode* getVideoDecode() { return mVideoDecode; }
-  iAudioDecoder* getAudioDecoder() { return mAudioDecoder; }
+  iVideoDecoder* getVideoDecoder() { return mVideoDecoder; }
 
   void getFrac (float& loadFrac, float& videoFrac, float& audioFrac);
   void getSizes (int& loadSize, int& videoQueueSize, int& audioQueueSize);
 
   void videoFollowAudio();
 
-  void hlsLoaderThread (bool radio, const std::string& channelName, int 
+  void hlsLoaderThread (bool radio, const std::string& channelName, int
                         audioBitrate, int videoBitrate, eLoaderFlags loaderFlags);
   void icyLoaderThread (const std::string& url);
   void fileLoaderThread (const std::string& filename, eLoaderFlags loaderFlags);
@@ -54,8 +53,8 @@ private:
   cSong* mSong = nullptr;
 
   std::map <int, cTsParser*> mParsers;
-  iAudioDecoder* mAudioDecoder = nullptr;
-  iVideoDecode* mVideoDecode = nullptr;
+  //iAudioDecoder* mAudioDecoder = nullptr;
+  iVideoDecoder* mVideoDecoder = nullptr;
 
   std::thread mPlayer;
 

@@ -1,4 +1,4 @@
-// iVideoDecode.h
+// iVideoDecoder.h
 #pragma once
 //{{{  includes
 #include <cstdint>
@@ -31,11 +31,11 @@ public:
   virtual void clear() = 0;
   };
 
-// iVideoDecode
-class iVideoDecode {
+// iVideoDecoder
+class iVideoDecoder {
 public:
-  static iVideoDecode* create (bool ffmpeg, int poolSize);
-  virtual ~iVideoDecode() {}
+  static iVideoDecoder* create (bool ffmpeg, int poolSize);
+  virtual ~iVideoDecoder() {}
 
   // gets
   virtual int getWidth() = 0;

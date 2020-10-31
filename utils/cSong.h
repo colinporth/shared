@@ -9,7 +9,7 @@
 #include <map>
 #include <shared_mutex>
 
-#include "../decoders/cAudioDecode.h"
+#include "../decoders/cAudioParser.h"
 
 #include "../kissFft/kiss_fft.h"
 #include "../kissFft/kiss_fftr.h"
@@ -123,7 +123,7 @@ public:
   cSong();
   virtual ~cSong();
 
-  void initialise (iAudioDecoder::eFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame,
+  void initialise (eAudioFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame,
                    int maxMapSize);
   void clear();
   void addFrame (bool afterPlay, int frameNum, float* samples, bool ourSamples, int totalFrames, int64_t pts);
@@ -133,7 +133,7 @@ public:
 
   bool getChanged() { return mChanged; }
 
-  iAudioDecoder::eFrameType getFrameType() { return mFrameType; }
+  eAudioFrameType getFrameType() { return mFrameType; }
   int getNumChannels() { return mNumChannels; }
   int getNumSampleBytes() { return mNumChannels * sizeof(float); }
   int getSampleRate() { return mSampleRate; }
@@ -228,7 +228,7 @@ private:
   std::shared_mutex mSharedMutex;
   std::map <int, cFrame*> mFrameMap;
 
-  iAudioDecoder::eFrameType mFrameType = iAudioDecoder::eFrameType::eUnknown;
+  eAudioFrameType mFrameType = eAudioFrameType::eUnknown;
   bool mOurSamples = false;
   bool mChanged = false;
 

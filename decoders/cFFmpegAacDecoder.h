@@ -8,7 +8,7 @@ struct AVCodecParserContext;
 
 class cFFmpegAacDecoder : public iAudioDecoder {
 public:
-  cFFmpegAacDecoder (eFrameType frameType);
+  cFFmpegAacDecoder (eAudioFrameType frameType);
   ~cFFmpegAacDecoder();
 
   int32_t getNumChannels() { return mChannels; }
