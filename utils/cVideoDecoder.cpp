@@ -1839,14 +1839,6 @@ public:
     return nullptr;
     }
 
-  //{{{
-  virtual iVideoFrame* findPlayFrame() {
-  // return frame containing playPts
-
-    return findFrame (mPlayPts);
-    }
-  //}}}
-
 protected:
   //{{{
   cVideoDecoder (bool planar, int poolSize) {
