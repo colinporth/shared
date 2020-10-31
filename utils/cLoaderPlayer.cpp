@@ -1308,12 +1308,13 @@ void cLoaderPlayer::startPlayer (bool streaming) {
                 srcSamples = silence;
               numSrcSamples = mSong->getSamplesPerFrame();
 
-              if (framePtr)
+              if (framePtr) {
                 mPlayPts = framePtr->getPts();
-              if (mVideoDecoder && framePtr)
-                mVideoDecoder->setPlayPts (framePtr->getPts());
-              if (mPlaying && framePtr)
-                mSong->incPlayFrame (1, true);
+                if (mVideoDecoder)
+                  mVideoDecoder->setPlayPts (framePtr->getPts());
+                if (mPlaying)
+                  mSong->incPlayFrame (1, true);
+                }
               });
 
             if (!streaming && (mSong->getPlayFrame() > mSong->getLastFrame()))
@@ -1343,12 +1344,13 @@ void cLoaderPlayer::startPlayer (bool streaming) {
             }
           audio.play (2, playSamples, mSong->getSamplesPerFrame(), 1.f);
 
-          if (framePtr)
+          if (framePtr) {
             mPlayPts = framePtr->getPts();
-          if (mVideoDecoder && framePtr)
-            mVideoDecoder->setPlayPts (framePtr->getPts());
-          if (mPlaying && framePtr)
-            mSong->incPlayFrame (1, true);
+            if (mVideoDecoder)
+              mVideoDecoder->setPlayPts (framePtr->getPts());
+            if (mPlaying)
+              mSong->incPlayFrame (1, true);
+            }
 
           if (!streaming && (mSong->getPlayFrame() > mSong->getLastFrame()))
             break;
