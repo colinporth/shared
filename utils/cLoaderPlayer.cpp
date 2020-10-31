@@ -1006,7 +1006,16 @@ void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loade
         //{{{  addStream lambda
         if (mPidParsers.find (pid) == mPidParsers.end())
           switch (type) {
+            case 2: // ISO 13818-2 video
+              cLog::log (LOGERROR, "mpeg2 video %d", pid, type);
+              break;
+
+            case 3: // ISO 11172-3 audio
+              cLog::log (LOGINFO, "mp2 audio %d %d", pid, type);
+              break;
+
             case 6:  // subtitle
+              cLog::log (LOGINFO, "subtitle %d %d", pid, type);
               break;
 
             case 15: // aac adts
@@ -1026,7 +1035,8 @@ void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loade
               break;
 
             case 27: // h264
-              mVideoDecoder = iVideoDecoder::create (loaderFlags & eFFmpeg, 128);
+              mVideoDecoder = iVideoDecoder::create (false, 128); // use mfx
+              //mVideoDecoder = iVideoDecoder::create (loaderFlags & eFFmpeg, 128);
               mPidParsers.insert (
                 map<int,cPidParser*>::value_type (pid,
                   new cVideoPesParser (pid, mVideoDecoder, true, addVideoFrameCallback)));
