@@ -126,7 +126,7 @@ namespace {
   class cBitstream {
   // used to parse H264 stream to find I frames
   public:
-    cBitstream (const uint8_t* buffer, uint32_t bit_len) 
+    cBitstream (const uint8_t* buffer, uint32_t bit_len)
       : mDecBuffer(buffer), mDecBufferSize(bit_len), mNumOfBitsInBuffer(0), mBookmarkOn(false) {}
 
     //{{{
@@ -419,11 +419,13 @@ public:
     return (mState == eState::eLoaded) && (pts >= mPts) && (pts < mPts + mPtsDuration); }
 
   virtual int getPesSize() { return mPesSize; }
+  virtual char getFrameType() { return mFrameType; }
+
   virtual uint32_t* getBuffer8888() { return mBuffer8888; }
 
   // sets
   //{{{
-  virtual void set (int64_t pts, int64_t ptsDuration, int pesSize, int width, int height) {
+  virtual void set (int64_t pts, int64_t ptsDuration, int pesSize, int width, int height, char frameType) {
 
     mState = eState::eAllocated;
 
@@ -432,7 +434,7 @@ public:
     mPtsEnd = pts + ptsDuration;
 
     mPesSize = pesSize;
-
+    mFrameType = frameType;
     mWidth = width;
     mHeight = height;
 
@@ -480,7 +482,7 @@ private:
   int64_t mPts = 0;
   int64_t mPtsDuration = 0;
   int64_t mPtsEnd = 0;
-
+  char mFrameType = '?';
   int mPesSize = 0;   // only used debug widget info
   };
 //}}}
@@ -1916,6 +1918,8 @@ public:
     system_clock::time_point timePoint = system_clock::now();
 
     // ffmpeg doesn't maintain correct avFrame.pts, decode frames in presentation order and pts correct on I frames
+    char frameType = getH264FrameType (pes, pesSize);
+    if (frameType == 'I')
     if (getH264FrameType (pes, pesSize) == 'I')
       mDecodePts = pts;
 
@@ -1926,10 +1930,10 @@ public:
     auto pesPtr = pes;
     auto pesLeft = pesSize;
     while (pesLeft) {
-      auto bytesUsed = av_parser_parse2 (mAvParser, mAvContext, &avPacket.data, &avPacket.size,
-                                         pesPtr, (int)pesLeft, pts, AV_NOPTS_VALUE, 0);
-      avPacket.pts = pts;
-
+      auto bytesUsed = av_parser_parse2 (mAvParser, mAvContext,
+                                         &avPacket.data, &avPacket.size,
+                                         pesPtr, (int)pesLeft,
+                                         AV_NOPTS_VALUE, AV_NOPTS_VALUE, 0);
       pesPtr += bytesUsed;
       pesLeft -= bytesUsed;
       if (avPacket.size) {
@@ -1942,16 +1946,19 @@ public:
             cLog::log (LOGINFO1, "decode FFmpeg:%d",
                                  duration_cast<microseconds>(system_clock::now() - timePoint).count());
 
+          // set info from decode
           mWidth = avFrame->width;
           mHeight = avFrame->height;
           mPtsDuration = (kPtsPerSecond * mAvContext->framerate.den) / mAvContext->framerate.num;
 
+          // will block on waiting for freeFrame most of the time
           auto frame = getFreeFrame (afterPlay, mDecodePts);
 
           timePoint = system_clock::now();
-          frame->set (mDecodePts, mPtsDuration, pesSize, mWidth, mHeight);
+          frame->set (mDecodePts, mPtsDuration, pesSize, mWidth, mHeight, frameType);
           if (!mSwsContext)
-            mSwsContext = sws_getContext (mWidth, mHeight, AV_PIX_FMT_YUV420P, mWidth, mHeight, AV_PIX_FMT_RGBA,
+            mSwsContext = sws_getContext (mWidth, mHeight, AV_PIX_FMT_YUV420P,
+                                          mWidth, mHeight, AV_PIX_FMT_RGBA,
                                           SWS_BILINEAR, NULL, NULL, NULL);
           frame->setYuv420 (mSwsContext, avFrame->data, avFrame->linesize);
           av_frame_unref (avFrame);
@@ -2067,7 +2074,7 @@ private:
             auto frame = getFreeFrame (afterPlay, surface->Data.TimeStamp);
 
             timePoint = system_clock::now();
-            frame->set (surface->Data.TimeStamp, mPtsDuration, pesSize, surface->Info.Width, surface->Info.Height);
+            frame->set (surface->Data.TimeStamp, mPtsDuration, pesSize, surface->Info.Width, surface->Info.Height, '?');
             uint8_t* data[2] = { surface->Data.Y, surface->Data.UV };
             int linesize[2] = { surface->Data.Pitch, surface->Data.Pitch/2 };
             frame->setYuv420 (nullptr, data, linesize);
