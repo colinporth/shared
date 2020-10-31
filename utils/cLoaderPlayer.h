@@ -11,7 +11,7 @@
 class cSong;
 class cTsParser;
 class iAudioDecoder;
-class cVideoDecode;
+class iVideoDecode;
 class cFileList;
 //}}}
 
@@ -22,7 +22,7 @@ public:
   virtual ~cLoaderPlayer();
 
   cSong* getSong() { return mSong; }
-  cVideoDecode* getVideoDecode() { return mVideoDecode; }
+  iVideoDecode* getVideoDecode() { return mVideoDecode; }
   iAudioDecoder* getAudioDecoder() { return mAudioDecoder; }
 
   void getFrac (float& loadFrac, float& videoFrac, float& audioFrac);
@@ -55,7 +55,7 @@ private:
 
   std::map <int, cTsParser*> mParsers;
   iAudioDecoder* mAudioDecoder = nullptr;
-  cVideoDecode* mVideoDecode = nullptr;
+  iVideoDecode* mVideoDecode = nullptr;
 
   std::thread mPlayer;
 

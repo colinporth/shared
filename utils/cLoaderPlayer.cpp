@@ -28,7 +28,7 @@
 #endif
 
 // video decode
-#include "../utils/cVideoDecode.h"
+#include "../utils/iVideoDecode.h"
 
 // net
 #ifdef _WIN32
@@ -529,7 +529,7 @@ private:
 //{{{
 class cHlsVideoPesParser : public cPesParser {
 public:
-  cHlsVideoPesParser (int pid, cVideoDecode* videoDecode, function <void (int64_t pts)> callback)
+  cHlsVideoPesParser (int pid, iVideoDecode* videoDecode, function <void (int64_t pts)> callback)
     : cPesParser (pid, "vid", true), mVideoDecode(videoDecode), mCallback(callback) {}
   virtual ~cHlsVideoPesParser() {}
 
@@ -560,7 +560,7 @@ public:
   //}}}
 
 private:
-  cVideoDecode* mVideoDecode;
+  iVideoDecode* mVideoDecode;
   function <void (int64_t pts)> mCallback;
   };
 //}}}
@@ -648,7 +648,7 @@ private:
 //{{{
 class cFileVideoPesParser : public cPesParser {
 public:
-  cFileVideoPesParser(int pid, cVideoDecode* videoDecode, function <void (int64_t pts)> callback)
+  cFileVideoPesParser(int pid, iVideoDecode* videoDecode, function <void (int64_t pts)> callback)
     : cPesParser (pid, "vid", false), mVideoDecode(videoDecode), mCallback(callback) {}
   virtual ~cFileVideoPesParser() {}
 
@@ -686,7 +686,7 @@ public:
   //}}}
 
 private:
-  cVideoDecode* mVideoDecode;
+  iVideoDecode* mVideoDecode;
   function <void (int64_t pts)> mCallback;
   };
 //}}}
@@ -792,7 +792,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
 
         case 27:
           if (vidBitrate) {
-            mVideoDecode = cVideoDecode::create (loaderFlags & eFFmpeg, kVideoPoolSize);
+            mVideoDecode = iVideoDecode::create (loaderFlags & eFFmpeg, kVideoPoolSize);
             mParsers.insert (
               map<int,cTsParser*>::value_type (pid,
                 new cHlsVideoPesParser (pid, mVideoDecode, addVideoFrameCallback)));
@@ -1089,6 +1089,7 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
   cLog::setThreadName ("file");
 
   while (!mExit) {
+    //{{{  open filemapping
     #ifdef _WIN32
       //{{{  windows file map
       HANDLE fileHandle = CreateFile (filename.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
@@ -1104,20 +1105,23 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
       uint8_t* fileEnd = fileFirst + fileSize;
       //}}}
     #endif
+    //}}}
 
     if ((fileFirst[0] == 0x47) && (fileFirst[188] == 0x47)) {
-      //{{{  ts
+      // ts
       cLog::log (LOGINFO, "Ts file %d", fileSize);
 
       mSong = new cSong();
       mSong->initialise (iAudioDecoder::eFrameType::eAacAdts, 2, 48000, 1024, 0);
 
       int frameNum = 0;
-      mVideoDecode = cVideoDecode::create (true, 128);
+      mVideoDecode = iVideoDecode::create (true, 128);
 
       // parser callbacks
       auto addAudioFrameCallback = [&](bool afterPlay, float* samples, int num, int64_t pts) noexcept {
         //{{{  addAudioFrame lambda
+        //cLog::log (LOGINFO, "adding audio frameNm " + dec (num));
+        frameNum = num;
         mSong->addFrame (afterPlay, num, samples, true, mSong->getNumFrames(), pts);
         startPlayer (true);
         };
@@ -1125,6 +1129,7 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
       auto addVideoFrameCallback = [&](int64_t pts) noexcept {
         //{{{  addVideoFrame lambda
         // video frame decoded - nothing for now
+        //cLog::log (LOGINFO, "adding video " + dec (pts/3600));
         };
         //}}}
       auto addStreamCallback = [&](int sid, int pid, int type) noexcept {
@@ -1138,7 +1143,7 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
               mAudioDecoder = cAudioDecode::createAudioDecoder (iAudioDecoder::eFrameType::eAacAdts);
               mParsers.insert (
                 map<int,cTsParser*>::value_type (pid,
-                  new cFileAudioPesParser (pid, mAudioDecoder, frameNum, addAudioFrameCallback)));
+                  new cHlsAudioPesParser (pid, mAudioDecoder, frameNum, addAudioFrameCallback)));
               break;
 
             case 17: // aac latm
@@ -1168,13 +1173,11 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
         };
         //}}}
 
-      // add PAT parser
       mParsers.insert (map<int,cTsParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
-      mParsers.insert (map<int,cTsParser*>::value_type (0x14, new cTdtParser()));
 
       // parsers init
       for (auto parser : mParsers)
-        parser.second->clear (0);
+        parser.second->clear (frameNum);
 
       uint8_t* ts = fileFirst;
       while (ts + 188 <= fileEnd) {
@@ -1185,10 +1188,11 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
           ts += 188;
           }
         else {
+          //{{{  sync error
           cLog::log (LOGERROR, "ts packet nosync");
           ts++;
           }
-
+          //}}}
         mLoadFrac = float(ts - fileFirst) / fileSize;
         }
       mLoadFrac = float(ts - fileFirst) / fileSize;
@@ -1200,7 +1204,6 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
       cLog::log (LOGINFO, "loaded");
       mPlayer.join();
       }
-      //}}}
     else {
       //{{{  aac or mp3
       int sampleRate = 0;
@@ -1269,6 +1272,7 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
       }
       //}}}
 
+    //{{{  close file mapping
     #ifdef _WIN32
       //{{{  windows file map close
       UnmapViewOfFile (fileFirst);
@@ -1278,6 +1282,7 @@ void cLoaderPlayer::fileLoaderThread (const string& filename) {
       //{{{  linux mmap close to do
       //}}}
     #endif
+    //}}}
 
     //{{{  next file
     //if (mSong->getChanged()) // use changed fileIndex
@@ -1426,8 +1431,10 @@ void cLoaderPlayer::startPlayer (bool streaming) {
                 srcSamples = silence;
               numSrcSamples = mSong->getSamplesPerFrame();
 
-              if (mVideoDecode && framePtr)
+              if (mVideoDecode && framePtr) {
                 mVideoDecode->setPlayPts (framePtr->getPts());
+                cLog::log (LOGINFO, "play pts " + dec(framePtr->getPts()/3600));
+                }
               if (mPlaying && framePtr)
                 mSong->incPlayFrame (1, true);
               });

@@ -3,7 +3,11 @@
 #define _CRT_SECURE_NO_WARNINGS
 #define WIN32_LEAN_AND_MEAN
 
-#include "cVideoDecode.h"
+#include "iVideoDecode.h"
+
+#include <cstring>
+#include <algorithm>
+#include <string>
 #include <thread>
 
 // utils
@@ -97,8 +101,94 @@ using namespace chrono;
 constexpr bool kTiming = true;
 constexpr int kPtsPerSecond = 90000;
 
+// cVideoFrame
 //{{{
-class cFrameRgba : public cVideoDecode::cFrame {
+class cVideoFrame : public iVideoFrame {
+public:
+  //{{{
+  virtual ~cVideoFrame() {
+
+    #ifdef _WIN32
+      _aligned_free (mBuffer8888);
+    #else
+      free (mBuffer8888);
+    #endif
+    }
+  //}}}
+
+  // gets
+  virtual int getNum() { return mNum; }
+  virtual int64_t getPts() { return mPts; }
+  virtual int64_t getPtsDuration() { return mPtsDuration; }
+  virtual int64_t getPtsEnd() { return mPts + mPtsDuration; }
+  virtual bool isFreeToReuse() { return mState != eAllocated; }
+  virtual bool isPtsWithinFrame (int64_t pts) { return (mState == eLoaded) && (pts >= mPts) && (pts < mPts + mPtsDuration); }
+
+  virtual int getPesSize() { return mPesSize; }
+  virtual uint32_t* getBuffer8888() { return mBuffer8888; }
+
+  // sets
+  //{{{
+  virtual void set (int64_t pts, int64_t ptsDuration, int pesSize, int num, int width, int height) {
+
+    mState = eAllocated;
+
+    mPts = pts;
+    mPtsDuration = ptsDuration;
+    mPesSize = pesSize;
+    mNum = num;
+
+    mWidth = width;
+    mHeight = height;
+
+    #ifdef _WIN32
+      if (!mBuffer8888)
+        // allocate aligned buffer
+        mBuffer8888 = (uint32_t*)_aligned_malloc (width * height * 4, 128);
+    #else
+      if (!mBuffer8888)
+        // allocate aligned buffer
+        mBuffer8888 = (uint32_t*)aligned_alloc (128, width * height * 4);
+    #endif
+    }
+  //}}}
+  //{{{
+  virtual void setYuv420 (void* context, uint8_t** data, int* linesize) {
+    cLog::log (LOGERROR, "setYuv420 planar not implemented");
+    }
+  //}}}
+
+  // actions
+  //{{{
+  virtual void clear() {
+
+    mState = eFree;
+    mPts = 0;
+    mPtsDuration = 0;
+    mNum = 0;
+
+    mWidth = 0;
+    mHeight = 0;
+    }
+  //}}}
+
+protected:
+  void setState (eState state) { mState = state; }
+
+  int mWidth = 0;
+  int mHeight = 0;
+  uint32_t* mBuffer8888 = nullptr;
+
+private:
+  eState mState = eFree;
+  int mNum = 0;
+  int64_t mPts = 0;
+  int64_t mPtsDuration = 0;
+  int mPesSize = 0;   // only used debug widget info
+  };
+//}}}
+//{{{
+class cFrameRgba : public cVideoFrame {
 public:
   virtual ~cFrameRgba() {}
 
@@ -223,13 +313,13 @@ public:
         srcY128r1 += linesize[0] / 16;
         }
 
-      mState = eLoaded;
+      setState (eLoaded);
       }
   #endif
   };
 //}}}
 //{{{
-class cFramePlanarRgba : public cVideoDecode::cFrame {
+class cFramePlanarRgba : public cVideoFrame {
 public:
   virtual ~cFramePlanarRgba() {}
 
@@ -341,7 +431,7 @@ public:
         dstrgb128r1 += mWidth / 4;
         }
 
-      mState = eLoaded;
+      setState (eLoaded);
       }
     //}}}
   #else // ARM NEON
@@ -449,7 +539,7 @@ public:
   };
 //}}}
 //{{{
-class cFramePlanarRgbaSws : public cVideoDecode::cFrame {
+class cFramePlanarRgbaSws : public cVideoFrame {
 public:
   virtual ~cFramePlanarRgbaSws() {}
 
@@ -460,12 +550,12 @@ public:
     int dstStride[1] = { mWidth * 4 };
     sws_scale ((SwsContext*)context, data, linesize, 0, mHeight, dstData, dstStride);
 
-    mState = eLoaded;
+    setState (eLoaded);
     }
   };
 //}}}
 //{{{
-//class cFramePlanarRgbaTable : public cVideoDecode::cFrame {
+//class cFramePlanarRgbaTable : cVideoFrame {
 //public:
   //virtual ~cFramePlanarRgbaTable() {}
 
@@ -1346,7 +1436,7 @@ public:
   //};
 //}}}
 //{{{
-//class cFramePlanarRgbaSimple : public cVideoDecode::cFrame {
+//class cFramePlanarRgbaSimple : public cVideoFrame {
 //public:
   //virtual ~cFramePlanarRgbaSimple() {}
 
@@ -1414,6 +1504,92 @@ public:
   //};
 //}}}
 
+// videoDecode
+//{{{
+class cVideoDecode : public iVideoDecode {
+public:
+  //{{{
+  virtual ~cVideoDecode() {
+    for (auto frame : mFramePool)
+      delete frame;
+
+    mFramePool.clear();
+    }
+  //}}}
+
+  //{{{
+  void clear (int64_t pts) {
+    }
+  //}}}
+
+  // gets
+  int getWidth() { return mWidth; }
+  int getHeight() { return mHeight; }
+
+  int getFramePoolSize() { return (int)mFramePool.size(); }
+  std::vector <iVideoFrame*>& getFramePool() { return mFramePool; }
+
+  // sets
+  void setPlayPts (int64_t playPts) { mPlayPts = playPts; }
+
+  //{{{
+  iVideoFrame* findPlayFrame() {
+  // return frame containing playPts
+
+    for (auto frame : mFramePool)
+      if (frame->isPtsWithinFrame (mPlayPts))
+        return frame;
+
+    return nullptr;
+    }
+  //}}}
+  virtual void decodeFrame (bool afterPlay, uint8_t* pes, unsigned int pesSize, int num, int64_t pts) = 0;
+
+protected:
+  //{{{
+  cVideoDecode (bool planar, int poolSize) {
+  // allocate framePool frames with type needed to convert yuv420
+
+    for (int i = 0; i < poolSize; i++) {
+      if (!planar)
+        mFramePool.push_back(new cFrameRgba());
+      else
+        #if defined(INTEL_SSE2)
+          mFramePool.push_back(new cFramePlanarRgba());
+        #else
+          mFramePool.push_back (new cFramePlanarRgbaSws());
+        #endif
+      }
+    }
+  //}}}
+  //{{{
+  iVideoFrame* getFreeFrame (bool afterPlay, int64_t pts) {
+  // return first frame older than mPlayPts
+  // !!! use afterPlay to get better reuse, may be use map with lock like audio !!!
+
+    while (true) {
+      for (auto frame : mFramePool)
+        if (frame->isFreeToReuse())
+          if (mPlayPts - ((int)(mFramePool.size()/2) * mPtsDuration) > frame->getPtsEnd())
+            return frame;
+
+      // pool maxSize and no freeFrame before playPts, one should come along in a frame in normal play
+      std::this_thread::sleep_for (20ms);
+      }
+
+    // never gets here
+    return 0;
+    }
+  //}}}
+
+  int mWidth = 0;
+  int mHeight = 0;
+  int64_t mPlayPts = 0;
+  int64_t mPtsDuration = 0;
+
+  std::vector <iVideoFrame*> mFramePool;
+  };
+//}}}
 //{{{
 class cFFmpegVideoDecode : public cVideoDecode {
 public:
@@ -1444,7 +1620,7 @@ public:
     system_clock::time_point timePoint = system_clock::now();
 
     // ffmpeg doesn't maintain correct avFrame.pts, but does decode frames in presentation order
-    if (num == 0)
+    //if (num == 0)
       mDecodePts = pts;
 
     AVPacket avPacket;
@@ -1507,7 +1683,6 @@ private:
   int64_t mDecodePts = 0;
   };
 //}}}
-
 #ifdef _WIN32
   #include "../../libmfx/include/mfxvideo++.h"
   //{{{
@@ -1645,9 +1820,9 @@ private:
   //}}}
 #endif
 
-// cVideoDecode - static factory create
+// static factory create
 //{{{
-cVideoDecode* cVideoDecode::create (bool ffmpeg, int poolSize) {
+iVideoDecode* iVideoDecode::create (bool ffmpeg, int poolSize) {
 // create cVideoDecode
 
   #ifdef _WIN32
@@ -1656,129 +1831,5 @@ cVideoDecode* cVideoDecode::create (bool ffmpeg, int poolSize) {
   #endif
 
   return new cFFmpegVideoDecode (poolSize);
-  }
-//}}}
-
-// cVideoDecode
-//{{{
-cVideoDecode::cVideoDecode (bool planar, int poolSize) {
-// allocate framePool frames with type needed to convert yuv420
-
-  for (int i = 0; i < poolSize; i++) {
-    if (!planar)
-      mFramePool.push_back(new cFrameRgba());
-    else
-      #if defined(INTEL_SSE2)
-        mFramePool.push_back(new cFramePlanarRgba());
-      #else
-        mFramePool.push_back (new cFramePlanarRgbaSws());
-      #endif
-    }
-  }
-//}}}
-//{{{
-cVideoDecode::~cVideoDecode() {
-
-  for (auto frame : mFramePool)
-    delete frame;
-
-  mFramePool.clear();
-  }
-//}}}
-
-//{{{
-void cVideoDecode::clear (int64_t pts) {
-  }
-//}}}
-//{{{
-cVideoDecode::cFrame* cVideoDecode::findPlayFrame() {
-// return frame containing playPts
-
-  for (auto frame : mFramePool)
-    if (frame->isPtsWithinFrame (mPlayPts))
-      return frame;
-
-  return nullptr;
-  }
-//}}}
-//{{{
-cVideoDecode::cFrame* cVideoDecode::getFreeFrame (bool afterPlay, int64_t pts) {
-// return first frame older than mPlayPts
-// !!! use afterPlay to get better reuse, may be use map with lock like audio !!!
-
-  while (true) {
-    for (auto frame : mFramePool) {
-      if ((frame->getState() == cFrame::eFree) ||
-          ((frame->getState() == cFrame::eLoaded) &&
-           (mPlayPts - ((int)(mFramePool.size()/2) * mPtsDuration) > frame->getPtsEnd()))) {
-        return frame;
-        }
-      }
-
-    // pool maxSize and no freeFrame before playPts, one should come along in a frame in normal play
-    std::this_thread::sleep_for (20ms);
-    }
-
-  // never gets here
-  return 0;
-  }
-//}}}
-
-// cVideoDecode::cFrame
-//{{{
-cVideoDecode::cFrame::~cFrame() {
-
-  #ifdef _WIN32
-    _aligned_free (mBuffer8888);
-  #else
-    free (mBuffer8888);
-  #endif
-  }
-//}}}
-//{{{
-void cVideoDecode::cFrame::clear() {
-
-  mState = eFree;
-  mPts = 0;
-  mPtsDuration = 0;
-  mNum = 0;
-
-  mWidth = 0;
-  mHeight = 0;
-  }
-//}}}
-//{{{
-bool cVideoDecode::cFrame::isPtsWithinFrame (int64_t pts) {
-  return (mState == eLoaded) && (pts >= mPts) && (pts < mPts + mPtsDuration);
-  }
-//}}}
-
-//{{{
-void cVideoDecode::cFrame::set (int64_t pts, int64_t ptsDuration, int pesSize, int num, int width, int height) {
-
-  mState = eAllocated;
-
-  mPts = pts;
-  mPtsDuration = ptsDuration;
-  mPesSize = pesSize;
-  mNum = num;
-
-  mWidth = width;
-  mHeight = height;
-
-  #ifdef _WIN32
-    if (!mBuffer8888)
-      // allocate aligned buffer
-      mBuffer8888 = (uint32_t*)_aligned_malloc (width * height * 4, 128);
-  #else
-    if (!mBuffer8888)
-      // allocate aligned buffer
-      mBuffer8888 = (uint32_t*)aligned_alloc (128, width * height * 4);
-  #endif
-  }
-//}}}
-//{{{
-void cVideoDecode::cFrame::setYuv420 (void* context, uint8_t** data, int* linesize) {
-  cLog::log (LOGERROR, "setYuv420 planar not implemented");
   }
 //}}}

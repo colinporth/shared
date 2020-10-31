@@ -250,7 +250,7 @@ private:
     }
   //}}}
   //{{{
-  void drawInfo (cVg* vg, cVideoDecode* videoDecode) {
+  void drawInfo (cVg* vg, iVideoDecode* videoDecode) {
   // info text
 
     std::string infoString;
@@ -279,7 +279,7 @@ private:
     }
   //}}}
   //{{{
-  void drawVideoPool (cVg* vg, cSong* song, cVideoDecode* videoDecode) {
+  void drawVideoPool (cVg* vg, cSong* song, iVideoDecode* videoDecode) {
 
     cPointF org { getPixCentre().x, getPixSize().y - 100.f };
     float ptsPerPix = float((90 * song->getSamplesPerFrame()) / 48);
