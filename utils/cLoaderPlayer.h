@@ -49,13 +49,18 @@ private:
   void addIcyInfo (int frame, const std::string& icyInfo);
 
   // vars
-  cSong* mSong = nullptr;
-
   std::map <int, cPidParser*> mPidParsers;
-  iVideoDecoder* mVideoDecoder = nullptr;
 
+  cSong* mSong = nullptr;
   std::thread mPlayer;
 
+  // only really global for info graphics
+  // !!! could be owned or refrenced by cSong or passed to player directly !!!
+  iVideoDecoder* mVideoDecoder = nullptr;
+
+  // for info graphics
   int mLoadSize = 0;
   float mLoadFrac = 0.f;
+  int mAudioPid = -1;
+  int mVideoPid = -1;
   };

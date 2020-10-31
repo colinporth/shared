@@ -572,10 +572,8 @@ void cLoaderPlayer::getFrac (float& loadFrac, float& videoFrac, float& audioFrac
 // return fracs for spinner graphic, true if ok to display
 
   loadFrac = mLoadFrac;
-  //audioFrac = mParsers.size() > 0 ? mParsers[0]->getQueueFrac() : 0.f;
-  //videoFrac = mParsers.size() > 1 ? mParsers[1]->getQueueFrac() : 0.f;
-  audioFrac = 0.f;
-  videoFrac = 0.f;
+  audioFrac = mAudioPid > 0 ? mPidParsers[mAudioPid]->getQueueFrac() : 0.f;
+  videoFrac = mVideoPid > 0 ? mPidParsers[mVideoPid]->getQueueFrac() : 0.f;
   }
 //}}}
 //{{{
@@ -583,10 +581,8 @@ void cLoaderPlayer::getSizes (int& loadSize, int& videoQueueSize, int& audioQueu
 // return sizes
 
   loadSize = mLoadSize;
-  audioQueueSize = 0;
-  videoQueueSize = 0;
-  //audioQueueSize = mParsers.size() > 0 ? mParsers[0]->getQueueSize() : 0;
-  //videoQueueSize = mParsers.size() > 1 ? mParsers[1]->getQueueSize() : 0;
+  audioQueueSize = mAudioPid > 0 ? mPidParsers[mAudioPid]->getQueueSize() : 0;
+  videoQueueSize = mVideoPid > 0 ? mPidParsers[mVideoPid]->getQueueSize() : 0;
   }
 //}}}
 
@@ -650,6 +646,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
           mPidParsers.insert (
             map<int,cPidParser*>::value_type (pid,
               new cAudioPesParser (pid, audioDecoder, true, frameNum, addAudioFrameCallback)));
+          mAudioPid = pid;
           break;
 
         case 17: // aac latm
@@ -657,6 +654,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
           mPidParsers.insert (
             map<int,cPidParser*>::value_type (pid,
               new cAudioPesParser (pid, audioDecoder, true, 0, addAudioFrameCallback)));
+          mAudioPid = pid;
           break;
 
         case 27:
@@ -665,6 +663,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
             mPidParsers.insert (
               map<int,cPidParser*>::value_type (pid,
                 new cVideoPesParser (pid, mVideoDecoder, true, addVideoFrameCallback)));
+            mVideoPid = pid;
             }
           break;
 
@@ -1016,6 +1015,7 @@ void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loade
               mPidParsers.insert (
                 map<int,cPidParser*>::value_type (pid,
                   new cAudioPesParser (pid, audioDecoder, true, frameNum, addAudioFrameCallback)));
+              mAudioPid = pid;
               break;
 
             case 17: // aac latm
@@ -1023,6 +1023,7 @@ void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loade
               mPidParsers.insert (
                 map<int,cPidParser*>::value_type (pid,
                   new cAudioPesParser (pid, audioDecoder, true, frameNum, addAudioFrameCallback)));
+              mAudioPid = pid;
               break;
 
             case 27: // h264
@@ -1030,6 +1031,7 @@ void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loade
               mPidParsers.insert (
                 map<int,cPidParser*>::value_type (pid,
                   new cVideoPesParser (pid, mVideoDecoder, true, addVideoFrameCallback)));
+              mVideoPid = pid;
               break;
 
             default:
@@ -1064,11 +1066,12 @@ void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loade
           //}}}
         mLoadFrac = float(ts - fileFirst) / fileSize;
         }
+      mLoadFrac = 1.f;
+
       // finish parsers
       for (auto parser : mPidParsers)
         parser.second->processLast (true);
 
-      mLoadFrac = 0.f;
 
       cLog::log (LOGINFO, "loaded");
       mPlayer.join();
@@ -1116,7 +1119,7 @@ void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loade
                cAudioParser::parseFrame (filePtr, fileEnd, frameSize)) {
           float* samples = audioDecoder->decodeFrame (filePtr, frameSize, frameNum);
           if (samples) {
-            if (firstSamples) // need to decode a frame to set sampleRate for aacHE, its wrong in the header
+            if (firstSamples) // need to decode a frame to set sampleRate for aacHE, header is wrong
               mSong->initialise (fileFrameType,
                 audioDecoder->getNumChannels(), audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame(), 0);
 
