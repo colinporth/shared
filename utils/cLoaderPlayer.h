@@ -30,10 +30,10 @@ public:
 
   void videoFollowAudio();
 
-  void hlsLoaderThread (bool radio, const std::string& channelName,
-                        int audBitrate, int vidBitrate, eLoaderFlags loaderFlags);
+  void hlsLoaderThread (bool radio, const std::string& channelName, int 
+                        audioBitrate, int videoBitrate, eLoaderFlags loaderFlags);
   void icyLoaderThread (const std::string& url);
-  void fileLoaderThread (const std::string& filename);
+  void fileLoaderThread (const std::string& filename, eLoaderFlags loaderFlags);
 
   void startPlayer (bool streaming);
 

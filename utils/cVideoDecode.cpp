@@ -101,7 +101,7 @@ using namespace chrono;
 constexpr bool kTiming = true;
 constexpr int kPtsPerSecond = 90000;
 
-// cVideoFrame
+// iVideoFrame classes
 //{{{
 class cVideoFrame : public iVideoFrame {
 public:
@@ -1504,7 +1504,7 @@ public:
   //};
 //}}}
 
-// videoDecode
+// iVideoDecode classes
 //{{{
 class cVideoDecode : public iVideoDecode {
 public:
@@ -1820,7 +1820,7 @@ private:
   //}}}
 #endif
 
-// static factory create
+// iVideoDecode static factory create
 //{{{
 iVideoDecode* iVideoDecode::create (bool ffmpeg, int poolSize) {
 // create cVideoDecode
