@@ -3,7 +3,7 @@
 
 class cAudioDecode {
 public:
-  static iAudioDecoder* createAudioDecoder (iAudioDecoder::eFrameType frameType);
+  static iAudioDecoder* create (iAudioDecoder::eFrameType frameType);
 
   static uint8_t* getJpeg (int& len);
 

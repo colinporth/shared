@@ -14,7 +14,7 @@ static uint8_t* mJpegPtr = nullptr;
 static int mJpegLen = 0;
 
 //{{{
-iAudioDecoder* cAudioDecode::createAudioDecoder (iAudioDecoder::eFrameType frameType) {
+iAudioDecoder* cAudioDecode::create (iAudioDecoder::eFrameType frameType) {
 
   switch (frameType) {
     case iAudioDecoder::eFrameType::eMp3:

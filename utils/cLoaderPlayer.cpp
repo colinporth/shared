@@ -645,14 +645,14 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
       // new stream seen, add stream parser
       switch (type) {
         case 15:
-          mAudioDecoder = cAudioDecode::createAudioDecoder (iAudioDecoder::eFrameType::eAacAdts);
+          mAudioDecoder = cAudioDecode::create (iAudioDecoder::eFrameType::eAacAdts);
           mParsers.insert (
             map<int,cTsParser*>::value_type (pid,
               new cAudioPesParser (pid, mAudioDecoder, true, frameNum, addAudioFrameCallback)));
           break;
 
         case 17: // aac latm
-          mAudioDecoder = cAudioDecode::createAudioDecoder (iAudioDecoder::eFrameType::eAacLatm);
+          mAudioDecoder = cAudioDecode::create (iAudioDecoder::eFrameType::eAacLatm);
           mParsers.insert (
             map<int,cTsParser*>::value_type (pid,
               new cAudioPesParser (pid, mAudioDecoder, true, 0, addAudioFrameCallback)));
@@ -772,14 +772,14 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
                 }
 
               if (!mAudioDecoder)
-                mAudioDecoder = cAudioDecode::createAudioDecoder (iAudioDecoder::eFrameType::eAacAdts);
+                mAudioDecoder = cAudioDecode::create (iAudioDecoder::eFrameType::eAacAdts);
 
               // parse audio pes for audio frames
               uint8_t* pesEnd = pesPtr;
               pesPtr = http.getContent();
               int frameSize;
               while (cAudioDecode::parseFrame (pesPtr, pesEnd, frameSize)) {
-                float* samples = getAudioDecoder()->decodeFrame (pesPtr, frameSize, frameNum);
+                float* samples = mAudioDecoder->decodeFrame (pesPtr, frameSize, frameNum);
                 if (samples) {
                   mSong->addFrame (chunkAfterPlay, frameNum++, samples, true, mSong->getNumFrames(), 0);
                   startPlayer (true);
@@ -853,7 +853,7 @@ void cLoaderPlayer::icyLoaderThread (const string& url) {
 
     // init container and audDecode
     mSong = new cSong();
-    iAudioDecoder* audioDecoder = cAudioDecode::createAudioDecoder (iAudioDecoder::eFrameType::eAacAdts);
+    iAudioDecoder* audioDecoder = cAudioDecode::create (iAudioDecoder::eFrameType::eAacAdts);
 
     // init http
     cPlatformHttp http;
@@ -1007,14 +1007,14 @@ void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loade
               break;
 
             case 15: // aac adts
-              mAudioDecoder = cAudioDecode::createAudioDecoder (iAudioDecoder::eFrameType::eAacAdts);
+              mAudioDecoder = cAudioDecode::create (iAudioDecoder::eFrameType::eAacAdts);
               mParsers.insert (
                 map<int,cTsParser*>::value_type (pid,
                   new cAudioPesParser (pid, mAudioDecoder, true, frameNum, addAudioFrameCallback)));
               break;
 
             case 17: // aac latm
-              mAudioDecoder = cAudioDecode::createAudioDecoder (iAudioDecoder::eFrameType::eAacLatm);
+              mAudioDecoder = cAudioDecode::create (iAudioDecoder::eFrameType::eAacLatm);
               mParsers.insert (
                 map<int,cTsParser*>::value_type (pid,
                   new cAudioPesParser (pid, mAudioDecoder, true, frameNum, addAudioFrameCallback)));
@@ -1073,9 +1073,9 @@ void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loade
       }
     else {
       //{{{  aac or mp3
-      int sampleRate = 0;
+      int sampleRate;
       auto fileFrameType = cAudioDecode::parseSomeFrames (fileFirst, fileEnd, sampleRate);
-      iAudioDecoder* audioDecoder = cAudioDecode::createAudioDecoder (fileFrameType);
+      iAudioDecoder* audioDecoder = cAudioDecode::create (fileFrameType);
 
       //int jpegLen;
       //if (getJpeg (jpegLen)) {
