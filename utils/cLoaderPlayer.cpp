@@ -49,11 +49,11 @@ using namespace chrono;
 //}}}
 
 //{{{
-class cTsParser {
+class cPidParser {
 // extract pes from ts
 public:
-  cTsParser (int pid, const string& name) : mPid(pid), mName(name) {}
-  virtual ~cTsParser() {}
+  cPidParser (int pid, const string& name) : mPid(pid), mName(name) {}
+  virtual ~cPidParser() {}
 
   virtual int getQueueSize() { return 0; }
   virtual float getQueueFrac() { return 0.f; }
@@ -150,10 +150,10 @@ protected:
   };
 //}}}
 //{{{
-class cPatParser : public cTsParser {
+class cPatParser : public cPidParser {
 public:
   cPatParser (function<void (int programPid, int programSid)> callback)
-    : cTsParser (0, "pat"), mCallback(callback) {}
+    : cPidParser (0, "pat"), mCallback(callback) {}
   virtual ~cPatParser() {}
 
   virtual void processBody (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool afterPlay) {
@@ -201,10 +201,10 @@ private:
   };
 //}}}
 //{{{
-class cPmtParser : public cTsParser {
+class cPmtParser : public cPidParser {
 public:
   cPmtParser (int pid, int sid, function<void (int streamSid, int streamPid, int streamType)> callback)
-    : cTsParser (pid, "pmt"), mSid(sid), mCallback(callback) {}
+    : cPidParser (pid, "pmt"), mSid(sid), mCallback(callback) {}
   virtual ~cPmtParser() {}
 
   //{{{  sPmt
@@ -301,7 +301,7 @@ private:
   };
 //}}}
 //{{{
-class cPesParser : public cTsParser {
+class cPesParser : public cPidParser {
 //{{{
 class cPesItem {
 public:
@@ -327,7 +327,7 @@ public:
 //}}}
 public:
   //{{{
-  cPesParser (int pid, const string& name, bool useQueue) : cTsParser(pid, name), mUseQueue(useQueue) {
+  cPesParser (int pid, const string& name, bool useQueue) : cPidParser(pid, name), mUseQueue(useQueue) {
 
     mPes = (uint8_t*)malloc (kInitPesSize);
     if (useQueue)
@@ -642,28 +642,28 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
     //}}}
   auto addStreamCallback = [&](int sid, int pid, int type) noexcept {
     //{{{  addStream lambda
-    if (mParsers.find (pid) == mParsers.end())
+    if (mPidParsers.find (pid) == mPidParsers.end())
       // new stream seen, add stream parser
       switch (type) {
         case 15:
           audioDecoder = cAudioParser::create (eAudioFrameType::eAacAdts);
-          mParsers.insert (
-            map<int,cTsParser*>::value_type (pid,
+          mPidParsers.insert (
+            map<int,cPidParser*>::value_type (pid,
               new cAudioPesParser (pid, audioDecoder, true, frameNum, addAudioFrameCallback)));
           break;
 
         case 17: // aac latm
           audioDecoder = cAudioParser::create (eAudioFrameType::eAacLatm);
-          mParsers.insert (
-            map<int,cTsParser*>::value_type (pid,
+          mPidParsers.insert (
+            map<int,cPidParser*>::value_type (pid,
               new cAudioPesParser (pid, audioDecoder, true, 0, addAudioFrameCallback)));
           break;
 
         case 27:
           if (videoBitrate) {
             mVideoDecoder = iVideoDecoder::create (loaderFlags & eFFmpeg, kVideoPoolSize);
-            mParsers.insert (
-              map<int,cTsParser*>::value_type (pid,
+            mPidParsers.insert (
+              map<int,cPidParser*>::value_type (pid,
                 new cVideoPesParser (pid, mVideoDecoder, true, addVideoFrameCallback)));
             }
           break;
@@ -675,15 +675,15 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
     //}}}
   auto addProgramCallback = [&](int pid, int sid) noexcept {
     //{{{  addProgram lambda
-    if (mParsers.find (pid) == mParsers.end())
-      mParsers.insert (
-        map<int,cTsParser*>::value_type (pid,
+    if (mPidParsers.find (pid) == mPidParsers.end())
+      mPidParsers.insert (
+        map<int,cPidParser*>::value_type (pid,
           new cPmtParser (pid, sid, addStreamCallback)));
     };
     //}}}
 
   // add PAT parser
-  mParsers.insert (map<int,cTsParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
+  mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
 
   while (!mExit && !mSong->getChanged()) {
     mSong->setChanged (false);
@@ -705,7 +705,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
       while (!mExit && !mSong->getChanged()) {
         if (mSong->loadChunk (system_clock::now(), 2, chunkNum, frameNum)) {
           bool chunkAfterPlay = frameNum >= mSong->getPlayFrame();
-          for (auto parser : mParsers)
+          for (auto parser : mPidParsers)
             parser.second->clear (frameNum);
           int contentParsed = 0;
           if (http.get (redirectedHostName, pathName + '-' + dec(chunkNum) + ".ts", "",
@@ -727,8 +727,8 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
                             while (http.getContentSize() - contentParsed >= 188) {
                               uint8_t* ts = http.getContent() + contentParsed;
                               if (ts[0] == 0x47) {
-                                auto it = mParsers.find (((ts[1] & 0x1F) << 8) | ts[2]);
-                                if (it != mParsers.end())
+                                auto it = mPidParsers.find (((ts[1] & 0x1F) << 8) | ts[2]);
+                                if (it != mPidParsers.end())
                                   it->second->parse (ts, chunkAfterPlay);
                                 ts += 188;
                                 }
@@ -811,7 +811,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
               //}
               //}}}
             else
-              for (auto parser : mParsers)
+              for (auto parser : mPidParsers)
                 parser.second->processLast (chunkAfterPlay);
             http.freeContent();
             }
@@ -1006,29 +1006,29 @@ void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loade
         //}}}
       auto addStreamCallback = [&](int sid, int pid, int type) noexcept {
         //{{{  addStream lambda
-        if (mParsers.find (pid) == mParsers.end())
+        if (mPidParsers.find (pid) == mPidParsers.end())
           switch (type) {
             case 6:  // subtitle
               break;
 
             case 15: // aac adts
               audioDecoder = cAudioParser::create (eAudioFrameType::eAacAdts);
-              mParsers.insert (
-                map<int,cTsParser*>::value_type (pid,
+              mPidParsers.insert (
+                map<int,cPidParser*>::value_type (pid,
                   new cAudioPesParser (pid, audioDecoder, true, frameNum, addAudioFrameCallback)));
               break;
 
             case 17: // aac latm
               audioDecoder = cAudioParser::create (eAudioFrameType::eAacLatm);
-              mParsers.insert (
-                map<int,cTsParser*>::value_type (pid,
+              mPidParsers.insert (
+                map<int,cPidParser*>::value_type (pid,
                   new cAudioPesParser (pid, audioDecoder, true, frameNum, addAudioFrameCallback)));
               break;
 
             case 27: // h264
               mVideoDecoder = iVideoDecoder::create (loaderFlags & eFFmpeg, 128);
-              mParsers.insert (
-                map<int,cTsParser*>::value_type (pid,
+              mPidParsers.insert (
+                map<int,cPidParser*>::value_type (pid,
                   new cVideoPesParser (pid, mVideoDecoder, true, addVideoFrameCallback)));
               break;
 
@@ -1039,21 +1039,20 @@ void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loade
         //}}}
       auto addProgramCallback = [&](int pid, int sid) noexcept {
         //{{{  addProgram lambda
-        if (mParsers.find (pid) == mParsers.end())
-          mParsers.insert (
-            map<int,cTsParser*>::value_type (pid,
+        if (mPidParsers.find (pid) == mPidParsers.end())
+          mPidParsers.insert (
+            map<int,cPidParser*>::value_type (pid,
               new cPmtParser (pid, sid, addStreamCallback)));
         };
         //}}}
-      mParsers.insert (map<int,cTsParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
+      mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
 
       // no parsers init
-
       uint8_t* ts = fileFirst;
       while (ts + 188 <= fileEnd) {
         if (ts[0] == 0x47) {
-          auto it = mParsers.find (((ts[1] & 0x1F) << 8) | ts[2]);
-          if (it != mParsers.end())
+          auto it = mPidParsers.find (((ts[1] & 0x1F) << 8) | ts[2]);
+          if (it != mPidParsers.end())
             it->second->parse (ts, true);
           ts += 188;
           }
@@ -1066,7 +1065,7 @@ void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loade
         mLoadFrac = float(ts - fileFirst) / fileSize;
         }
       // finish parsers
-      for (auto parser : mParsers)
+      for (auto parser : mPidParsers)
         parser.second->processLast (true);
 
       mLoadFrac = 0.f;
@@ -1173,11 +1172,11 @@ void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loade
 //{{{
 void cLoaderPlayer::clear() {
 
-  for (auto parser : mParsers) {
+  for (auto parser : mPidParsers) {
     parser.second->stop();
     delete parser.second;
     }
-  mParsers.clear();
+  mPidParsers.clear();
 
   // remove main container
   auto tempSong = mSong;

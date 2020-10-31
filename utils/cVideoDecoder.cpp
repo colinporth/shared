@@ -326,15 +326,14 @@ namespace {
   //}}}
   //{{{
   char getH264FrameType (uint8_t* pes, int pesSize) {
-  // minimal h264 parser to return frameType of video pes
+  // minimal h264 parser - returns frameType of video pes
 
     uint8_t* pesEnd = pes + pesSize;
     while (pes < pesEnd) {
-      //{{{  skip past startcode
       uint8_t* buf = pes;
       uint32_t bufSize = (uint32_t)pesSize;
-
       uint32_t startOffset = 0;
+      //{{{  skip past startcode
       if (!buf[0] && !buf[1]) {
         if (!buf[2] && buf[3] == 1) {
           buf += 4;
@@ -346,11 +345,11 @@ namespace {
           }
         }
       //}}}
-      //{{{  find next startcode
+
       uint32_t offset = startOffset;
       uint32_t nalSize = offset;
+      //{{{  find next startcode
       uint32_t val = 0xffffffff;
-
       while (offset++ < bufSize - 3) {
         val = (val << 8) | *buf++;
         if (val == 0x0000001) {
@@ -361,7 +360,6 @@ namespace {
           nalSize = offset - 3;
           break;
           }
-
         nalSize = (uint32_t)bufSize;
         }
       //}}}
@@ -376,10 +374,10 @@ namespace {
           case 5:
             bitstream.getUe();
             switch (bitstream.getUe()) {
-              case 5: return 'P';
-              case 6: return 'B';
-              case 7: return 'I';
-              default:return '?';
+              case 5:  return 'P';
+              case 6:  return 'B';
+              case 7:  return 'I';
+              default: return '?';
               }
             break;
           //case 6: cLog::log(LOGINFO, ("SEI"); break;

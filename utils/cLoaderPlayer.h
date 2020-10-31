@@ -9,8 +9,7 @@
 #include <thread>
 
 class cSong;
-class cTsParser;
-class iAudioDecoder;
+class cPidParser;
 class iVideoDecoder;
 class cFileList;
 //}}}
@@ -52,8 +51,7 @@ private:
   // vars
   cSong* mSong = nullptr;
 
-  std::map <int, cTsParser*> mParsers;
-  //iAudioDecoder* mAudioDecoder = nullptr;
+  std::map <int, cPidParser*> mPidParsers;
   iVideoDecoder* mVideoDecoder = nullptr;
 
   std::thread mPlayer;
