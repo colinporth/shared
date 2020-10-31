@@ -126,8 +126,8 @@ namespace {
   class cBitstream {
   // used to parse H264 stream to find I frames
   public:
-    cBitstream (const uint8_t* buffer, uint32_t bit_len) :
-      mDecBuffer(buffer), mDecBufferSize(bit_len), mNumOfBitsInBuffer(0), mBookmarkOn(false) {}
+    cBitstream (const uint8_t* buffer, uint32_t bit_len) 
+      : mDecBuffer(buffer), mDecBufferSize(bit_len), mNumOfBitsInBuffer(0), mBookmarkOn(false) {}
 
     //{{{
     uint32_t peekBits (uint32_t bits) {
@@ -220,7 +220,7 @@ namespace {
       // we want to read 8 bits at a time - if we don't have 8 bits,
       // read what's left, and shift.  The exp_golomb_bits calc remains the same.
       while (!done) {
-        bits_left = bits_remain();
+        bits_left = bitsRemain();
         if (bits_left < 8) {
           read = peekBits (bits_left) << (8 - bits_left);
           done = true;
@@ -259,7 +259,7 @@ namespace {
     //}}}
 
     //{{{
-    void check_0s (int count) {
+    void check0s (int count) {
 
       uint32_t val = getBits (count);
       if (val != 0)
@@ -267,12 +267,12 @@ namespace {
       }
     //}}}
     //{{{
-    int bits_remain() {
+    int bitsRemain() {
       return mDecBufferSize + mNumOfBitsInBuffer;
       };
     //}}}
     //{{{
-    int byte_align() {
+    int byteAlign() {
 
       int temp = 0;
       if (mNumOfBitsInBuffer != 0)
@@ -308,7 +308,6 @@ namespace {
         mDecData = mDecData_bookmark;
         mBookmarkOn = false;
         }
-
       };
     //}}}
 
@@ -367,7 +366,7 @@ namespace {
       if (nalSize > 3) {
         // parse NAL bitStream
         cBitstream bitstream (buf, (nalSize - startOffset) * 8);
-        bitstream.check_0s (1);
+        bitstream.check0s (1);
         bitstream.getBits (2);
         switch (bitstream.getBits (5)) {
           case 1:

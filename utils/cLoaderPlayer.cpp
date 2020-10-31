@@ -50,7 +50,6 @@ using namespace chrono;
 
 //{{{
 class cPidParser {
-// extract pes from ts
 public:
   cPidParser (int pid, const string& name) : mPid(pid), mName(name) {}
   virtual ~cPidParser() {}
