@@ -1816,11 +1816,6 @@ public:
     }
   //}}}
 
-  //{{{
-  void clear (int64_t pts) {
-    }
-  //}}}
-
   // gets
   int getWidth() { return mWidth; }
   int getHeight() { return mHeight; }
@@ -1831,6 +1826,10 @@ public:
   // sets
   void setPlayPts (int64_t playPts) { mPlayPts = playPts; }
 
+  //{{{
+  void clear (int64_t pts) {
+    }
+  //}}}
   //{{{
   iVideoFrame* findPlayFrame() {
   // return frame containing playPts
@@ -1850,10 +1849,10 @@ protected:
 
     for (int i = 0; i < poolSize; i++) {
       if (!planar)
-        mFramePool.push_back(new cFrameRgba());
+        mFramePool.push_back (new cFrameRgba());
       else
         #if defined(INTEL_SSE2)
-          mFramePool.push_back(new cFramePlanarRgba());
+          mFramePool.push_back (new cFramePlanarRgba());
         #else
           mFramePool.push_back (new cFramePlanarRgbaSws());
         #endif
@@ -1920,7 +1919,6 @@ public:
     // ffmpeg doesn't maintain correct avFrame.pts, decode frames in presentation order and pts correct on I frames
     char frameType = getH264FrameType (pes, pesSize);
     if (frameType == 'I')
-    if (getH264FrameType (pes, pesSize) == 'I')
       mDecodePts = pts;
 
     AVPacket avPacket;
@@ -1962,7 +1960,6 @@ public:
                                           SWS_BILINEAR, NULL, NULL, NULL);
           frame->setYuv420 (mSwsContext, avFrame->data, avFrame->linesize);
           av_frame_unref (avFrame);
-
           if (kTiming)
             cLog::log (LOGINFO1, "setYuv420 FFmpeg %d",
                                  duration_cast<microseconds>(system_clock::now() - timePoint).count());
@@ -1996,6 +1993,8 @@ private:
 
       mfxVersion kMfxVersion = { 0,1 };
       mSession.Init (MFX_IMPL_AUTO, &kMfxVersion);
+      memset (&mVideoParams, 0, sizeof(mVideoParams));
+      memset (&mBitstream, 0, sizeof(mfxBitstream));
       }
     //}}}
     //{{{
@@ -2008,11 +2007,13 @@ private:
       }
     //}}}
 
-    int getSurfacePoolSize() { return (int)mSurfacePool.size(); }
     //{{{
     void decodeFrame (bool afterPlay, uint8_t* pes, unsigned int pesSize, int64_t pts) {
 
       system_clock::time_point timePoint = system_clock::now();
+
+      // only for graphic
+      char frameType = getH264FrameType (pes, pesSize);
 
       // init bitstream
       memset (&mBitstream, 0, sizeof(mfxBitstream));
@@ -2074,11 +2075,10 @@ private:
             auto frame = getFreeFrame (afterPlay, surface->Data.TimeStamp);
 
             timePoint = system_clock::now();
-            frame->set (surface->Data.TimeStamp, mPtsDuration, pesSize, surface->Info.Width, surface->Info.Height, '?');
+            frame->set (surface->Data.TimeStamp, mPtsDuration, pesSize, mWidth, mHeight, frameType);
             uint8_t* data[2] = { surface->Data.Y, surface->Data.UV };
             int linesize[2] = { surface->Data.Pitch, surface->Data.Pitch/2 };
             frame->setYuv420 (nullptr, data, linesize);
-
             if (kTiming)
               cLog::log (LOGINFO1, "setYuv420 mfx %d",
                                    duration_cast<microseconds>(system_clock::now() - timePoint).count());

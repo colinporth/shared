@@ -288,18 +288,19 @@ private:
     auto framePtr = song->getFramePtr (song->getPlayFrame());
     if (framePtr) {
       int64_t playPts = framePtr->mPts;
-      //{{{  draw pool index green
-      vg->beginPath();
+      //{{{  draw frame index grey
+      const float heightInc = 80.f / videoDecode->getFramePool().size();
 
-      int i = 0;
+      vg->beginPath();
+      float height = 0.f;
       for (auto frame : videoDecode->getFramePool()) {
         float pix = floor ((frame->getPts() - playPts) / ptsPerPix);
         float pixEnd = floor ((frame->getPtsEnd() - playPts) / ptsPerPix);
-        vg->rect (org + cPointF (pix, -i/2.f), cPointF (pixEnd - pix, i/2.f));
-        i++;
+        vg->rect (org + cPointF (pix, -height), cPointF (pixEnd - pix, height));
+        height += heightInc;
         }
 
-      vg->setFillColour (kSemiOpaqueGreenF);
+      vg->setFillColour (kSemiOpaqueBlackF);
       vg->triangleFill();
       //}}}
       //{{{  draw B frames yellow
@@ -308,28 +309,26 @@ private:
       for (auto frame : videoDecode->getFramePool()) {
         if (frame->getFrameType() == 'B')  {
           float pix = floor ((frame->getPts() - playPts) / ptsPerPix);
-          float pixEnd = floor ((frame->getPtsEnd() - playPts) / ptsPerPix)+1;
           float pes = frame->getPesSize() / 1000.f;
-          vg->rect (org + cPointF (pix, -pes), cPointF(pixEnd - pix, pes));
+          vg->rect (org + cPointF (pix, -pes), cPointF(1.f, pes));
           }
         }
 
       vg->setFillColour (kYellowF);
       vg->triangleFill();
       //}}}
-      //{{{  draw P frames blue
+      //{{{  draw P frames cyan
       vg->beginPath();
 
       for (auto frame : videoDecode->getFramePool()) {
         if (frame->getFrameType() == 'P')  {
           float pix = floor ((frame->getPts() - playPts) / ptsPerPix);
-          float pixEnd = floor ((frame->getPtsEnd() - playPts) / ptsPerPix)+1;
           float pes = frame->getPesSize() / 1000.f;
-          vg->rect (org + cPointF (pix, -pes), cPointF(pixEnd - pix, pes));
+          vg->rect (org + cPointF (pix, -pes), cPointF(1.f, pes));
           }
         }
 
-      vg->setFillColour (kBlueF);
+      vg->setFillColour (kCyanF);
       vg->triangleFill();
       //}}}
       //{{{  draw I frames white
@@ -338,9 +337,8 @@ private:
       for (auto frame : videoDecode->getFramePool()) {
         if (frame->getFrameType() == 'I')  {
           float pix = floor ((frame->getPts() - playPts) / ptsPerPix);
-          float pixEnd = floor ((frame->getPtsEnd() - playPts) / ptsPerPix)+1;
           float pes = frame->getPesSize() / 1000.f;
-          vg->rect (org + cPointF (pix, -pes), cPointF(pixEnd - pix, pes));
+          vg->rect (org + cPointF (pix, -pes), cPointF(1.f, pes));
           }
         }
 

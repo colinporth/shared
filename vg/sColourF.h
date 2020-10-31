@@ -57,6 +57,8 @@ const sColourF kDarkGreenF =  { 0.f,  0.75f, 0.f,  1.f };
 const sColourF kBlueF =       { 0.f,  0.f,   1.f,  1.f };
 const sColourF kYellowF =     { 1.f,  1.f,   0.f,  1.f };
 const sColourF kDarkOrangeF = { 0.6f, 0.6f,  0.f,  1.f };
+const sColourF kCyanF =       { 0.f,  1.f,   1.f,  1.f };
+const sColourF kMagentaF =    { 1.f,  0.f,   1.f,  1.f };
 
 // transparent colours
 const sColourF kOpaqueBlackF =      { 0.f,  0.f,  0.f,  0.f };

@@ -607,7 +607,6 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
 
   const string hostName = radio ? "as-hls-uk-live.bbcfmt.s.llnwi.net" : "vs-hls-uk-live.akamaized.net";
   const string kM3u8 = ".norewind.m3u8";
-  constexpr int kVideoPoolSize = 128;
 
   cLog::setThreadName ("hlsL");
   mRunning = true;
@@ -658,7 +657,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
 
         case 27:
           if (videoBitrate) {
-            mVideoDecoder = iVideoDecoder::create (loaderFlags & eFFmpeg, kVideoPoolSize);
+            mVideoDecoder = iVideoDecoder::create (loaderFlags & eFFmpeg, 192);
             mPidParsers.insert (
               map<int,cPidParser*>::value_type (pid,
                 new cVideoPesParser (pid, mVideoDecoder, true, addVideoFrameCallback)));
@@ -1035,7 +1034,7 @@ void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loade
               break;
 
             case 27: // h264
-              mVideoDecoder = iVideoDecoder::create (false, 128); // use mfx
+              mVideoDecoder = iVideoDecoder::create (false, 120); // use mfx
               //mVideoDecoder = iVideoDecoder::create (loaderFlags & eFFmpeg, 128);
               mPidParsers.insert (
                 map<int,cPidParser*>::value_type (pid,
