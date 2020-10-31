@@ -20,6 +20,7 @@ public:
   cLoaderPlayer();
   virtual ~cLoaderPlayer();
 
+  int64_t getPlayPts() { return mPlayPts; }
   cSong* getSong() { return mSong; }
   iVideoDecoder* getVideoDecoder() { return mVideoDecoder; }
 
@@ -53,6 +54,7 @@ private:
 
   cSong* mSong = nullptr;
   std::thread mPlayer;
+  int64_t mPlayPts;
 
   // only really global for info graphics
   // !!! could be owned or refrenced by cSong or passed to player directly !!!

@@ -1817,28 +1817,33 @@ public:
   //}}}
 
   // gets
-  int getWidth() { return mWidth; }
-  int getHeight() { return mHeight; }
+  virtual int getWidth() { return mWidth; }
+  virtual int getHeight() { return mHeight; }
 
-  int getFramePoolSize() { return (int)mFramePool.size(); }
-  std::vector <iVideoFrame*>& getFramePool() { return mFramePool; }
+  virtual int getFramePoolSize() { return (int)mFramePool.size(); }
+  virtual std::vector <iVideoFrame*>& getFramePool() { return mFramePool; }
 
   // sets
-  void setPlayPts (int64_t playPts) { mPlayPts = playPts; }
+  virtual void setPlayPts (int64_t playPts) { mPlayPts = playPts; }
 
   //{{{
-  void clear (int64_t pts) {
+  virtual void clear (int64_t pts) {
     }
   //}}}
-  //{{{
-  iVideoFrame* findPlayFrame() {
-  // return frame containing playPts
+  virtual iVideoFrame* findFrame (int64_t pts) {
 
     for (auto frame : mFramePool)
-      if (frame->isPtsWithinFrame (mPlayPts))
+      if (frame->isPtsWithinFrame (pts))
         return frame;
 
     return nullptr;
+    }
+
+  //{{{
+  virtual iVideoFrame* findPlayFrame() {
+  // return frame containing playPts
+
+    return findFrame (mPlayPts);
     }
   //}}}
 

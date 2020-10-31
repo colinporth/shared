@@ -1308,6 +1308,8 @@ void cLoaderPlayer::startPlayer (bool streaming) {
                 srcSamples = silence;
               numSrcSamples = mSong->getSamplesPerFrame();
 
+              if (framePtr)
+                mPlayPts = framePtr->getPts();
               if (mVideoDecoder && framePtr)
                 mVideoDecoder->setPlayPts (framePtr->getPts());
               if (mPlaying && framePtr)
@@ -1341,6 +1343,8 @@ void cLoaderPlayer::startPlayer (bool streaming) {
             }
           audio.play (2, playSamples, mSong->getSamplesPerFrame(), 1.f);
 
+          if (framePtr)
+            mPlayPts = framePtr->getPts();
           if (mVideoDecoder && framePtr)
             mVideoDecoder->setPlayPts (framePtr->getPts());
           if (mPlaying && framePtr)

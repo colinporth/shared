@@ -97,7 +97,7 @@ public:
 
     if (videoDecoder) {
       //{{{  draw piccy
-      auto frame = videoDecoder->findPlayFrame();
+      auto frame = videoDecoder->findFrame (mLoaderPlayer->getPlayPts());
       if (frame) {
         if (frame->getPts() != mImagePts) {
           mImagePts = frame->getPts();
