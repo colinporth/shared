@@ -983,7 +983,6 @@ void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loade
       mSong->initialise (iAudioDecoder::eFrameType::eAacAdts, 2, 48000, 1024, 0);
 
       int frameNum = 0;
-      mVideoDecode = iVideoDecode::create (loaderFlags & eFFmpeg, 128);
 
       // parser callbacks
       auto addAudioFrameCallback = [&](bool afterPlay, float* samples, int num, int64_t pts) noexcept {
@@ -1022,6 +1021,7 @@ void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loade
               break;
 
             case 27: // h264
+              mVideoDecode = iVideoDecode::create (loaderFlags & eFFmpeg, 128);
               mParsers.insert (
                 map<int,cTsParser*>::value_type (pid,
                   new cVideoPesParser (pid, mVideoDecode, true, addVideoFrameCallback)));
