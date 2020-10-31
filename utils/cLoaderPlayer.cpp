@@ -548,7 +548,7 @@ public:
   //}}}
   //{{{
   void decode (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) {
-    mVideoDecoder->decodeFrame (afterPlay, pes, size, num, pts);
+    mVideoDecoder->decodeFrame (afterPlay, pes, size, pts);
     mCallback (pts);
     }
   //}}}

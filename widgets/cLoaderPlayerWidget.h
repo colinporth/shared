@@ -301,16 +301,6 @@ private:
       vg->setFillColour (kSemiOpaqueGreenF);
       vg->triangleFill();
 
-      // draw pool frame num
-      vg->beginPath();
-      for (auto frame : videoDecode->getFramePool()) {
-        float pix = floor ((frame->getPts() - playPts) / ptsPerPix);
-        float pixEnd = floor ((frame->getPtsEnd() - playPts) / ptsPerPix);
-        vg->rect (org + cPointF (pix, -frame->getNum()/2.f), cPointF(pixEnd - pix, frame->getNum()/2.f));
-        }
-      vg->setFillColour (kSemiOpaqueBlueF);
-      vg->triangleFill();
-
       // draw pool frame pesSize
       vg->beginPath();
       for (auto frame : videoDecode->getFramePool()) {
