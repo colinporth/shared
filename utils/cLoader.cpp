@@ -20,8 +20,8 @@
 #include "../decoders/cAudioParser.h"
 #include "../decoders/iAudioDecoder.h"
 
-// video decode
-#include "../utils/iVideoDecoder.h"
+// video pool
+#include "../utils/iVideoPool.h"
 
 // net
 #ifdef _WIN32
@@ -516,9 +516,9 @@ private:
 //{{{
 class cVideoPesParser : public cPesParser {
 public:
-  cVideoPesParser (int pid, iVideoDecoder* videoDecoder, bool useQueue,
+  cVideoPesParser (int pid, iVideoPool* videoPool, bool useQueue,
                    function <void (int64_t pts)> callback)
-    : cPesParser (pid, "vid", useQueue), mVideoDecoder(videoDecoder), mCallback(callback) {}
+    : cPesParser (pid, "vid", useQueue), mVideoPool(videoPool), mCallback(callback) {}
   virtual ~cVideoPesParser() {}
 
   //{{{
@@ -542,13 +542,13 @@ public:
   //}}}
   //{{{
   void decode (bool reuseFront, uint8_t* pes, int size, int num, int64_t pts) {
-    mVideoDecoder->decodeFrame (reuseFront, pes, size, pts);
+    mVideoPool->decodeFrame (reuseFront, pes, size, pts);
     mCallback (pts);
     }
   //}}}
 
 private:
-  iVideoDecoder* mVideoDecoder;
+  iVideoPool* mVideoPool;
   function <void (int64_t pts)> mCallback;
   };
 //}}}
@@ -599,7 +599,7 @@ void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int 
     int chunkNum;
     int frameNum;
     iAudioDecoder* audioDecoder = nullptr;
-    iVideoDecoder* videoDecoder = nullptr;
+    iVideoPool* videoPool = nullptr;
     auto addAudioFrameCallback = [&](bool reuseFront, float* samples, int num, int64_t pts) noexcept {
       //{{{  addAudioFrame lambda
       mSong->addFrame (reuseFront, num, samples, true, mSong->getNumFrames(), pts);
@@ -634,11 +634,11 @@ void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int 
 
           case 27:
             if (videoBitrate) {
-              videoDecoder = iVideoDecoder::create (loaderFlags & eFlags::eFFmpeg, 192, mPlayPts);
-              mVideoDecoder = videoDecoder;
+              videoPool = iVideoPool::create (loaderFlags & eFlags::eFFmpeg, 192, mPlayPts);
+              mVideoPool = videoPool;
               mPidParsers.insert (
                 map<int,cPidParser*>::value_type (pid,
-                  new cVideoPesParser (pid, videoDecoder, true, addVideoFrameCallback)));
+                  new cVideoPesParser (pid, videoPool, true, addVideoFrameCallback)));
               mVideoPid = pid;
               }
             break;
@@ -807,7 +807,7 @@ void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int 
       }
 
     //{{{  delete resources
-    mVideoDecoder = nullptr;
+    mVideoPool = nullptr;
 
     for (auto parser : mPidParsers) {
       //{{{  stop and delete pidParsers
@@ -820,7 +820,7 @@ void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int 
     delete mSongPlayer;
     delete mSong;
     delete audioDecoder;
-    delete videoDecoder;
+    delete videoPool;
     //}}}
     cLog::log (LOGINFO, "exit");
     mRunning = false;
@@ -863,7 +863,7 @@ void cLoader::file (const string& filename, eFlags loaderFlags) {
         mSongPlayer = new cSongPlayer();
 
         iAudioDecoder* audioDecoder = nullptr;
-        iVideoDecoder* videoDecoder = nullptr;
+        iVideoPool* videoPool = nullptr;
 
         // parser callbacks
         int frameNum = 0;
@@ -914,12 +914,12 @@ void cLoader::file (const string& filename, eFlags loaderFlags) {
                 break;
 
               case 27: // h264
-                videoDecoder = iVideoDecoder::create (false, 120, mPlayPts); // use mfx
-                mVideoDecoder = videoDecoder;
+                videoPool = iVideoPool::create (false, 120, mPlayPts); // use mfx
+                mVideoPool = videoPool;
                 //videoDecoder = iVideoDecoder::create (loaderFlags & eFFmpeg, 128, mPlayPts);
                 mPidParsers.insert (
                   map<int,cPidParser*>::value_type (pid,
-                    new cVideoPesParser (pid, videoDecoder, true, addVideoFrameCallback)));
+                    new cVideoPesParser (pid, videoPool, true, addVideoFrameCallback)));
                 mVideoPid = pid;
                 break;
 
@@ -965,7 +965,7 @@ void cLoader::file (const string& filename, eFlags loaderFlags) {
         mSongPlayer->wait();
 
         //{{{  delete resources
-        mVideoDecoder = nullptr;
+        mVideoPool = nullptr;
 
         for (auto parser : mPidParsers) {
           //{{{  stop and delete pidParsers
@@ -979,7 +979,7 @@ void cLoader::file (const string& filename, eFlags loaderFlags) {
         delete mSong;
 
         delete audioDecoder;
-        delete videoDecoder;
+        delete videoPool;
         //}}}
         }
         //}}}

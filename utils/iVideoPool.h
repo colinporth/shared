@@ -1,4 +1,4 @@
-// iVideoDecoder.h
+// iVideoPool.h
 #pragma once
 //{{{  includes
 #include <cstdint>
@@ -22,11 +22,11 @@ public:
   virtual void setYuv420 (void* context, uint8_t** data, int* linesize) = 0;
   };
 
-// iVideoDecoder
-class iVideoDecoder {
+// iVideoPool
+class iVideoPool {
 public:
-  static iVideoDecoder* create (bool ffmpeg, int maxPoolSize, int64_t& playPts);
-  virtual ~iVideoDecoder() {}
+  static iVideoPool* create (bool ffmpeg, int maxPoolSize, int64_t& playPts);
+  virtual ~iVideoPool() {}
 
   // gets
   virtual int getWidth() = 0;

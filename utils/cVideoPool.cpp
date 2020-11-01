@@ -1,8 +1,8 @@
-// cVideoDecoder.cpp
+// cVideoPool.cpp
 //{{{  includes
 #define _CRT_SECURE_NO_WARNINGS
 
-#include "iVideoDecoder.h"
+#include "iVideoPool.h"
 
 #include <cstring>
 #include <algorithm>
@@ -1764,12 +1764,12 @@ public:
   };
 //}}}
 
-// iVideoDecoder classes
+// iVideoPool classes
 //{{{
-class cVideoDecoder : public iVideoDecoder {
+class cVideoPool : public iVideoPool {
 public:
   //{{{
-  virtual ~cVideoDecoder() {
+  virtual ~cVideoPool() {
 
     for (auto frame : mFramePool)
       delete frame.second;
@@ -1799,7 +1799,7 @@ public:
   //}}}
 
 protected:
-  cVideoDecoder (bool planar, int poolSize, int64_t& playPts)
+  cVideoPool (bool planar, int poolSize, int64_t& playPts)
     : mPlanar (planar), mMaxPoolSize( poolSize), mPlayPts(playPts) {}
 
   //{{{
@@ -1859,10 +1859,10 @@ private:
   };
 //}}}
 //{{{
-class cFFmpegVideoDecoder : public cVideoDecoder {
+class cFFmpegVideoPool : public cVideoPool {
 public:
   //{{{
-  cFFmpegVideoDecoder (int poolSize, int64_t& playPts) : cVideoDecoder(true, poolSize, playPts) {
+  cFFmpegVideoPool (int poolSize, int64_t& playPts) : cVideoPool(true, poolSize, playPts) {
 
     mAvParser = av_parser_init (AV_CODEC_ID_H264);
     mAvCodec = avcodec_find_decoder (AV_CODEC_ID_H264);
@@ -1871,7 +1871,7 @@ public:
     }
   //}}}
   //{{{
-  virtual ~cFFmpegVideoDecoder() {
+  virtual ~cFFmpegVideoPool() {
 
     if (mAvContext)
       avcodec_close (mAvContext);
@@ -1963,10 +1963,10 @@ private:
 #ifdef _WIN32
   #include "../../libmfx/include/mfxvideo++.h"
   //{{{
-  class cMfxVideoDecoder : public cVideoDecoder {
+  class cMfxVideoPool : public cVideoPool {
   public:
     //{{{
-    cMfxVideoDecoder (int poolSize, int64_t& playPts) : cVideoDecoder(false, poolSize, playPts) {
+    cMfxVideoPool (int poolSize, int64_t& playPts) : cVideoPool(false, poolSize, playPts) {
 
       mfxVersion kMfxVersion = { 0,1 };
       mSession.Init (MFX_IMPL_AUTO, &kMfxVersion);
@@ -1975,7 +1975,7 @@ private:
       }
     //}}}
     //{{{
-    virtual ~cMfxVideoDecoder() {
+    virtual ~cMfxVideoPool() {
 
       MFXVideoDECODE_Close (mSession);
 
@@ -2107,16 +2107,16 @@ private:
   //}}}
 #endif
 
-// iVideoDecoder static factory create
+// iVideoPool static factory create
 //{{{
-iVideoDecoder* iVideoDecoder::create (bool ffmpeg, int poolSize, int64_t& playPts) {
-// create cVideoDecoder
+iVideoPool* iVideoPool::create (bool ffmpeg, int poolSize, int64_t& playPts) {
+// create cVideoPool
 
   #ifdef _WIN32
     if (!ffmpeg)
-      return new cMfxVideoDecoder (poolSize, playPts);
+      return new cMfxVideoPool (poolSize, playPts);
   #endif
 
-  return new cFFmpegVideoDecoder (poolSize, playPts);
+  return new cFFmpegVideoPool (poolSize, playPts);
   }
 //}}}

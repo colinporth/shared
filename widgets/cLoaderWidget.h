@@ -110,17 +110,17 @@ public:
     cVg* vg = draw->getVg();
 
     int64_t playerPts = mLoader->getPlayerPts();
-    iVideoDecoder* videoDecoder = mLoader->getVideoDecoder();
-    if (videoDecoder && (playerPts >= 0)) {
+    iVideoPool* videoPool = mLoader->getVideoPool();
+    if (videoPool && (playerPts >= 0)) {
       //{{{  draw piccy
-      auto frame = videoDecoder->findFrame (playerPts);
+      auto frame = videoPool->findFrame (playerPts);
       if (frame) {
         if (frame->getPts() != mImagePts) {
           mImagePts = frame->getPts();
           if (mImageId > -1)
             vg->updateImage (mImageId, (uint8_t*)frame->getBuffer8888());
           else
-            mImageId = vg->createImageRGBA (videoDecoder->getWidth(), videoDecoder->getHeight(),
+            mImageId = vg->createImageRGBA (videoPool->getWidth(), videoPool->getHeight(),
                                             0, (uint8_t*)frame->getBuffer8888());
           }
 
@@ -137,7 +137,7 @@ public:
     else
       draw->clear (kBlackF);
 
-    drawInfo (vg, videoDecoder);
+    drawInfo (vg, videoPool);
     //{{{  draw progress spinners
     float loadFrac;
     float videoFrac;
@@ -185,8 +185,8 @@ public:
       }
       //}}}
 
-    if (kVideoPoolDebug && videoDecoder && (playerPts >= 0))
-      drawVideoPool (vg, song, videoDecoder, playerPts);
+    if (kVideoPoolDebug && videoPool && (playerPts >= 0))
+      drawVideoPool (vg, song, videoPool, playerPts);
     }
   //}}}
 
@@ -255,13 +255,13 @@ private:
     }
   //}}}
   //{{{
-  void drawInfo (cVg* vg, iVideoDecoder* videoDecoder) {
+  void drawInfo (cVg* vg, iVideoPool* videoPool) {
   // info text
 
     std::string infoString;
 
-    if (videoDecoder)
-      infoString += " " + dec(videoDecoder->getWidth()) + "x" + dec(videoDecoder->getHeight());
+    if (videoPool)
+      infoString += " " + dec(videoPool->getWidth()) + "x" + dec(videoPool->getHeight());
 
     int loadSize;
     int videoQueueSize;
@@ -269,7 +269,7 @@ private:
     mLoader->getSizes (loadSize, videoQueueSize, audioQueueSize);
     infoString += " " + dec(loadSize/1000) + "Kbytes";
 
-    if (videoDecoder) {
+    if (videoPool) {
       infoString += " v" + dec(videoQueueSize);
       infoString += " a" + dec(audioQueueSize);
       }
@@ -283,7 +283,7 @@ private:
     }
   //}}}
   //{{{
-  void drawVideoPool (cVg* vg, cSong* song, iVideoDecoder* videoDecode, int64_t playerPts) {
+  void drawVideoPool (cVg* vg, cSong* song, iVideoPool* videoPool, int64_t playerPts) {
 
     cPointF org { getPixCentre().x, mDstWaveCentre };
     const float ptsPerPix = float((90 * song->getSamplesPerFrame()) / 48);
@@ -292,7 +292,7 @@ private:
     //{{{  draw B frames yellow
     vg->beginPath();
 
-    for (auto frame : videoDecode->getFramePool()) {
+    for (auto frame : videoPool->getFramePool()) {
       if (frame.second->getFrameType() == 'B')  {
         float pix = floor ((frame.second->getPts() - playerPts) / ptsPerPix);
         float pes = frame.second->getPesSize() / kPesSizeScale;
@@ -306,7 +306,7 @@ private:
     //{{{  draw P frames cyan
     vg->beginPath();
 
-    for (auto frame : videoDecode->getFramePool()) {
+    for (auto frame : videoPool->getFramePool()) {
       if (frame.second->getFrameType() == 'P')  {
         float pix = floor ((frame.second->getPts() - playerPts) / ptsPerPix);
         float pes = frame.second->getPesSize() / kPesSizeScale;
@@ -320,7 +320,7 @@ private:
     //{{{  draw I frames white
     vg->beginPath();
 
-    for (auto frame : videoDecode->getFramePool()) {
+    for (auto frame : videoPool->getFramePool()) {
       if (frame.second->getFrameType() == 'I')  {
         float pix = floor ((frame.second->getPts() - playerPts) / ptsPerPix);
         float pes = frame.second->getPesSize() / kPesSizeScale;
