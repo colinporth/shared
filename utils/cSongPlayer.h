@@ -5,7 +5,7 @@ class cSong;
 
 class cSongPlayer {
 public:
-  cSongPlayer (cSong* song, int64_t& playPts) : mSong(song), mPlayPts(playPts) {}
+  cSongPlayer (int64_t& playPts) : mPlayPts(playPts) {}
 
   // gets
   int64_t getPlayPts() { return mPlayPts; }
@@ -14,12 +14,11 @@ public:
   void togglePlaying() { mPlaying = !mPlaying; }
 
   // actions
-  void start (bool streaming);
   void wait();
   void stopAndWait();
+  void start (cSong* song, bool streaming);
 
 private:
-  cSong* mSong;
   int64_t& mPlayPts;
 
   bool mExit = false;

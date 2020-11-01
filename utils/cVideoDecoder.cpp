@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <string>
 #include <thread>
+#include <shared_mutex>
 #include <vector>
 #include <map>
 
@@ -1814,6 +1815,8 @@ public:
   //{{{
   virtual iVideoFrame* findFrame (int64_t pts) {
 
+    unique_lock<shared_mutex> lock (mSharedMutex);
+
     if (mPtsDuration > 0) {
       auto it = mFramePool.find (pts / mPtsDuration);
       if (it != mFramePool.end())
@@ -1848,6 +1851,9 @@ protected:
   // other block for 20ms (!!! should be ptsduration!!!) and try again
 
     while (true) {
+      {
+      unique_lock<shared_mutex> lock (mSharedMutex);
+
       auto it = mFramePool.begin();
       if (!(*it).second->isAllocated())
         if (mPlayPts - ((int)(mFramePool.size()/2) * mPtsDuration) > (*it).second->getPtsEnd()) {
@@ -1860,6 +1866,7 @@ protected:
           // return for reuse
           return videoFrame;
           }
+      }
 
       // one should come along in a frame in while playing
       this_thread::sleep_for (20ms);
@@ -1870,6 +1877,7 @@ protected:
     }
   //}}}
 
+  shared_mutex mSharedMutex;
   int64_t& mPlayPts;
 
   int mWidth = 0;
@@ -1946,12 +1954,17 @@ public:
 
           timePoint = system_clock::now();
           frame->set (mDecodePts, mPtsDuration, pesSize, mWidth, mHeight, frameType);
-          mFramePool.insert (map<int64_t, iVideoFrame*>::value_type (mDecodePts/mPtsDuration, frame));
           if (!mSwsContext)
             mSwsContext = sws_getContext (mWidth, mHeight, AV_PIX_FMT_YUV420P,
                                           mWidth, mHeight, AV_PIX_FMT_RGBA,
                                           SWS_BILINEAR, NULL, NULL, NULL);
           frame->setYuv420 (mSwsContext, avFrame->data, avFrame->linesize);
+
+          {
+          unique_lock<shared_mutex> lock (mSharedMutex);
+          mFramePool.insert (map<int64_t, iVideoFrame*>::value_type (mDecodePts / mPtsDuration, frame));
+          }
+
           av_frame_unref (avFrame);
           if (kTiming)
             cLog::log (LOGINFO1, "setYuv420 FFmpeg %d",
@@ -2068,11 +2081,17 @@ private:
             auto frame = getFreeFrame (reuseFront, surface->Data.TimeStamp);
 
             timePoint = system_clock::now();
+
             frame->set (surface->Data.TimeStamp, mPtsDuration, pesSize, mWidth, mHeight, frameType);
-            mFramePool.insert (map<int64_t, iVideoFrame*>::value_type (surface->Data.TimeStamp/mPtsDuration, frame));
             uint8_t* data[2] = { surface->Data.Y, surface->Data.UV };
             int linesize[2] = { surface->Data.Pitch, surface->Data.Pitch/2 };
             frame->setYuv420 (nullptr, data, linesize);
+
+            {
+            unique_lock<shared_mutex> lock (mSharedMutex);
+            mFramePool.insert (map<int64_t, iVideoFrame*>::value_type (surface->Data.TimeStamp/mPtsDuration, frame));
+            }
+
             if (kTiming)
               cLog::log (LOGINFO1, "setYuv420 mfx %d",
                                    duration_cast<microseconds>(system_clock::now() - timePoint).count());

@@ -597,7 +597,7 @@ void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int 
     mSong->setBitrateFramesPerChunk (audioBitrate, audioBitrate < 128000 ? (radio ? 150 : 180) : (radio ? 300 : 360));
     mSong->setChannel (channelName);
     //}}}
-    mSongPlayer = new cSongPlayer (mSong, mPlayPts);
+    mSongPlayer = new cSongPlayer (mPlayPts);
     //{{{  add parser
     int chunkNum;
     int frameNum;
@@ -606,7 +606,7 @@ void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int 
     auto addAudioFrameCallback = [&](bool reuseFront, float* samples, int num, int64_t pts) noexcept {
       //{{{  addAudioFrame lambda
       mSong->addFrame (reuseFront, num, samples, true, mSong->getNumFrames(), pts);
-      mSongPlayer->start (true);
+      mSongPlayer->start (mSong, true);
       };
       //}}}
     auto addVideoFrameCallback = [&](int64_t pts) noexcept {
@@ -762,7 +762,7 @@ void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int 
                   float* samples = audioDecoder->decodeFrame (pesPtr, frameSize, frameNum);
                   if (samples) {
                     mSong->addFrame (chunkReuseFront, frameNum++, samples, true, mSong->getNumFrames(), 0);
-                    mSongPlayer->start (true);
+                    mSongPlayer->start (mSong, true);
                     }
                   else
                     cLog::log (LOGERROR, "aud parser failed to decode %d", frameNum);
@@ -865,7 +865,7 @@ void cLoader::file (const string& filename, eLoaderFlags loaderFlags) {
 
         iAudioDecoder* audioDecoder = nullptr;
         iVideoDecoder* videoDecoder = nullptr;
-        mSongPlayer = new cSongPlayer (mSong, mPlayPts);
+        mSongPlayer = new cSongPlayer (mPlayPts);
 
         // parser callbacks
         int frameNum = 0;
@@ -874,7 +874,7 @@ void cLoader::file (const string& filename, eLoaderFlags loaderFlags) {
           //cLog::log (LOGINFO, "adding audio frameNm " + dec (num));
           frameNum = num;
           mSong->addFrame (reuseFront, num, samples, true, mSong->getNumFrames(), pts);
-          mSongPlayer->start (true);
+          mSongPlayer->start (mSong, true);
           };
           //}}}
         auto addVideoFrameCallback = [&](int64_t pts) noexcept {
@@ -988,7 +988,7 @@ void cLoader::file (const string& filename, eLoaderFlags loaderFlags) {
         //{{{  aac or mp3
         mSong = new cSong();
         iAudioDecoder* audioDecoder = nullptr;
-        mSongPlayer = new cSongPlayer (mSong, mPlayPts);
+        mSongPlayer = new cSongPlayer (mPlayPts);
 
         int sampleRate;
         auto fileFrameType = cAudioParser::parseSomeFrames (fileFirst, fileEnd, sampleRate);
@@ -1015,7 +1015,7 @@ void cLoader::file (const string& filename, eLoaderFlags loaderFlags) {
           while (!mExit && !mSong->getChanged() && ((samples + (kFrameSamples * 2 * sizeof(float))) <= fileEnd)) {
             mSong->addFrame (true, frameNum++, (float*)samples, false, fileSize / (kFrameSamples * 2 * sizeof(float)), 0);
             samples += kFrameSamples * 2 * sizeof(float);
-            mSongPlayer->start (false);
+            mSongPlayer->start (mSong, false);
             mLoadFrac = float(samples - fileFirst) / fileSize;
             }
           mLoadFrac = float(samples - fileFirst) / fileSize;
@@ -1039,7 +1039,7 @@ void cLoader::file (const string& filename, eLoaderFlags loaderFlags) {
               mSong->addFrame (true, frameNum++, samples, true, totalFrames+1, 0);
 
               if (!firstSamples)
-                mSongPlayer->start (false);
+                mSongPlayer->start (mSong, false);
               firstSamples = false;
               }
             filePtr += frameSize;
@@ -1096,7 +1096,7 @@ void cLoader::icy (const string& url) {
 
     mSong = new cSong();
     iAudioDecoder* audioDecoder = cAudioParser::create (eAudioFrameType::eAacAdts);
-    mSongPlayer = new cSongPlayer (mSong, mPlayPts);
+    mSongPlayer = new cSongPlayer (mPlayPts);
 
     while (!mExit) {
       int icySkipCount = 0;
@@ -1181,7 +1181,7 @@ void cLoader::icy (const string& url) {
             if (samples) {
               mSong->setFixups (audioDecoder->getNumChannels(), audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame());
               mSong->addFrame (true, frameNum++, samples, true, mSong->getNumFrames()+1, 0);
-              mSongPlayer->start (true);
+              mSongPlayer->start (mSong, true);
               }
             buffer += frameSize;
             }
