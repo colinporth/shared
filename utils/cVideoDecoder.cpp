@@ -1807,21 +1807,6 @@ protected:
   // return youngest frame in pool if older than playPts - (halfPoolSize * duration)
 
     while (true) {
-      { // start of lock
-      unique_lock<shared_mutex> lock (mSharedMutex);
-
-      if (!mFramePool.empty()) {
-        // look at youngest frame in pool
-        auto it = mFramePool.begin();
-        if ((*it).first < ((mPlayPts / mPtsDuration) - (int)mFramePool.size()/2)) {
-          // old enough to be reused, remove from map and reuse videoFrame,
-          iVideoFrame* videoFrame = (*it).second;
-          mFramePool.erase (it);
-          return videoFrame;
-          }
-        }
-      } // end of lock
-
       if (mFramePool.size() < mMaxPoolSize) {
         // create and insert new videoFrame
         iVideoFrame* videoFrame;
@@ -1835,6 +1820,18 @@ protected:
           #endif
         return videoFrame;
         }
+
+      { // start of lock
+      unique_lock<shared_mutex> lock (mSharedMutex);
+      // look at youngest frame in pool
+      auto it = mFramePool.begin();
+      if ((*it).first < ((mPlayPts / mPtsDuration) - (int)mFramePool.size()/2)) {
+        // old enough to be reused, remove from map and reuse videoFrame,
+        iVideoFrame* videoFrame = (*it).second;
+        mFramePool.erase (it);
+        return videoFrame;
+        }
+      } // end of lock
 
       // one should come along in a frame in while playing
       // - !!!! should be ptsduration!!!

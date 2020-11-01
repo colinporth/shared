@@ -261,8 +261,7 @@ private:
     std::string infoString;
 
     if (videoDecoder)
-      infoString += " " + dec(videoDecoder->getWidth()) + "x" + dec(videoDecoder->getHeight()) +
-                    ":" + dec(videoDecoder->getFramePool().size());
+      infoString += " " + dec(videoDecoder->getWidth()) + "x" + dec(videoDecoder->getHeight());
 
     int loadSize;
     int videoQueueSize;
