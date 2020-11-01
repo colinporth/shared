@@ -28,7 +28,7 @@ public:
   void getFrac (float& loadFrac, float& videoFrac, float& audioFrac);
   void getSizes (int& loadSize, int& videoQueueSize, int& audioQueueSize);
 
-  void videoFollowAudio();
+  void skipped();
 
   void hlsLoaderThread (bool radio, const std::string& channelName, int
                         audioBitrate, int videoBitrate, eLoaderFlags loaderFlags);
@@ -57,9 +57,6 @@ private:
   std::thread mPlayer;
   int64_t mPlayPts;
   cPlayer* mPlayerClass = nullptr;
-
-  // only really global for info graphics
-  // !!! could be owned or refrenced by cSong or passed to player directly !!!
   iVideoDecoder* mVideoDecoder = nullptr;
 
   // for info graphics

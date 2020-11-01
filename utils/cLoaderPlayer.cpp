@@ -682,11 +682,7 @@ public:
 
 // public
 cLoaderPlayer::cLoaderPlayer() {}
-//{{{
-cLoaderPlayer::~cLoaderPlayer() {
-  clear();
-  }
-//}}}
+cLoaderPlayer::~cLoaderPlayer() {}
 
 //{{{
 void cLoaderPlayer::getFrac (float& loadFrac, float& videoFrac, float& audioFrac) {
@@ -708,23 +704,19 @@ void cLoaderPlayer::getSizes (int& loadSize, int& videoQueueSize, int& audioQueu
 //}}}
 
 //{{{
-void cLoaderPlayer::videoFollowAudio() {
+void cLoaderPlayer::skipped() {
 
-  if (mVideoDecoder) {
-    // get play frame
-    auto framePtr = mSong->getFramePtr (mSong->getPlayFrame());
-    if (framePtr) {
-      mPlayPts = framePtr->getPts();
-      mVideoDecoder->clear (mPlayPts);
-      }
-    }
+  // get play frame
+  //auto framePtr = mSong->getFramePtr (mSong->getPlayFrame());
+  //if (framePtr)
+  //  mPlayPts = framePtr->getPts();
   }
 //}}}
 
 //{{{
 void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
                                      int audioBitrate, int videoBitrate, eLoaderFlags loaderFlags) {
-// hls http chunk load and possible decode thread
+// hls http chunk load thread
 
   const string hostName = radio ? "as-hls-uk-live.bbcfmt.s.llnwi.net" : "vs-hls-uk-live.akamaized.net";
   const string kM3u8 = ".norewind.m3u8";
@@ -733,19 +725,19 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
   mRunning = true;
   mExit = false;
 
+  //{{{  init mSong
   // audioBitrate < 128000 use aacHE, more samplesPerframe, less framesPerChunk
   mSong = new cSong();
   mSong->initialise (eAudioFrameType::eAacAdts, 2, 48000, audioBitrate < 128000 ? 2048 : 1024, 1000);
   mSong->setBitrateFramesPerChunk (audioBitrate, audioBitrate < 128000 ? (radio ? 150 : 180) : (radio ? 300 : 360));
   mSong->setChannel (channelName);
-
+  //}}}
   mPlayerClass = new cPlayer (mSong, mPlayPts);
-
+  //{{{  add parser
   int chunkNum;
   int frameNum;
   iAudioDecoder* audioDecoder = nullptr;
-
-  // parser callbacks
+  iVideoDecoder* videoDecoder = nullptr;
   auto addAudioFrameCallback = [&](bool reuseFront, float* samples, int num, int64_t pts) noexcept {
     //{{{  addAudioFrame lambda
     mSong->addFrame (reuseFront, num, samples, true, mSong->getNumFrames(), pts);
@@ -780,10 +772,11 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
 
         case 27:
           if (videoBitrate) {
-            mVideoDecoder = iVideoDecoder::create (loaderFlags & eFFmpeg, 192, mPlayPts);
+            videoDecoder = iVideoDecoder::create (loaderFlags & eFFmpeg, 192, mPlayPts);
+            mVideoDecoder = videoDecoder;
             mPidParsers.insert (
               map<int,cPidParser*>::value_type (pid,
-                new cVideoPesParser (pid, mVideoDecoder, true, addVideoFrameCallback)));
+                new cVideoPesParser (pid, videoDecoder, true, addVideoFrameCallback)));
             mVideoPid = pid;
             }
           break;
@@ -804,6 +797,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
 
   // add PAT parser
   mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
+  //}}}
 
   while (!mExit && !mSong->getChanged()) {
     mSong->setChanged (false);
@@ -951,9 +945,22 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
       }
     }
 
-  clear();
-  delete audioDecoder;
+  //{{{  delete resources
+  mVideoDecoder = nullptr;
 
+  for (auto parser : mPidParsers) {
+    //{{{  stop and delete pidParsers
+    parser.second->stop();
+    delete parser.second;
+    }
+    //}}}
+  mPidParsers.clear();
+
+  delete mSong;
+  delete mPlayerClass;
+  delete audioDecoder;
+  delete videoDecoder;
+  //}}}
   cLog::log (LOGINFO, "exit");
   mRunning = false;
   }
@@ -962,7 +969,8 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
 void cLoaderPlayer::icyLoaderThread (const string& url) {
 
   cLog::setThreadName ("icyL");
-  iAudioDecoder* audioDecoder = nullptr;
+  mSong = new cSong();
+  iAudioDecoder* audioDecoder = cAudioParser::create (eAudioFrameType::eAacAdts);
   mPlayerClass = new cPlayer (mSong, mPlayPts);
 
   while (!mExit) {
@@ -977,8 +985,6 @@ void cLoaderPlayer::icyLoaderThread (const string& url) {
     uint8_t* buffer = bufferFirst;
 
     // init container and audDecode
-    mSong = new cSong();
-    audioDecoder = cAudioParser::create (eAudioFrameType::eAacAdts);
 
     // init http
     cPlatformHttp http;
@@ -1072,9 +1078,11 @@ void cLoaderPlayer::icyLoaderThread (const string& url) {
     mPlayer.join();
     }
 
-  clear();
+  //{{{  delete resources
+  delete mSong;
   delete audioDecoder;
-
+  delete mPlayerClass;
+  //}}}
   cLog::log (LOGINFO, "exit");
   }
 //}}}
@@ -1082,9 +1090,6 @@ void cLoaderPlayer::icyLoaderThread (const string& url) {
 void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loaderFlags) {
 
   cLog::setThreadName ("file");
-  iAudioDecoder* audioDecoder = nullptr;
-  iVideoDecoder* videoDecoder = nullptr;
-  mPlayerClass = new cPlayer (mSong, mPlayPts);
 
   while (!mExit) {
     //{{{  open filemapping
@@ -1106,13 +1111,16 @@ void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loade
     //}}}
 
     if ((fileFirst[0] == 0x47) && (fileFirst[188] == 0x47)) {
-      // ts
+      //{{{  ts
       mSong = new cSong();
       mSong->initialise (eAudioFrameType::eAacAdts, 2, 48000, 1024, 0);
 
-      int frameNum = 0;
+      iAudioDecoder* audioDecoder = nullptr;
+      iVideoDecoder* videoDecoder = nullptr;
+      mPlayerClass = new cPlayer (mSong, mPlayPts);
 
       // parser callbacks
+      int frameNum = 0;
       auto addAudioFrameCallback = [&](bool reuseFront, float* samples, int num, int64_t pts) noexcept {
         //{{{  addAudioFrame lambda
         //cLog::log (LOGINFO, "adding audio frameNm " + dec (num));
@@ -1161,6 +1169,7 @@ void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loade
 
             case 27: // h264
               videoDecoder = iVideoDecoder::create (false, 120, mPlayPts); // use mfx
+              mVideoDecoder = videoDecoder;
               //videoDecoder = iVideoDecoder::create (loaderFlags & eFFmpeg, 128, mPlayPts);
               mPidParsers.insert (
                 map<int,cPidParser*>::value_type (pid,
@@ -1206,12 +1215,33 @@ void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loade
       for (auto parser : mPidParsers)
         parser.second->processLast (true);
 
-
       cLog::log (LOGINFO, "loaded");
       mPlayer.join();
+
+      //{{{  delete resources
+      mVideoDecoder = nullptr;
+
+      for (auto parser : mPidParsers) {
+        //{{{  stop and delete pidParsers
+        parser.second->stop();
+        delete parser.second;
+        }
+        //}}}
+      mPidParsers.clear();
+
+      delete mSong;
+      delete mPlayerClass;
+      delete audioDecoder;
+      delete videoDecoder;
+      //}}}
       }
+      //}}}
     else {
       //{{{  aac or mp3
+      mSong = new cSong();
+      iAudioDecoder* audioDecoder = nullptr;
+      mPlayerClass = new cPlayer (mSong, mPlayPts);
+
       int sampleRate;
       auto fileFrameType = cAudioParser::parseSomeFrames (fileFirst, fileEnd, sampleRate);
       audioDecoder = cAudioParser::create (fileFrameType);
@@ -1225,10 +1255,9 @@ void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loade
         //}
         //}}}
 
-      mSong = new cSong();
       int frameNum = 0;
       if (fileFrameType == eAudioFrameType::eWav) {
-        //{{{  parse wav,
+        //{{{  load wav
         constexpr int kFrameSamples = 1024;
         mSong->initialise (fileFrameType, 2, sampleRate, kFrameSamples, 0);
 
@@ -1245,7 +1274,7 @@ void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loade
         }
         //}}}
       else {
-        //{{{  parse coded
+        //{{{  load aacAdts, mp3
         bool firstSamples = true;
         uint8_t* filePtr = fileFirst;
         int frameSize;
@@ -1275,6 +1304,12 @@ void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loade
       cLog::log (LOGINFO, "loaded");
       // wait for play to end or abort, wav uses the file mapping pointers to play
       mPlayer.join();
+
+      //{{{  delete resources
+      delete mSong;
+      delete mPlayerClass;
+      delete audioDecoder;
+      //}}}
       }
       //}}}
 
@@ -1289,7 +1324,6 @@ void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loade
       //}}}
     #endif
     //}}}
-
     //{{{  next file
     //if (mSong->getChanged()) // use changed fileIndex
     //  mSong->setChanged (false);
@@ -1298,36 +1332,11 @@ void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loade
     mExit = true;;
     }
 
-  clear();
-  delete audioDecoder;
-
   cLog::log (LOGINFO, "exit");
   }
 //}}}
 
 // private
-//{{{
-void cLoaderPlayer::clear() {
-
-  for (auto parser : mPidParsers) {
-    parser.second->stop();
-    delete parser.second;
-    }
-  mPidParsers.clear();
-
-  // remove main container
-  auto tempSong = mSong;
-  mSong = nullptr;
-  delete tempSong;
-
-  auto tempVideoDecoder = mVideoDecoder;
-  mVideoDecoder = nullptr;
-  delete tempVideoDecoder;
-
-  delete mPlayerClass;
-  }
-//}}}
-
 //{{{
 string cLoaderPlayer::getHlsPathName (bool radio, int vidBitrate) {
 
