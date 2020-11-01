@@ -21,9 +21,10 @@ public:
   cLoaderPlayer();
   virtual ~cLoaderPlayer();
 
-  int64_t getPlayPts() { return mPlayPts; }
   cSong* getSong() { return mSong; }
   iVideoDecoder* getVideoDecoder() { return mVideoDecoder; }
+  int64_t getPlayerPts() { return mPlayPts; }
+  bool getRunning() { return mRunning; }
 
   void getFrac (float& loadFrac, float& videoFrac, float& audioFrac);
   void getSizes (int& loadSize, int& videoQueueSize, int& audioQueueSize);
@@ -38,8 +39,6 @@ public:
 
   // vars
   bool mExit = false;
-  bool mRunning = false;
-  bool mPlaying = true;
   std::string mLastTitleStr;
   cFileList* mFileList = nullptr;
 
@@ -50,17 +49,19 @@ private:
   void addIcyInfo (int frame, const std::string& icyInfo);
 
   // vars
-  std::map <int, cPidParser*> mPidParsers;
-
-  // resources
   cSong* mSong = nullptr;
+
   int64_t mPlayPts;
   cSongPlayer* mSongPlayer = nullptr;
+
   iVideoDecoder* mVideoDecoder = nullptr;
+  bool mRunning = false;
+
+  int mAudioPid = -1;
+  int mVideoPid = -1;
+  std::map <int, cPidParser*> mPidParsers;
 
   // for info graphics
   int mLoadSize = 0;
   float mLoadFrac = 0.f;
-  int mAudioPid = -1;
-  int mVideoPid = -1;
   };

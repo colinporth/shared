@@ -98,7 +98,7 @@ public:
 
     if (videoDecoder) {
       //{{{  draw piccy
-      auto frame = videoDecoder->findFrame (mLoaderPlayer->getPlayPts());
+      auto frame = videoDecoder->findFrame (mLoaderPlayer->getPlayerPts());
       if (frame) {
         if (frame->getPts() != mImagePts) {
           mImagePts = frame->getPts();
@@ -283,15 +283,15 @@ private:
     cPointF org { getPixCentre().x, getPixSize().y - 100.f };
     float ptsPerPix = float((90 * song->getSamplesPerFrame()) / 48);
 
-    int64_t playPts = mLoaderPlayer->getPlayPts();
+    int64_t playerPts = mLoaderPlayer->getPlayerPts();
     //{{{  draw frame index grey
     const float heightInc = 80.f / videoDecode->getFramePool().size();
 
     vg->beginPath();
     float height = 0.f;
     for (auto frame : videoDecode->getFramePool()) {
-      float pix = floor ((frame->getPts() - playPts) / ptsPerPix);
-      float pixEnd = floor ((frame->getPtsEnd() - playPts) / ptsPerPix);
+      float pix = floor ((frame->getPts() - playerPts) / ptsPerPix);
+      float pixEnd = floor ((frame->getPtsEnd() - playerPts) / ptsPerPix);
       vg->rect (org + cPointF (pix, -height), cPointF (pixEnd - pix, height));
       height += heightInc;
       }
@@ -304,7 +304,7 @@ private:
 
     for (auto frame : videoDecode->getFramePool()) {
       if (frame->getFrameType() == 'B')  {
-        float pix = floor ((frame->getPts() - playPts) / ptsPerPix);
+        float pix = floor ((frame->getPts() - playerPts) / ptsPerPix);
         float pes = frame->getPesSize() / 1000.f;
         vg->rect (org + cPointF (pix, -pes), cPointF(1.f, pes));
         }
@@ -318,7 +318,7 @@ private:
 
     for (auto frame : videoDecode->getFramePool()) {
       if (frame->getFrameType() == 'P')  {
-        float pix = floor ((frame->getPts() - playPts) / ptsPerPix);
+        float pix = floor ((frame->getPts() - playerPts) / ptsPerPix);
         float pes = frame->getPesSize() / 1000.f;
         vg->rect (org + cPointF (pix, -pes), cPointF(1.f, pes));
         }
@@ -332,7 +332,7 @@ private:
 
     for (auto frame : videoDecode->getFramePool()) {
       if (frame->getFrameType() == 'I')  {
-        float pix = floor ((frame->getPts() - playPts) / ptsPerPix);
+        float pix = floor ((frame->getPts() - playerPts) / ptsPerPix);
         float pes = frame->getPesSize() / 1000.f;
         vg->rect (org + cPointF (pix, -pes), cPointF(1.f, pes));
         }

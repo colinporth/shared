@@ -674,7 +674,8 @@ public:
   void stopAndWait() {
 
     mExit = true;
-    mPlayerThread.join();
+    if (mStarted)
+      mPlayerThread.join();
     }
   //}}}
 
@@ -684,6 +685,7 @@ private:
 
   bool mExit = false;
   bool mPlaying = true;
+
   bool mStarted = false;
   thread mPlayerThread;
   };
@@ -731,8 +733,8 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
   const string kM3u8 = ".norewind.m3u8";
 
   cLog::setThreadName ("hlsL");
-  mRunning = true;
   mExit = false;
+  mRunning = true;
 
   //{{{  init mSong
   // audioBitrate < 128000 use aacHE, more samplesPerframe, less framesPerChunk
@@ -977,6 +979,8 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
 void cLoaderPlayer::icyLoaderThread (const string& url) {
 
   cLog::setThreadName ("icyL");
+  mRunning = true;
+
   mSong = new cSong();
   iAudioDecoder* audioDecoder = cAudioParser::create (eAudioFrameType::eAacAdts);
   mSongPlayer = new cSongPlayer (mSong, mPlayPts);
@@ -1092,12 +1096,14 @@ void cLoaderPlayer::icyLoaderThread (const string& url) {
   delete mSongPlayer;
   //}}}
   cLog::log (LOGINFO, "exit");
+  mRunning = false;
   }
 //}}}
 //{{{
 void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loaderFlags) {
 
   cLog::setThreadName ("file");
+  mRunning = true;
 
   while (!mExit) {
     //{{{  open filemapping
@@ -1340,6 +1346,7 @@ void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loade
     }
 
   cLog::log (LOGINFO, "exit");
+  mRunning = false;
   }
 //}}}
 
