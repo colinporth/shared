@@ -16,11 +16,9 @@ class iVideoDecoder;
 class cFileList;
 //}}}
 
-enum eLoaderFlags { eFFmpeg = 0x01, eQueueAudio = 0x02,  eQueueVideo = 0x04 };
 class cLoader {
 public:
-  cLoader();
-  virtual ~cLoader();
+  enum eFlags { eFFmpeg = 0x01, eQueueAudio = 0x02,  eQueueVideo = 0x04 };
 
   cSong* getSong() { return mSong; }
   cSongPlayer* getSongPlayer() { return mSongPlayer; }
@@ -31,8 +29,8 @@ public:
   void getFrac (float& loadFrac, float& videoFrac, float& audioFrac);
   void getSizes (int& loadSize, int& videoQueueSize, int& audioQueueSize);
 
-  void hls (bool radio, const std::string& channelName, int audioBitrate, int videoBitrate, eLoaderFlags loaderFlags);
-  void file (const std::string& filename, eLoaderFlags loaderFlags);
+  void hls (bool radio, const std::string& channelName, int audioBitrate, int videoBitrate, eFlags loaderFlags);
+  void file (const std::string& filename, eFlags loaderFlags);
   void icycast (const std::string& url);
 
   void skipped();
