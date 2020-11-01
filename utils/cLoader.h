@@ -33,7 +33,7 @@ public:
 
   void hls (bool radio, const std::string& channelName, int audioBitrate, int videoBitrate, eLoaderFlags loaderFlags);
   void file (const std::string& filename, eLoaderFlags loaderFlags);
-  void icy (const std::string& url);
+  void icycast (const std::string& url);
 
   void skipped();
   void stopAndWait();
@@ -51,16 +51,15 @@ private:
 
   // vars
   cSong* mSong = nullptr;
-
-  int64_t mPlayPts = -1;
   cSongPlayer* mSongPlayer = nullptr;
+  int64_t mPlayPts = -1;
 
   iVideoDecoder* mVideoDecoder = nullptr;
-  bool mRunning = false;
-
   int mAudioPid = -1;
   int mVideoPid = -1;
   std::map <int, cPidParser*> mPidParsers;
+
+  bool mRunning = false;
 
   // for info graphics
   int mLoadSize = 0;

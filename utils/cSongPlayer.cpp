@@ -123,7 +123,7 @@ void cSongPlayer::start (cSong* song, int64_t* playPts, bool streaming) {
           audio.play (2, playSamples, song->getSamplesPerFrame(), 1.f);
 
           if (framePtr) {
-            playPts = framePtr->getPts();
+            *playPts = framePtr->getPts();
             if (mPlaying)
               song->incPlayFrame (1, true);
             }

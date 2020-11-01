@@ -1087,7 +1087,7 @@ void cLoader::file (const string& filename, eLoaderFlags loaderFlags) {
   }
 //}}}
 //{{{
-void cLoader::icy (const string& url) {
+void cLoader::icycast (const string& url) {
 
   stopAndWait();
 
