@@ -52,6 +52,7 @@ public:
 
   virtual void clear (int num) {}
   virtual void stop() {}
+  virtual void processLast (bool reuseFront) {}
 
   //{{{
   void parse (uint8_t* ts, bool reuseFront) {
@@ -65,7 +66,6 @@ public:
     processBody (ts, tsLeft, payloadStart, continuityCount, reuseFront);
     }
   //}}}
-  virtual void processLast (bool reuseFront) {}
 
 protected:
   //{{{
@@ -127,11 +127,13 @@ protected:
   //}}}
   //{{{
   virtual void processBody (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool reuseFront) {
+
     string info;
     for (int i = 0; i < tsLeft; i++) {
       int value = ts[i];
       info += hex (value, 2) + " ";
       }
+
     cLog::log (LOGINFO, mName + " " + string(payloadStart ? "start ": "") + dec (tsLeft,3) + ":" + info);
     }
   //}}}
