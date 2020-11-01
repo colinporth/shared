@@ -30,12 +30,12 @@ public:
   void getFrac (float& loadFrac, float& videoFrac, float& audioFrac);
   void getSizes (int& loadSize, int& videoQueueSize, int& audioQueueSize);
 
+  void hls (bool radio, const std::string& channelName, int audioBitrate, int videoBitrate, eLoaderFlags loaderFlags);
+  void file (const std::string& filename, eLoaderFlags loaderFlags);
+  void icy (const std::string& url);
+
   void skipped();
   void stopAndWait();
-
-  void hls (bool radio, const std::string& channelName, int audioBitrate, int videoBitrate, eLoaderFlags loaderFlags);
-  void icy (const std::string& url);
-  void file (const std::string& filename, eLoaderFlags loaderFlags);
 
   // vars
   bool mExit = false;

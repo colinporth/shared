@@ -127,14 +127,14 @@ void cSongPlayer::start (bool streaming) {
 //{{{
 void cSongPlayer::wait() {
 
-  mPlayerThread.join();
+  if (mStarted)
+    mPlayerThread.join();
   }
 //}}}
 //{{{
 void cSongPlayer::stopAndWait() {
 
   mExit = true;
-  if (mStarted)
-    mPlayerThread.join();
+  wait();
   }
 //}}}

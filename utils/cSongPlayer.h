@@ -8,7 +8,6 @@ public:
   cSongPlayer (cSong* song, int64_t& playPts) : mSong(song), mPlayPts(playPts) {}
 
   // gets
-  bool getPlaying() { return mPlaying; }
   int64_t getPlayPts() { return mPlayPts; }
 
   // toggle

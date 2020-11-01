@@ -1,4 +1,4 @@
-// cLoader.cpp - audio,video loader,player
+// cLoader.cpp - audio,video loader, launces cSongPlayer when enough loaded
 //{{{  includes
 #define _CRT_SECURE_NO_WARNINGS
 #define WIN32_LEAN_AND_MEAN
@@ -575,24 +575,9 @@ void cLoader::getSizes (int& loadSize, int& videoQueueSize, int& audioQueueSize)
 //}}}
 
 //{{{
-void cLoader::skipped() {
-  }
-//}}}
-//{{{
-void cLoader::stopAndWait() {
+void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int videoBitrate, eLoaderFlags loaderFlags) {
 
-  mExit = true;
-  mSongPlayer->stopAndWait();
-  while (getRunning()) {
-    this_thread::sleep_for (100ms);
-    cLog::log(LOGINFO, "waiting to exit");
-    }
-  }
-//}}}
-
-//{{{
-void cLoader::hls (bool radio, const string& channelName,
-                   int audioBitrate, int videoBitrate, eLoaderFlags loaderFlags) {
+  stopAndWait();
 
   thread ([=]() {
     // hls http chunk load thread lambda
@@ -844,133 +829,9 @@ void cLoader::hls (bool radio, const string& channelName,
   }
 //}}}
 //{{{
-void cLoader::icy (const string& url) {
-
-  thread ([=]() {
-    cLog::setThreadName ("icyL");
-    mRunning = true;
-
-    mSong = new cSong();
-    iAudioDecoder* audioDecoder = cAudioParser::create (eAudioFrameType::eAacAdts);
-    mSongPlayer = new cSongPlayer (mSong, mPlayPts);
-
-    while (!mExit) {
-      int icySkipCount = 0;
-      int icySkipLen = 0;
-      int icyInfoCount = 0;
-      int icyInfoLen = 0;
-      char icyInfo[255] = { 0 };
-
-      uint8_t bufferFirst[4096];
-      uint8_t* bufferEnd = bufferFirst;
-      uint8_t* buffer = bufferFirst;
-
-      // init container and audDecode
-
-      // init http
-      cPlatformHttp http;
-      cUrl parsedUrl;
-      parsedUrl.parse (url);
-
-      int frameNum = -1;
-      http.get (parsedUrl.getHost(), parsedUrl.getPath(), "Icy-MetaData: 1",
-        //{{{  headerCallback lambda
-        [&](const string& key, const string& value) noexcept {
-          if (key == "icy-metaint")
-            icySkipLen = stoi (value);
-          },
-        //}}}
-        //{{{  dataCallback lambda
-        [&] (const uint8_t* data, int length) noexcept {
-          // return false to exit
-
-          // cLog::log (LOGINFO, "callback %d", length);
-          if ((icyInfoCount >= icyInfoLen) && (icySkipCount + length <= icySkipLen)) {
-            //{{{  simple copy of whole body, no metaInfo
-            //cLog::log (LOGINFO1, "body simple copy len:%d", length);
-
-            memcpy (bufferEnd, data, length);
-
-            bufferEnd += length;
-            icySkipCount += length;
-            }
-            //}}}
-          else {
-            //{{{  dumb copy for metaInfo straddling body, could be much better
-            //cLog::log (LOGINFO1, "body split copy length:%d info:%d:%d skip:%d:%d ",
-                                  //length, icyInfoCount, icyInfoLen, icySkipCount, icySkipLen);
-            for (int i = 0; i < length; i++) {
-              if (icyInfoCount < icyInfoLen) {
-                icyInfo [icyInfoCount] = data[i];
-                icyInfoCount++;
-                if (icyInfoCount >= icyInfoLen)
-                  addIcyInfo (frameNum, icyInfo);
-                }
-              else if (icySkipCount >= icySkipLen) {
-                icyInfoLen = data[i] * 16;
-                icyInfoCount = 0;
-                icySkipCount = 0;
-                //cLog::log (LOGINFO1, "body icyInfo len:", data[i] * 16);
-                }
-              else {
-                icySkipCount++;
-                *bufferEnd = data[i];
-                bufferEnd++;
-                }
-              }
-
-            return !mExit && !mSong->getChanged();
-            }
-            //}}}
-
-          if (frameNum == -1) {
-            // enough data to determine frameType and sampleRate (wrong for aac sbr)
-            frameNum = 0;
-            int sampleRate = 0;
-            auto frameType = cAudioParser::parseSomeFrames (bufferFirst, bufferEnd, sampleRate);
-            mSong->initialise (frameType, 2, sampleRate, (frameType == eAudioFrameType::eMp3) ? 1152 : 2048, 3000);
-            }
-
-          int frameSize;
-          while (cAudioParser::parseFrame (buffer, bufferEnd, frameSize)) {
-            auto samples = audioDecoder->decodeFrame (buffer, frameSize, frameNum);
-            if (samples) {
-              mSong->setFixups (audioDecoder->getNumChannels(), audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame());
-              mSong->addFrame (true, frameNum++, samples, true, mSong->getNumFrames()+1, 0);
-              mSongPlayer->start (true);
-              }
-            buffer += frameSize;
-            }
-
-          if ((buffer > bufferFirst) && (buffer < bufferEnd)) {
-            // shuffle down last partial frame
-            auto bufferLeft = int(bufferEnd - buffer);
-            memcpy (bufferFirst, buffer, bufferLeft);
-            bufferEnd = bufferFirst + bufferLeft;
-            buffer = bufferFirst;
-            }
-
-          return !mExit && !mSong->getChanged();
-          }
-        //}}}
-        );
-
-      cLog::log (LOGINFO, "icyThread songChanged");
-      mSongPlayer->stopAndWait();
-      }
-
-    //{{{  delete resources
-    delete mSong;
-    delete audioDecoder;
-    delete mSongPlayer;
-    //}}}
-    cLog::log (LOGINFO, "exit");
-    mRunning = false;
-    } ).detach();
-  }
-//}}}
-//{{{
 void cLoader::file (const string& filename, eLoaderFlags loaderFlags) {
+
+  stopAndWait();
 
   thread ([=]() {
     cLog::setThreadName ("file");
@@ -1220,6 +1081,152 @@ void cLoader::file (const string& filename, eLoaderFlags loaderFlags) {
     cLog::log (LOGINFO, "exit");
     mRunning = false;
     } ).detach();
+  }
+//}}}
+//{{{
+void cLoader::icy (const string& url) {
+
+  stopAndWait();
+
+  thread ([=]() {
+    cLog::setThreadName ("icyL");
+    mRunning = true;
+
+    mSong = new cSong();
+    iAudioDecoder* audioDecoder = cAudioParser::create (eAudioFrameType::eAacAdts);
+    mSongPlayer = new cSongPlayer (mSong, mPlayPts);
+
+    while (!mExit) {
+      int icySkipCount = 0;
+      int icySkipLen = 0;
+      int icyInfoCount = 0;
+      int icyInfoLen = 0;
+      char icyInfo[255] = { 0 };
+
+      uint8_t bufferFirst[4096];
+      uint8_t* bufferEnd = bufferFirst;
+      uint8_t* buffer = bufferFirst;
+
+      // init container and audDecode
+
+      // init http
+      cPlatformHttp http;
+      cUrl parsedUrl;
+      parsedUrl.parse (url);
+
+      int frameNum = -1;
+      http.get (parsedUrl.getHost(), parsedUrl.getPath(), "Icy-MetaData: 1",
+        //{{{  headerCallback lambda
+        [&](const string& key, const string& value) noexcept {
+          if (key == "icy-metaint")
+            icySkipLen = stoi (value);
+          },
+        //}}}
+        //{{{  dataCallback lambda
+        [&] (const uint8_t* data, int length) noexcept {
+          // return false to exit
+
+          // cLog::log (LOGINFO, "callback %d", length);
+          if ((icyInfoCount >= icyInfoLen) && (icySkipCount + length <= icySkipLen)) {
+            //{{{  simple copy of whole body, no metaInfo
+            //cLog::log (LOGINFO1, "body simple copy len:%d", length);
+
+            memcpy (bufferEnd, data, length);
+
+            bufferEnd += length;
+            icySkipCount += length;
+            }
+            //}}}
+          else {
+            //{{{  dumb copy for metaInfo straddling body, could be much better
+            //cLog::log (LOGINFO1, "body split copy length:%d info:%d:%d skip:%d:%d ",
+                                  //length, icyInfoCount, icyInfoLen, icySkipCount, icySkipLen);
+            for (int i = 0; i < length; i++) {
+              if (icyInfoCount < icyInfoLen) {
+                icyInfo [icyInfoCount] = data[i];
+                icyInfoCount++;
+                if (icyInfoCount >= icyInfoLen)
+                  addIcyInfo (frameNum, icyInfo);
+                }
+              else if (icySkipCount >= icySkipLen) {
+                icyInfoLen = data[i] * 16;
+                icyInfoCount = 0;
+                icySkipCount = 0;
+                //cLog::log (LOGINFO1, "body icyInfo len:", data[i] * 16);
+                }
+              else {
+                icySkipCount++;
+                *bufferEnd = data[i];
+                bufferEnd++;
+                }
+              }
+
+            return !mExit && !mSong->getChanged();
+            }
+            //}}}
+
+          if (frameNum == -1) {
+            // enough data to determine frameType and sampleRate (wrong for aac sbr)
+            frameNum = 0;
+            int sampleRate = 0;
+            auto frameType = cAudioParser::parseSomeFrames (bufferFirst, bufferEnd, sampleRate);
+            mSong->initialise (frameType, 2, sampleRate, (frameType == eAudioFrameType::eMp3) ? 1152 : 2048, 3000);
+            }
+
+          int frameSize;
+          while (cAudioParser::parseFrame (buffer, bufferEnd, frameSize)) {
+            auto samples = audioDecoder->decodeFrame (buffer, frameSize, frameNum);
+            if (samples) {
+              mSong->setFixups (audioDecoder->getNumChannels(), audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame());
+              mSong->addFrame (true, frameNum++, samples, true, mSong->getNumFrames()+1, 0);
+              mSongPlayer->start (true);
+              }
+            buffer += frameSize;
+            }
+
+          if ((buffer > bufferFirst) && (buffer < bufferEnd)) {
+            // shuffle down last partial frame
+            auto bufferLeft = int(bufferEnd - buffer);
+            memcpy (bufferFirst, buffer, bufferLeft);
+            bufferEnd = bufferFirst + bufferLeft;
+            buffer = bufferFirst;
+            }
+
+          return !mExit && !mSong->getChanged();
+          }
+        //}}}
+        );
+
+      cLog::log (LOGINFO, "icyThread songChanged");
+      mSongPlayer->stopAndWait();
+      }
+
+    //{{{  delete resources
+    delete mSong;
+    delete audioDecoder;
+    delete mSongPlayer;
+    //}}}
+    cLog::log (LOGINFO, "exit");
+    mRunning = false;
+    } ).detach();
+  }
+//}}}
+
+//{{{
+void cLoader::skipped() {
+  }
+//}}}
+//{{{
+void cLoader::stopAndWait() {
+
+  if (mRunning) {
+    mExit = true;
+    mSongPlayer->stopAndWait();
+    while (mRunning) {
+      this_thread::sleep_for (100ms);
+      cLog::log(LOGINFO, "waiting to exit");
+      }
+    }
   }
 //}}}
 
