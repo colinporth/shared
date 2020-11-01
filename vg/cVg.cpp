@@ -2672,7 +2672,7 @@ bool cVg::updateTexture (int id, int x, int y, int width, int height, const uint
   //cLog::log (LOGINFO, "updateTexture");
   sTexture* texture = findTextureById (id);
   if (texture == nullptr) {
-    cLog::log (LOGERROR, "updateTexture - cannot find texture id:" + dec(id) + " " + dec(width) + "x" + dec(height));
+    cLog::log (LOGERROR, "updateTexture - no id:" + dec(id) + " " + dec(width) + "x" + dec(height));
     return false;
     }
   setBindTexture (texture->tex);
