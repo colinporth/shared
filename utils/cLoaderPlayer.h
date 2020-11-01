@@ -9,6 +9,7 @@
 #include <thread>
 
 class cSong;
+class cPlayer;
 class cPidParser;
 class iVideoDecoder;
 class cFileList;
@@ -55,6 +56,7 @@ private:
   cSong* mSong = nullptr;
   std::thread mPlayer;
   int64_t mPlayPts;
+  cPlayer* mPlayerClass = nullptr;
 
   // only really global for info graphics
   // !!! could be owned or refrenced by cSong or passed to player directly !!!

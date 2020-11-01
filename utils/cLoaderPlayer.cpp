@@ -558,6 +558,128 @@ private:
   };
 //}}}
 
+//{{{
+class cPlayer {
+public:
+  cPlayer (cSong* song, int64_t& playPts) : mSong(song), mPlayPts(playPts) {}
+
+  bool getPlaying() { return mPlaying; }
+  int64_t getPlayPts() { return mPlayPts; }
+
+  //{{{
+  void startPlayer (bool streaming) {
+
+    if (!mPlayer.joinable()) {
+      mPlayer = thread ([=]() {
+        // lambda - player
+        cLog::setThreadName ("play");
+
+        float silence [2048*2] = { 0.f };
+        float samples [2048*2] = { 0.f };
+
+        #ifdef _WIN32
+          SetThreadPriority (GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
+          //{{{  WSAPI player thread, video just follows play pts
+          auto device = getDefaultAudioOutputDevice();
+          if (device) {
+            cLog::log (LOGINFO, "startPlayer WASPI device:%dhz", mSong->getSampleRate());
+            device->setSampleRate (mSong->getSampleRate());
+            device->start();
+
+            cSong::cFrame* framePtr;
+            while (!mExit && !mSong->getChanged()) {
+              device->process ([&](float*& srcSamples, int& numSrcSamples) mutable noexcept {
+                // lambda callback - load srcSamples
+                shared_lock<shared_mutex> lock (mSong->getSharedMutex());
+
+                framePtr = mSong->getFramePtr (mSong->getPlayFrame());
+                if (mPlaying && framePtr && framePtr->getSamples()) {
+                  if (mSong->getNumChannels() == 1) {
+                    //{{{  mono to stereo
+                    auto src = framePtr->getSamples();
+                    auto dst = samples;
+                    for (int i = 0; i < mSong->getSamplesPerFrame(); i++) {
+                      *dst++ = *src;
+                      *dst++ = *src++;
+                      }
+                    }
+                    //}}}
+                  else
+                    memcpy (samples, framePtr->getSamples(), mSong->getSamplesPerFrame() * mSong->getNumChannels() * sizeof(float));
+                  srcSamples = samples;
+                  }
+                else
+                  srcSamples = silence;
+                numSrcSamples = mSong->getSamplesPerFrame();
+
+                if (framePtr) {
+                  mPlayPts = framePtr->getPts();
+                  if (mPlaying)
+                    mSong->incPlayFrame (1, true);
+                  }
+                });
+
+              if (!streaming && (mSong->getPlayFrame() > mSong->getLastFrame()))
+                break;
+              }
+
+            device->stop();
+            }
+          //}}}
+        #else
+          //SetThreadPriority (GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
+          //{{{  audio16 player thread, video just follows play pts
+          cAudio audio (2, mSong->getSampleRate(), 40000, false);
+
+          cSong::cFrame* framePtr;
+          while (!mExit && !mSong->getChanged()) {
+            float* playSamples = silence;
+              {
+              // scoped song mutex
+              shared_lock<shared_mutex> lock (mSong->getSharedMutex());
+              framePtr = mSong->getFramePtr (mSong->getPlayFrame());
+              bool gotSamples = mPlaying && framePtr && framePtr->getSamples();
+              if (gotSamples) {
+                memcpy (samples, framePtr->getSamples(), mSong->getSamplesPerFrame() * 8);
+                playSamples = samples;
+                }
+              }
+            audio.play (2, playSamples, mSong->getSamplesPerFrame(), 1.f);
+
+            if (framePtr) {
+              mPlayPts = framePtr->getPts();
+              if (mPlaying)
+                mSong->incPlayFrame (1, true);
+              }
+
+            if (!streaming && (mSong->getPlayFrame() > mSong->getLastFrame()))
+              break;
+            }
+          //}}}
+        #endif
+
+        cLog::log (LOGINFO, "exit");
+        });
+      }
+    }
+  //}}}
+  //{{{
+  void waitForExit() {
+
+    mExit = true;
+    mPlayer.join();
+    }
+  //}}}
+
+  cSong* mSong;
+  int64_t mPlayPts;
+
+  bool mExit = false;
+  bool mPlaying = true;
+  thread mPlayer;
+  };
+//}}}
+
 // public
 cLoaderPlayer::cLoaderPlayer() {}
 //{{{
@@ -616,6 +738,8 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
   mSong->initialise (eAudioFrameType::eAacAdts, 2, 48000, audioBitrate < 128000 ? 2048 : 1024, 1000);
   mSong->setBitrateFramesPerChunk (audioBitrate, audioBitrate < 128000 ? (radio ? 150 : 180) : (radio ? 300 : 360));
   mSong->setChannel (channelName);
+
+  mPlayerClass = new cPlayer (mSong, mPlayPts);
 
   int chunkNum;
   int frameNum;
@@ -839,6 +963,7 @@ void cLoaderPlayer::icyLoaderThread (const string& url) {
 
   cLog::setThreadName ("icyL");
   iAudioDecoder* audioDecoder = nullptr;
+  mPlayerClass = new cPlayer (mSong, mPlayPts);
 
   while (!mExit) {
     int icySkipCount = 0;
@@ -958,6 +1083,8 @@ void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loade
 
   cLog::setThreadName ("file");
   iAudioDecoder* audioDecoder = nullptr;
+  iVideoDecoder* videoDecoder = nullptr;
+  mPlayerClass = new cPlayer (mSong, mPlayPts);
 
   while (!mExit) {
     //{{{  open filemapping
@@ -1033,11 +1160,11 @@ void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loade
               break;
 
             case 27: // h264
-              mVideoDecoder = iVideoDecoder::create (false, 120, mPlayPts); // use mfx
-              //mVideoDecoder = iVideoDecoder::create (loaderFlags & eFFmpeg, 128, mPlayPts);
+              videoDecoder = iVideoDecoder::create (false, 120, mPlayPts); // use mfx
+              //videoDecoder = iVideoDecoder::create (loaderFlags & eFFmpeg, 128, mPlayPts);
               mPidParsers.insert (
                 map<int,cPidParser*>::value_type (pid,
-                  new cVideoPesParser (pid, mVideoDecoder, true, addVideoFrameCallback)));
+                  new cVideoPesParser (pid, videoDecoder, true, addVideoFrameCallback)));
               mVideoPid = pid;
               break;
 
@@ -1196,6 +1323,8 @@ void cLoaderPlayer::clear() {
   auto tempVideoDecoder = mVideoDecoder;
   mVideoDecoder = nullptr;
   delete tempVideoDecoder;
+
+  delete mPlayerClass;
   }
 //}}}
 
