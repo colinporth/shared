@@ -1,7 +1,6 @@
 // cVideoDecoder.cpp
 //{{{  includes
 #define _CRT_SECURE_NO_WARNINGS
-#define WIN32_LEAN_AND_MEAN
 
 #include "iVideoDecoder.h"
 
@@ -9,9 +8,10 @@
 #include <algorithm>
 #include <string>
 #include <thread>
+#include <vector>
+#include <map>
 
 // utils
-#include "../date/date.h"
 #include "utils.h"
 #include "cLog.h"
 
@@ -414,7 +414,7 @@ public:
   virtual int64_t getPts() { return mPts; }
   virtual int64_t getPtsDuration() { return mPtsDuration; }
   virtual int64_t getPtsEnd() { return mPtsEnd; }
-  virtual bool isFreeToReuse() { return mState != eState::eAllocated; }
+  virtual bool isAllocated() { return mState == eState::eAllocated; }
   virtual bool isPtsWithinFrame (int64_t pts) {
     return (mState == eState::eLoaded) && (pts >= mPts) && (pts < mPts + mPtsDuration); }
 
@@ -452,19 +452,6 @@ public:
   //{{{
   virtual void setYuv420 (void* context, uint8_t** data, int* linesize) {
     cLog::log (LOGERROR, "setYuv420 planar not implemented");
-    }
-  //}}}
-
-  // actions
-  //{{{
-  virtual void clear() {
-
-    mState = eState::eFree;
-    mPts = 0;
-    mPtsDuration = 0;
-
-    mWidth = 0;
-    mHeight = 0;
     }
   //}}}
 
@@ -1809,8 +1796,9 @@ class cVideoDecoder : public iVideoDecoder {
 public:
   //{{{
   virtual ~cVideoDecoder() {
+
     for (auto frame : mFramePool)
-      delete frame;
+      delete frame.second;
 
     mFramePool.clear();
     }
@@ -1820,53 +1808,61 @@ public:
   virtual int getWidth() { return mWidth; }
   virtual int getHeight() { return mHeight; }
 
-  virtual int getFramePoolSize() { return (int)mFramePool.size(); }
-  virtual std::vector <iVideoFrame*>& getFramePool() { return mFramePool; }
+  virtual map <int64_t, iVideoFrame*>& getFramePool() { return mFramePool; }
 
   // sets
   //{{{
-  virtual void clear (int64_t pts) {
-    }
-  //}}}
   virtual iVideoFrame* findFrame (int64_t pts) {
 
-    for (auto frame : mFramePool)
-      if (frame->isPtsWithinFrame (pts))
-        return frame;
+    if (mPtsDuration > 0) {
+      auto it = mFramePool.find (pts / mPtsDuration);
+      if (it != mFramePool.end())
+        return (*it).second;
+      }
 
     return nullptr;
     }
+  //}}}
 
 protected:
   //{{{
   cVideoDecoder (bool planar, int poolSize, int64_t& playPts) : mPlayPts(playPts) {
   // allocate framePool frames with type needed to convert yuv420
 
+
     for (int i = 0; i < poolSize; i++) {
       if (!planar)
-        mFramePool.push_back (new cFrameRgba());
+        mFramePool.insert (map<int64_t, iVideoFrame*>::value_type (i, new cFrameRgba()));
       else
         #if defined(INTEL_SSE2)
-          mFramePool.push_back (new cFramePlanarRgba());
+          mFramePool.insert (map<int64_t, iVideoFrame*>::value_type (i, new cFramePlanarRgba()));
         #else
-          mFramePool.push_back (new cFramePlanarRgbaSws());
+          mFramePool.insert (map<int64_t, iVideoFrame*>::value_type (i, new cFramePlanarRgbaSws()));
         #endif
       }
     }
   //}}}
   //{{{
   iVideoFrame* getFreeFrame (bool reuseFront, int64_t pts) {
-  // return first frame older than mPlayPts
-  // !!! use reuseFront to get better reuse, may be use map with lock like audio !!!
+  // return first frame in map if older than playPts - (halfPoolSize * duration)
+  // other block for 20ms (!!! should be ptsduration!!!) and try again
 
     while (true) {
-      for (auto frame : mFramePool)
-        if (frame->isFreeToReuse())
-          if (mPlayPts - ((int)(mFramePool.size()/2) * mPtsDuration) > frame->getPtsEnd())
-            return frame;
+      auto it = mFramePool.begin();
+      if (!(*it).second->isAllocated())
+        if (mPlayPts - ((int)(mFramePool.size()/2) * mPtsDuration) > (*it).second->getPtsEnd()) {
+          // keep hold of frame
+          iVideoFrame* videoFrame = (*it).second;
 
-      // pool maxSize and no freeFrame before playPts, one should come along in a frame in normal play
-      std::this_thread::sleep_for (20ms);
+          // remove from map
+          mFramePool.erase (it);
+
+          // return for reuse
+          return videoFrame;
+          }
+
+      // one should come along in a frame in while playing
+      this_thread::sleep_for (20ms);
       }
 
     // never gets here
@@ -1880,7 +1876,7 @@ protected:
   int mHeight = 0;
   int64_t mPtsDuration = 0;
 
-  std::vector <iVideoFrame*> mFramePool;
+  map <int64_t, iVideoFrame*> mFramePool;
   };
 //}}}
 //{{{
@@ -1950,6 +1946,7 @@ public:
 
           timePoint = system_clock::now();
           frame->set (mDecodePts, mPtsDuration, pesSize, mWidth, mHeight, frameType);
+          mFramePool.insert (map<int64_t, iVideoFrame*>::value_type (mDecodePts/mPtsDuration, frame));
           if (!mSwsContext)
             mSwsContext = sws_getContext (mWidth, mHeight, AV_PIX_FMT_YUV420P,
                                           mWidth, mHeight, AV_PIX_FMT_RGBA,
@@ -2072,6 +2069,7 @@ private:
 
             timePoint = system_clock::now();
             frame->set (surface->Data.TimeStamp, mPtsDuration, pesSize, mWidth, mHeight, frameType);
+            mFramePool.insert (map<int64_t, iVideoFrame*>::value_type (surface->Data.TimeStamp/mPtsDuration, frame));
             uint8_t* data[2] = { surface->Data.Y, surface->Data.UV };
             int linesize[2] = { surface->Data.Pitch, surface->Data.Pitch/2 };
             frame->setYuv420 (nullptr, data, linesize);
@@ -2114,7 +2112,7 @@ private:
     MFXVideoSession mSession;
     mfxVideoParam mVideoParams;
     mfxBitstream mBitstream;
-    std::vector <mfxFrameSurface1*> mSurfacePool;
+    vector <mfxFrameSurface1*> mSurfacePool;
     };
   //}}}
 #endif

@@ -256,7 +256,7 @@ private:
 
     if (videoDecoder)
       infoString += " " + dec(videoDecoder->getWidth()) + "x" + dec(videoDecoder->getHeight()) +
-                    ":" + dec(videoDecoder->getFramePoolSize());
+                    ":" + dec(videoDecoder->getFramePool().size());
 
     int loadSize;
     int videoQueueSize;
@@ -284,28 +284,13 @@ private:
     float ptsPerPix = float((90 * song->getSamplesPerFrame()) / 48);
 
     int64_t playerPts = mLoader->getPlayerPts();
-    //{{{  draw frame index grey
-    const float heightInc = 80.f / videoDecode->getFramePool().size();
-
-    vg->beginPath();
-    float height = 0.f;
-    for (auto frame : videoDecode->getFramePool()) {
-      float pix = floor ((frame->getPts() - playerPts) / ptsPerPix);
-      float pixEnd = floor ((frame->getPtsEnd() - playerPts) / ptsPerPix);
-      vg->rect (org + cPointF (pix, -height), cPointF (pixEnd - pix, height));
-      height += heightInc;
-      }
-
-    vg->setFillColour (kSemiOpaqueBlackF);
-    vg->triangleFill();
-    //}}}
     //{{{  draw B frames yellow
     vg->beginPath();
 
     for (auto frame : videoDecode->getFramePool()) {
-      if (frame->getFrameType() == 'B')  {
-        float pix = floor ((frame->getPts() - playerPts) / ptsPerPix);
-        float pes = frame->getPesSize() / 1000.f;
+      if (frame.second->getFrameType() == 'B')  {
+        float pix = floor ((frame.second->getPts() - playerPts) / ptsPerPix);
+        float pes = frame.second->getPesSize() / 1000.f;
         vg->rect (org + cPointF (pix, -pes), cPointF(1.f, pes));
         }
       }
@@ -317,9 +302,9 @@ private:
     vg->beginPath();
 
     for (auto frame : videoDecode->getFramePool()) {
-      if (frame->getFrameType() == 'P')  {
-        float pix = floor ((frame->getPts() - playerPts) / ptsPerPix);
-        float pes = frame->getPesSize() / 1000.f;
+      if (frame.second->getFrameType() == 'P')  {
+        float pix = floor ((frame.second->getPts() - playerPts) / ptsPerPix);
+        float pes = frame.second->getPesSize() / 1000.f;
         vg->rect (org + cPointF (pix, -pes), cPointF(1.f, pes));
         }
       }
@@ -331,9 +316,9 @@ private:
     vg->beginPath();
 
     for (auto frame : videoDecode->getFramePool()) {
-      if (frame->getFrameType() == 'I')  {
-        float pix = floor ((frame->getPts() - playerPts) / ptsPerPix);
-        float pes = frame->getPesSize() / 1000.f;
+      if (frame.second->getFrameType() == 'I')  {
+        float pix = floor ((frame.second->getPts() - playerPts) / ptsPerPix);
+        float pes = frame.second->getPesSize() / 1000.f;
         vg->rect (org + cPointF (pix, -pes), cPointF(1.f, pes));
         }
       }
