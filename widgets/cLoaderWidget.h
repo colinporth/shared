@@ -92,6 +92,21 @@ public:
   //{{{
   virtual void onDraw (iDraw* draw) {
 
+    //{{{  layout
+    mWaveHeight = 100.f;
+    mOverviewHeight = mShowOverview ? 100.f : 0.f;
+    mRangeHeight = 8.f;
+    mFreqHeight = mPixSize.y - mRangeHeight - mWaveHeight - mOverviewHeight;
+
+    mDstFreqTop = 0;
+    mDstWaveTop = mDstFreqTop + mFreqHeight;
+    mDstRangeTop = mDstWaveTop + mWaveHeight;
+    mDstOverviewTop = mDstRangeTop + mRangeHeight;
+
+    mDstWaveCentre = mDstWaveTop + (mWaveHeight/2.f);
+    mDstOverviewCentre = mDstOverviewTop + (mOverviewHeight/2.f);
+    //}}}
+
     cVg* vg = draw->getVg();
     cSong* song = mLoader->getSong();
     iVideoDecoder* videoDecoder = mLoader->getVideoDecoder();
@@ -142,22 +157,8 @@ public:
       }
     //}}}
 
-    // layout
-    mWaveHeight = 100.f;
-    mOverviewHeight = mShowOverview ? 100.f : 0.f;
-    mRangeHeight = 8.f;
-    mFreqHeight = mPixSize.y - mRangeHeight - mWaveHeight - mOverviewHeight;
-    mDstFreqTop = 0;
-    mDstWaveTop = mDstFreqTop + mFreqHeight;
-    mDstRangeTop = mDstWaveTop + mWaveHeight;
-    mDstOverviewTop = mDstRangeTop + mRangeHeight;
-    mDstWaveCentre = mDstWaveTop + (mWaveHeight/2.f);
-    mDstOverviewCentre = mDstOverviewTop + (mOverviewHeight/2.f);
-
-    if (kVideoPoolDebug && videoDecoder)
-      drawVideoPool (vg, song, videoDecoder);
-
     if (song) {
+      //{{{  draw song
       { // locked scope
       std::shared_lock<std::shared_mutex> lock (song->getSharedMutex());
 
@@ -181,6 +182,10 @@ public:
                     getFrameString (song, song->getPlayFrame()),
                     song->hasHlsBase() ? getFrameString (song, song->getLastFrame()) : getFrameString (song, song->getTotalFrames()));
       }
+      //}}}
+
+    if (kVideoPoolDebug && videoDecoder)
+      drawVideoPool (vg, song, videoDecoder);
     }
   //}}}
 
@@ -280,8 +285,9 @@ private:
   //{{{
   void drawVideoPool (cVg* vg, cSong* song, iVideoDecoder* videoDecode) {
 
-    cPointF org { getPixCentre().x, getPixSize().y - 100.f };
-    float ptsPerPix = float((90 * song->getSamplesPerFrame()) / 48);
+    cPointF org { getPixCentre().x, mDstWaveCentre };
+    const float ptsPerPix = float((90 * song->getSamplesPerFrame()) / 48);
+    constexpr float kPesSizeScale = 1000.f;
 
     int64_t playerPts = mLoader->getPlayerPts();
     //{{{  draw B frames yellow
@@ -290,7 +296,7 @@ private:
     for (auto frame : videoDecode->getFramePool()) {
       if (frame.second->getFrameType() == 'B')  {
         float pix = floor ((frame.second->getPts() - playerPts) / ptsPerPix);
-        float pes = frame.second->getPesSize() / 1000.f;
+        float pes = frame.second->getPesSize() / kPesSizeScale;
         vg->rect (org + cPointF (pix, -pes), cPointF(1.f, pes));
         }
       }
@@ -304,7 +310,7 @@ private:
     for (auto frame : videoDecode->getFramePool()) {
       if (frame.second->getFrameType() == 'P')  {
         float pix = floor ((frame.second->getPts() - playerPts) / ptsPerPix);
-        float pes = frame.second->getPesSize() / 1000.f;
+        float pes = frame.second->getPesSize() / kPesSizeScale;
         vg->rect (org + cPointF (pix, -pes), cPointF(1.f, pes));
         }
       }
@@ -318,7 +324,7 @@ private:
     for (auto frame : videoDecode->getFramePool()) {
       if (frame.second->getFrameType() == 'I')  {
         float pix = floor ((frame.second->getPts() - playerPts) / ptsPerPix);
-        float pes = frame.second->getPesSize() / 1000.f;
+        float pes = frame.second->getPesSize() / kPesSizeScale;
         vg->rect (org + cPointF (pix, -pes), cPointF(1.f, pes));
         }
       }
