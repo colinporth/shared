@@ -8,6 +8,7 @@
 #include <map>
 #include <thread>
 
+
 class cSong;
 class cSongPlayer;
 class cPidParser;
@@ -22,7 +23,7 @@ public:
   virtual ~cLoader();
 
   cSong* getSong() { return mSong; }
-  cSongPlayer* getPlayer() { return mSongPlayer; }
+  cSongPlayer* getSongPlayer() { return mSongPlayer; }
   iVideoDecoder* getVideoDecoder() { return mVideoDecoder; }
   int64_t getPlayerPts() { return mPlayPts; }
   bool getRunning() { return mRunning; }
@@ -51,7 +52,7 @@ private:
   // vars
   cSong* mSong = nullptr;
 
-  int64_t mPlayPts;
+  int64_t mPlayPts = -1;
   cSongPlayer* mSongPlayer = nullptr;
 
   iVideoDecoder* mVideoDecoder = nullptr;

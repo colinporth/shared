@@ -42,7 +42,7 @@ void cSongPlayer::stopAndWait() {
   }
 //}}}
 
-void cSongPlayer::start (cSong* song, bool streaming) {
+void cSongPlayer::start (cSong* song, int64_t* playPts, bool streaming) {
 
   if (!mStarted) {
     mStarted = true;
@@ -89,7 +89,7 @@ void cSongPlayer::start (cSong* song, bool streaming) {
               numSrcSamples = song->getSamplesPerFrame();
 
               if (framePtr) {
-                mPlayPts = framePtr->getPts();
+                *playPts = framePtr->getPts();
                 if (mPlaying)
                   song->incPlayFrame (1, true);
                 }
@@ -123,7 +123,7 @@ void cSongPlayer::start (cSong* song, bool streaming) {
           audio.play (2, playSamples, song->getSamplesPerFrame(), 1.f);
 
           if (framePtr) {
-            mPlayPts = framePtr->getPts();
+            playPts = framePtr->getPts();
             if (mPlaying)
               song->incPlayFrame (1, true);
             }

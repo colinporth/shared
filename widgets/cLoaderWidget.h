@@ -111,9 +111,10 @@ public:
     cSong* song = mLoader->getSong();
     iVideoDecoder* videoDecoder = mLoader->getVideoDecoder();
 
-    if (videoDecoder) {
+    int64_t playerPts = mLoader->getPlayerPts();
+    if (videoDecoder && (playerPts >= 0)) {
       //{{{  draw piccy
-      auto frame = videoDecoder->findFrame (mLoader->getPlayerPts());
+      auto frame = videoDecoder->findFrame (playerPts);
       if (frame) {
         if (frame->getPts() != mImagePts) {
           mImagePts = frame->getPts();
@@ -184,8 +185,8 @@ public:
       }
       //}}}
 
-    if (kVideoPoolDebug && videoDecoder)
-      drawVideoPool (vg, song, videoDecoder);
+    if (kVideoPoolDebug && videoDecoder && (playerPts >= 0))
+      drawVideoPool (vg, song, videoDecoder, playerPts);
     }
   //}}}
 
@@ -283,13 +284,12 @@ private:
     }
   //}}}
   //{{{
-  void drawVideoPool (cVg* vg, cSong* song, iVideoDecoder* videoDecode) {
+  void drawVideoPool (cVg* vg, cSong* song, iVideoDecoder* videoDecode, int64_t playerPts) {
 
     cPointF org { getPixCentre().x, mDstWaveCentre };
     const float ptsPerPix = float((90 * song->getSamplesPerFrame()) / 48);
     constexpr float kPesSizeScale = 1000.f;
 
-    int64_t playerPts = mLoader->getPlayerPts();
     //{{{  draw B frames yellow
     vg->beginPath();
 

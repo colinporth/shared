@@ -1847,7 +1847,7 @@ protected:
         return videoFrame;
         }
       }
- 
+
       // one should come along in a frame in while playing
       this_thread::sleep_for (20ms);
       }
