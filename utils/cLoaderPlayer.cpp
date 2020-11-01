@@ -61,7 +61,7 @@ public:
   virtual void stop() {}
 
   //{{{
-  void parse (uint8_t* ts, bool afterPlay) {
+  void parse (uint8_t* ts, bool reuseFront) {
 
     bool payloadStart = ts[1] & 0x40;
     int continuityCount = ts[3] & 0x0F;
@@ -69,10 +69,10 @@ public:
     ts += headerSize;
     int tsLeft = 188 - headerSize;
 
-    processBody (ts, tsLeft, payloadStart, continuityCount, afterPlay);
+    processBody (ts, tsLeft, payloadStart, continuityCount, reuseFront);
     }
   //}}}
-  virtual void processLast (bool afterPlay) {}
+  virtual void processLast (bool reuseFront) {}
 
 protected:
   //{{{
@@ -133,7 +133,7 @@ protected:
     }
   //}}}
   //{{{
-  virtual void processBody (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool afterPlay) {
+  virtual void processBody (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool reuseFront) {
     string info;
     for (int i = 0; i < tsLeft; i++) {
       int value = ts[i];
@@ -155,7 +155,7 @@ public:
     : cPidParser (0, "pat"), mCallback(callback) {}
   virtual ~cPatParser() {}
 
-  virtual void processBody (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool afterPlay) {
+  virtual void processBody (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool reuseFront) {
 
     if (payloadStart) {
       //int pointerField = ts[0]
@@ -245,7 +245,7 @@ public:
     } sPmtInfo;
   //}}}
 
-  virtual void processBody (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool afterPlay) {
+  virtual void processBody (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool reuseFront) {
 
     if (payloadStart) {
       //int pointerField = ts[0];
@@ -305,8 +305,8 @@ class cPesParser : public cPidParser {
 class cPesItem {
 public:
   //{{{
-  cPesItem (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts)
-      : mAfterPlay(afterPlay), mPesSize(size), mNum(num), mPts(pts) {
+  cPesItem (bool reuseFront, uint8_t* pes, int size, int num, int64_t pts)
+      : mReuseFront(reuseFront), mPesSize(size), mNum(num), mPts(pts) {
     mPes = (uint8_t*)malloc (size);
     memcpy (mPes, pes, size);
     }
@@ -317,7 +317,7 @@ public:
     }
   //}}}
 
-  bool mAfterPlay;
+  bool mReuseFront;
   uint8_t* mPes;
   const int mPesSize;
   const int mNum;
@@ -351,7 +351,7 @@ public:
   //}}}
 
   //{{{
-  virtual void processBody (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool afterPlay) {
+  virtual void processBody (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool reuseFront) {
 
     if ((mContinuityCount >= 0) &&
         (continuityCount != ((mContinuityCount + 1) & 0xF)))
@@ -360,7 +360,7 @@ public:
 
     if (payloadStart) {
       // end of last pes, if any, process it
-      processLast (afterPlay);
+      processLast (reuseFront);
 
       if (ts[7] & 0x80)
         mPts = getPts (ts+9);
@@ -381,15 +381,15 @@ public:
     }
   //}}}
   //{{{
-  virtual void dispatchDecode (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) {
+  virtual void dispatchDecode (bool reuseFront, uint8_t* pes, int size, int num, int64_t pts) {
 
     if (mUseQueue)
-      mQueue.enqueue (new cPesParser::cPesItem (afterPlay, pes, size, num, pts));
+      mQueue.enqueue (new cPesParser::cPesItem (reuseFront, pes, size, num, pts));
     else
-      decode (afterPlay, pes, size, num, pts);
+      decode (reuseFront, pes, size, num, pts);
     }
   //}}}
-  virtual void decode (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) = 0;
+  virtual void decode (bool reuseFront, uint8_t* pes, int size, int num, int64_t pts) = 0;
 
 protected:
   //{{{
@@ -402,7 +402,7 @@ protected:
     while (!mQueueExit) {
       cPesItem* pesItem;
       if (mQueue.wait_dequeue_timed (pesItem, 40000)) {
-        decode (pesItem->mAfterPlay, pesItem->mPes, pesItem->mPesSize, pesItem->mNum, pesItem->mPts);
+        decode (pesItem->mReuseFront, pesItem->mPes, pesItem->mPesSize, pesItem->mNum, pesItem->mPts);
         delete pesItem;
         }
       }
@@ -451,7 +451,7 @@ private:
 class cAudioPesParser : public cPesParser {
 public:
   cAudioPesParser (int pid, iAudioDecoder* audioDecoder, bool useQueue, int num,
-                   function <void (bool afterPlay, float* samples, int num, int64_t pts)> callback)
+                   function <void (bool reuseFront, float* samples, int num, int64_t pts)> callback)
       : cPesParser(pid, "aud", useQueue), mAudioDecoder(audioDecoder), mCallback(callback) {
     mNum = num;
     }
@@ -466,7 +466,7 @@ public:
     }
   //}}}
   //{{{
-  virtual void processLast (bool afterPlay) {
+  virtual void processLast (bool reuseFront) {
   // count audio frames in pes
 
     if (mPesSize) {
@@ -481,7 +481,7 @@ public:
         }
 
       // dispatch whole pes, maybe several frames
-      dispatchDecode (afterPlay, mPes, mPesSize, mNum, mPts);
+      dispatchDecode (reuseFront, mPes, mPesSize, mNum, mPts);
 
       // increment by frames in pes
       mNum += numFrames;
@@ -490,7 +490,7 @@ public:
     }
   //}}}
   //{{{
-  virtual void decode (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) {
+  virtual void decode (bool reuseFront, uint8_t* pes, int size, int num, int64_t pts) {
   // decode pes to audio frames
 
     uint8_t* framePes = pes;
@@ -499,7 +499,7 @@ public:
       // decode a single frame from pes
       float* samples = mAudioDecoder->decodeFrame (framePes, frameSize, num);
       if (samples) {
-        mCallback (afterPlay, samples, num, pts);
+        mCallback (reuseFront, samples, num, pts);
         // pts of next frame in pes, assumes 48000 sample rate
         pts += (mAudioDecoder->getNumSamplesPerFrame() * 90) / 48;
         num++;
@@ -515,7 +515,7 @@ public:
 
 private:
   iAudioDecoder* mAudioDecoder;
-  function <void (bool afterPlay, float* samples, int num, int64_t pts)> mCallback;
+  function <void (bool reuseFront, float* samples, int num, int64_t pts)> mCallback;
   };
 //}}}
 //{{{
@@ -536,18 +536,18 @@ public:
     }
   //}}}
   //{{{
-  virtual void processLast (bool afterPlay) {
+  virtual void processLast (bool reuseFront) {
     if (mPesSize) {
       int numFrames = 1;
-      dispatchDecode (afterPlay, mPes, mPesSize, mNum, mPts);
+      dispatchDecode (reuseFront, mPes, mPesSize, mNum, mPts);
       mNum += numFrames;
       mPesSize = 0;
       }
     }
   //}}}
   //{{{
-  void decode (bool afterPlay, uint8_t* pes, int size, int num, int64_t pts) {
-    mVideoDecoder->decodeFrame (afterPlay, pes, size, pts);
+  void decode (bool reuseFront, uint8_t* pes, int size, int num, int64_t pts) {
+    mVideoDecoder->decodeFrame (reuseFront, pes, size, pts);
     mCallback (pts);
     }
   //}}}
@@ -592,9 +592,8 @@ void cLoaderPlayer::videoFollowAudio() {
     // get play frame
     auto framePtr = mSong->getFramePtr (mSong->getPlayFrame());
     if (framePtr) {
-      auto pts = framePtr->getPts();
-      mVideoDecoder->setPlayPts (pts);
-      mVideoDecoder->clear (pts);
+      mPlayPts = framePtr->getPts();
+      mVideoDecoder->clear (mPlayPts);
       }
     }
   }
@@ -623,9 +622,9 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
   iAudioDecoder* audioDecoder = nullptr;
 
   // parser callbacks
-  auto addAudioFrameCallback = [&](bool afterPlay, float* samples, int num, int64_t pts) noexcept {
+  auto addAudioFrameCallback = [&](bool reuseFront, float* samples, int num, int64_t pts) noexcept {
     //{{{  addAudioFrame lambda
-    mSong->addFrame (afterPlay, num, samples, true, mSong->getNumFrames(), pts);
+    mSong->addFrame (reuseFront, num, samples, true, mSong->getNumFrames(), pts);
     startPlayer (true);
     };
     //}}}
@@ -657,7 +656,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
 
         case 27:
           if (videoBitrate) {
-            mVideoDecoder = iVideoDecoder::create (loaderFlags & eFFmpeg, 192);
+            mVideoDecoder = iVideoDecoder::create (loaderFlags & eFFmpeg, 192, mPlayPts);
             mPidParsers.insert (
               map<int,cPidParser*>::value_type (pid,
                 new cVideoPesParser (pid, mVideoDecoder, true, addVideoFrameCallback)));
@@ -701,7 +700,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
       //}}}
       while (!mExit && !mSong->getChanged()) {
         if (mSong->loadChunk (system_clock::now(), 2, chunkNum, frameNum)) {
-          bool chunkAfterPlay = frameNum >= mSong->getPlayFrame();
+          bool chunkReuseFront = frameNum >= mSong->getPlayFrame();
           for (auto parser : mPidParsers)
             parser.second->clear (frameNum);
           int contentParsed = 0;
@@ -726,7 +725,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
                               if (ts[0] == 0x47) {
                                 auto it = mPidParsers.find (((ts[1] & 0x1F) << 8) | ts[2]);
                                 if (it != mPidParsers.end())
-                                  it->second->parse (ts, chunkAfterPlay);
+                                  it->second->parse (ts, chunkReuseFront);
                                 ts += 188;
                                 }
                               else
@@ -779,7 +778,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
               while (cAudioParser::parseFrame (pesPtr, pesEnd, frameSize)) {
                 float* samples = audioDecoder->decodeFrame (pesPtr, frameSize, frameNum);
                 if (samples) {
-                  mSong->addFrame (chunkAfterPlay, frameNum++, samples, true, mSong->getNumFrames(), 0);
+                  mSong->addFrame (chunkReuseFront, frameNum++, samples, true, mSong->getNumFrames(), 0);
                   startPlayer (true);
                   }
                 else
@@ -796,7 +795,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
               //while ((ts < tsEnd) && (ts[0] == 0x47)) {
                 //auto it = mParsers.find (((ts[1] & 0x1F) << 8) | ts[2]);
                 //if (it != mParsers.end())
-                  //it->second->parse (ts, chunkAfterPlay);
+                  //it->second->parse (ts, chunkReuseFront);
                 //else
                   //cLog::log (LOGERROR, "pid parser not found %d", pid);
                 //ts += 188;
@@ -804,12 +803,12 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
                 //}
 
               //for (auto parser : mParsers)
-                //parser.second->processLast (chunkAfterPlay);
+                //parser.second->processLast (chunkReuseFront);
               //}
               //}}}
             else
               for (auto parser : mPidParsers)
-                parser.second->processLast (chunkAfterPlay);
+                parser.second->processLast (chunkReuseFront);
             http.freeContent();
             }
           else {
@@ -987,11 +986,11 @@ void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loade
       int frameNum = 0;
 
       // parser callbacks
-      auto addAudioFrameCallback = [&](bool afterPlay, float* samples, int num, int64_t pts) noexcept {
+      auto addAudioFrameCallback = [&](bool reuseFront, float* samples, int num, int64_t pts) noexcept {
         //{{{  addAudioFrame lambda
         //cLog::log (LOGINFO, "adding audio frameNm " + dec (num));
         frameNum = num;
-        mSong->addFrame (afterPlay, num, samples, true, mSong->getNumFrames(), pts);
+        mSong->addFrame (reuseFront, num, samples, true, mSong->getNumFrames(), pts);
         startPlayer (true);
         };
         //}}}
@@ -1034,8 +1033,8 @@ void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loade
               break;
 
             case 27: // h264
-              mVideoDecoder = iVideoDecoder::create (false, 120); // use mfx
-              //mVideoDecoder = iVideoDecoder::create (loaderFlags & eFFmpeg, 128);
+              mVideoDecoder = iVideoDecoder::create (false, 120, mPlayPts); // use mfx
+              //mVideoDecoder = iVideoDecoder::create (loaderFlags & eFFmpeg, 128, mPlayPts);
               mPidParsers.insert (
                 map<int,cPidParser*>::value_type (pid,
                   new cVideoPesParser (pid, mVideoDecoder, true, addVideoFrameCallback)));
@@ -1310,8 +1309,6 @@ void cLoaderPlayer::startPlayer (bool streaming) {
 
               if (framePtr) {
                 mPlayPts = framePtr->getPts();
-                if (mVideoDecoder)
-                  mVideoDecoder->setPlayPts (framePtr->getPts());
                 if (mPlaying)
                   mSong->incPlayFrame (1, true);
                 }
@@ -1346,8 +1343,6 @@ void cLoaderPlayer::startPlayer (bool streaming) {
 
           if (framePtr) {
             mPlayPts = framePtr->getPts();
-            if (mVideoDecoder)
-              mVideoDecoder->setPlayPts (framePtr->getPts());
             if (mPlaying)
               mSong->incPlayFrame (1, true);
             }

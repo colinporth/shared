@@ -1824,8 +1824,6 @@ public:
   virtual std::vector <iVideoFrame*>& getFramePool() { return mFramePool; }
 
   // sets
-  virtual void setPlayPts (int64_t playPts) { mPlayPts = playPts; }
-
   //{{{
   virtual void clear (int64_t pts) {
     }
@@ -1841,7 +1839,7 @@ public:
 
 protected:
   //{{{
-  cVideoDecoder (bool planar, int poolSize) {
+  cVideoDecoder (bool planar, int poolSize, int64_t& playPts) : mPlayPts(playPts) {
   // allocate framePool frames with type needed to convert yuv420
 
     for (int i = 0; i < poolSize; i++) {
@@ -1857,9 +1855,9 @@ protected:
     }
   //}}}
   //{{{
-  iVideoFrame* getFreeFrame (bool afterPlay, int64_t pts) {
+  iVideoFrame* getFreeFrame (bool reuseFront, int64_t pts) {
   // return first frame older than mPlayPts
-  // !!! use afterPlay to get better reuse, may be use map with lock like audio !!!
+  // !!! use reuseFront to get better reuse, may be use map with lock like audio !!!
 
     while (true) {
       for (auto frame : mFramePool)
@@ -1876,9 +1874,10 @@ protected:
     }
   //}}}
 
+  int64_t& mPlayPts;
+
   int mWidth = 0;
   int mHeight = 0;
-  int64_t mPlayPts = 0;
   int64_t mPtsDuration = 0;
 
   std::vector <iVideoFrame*> mFramePool;
@@ -1888,7 +1887,7 @@ protected:
 class cFFmpegVideoDecoder : public cVideoDecoder {
 public:
   //{{{
-  cFFmpegVideoDecoder (int poolSize) : cVideoDecoder(true, poolSize) {
+  cFFmpegVideoDecoder (int poolSize, int64_t& playPts) : cVideoDecoder(true, poolSize, playPts) {
 
     mAvParser = av_parser_init (AV_CODEC_ID_H264);
     mAvCodec = avcodec_find_decoder (AV_CODEC_ID_H264);
@@ -1909,7 +1908,7 @@ public:
   //}}}
 
   //{{{
-  virtual void decodeFrame (bool afterPlay, uint8_t* pes, unsigned int pesSize, int64_t pts) {
+  virtual void decodeFrame (bool reuseFront, uint8_t* pes, unsigned int pesSize, int64_t pts) {
 
     system_clock::time_point timePoint = system_clock::now();
 
@@ -1947,7 +1946,7 @@ public:
           mPtsDuration = (kPtsPerSecond * mAvContext->framerate.den) / mAvContext->framerate.num;
 
           // will block on waiting for freeFrame most of the time
-          auto frame = getFreeFrame (afterPlay, mDecodePts);
+          auto frame = getFreeFrame (reuseFront, mDecodePts);
 
           timePoint = system_clock::now();
           frame->set (mDecodePts, mPtsDuration, pesSize, mWidth, mHeight, frameType);
@@ -1986,7 +1985,7 @@ private:
   class cMfxVideoDecoder : public cVideoDecoder {
   public:
     //{{{
-    cMfxVideoDecoder (int poolSize) : cVideoDecoder(false, poolSize) {
+    cMfxVideoDecoder (int poolSize, int64_t& playPts) : cVideoDecoder(false, poolSize, playPts) {
 
       mfxVersion kMfxVersion = { 0,1 };
       mSession.Init (MFX_IMPL_AUTO, &kMfxVersion);
@@ -2005,7 +2004,7 @@ private:
     //}}}
 
     //{{{
-    void decodeFrame (bool afterPlay, uint8_t* pes, unsigned int pesSize, int64_t pts) {
+    void decodeFrame (bool reuseFront, uint8_t* pes, unsigned int pesSize, int64_t pts) {
 
       system_clock::time_point timePoint = system_clock::now();
 
@@ -2069,7 +2068,7 @@ private:
 
             mPtsDuration = (kPtsPerSecond * surface->Info.FrameRateExtD) / surface->Info.FrameRateExtN;
 
-            auto frame = getFreeFrame (afterPlay, surface->Data.TimeStamp);
+            auto frame = getFreeFrame (reuseFront, surface->Data.TimeStamp);
 
             timePoint = system_clock::now();
             frame->set (surface->Data.TimeStamp, mPtsDuration, pesSize, mWidth, mHeight, frameType);
@@ -2122,14 +2121,14 @@ private:
 
 // iVideoDecoder static factory create
 //{{{
-iVideoDecoder* iVideoDecoder::create (bool ffmpeg, int poolSize) {
+iVideoDecoder* iVideoDecoder::create (bool ffmpeg, int poolSize, int64_t& playPts) {
 // create cVideoDecoder
 
   #ifdef _WIN32
     if (!ffmpeg)
-      return new cMfxVideoDecoder (poolSize);
+      return new cMfxVideoDecoder (poolSize, playPts);
   #endif
 
-  return new cFFmpegVideoDecoder (poolSize);
+  return new cFFmpegVideoDecoder (poolSize, playPts);
   }
 //}}}

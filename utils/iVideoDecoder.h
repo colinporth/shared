@@ -32,7 +32,7 @@ public:
 // iVideoDecoder
 class iVideoDecoder {
 public:
-  static iVideoDecoder* create (bool ffmpeg, int poolSize);
+  static iVideoDecoder* create (bool ffmpeg, int poolSize, int64_t& playPts);
   virtual ~iVideoDecoder() {}
 
   // gets
@@ -40,9 +40,6 @@ public:
   virtual int getHeight() = 0;
   virtual int getFramePoolSize() = 0;
   virtual std::vector <iVideoFrame*>& getFramePool() = 0;
-
-  // sets
-  virtual void setPlayPts (int64_t playPts) = 0;
 
   // actions
   virtual void clear (int64_t pts) = 0;
