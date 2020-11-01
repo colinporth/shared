@@ -9,7 +9,7 @@
 #include <thread>
 
 class cSong;
-class cPlayer;
+class cSongPlayer;
 class cPidParser;
 class iVideoDecoder;
 class cFileList;
@@ -29,13 +29,12 @@ public:
   void getSizes (int& loadSize, int& videoQueueSize, int& audioQueueSize);
 
   void skipped();
+  void togglePlaying();
 
   void hlsLoaderThread (bool radio, const std::string& channelName, int
                         audioBitrate, int videoBitrate, eLoaderFlags loaderFlags);
   void icyLoaderThread (const std::string& url);
   void fileLoaderThread (const std::string& filename, eLoaderFlags loaderFlags);
-
-  void startPlayer (bool streaming);
 
   // vars
   bool mExit = false;
@@ -53,10 +52,10 @@ private:
   // vars
   std::map <int, cPidParser*> mPidParsers;
 
+  // resources
   cSong* mSong = nullptr;
-  std::thread mPlayer;
   int64_t mPlayPts;
-  cPlayer* mPlayerClass = nullptr;
+  cSongPlayer* mSongPlayer = nullptr;
   iVideoDecoder* mVideoDecoder = nullptr;
 
   // for info graphics
