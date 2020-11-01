@@ -413,10 +413,6 @@ public:
 
   // gets
   virtual int64_t getPts() { return mPts; }
-  virtual int64_t getPtsDuration() { return mPtsDuration; }
-  virtual int64_t getPtsEnd() { return mPtsEnd; }
-  virtual bool isPtsWithinFrame (int64_t pts) { return (pts >= mPts) && (pts < mPts + mPtsDuration); }
-
   virtual int getPesSize() { return mPesSize; }
   virtual char getFrameType() { return mFrameType; }
 
@@ -424,16 +420,14 @@ public:
 
   // sets
   //{{{
-  virtual void set (int64_t pts, int64_t ptsDuration, int pesSize, int width, int height, char frameType) {
+  virtual void set (int64_t pts, int pesSize, int width, int height, char frameType) {
 
     mPts = pts;
-    mPtsDuration = ptsDuration;
-    mPtsEnd = pts + ptsDuration;
-
-    mPesSize = pesSize;
-    mFrameType = frameType;
     mWidth = width;
     mHeight = height;
+
+    mFrameType = frameType;
+    mPesSize = pesSize;
 
     #ifdef _WIN32
       if (!mBuffer8888)
@@ -461,8 +455,6 @@ private:
   enum class eState { eFree, eAllocated, eLoaded };
 
   int64_t mPts = 0;
-  int64_t mPtsDuration = 0;
-  int64_t mPtsEnd = 0;
   char mFrameType = '?';
   int mPesSize = 0;   // only used debug widget info
   };
@@ -1860,6 +1852,7 @@ protected:
   int mHeight = 0;
   int64_t mPtsDuration = 0;
 
+  // map of videoFrames, key is pts/mPtsDuration, allow a simple find by pts throughout the duration
   map <int64_t, iVideoFrame*> mFramePool;
 
 private:
@@ -1934,7 +1927,7 @@ public:
           auto frame = getFreeFrame (reuseFront, mDecodePts);
 
           timePoint = system_clock::now();
-          frame->set (mDecodePts, mPtsDuration, pesSize, mWidth, mHeight, frameType);
+          frame->set (mDecodePts, pesSize, mWidth, mHeight, frameType);
           if (!mSwsContext)
             mSwsContext = sws_getContext (mWidth, mHeight, AV_PIX_FMT_YUV420P,
                                           mWidth, mHeight, AV_PIX_FMT_RGBA,
@@ -2063,7 +2056,7 @@ private:
 
             timePoint = system_clock::now();
 
-            frame->set (surface->Data.TimeStamp, mPtsDuration, pesSize, mWidth, mHeight, frameType);
+            frame->set (surface->Data.TimeStamp, pesSize, mWidth, mHeight, frameType);
             uint8_t* data[2] = { surface->Data.Y, surface->Data.UV };
             int linesize[2] = { surface->Data.Pitch, surface->Data.Pitch/2 };
             frame->setYuv420 (nullptr, data, linesize);
