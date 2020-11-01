@@ -16,6 +16,7 @@ public:
 
   // actions
   void start (bool streaming);
+  void wait();
   void stopAndWait();
 
 private:

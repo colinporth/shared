@@ -33,10 +33,9 @@ public:
   void skipped();
   void stopAndWait();
 
-  void hlsLoaderThread (bool radio, const std::string& channelName, int
-                        audioBitrate, int videoBitrate, eLoaderFlags loaderFlags);
-  void icyLoaderThread (const std::string& url);
-  void fileLoaderThread (const std::string& filename, eLoaderFlags loaderFlags);
+  void hls (bool radio, const std::string& channelName, int audioBitrate, int videoBitrate, eLoaderFlags loaderFlags);
+  void icy (const std::string& url);
+  void file (const std::string& filename, eLoaderFlags loaderFlags);
 
   // vars
   bool mExit = false;
