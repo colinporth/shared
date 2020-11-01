@@ -634,7 +634,7 @@ void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int 
 
           case 27:
             if (videoBitrate) {
-              videoDecoder = iVideoDecoder::create (loaderFlags & eFFmpeg, 192, mPlayPts);
+              videoDecoder = iVideoDecoder::create (loaderFlags & eFlags::eFFmpeg, 192, mPlayPts);
               mVideoDecoder = videoDecoder;
               mPidParsers.insert (
                 map<int,cPidParser*>::value_type (pid,

@@ -20,19 +20,21 @@ class cLoader {
 public:
   enum eFlags { eFFmpeg = 0x01, eQueueAudio = 0x02,  eQueueVideo = 0x04 };
 
+  // gets
   cSong* getSong() { return mSong; }
   cSongPlayer* getSongPlayer() { return mSongPlayer; }
-  iVideoDecoder* getVideoDecoder() { return mVideoDecoder; }
   int64_t getPlayerPts() { return mPlayPts; }
-  bool getRunning() { return mRunning; }
-
+  iVideoDecoder* getVideoDecoder() { return mVideoDecoder; }
   void getFrac (float& loadFrac, float& videoFrac, float& audioFrac);
   void getSizes (int& loadSize, int& videoQueueSize, int& audioQueueSize);
+  bool getRunning() { return mRunning; }
 
+  // loaders
   void hls (bool radio, const std::string& channelName, int audioBitrate, int videoBitrate, eFlags loaderFlags);
   void file (const std::string& filename, eFlags loaderFlags);
   void icycast (const std::string& url);
 
+  // actions
   void skipped();
   void stopAndWait();
 

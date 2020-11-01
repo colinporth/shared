@@ -108,10 +108,9 @@ public:
     //}}}
 
     cVg* vg = draw->getVg();
-    cSong* song = mLoader->getSong();
-    iVideoDecoder* videoDecoder = mLoader->getVideoDecoder();
 
     int64_t playerPts = mLoader->getPlayerPts();
+    iVideoDecoder* videoDecoder = mLoader->getVideoDecoder();
     if (videoDecoder && (playerPts >= 0)) {
       //{{{  draw piccy
       auto frame = videoDecoder->findFrame (playerPts);
@@ -158,6 +157,7 @@ public:
       }
     //}}}
 
+    cSong* song = mLoader->getSong();
     if (song) {
       //{{{  draw song
       { // locked scope
