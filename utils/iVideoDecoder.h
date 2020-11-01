@@ -29,7 +29,7 @@ public:
 // iVideoDecoder
 class iVideoDecoder {
 public:
-  static iVideoDecoder* create (bool ffmpeg, int poolSize, int64_t& playPts);
+  static iVideoDecoder* create (bool ffmpeg, int maxPoolSize, int64_t& playPts);
   virtual ~iVideoDecoder() {}
 
   // gets

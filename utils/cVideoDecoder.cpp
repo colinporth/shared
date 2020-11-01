@@ -1809,23 +1809,9 @@ public:
   //}}}
 
 protected:
-  //{{{
-  cVideoDecoder (bool planar, int poolSize, int64_t& playPts) : mPlayPts(playPts) {
-  // allocate framePool frames with type needed to convert yuv420
+  cVideoDecoder (bool planar, int poolSize, int64_t& playPts)
+    : mPlanar (planar), mMaxPoolSize( poolSize), mPlayPts(playPts) {}
 
-
-    for (int i = 0; i < poolSize; i++) {
-      if (!planar)
-        mFramePool.insert (map<int64_t, iVideoFrame*>::value_type (i, new cFrameRgba()));
-      else
-        #if defined(INTEL_SSE2)
-          mFramePool.insert (map<int64_t, iVideoFrame*>::value_type (i, new cFramePlanarRgba()));
-        #else
-          mFramePool.insert (map<int64_t, iVideoFrame*>::value_type (i, new cFramePlanarRgbaSws()));
-        #endif
-      }
-    }
-  //}}}
   //{{{
   iVideoFrame* getFreeFrame (bool reuseFront, int64_t pts) {
   // return first frame in map if older than playPts - (halfPoolSize * duration)
@@ -1835,15 +1821,33 @@ protected:
       {
       unique_lock<shared_mutex> lock (mSharedMutex);
 
-      auto it = mFramePool.begin();
-      if (mPlayPts - ((int)(mFramePool.size()/2) * mPtsDuration) > (*it).second->getPtsEnd()) {
-        // keep hold of frame
-        iVideoFrame* videoFrame = (*it).second;
+      if (!mFramePool.empty()) {
+        auto it = mFramePool.begin();
+        if (mPlayPts - ((int)(mFramePool.size()/2) * mPtsDuration) > (*it).second->getPtsEnd()) {
+          // keep hold of frame
+          iVideoFrame* videoFrame = (*it).second;
 
-        // remove from map
-        mFramePool.erase (it);
+          // remove from map
+          mFramePool.erase (it);
 
-        // return for reuse
+          // return for reuse
+          return videoFrame;
+          }
+        }
+
+      if (mFramePool.size() < mMaxPoolSize) {
+        // create and insert new framea
+        iVideoFrame* videoFrame;
+        if (!mPlanar)
+          videoFrame = new cFrameRgba();
+        else
+          #if defined(INTEL_SSE2)
+            videoFrame = new cFramePlanarRgba();
+          #else
+            videoFrame = new cFramePlanarRgbaSws();
+          #endif
+
+        mFramePool.insert (map<int64_t, iVideoFrame*>::value_type (pts / mPtsDuration, videoFrame));
         return videoFrame;
         }
       }
@@ -1858,13 +1862,17 @@ protected:
   //}}}
 
   shared_mutex mSharedMutex;
-  int64_t& mPlayPts;
 
   int mWidth = 0;
   int mHeight = 0;
   int64_t mPtsDuration = 0;
 
   map <int64_t, iVideoFrame*> mFramePool;
+
+private:
+  const bool mPlanar;
+  const int mMaxPoolSize;
+  int64_t& mPlayPts;
   };
 //}}}
 //{{{
