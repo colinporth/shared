@@ -1814,23 +1814,19 @@ protected:
 
   //{{{
   iVideoFrame* getFreeFrame (bool reuseFront, int64_t pts) {
-  // return first frame in map if older than playPts - (halfPoolSize * duration)
-  // other block for 20ms (!!! should be ptsduration!!!) and try again
+  // return youngest frame in pool if older than playPts - (halfPoolSize * duration)
 
     while (true) {
       {
       unique_lock<shared_mutex> lock (mSharedMutex);
 
       if (!mFramePool.empty()) {
+        // look at youngest frame in pool
         auto it = mFramePool.begin();
-        if (mPlayPts - ((int)(mFramePool.size()/2) * mPtsDuration) > (*it).second->getPtsEnd()) {
-          // keep hold of frame
+        if ((*it).first < ((mPlayPts / mPtsDuration) - (int)mFramePool.size()/2)) {
+          // old enough to be reused, remove from map and reuse videoFrame,
           iVideoFrame* videoFrame = (*it).second;
-
-          // remove from map
           mFramePool.erase (it);
-
-          // return for reuse
           return videoFrame;
           }
         }
@@ -1853,6 +1849,7 @@ protected:
       }
 
       // one should come along in a frame in while playing
+      // - !!!! should be ptsduration!!!
       this_thread::sleep_for (20ms);
       }
 
