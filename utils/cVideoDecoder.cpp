@@ -415,9 +415,7 @@ public:
   virtual int64_t getPts() { return mPts; }
   virtual int64_t getPtsDuration() { return mPtsDuration; }
   virtual int64_t getPtsEnd() { return mPtsEnd; }
-  virtual bool isAllocated() { return mState == eState::eAllocated; }
-  virtual bool isPtsWithinFrame (int64_t pts) {
-    return (mState == eState::eLoaded) && (pts >= mPts) && (pts < mPts + mPtsDuration); }
+  virtual bool isPtsWithinFrame (int64_t pts) { return (pts >= mPts) && (pts < mPts + mPtsDuration); }
 
   virtual int getPesSize() { return mPesSize; }
   virtual char getFrameType() { return mFrameType; }
@@ -427,8 +425,6 @@ public:
   // sets
   //{{{
   virtual void set (int64_t pts, int64_t ptsDuration, int pesSize, int width, int height, char frameType) {
-
-    mState = eState::eAllocated;
 
     mPts = pts;
     mPtsDuration = ptsDuration;
@@ -457,15 +453,12 @@ public:
   //}}}
 
 protected:
-  void setStateLoaded() { mState = eState::eLoaded; }
-
   int mWidth = 0;
   int mHeight = 0;
   uint32_t* mBuffer8888 = nullptr;
 
 private:
   enum class eState { eFree, eAllocated, eLoaded };
-  eState mState = eState::eFree;
 
   int64_t mPts = 0;
   int64_t mPtsDuration = 0;
@@ -599,8 +592,6 @@ public:
         srcY128r0 += linesize[0] / 16;
         srcY128r1 += linesize[0] / 16;
         }
-
-      setStateLoaded();
       }
   #endif
   };
@@ -717,8 +708,6 @@ public:
         dstrgb128r0 += mWidth / 4;
         dstrgb128r1 += mWidth / 4;
         }
-
-      setStateLoaded();
       }
     //}}}
   #else // ARM NEON
@@ -818,8 +807,6 @@ public:
         y0 += linesize[0];
         y1 += linesize[0];
         }
-
-      mState = eLoaded;
       }
     //}}}
   #endif
@@ -836,8 +823,6 @@ public:
     uint8_t* dstData[1] = { (uint8_t*)mBuffer8888 };
     int dstStride[1] = { mWidth * 4 };
     sws_scale ((SwsContext*)context, data, linesize, 0, mHeight, dstData, dstStride);
-
-    setStateLoaded();
     }
   };
 //}}}
@@ -1717,8 +1702,6 @@ public:
       yPtr += stride;
       yPtr1 += stride;
       }
-
-    setStateLoaded();
     }
   };
 //}}}
@@ -1785,8 +1768,6 @@ public:
       y0 = y1;
       dst0 = dst1;
       }
-
-    setStateLoaded();
     }
   };
 //}}}
@@ -1855,19 +1836,18 @@ protected:
       unique_lock<shared_mutex> lock (mSharedMutex);
 
       auto it = mFramePool.begin();
-      if (!(*it).second->isAllocated())
-        if (mPlayPts - ((int)(mFramePool.size()/2) * mPtsDuration) > (*it).second->getPtsEnd()) {
-          // keep hold of frame
-          iVideoFrame* videoFrame = (*it).second;
+      if (mPlayPts - ((int)(mFramePool.size()/2) * mPtsDuration) > (*it).second->getPtsEnd()) {
+        // keep hold of frame
+        iVideoFrame* videoFrame = (*it).second;
 
-          // remove from map
-          mFramePool.erase (it);
+        // remove from map
+        mFramePool.erase (it);
 
-          // return for reuse
-          return videoFrame;
-          }
+        // return for reuse
+        return videoFrame;
+        }
       }
-
+ 
       // one should come along in a frame in while playing
       this_thread::sleep_for (20ms);
       }

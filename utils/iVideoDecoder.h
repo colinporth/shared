@@ -15,7 +15,6 @@ public:
   virtual int64_t getPts() = 0;
   virtual int64_t getPtsDuration() = 0;
   virtual int64_t getPtsEnd() = 0;
-  virtual bool isAllocated() = 0;
   virtual bool isPtsWithinFrame (int64_t pts) = 0;
 
   virtual int getPesSize() = 0;
