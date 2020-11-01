@@ -1,4 +1,4 @@
-// iVideoPool.h
+// iVideoPool.h - pool of decoded iVideoFrame
 #pragma once
 //{{{  includes
 #include <cstdint>
