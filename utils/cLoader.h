@@ -1,4 +1,4 @@
-// cLoaderPlayer.h - video, audio - loader,player
+// cLoader.h - video, audio - loader,player
 #pragma once
 //{{{  includes
 #include <cstdint>
@@ -16,12 +16,13 @@ class cFileList;
 //}}}
 
 enum eLoaderFlags { eFFmpeg = 0x01, eQueueAudio = 0x02,  eQueueVideo = 0x04 };
-class cLoaderPlayer {
+class cLoader {
 public:
-  cLoaderPlayer();
-  virtual ~cLoaderPlayer();
+  cLoader();
+  virtual ~cLoader();
 
   cSong* getSong() { return mSong; }
+  cSongPlayer* getPlayer() { return mSongPlayer; }
   iVideoDecoder* getVideoDecoder() { return mVideoDecoder; }
   int64_t getPlayerPts() { return mPlayPts; }
   bool getRunning() { return mRunning; }
@@ -30,7 +31,7 @@ public:
   void getSizes (int& loadSize, int& videoQueueSize, int& audioQueueSize);
 
   void skipped();
-  void togglePlaying();
+  void stopAndWait();
 
   void hlsLoaderThread (bool radio, const std::string& channelName, int
                         audioBitrate, int videoBitrate, eLoaderFlags loaderFlags);

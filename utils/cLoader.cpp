@@ -1,11 +1,12 @@
-// cLoaderPlayer.cpp - audio,video loader,player
+// cLoader.cpp - audio,video loader,player
 //{{{  includes
 #define _CRT_SECURE_NO_WARNINGS
 #define WIN32_LEAN_AND_MEAN
 
-#include "cLoaderPlayer.h"
-
 #include <functional>
+
+#include "cLoader.h"
+#include "cSongPlayer.h"
 
 // utils
 #include "../date/date.h"
@@ -18,14 +19,6 @@
 // audio decode
 #include "../decoders/cAudioParser.h"
 #include "../decoders/iAudioDecoder.h"
-
-// audio device
-#ifdef _WIN32
-  #include "../audio/audioWASAPI.h"
-  #include "../audio/cWinAudio16.h"
-#else
-  #include "../audio/cLinuxAudio.h"
-#endif
 
 // video decode
 #include "../utils/iVideoDecoder.h"
@@ -558,145 +551,12 @@ private:
   };
 //}}}
 
-//{{{
-class cSongPlayer {
-public:
-  cSongPlayer (cSong* song, int64_t& playPts) : mSong(song), mPlayPts(playPts) {}
-
-  bool getPlaying() { return mPlaying; }
-  int64_t getPlayPts() { return mPlayPts; }
-
-  //{{{
-  void start (bool streaming) {
-
-    if (!mStarted) {
-      mPlayerThread = thread ([=]() {
-        // player lambda
-        cLog::setThreadName ("play");
-
-        float silence [2048*2] = { 0.f };
-        float samples [2048*2] = { 0.f };
-
-        #ifdef _WIN32
-          SetThreadPriority (GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
-          //{{{  WSAPI player thread, video just follows play pts
-          auto device = getDefaultAudioOutputDevice();
-          if (device) {
-            cLog::log (LOGINFO, "startPlayer WASPI device:%dhz", mSong->getSampleRate());
-            device->setSampleRate (mSong->getSampleRate());
-            device->start();
-
-            cSong::cFrame* framePtr;
-            while (!mExit && !mSong->getChanged()) {
-              device->process ([&](float*& srcSamples, int& numSrcSamples) mutable noexcept {
-                // lambda callback - load srcSamples
-                shared_lock<shared_mutex> lock (mSong->getSharedMutex());
-
-                framePtr = mSong->getFramePtr (mSong->getPlayFrame());
-                if (mPlaying && framePtr && framePtr->getSamples()) {
-                  if (mSong->getNumChannels() == 1) {
-                    //{{{  mono to stereo
-                    auto src = framePtr->getSamples();
-                    auto dst = samples;
-                    for (int i = 0; i < mSong->getSamplesPerFrame(); i++) {
-                      *dst++ = *src;
-                      *dst++ = *src++;
-                      }
-                    }
-                    //}}}
-                  else
-                    memcpy (samples, framePtr->getSamples(), mSong->getSamplesPerFrame() * mSong->getNumChannels() * sizeof(float));
-                  srcSamples = samples;
-                  }
-                else
-                  srcSamples = silence;
-                numSrcSamples = mSong->getSamplesPerFrame();
-
-                if (framePtr) {
-                  mPlayPts = framePtr->getPts();
-                  if (mPlaying)
-                    mSong->incPlayFrame (1, true);
-                  }
-                });
-
-              if (!streaming && (mSong->getPlayFrame() > mSong->getLastFrame()))
-                break;
-              }
-
-            device->stop();
-            }
-          //}}}
-        #else
-          //SetThreadPriority (GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
-          //{{{  audio16 player thread, video just follows play pts
-          cAudio audio (2, mSong->getSampleRate(), 40000, false);
-
-          cSong::cFrame* framePtr;
-          while (!mExit && !mSong->getChanged()) {
-            float* playSamples = silence;
-              {
-              // scoped song mutex
-              shared_lock<shared_mutex> lock (mSong->getSharedMutex());
-              framePtr = mSong->getFramePtr (mSong->getPlayFrame());
-              bool gotSamples = mPlaying && framePtr && framePtr->getSamples();
-              if (gotSamples) {
-                memcpy (samples, framePtr->getSamples(), mSong->getSamplesPerFrame() * 8);
-                playSamples = samples;
-                }
-              }
-            audio.play (2, playSamples, mSong->getSamplesPerFrame(), 1.f);
-
-            if (framePtr) {
-              mPlayPts = framePtr->getPts();
-              if (mPlaying)
-                mSong->incPlayFrame (1, true);
-              }
-
-            if (!streaming && (mSong->getPlayFrame() > mSong->getLastFrame()))
-              break;
-            }
-          //}}}
-        #endif
-
-        cLog::log (LOGINFO, "exit");
-        });
-
-      mStarted = true;
-      }
-    }
-  //}}}
-  //{{{
-  void togglePlaying() {
-    mPlaying = !mPlaying;
-    }
-  //}}}
-  //{{{
-  void stopAndWait() {
-
-    mExit = true;
-    if (mStarted)
-      mPlayerThread.join();
-    }
-  //}}}
-
-private:
-  cSong* mSong;
-  int64_t& mPlayPts;
-
-  bool mExit = false;
-  bool mPlaying = true;
-
-  bool mStarted = false;
-  thread mPlayerThread;
-  };
-//}}}
-
 // public
-cLoaderPlayer::cLoaderPlayer() {}
-cLoaderPlayer::~cLoaderPlayer() {}
+cLoader::cLoader() {}
+cLoader::~cLoader() {}
 
 //{{{
-void cLoaderPlayer::getFrac (float& loadFrac, float& videoFrac, float& audioFrac) {
+void cLoader::getFrac (float& loadFrac, float& videoFrac, float& audioFrac) {
 // return fracs for spinner graphic, true if ok to display
 
   loadFrac = mLoadFrac;
@@ -705,7 +565,7 @@ void cLoaderPlayer::getFrac (float& loadFrac, float& videoFrac, float& audioFrac
   }
 //}}}
 //{{{
-void cLoaderPlayer::getSizes (int& loadSize, int& videoQueueSize, int& audioQueueSize) {
+void cLoader::getSizes (int& loadSize, int& videoQueueSize, int& audioQueueSize) {
 // return sizes
 
   loadSize = mLoadSize;
@@ -715,17 +575,22 @@ void cLoaderPlayer::getSizes (int& loadSize, int& videoQueueSize, int& audioQueu
 //}}}
 
 //{{{
-void cLoaderPlayer::skipped() {
+void cLoader::skipped() {
   }
 //}}}
 //{{{
-void cLoaderPlayer::togglePlaying() {
-  mSongPlayer->togglePlaying();
+void cLoader::stopAndWait() {
+
+  mExit = true;
+  while (getRunning()) {
+    this_thread::sleep_for (100ms);
+    cLog::log(LOGINFO, "waiting to exit");
+    }
   }
 //}}}
 
 //{{{
-void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
+void cLoader::hlsLoaderThread (bool radio, const string& channelName,
                                      int audioBitrate, int videoBitrate, eLoaderFlags loaderFlags) {
 // hls http chunk load thread
 
@@ -976,7 +841,7 @@ void cLoaderPlayer::hlsLoaderThread (bool radio, const string& channelName,
   }
 //}}}
 //{{{
-void cLoaderPlayer::icyLoaderThread (const string& url) {
+void cLoader::icyLoaderThread (const string& url) {
 
   cLog::setThreadName ("icyL");
   mRunning = true;
@@ -1100,7 +965,7 @@ void cLoaderPlayer::icyLoaderThread (const string& url) {
   }
 //}}}
 //{{{
-void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loaderFlags) {
+void cLoader::fileLoaderThread (const string& filename, eLoaderFlags loaderFlags) {
 
   cLog::setThreadName ("file");
   mRunning = true;
@@ -1352,7 +1217,7 @@ void cLoaderPlayer::fileLoaderThread (const string& filename, eLoaderFlags loade
 
 // private
 //{{{
-string cLoaderPlayer::getHlsPathName (bool radio, int vidBitrate) {
+string cLoader::getHlsPathName (bool radio, int vidBitrate) {
 
   const string mPoolName = radio ? "pool_904/live/uk/" : "pool_902/live/uk/";
 
@@ -1371,7 +1236,7 @@ string cLoaderPlayer::getHlsPathName (bool radio, int vidBitrate) {
   }
 //}}}
 //{{{
-string cLoaderPlayer::getTagValue (uint8_t* buffer, const char* tag) {
+string cLoader::getTagValue (uint8_t* buffer, const char* tag) {
 
   const char* tagPtr = strstr ((const char*)buffer, tag);
   const char* valuePtr = tagPtr + strlen (tag);
@@ -1381,7 +1246,7 @@ string cLoaderPlayer::getTagValue (uint8_t* buffer, const char* tag) {
   }
 //}}}
 //{{{
-void cLoaderPlayer::addIcyInfo (int frame, const string& icyInfo) {
+void cLoader::addIcyInfo (int frame, const string& icyInfo) {
 
   cLog::log (LOGINFO, "addIcyInfo " + icyInfo);
 

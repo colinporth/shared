@@ -1,17 +1,17 @@
-// cLoaderPlayerWidget.h
+// cLoaderWidget.h
 #pragma once
 //{{{  includes
 #include "cWidget.h"
-#include "../utils/cLoaderPlayer.h"
+#include "../utils/cLoader.h"
 #include "../utils/cSong.h"
 //}}}
 constexpr bool kVideoPoolDebug = true;
 
-class cLoaderPlayerWidget : public cWidget {
+class cLoaderWidget : public cWidget {
 public:
-  cLoaderPlayerWidget (cLoaderPlayer* loaderPlayer, iClockTime* clockTime, cPointF size)
-    : cWidget (kBlackF, size.x, size.y), mLoaderPlayer(loaderPlayer), mClockTime(clockTime) {}
-  virtual ~cLoaderPlayerWidget() {}
+  cLoaderWidget (cLoader* loader, iClockTime* clockTime, cPointF size)
+    : cWidget (kBlackF, size.x, size.y), mLoader(loader), mClockTime(clockTime) {}
+  virtual ~cLoaderWidget() {}
 
   void setShowOverview (bool showOverview) { mShowOverview = showOverview; }
 
@@ -20,7 +20,7 @@ public:
 
     cWidget::onDown (p);
 
-    auto song = mLoaderPlayer->getSong();
+    auto song = mLoader->getSong();
     //std::shared_lock<std::shared_mutex> lock (song->getSharedMutex());
     if (p.y > mDstOverviewTop) {
       auto frame = song->getFirstFrame() + int((p.x * song->getTotalFrames()) / getPixWidth());
@@ -44,7 +44,7 @@ public:
 
     cWidget::onMove (p, inc);
 
-    auto song = mLoaderPlayer->getSong();
+    auto song = mLoader->getSong();
     //std::shared_lock<std::shared_mutex> lock (song.getSharedMutex());
     if (mOverviewPressed)
       song->setPlayFrame (song->getFirstFrame() + int((p.x * song->getTotalFrames()) / getPixWidth()));
@@ -65,7 +65,7 @@ public:
   virtual void onUp() {
 
     cWidget::onUp();
-    mLoaderPlayer->getSong()->getSelect().end();
+    mLoader->getSong()->getSelect().end();
     mOverviewPressed = false;
     mRangePressed = false;
     }
@@ -93,12 +93,12 @@ public:
   virtual void onDraw (iDraw* draw) {
 
     cVg* vg = draw->getVg();
-    cSong* song = mLoaderPlayer->getSong();
-    iVideoDecoder* videoDecoder = mLoaderPlayer->getVideoDecoder();
+    cSong* song = mLoader->getSong();
+    iVideoDecoder* videoDecoder = mLoader->getVideoDecoder();
 
     if (videoDecoder) {
       //{{{  draw piccy
-      auto frame = videoDecoder->findFrame (mLoaderPlayer->getPlayerPts());
+      auto frame = videoDecoder->findFrame (mLoader->getPlayerPts());
       if (frame) {
         if (frame->getPts() != mImagePts) {
           mImagePts = frame->getPts();
@@ -127,7 +127,7 @@ public:
     float loadFrac;
     float videoFrac;
     float audioFrac;
-    mLoaderPlayer->getFrac (loadFrac, videoFrac, audioFrac);
+    mLoader->getFrac (loadFrac, videoFrac, audioFrac);
     if ((loadFrac > 0.f) &&
         ((loadFrac < 1.f) || (audioFrac > 0.f) || (videoFrac > 0.f))) {
       cPointF centre (mPixSize.x-20.f, 20.f);
@@ -261,7 +261,7 @@ private:
     int loadSize;
     int videoQueueSize;
     int audioQueueSize;
-    mLoaderPlayer->getSizes (loadSize, videoQueueSize, audioQueueSize);
+    mLoader->getSizes (loadSize, videoQueueSize, audioQueueSize);
     infoString += " " + dec(loadSize/1000) + "Kbytes";
 
     if (videoDecoder) {
@@ -283,7 +283,7 @@ private:
     cPointF org { getPixCentre().x, getPixSize().y - 100.f };
     float ptsPerPix = float((90 * song->getSamplesPerFrame()) / 48);
 
-    int64_t playerPts = mLoaderPlayer->getPlayerPts();
+    int64_t playerPts = mLoader->getPlayerPts();
     //{{{  draw frame index grey
     const float heightInc = 80.f / videoDecode->getFramePool().size();
 
@@ -804,7 +804,7 @@ private:
   //}}}
 
   //{{{  vars
-  cLoaderPlayer* mLoaderPlayer;
+  cLoader* mLoader;
   iClockTime* mClockTime;
   int64_t mImagePts = 0;
   int mImageId = -1;
