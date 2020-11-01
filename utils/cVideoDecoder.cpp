@@ -1789,10 +1789,8 @@ public:
   // gets
   virtual int getWidth() { return mWidth; }
   virtual int getHeight() { return mHeight; }
-
   virtual map <int64_t, iVideoFrame*>& getFramePool() { return mFramePool; }
 
-  // sets
   //{{{
   virtual iVideoFrame* findFrame (int64_t pts) {
 
@@ -1817,7 +1815,7 @@ protected:
   // return youngest frame in pool if older than playPts - (halfPoolSize * duration)
 
     while (true) {
-      {
+      { // start of lock
       unique_lock<shared_mutex> lock (mSharedMutex);
 
       if (!mFramePool.empty()) {
@@ -1830,9 +1828,10 @@ protected:
           return videoFrame;
           }
         }
+      } // end of lock
 
       if (mFramePool.size() < mMaxPoolSize) {
-        // create and insert new framea
+        // create and insert new videoFrame
         iVideoFrame* videoFrame;
         if (!mPlanar)
           videoFrame = new cFrameRgba();
@@ -1842,11 +1841,8 @@ protected:
           #else
             videoFrame = new cFramePlanarRgbaSws();
           #endif
-
-        mFramePool.insert (map<int64_t, iVideoFrame*>::value_type (pts / mPtsDuration, videoFrame));
         return videoFrame;
         }
-      }
 
       // one should come along in a frame in while playing
       // - !!!! should be ptsduration!!!
@@ -1934,7 +1930,7 @@ public:
           mHeight = avFrame->height;
           mPtsDuration = (kPtsPerSecond * mAvContext->framerate.den) / mAvContext->framerate.num;
 
-          // will block on waiting for freeFrame most of the time
+          // blocks on waiting for freeFrame most of the time
           auto frame = getFreeFrame (reuseFront, mDecodePts);
 
           timePoint = system_clock::now();
