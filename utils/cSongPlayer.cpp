@@ -29,6 +29,7 @@ using namespace chrono;
 void cSongPlayer::start (bool streaming) {
 
   if (!mStarted) {
+    mStarted = true;
     mPlayerThread = thread ([=]() {
       // player lambda
       cLog::setThreadName ("play");
@@ -119,16 +120,16 @@ void cSongPlayer::start (bool streaming) {
 
       cLog::log (LOGINFO, "exit");
       });
-
-    mStarted = true;
     }
   }
 //}}}
 //{{{
 void cSongPlayer::wait() {
 
-  if (mStarted)
+  if (mStarted) {
     mPlayerThread.join();
+    mStarted = false;
+    }
   }
 //}}}
 //{{{
