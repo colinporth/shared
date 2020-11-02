@@ -142,7 +142,7 @@ public:
     float loadFrac;
     float videoFrac;
     float audioFrac;
-    mLoader->getFrac (loadFrac, videoFrac, audioFrac);
+    mLoader->getFracs (loadFrac, audioFrac, videoFrac);
     if ((loadFrac > 0.f) &&
         ((loadFrac < 1.f) || (audioFrac > 0.f) || (videoFrac > 0.f))) {
       cPointF centre (mPixSize.x-20.f, 20.f);

@@ -1,4 +1,4 @@
-// cLoader.cpp - audio,video loader, launces cSongPlayer when enough loaded
+// cLoader.cpp - audio,video loader, launches cSongPlayer
 //{{{  includes
 #define _CRT_SECURE_NO_WARNINGS
 #define WIN32_LEAN_AND_MEAN
@@ -563,7 +563,7 @@ private:
 
 // public
 //{{{
-void cLoader::getFrac (float& loadFrac, float& videoFrac, float& audioFrac) {
+void cLoader::getFracs (float& loadFrac, float& audioFrac, float& videoFrac) {
 // return fracs for spinner graphic, true if ok to display
 
   loadFrac = mLoadFrac;
@@ -572,7 +572,7 @@ void cLoader::getFrac (float& loadFrac, float& videoFrac, float& audioFrac) {
   }
 //}}}
 //{{{
-void cLoader::getSizes (int& loadSize, int& videoQueueSize, int& audioQueueSize) {
+void cLoader::getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize) {
 // return sizes
 
   loadSize = mLoadSize;

@@ -25,8 +25,8 @@ public:
   cSongPlayer* getSongPlayer() { return mSongPlayer; }
   int64_t getPlayerPts() { return mPlayPts; }
   iVideoPool* getVideoPool() { return mVideoPool; }
-  void getFrac (float& loadFrac, float& videoFrac, float& audioFrac);
-  void getSizes (int& loadSize, int& videoQueueSize, int& audioQueueSize);
+  void getFracs (float& loadFrac, float& audioFrac, float& videoFrac);
+  void getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize);
   bool getRunning() { return mRunning; }
 
   // loaders
