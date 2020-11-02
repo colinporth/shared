@@ -912,7 +912,7 @@ void cLoader::file (const string& filename, eFlags loaderFlags) {
         iAudioDecoder* audioDecoder = nullptr;
         iVideoPool* videoPool = nullptr;
 
-        // parser callbacks
+        //{{{  parsers,callbacks
         int frameNum = 0;
         auto addAudioFrameCallback = [&](bool reuseFront, float* samples, int num, int64_t pts) noexcept {
           frameNum = num;
@@ -927,12 +927,9 @@ void cLoader::file (const string& filename, eFlags loaderFlags) {
           if (mPidParsers.find (pid) == mPidParsers.end()) {
             auto it = mServices.find (sid);
             if (it == mServices.end())
-              cLog::log (LOGERROR, "PMT:%d for unrecognised sid:%d", pid, sid);
-
+              cLog::log (LOGERROR, "file - PMT:%d for unrecognised sid:%d", pid, sid);
             else {
-              // should only be one
               cService* service = (*it).second;
-
               switch (type) {
                 //{{{
                 case 2: // ISO 13818-2 video
@@ -950,7 +947,7 @@ void cLoader::file (const string& filename, eFlags loaderFlags) {
                   break;
                 //}}}
 
-                case 15: // aac adts
+                case 15: // aacAdts
                   service->setAudioPid (pid);
                   if (service->isSelected()) {
                     audioDecoder = cAudioParser::create (eAudioFrameType::eAacAdts);
@@ -961,7 +958,7 @@ void cLoader::file (const string& filename, eFlags loaderFlags) {
                     }
                   break;
 
-                case 17: // aac latm
+                case 17: // aacLatm
                   service->setAudioPid (pid);
                   if (service->isSelected()) {
                     audioDecoder = cAudioParser::create (eAudioFrameType::eAacLatm);
@@ -972,11 +969,10 @@ void cLoader::file (const string& filename, eFlags loaderFlags) {
                     }
                   break;
 
-                case 27: // h264
+                case 27: // h264video
                   service->setVideoPid (pid);
                   if (service->isSelected()) {
-                    videoPool = iVideoPool::create (loaderFlags & eFFmpeg, 128, mPlayPts);
-                    //videoPool = iVideoPool::create (false, 120, mPlayPts); // use mfx
+                    videoPool = iVideoPool::create (loaderFlags & eFFmpeg, 120, mPlayPts);
                     mPidParsers.insert (
                       map<int,cPidParser*>::value_type (pid,
                         new cVideoPesParser (pid, videoPool, true, addVideoFrameCallback)));
@@ -1007,6 +1003,7 @@ void cLoader::file (const string& filename, eFlags loaderFlags) {
           };
 
         mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
+        //}}}
 
         // no parsers init
         uint8_t* ts = fileFirst;
