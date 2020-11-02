@@ -14,6 +14,7 @@ class cSongPlayer;
 class cPidParser;
 class iVideoPool;
 class cFileList;
+class cService;
 //}}}
 
 class cLoader {
@@ -58,6 +59,8 @@ private:
   int mAudioPid = -1;
   int mVideoPid = -1;
   std::map <int, cPidParser*> mPidParsers;
+  std::map <int, cService*> mServices;
+  int mCurSid = -1;
 
   bool mRunning = false;
 

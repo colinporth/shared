@@ -45,6 +45,30 @@ using namespace chrono;
 //}}}
 
 //{{{
+class cService {
+public:
+  cService (int sid, bool selected) : mSid(sid), mSelected(selected) {}
+
+  bool isSelected() { return mSelected; }
+  int getAudioPid() { return mAudioPid; }
+  int getVideoPid() { return mVideoPid; }
+
+  void setAudioPid (int pid) { mAudioPid = pid; }
+  void setVideoPid (int pid) { mVideoPid = pid; }
+  void setSubtitlePid (int pid) { mSubtitlePid = pid; }
+  void setSelected (bool selected) { mSelected = selected; }
+
+private:
+  const int mSid;
+
+  int mAudioPid = 0;
+  int mVideoPid = 0;
+  int mSubtitlePid = 0;
+
+  bool mSelected = false;
+  };
+//}}}
+//{{{
 class cPidParser {
 public:
   cPidParser (int pid, const string& name) : mPid(pid), mName(name) {}
@@ -901,17 +925,21 @@ void cLoader::file (const string& filename, eFlags loaderFlags) {
           //{{{  addStream lambda
           if (mPidParsers.find (pid) == mPidParsers.end())
             switch (type) {
+              //{{{
               case 2: // ISO 13818-2 video
-                cLog::log (LOGERROR, "mpeg2 video %d", pid, type);
+                //cLog::log (LOGERROR, "mpeg2 video %d", pid, type);
                 break;
-
+              //}}}
+              //{{{
               case 3: // ISO 11172-3 audio
-                cLog::log (LOGINFO, "mp2 audio %d %d", pid, type);
+                //cLog::log (LOGINFO, "mp2 audio %d %d", pid, type);
                 break;
-
+              //}}}
+              //{{{
               case 6:  // subtitle
-                cLog::log (LOGINFO, "subtitle %d %d", pid, type);
+                //cLog::log (LOGINFO, "subtitle %d %d", pid, type);
                 break;
+              //}}}
 
               case 15: // aac adts
                 audioDecoder = cAudioParser::create (eAudioFrameType::eAacAdts);
@@ -938,6 +966,9 @@ void cLoader::file (const string& filename, eFlags loaderFlags) {
                 mVideoPool = videoPool;
                 mVideoPid = pid;
                 break;
+
+              case 5: break;
+              case 11: break;
 
               default:
                 cLog::log (LOGERROR, "unrecognised stream type %d %d", pid, type);
