@@ -33,6 +33,9 @@
 #ifdef _WIN32
   //#include "../common/cJpegImage.h"
   #include "../../shared/utils/cFileList.h"
+#else
+  #include <sys/mman.h>
+  #include <sys/stat.h>
 #endif
 
 #include "readerWriterQueue.h"
@@ -840,19 +843,27 @@ void cLoader::file (const string& filename, eFlags loaderFlags) {
     while (!mExit) {
       //{{{  open filemapping
       #ifdef _WIN32
-        //{{{  windows file map
+        // windows file map
         HANDLE fileHandle = CreateFile (filename.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
         HANDLE fileMapping = CreateFileMapping (fileHandle, NULL, PAGE_READONLY, 0, 0, NULL);
         uint8_t* fileFirst = (uint8_t*)MapViewOfFile (fileMapping, FILE_MAP_READ, 0, 0, 0);
         auto fileSize = GetFileSize (fileHandle, NULL);
         uint8_t* fileEnd = fileFirst + fileSize;
-        //}}}
+
       #else
-        //{{{  linux mmap to do
-        uint8_t* fileFirst = nullptr;
-        auto fileSize = 0;
+        // linux mmap to do
+        int fd = open (filename.c_str(), O_RDONLY);
+
+        // obtain file size
+        struct stat sb;
+        if (fstat (fd, &sb) == -1)
+           cLog::log (LOGERROR, "fstat failed");
+        int fileSize = sb.st_size;
+
+        //size_t pagesize = getpagesize();
+        uint8_t* fileFirst = (uint8_t*)mmap (NULL, fileSize, PROT_READ, MAP_FILE|MAP_PRIVATE, fd, 0);
         uint8_t* fileEnd = fileFirst + fileSize;
-        //}}}
+
       #endif
       //}}}
 
@@ -1063,13 +1074,15 @@ void cLoader::file (const string& filename, eFlags loaderFlags) {
 
       //{{{  close file mapping
       #ifdef _WIN32
-        //{{{  windows file map close
+        // windows file map close
         UnmapViewOfFile (fileFirst);
         CloseHandle (fileHandle);
-        //}}}
+
       #else
-        //{{{  linux mmap close to do
-        //}}}
+        // linux mmap close to do
+        munmap (fileFirst, fileSize);
+        close (fd);
+
       #endif
       //}}}
       //{{{  next file
