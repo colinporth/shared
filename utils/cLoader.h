@@ -46,7 +46,7 @@ public:
 private:
   void clear();
   std::string getHlsPathName (bool radio, int vidBitrate);
-  static std::string getTagValue (uint8_t* buffer, const char* tag);
+  static std::string getTagValue (uint8_t* buffer, const char* tag, char terminator);
   void addIcyInfo (int frame, const std::string& icyInfo);
 
   // vars

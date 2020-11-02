@@ -671,15 +671,14 @@ void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int 
       string redirectedHostName = http.getRedirect (hostName, pathName + kM3u8);
       if (http.getContent()) {
         //{{{  parse m3u8 for mediaSequence,programDateTimePoint
-        int extXMediaSequence = stoi (getTagValue (http.getContent(), "#EXT-X-MEDIA-SEQUENCE:"));
-        istringstream inputStream (getTagValue (http.getContent(), "#EXT-X-PROGRAM-DATE-TIME:"));
-
+        int extXMediaSequence = stoi (getTagValue (http.getContent(), "#EXT-X-MEDIA-SEQUENCE:", '\n'));
+        int64_t mpegTimestamp = stoi (getTagValue (http.getContent(), "#USP-X-TIMESTAMP-MAP:MPEGTS=", ','));
+        istringstream inputStream (getTagValue (http.getContent(), "#EXT-X-PROGRAM-DATE-TIME:", '\n'));
         system_clock::time_point extXProgramDateTimePoint;
         inputStream >> date::parse ("%FT%T", extXProgramDateTimePoint);
-
         http.freeContent();
 
-        mSong->setHlsBase (extXMediaSequence, extXProgramDateTimePoint, -37s);
+        mSong->setHlsBase (extXMediaSequence, mpegTimestamp, extXProgramDateTimePoint, -37s);
         //}}}
         while (!mExit && !mSong->getChanged()) {
           if (mSong->loadChunk (system_clock::now(), 2, chunkNum, frameNum)) {
@@ -1270,11 +1269,11 @@ string cLoader::getHlsPathName (bool radio, int vidBitrate) {
   }
 //}}}
 //{{{
-string cLoader::getTagValue (uint8_t* buffer, const char* tag) {
+string cLoader::getTagValue (uint8_t* buffer, const char* tag, char terminator) {
 
   const char* tagPtr = strstr ((const char*)buffer, tag);
   const char* valuePtr = tagPtr + strlen (tag);
-  const char* endPtr = strchr (valuePtr, '\n');
+  const char* endPtr = strchr (valuePtr, terminator);
 
   return string (valuePtr, endPtr - valuePtr);
   }

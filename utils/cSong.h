@@ -198,7 +198,8 @@ public:
   //}}}
 
   // hls
-  void setHlsBase (int chunkNum, std::chrono::system_clock::time_point timePoint, std::chrono::seconds offset);
+  void setHlsBase (int chunkNum, int64_t pts,
+                   std::chrono::system_clock::time_point timePoint, std::chrono::seconds offset);
   //}}}
 
   // hls
@@ -252,6 +253,7 @@ private:
   bool mHlsBaseValid = false;
   int mHlsBaseChunkNum = 0;
   int mHlsBaseFrame = 0;
+  int64_t mHlsBasePts = -1;
   std::chrono::system_clock::time_point mHlsBaseTimePoint;
 
   int mHlsFramesPerChunk = 0;

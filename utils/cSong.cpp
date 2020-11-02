@@ -190,12 +190,13 @@ void cSong::incPlaySec (int secs, bool useSelectRange) {
 
 // hls
 //{{{
-void cSong::setHlsBase (int chunkNum, system_clock::time_point timePoint, seconds offset) {
+void cSong::setHlsBase (int chunkNum, int64_t pts, system_clock::time_point timePoint, seconds offset) {
 // set baseChunkNum, baseTimePoint and baseFrame (sinceMidnight)
 
   unique_lock<shared_mutex> lock (mSharedMutex);
 
   mHlsBaseChunkNum = chunkNum;
+  mHlsBasePts = pts;
 
   timePoint += offset;
   mHlsBaseTimePoint = timePoint;
