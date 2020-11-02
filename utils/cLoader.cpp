@@ -160,7 +160,7 @@ public:
       ts++;
       tsLeft--;
 
-      //int tid = ts[0];
+      //int tid = ts[0]; // could check it
       int sectionLength = ((ts[1] & 0x0F) << 8) + ts[2] + 3;
       if (getCrc32 (0xffffffff, ts, sectionLength) != 0) {
         //{{{  error return
@@ -168,6 +168,11 @@ public:
         return;
         }
         //}}}
+
+      // transport stream id = ((ts[3] & 0xF) << 4) | ts[4]
+      // currentNext,versionNumber = ts[5]
+      // section number = ts[6]
+      // last section number = ts[7]
 
       // skip past pat header
       ts += 8;
@@ -681,7 +686,7 @@ void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int 
         mSong->setHlsBase (extXMediaSequence, mpegTimestamp, extXProgramDateTimePoint, -37s);
         //}}}
         while (!mExit && !mSong->getChanged()) {
-          if (mSong->loadChunk (system_clock::now(), 2, chunkNum, frameNum)) {
+          if (mSong->getLoadChunk (chunkNum, frameNum, 2)) {
             bool chunkReuseFront = frameNum >= mSong->getPlayFrame();
             for (auto parser : mPidParsers)
               parser.second->clear (frameNum);
@@ -866,6 +871,7 @@ void cLoader::file (const string& filename, eFlags loaderFlags) {
       #endif
       //}}}
 
+      auto timePoint = system_clock::now();
       if ((fileFirst[0] == 0x47) && (fileFirst[188] == 0x47)) {
         //{{{  ts
         mSong = new cSong();
@@ -971,7 +977,10 @@ void cLoader::file (const string& filename, eFlags loaderFlags) {
         for (auto parser : mPidParsers)
           parser.second->processLast (true);
 
-        cLog::log (LOGINFO, "loaded");
+        int duration = (mSong->getTotalFrames() * mSong->getSamplesPerFrame()) / (mSong->getSampleRate() / 1000);
+        cLog::log (LOGINFO, "load ts %dms took %dms",
+                            duration,
+                            duration_cast<milliseconds>(system_clock::now() - timePoint).count());
         mSongPlayer->wait();
 
         //{{{  delete resources
@@ -1059,7 +1068,11 @@ void cLoader::file (const string& filename, eFlags loaderFlags) {
           }
           //}}}
 
-        cLog::log (LOGINFO, "loaded");
+        int duration = (mSong->getTotalFrames() * mSong->getSamplesPerFrame()) / (mSong->getSampleRate() / 1000);
+        cLog::log (LOGINFO, "load audio %dms took %dms",
+                            duration,
+                            duration_cast<milliseconds>(system_clock::now() - timePoint).count());
+
         // wait for play to end or abort, wav uses the file mapping pointers to play
         mSongPlayer->wait();
 

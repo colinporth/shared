@@ -190,31 +190,12 @@ void cSong::incPlaySec (int secs, bool useSelectRange) {
 
 // hls
 //{{{
-void cSong::setHlsBase (int chunkNum, int64_t pts, system_clock::time_point timePoint, seconds offset) {
-// set baseChunkNum, baseTimePoint and baseFrame (sinceMidnight)
-
-  unique_lock<shared_mutex> lock (mSharedMutex);
-
-  mHlsBaseChunkNum = chunkNum;
-  mHlsBasePts = pts;
-
-  timePoint += offset;
-  mHlsBaseTimePoint = timePoint;
-
-  // calc hlsBaseFrame
-  auto midnightTimePoint = date::floor<date::days>(timePoint);
-  uint64_t msSinceMidnight = duration_cast<milliseconds>(timePoint - midnightTimePoint).count();
-  mHlsBaseFrame = int((msSinceMidnight * mSampleRate) / mSamplesPerFrame / 1000);
-  mPlayFrame = mHlsBaseFrame;
-
-  mHlsBaseValid = true;
-  }
-//}}}
-//{{{
-bool cSong::loadChunk (system_clock::time_point now,  int preloadChunks, int& chunkNum, int& frameNum) {
-// return true if a chunk load needed
+bool cSong::getLoadChunk (int& chunkNum, int& frameNum, int preloadChunks) {
+// return true if a chunk load needed to play mPlayFrame
 // - update chunkNum and frameNum
 // !!!! dodgy hard coding of chunk duration 6400ms !!!!
+
+  system_clock::time_point now = system_clock::now();
 
   // get offsets of playFrame from baseFrame, handle -v offsets correctly
   int frameOffset = mPlayFrame - mHlsBaseFrame;
@@ -247,6 +228,27 @@ bool cSong::loadChunk (system_clock::time_point now,  int preloadChunks, int& ch
   mLastChunkNum = chunkNum;
   mLastFrameNum = frameNum;
   return false;
+  }
+//}}}
+//{{{
+void cSong::setHlsBase (int chunkNum, int64_t pts, system_clock::time_point timePoint, seconds offset) {
+// set baseChunkNum, baseTimePoint and baseFrame (sinceMidnight)
+
+  unique_lock<shared_mutex> lock (mSharedMutex);
+
+  mHlsBaseChunkNum = chunkNum;
+  mHlsBasePts = pts;
+
+  timePoint += offset;
+  mHlsBaseTimePoint = timePoint;
+
+  // calc hlsBaseFrame
+  auto midnightTimePoint = date::floor<date::days>(timePoint);
+  uint64_t msSinceMidnight = duration_cast<milliseconds>(timePoint - midnightTimePoint).count();
+  mHlsBaseFrame = int((msSinceMidnight * mSampleRate) / mSamplesPerFrame / 1000);
+  mPlayFrame = mHlsBaseFrame;
+
+  mHlsBaseValid = true;
   }
 //}}}
 
