@@ -627,13 +627,15 @@ void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int 
     mSong->setChannel (channelName);
     //}}}
     mSongPlayer = new cSongPlayer();
-    //{{{  add parser
+    //{{{  add parsers,callbacks
     int chunkNum;
     int frameNum;
+
     iAudioDecoder* audioDecoder = nullptr;
     iVideoPool* videoPool = nullptr;
+
     auto addAudioFrameCallback = [&](bool reuseFront, float* samples, int num, int64_t pts) noexcept {
-      // addAudioFrame lambda
+      // add frame to song and start playing
       mSong->addFrame (reuseFront, num, samples, true, mSong->getNumFrames(), pts);
       mSongPlayer->start (mSong, &mPlayPts, true);
       };
@@ -643,7 +645,7 @@ void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int 
     auto addStreamCallback = [&](int sid, int pid, int type) noexcept {
       //{{{  addStream lambda
       if (mPidParsers.find (pid) == mPidParsers.end()) {
-        // new stream seen, add stream parser
+        // new stream, add stream parser, add stream pid to service
         auto it = mServices.find (sid);
         if (it == mServices.end())
           cLog::log (LOGERROR, "PMT:%d for unrecognised sid:%d", pid, sid);
@@ -651,7 +653,7 @@ void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int 
         else {
           cService* service = (*it).second;
           switch (type) {
-            case 15: // aac adts
+            case 15: // aacAdts
               service->setAudioPid (pid);
               if (service->isSelected()) {
                 audioDecoder = cAudioParser::create (eAudioFrameType::eAacAdts);
@@ -662,7 +664,7 @@ void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int 
                 }
               break;
 
-            case 27: // h264 video
+            case 27: // h264video
               if (videoBitrate) {
                 service->setVideoPid (pid);
                 if (service->isSelected()) {
@@ -685,18 +687,13 @@ void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int 
       //}}}
 
     auto addProgramCallback = [&](int pid, int sid) noexcept {
-      //{{{  addProgram lambda
       if (mPidParsers.find (pid) == mPidParsers.end()) {
-
+        // new PMT, add parser and new service
         mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cPmtParser (pid, sid, addStreamCallback)));
-
-        // insert and select first and only service
         mServices.insert (map<int,cService*>::value_type (sid, new cService (sid, true)));
         mCurSid = sid;
         }
-
       };
-      //}}}
 
     // add PAT parser
     mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
@@ -708,9 +705,9 @@ void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int 
       string pathName = getHlsPathName (radio, videoBitrate);
       string redirectedHostName = http.getRedirect (hostName, pathName + kM3u8);
       if (http.getContent()) {
-        //{{{  parse m3u8 for mediaSequence,programDateTimePoint
+        //{{{  parse m3u8 for mediaSequence, mpegTimestamp, programDateTimePoint
         int extXMediaSequence = stoi (getTagValue (http.getContent(), "#EXT-X-MEDIA-SEQUENCE:", '\n'));
-        int64_t mpegTimestamp = stoi (getTagValue (http.getContent(), "#USP-X-TIMESTAMP-MAP:MPEGTS=", ','));
+        int64_t mpegTimestamp = stoll (getTagValue (http.getContent(), "#USP-X-TIMESTAMP-MAP:MPEGTS=", ','));
         istringstream inputStream (getTagValue (http.getContent(), "#EXT-X-PROGRAM-DATE-TIME:", '\n'));
         system_clock::time_point extXProgramDateTimePoint;
         inputStream >> date::parse ("%FT%T", extXProgramDateTimePoint);
@@ -917,7 +914,6 @@ void cLoader::file (const string& filename, eFlags loaderFlags) {
         // parser callbacks
         int frameNum = 0;
         auto addAudioFrameCallback = [&](bool reuseFront, float* samples, int num, int64_t pts) noexcept {
-          //  addAudioFrame lambda
           frameNum = num;
           mSong->addFrame (reuseFront, num, samples, true, mSong->getNumFrames(), pts);
           mSongPlayer->start (mSong, &mPlayPts, true);
@@ -979,21 +975,17 @@ void cLoader::file (const string& filename, eFlags loaderFlags) {
               }
           };
           //}}}
+
         auto addProgramCallback = [&](int pid, int sid) noexcept {
-          //{{{  addProgram lambda
           if ((sid > 0) && (mPidParsers.find (pid) == mPidParsers.end())) {
             cLog::log (LOGINFO, "adding pid:service %d::%d", pid, sid);
-
-            // add pmt parser
             mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cPmtParser (pid, sid, addStreamCallback)));
-
-            // insert service, selecting first
             mServices.insert (map<int,cService*>::value_type (sid, new cService (sid, mCurSid == -1)));
             if (mCurSid == -1)
               mCurSid = sid;
             }
           };
-          //}}}
+
         mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
 
         // no parsers init
