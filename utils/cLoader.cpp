@@ -651,7 +651,9 @@ void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int 
           cLog::log (LOGERROR, "PMT:%d for unrecognised sid:%d", pid, sid);
 
         else {
+          // should only be one
           cService* service = (*it).second;
+
           switch (type) {
             case 15: // aacAdts
               service->setAudioPid (pid);
@@ -679,7 +681,7 @@ void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int 
               break;
 
             default:
-              cLog::log (LOGERROR, "unrecognised stream type %d %d", pid, type);
+              cLog::log (LOGERROR, "hls - unrecognised stream pid:type %d:%d", pid, type);
             }
           }
         }
@@ -699,8 +701,7 @@ void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int 
     mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
     //}}}
 
-    while (!mExit && !mSong->getChanged()) {
-      mSong->setChanged (false);
+    while (!mExit) {
       cPlatformHttp http;
       string pathName = getHlsPathName (radio, videoBitrate);
       string redirectedHostName = http.getRedirect (hostName, pathName + kM3u8);
@@ -715,7 +716,7 @@ void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int 
 
         mSong->setHlsBase (extXMediaSequence, mpegTimestamp, extXProgramDateTimePoint, -37s);
         //}}}
-        while (!mExit && !mSong->getChanged()) {
+        while (!mExit) {
           if (mSong->getLoadChunk (chunkNum, frameNum, 2)) {
             bool chunkReuseFront = frameNum >= mSong->getPlayFrame();
             for (auto parser : mPidParsers)
@@ -923,56 +924,75 @@ void cLoader::file (const string& filename, eFlags loaderFlags) {
 
         auto addStreamCallback = [&](int sid, int pid, int type) noexcept {
           //{{{  addStream lambda
-          if (mPidParsers.find (pid) == mPidParsers.end())
-            switch (type) {
-              //{{{
-              case 2: // ISO 13818-2 video
-                //cLog::log (LOGERROR, "mpeg2 video %d", pid, type);
-                break;
-              //}}}
-              //{{{
-              case 3: // ISO 11172-3 audio
-                //cLog::log (LOGINFO, "mp2 audio %d %d", pid, type);
-                break;
-              //}}}
-              //{{{
-              case 6:  // subtitle
-                //cLog::log (LOGINFO, "subtitle %d %d", pid, type);
-                break;
-              //}}}
+          if (mPidParsers.find (pid) == mPidParsers.end()) {
+            auto it = mServices.find (sid);
+            if (it == mServices.end())
+              cLog::log (LOGERROR, "PMT:%d for unrecognised sid:%d", pid, sid);
 
-              case 15: // aac adts
-                audioDecoder = cAudioParser::create (eAudioFrameType::eAacAdts);
-                mPidParsers.insert (
-                  map<int,cPidParser*>::value_type (pid,
-                    new cAudioPesParser (pid, audioDecoder, true, frameNum, addAudioFrameCallback)));
-                mAudioPid = pid;
-                break;
+            else {
+              // should only be one
+              cService* service = (*it).second;
 
-              case 17: // aac latm
-                audioDecoder = cAudioParser::create (eAudioFrameType::eAacLatm);
-                mPidParsers.insert (
-                  map<int,cPidParser*>::value_type (pid,
-                    new cAudioPesParser (pid, audioDecoder, true, frameNum, addAudioFrameCallback)));
-                mAudioPid = pid;
-                break;
+              switch (type) {
+                //{{{
+                case 2: // ISO 13818-2 video
+                  //cLog::log (LOGERROR, "mpeg2 video %d", pid, type);
+                  break;
+                //}}}
+                //{{{
+                case 3: // ISO 11172-3 audio
+                  //cLog::log (LOGINFO, "mp2 audio %d %d", pid, type);
+                  break;
+                //}}}
+                //{{{
+                case 6: // subtitle
+                  //cLog::log (LOGINFO, "subtitle %d %d", pid, type);
+                  break;
+                //}}}
 
-              case 27: // h264
-                videoPool = iVideoPool::create (loaderFlags & eFFmpeg, 128, mPlayPts);
-                //videoPool = iVideoPool::create (false, 120, mPlayPts); // use mfx
-                mPidParsers.insert (
-                  map<int,cPidParser*>::value_type (pid,
-                    new cVideoPesParser (pid, videoPool, true, addVideoFrameCallback)));
-                mVideoPool = videoPool;
-                mVideoPid = pid;
-                break;
+                case 15: // aac adts
+                  service->setAudioPid (pid);
+                  if (service->isSelected()) {
+                    audioDecoder = cAudioParser::create (eAudioFrameType::eAacAdts);
+                    mPidParsers.insert (
+                      map<int,cPidParser*>::value_type (pid,
+                        new cAudioPesParser (pid, audioDecoder, true, frameNum, addAudioFrameCallback)));
+                    mAudioPid = pid;
+                    }
+                  break;
 
-              case 5: break;
-              case 11: break;
+                case 17: // aac latm
+                  service->setAudioPid (pid);
+                  if (service->isSelected()) {
+                    audioDecoder = cAudioParser::create (eAudioFrameType::eAacLatm);
+                    mPidParsers.insert (
+                      map<int,cPidParser*>::value_type (pid,
+                        new cAudioPesParser (pid, audioDecoder, true, frameNum, addAudioFrameCallback)));
+                    mAudioPid = pid;
+                    }
+                  break;
 
-              default:
-                cLog::log (LOGERROR, "unrecognised stream type %d %d", pid, type);
+                case 27: // h264
+                  service->setVideoPid (pid);
+                  if (service->isSelected()) {
+                    videoPool = iVideoPool::create (loaderFlags & eFFmpeg, 128, mPlayPts);
+                    //videoPool = iVideoPool::create (false, 120, mPlayPts); // use mfx
+                    mPidParsers.insert (
+                      map<int,cPidParser*>::value_type (pid,
+                        new cVideoPesParser (pid, videoPool, true, addVideoFrameCallback)));
+                    mVideoPool = videoPool;
+                    mVideoPid = pid;
+                    }
+                  break;
+
+                case 5: break;
+                case 11: break;
+
+                default:
+                  cLog::log (LOGERROR, "unrecognised stream type %d %d", pid, type);
+                }
               }
+            }
           };
           //}}}
 
@@ -1065,7 +1085,7 @@ void cLoader::file (const string& filename, eFlags loaderFlags) {
           uint8_t* filePtr = fileFirst;
           int frameSize;
           auto samples = cAudioParser::parseFrame(filePtr, fileEnd, frameSize);
-          while (!mExit && !mSong->getChanged() && ((samples + (kFrameSamples * 2 * sizeof(float))) <= fileEnd)) {
+          while (!mExit && ((samples + (kFrameSamples * 2 * sizeof(float))) <= fileEnd)) {
             mSong->addFrame (true, frameNum++, (float*)samples, false, fileSize / (kFrameSamples * 2 * sizeof(float)), 0);
             samples += kFrameSamples * 2 * sizeof(float);
             mSongPlayer->start (mSong, &mPlayPts, false);
@@ -1079,8 +1099,7 @@ void cLoader::file (const string& filename, eFlags loaderFlags) {
           bool firstSamples = true;
           uint8_t* filePtr = fileFirst;
           int frameSize;
-          while (!mExit && !mSong->getChanged() &&
-                 cAudioParser::parseFrame (filePtr, fileEnd, frameSize)) {
+          while (!mExit && cAudioParser::parseFrame (filePtr, fileEnd, frameSize)) {
             float* samples = audioDecoder->decodeFrame (filePtr, frameSize, frameNum);
             if (samples) {
               if (firstSamples) // need to decode a frame to set sampleRate for aacHE, header is wrong
@@ -1223,7 +1242,7 @@ void cLoader::icycast (const string& url) {
                 }
               }
 
-            return !mExit && !mSong->getChanged();
+            return !mExit;
             }
             //}}}
 
@@ -1254,12 +1273,12 @@ void cLoader::icycast (const string& url) {
             buffer = bufferFirst;
             }
 
-          return !mExit && !mSong->getChanged();
+          return !mExit;
           }
         //}}}
         );
 
-      cLog::log (LOGINFO, "icyThread songChanged");
+      cLog::log (LOGINFO, "icyThread");
       mSongPlayer->stopAndWait();
       }
 
