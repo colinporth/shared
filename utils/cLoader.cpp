@@ -635,10 +635,10 @@ void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int 
           case 27:
             if (videoBitrate) {
               videoPool = iVideoPool::create (loaderFlags & eFlags::eFFmpeg, 192, mPlayPts);
-              mVideoPool = videoPool;
               mPidParsers.insert (
                 map<int,cPidParser*>::value_type (pid,
                   new cVideoPesParser (pid, videoPool, true, addVideoFrameCallback)));
+              mVideoPool = videoPool;
               mVideoPid = pid;
               }
             break;
@@ -914,12 +914,12 @@ void cLoader::file (const string& filename, eFlags loaderFlags) {
                 break;
 
               case 27: // h264
+                //videoPool = iVideoPool::create (loaderFlags & eFFmpeg, 128, mPlayPts);
                 videoPool = iVideoPool::create (false, 120, mPlayPts); // use mfx
-                mVideoPool = videoPool;
-                //videoDecoder = iVideoDecoder::create (loaderFlags & eFFmpeg, 128, mPlayPts);
                 mPidParsers.insert (
                   map<int,cPidParser*>::value_type (pid,
                     new cVideoPesParser (pid, videoPool, true, addVideoFrameCallback)));
+                mVideoPool = videoPool;
                 mVideoPid = pid;
                 break;
 

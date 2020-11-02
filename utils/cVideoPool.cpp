@@ -1807,7 +1807,7 @@ protected:
   // return youngest frame in pool if older than playPts - (halfPoolSize * duration)
 
     while (true) {
-      if (mFramePool.size() < mMaxPoolSize) {
+      if ((int)mFramePool.size() < mMaxPoolSize) {
         // create and insert new videoFrame
         iVideoFrame* videoFrame;
         if (!mPlanar)
@@ -1960,6 +1960,7 @@ private:
   int64_t mDecodePts = 0;
   };
 //}}}
+
 #ifdef _WIN32
   #include "../../libmfx/include/mfxvideo++.h"
   //{{{
