@@ -633,59 +633,68 @@ void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int 
     iAudioDecoder* audioDecoder = nullptr;
     iVideoPool* videoPool = nullptr;
     auto addAudioFrameCallback = [&](bool reuseFront, float* samples, int num, int64_t pts) noexcept {
-      //{{{  addAudioFrame lambda
+      // addAudioFrame lambda
       mSong->addFrame (reuseFront, num, samples, true, mSong->getNumFrames(), pts);
       mSongPlayer->start (mSong, &mPlayPts, true);
       };
-      //}}}
-    auto addVideoFrameCallback = [&](int64_t pts) noexcept {
-      //{{{  addVideoFrame lambda
-      // video frame decoded - nothing for now
-      };
-      //}}}
+
+    auto addVideoFrameCallback = [&](int64_t pts) noexcept {};
+
     auto addStreamCallback = [&](int sid, int pid, int type) noexcept {
       //{{{  addStream lambda
-      if (mPidParsers.find (pid) == mPidParsers.end())
+      if (mPidParsers.find (pid) == mPidParsers.end()) {
         // new stream seen, add stream parser
-        switch (type) {
-          case 15:
-            audioDecoder = cAudioParser::create (eAudioFrameType::eAacAdts);
-            mPidParsers.insert (
-              map<int,cPidParser*>::value_type (pid,
-                new cAudioPesParser (pid, audioDecoder, true, frameNum, addAudioFrameCallback)));
-            mAudioPid = pid;
-            break;
+        auto it = mServices.find (sid);
+        if (it == mServices.end())
+          cLog::log (LOGERROR, "PMT:%d for unrecognised sid:%d", pid, sid);
 
-          case 17: // aac latm
-            audioDecoder = cAudioParser::create (eAudioFrameType::eAacLatm);
-            mPidParsers.insert (
-              map<int,cPidParser*>::value_type (pid,
-                new cAudioPesParser (pid, audioDecoder, true, 0, addAudioFrameCallback)));
-            mAudioPid = pid;
-            break;
+        else {
+          cService* service = (*it).second;
+          switch (type) {
+            case 15: // aac adts
+              service->setAudioPid (pid);
+              if (service->isSelected()) {
+                audioDecoder = cAudioParser::create (eAudioFrameType::eAacAdts);
+                mPidParsers.insert (
+                  map<int,cPidParser*>::value_type (pid,
+                    new cAudioPesParser (pid, audioDecoder, true, frameNum, addAudioFrameCallback)));
+                mAudioPid = pid;
+                }
+              break;
 
-          case 27:
-            if (videoBitrate) {
-              videoPool = iVideoPool::create (loaderFlags & eFlags::eFFmpeg, 192, mPlayPts);
-              mPidParsers.insert (
-                map<int,cPidParser*>::value_type (pid,
-                  new cVideoPesParser (pid, videoPool, true, addVideoFrameCallback)));
-              mVideoPool = videoPool;
-              mVideoPid = pid;
-              }
-            break;
+            case 27: // h264 video
+              if (videoBitrate) {
+                service->setVideoPid (pid);
+                if (service->isSelected()) {
+                  videoPool = iVideoPool::create (loaderFlags & eFlags::eFFmpeg, 192, mPlayPts);
+                  mPidParsers.insert (
+                    map<int,cPidParser*>::value_type (pid,
+                      new cVideoPesParser (pid, videoPool, true, addVideoFrameCallback)));
+                  mVideoPool = videoPool;
+                  mVideoPid = pid;
+                  }
+                }
+              break;
 
-          default:
-            cLog::log (LOGERROR, "unrecognised stream type %d %d", pid, type);
+            default:
+              cLog::log (LOGERROR, "unrecognised stream type %d %d", pid, type);
+            }
           }
+        }
       };
       //}}}
+
     auto addProgramCallback = [&](int pid, int sid) noexcept {
       //{{{  addProgram lambda
-      if (mPidParsers.find (pid) == mPidParsers.end())
-        mPidParsers.insert (
-          map<int,cPidParser*>::value_type (pid,
-            new cPmtParser (pid, sid, addStreamCallback)));
+      if (mPidParsers.find (pid) == mPidParsers.end()) {
+
+        mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cPmtParser (pid, sid, addStreamCallback)));
+
+        // insert and select first and only service
+        mServices.insert (map<int,cService*>::value_type (sid, new cService (sid, true)));
+        mCurSid = sid;
+        }
+
       };
       //}}}
 
@@ -908,19 +917,14 @@ void cLoader::file (const string& filename, eFlags loaderFlags) {
         // parser callbacks
         int frameNum = 0;
         auto addAudioFrameCallback = [&](bool reuseFront, float* samples, int num, int64_t pts) noexcept {
-          //{{{  addAudioFrame lambda
-          //cLog::log (LOGINFO, "adding audio frameNm " + dec (num));
+          //  addAudioFrame lambda
           frameNum = num;
           mSong->addFrame (reuseFront, num, samples, true, mSong->getNumFrames(), pts);
           mSongPlayer->start (mSong, &mPlayPts, true);
           };
-          //}}}
-        auto addVideoFrameCallback = [&](int64_t pts) noexcept {
-          //{{{  addVideoFrame lambda
-          // video frame decoded - nothing for now
-          //cLog::log (LOGINFO, "adding video " + dec (pts/3600));
-          };
-          //}}}
+
+        auto addVideoFrameCallback = [&](int64_t pts) noexcept {};
+
         auto addStreamCallback = [&](int sid, int pid, int type) noexcept {
           //{{{  addStream lambda
           if (mPidParsers.find (pid) == mPidParsers.end())
@@ -958,8 +962,8 @@ void cLoader::file (const string& filename, eFlags loaderFlags) {
                 break;
 
               case 27: // h264
-                //videoPool = iVideoPool::create (loaderFlags & eFFmpeg, 128, mPlayPts);
-                videoPool = iVideoPool::create (false, 120, mPlayPts); // use mfx
+                videoPool = iVideoPool::create (loaderFlags & eFFmpeg, 128, mPlayPts);
+                //videoPool = iVideoPool::create (false, 120, mPlayPts); // use mfx
                 mPidParsers.insert (
                   map<int,cPidParser*>::value_type (pid,
                     new cVideoPesParser (pid, videoPool, true, addVideoFrameCallback)));
@@ -977,10 +981,17 @@ void cLoader::file (const string& filename, eFlags loaderFlags) {
           //}}}
         auto addProgramCallback = [&](int pid, int sid) noexcept {
           //{{{  addProgram lambda
-          if (mPidParsers.find (pid) == mPidParsers.end())
-            mPidParsers.insert (
-              map<int,cPidParser*>::value_type (pid,
-                new cPmtParser (pid, sid, addStreamCallback)));
+          if ((sid > 0) && (mPidParsers.find (pid) == mPidParsers.end())) {
+            cLog::log (LOGINFO, "adding pid:service %d::%d", pid, sid);
+
+            // add pmt parser
+            mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cPmtParser (pid, sid, addStreamCallback)));
+
+            // insert service, selecting first
+            mServices.insert (map<int,cService*>::value_type (sid, new cService (sid, mCurSid == -1)));
+            if (mCurSid == -1)
+              mCurSid = sid;
+            }
           };
           //}}}
         mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (addProgramCallback)));

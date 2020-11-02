@@ -266,12 +266,12 @@ private:
     int loadSize;
     int videoQueueSize;
     int audioQueueSize;
-    mLoader->getSizes (loadSize, videoQueueSize, audioQueueSize);
+    mLoader->getSizes (loadSize, audioQueueSize, videoQueueSize);
     infoString += " " + dec(loadSize/1000) + "Kbytes";
 
     if (videoPool) {
-      infoString += " v" + dec(videoQueueSize);
       infoString += " a" + dec(audioQueueSize);
+      infoString += " v" + dec(videoQueueSize);
       }
 
     vg->setFontSize ((float)getFontHeight());
