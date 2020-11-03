@@ -699,8 +699,8 @@ void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int 
 
     while (!mExit) {
       cPlatformHttp http;
-      string redirectedHostName = http.getRedirect (getHostName(radio),
-                                                    getHlsPathName (radio, videoBitrate) + getM3u8Name());
+      string redirectedHostName = http.getRedirect (getHlsHostName(radio),
+                                                    getHlsPathName (radio, videoBitrate) + getHlsM3u8Name());
       if (http.getContent()) {
         //{{{  parse m3u8 for mediaSequence, mpegTimestamp, programDateTimePoint
         int extXMediaSequence = stoi (getTagValue (http.getContent(), "#EXT-X-MEDIA-SEQUENCE:", '\n'));
@@ -1068,7 +1068,7 @@ void cLoader::stopAndWait() {
 
 // private
 //{{{
-string cLoader::getHostName (bool radio) {
+string cLoader::getHlsHostName (bool radio) {
   return radio ? "as-hls-uk-live.bbcfmt.s.llnwi.net" : "vs-hls-uk-live.akamaized.net";
   }
 //}}}
@@ -1092,7 +1092,7 @@ string cLoader::getHlsPathName (bool radio, int vidBitrate) {
   }
 //}}}
 //{{{
-string cLoader::getM3u8Name() {
+string cLoader::getHlsM3u8Name() {
   return ".norewind.m3u8";
   }
 //}}}

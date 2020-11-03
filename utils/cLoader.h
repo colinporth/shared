@@ -45,9 +45,9 @@ public:
   cFileList* mFileList = nullptr;
 
 private:
+  std::string getHlsHostName (bool radio);
   std::string getHlsPathName (bool radio, int vidBitrate);
-  std::string cLoader::getHostName (bool radio);
-  std::string cLoader::getM3u8Name();
+  std::string getHlsM3u8Name();
 
   static std::string getTagValue (uint8_t* buffer, const char* tag, char terminator);
   void addIcyInfo (int frame, const std::string& icyInfo);
