@@ -611,9 +611,6 @@ void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int 
 
   thread ([=]() {
     // hls http chunk load thread lambda
-    const string hostName = radio ? "as-hls-uk-live.bbcfmt.s.llnwi.net" : "vs-hls-uk-live.akamaized.net";
-    const string kM3u8 = ".norewind.m3u8";
-
     cLog::setThreadName ("hlsL");
     mExit = false;
     mRunning = true;
@@ -702,8 +699,8 @@ void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int 
 
     while (!mExit) {
       cPlatformHttp http;
-      string pathName = getHlsPathName (radio, videoBitrate);
-      string redirectedHostName = http.getRedirect (hostName, pathName + kM3u8);
+      string redirectedHostName = http.getRedirect (getHostName(radio),
+                                                    getHlsPathName (radio, videoBitrate) + getM3u8Name());
       if (http.getContent()) {
         //{{{  parse m3u8 for mediaSequence, mpegTimestamp, programDateTimePoint
         int extXMediaSequence = stoi (getTagValue (http.getContent(), "#EXT-X-MEDIA-SEQUENCE:", '\n'));
@@ -721,7 +718,8 @@ void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int 
             for (auto parser : mPidParsers)
               parser.second->clear (frameNum);
             int contentParsed = 0;
-            if (http.get (redirectedHostName, pathName + '-' + dec(chunkNum) + ".ts", "",
+            if (http.get (redirectedHostName,
+                          getHlsPathName (radio, videoBitrate) + '-' + dec(chunkNum) + ".ts", "",
                           [&] (const string& key, const string& value) noexcept {
                             //{{{  header lambda
                             if (key == "content-length")
@@ -1070,6 +1068,11 @@ void cLoader::stopAndWait() {
 
 // private
 //{{{
+string cLoader::getHostName (bool radio) {
+  return radio ? "as-hls-uk-live.bbcfmt.s.llnwi.net" : "vs-hls-uk-live.akamaized.net";
+  }
+//}}}
+//{{{
 string cLoader::getHlsPathName (bool radio, int vidBitrate) {
 
   const string mPoolName = radio ? "pool_904/live/uk/" : "pool_902/live/uk/";
@@ -1088,6 +1091,12 @@ string cLoader::getHlsPathName (bool radio, int vidBitrate) {
   return pathName;
   }
 //}}}
+//{{{
+string cLoader::getM3u8Name() {
+  return ".norewind.m3u8";
+  }
+//}}}
+
 //{{{
 string cLoader::getTagValue (uint8_t* buffer, const char* tag, char terminator) {
 
@@ -1292,6 +1301,7 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags loaderFlags) {
 void cLoader::loadAudio (uint8_t* first, int size, eFlags loaderFlags) {
 // wav,aac,mp3
 
+  constexpr int kWavFrameSamples = 1024;
   auto timePoint = system_clock::now();
 
   mSong = new cSong();
@@ -1316,22 +1326,23 @@ void cLoader::loadAudio (uint8_t* first, int size, eFlags loaderFlags) {
   uint8_t* framePtr = first;
   if (fileFrameType == eAudioFrameType::eWav) {
     // wav - samples point into memmaped file directly
-    constexpr int kFrameSamples = 1024;
-    mSong->initialise (fileFrameType, 2, sampleRate, kFrameSamples, 0);
+    mSong->initialise (fileFrameType, 2, sampleRate, kWavFrameSamples, 0);
+
     int frameSize;
     auto samples = cAudioParser::parseFrame (framePtr, last, frameSize);
-    while (!mExit && ((samples + (kFrameSamples * 2 * sizeof(float))) <= last)) {
-      mSong->addFrame (true, frameNum++, (float*)samples, false, size / (kFrameSamples * 2 * sizeof(float)), 0);
-      samples += kFrameSamples * 2 * sizeof(float);
+    while (!mExit && ((samples + (kWavFrameSamples * 2 * sizeof(float))) <= last)) {
+      mSong->addFrame (true, frameNum++, (float*)samples, false, size / (kWavFrameSamples * 2 * sizeof(float)), 0);
+      samples += kWavFrameSamples * 2 * sizeof(float);
       mSongPlayer->start (mSong, &mPlayPts, false);
       mLoadFrac = float(samples - first) / size;
       }
     }
+
   else {
     // aacAdts, mp3
     bool songInited = false;
-    while (!mExit && cAudioParser::parseFrame (framePtr, last, size)) {
-      int frameSize;
+    int frameSize;
+    while (!mExit && cAudioParser::parseFrame (framePtr, last, frameSize)) {
       float* samples = audioDecoder->decodeFrame (framePtr, frameSize, frameNum);
       if (samples) {
         if (!songInited) {
