@@ -239,7 +239,7 @@ private:
 //{{{
 class cHlsSong : public cSong {
 public:
-  cHlsSong() : cSong (int framesPerChunk) : cSong(), mFramesPerChunk(framesPerChunk) {}
+  cHlsSong(int framesPerChunk) : cSong(), mFramesPerChunk(framesPerChunk) {}
   virtual ~cHlsSong() {}
 
   // gets
