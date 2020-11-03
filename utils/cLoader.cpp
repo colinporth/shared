@@ -35,7 +35,6 @@
   #include "../../shared/utils/cFileList.h"
 #else
   #include <sys/mman.h>
-  #include <sys/stat.h>
 #endif
 
 #include "readerWriterQueue.h"
@@ -888,14 +887,8 @@ void cLoader::file (const string& filename, eFlags loaderFlags) {
       #else
         // linux mmap to do
         int fd = open (filename.c_str(), O_RDONLY);
+        auto fileSize = lseek (fd, 0, SEEK_END);
 
-        // obtain file size
-        struct stat sb;
-        if (fstat (fd, &sb) == -1)
-           cLog::log (LOGERROR, "fstat failed");
-        int fileSize = sb.st_size;
-
-        //size_t pagesize = getpagesize();
         uint8_t* fileFirst = (uint8_t*)mmap (NULL, fileSize, PROT_READ, MAP_FILE|MAP_PRIVATE, fd, 0);
         uint8_t* fileEnd = fileFirst + fileSize;
 
