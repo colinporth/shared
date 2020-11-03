@@ -164,10 +164,6 @@ public:
   float getMaxPeakValue() { return mMaxPeakValue; }
   float getMaxFreqValue() { return mMaxFreqValue; }
   int getNumFreqBytes() { return kMaxFreqBytes; }
-
-  // info
-  int getBitrate() { return mBitrate; }
-  std::string getChannel() { return mChannel; }
   //}}}
   //{{{  sets
   void setNumChannels (int numChannels) { mNumChannels = numChannels; }
@@ -188,29 +184,21 @@ public:
   void incPlaySec (int secs, bool useSelectRange);
   void incPlayFrame (int frames, bool useSelectRange);
 
-  // stream
-  void setChannel (const std::string& channel) { mChannel = channel; }
-  //{{{
-  void setBitrateFramesPerChunk (int bitrate, int framesPerChunk) {
-    mBitrate = bitrate;
-    mHlsFramesPerChunk = framesPerChunk;
-    }
-  //}}}
-
   // hls
+  void setHlsFramesPerChunk (int framesPerChunk) { mHlsFramesPerChunk = framesPerChunk; }
   void setHlsBase (int chunkNum, int64_t pts,
                    std::chrono::system_clock::time_point timePoint, std::chrono::seconds offset);
   //}}}
+
+  // actions
+  void prevSilencePlayFrame();
+  void nextSilencePlayFrame();
 
   // hls
   int getLastChunkNum() { return mLastChunkNum; }
   int getLastFrameNum() { return mLastFrameNum; }
   bool hasHlsBase() { return mHlsBaseValid; }
   bool getLoadChunk (int& chunkNum, int& frameNum, int preloadChunks);
-
-  // actions
-  void prevSilencePlayFrame();
-  void nextSilencePlayFrame();
 
 private:
   void clearFrames();
@@ -247,9 +235,6 @@ private:
   float mMaxFreqValue = 0.f;
   //}}}
   //{{{  hls vars
-  std::string mChannel;
-  int mBitrate = 0;
-
   bool mHlsBaseValid = false;
   int mHlsBaseChunkNum = 0;
   int mHlsBaseFrame = 0;

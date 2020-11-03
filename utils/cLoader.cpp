@@ -660,8 +660,7 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
     // audioRate < 128000 use aacHE, more samplesPerframe, less framesPerChunk
     mSong = new cSong();
     mSong->initialise (eAudioFrameType::eAacAdts, 2, 48000, audioRate < 128000 ? 2048 : 1024, 1000);
-    mSong->setBitrateFramesPerChunk (audioRate, audioRate < 128000 ? (radio ? 150 : 180) : (radio ? 300 : 360));
-    mSong->setChannel (channel);
+    mSong->setHlsFramesPerChunk (audioRate < 128000 ? (radio ? 150 : 180) : (radio ? 300 : 360));
     //}}}
     mSongPlayer = new cSongPlayer();
     //{{{  add parsers,callbacks
@@ -741,7 +740,7 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
     while (!mExit) {
       cPlatformHttp http;
       string redirectedHostName = http.getRedirect (
-        getHlsHostName (radio), getHlsPathName (radio, channel, mSong->getBitrate(), videoRate) + getHlsM3u8Name());
+        getHlsHostName (radio), getHlsPathName (radio, channel, audioRate, videoRate) + getHlsM3u8Name());
       if (http.getContent()) {
         //{{{  parse m3u8 for mediaSequence, mpegTimestamp, programDateTimePoint
         int extXMediaSequence = stoi (getTagValue (http.getContent(), "#EXT-X-MEDIA-SEQUENCE:", '\n'));
@@ -760,7 +759,7 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
               parser.second->clear (frameNum);
             int contentParsed = 0;
             if (http.get (redirectedHostName,
-                          getHlsPathName (radio, channel, mSong->getBitrate(), videoRate) + '-' + dec(chunkNum) + ".ts", "",
+                          getHlsPathName (radio, channel, audioRate, videoRate) + '-' + dec(chunkNum) + ".ts", "",
                           [&] (const string& key, const string& value) noexcept {
                             //{{{  header lambda
                             if (key == "content-length")
