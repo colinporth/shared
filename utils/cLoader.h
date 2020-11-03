@@ -50,6 +50,9 @@ private:
   static std::string getTagValue (uint8_t* buffer, const char* tag, char terminator);
   void addIcyInfo (int frame, const std::string& icyInfo);
 
+  void loadTs (uint8_t* first, int size, eFlags loaderFlags);
+  void loadAudio (uint8_t* first, int size, eFlags loaderFlags);
+
   // vars
   cSong* mSong = nullptr;
   cSongPlayer* mSongPlayer = nullptr;
