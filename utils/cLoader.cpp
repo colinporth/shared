@@ -1165,10 +1165,10 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags loaderFlags) {
     mSongPlayer->start (mSong, &mPlayPts, true);
     };
 
-  auto addVideoFrameCallback = [&](int64_t pts) noexcept {};
+  auto addVideoFrameCallback = [&](int64_t pts) noexcept {
+    };
 
   auto addStreamCallback = [&](int sid, int pid, int type) noexcept {
-    //{{{  addStream lambda
     if (mPidParsers.find (pid) == mPidParsers.end()) {
       auto it = mServices.find (sid);
       if (it == mServices.end())
@@ -1177,21 +1177,29 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags loaderFlags) {
         cService* service = (*it).second;
         switch (type) {
           //{{{
-          case 2: // ISO 13818-2 video
+          case 2:  // ISO 13818-2 video - do nothing 
             //cLog::log (LOGERROR, "mpeg2 video %d", pid, type);
             break;
           //}}}
           //{{{
-          case 3: // ISO 11172-3 audio
+          case 3:  // ISO 11172-3 audio - do nothing
             //cLog::log (LOGINFO, "mp2 audio %d %d", pid, type);
             break;
           //}}}
           //{{{
-          case 6: // subtitle
+          case 5:  // ??? - do nothing
+            break;  
+          //}}}
+          //{{{
+          case 6:  // subtitle - do nothing
             //cLog::log (LOGINFO, "subtitle %d %d", pid, type);
             break;
           //}}}
-
+          //{{{
+          case 11: // ??? - do nothing
+            break;
+          //}}}
+          //{{{
           case 15: // aacAdts
             service->setAudioPid (pid);
             if (service->isSelected()) {
@@ -1202,7 +1210,8 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags loaderFlags) {
               mAudioPid = pid;
               }
             break;
-
+          //}}}
+          //{{{
           case 17: // aacLatm
             service->setAudioPid (pid);
             if (service->isSelected()) {
@@ -1213,7 +1222,8 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags loaderFlags) {
               mAudioPid = pid;
               }
             break;
-
+          //}}}
+          //{{{
           case 27: // h264video
             service->setVideoPid (pid);
             if (service->isSelected()) {
@@ -1225,22 +1235,20 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags loaderFlags) {
               mVideoPid = pid;
               }
             break;
-
-          case 5: break;
-          case 11: break;
-
+          //}}}
           default:
             cLog::log (LOGERROR, "unrecognised stream type %d %d", pid, type);
           }
         }
       }
     };
-    //}}}
 
   auto addProgramCallback = [&](int pid, int sid) noexcept {
     if ((sid > 0) && (mPidParsers.find (pid) == mPidParsers.end())) {
-      cLog::log (LOGINFO, "adding pid:service %d::%d", pid, sid);
+      cLog::log (LOGINFO, "PAT adding pid:service %d::%d", pid, sid);
       mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cPmtParser (pid, sid, addStreamCallback)));
+
+      // select first service in PAT
       mServices.insert (map<int,cService*>::value_type (sid, new cService (sid, mCurSid == -1)));
       if (mCurSid == -1)
         mCurSid = sid;
