@@ -195,8 +195,6 @@ public:
   void nextSilencePlayFrame();
 
   // hls
-  int getLastChunkNum() { return mLastChunkNum; }
-  int getLastFrameNum() { return mLastFrameNum; }
   bool hasHlsBase() { return mHlsBaseValid; }
   bool getLoadChunk (int& chunkNum, int& frameNum, int preloadChunks);
 
@@ -235,16 +233,13 @@ private:
   float mMaxFreqValue = 0.f;
   //}}}
   //{{{  hls vars
+  int mHlsFramesPerChunk = 0;
   bool mHlsBaseValid = false;
   int mHlsBaseChunkNum = 0;
   int mHlsBaseFrame = 0;
   int64_t mHlsBasePts = -1;
   std::chrono::system_clock::time_point mHlsBaseTimePoint;
 
-  int mHlsFramesPerChunk = 0;
-
-  int mLastChunkNum;
-  int mLastFrameNum;
   //}}}
   //{{{  fft vars
   kiss_fftr_cfg mFftrConfig;

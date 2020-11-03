@@ -212,8 +212,6 @@ bool cSong::getLoadChunk (int& chunkNum, int& frameNum, int preloadChunks) {
       // not loaded, return chunkNum to load
       chunkNum = mHlsBaseChunkNum + chunkNumOffset;
       frameNum = mHlsBaseFrame + (chunkNum - mHlsBaseChunkNum) * mHlsFramesPerChunk;
-      mLastChunkNum = chunkNum;
-      mLastFrameNum = frameNum;;
       return true;
       }
     else {
@@ -225,8 +223,6 @@ bool cSong::getLoadChunk (int& chunkNum, int& frameNum, int preloadChunks) {
   // return false, no chunkNum available to load
   chunkNum = 0;
   frameNum = 0;
-  mLastChunkNum = chunkNum;
-  mLastFrameNum = frameNum;
   return false;
   }
 //}}}
