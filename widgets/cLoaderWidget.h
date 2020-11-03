@@ -179,9 +179,9 @@ public:
         }
       }
 
-      drawTime (vg, song->hasHlsBase() ? getFrameString (song, song->getFirstFrame()) : "",
+      drawTime (vg, song->hasBaseTime() ? getFrameString (song, song->getFirstFrame()) : "",
                     getFrameString (song, song->getPlayFrame()),
-                    song->hasHlsBase() ? getFrameString (song, song->getLastFrame()) : getFrameString (song, song->getTotalFrames()));
+                    song->hasBaseTime() ? getFrameString (song, song->getLastFrame()) : getFrameString (song, song->getTotalFrames()));
       }
       //}}}
 

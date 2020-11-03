@@ -15,6 +15,7 @@
 #include "../kissFft/kiss_fftr.h"
 //}}}
 
+//{{{
 class cSong {
 public:
   //{{{
@@ -128,6 +129,7 @@ public:
   void clear();
   void addFrame (bool reuseFront, int frameNum, float* samples, bool ourSamples, int totalFrames, int64_t pts);
 
+  virtual bool hasBaseTime() { return false; }
   //{{{  gets
   std::shared_mutex& getSharedMutex() { return mSharedMutex; }
 
@@ -144,7 +146,6 @@ public:
   int getNumFrames() { return mFrameMap.empty() ? 0 : (mFrameMap.rbegin()->first - mFrameMap.begin()->first + 1); }
   int getTotalFrames() { return mTotalFrames; }
   int getPlayFrame() { return mPlayFrame; }
-  int getBasePlayFrame() { return mPlayFrame - mHlsBaseFrame; }
 
   //{{{
   cFrame* getFramePtr (int frame) {
@@ -180,23 +181,20 @@ public:
   void setChanged (bool changed) { mChanged = changed; }
 
   // playFrame
-  void setPlayFrame (int frame);
+  virtual void setPlayFrame (int frame);
   void incPlaySec (int secs, bool useSelectRange);
   void incPlayFrame (int frames, bool useSelectRange);
-
-  // hls
-  void setHlsFramesPerChunk (int framesPerChunk) { mHlsFramesPerChunk = framesPerChunk; }
-  void setHlsBase (int chunkNum, int64_t pts,
-                   std::chrono::system_clock::time_point timePoint, std::chrono::seconds offset);
   //}}}
 
   // actions
   void prevSilencePlayFrame();
   void nextSilencePlayFrame();
 
-  // hls
-  bool hasHlsBase() { return mHlsBaseValid; }
-  bool getLoadChunk (int& chunkNum, int& frameNum, int preloadChunks);
+protected:
+  int mPlayFrame = 0;
+  int mSampleRate = 0;
+  int mSamplesPerFrame = 0;
+  std::shared_mutex mSharedMutex;
 
 private:
   void clearFrames();
@@ -212,7 +210,6 @@ private:
 
   // vars
   int mMaxMapSize = 0;
-  std::shared_mutex mSharedMutex;
   std::map <int, cFrame*> mFrameMap;
 
   eAudioFrameType mFrameType = eAudioFrameType::eUnknown;
@@ -220,30 +217,49 @@ private:
   bool mChanged = false;
 
   int mNumChannels = kMaxNumChannels;
-  int mSampleRate = 0;
-  int mSamplesPerFrame = 0;
 
-  int mPlayFrame = 0;
   int mTotalFrames = 0;
   cSelect mSelect;
 
-  //{{{  max stuff for ui
-  float mMaxPowerValue = 0.f;
-  float mMaxPeakValue = 0.f;
-  float mMaxFreqValue = 0.f;
-  //}}}
-  //{{{  hls vars
-  int mHlsFramesPerChunk = 0;
-  bool mHlsBaseValid = false;
-  int mHlsBaseChunkNum = 0;
-  int mHlsBaseFrame = 0;
-  int64_t mHlsBasePts = -1;
-  std::chrono::system_clock::time_point mHlsBaseTimePoint;
-
-  //}}}
   //{{{  fft vars
   kiss_fftr_cfg mFftrConfig;
   kiss_fft_scalar mTimeBuf[kMaxNumSamplesPerFrame];
   kiss_fft_cpx mFreqBuf[kMaxFreq];
   //}}}
+  //{{{  max stuff for ui
+  float mMaxPowerValue = 0.f;
+  float mMaxPeakValue = 0.f;
+  float mMaxFreqValue = 0.f;
+  //}}}
   };
+//}}}
+//{{{
+class cHlsSong : public cSong {
+public:
+  cHlsSong() : cSong() {}
+  virtual ~cHlsSong() {}
+
+  // gets
+  virtual bool hasBaseTime() { return true; }
+  bool hasBase() { return mBaseOk; }
+  int getBasePlayFrame() { return mPlayFrame - mBaseFrameNum; }
+  bool getLoadChunk (int& chunkNum, int& frameNum, int preloadChunks);
+
+  // sets
+  void setFramesPerChunk (int framesPerChunk) { mFramesPerChunk = framesPerChunk; }
+  void setBase (int chunkNum, int64_t pts,
+                std::chrono::system_clock::time_point timePoint, std::chrono::seconds offset);
+
+  virtual void setPlayFrame (int frame);
+
+private:
+  int mFramesPerChunk = 0;
+
+  bool mBaseOk = false;
+
+  int mBaseChunkNum = 0;
+  int mBaseFrameNum = 0;
+  int64_t mBasePts = -1;
+  std::chrono::system_clock::time_point mBaseTimePoint;
+  };
+//}}}

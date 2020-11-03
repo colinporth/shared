@@ -656,11 +656,12 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
     mExit = false;
     mRunning = true;
 
-    //{{{  init mSong
+    //{{{  init hlsSong
     // audioRate < 128000 use aacHE, more samplesPerframe, less framesPerChunk
-    mSong = new cSong();
-    mSong->initialise (eAudioFrameType::eAacAdts, 2, 48000, audioRate < 128000 ? 2048 : 1024, 1000);
-    mSong->setHlsFramesPerChunk (audioRate < 128000 ? (radio ? 150 : 180) : (radio ? 300 : 360));
+    cHlsSong* hlsSong = new cHlsSong();
+    mSong = hlsSong;
+    hlsSong->initialise (eAudioFrameType::eAacAdts, 2, 48000, audioRate < 128000 ? 2048 : 1024, 1000);
+    hlsSong->setFramesPerChunk (audioRate < 128000 ? (radio ? 150 : 180) : (radio ? 300 : 360));
     //}}}
     mSongPlayer = new cSongPlayer();
     //{{{  add parsers,callbacks
@@ -672,8 +673,8 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
 
     auto addAudioFrameCallback = [&](bool reuseFront, float* samples, int num, int64_t pts) noexcept {
       // add frame to song and start playing
-      mSong->addFrame (reuseFront, num, samples, true, mSong->getNumFrames(), pts);
-      mSongPlayer->start (mSong, &mPlayPts, true);
+      hlsSong->addFrame (reuseFront, num, samples, true, hlsSong->getNumFrames(), pts);
+      mSongPlayer->start (hlsSong, &mPlayPts, true);
       };
 
     auto addVideoFrameCallback = [&](int64_t pts) noexcept {};
@@ -750,11 +751,11 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
         inputStream >> date::parse ("%FT%T", extXProgramDateTimePoint);
         http.freeContent();
 
-        mSong->setHlsBase (extXMediaSequence, mpegTimestamp, extXProgramDateTimePoint, -37s);
+        hlsSong->setBase (extXMediaSequence, mpegTimestamp, extXProgramDateTimePoint, -37s);
         //}}}
         while (!mExit) {
-          if (mSong->getLoadChunk (chunkNum, frameNum, 2)) {
-            bool chunkReuseFront = frameNum >= mSong->getPlayFrame();
+          if (hlsSong->getLoadChunk (chunkNum, frameNum, 2)) {
+            bool chunkReuseFront = frameNum >= hlsSong->getPlayFrame();
             for (auto parser : mPidParsers)
               parser.second->clear (frameNum);
             int contentParsed = 0;
@@ -833,8 +834,8 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                 while (cAudioParser::parseFrame (pesPtr, pesEnd, frameSize)) {
                   float* samples = audioDecoder->decodeFrame (pesPtr, frameSize, frameNum);
                   if (samples) {
-                    mSong->addFrame (chunkReuseFront, frameNum++, samples, true, mSong->getNumFrames(), 0);
-                    mSongPlayer->start (mSong, &mPlayPts, true);
+                    hlsSong->addFrame (chunkReuseFront, frameNum++, samples, true, hlsSong->getNumFrames(), 0);
+                    mSongPlayer->start (hlsSong, &mPlayPts, true);
                     }
                   else
                     cLog::log (LOGERROR, "aud parser failed to decode %d", frameNum);
@@ -895,9 +896,8 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
     mPidParsers.clear();
 
     delete mSongPlayer;
-    auto tempSong = mSong;
     mSong = nullptr;
-    delete mSong;
+    delete hlsSong;
     delete audioDecoder;
 
     delete videoPool;
