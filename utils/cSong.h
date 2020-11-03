@@ -233,6 +233,8 @@ private:
   //}}}
   };
 //}}}
+
+// song with added HLS
 //{{{
 class cHlsSong : public cSong {
 public:
