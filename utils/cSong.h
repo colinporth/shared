@@ -130,7 +130,6 @@ public:
   void clear();
   void addFrame (bool reuseFront, int frameNum, float* samples, bool ourSamples, int totalFrames, int64_t pts);
 
-  virtual bool hasTimeBase() { return false; }
   //{{{  gets
   std::shared_mutex& getSharedMutex() { return mSharedMutex; }
 
@@ -167,6 +166,7 @@ public:
   float getMaxFreqValue() { return mMaxFreqValue; }
   int getNumFreqBytes() { return kMaxFreqBytes; }
   //}}}
+  virtual int getLengthFrame() { return mTotalFrames; }
   //{{{  sets
   void setNumChannels (int numChannels) { mNumChannels = numChannels; }
   void setSampleRate (int sampleRate) { mSampleRate = sampleRate; }
@@ -243,9 +243,9 @@ public:
   virtual ~cHlsSong() {}
 
   // gets
-  virtual bool hasTimeBase() { return true; }
   int getBasePlayFrame() { return mPlayFrame - mBaseFrameNum; }
   bool getLoadChunk (int& chunkNum, int& frameNum, int preloadChunks);
+  int getLengthFrame() { return getLastFrame(); }
 
   // sets
   void setBase (int chunkNum, int64_t pts,
