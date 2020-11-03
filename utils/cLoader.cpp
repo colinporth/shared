@@ -896,8 +896,10 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
     mPidParsers.clear();
 
     delete mSongPlayer;
+
     mSong = nullptr;
     delete hlsSong;
+
     delete audioDecoder;
 
     delete videoPool;
@@ -928,7 +930,7 @@ void cLoader::file (const string& filename, eFlags loaderFlags) {
         // linux mmap
         int fd = open (filename.c_str(), O_RDONLY);
         auto size = lseek (fd, 0, SEEK_END);
-        uint8_t* first = (uint8_t*)mmap (NULL, fileSize, PROT_READ, MAP_FILE | MAP_PRIVATE, fd, 0);
+        uint8_t* first = (uint8_t*)mmap (NULL, size, PROT_READ, MAP_FILE | MAP_PRIVATE, fd, 0);
       #endif
 
       // load file
@@ -1083,7 +1085,7 @@ void cLoader::icycast (const string& url) {
     delete mSongPlayer;
     auto tempSong = mSong;
     mSong = nullptr;
-    delete mSong;
+    delete tempSong;
     delete audioDecoder;
     //}}}
     cLog::log (LOGINFO, "exit");
@@ -1299,7 +1301,7 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags loaderFlags) {
   delete mSongPlayer;
   auto tempSong = mSong;
   mSong = nullptr;
-  delete mSong;
+  delete tempSong;
   delete audioDecoder;
 
   mVideoPool = nullptr;
@@ -1382,7 +1384,7 @@ void cLoader::loadAudio (uint8_t* first, int size, eFlags loaderFlags) {
   delete mSongPlayer;
   auto tempSong = mSong;
   mSong = nullptr;
-  delete mSong;
+  delete tempSong;
   delete audioDecoder;
   }
 //}}}
