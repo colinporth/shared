@@ -19,7 +19,6 @@ constexpr static int kSilenceWindowFrames = 4;
 //}}}
 
 // cSong
-cSong::cSong() {}
 //{{{
 cSong::~cSong() {
 

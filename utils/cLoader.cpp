@@ -655,14 +655,10 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
     cLog::setThreadName ("hlsL");
     mExit = false;
     mRunning = true;
-
-    //{{{  init hlsSong
     // audioRate < 128000 use aacHE, more samplesPerframe, less framesPerChunk
-    cHlsSong* hlsSong = new cHlsSong();
+    cHlsSong* hlsSong = new cHlsSong (audioRate < 128000 ? (radio ? 150 : 180) : (radio ? 300 : 360));
     mSong = hlsSong;
     hlsSong->initialise (eAudioFrameType::eAacAdts, 2, 48000, audioRate < 128000 ? 2048 : 1024, 1000);
-    hlsSong->setFramesPerChunk (audioRate < 128000 ? (radio ? 150 : 180) : (radio ? 300 : 360));
-    //}}}
     mSongPlayer = new cSongPlayer();
     //{{{  add parsers,callbacks
     int chunkNum;
@@ -761,7 +757,7 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
             int contentParsed = 0;
             if (http.get (redirectedHostName,
                           getHlsPathName (radio, channel, audioRate, videoRate) + '-' + dec(chunkNum) + ".ts", "",
-                          [&] (const string& key, const string& value) noexcept {
+                          [&](const string& key, const string& value) noexcept {
                             //{{{  header lambda
                             if (key == "content-length")
                               cLog::log (LOGINFO, "chunk:" + dec(chunkNum) +
@@ -769,7 +765,7 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                                                   " size:" + dec(http.getHeaderContentSize()/1000) + "k");
                             },
                             //}}}
-                          [&] (const uint8_t* data, int length) noexcept {
+                          [&](const uint8_t* data, int length) noexcept {
                             //{{{  data lambda
                             mLoadSize = http.getContentSize();
                             mLoadFrac = float(http.getContentSize()) / http.getHeaderContentSize();

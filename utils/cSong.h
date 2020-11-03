@@ -121,7 +121,8 @@ public:
     int mItemNum = 0;
     };
   //}}}
-  cSong();
+
+  cSong() {}
   virtual ~cSong();
 
   void initialise (eAudioFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame,
@@ -238,7 +239,7 @@ private:
 //{{{
 class cHlsSong : public cSong {
 public:
-  cHlsSong() : cSong() {}
+  cHlsSong() : cSong (int framesPerChunk) : cSong(), mFramesPerChunk(framesPerChunk) {}
   virtual ~cHlsSong() {}
 
   // gets
@@ -247,7 +248,6 @@ public:
   bool getLoadChunk (int& chunkNum, int& frameNum, int preloadChunks);
 
   // sets
-  void setFramesPerChunk (int framesPerChunk) { mFramesPerChunk = framesPerChunk; }
   void setBase (int chunkNum, int64_t pts,
                 std::chrono::system_clock::time_point timePoint, std::chrono::seconds offset);
 
