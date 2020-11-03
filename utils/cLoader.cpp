@@ -669,6 +669,7 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
 
     auto addAudioFrameCallback = [&](bool reuseFront, float* samples, int num, int64_t pts) noexcept {
       // add frame to song and start playing
+      //cLog::log (LOGINFO, "adding frame %d %d", num, pts / 1920);
       hlsSong->addFrame (reuseFront, num, samples, true, hlsSong->getNumFrames(), pts);
       mSongPlayer->start (hlsSong, &mPlayPts, true);
       };
@@ -694,6 +695,7 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                 audioDecoder = cAudioParser::create (eAudioFrameType::eAacAdts);
                 mPidParsers.insert (
                   map<int,cPidParser*>::value_type (pid,
+                    //new cAudioPesParser (pid, audioDecoder, false, frameNum, addAudioFrameCallback)));
                     new cAudioPesParser (pid, audioDecoder, true, frameNum, addAudioFrameCallback)));
                 mAudioPid = pid;
                 }
@@ -841,20 +843,19 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                 }
                 //}}}
                 //{{{  pesParse chunk of ts - should work but fails !!! find out why !!!
+                //for (auto parser : mPidParsers)
+                  //parser.second->clear (frameNum);
+
                 //uint8_t* ts = http.getContent();
                 //uint8_t* tsEnd = ts + http.getContentSize();
-
                 //while ((ts < tsEnd) && (ts[0] == 0x47)) {
-                  //auto it = mParsers.find (((ts[1] & 0x1F) << 8) | ts[2]);
-                  //if (it != mParsers.end())
+                  //auto it = mPidParsers.find (((ts[1] & 0x1F) << 8) | ts[2]);
+                  //if (it != mPidParsers.end())
                     //it->second->parse (ts, chunkReuseFront);
-                  //else
-                    //cLog::log (LOGERROR, "pid parser not found %d", pid);
-                  //ts += 188;
                   //ts += 188;
                   //}
 
-                //for (auto parser : mParsers)
+                //for (auto parser : mPidParsers)
                   //parser.second->processLast (chunkReuseFront);
                 //}
                 //}}}
