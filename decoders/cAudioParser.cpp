@@ -52,9 +52,9 @@ uint8_t* cAudioParser::getJpeg (int& len) {
 //{{{
 uint8_t* cAudioParser::parseFrame (uint8_t* framePtr, uint8_t* frameLast, int& frameLength) {
 
-  eAudioFrameType frameType;
-  int sampleRate;
-
+  eAudioFrameType frameType = eAudioFrameType::eUnknown;
+  int sampleRate = 0;
+  frameLength = 0;
   framePtr = parseFrame (framePtr, frameLast, frameType, sampleRate, frameLength);
 
   while (framePtr && (frameType == eAudioFrameType::eId3Tag)) {

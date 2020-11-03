@@ -31,7 +31,7 @@ public:
   bool getRunning() { return mRunning; }
 
   // loaders
-  void hls (bool radio, const std::string& channelName, int audioBitrate, int videoBitrate, eFlags loaderFlags);
+  void hls (bool radio, const std::string& channelName, int audioRate, int videoRate, eFlags loaderFlags);
   void file (const std::string& filename, eFlags loaderFlags);
   void icycast (const std::string& url);
 
@@ -45,11 +45,6 @@ public:
   cFileList* mFileList = nullptr;
 
 private:
-  std::string getHlsHostName (bool radio);
-  std::string getHlsPathName (bool radio, int vidBitrate);
-  std::string getHlsM3u8Name();
-
-  static std::string getTagValue (uint8_t* buffer, const char* tag, char terminator);
   void addIcyInfo (int frame, const std::string& icyInfo);
 
   void loadTs (uint8_t* first, int size, eFlags loaderFlags);

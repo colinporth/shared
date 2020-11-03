@@ -43,6 +43,47 @@ using namespace std;
 using namespace chrono;
 //}}}
 
+namespace {
+  //{{{
+  string getHlsHostName (bool radio) {
+    return radio ? "as-hls-uk-live.bbcfmt.s.llnwi.net" : "vs-hls-uk-live.akamaized.net";
+    }
+  //}}}
+  //{{{
+  string getHlsPathName (bool radio, const string& channel, int audioRate, int videoRate) {
+
+    string pathName = (radio ? "pool_904/live/uk/" : "pool_902/live/uk/") +
+                      channel + "/" + channel + ".isml/" + channel;
+
+    if (radio)
+      pathName += "-audio=" + dec(audioRate);
+
+    else {
+      pathName += (audioRate < 128000) ? "-pa3=" : "-pa4=" + dec(audioRate);
+      if (videoRate)
+        pathName += "-video=" + dec(videoRate);
+      }
+
+    return pathName;
+    }
+  //}}}
+  //{{{
+  string getHlsM3u8Name() {
+    return ".norewind.m3u8";
+    }
+  //}}}
+  //{{{
+  string getTagValue (uint8_t* buffer, const char* tag, char terminator) {
+
+    const char* tagPtr = strstr ((const char*)buffer, tag);
+    const char* valuePtr = tagPtr + strlen (tag);
+    const char* endPtr = strchr (valuePtr, terminator);
+
+    return string (valuePtr, endPtr - valuePtr);
+    }
+  //}}}
+  }
+
 //{{{
 class cService {
 public:
@@ -605,7 +646,7 @@ void cLoader::getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize)
 //}}}
 
 //{{{
-void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int videoBitrate, eFlags loaderFlags) {
+void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRate, eFlags loaderFlags) {
 
   stopAndWait();
 
@@ -616,11 +657,11 @@ void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int 
     mRunning = true;
 
     //{{{  init mSong
-    // audioBitrate < 128000 use aacHE, more samplesPerframe, less framesPerChunk
+    // audioRate < 128000 use aacHE, more samplesPerframe, less framesPerChunk
     mSong = new cSong();
-    mSong->initialise (eAudioFrameType::eAacAdts, 2, 48000, audioBitrate < 128000 ? 2048 : 1024, 1000);
-    mSong->setBitrateFramesPerChunk (audioBitrate, audioBitrate < 128000 ? (radio ? 150 : 180) : (radio ? 300 : 360));
-    mSong->setChannel (channelName);
+    mSong->initialise (eAudioFrameType::eAacAdts, 2, 48000, audioRate < 128000 ? 2048 : 1024, 1000);
+    mSong->setBitrateFramesPerChunk (audioRate, audioRate < 128000 ? (radio ? 150 : 180) : (radio ? 300 : 360));
+    mSong->setChannel (channel);
     //}}}
     mSongPlayer = new cSongPlayer();
     //{{{  add parsers,callbacks
@@ -663,7 +704,7 @@ void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int 
               break;
 
             case 27: // h264video
-              if (videoBitrate) {
+              if (videoRate) {
                 service->setVideoPid (pid);
                 if (service->isSelected()) {
                   videoPool = iVideoPool::create (loaderFlags & eFlags::eFFmpeg, 192, mPlayPts);
@@ -699,8 +740,8 @@ void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int 
 
     while (!mExit) {
       cPlatformHttp http;
-      string redirectedHostName = http.getRedirect (getHlsHostName(radio),
-                                                    getHlsPathName (radio, videoBitrate) + getHlsM3u8Name());
+      string redirectedHostName = http.getRedirect (
+        getHlsHostName (radio), getHlsPathName (radio, channel, mSong->getBitrate(), videoRate) + getHlsM3u8Name());
       if (http.getContent()) {
         //{{{  parse m3u8 for mediaSequence, mpegTimestamp, programDateTimePoint
         int extXMediaSequence = stoi (getTagValue (http.getContent(), "#EXT-X-MEDIA-SEQUENCE:", '\n'));
@@ -719,7 +760,7 @@ void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int 
               parser.second->clear (frameNum);
             int contentParsed = 0;
             if (http.get (redirectedHostName,
-                          getHlsPathName (radio, videoBitrate) + '-' + dec(chunkNum) + ".ts", "",
+                          getHlsPathName (radio, channel, mSong->getBitrate(), videoRate) + '-' + dec(chunkNum) + ".ts", "",
                           [&] (const string& key, const string& value) noexcept {
                             //{{{  header lambda
                             if (key == "content-length")
@@ -842,6 +883,8 @@ void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int 
       }
 
     //{{{  delete resources
+    mAudioPid = -1;
+    mVideoPid = -1;
     mVideoPool = nullptr;
 
     for (auto parser : mPidParsers) {
@@ -853,8 +896,11 @@ void cLoader::hls (bool radio, const string& channelName, int audioBitrate, int 
     mPidParsers.clear();
 
     delete mSongPlayer;
+    auto tempSong = mSong;
+    mSong = nullptr;
     delete mSong;
     delete audioDecoder;
+
     delete videoPool;
     //}}}
     cLog::log (LOGINFO, "exit");
@@ -1036,6 +1082,8 @@ void cLoader::icycast (const string& url) {
 
     //{{{  delete resources
     delete mSongPlayer;
+    auto tempSong = mSong;
+    mSong = nullptr;
     delete mSong;
     delete audioDecoder;
     //}}}
@@ -1067,46 +1115,6 @@ void cLoader::stopAndWait() {
 //}}}
 
 // private
-//{{{
-string cLoader::getHlsHostName (bool radio) {
-  return radio ? "as-hls-uk-live.bbcfmt.s.llnwi.net" : "vs-hls-uk-live.akamaized.net";
-  }
-//}}}
-//{{{
-string cLoader::getHlsPathName (bool radio, int vidBitrate) {
-
-  const string mPoolName = radio ? "pool_904/live/uk/" : "pool_902/live/uk/";
-
-  string pathName = mPoolName + mSong->getChannel() +
-                    "/" + mSong->getChannel() +
-                    ".isml/" + mSong->getChannel();
-  if (radio)
-    pathName += "-audio=" + dec(mSong->getBitrate());
-  else {
-    pathName += mSong->getBitrate() < 128000 ? "-pa3=" : "-pa4=" + dec(mSong->getBitrate());
-    if (vidBitrate)
-      pathName += "-video=" + dec(vidBitrate);
-    }
-
-  return pathName;
-  }
-//}}}
-//{{{
-string cLoader::getHlsM3u8Name() {
-  return ".norewind.m3u8";
-  }
-//}}}
-
-//{{{
-string cLoader::getTagValue (uint8_t* buffer, const char* tag, char terminator) {
-
-  const char* tagPtr = strstr ((const char*)buffer, tag);
-  const char* valuePtr = tagPtr + strlen (tag);
-  const char* endPtr = strchr (valuePtr, terminator);
-
-  return string (valuePtr, endPtr - valuePtr);
-  }
-//}}}
 //{{{
 void cLoader::addIcyInfo (int frame, const string& icyInfo) {
 
@@ -1278,9 +1286,9 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags loaderFlags) {
                       duration_cast<milliseconds>(system_clock::now() - timePoint).count());
   mSongPlayer->wait();
 
-  //{{{  delete resources
-  mVideoPool = nullptr;
-
+  // delete resources
+  mAudioPid = -1;
+  mVideoPid = -1;
   for (auto parser : mPidParsers) {
     //{{{  stop and delete pidParsers
     parser.second->stop();
@@ -1290,11 +1298,13 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags loaderFlags) {
   mPidParsers.clear();
 
   delete mSongPlayer;
+  auto tempSong = mSong;
+  mSong = nullptr;
   delete mSong;
-
   delete audioDecoder;
+
+  mVideoPool = nullptr;
   delete videoPool;
-  //}}}
   }
 //}}}
 //{{{
@@ -1328,7 +1338,7 @@ void cLoader::loadAudio (uint8_t* first, int size, eFlags loaderFlags) {
     // wav - samples point into memmaped file directly
     mSong->initialise (fileFrameType, 2, sampleRate, kWavFrameSamples, 0);
 
-    int frameSize;
+    int frameSize = 0;
     auto samples = cAudioParser::parseFrame (framePtr, last, frameSize);
     while (!mExit && ((samples + (kWavFrameSamples * 2 * sizeof(float))) <= last)) {
       mSong->addFrame (true, frameNum++, (float*)samples, false, size / (kWavFrameSamples * 2 * sizeof(float)), 0);
@@ -1341,7 +1351,7 @@ void cLoader::loadAudio (uint8_t* first, int size, eFlags loaderFlags) {
   else {
     // aacAdts, mp3
     bool songInited = false;
-    int frameSize;
+    int frameSize = 0;
     while (!mExit && cAudioParser::parseFrame (framePtr, last, frameSize)) {
       float* samples = audioDecoder->decodeFrame (framePtr, frameSize, frameNum);
       if (samples) {
@@ -1371,6 +1381,8 @@ void cLoader::loadAudio (uint8_t* first, int size, eFlags loaderFlags) {
   mSongPlayer->wait();
 
   delete mSongPlayer;
+  auto tempSong = mSong;
+  mSong = nullptr;
   delete mSong;
   delete audioDecoder;
   }
