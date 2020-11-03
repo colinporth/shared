@@ -129,7 +129,7 @@ public:
   void clear();
   void addFrame (bool reuseFront, int frameNum, float* samples, bool ourSamples, int totalFrames, int64_t pts);
 
-  virtual bool hasBaseTime() { return false; }
+  virtual bool hasTimeBase() { return false; }
   //{{{  gets
   std::shared_mutex& getSharedMutex() { return mSharedMutex; }
 
@@ -240,8 +240,7 @@ public:
   virtual ~cHlsSong() {}
 
   // gets
-  virtual bool hasBaseTime() { return true; }
-  bool hasBase() { return mBaseOk; }
+  virtual bool hasTimeBase() { return true; }
   int getBasePlayFrame() { return mPlayFrame - mBaseFrameNum; }
   bool getLoadChunk (int& chunkNum, int& frameNum, int preloadChunks);
 
@@ -254,8 +253,6 @@ public:
 
 private:
   int mFramesPerChunk = 0;
-
-  bool mBaseOk = false;
 
   int mBaseChunkNum = 0;
   int mBaseFrameNum = 0;

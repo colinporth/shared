@@ -468,8 +468,6 @@ void cHlsSong::setBase (int chunkNum, int64_t pts, system_clock::time_point time
   uint64_t msSinceMidnight = duration_cast<milliseconds>(timePoint - midnightTimePoint).count();
   mBaseFrameNum = int((msSinceMidnight * mSampleRate) / mSamplesPerFrame / 1000);
   mPlayFrame = mBaseFrameNum;
-
-  mBaseOk = true;
   }
 //}}}
 //{{{
