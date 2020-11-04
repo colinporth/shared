@@ -31,8 +31,8 @@ public:
   bool getRunning() { return mRunning; }
 
   // loaders
-  void hls (bool radio, const std::string& channelName, int audioRate, int videoRate, eFlags loaderFlags);
-  void file (const std::string& filename, eFlags loaderFlags);
+  void hls (bool radio, const std::string& channelName, int audioRate, int videoRate, eFlags flags);
+  void file (const std::string& filename, eFlags flags);
   void icycast (const std::string& url);
 
   // actions
@@ -47,8 +47,8 @@ public:
 private:
   void addIcyInfo (int frame, const std::string& icyInfo);
 
-  void loadTs (uint8_t* first, int size, eFlags loaderFlags);
-  void loadAudio (uint8_t* first, int size, eFlags loaderFlags);
+  void loadTs (uint8_t* first, int size, eFlags flags);
+  void loadAudio (uint8_t* first, int size, eFlags flags);
 
   // vars
   cSong* mSong = nullptr;

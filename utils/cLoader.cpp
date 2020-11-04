@@ -130,7 +130,11 @@ public:
     ts += headerSize;
     int tsLeft = 188 - headerSize;
 
-    processBody (ts, tsLeft, payloadStart, continuityCount, reuseFront);
+    // ignore any leading payload before a payloadStart
+    if (payloadStart || mGotPayloadStart) {
+      mGotPayloadStart = true;
+      processBody (ts, tsLeft, payloadStart, continuityCount, reuseFront);
+      }
     }
   //}}}
 
@@ -208,6 +212,7 @@ protected:
   // vars
   const int mPid;
   const string mName;
+  bool mGotPayloadStart = false;
   };
 //}}}
 //{{{
@@ -588,9 +593,8 @@ private:
 //{{{
 class cVideoPesParser : public cPesParser {
 public:
-  cVideoPesParser (int pid, iVideoPool* videoPool, bool useQueue,
-                   function <void (int64_t pts)> callback)
-    : cPesParser (pid, "vid", useQueue), mVideoPool(videoPool), mCallback(callback) {}
+  cVideoPesParser (int pid, iVideoPool* videoPool, bool useQueue)
+    : cPesParser (pid, "vid", useQueue), mVideoPool(videoPool) {}
   virtual ~cVideoPesParser() {}
 
   //{{{
@@ -615,13 +619,11 @@ public:
   //{{{
   void decode (bool reuseFront, uint8_t* pes, int size, int num, int64_t pts) {
     mVideoPool->decodeFrame (reuseFront, pes, size, pts);
-    mCallback (pts);
     }
   //}}}
 
 private:
   iVideoPool* mVideoPool;
-  function <void (int64_t pts)> mCallback;
   };
 //}}}
 
@@ -646,7 +648,7 @@ void cLoader::getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize)
 //}}}
 
 //{{{
-void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRate, eFlags loaderFlags) {
+void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRate, eFlags flags) {
 
   stopAndWait();
 
@@ -674,8 +676,6 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
       mSongPlayer->start (hlsSong, &mPlayPts, true);
       };
 
-    auto addVideoFrameCallback = [&](int64_t pts) noexcept {};
-
     auto addStreamCallback = [&](int sid, int pid, int type) noexcept {
       //{{{  addStream lambda
       if (mPidParsers.find (pid) == mPidParsers.end()) {
@@ -695,7 +695,6 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                 audioDecoder = cAudioParser::create (eAudioFrameType::eAacAdts);
                 mPidParsers.insert (
                   map<int,cPidParser*>::value_type (pid,
-                    //new cAudioPesParser (pid, audioDecoder, false, frameNum, addAudioFrameCallback)));
                     new cAudioPesParser (pid, audioDecoder, true, frameNum, addAudioFrameCallback)));
                 mAudioPid = pid;
                 }
@@ -705,10 +704,8 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
               if (videoRate) {
                 service->setVideoPid (pid);
                 if (service->isSelected()) {
-                  videoPool = iVideoPool::create (loaderFlags & eFlags::eFFmpeg, 192, mPlayPts);
-                  mPidParsers.insert (
-                    map<int,cPidParser*>::value_type (pid,
-                      new cVideoPesParser (pid, videoPool, true, addVideoFrameCallback)));
+                  videoPool = iVideoPool::create (flags & eFlags::eFFmpeg, 192, mPlayPts);
+                  mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cVideoPesParser (pid, videoPool, true)));
                   mVideoPool = videoPool;
                   mVideoPid = pid;
                   }
@@ -907,7 +904,7 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
   }
 //}}}
 //{{{
-void cLoader::file (const string& filename, eFlags loaderFlags) {
+void cLoader::file (const string& filename, eFlags flags) {
 
   stopAndWait();
 
@@ -932,9 +929,9 @@ void cLoader::file (const string& filename, eFlags loaderFlags) {
 
       // load file
       if ((first[0] == 0x47) && (first[188] == 0x47))
-        loadTs (first, size, loaderFlags);
+        loadTs (first, size, flags);
       else
-        loadAudio (first, size, loaderFlags);
+        loadAudio (first, size, flags);
 
       #ifdef _WIN32
         // windows file map close
@@ -1147,7 +1144,7 @@ void cLoader::addIcyInfo (int frame, const string& icyInfo) {
 //}}}
 
 //{{{
-void cLoader::loadTs (uint8_t* first, int size, eFlags loaderFlags) {
+void cLoader::loadTs (uint8_t* first, int size, eFlags flags) {
 
   auto timePoint = system_clock::now();
 
@@ -1165,81 +1162,84 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags loaderFlags) {
     mSongPlayer->start (mSong, &mPlayPts, true);
     };
 
-  auto addVideoFrameCallback = [&](int64_t pts) noexcept {
-    };
-
   auto addStreamCallback = [&](int sid, int pid, int type) noexcept {
     if (mPidParsers.find (pid) == mPidParsers.end()) {
+      // new stream pid
       auto it = mServices.find (sid);
-      if (it == mServices.end())
-        cLog::log (LOGERROR, "file - PMT:%d for unrecognised sid:%d", pid, sid);
-      else {
+      if (it != mServices.end()) {
         cService* service = (*it).second;
         switch (type) {
           //{{{
-          case 2:  // ISO 13818-2 video - do nothing 
-            //cLog::log (LOGERROR, "mpeg2 video %d", pid, type);
-            break;
-          //}}}
-          //{{{
-          case 3:  // ISO 11172-3 audio - do nothing
-            //cLog::log (LOGINFO, "mp2 audio %d %d", pid, type);
-            break;
-          //}}}
-          //{{{
-          case 5:  // ??? - do nothing
-            break;  
-          //}}}
-          //{{{
-          case 6:  // subtitle - do nothing
-            //cLog::log (LOGINFO, "subtitle %d %d", pid, type);
-            break;
-          //}}}
-          //{{{
-          case 11: // ??? - do nothing
-            break;
-          //}}}
-          //{{{
           case 15: // aacAdts
             service->setAudioPid (pid);
+
             if (service->isSelected()) {
               audioDecoder = cAudioParser::create (eAudioFrameType::eAacAdts);
-              mPidParsers.insert (
-                map<int,cPidParser*>::value_type (pid,
-                  new cAudioPesParser (pid, audioDecoder, true, frameNum, addAudioFrameCallback)));
+              mPidParsers.insert (map<int,cPidParser*>::value_type (pid,
+                new cAudioPesParser (pid, audioDecoder, true, frameNum, addAudioFrameCallback)));
+
               mAudioPid = pid;
               }
+
             break;
           //}}}
           //{{{
           case 17: // aacLatm
             service->setAudioPid (pid);
+
             if (service->isSelected()) {
               audioDecoder = cAudioParser::create (eAudioFrameType::eAacLatm);
-              mPidParsers.insert (
-                map<int,cPidParser*>::value_type (pid,
-                  new cAudioPesParser (pid, audioDecoder, true, frameNum, addAudioFrameCallback)));
+              mPidParsers.insert (map<int,cPidParser*>::value_type (pid,
+                new cAudioPesParser (pid, audioDecoder, true, frameNum, addAudioFrameCallback)));
+
               mAudioPid = pid;
               }
+
             break;
           //}}}
           //{{{
           case 27: // h264video
             service->setVideoPid (pid);
+
             if (service->isSelected()) {
-              videoPool = iVideoPool::create (loaderFlags & eFFmpeg, 120, mPlayPts);
-              mPidParsers.insert (
-                map<int,cPidParser*>::value_type (pid,
-                  new cVideoPesParser (pid, videoPool, true, addVideoFrameCallback)));
+              videoPool = iVideoPool::create (flags & eFlags::eFFmpeg, 100, mPlayPts);
+              mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cVideoPesParser (pid, videoPool, true)));
+
               mVideoPool = videoPool;
               mVideoPid = pid;
               }
+
+            break;
+          //}}}
+          //{{{
+          case 6:  // do nothing - subtitle
+            //cLog::log (LOGINFO, "subtitle %d %d", pid, type);
+            break;
+          //}}}
+          //{{{
+          case 2:  // do nothing - ISO 13818-2 video
+            //cLog::log (LOGERROR, "mpeg2 video %d", pid, type);
+            break;
+          //}}}
+          //{{{
+          case 3:  // do nothing - ISO 11172-3 audio
+            //cLog::log (LOGINFO, "mp2 audio %d %d", pid, type);
+            break;
+          //}}}
+          //{{{
+          case 5:  // do nothing - private mpeg2 tabled data
+            break;
+          //}}}
+          //{{{
+          case 11: // do nothing - dsm cc u_n
             break;
           //}}}
           default:
             cLog::log (LOGERROR, "unrecognised stream type %d %d", pid, type);
           }
         }
+      else
+        cLog::log (LOGERROR, "file - PMT:%d for unrecognised sid:%d", pid, sid);
       }
     };
 
@@ -1314,7 +1314,7 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags loaderFlags) {
   }
 //}}}
 //{{{
-void cLoader::loadAudio (uint8_t* first, int size, eFlags loaderFlags) {
+void cLoader::loadAudio (uint8_t* first, int size, eFlags flags) {
 // wav,aac,mp3
 
   constexpr int kWavFrameSamples = 1024;
