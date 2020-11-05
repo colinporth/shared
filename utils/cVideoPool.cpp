@@ -1883,70 +1883,86 @@ public:
   //}}}
 
   //{{{
-  virtual void decodeFrame (bool reuseFront, uint8_t* pes, unsigned int pesSize, int64_t pts) {
+  virtual void decodeFrame (bool reuseFront, uint8_t* pes, unsigned int pesSize, int64_t pts, int64_t dts) {
 
     system_clock::time_point timePoint = system_clock::now();
 
     // ffmpeg doesn't maintain correct avFrame.pts, decode frames in presentation order and pts correct on I frames
     char frameType = getH264FrameType (pes, pesSize);
-    if (frameType == 'I')
-      mDecodePts = pts;
-
-    AVPacket avPacket;
-    av_init_packet (&avPacket);
-    auto avFrame = av_frame_alloc();
-
-    auto pesPtr = pes;
-    auto pesLeft = pesSize;
-    while (pesLeft) {
-      auto bytesUsed = av_parser_parse2 (mAvParser, mAvContext,
-                                         &avPacket.data, &avPacket.size,
-                                         pesPtr, (int)pesLeft,
-                                         AV_NOPTS_VALUE, AV_NOPTS_VALUE, 0);
-      pesPtr += bytesUsed;
-      pesLeft -= bytesUsed;
-      if (avPacket.size) {
-        auto ret = avcodec_send_packet (mAvContext, &avPacket);
-        while (ret >= 0) {
-          ret = avcodec_receive_frame (mAvContext, avFrame);
-          if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF || ret < 0)
-            break;
-          if (kTiming)
-            cLog::log (LOGINFO1, "decode FFmpeg:%d",
-                                 duration_cast<microseconds>(system_clock::now() - timePoint).count());
-
-          // set info from decode
-          mWidth = avFrame->width;
-          mHeight = avFrame->height;
-          mPtsDuration = (kPtsPerSecond * mAvContext->framerate.den) / mAvContext->framerate.num;
-
-          // blocks on waiting for freeFrame most of the time
-          auto frame = getFreeFrame (reuseFront, mDecodePts);
-
-          timePoint = system_clock::now();
-          frame->set (mDecodePts, pesSize, mWidth, mHeight, frameType);
-          if (!mSwsContext)
-            mSwsContext = sws_getContext (mWidth, mHeight, AV_PIX_FMT_YUV420P,
-                                          mWidth, mHeight, AV_PIX_FMT_RGBA,
-                                          SWS_BILINEAR, NULL, NULL, NULL);
-          frame->setYuv420 (mSwsContext, avFrame->data, avFrame->linesize);
-
-          {
-          unique_lock<shared_mutex> lock (mSharedMutex);
-          mFramePool.insert (map<int64_t, iVideoFrame*>::value_type (mDecodePts / mPtsDuration, frame));
-          }
-
-          av_frame_unref (avFrame);
-          if (kTiming)
-            cLog::log (LOGINFO1, "setYuv420 FFmpeg %d",
-                                 duration_cast<microseconds>(system_clock::now() - timePoint).count());
-
-          mDecodePts += mPtsDuration;
-          }
-        }
+    if (frameType == 'I') {
+      if (mGuessPts != dts)
+        cLog::log (LOGERROR, "lost %d.%d to %d.%d", mGuessPts/1800, mGuessPts%1800, dts/1800, dts%1800);
+      mGuessPts = dts;
+      mSeenIFrame = true;
       }
 
-    av_frame_free (&avFrame);
+    if (mSeenIFrame) {
+      if (kTiming)
+        cLog::log (LOGINFO, "ffmpeg decode guessPts:%d.%d pts:%d.%d dts:%d.%d - %c size:%d",
+                             mGuessPts/1800, mGuessPts%1800, pts/1800, pts%1800, dts/1800, dts%1800,
+                             frameType, pesSize);
+
+      AVPacket avPacket;
+      av_init_packet (&avPacket);
+      auto avFrame = av_frame_alloc();
+
+      auto pesPtr = pes;
+      auto pesLeft = pesSize;
+      while (pesLeft) {
+        auto bytesUsed = av_parser_parse2 (mAvParser, mAvContext,
+                                           &avPacket.data, &avPacket.size,
+                                           pesPtr, (int)pesLeft,
+                                           AV_NOPTS_VALUE, AV_NOPTS_VALUE, 0);
+        pesPtr += bytesUsed;
+        pesLeft -= bytesUsed;
+        if (avPacket.size) {
+          auto ret = avcodec_send_packet (mAvContext, &avPacket);
+          while (ret >= 0) {
+            ret = avcodec_receive_frame (mAvContext, avFrame);
+            if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF || ret < 0)
+              break;
+
+            // set info from decode
+            mWidth = avFrame->width;
+            mHeight = avFrame->height;
+            mPtsDuration = (kPtsPerSecond * mAvContext->framerate.den) / mAvContext->framerate.num;
+
+            if (kTiming)
+              cLog::log (LOGINFO, "----- decoded guessPts %d.%d - took:%d",
+                                  mGuessPts/1800, mGuessPts%1800,
+                                  duration_cast<microseconds>(system_clock::now() - timePoint).count());
+
+            // blocks on waiting for freeFrame most of the time
+            auto frame = getFreeFrame (reuseFront, mGuessPts);
+
+            timePoint = system_clock::now();
+            frame->set (mGuessPts, pesSize, mWidth, mHeight, frameType);
+            if (!mSwsContext)
+              mSwsContext = sws_getContext (mWidth, mHeight, AV_PIX_FMT_YUV420P,
+                                            mWidth, mHeight, AV_PIX_FMT_RGBA,
+                                            SWS_BILINEAR, NULL, NULL, NULL);
+            frame->setYuv420 (mSwsContext, avFrame->data, avFrame->linesize);
+
+            {
+            unique_lock<shared_mutex> lock (mSharedMutex);
+            mFramePool.insert (map<int64_t, iVideoFrame*>::value_type (mGuessPts / mPtsDuration, frame));
+            }
+
+            av_frame_unref (avFrame);
+            if (kTiming)
+              cLog::log (LOGINFO1, "setYuv420 FFmpeg %d",
+                                   duration_cast<microseconds>(system_clock::now() - timePoint).count());
+
+            mGuessPts += mPtsDuration;
+            }
+          }
+        }
+
+      av_frame_free (&avFrame);
+      }
+    else
+      cLog::log (LOGERROR, "ffmpeg discarding decode guessPts:%d.%d - pts:%d.%d - %c size:%d",
+                           mGuessPts/1800, mGuessPts%1800, pts/1800, pts%180, frameType, pesSize);
     }
   //}}}
 
@@ -1957,7 +1973,8 @@ private:
   AVCodecContext* mAvContext = nullptr;
   SwsContext* mSwsContext = nullptr;
 
-  int64_t mDecodePts = 0;
+  int64_t mGuessPts = 0;
+  bool mSeenIFrame= false;
   };
 //}}}
 
@@ -1986,7 +2003,7 @@ private:
     //}}}
 
     //{{{
-    void decodeFrame (bool reuseFront, uint8_t* pes, unsigned int pesSize, int64_t pts) {
+    void decodeFrame (bool reuseFront, uint8_t* pes, unsigned int pesSize, int64_t pts, int64_t dts) {
 
       system_clock::time_point timePoint = system_clock::now();
 

@@ -35,5 +35,5 @@ public:
 
   // actions
   virtual iVideoFrame* findFrame (int64_t pts) = 0;
-  virtual void decodeFrame (bool afterPlay, uint8_t* pes, unsigned int pesSize, int64_t pts) = 0;
+  virtual void decodeFrame (bool afterPlay, uint8_t* pes, unsigned int pesSize, int64_t pts, int64_t dts) = 0;
   };

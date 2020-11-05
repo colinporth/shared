@@ -377,8 +377,8 @@ class cPesParser : public cPidParser {
 class cPesItem {
 public:
   //{{{
-  cPesItem (bool reuseFront, uint8_t* pes, int size, int num, int64_t pts)
-      : mReuseFront(reuseFront), mPesSize(size), mNum(num), mPts(pts) {
+  cPesItem (bool reuseFront, uint8_t* pes, int size, int num, int64_t pts, int64_t dts)
+      : mReuseFront(reuseFront), mPesSize(size), mNum(num), mPts(pts), mDts(dts) {
     mPes = (uint8_t*)malloc (size);
     memcpy (mPes, pes, size);
     }
@@ -394,6 +394,7 @@ public:
   const int mPesSize;
   const int mNum;
   const int64_t mPts;
+  const int64_t mDts;
   };
 //}}}
 public:
@@ -436,6 +437,8 @@ public:
 
       if (ts[7] & 0x80)
         mPts = getPts (ts+9);
+      if (ts[7] & 0x40)
+        mDts = getPts (ts+14);
 
       int headerSize = 9 + ts[8];
       ts += headerSize;
@@ -453,15 +456,15 @@ public:
     }
   //}}}
   //{{{
-  virtual void dispatchDecode (bool reuseFront, uint8_t* pes, int size, int num, int64_t pts) {
+  virtual void dispatchDecode (bool reuseFront, uint8_t* pes, int size, int num, int64_t pts, int64_t dts) {
 
     if (mUseQueue)
-      mQueue.enqueue (new cPesParser::cPesItem (reuseFront, pes, size, num, pts));
+      mQueue.enqueue (new cPesParser::cPesItem (reuseFront, pes, size, num, pts, dts));
     else
-      decode (reuseFront, pes, size, num, pts);
+      decode (reuseFront, pes, size, num, pts, dts);
     }
   //}}}
-  virtual void decode (bool reuseFront, uint8_t* pes, int size, int num, int64_t pts) = 0;
+  virtual void decode (bool reuseFront, uint8_t* pes, int size, int num, int64_t pts, int64_t dts) = 0;
 
 protected:
   //{{{
@@ -474,7 +477,7 @@ protected:
     while (!mQueueExit) {
       cPesItem* pesItem;
       if (mQueue.wait_dequeue_timed (pesItem, 40000)) {
-        decode (pesItem->mReuseFront, pesItem->mPes, pesItem->mPesSize, pesItem->mNum, pesItem->mPts);
+        decode (pesItem->mReuseFront, pesItem->mPes, pesItem->mPesSize, pesItem->mNum, pesItem->mPts, pesItem->mDts);
         delete pesItem;
         }
       }
@@ -489,6 +492,7 @@ protected:
   int mPesSize = 0;
   int mNum = 0;
   int64_t mPts = 0;
+  int64_t mDts = 0;
   int mContinuityCount = -1;
 
 private:
@@ -553,7 +557,7 @@ public:
         }
 
       // dispatch whole pes, maybe several frames
-      dispatchDecode (reuseFront, mPes, mPesSize, mNum, mPts);
+      dispatchDecode (reuseFront, mPes, mPesSize, mNum, mPts, mDts);
 
       // increment by frames in pes
       mNum += numFrames;
@@ -562,7 +566,7 @@ public:
     }
   //}}}
   //{{{
-  virtual void decode (bool reuseFront, uint8_t* pes, int size, int num, int64_t pts) {
+  virtual void decode (bool reuseFront, uint8_t* pes, int size, int num, int64_t pts, int64_t dts) {
   // decode pes to audio frames
 
     uint8_t* framePes = pes;
@@ -610,15 +614,15 @@ public:
   virtual void processLast (bool reuseFront) {
     if (mPesSize) {
       int numFrames = 1;
-      dispatchDecode (reuseFront, mPes, mPesSize, mNum, mPts);
+      dispatchDecode (reuseFront, mPes, mPesSize, mNum, mPts, mDts);
       mNum += numFrames;
       mPesSize = 0;
       }
     }
   //}}}
   //{{{
-  void decode (bool reuseFront, uint8_t* pes, int size, int num, int64_t pts) {
-    mVideoPool->decodeFrame (reuseFront, pes, size, pts);
+  void decode (bool reuseFront, uint8_t* pes, int size, int num, int64_t pts, int64_t dts) {
+    mVideoPool->decodeFrame (reuseFront, pes, size, pts, dts);
     }
   //}}}
 
