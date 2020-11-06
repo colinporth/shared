@@ -99,7 +99,7 @@ extern "C" {
 using namespace std;
 using namespace chrono;
 //}}}
-constexpr bool kTiming = true;
+constexpr bool kTiming = false;
 constexpr int kPtsPerSecond = 90000;
 
 namespace {

@@ -56,9 +56,6 @@ private:
   int64_t mPlayPts = -1;
   iVideoPool* mVideoPool = nullptr;
 
-  int mAudioPid = -1;
-  int mVideoPid = -1;
-
   // transport stream
   std::map <int, cPidParser*> mPidParsers;
   std::map <int, cService*> mServices;

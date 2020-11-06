@@ -92,11 +92,12 @@ public:
   bool isSelected() { return mSelected; }
   int getAudioPid() { return mAudioPid; }
   int getVideoPid() { return mVideoPid; }
+  int getSubtitlePid() { return mSubtitlePid; }
 
+  void setSelected (bool selected) { mSelected = selected; }
   void setAudioPid (int pid) { mAudioPid = pid; }
   void setVideoPid (int pid) { mVideoPid = pid; }
   void setSubtitlePid (int pid) { mSubtitlePid = pid; }
-  void setSelected (bool selected) { mSelected = selected; }
 
 private:
   const int mSid;
@@ -637,8 +638,23 @@ void cLoader::getFracs (float& loadFrac, float& audioFrac, float& videoFrac) {
 // return fracs for spinner graphic, true if ok to display
 
   loadFrac = mLoadFrac;
-  audioFrac = mAudioPid > 0 ? mPidParsers[mAudioPid]->getQueueFrac() : 0.f;
-  videoFrac = mVideoPid > 0 ? mPidParsers[mVideoPid]->getQueueFrac() : 0.f;
+  audioFrac = 0.f;
+  videoFrac = 0.f;
+
+  if (mCurSid > 0) {
+    cService* service = mServices[mCurSid];
+    int audioPid = service->getAudioPid();
+    int videoPid = service->getVideoPid();
+    //cLog::log (LOGINFO, "getSizes %d %d", audioPid, videoPid);
+
+    auto audioIt = mPidParsers.find (audioPid);
+    if (audioIt != mPidParsers.end())
+      audioFrac = (*audioIt).second->getQueueFrac();
+
+    auto videoIt = mPidParsers.find (videoPid);
+    if (videoIt != mPidParsers.end())
+      videoFrac = (*videoIt).second->getQueueFrac();
+    }
   }
 //}}}
 //{{{
@@ -646,8 +662,23 @@ void cLoader::getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize)
 // return sizes
 
   loadSize = mLoadSize;
-  audioQueueSize = mAudioPid > 0 ? mPidParsers[mAudioPid]->getQueueSize() : 0;
-  videoQueueSize = mVideoPid > 0 ? mPidParsers[mVideoPid]->getQueueSize() : 0;
+  audioQueueSize = 0;
+  videoQueueSize = 0;
+
+  if (mCurSid > 0) {
+    cService* service = mServices[mCurSid];
+    int audioPid = service->getAudioPid();
+    int videoPid = service->getVideoPid();
+    //cLog::log (LOGINFO, "getSizes %d %d", audioPid, videoPid);
+
+    auto audioIt = mPidParsers.find (audioPid);
+    if (audioIt != mPidParsers.end())
+      audioQueueSize = (*audioIt).second->getQueueSize();
+
+    auto videoIt = mPidParsers.find (videoPid);
+    if (videoIt != mPidParsers.end())
+      videoQueueSize = (*videoIt).second->getQueueSize();
+    }
   }
 //}}}
 
@@ -700,7 +731,6 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                 mPidParsers.insert (
                   map<int,cPidParser*>::value_type (pid,
                     new cAudioPesParser (pid, audioDecoder, true, frameNum, addAudioFrameCallback)));
-                mAudioPid = pid;
                 }
               break;
 
@@ -711,7 +741,6 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                   videoPool = iVideoPool::create (flags & eFlags::eFFmpeg, 192, mPlayPts);
                   mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cVideoPesParser (pid, videoPool, true)));
                   mVideoPool = videoPool;
-                  mVideoPid = pid;
                   }
                 }
               break;
@@ -881,8 +910,6 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
       }
 
     //{{{  delete resources
-    mAudioPid = -1;
-    mVideoPid = -1;
     mVideoPool = nullptr;
 
     for (auto parser : mPidParsers) {
@@ -1156,12 +1183,14 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags flags) {
   mSong->initialise (eAudioFrameType::eAacAdts, 2, 48000, 1024, 0);
   mSongPlayer = new cSongPlayer();
 
+  int64_t loadPts = -1;
   int frameNum = 0;
   iAudioDecoder* audioDecoder = nullptr;
   iVideoPool* videoPool = nullptr;
   //{{{  parsers,callbacks
   auto addAudioFrameCallback = [&](bool reuseFront, float* samples, int num, int64_t pts) noexcept {
     frameNum = num;
+    loadPts = pts;
     mSong->addFrame (reuseFront, num, samples, true, mSong->getNumFrames(), pts);
     mSongPlayer->start (mSong, &mPlayPts, true);
     };
@@ -1181,8 +1210,6 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags flags) {
               audioDecoder = cAudioParser::create (eAudioFrameType::eAacAdts);
               mPidParsers.insert (map<int,cPidParser*>::value_type (pid,
                 new cAudioPesParser (pid, audioDecoder, true, frameNum, addAudioFrameCallback)));
-
-              mAudioPid = pid;
               }
 
             break;
@@ -1195,8 +1222,6 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags flags) {
               audioDecoder = cAudioParser::create (eAudioFrameType::eAacLatm);
               mPidParsers.insert (map<int,cPidParser*>::value_type (pid,
                 new cAudioPesParser (pid, audioDecoder, true, frameNum, addAudioFrameCallback)));
-
-              mAudioPid = pid;
               }
 
             break;
@@ -1208,9 +1233,7 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags flags) {
             if (service->isSelected()) {
               videoPool = iVideoPool::create (flags & eFlags::eFFmpeg, 100, mPlayPts);
               mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cVideoPesParser (pid, videoPool, true)));
-
               mVideoPool = videoPool;
-              mVideoPid = pid;
               }
 
             break;
@@ -1280,9 +1303,15 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags flags) {
       //}}}
     mLoadFrac = float(ts - first) / size;
 
-    // block loading when load frameNum is >100 audio frames ahead of play frameNum
-    while (!mExit && (frameNum > mSong->getPlayFrame() + 100))
-      this_thread::sleep_for (20ms);
+    if (loadPts < mPlayPts)
+      cLog::log (LOGINFO, "skip back %d %d", loadPts/1800, mPlayPts/1800);
+    else if (loadPts > mPlayPts + (3 * 90000))
+      cLog::log (LOGINFO, "skip forward %d %d", loadPts/1800, mPlayPts/1800);
+    else {
+      // block loading when load frameNum is >100 audio frames ahead of play frameNum
+      while (!mExit && (frameNum > mSong->getPlayFrame() + 100))
+        this_thread::sleep_for (20ms);
+      }
     }
   mLoadFrac = 1.f;
 
@@ -1297,8 +1326,6 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags flags) {
   mSongPlayer->wait();
 
   // delete resources
-  mAudioPid = -1;
-  mVideoPid = -1;
   for (auto parser : mPidParsers) {
     //{{{  stop and delete pidParsers
     parser.second->stop();
