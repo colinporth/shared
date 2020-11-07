@@ -720,10 +720,12 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
     mExit = false;
     mRunning = true;
     // audioRate < 128000 use aacHE, more samplesPerframe, less framesPerChunk
-    cHlsSong* hlsSong = new cHlsSong (audioRate < 128000 ? (radio ? 150 : 180) : (radio ? 300 : 360));
-    mSong = hlsSong;
-    hlsSong->initialise (eAudioFrameType::eAacAdts, 2, 48000, audioRate < 128000 ? 2048 : 1024, 1000);
+    cHlsSong* hlsSong = new cHlsSong (eAudioFrameType::eAacAdts, 2, 48000, 
+                                      audioRate < 128000 ? 2048 : 1024, 1000,
+                                      audioRate < 128000 ? (radio ? 150 : 180) : (radio ? 300 : 360));
     mSongPlayer = new cSongPlayer();
+    mSong = hlsSong;
+
     //{{{  add parsers,callbacks
     int chunkNum;
     int frameNum;
@@ -1024,8 +1026,6 @@ void cLoader::icycast (const string& url) {
     cLog::setThreadName ("icyL");
     mRunning = true;
 
-    mSong = new cSong();
-    mSongPlayer = new cSongPlayer();
     iAudioDecoder* audioDecoder = createAudioDecoder (eAudioFrameType::eAacAdts);
 
     while (!mExit) {
@@ -1097,12 +1097,13 @@ void cLoader::icycast (const string& url) {
             }
             //}}}
 
-          if (frameNum == -1) {
+          if (!mSong) {
             // enough data to determine frameType and sampleRate (wrong for aac sbr)
             frameNum = 0;
             int sampleRate = 0;
             auto frameType = cAudioParser::parseSomeFrames (bufferFirst, bufferEnd, sampleRate);
-            mSong->initialise (frameType, 2, sampleRate, (frameType == eAudioFrameType::eMp3) ? 1152 : 2048, 3000);
+            mSong = new cSong (frameType, 2, sampleRate, (frameType == eAudioFrameType::eMp3) ? 1152 : 2048, 3000);
+            mSongPlayer = new cSongPlayer();
             }
 
           int frameSize;
@@ -1206,12 +1207,11 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags flags) {
 
   auto timePoint = system_clock::now();
 
-  mSong = new cSong();
-  mSong->initialise (eAudioFrameType::eAacAdts, 2, 48000, 1024, 0);
+  mSong = new cSong (eAudioFrameType::eAacAdts, 2, 48000, 1024, 0);
   mSongPlayer = new cSongPlayer();
 
-  int64_t loadPts = -1;
   int frameNum = 0;
+  int64_t loadPts = -1;
   iAudioDecoder* audioDecoder = nullptr;
   iVideoPool* videoPool = nullptr;
   //{{{  parsers,callbacks
@@ -1312,7 +1312,6 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags flags) {
   mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
   //}}}
 
-  // no parsers init
   uint8_t* ts = first;
   uint8_t* last = first + size;
   while (!mExit && (ts + 188 <= last)) {
@@ -1347,8 +1346,7 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags flags) {
 
   int duration = (mSong->getTotalFrames() * mSong->getSamplesPerFrame()) / (mSong->getSampleRate() / 1000);
   cLog::log (LOGINFO, "load ts %dms took %dms",
-                      duration,
-                      duration_cast<milliseconds>(system_clock::now() - timePoint).count());
+                      duration, duration_cast<milliseconds>(system_clock::now() - timePoint).count());
   mSongPlayer->wait();
 
   // delete resources
@@ -1377,9 +1375,6 @@ void cLoader::loadAudio (uint8_t* first, int size, eFlags flags) {
   constexpr int kWavFrameSamples = 1024;
   auto timePoint = system_clock::now();
 
-  mSong = new cSong();
-  mSongPlayer = new cSongPlayer();
-
   int sampleRate;
   uint8_t* last = first + size;
   auto fileFrameType = cAudioParser::parseSomeFrames (first, last, sampleRate);
@@ -1399,7 +1394,8 @@ void cLoader::loadAudio (uint8_t* first, int size, eFlags flags) {
   uint8_t* framePtr = first;
   if (fileFrameType == eAudioFrameType::eWav) {
     // wav - samples point into memmaped file directly
-    mSong->initialise (fileFrameType, 2, sampleRate, kWavFrameSamples, 0);
+    mSong = new cSong (fileFrameType, 2, sampleRate, kWavFrameSamples, 0);
+    mSongPlayer = new cSongPlayer();
 
     int frameSize = 0;
     auto samples = cAudioParser::parseFrame (framePtr, last, frameSize);
@@ -1413,16 +1409,15 @@ void cLoader::loadAudio (uint8_t* first, int size, eFlags flags) {
 
   else {
     // aacAdts, mp3
-    bool songInited = false;
     int frameSize = 0;
     while (!mExit && cAudioParser::parseFrame (framePtr, last, frameSize)) {
       float* samples = audioDecoder->decodeFrame (framePtr, frameSize, frameNum);
       if (samples) {
-        if (!songInited) {
+        if (!mSong) {
           //{{{  need to decode a frame to get aacHE sampleRate,samplesPerFrame, header is wrong
-          songInited = true;
-          mSong->initialise (fileFrameType,
+          mSong = new cSong(fileFrameType,
             audioDecoder->getNumChannels(), audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame(), 0);
+          mSongPlayer = new cSongPlayer();
           }
           //}}}
         int numFrames = mSong->getNumFrames();
@@ -1439,8 +1434,7 @@ void cLoader::loadAudio (uint8_t* first, int size, eFlags flags) {
   // duration info
   int duration = (mSong->getTotalFrames() * mSong->getSamplesPerFrame()) / (mSong->getSampleRate() / 1000);
   cLog::log (LOGINFO, "load ts %dms took %dms",
-                      duration,
-                      duration_cast<milliseconds>(system_clock::now() - timePoint).count());
+                      duration, duration_cast<milliseconds>(system_clock::now() - timePoint).count());
   mSongPlayer->wait();
 
   delete mSongPlayer;

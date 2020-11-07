@@ -122,11 +122,9 @@ public:
     };
   //}}}
 
-  cSong() {}
+  cSong (eAudioFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame, int maxMapSize);
   virtual ~cSong();
 
-  void initialise (eAudioFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame,
-                   int maxMapSize);
   void clear();
   void addFrame (bool reuseFront, int frameNum, float* samples, bool ourSamples, int totalFrames, int64_t pts);
 
@@ -239,8 +237,9 @@ private:
 //{{{
 class cHlsSong : public cSong {
 public:
-  cHlsSong(int framesPerChunk) : cSong(), mFramesPerChunk(framesPerChunk) {}
-  virtual ~cHlsSong() {}
+  cHlsSong (eAudioFrameType frameType, int numChannels,
+            int sampleRate, int samplesPerFrame, int maxMapSize, int framesPerChunk);
+  virtual ~cHlsSong();
 
   // gets
   int getBasePlayFrame() { return mPlayFrame - mBaseFrameNum; }

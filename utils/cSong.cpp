@@ -20,6 +20,15 @@ constexpr static int kSilenceWindowFrames = 4;
 
 // cSong
 //{{{
+cSong::cSong (eAudioFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame, int maxMapSize)
+  : mFrameType(frameType), mNumChannels(numChannels), mSampleRate(sampleRate), mSamplesPerFrame(samplesPerFrame),
+    mMaxMapSize(maxMapSize) {
+
+  clearFrames();
+  mFftrConfig = kiss_fftr_alloc (mSamplesPerFrame, 0, 0, 0);
+  }
+//}}}
+//{{{
 cSong::~cSong() {
 
   unique_lock<shared_mutex> lock (mSharedMutex);
@@ -27,26 +36,6 @@ cSong::~cSong() {
   }
 //}}}
 
-//{{{
-void cSong::initialise (eAudioFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame,
-                        int maxMapSize) {
-
-  unique_lock<shared_mutex> lock (mSharedMutex);
-
-  mMaxMapSize = maxMapSize;
-
-  // reset frame type
-  mFrameType = frameType;
-  mNumChannels = numChannels;
-  mSampleRate = sampleRate;
-  mSamplesPerFrame = samplesPerFrame;
-
-  clearFrames();
-
-  // ??? should deallocate ???
-  mFftrConfig = kiss_fftr_alloc (mSamplesPerFrame, 0, 0, 0);
-  }
-//}}}
 //{{{
 void cSong::clear() {
 
@@ -413,6 +402,12 @@ void cSong::cSelect::end() {
 //}}}
 
 // cHlsSong
+//{{{
+cHlsSong::cHlsSong (eAudioFrameType frameType, int numChannels,
+                   int sampleRate, int samplesPerFrame, int maxMapSize, int framesPerChunk)
+  : cSong(frameType, numChannels, sampleRate, samplesPerFrame, maxMapSize), mFramesPerChunk(framesPerChunk) {}
+//}}}
+cHlsSong::~cHlsSong() {}
 //{{{
 bool cHlsSong::getLoadChunk (int& chunkNum, int& frameNum, int preloadChunks) {
 // return true if a chunk load needed to play mPlayFrame
