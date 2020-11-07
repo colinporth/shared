@@ -10,6 +10,7 @@ class cContainer : public cWidget {
 public:
   cContainer() : cWidget() { mColour = kBlackF; }
   cContainer (uint16_t width, uint16_t height) : cWidget (kBlackF, width, height) {}
+  cContainer (float width, float height) : cWidget (kBlackF, width, height) {}
   virtual ~cContainer() {}
 
   //{{{
