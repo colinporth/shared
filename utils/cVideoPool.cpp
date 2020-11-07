@@ -1890,48 +1890,59 @@ public:
     // ffmpeg doesn't maintain correct avFrame.pts, decode frames in presentation order and pts correct on I frames
     char frameType = getH264FrameType (pes, pesSize);
     if (frameType == 'I') {
-      if (mGuessPts != dts)
-        cLog::log (LOGERROR, "lost %d.%d to %d.%d", mGuessPts/1800, mGuessPts%1800, dts/1800, dts%1800);
+      if ((mGuessPts >= 0) && (mGuessPts != dts))
+        //{{{  debug
+        cLog::log (LOGERROR, "lost %d.%d to %d.%d - %c size:%d",
+                             mGuessPts/1800, mGuessPts%1800, dts/1800, dts%1800, frameType, pesSize);
+        //}}}
       mGuessPts = dts;
       mSeenIFrame = true;
       }
+    if (!mSeenIFrame) {
+      //{{{  debug
+      cLog::log (LOGINFO, "waiting for Iframe %d.%d to %d.%d - %c size:%d",
+                           mGuessPts/1800, mGuessPts%1800, dts/1800, dts%1800, frameType, pesSize);
+      //}}}
+      return;
+      }
 
-    if (mSeenIFrame) {
-      if (kTiming)
-        cLog::log (LOGINFO, "ffmpeg decode guessPts:%d.%d pts:%d.%d dts:%d.%d - %c size:%d",
-                             mGuessPts/1800, mGuessPts%1800, pts/1800, pts%1800, dts/1800, dts%1800,
-                             frameType, pesSize);
+    if (kTiming)
+      //{{{  debug
+      cLog::log (LOGINFO, "ffmpeg decode guessPts:%d.%d pts:%d.%d dts:%d.%d - %c size:%d",
+                           mGuessPts/1800, mGuessPts%1800, pts/1800, pts%1800, dts/1800, dts%1800,
+                           frameType, pesSize);
+      //}}}
 
-      AVPacket avPacket;
-      av_init_packet (&avPacket);
-      auto avFrame = av_frame_alloc();
+    AVPacket avPacket;
+    av_init_packet (&avPacket);
+    auto avFrame = av_frame_alloc();
 
-      auto pesPtr = pes;
-      auto pesLeft = pesSize;
-      while (pesLeft) {
-        auto bytesUsed = av_parser_parse2 (mAvParser, mAvContext,
-                                           &avPacket.data, &avPacket.size,
-                                           pesPtr, (int)pesLeft,
-                                           AV_NOPTS_VALUE, AV_NOPTS_VALUE, 0);
-        pesPtr += bytesUsed;
-        pesLeft -= bytesUsed;
-        if (avPacket.size) {
-          auto ret = avcodec_send_packet (mAvContext, &avPacket);
-          while (ret >= 0) {
-            ret = avcodec_receive_frame (mAvContext, avFrame);
-            if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF || ret < 0)
-              break;
+    auto pesPtr = pes;
+    auto pesLeft = pesSize;
+    while (pesLeft) {
+      auto bytesUsed = av_parser_parse2 (mAvParser, mAvContext,
+        &avPacket.data, &avPacket.size, pesPtr, (int)pesLeft, AV_NOPTS_VALUE, AV_NOPTS_VALUE, 0);
+      pesPtr += bytesUsed;
+      pesLeft -= bytesUsed;
+      if (avPacket.size) {
+        auto ret = avcodec_send_packet (mAvContext, &avPacket);
+        while (ret >= 0) {
+          ret = avcodec_receive_frame (mAvContext, avFrame);
+          if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF || ret < 0)
+            break;
 
-            // set info from decode
-            mWidth = avFrame->width;
-            mHeight = avFrame->height;
-            mPtsDuration = (kPtsPerSecond * mAvContext->framerate.den) / mAvContext->framerate.num;
+          // extract frame info from decode
+          mWidth = avFrame->width;
+          mHeight = avFrame->height;
+          mPtsDuration = (kPtsPerSecond * mAvContext->framerate.den) / mAvContext->framerate.num;
 
-            if (kTiming)
-              cLog::log (LOGINFO, "----- decoded guessPts %d.%d - took:%d",
-                                  mGuessPts/1800, mGuessPts%1800,
-                                  duration_cast<microseconds>(system_clock::now() - timePoint).count());
-
+          if (kTiming)
+            //{{{  debug
+            cLog::log (LOGINFO, "----- decoded guessPts %d.%d - took:%d",
+                                mGuessPts/1800, mGuessPts%1800,
+                                duration_cast<microseconds>(system_clock::now() - timePoint).count());
+            //}}}
+          if (mSeenIFrame) {
             // blocks on waiting for freeFrame most of the time
             auto frame = getFreeFrame (reuseFront, mGuessPts);
 
@@ -1950,19 +1961,17 @@ public:
 
             av_frame_unref (avFrame);
             if (kTiming)
+              //{{{  debug
               cLog::log (LOGINFO1, "setYuv420 FFmpeg %d",
                                    duration_cast<microseconds>(system_clock::now() - timePoint).count());
-
-            mGuessPts += mPtsDuration;
+              //}}}
             }
+          mGuessPts += mPtsDuration;
           }
         }
-
-      av_frame_free (&avFrame);
       }
-    else
-      cLog::log (LOGERROR, "ffmpeg discarding decode guessPts:%d.%d - pts:%d.%d - %c size:%d",
-                           mGuessPts/1800, mGuessPts%1800, pts/1800, pts%180, frameType, pesSize);
+
+    av_frame_free (&avFrame);
     }
   //}}}
 
@@ -1973,7 +1982,7 @@ private:
   AVCodecContext* mAvContext = nullptr;
   SwsContext* mSwsContext = nullptr;
 
-  int64_t mGuessPts = 0;
+  int64_t mGuessPts = -1;
   bool mSeenIFrame= false;
   };
 //}}}

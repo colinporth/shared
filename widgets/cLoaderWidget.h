@@ -137,56 +137,58 @@ public:
     else
       draw->clear (kBlackF);
 
-    drawInfo (vg, videoPool);
-    //{{{  draw progress spinners
-    float loadFrac;
-    float videoFrac;
-    float audioFrac;
-    mLoader->getFracs (loadFrac, audioFrac, videoFrac);
-    if ((loadFrac > 0.f) &&
-        ((loadFrac < 1.f) || (audioFrac > 0.f) || (videoFrac > 0.f))) {
-      cPointF centre (mPixSize.x-20.f, 20.f);
-      drawSpinner (vg, centre, 18.f,12.f, 0.1f, loadFrac,
-                   sColourF(0.f,1.f,0.f,0.f), sColourF(0.f,1.f,0.f,0.75f));
-      if (videoFrac > 0.f)
-        drawSpinner (vg, centre, 18.f,12.f, loadFrac * (1.f - videoFrac), loadFrac,
-                     sColourF(1.f, 0.f, 0.f, 0.25f), sColourF(1.f, 0.f, 0.f, 0.75f));
-      if (audioFrac > 0.f)
-        drawSpinner (vg, centre, 18.f,12.f, loadFrac * (1.f - audioFrac), loadFrac,
-                     sColourF(0.f, 0.f, 1.f, 0.25f), sColourF(0.f, 0.f, 1.f, 0.75f));
-      }
-    //}}}
-
-    cSong* song = mLoader->getSong();
-    if (song) {
-      //{{{  draw song
-      { // locked scope
-      std::shared_lock<std::shared_mutex> lock (song->getSharedMutex());
-
-      // wave left right frames, clip right not left
-      int playFrame = song->getPlayFrame();
-      int leftWaveFrame = playFrame - (((int(mPixSize.x)+mFrameWidth)/2) * mFrameStep) / mFrameWidth;
-      int rightWaveFrame = playFrame + (((int(mPixSize.x)+mFrameWidth)/2) * mFrameStep) / mFrameWidth;
-      rightWaveFrame = std::min (rightWaveFrame, song->getLastFrame());
-
-      drawRange (vg, song, playFrame, leftWaveFrame, rightWaveFrame);
-      if (song->getNumFrames()) {
-        bool mono = song->getNumChannels() == 1;
-        drawWave (vg, song, playFrame, leftWaveFrame, rightWaveFrame, mono);
-        if (mShowOverview)
-          drawOverview (vg, song, playFrame, mono);
-        drawFreq (vg, song, playFrame);
+    if (mLoader->getShowGraphics() ) {
+      drawInfo (vg, videoPool);
+      //{{{  draw progress spinners
+      float loadFrac;
+      float videoFrac;
+      float audioFrac;
+      mLoader->getFracs (loadFrac, audioFrac, videoFrac);
+      if ((loadFrac > 0.f) &&
+          ((loadFrac < 1.f) || (audioFrac > 0.f) || (videoFrac > 0.f))) {
+        cPointF centre (mPixSize.x-20.f, 20.f);
+        drawSpinner (vg, centre, 18.f,12.f, 0.1f, loadFrac,
+                     sColourF(0.f,1.f,0.f,0.f), sColourF(0.f,1.f,0.f,0.75f));
+        if (videoFrac > 0.f)
+          drawSpinner (vg, centre, 18.f,12.f, loadFrac * (1.f - videoFrac), loadFrac,
+                       sColourF(1.f, 0.f, 0.f, 0.25f), sColourF(1.f, 0.f, 0.f, 0.75f));
+        if (audioFrac > 0.f)
+          drawSpinner (vg, centre, 18.f,12.f, loadFrac * (1.f - audioFrac), loadFrac,
+                       sColourF(0.f, 0.f, 1.f, 0.25f), sColourF(0.f, 0.f, 1.f, 0.75f));
         }
-      }
-
-      drawTime (vg, getFrameString (song, song->getFirstFrame()),
-                    getFrameString (song, song->getPlayFrame()),
-                    getFrameString (song, song->getLengthFrame()));
-      }
       //}}}
 
-    if (kVideoPoolDebug && videoPool && (playerPts >= 0))
-      drawVideoPool (vg, song, videoPool, playerPts);
+      cSong* song = mLoader->getSong();
+      if (song) {
+        //{{{  draw song
+        { // locked scope
+        std::shared_lock<std::shared_mutex> lock (song->getSharedMutex());
+
+        // wave left right frames, clip right not left
+        int playFrame = song->getPlayFrame();
+        int leftWaveFrame = playFrame - (((int(mPixSize.x)+mFrameWidth)/2) * mFrameStep) / mFrameWidth;
+        int rightWaveFrame = playFrame + (((int(mPixSize.x)+mFrameWidth)/2) * mFrameStep) / mFrameWidth;
+        rightWaveFrame = std::min (rightWaveFrame, song->getLastFrame());
+
+        drawRange (vg, song, playFrame, leftWaveFrame, rightWaveFrame);
+        if (song->getNumFrames()) {
+          bool mono = song->getNumChannels() == 1;
+          drawWave (vg, song, playFrame, leftWaveFrame, rightWaveFrame, mono);
+          if (mShowOverview)
+            drawOverview (vg, song, playFrame, mono);
+          drawFreq (vg, song, playFrame);
+          }
+        }
+
+        drawTime (vg, getFrameString (song, song->getFirstFrame()),
+                      getFrameString (song, song->getPlayFrame()),
+                      getFrameString (song, song->getLengthFrame()));
+        }
+        //}}}
+
+      if (kVideoPoolDebug && videoPool && (playerPts >= 0))
+        drawVideoPool (vg, song, videoPool, playerPts);
+      }
     }
   //}}}
 

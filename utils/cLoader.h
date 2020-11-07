@@ -29,6 +29,7 @@ public:
   void getFracs (float& loadFrac, float& audioFrac, float& videoFrac);
   void getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize);
   bool getRunning() { return mRunning; }
+  bool getShowGraphics() { return mShowGraphics; }
 
   // loaders
   void hls (bool radio, const std::string& channelName, int audioRate, int videoRate, eFlags flags);
@@ -38,6 +39,7 @@ public:
   // actions
   void skipped();
   void stopAndWait();
+  void toggleShowGraphics() { mShowGraphics = !mShowGraphics; }
 
   // vars
   bool mExit = false;
@@ -66,4 +68,6 @@ private:
   // for info graphics
   int mLoadSize = 0;
   float mLoadFrac = 0.f;
+
+  bool mShowGraphics = true;
   };
