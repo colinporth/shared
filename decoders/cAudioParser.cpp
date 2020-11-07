@@ -3,44 +3,11 @@
 #include <cstring>
 #include "cAudioParser.h"
 
-#include "cAacDecoder.h"
-#include "cMp3Decoder.h"
-#include "cFFmpegAudioDecoder.h"
-
 #include "../utils/cLog.h"
 //}}}
 
 static uint8_t* mJpegPtr = nullptr;
 static int mJpegLen = 0;
-
-//{{{
-iAudioDecoder* cAudioParser::create (eAudioFrameType frameType) {
-
-  switch (frameType) {
-    case eAudioFrameType::eMp3:
-      cLog::log (LOGINFO, "createAudioDecoder ffmpeg mp3");
-      return new cFFmpegAudioDecoder (frameType);
-      //mAudioDecoder = new cMp3Decoder();
-      break;
-
-    case eAudioFrameType::eAacAdts:
-      cLog::log (LOGINFO, "createAudioDecoder ffmpeg aacAdts");
-      return new cFFmpegAudioDecoder (frameType);
-      //mAudioDecoder = new cAacDecoder();
-      break;
-
-    case eAudioFrameType::eAacLatm:
-      cLog::log (LOGINFO, "createAudioDecoder ffmpeg aacLatm");
-      return new cFFmpegAudioDecoder (frameType);
-      break;
-
-    default:
-      cLog::log (LOGERROR, "createAudioDecoder frameType:%d", frameType);
-    }
-
-  return nullptr;
-  }
-//}}}
 
 //{{{
 uint8_t* cAudioParser::getJpeg (int& len) {

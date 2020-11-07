@@ -19,6 +19,7 @@
 // audio decode
 #include "../decoders/cAudioParser.h"
 #include "../decoders/iAudioDecoder.h"
+#include "../decoders/cFFmpegAudioDecoder.h"
 
 // video pool
 #include "../utils/iVideoPool.h"
@@ -44,6 +45,32 @@ using namespace chrono;
 //}}}
 
 namespace {
+  //{{{
+  iAudioDecoder* createAudioDecoder (eAudioFrameType frameType) {
+
+    switch (frameType) {
+      case eAudioFrameType::eMp3:
+        cLog::log (LOGINFO, "createAudioDecoder ffmpeg mp3");
+        return new cFFmpegAudioDecoder (frameType);
+        break;
+
+      case eAudioFrameType::eAacAdts:
+        cLog::log (LOGINFO, "createAudioDecoder ffmpeg aacAdts");
+        return new cFFmpegAudioDecoder (frameType);
+        break;
+
+      case eAudioFrameType::eAacLatm:
+        cLog::log (LOGINFO, "createAudioDecoder ffmpeg aacLatm");
+        return new cFFmpegAudioDecoder (frameType);
+        break;
+
+      default:
+        cLog::log (LOGERROR, "createAudioDecoder frameType:%d", frameType);
+      }
+
+    return nullptr;
+    }
+  //}}}
   //{{{
   string getHlsHostName (bool radio) {
     return radio ? "as-hls-uk-live.bbcfmt.s.llnwi.net" : "vs-hls-uk-live.akamaized.net";
@@ -727,7 +754,7 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
             case 15: // aacAdts
               service->setAudioPid (pid);
               if (service->isSelected()) {
-                audioDecoder = cAudioParser::create (eAudioFrameType::eAacAdts);
+                audioDecoder = createAudioDecoder (eAudioFrameType::eAacAdts);
                 mPidParsers.insert (
                   map<int,cPidParser*>::value_type (pid,
                     new cAudioPesParser (pid, audioDecoder, true, frameNum, addAudioFrameCallback)));
@@ -853,7 +880,7 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                   }
 
                 if (!audioDecoder)
-                  audioDecoder = cAudioParser::create (eAudioFrameType::eAacAdts);
+                  audioDecoder = createAudioDecoder (eAudioFrameType::eAacAdts);
 
                 // parse audio pes for audio frames
                 uint8_t* pesEnd = pesPtr;
@@ -999,7 +1026,7 @@ void cLoader::icycast (const string& url) {
 
     mSong = new cSong();
     mSongPlayer = new cSongPlayer();
-    iAudioDecoder* audioDecoder = cAudioParser::create (eAudioFrameType::eAacAdts);
+    iAudioDecoder* audioDecoder = createAudioDecoder (eAudioFrameType::eAacAdts);
 
     while (!mExit) {
       int icySkipCount = 0;
@@ -1207,7 +1234,7 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags flags) {
             service->setAudioPid (pid);
 
             if (service->isSelected()) {
-              audioDecoder = cAudioParser::create (eAudioFrameType::eAacAdts);
+              audioDecoder = createAudioDecoder (eAudioFrameType::eAacAdts);
               mPidParsers.insert (map<int,cPidParser*>::value_type (pid,
                 new cAudioPesParser (pid, audioDecoder, true, frameNum, addAudioFrameCallback)));
               }
@@ -1219,7 +1246,7 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags flags) {
             service->setAudioPid (pid);
 
             if (service->isSelected()) {
-              audioDecoder = cAudioParser::create (eAudioFrameType::eAacLatm);
+              audioDecoder = createAudioDecoder (eAudioFrameType::eAacLatm);
               mPidParsers.insert (map<int,cPidParser*>::value_type (pid,
                 new cAudioPesParser (pid, audioDecoder, true, frameNum, addAudioFrameCallback)));
               }
@@ -1357,7 +1384,7 @@ void cLoader::loadAudio (uint8_t* first, int size, eFlags flags) {
   int sampleRate;
   uint8_t* last = first + size;
   auto fileFrameType = cAudioParser::parseSomeFrames (first, last, sampleRate);
-  iAudioDecoder* audioDecoder = cAudioParser::create (fileFrameType);
+  iAudioDecoder* audioDecoder = createAudioDecoder (fileFrameType);
 
   //{{{  jpeg
   //int jpegLen;

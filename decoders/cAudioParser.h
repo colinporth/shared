@@ -3,8 +3,6 @@
 
 class cAudioParser {
 public:
-  static iAudioDecoder* create (eAudioFrameType frameType);
-
   static uint8_t* getJpeg (int& len);
 
   static uint8_t* parseFrame (uint8_t* framePtr, uint8_t* frameLast, int& frameLength);
