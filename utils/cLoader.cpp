@@ -1332,13 +1332,12 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags flags) {
 
     if (loadPts < mPlayPts)
       cLog::log (LOGINFO, "skip back %d %d", loadPts/1800, mPlayPts/1800);
-    else if (loadPts > mPlayPts + (3 * 90000))
+    if (loadPts > mPlayPts + (3 * 90000))
       cLog::log (LOGINFO, "skip forward %d %d", loadPts/1800, mPlayPts/1800);
-    else {
-      // block loading when load frameNum is >100 audio frames ahead of play frameNum
-      while (!mExit && (frameNum > mSong->getPlayFrame() + 100))
-        this_thread::sleep_for (20ms);
-      }
+
+    // block loading when load frameNum is >100 audio frames ahead of play frameNum
+    while (!mExit && (frameNum > mSong->getPlayFrame() + 100))
+      this_thread::sleep_for (20ms);
     }
   mLoadFrac = 1.f;
 
