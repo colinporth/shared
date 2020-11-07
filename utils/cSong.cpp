@@ -24,7 +24,6 @@ cSong::cSong (eAudioFrameType frameType, int numChannels, int sampleRate, int sa
   : mFrameType(frameType), mNumChannels(numChannels), mSampleRate(sampleRate), mSamplesPerFrame(samplesPerFrame),
     mMaxMapSize(maxMapSize) {
 
-  clearFrames();
   mFftrConfig = kiss_fftr_alloc (mSamplesPerFrame, 0, 0, 0);
   }
 //}}}
@@ -32,26 +31,16 @@ cSong::cSong (eAudioFrameType frameType, int numChannels, int sampleRate, int sa
 cSong::~cSong() {
 
   unique_lock<shared_mutex> lock (mSharedMutex);
-  clearFrames();
+
+  // reset frames
+  mSelect.clearAll();
+
+  for (auto frame : mFrameMap)
+    delete (frame.second);
+  mFrameMap.clear();
   }
 //}}}
 
-//{{{
-void cSong::clear() {
-
-  unique_lock<shared_mutex> lock (mSharedMutex);
-
-  mFrameType = eAudioFrameType::eUnknown;
-  mNumChannels = 0;
-  mSampleRate = 0;
-  mSamplesPerFrame = 0;
-
-  clearFrames();
-
-  // ??? should deallocate ???
-  //fftrConfig = kiss_fftr_alloc (mSamplesPerFrame, 0, 0, 0);
-  }
-//}}}
 //{{{
 void cSong::addFrame (bool reuseFront, int frameNum, float* samples, bool ourSamples, int totalFrames, int64_t pts) {
 
@@ -187,24 +176,6 @@ void cSong::nextSilencePlayFrame() {
 //}}}
 
 // private
-//{{{
-void cSong::clearFrames() {
-
-  // reset frames
-  mPlayFrame = 0;
-  mTotalFrames = 0;
-  mSelect.clearAll();
-
-  for (auto frame : mFrameMap)
-    delete (frame.second);
-  mFrameMap.clear();
-
-  // reset maxValues
-  mMaxPowerValue = kMinPowerValue;
-  mMaxPeakValue = kMinPeakValue;
-  mMaxFreqValue = kMinFreqValue;
-  }
-//}}}
 //{{{
 void cSong::checkSilenceWindow (int frameNum) {
 

@@ -125,7 +125,6 @@ public:
   cSong (eAudioFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame, int maxMapSize);
   virtual ~cSong();
 
-  void clear();
   void addFrame (bool reuseFront, int frameNum, float* samples, bool ourSamples, int totalFrames, int64_t pts);
 
   //{{{  gets
@@ -196,8 +195,6 @@ protected:
   std::shared_mutex mSharedMutex;
 
 private:
-  void clearFrames();
-
   void checkSilenceWindow (int frameNum);
   int skipPrev (int fromFrame, bool silence);
   int skipNext (int fromFrame, bool silence);
