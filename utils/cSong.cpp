@@ -162,11 +162,12 @@ void cSong::cSelect::end() {
 
 // cSong
 //{{{
-cSong::cSong (eAudioFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame, 
-              int64_t(ptsDuration), int maxMapSize)
-  : mSampleRate(sampleRate), mSamplesPerFrame(samplesPerFrame),
-    mFrameType(frameType), mNumChannels(numChannels),
-    mPtsDuration(ptsDuration), mMaxMapSize(maxMapSize) {
+cSong::cSong (eAudioFrameType frameType, int numChannels,
+              int sampleRate, int samplesPerFrame,
+              int64_t ptsDuration, int maxMapSize)
+    : mSampleRate(sampleRate), mSamplesPerFrame(samplesPerFrame),
+      mFrameType(frameType), mNumChannels(numChannels),
+      mPtsDuration(ptsDuration), mMaxMapSize(maxMapSize) {
 
   mFftrConfig = kiss_fftr_alloc (mSamplesPerFrame, 0, 0, 0);
   }
@@ -190,11 +191,19 @@ cSong::~cSong() {
 
 //{{{
 int64_t cSong::getPlayPts() {
-  auto framePtr = getFramePtr (mPlayFrame);
+
+  auto framePtr = findFrame (mPlayFrame);
   return framePtr ? framePtr->getPts() : -1;
   }
 //}}}
 
+//{{{
+cSong::cFrame* cSong::findFrame (int frameNum) {
+
+  auto it = mFrameMap.find (frameNum);
+  return (it == mFrameMap.end()) ? nullptr : it->second;
+  }
+//}}}
 //{{{
 void cSong::addFrame (bool reuseFront, int frameNum, float* samples, bool ownSamples, int totalFrames, int64_t pts) {
 
@@ -334,7 +343,7 @@ void cSong::nextSilencePlayFrame() {
 int cSong::skipPrev (int fromFrame, bool silence) {
 
   for (int frame = fromFrame-1; frame >= getFirstFrame(); frame--) {
-    auto framePtr = getFramePtr (frame);
+    auto framePtr = findFrame (frame);
     if (framePtr && (framePtr->isSilence() ^ silence))
       return frame;
     }
@@ -346,7 +355,7 @@ int cSong::skipPrev (int fromFrame, bool silence) {
 int cSong::skipNext (int fromFrame, bool silence) {
 
   for (int frame = fromFrame; frame <= getLastFrame(); frame++) {
-    auto framePtr = getFramePtr (frame);
+    auto framePtr = findFrame (frame);
     if (framePtr && (framePtr->isSilence() ^ silence))
       return frame;
     }
@@ -362,7 +371,7 @@ void cSong::checkSilenceWindow (int frameNum) {
   // walk backwards looking for continuous loaded quiet frames
   auto windowSize = 0;
   while (true) {
-    auto framePtr = getFramePtr (frameNum);
+    auto framePtr = findFrame (frameNum);
     if (framePtr && framePtr->isQuiet()) {
       windowSize++;
       frameNum--;
@@ -374,7 +383,7 @@ void cSong::checkSilenceWindow (int frameNum) {
   if (windowSize > kSilenceWindowFrames) {
     // walk forward setting silence for continuous loaded quiet frames
     while (true) {
-      auto framePtr = getFramePtr (++frameNum);
+      auto framePtr = findFrame (++frameNum);
       if (framePtr && framePtr->isQuiet())
         framePtr->setSilence (true);
       else
@@ -387,9 +396,9 @@ void cSong::checkSilenceWindow (int frameNum) {
 // cHlsSong
 //{{{
 cHlsSong::cHlsSong (eAudioFrameType frameType, int numChannels,
-                   int sampleRate, int samplesPerFrame, int framesPerChunk, 
+                   int sampleRate, int samplesPerFrame, int framesPerChunk,
                    int64_t ptsDuration, int maxMapSize)
-  : cSong(frameType, numChannels, sampleRate, samplesPerFrame, ptsDuration, maxMapSize), 
+  : cSong(frameType, numChannels, sampleRate, samplesPerFrame, ptsDuration, maxMapSize),
     mFramesPerChunk(framesPerChunk) {}
 //}}}
 cHlsSong::~cHlsSong() {}
@@ -413,7 +422,7 @@ bool cHlsSong::getLoadChunk (int& chunkNum, int& frameNum, int preloadChunks) {
   while ((loadedChunks < preloadChunks) &&
          ((now - (mBaseTimePoint + (chunkNumOffset * 6400ms))).count() > secs))
     // chunkNum chunk should be available
-    if (!getFramePtr (mBaseFrameNum + (chunkNumOffset * mFramesPerChunk))) {
+    if (!findFrame (mBaseFrameNum + (chunkNumOffset * mFramesPerChunk))) {
       // not loaded, return chunkNum to load
       chunkNum = mBaseChunkNum + chunkNumOffset;
       frameNum = mBaseFrameNum + (chunkNum - mBaseChunkNum) * mFramesPerChunk;

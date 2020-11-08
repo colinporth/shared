@@ -122,7 +122,7 @@ public:
     int mItemNum = 0;
     };
   //}}}
-  cSong (eAudioFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame, 
+  cSong (eAudioFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame,
          int64_t ptsDuration, int maxMapSize);
   virtual ~cSong();
 
@@ -137,20 +137,16 @@ public:
   int getSampleRate() { return mSampleRate; }
   int getSamplesPerFrame() { return mSamplesPerFrame; }
 
+  int getPlayFrame() { return mPlayFrame; }
   int getFirstFrame() { return mFrameMap.empty() ? 0 : mFrameMap.begin()->first; }
   int getLastFrame() { return mFrameMap.empty() ? 0 : mFrameMap.rbegin()->first;  }
   int getNumFrames() { return mFrameMap.empty() ? 0 : (mFrameMap.rbegin()->first - mFrameMap.begin()->first + 1); }
   int getTotalFrames() { return mTotalFrames; }
-  int getPlayFrame() { return mPlayFrame; }
-  int64_t getPlayPts();
   virtual int getLengthFrame() { return mTotalFrames; }
 
-  //{{{
-  cFrame* getFramePtr (int frame) {
-    auto it = mFrameMap.find (frame);
-    return (it == mFrameMap.end()) ? nullptr : it->second;
-    }
-  //}}}
+  int64_t getPlayPts();
+  int64_t getPtsDuration() { return mPtsDuration; }
+
   cSelect& getSelect() { return mSelect; }
 
   // max nums for early allocations
@@ -177,6 +173,7 @@ public:
   void prevSilencePlayFrame();
   void nextSilencePlayFrame();
 
+  cFrame* findFrame (int frameNum);
   void addFrame (bool reuseFront, int frameNum, float* samples, bool ownSamples, int totalFrames, int64_t pts);
 
 protected:
@@ -226,7 +223,7 @@ private:
 class cHlsSong : public cSong {
 public:
   cHlsSong (eAudioFrameType frameType, int numChannels,
-            int sampleRate, int samplesPerFrame, int framesPerChunk, 
+            int sampleRate, int samplesPerFrame, int framesPerChunk,
             int64_t ptsDuration, int maxMapSize);
   virtual ~cHlsSong();
 

@@ -49,7 +49,7 @@ cSongPlayer::cSongPlayer (cSong* song, bool streaming) {
             // lambda callback - load srcSamples
             shared_lock<shared_mutex> lock (song->getSharedMutex());
 
-            framePtr = song->getFramePtr (song->getPlayFrame());
+            framePtr = song->findFrame (song->getPlayFrame());
             if (mPlaying && framePtr && framePtr->getSamples()) {
               if (song->getNumChannels() == 1) {
                 //{{{  mono to stereo

@@ -1084,7 +1084,7 @@ void cLoader::icycast (const string& url) {
                 // enough data to determine frameType and sampleRate (wrong for aac sbr)
                 frameNum = 0;
                 mSong = new cSong (frameType, audioDecoder->getNumChannels(),
-                                   audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame(), 
+                                   audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame(),
                                    1, 1000);
                 }
 
