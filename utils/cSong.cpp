@@ -379,7 +379,7 @@ void cSong::checkSilenceWindow (int frameNum) {
 // cHlsSong
 //{{{
 cHlsSong::cHlsSong (eAudioFrameType frameType, int numChannels,
-                   int sampleRate, int samplesPerFrame, int maxMapSize, int framesPerChunk)
+                   int sampleRate, int samplesPerFrame, int framesPerChunk, int maxMapSize)
   : cSong(frameType, numChannels, sampleRate, samplesPerFrame, maxMapSize), mFramesPerChunk(framesPerChunk) {}
 //}}}
 cHlsSong::~cHlsSong() {}

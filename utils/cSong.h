@@ -219,8 +219,8 @@ private:
 // cHlsSong - cSong with added HLS
 class cHlsSong : public cSong {
 public:
-  cHlsSong (eAudioFrameType frameType, int numChannels,
-            int sampleRate, int samplesPerFrame, int maxMapSize, int framesPerChunk);
+  cHlsSong (eAudioFrameType frameType, int numChannels, 
+            int sampleRate, int samplesPerFrame, int framesPerChunk, int maxMapSize);
   virtual ~cHlsSong();
 
   // gets

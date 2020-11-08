@@ -715,29 +715,29 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
   stopAndWait();
 
   thread ([=]() {
-    // hls http chunk load thread lambda
     cLog::setThreadName ("hlsL");
-    mExit = false;
-    mRunning = true;
-    // audioRate < 128000 use aacHE, more samplesPerframe, less framesPerChunk
-    cHlsSong* hlsSong = new cHlsSong (eAudioFrameType::eAacAdts, 2, 48000,
-                                      audioRate < 128000 ? 2048 : 1024, 1000,
-                                      audioRate < 128000 ? (radio ? 150 : 180) : (radio ? 300 : 360));
-    mSongPlayer = new cSongPlayer();
-    mSong = hlsSong;
 
-    //{{{  add parsers,callbacks
-    int chunkNum;
-    int frameNum;
+    // audioRate < 128000 aacHE, double samplesPerframe, half framesPerChunk
+    cHlsSong* hlsSong = new cHlsSong (eAudioFrameType::eAacAdts, 2, 48000,
+                                      (audioRate < 128000) ? 2048 : 1024,
+                                      (audioRate < 128000) ? (radio ? 150 : 180) : (radio ? 300 : 360),
+                                      1000);
+    mSong = hlsSong;
 
     iAudioDecoder* audioDecoder = nullptr;
     iVideoPool* videoPool = nullptr;
+    //{{{  add parsers,callbacks
+    int chunkNum;
+    int frameNum;
 
     auto addAudioFrameCallback = [&](bool reuseFront, float* samples, int num, int64_t pts) noexcept {
       // add frame to song and start playing
       //cLog::log (LOGINFO, "adding frame %d %d", num, pts / 1920);
       hlsSong->addFrame (reuseFront, num, samples, true, hlsSong->getNumFrames(), pts);
-      mSongPlayer->start (hlsSong, &mPlayPts, true);
+      if (!mSongPlayer) {
+        mSongPlayer = new cSongPlayer();
+        mSongPlayer->start (hlsSong, &mPlayPts, true);
+        }
       };
 
     auto addStreamCallback = [&](int sid, int pid, int type) noexcept {
@@ -795,6 +795,8 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
     mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
     //}}}
 
+    mExit = false;
+    mRunning = true;
     while (!mExit) {
       cPlatformHttp http;
       string redirectedHostName = http.getRedirect (
@@ -892,7 +894,10 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                   float* samples = audioDecoder->decodeFrame (pesPtr, frameSize, frameNum);
                   if (samples) {
                     hlsSong->addFrame (chunkReuseFront, frameNum++, samples, true, hlsSong->getNumFrames(), 0);
-                    mSongPlayer->start (hlsSong, &mPlayPts, true);
+                    if (!mSongPlayer) {
+                      mSongPlayer = new cSongPlayer();
+                      mSongPlayer->start (hlsSong, &mPlayPts, true);
+                      }
                     }
                   else
                     cLog::log (LOGERROR, "aud parser failed to decode %d", frameNum);
@@ -1340,7 +1345,7 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags flags) {
     while (!mExit && (frameNum > mSong->getPlayFrame() + 100))
       this_thread::sleep_for (20ms);
     }
-  mLoadFrac = 1.f;
+  mLoadFrac = 0.f;
 
   // finish parsers
   for (auto parser : mPidParsers)
@@ -1418,7 +1423,7 @@ void cLoader::loadAudio (uint8_t* first, int size, eFlags flags) {
       if (samples) {
         if (!mSong) {
           // first decodeFrame provides aacHE sampleRate,samplesPerFrame, header is wrong
-          mSong = new cSong (fileFrameType,  audioDecoder->getNumChannels(), 
+          mSong = new cSong (fileFrameType,  audioDecoder->getNumChannels(),
                              audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame(), 0);
           mSongPlayer = new cSongPlayer();
           }
@@ -1431,7 +1436,7 @@ void cLoader::loadAudio (uint8_t* first, int size, eFlags flags) {
       mLoadFrac = float(framePtr - first) / size;
       }
     }
-  mLoadFrac = float(framePtr - first) / size;
+  mLoadFrac = 0.f;
 
   // duration info
   int duration = (mSong->getTotalFrames() * mSong->getSamplesPerFrame()) / (mSong->getSampleRate() / 1000);
