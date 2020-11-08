@@ -734,10 +734,8 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
       // add frame to song and start playing
       //cLog::log (LOGINFO, "adding frame %d %d", num, pts / 1920);
       hlsSong->addFrame (reuseFront, num, samples, true, hlsSong->getNumFrames(), pts);
-      if (!mSongPlayer) {
-        mSongPlayer = new cSongPlayer();
-        mSongPlayer->start (hlsSong, &mPlayPts, true);
-        }
+      if (!mSongPlayer) 
+        mSongPlayer = new cSongPlayer (hlsSong, &mPlayPts, true);
       };
 
     auto addStreamCallback = [&](int sid, int pid, int type) noexcept {
@@ -894,10 +892,8 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                   float* samples = audioDecoder->decodeFrame (pesPtr, frameSize, frameNum);
                   if (samples) {
                     hlsSong->addFrame (chunkReuseFront, frameNum++, samples, true, hlsSong->getNumFrames(), 0);
-                    if (!mSongPlayer) {
-                      mSongPlayer = new cSongPlayer();
-                      mSongPlayer->start (hlsSong, &mPlayPts, true);
-                      }
+                    if (!mSongPlayer)
+                      mSongPlayer = new cSongPlayer (hlsSong, &mPlayPts, true);
                     }
                   else
                     cLog::log (LOGERROR, "aud parser failed to decode %d", frameNum);
@@ -939,7 +935,8 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
             this_thread::sleep_for (100ms);
           }
 
-        mSongPlayer->stopAndWait();
+        if (mSongPlayer)
+          mSongPlayer->stopAndWait();
         }
       }
 
@@ -1112,11 +1109,12 @@ void cLoader::icycast (const string& url) {
                 frameNum = 0;
                 mSong = new cSong (frameType, audioDecoder->getNumChannels(),
                                    audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame(), 1000);
-                mSongPlayer = new cSongPlayer();
                 }
 
               mSong->addFrame (true, frameNum++, samples, true, mSong->getNumFrames()+1, 0);
-              mSongPlayer->start (mSong, &mPlayPts, true);
+
+              if (!mSongPlayer)
+                mSongPlayer = new cSongPlayer(mSong, &mPlayPts, true);
               }
             buffer += frameSize;
             }
@@ -1136,7 +1134,8 @@ void cLoader::icycast (const string& url) {
         );
 
       cLog::log (LOGINFO, "icyThread");
-      mSongPlayer->stopAndWait();
+      if (mSongPlayer)
+        mSongPlayer->stopAndWait();
       }
 
     //{{{  delete resources
@@ -1215,7 +1214,6 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags flags) {
   auto timePoint = system_clock::now();
 
   mSong = new cSong (eAudioFrameType::eAacAdts, 2, 48000, 1024, 0);
-  mSongPlayer = new cSongPlayer();
 
   int frameNum = 0;
   int64_t loadPts = -1;
@@ -1226,7 +1224,8 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags flags) {
     frameNum = num;
     loadPts = pts;
     mSong->addFrame (reuseFront, num, samples, true, mSong->getNumFrames(), pts);
-    mSongPlayer->start (mSong, &mPlayPts, true);
+    if (!mSongPlayer)
+      mSongPlayer = new cSongPlayer (mSong, &mPlayPts, true);
     };
 
   auto addStreamCallback = [&](int sid, int pid, int type) noexcept {
@@ -1354,7 +1353,8 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags flags) {
   int duration = (mSong->getTotalFrames() * mSong->getSamplesPerFrame()) / (mSong->getSampleRate() / 1000);
   cLog::log (LOGINFO, "load ts %dms took %dms",
                       duration, duration_cast<milliseconds>(system_clock::now() - timePoint).count());
-  mSongPlayer->wait();
+  if (mSongPlayer)
+    mSongPlayer->wait();
 
   // delete resources
   for (auto parser : mPidParsers) {
@@ -1403,14 +1403,15 @@ void cLoader::loadAudio (uint8_t* first, int size, eFlags flags) {
   if (fileFrameType == eAudioFrameType::eWav) {
     // wav - samples point into memmaped file directly
     mSong = new cSong (fileFrameType, 2, sampleRate, kWavFrameSamples, 0);
-    mSongPlayer = new cSongPlayer();
 
     int frameSize = 0;
     auto samples = cAudioParser::parseFrame (framePtr, last, frameSize);
     while (!mExit && ((samples + (kWavFrameSamples * 2 * sizeof(float))) <= last)) {
       mSong->addFrame (true, frameNum++, (float*)samples, false, size / (kWavFrameSamples * 2 * sizeof(float)), 0);
       samples += kWavFrameSamples * 2 * sizeof(float);
-      mSongPlayer->start (mSong, &mPlayPts, false);
+      if (!mSongPlayer) {
+        mSongPlayer = new cSongPlayer(mSong, &mPlayPts, false);
+        }
       mLoadFrac = float(samples - first) / size;
       }
     }
@@ -1425,12 +1426,13 @@ void cLoader::loadAudio (uint8_t* first, int size, eFlags flags) {
           // first decodeFrame provides aacHE sampleRate,samplesPerFrame, header is wrong
           mSong = new cSong (fileFrameType,  audioDecoder->getNumChannels(),
                              audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame(), 0);
-          mSongPlayer = new cSongPlayer();
           }
         int numFrames = mSong->getNumFrames();
         int totalFrames = (numFrames > 0) ? (size / (int(framePtr - first) / numFrames)) : 0;
         mSong->addFrame (true, frameNum++, samples, true, totalFrames+1, 0);
-        mSongPlayer->start (mSong, &mPlayPts, false);
+        if (!mSongPlayer) {
+          mSongPlayer = new cSongPlayer(mSong, &mPlayPts, false);
+          }
         }
       framePtr += frameSize;
       mLoadFrac = float(framePtr - first) / size;

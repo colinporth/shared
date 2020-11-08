@@ -5,6 +5,7 @@ class cSong;
 
 class cSongPlayer {
 public:
+  cSongPlayer (cSong* song, int64_t* playPts, bool streaming);
   ~cSongPlayer() {}
 
   // toggle
@@ -13,12 +14,9 @@ public:
   // actions
   void wait();
   void stopAndWait();
-  void start (cSong* song, int64_t* playPts, bool streaming);
 
 private:
   bool mExit = false;
   bool mPlaying = true;
-
-  bool mStarted = false;
   std::thread mPlayerThread;
   };
