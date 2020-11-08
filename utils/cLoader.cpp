@@ -145,7 +145,6 @@ public:
   virtual int getQueueSize() { return 0; }
   virtual float getQueueFrac() { return 0.f; }
 
-  virtual void clear (int num) {}
   virtual void stop() {}
   virtual void processLast (bool reuseFront) {}
 
@@ -439,7 +438,6 @@ public:
   virtual int getQueueSize() { return (int)mQueue.size_approx(); }
   virtual float getQueueFrac() { return (float)mQueue.size_approx() / mQueue.max_capacity(); }
 
-  virtual void clear (int num) = 0;
   //{{{
   virtual void stop() {
 
@@ -562,14 +560,6 @@ public:
   virtual ~cAudioPesParser() {}
 
   //{{{
-  virtual void clear (int num) {
-  // num is cSong frameNum, audio frames since midnight
-    mNum = num;
-    mPesSize = 0;
-    mPts = 0;
-    }
-  //}}}
-  //{{{
   virtual void processLast (bool reuseFront) {
   // count audio frames in pes
 
@@ -629,15 +619,6 @@ public:
     : cPesParser (pid, "vid", useQueue), mVideoPool(videoPool) {}
   virtual ~cVideoPesParser() {}
 
-  //{{{
-  virtual void clear (int num) {
-  // use num as frame in chunk for ffmpeg pts synthesis
-
-    mNum = 0;
-    mPesSize = 0;
-    mPts = 0;
-    }
-  //}}}
   //{{{
   virtual void processLast (bool reuseFront) {
     if (mPesSize) {
@@ -734,7 +715,7 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
       // add frame to song and start playing
       //cLog::log (LOGINFO, "adding frame %d %d", num, pts / 1920);
       hlsSong->addFrame (reuseFront, num, samples, true, hlsSong->getNumFrames(), pts);
-      if (!mSongPlayer) 
+      if (!mSongPlayer)
         mSongPlayer = new cSongPlayer (hlsSong, &mPlayPts, true);
       };
 
@@ -813,8 +794,6 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
         while (!mExit) {
           if (hlsSong->getLoadChunk (chunkNum, frameNum, 2)) {
             bool chunkReuseFront = frameNum >= hlsSong->getPlayFrame();
-            for (auto parser : mPidParsers)
-              parser.second->clear (frameNum);
             int contentParsed = 0;
             if (http.get (redirectedHostName,
                           getHlsPathName (radio, channel, audioRate, videoRate) + '-' + dec(chunkNum) + ".ts", "",
