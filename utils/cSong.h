@@ -15,7 +15,6 @@
 #include "../kissFft/kiss_fftr.h"
 //}}}
 
-//{{{
 class cSong {
 public:
   //{{{
@@ -121,11 +120,8 @@ public:
     int mItemNum = 0;
     };
   //}}}
-
   cSong (eAudioFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame, int maxMapSize);
   virtual ~cSong();
-
-  void addFrame (bool reuseFront, int frameNum, float* samples, bool ourSamples, int totalFrames, int64_t pts);
 
   //{{{  gets
   std::shared_mutex& getSharedMutex() { return mSharedMutex; }
@@ -143,6 +139,7 @@ public:
   int getNumFrames() { return mFrameMap.empty() ? 0 : (mFrameMap.rbegin()->first - mFrameMap.begin()->first + 1); }
   int getTotalFrames() { return mTotalFrames; }
   int getPlayFrame() { return mPlayFrame; }
+  virtual int getLengthFrame() { return mTotalFrames; }
 
   //{{{
   cFrame* getFramePtr (int frame) {
@@ -163,50 +160,40 @@ public:
   float getMaxFreqValue() { return mMaxFreqValue; }
   int getNumFreqBytes() { return kMaxFreqBytes; }
   //}}}
-  virtual int getLengthFrame() { return mTotalFrames; }
-  //{{{  sets
-  void setNumChannels (int numChannels) { mNumChannels = numChannels; }
-  void setSampleRate (int sampleRate) { mSampleRate = sampleRate; }
-  void setSamplesPerFrame (int samplesPerFrame) { mSamplesPerFrame = samplesPerFrame; }
-  //{{{
-  void setFixups (int numChannels, int sampleRate, int samplesPerFrame) {
-    mNumChannels = numChannels;
-    mSampleRate = sampleRate;
-    mSamplesPerFrame = samplesPerFrame;
-    }
-  //}}}
 
+  // sets
   void setChanged (bool changed) { mChanged = changed; }
 
   // playFrame
   virtual void setPlayFrame (int frame);
   void incPlaySec (int secs, bool useSelectRange);
   void incPlayFrame (int frames, bool useSelectRange);
-  //}}}
 
   // actions
   void prevSilencePlayFrame();
   void nextSilencePlayFrame();
 
+  void addFrame (bool reuseFront, int frameNum, float* samples, bool ourSamples, int totalFrames, int64_t pts);
+
 protected:
-  int mPlayFrame = 0;
-  int mSampleRate = 0;
-  int mSamplesPerFrame = 0;
+  const int mSampleRate = 0;
+  const int mSamplesPerFrame = 0;
   std::shared_mutex mSharedMutex;
+  int mPlayFrame = 0;
 
 private:
-  void checkSilenceWindow (int frameNum);
-  int skipPrev (int fromFrame, bool silence);
-  int skipNext (int fromFrame, bool silence);
-
+  //{{{  static constexpr
   static constexpr int kMaxNumChannels = 2;           // arbitrary chan max
   static constexpr int kMaxNumSamplesPerFrame = 2048; // arbitrary frame max
   static constexpr int kMaxFreq = (kMaxNumSamplesPerFrame / 2) + 1; // fft max
   static constexpr int kMaxFreqBytes = 512; // arbitrary graphics max
-
-  // vars
-  eAudioFrameType mFrameType = eAudioFrameType::eUnknown;
-  int mNumChannels = kMaxNumChannels;
+  //}}}
+  int skipPrev (int fromFrame, bool silence);
+  int skipNext (int fromFrame, bool silence);
+  void checkSilenceWindow (int frameNum);
+  //{{{  vars
+  const eAudioFrameType mFrameType;
+  const int mNumChannels;
 
   int mMaxMapSize = 0;
   std::map <int, cFrame*> mFrameMap;
@@ -217,21 +204,19 @@ private:
 
   cSelect mSelect;
 
-  //{{{  fft vars
+  // fft vars
   kiss_fftr_cfg mFftrConfig;
   kiss_fft_scalar mTimeBuf[kMaxNumSamplesPerFrame];
   kiss_fft_cpx mFreqBuf[kMaxFreq];
-  //}}}
-  //{{{  max stuff for ui
+
+  // max stuff for ui
   float mMaxPowerValue = 0.f;
   float mMaxPeakValue = 0.f;
   float mMaxFreqValue = 0.f;
   //}}}
   };
-//}}}
 
-// song with added HLS
-//{{{
+// cHlsSong - cSong with added HLS
 class cHlsSong : public cSong {
 public:
   cHlsSong (eAudioFrameType frameType, int numChannels,
@@ -246,15 +231,15 @@ public:
   // sets
   void setBase (int chunkNum, int64_t pts,
                 std::chrono::system_clock::time_point timePoint, std::chrono::seconds offset);
-
   virtual void setPlayFrame (int frame);
 
 private:
+  //{{{  vars
   int mFramesPerChunk = 0;
 
   int mBaseChunkNum = 0;
   int mBaseFrameNum = 0;
   int64_t mBasePts = -1;
   std::chrono::system_clock::time_point mBaseTimePoint;
+  //}}}
   };
-//}}}

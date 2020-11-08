@@ -720,7 +720,7 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
     mExit = false;
     mRunning = true;
     // audioRate < 128000 use aacHE, more samplesPerframe, less framesPerChunk
-    cHlsSong* hlsSong = new cHlsSong (eAudioFrameType::eAacAdts, 2, 48000, 
+    cHlsSong* hlsSong = new cHlsSong (eAudioFrameType::eAacAdts, 2, 48000,
                                       audioRate < 128000 ? 2048 : 1024, 1000,
                                       audioRate < 128000 ? (radio ? 150 : 180) : (radio ? 300 : 360));
     mSongPlayer = new cSongPlayer();
@@ -1026,8 +1026,7 @@ void cLoader::icycast (const string& url) {
     cLog::setThreadName ("icyL");
     mRunning = true;
 
-    iAudioDecoder* audioDecoder = createAudioDecoder (eAudioFrameType::eAacAdts);
-
+    iAudioDecoder* audioDecoder = nullptr;
     while (!mExit) {
       int icySkipCount = 0;
       int icySkipLen = 0;
@@ -1062,9 +1061,7 @@ void cLoader::icycast (const string& url) {
           if ((icyInfoCount >= icyInfoLen) && (icySkipCount + length <= icySkipLen)) {
             //{{{  simple copy of whole body, no metaInfo
             //cLog::log (LOGINFO1, "body simple copy len:%d", length);
-
             memcpy (bufferEnd, data, length);
-
             bufferEnd += length;
             icySkipCount += length;
             }
@@ -1097,20 +1094,22 @@ void cLoader::icycast (const string& url) {
             }
             //}}}
 
-          if (!mSong) {
-            // enough data to determine frameType and sampleRate (wrong for aac sbr)
-            frameNum = 0;
-            int sampleRate = 0;
-            auto frameType = cAudioParser::parseSomeFrames (bufferFirst, bufferEnd, sampleRate);
-            mSong = new cSong (frameType, 2, sampleRate, (frameType == eAudioFrameType::eMp3) ? 1152 : 2048, 3000);
-            mSongPlayer = new cSongPlayer();
-            }
+          int sampleRate = 0;
+          auto frameType = cAudioParser::parseSomeFrames (bufferFirst, bufferEnd, sampleRate);
+          audioDecoder = createAudioDecoder (frameType);
 
           int frameSize;
           while (cAudioParser::parseFrame (buffer, bufferEnd, frameSize)) {
             auto samples = audioDecoder->decodeFrame (buffer, frameSize, frameNum);
             if (samples) {
-              mSong->setFixups (audioDecoder->getNumChannels(), audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame());
+              if (!mSong) {
+                // enough data to determine frameType and sampleRate (wrong for aac sbr)
+                frameNum = 0;
+                mSong = new cSong (frameType, audioDecoder->getNumChannels(),
+                                   audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame(), 1000);
+                mSongPlayer = new cSongPlayer();
+                }
+
               mSong->addFrame (true, frameNum++, samples, true, mSong->getNumFrames()+1, 0);
               mSongPlayer->start (mSong, &mPlayPts, true);
               }
@@ -1118,12 +1117,13 @@ void cLoader::icycast (const string& url) {
             }
 
           if ((buffer > bufferFirst) && (buffer < bufferEnd)) {
-            // shuffle down last partial frame
+            //{{{  shuffle down last partial frame
             auto bufferLeft = int(bufferEnd - buffer);
             memcpy (bufferFirst, buffer, bufferLeft);
             bufferEnd = bufferFirst + bufferLeft;
             buffer = bufferFirst;
             }
+            //}}}
 
           return !mExit;
           }
@@ -1136,9 +1136,11 @@ void cLoader::icycast (const string& url) {
 
     //{{{  delete resources
     delete mSongPlayer;
+
     auto tempSong = mSong;
     mSong = nullptr;
     delete tempSong;
+
     delete audioDecoder;
     //}}}
     cLog::log (LOGINFO, "exit");
@@ -1377,6 +1379,7 @@ void cLoader::loadAudio (uint8_t* first, int size, eFlags flags) {
 
   int sampleRate;
   uint8_t* last = first + size;
+
   auto fileFrameType = cAudioParser::parseSomeFrames (first, last, sampleRate);
   iAudioDecoder* audioDecoder = createAudioDecoder (fileFrameType);
 
@@ -1414,12 +1417,11 @@ void cLoader::loadAudio (uint8_t* first, int size, eFlags flags) {
       float* samples = audioDecoder->decodeFrame (framePtr, frameSize, frameNum);
       if (samples) {
         if (!mSong) {
-          //{{{  need to decode a frame to get aacHE sampleRate,samplesPerFrame, header is wrong
-          mSong = new cSong(fileFrameType,
-            audioDecoder->getNumChannels(), audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame(), 0);
+          // first decodeFrame provides aacHE sampleRate,samplesPerFrame, header is wrong
+          mSong = new cSong (fileFrameType,  audioDecoder->getNumChannels(), 
+                             audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame(), 0);
           mSongPlayer = new cSongPlayer();
           }
-          //}}}
         int numFrames = mSong->getNumFrames();
         int totalFrames = (numFrames > 0) ? (size / (int(framePtr - first) / numFrames)) : 0;
         mSong->addFrame (true, frameNum++, samples, true, totalFrames+1, 0);
