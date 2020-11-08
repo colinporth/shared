@@ -20,8 +20,8 @@ constexpr static int kSilenceWindowFrames = 4;
 
 // cSong::cFrame
 //{{{
-cSong::cFrame::cFrame (int numChannels, int numFreqBytes, float* samples, bool ourSamples, int64_t pts)
-   : mSamples(samples), mOurSamples(ourSamples), mPts (pts), mMuted(false), mSilence(false) {
+cSong::cFrame::cFrame (int numChannels, int numFreqBytes, float* samples, bool ownSamples, int64_t pts)
+   : mSamples(samples), mOwnSamples(ownSamples), mPts (pts), mMuted(false), mSilence(false) {
 
   mPowerValues = (float*)malloc (numChannels * 4);
   memset (mPowerValues, 0, numChannels * 4);
@@ -36,7 +36,7 @@ cSong::cFrame::cFrame (int numChannels, int numFreqBytes, float* samples, bool o
 //{{{
 cSong::cFrame::~cFrame() {
 
-  if (mOurSamples)
+  if (mOwnSamples)
     free (mSamples);
 
   free (mPowerValues);
@@ -188,7 +188,7 @@ cSong::~cSong() {
 //}}}
 
 //{{{
-void cSong::addFrame (bool reuseFront, int frameNum, float* samples, bool ourSamples, int totalFrames, int64_t pts) {
+void cSong::addFrame (bool reuseFront, int frameNum, float* samples, bool ownSamples, int totalFrames, int64_t pts) {
 
   cFrame* frame;
   if (mMaxMapSize && (int(mFrameMap.size()) > mMaxMapSize)) { // reuse a cFrame
@@ -212,15 +212,15 @@ void cSong::addFrame (bool reuseFront, int frameNum, float* samples, bool ourSam
     } // end of locked mutex
     //}}}
     //{{{  reuse power,peak,fft buffers, but free samples if we own them
-    if (frame->mOurSamples)
+    if (frame->mOwnSamples)
       free (frame->mSamples);
     frame->mSamples = samples;
-    frame->mOurSamples = ourSamples;
+    frame->mOwnSamples = ownSamples;
     frame->mPts = pts;
     //}}}
     }
   else // allocate new cFrame
-    frame = new cFrame (mNumChannels, getNumFreqBytes(), samples,ourSamples, pts);
+    frame = new cFrame (mNumChannels, getNumFreqBytes(), samples, ownSamples, pts);
 
   //{{{  calc power,peak
   for (auto channel = 0; channel < mNumChannels; channel++) {

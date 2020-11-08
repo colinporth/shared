@@ -21,7 +21,7 @@ public:
   class cFrame {
   public:
     static constexpr float kQuietThreshold = 0.01f;
-    cFrame (int numChannels, int numFreqBytes, float* samples, bool ourSamples, int64_t pts);
+    cFrame (int numChannels, int numFreqBytes, float* samples, bool ownSamples, int64_t pts);
     virtual ~cFrame();
 
     // gets
@@ -42,7 +42,7 @@ public:
     std::string getTitle() { return mTitle; }
 
     float* mSamples;
-    bool mOurSamples;
+    bool mOwnSamples;
 
     float* mPowerValues;
     float* mPeakValues;
@@ -173,7 +173,7 @@ public:
   void prevSilencePlayFrame();
   void nextSilencePlayFrame();
 
-  void addFrame (bool reuseFront, int frameNum, float* samples, bool ourSamples, int totalFrames, int64_t pts);
+  void addFrame (bool reuseFront, int frameNum, float* samples, bool ownSamples, int totalFrames, int64_t pts);
 
 protected:
   const int mSampleRate = 0;
@@ -195,11 +195,11 @@ private:
   const eAudioFrameType mFrameType;
   const int mNumChannels;
 
-  int mMaxMapSize = 0;
   std::map <int, cFrame*> mFrameMap;
+  int mMaxMapSize = 0;
   int mTotalFrames = 0;
 
-  bool mOurSamples = false;
+  bool mOwnSamples = false;
   bool mChanged = false;
 
   cSelect mSelect;
@@ -219,7 +219,7 @@ private:
 // cHlsSong - cSong with added HLS
 class cHlsSong : public cSong {
 public:
-  cHlsSong (eAudioFrameType frameType, int numChannels, 
+  cHlsSong (eAudioFrameType frameType, int numChannels,
             int sampleRate, int samplesPerFrame, int framesPerChunk, int maxMapSize);
   virtual ~cHlsSong();
 
