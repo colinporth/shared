@@ -708,7 +708,6 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
     iAudioDecoder* audioDecoder = nullptr;
     iVideoPool* videoPool = nullptr;
     //{{{  add parsers,callbacks
-    int chunkNum;
     int frameNum;
 
     auto addAudioFrameCallback = [&](bool reuseFront, float* samples, int num, int64_t pts) noexcept {
@@ -792,6 +791,7 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
         hlsSong->setBase (extXMediaSequence, mpegTimestamp, extXProgramDateTimePoint, -37s);
         //}}}
         while (!mExit) {
+          int chunkNum;
           if (hlsSong->getLoadChunk (chunkNum, frameNum, 2)) {
             bool chunkReuseFront = frameNum >= hlsSong->getPlayFrame();
             int contentParsed = 0;
@@ -882,9 +882,6 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                 }
                 //}}}
                 //{{{  pesParse chunk of ts - should work but fails !!! find out why !!!
-                //for (auto parser : mPidParsers)
-                  //parser.second->clear (frameNum);
-
                 //uint8_t* ts = http.getContent();
                 //uint8_t* tsEnd = ts + http.getContentSize();
                 //while ((ts < tsEnd) && (ts[0] == 0x47)) {
