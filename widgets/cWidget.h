@@ -14,29 +14,32 @@ public:
   static constexpr uint16_t getSmallFontHeight() { return 16; }
   static constexpr uint16_t getFontHeight()      { return 18; }
   static constexpr uint16_t getBigFontHeight()   { return 40; }
-  static constexpr float getPixel() { return 1.0f / getBoxHeight(); }
+  static constexpr float getPixel() { return 1.f / getBoxHeight(); }
 
   cWidget() {}
   //{{{
-  cWidget (uint16_t width, uint16_t height)
-    : mPixSize (width, height), mLayoutSize(width, height) {}
-  //}}}
-  //{{{
-  cWidget (const sColourF& colour, uint16_t width, uint16_t height)
-    : mColour(colour), mPixSize(width, height), mLayoutSize(mPixSize) {}
-  //}}}
-  //{{{
   cWidget (float widthInBoxes)
-    : mPixSize (widthInBoxes * getBoxHeight(), getBoxHeight()), mLayoutSize(mPixSize) {}
+    : mLayoutSize(widthInBoxes * getBoxHeight(),
+      getBoxHeight()),  mPixSize (widthInBoxes * getBoxHeight(), getBoxHeight()) {}
   //}}}
   //{{{
   cWidget (float widthInBoxes, float heightInBoxes)
-    : mPixSize (widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()), mLayoutSize(mPixSize) {}
+    : mLayoutSize (widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()),
+      mPixSize(widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()) {}
   //}}}
   //{{{
   cWidget (const sColourF& colour, float widthInBoxes, float heightInBoxes)
     : mColour(colour),
-      mPixSize(widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()), mLayoutSize(mPixSize) {}
+      mLayoutSize(widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()),
+      mPixSize(widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()) {}
+  //}}}
+  //{{{
+  cWidget (uint16_t widthInPixels, uint16_t heightInPixels)
+    : mPixSize (widthInPixels, heightInPixels), mLayoutSize(widthInPixels, heightInPixels) {}
+  //}}}
+  //{{{
+  cWidget (const sColourF& colour, uint16_t widthInPixels, uint16_t heightInPixels)
+    : mColour(colour), mLayoutSize(widthInPixels, heightInPixels), mPixSize(widthInPixels, heightInPixels) {}
   //}}}
   virtual ~cWidget() {}
 
@@ -50,10 +53,11 @@ public:
   cPointF getPixSize() { return mPixSize; }
   cPointF getPixCentre() { return mPixSize / 2.f; }
 
-  int getPressedCount() { return mPressedCount; }
-  bool isPressed() { return mPressedCount > 0; }
   bool isOn() { return mOn; }
   bool isVisible() { return mVisible; }
+
+  bool isPressed() { return mPressedCount > 0; }
+  int getPressedCount() { return mPressedCount; }
 
   //{{{  sets
   //{{{
@@ -98,9 +102,18 @@ public:
   //}}}
 
   //{{{
-  virtual cWidget* isPicked (const cPointF& p) {
+  virtual bool isWithin (const cPointF& p) {
+  // return true if p inside widget, even if not visible
+
     return (p.x >= mPixOrg.x) && (p.x < mPixOrg.x + mPixSize.x) &&
-           (p.y >= mPixOrg.y) && (p.y < mPixOrg.y + mPixSize.y) ? this : nullptr;
+           (p.y >= mPixOrg.y) && (p.y < mPixOrg.y + mPixSize.y);
+    }
+  //}}}
+  //{{{
+  virtual cWidget* isPicked (const cPointF& p) {
+  // return true if p inside visible widget
+
+    return (mVisible && isWithin (p)) ? this : nullptr;
     }
   //}}}
   //{{{
@@ -113,6 +126,7 @@ public:
   virtual void onProx (const cPointF& p) {}
   //{{{
   virtual void onDown (const cPointF& p) {
+
     if (!mPressedCount)
       mOn = true;
     mPressedCount++;
@@ -135,14 +149,14 @@ public:
 
 protected:
   sColourF mColour = kLightGreyF;
-
-  cPointF mPixOrg = { 0.f,0.f };
-  cPointF mPixSize = { 0.f,0.f };
-  cPointF mLayoutSize = { 0.f,0.f };
-
-  int mPressedCount = 0;
-  bool mOn = false;
+  const cPointF mLayoutSize = { 0.f,0.f };
 
   cContainer* mParent = nullptr;
+  cPointF mPixOrg = { 0.f,0.f };
+  cPointF mPixSize = { 0.f,0.f };
+
+  bool mOn = false;
   bool mVisible = true;
+
+  int mPressedCount = 0;
   };
