@@ -21,7 +21,7 @@ constexpr static int kSilenceWindowFrames = 4;
 // cSong
 //{{{
 cSong::cSong (eAudioFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame, int maxMapSize)
-  : mSampleRate(sampleRate), mSamplesPerFrame(samplesPerFrame), 
+  : mSampleRate(sampleRate), mSamplesPerFrame(samplesPerFrame),
     mFrameType(frameType), mNumChannels(numChannels),
     mMaxMapSize(maxMapSize) {
 
@@ -373,6 +373,7 @@ void cSong::cSelect::end() {
   }
 //}}}
 
+
 // cHlsSong
 //{{{
 cHlsSong::cHlsSong (eAudioFrameType frameType, int numChannels,
@@ -380,6 +381,7 @@ cHlsSong::cHlsSong (eAudioFrameType frameType, int numChannels,
   : cSong(frameType, numChannels, sampleRate, samplesPerFrame, maxMapSize), mFramesPerChunk(framesPerChunk) {}
 //}}}
 cHlsSong::~cHlsSong() {}
+
 //{{{
 bool cHlsSong::getLoadChunk (int& chunkNum, int& frameNum, int preloadChunks) {
 // return true if a chunk load needed to play mPlayFrame
