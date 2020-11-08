@@ -24,7 +24,6 @@ public:
   // gets
   cSong* getSong() { return mSong; }
   cSongPlayer* getSongPlayer() { return mSongPlayer; }
-  int64_t getPlayerPts() { return mPlayPts; }
   iVideoPool* getVideoPool() { return mVideoPool; }
   void getFracs (float& loadFrac, float& audioFrac, float& videoFrac);
   void getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize);
@@ -55,7 +54,6 @@ private:
   // vars
   cSong* mSong = nullptr;
   cSongPlayer* mSongPlayer = nullptr;
-  int64_t mPlayPts = -1;
   iVideoPool* mVideoPool = nullptr;
 
   // transport stream

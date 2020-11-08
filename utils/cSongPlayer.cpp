@@ -25,7 +25,7 @@ using namespace std;
 using namespace chrono;
 //}}}
 
-cSongPlayer::cSongPlayer (cSong* song, int64_t* playPts, bool streaming) {
+cSongPlayer::cSongPlayer (cSong* song, bool streaming) {
 
   mPlayerThread = thread ([=]() {
     // player lambda
@@ -69,11 +69,8 @@ cSongPlayer::cSongPlayer (cSong* song, int64_t* playPts, bool streaming) {
               srcSamples = silence;
             numSrcSamples = song->getSamplesPerFrame();
 
-            if (framePtr) {
-              *playPts = framePtr->getPts();
-              if (mPlaying)
-                song->incPlayFrame (1, true);
-              }
+            if (framePtr && mPlaying)
+              song->incPlayFrame (1, true);
             });
 
           if (!streaming && (song->getPlayFrame() > song->getLastFrame()))
@@ -105,11 +102,8 @@ cSongPlayer::cSongPlayer (cSong* song, int64_t* playPts, bool streaming) {
           }
         audio.play (2, playSamples, song->getSamplesPerFrame(), 1.f);
 
-        if (framePtr) {
-          *playPts = framePtr->getPts();
-          if (mPlaying)
-            song->incPlayFrame (1, true);
-          }
+        if (framePtr && mPlaying)
+          song->incPlayFrame (1, true);
 
         if (!streaming && (song->getPlayFrame() > song->getLastFrame()))
           break;

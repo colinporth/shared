@@ -139,6 +139,7 @@ public:
   int getNumFrames() { return mFrameMap.empty() ? 0 : (mFrameMap.rbegin()->first - mFrameMap.begin()->first + 1); }
   int getTotalFrames() { return mTotalFrames; }
   int getPlayFrame() { return mPlayFrame; }
+  int64_t getPlayPts();
   virtual int getLengthFrame() { return mTotalFrames; }
 
   //{{{

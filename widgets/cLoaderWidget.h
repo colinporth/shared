@@ -109,32 +109,37 @@ public:
 
     cVg* vg = draw->getVg();
 
-    int64_t playerPts = mLoader->getPlayerPts();
+    cSong* song = mLoader->getSong();
     iVideoPool* videoPool = mLoader->getVideoPool();
-    if (videoPool && (playerPts >= 0)) {
-      //{{{  draw piccy
-      auto frame = videoPool->findFrame (playerPts);
-      if (frame) {
-        if (frame->getPts() != mImagePts) {
-          mImagePts = frame->getPts();
-          if (mImageId > -1)
-            vg->updateImage (mImageId, (uint8_t*)frame->getBuffer8888());
-          else
-            mImageId = vg->createImageRGBA (videoPool->getWidth(), videoPool->getHeight(),
-                                            0, (uint8_t*)frame->getBuffer8888());
-          }
 
-        // paint image rect
-        vg->beginPath();
-        vg->rect (cPointF(), mPixSize);
-        vg->setFillPaint (vg->setImagePattern (cPointF(), mPixSize, 0.f, mImageId, 1.f));
-        vg->triangleFill();
+    bool foundPiccy = false;
+    int64_t playPts = -1;
+    if (song && videoPool) {
+      //{{{  find and draw draw piccy
+      playPts = song->getPlayPts();
+      if (playPts >= 0) {
+        auto videoFrame = videoPool->findFrame (playPts);
+        if (videoFrame) {
+          if (videoFrame->getPts() != mImagePts) {
+            mImagePts = videoFrame->getPts();
+            if (mImageId > -1)
+              vg->updateImage (mImageId, (uint8_t*)videoFrame->getBuffer8888());
+            else
+              mImageId = vg->createImageRGBA (videoPool->getWidth(), videoPool->getHeight(),
+                                              0, (uint8_t*)videoFrame->getBuffer8888());
+            }
+
+          // paint image rect
+          vg->beginPath();
+          vg->rect (cPointF(), mPixSize);
+          vg->setFillPaint (vg->setImagePattern (cPointF(), mPixSize, 0.f, mImageId, 1.f));
+          vg->triangleFill();
+          foundPiccy = true;
+          }
         }
-      else
-        draw->clear (kBlackF);
       }
       //}}}
-    else
+    if (!foundPiccy)
       draw->clear (kBlackF);
 
     if (mLoader->getShowGraphics() ) {
@@ -157,8 +162,6 @@ public:
                        sColourF(0.f, 0.f, 1.f, 0.25f), sColourF(0.f, 0.f, 1.f, 0.75f));
         }
       //}}}
-
-      cSong* song = mLoader->getSong();
       if (song) {
         //{{{  draw song
         { // locked scope
@@ -186,8 +189,8 @@ public:
         }
         //}}}
 
-      if (kVideoPoolDebug && videoPool && (playerPts >= 0))
-        drawVideoPool (vg, song, videoPool, playerPts);
+      if (kVideoPoolDebug && videoPool && (playPts >= 0))
+        drawVideoPool (vg, song, videoPool, playPts);
       }
     }
   //}}}

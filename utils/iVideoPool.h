@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <vector>
 #include <map>
+
+class cSong;
 //}}}
 
 // iVideoFrame
@@ -25,7 +27,7 @@ public:
 // iVideoPool
 class iVideoPool {
 public:
-  static iVideoPool* create (bool ffmpeg, int maxPoolSize, int64_t& playPts);
+  static iVideoPool* create (bool ffmpeg, int maxPoolSize, cSong* song);
   virtual ~iVideoPool() {}
 
   // gets

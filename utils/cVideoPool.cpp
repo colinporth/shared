@@ -96,6 +96,8 @@ extern "C" {
   //}}}
 #endif
 
+#include "cSong.h"
+
 using namespace std;
 using namespace chrono;
 //}}}
@@ -1799,8 +1801,8 @@ public:
   //}}}
 
 protected:
-  cVideoPool (bool planar, int poolSize, int64_t& playPts)
-    : mPlanar (planar), mMaxPoolSize( poolSize), mPlayPts(playPts) {}
+  cVideoPool (bool planar, int poolSize, cSong* song)
+    : mPlanar (planar), mMaxPoolSize( poolSize), mSong(song) {}
 
   //{{{
   iVideoFrame* getFreeFrame (bool reuseFront, int64_t pts) {
@@ -1825,7 +1827,7 @@ protected:
       unique_lock<shared_mutex> lock (mSharedMutex);
       // look at youngest frame in pool
       auto it = mFramePool.begin();
-      if ((*it).first < ((mPlayPts / mPtsDuration) - (int)mFramePool.size()/2)) {
+      if ((*it).first < ((mSong->getPlayPts() / mPtsDuration) - (int)mFramePool.size()/2)) {
         // old enough to be reused, remove from map and reuse videoFrame,
         iVideoFrame* videoFrame = (*it).second;
         mFramePool.erase (it);
@@ -1855,14 +1857,14 @@ protected:
 private:
   const bool mPlanar;
   const int mMaxPoolSize;
-  int64_t& mPlayPts;
+  cSong* mSong;
   };
 //}}}
 //{{{
 class cFFmpegVideoPool : public cVideoPool {
 public:
   //{{{
-  cFFmpegVideoPool (int poolSize, int64_t& playPts) : cVideoPool(true, poolSize, playPts) {
+  cFFmpegVideoPool (int poolSize, cSong* song) : cVideoPool(true, poolSize, song) {
 
     mAvParser = av_parser_init (AV_CODEC_ID_H264);
     mAvCodec = avcodec_find_decoder (AV_CODEC_ID_H264);
@@ -1993,7 +1995,7 @@ private:
   class cMfxVideoPool : public cVideoPool {
   public:
     //{{{
-    cMfxVideoPool (int poolSize, int64_t& playPts) : cVideoPool(false, poolSize, playPts) {
+    cMfxVideoPool (int poolSize, cSong* song) : cVideoPool(false, poolSize, song) {
 
       mfxVersion kMfxVersion = { 0,1 };
       mSession.Init (MFX_IMPL_AUTO, &kMfxVersion);
@@ -2136,14 +2138,14 @@ private:
 
 // iVideoPool static factory create
 //{{{
-iVideoPool* iVideoPool::create (bool ffmpeg, int poolSize, int64_t& playPts) {
+iVideoPool* iVideoPool::create (bool ffmpeg, int poolSize, cSong* song) {
 // create cVideoPool
 
   #ifdef _WIN32
     if (!ffmpeg)
-      return new cMfxVideoPool (poolSize, playPts);
+      return new cMfxVideoPool (poolSize, song);
   #endif
 
-  return new cFFmpegVideoPool (poolSize, playPts);
+  return new cFFmpegVideoPool (poolSize, song);
   }
 //}}}

@@ -5,7 +5,7 @@ class cSong;
 
 class cSongPlayer {
 public:
-  cSongPlayer (cSong* song, int64_t* playPts, bool streaming);
+  cSongPlayer (cSong* song, bool streaming);
   ~cSongPlayer() {}
 
   // toggle

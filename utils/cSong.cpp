@@ -188,6 +188,13 @@ cSong::~cSong() {
 //}}}
 
 //{{{
+int64_t cSong::getPlayPts() {
+  auto framePtr = getFramePtr (mPlayFrame);
+  return framePtr ? framePtr->getPts() : -1;
+  }
+//}}}
+
+//{{{
 void cSong::addFrame (bool reuseFront, int frameNum, float* samples, bool ownSamples, int totalFrames, int64_t pts) {
 
   cFrame* frame;
