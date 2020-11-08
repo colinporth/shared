@@ -702,7 +702,7 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
     cHlsSong* hlsSong = new cHlsSong (eAudioFrameType::eAacAdts, 2, 48000,
                                       (audioRate < 128000) ? 2048 : 1024,
                                       (audioRate < 128000) ? (radio ? 150 : 180) : (radio ? 300 : 360),
-                                      1000);
+                                      (audioRate < 128000) ? 3840 : 1920, 1000);
     mSong = hlsSong;
 
     iAudioDecoder* audioDecoder = nullptr;
@@ -1084,7 +1084,8 @@ void cLoader::icycast (const string& url) {
                 // enough data to determine frameType and sampleRate (wrong for aac sbr)
                 frameNum = 0;
                 mSong = new cSong (frameType, audioDecoder->getNumChannels(),
-                                   audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame(), 1000);
+                                   audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame(), 
+                                   1, 1000);
                 }
 
               mSong->addFrame (true, frameNum++, samples, true, mSong->getNumFrames()+1, 0);
@@ -1189,7 +1190,7 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags flags) {
 
   auto timePoint = system_clock::now();
 
-  mSong = new cSong (eAudioFrameType::eAacAdts, 2, 48000, 1024, 0);
+  mSong = new cSong (eAudioFrameType::eAacAdts, 2, 48000, 1024, 1920, 0);
 
   int frameNum = 0;
   int64_t loadPts = -1;
@@ -1379,7 +1380,7 @@ void cLoader::loadAudio (uint8_t* first, int size, eFlags flags) {
   uint8_t* framePtr = first;
   if (fileFrameType == eAudioFrameType::eWav) {
     // wav - samples point into memmaped file directly
-    mSong = new cSong (fileFrameType, 2, sampleRate, kWavFrameSamples, 0);
+    mSong = new cSong (fileFrameType, 2, sampleRate, kWavFrameSamples, 1, 0);
 
     int frameSize = 0;
     auto samples = cAudioParser::parseFrame (framePtr, last, frameSize);
@@ -1399,11 +1400,9 @@ void cLoader::loadAudio (uint8_t* first, int size, eFlags flags) {
     while (!mExit && cAudioParser::parseFrame (framePtr, last, frameSize)) {
       float* samples = audioDecoder->decodeFrame (framePtr, frameSize, frameNum);
       if (samples) {
-        if (!mSong) {
-          // first decodeFrame provides aacHE sampleRate,samplesPerFrame, header is wrong
+        if (!mSong) // first decodeFrame provides aacHE sampleRate,samplesPerFrame, header is wrong
           mSong = new cSong (fileFrameType,  audioDecoder->getNumChannels(),
-                             audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame(), 0);
-          }
+                             audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame(), 1, 0);
         int numFrames = mSong->getNumFrames();
         int totalFrames = (numFrames > 0) ? (size / (int(framePtr - first) / numFrames)) : 0;
         mSong->addFrame (true, frameNum++, samples, true, totalFrames+1, 0);

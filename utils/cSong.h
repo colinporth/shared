@@ -20,17 +20,17 @@ public:
   //{{{
   class cFrame {
   public:
-    static constexpr float kQuietThreshold = 0.01f;
     cFrame (int numChannels, int numFreqBytes, float* samples, bool ownSamples, int64_t pts);
     virtual ~cFrame();
 
     // gets
     float* getSamples() { return mSamples; }
+    int64_t getPts() { return mPts; }
+
     float* getPowerValues() { return mPowerValues;  }
     float* getPeakValues() { return mPeakValues;  }
     uint8_t* getFreqValues() { return mFreqValues; }
     uint8_t* getFreqLuma() { return mFreqLuma; }
-    int64_t getPts() { return mPts; }
 
     bool isQuiet() { return mPeakValues[0] + mPeakValues[1] < kQuietThreshold; }
 
@@ -41,17 +41,19 @@ public:
     bool hasTitle() { return !mTitle.empty(); }
     std::string getTitle() { return mTitle; }
 
+    // vars
     float* mSamples;
     bool mOwnSamples;
+    int64_t mPts;
 
     float* mPowerValues;
     float* mPeakValues;
     uint8_t* mFreqValues;
     uint8_t* mFreqLuma;
 
-    int64_t mPts;
-
   private:
+    static constexpr float kQuietThreshold = 0.01f;
+
     // vars
     bool mMuted;
     bool mSilence;
@@ -120,7 +122,8 @@ public:
     int mItemNum = 0;
     };
   //}}}
-  cSong (eAudioFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame, int maxMapSize);
+  cSong (eAudioFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame, 
+         int64_t ptsDuration, int maxMapSize);
   virtual ~cSong();
 
   //{{{  gets
@@ -179,8 +182,8 @@ public:
 protected:
   const int mSampleRate = 0;
   const int mSamplesPerFrame = 0;
-  std::shared_mutex mSharedMutex;
   int mPlayFrame = 0;
+  std::shared_mutex mSharedMutex;
 
 private:
   //{{{  static constexpr
@@ -199,6 +202,8 @@ private:
   std::map <int, cFrame*> mFrameMap;
   int mMaxMapSize = 0;
   int mTotalFrames = 0;
+
+  int64_t mPtsDuration = 0;
 
   bool mOwnSamples = false;
   bool mChanged = false;
@@ -221,7 +226,8 @@ private:
 class cHlsSong : public cSong {
 public:
   cHlsSong (eAudioFrameType frameType, int numChannels,
-            int sampleRate, int samplesPerFrame, int framesPerChunk, int maxMapSize);
+            int sampleRate, int samplesPerFrame, int framesPerChunk, 
+            int64_t ptsDuration, int maxMapSize);
   virtual ~cHlsSong();
 
   // gets

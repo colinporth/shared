@@ -21,7 +21,7 @@ constexpr static int kSilenceWindowFrames = 4;
 // cSong::cFrame
 //{{{
 cSong::cFrame::cFrame (int numChannels, int numFreqBytes, float* samples, bool ownSamples, int64_t pts)
-   : mSamples(samples), mOwnSamples(ownSamples), mPts (pts), mMuted(false), mSilence(false) {
+   : mSamples(samples), mOwnSamples(ownSamples), mPts(pts), mMuted(false), mSilence(false) {
 
   mPowerValues = (float*)malloc (numChannels * 4);
   memset (mPowerValues, 0, numChannels * 4);
@@ -162,10 +162,11 @@ void cSong::cSelect::end() {
 
 // cSong
 //{{{
-cSong::cSong (eAudioFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame, int maxMapSize)
+cSong::cSong (eAudioFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame, 
+              int64_t(ptsDuration), int maxMapSize)
   : mSampleRate(sampleRate), mSamplesPerFrame(samplesPerFrame),
     mFrameType(frameType), mNumChannels(numChannels),
-    mMaxMapSize(maxMapSize) {
+    mPtsDuration(ptsDuration), mMaxMapSize(maxMapSize) {
 
   mFftrConfig = kiss_fftr_alloc (mSamplesPerFrame, 0, 0, 0);
   }
@@ -386,8 +387,10 @@ void cSong::checkSilenceWindow (int frameNum) {
 // cHlsSong
 //{{{
 cHlsSong::cHlsSong (eAudioFrameType frameType, int numChannels,
-                   int sampleRate, int samplesPerFrame, int framesPerChunk, int maxMapSize)
-  : cSong(frameType, numChannels, sampleRate, samplesPerFrame, maxMapSize), mFramesPerChunk(framesPerChunk) {}
+                   int sampleRate, int samplesPerFrame, int framesPerChunk, 
+                   int64_t ptsDuration, int maxMapSize)
+  : cSong(frameType, numChannels, sampleRate, samplesPerFrame, ptsDuration, maxMapSize), 
+    mFramesPerChunk(framesPerChunk) {}
 //}}}
 cHlsSong::~cHlsSong() {}
 
