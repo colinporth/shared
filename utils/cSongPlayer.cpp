@@ -103,7 +103,9 @@ void cSongPlayer::start (cSong* song, int64_t* playPts, bool streaming) {
           }
         //}}}
       #else
-        //SetThreadPriority (GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
+        sched_param sch_params;
+        sch_params.sched_priority = sched_get_priority_max (SCHED_RR);
+        pthread_setschedparam (mPlayerThread.native_handle(), SCHED_RR, &sch_params);
         //{{{  audio16 player thread, video just follows play pts
         cAudio audio (2, song->getSampleRate(), 40000, false);
 

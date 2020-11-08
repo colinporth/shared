@@ -205,16 +205,16 @@ private:
   static constexpr int kMaxFreqBytes = 512; // arbitrary graphics max
 
   // vars
+  eAudioFrameType mFrameType = eAudioFrameType::eUnknown;
+  int mNumChannels = kMaxNumChannels;
+
   int mMaxMapSize = 0;
   std::map <int, cFrame*> mFrameMap;
+  int mTotalFrames = 0;
 
-  eAudioFrameType mFrameType = eAudioFrameType::eUnknown;
   bool mOurSamples = false;
   bool mChanged = false;
 
-  int mNumChannels = kMaxNumChannels;
-
-  int mTotalFrames = 0;
   cSelect mSelect;
 
   //{{{  fft vars

@@ -9,8 +9,8 @@
 class cContainer : public cWidget {
 public:
   cContainer() : cWidget() { mColour = kBlackF; }
-  cContainer (uint16_t width, uint16_t height) : cWidget (kBlackF, width, height) {}
-  cContainer (float width, float height) : cWidget (kBlackF, width, height) {}
+  cContainer (uint16_t widthInPixels, uint16_t heightInPixels) : cWidget (kBlackF, widthInPixels, heightInPixels) {}
+  cContainer (float widthInBoxes, float heightInBoxes) : cWidget (kBlackF, widthInBoxes, heightInBoxes) {}
   virtual ~cContainer() {}
 
   //{{{

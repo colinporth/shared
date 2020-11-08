@@ -19,12 +19,12 @@ public:
   cWidget() {}
   //{{{
   cWidget (float widthInBoxes)
-    : mLayoutSize(widthInBoxes * getBoxHeight(),
-      getBoxHeight()),  mPixSize (widthInBoxes * getBoxHeight(), getBoxHeight()) {}
+    : mLayoutSize(widthInBoxes * getBoxHeight(), getBoxHeight()),
+      mPixSize(widthInBoxes * getBoxHeight(), getBoxHeight()) {}
   //}}}
   //{{{
   cWidget (float widthInBoxes, float heightInBoxes)
-    : mLayoutSize (widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()),
+    : mLayoutSize(widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()),
       mPixSize(widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()) {}
   //}}}
   //{{{
@@ -35,11 +35,14 @@ public:
   //}}}
   //{{{
   cWidget (uint16_t widthInPixels, uint16_t heightInPixels)
-    : mPixSize (widthInPixels, heightInPixels), mLayoutSize(widthInPixels, heightInPixels) {}
+    : mLayoutSize(widthInPixels, heightInPixels),
+      mPixSize(widthInPixels, heightInPixels) {}
   //}}}
   //{{{
   cWidget (const sColourF& colour, uint16_t widthInPixels, uint16_t heightInPixels)
-    : mColour(colour), mLayoutSize(widthInPixels, heightInPixels), mPixSize(widthInPixels, heightInPixels) {}
+    : mColour(colour),
+      mLayoutSize(widthInPixels, heightInPixels),
+      mPixSize(widthInPixels, heightInPixels) {}
   //}}}
   virtual ~cWidget() {}
 
@@ -73,19 +76,19 @@ public:
   //}}}
 
   //{{{
-  void setPixWidth (float width) {
-    mPixSize.x = width;
+  void setPixWidth (float widthInPixels) {
+    mPixSize.x = widthInPixels;
     }
   //}}}
   //{{{
-  void setPixHeight (float height) {
-    mPixSize.y = height;
+  void setPixHeight (float heightInPixels) {
+    mPixSize.y = heightInPixels;
     }
   //}}}
   //{{{
-  void setPixSize (float width, float height) {
-    mPixSize.x = width;
-    mPixSize.y = height;
+  void setPixSize (float widthInPixels, float heightInPixels) {
+    mPixSize.x = widthInPixels;
+    mPixSize.y = heightInPixels;
     }
   //}}}
   //{{{

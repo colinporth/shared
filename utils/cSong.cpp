@@ -21,7 +21,8 @@ constexpr static int kSilenceWindowFrames = 4;
 // cSong
 //{{{
 cSong::cSong (eAudioFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame, int maxMapSize)
-  : mFrameType(frameType), mNumChannels(numChannels), mSampleRate(sampleRate), mSamplesPerFrame(samplesPerFrame),
+  : mSampleRate(sampleRate), mSamplesPerFrame(samplesPerFrame), 
+    mFrameType(frameType), mNumChannels(numChannels),
     mMaxMapSize(maxMapSize) {
 
   mFftrConfig = kiss_fftr_alloc (mSamplesPerFrame, 0, 0, 0);
