@@ -93,7 +93,7 @@ cSongPlayer::cSongPlayer (cSong* song, bool streaming) {
           {
           // scoped song mutex
           shared_lock<shared_mutex> lock (song->getSharedMutex());
-          framePtr = song->getFramePtr (song->getPlayFrame());
+          framePtr = song->findFrame (song->getPlayFrame());
           bool gotSamples = mPlaying && framePtr && framePtr->getSamples();
           if (gotSamples) {
             memcpy (samples, framePtr->getSamples(), song->getSamplesPerFrame() * 8);
@@ -115,16 +115,11 @@ cSongPlayer::cSongPlayer (cSong* song, bool streaming) {
     });
   }
 
-//{{{
 void cSongPlayer::wait() {
-
   mPlayerThread.join();
   }
-//}}}
-//{{{
-void cSongPlayer::stopAndWait() {
 
+void cSongPlayer::stopAndWait() {
   mExit = true;
   wait();
   }
-//}}}

@@ -167,7 +167,7 @@ cSong::cSong (eAudioFrameType frameType, int numChannels,
               int64_t ptsDuration, int maxMapSize)
     : mSampleRate(sampleRate), mSamplesPerFrame(samplesPerFrame),
       mFrameType(frameType), mNumChannels(numChannels),
-      mPtsDuration(ptsDuration), mMaxMapSize(maxMapSize) {
+      mMaxMapSize(maxMapSize), mPtsDuration(ptsDuration) {
 
   mFftrConfig = kiss_fftr_alloc (mSamplesPerFrame, 0, 0, 0);
   }
