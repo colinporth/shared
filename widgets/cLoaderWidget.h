@@ -162,15 +162,16 @@ public:
                        sColourF(0.f, 0.f, 1.f, 0.25f), sColourF(0.f, 0.f, 1.f, 0.75f));
         }
       //}}}
+
+      // draw song
       if (song) {
-        //{{{  draw song
         { // locked scope
         std::shared_lock<std::shared_mutex> lock (song->getSharedMutex());
 
         // wave left right frames, clip right not left
-        int playFrame = song->getPlayFrameNum();
-        int leftWaveFrame = playFrame - (((int(mPixSize.x)+mFrameWidth)/2) * mFrameStep) / mFrameWidth;
-        int rightWaveFrame = playFrame + (((int(mPixSize.x)+mFrameWidth)/2) * mFrameStep) / mFrameWidth;
+        int64_t playFrame = song->getPlayFrameNum();
+        int64_t leftWaveFrame = playFrame - (((int(mPixSize.x)+mFrameWidth)/2) * mFrameStep) / mFrameWidth;
+        int64_t rightWaveFrame = playFrame + (((int(mPixSize.x)+mFrameWidth)/2) * mFrameStep) / mFrameWidth;
         rightWaveFrame = std::min (rightWaveFrame, song->getLastFrameNum());
 
         drawRange (vg, song, playFrame, leftWaveFrame, rightWaveFrame);
@@ -183,11 +184,10 @@ public:
           }
         }
 
-        drawTime (vg, getFrameString (song, song->getFirstFrameNum()),
-                      getFrameString (song, song->getPlayFrameNum()),
-                      getFrameString (song, song->getLastFrameNum()));
+        drawTime (vg, song->getFrameString (song->getFirstFrameNum(), mClockTime->getDayLightSeconds()),
+                      song->getFrameString (song->getPlayFrameNum(), mClockTime->getDayLightSeconds()),
+                      song->getFrameString (song->getLastFrameNum(), mClockTime->getDayLightSeconds()));
         }
-        //}}}
 
       if (kVideoPoolDebug && videoPool && (playPts >= 0))
         drawVideoPool (vg, song, videoPool, playPts);
@@ -196,33 +196,6 @@ public:
   //}}}
 
 private:
-  //{{{
-  std::string getFrameString (cSong* song, int frame) {
-
-    if (song->getSamplesPerFrame() && song->getSampleRate()) {
-      // can turn frame into seconds
-      auto value = ((uint64_t)frame * song->getSamplesPerFrame()) / (song->getSampleRate() / 100);
-      auto subSeconds = value % 100;
-
-      value /= 100;
-      value += mClockTime->getDayLightSeconds();
-      auto seconds = value % 60;
-
-      value /= 60;
-      auto minutes = value % 60;
-
-      value /= 60;
-      auto hours = value % 60;
-
-      // !!! must be a better formatter lib !!!
-      return (hours > 0) ? (dec (hours) + ':' + dec (minutes, 2, '0') + ':' + dec(seconds, 2, '0')) :
-               ((minutes > 0) ? (dec (minutes) + ':' + dec(seconds, 2, '0') + ':' + dec(subSeconds, 2, '0')) :
-                 (dec(seconds) + ':' + dec(subSeconds, 2, '0')));
-      }
-    else
-      return ("--:--:--");
-    }
-  //}}}
   //{{{
   void setZoom (int zoom) {
 
@@ -340,7 +313,7 @@ private:
   //}}}
 
   //{{{
-  void drawRange (cVg* vg, cSong* song, int playFrame, int leftFrame, int rightFrame) {
+  void drawRange (cVg* vg, cSong* song, int64_t playFrame, int64_t leftFrame, int64_t rightFrame) {
 
     //vg->beginPath();
     //vg->rect (mPixOrg + cPointF(0.f, mDstRangeTop), cPointF(mPixSize.x, mRangeHeight));
@@ -368,7 +341,7 @@ private:
     }
   //}}}
   //{{{
-  void drawWave (cVg* vg, cSong* song, int playFrame, int leftFrame, int rightFrame, bool mono) {
+  void drawWave (cVg* vg, cSong* song, int64_t playFrame, int64_t leftFrame, int64_t rightFrame, bool mono) {
 
     float values[2] = { 0.f };
 
@@ -531,7 +504,7 @@ private:
     }
   //}}}
   //{{{
-  void drawFreq (cVg* vg, cSong* song, int playFrame) {
+  void drawFreq (cVg* vg, cSong* song, int64_t playFrame) {
 
     float valueScale = 100.f / 255.f;
 
@@ -575,11 +548,11 @@ private:
     }
   //}}}
   //{{{
-  void drawOverviewWave (cVg* vg, cSong* song, int firstFrame, int playFrame, float playFrameX, float valueScale, bool mono) {
+  void drawOverviewWave (cVg* vg, cSong* song, int64_t firstFrame, int64_t playFrame, float playFrameX, float valueScale, bool mono) {
   // simple overview cache, invalidate if anything changed
 
-    int lastFrame = song->getLastFrameNum();
-    int totalFrames = song->getTotalFrames();
+    int64_t lastFrame = song->getLastFrameNum();
+    int64_t totalFrames = song->getTotalFrames();
 
     bool changed = (mOverviewTotalFrames != totalFrames) ||
                    (mOverviewLastFrame != lastFrame) ||
@@ -594,8 +567,8 @@ private:
     for (auto x = 0; x < int(mPixSize.x); x++) {
       // iterate widget width
       if (changed) {
-        int frame = firstFrame + ((x * totalFrames) / int(mPixSize.x));
-        int toFrame = firstFrame + (((x+1) * totalFrames) / int(mPixSize.x));
+        int64_t frame = firstFrame + ((x * totalFrames) / int(mPixSize.x));
+        int64_t toFrame = firstFrame + (((x+1) * totalFrames) / int(mPixSize.x));
         if (toFrame > lastFrame)
           toFrame = lastFrame+1;
 
@@ -645,7 +618,7 @@ private:
     }
   //}}}
   //{{{
-  void drawOverviewLens (cVg* vg, cSong* song, int playFrame, float centreX, float width, bool mono) {
+  void drawOverviewLens (cVg* vg, cSong* song, int64_t playFrame, float centreX, float width, bool mono) {
   // draw frames centred at playFrame -/+ width in pixels, centred at centreX
 
     cLog::log (LOGINFO, "drawOverviewLens %d %f %f", playFrame, centreX, width);
@@ -665,7 +638,7 @@ private:
       leftFrame = 0;
       }
 
-    int rightFrame = (int)(playFrame + width);
+    int64_t rightFrame = playFrame + (int64_t)width;
     rightFrame = std::min (rightFrame, song->getLastFrameNum());
 
     // calc lens max power
@@ -738,12 +711,12 @@ private:
     }
   //}}}
   //{{{
-  void drawOverview (cVg* vg, cSong* song, int playFrame, bool mono) {
+  void drawOverview (cVg* vg, cSong* song, int64_t playFrame, bool mono) {
 
     if (!song->getTotalFrames())
       return;
 
-    int firstFrame = song->getFirstFrameNum();
+    int64_t firstFrame = song->getFirstFrameNum();
     float playFrameX = ((playFrame - firstFrame) * mPixSize.x) / song->getTotalFrames();
     float valueScale = mOverviewHeight / 2.f / song->getMaxPowerValue();
     drawOverviewWave (vg, song, firstFrame, playFrame, playFrameX, valueScale, mono);
@@ -836,9 +809,9 @@ private:
   float mDstOverviewCentre = 0.f;
 
   // mOverview cache
-  int mOverviewTotalFrames = 0;
-  int mOverviewLastFrame = 0;
-  int mOverviewFirstFrame = 0;
+  int64_t mOverviewTotalFrames = 0;
+  int64_t mOverviewLastFrame = 0;
+  int64_t mOverviewFirstFrame = 0;
   float mOverviewValueScale = 0.f;
 
   float mOverviewValuesL [1920] = { 0.f };

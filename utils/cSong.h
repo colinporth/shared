@@ -137,21 +137,23 @@ public:
   int getSampleRate() { return mSampleRate; }
   int getSamplesPerFrame() { return mSamplesPerFrame; }
 
-  int64_t getPtsDuration() { return mPtsDuration; }
-  int getFrameNumFromPts (int64_t pts) { return int (pts / mPtsDuration); }
-  int64_t getPtsFromFrameNum (int frameNum) { return frameNum * mPtsDuration; }
+  virtual int64_t getPtsDuration() { return 1; }
+  virtual int64_t getFrameNumFromPts (int64_t pts) { return pts; }
+  virtual int64_t getPtsFromFrameNum (int64_t frameNum) { return frameNum; }
 
   // pts
   int64_t getPlayPts() { return mPlayPts; }
-  int64_t getFirstPts() { return mFrameMap.empty() ? 0 : mFrameMap.begin()->second->getPts(); }
-  int64_t getLastPts() { return mFrameMap.empty() ? 0 : mFrameMap.rbegin()->second->getPts();  }
+  virtual int64_t getFirstPts() { return mFrameMap.empty() ? 0 : mFrameMap.begin()->first; }
+  virtual int64_t getLastPts() { return mFrameMap.empty() ? 0 : mFrameMap.rbegin()->first;  }
 
   // frameNum - useful for graphics
-  int getPlayFrameNum() { return getFrameNumFromPts (mPlayPts); }
-  int getFirstFrameNum() { return mFrameMap.empty() ? 0 : mFrameMap.begin()->first; }
-  int getLastFrameNum() { return mFrameMap.empty() ? 0 : mFrameMap.rbegin()->first;  }
-  int getNumFrames() { return mFrameMap.empty() ? 0 : (mFrameMap.rbegin()->first - mFrameMap.begin()->first + 1); }
-  int getTotalFrames() { return mTotalFrames; }
+  int64_t getPlayFrameNum() { return getFrameNumFromPts (mPlayPts); }
+  int64_t getFirstFrameNum() { return mFrameMap.empty() ? 0 : mFrameMap.begin()->first; }
+  int64_t getLastFrameNum() { return mFrameMap.empty() ? 0 : mFrameMap.rbegin()->first;  }
+  int64_t getNumFrames() { return mFrameMap.empty() ? 0 : (mFrameMap.rbegin()->first - mFrameMap.begin()->first + 1); }
+  int64_t getTotalFrames() { return mTotalFrames; }
+
+  std::string cSong::getFrameString (int64_t frame, int daylightSeconds);
 
   cSelect& getSelect() { return mSelect; }
 
@@ -169,32 +171,33 @@ public:
   void setChanged (bool changed) { mChanged = changed; }
 
   //{{{
-  cFrame* findFrameByFrameNum (int frameNum) {
+  cFrame* findFrameByFrameNum (int64_t frameNum) {
     auto it = mFrameMap.find (frameNum);
     return (it == mFrameMap.end()) ? nullptr : it->second;
     }
   //}}}
-  cFrame* findFrameByPts (int64_t pts) { return findFrameByFrameNum (getFrameNumFromPts (pts)); }
-  cFrame* findPlayFrame() { return findFrameByPts (mPlayPts); }
+  virtual cFrame* findFrameByPts (int64_t pts) { return findFrameByFrameNum (pts); }
+  virtual cFrame* findPlayFrame() { return findFrameByFrameNum (mPlayPts); }
 
-  void addFrame (bool reuseFront, int64_t pts, float* samples, bool ownSamples, int totalFrames);
+  void addFrame (bool reuseFront, int64_t pts, float* samples, bool ownSamples, int64_t totalFrames);
 
   // playFrame
   virtual void setPlayPts (int64_t pts);
   void nextPlayFrame (bool useSelectRange);
   void incPlaySec (int secs, bool useSelectRange);
-
-  // actions
   void prevSilencePlayFrame();
   void nextSilencePlayFrame();
 
 protected:
   //{{{  vars
+  std::shared_mutex mSharedMutex;
+
   const int mSampleRate = 0;
   const int mSamplesPerFrame = 0;
   int64_t mPlayPts = 0;
   int64_t mPtsDuration = 1;
-  std::shared_mutex mSharedMutex;
+
+  std::map <int64_t, cFrame*> mFrameMap;
   //}}}
 
 private:
@@ -215,9 +218,8 @@ private:
 
   // map of frames keyed by frame pts/ptsDuration
   // - frameNum offset by firstFrame pts/ptsDuration
-  std::map <int, cFrame*> mFrameMap;
   int mMaxMapSize = 0;
-  int mTotalFrames = 0;
+  int64_t mTotalFrames = 0;
 
   bool mOwnSamples = false;
   bool mChanged = false;
@@ -236,8 +238,27 @@ private:
   //}}}
   };
 
+class cPtsSong : public cSong {
+public:
+  cPtsSong (eAudioFrameType frameType, int numChannels,
+            int sampleRate, int samplesPerFrame,
+            int64_t ptsDuration, int maxMapSize)
+    : cSong (frameType, numChannels, sampleRate, samplesPerFrame, ptsDuration, maxMapSize) {}
+  virtual ~cPtsSong() {}
+
+  virtual int64_t getPtsDuration() { return mPtsDuration; }
+  virtual int64_t getFrameNumFromPts (int64_t pts) { return pts / mPtsDuration; }
+  virtual int64_t getPtsFromFrameNum (int64_t frameNum) { return frameNum * mPtsDuration; }
+
+  virtual int64_t getFirstPts() { return mFrameMap.empty() ? 0 : mFrameMap.begin()->second->getPts(); }
+  virtual int64_t getLastPts() { return mFrameMap.empty() ? 0 : mFrameMap.rbegin()->second->getPts();  }
+
+  virtual cFrame* findFrameByPts (int64_t pts) { return findFrameByFrameNum (getFrameNumFromPts(pts)); }
+  virtual cFrame* findPlayFrame() { return findFrameByPts (mPlayPts); }
+  };
+
 // cHlsSong - cSong with added HLS
-class cHlsSong : public cSong {
+class cHlsSong : public cPtsSong {
 public:
   cHlsSong (eAudioFrameType frameType, int numChannels,
             int sampleRate, int samplesPerFrame, int framesPerChunk,

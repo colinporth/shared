@@ -190,7 +190,30 @@ cSong::~cSong() {
 //}}}
 
 //{{{
-void cSong::addFrame (bool reuseFront, int64_t pts, float* samples, bool ownSamples, int totalFrames) {
+string cSong::getFrameString (int64_t frame, int daylightSeconds) {
+
+  // can turn frame into seconds
+  auto value = (frame * mSamplesPerFrame) / (mSampleRate / 100);
+  auto subSeconds = value % 100;
+
+  value /= 100;
+  value += daylightSeconds;
+  auto seconds = value % 60;
+
+  value /= 60;
+  auto minutes = value % 60;
+
+  value /= 60;
+  auto hours = value % 60;
+
+  // !!! must be a better formatter lib !!!
+  return (hours > 0) ? (dec (hours) + ':' + dec (minutes, 2, '0') + ':' + dec(seconds, 2, '0')) :
+           ((minutes > 0) ? (dec (minutes) + ':' + dec(seconds, 2, '0') + ':' + dec(subSeconds, 2, '0')) :
+             (dec(seconds) + ':' + dec(subSeconds, 2, '0')));
+  }
+//}}}
+//{{{
+void cSong::addFrame (bool reuseFront, int64_t pts, float* samples, bool ownSamples, int64_t totalFrames) {
 
   cFrame* frame;
   if (mMaxMapSize && (int(mFrameMap.size()) > mMaxMapSize)) { // reuse a cFrame
@@ -272,14 +295,11 @@ void cSong::addFrame (bool reuseFront, int64_t pts, float* samples, bool ownSamp
     }
   //}}}
 
-  //{{{  insert with locked mutex
-  {
+  { //  insert with locked mutex
   unique_lock<shared_mutex> lock (mSharedMutex);
-  mFrameMap.insert (map<int,cFrame*>::value_type (int(pts / mPtsDuration), frame));
-  // totalFrames can be a changing estimate for file, or increasing value for streaming
+  mFrameMap.insert (map<int64_t,cFrame*>::value_type (pts/mPtsDuration, frame));
   mTotalFrames = totalFrames;
-  } // end of locked mutex
-  //}}}
+  } 
 
   checkSilenceWindow (pts);
   }
@@ -308,8 +328,6 @@ void cSong::incPlaySec (int secs, bool useSelectRange) {
   mPlayPts += frames * mPtsDuration;
   }
 //}}}
-
-// actions
 //{{{
 void cSong::prevSilencePlayFrame() {
   mPlayPts = skipPrev (mPlayPts, false);
@@ -329,9 +347,9 @@ void cSong::nextSilencePlayFrame() {
 //{{{
 int64_t cSong::skipPrev (int64_t fromPts, bool silence) {
 
-  int fromFrame = getFrameNumFromPts (fromPts);
+  int64_t fromFrame = getFrameNumFromPts (fromPts);
 
-  for (int frameNum = fromFrame-1; frameNum >= getFirstFrameNum(); frameNum--) {
+  for (int64_t frameNum = fromFrame-1; frameNum >= getFirstFrameNum(); frameNum--) {
     auto framePtr = findFrameByFrameNum (frameNum);
     if (framePtr && (framePtr->isSilence() ^ silence))
       return getPtsFromFrameNum (frameNum);
@@ -343,9 +361,9 @@ int64_t cSong::skipPrev (int64_t fromPts, bool silence) {
 //{{{
 int64_t cSong::skipNext (int64_t fromPts, bool silence) {
 
-  int fromFrame = getFrameNumFromPts (fromPts);
+  int64_t fromFrame = getFrameNumFromPts (fromPts);
 
-  for (int frameNum = fromFrame; frameNum <= getLastFrameNum(); frameNum++) {
+  for (int64_t frameNum = fromFrame; frameNum <= getLastFrameNum(); frameNum++) {
     auto framePtr = findFrameByFrameNum (frameNum);
     if (framePtr && (framePtr->isSilence() ^ silence))
       return getPtsFromFrameNum (frameNum);
@@ -360,7 +378,7 @@ void cSong::checkSilenceWindow (int64_t pts) {
   unique_lock<shared_mutex> lock (mSharedMutex);
 
   // walk backwards looking for continuous loaded quiet frames
-  int frameNum = getFrameNumFromPts (pts);
+  int64_t frameNum = getFrameNumFromPts (pts);
 
   auto windowSize = 0;
   while (true) {
@@ -391,7 +409,7 @@ void cSong::checkSilenceWindow (int64_t pts) {
 cHlsSong::cHlsSong (eAudioFrameType frameType, int numChannels,
                    int sampleRate, int samplesPerFrame, int framesPerChunk,
                    int64_t ptsDuration, int maxMapSize)
-  : cSong(frameType, numChannels, sampleRate, samplesPerFrame, ptsDuration, maxMapSize),
+  : cPtsSong(frameType, numChannels, sampleRate, samplesPerFrame, ptsDuration, maxMapSize),
     mFramesPerChunk(framesPerChunk) {}
 //}}}
 cHlsSong::~cHlsSong() {}
@@ -441,15 +459,16 @@ void cHlsSong::setBase (int chunkNum, int64_t pts, system_clock::time_point time
 
   mBaseChunkNum = chunkNum;
   mBasePts = pts;
+  mPlayPts = mBasePts;
 
+  timePoint += offset;
+  mBaseTimePoint = timePoint;
+
+  cLog::log (LOGINFO, "setBase chunk:%d pts:%d.%d", chunkNum, pts/mPtsDuration, pts&mPtsDuration);
   // calc hlsBaseFrame
-  //timePoint += offset;
-  //mBaseTimePoint = timePoint;
   //auto midnightTimePoint = date::floor<date::days>(timePoint);
   //uint64_t msSinceMidnight = duration_cast<milliseconds>(timePoint - midnightTimePoint).count();
   //mBaseFrameNum = int((msSinceMidnight * mSampleRate) / mSamplesPerFrame / 1000);
-
-  mPlayPts = mBasePts;
   }
 //}}}
 //{{{

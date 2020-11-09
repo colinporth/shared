@@ -72,6 +72,25 @@ namespace {
     }
   //}}}
   //{{{
+  int64_t getPts (const uint8_t* ts) {
+  // return 33 bits of pts,dts
+
+    if ((ts[0] & 0x01) && (ts[2] & 0x01) && (ts[4] & 0x01)) {
+      // valid marker bits
+      int64_t pts = ts[0] & 0x0E;
+      pts = (pts << 7) | ts[1];
+      pts = (pts << 8) | (ts[2] & 0xFE);
+      pts = (pts << 7) | ts[3];
+      pts = (pts << 7) | (ts[4] >> 1);
+      return pts;
+      }
+    else {
+      cLog::log (LOGERROR, "getPts marker bits - %02x %02x %02x %02x 0x02", ts[0], ts[1], ts[2], ts[3], ts[4]);
+      return 0;
+      }
+    }
+  //}}}
+  //{{{
   string getHlsHostName (bool radio) {
     return radio ? "as-hls-uk-live.bbcfmt.s.llnwi.net" : "vs-hls-uk-live.akamaized.net";
     }
@@ -521,25 +540,6 @@ protected:
 
 private:
   static constexpr int kInitPesSize = 4096;
-  //{{{
-  static int64_t getPts (const uint8_t* ts) {
-  // return 33 bits of pts,dts
-
-    if ((ts[0] & 0x01) && (ts[2] & 0x01) && (ts[4] & 0x01)) {
-      // valid marker bits
-      int64_t pts = ts[0] & 0x0E;
-      pts = (pts << 7) | ts[1];
-      pts = (pts << 8) | (ts[2] & 0xFE);
-      pts = (pts << 7) | ts[3];
-      pts = (pts << 7) | (ts[4] >> 1);
-      return pts;
-      }
-    else {
-      cLog::log (LOGERROR, "getPts marker bits - %02x %02x %02x %02x 0x02", ts[0], ts[1], ts[2], ts[3], ts[4]);
-      return 0;
-      }
-    }
-  //}}}
 
   bool mUseQueue = true;
   bool mQueueExit = false;
@@ -700,11 +700,8 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
 
     iAudioDecoder* audioDecoder = nullptr;
     iVideoPool* videoPool = nullptr;
-
     //{{{  add parsers,callbacks
     auto addAudioFrameCallback = [&](bool reuseFront, float* samples, int64_t pts) noexcept {
-      // add frame to song and start playing
-      //cLog::log (LOGINFO, "adding frame %d %d", num, pts / 1920);
       hlsSong->addFrame (reuseFront, pts, samples, true, hlsSong->getNumFrames()+1);
       if (!mSongPlayer)
         mSongPlayer = new cSongPlayer (hlsSong, true);
@@ -794,7 +791,8 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                             //{{{  header lambda
                             if (key == "content-length")
                               cLog::log (LOGINFO, "chunk:" + dec(chunkNum) +
-                                                  " frame:" + dec(pts) +
+                                                  " pts:" + dec(pts/mSong->getPtsDuration()) +
+                                                  "." + dec(pts%mSong->getPtsDuration()) +
                                                   " size:" + dec(http.getHeaderContentSize()/1000) + "k");
                             },
                             //}}}
@@ -826,6 +824,9 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
               if (radio) {
                 //{{{  parse chunk of ts
                 // extract audio pes from chunk of ts packets, write it back crunched into ts, always gets smaller as ts stripped
+                int64_t firstPts = -1;
+                int64_t firstDts = -1;
+
                 uint8_t* tsPtr = http.getContent();
                 uint8_t* tsEndPtr = tsPtr + http.getContentSize();
                 uint8_t* pesPtr = tsPtr;
@@ -839,6 +840,10 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                     tsPtr += headerBytes;
                     int tsBodyBytes = 187 - headerBytes;
                     if (payStart) {
+                      if ((tsPtr[7] & 0x80) && (firstPts == -1))
+                        firstPts = getPts (tsPtr+9);
+                      if ((tsPtr[7] & 0x40) && (firstDts == -1))
+                        firstDts = getPts (tsPtr+14);
                       int pesHeaderBytes = 9 + tsPtr[8];
                       tsPtr += pesHeaderBytes;
                       tsBodyBytes -= pesHeaderBytes;
@@ -855,6 +860,11 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
 
                 if (!audioDecoder)
                   audioDecoder = createAudioDecoder (eAudioFrameType::eAacAdts);
+
+                cLog::log (LOGINFO, "radio parse pts %d.%d firstPts %d.%d",
+                                     pts/mSong->getPtsDuration(), pts%mSong->getPtsDuration(),
+                                     firstPts/mSong->getPtsDuration(), firstPts%mSong->getPtsDuration());
+                pts = firstPts;
 
                 // parse audio pes for audio frames
                 uint8_t* pesEnd = pesPtr;
@@ -1185,7 +1195,7 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags flags) {
 
   auto timePoint = system_clock::now();
 
-  mSong = new cSong (eAudioFrameType::eAacAdts, 2, 48000, 1024, 1920, 0);
+  mSong = new cPtsSong (eAudioFrameType::eAacAdts, 2, 48000, 1024, 1920, 0);
 
   int64_t loadPts = -1;
   iAudioDecoder* audioDecoder = nullptr;
@@ -1395,7 +1405,7 @@ void cLoader::loadAudio (uint8_t* first, int size, eFlags flags) {
         if (!mSong) // first decodeFrame provides aacHE sampleRate,samplesPerFrame, header is wrong
           mSong = new cSong (fileFrameType,  audioDecoder->getNumChannels(),
                              audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame(), 1, 0);
-        int totalFrames = (mSong->getNumFrames() > 0) ? (size / (int(framePtr - first) / mSong->getNumFrames())) : 0;
+        int64_t totalFrames = (mSong->getNumFrames() > 0) ? (size / (int(framePtr - first) / mSong->getNumFrames())) : 0;
         mSong->addFrame (true, pts, samples, true, totalFrames+1);
         pts += mSong->getPtsDuration();
         if (!mSongPlayer)
