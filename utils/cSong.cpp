@@ -163,11 +163,10 @@ void cSong::cSelect::end() {
 // cSong
 //{{{
 cSong::cSong (eAudioFrameType frameType, int numChannels,
-              int sampleRate, int samplesPerFrame,
-              int64_t ptsDuration, int maxMapSize)
+              int sampleRate, int samplesPerFrame, int maxMapSize)
     : mSampleRate(sampleRate), mSamplesPerFrame(samplesPerFrame),
       mFrameType(frameType), mNumChannels(numChannels),
-      mMaxMapSize(maxMapSize), mPtsDuration(ptsDuration) {
+      mMaxMapSize(maxMapSize) {
 
   mFftrConfig = kiss_fftr_alloc (mSamplesPerFrame, 0, 0, 0);
   }
@@ -297,7 +296,7 @@ void cSong::addFrame (bool reuseFront, int64_t pts, float* samples, bool ownSamp
 
   { //  insert with locked mutex
   unique_lock<shared_mutex> lock (mSharedMutex);
-  mFrameMap.insert (map<int64_t,cFrame*>::value_type (pts/mPtsDuration, frame));
+  mFrameMap.insert (map<int64_t,cFrame*>::value_type (pts/getPtsDuration(), frame));
   mTotalFrames = totalFrames;
   } 
 
@@ -314,7 +313,7 @@ void cSong::setPlayPts (int64_t pts) {
 //{{{
 void cSong::nextPlayFrame (bool constrainToRange) {
 
-  int64_t playPts = mPlayPts + mPtsDuration;
+  int64_t playPts = mPlayPts + getPtsDuration();
   //if (constrainToRange)
   //  int64_t = mSelect.constrainToRange (mPlayFrame, int64_t);
 
@@ -325,7 +324,7 @@ void cSong::nextPlayFrame (bool constrainToRange) {
 void cSong::incPlaySec (int secs, bool useSelectRange) {
 
   int64_t frames = (secs * mSampleRate) / mSamplesPerFrame;
-  mPlayPts += frames * mPtsDuration;
+  mPlayPts += frames * getPtsDuration();
   }
 //}}}
 //{{{

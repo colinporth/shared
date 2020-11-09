@@ -122,8 +122,7 @@ public:
     int mItemNum = 0;
     };
   //}}}
-  cSong (eAudioFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame,
-         int64_t ptsDuration, int maxMapSize);
+  cSong (eAudioFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame, int maxMapSize);
   virtual ~cSong();
 
   //{{{  gets
@@ -195,7 +194,6 @@ protected:
   const int mSampleRate = 0;
   const int mSamplesPerFrame = 0;
   int64_t mPlayPts = 0;
-  int64_t mPtsDuration = 1;
 
   std::map <int64_t, cFrame*> mFrameMap;
   //}}}
@@ -243,7 +241,7 @@ public:
   cPtsSong (eAudioFrameType frameType, int numChannels,
             int sampleRate, int samplesPerFrame,
             int64_t ptsDuration, int maxMapSize)
-    : cSong (frameType, numChannels, sampleRate, samplesPerFrame, ptsDuration, maxMapSize) {}
+    : cSong (frameType, numChannels, sampleRate, samplesPerFrame, maxMapSize), mPtsDuration(ptsDuration)  {}
   virtual ~cPtsSong() {}
 
   virtual int64_t getPtsDuration() { return mPtsDuration; }
@@ -255,6 +253,9 @@ public:
 
   virtual cFrame* findFrameByPts (int64_t pts) { return findFrameByFrameNum (getFrameNumFromPts(pts)); }
   virtual cFrame* findPlayFrame() { return findFrameByPts (mPlayPts); }
+
+protected:
+  int64_t mPtsDuration = 1;
   };
 
 // cHlsSong - cSong with added HLS

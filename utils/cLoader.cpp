@@ -1089,7 +1089,7 @@ void cLoader::icycast (const string& url) {
                 pts = 0;
                 mSong = new cSong (frameType, audioDecoder->getNumChannels(),
                                    audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame(),
-                                   1, 1000);
+                                   1000);
                 }
 
               mSong->addFrame (true, pts, samples, true, mSong->getNumFrames() + 1);
@@ -1381,7 +1381,7 @@ void cLoader::loadAudio (uint8_t* first, int size, eFlags flags) {
   uint8_t* framePtr = first;
   if (fileFrameType == eAudioFrameType::eWav) {
     // wav - samples point into memmaped file directly
-    mSong = new cSong (fileFrameType, 2, sampleRate, kWavFrameSamples, 1, 0);
+    mSong = new cSong (fileFrameType, 2, sampleRate, kWavFrameSamples, 0);
 
     int frameSize = 0;
     auto samples = cAudioParser::parseFrame (framePtr, last, frameSize);
@@ -1404,7 +1404,7 @@ void cLoader::loadAudio (uint8_t* first, int size, eFlags flags) {
       if (samples) {
         if (!mSong) // first decodeFrame provides aacHE sampleRate,samplesPerFrame, header is wrong
           mSong = new cSong (fileFrameType,  audioDecoder->getNumChannels(),
-                             audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame(), 1, 0);
+                             audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame(), 0);
         int64_t totalFrames = (mSong->getNumFrames() > 0) ? (size / (int(framePtr - first) / mSong->getNumFrames())) : 0;
         mSong->addFrame (true, pts, samples, true, totalFrames+1);
         pts += mSong->getPtsDuration();
