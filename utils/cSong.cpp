@@ -190,18 +190,6 @@ cSong::~cSong() {
 //}}}
 
 //{{{
-cSong::cFrame* cSong::findFrameByFrame (int frame) {
-  auto it = mFrameMap.find (frame);
-  return (it == mFrameMap.end()) ? nullptr : it->second;
-  }
-//}}}
-//{{{
-cSong::cFrame* cSong::findFrameByPts (int64_t pts) {
-  auto it = mFrameMap.find (int(pts / mPtsDuration));
-  return (it == mFrameMap.end()) ? nullptr : it->second;
-  }
-//}}}
-//{{{
 void cSong::addFrame (bool reuseFront, int64_t pts, float* samples, bool ownSamples, int totalFrames) {
 
   cFrame* frame;
@@ -341,11 +329,13 @@ void cSong::nextSilencePlayFrame() {
 //{{{
 int64_t cSong::skipPrev (int64_t fromPts, bool silence) {
 
-  //for (int frame = fromFrame-1; frame >= getFirstFrame(); frame--) {
-  //  auto framePtr = findFrame (frame);
-  //  if (framePtr && (framePtr->isSilence() ^ silence))
-  //    return frame;
-  // }
+  int fromFrame = getFrameNumFromPts (fromPts);
+
+  for (int frameNum = fromFrame-1; frameNum >= getFirstFrameNum(); frameNum--) {
+    auto framePtr = findFrameByFrameNum (frameNum);
+    if (framePtr && (framePtr->isSilence() ^ silence))
+      return getPtsFromFrameNum (frameNum);
+   }
 
   return fromPts;
   }
@@ -353,11 +343,13 @@ int64_t cSong::skipPrev (int64_t fromPts, bool silence) {
 //{{{
 int64_t cSong::skipNext (int64_t fromPts, bool silence) {
 
-  //for (int frame = fromFrame; frame <= getLastFrame(); frame++) {
-  //  auto framePtr = findFrame (frame);
-  //  if (framePtr && (framePtr->isSilence() ^ silence))
-  //    return frame;
-  //  }
+  int fromFrame = getFrameNumFromPts (fromPts);
+
+  for (int frameNum = fromFrame; frameNum <= getLastFrameNum(); frameNum++) {
+    auto framePtr = findFrameByFrameNum (frameNum);
+    if (framePtr && (framePtr->isSilence() ^ silence))
+      return getPtsFromFrameNum (frameNum);
+    }
 
   return fromPts;
   }
@@ -365,30 +357,32 @@ int64_t cSong::skipNext (int64_t fromPts, bool silence) {
 //{{{
 void cSong::checkSilenceWindow (int64_t pts) {
 
-  //unique_lock<shared_mutex> lock (mSharedMutex);
+  unique_lock<shared_mutex> lock (mSharedMutex);
 
   // walk backwards looking for continuous loaded quiet frames
-  //auto windowSize = 0;
-  //while (true) {
-  //  auto framePtr = findFrame (frameNum);
-  //  if (framePtr && framePtr->isQuiet()) {
-  //    windowSize++;
-  //    frameNum--;
-  //    }
-  //  else
-  //    break;
-  //  };
+  int frameNum = getFrameNumFromPts (pts);
 
-  //if (windowSize > kSilenceWindowFrames) {
-  //  // walk forward setting silence for continuous loaded quiet frames
-  //  while (true) {
-  //    auto framePtr = findFrame (++frameNum);
-  //    if (framePtr && framePtr->isQuiet())
-  //      framePtr->setSilence (true);
-  //    else
-  //      break;
-  //    }
-  //  }
+  auto windowSize = 0;
+  while (true) {
+    auto frame = findFrameByFrameNum (frameNum);
+    if (frame && frame->isQuiet()) {
+      windowSize++;
+      frameNum--;
+      }
+    else
+      break;
+    };
+
+  if (windowSize > kSilenceWindowFrames) {
+    // walk forward setting silence for continuous loaded quiet frames
+    while (true) {
+      auto frame = findFrameByFrameNum (++frameNum);
+      if (frame && frame->isQuiet())
+        frame->setSilence (true);
+      else
+        break;
+      }
+    }
   }
 //}}}
 

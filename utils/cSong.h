@@ -138,14 +138,16 @@ public:
   int getSamplesPerFrame() { return mSamplesPerFrame; }
 
   int64_t getPtsDuration() { return mPtsDuration; }
+  int getFrameNumFromPts (int64_t pts) { return int (pts / mPtsDuration); }
+  int64_t getPtsFromFrameNum (int frameNum) { return frameNum * mPtsDuration; }
 
-  // use pts where you can
+  // pts
   int64_t getPlayPts() { return mPlayPts; }
   int64_t getFirstPts() { return mFrameMap.empty() ? 0 : mFrameMap.begin()->second->getPts(); }
   int64_t getLastPts() { return mFrameMap.empty() ? 0 : mFrameMap.rbegin()->second->getPts();  }
 
-  // but frameNum useful for graphics
-  int getPlayFrameNum() { return int (mPlayPts / mPtsDuration); }
+  // frameNum - useful for graphics
+  int getPlayFrameNum() { return getFrameNumFromPts (mPlayPts); }
   int getFirstFrameNum() { return mFrameMap.empty() ? 0 : mFrameMap.begin()->first; }
   int getLastFrameNum() { return mFrameMap.empty() ? 0 : mFrameMap.rbegin()->first;  }
   int getNumFrames() { return mFrameMap.empty() ? 0 : (mFrameMap.rbegin()->first - mFrameMap.begin()->first + 1); }
@@ -164,9 +166,18 @@ public:
   float getMaxFreqValue() { return mMaxFreqValue; }
   int getNumFreqBytes() { return kMaxFreqBytes; }
   //}}}
-
-  // sets
   void setChanged (bool changed) { mChanged = changed; }
+
+  //{{{
+  cFrame* findFrameByFrameNum (int frameNum) {
+    auto it = mFrameMap.find (frameNum);
+    return (it == mFrameMap.end()) ? nullptr : it->second;
+    }
+  //}}}
+  cFrame* findFrameByPts (int64_t pts) { return findFrameByFrameNum (getFrameNumFromPts (pts)); }
+  cFrame* findPlayFrame() { return findFrameByPts (mPlayPts); }
+
+  void addFrame (bool reuseFront, int64_t pts, float* samples, bool ownSamples, int totalFrames);
 
   // playFrame
   virtual void setPlayPts (int64_t pts);
@@ -177,19 +188,14 @@ public:
   void prevSilencePlayFrame();
   void nextSilencePlayFrame();
 
-  cFrame* findFrameByPts (int64_t pts);
-  cFrame* findFrameByFrame (int frame);
-  cFrame* findPlayFrame() { return findFrameByPts (mPlayPts); }
-  void addFrame (bool reuseFront, int64_t pts, float* samples, bool ownSamples, int totalFrames);
-
 protected:
+  //{{{  vars
   const int mSampleRate = 0;
   const int mSamplesPerFrame = 0;
-
   int64_t mPlayPts = 0;
-  int64_t mPtsDuration = 0;
-
+  int64_t mPtsDuration = 1;
   std::shared_mutex mSharedMutex;
+  //}}}
 
 private:
   //{{{  static constexpr
@@ -198,9 +204,11 @@ private:
   static constexpr int kMaxFreq = (kMaxNumSamplesPerFrame / 2) + 1; // fft max
   static constexpr int kMaxFreqBytes = 512; // arbitrary graphics max
   //}}}
+  //{{{  members
   int64_t skipPrev (int64_t fromPts, bool silence);
   int64_t skipNext (int64_t fromPts, bool silence);
   void checkSilenceWindow (int64_t pts);
+  //}}}
   //{{{  vars
   const eAudioFrameType mFrameType;
   const int mNumChannels;
@@ -242,16 +250,14 @@ public:
   int64_t getLengthPts() { return getLastPts(); }
 
   // sets
-  void setBase (int chunkNum, int64_t pts,
-                std::chrono::system_clock::time_point timePoint, std::chrono::seconds offset);
+  void setBase (int chunkNum, int64_t pts, std::chrono::system_clock::time_point timePoint, std::chrono::seconds offset);
   virtual void setPlayPts (int64_t pts);
 
 private:
   //{{{  vars
-  int mFramesPerChunk = 0;
+  const int mFramesPerChunk = 0;
 
   int mBaseChunkNum = 0;
-  int mBaseFrameNum = 0;
   int64_t mBasePts = -1;
   std::chrono::system_clock::time_point mBaseTimePoint;
   //}}}
