@@ -180,8 +180,10 @@ public:
 
   void addFrame (bool reuseFront, int64_t pts, float* samples, bool ownSamples, int64_t totalFrames);
 
-  // playFrame
-  virtual void setPlayPts (int64_t pts);
+  // playPts
+  void setPlayPts (int64_t pts);
+  void setPlayFirstFrame();
+  void setPlayLastFrame();
   void nextPlayFrame (bool useSelectRange);
   void incPlaySec (int secs, bool useSelectRange);
   void prevSilencePlayFrame();
@@ -236,6 +238,7 @@ private:
   //}}}
   };
 
+//{{{
 class cPtsSong : public cSong {
 public:
   cPtsSong (eAudioFrameType frameType, int numChannels,
@@ -257,8 +260,8 @@ public:
 protected:
   int64_t mPtsDuration = 1;
   };
-
-// cHlsSong - cSong with added HLS
+//}}}
+//{{{
 class cHlsSong : public cPtsSong {
 public:
   cHlsSong (eAudioFrameType frameType, int numChannels,
@@ -273,7 +276,6 @@ public:
 
   // sets
   void setBase (int chunkNum, int64_t pts, std::chrono::system_clock::time_point timePoint, std::chrono::seconds offset);
-  virtual void setPlayPts (int64_t pts);
 
 private:
   //{{{  vars
@@ -284,3 +286,4 @@ private:
   std::chrono::system_clock::time_point mBaseTimePoint;
   //}}}
   };
+//}}}

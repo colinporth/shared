@@ -298,7 +298,7 @@ void cSong::addFrame (bool reuseFront, int64_t pts, float* samples, bool ownSamp
   unique_lock<shared_mutex> lock (mSharedMutex);
   mFrameMap.insert (map<int64_t,cFrame*>::value_type (pts/getPtsDuration(), frame));
   mTotalFrames = totalFrames;
-  } 
+  }
 
   checkSilenceWindow (pts);
   }
@@ -307,7 +307,17 @@ void cSong::addFrame (bool reuseFront, int64_t pts, float* samples, bool ownSamp
 // playFrame
 //{{{
 void cSong::setPlayPts (int64_t pts) {
-  mPlayPts = min (max (pts, 0LL), getLastPts()); // +1); ??
+  mPlayPts = min (pts, getLastPts() + getPtsDuration());
+  }
+//}}}
+//{{{
+void cSong::setPlayFirstFrame() {
+  setPlayPts (mSelect.empty() ? getFirstPts() : mSelect.getFirstFramePts());
+  }
+//}}}
+//{{{
+void cSong::setPlayLastFrame() {
+  setPlayPts (mSelect.empty() ? getLastPts() : mSelect.getLastFramePts());
   }
 //}}}
 //{{{
@@ -315,7 +325,7 @@ void cSong::nextPlayFrame (bool constrainToRange) {
 
   int64_t playPts = mPlayPts + getPtsDuration();
   //if (constrainToRange)
-  //  int64_t = mSelect.constrainToRange (mPlayFrame, int64_t);
+  //  mPlayPts = mSelect.constrainToRange (mPlayPts, mPlayPts);
 
   setPlayPts (playPts);
   }
@@ -468,10 +478,5 @@ void cHlsSong::setBase (int chunkNum, int64_t pts, system_clock::time_point time
   //auto midnightTimePoint = date::floor<date::days>(timePoint);
   //uint64_t msSinceMidnight = duration_cast<milliseconds>(timePoint - midnightTimePoint).count();
   //mBaseFrameNum = int((msSinceMidnight * mSampleRate) / mSamplesPerFrame / 1000);
-  }
-//}}}
-//{{{
-void cHlsSong::setPlayPts (int64_t pts) {
-  mPlayPts = min (pts, getLastPts() + mPtsDuration);
   }
 //}}}
