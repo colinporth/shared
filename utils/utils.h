@@ -46,7 +46,7 @@ template <typename T> std::string frac (T value, int width, int precision, char 
 
 //{{{
 inline std::string getOmxPtsString (double pts) {
-// miss out zeros
+// 10k double pts - miss out zeros
 
   if (pts < 0)
     return "--:--:--";
@@ -70,10 +70,9 @@ inline std::string getOmxPtsString (double pts) {
     }
   }
 //}}}
-
 //{{{
 inline std::string getPtsString (int64_t pts) {
-// miss out zeros
+// 90khz int64_t pts - miss out zeros
 
   if (pts < 0)
     return "--:--:--";
@@ -98,7 +97,7 @@ inline std::string getPtsString (int64_t pts) {
 //}}}
 //{{{
 inline std::string getFullPtsString (int64_t pts) {
-// all digits
+// 90khz int64_t pts  - all digits
 
   if (pts < 0)
     return "--:--:--:--";
@@ -119,6 +118,16 @@ inline std::string getFullPtsString (int64_t pts) {
     }
   }
 //}}}
+//{{{
+inline std::string getPtsFramesString (int64_t pts, int64_t ptsDuration) {
+// return 90khz int64_t pts - as frames.subframes
+
+  int64_t frames = pts / ptsDuration;
+  int64_t subFrames = pts % ptsDuration;
+  return dec(frames) + '.' + dec(subFrames, 4, '0');
+  }
+//}}}
+
 //{{{
 inline std::string getTimeString (uint32_t secs) {
 

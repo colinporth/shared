@@ -102,7 +102,7 @@ cSongPlayer::cSongPlayer (cSong* song, bool streaming) {
         if (frame && mPlaying)
           song->nextPlayFrame (true);
 
-        if (!streaming && (song->getPlayFrame() > song->getLastFrame()))
+        if (!streaming && (song->getPlayPts() > song->getLastPts()))
           break;
         }
       //}}}

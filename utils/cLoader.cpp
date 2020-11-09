@@ -52,17 +52,14 @@ namespace {
       case eAudioFrameType::eMp3:
         cLog::log (LOGINFO, "createAudioDecoder ffmpeg mp3");
         return new cFFmpegAudioDecoder (frameType);
-        break;
 
       case eAudioFrameType::eAacAdts:
         cLog::log (LOGINFO, "createAudioDecoder ffmpeg aacAdts");
         return new cFFmpegAudioDecoder (frameType);
-        break;
 
       case eAudioFrameType::eAacLatm:
         cLog::log (LOGINFO, "createAudioDecoder ffmpeg aacLatm");
         return new cFFmpegAudioDecoder (frameType);
-        break;
 
       default:
         cLog::log (LOGERROR, "createAudioDecoder frameType:%d", frameType);
@@ -364,7 +361,6 @@ public:
   //}}}
 
   virtual void processBody (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool reuseFront) {
-
     if (payloadStart) {
       //int pointerField = ts[0];
       ts++;
@@ -708,18 +704,16 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
       };
 
     auto addStreamCallback = [&](int sid, int pid, int type) noexcept {
-      //{{{  addStream lambda
       if (mPidParsers.find (pid) == mPidParsers.end()) {
         // new stream, add stream parser, add stream pid to service
         auto it = mServices.find (sid);
         if (it == mServices.end())
           cLog::log (LOGERROR, "PMT:%d for unrecognised sid:%d", pid, sid);
-
         else {
           // should only be one
           cService* service = (*it).second;
-
           switch (type) {
+            //{{{
             case 15: // aacAdts
               service->setAudioPid (pid);
               if (service->isSelected()) {
@@ -729,7 +723,8 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                     new cAudioPesParser (pid, audioDecoder, true, addAudioFrameCallback)));
                 }
               break;
-
+            //}}}
+            //{{{
             case 27: // h264video
               if (videoRate) {
                 service->setVideoPid (pid);
@@ -740,14 +735,15 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                   }
                 }
               break;
-
+            //}}}
+            //{{{
             default:
               cLog::log (LOGERROR, "hls - unrecognised stream pid:type %d:%d", pid, type);
+            //}}}
             }
           }
         }
       };
-      //}}}
 
     auto addProgramCallback = [&](int pid, int sid) noexcept {
       if (mPidParsers.find (pid) == mPidParsers.end()) {
@@ -791,8 +787,7 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                             //{{{  header lambda
                             if (key == "content-length")
                               cLog::log (LOGINFO, "chunk:" + dec(chunkNum) +
-                                                  " pts:" + dec(pts/mSong->getPtsDuration()) +
-                                                  "." + dec(pts%mSong->getPtsDuration()) +
+                                                  " pts:" + getPtsFramesString (pts, mSong->getPtsDuration()) +
                                                   " size:" + dec(http.getHeaderContentSize()/1000) + "k");
                             },
                             //}}}
@@ -825,8 +820,6 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                 //{{{  parse chunk of ts
                 // extract audio pes from chunk of ts packets, write it back crunched into ts, always gets smaller as ts stripped
                 int64_t firstPts = -1;
-                int64_t firstDts = -1;
-
                 uint8_t* tsPtr = http.getContent();
                 uint8_t* tsEndPtr = tsPtr + http.getContentSize();
                 uint8_t* pesPtr = tsPtr;
@@ -842,8 +835,6 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                     if (payStart) {
                       if ((tsPtr[7] & 0x80) && (firstPts == -1))
                         firstPts = getPts (tsPtr+9);
-                      if ((tsPtr[7] & 0x40) && (firstDts == -1))
-                        firstDts = getPts (tsPtr+14);
                       int pesHeaderBytes = 9 + tsPtr[8];
                       tsPtr += pesHeaderBytes;
                       tsBodyBytes -= pesHeaderBytes;
@@ -861,9 +852,8 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                 if (!audioDecoder)
                   audioDecoder = createAudioDecoder (eAudioFrameType::eAacAdts);
 
-                cLog::log (LOGINFO, "radio parse pts %d.%d firstPts %d.%d",
-                                     pts/mSong->getPtsDuration(), pts%mSong->getPtsDuration(),
-                                     firstPts/mSong->getPtsDuration(), firstPts%mSong->getPtsDuration());
+                cLog::log (LOGINFO, "radioParse pts:" + getPtsFramesString (pts, hlsSong->getPtsDuration()) +
+                                     " firstPts:" + getPtsFramesString (firstPts, hlsSong->getPtsDuration()));
                 pts = firstPts;
 
                 // parse audio pes for audio frames
@@ -899,9 +889,8 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                   //parser.second->processLast (chunkReuseFront);
                 //}
                 //}}}
-              else
-                for (auto parser : mPidParsers)
-                  parser.second->processLast (chunkReuseFront);
+              else for (auto parser : mPidParsers)
+                parser.second->processLast (chunkReuseFront);
               http.freeContent();
               }
             else {

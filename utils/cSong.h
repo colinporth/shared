@@ -152,7 +152,7 @@ public:
   int64_t getNumFrames() { return mFrameMap.empty() ? 0 : (mFrameMap.rbegin()->first - mFrameMap.begin()->first + 1); }
   int64_t getTotalFrames() { return mTotalFrames; }
 
-  std::string cSong::getFrameString (int64_t frame, int daylightSeconds);
+  std::string getFrameString (int64_t frame, int daylightSeconds);
 
   cSelect& getSelect() { return mSelect; }
 

@@ -473,7 +473,8 @@ void cHlsSong::setBase (int chunkNum, int64_t pts, system_clock::time_point time
   timePoint += offset;
   mBaseTimePoint = timePoint;
 
-  cLog::log (LOGINFO, "setBase chunk:%d pts:%d.%d", chunkNum, pts/mPtsDuration, pts&mPtsDuration);
+  cLog::log (LOGINFO, "setBase chunk:" + dec(chunkNum) + " pts:" + getPtsString (pts));
+
   // calc hlsBaseFrame
   //auto midnightTimePoint = date::floor<date::days>(timePoint);
   //uint64_t msSinceMidnight = duration_cast<milliseconds>(timePoint - midnightTimePoint).count();

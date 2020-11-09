@@ -1894,16 +1894,20 @@ public:
     if (frameType == 'I') {
       if ((mGuessPts >= 0) && (mGuessPts != dts))
         //{{{  debug
-        cLog::log (LOGERROR, "lost %d.%d to %d.%d - %c size:%d",
-                             mGuessPts/1800, mGuessPts%1800, dts/1800, dts%1800, frameType, pesSize);
+        cLog::log (LOGERROR, "lost:" + getPtsFramesString (mGuessPts, 1800) +
+                             " to:" + getPtsFramesString (dts, 1800) +
+                             " type:" + frameType +
+                             " " + dec(pesSize));
         //}}}
       mGuessPts = dts;
       mSeenIFrame = true;
       }
     if (!mSeenIFrame) {
       //{{{  debug
-      cLog::log (LOGINFO, "waiting for Iframe %d.%d to %d.%d - %c size:%d",
-                           mGuessPts/1800, mGuessPts%1800, dts/1800, dts%1800, frameType, pesSize);
+      cLog::log (LOGINFO, "waiting for Iframe " +getPtsFramesString (mGuessPts, 1800) +
+                          " to:" + getPtsFramesString (dts, 1800) + 
+                          " type:" + frameType +
+                          " size:" + dec(pesSize));
       //}}}
       return;
       }
