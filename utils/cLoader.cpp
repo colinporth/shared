@@ -404,8 +404,8 @@ class cPesParser : public cPidParser {
 class cPesItem {
 public:
   //{{{
-  cPesItem (bool reuseFront, uint8_t* pes, int size, int num, int64_t pts, int64_t dts)
-      : mReuseFront(reuseFront), mPesSize(size), mNum(num), mPts(pts), mDts(dts) {
+  cPesItem (bool reuseFront, uint8_t* pes, int size, int64_t pts, int64_t dts)
+      : mReuseFront(reuseFront), mPesSize(size), mPts(pts), mDts(dts) {
     mPes = (uint8_t*)malloc (size);
     memcpy (mPes, pes, size);
     }
@@ -419,7 +419,6 @@ public:
   bool mReuseFront;
   uint8_t* mPes;
   const int mPesSize;
-  const int mNum;
   const int64_t mPts;
   const int64_t mDts;
   };
@@ -482,15 +481,15 @@ public:
     }
   //}}}
   //{{{
-  virtual void dispatchDecode (bool reuseFront, uint8_t* pes, int size, int num, int64_t pts, int64_t dts) {
+  virtual void dispatchDecode (bool reuseFront, uint8_t* pes, int size, int64_t pts, int64_t dts) {
 
     if (mUseQueue)
-      mQueue.enqueue (new cPesParser::cPesItem (reuseFront, pes, size, num, pts, dts));
+      mQueue.enqueue (new cPesParser::cPesItem (reuseFront, pes, size, pts, dts));
     else
-      decode (reuseFront, pes, size, num, pts, dts);
+      decode (reuseFront, pes, size, pts, dts);
     }
   //}}}
-  virtual void decode (bool reuseFront, uint8_t* pes, int size, int num, int64_t pts, int64_t dts) = 0;
+  virtual void decode (bool reuseFront, uint8_t* pes, int size, int64_t pts, int64_t dts) = 0;
 
 protected:
   //{{{
@@ -503,7 +502,7 @@ protected:
     while (!mQueueExit) {
       cPesItem* pesItem;
       if (mQueue.wait_dequeue_timed (pesItem, 40000)) {
-        decode (pesItem->mReuseFront, pesItem->mPes, pesItem->mPesSize, pesItem->mNum, pesItem->mPts, pesItem->mDts);
+        decode (pesItem->mReuseFront, pesItem->mPes, pesItem->mPesSize, pesItem->mPts, pesItem->mDts);
         delete pesItem;
         }
       }
@@ -516,7 +515,6 @@ protected:
 
   uint8_t* mPes;
   int mPesSize = 0;
-  int mNum = 0;
   int64_t mPts = 0;
   int64_t mDts = 0;
   int mContinuityCount = -1;
@@ -552,10 +550,9 @@ private:
 //{{{
 class cAudioPesParser : public cPesParser {
 public:
-  cAudioPesParser (int pid, iAudioDecoder* audioDecoder, bool useQueue, int num,
-                   function <void (bool reuseFront, float* samples, int num, int64_t pts)> callback)
+  cAudioPesParser (int pid, iAudioDecoder* audioDecoder, bool useQueue,
+                   function <void (bool reuseFront, float* samples, int64_t pts)> callback)
       : cPesParser(pid, "aud", useQueue), mAudioDecoder(audioDecoder), mCallback(callback) {
-    mNum = num;
     }
   virtual ~cAudioPesParser() {}
 
@@ -575,31 +572,28 @@ public:
         }
 
       // dispatch whole pes, maybe several frames
-      dispatchDecode (reuseFront, mPes, mPesSize, mNum, mPts, mDts);
+      dispatchDecode (reuseFront, mPes, mPesSize, mPts, mDts);
 
-      // increment by frames in pes
-      mNum += numFrames;
       mPesSize = 0;
       }
     }
   //}}}
   //{{{
-  virtual void decode (bool reuseFront, uint8_t* pes, int size, int num, int64_t pts, int64_t dts) {
+  virtual void decode (bool reuseFront, uint8_t* pes, int size, int64_t pts, int64_t dts) {
   // decode pes to audio frames
 
     uint8_t* framePes = pes;
     int frameSize;
     while (cAudioParser::parseFrame (framePes, pes + size, frameSize)) {
       // decode a single frame from pes
-      float* samples = mAudioDecoder->decodeFrame (framePes, frameSize, num);
+      float* samples = mAudioDecoder->decodeFrame (framePes, frameSize, pts);
       if (samples) {
-        mCallback (reuseFront, samples, num, pts);
+        mCallback (reuseFront, samples, pts);
         // pts of next frame in pes, assumes 48000 sample rate
         pts += (mAudioDecoder->getNumSamplesPerFrame() * 90) / 48;
-        num++;
         }
       else
-        cLog::log (LOGERROR, "cAudioPesParser decode failed %d %d", size, num);
+        cLog::log (LOGERROR, "cAudioPesParser decode failed %d %d", size, pts);
 
       // point to next frame in pes
       framePes += frameSize;
@@ -609,7 +603,7 @@ public:
 
 private:
   iAudioDecoder* mAudioDecoder;
-  function <void (bool reuseFront, float* samples, int num, int64_t pts)> mCallback;
+  function <void (bool reuseFront, float* samples, int64_t pts)> mCallback;
   };
 //}}}
 //{{{
@@ -623,14 +617,13 @@ public:
   virtual void processLast (bool reuseFront) {
     if (mPesSize) {
       int numFrames = 1;
-      dispatchDecode (reuseFront, mPes, mPesSize, mNum, mPts, mDts);
-      mNum += numFrames;
+      dispatchDecode (reuseFront, mPes, mPesSize, mPts, mDts);
       mPesSize = 0;
       }
     }
   //}}}
   //{{{
-  void decode (bool reuseFront, uint8_t* pes, int size, int num, int64_t pts, int64_t dts) {
+  void decode (bool reuseFront, uint8_t* pes, int size, int64_t pts, int64_t dts) {
     mVideoPool->decodeFrame (reuseFront, pes, size, pts, dts);
     }
   //}}}
@@ -707,13 +700,12 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
 
     iAudioDecoder* audioDecoder = nullptr;
     iVideoPool* videoPool = nullptr;
-    //{{{  add parsers,callbacks
-    int frameNum;
 
-    auto addAudioFrameCallback = [&](bool reuseFront, float* samples, int num, int64_t pts) noexcept {
+    //{{{  add parsers,callbacks
+    auto addAudioFrameCallback = [&](bool reuseFront, float* samples, int64_t pts) noexcept {
       // add frame to song and start playing
       //cLog::log (LOGINFO, "adding frame %d %d", num, pts / 1920);
-      hlsSong->addFrame (reuseFront, num, samples, true, hlsSong->getNumFrames(), pts);
+      hlsSong->addFrame (reuseFront, pts, samples, true, hlsSong->getNumFrames()+1);
       if (!mSongPlayer)
         mSongPlayer = new cSongPlayer (hlsSong, true);
       };
@@ -737,7 +729,7 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                 audioDecoder = createAudioDecoder (eAudioFrameType::eAacAdts);
                 mPidParsers.insert (
                   map<int,cPidParser*>::value_type (pid,
-                    new cAudioPesParser (pid, audioDecoder, true, frameNum, addAudioFrameCallback)));
+                    new cAudioPesParser (pid, audioDecoder, true, addAudioFrameCallback)));
                 }
               break;
 
@@ -792,8 +784,9 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
         //}}}
         while (!mExit) {
           int chunkNum;
-          if (hlsSong->getLoadChunk (chunkNum, frameNum, 2)) {
-            bool chunkReuseFront = frameNum >= hlsSong->getPlayFrame();
+          int64_t pts;
+          if (hlsSong->getLoadChunk (chunkNum, pts, 2)) {
+            bool chunkReuseFront = pts >= hlsSong->getPlayPts();
             int contentParsed = 0;
             if (http.get (redirectedHostName,
                           getHlsPathName (radio, channel, audioRate, videoRate) + '-' + dec(chunkNum) + ".ts", "",
@@ -801,7 +794,7 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                             //{{{  header lambda
                             if (key == "content-length")
                               cLog::log (LOGINFO, "chunk:" + dec(chunkNum) +
-                                                  " frame:" + dec(frameNum) +
+                                                  " frame:" + dec(pts) +
                                                   " size:" + dec(http.getHeaderContentSize()/1000) + "k");
                             },
                             //}}}
@@ -868,14 +861,15 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                 pesPtr = http.getContent();
                 int frameSize;
                 while (cAudioParser::parseFrame (pesPtr, pesEnd, frameSize)) {
-                  float* samples = audioDecoder->decodeFrame (pesPtr, frameSize, frameNum);
+                  float* samples = audioDecoder->decodeFrame (pesPtr, frameSize, pts);
                   if (samples) {
-                    hlsSong->addFrame (chunkReuseFront, frameNum++, samples, true, hlsSong->getNumFrames(), 0);
+                    hlsSong->addFrame (chunkReuseFront, pts, samples, true, hlsSong->getNumFrames()+1);
+                    pts += hlsSong->getPtsDuration();
                     if (!mSongPlayer)
                       mSongPlayer = new cSongPlayer (hlsSong, true);
                     }
                   else
-                    cLog::log (LOGERROR, "aud parser failed to decode %d", frameNum);
+                    cLog::log (LOGERROR, "aud parser failed to decode %d", pts);
 
                   pesPtr += frameSize;
                   }
@@ -1023,7 +1017,7 @@ void cLoader::icycast (const string& url) {
       cUrl parsedUrl;
       parsedUrl.parse (url);
 
-      int frameNum = -1;
+      int64_t pts = -1;
       http.get (parsedUrl.getHost(), parsedUrl.getPath(), "Icy-MetaData: 1",
         //{{{  headerCallback lambda
         [&](const string& key, const string& value) noexcept {
@@ -1053,7 +1047,7 @@ void cLoader::icycast (const string& url) {
                 icyInfo [icyInfoCount] = data[i];
                 icyInfoCount++;
                 if (icyInfoCount >= icyInfoLen)
-                  addIcyInfo (frameNum, icyInfo);
+                  addIcyInfo (pts, icyInfo);
                 }
               else if (icySkipCount >= icySkipLen) {
                 icyInfoLen = data[i] * 16;
@@ -1078,17 +1072,18 @@ void cLoader::icycast (const string& url) {
 
           int frameSize;
           while (cAudioParser::parseFrame (buffer, bufferEnd, frameSize)) {
-            auto samples = audioDecoder->decodeFrame (buffer, frameSize, frameNum);
+            auto samples = audioDecoder->decodeFrame (buffer, frameSize, pts);
             if (samples) {
               if (!mSong) {
                 // enough data to determine frameType and sampleRate (wrong for aac sbr)
-                frameNum = 0;
+                pts = 0;
                 mSong = new cSong (frameType, audioDecoder->getNumChannels(),
                                    audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame(),
                                    1, 1000);
                 }
 
-              mSong->addFrame (true, frameNum++, samples, true, mSong->getNumFrames()+1, 0);
+              mSong->addFrame (true, pts, samples, true, mSong->getNumFrames() + 1);
+              pts += mSong->getPtsDuration();
 
               if (!mSongPlayer)
                 mSongPlayer = new cSongPlayer(mSong, true);
@@ -1153,7 +1148,7 @@ void cLoader::stopAndWait() {
 
 // private
 //{{{
-void cLoader::addIcyInfo (int frame, const string& icyInfo) {
+void cLoader::addIcyInfo (int64_t pts, const string& icyInfo) {
 
   cLog::log (LOGINFO, "addIcyInfo " + icyInfo);
 
@@ -1166,7 +1161,7 @@ void cLoader::addIcyInfo (int frame, const string& icyInfo) {
       string titleStr = icyInfo.substr (searchStrPos + searchStr.size(), searchEndPos - searchStrPos - searchStr.size());
       if (titleStr != mLastTitleStr) {
         cLog::log (LOGINFO1, "addIcyInfo found title = " + titleStr);
-        mSong->getSelect().addMark (frame, titleStr);
+        mSong->getSelect().addMark (pts, titleStr);
         mLastTitleStr = titleStr;
         }
       }
@@ -1192,15 +1187,13 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags flags) {
 
   mSong = new cSong (eAudioFrameType::eAacAdts, 2, 48000, 1024, 1920, 0);
 
-  int frameNum = 0;
   int64_t loadPts = -1;
   iAudioDecoder* audioDecoder = nullptr;
   iVideoPool* videoPool = nullptr;
   //{{{  parsers,callbacks
-  auto addAudioFrameCallback = [&](bool reuseFront, float* samples, int num, int64_t pts) noexcept {
-    frameNum = num;
+  auto addAudioFrameCallback = [&](bool reuseFront, float* samples, int64_t pts) noexcept {
     loadPts = pts;
-    mSong->addFrame (reuseFront, num, samples, true, mSong->getNumFrames(), pts);
+    mSong->addFrame (reuseFront, pts, samples, true, mSong->getNumFrames()+1);
     if (!mSongPlayer)
       mSongPlayer = new cSongPlayer (mSong, true);
     };
@@ -1219,7 +1212,7 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags flags) {
             if (service->isSelected()) {
               audioDecoder = createAudioDecoder (eAudioFrameType::eAacAdts);
               mPidParsers.insert (map<int,cPidParser*>::value_type (pid,
-                new cAudioPesParser (pid, audioDecoder, true, frameNum, addAudioFrameCallback)));
+                new cAudioPesParser (pid, audioDecoder, true, addAudioFrameCallback)));
               }
 
             break;
@@ -1231,7 +1224,7 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags flags) {
             if (service->isSelected()) {
               audioDecoder = createAudioDecoder (eAudioFrameType::eAacLatm);
               mPidParsers.insert (map<int,cPidParser*>::value_type (pid,
-                new cAudioPesParser (pid, audioDecoder, true, frameNum, addAudioFrameCallback)));
+                new cAudioPesParser (pid, audioDecoder, true, addAudioFrameCallback)));
               }
 
             break;
@@ -1318,8 +1311,8 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags flags) {
     if (loadPts > playPts + (3 * 90000))
       cLog::log (LOGINFO, "skip forward %d %d", loadPts/1800, playPts/1800);
 
-    // block loading when load frameNum is >100 audio frames ahead of play frameNum
-    while (!mExit && (frameNum > mSong->getPlayFrame() + 100))
+    // block loading when load pts is >100 audio frames ahead of play frameNum
+    while (!mExit && (loadPts > mSong->getPlayPts() + (100 * mSong->getPtsDuration())))
       this_thread::sleep_for (20ms);
     }
   mLoadFrac = 0.f;
@@ -1328,9 +1321,7 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags flags) {
   for (auto parser : mPidParsers)
     parser.second->processLast (true);
 
-  int duration = (mSong->getTotalFrames() * mSong->getSamplesPerFrame()) / (mSong->getSampleRate() / 1000);
-  cLog::log (LOGINFO, "load ts %dms took %dms",
-                      duration, duration_cast<milliseconds>(system_clock::now() - timePoint).count());
+  cLog::log (LOGINFO, "load took %dms", duration_cast<milliseconds>(system_clock::now() - timePoint).count());
   if (mSongPlayer)
     mSongPlayer->wait();
 
@@ -1376,7 +1367,7 @@ void cLoader::loadAudio (uint8_t* first, int size, eFlags flags) {
     //}
     //}}}
   //}}}
-  int frameNum = 0;
+  int64_t pts = 0;
   uint8_t* framePtr = first;
   if (fileFrameType == eAudioFrameType::eWav) {
     // wav - samples point into memmaped file directly
@@ -1385,7 +1376,8 @@ void cLoader::loadAudio (uint8_t* first, int size, eFlags flags) {
     int frameSize = 0;
     auto samples = cAudioParser::parseFrame (framePtr, last, frameSize);
     while (!mExit && ((samples + (kWavFrameSamples * 2 * sizeof(float))) <= last)) {
-      mSong->addFrame (true, frameNum++, (float*)samples, false, size / (kWavFrameSamples * 2 * sizeof(float)), 0);
+      mSong->addFrame (true, pts, (float*)samples, false, size / (kWavFrameSamples * 2 * sizeof(float)));
+      pts += mSong->getPtsDuration();
       samples += kWavFrameSamples * 2 * sizeof(float);
       if (!mSongPlayer) {
         mSongPlayer = new cSongPlayer(mSong, false);
@@ -1398,17 +1390,16 @@ void cLoader::loadAudio (uint8_t* first, int size, eFlags flags) {
     // aacAdts, mp3
     int frameSize = 0;
     while (!mExit && cAudioParser::parseFrame (framePtr, last, frameSize)) {
-      float* samples = audioDecoder->decodeFrame (framePtr, frameSize, frameNum);
+      float* samples = audioDecoder->decodeFrame (framePtr, frameSize, pts);
       if (samples) {
         if (!mSong) // first decodeFrame provides aacHE sampleRate,samplesPerFrame, header is wrong
           mSong = new cSong (fileFrameType,  audioDecoder->getNumChannels(),
                              audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame(), 1, 0);
-        int numFrames = mSong->getNumFrames();
-        int totalFrames = (numFrames > 0) ? (size / (int(framePtr - first) / numFrames)) : 0;
-        mSong->addFrame (true, frameNum++, samples, true, totalFrames+1, 0);
-        if (!mSongPlayer) {
+        int totalFrames = (mSong->getNumFrames() > 0) ? (size / (int(framePtr - first) / mSong->getNumFrames())) : 0;
+        mSong->addFrame (true, pts, samples, true, totalFrames+1);
+        pts += mSong->getPtsDuration();
+        if (!mSongPlayer)
           mSongPlayer = new cSongPlayer(mSong, false);
-          }
         }
       framePtr += frameSize;
       mLoadFrac = float(framePtr - first) / size;
@@ -1417,9 +1408,7 @@ void cLoader::loadAudio (uint8_t* first, int size, eFlags flags) {
   mLoadFrac = 0.f;
 
   // duration info
-  int duration = (mSong->getTotalFrames() * mSong->getSamplesPerFrame()) / (mSong->getSampleRate() / 1000);
-  cLog::log (LOGINFO, "load ts %dms took %dms",
-                      duration, duration_cast<milliseconds>(system_clock::now() - timePoint).count());
+  cLog::log (LOGINFO, "load took %dms", duration_cast<milliseconds>(system_clock::now() - timePoint).count());
   mSongPlayer->wait();
 
   delete mSongPlayer;

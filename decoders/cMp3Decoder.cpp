@@ -1619,7 +1619,7 @@ cMp3Decoder::cMp3Decoder() {
   }
 //}}}
 //{{{
-float* cMp3Decoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int32_t frameNum) {
+float* cMp3Decoder::decodeFrame (const uint8_t* framePtr, int frameLen, int64_t pts) {
 
   auto timePoint = std::chrono::system_clock::now();
 

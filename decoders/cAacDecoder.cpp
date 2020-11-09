@@ -2316,7 +2316,7 @@ cAacDecoder::~cAacDecoder() {
 //}}}
 
 //{{{
-float* cAacDecoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int32_t frameNum) {
+float* cAacDecoder::decodeFrame (const uint8_t* framePtr, int frameLen, int64_t pts) {
 
   auto timePoint = system_clock::now();
 
@@ -2324,10 +2324,10 @@ float* cAacDecoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int3
   mSampleRate = 0;
   mNumSamples = 0;
 
-  bool jumped = frameNum && (frameNum != mLastFrameNum  + 1);
-  if (jumped)
-    flush();
-  mLastFrameNum = frameNum;
+  //bool jumped = (mLastPts >= 0) && (pts != mLastFrameNum + 1);
+  //if (jumped)
+  //  flush();
+  //mLastPts = pts;
 
   uint8_t* inPtr = (uint8_t*)framePtr;
   int32_t bitOffset = 0;

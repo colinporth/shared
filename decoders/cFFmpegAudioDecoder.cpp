@@ -57,15 +57,16 @@ cFFmpegAudioDecoder::~cFFmpegAudioDecoder() {
 //}}}
 
 //{{{
-float* cFFmpegAudioDecoder::decodeFrame (const uint8_t* framePtr, int32_t frameLen, int32_t frameNum) {
+float* cFFmpegAudioDecoder::decodeFrame (const uint8_t* framePtr, int frameLen, int64_t pts) {
 
   float* outBuffer = nullptr;
+
+  //if (pts != mLastPts + duration) // skip
 
   AVPacket avPacket;
   av_init_packet (&avPacket);
   auto avFrame = av_frame_alloc();
 
-  int64_t pts = 0;
   auto pesPtr = framePtr;
   auto pesSize = frameLen;
   while (pesSize) {
@@ -138,6 +139,8 @@ float* cFFmpegAudioDecoder::decodeFrame (const uint8_t* framePtr, int32_t frameL
         }
       }
     }
+
+  mLastPts = pts;
 
   av_frame_free (&avFrame);
   return outBuffer;

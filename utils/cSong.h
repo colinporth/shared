@@ -69,55 +69,55 @@ public:
     public:
       enum eType { eLoop, eMute };
 
-      cSelectItem(eType type, int firstFrame, int lastFrame, const std::string& title) :
-        mType(type), mFirstFrame(firstFrame), mLastFrame(lastFrame), mTitle(title) {}
+      cSelectItem(eType type, int64_t firstFramePts, int64_t lastFramePts, const std::string& title) :
+        mType(type), mFirstFramePts(firstFramePts), mLastFramePts(lastFramePts), mTitle(title) {}
 
       eType getType() { return mType; }
-      int getFirstFrame() { return mFirstFrame; }
-      int getLastFrame() { return mLastFrame; }
-      bool getMark() { return getFirstFrame() == getLastFrame(); }
+      int64_t getFirstFramePts() { return mFirstFramePts; }
+      int64_t getLastFramePts() { return mLastFramePts; }
+      bool getMark() { return getFirstFramePts() == getLastFramePts(); }
       std::string getTitle() { return mTitle; }
       //{{{
-      bool inRange (int frame) {
-      // ignore 1 frame select range
-        return (mFirstFrame != mLastFrame) && (frame >= mFirstFrame) && (frame <= mLastFrame);
+      bool inRange (int64_t FramePts) {
+      // ignore 1 FramePts select range
+        return (mFirstFramePts != mLastFramePts) && (FramePts >= mFirstFramePts) && (FramePts <= mLastFramePts);
         }
       //}}}
 
       void setType (eType type) { mType = type; }
-      void setFirstFrame (int frame) { mFirstFrame = frame; }
-      void setLastFrame (int frame) { mLastFrame = frame; }
+      void setFirstFramePts (int64_t framePts) { mFirstFramePts = framePts; }
+      void setLastFramePts (int64_t framePts) { mLastFramePts = framePts; }
       void setTitle (const std::string& title) { mTitle = title; }
 
     private:
       eType mType;
-      int mFirstFrame = 0;
-      int mLastFrame = 0;
+      int64_t mFirstFramePts = 0;
+      int64_t mLastFramePts = 0;
       std::string mTitle;
       };
     //}}}
 
     // gets
     bool empty() { return mItems.empty(); }
-    int getFirstFrame() { return empty() ? 0 : mItems.front().getFirstFrame(); }
-    int getLastFrame() { return empty() ? 0 : mItems.back().getLastFrame(); }
+    int64_t getFirstFramePts() { return empty() ? 0 : mItems.front().getFirstFramePts(); }
+    int64_t getLastFramePts() { return empty() ? 0 : mItems.back().getLastFramePts(); }
     std::vector<cSelectItem>& getItems() { return mItems; }
 
-    bool inRange (int frame);
-    int constrainToRange (int frame, int constrainedFrame);
+    bool inRange (int64_t framePts);
+    int64_t constrainToRange (int64_t framePts, int64_t constrainedFramePts);
 
     // actions
     void clearAll();
-    void addMark (int frame, const std::string& title = "");
-    void start (int frame);
-    void move (int frame);
+    void addMark (int64_t framePts, const std::string& title = "");
+    void start (int64_t framePts);
+    void move (int64_t framePts);
     void end();
 
   private:
     enum eEdit { eEditNone, eEditFirst, eEditLast, eEditRange };
 
     eEdit mEdit = eEditNone;
-    int mEditFrame = 0;
+    int64_t mEditFramePts = 0;
     std::vector<cSelectItem> mItems;
     int mItemNum = 0;
     };
@@ -137,15 +137,19 @@ public:
   int getSampleRate() { return mSampleRate; }
   int getSamplesPerFrame() { return mSamplesPerFrame; }
 
-  int getPlayFrame() { return mPlayFrame; }
-  int getFirstFrame() { return mFrameMap.empty() ? 0 : mFrameMap.begin()->first; }
-  int getLastFrame() { return mFrameMap.empty() ? 0 : mFrameMap.rbegin()->first;  }
+  int64_t getPtsDuration() { return mPtsDuration; }
+
+  // use pts where you can
+  int64_t getPlayPts() { return mPlayPts; }
+  int64_t getFirstPts() { return mFrameMap.empty() ? 0 : mFrameMap.begin()->second->getPts(); }
+  int64_t getLastPts() { return mFrameMap.empty() ? 0 : mFrameMap.rbegin()->second->getPts();  }
+
+  // but frameNum useful for graphics
+  int getPlayFrameNum() { return int (mPlayPts / mPtsDuration); }
+  int getFirstFrameNum() { return mFrameMap.empty() ? 0 : mFrameMap.begin()->first; }
+  int getLastFrameNum() { return mFrameMap.empty() ? 0 : mFrameMap.rbegin()->first;  }
   int getNumFrames() { return mFrameMap.empty() ? 0 : (mFrameMap.rbegin()->first - mFrameMap.begin()->first + 1); }
   int getTotalFrames() { return mTotalFrames; }
-  virtual int getLengthFrame() { return mTotalFrames; }
-
-  int64_t getPlayPts();
-  int64_t getPtsDuration() { return mPtsDuration; }
 
   cSelect& getSelect() { return mSelect; }
 
@@ -165,21 +169,26 @@ public:
   void setChanged (bool changed) { mChanged = changed; }
 
   // playFrame
-  virtual void setPlayFrame (int frame);
+  virtual void setPlayPts (int64_t pts);
+  void nextPlayFrame (bool useSelectRange);
   void incPlaySec (int secs, bool useSelectRange);
-  void incPlayFrame (int frames, bool useSelectRange);
 
   // actions
   void prevSilencePlayFrame();
   void nextSilencePlayFrame();
 
-  cFrame* findFrame (int frameNum);
-  void addFrame (bool reuseFront, int frameNum, float* samples, bool ownSamples, int totalFrames, int64_t pts);
+  cFrame* findFrameByPts (int64_t pts);
+  cFrame* findFrameByFrame (int frame);
+  cFrame* findPlayFrame() { return findFrameByPts (mPlayPts); }
+  void addFrame (bool reuseFront, int64_t pts, float* samples, bool ownSamples, int totalFrames);
 
 protected:
   const int mSampleRate = 0;
   const int mSamplesPerFrame = 0;
-  int mPlayFrame = 0;
+
+  int64_t mPlayPts = 0;
+  int64_t mPtsDuration = 0;
+
   std::shared_mutex mSharedMutex;
 
 private:
@@ -189,18 +198,18 @@ private:
   static constexpr int kMaxFreq = (kMaxNumSamplesPerFrame / 2) + 1; // fft max
   static constexpr int kMaxFreqBytes = 512; // arbitrary graphics max
   //}}}
-  int skipPrev (int fromFrame, bool silence);
-  int skipNext (int fromFrame, bool silence);
-  void checkSilenceWindow (int frameNum);
+  int64_t skipPrev (int64_t fromPts, bool silence);
+  int64_t skipNext (int64_t fromPts, bool silence);
+  void checkSilenceWindow (int64_t pts);
   //{{{  vars
   const eAudioFrameType mFrameType;
   const int mNumChannels;
 
+  // map of frames keyed by frame pts/ptsDuration
+  // - frameNum offset by firstFrame pts/ptsDuration
   std::map <int, cFrame*> mFrameMap;
   int mMaxMapSize = 0;
   int mTotalFrames = 0;
-
-  int64_t mPtsDuration = 0;
 
   bool mOwnSamples = false;
   bool mChanged = false;
@@ -228,14 +237,14 @@ public:
   virtual ~cHlsSong();
 
   // gets
-  int getBasePlayFrame() { return mPlayFrame - mBaseFrameNum; }
-  bool getLoadChunk (int& chunkNum, int& frameNum, int preloadChunks);
-  int getLengthFrame() { return getLastFrame(); }
+  int64_t getBasePlayPts() { return mPlayPts - mBasePts; }
+  bool getLoadChunk (int& chunkNum, int64_t& pts, int preloadChunks);
+  int64_t getLengthPts() { return getLastPts(); }
 
   // sets
   void setBase (int chunkNum, int64_t pts,
                 std::chrono::system_clock::time_point timePoint, std::chrono::seconds offset);
-  virtual void setPlayFrame (int frame);
+  virtual void setPlayPts (int64_t pts);
 
 private:
   //{{{  vars

@@ -48,31 +48,31 @@ cSong::cFrame::~cFrame() {
 
 // cSong::cSelect
 //{{{
-bool cSong::cSelect::inRange (int frame) {
+bool cSong::cSelect::inRange (int64_t framePts) {
 
   for (auto &item : mItems)
-    if (item.inRange (frame))
+    if (item.inRange (framePts))
       return true;
 
   return false;
   }
 //}}}
 //{{{
-int cSong::cSelect::constrainToRange (int frame, int constrainedFrame) {
-// if frame in a select range return frame constrained to it
+int64_t cSong::cSelect::constrainToRange (int64_t framePts, int64_t constrainedFramePts) {
+// if FramePts in a select range return FramePts constrained to it
 
   for (auto &item : mItems) {
-    if (item.inRange (frame)) {
-      if (constrainedFrame > item.getLastFrame())
-        return item.getFirstFrame();
-      else if (constrainedFrame < item.getFirstFrame())
-        return item.getFirstFrame();
+    if (item.inRange (framePts)) {
+      if (constrainedFramePts > item.getLastFramePts())
+        return item.getFirstFramePts();
+      else if (constrainedFramePts < item.getFirstFramePts())
+        return item.getFirstFramePts();
       else
-        return constrainedFrame;
+        return constrainedFramePts;
       }
     }
 
-  return constrainedFrame;
+  return constrainedFramePts;
   }
 //}}}
 
@@ -82,33 +82,33 @@ void cSong::cSelect::clearAll() {
   mItems.clear();
 
   mEdit = eEditNone;
-  mEditFrame = 0;
+  mEditFramePts = 0;
   }
 //}}}
 //{{{
-void cSong::cSelect::addMark (int frame, const std::string& title) {
-  mItems.push_back (cSelectItem (cSelectItem::eLoop, frame, frame, title));
+void cSong::cSelect::addMark (int64_t pts, const std::string& title) {
+  mItems.push_back (cSelectItem (cSelectItem::eLoop, pts, pts, title));
   mEdit = eEditLast;
-  mEditFrame = frame;
+  mEditFramePts = pts;
   }
 //}}}
 //{{{
-void cSong::cSelect::start (int frame) {
+void cSong::cSelect::start (int64_t framePts) {
 
-  mEditFrame = frame;
+  mEditFramePts = framePts;
 
   mItemNum = 0;
   for (auto &item : mItems) {
     // pick from select range
-    if (abs(frame - item.getLastFrame()) < 2) {
+    if (abs(framePts - item.getLastFramePts()) < 2) {
       mEdit = eEditLast;
       return;
       }
-    else if (abs(frame - item.getFirstFrame()) < 2) {
+    else if (abs(framePts - item.getFirstFramePts()) < 2) {
       mEdit = eEditFirst;
       return;
       }
-    else if (item.inRange (frame)) {
+    else if (item.inRange (framePts)) {
       mEdit = eEditRange;
       return;
       }
@@ -116,35 +116,35 @@ void cSong::cSelect::start (int frame) {
     }
 
   // add new select item
-  mItems.push_back (cSelectItem (cSelectItem::eLoop, frame, frame, ""));
+  mItems.push_back (cSelectItem (cSelectItem::eLoop, framePts, framePts, ""));
   mEdit = eEditLast;
   }
 //}}}
 //{{{
-void cSong::cSelect::move (int frame) {
+void cSong::cSelect::move (int64_t framePts) {
 
   if (mItemNum < (int)mItems.size()) {
     switch (mEdit) {
       case eEditFirst:
-        mItems[mItemNum].setFirstFrame (frame);
-        if (mItems[mItemNum].getFirstFrame() > mItems[mItemNum].getLastFrame()) {
-          mItems[mItemNum].setLastFrame (frame);
-          mItems[mItemNum].setFirstFrame (mItems[mItemNum].getLastFrame());
+        mItems[mItemNum].setFirstFramePts (framePts);
+        if (mItems[mItemNum].getFirstFramePts() > mItems[mItemNum].getLastFramePts()) {
+          mItems[mItemNum].setLastFramePts (framePts);
+          mItems[mItemNum].setFirstFramePts (mItems[mItemNum].getLastFramePts());
           }
         break;
 
       case eEditLast:
-        mItems[mItemNum].setLastFrame (frame);
-        if (mItems[mItemNum].getLastFrame() < mItems[mItemNum].getFirstFrame()) {
-          mItems[mItemNum].setFirstFrame (frame);
-          mItems[mItemNum].setLastFrame (mItems[mItemNum].getFirstFrame());
+        mItems[mItemNum].setLastFramePts (framePts);
+        if (mItems[mItemNum].getLastFramePts() < mItems[mItemNum].getFirstFramePts()) {
+          mItems[mItemNum].setFirstFramePts (framePts);
+          mItems[mItemNum].setLastFramePts (mItems[mItemNum].getFirstFramePts());
           }
         break;
 
       case eEditRange:
-        mItems[mItemNum].setFirstFrame (mItems[mItemNum].getFirstFrame() + frame - mEditFrame);
-        mItems[mItemNum].setLastFrame (mItems[mItemNum].getLastFrame() + frame - mEditFrame);
-        mEditFrame = frame;
+        mItems[mItemNum].setFirstFramePts (mItems[mItemNum].getFirstFramePts() + framePts - mEditFramePts);
+        mItems[mItemNum].setLastFramePts (mItems[mItemNum].getLastFramePts() + framePts - mEditFramePts);
+        mEditFramePts = framePts;
         break;
 
       default:
@@ -156,7 +156,7 @@ void cSong::cSelect::move (int frame) {
 //{{{
 void cSong::cSelect::end() {
   mEdit = eEditNone;
-  mEditFrame = 0;
+  mEditFramePts = 0;
   }
 //}}}
 
@@ -190,22 +190,19 @@ cSong::~cSong() {
 //}}}
 
 //{{{
-int64_t cSong::getPlayPts() {
-
-  auto framePtr = findFrame (mPlayFrame);
-  return framePtr ? framePtr->getPts() : -1;
-  }
-//}}}
-
-//{{{
-cSong::cFrame* cSong::findFrame (int frameNum) {
-
-  auto it = mFrameMap.find (frameNum);
+cSong::cFrame* cSong::findFrameByFrame (int frame) {
+  auto it = mFrameMap.find (frame);
   return (it == mFrameMap.end()) ? nullptr : it->second;
   }
 //}}}
 //{{{
-void cSong::addFrame (bool reuseFront, int frameNum, float* samples, bool ownSamples, int totalFrames, int64_t pts) {
+cSong::cFrame* cSong::findFrameByPts (int64_t pts) {
+  auto it = mFrameMap.find (int(pts / mPtsDuration));
+  return (it == mFrameMap.end()) ? nullptr : it->second;
+  }
+//}}}
+//{{{
+void cSong::addFrame (bool reuseFront, int64_t pts, float* samples, bool ownSamples, int totalFrames) {
 
   cFrame* frame;
   if (mMaxMapSize && (int(mFrameMap.size()) > mMaxMapSize)) { // reuse a cFrame
@@ -290,106 +287,108 @@ void cSong::addFrame (bool reuseFront, int frameNum, float* samples, bool ownSam
   //{{{  insert with locked mutex
   {
   unique_lock<shared_mutex> lock (mSharedMutex);
-  mFrameMap.insert (map<int,cFrame*>::value_type (frameNum, frame));
+  mFrameMap.insert (map<int,cFrame*>::value_type (int(pts / mPtsDuration), frame));
   // totalFrames can be a changing estimate for file, or increasing value for streaming
   mTotalFrames = totalFrames;
   } // end of locked mutex
   //}}}
 
-  checkSilenceWindow (frameNum);
+  checkSilenceWindow (pts);
   }
 //}}}
 
 // playFrame
 //{{{
-void cSong::setPlayFrame (int frame) {
-  mPlayFrame = min (max (frame, 0), getLastFrame()+1);
+void cSong::setPlayPts (int64_t pts) {
+  mPlayPts = min (max (pts, 0LL), getLastPts()); // +1); ??
   }
 //}}}
 //{{{
-void cSong::incPlayFrame (int frames, bool constrainToRange) {
+void cSong::nextPlayFrame (bool constrainToRange) {
 
-  int playFrame = mPlayFrame + frames;
-  if (constrainToRange)
-    playFrame = mSelect.constrainToRange (mPlayFrame, playFrame);
+  int64_t playPts = mPlayPts + mPtsDuration;
+  //if (constrainToRange)
+  //  int64_t = mSelect.constrainToRange (mPlayFrame, int64_t);
 
-  setPlayFrame (playFrame);
+  setPlayPts (playPts);
   }
 //}}}
 //{{{
 void cSong::incPlaySec (int secs, bool useSelectRange) {
-  incPlayFrame ((secs * mSampleRate) / mSamplesPerFrame, useSelectRange);
+
+  int64_t frames = (secs * mSampleRate) / mSamplesPerFrame;
+  mPlayPts += frames * mPtsDuration;
   }
 //}}}
 
 // actions
 //{{{
 void cSong::prevSilencePlayFrame() {
-  mPlayFrame = skipPrev (mPlayFrame, false);
-  mPlayFrame = skipPrev (mPlayFrame, true);
-  mPlayFrame = skipPrev (mPlayFrame, false);
+  mPlayPts = skipPrev (mPlayPts, false);
+  mPlayPts = skipPrev (mPlayPts, true);
+  mPlayPts = skipPrev (mPlayPts, false);
   }
 //}}}
 //{{{
 void cSong::nextSilencePlayFrame() {
-  mPlayFrame = skipNext (mPlayFrame, true);
-  mPlayFrame = skipNext (mPlayFrame, false);
-  mPlayFrame = skipNext (mPlayFrame, true);
+  mPlayPts = skipNext (mPlayPts, true);
+  mPlayPts = skipNext (mPlayPts, false);
+  mPlayPts = skipNext (mPlayPts, true);
   }
 //}}}
 
 // private
 //{{{
-int cSong::skipPrev (int fromFrame, bool silence) {
+int64_t cSong::skipPrev (int64_t fromPts, bool silence) {
 
-  for (int frame = fromFrame-1; frame >= getFirstFrame(); frame--) {
-    auto framePtr = findFrame (frame);
-    if (framePtr && (framePtr->isSilence() ^ silence))
-      return frame;
-    }
+  //for (int frame = fromFrame-1; frame >= getFirstFrame(); frame--) {
+  //  auto framePtr = findFrame (frame);
+  //  if (framePtr && (framePtr->isSilence() ^ silence))
+  //    return frame;
+  // }
 
-  return fromFrame;
+  return fromPts;
   }
 //}}}
 //{{{
-int cSong::skipNext (int fromFrame, bool silence) {
+int64_t cSong::skipNext (int64_t fromPts, bool silence) {
 
-  for (int frame = fromFrame; frame <= getLastFrame(); frame++) {
-    auto framePtr = findFrame (frame);
-    if (framePtr && (framePtr->isSilence() ^ silence))
-      return frame;
-    }
+  //for (int frame = fromFrame; frame <= getLastFrame(); frame++) {
+  //  auto framePtr = findFrame (frame);
+  //  if (framePtr && (framePtr->isSilence() ^ silence))
+  //    return frame;
+  //  }
 
-  return fromFrame;
+  return fromPts;
   }
 //}}}
 //{{{
-void cSong::checkSilenceWindow (int frameNum) {
+void cSong::checkSilenceWindow (int64_t pts) {
 
-  unique_lock<shared_mutex> lock (mSharedMutex);
+  //unique_lock<shared_mutex> lock (mSharedMutex);
 
   // walk backwards looking for continuous loaded quiet frames
-  auto windowSize = 0;
-  while (true) {
-    auto framePtr = findFrame (frameNum);
-    if (framePtr && framePtr->isQuiet()) {
-      windowSize++;
-      frameNum--;
-      }
-    else
-      break;
-    };
+  //auto windowSize = 0;
+  //while (true) {
+  //  auto framePtr = findFrame (frameNum);
+  //  if (framePtr && framePtr->isQuiet()) {
+  //    windowSize++;
+  //    frameNum--;
+  //    }
+  //  else
+  //    break;
+  //  };
 
-  if (windowSize > kSilenceWindowFrames) {
-    // walk forward setting silence for continuous loaded quiet frames
-    while (true) {
-      auto framePtr = findFrame (++frameNum);
-      if (framePtr && framePtr->isQuiet())
-        framePtr->setSilence (true);
-      else
-        break;
-      }
-    }
+  //if (windowSize > kSilenceWindowFrames) {
+  //  // walk forward setting silence for continuous loaded quiet frames
+  //  while (true) {
+  //    auto framePtr = findFrame (++frameNum);
+  //    if (framePtr && framePtr->isQuiet())
+  //      framePtr->setSilence (true);
+  //    else
+  //      break;
+  //    }
+  //  }
   }
 //}}}
 
@@ -404,7 +403,7 @@ cHlsSong::cHlsSong (eAudioFrameType frameType, int numChannels,
 cHlsSong::~cHlsSong() {}
 
 //{{{
-bool cHlsSong::getLoadChunk (int& chunkNum, int& frameNum, int preloadChunks) {
+bool cHlsSong::getLoadChunk (int& chunkNum, int64_t& pts, int preloadChunks) {
 // return true if a chunk load needed to play mPlayFrame
 // - update chunkNum and frameNum
 // !!!! dodgy hard coding of chunk duration 6400ms !!!!
@@ -412,9 +411,9 @@ bool cHlsSong::getLoadChunk (int& chunkNum, int& frameNum, int preloadChunks) {
   system_clock::time_point now = system_clock::now();
 
   // get offsets of playFrame from baseFrame, handle -v offsets correctly
-  int frameOffset = mPlayFrame - mBaseFrameNum;
-  int chunkNumOffset = (frameOffset >= 0)  ? (frameOffset / mFramesPerChunk) :
-                                             -((mFramesPerChunk - 1 - frameOffset) / mFramesPerChunk);
+  int64_t ptsOffset = mPlayPts - mBasePts;
+  int chunkNumOffset = (ptsOffset >= 0)  ? int(((ptsOffset/mPtsDuration) / mFramesPerChunk)) :
+                                           -int((mFramesPerChunk - 1 - (ptsOffset/mPtsDuration)) / mFramesPerChunk);
 
   // loop until chunkNum with unloaded frame, chunkNum not available yet, or preload ahead of playFrame loaded
   int loadedChunks = 0;
@@ -422,10 +421,10 @@ bool cHlsSong::getLoadChunk (int& chunkNum, int& frameNum, int preloadChunks) {
   while ((loadedChunks < preloadChunks) &&
          ((now - (mBaseTimePoint + (chunkNumOffset * 6400ms))).count() > secs))
     // chunkNum chunk should be available
-    if (!findFrame (mBaseFrameNum + (chunkNumOffset * mFramesPerChunk))) {
+    if (!findFrameByPts (mBasePts + ((chunkNumOffset * mFramesPerChunk) * mPtsDuration))) {
       // not loaded, return chunkNum to load
       chunkNum = mBaseChunkNum + chunkNumOffset;
-      frameNum = mBaseFrameNum + (chunkNum - mBaseChunkNum) * mFramesPerChunk;
+      pts = mBasePts + ((chunkNum - mBaseChunkNum) * mFramesPerChunk) * mPtsDuration;
       return true;
       }
     else {
@@ -436,7 +435,7 @@ bool cHlsSong::getLoadChunk (int& chunkNum, int& frameNum, int preloadChunks) {
 
   // return false, no chunkNum available to load
   chunkNum = 0;
-  frameNum = 0;
+  pts = -1;
   return false;
   }
 //}}}
@@ -449,18 +448,18 @@ void cHlsSong::setBase (int chunkNum, int64_t pts, system_clock::time_point time
   mBaseChunkNum = chunkNum;
   mBasePts = pts;
 
-  timePoint += offset;
-  mBaseTimePoint = timePoint;
-
   // calc hlsBaseFrame
-  auto midnightTimePoint = date::floor<date::days>(timePoint);
-  uint64_t msSinceMidnight = duration_cast<milliseconds>(timePoint - midnightTimePoint).count();
-  mBaseFrameNum = int((msSinceMidnight * mSampleRate) / mSamplesPerFrame / 1000);
-  mPlayFrame = mBaseFrameNum;
+  //timePoint += offset;
+  //mBaseTimePoint = timePoint;
+  //auto midnightTimePoint = date::floor<date::days>(timePoint);
+  //uint64_t msSinceMidnight = duration_cast<milliseconds>(timePoint - midnightTimePoint).count();
+  //mBaseFrameNum = int((msSinceMidnight * mSampleRate) / mSamplesPerFrame / 1000);
+
+  mPlayPts = mBasePts;
   }
 //}}}
 //{{{
-void cHlsSong::setPlayFrame (int frame) {
-  mPlayFrame = min (frame, getLastFrame()+1);
+void cHlsSong::setPlayPts (int64_t pts) {
+  mPlayPts = min (pts, getLastPts() + mPtsDuration);
   }
 //}}}

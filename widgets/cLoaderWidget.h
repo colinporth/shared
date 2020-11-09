@@ -23,20 +23,20 @@ public:
     auto song = mLoader->getSong();
     //std::shared_lock<std::shared_mutex> lock (song->getSharedMutex());
     if (p.y > mDstOverviewTop) {
-      auto frame = song->getFirstFrame() + int((p.x * song->getTotalFrames()) / getPixWidth());
-      song->setPlayFrame (frame);
+      auto pts = song->getFirstFrameNum() + int((p.x * song->getTotalFrames()) / getPixWidth());
+      song->setPlayPts (pts);
       mOverviewPressed = true;
       }
 
     else if (p.y > mDstRangeTop) {
-      mPressedFrame = song->getPlayFrame() + ((p.x - (getPixWidth()/2.f)) * mFrameStep / mFrameWidth);
-      song->getSelect().start (int(mPressedFrame));
+      mPressedPts = song->getPlayFrameNum() + ((p.x - (getPixWidth()/2.f)) * mFrameStep / mFrameWidth);
+      song->getSelect().start (int64_t(mPressedPts));
       mRangePressed = true;
       //mWindow->changed();
       }
 
     else
-      mPressedFrame = (float)song->getPlayFrame();
+      mPressedPts = (double)song->getPlayPts();
     }
   //}}}
   //{{{
@@ -47,17 +47,17 @@ public:
     auto song = mLoader->getSong();
     //std::shared_lock<std::shared_mutex> lock (song.getSharedMutex());
     if (mOverviewPressed)
-      song->setPlayFrame (song->getFirstFrame() + int((p.x * song->getTotalFrames()) / getPixWidth()));
+      song->setPlayPts ((song->getFirstFrameNum() + int((p.x * song->getTotalFrames()) / getPixWidth())) * song->getPtsDuration());
 
     else if (mRangePressed) {
-      mPressedFrame += (inc.x / mFrameWidth) * mFrameStep;
-      song->getSelect().move ((int)mPressedFrame);
+      mPressedPts += (inc.x / mFrameWidth) * mFrameStep;
+      song->getSelect().move ((int64_t)mPressedPts);
       //mWindow->changed();
       }
 
     else {
-      mPressedFrame -= (inc.x / mFrameWidth) * mFrameStep;
-      song->setPlayFrame ((int)mPressedFrame);
+      mPressedPts -= (inc.x / mFrameWidth) * mFrameStep;
+      song->setPlayPts ((int64_t)mPressedPts);
       }
     }
   //}}}
@@ -168,10 +168,10 @@ public:
         std::shared_lock<std::shared_mutex> lock (song->getSharedMutex());
 
         // wave left right frames, clip right not left
-        int playFrame = song->getPlayFrame();
+        int playFrame = song->getPlayFrameNum();
         int leftWaveFrame = playFrame - (((int(mPixSize.x)+mFrameWidth)/2) * mFrameStep) / mFrameWidth;
         int rightWaveFrame = playFrame + (((int(mPixSize.x)+mFrameWidth)/2) * mFrameStep) / mFrameWidth;
-        rightWaveFrame = std::min (rightWaveFrame, song->getLastFrame());
+        rightWaveFrame = std::min (rightWaveFrame, song->getLastFrameNum());
 
         drawRange (vg, song, playFrame, leftWaveFrame, rightWaveFrame);
         if (song->getNumFrames()) {
@@ -183,9 +183,9 @@ public:
           }
         }
 
-        drawTime (vg, getFrameString (song, song->getFirstFrame()),
-                      getFrameString (song, song->getPlayFrame()),
-                      getFrameString (song, song->getLengthFrame()));
+        drawTime (vg, getFrameString (song, song->getFirstFrameNum()),
+                      getFrameString (song, song->getPlayFrameNum()),
+                      getFrameString (song, song->getLastFrameNum()));
         }
         //}}}
 
@@ -342,29 +342,29 @@ private:
   //{{{
   void drawRange (cVg* vg, cSong* song, int playFrame, int leftFrame, int rightFrame) {
 
-    vg->beginPath();
-    vg->rect (mPixOrg + cPointF(0.f, mDstRangeTop), cPointF(mPixSize.x, mRangeHeight));
-    vg->setFillColour (kDarkGreyF);
-    vg->triangleFill();
+    //vg->beginPath();
+    //vg->rect (mPixOrg + cPointF(0.f, mDstRangeTop), cPointF(mPixSize.x, mRangeHeight));
+    //vg->setFillColour (kDarkGreyF);
+    //vg->triangleFill();
 
-    vg->beginPath();
-    for (auto &item : song->getSelect().getItems()) {
-      auto firstx = (getPixWidth()/2.f) + (item.getFirstFrame() - playFrame) * mFrameWidth / mFrameStep;
-      float lastx = item.getMark() ? firstx + 1.f :
-                                     (getPixWidth()/2.f) + (item.getLastFrame() - playFrame) * mFrameWidth / mFrameStep;
-      vg->rect (mPixOrg + cPointF(firstx, mDstRangeTop), cPointF(lastx - firstx, mRangeHeight));
+    //vg->beginPath();
+    //for (auto &item : song->getSelect().getItems()) {
+    //  auto firstx = (getPixWidth()/2.f) + (item.getFirstFrame() - playFrame) * mFrameWidth / mFrameStep;
+    //  float lastx = item.getMark() ? firstx + 1.f :
+    //                                 (getPixWidth()/2.f) + (item.getLastFrame() - playFrame) * mFrameWidth / mFrameStep;
+    //  vg->rect (mPixOrg + cPointF(firstx, mDstRangeTop), cPointF(lastx - firstx, mRangeHeight));
 
-      auto title = item.getTitle();
-      if (!title.empty()) {
+    //  auto title = item.getTitle();
+    //  if (!title.empty()) {
         //dstRect = { mRect.left + firstx + 2.f, mDstRangeTop + mRangeHeight - mWindow->getTextFormat()->GetFontSize(),
         //            mRect.right, mDstRangeTop + mRangeHeight + 4.f };
         //dc->DrawText (std::wstring (title.begin(), title.end()).data(), (uint32_t)title.size(), mWindow->getTextFormat(),
         //              dstRect, mWindow->getWhiteBrush(), D2D1_DRAW_TEXT_OPTIONS_CLIP);
-        }
-      }
+     //   }
+     // }
 
-    vg->setFillColour (kWhiteF);
-    vg->triangleFill();
+    //vg->setFillColour (kWhiteF);
+    //vg->triangleFill();
     }
   //}}}
   //{{{
@@ -383,7 +383,7 @@ private:
       vg->beginPath();
 
       for (auto frame = leftFrame; frame < rightFrame; frame += mFrameStep) {
-        auto framePtr = song->findFrame (frame);
+        auto framePtr = song->findFrameByFrame (frame);
         if (framePtr) {
           // draw frame peak values scaled to maxPeak
           if (framePtr->getPowerValues()) {
@@ -406,7 +406,7 @@ private:
     vg->beginPath();
 
     for (auto frame = leftFrame; frame < playFrame; frame += mFrameStep) {
-      auto framePtr = song->findFrame (frame);
+      auto framePtr = song->findFrameByFrame (frame);
       if (framePtr) {
         if (mFrameStep == 1) {
           // power scaled to maxPeak
@@ -424,7 +424,7 @@ private:
           auto alignedFrame = frame - (frame % mFrameStep);
           auto toSumFrame = std::min (alignedFrame + mFrameStep, rightFrame);
           for (auto sumFrame = alignedFrame; sumFrame < toSumFrame; sumFrame++) {
-            auto framePtr = song->findFrame (sumFrame);
+            auto framePtr = song->findFrameByFrame (sumFrame);
             if (framePtr) {
               if (framePtr->getPowerValues()) {
                 auto powerValuesPtr = framePtr->getPowerValues();
@@ -450,7 +450,7 @@ private:
     // power scaled to maxPeak
     vg->beginPath();
 
-    auto framePtr = song->findFrame (playFrame);
+    auto framePtr = song->findFrameByFrame (playFrame);
     if (framePtr) {
       //  draw play frame power scaled to maxPeak
       if (framePtr->getPowerValues()) {
@@ -470,7 +470,7 @@ private:
     vg->beginPath();
 
     for (auto frame = playFrame+mFrameStep; frame < rightFrame; frame += mFrameStep) {
-      auto framePtr = song->findFrame (frame);
+      auto framePtr = song->findFrameByFrame (frame);
       if (framePtr) {
         if (mFrameStep == 1) {
           // power scaled to maxPeak
@@ -488,7 +488,7 @@ private:
           auto alignedFrame = frame - (frame % mFrameStep);
           auto toSumFrame = std::min (alignedFrame + mFrameStep, rightFrame);
           for (auto sumFrame = alignedFrame; sumFrame < toSumFrame; sumFrame++) {
-            auto framePtr = song->findFrame (sumFrame);
+            auto framePtr = song->findFrameByFrame (sumFrame);
             if (framePtr) {
               if (framePtr->getPowerValues()) {
                 auto powerValuesPtr = framePtr->getPowerValues();
@@ -538,7 +538,7 @@ private:
     vg->beginPath();
 
     float xorg = mPixOrg.x;
-    auto framePtr = song->findFrame (playFrame);
+    auto framePtr = song->findFrameByFrame (playFrame);
     if (framePtr && framePtr->getFreqValues()) {
       auto freqValues = framePtr->getFreqValues();
       for (auto i = 0; (i < song->getNumFreqBytes()) && ((i*2) < int(mPixSize.x)); i++) {
@@ -578,7 +578,7 @@ private:
   void drawOverviewWave (cVg* vg, cSong* song, int firstFrame, int playFrame, float playFrameX, float valueScale, bool mono) {
   // simple overview cache, invalidate if anything changed
 
-    int lastFrame = song->getLastFrame();
+    int lastFrame = song->getLastFrameNum();
     int totalFrames = song->getTotalFrames();
 
     bool changed = (mOverviewTotalFrames != totalFrames) ||
@@ -599,7 +599,7 @@ private:
         if (toFrame > lastFrame)
           toFrame = lastFrame+1;
 
-        auto framePtr = song->findFrame (frame);
+        auto framePtr = song->findFrameByFrame (frame);
         if (framePtr && framePtr->getPowerValues()) {
           // accumulate frame, handle silence better
           float* powerValues = framePtr->getPowerValues();
@@ -610,7 +610,7 @@ private:
             int numSummedFrames = 1;
             frame++;
             while (frame < toFrame) {
-              framePtr = song->findFrame (frame);
+              framePtr = song->findFrameByFrame (frame);
               if (framePtr) {
                 if (framePtr->getPowerValues()) {
                   auto powerValues = framePtr->getPowerValues();
@@ -666,12 +666,12 @@ private:
       }
 
     int rightFrame = (int)(playFrame + width);
-    rightFrame = std::min (rightFrame, song->getLastFrame());
+    rightFrame = std::min (rightFrame, song->getLastFrameNum());
 
     // calc lens max power
     float maxPowerValue = 0.f;
     for (auto frame = int(leftFrame); frame <= rightFrame; frame++) {
-      auto framePtr = song->findFrame (frame);
+      auto framePtr = song->findFrameByFrame (frame);
       if (framePtr && framePtr->getPowerValues()) {
         auto powerValues = framePtr->getPowerValues();
         maxPowerValue = std::max (maxPowerValue, powerValues[0]);
@@ -685,7 +685,7 @@ private:
     float xorg = mPixOrg.x + firstX;
     float valueScale = mOverviewHeight / 2.f / maxPowerValue;
     for (auto frame = int(leftFrame); frame <= rightFrame; frame++) {
-      auto framePtr = song->findFrame (frame);
+      auto framePtr = song->findFrameByFrame (frame);
       if (framePtr && framePtr->getPowerValues()) {
         //if (framePtr->hasTitle()) {
           //{{{  draw song title yellow bar and text
@@ -743,7 +743,7 @@ private:
     if (!song->getTotalFrames())
       return;
 
-    int firstFrame = song->getFirstFrame();
+    int firstFrame = song->getFirstFrameNum();
     float playFrameX = ((playFrame - firstFrame) * mPixSize.x) / song->getTotalFrames();
     float valueScale = mOverviewHeight / 2.f / song->getMaxPowerValue();
     drawOverviewWave (vg, song, firstFrame, playFrame, playFrameX, valueScale, mono);
@@ -782,7 +782,7 @@ private:
 
     else {
       //  draw playFrame
-      auto framePtr = song->findFrame (playFrame);
+      auto framePtr = song->findFrameByFrame (playFrame);
       if (framePtr && framePtr->getPowerValues()) {
         vg->beginPath();
         auto powerValues = framePtr->getPowerValues();
@@ -814,7 +814,7 @@ private:
   int mFrameWidth = 1;
   int mFrameStep = 1;
 
-  float mPressedFrame = 0.f;
+  double mPressedPts = 0;
   bool mOverviewPressed = false;
   bool mRangePressed = false;
 

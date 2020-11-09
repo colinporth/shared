@@ -46,7 +46,7 @@ public:
   cFileList* mFileList = nullptr;
 
 private:
-  void addIcyInfo (int frame, const std::string& icyInfo);
+  void addIcyInfo (int64_t pts, const std::string& icyInfo);
 
   void loadTs (uint8_t* first, int size, eFlags flags);
   void loadAudio (uint8_t* first, int size, eFlags flags);

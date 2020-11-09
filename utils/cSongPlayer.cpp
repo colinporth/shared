@@ -43,17 +43,17 @@ cSongPlayer::cSongPlayer (cSong* song, bool streaming) {
         device->setSampleRate (song->getSampleRate());
         device->start();
 
-        cSong::cFrame* framePtr;
+        cSong::cFrame* frame;
         while (!mExit && !song->getChanged()) {
           device->process ([&](float*& srcSamples, int& numSrcSamples) mutable noexcept {
             // lambda callback - load srcSamples
             shared_lock<shared_mutex> lock (song->getSharedMutex());
 
-            framePtr = song->findFrame (song->getPlayFrame());
-            if (mPlaying && framePtr && framePtr->getSamples()) {
+            frame = song->findPlayFrame();
+            if (mPlaying && frame && frame->getSamples()) {
               if (song->getNumChannels() == 1) {
                 //{{{  mono to stereo
-                auto src = framePtr->getSamples();
+                auto src = frame->getSamples();
                 auto dst = samples;
                 for (int i = 0; i < song->getSamplesPerFrame(); i++) {
                   *dst++ = *src;
@@ -62,18 +62,18 @@ cSongPlayer::cSongPlayer (cSong* song, bool streaming) {
                 }
                 //}}}
               else
-                memcpy (samples, framePtr->getSamples(), song->getSamplesPerFrame() * song->getNumChannels() * sizeof(float));
+                memcpy (samples, frame->getSamples(), song->getSamplesPerFrame() * song->getNumChannels() * sizeof(float));
               srcSamples = samples;
               }
             else
               srcSamples = silence;
             numSrcSamples = song->getSamplesPerFrame();
 
-            if (framePtr && mPlaying)
-              song->incPlayFrame (1, true);
+            if (frame && mPlaying)
+              song->nextPlayFrame (true);
             });
 
-          if (!streaming && (song->getPlayFrame() > song->getLastFrame()))
+          if (!streaming && (song->getPlayPts() > song->getLastPts()))
             break;
           }
 
@@ -81,29 +81,26 @@ cSongPlayer::cSongPlayer (cSong* song, bool streaming) {
         }
       //}}}
     #else
-      sched_param sch_params;
-      sch_params.sched_priority = sched_get_priority_max (SCHED_RR);
-      pthread_setschedparam (mPlayerThread.native_handle(), SCHED_RR, &sch_params);
       //{{{  audio16 player thread, video just follows play pts
       cAudio audio (2, song->getSampleRate(), 40000, false);
 
-      cSong::cFrame* framePtr;
+      cSong::cFrame* frame;
       while (!mExit && !song->getChanged()) {
         float* playSamples = silence;
           {
           // scoped song mutex
           shared_lock<shared_mutex> lock (song->getSharedMutex());
-          framePtr = song->findFrame (song->getPlayFrame());
-          bool gotSamples = mPlaying && framePtr && framePtr->getSamples();
+          frame = song->findPlayFrame();
+          bool gotSamples = mPlaying && frame && frame->getSamples();
           if (gotSamples) {
-            memcpy (samples, framePtr->getSamples(), song->getSamplesPerFrame() * 8);
+            memcpy (samples, frame->getSamples(), song->getSamplesPerFrame() * 8);
             playSamples = samples;
             }
           }
         audio.play (2, playSamples, song->getSamplesPerFrame(), 1.f);
 
-        if (framePtr && mPlaying)
-          song->incPlayFrame (1, true);
+        if (frame && mPlaying)
+          song->nextPlayFrame (true);
 
         if (!streaming && (song->getPlayFrame() > song->getLastFrame()))
           break;
@@ -113,6 +110,13 @@ cSongPlayer::cSongPlayer (cSong* song, bool streaming) {
 
     cLog::log (LOGINFO, "exit");
     });
+
+  #ifdef _WIN32
+  #else
+    sched_param sch_params;
+    sch_params.sched_priority = sched_get_priority_max (SCHED_RR);
+    pthread_setschedparam (mPlayerThread.native_handle(), SCHED_RR, &sch_params);
+  #endif
   }
 
 void cSongPlayer::wait() {
