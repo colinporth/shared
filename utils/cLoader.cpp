@@ -612,7 +612,6 @@ public:
   //{{{
   virtual void processLast (bool reuseFromFront) {
     if (mPesSize) {
-      int numFrames = 1;
       dispatchDecode (reuseFromFront, mPes, mPesSize, mPts, mDts);
       mPesSize = 0;
       }
