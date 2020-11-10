@@ -155,17 +155,18 @@ public:
 
   cSelect& getSelect() { return mSelect; }
 
-  // max nums for early allocations
+  //{{{  max nums for early allocations
   int getMaxNumSamplesPerFrame() { return kMaxNumSamplesPerFrame; }
   int getMaxNumSampleBytes() { return kMaxNumChannels * sizeof(float); }
   int getMaxNumFrameSamplesBytes() { return getMaxNumSamplesPerFrame() * getMaxNumSampleBytes(); }
-
-  // max values for ui
+  //}}}
+  //{{{  max values for ui
   float getMaxPowerValue() { return mMaxPowerValue; }
   float getMaxPeakValue() { return mMaxPeakValue; }
   float getMaxFreqValue() { return mMaxFreqValue; }
   int getNumFreqBytes() { return kMaxFreqBytes; }
   void setChanged (bool changed) { mChanged = changed; }
+  //}}}
 
   //{{{
   cFrame* findFrameByFrameNum (int64_t frameNum) {
@@ -236,7 +237,8 @@ private:
   //}}}
   };
 //}}}
-//{{{
+
+// cPtsSong
 class cPtsSong : public cSong {
 public:
   cPtsSong (eAudioFrameType frameType, int numChannels,
@@ -260,31 +262,30 @@ public:
 
 protected:
   int64_t mPtsDuration = 1;
-
   int64_t mBasePts = 0;
   std::chrono::system_clock::time_point mBaseTimePoint;
   };
-//}}}
-//{{{
+
+// cHlsSong
 class cHlsSong : public cPtsSong {
 public:
   cHlsSong (eAudioFrameType frameType, int numChannels,
-            int sampleRate, int samplesPerFrame, int framesPerChunk,
-            int64_t ptsDuration, int maxMapSize);
+            int sampleRate, int samplesPerFrame,
+            int64_t ptsDuration, int maxMapSize, int framesPerChunk);
   virtual ~cHlsSong();
 
   // gets
   int64_t getBasePlayPts() { return mPlayPts - mBasePts; }
-  bool getLoadChunk (int& chunkNum, int64_t& pts, int preloadChunks);
+  int getLoadChunk (int64_t& loadPts);
   int64_t getLengthPts() { return getLastPts(); }
 
   // sets
-  void setBaseHls (int64_t pts, int chunkNum, std::chrono::system_clock::time_point timePoint, std::chrono::seconds offset);
+  void setBaseHls (int64_t pts,
+                   std::chrono::system_clock::time_point timePoint, std::chrono::seconds offset,
+                   int chunkNum);
 
 private:
   // vars
   const int mFramesPerChunk = 0;
-
   int mBaseChunkNum = 0;
   };
-//}}}

@@ -450,52 +450,52 @@ string cPtsSong::getTimeString (int64_t pts, int daylightSeconds) {
 // cHlsSong
 //{{{
 cHlsSong::cHlsSong (eAudioFrameType frameType, int numChannels,
-                   int sampleRate, int samplesPerFrame, int framesPerChunk,
-                   int64_t ptsDuration, int maxMapSize)
+                    int sampleRate, int samplesPerFrame,
+                    int64_t ptsDuration, int maxMapSize, int framesPerChunk)
   : cPtsSong(frameType, numChannels, sampleRate, samplesPerFrame, ptsDuration, maxMapSize),
     mFramesPerChunk(framesPerChunk) {}
 //}}}
 cHlsSong::~cHlsSong() {}
 
 //{{{
-bool cHlsSong::getLoadChunk (int& chunkNum, int64_t& pts, int preloadChunks) {
-// return true if a chunk load needed to play mPlayFrame
-// - update chunkNum and frameNum
-// !!!! dodgy hard coding of chunk duration 6400ms !!!!
+int cHlsSong::getLoadChunk (int64_t& loadPts) {
+// return chunkNum needed to play or preload playPts
 
-  system_clock::time_point now = system_clock::now();
+  // get frameNumOffset of playPts from basePts
+  int64_t frameNumOffset = getFrameNumFromPts (mPlayPts) - getFrameNumFromPts (mBasePts);
 
-  // get offsets of playFrame from baseFrame, handle -v offsets correctly
-  int64_t ptsOffset = mPlayPts - mBasePts;
-  int chunkNumOffset = (ptsOffset >= 0)  ? int(((ptsOffset/mPtsDuration) / mFramesPerChunk)) :
-                                           -int((mFramesPerChunk - 1 - (ptsOffset/mPtsDuration)) / mFramesPerChunk);
+  // chunkNumOffset, handle -v offsets correctly
+  int64_t chunkNumOffset = frameNumOffset / mFramesPerChunk;
+  if (frameNumOffset < 0)
+    chunkNumOffset -= mFramesPerChunk - 1;
 
-  // loop until chunkNum with unloaded frame, chunkNum not available yet, or preload ahead of playFrame loaded
-  int loadedChunks = 0;
-  int secs = (preloadChunks * mFramesPerChunk * mSamplesPerFrame) / mSampleRate;
-  while ((loadedChunks < preloadChunks) &&
-         ((now - (mBaseTimePoint + (chunkNumOffset * 6400ms))).count() > secs))
-    // chunkNum chunk should be available
-    if (!findFrameByPts (mBasePts + ((chunkNumOffset * mFramesPerChunk) * mPtsDuration))) {
-      // not loaded, return chunkNum to load
-      chunkNum = mBaseChunkNum + chunkNumOffset;
-      pts = mBasePts + ((chunkNum - mBaseChunkNum) * mFramesPerChunk) * mPtsDuration;
-      return true;
-      }
-    else {
-      // already loaded, next
-      loadedChunks++;
-      chunkNumOffset++;
-      }
+  int chunkNum = mBaseChunkNum + (int)chunkNumOffset;
+  loadPts = mBasePts + ((chunkNum - mBaseChunkNum) * mFramesPerChunk) * mPtsDuration;
 
-  // return false, no chunkNum available to load
-  chunkNum = 0;
-  pts = -1;
-  return false;
+  // test for chunkNum available now
+
+  // have we got chunkNum for playPts
+  if (!findFrameByPts (loadPts)) {
+    cLog::log (LOGINFO, "getLoadChunk - load frameNumOffset:%d chunkNumOffset:%d chunkNum:%d", 
+                         frameNumOffset, chunkNumOffset, chunkNum);
+    return chunkNum;
+    }
+
+  // have we got chunkNum + 1 for preload
+  chunkNum++;
+  loadPts = mBasePts + ((chunkNum - mBaseChunkNum) * mFramesPerChunk) * mPtsDuration;
+  if (!findFrameByPts (loadPts))  {
+    cLog::log (LOGINFO, "getLoadChunk - preload+1 chunkNum:%d", chunkNum);
+    return chunkNum;
+    }
+
+  // return false, no chunkNum to load
+  loadPts = -1;
+  return 0;
   }
 //}}}
 //{{{
-void cHlsSong::setBaseHls (int64_t pts, int chunkNum, system_clock::time_point timePoint, seconds offset) {
+void cHlsSong::setBaseHls (int64_t pts, system_clock::time_point timePoint, seconds offset, int chunkNum) {
 // set baseChunkNum, baseTimePoint and baseFrame (sinceMidnight)
 
   unique_lock<shared_mutex> lock (mSharedMutex);
@@ -503,16 +503,11 @@ void cHlsSong::setBaseHls (int64_t pts, int chunkNum, system_clock::time_point t
   setBasePts (pts);
   mPlayPts = pts;
 
-  mBaseChunkNum = chunkNum;
-
   timePoint += offset;
   mBaseTimePoint = timePoint;
 
-  cLog::log (LOGINFO, "setBase chunk:" + dec(chunkNum) + " pts:" + getPtsString (pts));
+  mBaseChunkNum = chunkNum;
 
-  // calc hlsBaseFrame
-  //auto midnightTimePoint = date::floor<date::days>(timePoint);
-  //uint64_t msSinceMidnight = duration_cast<milliseconds>(timePoint - midnightTimePoint).count();
-  //mBaseFrameNum = int((msSinceMidnight * mSampleRate) / mSamplesPerFrame / 1000);
+  cLog::log (LOGINFO, "setBase chunk:" + dec(chunkNum) + " pts:" + getPtsString (pts));
   }
 //}}}

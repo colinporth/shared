@@ -690,8 +690,9 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
     // audioRate < 128000 aacHE, double samplesPerframe, half framesPerChunk
     cHlsSong* hlsSong = new cHlsSong (eAudioFrameType::eAacAdts, 2, 48000,
                                       (audioRate < 128000) ? 2048 : 1024,
-                                      (audioRate < 128000) ? (radio ? 150 : 180) : (radio ? 300 : 360),
-                                      (audioRate < 128000) ? 3840 : 1920, 1000);
+                                      (audioRate < 128000) ? 3840 : 1920,
+                                      1000,
+                                      (audioRate < 128000) ? (radio ? 150 : 180) : (radio ? 300 : 360));
     mSong = hlsSong;
 
     iAudioDecoder* audioDecoder = nullptr;
@@ -765,21 +766,26 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
       string redirectedHostName = http.getRedirect (
         getHlsHostName (radio), getHlsPathName (radio, channel, audioRate, videoRate) + getHlsM3u8Name());
       if (http.getContent()) {
-        //{{{  parse m3u8 for mediaSequence, mpegTimestamp, programDateTimePoint
-        int extXMediaSequence = stoi (getTagValue (http.getContent(), "#EXT-X-MEDIA-SEQUENCE:", '\n'));
+        //{{{  parse m3u8 for #USP-X-TIMESTAMP-MAP:MPEGTS, #EXT-X-PROGRAM-DATE-TIME, #EXT-X-MEDIA-SEQUENCE tags
+        // get value for tag #USP-X-TIMESTAMP-MAP:MPEGTS=
         int64_t mpegTimestamp = stoll (getTagValue (http.getContent(), "#USP-X-TIMESTAMP-MAP:MPEGTS=", ','));
+
+        // get value for tag #EXT-X-PROGRAM-DATE-TIME:
         istringstream inputStream (getTagValue (http.getContent(), "#EXT-X-PROGRAM-DATE-TIME:", '\n'));
         system_clock::time_point extXProgramDateTimePoint;
         inputStream >> date::parse ("%FT%T", extXProgramDateTimePoint);
-        http.freeContent();
 
-        hlsSong->setBaseHls (mpegTimestamp, extXMediaSequence, extXProgramDateTimePoint, -37s);
+        // get value for tag #EXT-X-MEDIA-SEQUENCE:
+        int extXMediaSequence = stoi (getTagValue (http.getContent(), "#EXT-X-MEDIA-SEQUENCE:", '\n'));
+
+        hlsSong->setBaseHls (mpegTimestamp, extXProgramDateTimePoint, -37s, extXMediaSequence);
+        http.freeContent();
         //}}}
         while (!mExit) {
-          int chunkNum;
-          int64_t pts;
-          if (hlsSong->getLoadChunk (chunkNum, pts, 2)) {
-            bool chunkReuseFront = pts >= hlsSong->getPlayPts();
+          int64_t loadPts;
+          int chunkNum = hlsSong->getLoadChunk (loadPts);
+          if (chunkNum > 0) {
+            bool chunkReuseFront = loadPts >= hlsSong->getPlayPts();
             int contentParsed = 0;
             if (http.get (redirectedHostName,
                           getHlsPathName (radio, channel, audioRate, videoRate) + '-' + dec(chunkNum) + ".ts", "",
@@ -787,7 +793,7 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                             //{{{  header lambda
                             if (key == "content-length")
                               cLog::log (LOGINFO, "chunk:" + dec(chunkNum) +
-                                                  " pts:" + getPtsFramesString (pts, mSong->getPtsDuration()) +
+                                                  " pts:" + getPtsFramesString (loadPts, mSong->getPtsDuration()) +
                                                   " size:" + dec(http.getHeaderContentSize()/1000) + "k");
                             },
                             //}}}
@@ -819,7 +825,7 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
               if (radio) {
                 //{{{  parse chunk of ts
                 // extract audio pes from chunk of ts packets, write it back crunched into ts, always gets smaller as ts stripped
-                int64_t firstPts = -1;
+                int64_t firstTsPts = -1;
                 uint8_t* tsPtr = http.getContent();
                 uint8_t* tsEndPtr = tsPtr + http.getContentSize();
                 uint8_t* pesPtr = tsPtr;
@@ -833,8 +839,8 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                     tsPtr += headerBytes;
                     int tsBodyBytes = 187 - headerBytes;
                     if (payStart) {
-                      if ((tsPtr[7] & 0x80) && (firstPts == -1))
-                        firstPts = getPts (tsPtr+9);
+                      if ((tsPtr[7] & 0x80) && (firstTsPts == -1))
+                        firstTsPts = getPts (tsPtr+9);
                       int pesHeaderBytes = 9 + tsPtr[8];
                       tsPtr += pesHeaderBytes;
                       tsBodyBytes -= pesHeaderBytes;
@@ -852,24 +858,24 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                 if (!audioDecoder)
                   audioDecoder = createAudioDecoder (eAudioFrameType::eAacAdts);
 
-                cLog::log (LOGINFO, "radioParse pts:" + getPtsFramesString (pts, hlsSong->getPtsDuration()) +
-                                     " firstPts:" + getPtsFramesString (firstPts, hlsSong->getPtsDuration()));
-                pts = firstPts;
+                cLog::log (LOGINFO, "radio loadPts:" + getPtsFramesString (loadPts, hlsSong->getPtsDuration()) +
+                                     " firstTsPts:" + getPtsFramesString (firstTsPts, hlsSong->getPtsDuration()));
+                loadPts = firstTsPts;
 
                 // parse audio pes for audio frames
                 uint8_t* pesEnd = pesPtr;
                 pesPtr = http.getContent();
                 int frameSize;
                 while (cAudioParser::parseFrame (pesPtr, pesEnd, frameSize)) {
-                  float* samples = audioDecoder->decodeFrame (pesPtr, frameSize, pts);
+                  float* samples = audioDecoder->decodeFrame (pesPtr, frameSize, loadPts);
                   if (samples) {
-                    hlsSong->addFrame (chunkReuseFront, pts, samples, true, hlsSong->getNumFrames()+1);
-                    pts += hlsSong->getPtsDuration();
+                    hlsSong->addFrame (chunkReuseFront, loadPts, samples, true, hlsSong->getNumFrames()+1);
+                    loadPts += hlsSong->getPtsDuration();
                     if (!mSongPlayer)
                       mSongPlayer = new cSongPlayer (hlsSong, true);
                     }
                   else
-                    cLog::log (LOGERROR, "aud parser failed to decode %d", pts);
+                    cLog::log (LOGERROR, "aud parser failed to decode %d", loadPts);
 
                   pesPtr += frameSize;
                   }
