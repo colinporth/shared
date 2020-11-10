@@ -1805,7 +1805,7 @@ protected:
     : mPlanar (planar), mMaxPoolSize( poolSize), mSong(song) {}
 
   //{{{
-  iVideoFrame* getFreeFrame (bool reuseFront, int64_t pts) {
+  iVideoFrame* getFreeFrame (bool reuseFromFront, int64_t pts) {
   // return youngest frame in pool if older than playPts - (halfPoolSize * duration)
 
     while (true) {
@@ -1885,7 +1885,7 @@ public:
   //}}}
 
   //{{{
-  virtual void decodeFrame (bool reuseFront, uint8_t* pes, unsigned int pesSize, int64_t pts, int64_t dts) {
+  virtual void decodeFrame (bool reuseFromFront, uint8_t* pes, unsigned int pesSize, int64_t pts, int64_t dts) {
 
     system_clock::time_point timePoint = system_clock::now();
 
@@ -1905,7 +1905,7 @@ public:
     if (!mSeenIFrame) {
       //{{{  debug
       cLog::log (LOGINFO, "waiting for Iframe " +getPtsFramesString (mGuessPts, 1800) +
-                          " to:" + getPtsFramesString (dts, 1800) + 
+                          " to:" + getPtsFramesString (dts, 1800) +
                           " type:" + frameType +
                           " size:" + dec(pesSize));
       //}}}
@@ -1950,7 +1950,7 @@ public:
             //}}}
           if (mSeenIFrame) {
             // blocks on waiting for freeFrame most of the time
-            auto frame = getFreeFrame (reuseFront, mGuessPts);
+            auto frame = getFreeFrame (reuseFromFront, mGuessPts);
 
             timePoint = system_clock::now();
             frame->set (mGuessPts, pesSize, mWidth, mHeight, frameType);
@@ -2018,7 +2018,7 @@ private:
     //}}}
 
     //{{{
-    void decodeFrame (bool reuseFront, uint8_t* pes, unsigned int pesSize, int64_t pts, int64_t dts) {
+    void decodeFrame (bool reuseFromFront, uint8_t* pes, unsigned int pesSize, int64_t pts, int64_t dts) {
 
       system_clock::time_point timePoint = system_clock::now();
 
@@ -2082,7 +2082,7 @@ private:
 
             mPtsDuration = (kPtsPerSecond * surface->Info.FrameRateExtD) / surface->Info.FrameRateExtN;
 
-            auto frame = getFreeFrame (reuseFront, surface->Data.TimeStamp);
+            auto frame = getFreeFrame (reuseFromFront, surface->Data.TimeStamp);
 
             timePoint = system_clock::now();
 

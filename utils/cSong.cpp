@@ -448,9 +448,9 @@ string cPtsSong::getTimeString (int64_t pts, int daylightSeconds) {
   }
 //}}}
 //{{{
-void cPtsSong::setBasePts (int64_t pts) { 
+void cPtsSong::setBasePts (int64_t pts) {
 
-  mBasePts = pts; 
+  mBasePts = pts;
   mPlayPts = pts;
   }
 //}}}
@@ -466,7 +466,7 @@ cHlsSong::cHlsSong (eAudioFrameType frameType, int numChannels,
 cHlsSong::~cHlsSong() {}
 
 //{{{
-int cHlsSong::getLoadChunk (int64_t& loadPts) {
+int cHlsSong::getLoadChunk (int64_t& loadPts, bool& reuseFromFront) {
 // return chunkNum needed to play or preload playPts
 
   // get frameNumOffset of playPts from basePts
@@ -486,6 +486,7 @@ int cHlsSong::getLoadChunk (int64_t& loadPts) {
   if (!findFrameByPts (loadPts)) {
     cLog::log (LOGINFO, "getLoadChunk - load frameNumOffset:%d chunkNumOffset:%d chunkNum:%d",
                          frameNumOffset, chunkNumOffset, chunkNum);
+    reuseFromFront = loadPts >= mPlayPts;
     return chunkNum;
     }
 
@@ -494,11 +495,13 @@ int cHlsSong::getLoadChunk (int64_t& loadPts) {
   loadPts = mBasePts + ((chunkNum - mBaseChunkNum) * mFramesPerChunk) * mPtsDuration;
   if (!findFrameByPts (loadPts))  {
     cLog::log (LOGINFO, "getLoadChunk - preload+1 chunkNum:%d", chunkNum);
+    reuseFromFront = loadPts >= mPlayPts;
     return chunkNum;
     }
 
   // return false, no chunkNum to load
   loadPts = -1;
+  reuseFromFront = false;
   return 0;
   }
 //}}}

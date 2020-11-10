@@ -276,7 +276,7 @@ public:
 
   // gets
   int64_t getBasePlayPts() { return mPlayPts - mBasePts; }
-  int getLoadChunk (int64_t& loadPts);
+  int getLoadChunk (int64_t& loadPts, bool& reuseFromFront);
   int64_t getLengthPts() { return getLastPts(); }
 
   // sets
