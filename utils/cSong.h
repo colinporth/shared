@@ -15,6 +15,7 @@
 #include "../kissFft/kiss_fftr.h"
 //}}}
 
+//{{{
 class cSong {
 public:
   //{{{
@@ -125,9 +126,8 @@ public:
   cSong (eAudioFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame, int maxMapSize);
   virtual ~cSong();
 
-  //{{{  gets
+  //  gets
   std::shared_mutex& getSharedMutex() { return mSharedMutex; }
-
   bool getChanged() { return mChanged; }
 
   eAudioFrameType getFrameType() { return mFrameType; }
@@ -144,6 +144,7 @@ public:
   int64_t getPlayPts() { return mPlayPts; }
   virtual int64_t getFirstPts() { return mFrameMap.empty() ? 0 : mFrameMap.begin()->first; }
   virtual int64_t getLastPts() { return mFrameMap.empty() ? 0 : mFrameMap.rbegin()->first;  }
+  virtual std::string getTimeString (int64_t frame, int daylightSeconds);
 
   // frameNum - useful for graphics
   int64_t getPlayFrameNum() { return getFrameNumFromPts (mPlayPts); }
@@ -151,8 +152,6 @@ public:
   int64_t getLastFrameNum() { return mFrameMap.empty() ? 0 : mFrameMap.rbegin()->first;  }
   int64_t getNumFrames() { return mFrameMap.empty() ? 0 : (mFrameMap.rbegin()->first - mFrameMap.begin()->first + 1); }
   int64_t getTotalFrames() { return mTotalFrames; }
-
-  std::string getFrameString (int64_t frame, int daylightSeconds);
 
   cSelect& getSelect() { return mSelect; }
 
@@ -166,7 +165,6 @@ public:
   float getMaxPeakValue() { return mMaxPeakValue; }
   float getMaxFreqValue() { return mMaxFreqValue; }
   int getNumFreqBytes() { return kMaxFreqBytes; }
-  //}}}
   void setChanged (bool changed) { mChanged = changed; }
 
   //{{{
@@ -237,7 +235,7 @@ private:
   float mMaxFreqValue = 0.f;
   //}}}
   };
-
+//}}}
 //{{{
 class cPtsSong : public cSong {
 public:
@@ -253,12 +251,18 @@ public:
 
   virtual int64_t getFirstPts() { return mFrameMap.empty() ? 0 : mFrameMap.begin()->second->getPts(); }
   virtual int64_t getLastPts() { return mFrameMap.empty() ? 0 : mFrameMap.rbegin()->second->getPts();  }
+  virtual std::string getTimeString (int64_t frame, int daylightSeconds);
 
   virtual cFrame* findFrameByPts (int64_t pts) { return findFrameByFrameNum (getFrameNumFromPts(pts)); }
   virtual cFrame* findPlayFrame() { return findFrameByPts (mPlayPts); }
 
+  void setBasePts (int64_t pts) { mBasePts = pts; }
+
 protected:
   int64_t mPtsDuration = 1;
+
+  int64_t mBasePts = 0;
+  std::chrono::system_clock::time_point mBaseTimePoint;
   };
 //}}}
 //{{{
@@ -275,15 +279,12 @@ public:
   int64_t getLengthPts() { return getLastPts(); }
 
   // sets
-  void setBase (int chunkNum, int64_t pts, std::chrono::system_clock::time_point timePoint, std::chrono::seconds offset);
+  void setBaseHls (int64_t pts, int chunkNum, std::chrono::system_clock::time_point timePoint, std::chrono::seconds offset);
 
 private:
-  //{{{  vars
+  // vars
   const int mFramesPerChunk = 0;
 
   int mBaseChunkNum = 0;
-  int64_t mBasePts = -1;
-  std::chrono::system_clock::time_point mBaseTimePoint;
-  //}}}
   };
 //}}}

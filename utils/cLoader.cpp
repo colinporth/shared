@@ -773,7 +773,7 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
         inputStream >> date::parse ("%FT%T", extXProgramDateTimePoint);
         http.freeContent();
 
-        hlsSong->setBase (extXMediaSequence, mpegTimestamp, extXProgramDateTimePoint, -37s);
+        hlsSong->setBaseHls (mpegTimestamp, extXMediaSequence, extXProgramDateTimePoint, -37s);
         //}}}
         while (!mExit) {
           int chunkNum;
@@ -910,6 +910,7 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
       }
 
     //{{{  delete resources
+    mSong = nullptr;
     mVideoPool = nullptr;
 
     for (auto parser : mPidParsers) {
@@ -921,12 +922,8 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
     mPidParsers.clear();
 
     delete mSongPlayer;
-
-    mSong = nullptr;
     delete hlsSong;
-
     delete audioDecoder;
-
     delete videoPool;
     //}}}
     cLog::log (LOGINFO, "exit");
@@ -1184,13 +1181,16 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags flags) {
 
   auto timePoint = system_clock::now();
 
-  mSong = new cPtsSong (eAudioFrameType::eAacAdts, 2, 48000, 1024, 1920, 0);
+  cPtsSong* ptsSong = new cPtsSong (eAudioFrameType::eAacAdts, 2, 48000, 1024, 1920, 0);
+  mSong = ptsSong;
 
   int64_t loadPts = -1;
   iAudioDecoder* audioDecoder = nullptr;
   iVideoPool* videoPool = nullptr;
   //{{{  parsers,callbacks
   auto addAudioFrameCallback = [&](bool reuseFront, float* samples, int64_t pts) noexcept {
+    if (loadPts == -1)
+      ptsSong->setBasePts (pts);
     loadPts = pts;
     mSong->addFrame (reuseFront, pts, samples, true, mSong->getNumFrames()+1);
     if (!mSongPlayer)
@@ -1333,13 +1333,11 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags flags) {
     //}}}
   mPidParsers.clear();
 
-  delete mSongPlayer;
-  auto tempSong = mSong;
   mSong = nullptr;
-  delete tempSong;
-  delete audioDecoder;
-
   mVideoPool = nullptr;
+  delete mSongPlayer;
+  delete ptsSong;
+  delete audioDecoder;
   delete videoPool;
   }
 //}}}
@@ -1410,9 +1408,9 @@ void cLoader::loadAudio (uint8_t* first, int size, eFlags flags) {
   cLog::log (LOGINFO, "load took %dms", duration_cast<milliseconds>(system_clock::now() - timePoint).count());
   mSongPlayer->wait();
 
-  delete mSongPlayer;
   auto tempSong = mSong;
   mSong = nullptr;
+  delete mSongPlayer;
   delete tempSong;
   delete audioDecoder;
   }

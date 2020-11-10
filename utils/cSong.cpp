@@ -189,21 +189,22 @@ cSong::~cSong() {
 //}}}
 
 //{{{
-string cSong::getFrameString (int64_t frame, int daylightSeconds) {
+string cSong::getTimeString (int64_t pts, int daylightSeconds) {
+// pts = frameNum
 
-  // can turn frame into seconds
-  auto value = (frame * mSamplesPerFrame) / (mSampleRate / 100);
-  auto subSeconds = value % 100;
+  // turn pts as frameNum into seconds * 100
+  int64_t value = (pts * mSamplesPerFrame) / (mSampleRate / 100);
 
+  int subSeconds = value % 100;
   value /= 100;
-  value += daylightSeconds;
-  auto seconds = value % 60;
 
+  int seconds = value % 60;
   value /= 60;
-  auto minutes = value % 60;
 
+  int minutes = value % 60;
   value /= 60;
-  auto hours = value % 60;
+
+  int hours = (int)value;
 
   // !!! must be a better formatter lib !!!
   return (hours > 0) ? (dec (hours) + ':' + dec (minutes, 2, '0') + ':' + dec(seconds, 2, '0')) :
@@ -413,6 +414,39 @@ void cSong::checkSilenceWindow (int64_t pts) {
   }
 //}}}
 
+//{{{
+string cPtsSong::getTimeString (int64_t pts, int daylightSeconds) {
+// 90khz int64_t pts - display as time, daylightSaving adjusted
+
+  int64_t ms = (pts - mBasePts) / 90;
+
+  auto midnightBaseTimePoint = date::floor<date::days>(mBaseTimePoint);
+  uint64_t msSinceMidnightBaseTimePoint = duration_cast<milliseconds>(mBaseTimePoint - midnightBaseTimePoint).count();
+
+  ms += msSinceMidnightBaseTimePoint;
+
+  // can turn frame into seconds
+  //int64_t value = ((frame * mSamplesPerFrame) / (mSampleRate / 100)) + (daylightSeconds * 1000);
+  int64_t value = ms / 10;
+
+  int subSeconds = value % 100;
+  value /= 100;
+
+  int seconds = value % 60;
+  value /= 60;
+
+  int minutes = value % 60;
+  value /= 60;
+
+  int hours = (int)value;
+
+  // !!! must be a better formatter lib !!!
+  return (hours > 0) ? (dec (hours) + ':' + dec (minutes, 2, '0') + ':' + dec(seconds, 2, '0')) :
+           ((minutes > 0) ? (dec (minutes) + ':' + dec(seconds, 2, '0') + ':' + dec(subSeconds, 2, '0')) :
+             (dec(seconds) + ':' + dec(subSeconds, 2, '0')));
+  }
+//}}}
+
 // cHlsSong
 //{{{
 cHlsSong::cHlsSong (eAudioFrameType frameType, int numChannels,
@@ -461,14 +495,15 @@ bool cHlsSong::getLoadChunk (int& chunkNum, int64_t& pts, int preloadChunks) {
   }
 //}}}
 //{{{
-void cHlsSong::setBase (int chunkNum, int64_t pts, system_clock::time_point timePoint, seconds offset) {
+void cHlsSong::setBaseHls (int64_t pts, int chunkNum, system_clock::time_point timePoint, seconds offset) {
 // set baseChunkNum, baseTimePoint and baseFrame (sinceMidnight)
 
   unique_lock<shared_mutex> lock (mSharedMutex);
 
+  setBasePts (pts);
+  mPlayPts = pts;
+
   mBaseChunkNum = chunkNum;
-  mBasePts = pts;
-  mPlayPts = mBasePts;
 
   timePoint += offset;
   mBaseTimePoint = timePoint;

@@ -184,9 +184,9 @@ public:
           }
         }
 
-        drawTime (vg, song->getFrameString (song->getFirstFrameNum(), mClockTime->getDayLightSeconds()),
-                      song->getFrameString (song->getPlayFrameNum(), mClockTime->getDayLightSeconds()),
-                      song->getFrameString (song->getLastFrameNum(), mClockTime->getDayLightSeconds()));
+        drawTime (vg, song->getTimeString (song->getFirstPts(), mClockTime->getDayLightSeconds()),
+                      song->getTimeString (song->getPlayPts(), mClockTime->getDayLightSeconds()),
+                      song->getTimeString (song->getLastPts(), mClockTime->getDayLightSeconds()));
         }
 
       if (kVideoPoolDebug && videoPool && (playPts >= 0))
