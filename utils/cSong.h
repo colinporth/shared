@@ -258,7 +258,7 @@ public:
   virtual cFrame* findFrameByPts (int64_t pts) { return findFrameByFrameNum (getFrameNumFromPts(pts)); }
   virtual cFrame* findPlayFrame() { return findFrameByPts (mPlayPts); }
 
-  void setBasePts (int64_t pts) { mBasePts = pts; }
+  void setBasePts (int64_t pts);
 
 protected:
   int64_t mPtsDuration = 1;

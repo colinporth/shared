@@ -778,6 +778,7 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
         // get value for tag #EXT-X-MEDIA-SEQUENCE:
         int extXMediaSequence = stoi (getTagValue (http.getContent(), "#EXT-X-MEDIA-SEQUENCE:", '\n'));
 
+        // 37s is the magic number of seconds that extXProgramDateTimePoint is out from clockTime
         hlsSong->setBaseHls (mpegTimestamp, extXProgramDateTimePoint, -37s, extXMediaSequence);
         http.freeContent();
         //}}}
@@ -1191,11 +1192,11 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags flags) {
   mSong = ptsSong;
 
   int64_t loadPts = -1;
-  iAudioDecoder* audioDecoder = nullptr;
   iVideoPool* videoPool = nullptr;
-  //{{{  parsers,callbacks
+  iAudioDecoder* audioDecoder = nullptr;
+  //{{{  parsers, callbacks
   auto addAudioFrameCallback = [&](bool reuseFront, float* samples, int64_t pts) noexcept {
-    if (loadPts == -1)
+    if (loadPts < 0)
       ptsSong->setBasePts (pts);
     loadPts = pts;
     mSong->addFrame (reuseFront, pts, samples, true, mSong->getNumFrames()+1);
@@ -1270,11 +1271,11 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags flags) {
             break;
           //}}}
           default:
-            cLog::log (LOGERROR, "unrecognised stream type %d %d", pid, type);
+            cLog::log (LOGERROR, "loadTs - unrecognised stream type %d %d", pid, type);
           }
         }
       else
-        cLog::log (LOGERROR, "file - PMT:%d for unrecognised sid:%d", pid, sid);
+        cLog::log (LOGERROR, "loadTs - PMT:%d for unrecognised sid:%d", pid, sid);
       }
     };
 
@@ -1311,10 +1312,11 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags flags) {
     mLoadFrac = float(ts - first) / size;
 
     int64_t playPts = mSong->getPlayPts();
-    if (loadPts < playPts)
-      cLog::log (LOGINFO, "skip back %d %d", loadPts/1800, playPts/1800);
-    if (loadPts > playPts + (3 * 90000))
-      cLog::log (LOGINFO, "skip forward %d %d", loadPts/1800, playPts/1800);
+
+    if ((loadPts >= 0) && (loadPts < playPts))
+      cLog::log (LOGINFO, "skip back ", getPtsFramesString (loadPts, mSong->getPtsDuration()));
+    if ((loadPts >= 0) && (loadPts > playPts + (3 * 90000)))
+      cLog::log (LOGINFO, "skip forward ", getPtsFramesString (loadPts, mSong->getPtsDuration()));
 
     // block loading when load pts is >100 audio frames ahead of play frameNum
     while (!mExit && (loadPts > mSong->getPlayPts() + (100 * mSong->getPtsDuration())))
@@ -1341,10 +1343,10 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags flags) {
 
   mSong = nullptr;
   mVideoPool = nullptr;
-  delete mSongPlayer;
   delete ptsSong;
-  delete audioDecoder;
   delete videoPool;
+  delete audioDecoder;
+  delete mSongPlayer;
   }
 //}}}
 //{{{

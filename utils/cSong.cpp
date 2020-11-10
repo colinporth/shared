@@ -414,6 +414,7 @@ void cSong::checkSilenceWindow (int64_t pts) {
   }
 //}}}
 
+// cPtsSong
 //{{{
 string cPtsSong::getTimeString (int64_t pts, int daylightSeconds) {
 // 90khz int64_t pts - display as time, daylightSaving adjusted
@@ -446,6 +447,13 @@ string cPtsSong::getTimeString (int64_t pts, int daylightSeconds) {
              (dec(seconds) + ':' + dec(subSeconds, 2, '0')));
   }
 //}}}
+//{{{
+void cPtsSong::setBasePts (int64_t pts) { 
+
+  mBasePts = pts; 
+  mPlayPts = pts;
+  }
+//}}}
 
 // cHlsSong
 //{{{
@@ -476,7 +484,7 @@ int cHlsSong::getLoadChunk (int64_t& loadPts) {
 
   // have we got chunkNum for playPts
   if (!findFrameByPts (loadPts)) {
-    cLog::log (LOGINFO, "getLoadChunk - load frameNumOffset:%d chunkNumOffset:%d chunkNum:%d", 
+    cLog::log (LOGINFO, "getLoadChunk - load frameNumOffset:%d chunkNumOffset:%d chunkNum:%d",
                          frameNumOffset, chunkNumOffset, chunkNum);
     return chunkNum;
     }
@@ -498,16 +506,12 @@ int cHlsSong::getLoadChunk (int64_t& loadPts) {
 void cHlsSong::setBaseHls (int64_t pts, system_clock::time_point timePoint, seconds offset, int chunkNum) {
 // set baseChunkNum, baseTimePoint and baseFrame (sinceMidnight)
 
+  cLog::log (LOGINFO, "setBase chunk:" + dec(chunkNum) + " pts:" + getPtsString (pts));
+
   unique_lock<shared_mutex> lock (mSharedMutex);
-
   setBasePts (pts);
-  mPlayPts = pts;
-
   timePoint += offset;
   mBaseTimePoint = timePoint;
-
   mBaseChunkNum = chunkNum;
-
-  cLog::log (LOGINFO, "setBase chunk:" + dec(chunkNum) + " pts:" + getPtsString (pts));
   }
 //}}}
