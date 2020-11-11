@@ -784,7 +784,7 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
         while (!mExit) {
           int64_t loadPts;
           bool reuseFromFront;
-          int chunkNum = hlsSong->getLoadChunk (loadPts, reuseFromFront);
+          int chunkNum = hlsSong->getLoadChunkNum (loadPts, reuseFromFront);
           if (chunkNum > 0) {
             int contentParsed = 0;
             if (http.get (redirectedHostName,
@@ -793,7 +793,7 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                             //{{{  header lambda
                             if (key == "content-length")
                               cLog::log (LOGINFO, "chunk:" + dec(chunkNum) +
-                                                  " pts:" + getPtsFramesString (loadPts, mSong->getPtsDuration()) +
+                                                  " pts:" + getPtsFramesString (loadPts, mSong->getFramePtsDuration()) +
                                                   " size:" + dec(http.getHeaderContentSize()/1000) + "k");
                             },
                             //}}}
@@ -868,7 +868,7 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                   float* samples = audioDecoder->decodeFrame (pesPtr, frameSize, loadPts);
                   if (samples) {
                     hlsSong->addFrame (reuseFromFront, loadPts, samples, true, hlsSong->getNumFrames()+1);
-                    loadPts += hlsSong->getPtsDuration();
+                    loadPts += hlsSong->getFramePtsDuration();
                     if (!mSongPlayer)
                       mSongPlayer = new cSongPlayer (hlsSong, true);
                     }
@@ -1083,7 +1083,7 @@ void cLoader::icycast (const string& url) {
                 }
 
               mSong->addFrame (true, pts, samples, true, mSong->getNumFrames() + 1);
-              pts += mSong->getPtsDuration();
+              pts += mSong->getFramePtsDuration();
 
               if (!mSongPlayer)
                 mSongPlayer = new cSongPlayer(mSong, true);
@@ -1311,12 +1311,12 @@ void cLoader::loadTs (uint8_t* first, int size, eFlags flags) {
     int64_t playPts = mSong->getPlayPts();
 
     if ((loadPts >= 0) && (loadPts < playPts))
-      cLog::log (LOGINFO, "skip back ", getPtsFramesString (loadPts, mSong->getPtsDuration()));
+      cLog::log (LOGINFO, "skip back ", getPtsFramesString (loadPts, mSong->getFramePtsDuration()));
     if ((loadPts >= 0) && (loadPts > playPts + (3 * 90000)))
-      cLog::log (LOGINFO, "skip forward ", getPtsFramesString (loadPts, mSong->getPtsDuration()));
+      cLog::log (LOGINFO, "skip forward ", getPtsFramesString (loadPts, mSong->getFramePtsDuration()));
 
     // block loading when load pts is >100 audio frames ahead of play frameNum
-    while (!mExit && (loadPts > mSong->getPlayPts() + (100 * mSong->getPtsDuration())))
+    while (!mExit && (loadPts > mSong->getPlayPts() + (100 * mSong->getFramePtsDuration())))
       this_thread::sleep_for (20ms);
     }
   // finish parsers
@@ -1355,7 +1355,7 @@ void cLoader::loadAudio (uint8_t* first, int size, eFlags flags) {
 
   int sampleRate;
   uint8_t* last = first + size;
-  auto fileFrameType = cAudioParser::parseSomeFrames (first, last, sampleRate);
+  eAudioFrameType fileFrameType = cAudioParser::parseSomeFrames (first, last, sampleRate);
   iAudioDecoder* audioDecoder = createAudioDecoder (fileFrameType);
 
   //{{{  jpeg
@@ -1383,7 +1383,7 @@ void cLoader::loadAudio (uint8_t* first, int size, eFlags flags) {
       if (!mSongPlayer)
         mSongPlayer = new cSongPlayer (mSong, false);
 
-      pts += mSong->getPtsDuration();
+      pts += mSong->getFramePtsDuration();
       samples += kWavFrameSamples * 2 * sizeof(float);
       mLoadFrac = float(samples - first) / size;
       }
@@ -1403,7 +1403,7 @@ void cLoader::loadAudio (uint8_t* first, int size, eFlags flags) {
         mSong->addFrame (true, pts, samples, true, totalFrames);
         if (!mSongPlayer)
           mSongPlayer = new cSongPlayer (mSong, false);
-        pts += mSong->getPtsDuration();
+        pts += mSong->getFramePtsDuration();
         }
 
       frame += frameSize;

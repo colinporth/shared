@@ -193,7 +193,7 @@ string cSong::getTimeString (int64_t pts, int daylightSeconds) {
 // pts = frameNum
 
   // turn pts as frameNum into seconds * 100
-  int64_t value = (pts * mSamplesPerFrame) / (mSampleRate / 100);
+  int64_t value = (pts * mSamplesPerFrame) / mSampleRate / 100;
 
   int subSeconds = value % 100;
   value /= 100;
@@ -297,7 +297,7 @@ void cSong::addFrame (bool reuseFront, int64_t pts, float* samples, bool ownSamp
 
   { //  insert with locked mutex
   unique_lock<shared_mutex> lock (mSharedMutex);
-  mFrameMap.insert (map<int64_t,cFrame*>::value_type (pts/getPtsDuration(), frame));
+  mFrameMap.insert (map<int64_t,cFrame*>::value_type (pts/getFramePtsDuration(), frame));
   mTotalFrames = totalFrames;
   }
 
@@ -308,7 +308,7 @@ void cSong::addFrame (bool reuseFront, int64_t pts, float* samples, bool ownSamp
 // playFrame
 //{{{
 void cSong::setPlayPts (int64_t pts) {
-  mPlayPts = min (pts, getLastPts() + getPtsDuration());
+  mPlayPts = min (pts, getLastPts() + getFramePtsDuration());
   }
 //}}}
 //{{{
@@ -324,7 +324,7 @@ void cSong::setPlayLastFrame() {
 //{{{
 void cSong::nextPlayFrame (bool constrainToRange) {
 
-  int64_t playPts = mPlayPts + getPtsDuration();
+  int64_t playPts = mPlayPts + getFramePtsDuration();
   //if (constrainToRange)
   //  mPlayPts = mSelect.constrainToRange (mPlayPts, mPlayPts);
 
@@ -335,7 +335,7 @@ void cSong::nextPlayFrame (bool constrainToRange) {
 void cSong::incPlaySec (int secs, bool useSelectRange) {
 
   int64_t frames = (secs * mSampleRate) / mSamplesPerFrame;
-  mPlayPts += frames * getPtsDuration();
+  mPlayPts += frames * getFramePtsDuration();
   }
 //}}}
 //{{{
@@ -419,15 +419,11 @@ void cSong::checkSilenceWindow (int64_t pts) {
 string cPtsSong::getTimeString (int64_t pts, int daylightSeconds) {
 // 90khz int64_t pts - display as time, daylightSaving adjusted
 
-  int64_t ms = (pts - mBasePts) / 90;
-
   auto midnightBaseTimePoint = date::floor<date::days>(mBaseTimePoint);
   uint64_t msSinceMidnightBaseTimePoint = duration_cast<milliseconds>(mBaseTimePoint - midnightBaseTimePoint).count();
 
-  ms += msSinceMidnightBaseTimePoint;
+  int64_t ms = msSinceMidnightBaseTimePoint + ((pts - mBasePts) / 90);
 
-  // can turn frame into seconds
-  //int64_t value = ((frame * mSamplesPerFrame) / (mSampleRate / 100)) + (daylightSeconds * 1000);
   int64_t value = ms / 10;
 
   int subSeconds = value % 100;
@@ -441,7 +437,7 @@ string cPtsSong::getTimeString (int64_t pts, int daylightSeconds) {
 
   int hours = (int)value;
 
-  // !!! must be a better formatter lib !!!
+  // !!! use a better formatter !!!
   return (hours > 0) ? (dec (hours) + ':' + dec (minutes, 2, '0') + ':' + dec(seconds, 2, '0')) :
            ((minutes > 0) ? (dec (minutes) + ':' + dec(seconds, 2, '0') + ':' + dec(subSeconds, 2, '0')) :
              (dec(seconds) + ':' + dec(subSeconds, 2, '0')));
@@ -459,14 +455,14 @@ void cPtsSong::setBasePts (int64_t pts) {
 //{{{
 cHlsSong::cHlsSong (eAudioFrameType frameType, int numChannels,
                     int sampleRate, int samplesPerFrame,
-                    int64_t ptsDuration, int maxMapSize, int framesPerChunk)
-  : cPtsSong(frameType, numChannels, sampleRate, samplesPerFrame, ptsDuration, maxMapSize),
+                    int64_t framePtsDuration, int maxMapSize, int framesPerChunk)
+  : cPtsSong(frameType, numChannels, sampleRate, samplesPerFrame, framePtsDuration, maxMapSize),
     mFramesPerChunk(framesPerChunk) {}
 //}}}
 cHlsSong::~cHlsSong() {}
 
 //{{{
-int cHlsSong::getLoadChunk (int64_t& loadPts, bool& reuseFromFront) {
+int cHlsSong::getLoadChunkNum (int64_t& loadPts, bool& reuseFromFront) {
 // return chunkNum needed to play or preload playPts
 
   // get frameNumOffset of playPts from basePts
@@ -478,11 +474,11 @@ int cHlsSong::getLoadChunk (int64_t& loadPts, bool& reuseFromFront) {
     chunkNumOffset -= mFramesPerChunk - 1;
 
   int chunkNum = mBaseChunkNum + (int)chunkNumOffset;
-  loadPts = mBasePts + ((chunkNum - mBaseChunkNum) * mFramesPerChunk) * mPtsDuration;
+  loadPts = mBasePts + ((chunkNum - mBaseChunkNum) * mFramesPerChunk) * mFramePtsDuration;
 
   // test for chunkNum available now
 
-  // check playPts chunkNum for firstFrame loaded
+  // check playPts chunkNum for firstFrame of chunk loaded
   if (!findFrameByPts (loadPts)) {
     cLog::log (LOGINFO, "getLoadChunk - load frameNumOffset:%d chunkNumOffset:%d chunkNum:%d",
                          frameNumOffset, chunkNumOffset, chunkNum);
@@ -492,7 +488,7 @@ int cHlsSong::getLoadChunk (int64_t& loadPts, bool& reuseFromFront) {
 
   // check preload chunkNum+1
   chunkNum++;
-  loadPts += mPtsDuration;
+  loadPts += mFramesPerChunk * mFramePtsDuration;
   if (!findFrameByPts (loadPts))  {
     cLog::log (LOGINFO, "getLoadChunk - preload+1 chunkNum:%d", chunkNum);
     reuseFromFront = loadPts >= mPlayPts;

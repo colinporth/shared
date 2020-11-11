@@ -123,7 +123,7 @@ public:
     int mItemNum = 0;
     };
   //}}}
-  cSong (eAudioFrameType frameType, int numChannels, int sampleRate, 
+  cSong (eAudioFrameType frameType, int numChannels, int sampleRate,
          int samplesPerFrame, int maxMapSize);
   virtual ~cSong();
 
@@ -136,7 +136,7 @@ public:
   int getSampleRate() { return mSampleRate; }
   int getSamplesPerFrame() { return mSamplesPerFrame; }
 
-  virtual int64_t getPtsDuration() { return 1; }
+  virtual int64_t getFramePtsDuration() { return 1; }
   virtual int64_t getFrameNumFromPts (int64_t pts) { return pts; }
   virtual int64_t getPtsFromFrameNum (int64_t frameNum) { return frameNum; }
 
@@ -238,14 +238,14 @@ private:
 // cPtsSong
 class cPtsSong : public cSong {
 public:
-  cPtsSong (eAudioFrameType frameType, int numChannels, int sampleRate, 
-            int samplesPerFrame, int64_t ptsDuration, int maxMapSize)
-    : cSong (frameType, numChannels, sampleRate, samplesPerFrame, maxMapSize), mPtsDuration(ptsDuration)  {}
+  cPtsSong (eAudioFrameType frameType, int numChannels, int sampleRate,
+            int samplesPerFrame, int64_t framePtsDuration, int maxMapSize)
+    : cSong (frameType, numChannels, sampleRate, samplesPerFrame, maxMapSize), mFramePtsDuration(framePtsDuration)  {}
   virtual ~cPtsSong() {}
 
-  virtual int64_t getPtsDuration() { return mPtsDuration; }
-  virtual int64_t getFrameNumFromPts (int64_t pts) { return pts / mPtsDuration; }
-  virtual int64_t getPtsFromFrameNum (int64_t frameNum) { return frameNum * mPtsDuration; }
+  virtual int64_t getFramePtsDuration() { return mFramePtsDuration; }
+  virtual int64_t getFrameNumFromPts (int64_t pts) { return pts / mFramePtsDuration; }
+  virtual int64_t getPtsFromFrameNum (int64_t frameNum) { return frameNum * mFramePtsDuration; }
 
   virtual int64_t getFirstPts() { return mFrameMap.empty() ? 0 : mFrameMap.begin()->second->getPts(); }
   virtual int64_t getLastPts() { return mFrameMap.empty() ? 0 : mFrameMap.rbegin()->second->getPts();  }
@@ -257,7 +257,7 @@ public:
   void setBasePts (int64_t pts);
 
 protected:
-  int64_t mPtsDuration = 1;
+  int64_t mFramePtsDuration = 1;
   int64_t mBasePts = 0;
   std::chrono::system_clock::time_point mBaseTimePoint;
   };
@@ -265,13 +265,13 @@ protected:
 // cHlsSong
 class cHlsSong : public cPtsSong {
 public:
-  cHlsSong (eAudioFrameType frameType, int numChannels, int sampleRate, 
-            int samplesPerFrame, int64_t ptsDuration, int maxMapSize, int framesPerChunk);
+  cHlsSong (eAudioFrameType frameType, int numChannels, int sampleRate,
+            int samplesPerFrame, int64_t framePtsDuration, int maxMapSize, int framesPerChunk);
   virtual ~cHlsSong();
 
   // gets
   int64_t getBasePlayPts() { return mPlayPts - mBasePts; }
-  int getLoadChunk (int64_t& loadPts, bool& reuseFromFront);
+  int getLoadChunkNum (int64_t& loadPts, bool& reuseFromFront);
   int64_t getLengthPts() { return getLastPts(); }
 
   // sets
