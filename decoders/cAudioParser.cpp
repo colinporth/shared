@@ -21,30 +21,32 @@ uint8_t* cAudioParser::parseFrame (uint8_t* framePtr, uint8_t* frameLast, int& f
 
   eAudioFrameType frameType = eAudioFrameType::eUnknown;
   int sampleRate = 0;
+  int numChannels = 0;
   frameLength = 0;
-  framePtr = parseFrame (framePtr, frameLast, frameType, sampleRate, frameLength);
+  framePtr = parseFrame (framePtr, frameLast, frameType, numChannels, sampleRate, frameLength);
 
   while (framePtr && (frameType == eAudioFrameType::eId3Tag)) {
     // skip id3 frames
     framePtr += frameLength;
-    framePtr = parseFrame (framePtr, frameLast, frameType, sampleRate, frameLength);
+    framePtr = parseFrame (framePtr, frameLast, frameType, numChannels, sampleRate, frameLength);
     }
 
   return framePtr;
   }
 //}}}
 //{{{
-eAudioFrameType cAudioParser::parseSomeFrames (uint8_t* framePtr, uint8_t* frameEnd, int& sampleRate) {
+eAudioFrameType cAudioParser::parseSomeFrames (uint8_t* framePtr, uint8_t* frameEnd, int& numChannels, int& sampleRate) {
 // return fameType
 
   eAudioFrameType frameType = eAudioFrameType::eUnknown;
+  numChannels = 0;
   sampleRate = 0;
 
   while ((framePtr < frameEnd) &&
          ((frameType == eAudioFrameType::eUnknown) ||
           (frameType == eAudioFrameType::eId3Tag))) {
     int frameLen = 0;
-    framePtr = parseFrame (framePtr, frameEnd, frameType, sampleRate, frameLen);
+    framePtr = parseFrame (framePtr, frameEnd, frameType, numChannels, sampleRate, frameLen);
     if (frameType == eAudioFrameType::eId3Tag) {
       if (parseId3Tag (framePtr, frameEnd))
         cLog::log (LOGINFO, "parseFrames found jpeg");
@@ -109,10 +111,11 @@ bool cAudioParser::parseId3Tag (uint8_t* framePtr, uint8_t* frameEnd) {
 //}}}
 //{{{
 uint8_t* cAudioParser::parseFrame (uint8_t* framePtr, uint8_t* frameLast,
-  eAudioFrameType& frameType, int& sampleRate, int& frameLength) {
+                                   eAudioFrameType& frameType, int& numChannels, int& sampleRate, int& frameLength) {
 // simple mp3 / aacAdts / aacLatm / wav / id3Tag frame parser
 
   frameType = eAudioFrameType::eUnknown;
+  numChannels = 0;
   sampleRate = 0;
   frameLength = 0;
 
@@ -305,7 +308,7 @@ uint8_t* cAudioParser::parseFrame (uint8_t* framePtr, uint8_t* frameLast,
           framePtr += 4;
 
           //uint16_t audioFormat = framePtr[0] + (framePtr[1] << 8);
-          //int numChannels = framePtr[2] + (framePtr[3] << 8);
+          numChannels = framePtr[2] + (framePtr[3] << 8);
           sampleRate = framePtr[4] + (framePtr[5] << 8) + (framePtr[6] << 16) + (framePtr[7] << 24);
           //int blockAlign = framePtr[12] + (framePtr[13] << 8);
           framePtr += fmtSize;

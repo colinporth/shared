@@ -48,8 +48,8 @@ public:
 private:
   void addIcyInfo (int64_t pts, const std::string& icyInfo);
 
-  void loadTs (uint8_t* first, int size, eFlags flags);
-  void loadAudio (uint8_t* first, int size, eFlags flags);
+  void loadTsFile (uint8_t* first, int size, eFlags flags);
+  void loadAudioFile (uint8_t* first, int size, eFlags flags);
 
   // vars
   cSong* mSong = nullptr;

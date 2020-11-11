@@ -417,7 +417,7 @@ void cSong::checkSilenceWindow (int64_t pts) {
 // cPtsSong
 //{{{
 string cPtsSong::getTimeString (int64_t pts, int daylightSeconds) {
-// 90khz int64_t pts - display as time, daylightSaving adjusted
+// 90khz int64_t pts - display as time since midnight, daylightSaving adjusted
 
   auto midnightBaseTimePoint = date::floor<date::days>(mBaseTimePoint);
   uint64_t msSinceMidnightBaseTimePoint = duration_cast<milliseconds>(mBaseTimePoint - midnightBaseTimePoint).count();
