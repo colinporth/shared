@@ -70,55 +70,55 @@ public:
     public:
       enum eType { eLoop, eMute };
 
-      cSelectItem(eType type, int64_t firstFramePts, int64_t lastFramePts, const std::string& title) :
-        mType(type), mFirstFramePts(firstFramePts), mLastFramePts(lastFramePts), mTitle(title) {}
+      cSelectItem(eType type, int64_t firstFrameNum, int64_t lastFrameNum, const std::string& title) :
+        mType(type), mFirstFrameNum(firstFrameNum), mLastFrameNum(lastFrameNum), mTitle(title) {}
 
       eType getType() { return mType; }
-      int64_t getFirstFramePts() { return mFirstFramePts; }
-      int64_t getLastFramePts() { return mLastFramePts; }
-      bool getMark() { return getFirstFramePts() == getLastFramePts(); }
+      int64_t getFirstFrameNum() { return mFirstFrameNum; }
+      int64_t getLastFrameNum() { return mLastFrameNum; }
+      bool getMark() { return getFirstFrameNum() == getLastFrameNum(); }
       std::string getTitle() { return mTitle; }
       //{{{
-      bool inRange (int64_t FramePts) {
-      // ignore 1 FramePts select range
-        return (mFirstFramePts != mLastFramePts) && (FramePts >= mFirstFramePts) && (FramePts <= mLastFramePts);
+      bool inRange (int64_t FrameNum) {
+      // ignore 1 FrameNum select range
+        return (mFirstFrameNum != mLastFrameNum) && (FrameNum >= mFirstFrameNum) && (FrameNum <= mLastFrameNum);
         }
       //}}}
 
       void setType (eType type) { mType = type; }
-      void setFirstFramePts (int64_t framePts) { mFirstFramePts = framePts; }
-      void setLastFramePts (int64_t framePts) { mLastFramePts = framePts; }
+      void setFirstFrameNum (int64_t frameNum) { mFirstFrameNum = frameNum; }
+      void setLastFrameNum (int64_t frameNum) { mLastFrameNum = frameNum; }
       void setTitle (const std::string& title) { mTitle = title; }
 
     private:
       eType mType;
-      int64_t mFirstFramePts = 0;
-      int64_t mLastFramePts = 0;
+      int64_t mFirstFrameNum = 0;
+      int64_t mLastFrameNum = 0;
       std::string mTitle;
       };
     //}}}
 
     // gets
     bool empty() { return mItems.empty(); }
-    int64_t getFirstFramePts() { return empty() ? 0 : mItems.front().getFirstFramePts(); }
-    int64_t getLastFramePts() { return empty() ? 0 : mItems.back().getLastFramePts(); }
+    int64_t getFirstFrameNum() { return empty() ? 0 : mItems.front().getFirstFrameNum(); }
+    int64_t getLastFrameNum() { return empty() ? 0 : mItems.back().getLastFrameNum(); }
     std::vector<cSelectItem>& getItems() { return mItems; }
 
-    bool inRange (int64_t framePts);
-    int64_t constrainToRange (int64_t framePts, int64_t constrainedFramePts);
+    bool inRange (int64_t frameNum);
+    int64_t constrainToRange (int64_t frameNum, int64_t constrainedFrameNum);
 
     // actions
     void clearAll();
-    void addMark (int64_t framePts, const std::string& title = "");
-    void start (int64_t framePts);
-    void move (int64_t framePts);
+    void addMark (int64_t frameNum, const std::string& title = "");
+    void start (int64_t frameNum);
+    void move (int64_t frameNum);
     void end();
 
   private:
     enum eEdit { eEditNone, eEditFirst, eEditLast, eEditRange };
 
     eEdit mEdit = eEditNone;
-    int64_t mEditFramePts = 0;
+    int64_t mEditFrameNum = 0;
     std::vector<cSelectItem> mItems;
     int mItemNum = 0;
     };

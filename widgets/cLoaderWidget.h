@@ -16,48 +16,51 @@ public:
   void setShowOverview (bool showOverview) { mShowOverview = showOverview; }
 
   //{{{
-  virtual void onDown (const cPointF& p) {
+  virtual void onDown (const cPointF& point) {
 
-    cWidget::onDown (p);
+    cWidget::onDown (point);
 
-    auto song = mLoader->getSong();
+    cSong* song = mLoader->getSong();
+
     //std::shared_lock<std::shared_mutex> lock (song->getSharedMutex());
-    if (p.y > mDstOverviewTop) {
-      auto pts = song->getFirstFrameNum() + int((p.x * song->getTotalFrames()) / getPixWidth());
-      song->setPlayPts (pts);
+    if (point.y > mDstOverviewTop) {
+      int64_t frameNum = song->getFirstFrameNum() + int((point.x * song->getTotalFrames()) / getPixWidth());
+      song->setPlayPts (song->getPtsFromFrameNum (frameNum));
       mOverviewPressed = true;
       }
 
-    else if (p.y > mDstRangeTop) {
-      mPressedPts = song->getPlayFrameNum() + ((p.x - (getPixWidth()/2.f)) * mFrameStep / mFrameWidth);
-      song->getSelect().start (int64_t(mPressedPts));
+    else if (point.y > mDstRangeTop) {
+      mPressedFrameNum = song->getPlayFrameNum() + ((point.x - (getPixWidth()/2.f)) * mFrameStep / mFrameWidth);
+      song->getSelect().start (int64_t(mPressedFrameNum));
       mRangePressed = true;
       //mWindow->changed();
       }
 
     else
-      mPressedPts = (double)song->getPlayPts();
+      mPressedFrameNum = double(song->getFrameNumFromPts (int64_t(song->getPlayPts())));
     }
   //}}}
   //{{{
-  virtual void onMove (const cPointF& p, const cPointF& inc) {
+  virtual void onMove (const cPointF& point, const cPointF& inc) {
 
-    cWidget::onMove (p, inc);
+    cWidget::onMove (point, inc);
 
-    auto song = mLoader->getSong();
+    cSong* song = mLoader->getSong();
     //std::shared_lock<std::shared_mutex> lock (song.getSharedMutex());
     if (mOverviewPressed)
-      song->setPlayPts ((song->getFirstFrameNum() + int((p.x * song->getTotalFrames()) / getPixWidth())) * song->getPtsDuration());
+      song->setPlayPts (
+        song->getPtsFromFrameNum (
+          song->getFirstFrameNum() + int64_t(point.x * song->getTotalFrames() / getPixWidth())));
 
     else if (mRangePressed) {
-      mPressedPts += (inc.x / mFrameWidth) * mFrameStep;
-      song->getSelect().move ((int64_t)mPressedPts);
+      mPressedFrameNum += (inc.x / mFrameWidth) * mFrameStep;
+      song->getSelect().move (int64_t(mPressedFrameNum));
       //mWindow->changed();
       }
 
     else {
-      mPressedPts -= (inc.x / mFrameWidth) * mFrameStep;
-      song->setPlayPts ((int64_t)mPressedPts);
+      mPressedFrameNum -= (inc.x / mFrameWidth) * mFrameStep;
+      song->setPlayPts (song->getPtsFromFrameNum (int64_t(mPressedFrameNum)));
       }
     }
   //}}}
@@ -787,7 +790,7 @@ private:
   int mFrameWidth = 1;
   int mFrameStep = 1;
 
-  double mPressedPts = 0;
+  double mPressedFrameNum = 0;
   bool mOverviewPressed = false;
   bool mRangePressed = false;
 

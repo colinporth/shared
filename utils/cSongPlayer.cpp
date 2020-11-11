@@ -5,6 +5,13 @@
 
 #include "cSongPlayer.h"
 
+#ifdef _WIN32
+  #include "../audio/audioWASAPI.h"
+  #include "../audio/cWinAudio16.h"
+#else
+  #include "../audio/cLinuxAudio.h"
+#endif
+
 // utils
 #include "../date/date.h"
 #include "../utils/utils.h"
@@ -13,28 +20,19 @@
 // container
 #include "../utils/cSong.h"
 
-// audio device
-#ifdef _WIN32
-  #include "../audio/audioWASAPI.h"
-  #include "../audio/cWinAudio16.h"
-#else
-  #include "../audio/cLinuxAudio.h"
-#endif
-
 using namespace std;
 using namespace chrono;
 //}}}
 
-cSongPlayer::cSongPlayer (cSong* song, bool streaming) {
+#ifdef _WIN32
+  cSongPlayer::cSongPlayer (cSong* song, bool streaming) {
 
-  mPlayerThread = thread ([=]() {
-    // player lambda
-    cLog::setThreadName ("play");
+    mPlayerThread = thread ([=]() {
+      // player lambda
+      cLog::setThreadName ("play");
+      float silence [2048*2] = { 0.f };
+      float samples [2048*2] = { 0.f };
 
-    float silence [2048*2] = { 0.f };
-    float samples [2048*2] = { 0.f };
-
-    #ifdef _WIN32
       SetThreadPriority (GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
       //{{{  WSAPI player thread, video just follows play pts
       auto device = getDefaultAudioOutputDevice();
@@ -80,7 +78,19 @@ cSongPlayer::cSongPlayer (cSong* song, bool streaming) {
         device->stop();
         }
       //}}}
-    #else
+      cLog::log (LOGINFO, "exit");
+      });
+    }
+
+#else
+  cSongPlayer::cSongPlayer (cSong* song, bool streaming) {
+
+    mPlayerThread = thread ([=]() {
+      // player lambda
+      cLog::setThreadName ("play");
+      float silence [2048*2] = { 0.f };
+      float samples [2048*2] = { 0.f };
+
       //{{{  audio16 player thread, video just follows play pts
       cAudio audio (2, song->getSampleRate(), 40000, false);
 
@@ -106,18 +116,15 @@ cSongPlayer::cSongPlayer (cSong* song, bool streaming) {
           break;
         }
       //}}}
-    #endif
+      cLog::log (LOGINFO, "exit");
+      });
 
-    cLog::log (LOGINFO, "exit");
-    });
-
-  #ifdef _WIN32
-  #else
     sched_param sch_params;
     sch_params.sched_priority = sched_get_priority_max (SCHED_RR);
     pthread_setschedparam (mPlayerThread.native_handle(), SCHED_RR, &sch_params);
-  #endif
-  }
+    }
+
+#endif
 
 void cSongPlayer::wait() {
   mPlayerThread.join();

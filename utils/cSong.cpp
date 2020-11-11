@@ -58,21 +58,21 @@ bool cSong::cSelect::inRange (int64_t framePts) {
   }
 //}}}
 //{{{
-int64_t cSong::cSelect::constrainToRange (int64_t framePts, int64_t constrainedFramePts) {
-// if FramePts in a select range return FramePts constrained to it
+int64_t cSong::cSelect::constrainToRange (int64_t frameNum, int64_t constrainedFrameNum) {
+// if FrameNum in a select range return FrameNum constrained to it
 
   for (auto &item : mItems) {
-    if (item.inRange (framePts)) {
-      if (constrainedFramePts > item.getLastFramePts())
-        return item.getFirstFramePts();
-      else if (constrainedFramePts < item.getFirstFramePts())
-        return item.getFirstFramePts();
+    if (item.inRange (frameNum)) {
+      if (constrainedFrameNum > item.getLastFrameNum())
+        return item.getFirstFrameNum();
+      else if (constrainedFrameNum < item.getFirstFrameNum())
+        return item.getFirstFrameNum();
       else
-        return constrainedFramePts;
+        return constrainedFrameNum;
       }
     }
 
-  return constrainedFramePts;
+  return constrainedFrameNum;
   }
 //}}}
 
@@ -82,33 +82,33 @@ void cSong::cSelect::clearAll() {
   mItems.clear();
 
   mEdit = eEditNone;
-  mEditFramePts = 0;
+  mEditFrameNum = 0;
   }
 //}}}
 //{{{
-void cSong::cSelect::addMark (int64_t pts, const std::string& title) {
-  mItems.push_back (cSelectItem (cSelectItem::eLoop, pts, pts, title));
+void cSong::cSelect::addMark (int64_t frameNum, const std::string& title) {
+  mItems.push_back (cSelectItem (cSelectItem::eLoop, frameNum, frameNum, title));
   mEdit = eEditLast;
-  mEditFramePts = pts;
+  mEditFrameNum = frameNum;
   }
 //}}}
 //{{{
-void cSong::cSelect::start (int64_t framePts) {
+void cSong::cSelect::start (int64_t frameNum) {
 
-  mEditFramePts = framePts;
+  mEditFrameNum = frameNum;
 
   mItemNum = 0;
   for (auto &item : mItems) {
     // pick from select range
-    if (abs(framePts - item.getLastFramePts()) < 2) {
+    if (abs(frameNum - item.getLastFrameNum()) < 2) {
       mEdit = eEditLast;
       return;
       }
-    else if (abs(framePts - item.getFirstFramePts()) < 2) {
+    else if (abs(frameNum - item.getFirstFrameNum()) < 2) {
       mEdit = eEditFirst;
       return;
       }
-    else if (item.inRange (framePts)) {
+    else if (item.inRange (frameNum)) {
       mEdit = eEditRange;
       return;
       }
@@ -116,35 +116,35 @@ void cSong::cSelect::start (int64_t framePts) {
     }
 
   // add new select item
-  mItems.push_back (cSelectItem (cSelectItem::eLoop, framePts, framePts, ""));
+  mItems.push_back (cSelectItem (cSelectItem::eLoop, frameNum, frameNum, ""));
   mEdit = eEditLast;
   }
 //}}}
 //{{{
-void cSong::cSelect::move (int64_t framePts) {
+void cSong::cSelect::move (int64_t frameNum) {
 
   if (mItemNum < (int)mItems.size()) {
     switch (mEdit) {
       case eEditFirst:
-        mItems[mItemNum].setFirstFramePts (framePts);
-        if (mItems[mItemNum].getFirstFramePts() > mItems[mItemNum].getLastFramePts()) {
-          mItems[mItemNum].setLastFramePts (framePts);
-          mItems[mItemNum].setFirstFramePts (mItems[mItemNum].getLastFramePts());
+        mItems[mItemNum].setFirstFrameNum (frameNum);
+        if (mItems[mItemNum].getFirstFrameNum() > mItems[mItemNum].getLastFrameNum()) {
+          mItems[mItemNum].setLastFrameNum (frameNum);
+          mItems[mItemNum].setFirstFrameNum (mItems[mItemNum].getLastFrameNum());
           }
         break;
 
       case eEditLast:
-        mItems[mItemNum].setLastFramePts (framePts);
-        if (mItems[mItemNum].getLastFramePts() < mItems[mItemNum].getFirstFramePts()) {
-          mItems[mItemNum].setFirstFramePts (framePts);
-          mItems[mItemNum].setLastFramePts (mItems[mItemNum].getFirstFramePts());
+        mItems[mItemNum].setLastFrameNum (frameNum);
+        if (mItems[mItemNum].getLastFrameNum() < mItems[mItemNum].getFirstFrameNum()) {
+          mItems[mItemNum].setFirstFrameNum (frameNum);
+          mItems[mItemNum].setLastFrameNum (mItems[mItemNum].getFirstFrameNum());
           }
         break;
 
       case eEditRange:
-        mItems[mItemNum].setFirstFramePts (mItems[mItemNum].getFirstFramePts() + framePts - mEditFramePts);
-        mItems[mItemNum].setLastFramePts (mItems[mItemNum].getLastFramePts() + framePts - mEditFramePts);
-        mEditFramePts = framePts;
+        mItems[mItemNum].setFirstFrameNum (mItems[mItemNum].getFirstFrameNum() + frameNum - mEditFrameNum);
+        mItems[mItemNum].setLastFrameNum (mItems[mItemNum].getLastFrameNum() + frameNum - mEditFrameNum);
+        mEditFrameNum = frameNum;
         break;
 
       default:
@@ -156,7 +156,7 @@ void cSong::cSelect::move (int64_t framePts) {
 //{{{
 void cSong::cSelect::end() {
   mEdit = eEditNone;
-  mEditFramePts = 0;
+  mEditFrameNum = 0;
   }
 //}}}
 
@@ -313,12 +313,12 @@ void cSong::setPlayPts (int64_t pts) {
 //}}}
 //{{{
 void cSong::setPlayFirstFrame() {
-  setPlayPts (mSelect.empty() ? getFirstPts() : mSelect.getFirstFramePts());
+  setPlayPts (mSelect.empty() ? getFirstPts() : getPtsFromFrameNum (mSelect.getFirstFrameNum()));
   }
 //}}}
 //{{{
 void cSong::setPlayLastFrame() {
-  setPlayPts (mSelect.empty() ? getLastPts() : mSelect.getLastFramePts());
+  setPlayPts (mSelect.empty() ? getLastPts() : getPtsFromFrameNum (mSelect.getLastFrameNum()));
   }
 //}}}
 //{{{
@@ -482,7 +482,7 @@ int cHlsSong::getLoadChunk (int64_t& loadPts, bool& reuseFromFront) {
 
   // test for chunkNum available now
 
-  // have we got chunkNum for playPts
+  // check playPts chunkNum for firstFrame loaded
   if (!findFrameByPts (loadPts)) {
     cLog::log (LOGINFO, "getLoadChunk - load frameNumOffset:%d chunkNumOffset:%d chunkNum:%d",
                          frameNumOffset, chunkNumOffset, chunkNum);
@@ -490,16 +490,16 @@ int cHlsSong::getLoadChunk (int64_t& loadPts, bool& reuseFromFront) {
     return chunkNum;
     }
 
-  // have we got chunkNum + 1 for preload
+  // check preload chunkNum+1
   chunkNum++;
-  loadPts = mBasePts + ((chunkNum - mBaseChunkNum) * mFramesPerChunk) * mPtsDuration;
+  loadPts += mPtsDuration;
   if (!findFrameByPts (loadPts))  {
     cLog::log (LOGINFO, "getLoadChunk - preload+1 chunkNum:%d", chunkNum);
     reuseFromFront = loadPts >= mPlayPts;
     return chunkNum;
     }
 
-  // return false, no chunkNum to load
+  // return no chunkNum to load
   loadPts = -1;
   reuseFromFront = false;
   return 0;
