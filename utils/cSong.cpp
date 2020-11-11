@@ -86,7 +86,7 @@ void cSong::cSelect::clearAll() {
   }
 //}}}
 //{{{
-void cSong::cSelect::addMark (int64_t frameNum, const std::string& title) {
+void cSong::cSelect::addMark (int64_t frameNum, const string& title) {
   mItems.push_back (cSelectItem (cSelectItem::eLoop, frameNum, frameNum, title));
   mEdit = eEditLast;
   mEditFrameNum = frameNum;
@@ -192,8 +192,8 @@ cSong::~cSong() {
 string cSong::getTimeString (int64_t pts, int daylightSeconds) {
 // pts = frameNum
 
-  // turn pts as frameNum into seconds * 100
-  int64_t value = (pts * mSamplesPerFrame) / mSampleRate / 100;
+  // scale pts as frameNum as seconds*100
+  int64_t value = (pts * mSamplesPerFrame) / (mSampleRate / 100);
 
   int subSeconds = value % 100;
   value /= 100;
@@ -206,7 +206,7 @@ string cSong::getTimeString (int64_t pts, int daylightSeconds) {
 
   int hours = (int)value;
 
-  // !!! must be a better formatter lib !!!
+  // !!! must be a formatter to do this !!!
   return (hours > 0) ? (dec (hours) + ':' + dec (minutes, 2, '0') + ':' + dec(seconds, 2, '0')) :
            ((minutes > 0) ? (dec (minutes) + ':' + dec(seconds, 2, '0') + ':' + dec(subSeconds, 2, '0')) :
              (dec(seconds) + ':' + dec(subSeconds, 2, '0')));
@@ -217,7 +217,7 @@ void cSong::addFrame (bool reuseFront, int64_t pts, float* samples, bool ownSamp
 
   cFrame* frame;
   if (mMaxMapSize && (int(mFrameMap.size()) > mMaxMapSize)) { // reuse a cFrame
-    //{{{  remove with locked mutex
+    //{{{  remove with lock
     {
     unique_lock<shared_mutex> lock (mSharedMutex);
     if (reuseFront) {
@@ -239,6 +239,7 @@ void cSong::addFrame (bool reuseFront, int64_t pts, float* samples, bool ownSamp
     //{{{  reuse power,peak,fft buffers, but free samples if we own them
     if (frame->mOwnSamples)
       free (frame->mSamples);
+
     frame->mSamples = samples;
     frame->mOwnSamples = ownSamples;
     frame->mPts = pts;
@@ -281,7 +282,7 @@ void cSong::addFrame (bool reuseFront, int64_t pts, float* samples, bool ownSamp
   auto lumaValuesPtr = frame->mFreqLuma + getNumFreqBytes() - 1;
   for (auto i = 0; i < getNumFreqBytes(); i++) {
     float value = sqrtf (((*freqBufPtr).r * (*freqBufPtr).r) + ((*freqBufPtr).i * (*freqBufPtr).i));
-    mMaxFreqValue = std::max (mMaxFreqValue, value);
+    mMaxFreqValue = max (mMaxFreqValue, value);
 
     // freq scaled to byte, used by gui
     value *= freqScale;
@@ -295,7 +296,7 @@ void cSong::addFrame (bool reuseFront, int64_t pts, float* samples, bool ownSamp
     }
   //}}}
 
-  { //  insert with locked mutex
+  { // insert with lock
   unique_lock<shared_mutex> lock (mSharedMutex);
   mFrameMap.insert (map<int64_t,cFrame*>::value_type (pts/getFramePtsDuration(), frame));
   mTotalFrames = totalFrames;
@@ -325,8 +326,10 @@ void cSong::setPlayLastFrame() {
 void cSong::nextPlayFrame (bool constrainToRange) {
 
   int64_t playPts = mPlayPts + getFramePtsDuration();
-  //if (constrainToRange)
-  //  mPlayPts = mSelect.constrainToRange (mPlayPts, mPlayPts);
+
+  if (constrainToRange)
+    mPlayPts = getPtsFromFrameNum (
+      mSelect.constrainToRange (getFrameNumFromPts (mPlayPts), getFrameNumFromPts (mPlayPts));
 
   setPlayPts (playPts);
   }
@@ -480,9 +483,11 @@ int cHlsSong::getLoadChunkNum (int64_t& loadPts, bool& reuseFromFront) {
 
   // check playPts chunkNum for firstFrame of chunk loaded
   if (!findFrameByPts (loadPts)) {
-    cLog::log (LOGINFO, "getLoadChunk - load frameNumOffset:%d chunkNumOffset:%d chunkNum:%d",
-                         frameNumOffset, chunkNumOffset, chunkNum);
     reuseFromFront = loadPts >= mPlayPts;
+    cLog::log (LOGINFO, "getLoadChunk - load offset:" + dec(frameNumOffset) + ":" + dec(chunkNumOffset) +
+                        " chunkNum:" + dec(chunkNum) +
+                        " pts:" + getPtsFramesString (loadPts, getFramePtsDuration()) +
+                        (reuseFromFront ? " front" : " back"));
     return chunkNum;
     }
 
@@ -490,8 +495,11 @@ int cHlsSong::getLoadChunkNum (int64_t& loadPts, bool& reuseFromFront) {
   chunkNum++;
   loadPts += mFramesPerChunk * mFramePtsDuration;
   if (!findFrameByPts (loadPts))  {
-    cLog::log (LOGINFO, "getLoadChunk - preload+1 chunkNum:%d", chunkNum);
     reuseFromFront = loadPts >= mPlayPts;
+    cLog::log (LOGINFO, "getLoadChunk - preload+1 offset:" + dec(frameNumOffset) + ":" + dec(chunkNumOffset) +
+                        " chunkNum:" + dec(chunkNum) +
+                        " pts:" + getPtsFramesString (loadPts, getFramePtsDuration()) +
+                        (reuseFromFront ? " front" : " back"));
     return chunkNum;
     }
 

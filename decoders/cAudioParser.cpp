@@ -119,11 +119,15 @@ uint8_t* cAudioParser::parseFrame (uint8_t* framePtr, uint8_t* frameLast,
   sampleRate = 0;
   frameLength = 0;
 
-  while ((frameLast - framePtr) >= 6) {
+  while (framePtr + 10 < frameLast) { // enough for largest header start - id3 tagSize
     if ((framePtr[0] == 0x56) && ((framePtr[1] & 0xE0) == 0xE0)) {
       //{{{  aacLatm syncWord (0x02b7 << 5) found
       frameType = eAudioFrameType::eAacLatm;
-      sampleRate = 48000; // guess
+
+      // guess sampleRate and numChannels
+      sampleRate = 48000; 
+      numChannels = 2;
+
       frameLength = 3 + (((framePtr[1] & 0x1F) << 8) | framePtr[2]);
 
       // check for enough bytes for frame body
@@ -159,8 +163,11 @@ uint8_t* cAudioParser::parseFrame (uint8_t* framePtr, uint8_t* frameLast,
         const int sampleRates[16] = { 96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350, 0,0,0};
         sampleRate = sampleRates [(framePtr[2] & 0x3c) >> 2];
 
+        // guess numChannels
+        numChannels = 2;
+
         // return aacFrame & size
-        frameLength = (((unsigned int)framePtr[3] & 0x3) << 11) | (((unsigned int)framePtr[4]) << 3) | (framePtr[5] >> 5);
+        frameLength = ((framePtr[3] & 0x3) << 11) | (framePtr[4] << 3) | (framePtr[5] >> 5);
 
         // check for enough bytes for frame body
         return (framePtr + frameLength <= frameLast) ? framePtr : nullptr;
