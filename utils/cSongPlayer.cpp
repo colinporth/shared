@@ -43,7 +43,7 @@ using namespace chrono;
         device->start();
 
         cSong::cFrame* frame;
-        while (!mExit && !song->getChanged()) {
+        while (!mExit) {
           device->process ([&](float*& srcSamples, int& numSrcSamples) mutable noexcept {
             // lambda callback - load srcSamples
             shared_lock<shared_mutex> lock (song->getSharedMutex());

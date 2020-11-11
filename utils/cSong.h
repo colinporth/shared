@@ -123,12 +123,12 @@ public:
     int mItemNum = 0;
     };
   //}}}
-  cSong (eAudioFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame, int maxMapSize);
+  cSong (eAudioFrameType frameType, int numChannels, int sampleRate, 
+         int samplesPerFrame, int maxMapSize);
   virtual ~cSong();
 
   //  gets
   std::shared_mutex& getSharedMutex() { return mSharedMutex; }
-  bool getChanged() { return mChanged; }
 
   eAudioFrameType getFrameType() { return mFrameType; }
   int getNumChannels() { return mNumChannels; }
@@ -165,7 +165,6 @@ public:
   float getMaxPeakValue() { return mMaxPeakValue; }
   float getMaxFreqValue() { return mMaxFreqValue; }
   int getNumFreqBytes() { return kMaxFreqBytes; }
-  void setChanged (bool changed) { mChanged = changed; }
   //}}}
 
   //{{{
@@ -221,8 +220,6 @@ private:
   int64_t mTotalFrames = 0;
 
   bool mOwnSamples = false;
-  bool mChanged = false;
-
   cSelect mSelect;
 
   // fft vars
@@ -241,9 +238,8 @@ private:
 // cPtsSong
 class cPtsSong : public cSong {
 public:
-  cPtsSong (eAudioFrameType frameType, int numChannels,
-            int sampleRate, int samplesPerFrame,
-            int64_t ptsDuration, int maxMapSize)
+  cPtsSong (eAudioFrameType frameType, int numChannels, int sampleRate, 
+            int samplesPerFrame, int64_t ptsDuration, int maxMapSize)
     : cSong (frameType, numChannels, sampleRate, samplesPerFrame, maxMapSize), mPtsDuration(ptsDuration)  {}
   virtual ~cPtsSong() {}
 
@@ -269,9 +265,8 @@ protected:
 // cHlsSong
 class cHlsSong : public cPtsSong {
 public:
-  cHlsSong (eAudioFrameType frameType, int numChannels,
-            int sampleRate, int samplesPerFrame,
-            int64_t ptsDuration, int maxMapSize, int framesPerChunk);
+  cHlsSong (eAudioFrameType frameType, int numChannels, int sampleRate, 
+            int samplesPerFrame, int64_t ptsDuration, int maxMapSize, int framesPerChunk);
   virtual ~cHlsSong();
 
   // gets

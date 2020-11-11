@@ -117,6 +117,7 @@ namespace {
   //}}}
   //{{{
   string getTagValue (uint8_t* buffer, const char* tag, char terminator) {
+  // crappy get value from tag
 
     const char* tagPtr = strstr ((const char*)buffer, tag);
     const char* valuePtr = tagPtr + strlen (tag);
@@ -827,6 +828,7 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                 if (!audioDecoder)
                   audioDecoder = createAudioDecoder (eAudioFrameType::eAacAdts);
 
+                int64_t firstPts = -1;
                 uint8_t* tsPtr = http.getContent();
                 uint8_t* tsEndPtr = tsPtr + http.getContentSize();
                 uint8_t* pesPtr = tsPtr;
@@ -840,8 +842,10 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                     tsPtr += headerBytes;
                     int tsBodyBytes = 187 - headerBytes;
                     if (payStart) {
-                      //if ((tsPtr[7] & 0x80) && (firstTsPts == -1))
-                      //  firstTsPts = getPts (tsPtr+9);
+
+
+                      if ((tsPtr[7] & 0x80) && (firstPts == -1))
+                        firstPts = getPts (tsPtr+9);
                       int pesHeaderBytes = 9 + tsPtr[8];
                       tsPtr += pesHeaderBytes;
                       tsBodyBytes -= pesHeaderBytes;
@@ -1372,31 +1376,36 @@ void cLoader::loadAudio (uint8_t* first, int size, eFlags flags) {
     mSong = new cSong (fileFrameType, 2, sampleRate, kWavFrameSamples, 0);
 
     int frameSize = 0;
-    auto samples = cAudioParser::parseFrame (frame, last, frameSize);
-    while (!mExit && ((samples + (kWavFrameSamples * 2 * sizeof(float))) <= last)) {
+    uint8_t* samples = cAudioParser::parseFrame (frame, last, frameSize);
+    while (!mExit &&
+           ((samples + (kWavFrameSamples * 2 * sizeof(float))) <= last)) {
       mSong->addFrame (true, pts, (float*)samples, false, size / (kWavFrameSamples * 2 * sizeof(float)));
-      pts += mSong->getPtsDuration();
-      samples += kWavFrameSamples * 2 * sizeof(float);
       if (!mSongPlayer)
         mSongPlayer = new cSongPlayer (mSong, false);
+
+      pts += mSong->getPtsDuration();
+      samples += kWavFrameSamples * 2 * sizeof(float);
       mLoadFrac = float(samples - first) / size;
       }
     }
+
   else {
     // aacAdts, mp3
     int frameSize = 0;
-    while (!mExit && cAudioParser::parseFrame (frame, last, frameSize)) {
+    while (!mExit &&
+           cAudioParser::parseFrame (frame, last, frameSize)) {
       float* samples = audioDecoder->decodeFrame (frame, frameSize, pts);
       if (samples) {
-        if (!mSong) // first decodeFrame provides aacHE sampleRate,samplesPerFrame
+        if (!mSong) // first decoded frame gives aacHE sampleRate,samplesPerFrame
           mSong = new cSong (fileFrameType,  audioDecoder->getNumChannels(),
                              audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame(), 0);
-        int64_t totalFrames = mSong->getNumFrames() > 0 ? (size/(int(frame - first)/mSong->getNumFrames())) : 0;
-        mSong->addFrame (true, pts, samples, true, totalFrames+1);
-        pts += mSong->getPtsDuration();
+        int64_t totalFrames = 1 + (mSong->getNumFrames() > 0 ? (size / (int(frame - first) / mSong->getNumFrames())) : 0);
+        mSong->addFrame (true, pts, samples, true, totalFrames);
         if (!mSongPlayer)
           mSongPlayer = new cSongPlayer (mSong, false);
+        pts += mSong->getPtsDuration();
         }
+
       frame += frameSize;
       mLoadFrac = float(frame - first) / size;
       }
