@@ -33,6 +33,7 @@ using namespace chrono;
       float silence [2048*2] = { 0.f };
       float samples [2048*2] = { 0.f };
 
+      // raise to max prioritu
       SetThreadPriority (GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
       //{{{  WSAPI player thread, video just follows play pts
       auto device = getDefaultAudioOutputDevice();
@@ -119,6 +120,7 @@ using namespace chrono;
       cLog::log (LOGINFO, "exit");
       });
 
+    // raise to max prioritu
     sched_param sch_params;
     sch_params.sched_priority = sched_get_priority_max (SCHED_RR);
     pthread_setschedparam (mPlayerThread.native_handle(), SCHED_RR, &sch_params);
