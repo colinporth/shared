@@ -26,15 +26,12 @@ using namespace chrono;
 
 #ifdef _WIN32
   cSongPlayer::cSongPlayer (cSong* song, bool streaming) {
-
     mPlayerThread = thread ([=]() {
       // player lambda
       cLog::setThreadName ("play");
+      SetThreadPriority (GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
       float silence [2048*2] = { 0.f };
       float samples [2048*2] = { 0.f };
-
-      // raise to max prioritu
-      SetThreadPriority (GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
       //{{{  WSAPI player thread, video just follows play pts
       auto device = getDefaultAudioOutputDevice();
       if (device) {
@@ -82,16 +79,13 @@ using namespace chrono;
       cLog::log (LOGINFO, "exit");
       });
     }
-
 #else
   cSongPlayer::cSongPlayer (cSong* song, bool streaming) {
-
     mPlayerThread = thread ([=]() {
       // player lambda
       cLog::setThreadName ("play");
       float silence [2048*2] = { 0.f };
       float samples [2048*2] = { 0.f };
-
       //{{{  audio16 player thread, video just follows play pts
       cAudio audio (2, song->getSampleRate(), 40000, false);
 
@@ -125,7 +119,6 @@ using namespace chrono;
     sch_params.sched_priority = sched_get_priority_max (SCHED_RR);
     pthread_setschedparam (mPlayerThread.native_handle(), SCHED_RR, &sch_params);
     }
-
 #endif
 
 void cSongPlayer::wait() {

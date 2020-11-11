@@ -831,7 +831,7 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                 int64_t firstPts = -1;
                 uint8_t* tsPtr = http.getContent();
                 uint8_t* tsEndPtr = tsPtr + http.getContentSize();
-                uint8_t* pesPtr = http.getContent();
+                uint8_t* pesPtr = tsPtr;
                 while ((tsPtr < tsEndPtr) && (*tsPtr++ == 0x47)) {
                   // ts packet start
                   auto pid = ((tsPtr[0] & 0x1F) << 8) | tsPtr[1];
@@ -842,21 +842,6 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                     tsPtr += headerBytes;
                     int tsBodyBytes = 187 - headerBytes;
                     if (payStart) {
-                      int frameSize;
-                      uint8_t* pes = http.getContent();
-                      while (cAudioParser::parseFrame (pes, pesPtr, frameSize)) {
-                        float* samples = audioDecoder->decodeFrame (pes, frameSize, loadPts);
-                        if (samples) {
-                          hlsSong->addFrame (reuseFromFront, loadPts, samples, true, hlsSong->getNumFrames()+1);
-                          loadPts += hlsSong->getFramePtsDuration();
-                          if (!mSongPlayer)
-                            mSongPlayer = new cSongPlayer (hlsSong, true);
-                          }
-                        else
-                          cLog::log (LOGERROR, "aud parser failed to decode %d", loadPts);
-                        pes += frameSize;
-                        }
-                      pesPtr = http.getContent();
 
                       if ((tsPtr[7] & 0x80) && (firstPts == -1))
                         firstPts = getPts (tsPtr+9);
@@ -874,10 +859,12 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                     tsPtr += 187;
                   }
 
+                // parse audio pes for audio frames
+                uint8_t* pesEnd = pesPtr;
+                pesPtr = http.getContent();
                 int frameSize;
-                uint8_t* pes = http.getContent();
-                while (cAudioParser::parseFrame (pes, pesPtr, frameSize)) {
-                  float* samples = audioDecoder->decodeFrame (pes, frameSize, loadPts);
+                while (cAudioParser::parseFrame (pesPtr, pesEnd, frameSize)) {
+                  float* samples = audioDecoder->decodeFrame (pesPtr, frameSize, loadPts);
                   if (samples) {
                     hlsSong->addFrame (reuseFromFront, loadPts, samples, true, hlsSong->getNumFrames()+1);
                     loadPts += hlsSong->getFramePtsDuration();
@@ -886,19 +873,21 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                     }
                   else
                     cLog::log (LOGERROR, "aud parser failed to decode %d", loadPts);
-                  pes += frameSize;
+
+                  pesPtr += frameSize;
                   }
                 }
                 //}}}
-                //{{{  parse chunk of ts
+                //{{{  simple frame by frame parse chunk of ts - fails why
                 //// extract audio pes from chunk of ts packets, write it back crunched into ts, always gets smaller as ts stripped
                 //if (!audioDecoder)
                   //audioDecoder = createAudioDecoder (eAudioFrameType::eAacAdts);
 
                 //int64_t firstPts = -1;
+                //uint8_t* pesPtr = http.getContent();
+
                 //uint8_t* tsPtr = http.getContent();
                 //uint8_t* tsEndPtr = tsPtr + http.getContentSize();
-                //uint8_t* pesPtr = tsPtr;
                 //while ((tsPtr < tsEndPtr) && (*tsPtr++ == 0x47)) {
                   //// ts packet start
                   //auto pid = ((tsPtr[0] & 0x1F) << 8) | tsPtr[1];
@@ -909,6 +898,24 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                     //tsPtr += headerBytes;
                     //int tsBodyBytes = 187 - headerBytes;
                     //if (payStart) {
+                      //if (pesPtr > http.getContent()) {
+                        //int frameSize;
+                        //uint8_t* pesLast = pesPtr;
+                        //pesPtr = http.getContent();
+                        //while (cAudioParser::parseFrame (pesPtr, pesLast, frameSize)) {
+                          //float* samples = audioDecoder->decodeFrame (pesPtr, frameSize, loadPts);
+                          //if (samples) {
+                            //hlsSong->addFrame (reuseFromFront, loadPts, samples, true, hlsSong->getNumFrames()+1);
+                            //loadPts += hlsSong->getFramePtsDuration();
+                            //if (!mSongPlayer)
+                              //mSongPlayer = new cSongPlayer (hlsSong, true);
+                            //}
+                          //else
+                            //cLog::log (LOGERROR, "aud parser failed to decode %d", loadPts);
+                          //pesPtr += frameSize;
+                          //}
+                        //pesPtr = http.getContent();
+                        //}
 
                       //if ((tsPtr[7] & 0x80) && (firstPts == -1))
                         //firstPts = getPts (tsPtr+9);
@@ -926,22 +933,23 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                     //tsPtr += 187;
                   //}
 
-                //// parse audio pes for audio frames
-                //uint8_t* pesEnd = pesPtr;
-                //pesPtr = http.getContent();
-                //int frameSize;
-                //while (cAudioParser::parseFrame (pesPtr, pesEnd, frameSize)) {
-                  //float* samples = audioDecoder->decodeFrame (pesPtr, frameSize, loadPts);
-                  //if (samples) {
-                    //hlsSong->addFrame (reuseFromFront, loadPts, samples, true, hlsSong->getNumFrames()+1);
-                    //loadPts += hlsSong->getFramePtsDuration();
-                    //if (!mSongPlayer)
-                      //mSongPlayer = new cSongPlayer (hlsSong, true);
+                //if (pesPtr > http.getContent()) {
+                  //int frameSize;
+                  //uint8_t* pesLast = pesPtr;
+                  //pesPtr = http.getContent();
+                  //while (cAudioParser::parseFrame (pesPtr, pesLast, frameSize)) {
+                    //float* samples = audioDecoder->decodeFrame (pesPtr, frameSize, loadPts);
+                    //if (samples) {
+                      //hlsSong->addFrame (reuseFromFront, loadPts, samples, true, hlsSong->getNumFrames()+1);
+                      //loadPts += hlsSong->getFramePtsDuration();
+                      //if (!mSongPlayer)
+                        //mSongPlayer = new cSongPlayer (hlsSong, true);
+                      //}
+                    //else
+                      //cLog::log (LOGERROR, "aud parser failed to decode %d", loadPts);
+                    //pesPtr += frameSize;
                     //}
-                  //else
-                    //cLog::log (LOGERROR, "aud parser failed to decode %d", loadPts);
-
-                  //pesPtr += frameSize;
+                  //pesPtr = http.getContent();
                   //}
                 //}
                 //}}}
@@ -1466,7 +1474,7 @@ void cLoader::loadAudioFile (uint8_t* first, int size, eFlags flags) {
       float* samples = decoder->decodeFrame (frame, frameSize, pts);
       if (samples) {
         if (!mSong) // first decoded frame gives aacHE sampleRate,samplesPerFrame
-          mSong = new cSong (fileFrameType, decoder->getNumChannels(), decoder->getSampleRate(), 
+          mSong = new cSong (fileFrameType, decoder->getNumChannels(), decoder->getSampleRate(),
                              decoder->getNumSamplesPerFrame(), 0);
         int64_t totalFrames = 1 + (mSong->getNumFrames() > 0 ? (size / (int(frame - first) / mSong->getNumFrames())) : 0);
         mSong->addFrame (true, pts, samples, true, totalFrames);
