@@ -329,7 +329,7 @@ void cSong::nextPlayFrame (bool constrainToRange) {
 
   if (constrainToRange)
     mPlayPts = getPtsFromFrameNum (
-      mSelect.constrainToRange (getFrameNumFromPts (mPlayPts), getFrameNumFromPts (mPlayPts));
+      mSelect.constrainToRange (getFrameNumFromPts (mPlayPts), getFrameNumFromPts (mPlayPts)));
 
   setPlayPts (playPts);
   }

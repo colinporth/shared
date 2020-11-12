@@ -170,6 +170,7 @@ public:
 
     bool payloadStart = ts[1] & 0x40;
     int continuityCount = ts[3] & 0x0F;
+
     int headerSize = 1 + ((ts[3] & 0x20) ? 4 + ts[4] : 3);
     ts += headerSize;
     int tsLeft = 188 - headerSize;
@@ -468,12 +469,33 @@ public:
   virtual void processBody (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool reuseFromFront) {
 
     if ((mContinuityCount >= 0) &&
-        (continuityCount != ((mContinuityCount + 1) & 0xF)))
+        (continuityCount != ((mContinuityCount + 1) & 0xF))) {
+      // !!! should abandon pes !!!!
       cLog::log (LOGERROR, "continuity count error pid:%d %d %d", mPid, continuityCount, mContinuityCount);
+      }
     mContinuityCount = continuityCount;
 
     if (payloadStart) {
-      // end of last pes, if any, process it
+      // ts[0],ts[1],ts[2],ts[3] = stream id 0x000001xx
+      // ts[4],ts[5] = packetLength, 0 for video
+      // ts[6] = 0x80 marker, 0x04 = dataAlignmentIndicator
+      // ts[7] = 0x80 = pts, 0x40 = dts
+      // ts[8] = optional header length
+      mDataAlignmentIndicator = (ts[6] & 0x84) == 0x84;
+
+      int completeLastPesBytes = mPesPacketLeft;
+      if (!mDataAlignmentIndicator && (mPesPacketLength > 0) && (mPesPacketLeft > 0)) {
+        // front of packet completes last pes
+        cLog::log (LOGINFO, "processBody partialLen:%d totalLen:%d have:%d", mPesPacketLeft, mPesPacketLength, mPesSize);
+        memcpy (mPes + mPesSize, ts + 9 + ts[8], mPesPacketLeft);
+        mPesSize += mPesPacketLeft;
+        mPesPacketLeft = 0;
+        }
+
+      mPesPacketLength = (ts[4] << 8) | ts[5];
+      cLog::log (LOGINFO, "processBody pes payloadStart %d %x", mPesPacketLength, mDataAlignmentIndicator);
+
+      // end of last pes, if any, process it, mPesSize reset to 0
       processLast (reuseFromFront);
 
       if (ts[7] & 0x80)
@@ -481,9 +503,11 @@ public:
       if (ts[7] & 0x40)
         mDts = getPts (ts+14);
 
+      mPesPacketLeft = mPesPacketLength - 3 - ts[8];
+
       int headerSize = 9 + ts[8];
-      ts += headerSize;
-      tsLeft -= headerSize;
+      ts += headerSize + completeLastPesBytes;
+      tsLeft -= headerSize + completeLastPesBytes;
       }
 
     if (mPesSize + tsLeft > mAllocSize) {
@@ -492,6 +516,8 @@ public:
       cLog::log (LOGINFO, mName + " pes allocSize doubled to " + dec(mAllocSize));
       }
 
+    if (mPesPacketLength > 0) 
+      mPesPacketLeft -= tsLeft;
     memcpy (mPes + mPesSize, ts, tsLeft);
     mPesSize += tsLeft;
     }
@@ -535,6 +561,10 @@ protected:
   int64_t mDts = 0;
   int mContinuityCount = -1;
 
+  int mPesPacketLength = 0;
+  int mPesPacketLeft = 0;
+  bool mDataAlignmentIndicator = false;
+
 private:
   static constexpr int kInitPesSize = 4096;
 
@@ -558,6 +588,8 @@ public:
   // count audio frames in pes
 
     if (mPesSize) {
+      cLog::log (LOGINFO, "processLast size:%d %02x %02x %02x %02x", mPesSize, mPes[0], mPes[1], mPes[2], mPes[3]);
+
       int numFrames = 0;
 
       uint8_t* framePes = mPes;
@@ -570,9 +602,9 @@ public:
 
       // dispatch whole pes, maybe several frames
       dispatchDecode (reuseFromFront, mPes, mPesSize, mPts, mDts);
-
-      mPesSize = 0;
       }
+
+    mPesSize = 0;
     }
   //}}}
   //{{{
@@ -612,10 +644,9 @@ public:
 
   //{{{
   virtual void processLast (bool reuseFromFront) {
-    if (mPesSize) {
+    if (mPesSize)
       dispatchDecode (reuseFromFront, mPes, mPesSize, mPts, mDts);
-      mPesSize = 0;
-      }
+    mPesSize = 0;
     }
   //}}}
   //{{{
@@ -696,7 +727,7 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
 
     iAudioDecoder* audioDecoder = nullptr;
     iVideoPool* videoPool = nullptr;
-    //{{{  add parsers,callbacks
+    //{{{  add parsers, callbacks
     auto addAudioFrameCallback = [&](bool reuseFromFront, float* samples, int64_t pts) noexcept {
       hlsSong->addFrame (reuseFromFront, pts, samples, true, hlsSong->getNumFrames()+1);
       if (!mSongPlayer)
@@ -823,177 +854,19 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                           ) == 200) {
               // ??? why does pesParser fail for radio audio pes ???
               if (radio) {
-                //{{{  parse chunk of ts
-                // extract audio pes from chunk of ts packets, write it back crunched into ts, always gets smaller as ts stripped
-                if (!audioDecoder)
-                  audioDecoder = createAudioDecoder (eAudioFrameType::eAacAdts);
-
-                int64_t firstPts = -1;
-                uint8_t* pes = (uint8_t*)malloc (500000);
-                uint8_t* pesPtr = pes;
-
-                int frameCount = 0;
-                int pesCount = 0;
-
-                uint8_t* tsPtr = http.getContent();
-                uint8_t* tsEndPtr = tsPtr + http.getContentSize();
-                while ((tsPtr < tsEndPtr) && (*tsPtr++ == 0x47)) {
-                  // ts packet start
-                  auto pid = ((tsPtr[0] & 0x1F) << 8) | tsPtr[1];
-                  if (pid == 34) {
-                    // audio pid
-                    bool payStart = tsPtr[0] & 0x40;
-                    int headerBytes = (tsPtr[2] & 0x20) ? 4 + tsPtr[3] : 3;
-                    tsPtr += headerBytes;
-                    int tsBodyBytes = 187 - headerBytes;
-                    if (payStart) {
-                      int pesPacketLength = (tsPtr[4] << 8) | tsPtr[5];
-                      int pesOptionalHeader = tsPtr[6];
-
-                      if ((tsPtr[7] & 0x80) && (firstPts == -1))
-                        firstPts = getPts (tsPtr+9);
-                      int pesHeaderBytes = 9 + tsPtr[8];
-                      tsPtr += pesHeaderBytes;
-                      tsBodyBytes -= pesHeaderBytes;
-                      cLog::log (LOGINFO, "payload start %d len:%d head:%x %02x %02x",
-                                           pesCount++, pesPacketLength, pesOptionalHeader, tsPtr[0], tsPtr[1]);
-                      }
-
-                    // copy ts payload back into same buffer, always copying to lower address in same buffer
-                    memcpy (pesPtr, tsPtr, tsBodyBytes);
-                    pesPtr += tsBodyBytes;
-                    tsPtr += tsBodyBytes;
-                    }
-                  else // PAT and PMT 0x20 pids expected
-                    tsPtr += 187;
-                  }
-
-                // parse audio pes for audio frames
-                uint8_t* pesEnd = pesPtr;
-                pesPtr = pes;
-
-                int frameSize;
-                while (cAudioParser::parseFrame (pesPtr, pesEnd, frameSize)) {
-                  cLog::log (LOGINFO, "frame:" + dec(frameCount++) + " " + dec(frameSize) +
-                                      " " + getPtsFramesString (loadPts, mSong->getFramePtsDuration()));
-
-                  float* samples = audioDecoder->decodeFrame (pesPtr, frameSize, loadPts);
-                  if (samples) {
-                    hlsSong->addFrame (reuseFromFront, loadPts, samples, true, hlsSong->getNumFrames()+1);
-                    loadPts += hlsSong->getFramePtsDuration();
-                    if (!mSongPlayer)
-                      mSongPlayer = new cSongPlayer (hlsSong, true);
-                    }
-                  else
-                    cLog::log (LOGERROR, "aud parser failed to decode %d", loadPts);
-
-                  pesPtr += frameSize;
-                  }
-                free (pes);
-                //}}}
-                //{{{  simple frame by frame parse chunk of ts - fails why
-                //// extract audio pes from chunk of ts packets, write it back crunched into ts, always gets smaller as ts stripped
-                ////if (!audioDecoder)
-                ////  audioDecoder = createAudioDecoder (eAudioFrameType::eAacAdts);
-                //firstPts = -1;
-                //pes = (uint8_t*)malloc (500000);
-                //pesPtr = pes;
-                //frameCount = 0;
-
-                //tsPtr = http.getContent();
-                //tsEndPtr = tsPtr + http.getContentSize();
-                //while ((tsPtr < tsEndPtr) && (*tsPtr++ == 0x47)) {
-                  //// ts packet start
-                  //auto pid = ((tsPtr[0] & 0x1F) << 8) | tsPtr[1];
-                  //if (pid == 34) {
-                    //// audio pid
-                    //bool payStart = tsPtr[0] & 0x40;
-                    //int headerBytes = (tsPtr[2] & 0x20) ? 4 + tsPtr[3] : 3;
-                    //tsPtr += headerBytes;
-                    //int tsBodyBytes = 187 - headerBytes;
-                    //if (payStart) {
-                      //if (pesPtr > pes) {
-                        //int frameSize;
-                        //uint8_t* pesLast = pesPtr;
-                        //pesPtr = pes;
-                        //while (cAudioParser::parseFrame (pesPtr, pesLast, frameSize)) {
-                          ////float* samples = audioDecoder->decodeFrame (pesPtr, frameSize, loadPts);
-                          ////if (samples) {
-                            //cLog::log (LOGINFO, "other frame:" + dec(frameCount++) + " " + dec(frameSize) +
-                                                //" " + getPtsFramesString (loadPts, mSong->getFramePtsDuration()));
-
-                            ////hlsSong->addFrame (reuseFromFront, loadPts, samples, true, hlsSong->getNumFrames()+1);
-                            //loadPts += hlsSong->getFramePtsDuration();
-                            ////if (!mSongPlayer)
-                            ////  mSongPlayer = new cSongPlayer (hlsSong, true);
-                          ////  }
-                          ////else
-                          ////  cLog::log (LOGERROR, "aud parser failed to decode %d", loadPts);
-                          //pesPtr += frameSize;
-                          //int left = int (pesLast - pesPtr);
-                          //cLog::log (LOGINFO, "other frame left:" + dec(left));
-                          //}
-                        //pesPtr = pes;
-                        //}
-
-                      //if ((tsPtr[7] & 0x80) && (firstPts == -1))
-                        //firstPts = getPts (tsPtr+9);
-                      //int pesHeaderBytes = 9 + tsPtr[8];
-                      //tsPtr += pesHeaderBytes;
-                      //tsBodyBytes -= pesHeaderBytes;
-                      //}
-
-                    //// copy ts payload back into same buffer, always copying to lower address in same buffer
-                    //memcpy (pesPtr, tsPtr, tsBodyBytes);
-                    //pesPtr += tsBodyBytes;
-                    //tsPtr += tsBodyBytes;
-                    //}
-                  //else // PAT and PMT 0x20 pids expected
-                    //tsPtr += 187;
-                  //}
-
-                //if (pesPtr > pes) {
-                  //int frameSize;
-                  //uint8_t* pesLast = pesPtr;
-                  //pesPtr = pes;
-
-                  //while (cAudioParser::parseFrame (pesPtr, pesLast, frameSize)) {
-                    ////float* samples = audioDecoder->decodeFrame (pesPtr, frameSize, loadPts);
-                   //// if (samples) {
-                      //cLog::log (LOGINFO, "other frame:" + dec(frameCount++) + " " + dec(frameSize) +
-                                          //" " + getPtsFramesString (loadPts, mSong->getFramePtsDuration()));
-
-                      ////hlsSong->addFrame (reuseFromFront, loadPts, samples, true, hlsSong->getNumFrames()+1);
-                      //loadPts += hlsSong->getFramePtsDuration();
-                      ////if (!mSongPlayer)
-                      ////  mSongPlayer = new cSongPlayer (hlsSong, true);
-                    ////  }
-                    ////else
-                    ////  cLog::log (LOGERROR, "aud parser failed to decode %d", loadPts);
-                    //pesPtr += frameSize;
-                    //int left = int (pesLast - pesPtr);
-                    //cLog::log (LOGINFO, "other frame left:" + dec(left));
-                    //}
-
-                  //pesPtr = pes;
-                  //}
-
-                //free (pes);
-                //}}}
                 //{{{  pesParse chunk of ts - should work but fails !!! find out why !!!
-                //uint8_t* ts = http.getContent();
-                //uint8_t* tsEnd = ts + http.getContentSize();
-                //while ((ts < tsEnd) && (ts[0] == 0x47)) {
-                  //auto it = mPidParsers.find (((ts[1] & 0x1F) << 8) | ts[2]);
-                  //if (it != mPidParsers.end())
-                    //it->second->parse (ts, reuseFromFront);
-                  //ts += 188;
-                  //}
-
-                //for (auto parser : mPidParsers)
-                  //parser.second->processLast (reuseFromFront);
-                //}}}
+                uint8_t* ts = http.getContent();
+                uint8_t* tsEnd = ts + http.getContentSize();
+                while ((ts+188 <= tsEnd) && (ts[0] == 0x47)) {
+                  auto it = mPidParsers.find (((ts[1] & 0x1F) << 8) | ts[2]);
+                  if (it != mPidParsers.end())
+                    it->second->parse (ts, reuseFromFront);
+                  ts += 188;
+                  }
+                for (auto parser : mPidParsers)
+                  parser.second->processLast (reuseFromFront);
                 }
+                //}}}
               else for (auto parser : mPidParsers)
                 parser.second->processLast (reuseFromFront);
               http.freeContent();

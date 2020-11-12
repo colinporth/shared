@@ -90,7 +90,7 @@ using namespace chrono;
       cAudio audio (2, song->getSampleRate(), 40000, false);
 
       cSong::cFrame* frame;
-      while (!mExit && !song->getChanged()) {
+      while (!mExit) {
         float* playSamples = silence;
           {
           // scoped song mutex
