@@ -164,20 +164,16 @@ public:
 
   //{{{
   void parse (uint8_t* ts, bool reuseFromFront) {
+  // ignore any leading payload before a payloadStart
 
     bool payloadStart = ts[1] & 0x40;
-    int continuityCount = ts[3] & 0x0F;
-
-    int headerSize = 1 + ((ts[3] & 0x20) ? 4 + ts[4] : 3);
     bool hasPayload = ts[3] & 0x10;
 
-    ts += headerSize;
-    int tsLeft = 188 - headerSize;
-
-    // ignore any leading payload before a payloadStart
     if (hasPayload && (payloadStart || mGotPayloadStart)) {
       mGotPayloadStart = true;
-      processPayload (ts, tsLeft, payloadStart, continuityCount, reuseFromFront);
+      int continuityCount = ts[3] & 0x0F;
+      int headerSize = 1 + ((ts[3] & 0x20) ? 4 + ts[4] : 3);
+      processPayload (ts + headerSize, 188 - headerSize, payloadStart, continuityCount, reuseFromFront);
       }
     }
   //}}}
