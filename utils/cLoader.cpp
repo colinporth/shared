@@ -172,13 +172,15 @@ public:
     int continuityCount = ts[3] & 0x0F;
 
     int headerSize = 1 + ((ts[3] & 0x20) ? 4 + ts[4] : 3);
+    bool hasPayload = ts[3] & 0x10;
+
     ts += headerSize;
     int tsLeft = 188 - headerSize;
 
     // ignore any leading payload before a payloadStart
-    if (payloadStart || mGotPayloadStart) {
+    if (hasPayload && (payloadStart || mGotPayloadStart)) {
       mGotPayloadStart = true;
-      processBody (ts, tsLeft, payloadStart, continuityCount, reuseFromFront);
+      processPayload (ts, tsLeft, payloadStart, continuityCount, reuseFromFront);
       }
     }
   //}}}
@@ -242,7 +244,7 @@ protected:
     }
   //}}}
   //{{{
-  virtual void processBody (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool reuseFromFront) {
+  virtual void processPayload (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool reuseFromFront) {
 
     string info;
     for (int i = 0; i < tsLeft; i++) {
@@ -267,7 +269,7 @@ public:
     : cPidParser (0, "pat"), mCallback(callback) {}
   virtual ~cPatParser() {}
 
-  virtual void processBody (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool reuseFromFront) {
+  virtual void processPayload (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool reuseFromFront) {
 
     if (payloadStart) {
       //int pointerField = ts[0]
@@ -362,7 +364,7 @@ public:
     } sPmtInfo;
   //}}}
 
-  virtual void processBody (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool reuseFromFront) {
+  virtual void processPayload (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool reuseFromFront) {
     if (payloadStart) {
       //int pointerField = ts[0];
       ts++;
@@ -464,9 +466,24 @@ public:
       }
     }
   //}}}
-
   //{{{
-  virtual void processBody (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool reuseFromFront) {
+  virtual void processLast (bool reuseFromFront) {
+
+    if (mPesSize) {
+      dispatchDecode (reuseFromFront, mPes, mPesSize, mPts, mDts);
+      mPesSize = 0;
+      }
+    }
+  //}}}
+
+protected:
+  //{{{
+  virtual void processPayload (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool reuseFromFront) {
+  // ts[0],ts[1],ts[2],ts[3] = stream id 0x000001xx
+  // ts[4],ts[5] = packetLength, 0 for video
+  // ts[6] = 0x80 marker, 0x04 = dataAlignmentIndicator
+  // ts[7] = 0x80 = pts, 0x40 = dts
+  // ts[8] = optional header length
 
     if ((mContinuityCount >= 0) &&
         (continuityCount != ((mContinuityCount + 1) & 0xF))) {
@@ -476,38 +493,20 @@ public:
     mContinuityCount = continuityCount;
 
     if (payloadStart) {
-      // ts[0],ts[1],ts[2],ts[3] = stream id 0x000001xx
-      // ts[4],ts[5] = packetLength, 0 for video
-      // ts[6] = 0x80 marker, 0x04 = dataAlignmentIndicator
-      // ts[7] = 0x80 = pts, 0x40 = dts
-      // ts[8] = optional header length
-      mDataAlignmentIndicator = (ts[6] & 0x84) == 0x84;
+      bool dataAlignmentIndicator = (ts[6] & 0x84) == 0x84;
+      if (dataAlignmentIndicator) {
+        processLast (reuseFromFront);
 
-      int completeLastPesBytes = mPesPacketLeft;
-      if (!mDataAlignmentIndicator && (mPesPacketLength > 0) && (mPesPacketLeft > 0)) {
-        // front of packet completes last pes
-        cLog::log (LOGINFO, "processBody partialLen:%d totalLen:%d have:%d", mPesPacketLeft, mPesPacketLength, mPesSize);
-        memcpy (mPes + mPesSize, ts + 9 + ts[8], mPesPacketLeft);
-        mPesSize += mPesPacketLeft;
-        mPesPacketLeft = 0;
+        // get pts dts for next pes
+        if (ts[7] & 0x80)
+          mPts = getPts (ts+9);
+        if (ts[7] & 0x40)
+          mDts = getPts (ts+14);
         }
 
-      mPesPacketLength = (ts[4] << 8) | ts[5];
-      cLog::log (LOGINFO, "processBody pes payloadStart %d %x", mPesPacketLength, mDataAlignmentIndicator);
-
-      // end of last pes, if any, process it, mPesSize reset to 0
-      processLast (reuseFromFront);
-
-      if (ts[7] & 0x80)
-        mPts = getPts (ts+9);
-      if (ts[7] & 0x40)
-        mDts = getPts (ts+14);
-
-      mPesPacketLeft = mPesPacketLength - 3 - ts[8];
-
       int headerSize = 9 + ts[8];
-      ts += headerSize + completeLastPesBytes;
-      tsLeft -= headerSize + completeLastPesBytes;
+      ts += headerSize;
+      tsLeft -= headerSize;
       }
 
     if (mPesSize + tsLeft > mAllocSize) {
@@ -516,8 +515,6 @@ public:
       cLog::log (LOGINFO, mName + " pes allocSize doubled to " + dec(mAllocSize));
       }
 
-    if (mPesPacketLength > 0) 
-      mPesPacketLeft -= tsLeft;
     memcpy (mPes + mPesSize, ts, tsLeft);
     mPesSize += tsLeft;
     }
@@ -532,8 +529,6 @@ public:
     }
   //}}}
   virtual void decode (bool reuseFromFront, uint8_t* pes, int size, int64_t pts, int64_t dts) = 0;
-
-protected:
   //{{{
   void dequeThread() {
 
@@ -561,10 +556,6 @@ protected:
   int64_t mDts = 0;
   int mContinuityCount = -1;
 
-  int mPesPacketLength = 0;
-  int mPesPacketLeft = 0;
-  bool mDataAlignmentIndicator = false;
-
 private:
   static constexpr int kInitPesSize = 4096;
 
@@ -583,31 +574,7 @@ public:
     }
   virtual ~cAudioPesParser() {}
 
-  //{{{
-  virtual void processLast (bool reuseFromFront) {
-  // count audio frames in pes
-
-    if (mPesSize) {
-      cLog::log (LOGINFO, "processLast size:%d %02x %02x %02x %02x", mPesSize, mPes[0], mPes[1], mPes[2], mPes[3]);
-
-      int numFrames = 0;
-
-      uint8_t* framePes = mPes;
-      int frameSize;
-      while (cAudioParser::parseFrame (framePes, mPes + mPesSize, frameSize)) {
-        // count frames in pes
-        framePes += frameSize;
-        numFrames++;
-        }
-
-      // dispatch whole pes, maybe several frames
-      dispatchDecode (reuseFromFront, mPes, mPesSize, mPts, mDts);
-      }
-
-    mPesSize = 0;
-    }
-  //}}}
-  //{{{
+protected:
   virtual void decode (bool reuseFromFront, uint8_t* pes, int size, int64_t pts, int64_t dts) {
   // decode pes to audio frames
 
@@ -628,7 +595,6 @@ public:
       framePes += frameSize;
       }
     }
-  //}}}
 
 private:
   iAudioDecoder* mAudioDecoder;
@@ -642,18 +608,10 @@ public:
     : cPesParser (pid, "vid", useQueue), mVideoPool(videoPool) {}
   virtual ~cVideoPesParser() {}
 
-  //{{{
-  virtual void processLast (bool reuseFromFront) {
-    if (mPesSize)
-      dispatchDecode (reuseFromFront, mPes, mPesSize, mPts, mDts);
-    mPesSize = 0;
-    }
-  //}}}
-  //{{{
+protected:
   void decode (bool reuseFromFront, uint8_t* pes, int size, int64_t pts, int64_t dts) {
     mVideoPool->decodeFrame (reuseFromFront, pes, size, pts, dts);
     }
-  //}}}
 
 private:
   iVideoPool* mVideoPool;
@@ -833,41 +791,25 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
                             mLoadSize = http.getContentSize();
                             mLoadFrac = float(http.getContentSize()) / http.getHeaderContentSize();
 
-                            if (!radio) {
-                              // tsParse as we go
-                              while (http.getContentSize() - contentParsed >= 188) {
-                                uint8_t* ts = http.getContent() + contentParsed;
-                                if (ts[0] == 0x47) {
-                                  auto it = mPidParsers.find (((ts[1] & 0x1F) << 8) | ts[2]);
-                                  if (it != mPidParsers.end())
-                                    it->second->parse (ts, reuseFromFront);
-                                  ts += 188;
-                                  }
-                                else
-                                  cLog::log (LOGERROR, "ts packet sync:%d", contentParsed);
-                                contentParsed += 188;
+                            // parse ts packets as we receive them
+                            while (http.getContentSize() - contentParsed >= 188) {
+                              uint8_t* ts = http.getContent() + contentParsed;
+                              if (ts[0] == 0x47) {
+                                auto it = mPidParsers.find (((ts[1] & 0x1F) << 8) | ts[2]);
+                                if (it != mPidParsers.end())
+                                  it->second->parse (ts, reuseFromFront);
+                                ts += 188;
                                 }
+                              else
+                                cLog::log (LOGERROR, "ts packet sync:%d", contentParsed);
+                              contentParsed += 188;
                               }
+
                             return true;
                             }
                             //}}}
                           ) == 200) {
-              // ??? why does pesParser fail for radio audio pes ???
-              if (radio) {
-                //{{{  pesParse chunk of ts - should work but fails !!! find out why !!!
-                uint8_t* ts = http.getContent();
-                uint8_t* tsEnd = ts + http.getContentSize();
-                while ((ts+188 <= tsEnd) && (ts[0] == 0x47)) {
-                  auto it = mPidParsers.find (((ts[1] & 0x1F) << 8) | ts[2]);
-                  if (it != mPidParsers.end())
-                    it->second->parse (ts, reuseFromFront);
-                  ts += 188;
-                  }
-                for (auto parser : mPidParsers)
-                  parser.second->processLast (reuseFromFront);
-                }
-                //}}}
-              else for (auto parser : mPidParsers)
+              for (auto parser : mPidParsers)
                 parser.second->processLast (reuseFromFront);
               http.freeContent();
               }
