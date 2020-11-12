@@ -162,9 +162,6 @@ public:
   virtual int getQueueSize() { return 0; }
   virtual float getQueueFrac() { return 0.f; }
 
-  virtual void stop() {}
-  virtual void processLast (bool reuseFromFront) {}
-
   //{{{
   void parse (uint8_t* ts, bool reuseFromFront) {
 
@@ -184,6 +181,8 @@ public:
       }
     }
   //}}}
+  virtual void processLast (bool reuseFromFront) {}
+  virtual void stop() {}
 
 protected:
   //{{{
@@ -457,21 +456,21 @@ public:
   virtual float getQueueFrac() { return (float)mQueue.size_approx() / mQueue.max_capacity(); }
 
   //{{{
+  virtual void processLast (bool reuseFromFront) {
+
+    if (mPesSize) {
+      dispatchDecode (reuseFromFront, mPes, mPesSize, mPts, mDts);
+      mPesSize = 0;
+      }
+    }
+  //}}}
+  //{{{
   virtual void stop() {
 
     if (mUseQueue) {
       mQueueExit = true;
       //while (mQueueRunning)
       this_thread::sleep_for (100ms);
-      }
-    }
-  //}}}
-  //{{{
-  virtual void processLast (bool reuseFromFront) {
-
-    if (mPesSize) {
-      dispatchDecode (reuseFromFront, mPes, mPesSize, mPts, mDts);
-      mPesSize = 0;
       }
     }
   //}}}
@@ -519,6 +518,8 @@ protected:
     mPesSize += tsLeft;
     }
   //}}}
+
+  virtual void decode (bool reuseFromFront, uint8_t* pes, int size, int64_t pts, int64_t dts) = 0;
   //{{{
   virtual void dispatchDecode (bool reuseFromFront, uint8_t* pes, int size, int64_t pts, int64_t dts) {
 
@@ -528,7 +529,6 @@ protected:
       decode (reuseFromFront, pes, size, pts, dts);
     }
   //}}}
-  virtual void decode (bool reuseFromFront, uint8_t* pes, int size, int64_t pts, int64_t dts) = 0;
   //{{{
   void dequeThread() {
 
@@ -562,6 +562,7 @@ private:
   bool mUseQueue = true;
   bool mQueueExit = false;
   bool mQueueRunning = false;
+
   readerWriterQueue::cBlockingReaderWriterQueue <cPesItem*> mQueue;
   };
 //}}}
