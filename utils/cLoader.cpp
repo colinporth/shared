@@ -1067,177 +1067,178 @@ bool cLoader::loadTsFile (const string& filename, eFlags flags) {
 // manage our own file read, can't mmap because of commmon case of growing ts file size
 
   constexpr int kFileChunkSize = 16 * 188;
-  FILE* file = fopen (filename.c_str(), "rb");
   uint8_t buffer[kFileChunkSize];
+
+  bool result = false;
+  FILE* file = fopen (filename.c_str(), "rb");
   size_t bytesLeft = (int)fread (buffer, 1, kFileChunkSize, file);
 
-  if ((buffer[0] != 0x47) || (buffer[188] != 0x47)) {
-    //{{{  close file, return false for unrecognised
-    fclose (file);
-    return false;
-    }
-    //}}}
+  // trivial ts file check
+  if ((bytesLeft > 188) && (buffer[0] == 0x47) && (buffer[188] == 0x47)) {
+    cPtsSong* ptsSong = new cPtsSong (eAudioFrameType::eAacAdts, 2, 48000, 1024, 1920, 0);
+    mSong = ptsSong;
 
-  cPtsSong* ptsSong = new cPtsSong (eAudioFrameType::eAacAdts, 2, 48000, 1024, 1920, 0);
-  mSong = ptsSong;
+    int64_t loadPts = -1;
+    iVideoPool* videoPool = nullptr;
+    iAudioDecoder* audioDecoder = nullptr;
+    //{{{  init parsers, callbacks
+    auto addAudioFrameCallback = [&](bool reuseFromFront, float* samples, int64_t pts) noexcept {
+      if (loadPts < 0)
+        ptsSong->setBasePts (pts);
+      loadPts = pts;
+      mSong->addFrame (reuseFromFront, pts, samples, mSong->getNumFrames()+1);
+      if (!mSongPlayer)
+        mSongPlayer = new cSongPlayer (mSong, true);
+      };
 
-  int64_t loadPts = -1;
-  iVideoPool* videoPool = nullptr;
-  iAudioDecoder* audioDecoder = nullptr;
-  //{{{  init parsers, callbacks
-  auto addAudioFrameCallback = [&](bool reuseFromFront, float* samples, int64_t pts) noexcept {
-    if (loadPts < 0)
-      ptsSong->setBasePts (pts);
-    loadPts = pts;
-    mSong->addFrame (reuseFromFront, pts, samples, mSong->getNumFrames()+1);
-    if (!mSongPlayer)
-      mSongPlayer = new cSongPlayer (mSong, true);
-    };
+    auto addStreamCallback = [&](int sid, int pid, int type) noexcept {
+      if (mPidParsers.find (pid) == mPidParsers.end()) {
+        // new stream pid
+        auto it = mServices.find (sid);
+        if (it != mServices.end()) {
+          cService* service = (*it).second;
+          switch (type) {
+            //{{{
+            case 15: // aacAdts
+              service->setAudioPid (pid);
 
-  auto addStreamCallback = [&](int sid, int pid, int type) noexcept {
-    if (mPidParsers.find (pid) == mPidParsers.end()) {
-      // new stream pid
-      auto it = mServices.find (sid);
-      if (it != mServices.end()) {
-        cService* service = (*it).second;
-        switch (type) {
-          //{{{
-          case 15: // aacAdts
-            service->setAudioPid (pid);
+              if (service->isSelected()) {
+                audioDecoder = createAudioDecoder (eAudioFrameType::eAacAdts);
+                mPidParsers.insert (map<int,cPidParser*>::value_type (pid,
+                  new cAudioPesParser (pid, audioDecoder, true, addAudioFrameCallback)));
+                }
 
-            if (service->isSelected()) {
-              audioDecoder = createAudioDecoder (eAudioFrameType::eAacAdts);
-              mPidParsers.insert (map<int,cPidParser*>::value_type (pid,
-                new cAudioPesParser (pid, audioDecoder, true, addAudioFrameCallback)));
-              }
+              break;
+            //}}}
+            //{{{
+            case 17: // aacLatm
+              service->setAudioPid (pid);
 
-            break;
-          //}}}
-          //{{{
-          case 17: // aacLatm
-            service->setAudioPid (pid);
+              if (service->isSelected()) {
+                audioDecoder = createAudioDecoder (eAudioFrameType::eAacLatm);
+                mPidParsers.insert (map<int,cPidParser*>::value_type (pid,
+                  new cAudioPesParser (pid, audioDecoder, true, addAudioFrameCallback)));
+                }
 
-            if (service->isSelected()) {
-              audioDecoder = createAudioDecoder (eAudioFrameType::eAacLatm);
-              mPidParsers.insert (map<int,cPidParser*>::value_type (pid,
-                new cAudioPesParser (pid, audioDecoder, true, addAudioFrameCallback)));
-              }
+              break;
+            //}}}
+            //{{{
+            case 27: // h264video
+              service->setVideoPid (pid);
 
-            break;
-          //}}}
-          //{{{
-          case 27: // h264video
-            service->setVideoPid (pid);
+              if (service->isSelected()) {
+                videoPool = iVideoPool::create (flags & eFlags::eFFmpeg, 100, mSong);
+                mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cVideoPesParser (pid, videoPool, true)));
+                mVideoPool = videoPool;
+                }
 
-            if (service->isSelected()) {
-              videoPool = iVideoPool::create (flags & eFlags::eFFmpeg, 100, mSong);
-              mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cVideoPesParser (pid, videoPool, true)));
-              mVideoPool = videoPool;
-              }
-
-            break;
-          //}}}
-          //{{{
-          case 6:  // do nothing - subtitle
-            //cLog::log (LOGINFO, "subtitle %d %d", pid, type);
-            break;
-          //}}}
-          //{{{
-          case 2:  // do nothing - ISO 13818-2 video
-            //cLog::log (LOGERROR, "mpeg2 video %d", pid, type);
-            break;
-          //}}}
-          //{{{
-          case 3:  // do nothing - ISO 11172-3 audio
-            //cLog::log (LOGINFO, "mp2 audio %d %d", pid, type);
-            break;
-          //}}}
-          //{{{
-          case 5:  // do nothing - private mpeg2 tabled data
-            break;
-          //}}}
-          //{{{
-          case 11: // do nothing - dsm cc u_n
-            break;
-          //}}}
-          default:
-            cLog::log (LOGERROR, "loadTs - unrecognised stream type %d %d", pid, type);
+              break;
+            //}}}
+            //{{{
+            case 6:  // do nothing - subtitle
+              //cLog::log (LOGINFO, "subtitle %d %d", pid, type);
+              break;
+            //}}}
+            //{{{
+            case 2:  // do nothing - ISO 13818-2 video
+              //cLog::log (LOGERROR, "mpeg2 video %d", pid, type);
+              break;
+            //}}}
+            //{{{
+            case 3:  // do nothing - ISO 11172-3 audio
+              //cLog::log (LOGINFO, "mp2 audio %d %d", pid, type);
+              break;
+            //}}}
+            //{{{
+            case 5:  // do nothing - private mpeg2 tabled data
+              break;
+            //}}}
+            //{{{
+            case 11: // do nothing - dsm cc u_n
+              break;
+            //}}}
+            default:
+              cLog::log (LOGERROR, "loadTs - unrecognised stream type %d %d", pid, type);
+            }
           }
+        else
+          cLog::log (LOGERROR, "loadTs - PMT:%d for unrecognised sid:%d", pid, sid);
         }
-      else
-        cLog::log (LOGERROR, "loadTs - PMT:%d for unrecognised sid:%d", pid, sid);
-      }
-    };
+      };
 
-  auto addProgramCallback = [&](int pid, int sid) noexcept {
-    if ((sid > 0) && (mPidParsers.find (pid) == mPidParsers.end())) {
-      cLog::log (LOGINFO, "PAT adding pid:service %d::%d", pid, sid);
-      mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cPmtParser (pid, sid, addStreamCallback)));
+    auto addProgramCallback = [&](int pid, int sid) noexcept {
+      if ((sid > 0) && (mPidParsers.find (pid) == mPidParsers.end())) {
+        cLog::log (LOGINFO, "PAT adding pid:service %d::%d", pid, sid);
+        mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cPmtParser (pid, sid, addStreamCallback)));
 
-      // select first service in PAT
-      mServices.insert (map<int,cService*>::value_type (sid, new cService (sid, mCurSid == -1)));
-      if (mCurSid == -1)
-        mCurSid = sid;
-      }
-    };
-
-  mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
-  //}}}
-
-  do {
-    uint8_t* ts = buffer;
-    while (!mExit && (bytesLeft >= 188)) {
-      if (ts[0] == 0x47) {
-        auto it = mPidParsers.find (((ts[1] & 0x1F) << 8) | ts[2]);
-        if (it != mPidParsers.end())
-          it->second->parse (ts, true);
-        ts += 188;
-        bytesLeft -= 188;
+        // select first service in PAT
+        mServices.insert (map<int,cService*>::value_type (sid, new cService (sid, mCurSid == -1)));
+        if (mCurSid == -1)
+          mCurSid = sid;
         }
-      else {
-        //{{{  syncError, goto exit
-        cLog::log (LOGERROR, "ts packet nosync");
-        goto exit;
-        }
-        //}}}
+      };
 
-      int64_t playPts = mSong->getPlayPts();
-      if ((loadPts >= 0) && (loadPts < playPts))
-        cLog::log (LOGINFO, "skip back ", getPtsFramesString (loadPts, mSong->getFramePtsDuration()));
-      if ((loadPts >= 0) && (loadPts > playPts + (3 * 90000)))
-        cLog::log (LOGINFO, "skip forward ", getPtsFramesString (loadPts, mSong->getFramePtsDuration()));
-      // block loading when load pts is >100 audio frames ahead of play frameNum
-      while (!mExit && (loadPts > mSong->getPlayPts() + (100 * mSong->getFramePtsDuration())))
-        this_thread::sleep_for (20ms);
-      }
-
-    // another fileChunk
-    bytesLeft = fread (buffer, 1, kFileChunkSize, file);
-    } while (!mExit && (bytesLeft > 188));
-
-  if (mSongPlayer)
-    mSongPlayer->wait();
-
-exit:
-  //{{{  delete resources
-  for (auto parser : mPidParsers) {
-    //{{{  stop and delete pidParsers
-    parser.second->stop();
-    delete parser.second;
-    }
+    mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
     //}}}
-  mPidParsers.clear();
 
-  mSong = nullptr;
-  mVideoPool = nullptr;
+    do {
+      // process fileChunk
+      uint8_t* ts = buffer;
+      while (!mExit && (bytesLeft >= 188)) {
+        // parse ts packets in fileChunk
+        if (ts[0] == 0x47) {
+          auto it = mPidParsers.find (((ts[1] & 0x1F) << 8) | ts[2]);
+          if (it != mPidParsers.end())
+            it->second->parse (ts, true);
+          ts += 188;
+          bytesLeft -= 188;
+          }
+        else {
+          //{{{  syncError, mExit and break
+          cLog::log (LOGERROR, "ts packet nosync");
+          mExit = true;
+          break;
+          }
+          //}}}
 
-  delete ptsSong;
-  delete videoPool;
-  delete audioDecoder;
-  delete mSongPlayer;
-  //}}}
+        int64_t playPts = mSong->getPlayPts();
+        if ((loadPts >= 0) && (loadPts < playPts))
+          cLog::log (LOGINFO, "skip back ", getPtsFramesString (loadPts, mSong->getFramePtsDuration()));
+        if ((loadPts >= 0) && (loadPts > playPts + (3 * 90000)))
+          cLog::log (LOGINFO, "skip forward ", getPtsFramesString (loadPts, mSong->getFramePtsDuration()));
+        // block loading when load pts is >100 audio frames ahead of play frameNum
+        while (!mExit && (loadPts > mSong->getPlayPts() + (100 * mSong->getFramePtsDuration())))
+          this_thread::sleep_for (20ms);
+        }
+
+      // get next fileChunk
+      bytesLeft = fread (buffer, 1, kFileChunkSize, file);
+      } while (!mExit && (bytesLeft > 188));
+
+    if (mSongPlayer)
+      mSongPlayer->wait();
+    //{{{  delete resources
+    for (auto parser : mPidParsers) {
+      //{{{  stop and delete pidParsers
+      parser.second->stop();
+      delete parser.second;
+      }
+      //}}}
+    mPidParsers.clear();
+
+    mSong = nullptr;
+    mVideoPool = nullptr;
+
+    delete ptsSong;
+    delete videoPool;
+    delete audioDecoder;
+    delete mSongPlayer;
+    //}}}
+    result = true;
+    }
+
   fclose (file);
-  return true;
+  return result;
   }
 //}}}
 //{{{
@@ -1246,10 +1247,10 @@ bool cLoader::loadWavFile (const string& filename, eFlags flags) {
 
   constexpr int kWavFrameSamples = 1024;
   constexpr int kFileChunkSize = kWavFrameSamples * 2 * 4; // 2 channels of 4byte floats
-  bool result = false;
-
-  FILE* file = fopen (filename.c_str(), "rb");
   uint8_t buffer[kFileChunkSize + 0x100];
+
+  bool result = false;
+  FILE* file = fopen (filename.c_str(), "rb");
   size_t bytesLeft = (int)fread (buffer, 1, kFileChunkSize, file);
 
   int numChannels = 0;
@@ -1264,8 +1265,10 @@ bool cLoader::loadWavFile (const string& filename, eFlags flags) {
     uint8_t* frame = cAudioParser::parseFrame (buffer, buffer + bytesLeft, frameSize);
     bytesLeft = frameSize;
     do {
+      // process fileChunk
       while (!mExit &&
              ((kWavFrameSamples * numChannels * 4) <= bytesLeft)) {
+        // handle samples in fileChunk
         float* samples = (float*)malloc (kWavFrameSamples * numChannels * 4);
         memcpy (samples, frame, kWavFrameSamples * numChannels * 4);
         mSong->addFrame (true, pts, samples, mSong->getNumFrames()+1);
@@ -1278,7 +1281,7 @@ bool cLoader::loadWavFile (const string& filename, eFlags flags) {
         //mLoadFrac = float(frame - first) / size;
         }
 
-      // next fileChunk
+      // get next fileChunk
       memcpy (buffer, frame, bytesLeft);
       bytesLeft += fread (buffer + bytesLeft, 1, kFileChunkSize-bytesLeft, file);
       frame = buffer;
@@ -1306,10 +1309,10 @@ bool cLoader::loadMp3AacFile (const string& filename, eFlags flags) {
 
   bool result = false;
   constexpr int kFileChunkSize = 2048;
+  uint8_t buffer[kFileChunkSize*2];
 
   // read a fileChunk
   FILE* file = fopen (filename.c_str(), "rb");
-  uint8_t buffer[kFileChunkSize*2];
   size_t bytesLeft = (int)fread (buffer, 1, kFileChunkSize, file);
 
   // simple parse for audio fileType
@@ -1335,9 +1338,11 @@ bool cLoader::loadMp3AacFile (const string& filename, eFlags flags) {
     int64_t pts = 0;
     int frameSize = 0;
     do {
+      // process fileChunk
       uint8_t* frame = buffer;
       while (!mExit &&
              cAudioParser::parseFrame (frame, frame + bytesLeft, frameSize)) {
+        // process frame in fileChunk
         float* samples = decoder->decodeFrame (frame, frameSize, pts);
         if (samples) {
           if (!mSong) // first decoded frame gives aacHE sampleRate,samplesPerFrame
@@ -1356,7 +1361,7 @@ bool cLoader::loadMp3AacFile (const string& filename, eFlags flags) {
         //mLoadFrac = float(frame - first) / size;
         }
 
-      // next fileChunk
+      // get next fileChunk
       memcpy (buffer, frame, bytesLeft);
       bytesLeft += fread (buffer + bytesLeft, 1, kFileChunkSize, file);
       } while (!mExit && (bytesLeft > 0));
