@@ -21,7 +21,7 @@ public:
   //{{{
   class cFrame {
   public:
-    cFrame (int numChannels, int numFreqBytes, float* samples, bool ownSamples, int64_t pts);
+    cFrame (int numChannels, int numFreqBytes, float* samples, int64_t pts);
     virtual ~cFrame();
 
     // gets
@@ -44,7 +44,6 @@ public:
 
     // vars
     float* mSamples;
-    bool mOwnSamples;
     int64_t mPts;
 
     float* mPowerValues;
@@ -176,7 +175,7 @@ public:
   virtual cFrame* findFrameByPts (int64_t pts) { return findFrameByFrameNum (pts); }
   virtual cFrame* findPlayFrame() { return findFrameByFrameNum (mPlayPts); }
 
-  void addFrame (bool reuseFront, int64_t pts, float* samples, bool ownSamples, int64_t totalFrames);
+  void addFrame (bool reuseFront, int64_t pts, float* samples, int64_t totalFrames);
 
   // playPts
   void setPlayPts (int64_t pts);
@@ -219,7 +218,6 @@ private:
   int mMaxMapSize = 0;
   int64_t mTotalFrames = 0;
 
-  bool mOwnSamples = false;
   cSelect mSelect;
 
   // fft vars

@@ -34,8 +34,6 @@
 #ifdef _WIN32
   //#include "../common/cJpegImage.h"
   #include "../../shared/utils/cFileList.h"
-#else
-  #include <sys/mman.h>
 #endif
 
 #include "readerWriterQueue.h"
@@ -204,7 +202,6 @@ private:
 class cPidParser {
 public:
   cPidParser (int pid, const string& name) : mPid(pid), mName(name) {}
-  virtual ~cPidParser() {}
 
   virtual int getQueueSize() { return 0; }
   virtual float getQueueFrac() { return 0.f; }
@@ -261,7 +258,6 @@ class cPatParser : public cPidParser {
 public:
   cPatParser (function<void (int programPid, int programSid)> callback)
     : cPidParser (0, "pat"), mCallback(callback) {}
-  virtual ~cPatParser() {}
 
   virtual void processPayload (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool reuseFromFront) {
 
@@ -317,7 +313,6 @@ class cPmtParser : public cPidParser {
 public:
   cPmtParser (int pid, int sid, function<void (int streamSid, int streamPid, int streamType)> callback)
     : cPidParser (pid, "pmt"), mSid(sid), mCallback(callback) {}
-  virtual ~cPmtParser() {}
 
   //{{{  sPmt
   typedef struct {
@@ -445,7 +440,6 @@ public:
       thread ([=](){ dequeThread(); }).detach();
     }
   //}}}
-  virtual ~cPesParser() {}
 
   virtual int getQueueSize() { return (int)mQueue.size_approx(); }
   virtual float getQueueFrac() { return (float)mQueue.size_approx() / mQueue.max_capacity(); }
@@ -539,6 +533,8 @@ protected:
         }
       }
 
+    // !!! not sure this is empty the queue on exit !!!!
+
     mQueueRunning = false;
     }
   //}}}
@@ -568,7 +564,6 @@ public:
                    function <void (bool reuseFromFront, float* samples, int64_t pts)> callback)
       : cPesParser(pid, "aud", useQueue), mAudioDecoder(audioDecoder), mCallback(callback) {
     }
-  virtual ~cAudioPesParser() {}
 
 protected:
   virtual void decode (bool reuseFromFront, uint8_t* pes, int size, int64_t pts, int64_t dts) {
@@ -581,7 +576,7 @@ protected:
       float* samples = mAudioDecoder->decodeFrame (framePes, frameSize, pts);
       if (samples) {
         mCallback (reuseFromFront, samples, pts);
-        // pts of next frame in pes, assumes 48000 sample rate
+        // pts of next frame in pes, assumes 90kz pts, 48khz sample rate
         pts += (mAudioDecoder->getNumSamplesPerFrame() * 90) / 48;
         }
       else
@@ -602,7 +597,6 @@ class cVideoPesParser : public cPesParser {
 public:
   cVideoPesParser (int pid, iVideoPool* videoPool, bool useQueue)
     : cPesParser (pid, "vid", useQueue), mVideoPool(videoPool) {}
-  virtual ~cVideoPesParser() {}
 
 protected:
   void decode (bool reuseFromFront, uint8_t* pes, int size, int64_t pts, int64_t dts) {
@@ -683,7 +677,7 @@ void cLoader::hls (bool radio, const string& channel, int audioRate, int videoRa
     iVideoPool* videoPool = nullptr;
     //{{{  add parsers, callbacks
     auto addAudioFrameCallback = [&](bool reuseFromFront, float* samples, int64_t pts) noexcept {
-      hlsSong->addFrame (reuseFromFront, pts, samples, true, hlsSong->getNumFrames()+1);
+      hlsSong->addFrame (reuseFromFront, pts, samples, hlsSong->getNumFrames()+1);
       if (!mSongPlayer)
         mSongPlayer = new cSongPlayer (hlsSong, true);
       };
@@ -858,35 +852,9 @@ void cLoader::file (const string& filename, eFlags flags) {
     mRunning = true;
 
     while (!mExit) {
-      #ifdef _WIN32
-        // windows file map
-        HANDLE fileHandle = CreateFile (filename.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
-        HANDLE fileMapping = CreateFileMapping (fileHandle, NULL, PAGE_READONLY, 0, 0, NULL);
-        uint8_t* first = (uint8_t*)MapViewOfFile (fileMapping, FILE_MAP_READ, 0, 0, 0);
-        auto size = GetFileSize (fileHandle, NULL);
-      #else
-        // linux mmap
-        int fd = open (filename.c_str(), O_RDONLY);
-        auto size = lseek (fd, 0, SEEK_END);
-        uint8_t* first = (uint8_t*)mmap (NULL, size, PROT_READ, MAP_FILE | MAP_PRIVATE, fd, 0);
-      #endif
-
-      // load file
-      if ((first[0] == 0x47) && (first[188] == 0x47))
-        loadTsFile (first, size, flags);
-      else
-        loadAudioFile (first, size, flags);
-
-      #ifdef _WIN32
-        // windows file map close
-        UnmapViewOfFile (first);
-        CloseHandle (fileHandle);
-      #else
-        // linux mmap close to do
-        munmap (first, size);
-        close (fd);
-      #endif
-
+      if (!loadTsFile (filename, flags))
+        if (!loadWavFile (filename, flags)) {}
+          if (!loadMp3AacFile (filename, flags)) {}
       //{{{  next file
       //if (mSong->getChanged()) // use changed fileIndex
         //mSong->setChanged (false);
@@ -995,7 +963,7 @@ void cLoader::icycast (const string& url) {
                                    1000);
                 }
 
-              mSong->addFrame (true, pts, samples, true, mSong->getNumFrames() + 1);
+              mSong->addFrame (true, pts, samples,  mSong->getNumFrames() + 1);
               pts += mSong->getFramePtsDuration();
 
               if (!mSongPlayer)
@@ -1040,6 +1008,7 @@ void cLoader::icycast (const string& url) {
 
 //{{{
 void cLoader::skipped() {
+// clear queues, caches ???
   }
 //}}}
 //{{{
@@ -1094,9 +1063,20 @@ void cLoader::addIcyInfo (int64_t pts, const string& icyInfo) {
 //}}}
 
 //{{{
-void cLoader::loadTsFile (uint8_t* first, int size, eFlags flags) {
+bool cLoader::loadTsFile (const string& filename, eFlags flags) {
+// manage our own file read, can't mmap because of commmon case of growing ts file size
 
-  auto timePoint = system_clock::now();
+  constexpr int kFileChunkSize = 16 * 188;
+  FILE* file = fopen (filename.c_str(), "rb");
+  uint8_t buffer[kFileChunkSize];
+  size_t bytesLeft = (int)fread (buffer, 1, kFileChunkSize, file);
+
+  if ((buffer[0] != 0x47) || (buffer[188] != 0x47)) {
+    //{{{  close file, return false for unrecognised
+    fclose (file);
+    return false;
+    }
+    //}}}
 
   cPtsSong* ptsSong = new cPtsSong (eAudioFrameType::eAacAdts, 2, 48000, 1024, 1920, 0);
   mSong = ptsSong;
@@ -1109,7 +1089,7 @@ void cLoader::loadTsFile (uint8_t* first, int size, eFlags flags) {
     if (loadPts < 0)
       ptsSong->setBasePts (pts);
     loadPts = pts;
-    mSong->addFrame (reuseFromFront, pts, samples, true, mSong->getNumFrames()+1);
+    mSong->addFrame (reuseFromFront, pts, samples, mSong->getNumFrames()+1);
     if (!mSongPlayer)
       mSongPlayer = new cSongPlayer (mSong, true);
     };
@@ -1204,43 +1184,41 @@ void cLoader::loadTsFile (uint8_t* first, int size, eFlags flags) {
   mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
   //}}}
 
-  uint8_t* ts = first;
-  uint8_t* last = first + size;
-  while (!mExit && (ts + 188 <= last)) {
-    if (ts[0] == 0x47) {
-      auto it = mPidParsers.find (((ts[1] & 0x1F) << 8) | ts[2]);
-      if (it != mPidParsers.end())
-        it->second->parse (ts, true);
-      ts += 188;
+  do {
+    uint8_t* ts = buffer;
+    while (!mExit && (bytesLeft >= 188)) {
+      if (ts[0] == 0x47) {
+        auto it = mPidParsers.find (((ts[1] & 0x1F) << 8) | ts[2]);
+        if (it != mPidParsers.end())
+          it->second->parse (ts, true);
+        ts += 188;
+        bytesLeft -= 188;
+        }
+      else {
+        //{{{  syncError, goto exit
+        cLog::log (LOGERROR, "ts packet nosync");
+        goto exit;
+        }
+        //}}}
+
+      int64_t playPts = mSong->getPlayPts();
+      if ((loadPts >= 0) && (loadPts < playPts))
+        cLog::log (LOGINFO, "skip back ", getPtsFramesString (loadPts, mSong->getFramePtsDuration()));
+      if ((loadPts >= 0) && (loadPts > playPts + (3 * 90000)))
+        cLog::log (LOGINFO, "skip forward ", getPtsFramesString (loadPts, mSong->getFramePtsDuration()));
+      // block loading when load pts is >100 audio frames ahead of play frameNum
+      while (!mExit && (loadPts > mSong->getPlayPts() + (100 * mSong->getFramePtsDuration())))
+        this_thread::sleep_for (20ms);
       }
-    else {
-      //{{{  sync error
-      cLog::log (LOGERROR, "ts packet nosync");
-      ts++;
-      }
-      //}}}
-    mLoadFrac = float(ts - first) / size;
 
-    int64_t playPts = mSong->getPlayPts();
+    // another fileChunk
+    bytesLeft = fread (buffer, 1, kFileChunkSize, file);
+    } while (!mExit && (bytesLeft > 188));
 
-    if ((loadPts >= 0) && (loadPts < playPts))
-      cLog::log (LOGINFO, "skip back ", getPtsFramesString (loadPts, mSong->getFramePtsDuration()));
-    if ((loadPts >= 0) && (loadPts > playPts + (3 * 90000)))
-      cLog::log (LOGINFO, "skip forward ", getPtsFramesString (loadPts, mSong->getFramePtsDuration()));
-
-    // block loading when load pts is >100 audio frames ahead of play frameNum
-    while (!mExit && (loadPts > mSong->getPlayPts() + (100 * mSong->getFramePtsDuration())))
-      this_thread::sleep_for (20ms);
-    }
-  // finish parsers
-  for (auto parser : mPidParsers)
-    parser.second->processLast (true);
-  mLoadFrac = 0.f;
-
-  cLog::log (LOGINFO, "load took %dms", duration_cast<milliseconds>(system_clock::now() - timePoint).count());
   if (mSongPlayer)
     mSongPlayer->wait();
 
+exit:
   //{{{  delete resources
   for (auto parser : mPidParsers) {
     //{{{  stop and delete pidParsers
@@ -1258,19 +1236,86 @@ void cLoader::loadTsFile (uint8_t* first, int size, eFlags flags) {
   delete audioDecoder;
   delete mSongPlayer;
   //}}}
+  fclose (file);
+  return true;
   }
 //}}}
 //{{{
-void cLoader::loadAudioFile (uint8_t* first, int size, eFlags flags) {
-// wav,aac,mp3
+bool cLoader::loadWavFile (const string& filename, eFlags flags) {
+// wav - manage our own file read
 
-  auto timePoint = system_clock::now();
+  constexpr int kWavFrameSamples = 1024;
+  constexpr int kFileChunkSize = kWavFrameSamples * 2 * 4; // 2 channels of 4byte floats
+  bool result = false;
+
+  FILE* file = fopen (filename.c_str(), "rb");
+  uint8_t buffer[kFileChunkSize + 0x100];
+  size_t bytesLeft = (int)fread (buffer, 1, kFileChunkSize, file);
 
   int numChannels = 0;
   int sampleRate = 0;
-  uint8_t* last = first + size;
-  eAudioFrameType fileFrameType = cAudioParser::parseSomeFrames (first, last, numChannels, sampleRate);
-  iAudioDecoder* decoder = createAudioDecoder (fileFrameType);
+  eAudioFrameType fileFrameType = cAudioParser::parseSomeFrames (buffer, buffer + bytesLeft, numChannels, sampleRate);
+
+  if (fileFrameType == eAudioFrameType::eWav) {
+    mSong = new cSong (fileFrameType, numChannels, sampleRate, kWavFrameSamples, 0);
+
+    int64_t pts = 0;
+    int frameSize = 0;
+    uint8_t* frame = cAudioParser::parseFrame (buffer, buffer + bytesLeft, frameSize);
+    bytesLeft = frameSize;
+    do {
+      while (!mExit &&
+             ((kWavFrameSamples * numChannels * 4) <= bytesLeft)) {
+        float* samples = (float*)malloc (kWavFrameSamples * numChannels * 4);
+        memcpy (samples, frame, kWavFrameSamples * numChannels * 4);
+        mSong->addFrame (true, pts, samples, mSong->getNumFrames()+1);
+        if (!mSongPlayer)
+          mSongPlayer = new cSongPlayer (mSong, false);
+
+        pts += mSong->getFramePtsDuration();
+        frame += kWavFrameSamples * numChannels * 4;
+        bytesLeft -= kWavFrameSamples * numChannels * 4;
+        //mLoadFrac = float(frame - first) / size;
+        }
+
+      // next fileChunk
+      memcpy (buffer, frame, bytesLeft);
+      bytesLeft += fread (buffer + bytesLeft, 1, kFileChunkSize-bytesLeft, file);
+      frame = buffer;
+      } while (!mExit && (bytesLeft > 0));
+
+    if (mSongPlayer)
+      mSongPlayer->wait();
+    //{{{  delete resource
+    auto tempSong = mSong;
+    mSong = nullptr;
+    delete mSongPlayer;
+    delete tempSong;
+    //}}}
+    }
+
+  mLoadFrac = 0.f;
+
+  fclose (file);
+  return result;
+  }
+//}}}
+//{{{
+bool cLoader::loadMp3AacFile (const string& filename, eFlags flags) {
+// aac,mp3 - load file in kFileChunkSize chunks, buffer big enough for last partial frame
+
+  bool result = false;
+  constexpr int kFileChunkSize = 2048;
+
+  // read a fileChunk
+  FILE* file = fopen (filename.c_str(), "rb");
+  uint8_t buffer[kFileChunkSize*2];
+  size_t bytesLeft = (int)fread (buffer, 1, kFileChunkSize, file);
+
+  // simple parse for audio fileType
+  int numChannels = 0;
+  int sampleRate = 0;
+  eAudioFrameType fileFrameType = cAudioParser::parseSomeFrames (buffer, buffer + bytesLeft, numChannels, sampleRate);
 
   //{{{  jpeg
   //int jpegLen;
@@ -1282,61 +1327,54 @@ void cLoader::loadAudioFile (uint8_t* first, int size, eFlags flags) {
     //}
     //}}}
   //}}}
-  int64_t pts = 0;
-  uint8_t* frame = first;
-  if (fileFrameType == eAudioFrameType::eWav) {
-    // wav - samples point into mmap file directly
-    constexpr int kWavFrameSamples = 1024;
-    mSong = new cSong (fileFrameType, numChannels, sampleRate, kWavFrameSamples, 0);
+  if ((fileFrameType == eAudioFrameType::eMp3) ||
+      (fileFrameType == eAudioFrameType::eAacAdts)) {
+    // recognised fileType
+    iAudioDecoder* decoder = createAudioDecoder (fileFrameType);
 
+    int64_t pts = 0;
     int frameSize = 0;
-    frame = cAudioParser::parseFrame (frame, last, frameSize);
-    while (!mExit &&
-           ((frame + (kWavFrameSamples * numChannels * 4)) <= last)) {
-      // samples = frame
-      mSong->addFrame (true, pts, (float*)frame, false, size / (kWavFrameSamples * numChannels * 4));
-      if (!mSongPlayer)
-        mSongPlayer = new cSongPlayer (mSong, false);
+    do {
+      uint8_t* frame = buffer;
+      while (!mExit &&
+             cAudioParser::parseFrame (frame, frame + bytesLeft, frameSize)) {
+        float* samples = decoder->decodeFrame (frame, frameSize, pts);
+        if (samples) {
+          if (!mSong) // first decoded frame gives aacHE sampleRate,samplesPerFrame
+            mSong = new cSong (fileFrameType, decoder->getNumChannels(), decoder->getSampleRate(),
+                               decoder->getNumSamplesPerFrame(), 0);
+          //int64_t totalFrames = 1 + (mSong->getNumFrames() > 0 ? (size / (int(frame - first) / mSong->getNumFrames())) : 0);
+          int64_t totalFrames = mSong->getNumFrames() + 1;
+          mSong->addFrame (true, pts, samples, totalFrames);
+          if (!mSongPlayer)
+            mSongPlayer = new cSongPlayer (mSong, false);
+          pts += mSong->getFramePtsDuration();
+          }
 
-      pts += mSong->getFramePtsDuration();
-      frame += kWavFrameSamples * 2 * sizeof(float);
-      mLoadFrac = float(frame - first) / size;
-      }
-    }
-
-  else {
-    // aacAdts, mp3
-    int frameSize = 0;
-    while (!mExit &&
-           cAudioParser::parseFrame (frame, last, frameSize)) {
-      float* samples = decoder->decodeFrame (frame, frameSize, pts);
-      if (samples) {
-        if (!mSong) // first decoded frame gives aacHE sampleRate,samplesPerFrame
-          mSong = new cSong (fileFrameType, decoder->getNumChannels(), decoder->getSampleRate(),
-                             decoder->getNumSamplesPerFrame(), 0);
-        int64_t totalFrames = 1 + (mSong->getNumFrames() > 0 ? (size / (int(frame - first) / mSong->getNumFrames())) : 0);
-        mSong->addFrame (true, pts, samples, true, totalFrames);
-        if (!mSongPlayer)
-          mSongPlayer = new cSongPlayer (mSong, false);
-        pts += mSong->getFramePtsDuration();
+        frame += frameSize;
+        bytesLeft -= frameSize;
+        //mLoadFrac = float(frame - first) / size;
         }
 
-      frame += frameSize;
-      mLoadFrac = float(frame - first) / size;
-      }
+      // next fileChunk
+      memcpy (buffer, frame, bytesLeft);
+      bytesLeft += fread (buffer + bytesLeft, 1, kFileChunkSize, file);
+      } while (!mExit && (bytesLeft > 0));
+
+    if (mSongPlayer)
+      mSongPlayer->wait();
+    //{{{  delete resource
+    auto tempSong = mSong;
+    mSong = nullptr;
+    delete mSongPlayer;
+    delete tempSong;
+    //}}}
+    mLoadFrac = 0.f;
+    delete decoder;
+    result = true;
     }
-  mLoadFrac = 0.f;
 
-  // duration info
-  cLog::log (LOGINFO, "load took %dms", duration_cast<milliseconds>(system_clock::now() - timePoint).count());
-  mSongPlayer->wait();
-
-  //{{{  delete resource
-  auto tempSong = mSong;
-  mSong = nullptr;
-  delete mSongPlayer;
-  delete tempSong;
-  delete decoder;
-  //}}}
+  fclose (file);
+  return result;
   }
 //}}}

@@ -48,8 +48,9 @@ public:
 private:
   void addIcyInfo (int64_t pts, const std::string& icyInfo);
 
-  void loadTsFile (uint8_t* first, int size, eFlags flags);
-  void loadAudioFile (uint8_t* first, int size, eFlags flags);
+  bool loadTsFile (const std::string& filename, eFlags flags);
+  bool loadWavFile (const std::string& filename, eFlags flags);
+  bool loadMp3AacFile (const std::string& filename, eFlags flags);
 
   // vars
   cSong* mSong = nullptr;
