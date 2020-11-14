@@ -338,6 +338,7 @@ void cSong::incPlaySec (int secs, bool useSelectRange) {
 //}}}
 //{{{
 void cSong::prevSilencePlayFrame() {
+
   mPlayPts = skipPrev (mPlayPts, false);
   mPlayPts = skipPrev (mPlayPts, true);
   mPlayPts = skipPrev (mPlayPts, false);
@@ -345,6 +346,7 @@ void cSong::prevSilencePlayFrame() {
 //}}}
 //{{{
 void cSong::nextSilencePlayFrame() {
+
   mPlayPts = skipNext (mPlayPts, true);
   mPlayPts = skipNext (mPlayPts, false);
   mPlayPts = skipNext (mPlayPts, true);

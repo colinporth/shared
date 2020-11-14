@@ -166,8 +166,10 @@ protected:
 //{{{
 class cPatParser : public cPidParser {
 public:
+  //{{{
   cPatParser (function<void (int programPid, int programSid)> callback)
     : cPidParser (0, "pat"), mCallback(callback) {}
+  //}}}
   virtual ~cPatParser() {}
 
   virtual void processPayload (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool reuseFromFront) {
@@ -222,8 +224,10 @@ private:
 //{{{
 class cPmtParser : public cPidParser {
 public:
+  //{{{
   cPmtParser (int pid, int sid, function<void (int streamSid, int streamPid, int streamType)> callback)
     : cPidParser (pid, "pmt"), mSid(sid), mCallback(callback) {}
+  //}}}
   virtual ~cPmtParser() {}
 
   virtual void processPayload (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool reuseFromFront) {
@@ -434,10 +438,12 @@ private:
 //{{{
 class cAudioPesParser : public cPesParser {
 public:
+  //{{{
   cAudioPesParser (int pid, iAudioDecoder* audioDecoder, bool useQueue,
                    function <void (bool reuseFromFront, float* samples, int64_t pts)> callback)
       : cPesParser(pid, "aud", useQueue), mAudioDecoder(audioDecoder), mCallback(callback) {
     }
+  //}}}
   virtual ~cAudioPesParser() {}
 
 protected:
@@ -470,8 +476,10 @@ private:
 //{{{
 class cVideoPesParser : public cPesParser {
 public:
+  //{{{
   cVideoPesParser (int pid, iVideoPool* videoPool, bool useQueue)
     : cPesParser (pid, "vid", useQueue), mVideoPool(videoPool) {}
+  //}}}
   virtual ~cVideoPesParser() {}
 
 protected:
@@ -518,6 +526,7 @@ public:
 
   virtual cSong* getSong() = 0;
   virtual iVideoPool* getVideoPool() = 0;
+
   virtual void getFracs (float& loadFrac, float& audioFrac, float& videoFrac) = 0;
   virtual void getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize) = 0;
 
@@ -561,11 +570,7 @@ public:
   cLoadHls() : cLoadSource() {}
   virtual ~cLoadHls() {}
 
-  //{{{
-  virtual cSong* getSong() {
-    return mHlsSong;
-    }
-  //}}}
+  virtual cSong* getSong() { return mHlsSong; }
   virtual iVideoPool* getVideoPool() { return mVideoPool; }
 
   //{{{
@@ -614,7 +619,7 @@ public:
     bool ffmpeg = true;
 
     // parse params
-    for (auto param : strings) {
+    for (auto& param : strings) {
       if (param == "ff") ffmpeg = true;
       else if (param == "mfx") ffmpeg = false;
 
@@ -649,14 +654,13 @@ public:
     if (channel.empty())
       return false;
 
+    mExit = false;
     mHlsSong = new cHlsSong (eAudioFrameType::eAacAdts, 2, 48000,
                              (audioRate < 128000) ? 2048 : 1024,
                              (audioRate < 128000) ? 3840 : 1920,
                              radio ? 0 : 1000,
                              (audioRate < 128000) ? (radio ? 150 : 180) : (radio ? 300 : 360));
-
     iAudioDecoder* audioDecoder = nullptr;
-    iVideoPool* videoPool = nullptr;
     //{{{  add parsers, callbacks
     auto addAudioFrameCallback = [&](bool reuseFromFront, float* samples, int64_t pts) noexcept {
       mHlsSong->addFrame (reuseFromFront, pts, samples, mHlsSong->getNumFrames()+1);
@@ -679,9 +683,8 @@ public:
           case 27: // h264video
             if (videoRate) {
               mVideoPid  = pid;
-              videoPool = iVideoPool::create (ffmpeg, 192, mHlsSong);
-              mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cVideoPesParser (pid, videoPool, true)));
-              mVideoPool = videoPool;
+              mVideoPool = iVideoPool::create (ffmpeg, 192, mHlsSong);
+              mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cVideoPesParser (pid, mVideoPool, true)));
               }
             break;
 
@@ -702,7 +705,6 @@ public:
     mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
     //}}}
 
-    mExit = false;
     while (!mExit) {
       cPlatformHttp http;
       string redirectedHostName = http.getRedirect (
@@ -781,7 +783,9 @@ public:
       }
 
     //{{{  stop and delete resources
+    auto tempVideoPool = mVideoPool;
     mVideoPool = nullptr;
+    delete tempVideoPool;
 
     for (auto parser : mPidParsers) {
       //{{{  stop and delete pidParsers
@@ -797,10 +801,9 @@ public:
 
     auto tempSong = mHlsSong;
     mHlsSong = nullptr;
-    delete mHlsSong;
+    delete tempSong;
 
     delete audioDecoder;
-    delete videoPool;
     //}}}
     return true;
     }
@@ -852,7 +855,7 @@ private:
 
   int mAudioPid = -1;
   int mVideoPid = -1;
-  std::map <int, cPidParser*> mPidParsers;
+  map <int, cPidParser*> mPidParsers;
   };
 //}}}
 //{{{
@@ -876,7 +879,6 @@ public:
       cService* service = mServices[mCurSid];
       int audioPid = service->getAudioPid();
       int videoPid = service->getVideoPid();
-      //cLog::log (LOGINFO, "getSizes %d %d", audioPid, videoPid);
 
       auto audioIt = mPidParsers.find (audioPid);
       if (audioIt != mPidParsers.end())
@@ -900,7 +902,6 @@ public:
       cService* service = mServices[mCurSid];
       int audioPid = service->getAudioPid();
       int videoPid = service->getVideoPid();
-      //cLog::log (LOGINFO, "getSizes %d %d", audioPid, videoPid);
 
       auto audioIt = mPidParsers.find (audioPid);
       if (audioIt != mPidParsers.end())
@@ -923,9 +924,13 @@ public:
     uint8_t buffer[kFileChunkSize];
 
     bool result = false;
+    if (strings.empty())
+      return result;
     //{{{  get fileSize
     struct stat st;
-    stat (strings[0].c_str(), &st);
+    if (!stat (strings[0].c_str(), &st))
+      return result;
+
     int fileSize = st.st_size;
     //}}}
     //{{{  get fileChunk
@@ -936,11 +941,11 @@ public:
     //}}}
 
     // trivial ts file check
+    mExit = false;
     if ((bytesLeft > 188) && (buffer[0] == 0x47) && (buffer[188] == 0x47)) {
       mPtsSong = new cPtsSong (eAudioFrameType::eAacAdts, 2, 48000, 1024, 1920, 0);
 
       int64_t loadPts = -1;
-      iVideoPool* videoPool = nullptr;
       iAudioDecoder* audioDecoder = nullptr;
       //{{{  init parsers, callbacks
       auto addAudioFrameCallback = [&](bool reuseFromFront, float* samples, int64_t pts) noexcept {
@@ -988,9 +993,8 @@ public:
                 service->setVideoPid (pid);
 
                 if (service->isSelected()) {
-                  videoPool = iVideoPool::create (true, 100, mPtsSong);
-                  mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cVideoPesParser (pid, videoPool, true)));
-                  mVideoPool = videoPool;
+                  mVideoPool = iVideoPool::create (true, 100, mPtsSong);
+                  mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cVideoPesParser (pid, mVideoPool, true)));
                   }
 
                 break;
@@ -1070,7 +1074,7 @@ public:
         } while (!mExit && (bytesLeft > 188));
       mLoadFrac = 0.f;
 
-      //{{{  delete resources
+      //{{{  stop,wait and delete resources
       if (mSongPlayer)
         mSongPlayer->wait();
       delete mSongPlayer;
@@ -1087,7 +1091,10 @@ public:
       mPtsSong = nullptr;
       delete tempSong;
 
-      delete videoPool;
+      auto tempVideoPool = mVideoPool;
+      mVideoPool = nullptr;
+      delete tempVideoPool;
+
       delete audioDecoder;
       //}}}
       result = true;
@@ -1102,10 +1109,10 @@ private:
   cPtsSong* mPtsSong = nullptr;
   iVideoPool* mVideoPool = nullptr;
 
-  std::map <int, cPidParser*> mPidParsers;
+  map <int, cPidParser*> mPidParsers;
 
   int mCurSid = -1;
-  std::map <int, cService*> mServices;
+  map <int, cService*> mServices;
   };
 //}}}
 //{{{
@@ -1146,9 +1153,13 @@ public:
     uint8_t buffer[kFileChunkSize + 0x100];
 
     bool result = false;
+    if (strings.empty())
+      return result;
     //{{{  get fileSize
     struct stat st;
-    stat (strings[0].c_str(), &st);
+    if (!stat (strings[0].c_str(), &st))
+      return result;
+
     int fileSize = st.st_size;
     //}}}
     //{{{  get fileChunk
@@ -1164,6 +1175,7 @@ public:
     eAudioFrameType fileFrameType = cAudioParser::parseSomeFrames (buffer, buffer + bytesLeft, numChannels, sampleRate);
 
     if (fileFrameType == eAudioFrameType::eWav) {
+      mExit = false;
       mSong = new cSong (fileFrameType, numChannels, sampleRate, kWavFrameSamples, 0);
 
       // parse header
@@ -1257,9 +1269,13 @@ public:
     uint8_t buffer[kFileChunkSize*2];
 
     bool result = false;
+    if (strings.empty())
+      return result;
     //{{{  get fileSize
     struct stat st;
-    stat (strings[0].c_str(), &st);
+    if (!stat (strings[0].c_str(), &st))
+      return result;
+
     int fileSize = st.st_size;
     //}}}
     //{{{  get fileChunk
@@ -1286,6 +1302,8 @@ public:
     //}}}
     if ((fileFrameType == eAudioFrameType::eMp3) ||
         (fileFrameType == eAudioFrameType::eAacAdts)) {
+      mExit = false;
+
       // recognised fileType
       iAudioDecoder* decoder = createAudioDecoder (fileFrameType);
 
