@@ -15,7 +15,6 @@
 #include "../kissFft/kiss_fftr.h"
 //}}}
 
-//{{{
 class cSong {
 public:
   //{{{
@@ -122,11 +121,10 @@ public:
     int mItemNum = 0;
     };
   //}}}
-  cSong (eAudioFrameType frameType, int numChannels, int sampleRate,
-         int samplesPerFrame, int maxMapSize);
+  cSong (eAudioFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame, int maxMapSize);
   virtual ~cSong();
 
-  //  gets
+  //{{{  get
   std::shared_mutex& getSharedMutex() { return mSharedMutex; }
 
   eAudioFrameType getFrameType() { return mFrameType; }
@@ -139,33 +137,35 @@ public:
   virtual int64_t getFrameNumFromPts (int64_t pts) { return pts; }
   virtual int64_t getPtsFromFrameNum (int64_t frameNum) { return frameNum; }
 
-  // pts
   bool getPlaying() { return mPlaying; }
+  //}}}
+  //{{{  get pts
   int64_t getPlayPts() { return mPlayPts; }
+
   virtual int64_t getFirstPts() { return mFrameMap.empty() ? 0 : mFrameMap.begin()->first; }
   virtual int64_t getLastPts() { return mFrameMap.empty() ? 0 : mFrameMap.rbegin()->first;  }
-  virtual std::string getTimeString (int64_t frame, int daylightSeconds);
 
-  // frameNum - useful for graphics
+  virtual std::string getTimeString (int64_t frame, int daylightSeconds);
+  //}}}
+  //{{{  get frameNum - useful for graphics
   int64_t getPlayFrameNum() { return getFrameNumFromPts (mPlayPts); }
   int64_t getFirstFrameNum() { return mFrameMap.empty() ? 0 : mFrameMap.begin()->first; }
   int64_t getLastFrameNum() { return mFrameMap.empty() ? 0 : mFrameMap.rbegin()->first;  }
   int64_t getNumFrames() { return mFrameMap.empty() ? 0 : (mFrameMap.rbegin()->first - mFrameMap.begin()->first + 1); }
   int64_t getTotalFrames() { return mTotalFrames; }
-
-  cSelect& getSelect() { return mSelect; }
-
-  //{{{  max nums for early allocations
+  //}}}
+  //{{{  get max nums for early allocations
   int getMaxNumSamplesPerFrame() { return kMaxNumSamplesPerFrame; }
   int getMaxNumSampleBytes() { return kMaxNumChannels * sizeof(float); }
   int getMaxNumFrameSamplesBytes() { return getMaxNumSamplesPerFrame() * getMaxNumSampleBytes(); }
   //}}}
-  //{{{  max values for ui
+  //{{{  get max values for ui
   float getMaxPowerValue() { return mMaxPowerValue; }
   float getMaxPeakValue() { return mMaxPeakValue; }
   float getMaxFreqValue() { return mMaxFreqValue; }
   int getNumFreqBytes() { return kMaxFreqBytes; }
   //}}}
+  cSelect& getSelect() { return mSelect; }
 
   //{{{
   cFrame* findFrameByFrameNum (int64_t frameNum) {
@@ -178,7 +178,7 @@ public:
 
   void addFrame (bool reuseFront, int64_t pts, float* samples, int64_t totalFrames);
 
-  // play
+  //{{{  play
   void togglePlaying() { mPlaying = !mPlaying; }
   void setPlayPts (int64_t pts);
   void setPlayFirstFrame();
@@ -187,6 +187,7 @@ public:
   void incPlaySec (int secs, bool useSelectRange);
   void prevSilencePlayFrame();
   void nextSilencePlayFrame();
+  //}}}
 
 protected:
   //{{{  vars
@@ -198,7 +199,6 @@ protected:
 
   std::map <int64_t, cFrame*> mFrameMap;
   //}}}
-
 private:
   //{{{  static constexpr
   static constexpr int kMaxNumChannels = 2;           // arbitrary chan max
@@ -234,9 +234,9 @@ private:
   float mMaxFreqValue = 0.f;
   //}}}
   };
-//}}}
 
 // cPtsSong
+//{{{
 class cPtsSong : public cSong {
 public:
   cPtsSong (eAudioFrameType frameType, int numChannels, int sampleRate,
@@ -262,8 +262,10 @@ protected:
   int64_t mBasePts = 0;
   std::chrono::system_clock::time_point mBaseTimePoint;
   };
+//}}}
 
 // cHlsSong
+//{{{
 class cHlsSong : public cPtsSong {
 public:
   cHlsSong (eAudioFrameType frameType, int numChannels, int sampleRate,
@@ -285,3 +287,4 @@ private:
   const int mFramesPerChunk = 0;
   int mBaseChunkNum = 0;
   };
+//}}}
