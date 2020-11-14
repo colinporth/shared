@@ -8,7 +8,7 @@
 #include <map>
 #include <thread>
 
-class cLoad;
+class cLoadSource;
 class cSong;
 class iVideoPool;
 //}}}
@@ -38,6 +38,6 @@ private:
   bool mRunning = false;
   bool mShowGraphics = true;
 
-  cLoad* mLoad = nullptr;
-  std::vector <cLoad*> mLoads;
+  cLoadSource* mLoadSource = nullptr;
+  std::vector <cLoadSource*> mLoadSources;
   };

@@ -39,31 +39,6 @@ using namespace chrono;
 //}}}
 
 //{{{
-class cService {
-public:
-  cService (int sid, bool selected) : mSid(sid), mSelected(selected) {}
-
-  bool isSelected() { return mSelected; }
-  int getAudioPid() { return mAudioPid; }
-  int getVideoPid() { return mVideoPid; }
-  int getSubtitlePid() { return mSubtitlePid; }
-
-  void setSelected (bool selected) { mSelected = selected; }
-  void setAudioPid (int pid) { mAudioPid = pid; }
-  void setVideoPid (int pid) { mVideoPid = pid; }
-  void setSubtitlePid (int pid) { mSubtitlePid = pid; }
-
-private:
-  const int mSid;
-
-  int mAudioPid = 0;
-  int mVideoPid = 0;
-  int mSubtitlePid = 0;
-
-  bool mSelected = false;
-  };
-//}}}
-//{{{
 class cPidParser {
 public:
   cPidParser (int pid, const string& name) : mPid(pid), mName(name) {}
@@ -510,10 +485,36 @@ private:
 //}}}
 
 //{{{
-class cLoad {
+class cService {
 public:
-  cLoad() {}
-  virtual ~cLoad() {}
+  cService (int sid, bool selected) : mSid(sid), mSelected(selected) {}
+
+  bool isSelected() { return mSelected; }
+  int getAudioPid() { return mAudioPid; }
+  int getVideoPid() { return mVideoPid; }
+  int getSubtitlePid() { return mSubtitlePid; }
+
+  void setSelected (bool selected) { mSelected = selected; }
+  void setAudioPid (int pid) { mAudioPid = pid; }
+  void setVideoPid (int pid) { mVideoPid = pid; }
+  void setSubtitlePid (int pid) { mSubtitlePid = pid; }
+
+private:
+  const int mSid;
+
+  int mAudioPid = 0;
+  int mVideoPid = 0;
+  int mSubtitlePid = 0;
+
+  bool mSelected = false;
+  };
+//}}}
+
+//{{{
+class cLoadSource {
+public:
+  cLoadSource() {}
+  virtual ~cLoadSource() {}
 
   virtual cSong* getSong() = 0;
   virtual iVideoPool* getVideoPool() = 0;
@@ -555,9 +556,9 @@ protected:
   };
 //}}}
 //{{{
-class cLoadHls : public cLoad {
+class cLoadHls : public cLoadSource {
 public:
-  cLoadHls() : cLoad() {}
+  cLoadHls() : cLoadSource() {}
   virtual ~cLoadHls() {}
 
   //{{{
@@ -855,9 +856,9 @@ private:
   };
 //}}}
 //{{{
-class cLoadTsFile : public cLoad {
+class cLoadTsFile : public cLoadSource {
 public:
-  cLoadTsFile() : cLoad() {}
+  cLoadTsFile() : cLoadSource() {}
   virtual ~cLoadTsFile() {}
 
   virtual cSong* getSong() { return mPtsSong; }
@@ -1108,9 +1109,9 @@ private:
   };
 //}}}
 //{{{
-class cLoadWavFile : public cLoad {
+class cLoadWavFile : public cLoadSource {
 public:
-  cLoadWavFile() : cLoad() {}
+  cLoadWavFile() : cLoadSource() {}
   virtual ~cLoadWavFile() {}
 
   virtual cSong* getSong() { return mSong; }
@@ -1220,9 +1221,9 @@ private:
   };
 //}}}
 //{{{
-class cLoadMp3AacFile : public cLoad {
+class cLoadMp3AacFile : public cLoadSource {
 public:
-  cLoadMp3AacFile() : cLoad() {}
+  cLoadMp3AacFile() : cLoadSource() {}
   virtual ~cLoadMp3AacFile() {}
 
   virtual cSong* getSong() { return mSong; }
@@ -1519,31 +1520,31 @@ private:
 cLoader::cLoader() {
 
   // add cLoads
-  mLoads.push_back (new cLoadHls());
-  mLoads.push_back (new cLoadTsFile());
-  mLoads.push_back (new cLoadMp3AacFile());
-  mLoads.push_back (new cLoadWavFile());
+  mLoadSources.push_back (new cLoadHls());
+  mLoadSources.push_back (new cLoadTsFile());
+  mLoadSources.push_back (new cLoadMp3AacFile());
+  mLoadSources.push_back (new cLoadWavFile());
   };
 //}}}
 
 //{{{
 cSong* cLoader::getSong() {
-  return mLoad ? mLoad->getSong() : nullptr;
+  return mLoadSource ? mLoadSource->getSong() : nullptr;
   }
 //}}}
 //{{{
 iVideoPool* cLoader::getVideoPool() {
-  return mLoad ? mLoad->getVideoPool() : nullptr;
+  return mLoadSource ? mLoadSource->getVideoPool() : nullptr;
   }
 //}}}
 //{{{
 void cLoader::getFracs (float& loadFrac, float& audioFrac, float& videoFrac) {
-  return mLoad ? mLoad->getFracs (loadFrac, audioFrac, videoFrac) : nullptr;
+  return mLoadSource ? mLoadSource->getFracs (loadFrac, audioFrac, videoFrac) : nullptr;
   }
 //}}}
 //{{{
 void cLoader::getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize) {
-  return mLoad ? mLoad->getSizes (loadSize, audioQueueSize, videoQueueSize) : nullptr;
+  return mLoadSource ? mLoadSource->getSizes (loadSize, audioQueueSize, videoQueueSize) : nullptr;
   }
 //}}}
 
@@ -1552,18 +1553,18 @@ void cLoader::load (const vector<string>& strings) {
 
   stopAndWait();
 
-  thread ([=]() {
+  thread ([&]() {
     // lambda
     cLog::setThreadName ("load");
 
     mRunning = true;
 
-    for (auto load : mLoads) {
-      mLoad = load;
-      if (load->load (strings))
+    for (auto loadSource : mLoadSources) {
+      mLoadSource = loadSource;
+      if (loadSource->load (strings))
         break;
       }
-    mLoad = nullptr;
+    mLoadSource = nullptr;
 
     mRunning = false;
 
@@ -1581,8 +1582,8 @@ void cLoader::skipped() {
 void cLoader::stopAndWait() {
 
   if (mRunning) {
-    if (mLoad)
-      mLoad->stopAndWait();
+    if (mLoadSource)
+      mLoadSource->stopAndWait();
 
     while (mRunning) {
       this_thread::sleep_for (100ms);
