@@ -595,13 +595,13 @@ public:
   // return sizes
 
     loadSize = mLoadSize;
-    audioQueueSize = 0;
-    videoQueueSize = 0;
 
+    audioQueueSize = 0;
     auto audioIt = mPidParsers.find (mAudioPid);
     if (audioIt != mPidParsers.end())
      audioQueueSize = (*audioIt).second->getQueueSize();
 
+    videoQueueSize = 0;
     auto videoIt = mPidParsers.find (mVideoPid);
     if (videoIt != mPidParsers.end())
       videoQueueSize = (*videoIt).second->getQueueSize();
@@ -872,6 +872,7 @@ public:
   // return fracs for spinner graphic, true if ok to display
 
     loadFrac = mLoadFrac;
+
     audioFrac = 0.f;
     videoFrac = 0.f;
 
@@ -1558,25 +1559,21 @@ iVideoPool* cLoader::getVideoPool() {
 //{{{
 void cLoader::getFracs (float& loadFrac, float& audioFrac, float& videoFrac) {
 
+  loadFrac = 0.f;
+  audioFrac = 0.f;
+  videoFrac = 0.f;
   if (mLoadSource)
     mLoadSource->getFracs (loadFrac, audioFrac, videoFrac);
-  else {
-    loadFrac = 0.f;
-    audioFrac = 0.f;
-    videoFrac = 0.f;
-    }
   }
 //}}}
 //{{{
 void cLoader::getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize) {
 
+  loadSize = 0;
+  audioQueueSize = 0;
+  videoQueueSize = 0;
   if (mLoadSource)
     mLoadSource->getSizes (loadSize, audioQueueSize, videoQueueSize);
-  else {
-    loadSize = 0;
-    audioQueueSize = 0;
-    videoQueueSize = 0;
-    }
   }
 //}}}
 
