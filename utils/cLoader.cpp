@@ -38,9 +38,6 @@ using namespace std;
 using namespace chrono;
 //}}}
 
-namespace {
-  }
-
 //{{{
 class cService {
 public:
@@ -578,20 +575,13 @@ public:
     audioFrac = 0.f;
     videoFrac = 0.f;
 
-    if (mCurSid > 0) {
-      cService* service = mServices[mCurSid];
-      int audioPid = service->getAudioPid();
-      int videoPid = service->getVideoPid();
-      //cLog::log (LOGINFO, "getSizes %d %d", audioPid, videoPid);
+    auto audioIt = mPidParsers.find (mAudioPid);
+    if (audioIt != mPidParsers.end())
+      audioFrac = (*audioIt).second->getQueueFrac();
 
-      auto audioIt = mPidParsers.find (audioPid);
-      if (audioIt != mPidParsers.end())
-        audioFrac = (*audioIt).second->getQueueFrac();
-
-      auto videoIt = mPidParsers.find (videoPid);
-      if (videoIt != mPidParsers.end())
-        videoFrac = (*videoIt).second->getQueueFrac();
-      }
+    auto videoIt = mPidParsers.find (mVideoPid);
+    if (videoIt != mPidParsers.end())
+      videoFrac = (*videoIt).second->getQueueFrac();
     }
   //}}}
   //{{{
@@ -602,20 +592,13 @@ public:
     audioQueueSize = 0;
     videoQueueSize = 0;
 
-    if (mCurSid > 0) {
-      cService* service = mServices[mCurSid];
-      int audioPid = service->getAudioPid();
-      int videoPid = service->getVideoPid();
-      //cLog::log (LOGINFO, "getSizes %d %d", audioPid, videoPid);
+    auto audioIt = mPidParsers.find (mAudioPid);
+    if (audioIt != mPidParsers.end())
+     audioQueueSize = (*audioIt).second->getQueueSize();
 
-      auto audioIt = mPidParsers.find (audioPid);
-      if (audioIt != mPidParsers.end())
-        audioQueueSize = (*audioIt).second->getQueueSize();
-
-      auto videoIt = mPidParsers.find (videoPid);
-      if (videoIt != mPidParsers.end())
-        videoQueueSize = (*videoIt).second->getQueueSize();
-      }
+    auto videoIt = mPidParsers.find (mVideoPid);
+    if (videoIt != mPidParsers.end())
+      videoQueueSize = (*videoIt).second->getQueueSize();
     }
   //}}}
 
@@ -668,7 +651,7 @@ public:
     mHlsSong = new cHlsSong (eAudioFrameType::eAacAdts, 2, 48000,
                              (audioRate < 128000) ? 2048 : 1024,
                              (audioRate < 128000) ? 3840 : 1920,
-                             1000,
+                             radio ? 0 : 1000,
                              (audioRate < 128000) ? (radio ? 150 : 180) : (radio ? 300 : 360));
 
     iAudioDecoder* audioDecoder = nullptr;
@@ -682,42 +665,27 @@ public:
 
     auto addStreamCallback = [&](int sid, int pid, int type) noexcept {
       if (mPidParsers.find (pid) == mPidParsers.end()) {
-        // new stream, add stream parser, add stream pid to service
-        auto it = mServices.find (sid);
-        if (it == mServices.end())
-          cLog::log (LOGERROR, "PMT:%d for unrecognised sid:%d", pid, sid);
-        else {
-          // should only be one
-          cService* service = (*it).second;
-          switch (type) {
-            //{{{
-            case 15: // aacAdts
-              service->setAudioPid (pid);
-              if (service->isSelected()) {
-                audioDecoder = createAudioDecoder (eAudioFrameType::eAacAdts);
-                mPidParsers.insert (
-                  map<int,cPidParser*>::value_type (pid,
-                    new cAudioPesParser (pid, audioDecoder, true, addAudioFrameCallback)));
-                }
-              break;
-            //}}}
-            //{{{
-            case 27: // h264video
-              if (videoRate) {
-                service->setVideoPid (pid);
-                if (service->isSelected()) {
-                  videoPool = iVideoPool::create (ffmpeg, 192, mHlsSong);
-                  mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cVideoPesParser (pid, videoPool, true)));
-                  mVideoPool = videoPool;
-                  }
-                }
-              break;
-            //}}}
-            //{{{
-            default:
-              cLog::log (LOGERROR, "hls - unrecognised stream pid:type %d:%d", pid, type);
-            //}}}
-            }
+        // new stream, add stream parser
+        switch (type) {
+          case 15: // aacAdts
+            mAudioPid  = pid;
+            audioDecoder = createAudioDecoder (eAudioFrameType::eAacAdts);
+            mPidParsers.insert (
+              map<int,cPidParser*>::value_type (pid,
+                new cAudioPesParser (pid, audioDecoder, true, addAudioFrameCallback)));
+            break;
+
+          case 27: // h264video
+            if (videoRate) {
+              mVideoPid  = pid;
+              videoPool = iVideoPool::create (ffmpeg, 192, mHlsSong);
+              mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cVideoPesParser (pid, videoPool, true)));
+              mVideoPool = videoPool;
+              }
+            break;
+
+          default:
+            cLog::log (LOGERROR, "hls - unrecognised stream pid:type %d:%d", pid, type);
           }
         }
       };
@@ -726,8 +694,6 @@ public:
       if (mPidParsers.find (pid) == mPidParsers.end()) {
         // new PMT, add parser and new service
         mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cPmtParser (pid, sid, addStreamCallback)));
-        mServices.insert (map<int,cService*>::value_type (sid, new cService (sid, true)));
-        mCurSid = sid;
         }
       };
 
@@ -881,12 +847,11 @@ private:
   cHlsSong* mHlsSong = nullptr;
   iVideoPool* mVideoPool = nullptr;
 
-  std::map <int, cPidParser*> mPidParsers;
-
   int mLoadSize = 0;
 
-  int mCurSid = -1;
-  std::map <int, cService*> mServices;
+  int mAudioPid = -1;
+  int mVideoPid = -1;
+  std::map <int, cPidParser*> mPidParsers;
   };
 //}}}
 //{{{
@@ -1516,6 +1481,38 @@ private:
     //} ).detach();
   //}
 //}}}
+//{{{
+//void cLoader::addIcyInfo (int64_t pts, const string& icyInfo) {
+
+  //cLog::log (LOGINFO, "addIcyInfo " + icyInfo);
+
+  //string icysearchStr = "StreamTitle=\'";
+  //string searchStr = "StreamTitle=\'";
+  //auto searchStrPos = icyInfo.find (searchStr);
+  //if (searchStrPos != string::npos) {
+    //auto searchEndPos = icyInfo.find ("\';", searchStrPos + searchStr.size());
+    //if (searchEndPos != string::npos) {
+      //string titleStr = icyInfo.substr (searchStrPos + searchStr.size(), searchEndPos - searchStrPos - searchStr.size());
+      //if (titleStr != mLastTitleStr) {
+        //cLog::log (LOGINFO1, "addIcyInfo found title = " + titleStr);
+        //mSong->getSelect().addMark (pts, titleStr);
+        //mLastTitleStr = titleStr;
+        //}
+      //}
+    //}
+
+  //string urlStr = "no url";
+  //searchStr = "StreamUrl=\'";
+  //searchStrPos = icyInfo.find (searchStr);
+  //if (searchStrPos != string::npos) {
+    //auto searchEndPos = icyInfo.find ('\'', searchStrPos + searchStr.size());
+    //if (searchEndPos != string::npos) {
+      //urlStr = icyInfo.substr (searchStrPos + searchStr.size(), searchEndPos - searchStrPos - searchStr.size());
+      //cLog::log (LOGINFO1, "addIcyInfo found url = " + urlStr);
+      //}
+    //}
+  //}
+//}}}
 
 // public
 //{{{
@@ -1584,8 +1581,6 @@ void cLoader::skipped() {
 void cLoader::stopAndWait() {
 
   if (mRunning) {
-    mExit = true;
-
     if (mLoad)
       mLoad->stopAndWait();
 
@@ -1593,41 +1588,6 @@ void cLoader::stopAndWait() {
       this_thread::sleep_for (100ms);
       cLog::log(LOGINFO, "waiting to exit");
       }
-    mExit = false;
     }
   }
-//}}}
-
-// private
-//{{{
-//void cLoader::addIcyInfo (int64_t pts, const string& icyInfo) {
-
-  //cLog::log (LOGINFO, "addIcyInfo " + icyInfo);
-
-  //string icysearchStr = "StreamTitle=\'";
-  //string searchStr = "StreamTitle=\'";
-  //auto searchStrPos = icyInfo.find (searchStr);
-  //if (searchStrPos != string::npos) {
-    //auto searchEndPos = icyInfo.find ("\';", searchStrPos + searchStr.size());
-    //if (searchEndPos != string::npos) {
-      //string titleStr = icyInfo.substr (searchStrPos + searchStr.size(), searchEndPos - searchStrPos - searchStr.size());
-      //if (titleStr != mLastTitleStr) {
-        //cLog::log (LOGINFO1, "addIcyInfo found title = " + titleStr);
-        //mSong->getSelect().addMark (pts, titleStr);
-        //mLastTitleStr = titleStr;
-        //}
-      //}
-    //}
-
-  //string urlStr = "no url";
-  //searchStr = "StreamUrl=\'";
-  //searchStrPos = icyInfo.find (searchStr);
-  //if (searchStrPos != string::npos) {
-    //auto searchEndPos = icyInfo.find ('\'', searchStrPos + searchStr.size());
-    //if (searchEndPos != string::npos) {
-      //urlStr = icyInfo.substr (searchStrPos + searchStr.size(), searchEndPos - searchStrPos - searchStr.size());
-      //cLog::log (LOGINFO1, "addIcyInfo found url = " + urlStr);
-      //}
-    //}
-  //}
 //}}}

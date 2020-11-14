@@ -28,22 +28,14 @@ public:
 
   // loaders
   void load (const std::vector<std::string>& strings);
-  //void icycast (const std::string& url);
 
   // actions
   void skipped();
   void stopAndWait();
   void toggleShowGraphics() { mShowGraphics = !mShowGraphics; }
 
-  // vars
-  std::string mLastTitleStr;
-
 private:
-  //void addIcyInfo (int64_t pts, const std::string& icyInfo);
-
-  bool mExit = false;
   bool mRunning = false;
-
   bool mShowGraphics = true;
 
   cLoad* mLoad = nullptr;
