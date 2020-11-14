@@ -140,6 +140,7 @@ public:
   virtual int64_t getPtsFromFrameNum (int64_t frameNum) { return frameNum; }
 
   // pts
+  bool getPlaying() { return mPlaying; }
   int64_t getPlayPts() { return mPlayPts; }
   virtual int64_t getFirstPts() { return mFrameMap.empty() ? 0 : mFrameMap.begin()->first; }
   virtual int64_t getLastPts() { return mFrameMap.empty() ? 0 : mFrameMap.rbegin()->first;  }
@@ -177,7 +178,8 @@ public:
 
   void addFrame (bool reuseFront, int64_t pts, float* samples, int64_t totalFrames);
 
-  // playPts
+  // play
+  void togglePlaying() { mPlaying = !mPlaying; }
   void setPlayPts (int64_t pts);
   void setPlayFirstFrame();
   void setPlayLastFrame();
@@ -217,6 +219,7 @@ private:
   // - frameNum offset by firstFrame pts/ptsDuration
   int mMaxMapSize = 0;
   int64_t mTotalFrames = 0;
+  bool mPlaying = false;
 
   cSelect mSelect;
 

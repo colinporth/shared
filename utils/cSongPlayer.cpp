@@ -32,6 +32,8 @@ using namespace chrono;
       SetThreadPriority (GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
       float silence [2048*2] = { 0.f };
       float samples [2048*2] = { 0.f };
+
+      song->togglePlaying();
       //{{{  WSAPI player thread, video just follows play pts
       auto device = getDefaultAudioOutputDevice();
       if (device) {
@@ -46,7 +48,7 @@ using namespace chrono;
             shared_lock<shared_mutex> lock (song->getSharedMutex());
 
             frame = song->findPlayFrame();
-            if (mPlaying && frame && frame->getSamples()) {
+            if (song->getPlaying() && frame && frame->getSamples()) {
               if (song->getNumChannels() == 1) {
                 //{{{  mono to stereo
                 auto src = frame->getSamples();
@@ -65,7 +67,7 @@ using namespace chrono;
               srcSamples = silence;
             numSrcSamples = song->getSamplesPerFrame();
 
-            if (frame && mPlaying)
+            if (frame && song->getPlaying())
               song->nextPlayFrame (true);
             });
 
@@ -86,6 +88,8 @@ using namespace chrono;
       cLog::setThreadName ("play");
       float silence [2048*2] = { 0.f };
       float samples [2048*2] = { 0.f };
+
+      song->togglePlaying();
       //{{{  audio16 player thread, video just follows play pts
       cAudio audio (2, song->getSampleRate(), 40000, false);
 
@@ -96,7 +100,7 @@ using namespace chrono;
           // scoped song mutex
           shared_lock<shared_mutex> lock (song->getSharedMutex());
           frame = song->findPlayFrame();
-          bool gotSamples = mPlaying && frame && frame->getSamples();
+          bool gotSamples = song->getPlaying() && frame && frame->getSamples();
           if (gotSamples) {
             memcpy (samples, frame->getSamples(), song->getSamplesPerFrame() * 8);
             playSamples = samples;
@@ -104,7 +108,7 @@ using namespace chrono;
           }
         audio.play (2, playSamples, song->getSamplesPerFrame(), 1.f);
 
-        if (frame && mPlaying)
+        if (frame && song->getPlaying())
           song->nextPlayFrame (true);
 
         if (!streaming && (song->getPlayPts() > song->getLastPts()))
