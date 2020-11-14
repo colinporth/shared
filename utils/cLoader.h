@@ -15,7 +15,7 @@ class cPidParser;
 class iVideoPool;
 class cFileList;
 class cService;
-class cLoadType;
+class cLoad;
 //}}}
 
 class cLoader {
@@ -51,6 +51,6 @@ private:
   bool mRunning = false;
   bool mShowGraphics = true;
 
-  cLoadType* mLoadType = nullptr;
-  std::vector <cLoadType*> mLoadTypes;
+  cLoad* mLoad = nullptr;
+  std::vector <cLoad*> mLoads;
   };
