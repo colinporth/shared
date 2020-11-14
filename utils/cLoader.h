@@ -8,14 +8,9 @@
 #include <map>
 #include <thread>
 
-
-class cSong;
-class cSongPlayer;
-class cPidParser;
-class iVideoPool;
-class cFileList;
-class cService;
 class cLoad;
+class cSong;
+class iVideoPool;
 //}}}
 
 class cLoader {
@@ -42,13 +37,13 @@ public:
 
   // vars
   std::string mLastTitleStr;
-  cFileList* mFileList = nullptr;
 
 private:
   //void addIcyInfo (int64_t pts, const std::string& icyInfo);
 
   bool mExit = false;
   bool mRunning = false;
+
   bool mShowGraphics = true;
 
   cLoad* mLoad = nullptr;
