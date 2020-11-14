@@ -1347,7 +1347,7 @@ public:
 
       auto tempSong = mSong;
       mSong = nullptr;
-      delete mSong;
+      delete tempSong;
 
       delete decoder;
       //}}}
@@ -1557,12 +1557,26 @@ iVideoPool* cLoader::getVideoPool() {
 //}}}
 //{{{
 void cLoader::getFracs (float& loadFrac, float& audioFrac, float& videoFrac) {
-  return mLoadSource ? mLoadSource->getFracs (loadFrac, audioFrac, videoFrac) : nullptr;
+
+  if (mLoadSource)
+    mLoadSource->getFracs (loadFrac, audioFrac, videoFrac);
+  else {
+    loadFrac = 0.f;
+    audioFrac = 0.f;
+    videoFrac = 0.f;
+    }
   }
 //}}}
 //{{{
 void cLoader::getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize) {
-  return mLoadSource ? mLoadSource->getSizes (loadSize, audioQueueSize, videoQueueSize) : nullptr;
+
+  if (mLoadSource)
+    mLoadSource->getSizes (loadSize, audioQueueSize, videoQueueSize);
+  else {
+    loadSize = 0;
+    audioQueueSize = 0;
+    videoQueueSize = 0;
+    }
   }
 //}}}
 
