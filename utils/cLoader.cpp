@@ -628,16 +628,9 @@ public:
       else if (param == "bbc4") channel = "bbc_four_hd";
       else if (param == "news") channel = "bbc_news_channel_hd";
       else if (param == "scot") channel = "bbc_one_scotland_hd";
-      else if (param == "s4c") channel = "s4cpbs";
-      else if (param == "sw") channel = "bbc_one_south_west";
+      else if (param == "s4c")  channel = "s4cpbs";
+      else if (param == "sw")   channel = "bbc_one_south_west";
       else if (param == "parl") channel = "bbc_parliament";
-
-      else if (param == "r1") { channel = "bbc_radio_one"; radio = true; videoRate = 0; }
-      else if (param == "r2") { channel = "bbc_radio_two"; radio = true; videoRate = 0; }
-      else if (param == "r3") { channel = "bbc_radio_three"; radio = true; videoRate = 0; }
-      else if (param == "r4") { channel = "bbc_radio_fourfm"; radio = true; videoRate = 0; }
-      else if (param == "r5") { channel = "bbc_radio_five_live"; radio = true; videoRate = 0; }
-      else if (param == "r6") { channel = "bbc_6music"; radio = true; videoRate = 0; }
 
       else if (param == "v0") videoRate = 0;
       else if (param == "v1") videoRate = 827008;
@@ -645,8 +638,15 @@ public:
       else if (param == "v3") videoRate = 2812032;
       else if (param == "v4") videoRate = 5070016;
 
-      else if (param == "a48") audioRate = 48000;
-      else if (param == "a96") audioRate = 96000;
+      else if (param == "r1") { radio = true; channel = "bbc_radio_one";  }
+      else if (param == "r2") { radio = true; channel = "bbc_radio_two";  }
+      else if (param == "r3") { radio = true; channel = "bbc_radio_three"; }
+      else if (param == "r4") { radio = true; channel = "bbc_radio_fourfm"; }
+      else if (param == "r5") { radio = true; channel = "bbc_radio_five_live";  }
+      else if (param == "r6") { radio = true; channel = "bbc_6music"; }
+
+      else if (param == "a48")  audioRate = 48000;
+      else if (param == "a96")  audioRate = 96000;
       else if (param == "a128") audioRate = 128000;
       else if (param == "a320") audioRate = 320000;
       }
