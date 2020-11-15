@@ -14,6 +14,7 @@ class iVideoPool;
 class cLoader {
 public:
   cLoader();
+  ~cLoader();
 
   // gets
   cSong* getSong();

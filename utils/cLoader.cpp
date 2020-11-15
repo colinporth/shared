@@ -558,6 +558,25 @@ protected:
     return nullptr;
     }
   //}}}
+  //{{{
+  int64_t getFileSize (const string& filename) {
+  // get fileSize
+
+    #ifdef _WIN32
+      struct _stati64 st;
+      if (_stat64 (filename.c_str(), &st) == -1)
+        return 0;
+      else
+        return st.st_size;
+    #else
+      struct stat st;
+      if (stat (filename.c_str(), &st) == -1)
+        return 0;
+      else
+        return st.st_size;
+    #endif
+    }
+  //}}}
 
   bool mExit = false;
   float mLoadFrac = 0.f;
@@ -921,20 +940,19 @@ public:
   // - can't mmap because of commmon case of growing ts file size
   // - chunks are ts packet aligned
 
+    bool result = false;
+    //{{{  check for empty strings, no file or empty file, get fileSize
+    if (strings.empty())
+      return result;
+
+    int64_t fileSize = getFileSize (strings[0]);
+    if (!fileSize)
+      return result;
+    //}}}
+    //{{{  get fileChunk
     constexpr int kFileChunkSize = 16 * 188;
     uint8_t buffer[kFileChunkSize];
 
-    bool result = false;
-    if (strings.empty())
-      return result;
-    //{{{  get fileSize
-    struct stat st;
-    if (!stat (strings[0].c_str(), &st))
-      return result;
-
-    int fileSize = st.st_size;
-    //}}}
-    //{{{  get fileChunk
     FILE* file = fopen (strings[0].c_str(), "rb");
     size_t size = fread (buffer, 1, kFileChunkSize, file);
     size_t bytesLeft = size;
@@ -1149,21 +1167,20 @@ public:
   // wav - ??? could use ffmpeg to decode all the variants ???
   // - preload whole file, could mmap but not really worth it being the exception
 
+    bool result = false;
+    //{{{  check for empty strings, no file or empty file, get fileSize
+    if (strings.empty())
+      return result;
+
+    int64_t fileSize = getFileSize (strings[0]);
+    if (!fileSize)
+      return result;
+    //}}}
+    //{{{  get fileChunk
     constexpr int kWavFrameSamples = 1024;
     constexpr int kFileChunkSize = kWavFrameSamples * 2 * 4; // 2 channels of 4byte floats
     uint8_t buffer[kFileChunkSize + 0x100];
 
-    bool result = false;
-    if (strings.empty())
-      return result;
-    //{{{  get fileSize
-    struct stat st;
-    if (!stat (strings[0].c_str(), &st))
-      return result;
-
-    int fileSize = st.st_size;
-    //}}}
-    //{{{  get fileChunk
     FILE* file = fopen (strings[0].c_str(), "rb");
     size_t size = fread (buffer, 1, kFileChunkSize, file);
     size_t bytesLeft = size;
@@ -1266,20 +1283,19 @@ public:
   // aac,mp3 - load file in kFileChunkSize chunks, buffer big enough for last chunk partial frame
   // - preload whole file
 
+    bool result = false;
+    //{{{  check for empty strings, no file or empty file, get fileSize
+    if (strings.empty())
+      return result;
+
+    int64_t fileSize = getFileSize (strings[0]);
+    if (!fileSize)
+      return result;
+    //}}}
+    //{{{  get fileChunk
     constexpr int kFileChunkSize = 2048;
     uint8_t buffer[kFileChunkSize*2];
 
-    bool result = false;
-    if (strings.empty())
-      return result;
-    //{{{  get fileSize
-    struct stat st;
-    if (!stat (strings[0].c_str(), &st))
-      return result;
-
-    int fileSize = st.st_size;
-    //}}}
-    //{{{  get fileChunk
     FILE* file = fopen (strings[0].c_str(), "rb");
     size_t size = fread (buffer, 1, kFileChunkSize, file);
     size_t bytesLeft = size;
@@ -1544,6 +1560,15 @@ cLoader::cLoader() {
   mLoadSources.push_back (new cLoadMp3AacFile());
   mLoadSources.push_back (new cLoadWavFile());
   };
+//}}}
+//{{{
+cLoader::~cLoader() {
+
+  for (auto loadSource : mLoadSources)
+    delete loadSource;
+
+  mLoadSources.clear();
+  }
 //}}}
 
 //{{{
