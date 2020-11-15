@@ -659,8 +659,7 @@ public:
 
     // parse params
     for (auto& param : params) {
-      if (param == "ff") ffmpeg = true;
-      else if (param == "mfx") ffmpeg = false;
+      if (param == "mfx") ffmpeg = false;
 
       else if (param == "bbc1") channel = "bbc_one_hd";
       else if (param == "bbc2") channel = "bbc_two_hd";
@@ -824,7 +823,7 @@ public:
         }
       }
 
-    //{{{  stop and delete resources
+    //{{{  delete resources
     if (mSongPlayer)
       mSongPlayer->wait();
     delete mSongPlayer;
@@ -1292,6 +1291,7 @@ public:
       mSong = nullptr;
       delete tempSong;
       //}}}
+      result = true;
       }
 
     fclose (file);
