@@ -4,6 +4,7 @@
 #define WIN32_LEAN_AND_MEAN
 
 #include "sys/stat.h"
+#include <thread>
 #include <functional>
 
 #include "cLoader.h"
@@ -624,7 +625,11 @@ public:
 //{{{
 class cLoadHls : public cLoadSource {
 public:
-  cLoadHls() : cLoadSource("hls") {}
+  cLoadHls() : cLoadSource("hls") {
+    mAudioFrameType = eAudioFrameType::eAacAdts;
+    mNumChannels = 2;
+    mSampleRate = 48000;
+    }
   virtual ~cLoadHls() {}
 
   virtual cSong* getSong() { return mHlsSong; }
@@ -668,10 +673,6 @@ public:
   //{{{
   virtual bool accept (const vector<string>& params) {
   //  parse params to accept load
-
-    mAudioFrameType = eAudioFrameType::eAacAdts;
-    mNumChannels = 2;
-    mSampleRate = 48000;
 
     for (auto& param : params) {
       if (param == "bbc1") mChannel = "bbc_one_hd";
@@ -992,7 +993,10 @@ protected:
 //{{{
 class cLoadTsFile : public cLoadFile {
 public:
-  cLoadTsFile() : cLoadFile("ts") {}
+  cLoadTsFile() : cLoadFile("ts") {
+    mNumChannels = 2;
+    mSampleRate = 48000;
+    }
   virtual ~cLoadTsFile() {}
 
   virtual cSong* getSong() { return mPtsSong; }
@@ -1057,13 +1061,7 @@ public:
     size_t size = fread (buffer, 1, 1024, file);
     fclose (file);
 
-    bool isTs = (size > 188) && (buffer[0] == 0x47) && (buffer[188] == 0x47);
-    if (isTs) {
-      mNumChannels = 2;
-      mSampleRate = 48000;
-      }
-
-    return isTs;
+    return (size > 188) && (buffer[0] == 0x47) && (buffer[188] == 0x47);
     }
   //}}}
   //{{{
@@ -1076,9 +1074,8 @@ public:
     mRunning = true;
 
     // get first fileChunk
-    constexpr int kFileChunkSize = 16 * 188;
-    uint8_t buffer[kFileChunkSize];
     FILE* file = fopen (mFilename.c_str(), "rb");
+    uint8_t buffer[kFileChunkSize];
     size_t size = fread (buffer, 1, kFileChunkSize, file);
     size_t bytesLeft = size;
     size_t filePos = size;
@@ -1243,6 +1240,8 @@ public:
   //}}}
 
 private:
+  static constexpr int kFileChunkSize = 16 * 188;
+
   //{{{
   class cService {
   public:
@@ -1293,11 +1292,6 @@ public:
     if (!getFileSize (params[0]))
       return false;
 
-    uint8_t buffer[1024];
-    FILE* file = fopen (params[0].c_str(), "rb");
-    size_t size = fread (buffer, 1, 1024, file);
-    fclose (file);
-
     return getAudioFileInfo() == eAudioFrameType::eWav;
     }
   //}}}
@@ -1310,10 +1304,8 @@ public:
     mRunning = true;
 
     // get first fileChunk
-    constexpr int kWavFrameSamples = 1024;
-    constexpr int kFileChunkSize = kWavFrameSamples * 2 * 4; // 2 channels of 4byte floats
-    uint8_t buffer[kFileChunkSize + 0x100];
     FILE* file = fopen (mFilename.c_str(), "rb");
+    uint8_t buffer[kFileChunkSize + 0x100];
     size_t size = fread (buffer, 1, kFileChunkSize, file);
     size_t bytesLeft = size;
     size_t filePos = size;
@@ -1363,13 +1355,15 @@ public:
     mSong = nullptr;
     delete tempSong;
     //}}}
-
     fclose (file);
     mRunning = false;
     }
   //}}}
 
 private:
+  static constexpr int kWavFrameSamples = 1024;
+  static constexpr int kFileChunkSize = kWavFrameSamples * 2 * 4; // 2 channels of 4byte floats
+
   cSong* mSong = nullptr;
   };
 //}}}
@@ -1401,9 +1395,8 @@ public:
     mRunning = true;
 
     // get first fileChunk
-    constexpr int kFileChunkSize = 2048;
-    uint8_t buffer[kFileChunkSize*2];
     FILE* file = fopen (mFilename.c_str(), "rb");
+    uint8_t buffer[kFileChunkSize*2];
     size_t size = fread (buffer, 1, kFileChunkSize, file);
     size_t bytesLeft = size;
     size_t filePos = size;
@@ -1471,6 +1464,8 @@ public:
   //}}}
 
 private:
+  static constexpr int kFileChunkSize = 2048;
+
   eAudioFrameType mAudioFrameType = eAudioFrameType::eUnknown;
   cSong* mSong = nullptr;
   };
