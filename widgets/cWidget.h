@@ -101,7 +101,10 @@ public:
   void setParent (cContainer* parent) { mParent = parent; }
 
   void setOn (bool on) { mOn = on; }
+  void toggleOn() { mOn = !mOn; }
+
   void setVisible (bool visible) { mVisible = visible; }
+  void toggleVisible() { mVisible = !mVisible; }
   //}}}
 
   //{{{

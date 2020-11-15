@@ -532,6 +532,37 @@ public:
 
   virtual bool load (const vector<string>& filename) = 0;
 
+  //{{{
+  virtual bool togglePlaying() {
+    getSong()->togglePlaying();
+    return true;
+    }
+  //}}}
+  //{{{
+  virtual bool skipBegin() {
+    getSong()->setPlayFirstFrame();
+    return true;
+    }
+  //}}}
+  //{{{
+  virtual bool skipEnd() {
+    getSong()->setPlayLastFrame();
+    return true;
+    }
+  //}}}
+  //{{{
+  virtual bool skipBack (bool shift, bool control) {
+    getSong()->incPlaySec (shift ? -300 : control ? -10 : -1, true);
+    return true;
+    }
+  //}}}
+  //{{{
+  virtual bool skipForward (bool shift, bool control) {
+    getSong()->incPlaySec (shift ? 300 : control ? 10 : 1, true);
+    return true;
+    };
+  //}}}
+
   virtual void stopAndWait() { mExit = true; }
 
 protected:
@@ -560,7 +591,7 @@ protected:
   //}}}
   //{{{
   int64_t getFileSize (const string& filename) {
-  // get fileSize
+  // get fileSize, return 0 if file not found
 
     #ifdef _WIN32
       struct _stati64 st;
@@ -1381,6 +1412,37 @@ private:
   };
 //}}}
 //{{{
+class cLoadDummy : public cLoadSource{
+public:
+  cLoadDummy() {}
+  virtual ~cLoadDummy() {}
+
+  virtual cSong* getSong() { return nullptr; }
+  virtual iVideoPool* getVideoPool() { return nullptr; }
+
+  virtual void getFracs (float& loadFrac, float& audioFrac, float& videoFrac) {
+    loadFrac = 0.f;
+    audioFrac = 0.f;
+    videoFrac = 0.f;
+    }
+  virtual void getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize) {
+    loadSize = 0;
+    audioQueueSize = 0;
+    videoQueueSize = 0;
+    }
+
+  virtual bool load (const vector<string>& filename) { return true; }
+
+  virtual bool togglePlaying() { return false; }
+  virtual bool skipBegin() { return false; }
+  virtual bool skipEnd() { return false; }
+  virtual bool skipBack (bool shift, bool control) { return false; }
+  virtual bool skipForward (bool shift, bool control) { return false; };
+
+  virtual void stopAndWait() {}
+  };
+//}}}
+//{{{
 //void cLoader::icycast (const string& url) {
 
   //stopAndWait();
@@ -1552,13 +1614,13 @@ private:
 
 // public
 //{{{
-cLoader::cLoader() {
+cLoader::cLoader() : mLoadSource (new cLoadDummy()) {
 
-  // add cLoads
   mLoadSources.push_back (new cLoadHls());
   mLoadSources.push_back (new cLoadTsFile());
   mLoadSources.push_back (new cLoadMp3AacFile());
   mLoadSources.push_back (new cLoadWavFile());
+  mLoadSources.push_back (mLoadSource);
   };
 //}}}
 //{{{
@@ -1587,8 +1649,7 @@ void cLoader::getFracs (float& loadFrac, float& audioFrac, float& videoFrac) {
   loadFrac = 0.f;
   audioFrac = 0.f;
   videoFrac = 0.f;
-  if (mLoadSource)
-    mLoadSource->getFracs (loadFrac, audioFrac, videoFrac);
+  mLoadSource->getFracs (loadFrac, audioFrac, videoFrac);
   }
 //}}}
 //{{{
@@ -1597,8 +1658,7 @@ void cLoader::getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize)
   loadSize = 0;
   audioQueueSize = 0;
   videoQueueSize = 0;
-  if (mLoadSource)
-    mLoadSource->getSizes (loadSize, audioQueueSize, videoQueueSize);
+  mLoadSource->getSizes (loadSize, audioQueueSize, videoQueueSize);
   }
 //}}}
 
@@ -1618,7 +1678,6 @@ void cLoader::load (const vector<string>& strings) {
       if (loadSource->load (strings))
         break;
       }
-    mLoadSource = nullptr;
 
     mRunning = false;
 
@@ -1628,16 +1687,37 @@ void cLoader::load (const vector<string>& strings) {
 //}}}
 
 //{{{
-void cLoader::skipped() {
-// clear queues, caches ???
+bool cLoader::togglePlaying() {
+  return mLoadSource->togglePlaying();
   }
 //}}}
+//{{{
+bool cLoader::skipBegin() {
+  return  mLoadSource->skipBegin();
+  }
+//}}}
+//{{{
+bool cLoader::skipEnd() {
+  return mLoadSource->skipEnd();
+  }
+//}}}
+//{{{
+bool cLoader::skipBack (bool shift, bool control) {
+  return mLoadSource->skipBack (shift, control);
+  
+  }
+//}}}
+//{{{
+bool cLoader::skipForward (bool shift, bool control) {
+  return mLoadSource->skipForward (shift, control);
+  };
+//}}}
+
 //{{{
 void cLoader::stopAndWait() {
 
   if (mRunning) {
-    if (mLoadSource)
-      mLoadSource->stopAndWait();
+    mLoadSource->stopAndWait();
 
     while (mRunning) {
       this_thread::sleep_for (100ms);

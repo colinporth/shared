@@ -14,6 +14,7 @@ public:
   virtual ~cLoaderWidget() {}
 
   void setShowOverview (bool showOverview) { mShowOverview = showOverview; }
+  void toggleGraphics() { mShowGraphics = ! mShowGraphics; }
 
   //{{{
   virtual void onDown (const cPointF& point) {
@@ -145,7 +146,7 @@ public:
     if (!foundPiccy)
       draw->clear (kBlackF);
 
-    if (mLoader->getShowGraphics() ) {
+    if (mShowGraphics) {
       drawInfo (vg, videoPool);
       //{{{  draw progress spinners
       float loadFrac;
@@ -778,6 +779,8 @@ private:
   iClockTime* mClockTime;
   int64_t mImagePts = 0;
   int mImageId = -1;
+
+  bool mShowGraphics = true;
 
   float mMove = 0;
   bool mMoved = false;

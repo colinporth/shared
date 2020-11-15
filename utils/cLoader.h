@@ -24,19 +24,21 @@ public:
   void getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize);
 
   bool getRunning() { return mRunning; }
-  bool getShowGraphics() { return mShowGraphics; }
 
   // loaders
   void load (const std::vector<std::string>& strings);
 
   // actions
-  void skipped();
+  bool togglePlaying();
+  bool skipBegin();
+  bool skipEnd();
+  bool skipBack (bool shift, bool control);
+  bool skipForward (bool shift, bool control);
+
   void stopAndWait();
-  void toggleShowGraphics() { mShowGraphics = !mShowGraphics; }
 
 private:
   bool mRunning = false;
-  bool mShowGraphics = true;
 
   cLoadSource* mLoadSource = nullptr;
   std::vector <cLoadSource*> mLoadSources;
