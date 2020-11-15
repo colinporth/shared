@@ -4,6 +4,7 @@
 #include "cWidget.h"
 #include "../utils/cLoader.h"
 #include "../utils/cSong.h"
+#include "../utils/iVideoPool.h"
 //}}}
 constexpr bool kVideoPoolDebug = true;
 

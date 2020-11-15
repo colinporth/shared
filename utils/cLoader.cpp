@@ -493,32 +493,6 @@ private:
 //}}}
 
 //{{{
-class cService {
-public:
-  cService (int sid, bool selected) : mSid(sid), mSelected(selected) {}
-
-  bool isSelected() { return mSelected; }
-  int getAudioPid() { return mAudioPid; }
-  int getVideoPid() { return mVideoPid; }
-  int getSubtitlePid() { return mSubtitlePid; }
-
-  void setSelected (bool selected) { mSelected = selected; }
-  void setAudioPid (int pid) { mAudioPid = pid; }
-  void setVideoPid (int pid) { mVideoPid = pid; }
-  void setSubtitlePid (int pid) { mSubtitlePid = pid; }
-
-private:
-  const int mSid;
-
-  int mAudioPid = 0;
-  int mVideoPid = 0;
-  int mSubtitlePid = 0;
-
-  bool mSelected = false;
-  };
-//}}}
-
-//{{{
 class cLoadSource {
 public:
   cLoadSource (string name) : mName(name) {}
@@ -1177,6 +1151,32 @@ public:
   //}}}
 
 private:
+  //{{{
+  class cService {
+  public:
+    cService (int sid, bool selected) : mSid(sid), mSelected(selected) {}
+
+    bool isSelected() { return mSelected; }
+    int getAudioPid() { return mAudioPid; }
+    int getVideoPid() { return mVideoPid; }
+    int getSubtitlePid() { return mSubtitlePid; }
+
+    void setSelected (bool selected) { mSelected = selected; }
+    void setAudioPid (int pid) { mAudioPid = pid; }
+    void setVideoPid (int pid) { mVideoPid = pid; }
+    void setSubtitlePid (int pid) { mSubtitlePid = pid; }
+
+  private:
+    const int mSid;
+
+    int mAudioPid = 0;
+    int mVideoPid = 0;
+    int mSubtitlePid = 0;
+
+    bool mSelected = false;
+    };
+  //}}}
+
   cPtsSong* mPtsSong = nullptr;
   iVideoPool* mVideoPool = nullptr;
 
@@ -1437,10 +1437,10 @@ private:
   };
 //}}}
 //{{{
-class cLoadDummy : public cLoadSource{
+class cLoadIdle : public cLoadSource{
 public:
-  cLoadDummy() : cLoadSource("dummy") {}
-  virtual ~cLoadDummy() {}
+  cLoadIdle() : cLoadSource("idle") {}
+  virtual ~cLoadIdle() {}
 
   virtual cSong* getSong() { return nullptr; }
   virtual iVideoPool* getVideoPool() { return nullptr; }
@@ -1450,6 +1450,7 @@ public:
     audioFrac = 0.f;
     videoFrac = 0.f;
     }
+
   virtual void getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize) {
     loadSize = 0;
     audioQueueSize = 0;
@@ -1464,7 +1465,6 @@ public:
   virtual bool skipEnd() { return false; }
   virtual bool skipBack (bool shift, bool control) { return false; }
   virtual bool skipForward (bool shift, bool control) { return false; };
-
   };
 //}}}
 //{{{
@@ -1633,12 +1633,15 @@ public:
 
 // public
 //{{{
-cLoader::cLoader() : mLoadSource (new cLoadDummy()) {
+cLoader::cLoader() {
 
   mLoadSources.push_back (new cLoadHls());
   mLoadSources.push_back (new cLoadTsFile());
   mLoadSources.push_back (new cLoadMp3AacFile());
   mLoadSources.push_back (new cLoadWavFile());
+
+  // create and use idle load
+  mLoadSource = new cLoadIdle();
   mLoadSources.push_back (mLoadSource);
   };
 //}}}
@@ -1690,6 +1693,7 @@ void cLoader::exit() {
 //}}}
 //{{{
 void cLoader::load (const vector<string>& params) {
+// not sure this is right yet, probably the actual load should be threaded, load test can be in gui task
 
   mLoadSource->exit();
 
