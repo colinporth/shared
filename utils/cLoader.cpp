@@ -63,7 +63,7 @@ public:
     }
   //}}}
   virtual void processLast (bool reuseFromFront) {}
-  virtual void stop() {}
+  virtual void exit() {}
 
 protected:
   //{{{
@@ -332,7 +332,7 @@ public:
     }
   //}}}
   //{{{
-  virtual void stop() {
+  virtual void exit() {
 
     if (mUseQueue) {
       mQueueExit = true;
@@ -530,6 +530,20 @@ public:
   virtual void getFracs (float& loadFrac, float& audioFrac, float& videoFrac) = 0;
   virtual void getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize) = 0;
 
+  //{{{
+  virtual void exit() {
+
+    mExit = true;
+
+    if (mSongPlayer)
+       mSongPlayer->exit();
+
+    while (mRunning) {
+      this_thread::sleep_for (100ms);
+      cLog::log (LOGINFO, mName + " - waiting to exit");
+      }
+    }
+  //}}}
   virtual bool load (const vector<string>& params) = 0;
 
   //{{{
@@ -561,21 +575,6 @@ public:
     getSong()->incPlaySec (shift ? 300 : control ? 10 : 1, true);
     return true;
     };
-  //}}}
-
-  //{{{
-  virtual void stopAndWait() {
-
-    mExit = true;
-
-    if (mSongPlayer)
-       mSongPlayer->stop();
-
-    while (mRunning) {
-      this_thread::sleep_for (100ms);
-      cLog::log (LOGINFO, mName + " - waiting to exit");
-      }
-    }
   //}}}
 
 protected:
@@ -853,8 +852,7 @@ public:
 
     //{{{  stop and delete resources
     if (mSongPlayer)
-      while (mSongPlayer->getRunning())
-        this_thread::sleep_for (100ms);
+      mSongPlayer->wait();
     delete mSongPlayer;
 
     auto tempVideoPool = mVideoPool;
@@ -863,7 +861,7 @@ public:
 
     for (auto parser : mPidParsers) {
       //{{{  stop and delete pidParsers
-      parser.second->stop();
+      parser.second->exit();
       delete parser.second;
       }
       //}}}
@@ -1148,13 +1146,12 @@ public:
 
       //{{{  delete resources
       if (mSongPlayer)
-        while (mSongPlayer->getRunning())
-          this_thread::sleep_for (100ms);
+        mSongPlayer->wait();
       delete mSongPlayer;
 
       for (auto parser : mPidParsers) {
         //{{{  stop and delete pidParsers
-        parser.second->stop();
+        parser.second->exit();
         delete parser.second;
         }
         //}}}
@@ -1288,8 +1285,7 @@ public:
 
       //{{{  delete resources
       if (mSongPlayer)
-        while (mSongPlayer->getRunning())
-          this_thread::sleep_for (100ms);
+        mSongPlayer->wait();
       delete mSongPlayer;
 
       auto tempSong = mSong;
@@ -1418,8 +1414,7 @@ public:
 
       //{{{  delete resources
       if (mSongPlayer)
-        while (mSongPlayer->getRunning())
-          this_thread::sleep_for (100ms);
+        mSongPlayer->wait();
       delete mSongPlayer;
 
       auto tempSong = mSong;
@@ -1462,6 +1457,7 @@ public:
     }
 
   virtual bool load (const vector<string>& filename) { return true; }
+  virtual void exit() {}
 
   virtual bool togglePlaying() { return false; }
   virtual bool skipBegin() { return false; }
@@ -1469,13 +1465,10 @@ public:
   virtual bool skipBack (bool shift, bool control) { return false; }
   virtual bool skipForward (bool shift, bool control) { return false; };
 
-  virtual void stopAndWait() {}
   };
 //}}}
 //{{{
 //void cLoader::icycast (const string& url) {
-
-  //stopAndWait();
 
   //thread ([=]() {
     //// lambda
@@ -1590,8 +1583,6 @@ public:
         //);
 
       //cLog::log (LOGINFO, "icyThread");
-      //if (mSongPlayer)
-        //mSongPlayer->stopAndWait();
       //}
 
     //{{{  delete resources
@@ -1693,14 +1684,14 @@ void cLoader::getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize)
 
 // load
 //{{{
-void cLoader::stopAndWait() {
-  mLoadSource->stopAndWait();
+void cLoader::exit() {
+  mLoadSource->exit();
   }
 //}}}
 //{{{
 void cLoader::load (const vector<string>& params) {
 
-  stopAndWait();
+  mLoadSource->exit();
 
   thread ([&]() {
     // lambda

@@ -7,8 +7,8 @@ public:
   cSongPlayer (cSong* song, bool streaming);
   ~cSongPlayer() {}
 
-  bool getRunning() { return mRunning; }
-  void stop() { mExit = true; }
+  void exit() { mExit = true; }
+  void wait();
 
 private:
   bool mExit = false;

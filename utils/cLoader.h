@@ -23,8 +23,8 @@ public:
   void getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize);
 
   // load
-  void stopAndWait();
   void load (const std::vector<std::string>& params);
+  void exit();
 
   // actions
   bool togglePlaying();

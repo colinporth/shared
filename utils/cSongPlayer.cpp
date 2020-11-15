@@ -130,3 +130,8 @@ using namespace chrono;
     playerThread.detach();
     }
 #endif
+
+void cSongPlayer::wait() {
+  while (mRunning)
+    this_thread::sleep_for (100ms);
+  }
