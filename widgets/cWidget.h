@@ -130,21 +130,9 @@ public:
   //}}}
 
   virtual void onProx (const cPointF& p) {}
-  //{{{
-  virtual void onDown (const cPointF& p) {
-
-    if (!mPressedCount)
-      mOn = true;
-    mPressedCount++;
-    }
-  //}}}
+  virtual void onDown (const cPointF& p) { mPressedCount++; }
   virtual void onMove (const cPointF& p, const cPointF& inc) {}
-  //{{{
-  virtual void onUp() {
-    mPressedCount = 0;
-    mOn = false;
-    }
-  //}}}
+  virtual void onUp() { mPressedCount = 0; }
   virtual void onWheel (float delta) {}
 
   //{{{

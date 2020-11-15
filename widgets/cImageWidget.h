@@ -1,4 +1,4 @@
-// cBmpWidget.h
+// cImageWidget.h
 //{{{  includes
 #pragma once
 
@@ -13,13 +13,12 @@ extern "C" {
 
 class cImageWidget : public cWidget {
 public:
-  cImageWidget (const uint8_t* bmp, int bmpSize, float width, float height,
+  cImageWidget (const uint8_t* image, int imageSize,
+                float width, float height,
                 std::function<void (cImageWidget* widget)> hitCallback = [](cImageWidget*) {})
       : cWidget(width, height), mHitCallback(hitCallback) {
-
    stbi_set_flip_vertically_on_load (true);
-   mPic  = stbi_load_from_memory ((uint8_t* const*)bmp, bmpSize, &mPicWidth, &mPicHeight, &mPicComponents, 4);
-
+   mPiccy = stbi_load_from_memory ((uint8_t* const*)image, imageSize, &mPicWidth, &mPicHeight, &mPicComponents, 4);
    //auto ptr = mPic;
    //for (int i = 0; i < mPicWidth * mPicHeight; i++)
    //  ptr[(i*4) + 3] = 0x80;
@@ -27,43 +26,36 @@ public:
 
   virtual ~cImageWidget() {}
 
-  //{{{
   virtual void onDown (const cPointF& p) {
-
     cWidget::onDown (p);
     mHitCallback (this);
     }
-  //}}}
-  //{{{
-  virtual void onDraw (iDraw* draw) {
 
+  virtual void onDraw (iDraw* draw) {
     cVg* vg = draw->getVg();
 
-    mScale = isOn() ? 0.7f : mSelected ? 0.85f : 1.0f;
-    uint16_t width = int((mPixSize.x-1) * mScale);
-    uint16_t height = int((mPixSize.y -1) * mScale);
-
+    // createImage firstTime
     if (mImage == -1)
-      mImage = vg->createImageRGBA (mPicWidth, mPicHeight, 0, mPic);
-      //mImage = vg->createImageRGBA (mPicWidth, mPicHeight, cVg::eImageGenerateMipmaps, mPic);
+      mImage = vg->createImageRGBA (mPicWidth, mPicHeight, 0, mPiccy);  // cVg::eImageGenerateMipmaps, mPiccy);
 
-    float x = mPixOrg.x + (mPixSize.x - width)/2.f;
-    float y = mPixOrg.y + (mPixSize.y - height)/2.f;
+    // calc draw pos,size
+    mScale = isPressed() ? 0.7f : 1.0f;
+    cPointF drawSize = (mPixSize - kBorder) * mScale;
+    cPointF drawCentre = mPixOrg + (mPixSize - drawSize)/2.f;
 
-    auto imgPaint = vg->setImagePattern (cPointF(x, y), cPointF(width, height), 0.f, mImage, 1.0f);
+    // draw it
+    auto imgPaint = vg->setImagePattern (drawCentre, drawSize, 0.f, mImage, 1.0f);
     vg->beginPath();
-    vg->rect (cPointF(x, y), cPointF(width, height));
+    vg->rect (drawCentre, drawSize);
     vg->setFillPaint (imgPaint);
     vg->fill();
     }
-  //}}}
 
 private:
+  const cPointF kBorder = { 1.f, 1.f };
   std::function <void (cImageWidget* widget)> mHitCallback;
 
-  bool mSelected = false;
-
-  uint8_t* mPic = nullptr;
+  const uint8_t* mPiccy = nullptr;
   int mPicWidth = 0;
   int mPicHeight = 0;
   int mPicComponents = 0;
