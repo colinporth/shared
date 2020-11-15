@@ -36,5 +36,6 @@ public:
 
 private:
   cLoadSource* mLoadSource = nullptr;
+  cLoadSource* mLoadIdle = nullptr;
   std::vector <cLoadSource*> mLoadSources;
   };
