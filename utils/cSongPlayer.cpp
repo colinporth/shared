@@ -5,6 +5,8 @@
 
 #include "cSongPlayer.h"
 
+#include <thread>
+
 #ifdef _WIN32
   #include "../audio/audioWASAPI.h"
   #include "../audio/cWinAudio16.h"
@@ -26,7 +28,7 @@ using namespace chrono;
 
 #ifdef _WIN32
   cSongPlayer::cSongPlayer (cSong* song, bool streaming) {
-    mPlayerThread = thread ([=]() {
+    thread playerThread = thread ([=]() {
       // player lambda
       cLog::setThreadName ("play");
       SetThreadPriority (GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
@@ -78,12 +80,14 @@ using namespace chrono;
         device->stop();
         }
       //}}}
+      mRunning = false;
       cLog::log (LOGINFO, "exit");
       });
+    playerThread.detach();
     }
 #else
   cSongPlayer::cSongPlayer (cSong* song, bool streaming) {
-    mPlayerThread = thread ([=]() {
+    thread playerThread = thread ([=]() {
       // player lambda
       cLog::setThreadName ("play");
       float silence [2048*2] = { 0.f };
@@ -115,21 +119,14 @@ using namespace chrono;
           break;
         }
       //}}}
+      mRunning = false;
       cLog::log (LOGINFO, "exit");
       });
 
     // raise to max prioritu
     sched_param sch_params;
     sch_params.sched_priority = sched_get_priority_max (SCHED_RR);
-    pthread_setschedparam (mPlayerThread.native_handle(), SCHED_RR, &sch_params);
+    pthread_setschedparam (playerThread.native_handle(), SCHED_RR, &sch_params);
+    playerThread.detach();
     }
 #endif
-
-void cSongPlayer::wait() {
-  mPlayerThread.join();
-  }
-
-void cSongPlayer::stopAndWait() {
-  mExit = true;
-  wait();
-  }

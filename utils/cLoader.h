@@ -19,14 +19,12 @@ public:
   // gets
   cSong* getSong();
   iVideoPool* getVideoPool();
-
   void getFracs (float& loadFrac, float& audioFrac, float& videoFrac);
   void getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize);
 
-  bool getRunning() { return mRunning; }
-
-  // loaders
-  void load (const std::vector<std::string>& strings);
+  // load
+  void stopAndWait();
+  void load (const std::vector<std::string>& params);
 
   // actions
   bool togglePlaying();
@@ -35,11 +33,8 @@ public:
   bool skipBack (bool shift, bool control);
   bool skipForward (bool shift, bool control);
 
-  void stopAndWait();
 
 private:
-  bool mRunning = false;
-
   cLoadSource* mLoadSource = nullptr;
   std::vector <cLoadSource*> mLoadSources;
   };

@@ -1,6 +1,5 @@
 // cSongPlayer.h
 #pragma once
-#include <thread>
 class cSong;
 
 class cSongPlayer {
@@ -8,11 +7,10 @@ public:
   cSongPlayer (cSong* song, bool streaming);
   ~cSongPlayer() {}
 
-  // actions
-  void wait();
-  void stopAndWait();
+  bool getRunning() { return mRunning; }
+  void stop() { mExit = true; }
 
 private:
   bool mExit = false;
-  std::thread mPlayerThread;
+  bool mRunning = true;
   };
