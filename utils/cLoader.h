@@ -5,8 +5,6 @@
 #include <cstring>
 #include <string>
 #include <vector>
-#include <map>
-#include <thread>
 
 class cLoadSource;
 class cSong;
@@ -23,6 +21,7 @@ public:
 
   void getFracs (float& loadFrac, float& audioFrac, float& videoFrac);
   void getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize);
+
   bool getRunning() { return mRunning; }
   bool getShowGraphics() { return mShowGraphics; }
 
