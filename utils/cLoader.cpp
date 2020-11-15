@@ -581,6 +581,10 @@ protected:
   bool mExit = false;
   bool mRunning = false;
 
+  eAudioFrameType mAudioFrameType = eAudioFrameType::eUnknown;
+  int mNumChannels = 0;
+  int mSampleRate = 0;
+
   float mLoadFrac = 0.f;
   cSongPlayer* mSongPlayer = nullptr;
   };
@@ -665,6 +669,10 @@ public:
   virtual bool accept (const vector<string>& params) {
   //  parse params to accept load
 
+    mAudioFrameType = eAudioFrameType::eAacAdts;
+    mNumChannels = 2;
+    mSampleRate = 48000;
+
     for (auto& param : params) {
       if (param == "bbc1") mChannel = "bbc_one_hd";
       else if (param == "bbc2") mChannel = "bbc_two_hd";
@@ -702,7 +710,7 @@ public:
 
     mExit = false;
     mRunning = true;
-    mHlsSong = new cHlsSong (eAudioFrameType::eAacAdts, 2, 48000,
+    mHlsSong = new cHlsSong (eAudioFrameType::eAacAdts, mNumChannels, mSampleRate,
                              (mAudioRate < 128000) ? 2048 : 1024,
                              (mAudioRate < 128000) ? 3840 : 1920,
                              mRadio ? 0 : 1000,
@@ -722,7 +730,7 @@ public:
         switch (type) {
           case 15: // aacAdts
             mAudioPid  = pid;
-            audioDecoder = createAudioDecoder (eAudioFrameType::eAacAdts);
+            audioDecoder = createAudioDecoder (mAudioFrameType);
             mPidParsers.insert (
               map<int,cPidParser*>::value_type (pid,
                 new cAudioPesParser (pid, audioDecoder, true, addAudioFrameCallback)));
@@ -979,10 +987,6 @@ protected:
 
   string mFilename;
   int64_t mFileSize = 0;
-
-  eAudioFrameType mAudioFrameType = eAudioFrameType::eUnknown;
-  int mNumChannels = 0;
-  int mSampleRate = 0;
   };
 //}}}
 //{{{
