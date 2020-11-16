@@ -9,8 +9,14 @@
 class cContainer : public cWidget {
 public:
   cContainer() : cWidget() { mColour = kBlackF; }
-  cContainer (uint16_t widthInPixels, uint16_t heightInPixels) : cWidget (kBlackF, widthInPixels, heightInPixels) {}
-  cContainer (float widthInBoxes, float heightInBoxes) : cWidget (kBlackF, widthInBoxes, heightInBoxes) {}
+  //{{{
+  cContainer (uint16_t widthInPixels, uint16_t heightInPixels, const std::string& name = "cContainer")
+    : cWidget (kBlackF, widthInPixels, heightInPixels, name) {}
+  //}}}
+  //{{{
+  cContainer (float widthInBoxes, float heightInBoxes, const std::string& name = "cContainer") 
+    : cWidget (kBlackF, widthInBoxes, heightInBoxes, name) {}
+  //}}}
   virtual ~cContainer() {}
 
   //{{{

@@ -18,29 +18,34 @@ public:
 
   cWidget() {}
   //{{{
-  cWidget (float widthInBoxes)
-    : mLayoutSize(widthInBoxes * getBoxHeight(), getBoxHeight()),
+  cWidget (float widthInBoxes, const std::string& name)
+    : mName(name),
+      mLayoutSize(widthInBoxes * getBoxHeight(), getBoxHeight()),
       mPixSize(widthInBoxes * getBoxHeight(), getBoxHeight()) {}
   //}}}
   //{{{
-  cWidget (float widthInBoxes, float heightInBoxes)
-    : mLayoutSize(widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()),
-      mPixSize(widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()) {}
-  //}}}
-  //{{{
-  cWidget (const sColourF& colour, float widthInBoxes, float heightInBoxes)
-    : mColour(colour),
+  cWidget (float widthInBoxes, float heightInBoxes, const std::string& name)
+    : mName(name),
       mLayoutSize(widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()),
       mPixSize(widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()) {}
   //}}}
   //{{{
-  cWidget (uint16_t widthInPixels, uint16_t heightInPixels)
-    : mLayoutSize(widthInPixels, heightInPixels),
+  cWidget (const sColourF& colour, float widthInBoxes, float heightInBoxes, const std::string& name)
+    : mName(name),
+      mColour(colour),
+      mLayoutSize(widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()),
+      mPixSize(widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()) {}
+  //}}}
+  //{{{
+  cWidget (uint16_t widthInPixels, uint16_t heightInPixels, const std::string& name)
+    : mName(name),
+      mLayoutSize(widthInPixels, heightInPixels),
       mPixSize(widthInPixels, heightInPixels) {}
   //}}}
   //{{{
-  cWidget (const sColourF& colour, uint16_t widthInPixels, uint16_t heightInPixels)
-    : mColour(colour),
+  cWidget (const sColourF& colour, uint16_t widthInPixels, uint16_t heightInPixels, const std::string& name)
+    : mName(name),
+      mColour(colour),
       mLayoutSize(widthInPixels, heightInPixels),
       mPixSize(widthInPixels, heightInPixels) {}
   //}}}
@@ -56,55 +61,55 @@ public:
   cPointF getPixSize() { return mPixSize; }
   cPointF getPixCentre() { return mPixSize / 2.f; }
 
-  bool isOn() { return mOn; }
-  bool isVisible() { return mVisible; }
+  virtual bool isOn() { return mOn; }
+  virtual bool isVisible() { return mVisible; }
 
-  bool isPressed() { return mPressedCount > 0; }
-  int getPressedCount() { return mPressedCount; }
+  virtual bool isPressed() { return mPressedCount > 0; }
+  virtual int getPressedCount() { return mPressedCount; }
 
   //{{{  sets
   //{{{
-  void setPixOrg (float x, float y) {
+  virtual void setPixOrg (float x, float y) {
     mPixOrg.x = x;
     mPixOrg.y = y;
     }
   //}}}
   //{{{
-  void setPixOrg (const cPointF& p) {
+  virtual void setPixOrg (const cPointF& p) {
     mPixOrg = p;
     }
   //}}}
 
   //{{{
-  void setPixWidth (float widthInPixels) {
+  virtual void setPixWidth (float widthInPixels) {
     mPixSize.x = widthInPixels;
     }
   //}}}
   //{{{
-  void setPixHeight (float heightInPixels) {
+  virtual void setPixHeight (float heightInPixels) {
     mPixSize.y = heightInPixels;
     }
   //}}}
   //{{{
-  void setPixSize (float widthInPixels, float heightInPixels) {
+  virtual void setPixSize (float widthInPixels, float heightInPixels) {
     mPixSize.x = widthInPixels;
     mPixSize.y = heightInPixels;
     }
   //}}}
   //{{{
-  void setPixSize (const cPointF& size) {
+  virtual void setPixSize (const cPointF& size) {
     mPixSize = size;
     }
   //}}}
 
-  void setColour (const sColourF& colour) { mColour = colour; }
-  void setParent (cContainer* parent) { mParent = parent; }
+  virtual void setColour (const sColourF& colour) { mColour = colour; }
+  virtual void setParent (cContainer* parent) { mParent = parent; }
 
-  void setOn (bool on) { mOn = on; }
-  void toggleOn() { mOn = !mOn; }
+  virtual void setOn (bool on) { mOn = on; }
+  virtual void toggleOn() { mOn = !mOn; }
 
-  void setVisible (bool visible) { mVisible = visible; }
-  void toggleVisible() { mVisible = !mVisible; }
+  virtual void setVisible (bool visible) { mVisible = visible; }
+  virtual void toggleVisible() { mVisible = !mVisible; }
   //}}}
 
   //{{{
@@ -142,6 +147,7 @@ public:
   //}}}
 
 protected:
+  std::string mName;
   sColourF mColour = kLightGreyF;
   const cPointF mLayoutSize = { 0.f,0.f };
 

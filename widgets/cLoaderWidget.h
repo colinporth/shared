@@ -10,8 +10,10 @@ constexpr bool kVideoPoolDebug = true;
 
 class cLoaderWidget : public cWidget {
 public:
-  cLoaderWidget (cLoader* loader, iClockTime* clockTime, cPointF size)
-    : cWidget (kBlackF, size.x, size.y), mLoader(loader), mClockTime(clockTime) {}
+  //{{{
+  cLoaderWidget (cLoader* loader, iClockTime* clockTime, cPointF size, const std::string& name = "cLoaderWidget")
+    : cWidget (kBlackF, size.x, size.y, name), mLoader(loader), mClockTime(clockTime) {}
+  //}}}
   virtual ~cLoaderWidget() {}
 
   void setShowOverview (bool showOverview) { mShowOverview = showOverview; }
@@ -103,7 +105,7 @@ public:
     mRangeHeight = 8.f;
     mFreqHeight = mPixSize.y - mRangeHeight - mWaveHeight - mOverviewHeight;
 
-    mDstFreqTop = 0;
+    mDstFreqTop = 0.f;
     mDstWaveTop = mDstFreqTop + mFreqHeight;
     mDstRangeTop = mDstWaveTop + mWaveHeight;
     mDstOverviewTop = mDstRangeTop + mRangeHeight;
@@ -111,9 +113,7 @@ public:
     mDstWaveCentre = mDstWaveTop + (mWaveHeight/2.f);
     mDstOverviewCentre = mDstOverviewTop + (mOverviewHeight/2.f);
     //}}}
-
     cVg* vg = draw->getVg();
-
     cSong* song = mLoader->getSong();
     iVideoPool* videoPool = mLoader->getVideoPool();
 

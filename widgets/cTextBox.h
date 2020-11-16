@@ -7,13 +7,14 @@
 
 class cTextBox : public cWidget {
 public:
-  cTextBox (std::string& text, float width) : cWidget (width), mText(text) {}
-  cTextBox (std::string& text, const sColourF& colour, uint16_t width, uint16_t height) :
-    cWidget (colour, width, height), mText(text) {}
+  cTextBox (std::string& text, float width, const std::string name = "cTextBox")
+    : cWidget (width, name), mText(text) {}
+  cTextBox (std::string& text, const sColourF& colour, uint16_t width, uint16_t height, const std::string name = "cTextBox") :
+    cWidget (colour, width, height, name), mText(text) {}
   virtual ~cTextBox() {}
 
-  void setText (std::string& text) { mText = text; }
-  void setTextColour (const sColourF& colour) { mTextColour = colour; }
+  virtual void setText (std::string& text) { mText = text; }
+  virtual void setTextColour (const sColourF& colour) { mTextColour = colour; }
 
   //{{{
   void onDraw (iDraw* draw) {
