@@ -55,7 +55,7 @@ protected:
   cRootContainer* initialise (const std::string& title, int width, int height, uint8_t* font, int fontSize);
 
   cWidget* add (cWidget* widget) { return mRootContainer->add (widget); }
-  cWidget* addAt (cWidget* widget, const cPointF& p) { return mRootContainer->addAt (widget, p); }
+  cWidget* addAt (cWidget* widget, const cPointF& point) { return mRootContainer->addAt (widget, point); }
   cWidget* addTopLeft (cWidget* widget) { return mRootContainer->addTopLeft (widget); }
   cWidget* addTopRight (cWidget* widget) { return mRootContainer->addTopRight (widget); }
   cWidget* addBottomLeft (cWidget* widget) { return mRootContainer->addBottomLeft (widget); }
@@ -93,8 +93,8 @@ private:
   void draw (bool clear);
   void drawSpinner (const cPointF& centre, float inner, float outer, float frac,
                     const sColourF& colour1, const sColourF& colour2);
-  void drawEyes (const cPointF& p, const cPointF& size, const cPointF& mousePos, float t);
-  void drawLines (const cPointF& p, const cPointF& size, float t);
+  void drawEyes (const cPointF& point, const cPointF& size, const cPointF& mousePos, float t);
+  void drawLines (const cPointF& point, const cPointF& size, float t);
 
   //{{{  static glfw callbacks
   static void glfWindowPos (GLFWwindow* window, int xsize, int ysize);

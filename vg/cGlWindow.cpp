@@ -44,48 +44,48 @@ system_clock::time_point cGlWindow::getNowDayLight() {
 
 // iDraw
 //{{{
-void cGlWindow::drawRect (const sColourF& colour, const cPointF& p, const cPointF& size) {
+void cGlWindow::drawRect (const sColourF& colour, const cPointF& point, const cPointF& size) {
 
   setFillColour (colour);
 
   beginPath();
-  rect (p, size);
+  rect (point, size);
   triangleFill();
   }
 //}}}
 //{{{
-float cGlWindow::drawText (const sColourF& colour, float fontHeight, string str, const cPointF& p, const cPointF& size) {
+float cGlWindow::drawText (const sColourF& colour, float fontHeight, string str, const cPointF& point, const cPointF& size) {
 
   setFontSize (fontHeight);
   setTextAlign (cVg::eAlignLeft | cVg::eAlignTop);
   setFillColour (sColourF(colour));
-  text (p + cPointF (3.f, 1.f), str);
+  text (point + cPointF (3.f, 1.f), str);
 
   // get width
   float bounds[4];
-  return getTextBounds (p + cPointF(3.f, 1.f), str, bounds);
+  return getTextBounds (point + cPointF(3.f, 1.f), str, bounds);
   }
 //}}}
 //{{{
-float cGlWindow::drawTextRight (const sColourF& colour, float fontHeight, string str, const cPointF& p, const cPointF& size) {
+float cGlWindow::drawTextRight (const sColourF& colour, float fontHeight, string str, const cPointF& point, const cPointF& size) {
 
   setFontSize (fontHeight);
   setTextAlign (cVg::eAlignRight | cVg::eAlignTop);
   setFillColour (sColourF(colour));
-  text (p + cPointF (0.f, 1.f), str);
+  text (point + cPointF (0.f, 1.f), str);
 
   // get width
   float bounds[4];
-  return getTextBounds (p + cPointF (0.f,1.f), str, bounds);
+  return getTextBounds (point + cPointF (0.f,1.f), str, bounds);
   }
 //}}}
 //{{{
-void cGlWindow::drawEllipseSolid (const sColourF& colour, const cPointF& p, const cPointF& radius) {
+void cGlWindow::drawEllipseSolid (const sColourF& colour, const cPointF& point, const cPointF& radius) {
 
   setFillColour (sColourF(colour));
 
   beginPath();
-  ellipse (p, radius);
+  ellipse (point, radius);
   fill();
   }
 //}}}
@@ -293,25 +293,25 @@ void cGlWindow::drawSpinner (const cPointF& centre, float inner, float outer, fl
   }
 //}}}
 //{{{
-void cGlWindow::drawEyes (const cPointF& p, const cPointF& size, const cPointF& mousePos, float t) {
+void cGlWindow::drawEyes (const cPointF& point, const cPointF& size, const cPointF& mousePos, float t) {
 
   cPointF eyeSize (size.x * 0.23f, size.y * 0.5f);
-  cPointF left = p + eyeSize;
-  cPointF right = p + cPointF (size.x - eyeSize.x, eyeSize.y);
+  cPointF left = point + eyeSize;
+  cPointF right = point + cPointF (size.x - eyeSize.x, eyeSize.y);
   float br = (eyeSize.x < eyeSize.y ? eyeSize.x : eyeSize.y) * 0.5f;
   float blink = 1 - powf (sinf(t*0.5f), 200) * 0.8f;
 
   beginPath();
   ellipse (left + cPointF(3.0f,16.0f), eyeSize);
   ellipse (right + cPointF(3.0f,16.0f), eyeSize);
-  setFillPaint (setLinearGradient (p + cPointF(0.f,size.y *0.5f), p + cPointF(size.x *0.1f, size.y),
+  setFillPaint (setLinearGradient (point + cPointF(0.f,size.y *0.5f), point + cPointF(size.x *0.1f, size.y),
                                    sColourF(0.f,0.f,0.f,0.125f), sColourF(0.f,0.f,0.f,0.0625f)));
   fill();
 
   beginPath();
   ellipse (left, eyeSize);
   ellipse (right, eyeSize);
-  setFillPaint (setLinearGradient (p + cPointF(0.f,size.y * 0.25f), p + cPointF(size.x * 0.1f, size.y),
+  setFillPaint (setLinearGradient (point + cPointF(0.f,size.y * 0.25f), point + cPointF(size.x * 0.1f, size.y),
                                    sColourF(0.9f,0.9f,0.9f,1.f), kGreyF));
   fill();
 
@@ -355,7 +355,7 @@ void cGlWindow::drawEyes (const cPointF& p, const cPointF& size, const cPointF& 
   }
 //}}}
 //{{{
-void cGlWindow::drawLines (const cPointF& p, const cPointF& size, float t) {
+void cGlWindow::drawLines (const cPointF& point, const cPointF& size, float t) {
 
   float pad = 5.0f;
   float s = size.x/9.0f - pad*2;
@@ -375,7 +375,7 @@ void cGlWindow::drawLines (const cPointF& p, const cPointF& size, float t) {
 
   for (int i = 0; i < 3; i++) {
     for (int j = 0; j < 3; j++) {
-      cPointF f = p + cPointF (s*0.5f + (i*3+j)/9.0f*size.x + pad,  s*0.5f + pad);
+      cPointF f = point + cPointF (s*0.5f + (i*3+j)/9.0f*size.x + pad,  s*0.5f + pad);
 
       setLineCap (caps[i]);
       setLineJoin (joins[j]);

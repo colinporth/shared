@@ -8,10 +8,9 @@
 
 class cContainer : public cWidget {
 public:
-  cContainer() : cWidget() { mColour = kBlackF; }
   //{{{
-  cContainer (uint16_t widthInPixels, uint16_t heightInPixels, const std::string& debugName = "cContainer")
-    : cWidget (kBlackF, widthInPixels, heightInPixels, debugName) {}
+  cContainer (uint16_t widthInPix, uint16_t heightInPix, const std::string& debugName = "cContainer")
+    : cWidget (kBlackF, widthInPix, heightInPix, debugName) {}
   //}}}
   //{{{
   cContainer (float widthInBoxes, float heightInBoxes, const std::string& debugName = "cContainer")
@@ -94,9 +93,8 @@ public:
       if (mSubWidgets.empty())
         return nullptr;
       else {
-        int i = (int)mSubWidgets.size();
-        while (--i >= 0) {
-          cWidget* pickedWidget = mSubWidgets[i]->isPicked (point);
+        for (auto it = mSubWidgets.rbegin(); it != mSubWidgets.rend(); ++it) {
+          cWidget* pickedWidget = (*it)->isPicked (point);
           if (pickedWidget)
             return pickedWidget;
           }
@@ -136,5 +134,5 @@ protected:
     }
   //}}}
 
-  std::vector<cWidget*> mSubWidgets;
+  std::vector <cWidget*> mSubWidgets;
   };

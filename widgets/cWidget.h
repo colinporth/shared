@@ -16,7 +16,6 @@ public:
   static constexpr uint16_t getBigFontHeight()   { return 40; }
   static constexpr float getPixel() { return 1.f / getBoxHeight(); }
 
-  cWidget() {}
   //{{{
   cWidget (float widthInBoxes, const std::string& debugName)
     : mDebugName(debugName),
@@ -37,21 +36,17 @@ public:
       mPixSize(widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()) {}
   //}}}
   //{{{
-  cWidget (uint16_t widthInPixels, uint16_t heightInPixels, const std::string& debugName)
-    : mDebugName(debugName),
-      mLayoutSize(widthInPixels, heightInPixels),
-      mPixSize(widthInPixels, heightInPixels) {}
+  cWidget (uint16_t widthInPix, uint16_t heightInPix, const std::string& debugName)
+    : mDebugName(debugName), mLayoutSize(widthInPix, heightInPix), mPixSize(widthInPix, heightInPix) {}
   //}}}
   //{{{
-  cWidget (const sColourF& colour, uint16_t widthInPixels, uint16_t heightInPixels, const std::string& debugName)
-    : mDebugName(debugName),
-      mColour(colour),
-      mLayoutSize(widthInPixels, heightInPixels),
-      mPixSize(widthInPixels, heightInPixels) {}
+  cWidget (const sColourF& colour, uint16_t widthInPix, uint16_t heightInPix, const std::string& debugName)
+    : mDebugName(debugName), mColour(colour),
+      mLayoutSize(widthInPix, heightInPix), mPixSize(widthInPix, heightInPix) {}
   //}}}
   virtual ~cWidget() {}
 
-  // gets
+  //{{{  gets
   float getPixX() { return mPixOrg.x; }
   float getPixY() { return mPixOrg.y; }
   cPointF getPixOrg() { return mPixOrg; }
@@ -66,51 +61,6 @@ public:
 
   virtual bool isPressed() { return mPressedCount > 0; }
   virtual int getPressedCount() { return mPressedCount; }
-  virtual std::string getDebugName() { return mDebugName; }
-  //{{{  sets
-  //{{{
-  virtual void setPixOrg (float x, float y) {
-    mPixOrg.x = x;
-    mPixOrg.y = y;
-    }
-  //}}}
-  //{{{
-  virtual void setPixOrg (const cPointF& point) {
-    mPixOrg = point;
-    }
-  //}}}
-
-  //{{{
-  virtual void setPixWidth (float widthInPixels) {
-    mPixSize.x = widthInPixels;
-    }
-  //}}}
-  //{{{
-  virtual void setPixHeight (float heightInPixels) {
-    mPixSize.y = heightInPixels;
-    }
-  //}}}
-  //{{{
-  virtual void setPixSize (float widthInPixels, float heightInPixels) {
-    mPixSize.x = widthInPixels;
-    mPixSize.y = heightInPixels;
-    }
-  //}}}
-  //{{{
-  virtual void setPixSize (const cPointF& size) {
-    mPixSize = size;
-    }
-  //}}}
-
-  virtual void setColour (const sColourF& colour) { mColour = colour; }
-  virtual void setParent (cContainer* parent) { mParent = parent; }
-
-  virtual void setOn (bool on) { mOn = on; }
-  virtual void toggleOn() { mOn = !mOn; }
-
-  virtual void setVisible (bool visible) { mVisible = visible; }
-  virtual void toggleVisible() { mVisible = !mVisible; }
-  //}}}
 
   //{{{
   virtual bool isWithin (const cPointF& point) {
@@ -126,6 +76,27 @@ public:
 
     return (mVisible && isWithin (point)) ? this : nullptr;
     }
+  //}}}
+
+  virtual std::string getDebugName() { return mDebugName; }
+  //}}}
+  //{{{  sets
+  virtual void setPixOrg (const cPointF& point) { mPixOrg = point; }
+  virtual void setPixOrg (float x, float y) { mPixOrg = { x,y }; }
+
+  virtual void setPixSize (const cPointF& size) { mPixSize = size; }
+  virtual void setPixSize (float widthInPix, float heightInPix) { mPixSize = {widthInPix, heightInPix}; }
+  virtual void setPixWidth (float widthInPix) { mPixSize.x = widthInPix; }
+  virtual void setPixHeight (float heightInPix) { mPixSize.y = heightInPix; }
+
+  virtual void setColour (const sColourF& colour) { mColour = colour; }
+  virtual void setParent (cContainer* parent) { mParent = parent; }
+
+  virtual void setOn (bool on) { mOn = on; }
+  virtual void toggleOn() { mOn = !mOn; }
+
+  virtual void setVisible (bool visible) { mVisible = visible; }
+  virtual void toggleVisible() { mVisible = !mVisible; }
   //}}}
   //{{{
   virtual void layout (const cPointF& size) {
@@ -148,6 +119,7 @@ public:
 
 protected:
   std::string mDebugName;
+
   sColourF mColour = kLightGreyF;
   const cPointF mLayoutSize = { 0.f,0.f };
 
