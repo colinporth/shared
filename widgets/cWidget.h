@@ -10,12 +10,10 @@ class cContainer;
 
 class cWidget {
 public:
-  static constexpr uint16_t kSmallFontHeight = 16;
-  static constexpr uint16_t kFontHeight = 18;
-  static constexpr uint16_t kBigFontHeight = 40;
-
-  static constexpr uint16_t kBoxHeight = 20;
-  static constexpr float kPixel =  1.f / kBoxHeight;
+  static constexpr float kBoxHeight = 20.f;
+  static constexpr float kSmallFontHeight = 16.f;
+  static constexpr float kFontHeight = 18.f;
+  static constexpr float kBigFontHeight = 40.f;
 
   //{{{
   cWidget (float widthInBoxes, const std::string& debugName)
@@ -119,15 +117,13 @@ public:
   //}}}
 
 protected:
-  std::string mDebugName;
-
+  const std::string mDebugName;
   sColourF mColour = kLightGreyF;
   const cPointF mLayoutSize = { 0.f,0.f };
-
-  cContainer* mParent = nullptr;
   cPointF mPixOrg = { 0.f,0.f };
   cPointF mPixSize = { 0.f,0.f };
 
+  cContainer* mParent = nullptr;
   bool mVisible = true;
   bool mOn = false;
 

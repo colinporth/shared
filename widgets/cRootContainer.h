@@ -8,7 +8,7 @@
 class cRootContainer : public cContainer {
 public:
   //{{{
-  cRootContainer (uint16_t width, uint16_t height, const std::string& name = "cRootContainer") 
+  cRootContainer (uint16_t width, uint16_t height, const std::string& name = "cRootContainer")
     : cContainer(width, height, name) {}
   //}}}
   virtual ~cRootContainer() {}
@@ -59,6 +59,7 @@ public:
   //{{{
   virtual void onDraw (iDraw* draw) {
 
+    // turn green if we ever turn on
     if (mOn)
       draw->drawRect (kDarkGreenF, mPixOrg, mPixSize);
 

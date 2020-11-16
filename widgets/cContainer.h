@@ -122,7 +122,7 @@ public:
     }
   //}}}
 
-protected:
+private:
   //{{{
   void adjustWidthHeight (cWidget* widget) {
 
