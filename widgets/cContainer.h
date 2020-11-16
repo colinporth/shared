@@ -88,15 +88,15 @@ public:
   //}}}
 
   //{{{
-  virtual cWidget* isPicked (const cPointF& p) {
+  virtual cWidget* isPicked (const cPointF& point) {
 
-    if (cWidget::isPicked (p)) {
+    if (cWidget::isPicked (point)) {
       if (mSubWidgets.empty())
         return nullptr;
       else {
         int i = (int)mSubWidgets.size();
         while (--i >= 0) {
-          cWidget* pickedWidget = mSubWidgets[i]->isPicked (p);
+          cWidget* pickedWidget = mSubWidgets[i]->isPicked (point);
           if (pickedWidget)
             return pickedWidget;
           }

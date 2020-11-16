@@ -7,11 +7,17 @@
 
 class cTextBox : public cWidget {
 public:
+  //{{{
   cTextBox (std::string& text, float width, const std::string debugName = "cTextBox")
     : cWidget (width, debugName), mText(text) {}
+  //}}}
+  //{{{
   cTextBox (std::string& text, const sColourF& colour, uint16_t width, uint16_t height, const std::string debugName = "cTextBox") :
     cWidget (colour, width, height, debugName), mText(text) {}
+  //}}}
   virtual ~cTextBox() {}
+
+  virtual std::string getDebugName() { return mDebugName + " - " + mText; }
 
   virtual void setText (std::string& text) { mText = text; }
   virtual void setTextColour (const sColourF& colour) { mTextColour = colour; }

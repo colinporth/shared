@@ -18,33 +18,33 @@ public:
 
   cWidget() {}
   //{{{
-  cWidget (float widthInBoxes, const std::string& name)
-    : mDebugName(name),
+  cWidget (float widthInBoxes, const std::string& debugName)
+    : mDebugName(debugName),
       mLayoutSize(widthInBoxes * getBoxHeight(), getBoxHeight()),
       mPixSize(widthInBoxes * getBoxHeight(), getBoxHeight()) {}
   //}}}
   //{{{
-  cWidget (float widthInBoxes, float heightInBoxes, const std::string& name)
-    : mDebugName(name),
+  cWidget (float widthInBoxes, float heightInBoxes, const std::string& debugName)
+    : mDebugName(debugName),
       mLayoutSize(widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()),
       mPixSize(widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()) {}
   //}}}
   //{{{
-  cWidget (const sColourF& colour, float widthInBoxes, float heightInBoxes, const std::string& name)
-    : mDebugName(name),
+  cWidget (const sColourF& colour, float widthInBoxes, float heightInBoxes, const std::string& debugName)
+    : mDebugName(debugName),
       mColour(colour),
       mLayoutSize(widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()),
       mPixSize(widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()) {}
   //}}}
   //{{{
-  cWidget (uint16_t widthInPixels, uint16_t heightInPixels, const std::string& name)
-    : mDebugName(name),
+  cWidget (uint16_t widthInPixels, uint16_t heightInPixels, const std::string& debugName)
+    : mDebugName(debugName),
       mLayoutSize(widthInPixels, heightInPixels),
       mPixSize(widthInPixels, heightInPixels) {}
   //}}}
   //{{{
-  cWidget (const sColourF& colour, uint16_t widthInPixels, uint16_t heightInPixels, const std::string& name)
-    : mDebugName(name),
+  cWidget (const sColourF& colour, uint16_t widthInPixels, uint16_t heightInPixels, const std::string& debugName)
+    : mDebugName(debugName),
       mColour(colour),
       mLayoutSize(widthInPixels, heightInPixels),
       mPixSize(widthInPixels, heightInPixels) {}
@@ -66,7 +66,7 @@ public:
 
   virtual bool isPressed() { return mPressedCount > 0; }
   virtual int getPressedCount() { return mPressedCount; }
-
+  virtual std::string getDebugName() { return mDebugName; }
   //{{{  sets
   //{{{
   virtual void setPixOrg (float x, float y) {
@@ -75,8 +75,8 @@ public:
     }
   //}}}
   //{{{
-  virtual void setPixOrg (const cPointF& p) {
-    mPixOrg = p;
+  virtual void setPixOrg (const cPointF& point) {
+    mPixOrg = point;
     }
   //}}}
 
@@ -113,18 +113,18 @@ public:
   //}}}
 
   //{{{
-  virtual bool isWithin (const cPointF& p) {
+  virtual bool isWithin (const cPointF& point) {
   // return true if p inside widget, even if not visible
 
-    return (p.x >= mPixOrg.x) && (p.x < mPixOrg.x + mPixSize.x) &&
-           (p.y >= mPixOrg.y) && (p.y < mPixOrg.y + mPixSize.y);
+    return (point.x >= mPixOrg.x) && (point.x < mPixOrg.x + mPixSize.x) &&
+           (point.y >= mPixOrg.y) && (point.y < mPixOrg.y + mPixSize.y);
     }
   //}}}
   //{{{
-  virtual cWidget* isPicked (const cPointF& p) {
-  // return true if p inside visible widget
+  virtual cWidget* isPicked (const cPointF& point) {
+  // return true if point inside visible widget
 
-    return (mVisible && isWithin (p)) ? this : nullptr;
+    return (mVisible && isWithin (point)) ? this : nullptr;
     }
   //}}}
   //{{{
