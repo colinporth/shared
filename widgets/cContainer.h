@@ -27,23 +27,23 @@ public:
   //}}}
 
   //{{{
-  void add (cWidget* widget) {
-    addWidgetLayout (widget, cWidgetLayout::eLayout::eNext, cPointF());
+  void add (cWidget* widget, float offset = 0.f) {
+    addWidget (widget, cWidgetLayout::eLayout::eNext, cPointF (offset, offset));
     }
   //}}}
   //{{{
   void addTopLeft (cWidget* widget) {
-    addWidgetLayout (widget, cWidgetLayout::eLayout::eAt, cPointF());
+    addWidget (widget, cWidgetLayout::eLayout::eAt, cPointF());
     }
   //}}}
   //{{{
-  void addAt (cWidget* widget, const cPointF& point) {
-    addWidgetLayout (widget, cWidgetLayout::eLayout::eAt, point);
+  void addAt (cWidget* widget, const cPointF& offset) {
+    addWidget (widget, cWidgetLayout::eLayout::eAt, offset);
     }
   //}}}
   //{{{
-  void addBelowLeft (cWidget* widget) {
-    addWidgetLayout (widget, cWidgetLayout::eLayout::eBelowLeft, cPointF());
+  void addBelowLeft (cWidget* widget, float offset = 0.f) {
+    addWidget (widget, cWidgetLayout::eLayout::eBelowLeft, cPointF(0.f, offset));
     }
   //}}}
 
@@ -92,20 +92,20 @@ private:
   public:
     enum class eLayout { eAt, eNext, eBelowLeft };
     //{{{
-    cWidgetLayout (cWidget* widget, eLayout layout, cPointF layoutPoint)
-      : mWidget(widget), mLayout(layout), mLayoutPoint(layoutPoint) {}
+    cWidgetLayout (cWidget* widget, eLayout layout, cPointF offset)
+      : mWidget(widget), mLayout(layout), mOffset(offset) {}
     //}}}
     ~cWidgetLayout() {}
 
     cWidget* mWidget;
     eLayout mLayout;
-    cPointF mLayoutPoint;
+    cPointF mOffset;
     };
   //}}}
   //{{{
-  void addWidgetLayout (cWidget* widget, cWidgetLayout::eLayout layout, const cPointF& point) {
+  void addWidget (cWidget* widget, cWidgetLayout::eLayout layout, const cPointF& offset) {
 
-    mWidgetLayouts.push_back (cWidgetLayout(widget, layout, point));
+    mWidgetLayouts.push_back (cWidgetLayout(widget, layout, offset));
     widget->setParent (this);
     layoutWidgets();
     }
@@ -120,24 +120,25 @@ private:
     for (auto& widgetLayout : mWidgetLayouts) {
       switch (widgetLayout.mLayout) {
         case cWidgetLayout::eLayout::eAt:
-          widgetLayout.mWidget->setPixOrg (widgetLayout.mLayoutPoint);
+          widgetLayout.mWidget->setPixOrg (widgetLayout.mOffset);
           break;
 
         case cWidgetLayout::eLayout::eNext:
           if (!prevWidget)
             // topLeft
-            widgetLayout.mWidget->setPixOrg ({0.f,0.f});
+            widgetLayout.mWidget->setPixOrg (widgetLayout.mOffset);
           else if (prevWidget->getPixOrg().x + prevWidget->getPixWidth() + widgetLayout.mWidget->getPixWidth() < getPixWidth())
             // next right
-            widgetLayout.mWidget->setPixOrg (prevWidget->getPixOrg() + cPointF (prevWidget->getPixWidth(),0.f));
+            widgetLayout.mWidget->setPixOrg (
+              prevWidget->getPixOrg() + cPointF (prevWidget->getPixWidth() + widgetLayout.mOffset.x, 0.f));
           else
             // belowLeft
-            widgetLayout.mWidget->setPixOrg (cPointF(0.f, boundingSize.y));
+            widgetLayout.mWidget->setPixOrg (cPointF(0.f, boundingSize.y + widgetLayout.mOffset.y));
           break;
 
         case cWidgetLayout::eLayout::eBelowLeft:
           // belowLeft
-          widgetLayout.mWidget->setPixOrg (cPointF(0.f, boundingSize.y));
+          widgetLayout.mWidget->setPixOrg (cPointF(0.f, boundingSize.y + widgetLayout.mOffset.y));
           break;
         }
 
