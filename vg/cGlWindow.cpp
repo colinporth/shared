@@ -165,9 +165,10 @@ cRootContainer* cGlWindow::initialise (const string& title, int width, int heigh
 void cGlWindow::run (bool clear) {
 // runs in app main thread after initialising everything
 
-  glClearColor (0, 0, 0, 1.f);
   updateWindowSize();
+  mRootContainer->layout (mWinSize);
 
+  glClearColor (0, 0, 0, 1.f);
   while (!glfwWindowShouldClose (mWindow)) {
     glfwPollEvents();
     draw (clear);

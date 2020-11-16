@@ -48,7 +48,7 @@ cSong::cFrame::~cFrame() {
 //{{{
 bool cSong::cSelect::inRange (int64_t framePts) {
 
-  for (auto &item : mItems)
+  for (auto& item : mItems)
     if (item.inRange (framePts))
       return true;
 
@@ -59,7 +59,7 @@ bool cSong::cSelect::inRange (int64_t framePts) {
 int64_t cSong::cSelect::constrainToRange (int64_t frameNum, int64_t constrainedFrameNum) {
 // if FrameNum in a select range return FrameNum constrained to it
 
-  for (auto &item : mItems) {
+  for (auto& item : mItems) {
     if (item.inRange (frameNum)) {
       if (constrainedFrameNum > item.getLastFrameNum())
         return item.getFirstFrameNum();
@@ -85,6 +85,7 @@ void cSong::cSelect::clearAll() {
 //}}}
 //{{{
 void cSong::cSelect::addMark (int64_t frameNum, const string& title) {
+
   mItems.push_back (cSelectItem (cSelectItem::eLoop, frameNum, frameNum, title));
   mEdit = eEditLast;
   mEditFrameNum = frameNum;
@@ -153,6 +154,7 @@ void cSong::cSelect::move (int64_t frameNum) {
 //}}}
 //{{{
 void cSong::cSelect::end() {
+
   mEdit = eEditNone;
   mEditFrameNum = 0;
   }
@@ -160,8 +162,7 @@ void cSong::cSelect::end() {
 
 // cSong
 //{{{
-cSong::cSong (eAudioFrameType frameType, int numChannels,
-              int sampleRate, int samplesPerFrame, int maxMapSize)
+cSong::cSong (eAudioFrameType frameType, int numChannels, int sampleRate, int samplesPerFrame, int maxMapSize)
     : mSampleRate(sampleRate), mSamplesPerFrame(samplesPerFrame),
       mFrameType(frameType), mNumChannels(numChannels),
       mMaxMapSize(maxMapSize) {

@@ -54,15 +54,10 @@ public:
 protected:
   cRootContainer* initialise (const std::string& title, int width, int height, uint8_t* font, int fontSize);
 
-  cWidget* add (cWidget* widget) { return mRootContainer->add (widget); }
-  cWidget* addAt (cWidget* widget, const cPointF& point) { return mRootContainer->addAt (widget, point); }
-  cWidget* addTopLeft (cWidget* widget) { return mRootContainer->addTopLeft (widget); }
-  cWidget* addTopRight (cWidget* widget) { return mRootContainer->addTopRight (widget); }
-  cWidget* addBottomLeft (cWidget* widget) { return mRootContainer->addBottomLeft (widget); }
-  cWidget* addBottomRight (cWidget* widget) { return mRootContainer->addBottomRight (widget); }
-  cWidget* addBelow (cWidget* widget) { return mRootContainer->addBelow (widget); }
-  cWidget* addLeft (cWidget* widget) { return mRootContainer->addLeft (widget); }
-  cWidget* addAbove (cWidget* widget) { return mRootContainer->addAbove (widget); }
+  void add (cWidget* widget) { mRootContainer->add (widget); }
+  void addAt (cWidget* widget, const cPointF& point) { mRootContainer->addAt (widget, point); }
+  void addTopLeft (cWidget* widget) { mRootContainer->addTopLeft (widget); }
+  void addBelow (cWidget* widget) { mRootContainer->addBelowLeft (widget); }
   void run (bool clear);
 
   void toggleFullScreen();

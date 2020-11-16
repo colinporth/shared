@@ -16,73 +16,34 @@ public:
   cContainer (float widthInBoxes, float heightInBoxes, const std::string& debugName = "cContainer")
     : cWidget (kBlackF, widthInBoxes, heightInBoxes, debugName) {}
   //}}}
-  virtual ~cContainer() {}
-
   //{{{
-  cWidget* add (cWidget* widget) { // first addTopLeft, else addRight
+  virtual ~cContainer() {
 
-    adjustWidthHeight (widget);
+    for (auto& widgetLayout : mWidgetLayouts)
+      delete widgetLayout.mWidget;
 
-    if (mSubWidgets.empty())
-      return addAt (widget, cPointF());
-    else if (mSubWidgets.back()->getPixX() + mSubWidgets.back()->getPixWidth() + widget->getPixWidth() <= getPixWidth())
-      return addAt (widget, cPointF (mSubWidgets.back()->getPixX() + mSubWidgets.back()->getPixWidth(), mSubWidgets.back()->getPixY()));
-    else if (mSubWidgets.back()->getPixY() + mSubWidgets.back()->getPixHeight() + widget->getPixHeight() <= getPixHeight())
-      return addAt (widget, cPointF(0.f, mSubWidgets.back()->getPixY() + mSubWidgets.back()->getPixHeight()));
-    else
-      return widget;
-    }
-  //}}}
-  //{{{
-  cWidget* addAt (cWidget* widget, const cPointF& p) {
-
-    mSubWidgets.push_back (widget);
-    widget->setParent (this);
-
-    widget->setPixOrg (p);
-    adjustWidthHeight (widget);
-
-    return widget;
+    mWidgetLayouts.clear();
     }
   //}}}
 
   //{{{
-  cWidget* addTopLeft (cWidget* widget) {
-    return addAt (widget, cPointF());
+  void add (cWidget* widget) {
+    addWidgetLayout (widget, cWidgetLayout::eLayout::eNext, cPointF());
     }
   //}}}
   //{{{
-  cWidget* addTopRight (cWidget* widget) {
-    return addAt (widget, cPointF(mPixSize.x - widget->getPixWidth(), 0.f));
+  void addTopLeft (cWidget* widget) {
+    addWidgetLayout (widget, cWidgetLayout::eLayout::eAt, cPointF());
     }
   //}}}
   //{{{
-  cWidget* addBottomLeft (cWidget* widget) {
-    return addAt (widget, cPointF(0.f, mPixSize.y - widget->getPixHeight()));
+  void addAt (cWidget* widget, const cPointF& point) {
+    addWidgetLayout (widget, cWidgetLayout::eLayout::eAt, point);
     }
   //}}}
   //{{{
-  cWidget* addBottomRight (cWidget* widget) {
-    return addAt (widget, cPointF(mPixSize.x - widget->getPixWidth(), mPixSize.y - widget->getPixHeight()));
-    }
-  //}}}
-
-  //{{{
-  cWidget* addBelow (cWidget* widget) {
-    return addAt (widget, cPointF(mSubWidgets.empty() ? 0 : mSubWidgets.back()->getPixX(),
-                                  mSubWidgets.empty() ? 0 : mSubWidgets.back()->getPixY() + mSubWidgets.back()->getPixHeight()));
-    }
-  //}}}
-  //{{{
-  cWidget* addLeft (cWidget* widget) {
-    return addAt (widget, cPointF(mSubWidgets.empty() ? 0 : mSubWidgets.back()->getPixX() - mSubWidgets.back()->getPixWidth(),
-                                 mSubWidgets.empty() ? 0 : mSubWidgets.back()->getPixY()));
-    }
-  //}}}
-  //{{{
-  cWidget* addAbove (cWidget* widget) {
-    return addAt (widget, cPointF(mSubWidgets.empty() ? 0 : mSubWidgets.back()->getPixX(),
-                                  mSubWidgets.empty() ? 0 : mSubWidgets.back()->getPixY() - mSubWidgets.back()->getPixHeight()));
+  void addBelowLeft (cWidget* widget) {
+    addWidgetLayout (widget, cWidgetLayout::eLayout::eBelowLeft, cPointF());
     }
   //}}}
 
@@ -90,11 +51,11 @@ public:
   virtual cWidget* isPicked (const cPointF& point) {
 
     if (cWidget::isPicked (point)) {
-      if (mSubWidgets.empty())
+      if (mWidgetLayouts.empty())
         return nullptr;
       else {
-        for (auto it = mSubWidgets.rbegin(); it != mSubWidgets.rend(); ++it) {
-          cWidget* pickedWidget = (*it)->isPicked (point);
+        for (auto it = mWidgetLayouts.rbegin(); it != mWidgetLayouts.rend(); ++it) {
+          cWidget* pickedWidget = (*it).mWidget->isPicked (point);
           if (pickedWidget)
             return pickedWidget;
           }
@@ -108,31 +69,88 @@ public:
   //{{{
   virtual void layout (const cPointF& size) {
 
-    setPixSize (size);
-    for (auto widget : mSubWidgets)
-      widget->layout (size);
+    cWidget::layout (size);
+
+    for (auto& widgetLayout : mWidgetLayouts)
+      widgetLayout.mWidget->layout (getPixSize());
+
+    layoutWidgets();
     }
   //}}}
   //{{{
   virtual void onDraw (iDraw* draw) {
 
-    for (auto widget : mSubWidgets)
-      if (widget->isVisible())
-        widget->onDraw (draw);
+    for (auto& widgetLayout : mWidgetLayouts)
+      if (widgetLayout.mWidget->isVisible())
+        widgetLayout.mWidget->onDraw (draw);
     }
   //}}}
 
 private:
   //{{{
-  void adjustWidthHeight (cWidget* widget) {
+  class cWidgetLayout {
+  public:
+    enum class eLayout { eAt, eNext, eBelowLeft };
+    //{{{
+    cWidgetLayout (cWidget* widget, eLayout layout, cPointF layoutPoint)
+      : mWidget(widget), mLayout(layout), mLayoutPoint(layoutPoint) {}
+    //}}}
+    ~cWidgetLayout() {}
 
-    if (widget->getPixWidth() <= 0) // non +ve width means parent width minus our -ve width
-      widget->setPixWidth (mPixSize.x + widget->getPixWidth());
+    cWidget* mWidget;
+    eLayout mLayout;
+    cPointF mLayoutPoint;
+    };
+  //}}}
+  //{{{
+  void addWidgetLayout (cWidget* widget, cWidgetLayout::eLayout layout, const cPointF& point) {
 
-    if (widget->getPixHeight() <= 0) // non +ve height means parent height minus our -ve height
-      widget->setPixHeight (mPixSize.y + widget->getPixHeight());
+    mWidgetLayouts.push_back (cWidgetLayout(widget, layout, point));
+    widget->setParent (this);
+    layoutWidgets();
+    }
+  //}}}
+  //{{{
+  void layoutWidgets() {
+  // simple layoutWidgets rules
+
+    cPointF boundingSize;
+
+    cWidget* prevWidget = nullptr;
+    for (auto& widgetLayout : mWidgetLayouts) {
+      switch (widgetLayout.mLayout) {
+        case cWidgetLayout::eLayout::eAt:
+          widgetLayout.mWidget->setPixOrg (widgetLayout.mLayoutPoint);
+          break;
+
+        case cWidgetLayout::eLayout::eNext:
+          if (!prevWidget)
+            // topLeft
+            widgetLayout.mWidget->setPixOrg ({0.f,0.f});
+          else if (prevWidget->getPixOrg().x + prevWidget->getPixWidth() + widgetLayout.mWidget->getPixWidth() < getPixWidth())
+            // next right
+            widgetLayout.mWidget->setPixOrg (prevWidget->getPixOrg() + cPointF (prevWidget->getPixWidth(),0.f));
+          else
+            // belowLeft
+            widgetLayout.mWidget->setPixOrg (cPointF(0.f, boundingSize.y));
+          break;
+
+        case cWidgetLayout::eLayout::eBelowLeft:
+          // belowLeft
+          widgetLayout.mWidget->setPixOrg (cPointF(0.f, boundingSize.y));
+          break;
+        }
+
+      // calc boundingSize
+      if (widgetLayout.mWidget->getPixOrg().x + widgetLayout.mWidget->getPixWidth() > boundingSize.x)
+        boundingSize.x = widgetLayout.mWidget->getPixOrg().x + widgetLayout.mWidget->getPixWidth();
+      if (widgetLayout.mWidget->getPixOrg().y + widgetLayout.mWidget->getPixHeight() > boundingSize.y)
+        boundingSize.y = widgetLayout.mWidget->getPixOrg().x + widgetLayout.mWidget->getPixWidth();
+
+      prevWidget = widgetLayout.mWidget;
+      }
     }
   //}}}
 
-  std::vector <cWidget*> mSubWidgets;
+  std::vector <cWidgetLayout> mWidgetLayouts;
   };

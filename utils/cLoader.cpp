@@ -1582,7 +1582,7 @@ public:
     FILE* file = fopen (mFilename.c_str(), "rb");
     uint8_t buffer[kFileChunkSize*2];
     size_t size = fread (buffer, 1, kFileChunkSize, file);
-    size_t bytesLeft = size;
+    size_t chunkBytesLeft = size;
     size_t bytesUsed = 0;
 
     //{{{  jpeg
@@ -1604,12 +1604,12 @@ public:
       uint8_t* frame = buffer;
       int frameSize = 0;
       while (!mExit &&
-             cAudioParser::parseFrame (frame, frame + bytesLeft, frameSize)) {
+             cAudioParser::parseFrame (frame, frame + chunkBytesLeft, frameSize)) {
         // process frame in fileChunk
         float* samples = decoder->decodeFrame (frame, frameSize, pts);
         bytesUsed += frameSize;
         frame += frameSize;
-        bytesLeft -= frameSize;
+        chunkBytesLeft -= frameSize;
         if (samples) {
           if (!mSong) // first decoded frame gives aacHE sampleRate,samplesPerFrame
             mSong = new cSong (mAudioFrameType, decoder->getNumChannels(), decoder->getSampleRate(),
@@ -1623,9 +1623,9 @@ public:
         }
 
       // get next fileChunk
-      memcpy (buffer, frame, bytesLeft);
-      bytesLeft += fread (buffer + bytesLeft, 1, kFileChunkSize, file);
-      } while (!mExit && (bytesLeft > 0));
+      memcpy (buffer, frame, chunkBytesLeft);
+      chunkBytesLeft += fread (buffer + chunkBytesLeft, 1, kFileChunkSize, file);
+      } while (!mExit && (chunkBytesLeft > 0));
     mLoadFrac = 0.f;
 
     //{{{  delete resources
