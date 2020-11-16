@@ -61,7 +61,8 @@ public:
   cPointF getPixEnd() { return mPixOrg + mPixSize; }
   float getPixEndX() { return mPixOrg.x + mPixSize.x; }
   float getPixEndY() { return mPixOrg.y + mPixSize.y; }
-
+  //}}}
+  //{{{  gets - virtual
   virtual bool isOn() { return mOn; }
   virtual bool isVisible() { return mVisible; }
 
@@ -78,7 +79,7 @@ public:
 
   virtual std::string getDebugName() { return mDebugName; }
   //}}}
-  //{{{  sets
+  //{{{  sets - virtual
   virtual void setPixOrg (const cPointF& point) { mPixOrg = point; }
   virtual void setPixSize (const cPointF& size) { mPixSize = size; }
 
