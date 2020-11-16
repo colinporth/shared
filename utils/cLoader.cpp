@@ -924,6 +924,191 @@ private:
   };
 //}}}
 //{{{
+class cLoadIcyCast : public cLoadSource {
+public:
+  cLoadIcyCast() : cLoadSource("hls") {}
+  virtual ~cLoadIcyCast() {}
+
+  virtual cSong* getSong() { return mSong; }
+  virtual iVideoPool* getVideoPool() { return mVideoPool; }
+
+  //{{{
+  virtual bool accept (const vector<string>& params) {
+
+    mParsedUrl.parse (params[0]);
+    //mAudioFrameType = eAudioFrameType::eAacAdts;
+    //mNumChannels = 2;
+    //mSampleRate = 48000;
+    return false;
+    }
+  //}}}
+  //{{{
+  virtual void load() {
+
+    iAudioDecoder* audioDecoder = nullptr;
+
+    while (!mExit) {
+      int icySkipCount = 0;
+      int icySkipLen = 0;
+      int icyInfoCount = 0;
+      int icyInfoLen = 0;
+      char icyInfo[255] = { 0 };
+
+      uint8_t bufferFirst[4096];
+      uint8_t* bufferEnd = bufferFirst;
+      uint8_t* buffer = bufferFirst;
+
+      // init container and audDecode
+
+      // init http
+      cPlatformHttp http;
+
+      int64_t pts = -1;
+      http.get (mParsedUrl.getHost(), mParsedUrl.getPath(), "Icy-MetaData: 1",
+        //{{{  headerCallback lambda
+        [&](const string& key, const string& value) noexcept {
+          if (key == "icy-metaint")
+            icySkipLen = stoi (value);
+          },
+        //}}}
+        //{{{  dataCallback lambda
+        [&] (const uint8_t* data, int length) noexcept {
+          // return false to exit
+
+          // cLog::log (LOGINFO, "callback %d", length);
+          if ((icyInfoCount >= icyInfoLen) && (icySkipCount + length <= icySkipLen)) {
+            //{{{  simple copy of whole body, no metaInfo
+            //cLog::log (LOGINFO1, "body simple copy len:%d", length);
+            memcpy (bufferEnd, data, length);
+            bufferEnd += length;
+            icySkipCount += length;
+            }
+            //}}}
+          else {
+            //{{{  dumb copy for metaInfo straddling body, could be much better
+            //cLog::log (LOGINFO1, "body split copy length:%d info:%d:%d skip:%d:%d ",
+                                  //length, icyInfoCount, icyInfoLen, icySkipCount, icySkipLen);
+            for (int i = 0; i < length; i++) {
+              if (icyInfoCount < icyInfoLen) {
+                icyInfo [icyInfoCount] = data[i];
+                icyInfoCount++;
+                if (icyInfoCount >= icyInfoLen)
+                  addIcyInfo (pts, icyInfo);
+                }
+              else if (icySkipCount >= icySkipLen) {
+                icyInfoLen = data[i] * 16;
+                icyInfoCount = 0;
+                icySkipCount = 0;
+                //cLog::log (LOGINFO1, "body icyInfo len:", data[i] * 16);
+                }
+              else {
+                icySkipCount++;
+                *bufferEnd = data[i];
+                bufferEnd++;
+                }
+              }
+
+            return !mExit;
+            }
+            //}}}
+
+          int sampleRate = 0;
+          int numChannels =  0;
+          auto frameType = cAudioParser::parseSomeFrames (bufferFirst, bufferEnd, numChannels, sampleRate);
+          audioDecoder = createAudioDecoder (frameType);
+
+          int frameSize;
+          while (cAudioParser::parseFrame (buffer, bufferEnd, frameSize)) {
+            auto samples = audioDecoder->decodeFrame (buffer, frameSize, pts);
+            if (samples) {
+              if (!mSong) {
+                // enough data to determine frameType and sampleRate (wrong for aac sbr)
+                pts = 0;
+                mSong = new cSong (frameType, audioDecoder->getNumChannels(),
+                                   audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame(),
+                                   1000);
+                }
+
+              mSong->addFrame (true, pts, samples,  mSong->getNumFrames() + 1);
+              pts += mSong->getFramePtsDuration();
+
+              if (!mSongPlayer)
+                mSongPlayer = new cSongPlayer(mSong, true);
+              }
+            buffer += frameSize;
+            }
+
+          if ((buffer > bufferFirst) && (buffer < bufferEnd)) {
+            //{{{  shuffle down last partial frame
+            auto bufferLeft = int(bufferEnd - buffer);
+            memcpy (bufferFirst, buffer, bufferLeft);
+            bufferEnd = bufferFirst + bufferLeft;
+            buffer = bufferFirst;
+            }
+            //}}}
+
+          return !mExit;
+          }
+        //}}}
+        );
+
+      cLog::log (LOGINFO, "icyThread");
+      }
+
+    //{{{  delete resources
+    delete mSongPlayer;
+
+    auto tempSong = mSong;
+    mSong = nullptr;
+    delete tempSong;
+
+    delete audioDecoder;
+    //}}}
+    }
+  //}}}
+
+private:
+  //{{{
+  void addIcyInfo (int64_t pts, const string& icyInfo) {
+
+    cLog::log (LOGINFO, "addIcyInfo " + icyInfo);
+
+    string icysearchStr = "StreamTitle=\'";
+    string searchStr = "StreamTitle=\'";
+    auto searchStrPos = icyInfo.find (searchStr);
+    if (searchStrPos != string::npos) {
+      auto searchEndPos = icyInfo.find ("\';", searchStrPos + searchStr.size());
+      if (searchEndPos != string::npos) {
+        string titleStr = icyInfo.substr (searchStrPos + searchStr.size(), searchEndPos - searchStrPos - searchStr.size());
+        if (titleStr != mLastTitleString) {
+          cLog::log (LOGINFO1, "addIcyInfo found title = " + titleStr);
+          mSong->getSelect().addMark (pts, titleStr);
+          mLastTitleString = titleStr;
+          }
+        }
+      }
+
+    string urlStr = "no url";
+    searchStr = "StreamUrl=\'";
+    searchStrPos = icyInfo.find (searchStr);
+    if (searchStrPos != string::npos) {
+      auto searchEndPos = icyInfo.find ('\'', searchStrPos + searchStr.size());
+      if (searchEndPos != string::npos) {
+        urlStr = icyInfo.substr (searchStrPos + searchStr.size(), searchEndPos - searchStrPos - searchStr.size());
+        cLog::log (LOGINFO1, "addIcyInfo found url = " + urlStr);
+        }
+      }
+    }
+  //}}}
+
+  cUrl mParsedUrl;
+  string mLastTitleString;
+
+  cSong* mSong = nullptr;
+  iVideoPool* mVideoPool = nullptr;
+  };
+//}}}
+//{{{
 class cLoadFile : public cLoadSource {
 public:
   cLoadFile (string name) : cLoadSource(name) {}
@@ -1469,169 +1654,6 @@ private:
   eAudioFrameType mAudioFrameType = eAudioFrameType::eUnknown;
   cSong* mSong = nullptr;
   };
-//}}}
-//{{{
-//void cLoader::icycast (const string& url) {
-
-  //thread ([=]() {
-    //// lambda
-    //cLog::setThreadName ("icyL");
-
-    //iAudioDecoder* audioDecoder = nullptr;
-    //while (!mExit) {
-      //int icySkipCount = 0;
-      //int icySkipLen = 0;
-      //int icyInfoCount = 0;
-      //int icyInfoLen = 0;
-      //char icyInfo[255] = { 0 };
-
-      //uint8_t bufferFirst[4096];
-      //uint8_t* bufferEnd = bufferFirst;
-      //uint8_t* buffer = bufferFirst;
-
-      //// init container and audDecode
-
-      //// init http
-      //cPlatformHttp http;
-      //cUrl parsedUrl;
-      //parsedUrl.parse (url);
-
-      //int64_t pts = -1;
-      //http.get (parsedUrl.getHost(), parsedUrl.getPath(), "Icy-MetaData: 1",
-        //{{{  headerCallback lambda
-        //[&](const string& key, const string& value) noexcept {
-          //if (key == "icy-metaint")
-            //icySkipLen = stoi (value);
-          //},
-        //}}}
-        //{{{  dataCallback lambda
-        //[&] (const uint8_t* data, int length) noexcept {
-          //// return false to exit
-
-          //// cLog::log (LOGINFO, "callback %d", length);
-          //if ((icyInfoCount >= icyInfoLen) && (icySkipCount + length <= icySkipLen)) {
-            //{{{  simple copy of whole body, no metaInfo
-            ////cLog::log (LOGINFO1, "body simple copy len:%d", length);
-            //memcpy (bufferEnd, data, length);
-            //bufferEnd += length;
-            //icySkipCount += length;
-            //}
-            //}}}
-          //else {
-            //{{{  dumb copy for metaInfo straddling body, could be much better
-            ////cLog::log (LOGINFO1, "body split copy length:%d info:%d:%d skip:%d:%d ",
-                                  ////length, icyInfoCount, icyInfoLen, icySkipCount, icySkipLen);
-            //for (int i = 0; i < length; i++) {
-              //if (icyInfoCount < icyInfoLen) {
-                //icyInfo [icyInfoCount] = data[i];
-                //icyInfoCount++;
-                //if (icyInfoCount >= icyInfoLen)
-                  //addIcyInfo (pts, icyInfo);
-                //}
-              //else if (icySkipCount >= icySkipLen) {
-                //icyInfoLen = data[i] * 16;
-                //icyInfoCount = 0;
-                //icySkipCount = 0;
-                ////cLog::log (LOGINFO1, "body icyInfo len:", data[i] * 16);
-                //}
-              //else {
-                //icySkipCount++;
-                //*bufferEnd = data[i];
-                //bufferEnd++;
-                //}
-              //}
-
-            //return !mExit;
-            //}
-            //}}}
-
-          //int sampleRate = 0;
-          //int numChannels =  0;
-          //auto frameType = cAudioParser::parseSomeFrames (bufferFirst, bufferEnd, numChannels, sampleRate);
-          //audioDecoder = createAudioDecoder (frameType);
-
-          //int frameSize;
-          //while (cAudioParser::parseFrame (buffer, bufferEnd, frameSize)) {
-            //auto samples = audioDecoder->decodeFrame (buffer, frameSize, pts);
-            //if (samples) {
-              //if (!mSong) {
-                //// enough data to determine frameType and sampleRate (wrong for aac sbr)
-                //pts = 0;
-                //mSong = new cSong (frameType, audioDecoder->getNumChannels(),
-                                   //audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame(),
-                                   //1000);
-                //}
-
-              //mSong->addFrame (true, pts, samples,  mSong->getNumFrames() + 1);
-              //pts += mSong->getFramePtsDuration();
-
-              //if (!mSongPlayer)
-                //mSongPlayer = new cSongPlayer(mSong, true);
-              //}
-            //buffer += frameSize;
-            //}
-
-          //if ((buffer > bufferFirst) && (buffer < bufferEnd)) {
-            //{{{  shuffle down last partial frame
-            //auto bufferLeft = int(bufferEnd - buffer);
-            //memcpy (bufferFirst, buffer, bufferLeft);
-            //bufferEnd = bufferFirst + bufferLeft;
-            //buffer = bufferFirst;
-            //}
-            //}}}
-
-          //return !mExit;
-          //}
-        //}}}
-        //);
-
-      //cLog::log (LOGINFO, "icyThread");
-      //}
-
-    //{{{  delete resources
-    //delete mSongPlayer;
-
-    //auto tempSong = mSong;
-    //mSong = nullptr;
-    //delete tempSong;
-
-    //delete audioDecoder;
-    //}}}
-    //cLog::log (LOGINFO, "exit");
-    //} ).detach();
-  //}
-//}}}
-//{{{
-//void cLoader::addIcyInfo (int64_t pts, const string& icyInfo) {
-
-  //cLog::log (LOGINFO, "addIcyInfo " + icyInfo);
-
-  //string icysearchStr = "StreamTitle=\'";
-  //string searchStr = "StreamTitle=\'";
-  //auto searchStrPos = icyInfo.find (searchStr);
-  //if (searchStrPos != string::npos) {
-    //auto searchEndPos = icyInfo.find ("\';", searchStrPos + searchStr.size());
-    //if (searchEndPos != string::npos) {
-      //string titleStr = icyInfo.substr (searchStrPos + searchStr.size(), searchEndPos - searchStrPos - searchStr.size());
-      //if (titleStr != mLastTitleStr) {
-        //cLog::log (LOGINFO1, "addIcyInfo found title = " + titleStr);
-        //mSong->getSelect().addMark (pts, titleStr);
-        //mLastTitleStr = titleStr;
-        //}
-      //}
-    //}
-
-  //string urlStr = "no url";
-  //searchStr = "StreamUrl=\'";
-  //searchStrPos = icyInfo.find (searchStr);
-  //if (searchStrPos != string::npos) {
-    //auto searchEndPos = icyInfo.find ('\'', searchStrPos + searchStr.size());
-    //if (searchEndPos != string::npos) {
-      //urlStr = icyInfo.substr (searchStrPos + searchStr.size(), searchEndPos - searchStrPos - searchStr.size());
-      //cLog::log (LOGINFO1, "addIcyInfo found url = " + urlStr);
-      //}
-    //}
-  //}
 //}}}
 
 // public
