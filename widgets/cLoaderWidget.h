@@ -257,7 +257,7 @@ private:
       infoString += " v" + dec(videoQueueSize);
       }
 
-    vg->setFontSize ((float)getFontHeight());
+    vg->setFontSize (kFontHeight);
     vg->setTextAlign (cVg::eAlignLeft | cVg::eAlignTop);
     vg->setFillColour (kBlackF);
     vg->text (mPixOrg + cPointF(2.f, 2.f), infoString);
@@ -538,7 +538,7 @@ private:
     vg->setFillColour (kWhiteF);
 
     // small lastFrameString, white, right
-    vg->setFontSize (getFontHeight());
+    vg->setFontSize (kFontHeight);
     vg->setTextAlign (cVg::eAlignRight | cVg::eAlignBottom);
     vg->text (mPixSize, lastFrameString);
 
@@ -547,7 +547,7 @@ private:
     vg->text (cPointF(0.f, mPixSize.y), firstFrameString);
 
     // big playFrameString, white, centred
-    vg->setFontSize (getBigFontHeight());
+    vg->setFontSize (kBigFontHeight);
     vg->setTextAlign (cVg::eAlignCentre | cVg::eAlignBottom);
     vg->text (cPointF(mPixSize.x/2.f, mPixSize.y), playFrameString);
     }

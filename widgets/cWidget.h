@@ -10,30 +10,31 @@ class cContainer;
 
 class cWidget {
 public:
-  static constexpr uint16_t getBoxHeight()       { return 19; }
-  static constexpr uint16_t getSmallFontHeight() { return 16; }
-  static constexpr uint16_t getFontHeight()      { return 18; }
-  static constexpr uint16_t getBigFontHeight()   { return 40; }
-  static constexpr float getPixel() { return 1.f / getBoxHeight(); }
+  static constexpr uint16_t kSmallFontHeight = 16;
+  static constexpr uint16_t kFontHeight = 18;
+  static constexpr uint16_t kBigFontHeight = 40;
+
+  static constexpr uint16_t kBoxHeight = 20;
+  static constexpr float kPixel =  1.f / kBoxHeight;
 
   //{{{
   cWidget (float widthInBoxes, const std::string& debugName)
     : mDebugName(debugName),
-      mLayoutSize(widthInBoxes * getBoxHeight(), getBoxHeight()),
-      mPixSize(widthInBoxes * getBoxHeight(), getBoxHeight()) {}
+      mLayoutSize(widthInBoxes * kBoxHeight, kBoxHeight),
+      mPixSize(widthInBoxes * kBoxHeight, kBoxHeight) {}
   //}}}
   //{{{
   cWidget (float widthInBoxes, float heightInBoxes, const std::string& debugName)
     : mDebugName(debugName),
-      mLayoutSize(widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()),
-      mPixSize(widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()) {}
+      mLayoutSize(widthInBoxes * kBoxHeight, heightInBoxes * kBoxHeight),
+      mPixSize(widthInBoxes * kBoxHeight, heightInBoxes * kBoxHeight) {}
   //}}}
   //{{{
   cWidget (const sColourF& colour, float widthInBoxes, float heightInBoxes, const std::string& debugName)
     : mDebugName(debugName),
       mColour(colour),
-      mLayoutSize(widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()),
-      mPixSize(widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()) {}
+      mLayoutSize(widthInBoxes * kBoxHeight, heightInBoxes * kBoxHeight),
+      mPixSize(widthInBoxes * kBoxHeight, heightInBoxes * kBoxHeight) {}
   //}}}
   //{{{
   cWidget (uint16_t widthInPix, uint16_t heightInPix, const std::string& debugName)
@@ -127,8 +128,8 @@ protected:
   cPointF mPixOrg = { 0.f,0.f };
   cPointF mPixSize = { 0.f,0.f };
 
-  bool mOn = false;
   bool mVisible = true;
+  bool mOn = false;
 
   int mPressedCount = 0;
   };

@@ -51,7 +51,7 @@ public:
 
     int lastSid = 0;
     int imageIndex = 0;
-    float lineHeight = mZoom + (getBoxHeight() * 4.f / 5.f);
+    float lineHeight = mZoom + (kBoxHeight * 4.f / 5.f);
 
     float x = mPixOrg.x + 2.f;
     float y = mPixOrg.y - mScroll;
