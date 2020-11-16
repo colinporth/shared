@@ -955,9 +955,6 @@ public:
   virtual bool accept (const vector<string>& params) {
 
     mParsedUrl.parse (params[0]);
-    //mAudioFrameType = eAudioFrameType::eAacAdts;
-    //mNumChannels = 2;
-    //mSampleRate = 48000;
     return mParsedUrl.getScheme() == "http";
     }
   //}}}
@@ -977,7 +974,7 @@ public:
       uint8_t* bufferEnd = bufferFirst;
       uint8_t* buffer = bufferFirst;
 
-      int64_t pts = -1;
+      int64_t pts = 0;
 
       cPlatformHttp http;
       http.get (mParsedUrl.getHost(), mParsedUrl.getPath(), "Icy-MetaData: 1",
@@ -987,23 +984,47 @@ public:
             icySkipLen = stoi (value);
           },
         //}}}
-        //{{{  dataCallback lambda
+       //      dataCallback lambda
         [&] (const uint8_t* data, int length) noexcept {
-          // return false to exit
-
-          // cLog::log (LOGINFO, "callback %d", length);
           if ((icyInfoCount >= icyInfoLen) && (icySkipCount + length <= icySkipLen)) {
-            //{{{  simple copy of whole body, no metaInfo
-            //cLog::log (LOGINFO1, "body simple copy len:%d", length);
+            //{{{  copy whole body, no metaInfo
             memcpy (bufferEnd, data, length);
             bufferEnd += length;
             icySkipCount += length;
+
+            int sampleRate = 0;
+            int numChannels =  0;
+            auto frameType = cAudioParser::parseSomeFrames (bufferFirst, bufferEnd, numChannels, sampleRate);
+            audioDecoder = createAudioDecoder (frameType);
+
+            int frameSize;
+            while (cAudioParser::parseFrame (buffer, bufferEnd, frameSize)) {
+              auto samples = audioDecoder->decodeFrame (buffer, frameSize, pts);
+              if (samples) {
+                if (!mSong) 
+                  mSong = new cSong (frameType, audioDecoder->getNumChannels(), audioDecoder->getSampleRate(), 
+                                     audioDecoder->getNumSamplesPerFrame(), 0);
+
+                mSong->addFrame (true, pts, samples,  mSong->getNumFrames() + 1);
+                pts += mSong->getFramePtsDuration();
+
+                if (!mSongPlayer)
+                  mSongPlayer = new cSongPlayer (mSong, true);
+                }
+              buffer += frameSize;
+              }
+
+            if ((buffer > bufferFirst) && (buffer < bufferEnd)) {
+              // shuffle down last partial frame
+              auto bufferLeft = int(bufferEnd - buffer);
+              memcpy (bufferFirst, buffer, bufferLeft);
+              bufferEnd = bufferFirst + bufferLeft;
+              buffer = bufferFirst;
+              }
             }
             //}}}
           else {
-            //{{{  dumb copy for metaInfo straddling body, could be much better
-            //cLog::log (LOGINFO1, "body split copy length:%d info:%d:%d skip:%d:%d ",
-                                  //length, icyInfoCount, icyInfoLen, icySkipCount, icySkipLen);
+            //{{{  copy for metaInfo straddling body
             for (int i = 0; i < length; i++) {
               if (icyInfoCount < icyInfoLen) {
                 icyInfo [icyInfoCount] = data[i];
@@ -1023,49 +1044,10 @@ public:
                 bufferEnd++;
                 }
               }
-
-            return !mExit;
             }
             //}}}
-
-          int sampleRate = 0;
-          int numChannels =  0;
-          auto frameType = cAudioParser::parseSomeFrames (bufferFirst, bufferEnd, numChannels, sampleRate);
-          audioDecoder = createAudioDecoder (frameType);
-
-          int frameSize;
-          while (cAudioParser::parseFrame (buffer, bufferEnd, frameSize)) {
-            auto samples = audioDecoder->decodeFrame (buffer, frameSize, pts);
-            if (samples) {
-              if (!mSong) {
-                // enough data to determine frameType and sampleRate (wrong for aac sbr)
-                pts = 0;
-                mSong = new cSong (frameType, audioDecoder->getNumChannels(),
-                                   audioDecoder->getSampleRate(), audioDecoder->getNumSamplesPerFrame(),
-                                   1000);
-                }
-
-              mSong->addFrame (true, pts, samples,  mSong->getNumFrames() + 1);
-              pts += mSong->getFramePtsDuration();
-
-              if (!mSongPlayer)
-                mSongPlayer = new cSongPlayer(mSong, true);
-              }
-            buffer += frameSize;
-            }
-
-          if ((buffer > bufferFirst) && (buffer < bufferEnd)) {
-            //{{{  shuffle down last partial frame
-            auto bufferLeft = int(bufferEnd - buffer);
-            memcpy (bufferFirst, buffer, bufferLeft);
-            bufferEnd = bufferFirst + bufferLeft;
-            buffer = bufferFirst;
-            }
-            //}}}
-
           return !mExit;
           }
-        //}}}
         );
 
       cLog::log (LOGINFO, "icyThread");
