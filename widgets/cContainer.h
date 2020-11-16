@@ -27,6 +27,29 @@ public:
   //}}}
 
   //{{{
+  virtual void setPixSize (const cPointF& size) {
+
+    cWidget::setPixSize (size);
+
+    for (auto& widgetLayout : mWidgetLayouts)
+      widgetLayout.mWidget->layout();
+
+    layoutWidgets();
+    }
+  //}}}
+  //{{{
+  virtual void layout() {
+
+    cWidget::layout();
+
+    for (auto& widgetLayout : mWidgetLayouts)
+      widgetLayout.mWidget->layout();
+
+    layoutWidgets();
+    }
+  //}}}
+
+  //{{{
   void add (cWidget* widget, float offset = 0.f) {
     addWidget (widget, cWidgetLayout::eLayout::eNext, cPointF (offset, offset));
     }
@@ -67,17 +90,6 @@ public:
     }
   //}}}
   //{{{
-  virtual void layout (const cPointF& size) {
-
-    cWidget::layout (size);
-
-    for (auto& widgetLayout : mWidgetLayouts)
-      widgetLayout.mWidget->layout (getPixSize());
-
-    layoutWidgets();
-    }
-  //}}}
-  //{{{
   virtual void onDraw (iDraw* draw) {
 
     for (auto& widgetLayout : mWidgetLayouts)
@@ -112,11 +124,10 @@ private:
   //}}}
   //{{{
   void layoutWidgets() {
-  // simple layoutWidgets rules
 
     cPointF boundingSize;
-
     cWidget* prevWidget = nullptr;
+
     for (auto& widgetLayout : mWidgetLayouts) {
       switch (widgetLayout.mLayout) {
         case cWidgetLayout::eLayout::eAt:
@@ -127,7 +138,7 @@ private:
           if (!prevWidget)
             // topLeft
             widgetLayout.mWidget->setPixOrg (widgetLayout.mOffset);
-          else if (prevWidget->getPixOrg().x + prevWidget->getPixWidth() + widgetLayout.mWidget->getPixWidth() < getPixWidth())
+          else if (prevWidget->getPixEndX() + widgetLayout.mWidget->getPixWidth() < getPixWidth())
             // next right
             widgetLayout.mWidget->setPixOrg (
               prevWidget->getPixOrg() + cPointF (prevWidget->getPixWidth() + widgetLayout.mOffset.x, 0.f));
@@ -143,13 +154,14 @@ private:
         }
 
       // calc boundingSize
-      if (widgetLayout.mWidget->getPixOrg().x + widgetLayout.mWidget->getPixWidth() > boundingSize.x)
-        boundingSize.x = widgetLayout.mWidget->getPixOrg().x + widgetLayout.mWidget->getPixWidth();
-      if (widgetLayout.mWidget->getPixOrg().y + widgetLayout.mWidget->getPixHeight() > boundingSize.y)
-        boundingSize.y = widgetLayout.mWidget->getPixOrg().x + widgetLayout.mWidget->getPixWidth();
+      boundingSize.x = std::max (boundingSize.x, widgetLayout.mWidget->getPixEndX());
+      boundingSize.y = std::max (boundingSize.y, widgetLayout.mWidget->getPixEndY());
 
       prevWidget = widgetLayout.mWidget;
       }
+
+    //cLog::log (LOGINFO, "layoutWidgets " + getDebugName() +
+    //                    " " + dec (boundingSize.x) + "," + dec(boundingSize.y));
     }
   //}}}
 

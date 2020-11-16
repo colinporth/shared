@@ -46,14 +46,21 @@ public:
   virtual ~cWidget() {}
 
   //{{{  gets
+  cPointF getPixOrg() { return mPixOrg; }
   float getPixX() { return mPixOrg.x; }
   float getPixY() { return mPixOrg.y; }
-  cPointF getPixOrg() { return mPixOrg; }
 
+  cPointF getPixSize() { return mPixSize; }
   float getPixWidth() { return mPixSize.x; }
   float getPixHeight() { return mPixSize.y; }
-  cPointF getPixSize() { return mPixSize; }
-  cPointF getPixCentre() { return mPixSize / 2.f; }
+
+  cPointF getPixCentre() { return mPixOrg + (mPixSize / 2.f); }
+  float getPixCentreX() { return mPixOrg.x + (mPixSize.x / 2.f); }
+  float getPixCentreY() { return mPixOrg.y + (mPixSize.y / 2.f); }
+
+  cPointF getPixEnd() { return mPixOrg + mPixSize; }
+  float getPixEndX() { return mPixOrg.x + mPixSize.x; }
+  float getPixEndY() { return mPixOrg.y + mPixSize.y; }
 
   virtual bool isOn() { return mOn; }
   virtual bool isVisible() { return mVisible; }
@@ -73,15 +80,10 @@ public:
   //}}}
   //{{{  sets
   virtual void setPixOrg (const cPointF& point) { mPixOrg = point; }
-  virtual void setPixOrg (float x, float y) { mPixOrg = { x,y }; }
-
   virtual void setPixSize (const cPointF& size) { mPixSize = size; }
-  virtual void setPixSize (float widthInPix, float heightInPix) { mPixSize = {widthInPix, heightInPix}; }
-  virtual void setPixWidth (float widthInPix) { mPixSize.x = widthInPix; }
-  virtual void setPixHeight (float heightInPix) { mPixSize.y = heightInPix; }
 
   virtual void setColour (const sColourF& colour) { mColour = colour; }
-  virtual void setParent (cContainer* parent) { mParent = parent; }
+  virtual void setParent (cWidget* parent) { mParent = parent; }
 
   virtual void setOn (bool on) { mOn = on; }
   virtual void toggleOn() { mOn = !mOn; }
@@ -90,15 +92,17 @@ public:
   virtual void toggleVisible() { mVisible = !mVisible; }
   //}}}
   //{{{
-  virtual void layout (const cPointF& size) {
-    setPixSize ((mLayoutSize.x <= 0.f) ? size.x + mLayoutSize.x : mPixSize.x,
-                (mLayoutSize.y <= 0.f) ? size.y + mLayoutSize.y : mPixSize.y);
+  virtual void layout() {
+
+    if (mParent)
+      setPixSize (cPointF(mLayoutSize.x <= 0.f ? mParent->getPixSize().x + mLayoutSize.x : mPixSize.x,
+                          mLayoutSize.y <= 0.f ? mParent->getPixSize().y + mLayoutSize.y : mPixSize.y));
     }
   //}}}
 
-  virtual void onProx (const cPointF& p) {}
-  virtual void onDown (const cPointF& p) { mPressedCount++; }
-  virtual void onMove (const cPointF& p, const cPointF& inc) {}
+  virtual void onProx (const cPointF& point) {}
+  virtual void onDown (const cPointF& point) { mPressedCount++; }
+  virtual void onMove (const cPointF& point, const cPointF& inc) {}
   virtual void onUp() { mPressedCount = 0; }
   virtual void onWheel (float delta) {}
 
@@ -115,7 +119,7 @@ protected:
   cPointF mPixOrg = { 0.f,0.f };
   cPointF mPixSize = { 0.f,0.f };
 
-  cContainer* mParent = nullptr;
+  cWidget* mParent = nullptr;
   bool mVisible = true;
   bool mOn = false;
 

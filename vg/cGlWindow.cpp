@@ -166,7 +166,6 @@ void cGlWindow::run (bool clear) {
 // runs in app main thread after initialising everything
 
   updateWindowSize();
-  mRootContainer->layout (mWinSize);
 
   glClearColor (0, 0, 0, 1.f);
   while (!glfwWindowShouldClose (mWindow)) {
@@ -215,7 +214,9 @@ void cGlWindow::togglePerf() {
 void cGlWindow::updateWindowSize() {
 
   glfwGetWindowSize (mWindow, &mWinWidth, &mWinHeight);
+
   mWinSize = { (float)mWinWidth, (float)mWinHeight };
+  mRootContainer->setPixSize (mWinSize);
 
   int frameBufferWidth;
   int frameBufferHeight;
@@ -418,7 +419,6 @@ void cGlWindow::glfWindowPos (GLFWwindow* window, int xsize, int ysize) {
 void cGlWindow::glfWindowSize (GLFWwindow* window, int xsize, int ysize) {
 
   mGlWindow->updateWindowSize();
-  mRootContainer->layout (cPointF((float)xsize, (float)ysize));
   mGlWindow->draw (true);
   }
 //}}}

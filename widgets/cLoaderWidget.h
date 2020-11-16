@@ -18,6 +18,17 @@ public:
 
   void setShowOverview (bool showOverview) { mShowOverview = showOverview; }
   void toggleGraphics() { mShowGraphics = ! mShowGraphics; }
+  //{{{
+  virtual void layout() {
+
+    mOverviewTotalFrames = 0;
+    mOverviewLastFrame = 0;
+    mOverviewFirstFrame = 0;
+    mOverviewValueScale = 0.f;
+
+    cWidget::layout();
+    }
+  //}}}
 
   //{{{
   virtual void onDown (const cPointF& point) {
@@ -82,17 +93,6 @@ public:
 
     //if (getShow())
     setZoom (mZoom - (int)delta);
-    }
-  //}}}
-  //{{{
-  virtual void layout (const cPointF& size) {
-
-    mOverviewTotalFrames = 0;
-    mOverviewLastFrame = 0;
-    mOverviewFirstFrame = 0;
-    mOverviewValueScale = 0.f;
-
-    cWidget::layout (size);
     }
   //}}}
 
