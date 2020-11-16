@@ -963,6 +963,8 @@ public:
 
     iAudioDecoder* audioDecoder = nullptr;
 
+    mExit = false;
+    mRunning = true;
     while (!mExit) {
       int icySkipCount = 0;
       int icySkipLen = 0;
@@ -984,7 +986,7 @@ public:
             icySkipLen = stoi (value);
           },
         //}}}
-       //      dataCallback lambda
+        // dataCallback lambda
         [&] (const uint8_t* data, int length) noexcept {
           if ((icyInfoCount >= icyInfoLen) && (icySkipCount + length <= icySkipLen)) {
             //{{{  copy whole body, no metaInfo
@@ -1001,11 +1003,11 @@ public:
             while (cAudioParser::parseFrame (buffer, bufferEnd, frameSize)) {
               auto samples = audioDecoder->decodeFrame (buffer, frameSize, pts);
               if (samples) {
-                if (!mSong) 
-                  mSong = new cSong (frameType, audioDecoder->getNumChannels(), audioDecoder->getSampleRate(), 
+                if (!mSong)
+                  mSong = new cSong (frameType, audioDecoder->getNumChannels(), audioDecoder->getSampleRate(),
                                      audioDecoder->getNumSamplesPerFrame(), 0);
 
-                mSong->addFrame (true, pts, samples,  mSong->getNumFrames() + 1);
+                mSong->addFrame (true, pts, samples,  mSong->getNumFrames()+1);
                 pts += mSong->getFramePtsDuration();
 
                 if (!mSongPlayer)
@@ -1036,7 +1038,6 @@ public:
                 icyInfoLen = data[i] * 16;
                 icyInfoCount = 0;
                 icySkipCount = 0;
-                //cLog::log (LOGINFO1, "body icyInfo len:", data[i] * 16);
                 }
               else {
                 icySkipCount++;
@@ -1049,8 +1050,6 @@ public:
           return !mExit;
           }
         );
-
-      cLog::log (LOGINFO, "icyThread");
       }
 
     //{{{  delete resources
@@ -1064,6 +1063,7 @@ public:
 
     delete audioDecoder;
     //}}}
+    mRunning = false;
     }
   //}}}
 
