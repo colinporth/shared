@@ -19,32 +19,32 @@ public:
   cWidget() {}
   //{{{
   cWidget (float widthInBoxes, const std::string& name)
-    : mName(name),
+    : mDebugName(name),
       mLayoutSize(widthInBoxes * getBoxHeight(), getBoxHeight()),
       mPixSize(widthInBoxes * getBoxHeight(), getBoxHeight()) {}
   //}}}
   //{{{
   cWidget (float widthInBoxes, float heightInBoxes, const std::string& name)
-    : mName(name),
+    : mDebugName(name),
       mLayoutSize(widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()),
       mPixSize(widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()) {}
   //}}}
   //{{{
   cWidget (const sColourF& colour, float widthInBoxes, float heightInBoxes, const std::string& name)
-    : mName(name),
+    : mDebugName(name),
       mColour(colour),
       mLayoutSize(widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()),
       mPixSize(widthInBoxes * getBoxHeight(), heightInBoxes * getBoxHeight()) {}
   //}}}
   //{{{
   cWidget (uint16_t widthInPixels, uint16_t heightInPixels, const std::string& name)
-    : mName(name),
+    : mDebugName(name),
       mLayoutSize(widthInPixels, heightInPixels),
       mPixSize(widthInPixels, heightInPixels) {}
   //}}}
   //{{{
   cWidget (const sColourF& colour, uint16_t widthInPixels, uint16_t heightInPixels, const std::string& name)
-    : mName(name),
+    : mDebugName(name),
       mColour(colour),
       mLayoutSize(widthInPixels, heightInPixels),
       mPixSize(widthInPixels, heightInPixels) {}
@@ -147,7 +147,7 @@ public:
   //}}}
 
 protected:
-  std::string mName;
+  std::string mDebugName;
   sColourF mColour = kLightGreyF;
   const cPointF mLayoutSize = { 0.f,0.f };
 

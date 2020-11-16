@@ -55,8 +55,7 @@ protected:
   cRootContainer* initialise (const std::string& title, int width, int height, uint8_t* font, int fontSize);
 
   cWidget* add (cWidget* widget) { return mRootContainer->add (widget); }
-  cWidget* addAtBox (cWidget* widget, float width, float height) { return mRootContainer->addAtBox (widget, width, height); }
-  cWidget* addAtPix (cWidget* widget, const cPointF& p) { return mRootContainer->addAtPix (widget, p); }
+  cWidget* addAt (cWidget* widget, const cPointF& p) { return mRootContainer->addAt (widget, p); }
   cWidget* addTopLeft (cWidget* widget) { return mRootContainer->addTopLeft (widget); }
   cWidget* addTopRight (cWidget* widget) { return mRootContainer->addTopRight (widget); }
   cWidget* addBottomLeft (cWidget* widget) { return mRootContainer->addBottomLeft (widget); }

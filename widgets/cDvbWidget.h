@@ -17,8 +17,8 @@
 class cDvbWidget: public cWidget {
 public:
   //{{{
-  cDvbWidget (cDvb* dvb, float height, float width, const std::string& name = "cDvbWidget") :
-    cWidget (height, width, name), mDvb(dvb) {}
+  cDvbWidget (cDvb* dvb, float height, float width, const std::string& debugName = "cDvbWidget") :
+    cWidget (height, width, debugName), mDvb(dvb) {}
   //}}}
   virtual ~cDvbWidget() {}
 

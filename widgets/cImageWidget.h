@@ -17,8 +17,8 @@ public:
   cImageWidget (const uint8_t* image, int imageSize,
                 float width, float height,
                 std::function<void (cImageWidget* widget)> hitCallback = [](cImageWidget*) {},
-                const std::string& name = "cImageWidget")
-      : cWidget(width, height, name), mHitCallback(hitCallback) {
+                const std::string& debugName = "cImageWidget")
+      : cWidget(width, height, debugName), mHitCallback(hitCallback) {
    stbi_set_flip_vertically_on_load (true);
    mPiccy = stbi_load_from_memory ((uint8_t* const*)image, imageSize, &mPicWidth, &mPicHeight, &mPicComponents, 4);
    //auto ptr = mPic;

@@ -7,10 +7,10 @@
 
 class cTextBox : public cWidget {
 public:
-  cTextBox (std::string& text, float width, const std::string name = "cTextBox")
-    : cWidget (width, name), mText(text) {}
-  cTextBox (std::string& text, const sColourF& colour, uint16_t width, uint16_t height, const std::string name = "cTextBox") :
-    cWidget (colour, width, height, name), mText(text) {}
+  cTextBox (std::string& text, float width, const std::string debugName = "cTextBox")
+    : cWidget (width, debugName), mText(text) {}
+  cTextBox (std::string& text, const sColourF& colour, uint16_t width, uint16_t height, const std::string debugName = "cTextBox") :
+    cWidget (colour, width, height, debugName), mText(text) {}
   virtual ~cTextBox() {}
 
   virtual void setText (std::string& text) { mText = text; }
