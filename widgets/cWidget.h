@@ -62,18 +62,10 @@ public:
   virtual int getPressedCount() { return mPressedCount; }
 
   //{{{
-  virtual bool isWithin (const cPointF& point) {
-  // return true if p inside widget, even if not visible
-
-    return (point.x >= mPixOrg.x) && (point.x < mPixOrg.x + mPixSize.x) &&
-           (point.y >= mPixOrg.y) && (point.y < mPixOrg.y + mPixSize.y);
-    }
-  //}}}
-  //{{{
   virtual cWidget* isPicked (const cPointF& point) {
   // return true if point inside visible widget
 
-    return (mVisible && isWithin (point)) ? this : nullptr;
+    return (mVisible && isInside (point)) ? this : nullptr;
     }
   //}}}
 
@@ -128,4 +120,14 @@ protected:
   bool mOn = false;
 
   int mPressedCount = 0;
+
+private:
+  //{{{
+  bool isInside (const cPointF& point) {
+  // return true if point is inside widget, even if not visible
+
+    return (point.x >= mPixOrg.x) && (point.x < mPixOrg.x + mPixSize.x) &&
+           (point.y >= mPixOrg.y) && (point.y < mPixOrg.y + mPixSize.y);
+    }
+  //}}}
   };
