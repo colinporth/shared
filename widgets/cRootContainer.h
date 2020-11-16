@@ -8,7 +8,7 @@
 class cRootContainer : public cContainer {
 public:
   //{{{
-  cRootContainer (uint16_t width, uint16_t height, const std::string& name = "cRootContainer")
+  cRootContainer (float width, float height, const std::string& name = "cRootContainer")
     : cContainer(width, height, name) {}
   //}}}
   virtual ~cRootContainer() {}
@@ -19,7 +19,7 @@ public:
     mProxWidget = isPicked (point);
 
     if (mProxWidget)
-      mProxWidget->onProx (point - mProxWidget->getPixOrg());
+      mProxWidget->onProx (point - mProxWidget->getOrg());
     else
       mProxWidget = this;
     }
@@ -29,14 +29,14 @@ public:
 
     mPressedWidget = isPicked (point);
     if (mPressedWidget)
-      mPressedWidget->onDown (point - mPressedWidget->getPixOrg());
+      mPressedWidget->onDown (point - mPressedWidget->getOrg());
     }
   //}}}
   //{{{
   virtual void onMove (const cPointF& point, const cPointF& inc) {
 
     if (mPressedWidget)
-      mPressedWidget->onMove (point - mPressedWidget->getPixOrg(), inc);
+      mPressedWidget->onMove (point - mPressedWidget->getOrg(), inc);
     }
   //}}}
   //{{{
@@ -61,7 +61,7 @@ public:
 
     // turn green if we ever turn on
     if (mOn)
-      draw->drawRect (kDarkGreenF, mPixOrg, mPixSize);
+      draw->drawRect (kDarkGreenF, mOrg, mSize);
 
     cContainer::onDraw  (draw);
     }

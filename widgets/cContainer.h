@@ -9,12 +9,8 @@
 class cContainer : public cWidget {
 public:
   //{{{
-  cContainer (uint16_t widthInPix, uint16_t heightInPix, const std::string& debugName = "cContainer")
-    : cWidget (kBlackF, widthInPix, heightInPix, debugName) {}
-  //}}}
-  //{{{
-  cContainer (float widthInBoxes, float heightInBoxes, const std::string& debugName = "cContainer")
-    : cWidget (kBlackF, widthInBoxes, heightInBoxes, debugName) {}
+  cContainer (float width, float height, const std::string& debugName = "cContainer")
+    : cWidget (kBlackF, width, height, debugName) {}
   //}}}
   //{{{
   virtual ~cContainer() {
@@ -27,9 +23,9 @@ public:
   //}}}
 
   //{{{
-  virtual void setPixSize (const cPointF& size) {
+  virtual void setSize (const cPointF& size) {
 
-    cWidget::setPixSize (size);
+    cWidget::setSize (size);
 
     for (auto& widgetLayout : mWidgetLayouts)
       widgetLayout.mWidget->layout();
@@ -131,31 +127,31 @@ private:
     for (auto& widgetLayout : mWidgetLayouts) {
       switch (widgetLayout.mLayout) {
         case cWidgetLayout::eLayout::eAt:
-          widgetLayout.mWidget->setPixOrg (widgetLayout.mOffset);
+          widgetLayout.mWidget->setOrg (widgetLayout.mOffset);
           break;
 
         case cWidgetLayout::eLayout::eNext:
           if (!prevWidget)
             // topLeft
-            widgetLayout.mWidget->setPixOrg (widgetLayout.mOffset);
-          else if (prevWidget->getPixEndX() + widgetLayout.mWidget->getPixWidth() < getPixWidth())
+            widgetLayout.mWidget->setOrg (widgetLayout.mOffset);
+          else if (prevWidget->getEndX() + widgetLayout.mWidget->getWidth() < getWidth())
             // next right
-            widgetLayout.mWidget->setPixOrg (
-              prevWidget->getPixOrg() + cPointF (prevWidget->getPixWidth() + widgetLayout.mOffset.x, 0.f));
+            widgetLayout.mWidget->setOrg (
+              prevWidget->getOrg() + cPointF (prevWidget->getWidth() + widgetLayout.mOffset.x, 0.f));
           else
             // belowLeft
-            widgetLayout.mWidget->setPixOrg (cPointF(0.f, boundingSize.y + widgetLayout.mOffset.y));
+            widgetLayout.mWidget->setOrg (cPointF(0.f, boundingSize.y + widgetLayout.mOffset.y));
           break;
 
         case cWidgetLayout::eLayout::eBelowLeft:
           // belowLeft
-          widgetLayout.mWidget->setPixOrg (cPointF(0.f, boundingSize.y + widgetLayout.mOffset.y));
+          widgetLayout.mWidget->setOrg (cPointF(0.f, boundingSize.y + widgetLayout.mOffset.y));
           break;
         }
 
       // calc boundingSize
-      boundingSize.x = std::max (boundingSize.x, widgetLayout.mWidget->getPixEndX());
-      boundingSize.y = std::max (boundingSize.y, widgetLayout.mWidget->getPixEndY());
+      boundingSize.x = std::max (boundingSize.x, widgetLayout.mWidget->getEndX());
+      boundingSize.y = std::max (boundingSize.y, widgetLayout.mWidget->getEndY());
 
       prevWidget = widgetLayout.mWidget;
       }

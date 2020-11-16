@@ -24,7 +24,7 @@ cGlWindow::~cGlWindow() {
 
 // iWindow
 cVg* cGlWindow::getVg() { return this; }
-cPointF cGlWindow::getPixSize() { return mRootContainer->getPixSize(); }
+cPointF cGlWindow::getSize() { return mRootContainer->getSize(); }
 
 //{{{
 int cGlWindow::getDayLightSeconds() {
@@ -151,7 +151,7 @@ cRootContainer* cGlWindow::initialise (const string& title, int width, int heigh
   createFont ("sans", (unsigned char*)font, fontSize);
   setFontByName ("sans");
 
-  mRootContainer = new cRootContainer (width, height);
+  mRootContainer = new cRootContainer (float(width), float(height));
 
   // init timers
   glfwSetTime (0);
@@ -216,7 +216,7 @@ void cGlWindow::updateWindowSize() {
   glfwGetWindowSize (mWindow, &mWinWidth, &mWinHeight);
 
   mWinSize = { (float)mWinWidth, (float)mWinHeight };
-  mRootContainer->setPixSize (mWinSize);
+  mRootContainer->setSize (mWinSize);
 
   int frameBufferWidth;
   int frameBufferHeight;

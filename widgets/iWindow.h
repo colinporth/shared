@@ -7,7 +7,7 @@ public:
 
   virtual cVg* getVg() = 0;
 
-  virtual cPointF getPixSize() = 0;
+  virtual cPointF getSize() = 0;
 
   virtual bool getShift() = 0;
   virtual bool getControl() = 0;

@@ -11,8 +11,9 @@ constexpr bool kVideoPoolDebug = true;
 class cLoaderWidget : public cWidget {
 public:
   //{{{
-  cLoaderWidget (cLoader* loader, iClockTime* clockTime, cPointF size, const std::string& debugName = "cLoaderWidget")
-    : cWidget (kBlackF, size.x, size.y, debugName), mLoader(loader), mClockTime(clockTime) {}
+  cLoaderWidget (cLoader* loader, iClockTime* clockTime,
+                 float width = 0.f, float height = 0.f, const std::string& debugName = "cLoaderWidget")
+    : cWidget (kBlackF, width, height, debugName), mLoader(loader), mClockTime(clockTime) {}
   //}}}
   virtual ~cLoaderWidget() {}
 
@@ -37,22 +38,24 @@ public:
 
     cSong* song = mLoader->getSong();
 
-    //std::shared_lock<std::shared_mutex> lock (song->getSharedMutex());
-    if (point.y > mDstOverviewTop) {
-      int64_t frameNum = song->getFirstFrameNum() + int((point.x * song->getTotalFrames()) / getPixWidth());
-      song->setPlayPts (song->getPtsFromFrameNum (frameNum));
-      mOverviewPressed = true;
-      }
+    if (song) {
+      //std::shared_lock<std::shared_mutex> lock (song->getSharedMutex());
+      if (point.y > mDstOverviewTop) {
+        int64_t frameNum = song->getFirstFrameNum() + int((point.x * song->getTotalFrames()) / getWidth());
+        song->setPlayPts (song->getPtsFromFrameNum (frameNum));
+        mOverviewPressed = true;
+        }
 
-    else if (point.y > mDstRangeTop) {
-      mPressedFrameNum = song->getPlayFrameNum() + ((point.x - (getPixWidth()/2.f)) * mFrameStep / mFrameWidth);
-      song->getSelect().start (int64_t(mPressedFrameNum));
-      mRangePressed = true;
-      //mWindow->changed();
-      }
+      else if (point.y > mDstRangeTop) {
+        mPressedFrameNum = song->getPlayFrameNum() + ((point.x - (getWidth()/2.f)) * mFrameStep / mFrameWidth);
+        song->getSelect().start (int64_t(mPressedFrameNum));
+        mRangePressed = true;
+        //mWindow->changed();
+        }
 
-    else
-      mPressedFrameNum = double(song->getFrameNumFromPts (int64_t(song->getPlayPts())));
+      else
+        mPressedFrameNum = double(song->getFrameNumFromPts (int64_t(song->getPlayPts())));
+      }
     }
   //}}}
   //{{{
@@ -61,21 +64,23 @@ public:
     cWidget::onMove (point, inc);
 
     cSong* song = mLoader->getSong();
-    //std::shared_lock<std::shared_mutex> lock (song.getSharedMutex());
-    if (mOverviewPressed)
-      song->setPlayPts (
-        song->getPtsFromFrameNum (
-          song->getFirstFrameNum() + int64_t(point.x * song->getTotalFrames() / getPixWidth())));
+    if (song) {
+      //std::shared_lock<std::shared_mutex> lock (song.getSharedMutex());
+      if (mOverviewPressed)
+        song->setPlayPts (
+          song->getPtsFromFrameNum (
+            song->getFirstFrameNum() + int64_t(point.x * song->getTotalFrames() / getWidth())));
 
-    else if (mRangePressed) {
-      mPressedFrameNum += (inc.x / mFrameWidth) * mFrameStep;
-      song->getSelect().move (int64_t(mPressedFrameNum));
-      //mWindow->changed();
-      }
+      else if (mRangePressed) {
+        mPressedFrameNum += (inc.x / mFrameWidth) * mFrameStep;
+        song->getSelect().move (int64_t(mPressedFrameNum));
+        //mWindow->changed();
+        }
 
-    else {
-      mPressedFrameNum -= (inc.x / mFrameWidth) * mFrameStep;
-      song->setPlayPts (song->getPtsFromFrameNum (int64_t(mPressedFrameNum)));
+      else {
+        mPressedFrameNum -= (inc.x / mFrameWidth) * mFrameStep;
+        song->setPlayPts (song->getPtsFromFrameNum (int64_t(mPressedFrameNum)));
+        }
       }
     }
   //}}}
@@ -83,7 +88,11 @@ public:
   virtual void onUp() {
 
     cWidget::onUp();
-    mLoader->getSong()->getSelect().end();
+
+    cSong* song = mLoader->getSong();
+    if (song)
+      song->getSelect().end();
+
     mOverviewPressed = false;
     mRangePressed = false;
     }
@@ -103,7 +112,7 @@ public:
     mWaveHeight = 100.f;
     mOverviewHeight = mShowOverview ? 100.f : 0.f;
     mRangeHeight = 8.f;
-    mFreqHeight = mPixSize.y - mRangeHeight - mWaveHeight - mOverviewHeight;
+    mFreqHeight = mSize.y - mRangeHeight - mWaveHeight - mOverviewHeight;
 
     mDstFreqTop = 0.f;
     mDstWaveTop = mDstFreqTop + mFreqHeight;
@@ -136,8 +145,8 @@ public:
 
           // paint image rect
           vg->beginPath();
-          vg->rect (cPointF(), mPixSize);
-          vg->setFillPaint (vg->setImagePattern (cPointF(), mPixSize, 0.f, mImageId, 1.f));
+          vg->rect (cPointF(), mSize);
+          vg->setFillPaint (vg->setImagePattern (cPointF(), mSize, 0.f, mImageId, 1.f));
           vg->triangleFill();
           foundPiccy = true;
           }
@@ -156,7 +165,7 @@ public:
       mLoader->getFracs (loadFrac, audioFrac, videoFrac);
       if ((loadFrac > 0.f) &&
           ((loadFrac < 1.f) || (audioFrac > 0.f) || (videoFrac > 0.f))) {
-        cPointF centre (mPixSize.x-20.f, 20.f);
+        cPointF centre (mSize.x-20.f, 20.f);
         drawSpinner (vg, centre, 18.f,12.f, 0.1f, loadFrac,
                      sColourF(0.f,1.f,0.f,0.f), sColourF(0.f,1.f,0.f,0.75f));
         if (videoFrac > 0.f)
@@ -175,8 +184,8 @@ public:
 
         // wave left right frames, clip right not left
         int64_t playFrame = song->getPlayFrameNum();
-        int64_t leftWaveFrame = playFrame - (((int(mPixSize.x)+mFrameWidth)/2) * mFrameStep) / mFrameWidth;
-        int64_t rightWaveFrame = playFrame + (((int(mPixSize.x)+mFrameWidth)/2) * mFrameStep) / mFrameWidth;
+        int64_t leftWaveFrame = playFrame - (((int(mSize.x)+mFrameWidth)/2) * mFrameStep) / mFrameWidth;
+        int64_t rightWaveFrame = playFrame + (((int(mSize.x)+mFrameWidth)/2) * mFrameStep) / mFrameWidth;
         rightWaveFrame = std::min (rightWaveFrame, song->getLastFrameNum());
 
         drawRange (vg, song, playFrame, leftWaveFrame, rightWaveFrame);
@@ -260,15 +269,15 @@ private:
     vg->setFontSize (kFontHeight);
     vg->setTextAlign (cVg::eAlignLeft | cVg::eAlignTop);
     vg->setFillColour (kBlackF);
-    vg->text (mPixOrg + cPointF(2.f, 2.f), infoString);
+    vg->text (mOrg + cPointF(2.f, 2.f), infoString);
     vg->setFillColour (kWhiteF);
-    vg->text (mPixOrg, infoString);
+    vg->text (mOrg, infoString);
     }
   //}}}
   //{{{
   void drawVideoPool (cVg* vg, cSong* song, iVideoPool* videoPool, int64_t playerPts) {
 
-    cPointF org { getPixCentre().x, mDstWaveCentre };
+    cPointF org { getCentre().x, mDstWaveCentre };
     const float ptsPerPix = float((90 * song->getSamplesPerFrame()) / 48);
     constexpr float kPesSizeScale = 1000.f;
 
@@ -321,16 +330,16 @@ private:
   void drawRange (cVg* vg, cSong* song, int64_t playFrame, int64_t leftFrame, int64_t rightFrame) {
 
     //vg->beginPath();
-    //vg->rect (mPixOrg + cPointF(0.f, mDstRangeTop), cPointF(mPixSize.x, mRangeHeight));
+    //vg->rect (mOrg + cPointF(0.f, mDstRangeTop), cPointF(mSize.x, mRangeHeight));
     //vg->setFillColour (kDarkGreyF);
     //vg->triangleFill();
 
     //vg->beginPath();
     //for (auto &item : song->getSelect().getItems()) {
-    //  auto firstx = (getPixWidth()/2.f) + (item.getFirstFrame() - playFrame) * mFrameWidth / mFrameStep;
+    //  auto firstx = (getWidth()/2.f) + (item.getFirstFrame() - playFrame) * mFrameWidth / mFrameStep;
     //  float lastx = item.getMark() ? firstx + 1.f :
-    //                                 (getPixWidth()/2.f) + (item.getLastFrame() - playFrame) * mFrameWidth / mFrameStep;
-    //  vg->rect (mPixOrg + cPointF(firstx, mDstRangeTop), cPointF(lastx - firstx, mRangeHeight));
+    //                                 (getWidth()/2.f) + (item.getLastFrame() - playFrame) * mFrameWidth / mFrameStep;
+    //  vg->rect (mOrg + cPointF(firstx, mDstRangeTop), cPointF(lastx - firstx, mRangeHeight));
 
     //  auto title = item.getTitle();
     //  if (!title.empty()) {
@@ -356,7 +365,7 @@ private:
     float xlen = (float)mFrameStep;
     if (mFrameStep == 1) {
       //{{{  draw all peak values
-      float xorg = mPixOrg.x;
+      float xorg = mOrg.x;
 
       vg->beginPath();
 
@@ -369,7 +378,7 @@ private:
             for (auto i = 0; i < 2; i++)
               values[i] = *peakValuesPtr++ * peakValueScale;
             }
-          vg->rect (cPointF(xorg, mPixOrg.y + mDstWaveCentre - values[0]), cPointF(xlen, values[0] + values[1]));
+          vg->rect (cPointF(xorg, mOrg.y + mDstWaveCentre - values[0]), cPointF(xlen, values[0] + values[1]));
           }
         xorg += xlen;
         }
@@ -379,7 +388,7 @@ private:
       }
       //}}}
 
-    float xorg = mPixOrg.x;
+    float xorg = mOrg.x;
     //{{{  draw powerValues before playFrame, summed if zoomed out
     vg->beginPath();
 
@@ -415,7 +424,7 @@ private:
           for (auto i = 0; i < 2; i++)
             values[i] /= toSumFrame - alignedFrame + 1;
           }
-        vg->rect (cPointF(xorg, mPixOrg.y + mDstWaveCentre - values[0]), cPointF(xlen, values[0] + values[1]));
+        vg->rect (cPointF(xorg, mOrg.y + mDstWaveCentre - values[0]), cPointF(xlen, values[0] + values[1]));
         }
 
       xorg += xlen;
@@ -436,7 +445,7 @@ private:
         for (auto i = 0; i < 2; i++)
           values[i] = *powerValuesPtr++ * peakValueScale;
         }
-      vg->rect (cPointF(xorg, mPixOrg.y + mDstWaveCentre - values[0]), cPointF(xlen, values[0] + values[1]));
+      vg->rect (cPointF(xorg, mOrg.y + mDstWaveCentre - values[0]), cPointF(xlen, values[0] + values[1]));
       }
 
     xorg += xlen;
@@ -479,7 +488,7 @@ private:
           for (auto i = 0; i < 2; i++)
             values[i] /= toSumFrame - alignedFrame + 1;
           }
-        vg->rect (cPointF(xorg, mPixOrg.y + mDstWaveCentre - values[0]), cPointF(xlen, values[0] + values[1]));
+        vg->rect (cPointF(xorg, mOrg.y + mDstWaveCentre - values[0]), cPointF(xlen, values[0] + values[1]));
         }
 
       xorg += xlen;
@@ -515,14 +524,14 @@ private:
 
     vg->beginPath();
 
-    float xorg = mPixOrg.x;
+    float xorg = mOrg.x;
     auto framePtr = song->findFrameByFrameNum (playFrame);
     if (framePtr && framePtr->getFreqValues()) {
       auto freqValues = framePtr->getFreqValues();
-      for (auto i = 0; (i < song->getNumFreqBytes()) && ((i*2) < int(mPixSize.x)); i++) {
+      for (auto i = 0; (i < song->getNumFreqBytes()) && ((i*2) < int(mSize.x)); i++) {
         auto value =  freqValues[i] * valueScale;
         if (value > 1.f)
-          vg->rect (cPointF(xorg, mPixOrg.y + mPixSize.y - value), cPointF(2.f, value));
+          vg->rect (cPointF(xorg, mOrg.y + mSize.y - value), cPointF(2.f, value));
         xorg += 2.f;
         }
       }
@@ -540,16 +549,16 @@ private:
     // small lastFrameString, white, right
     vg->setFontSize (kFontHeight);
     vg->setTextAlign (cVg::eAlignRight | cVg::eAlignBottom);
-    vg->text (mPixSize, lastFrameString);
+    vg->text (mSize, lastFrameString);
 
     // small firstFrameString, white, left
     vg->setTextAlign (cVg::eAlignLeft | cVg::eAlignBottom);
-    vg->text (cPointF(0.f, mPixSize.y), firstFrameString);
+    vg->text (cPointF(0.f, mSize.y), firstFrameString);
 
     // big playFrameString, white, centred
     vg->setFontSize (kBigFontHeight);
     vg->setTextAlign (cVg::eAlignCentre | cVg::eAlignBottom);
-    vg->text (cPointF(mPixSize.x/2.f, mPixSize.y), playFrameString);
+    vg->text (cPointF(mSize.x/2.f, mSize.y), playFrameString);
     }
   //}}}
   //{{{
@@ -567,13 +576,13 @@ private:
     float values[2] = { 0.f };
 
     vg->beginPath();
-    float xorg = mPixOrg.x;
+    float xorg = mOrg.x;
     float xlen = 1.f;
-    for (auto x = 0; x < int(mPixSize.x); x++) {
+    for (auto x = 0; x < int(mSize.x); x++) {
       // iterate widget width
       if (changed) {
-        int64_t frame = firstFrame + ((x * totalFrames) / int(mPixSize.x));
-        int64_t toFrame = firstFrame + (((x+1) * totalFrames) / int(mPixSize.x));
+        int64_t frame = firstFrame + ((x * totalFrames) / int(mSize.x));
+        int64_t toFrame = firstFrame + (((x+1) * totalFrames) / int(mSize.x));
         if (toFrame > lastFrame)
           toFrame = lastFrame+1;
 
@@ -609,7 +618,7 @@ private:
           }
         }
 
-      vg->rect (cPointF(xorg, mPixOrg.y + mDstOverviewCentre - mOverviewValuesL[x]), cPointF(xlen,  mOverviewValuesR[x]));
+      vg->rect (cPointF(xorg, mOrg.y + mDstOverviewCentre - mOverviewValuesL[x]), cPointF(xlen,  mOverviewValuesR[x]));
       xorg += 1.f;
       }
     vg->setFillColour (kGreyF);
@@ -624,13 +633,13 @@ private:
   //}}}
   //{{{
   void drawOverviewLens (cVg* vg, cSong* song, int64_t playFrame, float centreX, float width, bool mono) {
-  // draw frames centred at playFrame -/+ width in pixels, centred at centreX
+  // draw frames centred at playFrame -/+ width in els, centred at centreX
 
     cLog::log (LOGINFO, "drawOverviewLens %d %f %f", playFrame, centreX, width);
 
     // cut hole and frame it
     vg->beginPath();
-    vg->rect (mPixOrg + cPointF(centreX - width, mDstOverviewTop), cPointF(width * 2.f, mOverviewHeight));
+    vg->rect (mOrg + cPointF(centreX - width, mDstOverviewTop), cPointF(width * 2.f, mOverviewHeight));
     vg->setFillColour (kBlackF);
     vg->triangleFill();
     // frame in yellow
@@ -660,7 +669,7 @@ private:
 
     // draw unzoomed waveform, start before playFrame
     vg->beginPath();
-    float xorg = mPixOrg.x + firstX;
+    float xorg = mOrg.x + firstX;
     float valueScale = mOverviewHeight / 2.f / maxPowerValue;
     for (auto frame = int(leftFrame); frame <= rightFrame; frame++) {
       auto framePtr = song->findFrameByFrameNum (frame);
@@ -697,7 +706,7 @@ private:
                             mDstOverviewCentre - (powerValues[0] * valueScale);
         float ylen = mono ? powerValues[0] * valueScale * 2.f  :
                             (powerValues[0] + powerValues[1]) * valueScale;
-        vg->rect (cPointF(xorg, mPixOrg.y + yorg), cPointF(1.f, ylen));
+        vg->rect (cPointF(xorg, mOrg.y + yorg), cPointF(1.f, ylen));
 
         if (frame == playFrame) {
           //{{{  finish playFrame, start after playFrame
@@ -722,14 +731,14 @@ private:
       return;
 
     int64_t firstFrame = song->getFirstFrameNum();
-    float playFrameX = ((playFrame - firstFrame) * mPixSize.x) / song->getTotalFrames();
+    float playFrameX = ((playFrame - firstFrame) * mSize.x) / song->getTotalFrames();
     float valueScale = mOverviewHeight / 2.f / song->getMaxPowerValue();
     drawOverviewWave (vg, song, firstFrame, playFrame, playFrameX, valueScale, mono);
 
     if (mOverviewPressed) {
       //{{{  animate on
-      if (mOverviewLens < getPixWidth() / 16.f) {
-        mOverviewLens += getPixWidth() / 16.f / 6.f;
+      if (mOverviewLens < getWidth() / 16.f) {
+        mOverviewLens += getWidth() / 16.f / 6.f;
         //mWindow->changed();
         }
       }
@@ -752,8 +761,8 @@ private:
       float overviewLensCentreX = (float)playFrameX;
       if (overviewLensCentreX - mOverviewLens < 0.f)
         overviewLensCentreX = (float)mOverviewLens;
-      else if (overviewLensCentreX + mOverviewLens > mPixSize.x)
-        overviewLensCentreX = mPixSize.x - mOverviewLens;
+      else if (overviewLensCentreX + mOverviewLens > mSize.x)
+        overviewLensCentreX = mSize.x - mOverviewLens;
 
       drawOverviewLens (vg, song, playFrame, overviewLensCentreX, mOverviewLens-1.f, mono);
       }
@@ -767,7 +776,7 @@ private:
         float yorg = mono ? (mDstOverviewTop + mOverviewHeight - (powerValues[0] * valueScale * 2.f)) :
                             (mDstOverviewCentre - (powerValues[0] * valueScale));
         float ylen = mono ? (powerValues[0] * valueScale * 2.f) : ((powerValues[0] + powerValues[1]) * valueScale);
-        vg->rect (mPixOrg + cPointF(playFrameX, yorg), cPointF(1.f, ylen));
+        vg->rect (mOrg + cPointF(playFrameX, yorg), cPointF(1.f, ylen));
         vg->setFillColour (kWhiteF);
         vg->triangleFill();
         }

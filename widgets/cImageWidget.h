@@ -28,8 +28,8 @@ public:
   //}}}
   virtual ~cImageWidget() {}
 
-  virtual void onDown (const cPointF& p) {
-    cWidget::onDown (p);
+  virtual void onDown (const cPointF& point) {
+    cWidget::onDown (point);
     mHitCallback (this);
     }
 
@@ -42,8 +42,8 @@ public:
 
     // calc draw pos,size
     mScale = isPressed() ? 0.7f : 1.0f;
-    cPointF drawSize = (mPixSize - kBorder) * mScale;
-    cPointF drawCentre = mPixOrg + (mPixSize - drawSize)/2.f;
+    cPointF drawSize = (mSize - kBorder) * mScale;
+    cPointF drawCentre = mOrg + (mSize - drawSize)/2.f;
 
     // draw it
     auto imgPaint = vg->setImagePattern (drawCentre, drawSize, 0.f, mImage, 1.0f);

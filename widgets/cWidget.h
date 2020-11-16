@@ -16,51 +16,32 @@ public:
   static constexpr float kBigFontHeight = 40.f;
 
   //{{{
-  cWidget (float widthInBoxes, const std::string& debugName)
-    : mDebugName(debugName),
-      mLayoutSize(widthInBoxes * kBoxHeight, kBoxHeight),
-      mPixSize(widthInBoxes * kBoxHeight, kBoxHeight) {}
+  cWidget (float width, float height, const std::string& debugName)
+    : mDebugName(debugName), mLayoutSize(width, height), mSize(width, height) {}
   //}}}
   //{{{
-  cWidget (float widthInBoxes, float heightInBoxes, const std::string& debugName)
-    : mDebugName(debugName),
-      mLayoutSize(widthInBoxes * kBoxHeight, heightInBoxes * kBoxHeight),
-      mPixSize(widthInBoxes * kBoxHeight, heightInBoxes * kBoxHeight) {}
-  //}}}
-  //{{{
-  cWidget (const sColourF& colour, float widthInBoxes, float heightInBoxes, const std::string& debugName)
-    : mDebugName(debugName),
-      mColour(colour),
-      mLayoutSize(widthInBoxes * kBoxHeight, heightInBoxes * kBoxHeight),
-      mPixSize(widthInBoxes * kBoxHeight, heightInBoxes * kBoxHeight) {}
-  //}}}
-  //{{{
-  cWidget (uint16_t widthInPix, uint16_t heightInPix, const std::string& debugName)
-    : mDebugName(debugName), mLayoutSize(widthInPix, heightInPix), mPixSize(widthInPix, heightInPix) {}
-  //}}}
-  //{{{
-  cWidget (const sColourF& colour, uint16_t widthInPix, uint16_t heightInPix, const std::string& debugName)
+  cWidget (const sColourF& colour, float width, float height, const std::string& debugName)
     : mDebugName(debugName), mColour(colour),
-      mLayoutSize(widthInPix, heightInPix), mPixSize(widthInPix, heightInPix) {}
+      mLayoutSize(width, height), mSize(width, height) {}
   //}}}
   virtual ~cWidget() {}
 
   //{{{  gets
-  cPointF getPixOrg() { return mPixOrg; }
-  float getPixX() { return mPixOrg.x; }
-  float getPixY() { return mPixOrg.y; }
+  cPointF getOrg() { return mOrg; }
+  float getX() { return mOrg.x; }
+  float getY() { return mOrg.y; }
 
-  cPointF getPixSize() { return mPixSize; }
-  float getPixWidth() { return mPixSize.x; }
-  float getPixHeight() { return mPixSize.y; }
+  cPointF getSize() { return mSize; }
+  float getWidth() { return mSize.x; }
+  float getHeight() { return mSize.y; }
 
-  cPointF getPixCentre() { return mPixOrg + (mPixSize / 2.f); }
-  float getPixCentreX() { return mPixOrg.x + (mPixSize.x / 2.f); }
-  float getPixCentreY() { return mPixOrg.y + (mPixSize.y / 2.f); }
+  cPointF getCentre() { return mOrg + (mSize / 2.f); }
+  float getCentreX() { return mOrg.x + (mSize.x / 2.f); }
+  float getCentreY() { return mOrg.y + (mSize.y / 2.f); }
 
-  cPointF getPixEnd() { return mPixOrg + mPixSize; }
-  float getPixEndX() { return mPixOrg.x + mPixSize.x; }
-  float getPixEndY() { return mPixOrg.y + mPixSize.y; }
+  cPointF getEnd() { return mOrg + mSize; }
+  float getEndX() { return mOrg.x + mSize.x; }
+  float getEndY() { return mOrg.y + mSize.y; }
   //}}}
   //{{{  gets - virtual
   virtual bool isOn() { return mOn; }
@@ -80,8 +61,8 @@ public:
   virtual std::string getDebugName() { return mDebugName; }
   //}}}
   //{{{  sets - virtual
-  virtual void setPixOrg (const cPointF& point) { mPixOrg = point; }
-  virtual void setPixSize (const cPointF& size) { mPixSize = size; }
+  virtual void setOrg (const cPointF& point) { mOrg = point; }
+  virtual void setSize (const cPointF& size) { mSize = size; }
 
   virtual void setColour (const sColourF& colour) { mColour = colour; }
   virtual void setParent (cWidget* parent) { mParent = parent; }
@@ -96,8 +77,8 @@ public:
   virtual void layout() {
 
     if (mParent)
-      setPixSize (cPointF(mLayoutSize.x <= 0.f ? mParent->getPixSize().x + mLayoutSize.x : mPixSize.x,
-                          mLayoutSize.y <= 0.f ? mParent->getPixSize().y + mLayoutSize.y : mPixSize.y));
+      setSize (cPointF(mLayoutSize.x <= 0.f ? mParent->getSize().x + mLayoutSize.x : mSize.x,
+                          mLayoutSize.y <= 0.f ? mParent->getSize().y + mLayoutSize.y : mSize.y));
     }
   //}}}
 
@@ -109,16 +90,17 @@ public:
 
   //{{{
   virtual void onDraw (iDraw* draw) {
-    draw->drawRect (mOn ? kLightRedF : mColour, mPixOrg + cPointF(1.f,1.f), mPixSize - cPointF(1.f,1.f));
+    draw->drawRect (mOn ? kLightRedF : mColour, mOrg + cPointF(1.f,1.f), mSize - cPointF(1.f,1.f));
     }
   //}}}
 
 protected:
   const std::string mDebugName;
   sColourF mColour = kLightGreyF;
+
   const cPointF mLayoutSize = { 0.f,0.f };
-  cPointF mPixOrg = { 0.f,0.f };
-  cPointF mPixSize = { 0.f,0.f };
+  cPointF mOrg = { 0.f,0.f };
+  cPointF mSize = { 0.f,0.f };
 
   cWidget* mParent = nullptr;
   bool mVisible = true;
@@ -131,8 +113,8 @@ private:
   bool isInside (const cPointF& point) {
   // return true if point is inside widget, even if not visible
 
-    return (point.x >= mPixOrg.x) && (point.x < mPixOrg.x + mPixSize.x) &&
-           (point.y >= mPixOrg.y) && (point.y < mPixOrg.y + mPixSize.y);
+    return (point.x >= mOrg.x) && (point.x < getEndX()) &&
+           (point.y >= mOrg.y) && (point.y < getEndY());
     }
   //}}}
   };

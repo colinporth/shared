@@ -21,7 +21,7 @@ public:
   //{{{  iWindow gets
   cVg* getVg();
 
-  cPointF getPixSize();
+  cPointF getSize();
 
   bool getShift() { return mShifted; }
   bool getControl() { return mControlled; }

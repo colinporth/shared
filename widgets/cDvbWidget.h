@@ -17,8 +17,8 @@
 class cDvbWidget: public cWidget {
 public:
   //{{{
-  cDvbWidget (cDvb* dvb, float height, float width, const std::string& debugName = "cDvbWidget") :
-    cWidget (height, width, debugName), mDvb(dvb) {}
+  cDvbWidget (cDvb* dvb, float width, float height, const std::string& debugName = "cDvbWidget") :
+    cWidget (width, height, debugName), mDvb(dvb) {}
   //}}}
   virtual ~cDvbWidget() {}
 
@@ -29,8 +29,8 @@ public:
     mScroll = std::max (mScroll - inc.y, -1.f);
 
     // clip mScroll to bottom
-    if (mLastHeight > mPixSize.y)
-      mScroll = std::min (mScroll, mLastHeight - mPixSize.y);
+    if (mLastHeight > mSize.y)
+      mScroll = std::min (mScroll, mLastHeight - mSize.y);
     else
       mScroll = 0.f;
     }
@@ -47,28 +47,28 @@ public:
   virtual void onDraw (iDraw* draw) {
 
     auto vg = draw->getVg();
-    vg->scissor (mPixOrg, mPixSize);
+    vg->scissor (mOrg, mSize);
 
     int lastSid = 0;
     int imageIndex = 0;
     float lineHeight = mZoom + (kBoxHeight * 4.f / 5.f);
 
-    float x = mPixOrg.x + 2.f;
-    float y = mPixOrg.y - mScroll;
+    float x = mOrg.x + 2.f;
+    float y = mOrg.y - mScroll;
     for (auto& pidInfoItem : mDvb->getTransportStream()->mPidInfoMap) { // iteratepidInfo
       cPidInfo& pidInfo = pidInfoItem.second;
       int pid = pidInfo.mPid;
 
       if ((pidInfo.mSid != lastSid) && (pidInfo.mStreamType != 5) && (pidInfo.mStreamType != 11))
         // spacer on change of service
-        draw->drawRect (kGreyF, cPointF(x, y), cPointF(mPixSize.x, 1.f));
+        draw->drawRect (kGreyF, cPointF(x, y), cPointF(mSize.x, 1.f));
 
       auto pidString = dec (pidInfo.mPackets,mPacketDigits) +
                        (mContDigits ? (":" + dec(pidInfo.mErrors, mContDigits)) : "") +
                        " " + dec(pid, 4) +
                        " " + getFullPtsString (pidInfo.mPts) +
                        " " + pidInfo.getTypeString();
-      float textWidth = draw->drawText (kLightGreyF, lineHeight, pidString, cPointF(x, y), cPointF(mPixSize.x-3.f, lineHeight));
+      float textWidth = draw->drawText (kLightGreyF, lineHeight, pidString, cPointF(x, y), cPointF(mSize.x-3.f, lineHeight));
       float visx = x + textWidth + lineHeight/2.f;
 
       if (pidInfo.mStreamType == 6) {
@@ -82,7 +82,7 @@ public:
 
             for (int line = (int)subtitle->mRects.size()-1; line >= 0; line--) {
               // iterate rects
-              float dstWidth = mPixSize.x - visx;
+              float dstWidth = mSize.x - visx;
               float dstHeight = float(subtitle->mRects[line]->mHeight * dstWidth) / subtitle->mRects[line]->mWidth;
               if (dstHeight > lineHeight) {
                 // scale to fit line
@@ -116,10 +116,10 @@ public:
 
               // draw rect position
               std::string text = dec(subtitle->mRects[line]->mX) + "," + dec(subtitle->mRects[line]->mY,3);
-              float posWidth = draw->drawTextRight (kWhiteF, lineHeight, text, cPointF(mPixOrg.x + mPixSize.x,  ySub), cPointF(mPixSize.x - mPixOrg.x, dstHeight));
+              float posWidth = draw->drawTextRight (kWhiteF, lineHeight, text, cPointF(mOrg.x + mSize.x,  ySub), cPointF(mSize.x - mOrg.x, dstHeight));
 
               // draw clut
-              float clutX = mPixSize.x - mPixOrg.x - posWidth - lineHeight * 4.f;
+              float clutX = mSize.x - mOrg.x - posWidth - lineHeight * 4.f;
               for (int i = 0; i < subtitle->mRects[line]->mClutSize; i++) {
                 float cx = clutX + (i % 8) * lineHeight / 2.f;
                 float cy = ySub + (i / 8) * lineHeight / 2.f;
@@ -139,13 +139,13 @@ public:
 
       mMaxPidPackets = std::max (mMaxPidPackets, (float)pidInfo.mPackets);
       float frac = pidInfo.mPackets / mMaxPidPackets;
-      draw->drawRect (kDarkOrangeF, cPointF(visx, y), cPointF(frac * (mPixSize.x - textWidth), lineHeight-1.f));
+      draw->drawRect (kDarkOrangeF, cPointF(visx, y), cPointF(frac * (mSize.x - textWidth), lineHeight-1.f));
 
       std::string str;
       if ((pidInfo.mStreamType == 0) && (pidInfo.mSid > 0))
         str += dec(pidInfo.mSid) + " ";
       str += pidInfo.getInfoString();
-      draw->drawText (kLightGreyF, lineHeight, str, cPointF(visx,  y), cPointF(mPixSize.x - textWidth, lineHeight));
+      draw->drawText (kLightGreyF, lineHeight, str, cPointF(visx,  y), cPointF(mSize.x - textWidth, lineHeight));
 
       if (pidInfo.mPackets > pow (10, mPacketDigits))
         mPacketDigits++;
