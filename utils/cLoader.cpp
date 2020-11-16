@@ -508,11 +508,10 @@ public:
   //{{{
   virtual void exit() {
 
-    mExit = true;
-
     if (mSongPlayer)
        mSongPlayer->exit();
 
+    mExit = true;
     while (mRunning) {
       this_thread::sleep_for (100ms);
       cLog::log (LOGINFO, mName + " - waiting to exit");
@@ -591,7 +590,7 @@ protected:
   };
 //}}}
 //{{{
-class cLoadIdle : public cLoadSource{
+class cLoadIdle : public cLoadSource {
 public:
   cLoadIdle() : cLoadSource("idle") {}
   virtual ~cLoadIdle() {}
@@ -1584,7 +1583,7 @@ public:
     uint8_t buffer[kFileChunkSize*2];
     size_t size = fread (buffer, 1, kFileChunkSize, file);
     size_t bytesLeft = size;
-    size_t filePos = size;
+    size_t bytesUsed = 0;
 
     //{{{  jpeg
     //int jpegLen;
@@ -1608,27 +1607,24 @@ public:
              cAudioParser::parseFrame (frame, frame + bytesLeft, frameSize)) {
         // process frame in fileChunk
         float* samples = decoder->decodeFrame (frame, frameSize, pts);
+        bytesUsed += frameSize;
+        frame += frameSize;
+        bytesLeft -= frameSize;
         if (samples) {
           if (!mSong) // first decoded frame gives aacHE sampleRate,samplesPerFrame
             mSong = new cSong (mAudioFrameType, decoder->getNumChannels(), decoder->getSampleRate(),
                                decoder->getNumSamplesPerFrame(), 0);
-          //int64_t totalFrames = 1 + (mSong->getNumFrames() > 0 ? (size / (int(frame - first) / mSong->getNumFrames())) : 0);
-          int64_t totalFrames = mSong->getNumFrames() + 1;
-          mSong->addFrame (true, pts, samples, totalFrames);
+          mSong->addFrame (true, pts, samples, (mFileSize * mSong->getNumFrames()) / bytesUsed);
+          pts += mSong->getFramePtsDuration();
           if (!mSongPlayer)
             mSongPlayer = new cSongPlayer (mSong, false);
-          pts += mSong->getFramePtsDuration();
           }
-        frame += frameSize;
-        bytesLeft -= frameSize;
+        mLoadFrac = float(bytesUsed) / mFileSize;
         }
 
       // get next fileChunk
       memcpy (buffer, frame, bytesLeft);
-      size_t size = fread (buffer + bytesLeft, 1, kFileChunkSize, file);
-      bytesLeft += size;
-      filePos += size;
-      mLoadFrac = float(filePos) / mFileSize;
+      bytesLeft += fread (buffer + bytesLeft, 1, kFileChunkSize, file);
       } while (!mExit && (bytesLeft > 0));
     mLoadFrac = 0.f;
 

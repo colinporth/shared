@@ -23,7 +23,7 @@ public:
   virtual ~cDvbWidget() {}
 
   //{{{
-  virtual void onMove (const cPointF& p, const cPointF& inc) {
+  virtual void onMove (const cPointF& point, const cPointF& inc) {
   // inc and clip mScroll to top
 
     mScroll = std::max (mScroll - inc.y, -1.f);
