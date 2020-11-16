@@ -933,13 +933,32 @@ public:
   virtual iVideoPool* getVideoPool() { return mVideoPool; }
 
   //{{{
+  virtual void getFracs (float& loadFrac, float& audioFrac, float& videoFrac) {
+  // return fracs for spinner graphic, true if ok to display
+
+    loadFrac = 0.f;
+    audioFrac = 0.f;
+    videoFrac = 0.f;
+    }
+  //}}}
+  //{{{
+  virtual void getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize) {
+  // return sizes
+
+    loadSize = 0;
+    audioQueueSize = 0;
+    videoQueueSize = 0;
+    }
+  //}}}
+
+  //{{{
   virtual bool accept (const vector<string>& params) {
 
     mParsedUrl.parse (params[0]);
     //mAudioFrameType = eAudioFrameType::eAacAdts;
     //mNumChannels = 2;
     //mSampleRate = 48000;
-    return false;
+    return mParsedUrl.getScheme() == "http";
     }
   //}}}
   //{{{
@@ -958,12 +977,9 @@ public:
       uint8_t* bufferEnd = bufferFirst;
       uint8_t* buffer = bufferFirst;
 
-      // init container and audDecode
-
-      // init http
-      cPlatformHttp http;
-
       int64_t pts = -1;
+
+      cPlatformHttp http;
       http.get (mParsedUrl.getHost(), mParsedUrl.getPath(), "Icy-MetaData: 1",
         //{{{  headerCallback lambda
         [&](const string& key, const string& value) noexcept {
@@ -1056,6 +1072,8 @@ public:
       }
 
     //{{{  delete resources
+    if (mSongPlayer)
+      mSongPlayer->wait();
     delete mSongPlayer;
 
     auto tempSong = mSong;
@@ -1661,6 +1679,7 @@ private:
 cLoader::cLoader() {
 
   mLoadSources.push_back (new cLoadHls());
+  mLoadSources.push_back (new cLoadIcyCast());
   mLoadSources.push_back (new cLoadTsFile());
   mLoadSources.push_back (new cLoadMp3AacFile());
   mLoadSources.push_back (new cLoadWavFile());
