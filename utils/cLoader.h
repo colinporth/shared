@@ -23,6 +23,7 @@ public:
   void getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize);
 
   // load
+  void launchLoad (const std::vector<std::string>& params);
   void load (const std::vector<std::string>& params);
   void exit();
 

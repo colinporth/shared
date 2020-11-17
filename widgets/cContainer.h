@@ -70,25 +70,25 @@ public:
   //{{{
   cWidget* add (cWidget* widget, float offset = 0.f) {
     addWidget (widget, cWidgetLayout::eLayout::eNext, cPointF (offset, offset));
-    return this;
+    return widget;
     }
   //}}}
   //{{{
   cWidget* addTopLeft (cWidget* widget) {
     addWidget (widget, cWidgetLayout::eLayout::eAt, cPointF());
-    return this;
+    return widget;
     }
   //}}}
   //{{{
   cWidget* addAt (cWidget* widget, const cPointF& offset) {
     addWidget (widget, cWidgetLayout::eLayout::eAt, offset);
-    return this;
+    return widget;
     }
   //}}}
   //{{{
   cWidget* addBelowLeft (cWidget* widget, float offset = 0.f) {
     addWidget (widget, cWidgetLayout::eLayout::eBelowLeft, cPointF(0.f, offset));
-    return this;
+    return widget;
     }
   //}}}
 
@@ -174,13 +174,10 @@ private:
       prevWidget = widgetLayout.mWidget;
       }
 
-    if (!mSized) {
+    if (!mSized)
       mSize = boundingSize;
-      mLayoutSize = boundingSize;
-      }
 
-    cLog::log (LOGINFO, "layoutWidgets " + getId() +
-                        " " + dec (boundingSize.x) + "," + dec(boundingSize.y));
+    //cLog::log (LOGINFO, "layoutWidgets " + getId() + " " + dec (boundingSize.x) + "," + dec(boundingSize.y));
     }
   //}}}
   //{{{

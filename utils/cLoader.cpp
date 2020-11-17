@@ -518,7 +518,7 @@ public:
       }
     }
   //}}}
-  virtual bool accept (const vector<string>& params) = 0;
+  virtual bool recognise (const vector<string>& params) = 0;
   virtual void load() = 0;
 
   //{{{
@@ -610,7 +610,7 @@ public:
     videoQueueSize = 0;
     }
 
-  virtual bool accept (const vector<string>& params) { return true; }
+  virtual bool recognise (const vector<string>& params) { return true; }
   virtual void load() {}
   virtual void exit() {}
 
@@ -670,8 +670,8 @@ public:
   //}}}
 
   //{{{
-  virtual bool accept (const vector<string>& params) {
-  //  parse params to accept load
+  virtual bool recognise (const vector<string>& params) {
+  //  parse params to recognise load
 
     for (auto& param : params) {
       if (param == "bbc1") mChannel = "bbc_one_hd";
@@ -951,7 +951,7 @@ public:
   //}}}
 
   //{{{
-  virtual bool accept (const vector<string>& params) {
+  virtual bool recognise (const vector<string>& params) {
 
     mParsedUrl.parse (params[0]);
     return mParsedUrl.getScheme() == "http";
@@ -1158,6 +1158,21 @@ protected:
     }
   //}}}
   //{{{
+  void updateFileSize (const string& filename) {
+  // get fileSize, return 0 if file not found
+
+    #ifdef _WIN32
+      struct _stati64 st;
+      if (_stat64 (filename.c_str(), &st) != -1)
+        mFileSize = st.st_size;
+    #else
+      struct stat st;
+      if (stat (filename.c_str(), &st) != -1)
+        mFileSize = st.st_size;
+    #endif
+    }
+  //}}}
+  //{{{
   eAudioFrameType getAudioFileInfo() {
 
     uint8_t buffer[1024];
@@ -1235,7 +1250,7 @@ public:
   //}}}
 
   //{{{
-  virtual bool accept (const vector<string>& params) {
+  virtual bool recognise (const vector<string>& params) {
 
     if (!getFileSize (params[0]))
       return false;
@@ -1260,17 +1275,19 @@ public:
     // get first fileChunk
     FILE* file = fopen (mFilename.c_str(), "rb");
     uint8_t buffer[kFileChunkSize];
-    size_t size = fread (buffer, 1, kFileChunkSize, file);
-    size_t bytesLeft = size;
-    size_t filePos = size;
+    size_t bytesLeft = fread (buffer, 1, kFileChunkSize, file);
+    size_t filePos = bytesLeft;
+
     mPtsSong = new cPtsSong (eAudioFrameType::eAacAdts, mNumChannels, mSampleRate, 1024, 1920, 0);
+    iAudioDecoder* audioDecoder = nullptr;
 
     int64_t loadPts = -1;
-    iAudioDecoder* audioDecoder = nullptr;
     //{{{  init parsers, callbacks
     auto addAudioFrameCallback = [&](bool reuseFromFront, float* samples, int64_t pts) noexcept {
+      // firstTime, setBasePts
       if (loadPts < 0)
         mPtsSong->setBasePts (pts);
+
       loadPts = pts;
       mPtsSong->addFrame (reuseFromFront, pts, samples, mPtsSong->getNumFrames()+1);
       if (!mSongPlayer)
@@ -1376,20 +1393,15 @@ public:
         ts += 188;
         bytesLeft -= 188;
 
+        // block load if loadPts > 50 audio frames ahead of playPts
         int64_t playPts = mPtsSong->getPlayPts();
-        if ((loadPts >= 0) && (loadPts < playPts))
-          cLog::log (LOGINFO, "skip back ", getPtsFramesString (loadPts, mPtsSong->getFramePtsDuration()));
-        if ((loadPts >= 0) && (loadPts > playPts + (3 * 90000)))
-          cLog::log (LOGINFO, "skip forward ", getPtsFramesString (loadPts, mPtsSong->getFramePtsDuration()));
-        // block loading when load pts is >100 audio frames ahead of play frameNum
-        while (!mExit && (loadPts > mPtsSong->getPlayPts() + (100 * mPtsSong->getFramePtsDuration())))
-          this_thread::sleep_for (20ms);
+        while (!mExit && (loadPts > mPtsSong->getPlayPts() + (50 * mPtsSong->getFramePtsDuration())))
+          this_thread::sleep_for (40ms);
         }
 
       // get next fileChunk
-      size_t size = fread (buffer, 1, kFileChunkSize, file);
-      bytesLeft = size;
-      filePos += size;
+      bytesLeft = fread (buffer, 1, kFileChunkSize, file);
+      filePos += bytesLeft;
       mLoadFrac = float(filePos) / mFileSize;
       } while (!mExit && (bytesLeft > 188));
     mLoadFrac = 0.f;
@@ -1417,7 +1429,6 @@ public:
 
     delete audioDecoder;
     //}}}
-
     fclose (file);
     mRunning = false;
     }
@@ -1471,7 +1482,7 @@ public:
   virtual iVideoPool* getVideoPool() { return nullptr; }
 
   //{{{
-  virtual bool accept (const vector<string>& params) {
+  virtual bool recognise (const vector<string>& params) {
 
     if (!getFileSize (params[0]))
       return false;
@@ -1561,7 +1572,7 @@ public:
   virtual iVideoPool* getVideoPool() { return nullptr; }
 
   //{{{
-  virtual bool accept (const vector<string>& params) {
+  virtual bool recognise (const vector<string>& params) {
 
     if (!getFileSize (params[0]))
       return false;
@@ -1714,6 +1725,32 @@ void cLoader::exit() {
   }
 //}}}
 //{{{
+void cLoader::launchLoad (const vector<string>& params) {
+
+  mLoadSource->exit();
+  mLoadSource = mLoadIdle;
+
+  // check for empty params
+  if (params.empty())
+    return;
+
+  for (auto loadSource : mLoadSources) {
+    if (loadSource->recognise (params)) {
+      // loadSource recognises params, launch load thread
+      thread ([&]() {
+        // lambda
+        cLog::setThreadName ("load");
+        mLoadSource->load();
+        cLog::log (LOGINFO, "exit");
+        } ).detach();
+
+      mLoadSource = loadSource;
+      return;
+      }
+    }
+  }
+//}}}
+//{{{
 void cLoader::load (const vector<string>& params) {
 
   mLoadSource->exit();
@@ -1724,16 +1761,10 @@ void cLoader::load (const vector<string>& params) {
     return;
 
   for (auto loadSource : mLoadSources) {
-    if (loadSource->accept (params)) {
-      // loadSource accepts params, launch load thread
-      thread ([&]() {
-        // lambda
-        cLog::setThreadName ("load");
-        mLoadSource->load();
-        cLog::log (LOGINFO, "exit");
-        } ).detach();
-
-      mLoadSource = loadSource;
+    if (loadSource->recognise (params)) {
+      // loadSource recognises params, launch load thread
+      mLoadSource->load();
+      cLog::log (LOGINFO, "exit");
       return;
       }
     }
