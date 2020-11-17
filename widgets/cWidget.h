@@ -61,11 +61,8 @@ public:
 
   //{{{  sets - virtual
   //virtual void setColour (const sColourF& colour) { mColour = colour; }
-
   virtual void setOrg (const cPointF& point) { mOrg = point; }
   virtual void setSize (const cPointF& size) { mSize = size; }
-
-  virtual void setParent (cWidget* parent) { mParent = parent; }
 
   virtual void setOn (bool on) { mOn = on; }
   virtual void toggleOn() { mOn = !mOn; }
@@ -74,11 +71,12 @@ public:
   virtual void toggleVisible() { mVisible = !mVisible; }
   //}}}
   //{{{
-  virtual void layout() {
+  virtual void layoutWidgetSize (const cPointF& parentSize) {
 
-    if (mParent)
-      setSize (cPointF(mLayoutSize.x <= 0.f ? mParent->getSize().x + mLayoutSize.x : mSize.x,
-                          mLayoutSize.y <= 0.f ? mParent->getSize().y + mLayoutSize.y : mSize.y));
+    if (mLayoutSize.x <= 0.f)
+      mSize.x = parentSize.x + mLayoutSize.x;
+    if (mLayoutSize.y <= 0.f)
+      mSize.y = parentSize.y + mLayoutSize.y;
     }
   //}}}
 
@@ -97,12 +95,12 @@ public:
 protected:
   const std::string mId;
   const sColourF mColour;
-  const cPointF mLayoutSize = { 0.f,0.f };
+
+  cPointF mLayoutSize = { 0.f,0.f };
 
   cPointF mOrg = { 0.f,0.f };
   cPointF mSize = { 0.f,0.f };
 
-  cWidget* mParent = nullptr;
   bool mVisible = true;
   bool mOn = false;
 

@@ -26,8 +26,6 @@ public:
     mOverviewLastFrame = 0;
     mOverviewFirstFrame = 0;
     mOverviewValueScale = 0.f;
-
-    cWidget::layout();
     }
   //}}}
 

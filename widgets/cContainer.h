@@ -9,8 +9,12 @@
 class cContainer : public cWidget {
 public:
   //{{{
-  cContainer (float width, float height, const std::string& id = "cContainer")
-    : cWidget (kBlackF, width, height, id) {}
+  cContainer (const std::string& id = "cContainer - unsized")
+    : cWidget (kBlackF, 0.f, 0.f, id), mSized(false) {}
+  //}}}
+  //{{{
+  cContainer (float width, float height, const std::string& id = "cContainer - sized")
+    : cWidget (kBlackF, width, height, id), mSized(true) {}
   //}}}
   //{{{
   virtual ~cContainer() {
@@ -28,41 +32,45 @@ public:
     cWidget::setSize (size);
 
     for (auto& widgetLayout : mWidgetLayouts)
-      widgetLayout.mWidget->layout();
+      widgetLayout.mWidget->layoutWidgetSize (mSize);
 
-    layoutWidgets();
+    layoutWidgetsInContainer();
     }
   //}}}
   //{{{
-  virtual void layout() {
+  virtual void layoutWidgetSize (const cPointF& parentSize) {
 
-    cWidget::layout();
+    cWidget::layoutWidgetSize (mSize);
 
     for (auto& widgetLayout : mWidgetLayouts)
-      widgetLayout.mWidget->layout();
+      widgetLayout.mWidget->layoutWidgetSize (mSize);
 
-    layoutWidgets();
+    layoutWidgetsInContainer();
     }
   //}}}
 
   //{{{
-  void add (cWidget* widget, float offset = 0.f) {
+  cWidget* add (cWidget* widget, float offset = 0.f) {
     addWidget (widget, cWidgetLayout::eLayout::eNext, cPointF (offset, offset));
+    return this;
     }
   //}}}
   //{{{
-  void addTopLeft (cWidget* widget) {
+  cWidget* addTopLeft (cWidget* widget) {
     addWidget (widget, cWidgetLayout::eLayout::eAt, cPointF());
+    return this;
     }
   //}}}
   //{{{
-  void addAt (cWidget* widget, const cPointF& offset) {
+  cWidget* addAt (cWidget* widget, const cPointF& offset) {
     addWidget (widget, cWidgetLayout::eLayout::eAt, offset);
+    return this;
     }
   //}}}
   //{{{
-  void addBelowLeft (cWidget* widget, float offset = 0.f) {
+  cWidget* addBelowLeft (cWidget* widget, float offset = 0.f) {
     addWidget (widget, cWidgetLayout::eLayout::eBelowLeft, cPointF(0.f, offset));
+    return this;
     }
   //}}}
 
@@ -99,7 +107,7 @@ private:
   //{{{
   class cWidgetLayout {
   public:
-    enum class eLayout { eAt, eNext, eBelowLeft };
+    enum class eLayout { eNext, eBelowLeft, eAt };
     //{{{
     cWidgetLayout (cWidget* widget, eLayout layout, cPointF offset)
       : mWidget(widget), mLayout(layout), mOffset(offset) {}
@@ -115,22 +123,17 @@ private:
   void addWidget (cWidget* widget, cWidgetLayout::eLayout layout, const cPointF& offset) {
 
     mWidgetLayouts.push_back (cWidgetLayout(widget, layout, offset));
-    widget->setParent (this);
-    layoutWidgets();
+    layoutWidgetSize (mSize);
     }
   //}}}
   //{{{
-  void layoutWidgets() {
+  void layoutWidgetsInContainer() {
 
     cPointF boundingSize;
     cWidget* prevWidget = nullptr;
 
     for (auto& widgetLayout : mWidgetLayouts) {
       switch (widgetLayout.mLayout) {
-        case cWidgetLayout::eLayout::eAt:
-          widgetLayout.mWidget->setOrg (widgetLayout.mOffset);
-          break;
-
         case cWidgetLayout::eLayout::eNext:
           if (!prevWidget)
             // topLeft
@@ -148,6 +151,10 @@ private:
           // belowLeft
           widgetLayout.mWidget->setOrg (cPointF(0.f, boundingSize.y + widgetLayout.mOffset.y));
           break;
+
+        case cWidgetLayout::eLayout::eAt:
+          widgetLayout.mWidget->setOrg (widgetLayout.mOffset);
+          break;
         }
 
       // calc boundingSize
@@ -157,10 +164,16 @@ private:
       prevWidget = widgetLayout.mWidget;
       }
 
-    cLog::log (LOGINFO, "layoutWidgets " + getId() +
+    if (!mSized) {
+      mSize = boundingSize;
+      mLayoutSize = boundingSize;
+      }
+
+    cLog::log (LOGINFO, "layoutWidgetsInContainer " + getId() +
                         " " + dec (boundingSize.x) + "," + dec(boundingSize.y));
     }
   //}}}
 
+  const bool mSized;
   std::vector <cWidgetLayout> mWidgetLayouts;
   };

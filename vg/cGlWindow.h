@@ -54,10 +54,10 @@ public:
 protected:
   cRootContainer* initialise (const std::string& title, int width, int height, uint8_t* font, int fontSize);
 
-  void add (cWidget* widget) { mRootContainer->add (widget); }
-  void addAt (cWidget* widget, const cPointF& point) { mRootContainer->addAt (widget, point); }
-  void addTopLeft (cWidget* widget) { mRootContainer->addTopLeft (widget); }
-  void addBelow (cWidget* widget) { mRootContainer->addBelowLeft (widget); }
+  cWidget* add (cWidget* widget) { return mRootContainer->add (widget); }
+  cWidget* addAt (cWidget* widget, const cPointF& point) { return mRootContainer->addAt (widget, point); }
+  cWidget* addTopLeft (cWidget* widget) { return mRootContainer->addTopLeft (widget); }
+  cWidget* addBelow (cWidget* widget) { return mRootContainer->addBelowLeft (widget); }
   void run (bool clear);
 
   void toggleFullScreen();
