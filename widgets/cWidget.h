@@ -26,7 +26,7 @@ public:
   //}}}
   virtual ~cWidget() {}
 
-  //{{{  gets
+  //{{{  get org, size, end, centre
   cPointF getOrg() { return mOrg; }
   float getX() { return mOrg.x; }
   float getY() { return mOrg.y; }
@@ -35,30 +35,19 @@ public:
   float getWidth() { return mSize.x; }
   float getHeight() { return mSize.y; }
 
-  cPointF getCentre() { return mOrg + (mSize / 2.f); }
-  float getCentreX() { return mOrg.x + (mSize.x / 2.f); }
-  float getCentreY() { return mOrg.y + (mSize.y / 2.f); }
-
   cPointF getEnd() { return mOrg + mSize; }
   float getEndX() { return mOrg.x + mSize.x; }
   float getEndY() { return mOrg.y + mSize.y; }
+
+  cPointF getCentre() { return mOrg + (mSize / 2.f); }
+  float getCentreX() { return mOrg.x + (mSize.x / 2.f); }
+  float getCentreY() { return mOrg.y + (mSize.y / 2.f); }
   //}}}
-  //{{{  gets - virtual
   virtual bool isOn() { return mOn; }
   virtual bool isVisible() { return mVisible; }
-
   virtual bool isPressed() { return mPressedCount > 0; }
   virtual int getPressedCount() { return mPressedCount; }
-
   virtual std::string getId() { return mId; }
-  //}}}
-  //{{{
-  virtual cWidget* isPicked (const cPointF& point) {
-  // return true if point inside visible widget
-
-    return (mVisible && isInside (point)) ? this : nullptr;
-    }
-  //}}}
 
   // actions
   virtual void setOn (bool on) { mOn = on; }
@@ -79,13 +68,11 @@ public:
   //}}}
 
 protected:
-  void setOrg (const cPointF& point) { mOrg = point; }
-
   const std::string mId;
   const sColourF mColour;
+
   cPointF mLayoutSize = { 0.f,0.f };
   cPointF mSize = { 0.f,0.f };
-
   cPointF mOrg = { 0.f,0.f };
 
   bool mVisible = true;
@@ -100,6 +87,13 @@ private:
 
     return (point.x >= mOrg.x) && (point.x < getEndX()) &&
            (point.y >= mOrg.y) && (point.y < getEndY());
+    }
+  //}}}
+  //{{{
+  virtual cWidget* isPicked (const cPointF& point) {
+  // return this widget if point inside visible widget
+
+    return (mVisible && isInside (point)) ? this : nullptr;
     }
   //}}}
   //{{{
