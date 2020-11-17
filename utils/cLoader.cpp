@@ -1452,7 +1452,12 @@ public:
 
   virtual cSong* getSong() { return mSong; }
   virtual iVideoPool* getVideoPool() { return nullptr; }
-  virtual string getInfoString() { return mFilename + " " + dec (mLoadPos / 1024) + "k"; }
+  //{{{
+  virtual string getInfoString() { 
+    return mFilename + 
+           " " + dec (mLoadPos / 1024) + "k";
+    }
+  //}}}
   //{{{
   virtual float getFracs (float& audioFrac, float& videoFrac) {
   // return fracs for spinner graphic, true if ok to display
@@ -1555,8 +1560,8 @@ public:
   //{{{
   virtual string getInfoString() {
     return mFilename +
-           " " + dec (mLoadPos / 1024) + "k " +
-           dec(mSampleRate) + "hz " + dec(mNumChannels);
+           " " + dec(mNumChannels) + "x" + dec(mSampleRate) + "hz " +
+           " " + dec (mLoadPos / 1024) + "k";
    }
   //}}}
   //{{{

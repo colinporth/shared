@@ -125,7 +125,7 @@ uint8_t* cAudioParser::parseFrame (uint8_t* framePtr, uint8_t* frameLast,
       frameType = eAudioFrameType::eAacLatm;
 
       // guess sampleRate and numChannels
-      sampleRate = 48000; 
+      sampleRate = 48000;
       numChannels = 2;
 
       frameLength = 3 + (((framePtr[1] & 0x1F) << 8) | framePtr[2]);
@@ -265,33 +265,32 @@ uint8_t* cAudioParser::parseFrame (uint8_t* framePtr, uint8_t* frameLast,
 
         //uint8_t version = (framePtr[1] & 0x08) >> 3;
         uint8_t layer = (framePtr[1] & 0x06) >> 1;
+        int scale = (layer == 3) ? 48 : 144;
+
         //uint8_t errp = framePtr[1] & 0x01;
 
-        const uint32_t bitRates[16] = {     0,  32000,  40000, 48000,
-                                        56000,  64000,  80000,  96000,
-                                       112000, 128000, 160000, 192000,
-                                       224000, 256000, 320000,      0};
+        const uint32_t bitRates[16] = {     0,  32000,  40000,  48000,  56000,  64000,  80000, 96000,
+                                       112000, 128000, 160000, 192000, 224000, 256000, 320000,     0 };
         uint8_t bitrateIndex = (framePtr[2] & 0xf0) >> 4;
+        uint32_t bitrate = bitRates[bitrateIndex];
 
         const int sampleRates[4] = { 44100, 48000, 32000, 0};
         uint8_t sampleRateIndex = (framePtr[2] & 0x0c) >> 2;
+        sampleRate = sampleRates[sampleRateIndex];
 
         uint8_t pad = (framePtr[2] & 0x02) >> 1;
-        //uint8_t priv = (framePtr[2] & 0x01);
 
+        frameLength = (bitrate * scale) / sampleRate;
+        if (pad)
+          frameLength++;
+
+        //uint8_t priv = (framePtr[2] & 0x01);
         //uint8_t mode = (framePtr[3] & 0xc0) >> 6;
+        numChannels = 2;  // guess
         //uint8_t modex = (framePtr[3] & 0x30) >> 4;
         //uint8_t copyright = (framePtr[3] & 0x08) >> 3;
         //uint8_t original = (framePtr[3] & 0x04) >> 2;
         //uint8_t emphasis = (framePtr[3] & 0x03);
-
-        uint32_t bitrate = bitRates[bitrateIndex];
-        sampleRate = sampleRates[sampleRateIndex];
-
-        int scale = (layer == 3) ? 48 : 144;
-        frameLength = (bitrate * scale) / sampleRate;
-        if (pad)
-          frameLength++;
 
         // check for enough bytes for frame body
         return (framePtr + frameLength <= frameLast) ? framePtr : nullptr;

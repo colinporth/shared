@@ -101,7 +101,6 @@ extern "C" {
 using namespace std;
 using namespace chrono;
 //}}}
-constexpr bool kTiming = false;
 constexpr int kPtsPerSecond = 90000;
 
 namespace {
@@ -1783,7 +1782,13 @@ public:
   // gets
   virtual int getWidth() { return mWidth; }
   virtual int getHeight() { return mHeight; }
-  virtual string getInfoString() { return dec(mWidth) + "x" + dec(mHeight); }
+  //{{{
+  virtual string getInfoString() {
+    return dec(mWidth) + "x" + dec(mHeight) +
+           " "  + dec (mDecodeMicroSeconds,5) +
+           ":"  + dec (mYuv420MicroSeconds,4);
+    }
+  //}}}
   virtual map <int64_t, iVideoFrame*>& getFramePool() { return mFramePool; }
 
   //{{{
@@ -1852,6 +1857,9 @@ protected:
   int mHeight = 0;
   int64_t mPtsDuration = 0;
 
+  int64_t mDecodeMicroSeconds = 0;
+  int64_t mYuv420MicroSeconds = 0;
+
   // map of videoFrames, key is pts/mPtsDuration, allow a simple find by pts throughout the duration
   map <int64_t, iVideoFrame*> mFramePool;
 
@@ -1913,12 +1921,9 @@ public:
       return;
       }
 
-    if (kTiming)
-      //{{{  debug
-      cLog::log (LOGINFO, "ffmpeg decode guessPts:%d.%d pts:%d.%d dts:%d.%d - %c size:%d",
-                           mGuessPts/1800, mGuessPts%1800, pts/1800, pts%1800, dts/1800, dts%1800,
-                           frameType, pesSize);
-      //}}}
+    cLog::log (LOGINFO1, "ffmpeg decode guessPts:%d.%d pts:%d.%d dts:%d.%d - %c size:%d",
+                         mGuessPts/1800, mGuessPts%1800, pts/1800, pts%1800, dts/1800, dts%1800,
+                         frameType, pesSize);
 
     AVPacket avPacket;
     av_init_packet (&avPacket);
@@ -1937,29 +1942,25 @@ public:
           ret = avcodec_receive_frame (mAvContext, avFrame);
           if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF || ret < 0)
             break;
+          mDecodeMicroSeconds = duration_cast<microseconds>(system_clock::now() - timePoint).count();
 
           // extract frame info from decode
           mWidth = avFrame->width;
           mHeight = avFrame->height;
           mPtsDuration = (kPtsPerSecond * mAvContext->framerate.den) / mAvContext->framerate.num;
 
-          if (kTiming)
-            //{{{  debug
-            cLog::log (LOGINFO, "----- decoded guessPts %d.%d - took:%d",
-                                mGuessPts/1800, mGuessPts%1800,
-                                duration_cast<microseconds>(system_clock::now() - timePoint).count());
-            //}}}
           if (mSeenIFrame) {
             // blocks on waiting for freeFrame most of the time
             auto frame = getFreeFrame (reuseFromFront, mGuessPts);
 
-            timePoint = system_clock::now();
             frame->set (mGuessPts, pesSize, mWidth, mHeight, frameType);
+            timePoint = system_clock::now();
             if (!mSwsContext)
               mSwsContext = sws_getContext (mWidth, mHeight, AV_PIX_FMT_YUV420P,
                                             mWidth, mHeight, AV_PIX_FMT_RGBA,
                                             SWS_BILINEAR, NULL, NULL, NULL);
             frame->setYuv420 (mSwsContext, avFrame->data, avFrame->linesize);
+            mYuv420MicroSeconds = duration_cast<microseconds>(system_clock::now() - timePoint).count();
 
             {
             unique_lock<shared_mutex> lock (mSharedMutex);
@@ -1967,11 +1968,6 @@ public:
             }
 
             av_frame_unref (avFrame);
-            if (kTiming)
-              //{{{  debug
-              cLog::log (LOGINFO1, "setYuv420 FFmpeg %d",
-                                   duration_cast<microseconds>(system_clock::now() - timePoint).count());
-              //}}}
             }
           mGuessPts += mPtsDuration;
           }
@@ -2018,6 +2014,7 @@ private:
       }
     //}}}
 
+    virtual string getInfoString() { return "mfx " + cVideoPool::getInfoString(); }
     //{{{
     void decodeFrame (bool reuseFromFront, uint8_t* pes, unsigned int pesSize, int64_t pts, int64_t dts) {
 
@@ -2078,28 +2075,23 @@ private:
         if (status == MFX_ERR_NONE) {
           status = mSession.SyncOperation (syncDecode, 60000);
           if (status == MFX_ERR_NONE) {
-            if (kTiming)
-              cLog::log (LOGINFO1, "decode mfx:%d", duration_cast<microseconds>(system_clock::now() - timePoint).count());
+            mDecodeMicroSeconds = duration_cast<microseconds>(system_clock::now() - timePoint).count();
 
             mPtsDuration = (kPtsPerSecond * surface->Info.FrameRateExtD) / surface->Info.FrameRateExtN;
 
             auto frame = getFreeFrame (reuseFromFront, surface->Data.TimeStamp);
-
-            timePoint = system_clock::now();
-
             frame->set (surface->Data.TimeStamp, pesSize, mWidth, mHeight, frameType);
+
             uint8_t* data[2] = { surface->Data.Y, surface->Data.UV };
             int linesize[2] = { surface->Data.Pitch, surface->Data.Pitch/2 };
+            timePoint = system_clock::now();
             frame->setYuv420 (nullptr, data, linesize);
+            mYuv420MicroSeconds = duration_cast<microseconds>(system_clock::now() - timePoint).count();
 
             {
             unique_lock<shared_mutex> lock (mSharedMutex);
             mFramePool.insert (map<int64_t, iVideoFrame*>::value_type (surface->Data.TimeStamp/mPtsDuration, frame));
             }
-
-            if (kTiming)
-              cLog::log (LOGINFO1, "setYuv420 mfx %d",
-                                   duration_cast<microseconds>(system_clock::now() - timePoint).count());
             }
           }
         }

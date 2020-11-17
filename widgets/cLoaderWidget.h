@@ -247,19 +247,17 @@ private:
   void drawInfo (cVg* vg, iVideoPool* videoPool) {
   // info text
 
-    std::string infoString;
-
+    std::string str;
     if (videoPool)
-      infoString += videoPool->getInfoString();
-
-    infoString += " " + mLoader->getInfoString();
+      str = videoPool->getInfoString() + " ";
+    str += mLoader->getInfoString();
 
     vg->setFontSize (kFontHeight);
     vg->setTextAlign (cVg::eAlignLeft | cVg::eAlignTop);
     vg->setFillColour (kBlackF);
-    vg->text (mOrg + cPointF(2.f, 2.f), infoString);
+    vg->text (mOrg + cPointF(2.f, 2.f), str);
     vg->setFillColour (kWhiteF);
-    vg->text (mOrg, infoString);
+    vg->text (mOrg, str);
     }
   //}}}
   //{{{
