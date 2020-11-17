@@ -35,6 +35,18 @@ public:
   //}}}
 
   //{{{
+  void setSize (const cPointF& size) {
+  // only used by rootContainer ??
+
+    mSize = size;
+
+    for (auto& widgetLayout : mWidgetLayouts)
+      widgetLayout.mWidget->layoutSize (mSize);
+
+    layoutWidgets();
+    }
+  //}}}
+  //{{{
   virtual cWidget* isPicked (const cPointF& point) {
 
     if (cWidget::isPicked (point)) {
@@ -52,18 +64,6 @@ public:
       }
     else
       return nullptr;
-    }
-  //}}}
-
-  //{{{
-  virtual void setSize (const cPointF& size) {
-
-    cWidget::setSize (size);
-
-    for (auto& widgetLayout : mWidgetLayouts)
-      widgetLayout.mWidget->layoutSize (mSize);
-
-    layoutWidgets();
     }
   //}}}
 
@@ -104,7 +104,7 @@ public:
     }
   //}}}
 
-private:
+protected:
   //{{{
   class cWidgetLayout {
   public:
@@ -121,6 +121,9 @@ private:
     };
   //}}}
 
+  std::vector <cWidgetLayout> mWidgetLayouts;
+
+private:
   //{{{
   void addWidget (cWidget* widget, cWidgetLayout::eLayout layout, const cPointF& offset) {
 
@@ -140,23 +143,27 @@ private:
         case cWidgetLayout::eLayout::eNext:
           if (!prevWidget)
             // topLeft
-            widgetLayout.mWidget->setOrg (widgetLayout.mOffset);
-          else if (prevWidget->getEndX() + widgetLayout.mWidget->getWidth() < getWidth())
+            widgetLayout.mWidget->mOrg = widgetLayout.mOffset;
+          else if (prevWidget->getEndX() + widgetLayout.mWidget->mSize.x < mSize.x) {
             // next right
-            widgetLayout.mWidget->setOrg (
-              prevWidget->getOrg() + cPointF (prevWidget->getWidth() + widgetLayout.mOffset.x, 0.f));
-          else
+            widgetLayout.mWidget->mOrg.x = prevWidget->mOrg.x + prevWidget->mSize.x + widgetLayout.mOffset.x;
+            widgetLayout.mWidget->mOrg.y = prevWidget->mOrg.y;
+            }
+          else {
             // belowLeft
-            widgetLayout.mWidget->setOrg (cPointF(0.f, boundingSize.y + widgetLayout.mOffset.y));
+            widgetLayout.mWidget->mOrg.x = 0.f;
+            widgetLayout.mWidget->mOrg.y = boundingSize.y + widgetLayout.mOffset.y;
+            }
           break;
 
         case cWidgetLayout::eLayout::eBelowLeft:
           // belowLeft
-          widgetLayout.mWidget->setOrg (cPointF(0.f, boundingSize.y + widgetLayout.mOffset.y));
+          widgetLayout.mWidget->mOrg.x = 0.f;
+          widgetLayout.mWidget->mOrg.y = boundingSize.y + widgetLayout.mOffset.y;
           break;
 
         case cWidgetLayout::eLayout::eAt:
-          widgetLayout.mWidget->setOrg (widgetLayout.mOffset);
+          widgetLayout.mWidget->mOrg = widgetLayout.mOffset;
           break;
         }
 
@@ -191,5 +198,4 @@ private:
   // vars
   const bool mSized;
   const bool mDrawBgnd;
-  std::vector <cWidgetLayout> mWidgetLayouts;
   };

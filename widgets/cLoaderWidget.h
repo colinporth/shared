@@ -11,9 +11,9 @@ constexpr bool kVideoPoolDebug = true;
 class cLoaderWidget : public cWidget {
 public:
   //{{{
-  cLoaderWidget (cLoader* loader, iClockTime* clockTime, float width = 0.f, float height = 0.f, 
-                 const std::string& debugName = "cLoaderWidget")
-    : cWidget (kBlackF, width, height, debugName), mLoader(loader), mClockTime(clockTime) {}
+  cLoaderWidget (cLoader* loader, iClockTime* clockTime, float width = 0.f, float height = 0.f,
+                 const std::string& id = "cLoaderWidget")
+    : cWidget (kBlackF, width, height, id), mLoader(loader), mClockTime(clockTime) {}
   //}}}
   virtual ~cLoaderWidget() {}
 

@@ -2,10 +2,10 @@
 //{{{  includes
 #pragma once
 
-class cContainer;
 #include "iDraw.h"
-
 #include <functional>
+
+class cContainer;
 //}}}
 
 class cWidget {
@@ -60,17 +60,11 @@ public:
     }
   //}}}
 
-  //{{{  sets - virtual
-  //virtual void setColour (const sColourF& colour) { mColour = colour; }
-  virtual void setOrg (const cPointF& point) { mOrg = point; }
-  virtual void setSize (const cPointF& size) { mSize = size; }
-
+  // actions
   virtual void setOn (bool on) { mOn = on; }
-  virtual void toggleOn() { mOn = !mOn; }
-
   virtual void setVisible (bool visible) { mVisible = visible; }
+  virtual void toggleOn() { mOn = !mOn; }
   virtual void toggleVisible() { mVisible = !mVisible; }
-  //}}}
 
   virtual void onProx (const cPointF& point) {}
   virtual void onDown (const cPointF& point) { mPressedCount++; }
@@ -80,11 +74,13 @@ public:
 
   //{{{
   virtual void onDraw (iDraw* draw) {
-    draw->drawRect (mOn ? kLightRedF : mColour, mOrg + cPointF(1.f,1.f), mSize - cPointF(1.f,1.f));
+    draw->drawRect (mOn ? kLightRedF : mColour, mOrg + cPointF(1.f,1.f), mSize - cPointF(2.f,2.f));
     }
   //}}}
 
 protected:
+  void setOrg (const cPointF& point) { mOrg = point; }
+
   const std::string mId;
   const sColourF mColour;
   cPointF mLayoutSize = { 0.f,0.f };

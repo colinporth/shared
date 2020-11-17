@@ -8,8 +8,8 @@
 class cTextBox : public cWidget {
 public:
   //{{{
-  cTextBox (std::string& text, float width, const std::string debugName = "cTextBox")
-    : cWidget (width, kBox, debugName), mText(text) {}
+  cTextBox (std::string& text, float width, const std::string id = "cTextBox")
+    : cWidget (width, kBox, id), mText(text) {}
   //}}}
   //{{{
   cTextBox (std::string& text, const sColourF& colour, float width, float height, const std::string id = "cTextBox") :

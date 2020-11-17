@@ -17,8 +17,8 @@
 class cDvbWidget: public cWidget {
 public:
   //{{{
-  cDvbWidget (cDvb* dvb, float width, float height, const std::string& debugName = "cDvbWidget") :
-    cWidget (width, height, debugName), mDvb(dvb) {}
+  cDvbWidget (cDvb* dvb, float width, float height, const std::string& id = "cDvbWidget") :
+    cWidget (width, height, id), mDvb(dvb) {}
   //}}}
   virtual ~cDvbWidget() {}
 
@@ -68,7 +68,7 @@ public:
                        " " + dec(pid, 4) +
                        " " + getFullPtsString (pidInfo.mPts) +
                        " " + pidInfo.getTypeString();
-      float textWidth = draw->drawText (kLightGreyF, lineHeight, pidString, 
+      float textWidth = draw->drawText (kLightGreyF, lineHeight, pidString,
                                         cPointF(x,y), cPointF(mSize.x-3.f, lineHeight));
       float visx = x + textWidth + lineHeight/2.f;
 
