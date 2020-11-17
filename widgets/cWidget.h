@@ -9,6 +9,7 @@ class cContainer;
 //}}}
 
 class cWidget {
+friend cContainer;
 public:
   static constexpr float kBox = 20.f;
   static constexpr float kSmallFontHeight = 16.f;
@@ -70,15 +71,6 @@ public:
   virtual void setVisible (bool visible) { mVisible = visible; }
   virtual void toggleVisible() { mVisible = !mVisible; }
   //}}}
-  //{{{
-  virtual void layoutWidgetSize (const cPointF& parentSize) {
-
-    if (mLayoutSize.x <= 0.f)
-      mSize.x = parentSize.x + mLayoutSize.x;
-    if (mLayoutSize.y <= 0.f)
-      mSize.y = parentSize.y + mLayoutSize.y;
-    }
-  //}}}
 
   virtual void onProx (const cPointF& point) {}
   virtual void onDown (const cPointF& point) { mPressedCount++; }
@@ -95,11 +87,10 @@ public:
 protected:
   const std::string mId;
   const sColourF mColour;
-
   cPointF mLayoutSize = { 0.f,0.f };
+  cPointF mSize = { 0.f,0.f };
 
   cPointF mOrg = { 0.f,0.f };
-  cPointF mSize = { 0.f,0.f };
 
   bool mVisible = true;
   bool mOn = false;
@@ -113,6 +104,16 @@ private:
 
     return (point.x >= mOrg.x) && (point.x < getEndX()) &&
            (point.y >= mOrg.y) && (point.y < getEndY());
+    }
+  //}}}
+  //{{{
+  virtual void layoutSize (const cPointF& parentSize) {
+  // -ve size are parentSize + the -ve size
+
+    if (mLayoutSize.x <= 0.f)
+      mSize.x = parentSize.x + mLayoutSize.x;
+    if (mLayoutSize.y <= 0.f)
+      mSize.y = parentSize.y + mLayoutSize.y;
     }
   //}}}
   };

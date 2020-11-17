@@ -68,7 +68,8 @@ public:
                        " " + dec(pid, 4) +
                        " " + getFullPtsString (pidInfo.mPts) +
                        " " + pidInfo.getTypeString();
-      float textWidth = draw->drawText (kLightGreyF, lineHeight, pidString, cPointF(x, y), cPointF(mSize.x-3.f, lineHeight));
+      float textWidth = draw->drawText (kLightGreyF, lineHeight, pidString, 
+                                        cPointF(x,y), cPointF(mSize.x-3.f, lineHeight));
       float visx = x + textWidth + lineHeight/2.f;
 
       if (pidInfo.mStreamType == 6) {

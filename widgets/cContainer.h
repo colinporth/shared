@@ -9,12 +9,20 @@
 class cContainer : public cWidget {
 public:
   //{{{
-  cContainer (const std::string& id = "cContainer - unsized")
-    : cWidget (kBlackF, 0.f, 0.f, id), mSized(false) {}
+  cContainer (const std::string& id = "cContainerUnsized")
+    : cWidget (kBlackF, 0.f, 0.f, id), mDrawBgnd(false), mSized(false) {}
   //}}}
   //{{{
-  cContainer (float width, float height, const std::string& id = "cContainer - sized")
-    : cWidget (kBlackF, width, height, id), mSized(true) {}
+  cContainer (const sColourF& colour, const std::string& id = "cContainerUnsizedBgnd")
+    : cWidget (colour, 0.f, 0.f, id), mDrawBgnd(true), mSized(false) {}
+  //}}}
+  //{{{
+  cContainer (float width, float height, const std::string& id = "cContainerSized")
+    : cWidget (kBlackF, width, height, id), mDrawBgnd(false), mSized(true) {}
+  //}}}
+  //{{{
+  cContainer (const sColourF& colour, float width, float height, const std::string& id = "cContainerSizedBgnd")
+    : cWidget (colour, width, height, id), mDrawBgnd(true), mSized(true) {}
   //}}}
   //{{{
   virtual ~cContainer() {
@@ -27,25 +35,35 @@ public:
   //}}}
 
   //{{{
+  virtual cWidget* isPicked (const cPointF& point) {
+
+    if (cWidget::isPicked (point)) {
+      if (mWidgetLayouts.empty())
+        return nullptr;
+      else {
+        // pick reverse of display order
+        for (auto it = mWidgetLayouts.rbegin(); it != mWidgetLayouts.rend(); ++it) {
+          cWidget* pickedWidget = (*it).mWidget->isPicked (point); // - mOrg ??
+          if (pickedWidget)
+            return pickedWidget;
+          }
+        }
+      return this;
+      }
+    else
+      return nullptr;
+    }
+  //}}}
+
+  //{{{
   virtual void setSize (const cPointF& size) {
 
     cWidget::setSize (size);
 
     for (auto& widgetLayout : mWidgetLayouts)
-      widgetLayout.mWidget->layoutWidgetSize (mSize);
+      widgetLayout.mWidget->layoutSize (mSize);
 
-    layoutWidgetsInContainer();
-    }
-  //}}}
-  //{{{
-  virtual void layoutWidgetSize (const cPointF& parentSize) {
-
-    cWidget::layoutWidgetSize (mSize);
-
-    for (auto& widgetLayout : mWidgetLayouts)
-      widgetLayout.mWidget->layoutWidgetSize (mSize);
-
-    layoutWidgetsInContainer();
+    layoutWidgets();
     }
   //}}}
 
@@ -75,27 +93,10 @@ public:
   //}}}
 
   //{{{
-  virtual cWidget* isPicked (const cPointF& point) {
-
-    if (cWidget::isPicked (point)) {
-      if (mWidgetLayouts.empty())
-        return nullptr;
-      else {
-        // pick reverse of display order
-        for (auto it = mWidgetLayouts.rbegin(); it != mWidgetLayouts.rend(); ++it) {
-          cWidget* pickedWidget = (*it).mWidget->isPicked (point); // - mOrg ??
-          if (pickedWidget)
-            return pickedWidget;
-          }
-        }
-      return this;
-      }
-    else
-      return nullptr;
-    }
-  //}}}
-  //{{{
   virtual void onDraw (iDraw* draw) {
+
+    if (mDrawBgnd)
+      draw->drawRect (mColour, mOrg, mSize);
 
     for (auto& widgetLayout : mWidgetLayouts)
       if (widgetLayout.mWidget->isVisible())
@@ -119,15 +120,17 @@ private:
     cPointF mOffset;
     };
   //}}}
+
   //{{{
   void addWidget (cWidget* widget, cWidgetLayout::eLayout layout, const cPointF& offset) {
 
     mWidgetLayouts.push_back (cWidgetLayout(widget, layout, offset));
-    layoutWidgetSize (mSize);
+    layoutSize (mSize);
     }
   //}}}
   //{{{
-  void layoutWidgetsInContainer() {
+  void layoutWidgets() {
+  // layout sub widgets in this container using layout rules
 
     cPointF boundingSize;
     cWidget* prevWidget = nullptr;
@@ -169,11 +172,24 @@ private:
       mLayoutSize = boundingSize;
       }
 
-    cLog::log (LOGINFO, "layoutWidgetsInContainer " + getId() +
+    cLog::log (LOGINFO, "layoutWidgets " + getId() +
                         " " + dec (boundingSize.x) + "," + dec(boundingSize.y));
     }
   //}}}
+  //{{{
+  virtual void layoutSize (const cPointF& parentSize) {
 
+    cWidget::layoutSize (parentSize);
+
+    for (auto& widgetLayout : mWidgetLayouts)
+      widgetLayout.mWidget->layoutSize (mSize);
+
+    layoutWidgets();
+    }
+  //}}}
+
+  // vars
   const bool mSized;
+  const bool mDrawBgnd;
   std::vector <cWidgetLayout> mWidgetLayouts;
   };
