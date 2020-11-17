@@ -1113,25 +1113,6 @@ public:
   cLoadFile (string name) : cLoadSource(name) {}
   virtual ~cLoadFile() {}
 
-  //{{{
-  virtual void getFracs (float& loadFrac, float& audioFrac, float& videoFrac) {
-  // return fracs for spinner graphic, true if ok to display
-
-    loadFrac = mLoadFrac;
-    audioFrac = 0.f;
-    videoFrac = 0.f;
-    }
-  //}}}
-  //{{{
-  virtual void getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize) {
-  // return sizes
-
-    loadSize = mLoadPos;
-    audioQueueSize = 0;
-    videoQueueSize = 0;
-    }
-  //}}}
-
 protected:
   //{{{
   int64_t getFileSize (const string& filename) {
@@ -1187,16 +1168,18 @@ protected:
 
   string mFilename;
   int64_t mFileSize = 0;
-  int mLoadPos = 0;
+  int64_t mLoadPos = 0;
   };
 //}}}
 //{{{
 class cLoadTsFile : public cLoadFile {
 public:
+  //{{{
   cLoadTsFile() : cLoadFile("ts") {
     mNumChannels = 2;
     mSampleRate = 48000;
     }
+  //}}}
   virtual ~cLoadTsFile() {}
 
   virtual cSong* getSong() { return mPtsSong; }
@@ -1230,7 +1213,7 @@ public:
   virtual void getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize) {
   // return sizes
 
-    loadSize = mLoadPos;
+    loadSize = int (mLoadPos / 188);
     audioQueueSize = 0;
     videoQueueSize = 0;
 
@@ -1394,12 +1377,12 @@ public:
         ts += 188;
         bytesLeft -= 188;
 
-        mLoadFrac = float(mLoadPos) / (mFileSize/188);
-        mLoadPos++;
+        mLoadPos += 188;
+        mLoadFrac = float(mLoadPos) / mFileSize;
 
         // block load if loadPts > 25 audio frames ahead of playPts
         int64_t playPts = mPtsSong->getPlayPts();
-        while (!mExit && (loadPts > mPtsSong->getPlayPts() + (50 * mPtsSong->getFramePtsDuration())))
+        while (!mExit && (loadPts > mPtsSong->getPlayPts() + (25 * mPtsSong->getFramePtsDuration())))
           this_thread::sleep_for (40ms);
         }
 
@@ -1484,10 +1467,19 @@ public:
   virtual iVideoPool* getVideoPool() { return nullptr; }
 
   //{{{
+  virtual void getFracs (float& loadFrac, float& audioFrac, float& videoFrac) {
+  // return fracs for spinner graphic, true if ok to display
+
+    loadFrac = mLoadFrac;
+    audioFrac = 0.f;
+    videoFrac = 0.f;
+    }
+  //}}}
+  //{{{
   virtual void getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize) {
   // return sizes
 
-    loadSize = mLoadPos / 1000;
+    loadSize = int(mLoadPos / 1000);
     audioQueueSize = 0;
     videoQueueSize = 0;
     }
@@ -1584,10 +1576,19 @@ public:
   virtual iVideoPool* getVideoPool() { return nullptr; }
 
   //{{{
+  virtual void getFracs (float& loadFrac, float& audioFrac, float& videoFrac) {
+  // return fracs for spinner graphic, true if ok to display
+
+    loadFrac = mLoadFrac;
+    audioFrac = 0.f;
+    videoFrac = 0.f;
+    }
+  //}}}
+  //{{{
   virtual void getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize) {
   // return sizes
 
-    loadSize = mLoadPos / 1000;
+    loadSize = int(mLoadPos / 1000);
     audioQueueSize = 0;
     videoQueueSize = 0;
     }
