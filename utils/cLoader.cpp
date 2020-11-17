@@ -597,6 +597,70 @@ protected:
   };
 //}}}
 //{{{
+class cLoadFile : public cLoadSource {
+public:
+  cLoadFile (string name) : cLoadSource(name) {}
+  virtual ~cLoadFile() {}
+
+protected:
+  //{{{
+  int64_t getFileSize (const string& filename) {
+  // get fileSize, return 0 if file not found
+
+    mFilename = filename;
+    mFileSize = 0;
+
+    #ifdef _WIN32
+      struct _stati64 st;
+      if (_stat64 (filename.c_str(), &st) == -1)
+        return 0;
+      else
+        mFileSize = st.st_size;
+    #else
+      struct stat st;
+      if (stat (filename.c_str(), &st) == -1)
+        return 0;
+      else
+        mFileSize = st.st_size;
+    #endif
+
+    return mFileSize;
+    }
+  //}}}
+  //{{{
+  void updateFileSize (const string& filename) {
+  // get fileSize, return 0 if file not found
+
+    #ifdef _WIN32
+      struct _stati64 st;
+      if (_stat64 (filename.c_str(), &st) != -1)
+        mFileSize = st.st_size;
+    #else
+      struct stat st;
+      if (stat (filename.c_str(), &st) != -1)
+        mFileSize = st.st_size;
+    #endif
+    }
+  //}}}
+  //{{{
+  eAudioFrameType getAudioFileInfo() {
+
+    uint8_t buffer[1024];
+    FILE* file = fopen (mFilename.c_str(), "rb");
+    size_t size = fread (buffer, 1, 1024, file);
+    fclose (file);
+
+    mAudioFrameType = cAudioParser::parseSomeFrames (buffer, buffer + size, mNumChannels, mSampleRate);
+    return mAudioFrameType;
+    }
+  //}}}
+
+  string mFilename;
+  int64_t mFileSize = 0;
+  int64_t mLoadPos = 0;
+  };
+//}}}
+//{{{
 class cLoadIdle : public cLoadSource {
 public:
   cLoadIdle() : cLoadSource("idle") {}
@@ -616,6 +680,7 @@ public:
   virtual bool skipForward (bool shift, bool control) { return false; };
   };
 //}}}
+
 //{{{
 class cLoadHls : public cLoadSource {
 public:
@@ -1097,70 +1162,6 @@ private:
 
   cSong* mSong = nullptr;
   iVideoPool* mVideoPool = nullptr;
-  };
-//}}}
-//{{{
-class cLoadFile : public cLoadSource {
-public:
-  cLoadFile (string name) : cLoadSource(name) {}
-  virtual ~cLoadFile() {}
-
-protected:
-  //{{{
-  int64_t getFileSize (const string& filename) {
-  // get fileSize, return 0 if file not found
-
-    mFilename = filename;
-    mFileSize = 0;
-
-    #ifdef _WIN32
-      struct _stati64 st;
-      if (_stat64 (filename.c_str(), &st) == -1)
-        return 0;
-      else
-        mFileSize = st.st_size;
-    #else
-      struct stat st;
-      if (stat (filename.c_str(), &st) == -1)
-        return 0;
-      else
-        mFileSize = st.st_size;
-    #endif
-
-    return mFileSize;
-    }
-  //}}}
-  //{{{
-  void updateFileSize (const string& filename) {
-  // get fileSize, return 0 if file not found
-
-    #ifdef _WIN32
-      struct _stati64 st;
-      if (_stat64 (filename.c_str(), &st) != -1)
-        mFileSize = st.st_size;
-    #else
-      struct stat st;
-      if (stat (filename.c_str(), &st) != -1)
-        mFileSize = st.st_size;
-    #endif
-    }
-  //}}}
-  //{{{
-  eAudioFrameType getAudioFileInfo() {
-
-    uint8_t buffer[1024];
-    FILE* file = fopen (mFilename.c_str(), "rb");
-    size_t size = fread (buffer, 1, 1024, file);
-    fclose (file);
-
-    mAudioFrameType = cAudioParser::parseSomeFrames (buffer, buffer + size, mNumChannels, mSampleRate);
-    return mAudioFrameType;
-    }
-  //}}}
-
-  string mFilename;
-  int64_t mFileSize = 0;
-  int64_t mLoadPos = 0;
   };
 //}}}
 //{{{
