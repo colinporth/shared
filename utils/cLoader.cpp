@@ -501,9 +501,16 @@ public:
 
   virtual cSong* getSong() = 0;
   virtual iVideoPool* getVideoPool() = 0;
+  virtual string getInfoString() { return ""; }
+  //{{{
+  virtual float getFracs (float& audioFrac, float& videoFrac) {
+  // return fracs for spinner graphic, true if ok to display
 
-  virtual void getFracs (float& loadFrac, float& audioFrac, float& videoFrac) = 0;
-  virtual void getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize) = 0;
+    audioFrac = 0.f;
+    videoFrac = 0.f;
+    return 0.f;
+    }
+  //}}}
 
   //{{{
   virtual void exit() {
@@ -598,18 +605,6 @@ public:
   virtual cSong* getSong() { return nullptr; }
   virtual iVideoPool* getVideoPool() { return nullptr; }
 
-  virtual void getFracs (float& loadFrac, float& audioFrac, float& videoFrac) {
-    loadFrac = 0.f;
-    audioFrac = 0.f;
-    videoFrac = 0.f;
-    }
-
-  virtual void getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize) {
-    loadSize = 0;
-    audioQueueSize = 0;
-    videoQueueSize = 0;
-    }
-
   virtual bool recognise (const vector<string>& params) { return true; }
   virtual void load() {}
   virtual void exit() {}
@@ -624,21 +619,45 @@ public:
 //{{{
 class cLoadHls : public cLoadSource {
 public:
+  //{{{
   cLoadHls() : cLoadSource("hls") {
     mAudioFrameType = eAudioFrameType::eAacAdts;
     mNumChannels = 2;
     mSampleRate = 48000;
     }
+  //}}}
   virtual ~cLoadHls() {}
 
   virtual cSong* getSong() { return mHlsSong; }
   virtual iVideoPool* getVideoPool() { return mVideoPool; }
-
   //{{{
-  virtual void getFracs (float& loadFrac, float& audioFrac, float& videoFrac) {
+  virtual string getInfoString() {
+
+    string str = mChannel + " " + dec (mLoadSize / 1000) + "k";
+
+    auto audioIt = mPidParsers.find (mAudioPid);
+    if (audioIt != mPidParsers.end()) {
+      int queueSize = (*audioIt).second->getQueueSize();
+      if (queueSize)
+        str += " a:" + dec(queueSize);
+      }
+
+    if (!mRadio && (mVideoRate > 0)) {
+      auto videoIt = mPidParsers.find (mVideoPid);
+      if (videoIt != mPidParsers.end()) {
+        int queueSize = (*videoIt).second->getQueueSize();
+        if (queueSize)
+          str += " v:" + dec(queueSize);
+        }
+      }
+
+    return str;
+    }
+  //}}}
+  //{{{
+  virtual float getFracs (float& audioFrac, float& videoFrac) {
   // return fracs for spinner graphic, true if ok to display
 
-    loadFrac = mLoadFrac;
     audioFrac = 0.f;
     videoFrac = 0.f;
 
@@ -649,23 +668,8 @@ public:
     auto videoIt = mPidParsers.find (mVideoPid);
     if (videoIt != mPidParsers.end())
       videoFrac = (*videoIt).second->getQueueFrac();
-    }
-  //}}}
-  //{{{
-  virtual void getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize) {
-  // return sizes
 
-    loadSize = mLoadSize / 1000;
-
-    audioQueueSize = 0;
-    auto audioIt = mPidParsers.find (mAudioPid);
-    if (audioIt != mPidParsers.end())
-     audioQueueSize = (*audioIt).second->getQueueSize();
-
-    videoQueueSize = 0;
-    auto videoIt = mPidParsers.find (mVideoPid);
-    if (videoIt != mPidParsers.end())
-      videoQueueSize = (*videoIt).second->getQueueSize();
+    return mLoadFrac;
     }
   //}}}
 
@@ -932,25 +936,6 @@ public:
   virtual iVideoPool* getVideoPool() { return mVideoPool; }
 
   //{{{
-  virtual void getFracs (float& loadFrac, float& audioFrac, float& videoFrac) {
-  // return fracs for spinner graphic, true if ok to display
-
-    loadFrac = 0.f;
-    audioFrac = 0.f;
-    videoFrac = 0.f;
-    }
-  //}}}
-  //{{{
-  virtual void getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize) {
-  // return sizes
-
-    loadSize = 0;
-    audioQueueSize = 0;
-    videoQueueSize = 0;
-    }
-  //}}}
-
-  //{{{
   virtual bool recognise (const vector<string>& params) {
 
     mParsedUrl.parse (params[0]);
@@ -1184,12 +1169,35 @@ public:
 
   virtual cSong* getSong() { return mPtsSong; }
   virtual iVideoPool* getVideoPool() { return mVideoPool; }
-
   //{{{
-  virtual void getFracs (float& loadFrac, float& audioFrac, float& videoFrac) {
+  virtual string getInfoString() {
+  // return sizes
+
+    string str = dec(mLoadPos / 188) + "packets";
+
+    if (mCurSid > 0) {
+      cService* service = mServices[mCurSid];
+      int audioPid = service->getAudioPid();
+      int videoPid = service->getVideoPid();
+
+      auto audioIt = mPidParsers.find (audioPid);
+      if (audioIt != mPidParsers.end())
+        str += " a:" + dec((*audioIt).second->getQueueSize());
+
+      auto videoIt = mPidParsers.find (videoPid);
+      if (videoIt != mPidParsers.end())
+        str += " v:" + dec((*videoIt).second->getQueueSize());
+
+      str += " sid:" + dec(mCurSid) + " a:"  + dec(audioPid) + " v:" + dec(videoPid);
+      }
+
+    return str;
+    }
+  //}}}
+  //{{{
+  virtual float getFracs (float& audioFrac, float& videoFrac) {
   // return fracs for spinner graphic, true if ok to display
 
-    loadFrac = mLoadFrac;
 
     audioFrac = 0.f;
     videoFrac = 0.f;
@@ -1207,29 +1215,8 @@ public:
       if (videoIt != mPidParsers.end())
         videoFrac = (*videoIt).second->getQueueFrac();
       }
-    }
-  //}}}
-  //{{{
-  virtual void getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize) {
-  // return sizes
 
-    loadSize = int (mLoadPos / 188);
-    audioQueueSize = 0;
-    videoQueueSize = 0;
-
-    if (mCurSid > 0) {
-      cService* service = mServices[mCurSid];
-      int audioPid = service->getAudioPid();
-      int videoPid = service->getVideoPid();
-
-      auto audioIt = mPidParsers.find (audioPid);
-      if (audioIt != mPidParsers.end())
-        audioQueueSize = (*audioIt).second->getQueueSize();
-
-      auto videoIt = mPidParsers.find (videoPid);
-      if (videoIt != mPidParsers.end())
-        videoQueueSize = (*videoIt).second->getQueueSize();
-      }
+    return mLoadFrac;
     }
   //}}}
 
@@ -1465,23 +1452,14 @@ public:
 
   virtual cSong* getSong() { return mSong; }
   virtual iVideoPool* getVideoPool() { return nullptr; }
-
+  virtual string getInfoString() { return mFilename + " " + dec (mLoadPos / 1024) + "k"; }
   //{{{
-  virtual void getFracs (float& loadFrac, float& audioFrac, float& videoFrac) {
+  virtual float getFracs (float& audioFrac, float& videoFrac) {
   // return fracs for spinner graphic, true if ok to display
 
-    loadFrac = mLoadFrac;
     audioFrac = 0.f;
     videoFrac = 0.f;
-    }
-  //}}}
-  //{{{
-  virtual void getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize) {
-  // return sizes
-
-    loadSize = int(mLoadPos / 1000);
-    audioQueueSize = 0;
-    videoQueueSize = 0;
+    return mLoadFrac;
     }
   //}}}
 
@@ -1574,23 +1552,20 @@ public:
 
   virtual cSong* getSong() { return mSong; }
   virtual iVideoPool* getVideoPool() { return nullptr; }
-
   //{{{
-  virtual void getFracs (float& loadFrac, float& audioFrac, float& videoFrac) {
-  // return fracs for spinner graphic, true if ok to display
-
-    loadFrac = mLoadFrac;
-    audioFrac = 0.f;
-    videoFrac = 0.f;
-    }
+  virtual string getInfoString() {
+    return mFilename +
+           " " + dec (mLoadPos / 1024) + "k " +
+           dec(mSampleRate) + "hz " + dec(mNumChannels);
+   }
   //}}}
   //{{{
-  virtual void getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize) {
-  // return sizes
+  virtual float getFracs (float& audioFrac, float& videoFrac) {
+  // return fracs for spinner graphic, true if ok to display
 
-    loadSize = int(mLoadPos / 1000);
-    audioQueueSize = 0;
-    videoQueueSize = 0;
+    audioFrac = 0.f;
+    videoFrac = 0.f;
+    return  mLoadFrac;
     }
   //}}}
 
@@ -1712,32 +1687,15 @@ cLoader::~cLoader() {
 //}}}
 
 // gets
+cSong* cLoader::getSong() { return mLoadSource->getSong(); }
+iVideoPool* cLoader::getVideoPool() { return mLoadSource->getVideoPool(); }
+string cLoader::getInfoString() { return mLoadSource->getInfoString(); }
 //{{{
-cSong* cLoader::getSong() {
-  return mLoadSource ? mLoadSource->getSong() : nullptr;
-  }
-//}}}
-//{{{
-iVideoPool* cLoader::getVideoPool() {
-  return mLoadSource ? mLoadSource->getVideoPool() : nullptr;
-  }
-//}}}
-//{{{
-void cLoader::getFracs (float& loadFrac, float& audioFrac, float& videoFrac) {
+float cLoader::getFracs (float& audioFrac, float& videoFrac) {
 
-  loadFrac = 0.f;
   audioFrac = 0.f;
   videoFrac = 0.f;
-  mLoadSource->getFracs (loadFrac, audioFrac, videoFrac);
-  }
-//}}}
-//{{{
-void cLoader::getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize) {
-
-  loadSize = 0;
-  audioQueueSize = 0;
-  videoQueueSize = 0;
-  mLoadSource->getSizes (loadSize, audioQueueSize, videoQueueSize);
+  return mLoadSource->getFracs (audioFrac, videoFrac);
   }
 //}}}
 

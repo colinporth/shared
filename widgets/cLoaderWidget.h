@@ -157,10 +157,9 @@ public:
     if (mShowGraphics) {
       drawInfo (vg, videoPool);
       //{{{  draw progress spinners
-      float loadFrac;
       float videoFrac;
       float audioFrac;
-      mLoader->getFracs (loadFrac, audioFrac, videoFrac);
+      float loadFrac = mLoader->getFracs (audioFrac, videoFrac);
       if ((loadFrac > 0.f) &&
           ((loadFrac < 1.f) || (audioFrac > 0.f) || (videoFrac > 0.f))) {
         cPointF centre (mSize.x-20.f, 20.f);
@@ -251,18 +250,9 @@ private:
     std::string infoString;
 
     if (videoPool)
-      infoString += " " + dec(videoPool->getWidth()) + "x" + dec(videoPool->getHeight());
+      infoString += videoPool->getInfoString();
 
-    int loadSize;
-    int videoQueueSize;
-    int audioQueueSize;
-    mLoader->getSizes (loadSize, audioQueueSize, videoQueueSize);
-    infoString += " " + dec(loadSize);
-
-    if (videoPool) {
-      infoString += " a" + dec(audioQueueSize);
-      infoString += " v" + dec(videoQueueSize);
-      }
+    infoString += " " + mLoader->getInfoString();
 
     vg->setFontSize (kFontHeight);
     vg->setTextAlign (cVg::eAlignLeft | cVg::eAlignTop);

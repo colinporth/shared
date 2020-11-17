@@ -2,6 +2,7 @@
 #pragma once
 //{{{  includes
 #include <cstdint>
+#include <string>
 #include <vector>
 #include <map>
 
@@ -33,6 +34,7 @@ public:
   // gets
   virtual int getWidth() = 0;
   virtual int getHeight() = 0;
+  virtual std::string getInfoString() = 0;
   virtual std::map <int64_t,iVideoFrame*>& getFramePool() = 0;
 
   // actions

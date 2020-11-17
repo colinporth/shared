@@ -1783,6 +1783,7 @@ public:
   // gets
   virtual int getWidth() { return mWidth; }
   virtual int getHeight() { return mHeight; }
+  virtual string getInfoString() { return dec(mWidth) + "x" + dec(mHeight); }
   virtual map <int64_t, iVideoFrame*>& getFramePool() { return mFramePool; }
 
   //{{{

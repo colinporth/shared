@@ -19,8 +19,8 @@ public:
   // gets
   cSong* getSong();
   iVideoPool* getVideoPool();
-  void getFracs (float& loadFrac, float& audioFrac, float& videoFrac);
-  void getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize);
+  std::string getInfoString();
+  float getFracs (float& audioFrac, float& videoFrac);
 
   // load
   void launchLoad (const std::vector<std::string>& params);
