@@ -257,7 +257,7 @@ private:
     int videoQueueSize;
     int audioQueueSize;
     mLoader->getSizes (loadSize, audioQueueSize, videoQueueSize);
-    infoString += " " + dec(loadSize/1000) + "Kbytes";
+    infoString += " " + dec(loadSize);
 
     if (videoPool) {
       infoString += " a" + dec(audioQueueSize);

@@ -655,7 +655,7 @@ public:
   virtual void getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize) {
   // return sizes
 
-    loadSize = mLoadSize;
+    loadSize = mLoadSize / 1000;
 
     audioQueueSize = 0;
     auto audioIt = mPidParsers.find (mAudioPid);
@@ -1126,7 +1126,7 @@ public:
   virtual void getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize) {
   // return sizes
 
-    loadSize = 0;
+    loadSize = mLoadPos;
     audioQueueSize = 0;
     videoQueueSize = 0;
     }
@@ -1187,6 +1187,7 @@ protected:
 
   string mFilename;
   int64_t mFileSize = 0;
+  int mLoadPos = 0;
   };
 //}}}
 //{{{
@@ -1276,7 +1277,7 @@ public:
     FILE* file = fopen (mFilename.c_str(), "rb");
     uint8_t buffer[kFileChunkSize];
     size_t bytesLeft = fread (buffer, 1, kFileChunkSize, file);
-    int mLoadPos = (int)bytesLeft / 188;
+    mLoadPos = 0;
 
     mPtsSong = new cPtsSong (eAudioFrameType::eAacAdts, mNumChannels, mSampleRate, 1024, 1920, 0);
     iAudioDecoder* audioDecoder = nullptr;
@@ -1393,6 +1394,9 @@ public:
         ts += 188;
         bytesLeft -= 188;
 
+        mLoadFrac = float(mLoadPos) / (mFileSize/188);
+        mLoadPos++;
+
         // block load if loadPts > 25 audio frames ahead of playPts
         int64_t playPts = mPtsSong->getPlayPts();
         while (!mExit && (loadPts > mPtsSong->getPlayPts() + (50 * mPtsSong->getFramePtsDuration())))
@@ -1401,8 +1405,6 @@ public:
 
       // get next fileChunk
       bytesLeft = fread (buffer, 1, kFileChunkSize, file);
-      mLoadPos += (int)bytesLeft / 188;
-      mLoadFrac = float(mLoadPos) / (mFileSize/188);
       } while (!mExit && (bytesLeft > 188));
     mLoadFrac = 0.f;
 
@@ -1465,7 +1467,6 @@ private:
 
   cPtsSong* mPtsSong = nullptr;
   iVideoPool* mVideoPool = nullptr;
-  int mLoadPos = 0;
 
   map <int, cPidParser*> mPidParsers;
 
@@ -1481,6 +1482,16 @@ public:
 
   virtual cSong* getSong() { return mSong; }
   virtual iVideoPool* getVideoPool() { return nullptr; }
+
+  //{{{
+  virtual void getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize) {
+  // return sizes
+
+    loadSize = mLoadPos / 1000;
+    audioQueueSize = 0;
+    videoQueueSize = 0;
+    }
+  //}}}
 
   //{{{
   virtual bool recognise (const vector<string>& params) {
@@ -1504,7 +1515,7 @@ public:
     uint8_t buffer[kFileChunkSize + 0x100];
     size_t size = fread (buffer, 1, kFileChunkSize, file);
     size_t bytesLeft = size;
-    size_t filePos = size;
+    mLoadPos = 0;
 
     mSong = new cSong (eAudioFrameType::eWav, mNumChannels, mSampleRate, kWavFrameSamples, 0);
 
@@ -1535,8 +1546,8 @@ public:
       memcpy (buffer, frame, bytesLeft);
       size_t size = fread (buffer + bytesLeft, 1, kFileChunkSize-bytesLeft, file);
       bytesLeft += size;
-      filePos += size;
-      mLoadFrac = float(filePos) / mFileSize;
+      mLoadPos += (int)size;
+      mLoadFrac = float(mLoadPos) / mFileSize;
 
       frame = buffer;
       } while (!mExit && (bytesLeft > 0));
@@ -1573,6 +1584,16 @@ public:
   virtual iVideoPool* getVideoPool() { return nullptr; }
 
   //{{{
+  virtual void getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize) {
+  // return sizes
+
+    loadSize = mLoadPos / 1000;
+    audioQueueSize = 0;
+    videoQueueSize = 0;
+    }
+  //}}}
+
+  //{{{
   virtual bool recognise (const vector<string>& params) {
 
     if (!getFileSize (params[0]))
@@ -1595,7 +1616,7 @@ public:
     uint8_t buffer[kFileChunkSize*2];
     size_t size = fread (buffer, 1, kFileChunkSize, file);
     size_t chunkBytesLeft = size;
-    size_t bytesUsed = 0;
+    mLoadPos = 0;
 
     //{{{  jpeg
     //int jpegLen;
@@ -1619,19 +1640,19 @@ public:
              cAudioParser::parseFrame (frame, frame + chunkBytesLeft, frameSize)) {
         // process frame in fileChunk
         float* samples = decoder->decodeFrame (frame, frameSize, pts);
-        bytesUsed += frameSize;
         frame += frameSize;
         chunkBytesLeft -= frameSize;
+        mLoadPos += frameSize;
         if (samples) {
           if (!mSong) // first decoded frame gives aacHE sampleRate,samplesPerFrame
             mSong = new cSong (mAudioFrameType, decoder->getNumChannels(), decoder->getSampleRate(),
                                decoder->getNumSamplesPerFrame(), 0);
-          mSong->addFrame (true, pts, samples, (mFileSize * mSong->getNumFrames()) / bytesUsed);
+          mSong->addFrame (true, pts, samples, (mFileSize * mSong->getNumFrames()) / mLoadPos);
           pts += mSong->getFramePtsDuration();
           if (!mSongPlayer)
             mSongPlayer = new cSongPlayer (mSong, false);
           }
-        mLoadFrac = float(bytesUsed) / mFileSize;
+        mLoadFrac = float(mLoadPos) / mFileSize;
         }
 
       // get next fileChunk
