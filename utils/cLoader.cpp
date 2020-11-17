@@ -929,16 +929,22 @@ private:
 //{{{
 class cLoadIcyCast : public cLoadSource {
 public:
-  cLoadIcyCast() : cLoadSource("hls") {}
+  cLoadIcyCast() : cLoadSource("icyCast") {}
   virtual ~cLoadIcyCast() {}
 
   virtual cSong* getSong() { return mSong; }
   virtual iVideoPool* getVideoPool() { return mVideoPool; }
+  //{{{
+  virtual string getInfoString() {
+    return mUrl + " - " + mLastTitleString;
+    }
+  //}}}
 
   //{{{
   virtual bool recognise (const vector<string>& params) {
 
-    mParsedUrl.parse (params[0]);
+    mUrl = params[0];
+    mParsedUrl.parse (mUrl);
     return mParsedUrl.getScheme() == "http";
     }
   //}}}
@@ -1085,6 +1091,7 @@ private:
     }
   //}}}
 
+  string mUrl;
   cUrl mParsedUrl;
   string mLastTitleString;
 
@@ -1368,7 +1375,6 @@ public:
         mLoadFrac = float(mLoadPos) / mFileSize;
 
         // block load if loadPts > 25 audio frames ahead of playPts
-        int64_t playPts = mPtsSong->getPlayPts();
         while (!mExit && (loadPts > mPtsSong->getPlayPts() + (25 * mPtsSong->getFramePtsDuration())))
           this_thread::sleep_for (40ms);
         }
@@ -1453,8 +1459,8 @@ public:
   virtual cSong* getSong() { return mSong; }
   virtual iVideoPool* getVideoPool() { return nullptr; }
   //{{{
-  virtual string getInfoString() { 
-    return mFilename + 
+  virtual string getInfoString() {
+    return mFilename +
            " " + dec (mLoadPos / 1024) + "k";
     }
   //}}}
