@@ -61,7 +61,7 @@ protected:
   cWidget* addTopLeft (cWidget* widget);
   cWidget* addBelow (cWidget* widget);
 
-  void run (bool clear);
+  void runGui (bool clear);
 
   void toggleFullScreen();
   void toggleVsync();

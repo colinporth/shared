@@ -170,8 +170,8 @@ cWidget* cGlWindow::addAt (cWidget* widget, const cPointF& point) { return mRoot
 cWidget* cGlWindow::addTopLeft (cWidget* widget) { return mRootContainer->addTopLeft (widget); }
 cWidget* cGlWindow::addBelow (cWidget* widget) { return mRootContainer->addBelowLeft (widget); }
 //{{{
-void cGlWindow::run (bool clear) {
-// runs in app main thread after initialising everything
+void cGlWindow::runGui (bool clear) {
+// usually runs in app main thread
 
   updateWindowSize();
 
