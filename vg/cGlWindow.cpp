@@ -12,10 +12,13 @@
 #include "../utils/utils.h"
 #include "../utils/cLog.h"
 
+#include "../widgets/cRootContainer.h"
+
 using namespace std;
 using namespace chrono;
 //}}}
 
+cGlWindow::cGlWindow() {}
 //{{{
 cGlWindow::~cGlWindow() {
   glfwTerminate();
@@ -161,6 +164,11 @@ cRootContainer* cGlWindow::initialise (const string& title, int width, int heigh
   return mRootContainer;
   }
 //}}}
+
+cWidget* cGlWindow::add (cWidget* widget) { return mRootContainer->add (widget); }
+cWidget* cGlWindow::addAt (cWidget* widget, const cPointF& point) { return mRootContainer->addAt (widget, point); }
+cWidget* cGlWindow::addTopLeft (cWidget* widget) { return mRootContainer->addTopLeft (widget); }
+cWidget* cGlWindow::addBelow (cWidget* widget) { return mRootContainer->addBelowLeft (widget); }
 //{{{
 void cGlWindow::run (bool clear) {
 // runs in app main thread after initialising everything

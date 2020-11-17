@@ -12,6 +12,7 @@
 #include "stb_truetype.h"
 
 using namespace std;
+using namespace chrono;
 //}}}
 //{{{  constexpr
 constexpr int kInitFonts = 4;

@@ -8,33 +8,25 @@
 #include "cPerfGraph.h"
 
 #include "../utils/iChange.h"
-#include "../widgets/cRootContainer.h"
 
 #include "../widgets/iClockTime.h"
+#include "../widgets/iDraw.h"
+
+class cWidget;
+class cRootContainer;
 //}}}
 
 class cGlWindow : public cVg, public iClockTime, public iDraw {
 public:
-  cGlWindow() {};
+  cGlWindow();
   virtual ~cGlWindow();
 
-  //{{{  iWindow gets
-  cVg* getVg();
-
-  cPointF getSize();
-
-  bool getShift() { return mShifted; }
-  bool getControl() { return mControlled; }
-  bool getMouseDown() { return mMouseDown; }
-  //}}}
-
-  //{{{  iTime gets
+  //{{{  iClockTime
   int getDayLightSeconds();
   std::chrono::system_clock::time_point getNowRaw();
   std::chrono::system_clock::time_point getNowDayLight();
   //}}}
-
-  // iDraw
+  //{{{  iDraw
   void drawRect (const sColourF& colour, const cPointF& p, const cPointF& size);
   void drawPixel (const sColourF& colour, const cPointF& p) {}
   //{{{
@@ -50,14 +42,25 @@ public:
   float drawTextRight (const sColourF& colour, float fontHeight, std::string str, const cPointF& p, const cPointF& size);
   void drawEllipseSolid (const sColourF& colour, const cPointF& p, const cPointF& radius);
   void drawStamp (const sColourF& colour, uint8_t* src, const cPointF& p, const cPointF& size) {}
+  //}}}
+  //{{{  iWindow
+  cVg* getVg();
+
+  cPointF getSize();
+
+  bool getShift() { return mShifted; }
+  bool getControl() { return mControlled; }
+  bool getMouseDown() { return mMouseDown; }
+  //}}}
 
 protected:
   cRootContainer* initialise (const std::string& title, int width, int height, uint8_t* font, int fontSize);
 
-  cWidget* add (cWidget* widget) { return mRootContainer->add (widget); }
-  cWidget* addAt (cWidget* widget, const cPointF& point) { return mRootContainer->addAt (widget, point); }
-  cWidget* addTopLeft (cWidget* widget) { return mRootContainer->addTopLeft (widget); }
-  cWidget* addBelow (cWidget* widget) { return mRootContainer->addBelowLeft (widget); }
+  cWidget* add (cWidget* widget);
+  cWidget* addAt (cWidget* widget, const cPointF& point);
+  cWidget* addTopLeft (cWidget* widget);
+  cWidget* addBelow (cWidget* widget);
+
   void run (bool clear);
 
   void toggleFullScreen();
