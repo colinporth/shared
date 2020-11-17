@@ -10,19 +10,18 @@ class cContainer;
 
 class cWidget {
 public:
-  static constexpr float kBoxHeight = 20.f;
+  static constexpr float kBox = 20.f;
   static constexpr float kSmallFontHeight = 16.f;
   static constexpr float kFontHeight = 18.f;
   static constexpr float kBigFontHeight = 40.f;
 
   //{{{
-  cWidget (float width, float height, const std::string& debugName)
-    : mDebugName(debugName), mLayoutSize(width, height), mSize(width, height) {}
+  cWidget (float width, float height, const std::string& id)
+    : mId(id), mColour(kLightGreyF), mLayoutSize(width, height), mSize(width, height) {}
   //}}}
   //{{{
-  cWidget (const sColourF& colour, float width, float height, const std::string& debugName)
-    : mDebugName(debugName), mColour(colour),
-      mLayoutSize(width, height), mSize(width, height) {}
+  cWidget (const sColourF& colour, float width, float height, const std::string& id)
+    : mId(id), mColour(colour), mLayoutSize(width, height), mSize(width, height) {}
   //}}}
   virtual ~cWidget() {}
 
@@ -50,6 +49,8 @@ public:
   virtual bool isPressed() { return mPressedCount > 0; }
   virtual int getPressedCount() { return mPressedCount; }
 
+  virtual std::string getId() { return mId; }
+  //}}}
   //{{{
   virtual cWidget* isPicked (const cPointF& point) {
   // return true if point inside visible widget
@@ -58,13 +59,12 @@ public:
     }
   //}}}
 
-  virtual std::string getDebugName() { return mDebugName; }
-  //}}}
   //{{{  sets - virtual
+  //virtual void setColour (const sColourF& colour) { mColour = colour; }
+
   virtual void setOrg (const cPointF& point) { mOrg = point; }
   virtual void setSize (const cPointF& size) { mSize = size; }
 
-  virtual void setColour (const sColourF& colour) { mColour = colour; }
   virtual void setParent (cWidget* parent) { mParent = parent; }
 
   virtual void setOn (bool on) { mOn = on; }
@@ -95,10 +95,10 @@ public:
   //}}}
 
 protected:
-  const std::string mDebugName;
-  sColourF mColour = kLightGreyF;
-
+  const std::string mId;
+  const sColourF mColour;
   const cPointF mLayoutSize = { 0.f,0.f };
+
   cPointF mOrg = { 0.f,0.f };
   cPointF mSize = { 0.f,0.f };
 

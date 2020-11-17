@@ -9,15 +9,15 @@ class cTextBox : public cWidget {
 public:
   //{{{
   cTextBox (std::string& text, float width, const std::string debugName = "cTextBox")
-    : cWidget (width, kBoxHeight, debugName), mText(text) {}
+    : cWidget (width, kBox, debugName), mText(text) {}
   //}}}
   //{{{
-  cTextBox (std::string& text, const sColourF& colour, float width, float height, const std::string debugName = "cTextBox") :
-    cWidget (colour, width, height, debugName), mText(text) {}
+  cTextBox (std::string& text, const sColourF& colour, float width, float height, const std::string id = "cTextBox") :
+    cWidget (colour, width, height, id), mText(text) {}
   //}}}
   virtual ~cTextBox() {}
 
-  virtual std::string getDebugName() { return mDebugName + " - " + mText; }
+  virtual std::string getDebugName() { return mId + " - " + mText; }
 
   virtual void setText (std::string& text) { mText = text; }
   virtual void setTextColour (const sColourF& colour) { mTextColour = colour; }

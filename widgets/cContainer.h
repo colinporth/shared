@@ -9,8 +9,8 @@
 class cContainer : public cWidget {
 public:
   //{{{
-  cContainer (float width, float height, const std::string& debugName = "cContainer")
-    : cWidget (kBlackF, width, height, debugName) {}
+  cContainer (float width, float height, const std::string& id = "cContainer")
+    : cWidget (kBlackF, width, height, id) {}
   //}}}
   //{{{
   virtual ~cContainer() {
@@ -73,8 +73,9 @@ public:
       if (mWidgetLayouts.empty())
         return nullptr;
       else {
+        // pick reverse of display order
         for (auto it = mWidgetLayouts.rbegin(); it != mWidgetLayouts.rend(); ++it) {
-          cWidget* pickedWidget = (*it).mWidget->isPicked (point);
+          cWidget* pickedWidget = (*it).mWidget->isPicked (point); // - mOrg ??
           if (pickedWidget)
             return pickedWidget;
           }
@@ -156,8 +157,8 @@ private:
       prevWidget = widgetLayout.mWidget;
       }
 
-    //cLog::log (LOGINFO, "layoutWidgets " + getDebugName() +
-    //                    " " + dec (boundingSize.x) + "," + dec(boundingSize.y));
+    cLog::log (LOGINFO, "layoutWidgets " + getId() +
+                        " " + dec (boundingSize.x) + "," + dec(boundingSize.y));
     }
   //}}}
 

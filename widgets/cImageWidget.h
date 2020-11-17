@@ -14,8 +14,7 @@ extern "C" {
 class cImageWidget : public cWidget {
 public:
   //{{{
-  cImageWidget (const uint8_t* image, int imageSize,
-                float width, float height,
+  cImageWidget (const uint8_t* image, int imageSize, float width, float height,
                 std::function<void (cImageWidget* widget)> hitCallback = [](cImageWidget*) {},
                 const std::string& debugName = "cImageWidget")
       : cWidget(width, height, debugName), mHitCallback(hitCallback) {
