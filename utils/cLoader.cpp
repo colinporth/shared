@@ -1229,7 +1229,7 @@ public:
   virtual void getSizes (int& loadSize, int& audioQueueSize, int& videoQueueSize) {
   // return sizes
 
-    loadSize = 0;
+    loadSize = mLoadPos;
     audioQueueSize = 0;
     videoQueueSize = 0;
 
@@ -1276,7 +1276,7 @@ public:
     FILE* file = fopen (mFilename.c_str(), "rb");
     uint8_t buffer[kFileChunkSize];
     size_t bytesLeft = fread (buffer, 1, kFileChunkSize, file);
-    size_t filePos = bytesLeft;
+    int mLoadPos = (int)bytesLeft / 188;
 
     mPtsSong = new cPtsSong (eAudioFrameType::eAacAdts, mNumChannels, mSampleRate, 1024, 1920, 0);
     iAudioDecoder* audioDecoder = nullptr;
@@ -1393,7 +1393,7 @@ public:
         ts += 188;
         bytesLeft -= 188;
 
-        // block load if loadPts > 50 audio frames ahead of playPts
+        // block load if loadPts > 25 audio frames ahead of playPts
         int64_t playPts = mPtsSong->getPlayPts();
         while (!mExit && (loadPts > mPtsSong->getPlayPts() + (50 * mPtsSong->getFramePtsDuration())))
           this_thread::sleep_for (40ms);
@@ -1401,8 +1401,8 @@ public:
 
       // get next fileChunk
       bytesLeft = fread (buffer, 1, kFileChunkSize, file);
-      filePos += bytesLeft;
-      mLoadFrac = float(filePos) / mFileSize;
+      mLoadPos += (int)bytesLeft / 188;
+      mLoadFrac = float(mLoadPos) / (mFileSize/188);
       } while (!mExit && (bytesLeft > 188));
     mLoadFrac = 0.f;
 
@@ -1465,6 +1465,7 @@ private:
 
   cPtsSong* mPtsSong = nullptr;
   iVideoPool* mVideoPool = nullptr;
+  int mLoadPos = 0;
 
   map <int, cPidParser*> mPidParsers;
 

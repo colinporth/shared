@@ -10,19 +10,19 @@ class cContainer : public cWidget {
 public:
   //{{{
   cContainer (const std::string& id = "cContainerUnsized")
-    : cWidget (kBlackF, 0.f, 0.f, id), mDrawBgnd(false), mSized(false) {}
+    : cWidget (kBlackF, 0.f, 0.f, id), mDrawBgnd(false), mSelfSize(true) {}
   //}}}
   //{{{
   cContainer (const sColourF& colour, const std::string& id = "cContainerUnsizedBgnd")
-    : cWidget (colour, 0.f, 0.f, id), mDrawBgnd(true), mSized(false) {}
+    : cWidget (colour, 0.f, 0.f, id), mDrawBgnd(true), mSelfSize(true) {}
   //}}}
   //{{{
   cContainer (float width, float height, const std::string& id = "cContainerSized")
-    : cWidget (kBlackF, width, height, id), mDrawBgnd(false), mSized(true) {}
+    : cWidget (kBlackF, width, height, id), mDrawBgnd(false), mSelfSize(false) {}
   //}}}
   //{{{
   cContainer (const sColourF& colour, float width, float height, const std::string& id = "cContainerSizedBgnd")
-    : cWidget (colour, width, height, id), mDrawBgnd(true), mSized(true) {}
+    : cWidget (colour, width, height, id), mDrawBgnd(true), mSelfSize(false) {}
   //}}}
   //{{{
   virtual ~cContainer() {
@@ -43,7 +43,7 @@ public:
     for (auto& widgetLayout : mWidgetLayouts)
       widgetLayout.mWidget->layoutSize (mSize);
 
-    layoutWidgets();
+    layoutWidgets (mOrg);
     }
   //}}}
   //{{{
@@ -132,10 +132,10 @@ private:
     }
   //}}}
   //{{{
-  void layoutWidgets() {
+  void layoutWidgets (const cPointF& org) {
   // layout sub widgets in this container using layout rules
 
-    cPointF boundingSize;
+    cPointF maxEnd = org;
     cWidget* prevWidget = nullptr;
 
     for (auto& widgetLayout : mWidgetLayouts) {
@@ -143,7 +143,7 @@ private:
         case cWidgetLayout::eLayout::eNext:
           if (!prevWidget)
             // topLeft
-            widgetLayout.mWidget->mOrg = widgetLayout.mOffset;
+            widgetLayout.mWidget->mOrg = org + widgetLayout.mOffset;
           else if (prevWidget->getEndX() + widgetLayout.mWidget->mSize.x < mSize.x) {
             // next right
             widgetLayout.mWidget->mOrg.x = prevWidget->mOrg.x + prevWidget->mSize.x + widgetLayout.mOffset.x;
@@ -151,31 +151,31 @@ private:
             }
           else {
             // belowLeft
-            widgetLayout.mWidget->mOrg.x = 0.f;
-            widgetLayout.mWidget->mOrg.y = boundingSize.y + widgetLayout.mOffset.y;
+            widgetLayout.mWidget->mOrg.x = org.x;
+            widgetLayout.mWidget->mOrg.y = maxEnd.y + widgetLayout.mOffset.y;
             }
           break;
 
         case cWidgetLayout::eLayout::eBelowLeft:
           // belowLeft
-          widgetLayout.mWidget->mOrg.x = 0.f;
-          widgetLayout.mWidget->mOrg.y = boundingSize.y + widgetLayout.mOffset.y;
+          widgetLayout.mWidget->mOrg.x = org.x;
+          widgetLayout.mWidget->mOrg.y = maxEnd.y + widgetLayout.mOffset.y;
           break;
 
         case cWidgetLayout::eLayout::eAt:
-          widgetLayout.mWidget->mOrg = widgetLayout.mOffset;
+          widgetLayout.mWidget->mOrg = org + widgetLayout.mOffset;
           break;
         }
 
-      // calc boundingSize
-      boundingSize.x = std::max (boundingSize.x, widgetLayout.mWidget->getEndX());
-      boundingSize.y = std::max (boundingSize.y, widgetLayout.mWidget->getEndY());
+      // calc maxEnd
+      maxEnd.x = std::max (maxEnd.x, widgetLayout.mWidget->getEndX());
+      maxEnd.y = std::max (maxEnd.y, widgetLayout.mWidget->getEndY());
 
       prevWidget = widgetLayout.mWidget;
       }
 
-    if (!mSized)
-      mSize = boundingSize;
+    if (mSelfSize)
+      mSize = maxEnd - org;
 
     //cLog::log (LOGINFO, "layoutWidgets " + getId() + " " + dec (boundingSize.x) + "," + dec(boundingSize.y));
     }
@@ -188,11 +188,11 @@ private:
     for (auto& widgetLayout : mWidgetLayouts)
       widgetLayout.mWidget->layoutSize (mSize);
 
-    layoutWidgets();
+    layoutWidgets (mOrg);
     }
   //}}}
 
   // vars
   const bool mDrawBgnd;
-  const bool mSized;
+  const bool mSelfSize;
   };
