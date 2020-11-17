@@ -196,6 +196,6 @@ private:
   //}}}
 
   // vars
-  const bool mSized;
   const bool mDrawBgnd;
+  const bool mSized;
   };
