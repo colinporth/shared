@@ -10,6 +10,7 @@
 #include "../utils/cLog.h"
 
 using namespace std;
+using namespace fmt;
 using namespace chrono;
 //}}}
 //{{{  constexpr
@@ -379,11 +380,11 @@ string cSong::getTimeString (int64_t value, int daylightSeconds) {
   int64_t hours = value;
 
   if (hours > 0)
-    return fmt::format ("{}:{:02d}:{:02d}:{:02d}", hours, minutes, seconds, subSeconds);
+    return format ("{}:{:02d}:{:02d}:{:02d}", hours, minutes, seconds, subSeconds);
   else if (minutes > 0)
-    return fmt::format ("{}:{:02d}:{:02d}", minutes, seconds, subSeconds);
+    return format ("{}:{:02d}:{:02d}", minutes, seconds, subSeconds);
   else
-    return fmt::format ("{}:{:02d}", seconds, subSeconds);
+    return format ("{}:{:02d}", seconds, subSeconds);
   }
 //}}}
 

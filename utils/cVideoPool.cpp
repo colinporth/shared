@@ -13,6 +13,7 @@
 #include <map>
 
 // utils
+#include "../fmt/format.h"
 #include "utils.h"
 #include "cLog.h"
 
@@ -99,6 +100,7 @@ extern "C" {
 #include "cSong.h"
 
 using namespace std;
+using namespace fmt;
 using namespace chrono;
 //}}}
 constexpr int kPtsPerSecond = 90000;
@@ -1786,9 +1788,7 @@ public:
   virtual int getHeight() { return mHeight; }
   //{{{
   virtual string getInfoString() {
-    return dec(mWidth) + "x" + dec(mHeight) +
-           " "  + dec (mDecodeMicroSeconds,5) +
-           ":"  + dec (mYuv420MicroSeconds,4);
+    return format ("{}x{} {:5d}:{:4d}", mWidth, mHeight, mDecodeMicroSeconds, mYuv420MicroSeconds);
     }
   //}}}
   virtual map <int64_t, iVideoFrame*>& getFramePool() { return mFramePool; }
