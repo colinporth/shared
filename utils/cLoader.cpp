@@ -1646,7 +1646,13 @@ public:
           if (diffPts > 100000) {
             // skip forward
             mStreamPos += (((diffPts * 50) / 9) / 188) * 188;
-            _fseeki64 (file, mStreamPos, SEEK_SET);
+            //{{{  fseek
+            #ifdef _WIN32
+              _fseeki64 (file, mStreamPos, SEEK_SET);
+            #else
+              fseek (file, mStreamPos, SEEK_SET);
+            #endif
+            //}}}
             bytesLeft = 0;
             waitForPts = true;
             mVideoPool->flush (mTargetPts);
@@ -1654,7 +1660,13 @@ public:
           else if (diffPts < -100000) {
             // skip back
             mStreamPos += (((diffPts * 50) / 9) / 188) * 188;
-            _fseeki64 (file, mStreamPos, SEEK_SET);
+            //{{{  fseek
+            #ifdef _WIN32
+              _fseeki64 (file, mStreamPos, SEEK_SET);
+            #else
+              fseek (file, mStreamPos, SEEK_SET);
+            #endif
+            //}}}
             bytesLeft = 0;
             waitForPts = true;
             mVideoPool->flush (mTargetPts);

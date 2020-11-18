@@ -115,7 +115,7 @@ using namespace chrono;
         if (frame && song->getPlaying())
           song->nextPlayFrame (true);
 
-        if (!streaming && (song->getPlayPts() > song->getLastPts()))
+        if (!streaming && song->getPlayFinished())
           break;
         }
       //}}}

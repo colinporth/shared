@@ -2,6 +2,7 @@
 //{{{  includes
 #define _CRT_SECURE_NO_WARNINGS
 
+//#include <format>
 #include "cSong.h"
 
 #include "../date/date.h"
@@ -201,7 +202,7 @@ string cSong::getFirstTimeString (int daylightSeconds) {
   int64_t value = (getFirstFrameNum() * mSamplesPerFrame * 100) / mSampleRate;
 
   if (value) {
-    // only show non zero firstFrameNum, probaly never happens
+    // only show non zero firstFrameNum, may never happen
     int subSeconds = value % 100;
     value /= 100;
 

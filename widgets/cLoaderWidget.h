@@ -195,9 +195,20 @@ public:
           }
         }
 
-        drawTime (vg, song->getFirstTimeString (mClockTime->getDayLightSeconds()),
-                      song->getPlayTimeString (mClockTime->getDayLightSeconds()),
-                      song->getLastTimeString (mClockTime->getDayLightSeconds()));
+        // big playTime, white, centred
+        vg->setFillColour (kWhiteF);
+        vg->setFontSize (kBigFontHeight);
+        vg->setTextAlign (cVg::eAlignCentre | cVg::eAlignBottom);
+        vg->text (cPointF(mSize.x/2.f, mSize.y), song->getPlayTimeString (mClockTime->getDayLightSeconds()));
+
+        // firstTime, left
+        vg->setFontSize (kFontHeight);
+        vg->setTextAlign (cVg::eAlignLeft | cVg::eAlignBottom);
+        vg->text (cPointF(0.f, mSize.y), song->getFirstTimeString (mClockTime->getDayLightSeconds()));
+
+        // lastTime, right
+        vg->setTextAlign (cVg::eAlignRight | cVg::eAlignBottom);
+        vg->text (mSize, song->getLastTimeString (mClockTime->getDayLightSeconds()));
         }
 
       if (kVideoPoolDebug && videoPool && (playPts >= 0))
@@ -524,27 +535,6 @@ private:
 
     vg->setFillColour (kYellowF);
     vg->triangleFill();
-    }
-  //}}}
-  //{{{
-  void drawTime (cVg* vg, const std::string& firstFrameString,
-                 const std::string& playFrameString, const std::string& lastFrameString) {
-
-    vg->setFillColour (kWhiteF);
-
-    // small lastFrameString, white, right
-    vg->setFontSize (kFontHeight);
-    vg->setTextAlign (cVg::eAlignRight | cVg::eAlignBottom);
-    vg->text (mSize, lastFrameString);
-
-    // small firstFrameString, white, left
-    vg->setTextAlign (cVg::eAlignLeft | cVg::eAlignBottom);
-    vg->text (cPointF(0.f, mSize.y), firstFrameString);
-
-    // big playFrameString, white, centred
-    vg->setFontSize (kBigFontHeight);
-    vg->setTextAlign (cVg::eAlignCentre | cVg::eAlignBottom);
-    vg->text (cPointF(mSize.x/2.f, mSize.y), playFrameString);
     }
   //}}}
   //{{{

@@ -459,7 +459,7 @@ namespace { // anonymous
   //}}}
   //{{{
   void findFilter (Microsoft::WRL::ComPtr<IBaseFilter>& filter,
-                   const CLSID& clsid, wchar_t* name,
+                   const CLSID& clsid, const wchar_t* name,
                    Microsoft::WRL::ComPtr<IBaseFilter> fromFilter) {
   // Find instance of filter of type CLSID by name, add to graphBuilder, connect fromFilter
 
@@ -510,7 +510,7 @@ namespace { // anonymous
 
   //{{{
   void createFilter (Microsoft::WRL::ComPtr<IBaseFilter>& filter,
-                     const CLSID& clsid, wchar_t* title,
+                     const CLSID& clsid, const wchar_t* title,
                      Microsoft::WRL::ComPtr<IBaseFilter> fromFilter) {
   // createFilter type clsid, add to graphBuilder, connect fromFilter
 
