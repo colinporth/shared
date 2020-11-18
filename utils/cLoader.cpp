@@ -512,22 +512,7 @@ public:
     }
   //}}}
 
-  //{{{
-  virtual void exit() {
-
-    if (mSongPlayer)
-       mSongPlayer->exit();
-
-    mExit = true;
-    while (mRunning) {
-      this_thread::sleep_for (100ms);
-      cLog::log (LOGINFO, mName + " - waiting to exit");
-      }
-    }
-  //}}}
-  virtual bool recognise (const vector<string>& params) = 0;
-  virtual void load() = 0;
-
+  // actions
   //{{{
   virtual bool togglePlaying() {
     getSong()->togglePlaying();
@@ -558,6 +543,23 @@ public:
     return true;
     };
   //}}}
+
+  // load
+  //{{{
+  virtual void exit() {
+
+    if (mSongPlayer)
+       mSongPlayer->exit();
+
+    mExit = true;
+    while (mRunning) {
+      this_thread::sleep_for (100ms);
+      cLog::log (LOGINFO, mName + " - waiting to exit");
+      }
+    }
+  //}}}
+  virtual bool recognise (const vector<string>& params) = 0;
+  virtual void load() = 0;
 
 protected:
   //{{{
@@ -657,7 +659,7 @@ protected:
 
   string mFilename;
   int64_t mFileSize = 0;
-  int64_t mLoadPos = 0;
+  int64_t mStreamPos = 0;
   };
 //}}}
 //{{{
@@ -680,7 +682,6 @@ public:
   virtual bool skipForward (bool shift, bool control) { return false; };
   };
 //}}}
-
 //{{{
 class cLoadHls : public cLoadSource {
 public:
@@ -1165,6 +1166,227 @@ private:
   };
 //}}}
 //{{{
+class cLoadWavFile : public cLoadFile {
+public:
+  cLoadWavFile() : cLoadFile("wav") {}
+  virtual ~cLoadWavFile() {}
+
+  virtual cSong* getSong() { return mSong; }
+  virtual iVideoPool* getVideoPool() { return nullptr; }
+  //{{{
+  virtual string getInfoString() {
+    return mFilename +
+           " " + dec (mStreamPos / 1024) + "k";
+    }
+  //}}}
+  //{{{
+  virtual float getFracs (float& audioFrac, float& videoFrac) {
+  // return fracs for spinner graphic, true if ok to display
+
+    audioFrac = 0.f;
+    videoFrac = 0.f;
+    return mLoadFrac;
+    }
+  //}}}
+
+  //{{{
+  virtual bool recognise (const vector<string>& params) {
+
+    if (!getFileSize (params[0]))
+      return false;
+
+    return getAudioFileInfo() == eAudioFrameType::eWav;
+    }
+  //}}}
+  //{{{
+  virtual void load() {
+  // wav - ??? could use ffmpeg to decode all the variants ???
+  // - preload whole file, could mmap but not really worth it being the exception
+
+    mExit = false;
+    mRunning = true;
+
+    // get first fileChunk
+    FILE* file = fopen (mFilename.c_str(), "rb");
+    uint8_t buffer[kFileChunkSize + 0x100];
+    size_t size = fread (buffer, 1, kFileChunkSize, file);
+    size_t bytesLeft = size;
+    mStreamPos = 0;
+
+    mSong = new cSong (eAudioFrameType::eWav, mNumChannels, mSampleRate, kWavFrameSamples, 0);
+
+    // parse wav header for start of samples
+    int frameSize = 0;
+    uint8_t* frame = cAudioParser::parseFrame (buffer, buffer + bytesLeft, frameSize);
+    bytesLeft = frameSize;
+
+    // pts = frameNum starting at zero
+    int64_t pts = 0;
+    do {
+      // process fileChunk
+      while (!mExit &&
+             ((kWavFrameSamples * mNumChannels * 4) <= (int)bytesLeft)) {
+        // read samples from fileChunk
+        float* samples = (float*)malloc (kWavFrameSamples * mNumChannels * 4);
+        memcpy (samples, frame, kWavFrameSamples * mNumChannels * 4);
+        mSong->addFrame (true, pts, samples, mSong->getNumFrames()+1);
+        if (!mSongPlayer)
+          mSongPlayer = new cSongPlayer (mSong, false);
+
+        pts += mSong->getFramePtsDuration();
+        frame += kWavFrameSamples * mNumChannels * 4;
+        bytesLeft -= kWavFrameSamples * mNumChannels * 4;
+        }
+
+      // get next fileChunk
+      memcpy (buffer, frame, bytesLeft);
+      size_t size = fread (buffer + bytesLeft, 1, kFileChunkSize-bytesLeft, file);
+      bytesLeft += size;
+      mStreamPos += (int)size;
+      mLoadFrac = float(mStreamPos) / mFileSize;
+
+      frame = buffer;
+      } while (!mExit && (bytesLeft > 0));
+    mLoadFrac = 0.f;
+
+    //{{{  delete resources
+    if (mSongPlayer)
+      mSongPlayer->wait();
+    delete mSongPlayer;
+
+    auto tempSong = mSong;
+    mSong = nullptr;
+    delete tempSong;
+    //}}}
+    fclose (file);
+    mRunning = false;
+    }
+  //}}}
+
+private:
+  static constexpr int kWavFrameSamples = 1024;
+  static constexpr int kFileChunkSize = kWavFrameSamples * 2 * 4; // 2 channels of 4byte floats
+
+  cSong* mSong = nullptr;
+  };
+//}}}
+//{{{
+class cLoadMp3AacFile : public cLoadFile {
+public:
+  cLoadMp3AacFile() : cLoadFile("mp3Aac") {}
+  virtual ~cLoadMp3AacFile() {}
+
+  virtual cSong* getSong() { return mSong; }
+  virtual iVideoPool* getVideoPool() { return nullptr; }
+  //{{{
+  virtual string getInfoString() {
+    return mFilename +
+           " " + dec(mNumChannels) + "x" + dec(mSampleRate) + "hz " +
+           " " + dec (mStreamPos / 1024) + "k";
+   }
+  //}}}
+  //{{{
+  virtual float getFracs (float& audioFrac, float& videoFrac) {
+  // return fracs for spinner graphic, true if ok to display
+
+    audioFrac = 0.f;
+    videoFrac = 0.f;
+    return  mLoadFrac;
+    }
+  //}}}
+
+  //{{{
+  virtual bool recognise (const vector<string>& params) {
+
+    if (!getFileSize (params[0]))
+      return false;
+
+    mAudioFrameType = getAudioFileInfo();
+    return  (mAudioFrameType == eAudioFrameType::eMp3) || (mAudioFrameType == eAudioFrameType::eAacAdts);
+    }
+  //}}}
+  //{{{
+  virtual void load() {
+  // aac,mp3 - load file in kFileChunkSize chunks, buffer big enough for last chunk partial frame
+  // - preload whole file
+
+    mExit = false;
+    mRunning = true;
+
+    // get first fileChunk
+    FILE* file = fopen (mFilename.c_str(), "rb");
+    uint8_t buffer[kFileChunkSize*2];
+    size_t size = fread (buffer, 1, kFileChunkSize, file);
+    size_t chunkBytesLeft = size;
+    mStreamPos = 0;
+
+    //{{{  jpeg
+    //int jpegLen;
+    //if (getJpeg (jpegLen)) {
+      //{{{  found jpegImage
+      //cLog::log (LOGINFO, "found jpeg piccy in file, load it");
+      ////delete (cAudioParser::mJpegPtr);
+      ////cAudioParser::mJpegPtr = nullptr;
+      //}
+      //}}}
+    //}}}
+    iAudioDecoder* decoder = createAudioDecoder (mAudioFrameType);
+
+    // pts = frameNum starting at zero
+    int64_t pts = 0;
+    do {
+      // process fileChunk
+      uint8_t* frame = buffer;
+      int frameSize = 0;
+      while (!mExit &&
+             cAudioParser::parseFrame (frame, frame + chunkBytesLeft, frameSize)) {
+        // process frame in fileChunk
+        float* samples = decoder->decodeFrame (frame, frameSize, pts);
+        frame += frameSize;
+        chunkBytesLeft -= frameSize;
+        mStreamPos += frameSize;
+        if (samples) {
+          if (!mSong) // first decoded frame gives aacHE sampleRate,samplesPerFrame
+            mSong = new cSong (mAudioFrameType, decoder->getNumChannels(), decoder->getSampleRate(),
+                               decoder->getNumSamplesPerFrame(), 0);
+          mSong->addFrame (true, pts, samples, (mFileSize * mSong->getNumFrames()) / mStreamPos);
+          pts += mSong->getFramePtsDuration();
+          if (!mSongPlayer)
+            mSongPlayer = new cSongPlayer (mSong, false);
+          }
+        mLoadFrac = float(mStreamPos) / mFileSize;
+        }
+
+      // get next fileChunk
+      memcpy (buffer, frame, chunkBytesLeft);
+      chunkBytesLeft += fread (buffer + chunkBytesLeft, 1, kFileChunkSize, file);
+      } while (!mExit && (chunkBytesLeft > 0));
+    mLoadFrac = 0.f;
+
+    //{{{  delete resources
+    if (mSongPlayer)
+      mSongPlayer->wait();
+    delete mSongPlayer;
+
+    auto tempSong = mSong;
+    mSong = nullptr;
+    delete tempSong;
+
+    delete decoder;
+    //}}}
+    fclose (file);
+    mRunning = false;
+    }
+  //}}}
+
+private:
+  static constexpr int kFileChunkSize = 2048;
+
+  eAudioFrameType mAudioFrameType = eAudioFrameType::eUnknown;
+  cSong* mSong = nullptr;
+  };
+//}}}
+//{{{
 class cLoadTsFile : public cLoadFile {
 public:
   //{{{
@@ -1181,7 +1403,7 @@ public:
   virtual string getInfoString() {
   // return sizes
 
-    string str = dec(mLoadPos / 188) + "packets";
+    string str = dec(mStreamPos / 188) + "packets";
 
     if (mCurSid > 0) {
       cService* service = mServices[mCurSid];
@@ -1229,6 +1451,33 @@ public:
   //}}}
 
   //{{{
+  virtual bool skipBack (bool shift, bool control) {
+
+    if (mTargetPts == -1)
+      mTargetPts = mPtsSong->getPlayPts();
+
+    //int64_t frames = (secs * mSong->getSampleRate()) / mSong->getSamplesPerFrame();
+    int64_t secs = shift ? 300 : control ? 10 : 1;
+    mTargetPts -= secs * 90000;
+
+    return true;
+    };
+  //}}}
+  //{{{
+  virtual bool skipForward (bool shift, bool control) {
+
+    if (mTargetPts == -1)
+      mTargetPts = mPtsSong->getPlayPts();
+
+    //int64_t frames = (secs * mSong->getSampleRate()) / mSong->getSamplesPerFrame();
+    int64_t secs = shift ? 300 : control ? 10 : 1;
+    mTargetPts += secs * 90000;
+
+    return true;
+    };
+  //}}}
+
+  //{{{
   virtual bool recognise (const vector<string>& params) {
 
     if (!getFileSize (params[0]))
@@ -1255,22 +1504,32 @@ public:
     FILE* file = fopen (mFilename.c_str(), "rb");
     uint8_t buffer[kFileChunkSize];
     size_t bytesLeft = fread (buffer, 1, kFileChunkSize, file);
-    mLoadPos = 0;
 
     mPtsSong = new cPtsSong (eAudioFrameType::eAacAdts, mNumChannels, mSampleRate, 1024, 1920, 0);
     iAudioDecoder* audioDecoder = nullptr;
 
+    mStreamPos = 0;
     int64_t loadPts = -1;
+    bool waitForPts = false;
     //{{{  init parsers, callbacks
     auto addAudioFrameCallback = [&](bool reuseFromFront, float* samples, int64_t pts) noexcept {
-      // firstTime, setBasePts
+      mPtsSong->addFrame (reuseFromFront, pts, samples, mPtsSong->getNumFrames()+1);
+
       if (loadPts < 0)
+        // firstTime, setBasePts, sets playPts
         mPtsSong->setBasePts (pts);
 
-      loadPts = pts;
-      mPtsSong->addFrame (reuseFromFront, pts, samples, mPtsSong->getNumFrames()+1);
+      // maybe wait for several frames ???
       if (!mSongPlayer)
         mSongPlayer = new cSongPlayer (mPtsSong, true);
+
+      if (waitForPts) {
+        // firstTime since skip, setPlayPts
+        mPtsSong->setPlayPts (pts);
+        waitForPts = false;
+        cLog::log (LOGINFO, "resync pts:" + getPtsFramesString (pts, mPtsSong->getFramePtsDuration()));
+        }
+      loadPts = pts;
       };
 
     auto addStreamCallback = [&](int sid, int pid, int type) noexcept {
@@ -1372,12 +1631,38 @@ public:
         ts += 188;
         bytesLeft -= 188;
 
-        mLoadPos += 188;
-        mLoadFrac = float(mLoadPos) / mFileSize;
+        mStreamPos += 188;
+        mLoadFrac = float(mStreamPos) / mFileSize;
 
         // block load if loadPts > 25 audio frames ahead of playPts
-        while (!mExit && (loadPts > mPtsSong->getPlayPts() + (25 * mPtsSong->getFramePtsDuration())))
+        while (!mExit && (mTargetPts == -1) && !waitForPts &&
+               (loadPts > mPtsSong->getPlayPts() + (100 * mPtsSong->getFramePtsDuration()))) {
+          //cLog::log (LOGINFO, "blocked loadPts:" + getPtsFramesString (loadPts, mPtsSong->getFramePtsDuration()) +
+          //                    " playPts:" + getPtsFramesString (mPtsSong->getPlayPts(), mPtsSong->getFramePtsDuration()));
           this_thread::sleep_for (40ms);
+          }
+
+        if (mTargetPts > -1) {
+          if (mTargetPts > mPtsSong->getPlayPts() + 100000) {
+            // skip forward
+            mStreamPos += 10000 * 188;
+            _fseeki64 (file, mStreamPos, SEEK_SET);
+            bytesLeft = 0;
+            waitForPts = true;
+            mVideoPool->flush (mTargetPts);
+            }
+          else if (mTargetPts < mPtsSong->getPlayPts() - 100000) {
+            // skip back
+            mStreamPos -= 10000 * 188;
+            _fseeki64 (file, mStreamPos, SEEK_SET);
+            bytesLeft = 0;
+            waitForPts = true;
+            mVideoPool->flush (mTargetPts);
+            }
+          else
+            mPtsSong->setPlayPts (mTargetPts);
+          mTargetPts = -1;
+          }
         }
 
       // get next fileChunk
@@ -1449,227 +1734,8 @@ private:
 
   int mCurSid = -1;
   map <int, cService*> mServices;
-  };
-//}}}
-//{{{
-class cLoadWavFile : public cLoadFile {
-public:
-  cLoadWavFile() : cLoadFile("wav") {}
-  virtual ~cLoadWavFile() {}
 
-  virtual cSong* getSong() { return mSong; }
-  virtual iVideoPool* getVideoPool() { return nullptr; }
-  //{{{
-  virtual string getInfoString() {
-    return mFilename +
-           " " + dec (mLoadPos / 1024) + "k";
-    }
-  //}}}
-  //{{{
-  virtual float getFracs (float& audioFrac, float& videoFrac) {
-  // return fracs for spinner graphic, true if ok to display
-
-    audioFrac = 0.f;
-    videoFrac = 0.f;
-    return mLoadFrac;
-    }
-  //}}}
-
-  //{{{
-  virtual bool recognise (const vector<string>& params) {
-
-    if (!getFileSize (params[0]))
-      return false;
-
-    return getAudioFileInfo() == eAudioFrameType::eWav;
-    }
-  //}}}
-  //{{{
-  virtual void load() {
-  // wav - ??? could use ffmpeg to decode all the variants ???
-  // - preload whole file, could mmap but not really worth it being the exception
-
-    mExit = false;
-    mRunning = true;
-
-    // get first fileChunk
-    FILE* file = fopen (mFilename.c_str(), "rb");
-    uint8_t buffer[kFileChunkSize + 0x100];
-    size_t size = fread (buffer, 1, kFileChunkSize, file);
-    size_t bytesLeft = size;
-    mLoadPos = 0;
-
-    mSong = new cSong (eAudioFrameType::eWav, mNumChannels, mSampleRate, kWavFrameSamples, 0);
-
-    // parse wav header for start of samples
-    int frameSize = 0;
-    uint8_t* frame = cAudioParser::parseFrame (buffer, buffer + bytesLeft, frameSize);
-    bytesLeft = frameSize;
-
-    // pts = frameNum starting at zero
-    int64_t pts = 0;
-    do {
-      // process fileChunk
-      while (!mExit &&
-             ((kWavFrameSamples * mNumChannels * 4) <= (int)bytesLeft)) {
-        // read samples from fileChunk
-        float* samples = (float*)malloc (kWavFrameSamples * mNumChannels * 4);
-        memcpy (samples, frame, kWavFrameSamples * mNumChannels * 4);
-        mSong->addFrame (true, pts, samples, mSong->getNumFrames()+1);
-        if (!mSongPlayer)
-          mSongPlayer = new cSongPlayer (mSong, false);
-
-        pts += mSong->getFramePtsDuration();
-        frame += kWavFrameSamples * mNumChannels * 4;
-        bytesLeft -= kWavFrameSamples * mNumChannels * 4;
-        }
-
-      // get next fileChunk
-      memcpy (buffer, frame, bytesLeft);
-      size_t size = fread (buffer + bytesLeft, 1, kFileChunkSize-bytesLeft, file);
-      bytesLeft += size;
-      mLoadPos += (int)size;
-      mLoadFrac = float(mLoadPos) / mFileSize;
-
-      frame = buffer;
-      } while (!mExit && (bytesLeft > 0));
-    mLoadFrac = 0.f;
-
-    //{{{  delete resources
-    if (mSongPlayer)
-      mSongPlayer->wait();
-    delete mSongPlayer;
-
-    auto tempSong = mSong;
-    mSong = nullptr;
-    delete tempSong;
-    //}}}
-    fclose (file);
-    mRunning = false;
-    }
-  //}}}
-
-private:
-  static constexpr int kWavFrameSamples = 1024;
-  static constexpr int kFileChunkSize = kWavFrameSamples * 2 * 4; // 2 channels of 4byte floats
-
-  cSong* mSong = nullptr;
-  };
-//}}}
-//{{{
-class cLoadMp3AacFile : public cLoadFile {
-public:
-  cLoadMp3AacFile() : cLoadFile("mp3Aac") {}
-  virtual ~cLoadMp3AacFile() {}
-
-  virtual cSong* getSong() { return mSong; }
-  virtual iVideoPool* getVideoPool() { return nullptr; }
-  //{{{
-  virtual string getInfoString() {
-    return mFilename +
-           " " + dec(mNumChannels) + "x" + dec(mSampleRate) + "hz " +
-           " " + dec (mLoadPos / 1024) + "k";
-   }
-  //}}}
-  //{{{
-  virtual float getFracs (float& audioFrac, float& videoFrac) {
-  // return fracs for spinner graphic, true if ok to display
-
-    audioFrac = 0.f;
-    videoFrac = 0.f;
-    return  mLoadFrac;
-    }
-  //}}}
-
-  //{{{
-  virtual bool recognise (const vector<string>& params) {
-
-    if (!getFileSize (params[0]))
-      return false;
-
-    mAudioFrameType = getAudioFileInfo();
-    return  (mAudioFrameType == eAudioFrameType::eMp3) || (mAudioFrameType == eAudioFrameType::eAacAdts);
-    }
-  //}}}
-  //{{{
-  virtual void load() {
-  // aac,mp3 - load file in kFileChunkSize chunks, buffer big enough for last chunk partial frame
-  // - preload whole file
-
-    mExit = false;
-    mRunning = true;
-
-    // get first fileChunk
-    FILE* file = fopen (mFilename.c_str(), "rb");
-    uint8_t buffer[kFileChunkSize*2];
-    size_t size = fread (buffer, 1, kFileChunkSize, file);
-    size_t chunkBytesLeft = size;
-    mLoadPos = 0;
-
-    //{{{  jpeg
-    //int jpegLen;
-    //if (getJpeg (jpegLen)) {
-      //{{{  found jpegImage
-      //cLog::log (LOGINFO, "found jpeg piccy in file, load it");
-      ////delete (cAudioParser::mJpegPtr);
-      ////cAudioParser::mJpegPtr = nullptr;
-      //}
-      //}}}
-    //}}}
-    iAudioDecoder* decoder = createAudioDecoder (mAudioFrameType);
-
-    // pts = frameNum starting at zero
-    int64_t pts = 0;
-    do {
-      // process fileChunk
-      uint8_t* frame = buffer;
-      int frameSize = 0;
-      while (!mExit &&
-             cAudioParser::parseFrame (frame, frame + chunkBytesLeft, frameSize)) {
-        // process frame in fileChunk
-        float* samples = decoder->decodeFrame (frame, frameSize, pts);
-        frame += frameSize;
-        chunkBytesLeft -= frameSize;
-        mLoadPos += frameSize;
-        if (samples) {
-          if (!mSong) // first decoded frame gives aacHE sampleRate,samplesPerFrame
-            mSong = new cSong (mAudioFrameType, decoder->getNumChannels(), decoder->getSampleRate(),
-                               decoder->getNumSamplesPerFrame(), 0);
-          mSong->addFrame (true, pts, samples, (mFileSize * mSong->getNumFrames()) / mLoadPos);
-          pts += mSong->getFramePtsDuration();
-          if (!mSongPlayer)
-            mSongPlayer = new cSongPlayer (mSong, false);
-          }
-        mLoadFrac = float(mLoadPos) / mFileSize;
-        }
-
-      // get next fileChunk
-      memcpy (buffer, frame, chunkBytesLeft);
-      chunkBytesLeft += fread (buffer + chunkBytesLeft, 1, kFileChunkSize, file);
-      } while (!mExit && (chunkBytesLeft > 0));
-    mLoadFrac = 0.f;
-
-    //{{{  delete resources
-    if (mSongPlayer)
-      mSongPlayer->wait();
-    delete mSongPlayer;
-
-    auto tempSong = mSong;
-    mSong = nullptr;
-    delete tempSong;
-
-    delete decoder;
-    //}}}
-    fclose (file);
-    mRunning = false;
-    }
-  //}}}
-
-private:
-  static constexpr int kFileChunkSize = 2048;
-
-  eAudioFrameType mAudioFrameType = eAudioFrameType::eUnknown;
-  cSong* mSong = nullptr;
+  int64_t mTargetPts = -1;
   };
 //}}}
 

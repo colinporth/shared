@@ -54,24 +54,25 @@ public:
   //}}}
 
 protected:
-  cRootContainer* initialise (const std::string& title, int width, int height, uint8_t* font, int fontSize);
-
+  cRootContainer* initialiseGui (const std::string& title, int width, int height, uint8_t* font, int fontSize);
   cWidget* add (cWidget* widget);
   cWidget* addAt (cWidget* widget, const cPointF& point);
   cWidget* addTopLeft (cWidget* widget);
   cWidget* addBelow (cWidget* widget);
-
   void runGui (bool clear);
 
+  // keystroke dispatch
+  virtual void onKey (int key, int scancode, int action, int mods) = 0;
+  virtual void onChar (char ch, int mods) = 0;
+
+  // actions
   void toggleFullScreen();
   void toggleVsync();
   void togglePerf();
   void toggleStats() { mDrawStats = !mDrawStats; }
   void toggleTests() { mDrawTests = !mDrawTests; }
 
-  virtual void onKey (int key, int scancode, int action, int mods) = 0;
-  virtual void onChar (char ch, int mods) = 0;
-
+  // vars
   static inline cGlWindow* mGlWindow = nullptr;
   static inline cPointF mMousePos { 0.f,0.f };
 
@@ -86,14 +87,6 @@ protected:
   std::array <int, 2> mWindowSize { 0,0 };
 
 private:
-  void updateWindowSize();
-
-  void draw (bool clear);
-  void drawSpinner (const cPointF& centre, float inner, float outer, float frac,
-                    const sColourF& colour1, const sColourF& colour2);
-  void drawEyes (const cPointF& point, const cPointF& size, const cPointF& mousePos, float t);
-  void drawLines (const cPointF& point, const cPointF& size, float t);
-
   //{{{  static glfw callbacks
   static void glfWindowPos (GLFWwindow* window, int xsize, int ysize);
   static void glfWindowSize (GLFWwindow* window, int xsize, int ysize);
@@ -106,6 +99,13 @@ private:
   static void glfwMouseButton (GLFWwindow* window, int button, int action, int mods);
   static void glfMouseScroll (GLFWwindow* window, double xoffset, double yoffset);
   //}}}
+
+  void updateWindowSize();
+  void draw (bool clear);
+  void drawSpinner (const cPointF& centre, float inner, float outer, float frac,
+                    const sColourF& colour1, const sColourF& colour2);
+  void drawEyes (const cPointF& point, const cPointF& size, const cPointF& mousePos, float t);
+  void drawLines (const cPointF& point, const cPointF& size, float t);
 
   //{{{  vars
   bool mVsync = true;

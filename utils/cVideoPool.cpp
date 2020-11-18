@@ -413,11 +413,13 @@ public:
   //}}}
 
   // gets
+  virtual bool isFree() { return mFree; }
   virtual int64_t getPts() { return mPts; }
   virtual int getPesSize() { return mPesSize; }
   virtual char getFrameType() { return mFrameType; }
-
   virtual uint32_t* getBuffer8888() { return mBuffer8888; }
+
+  virtual void setFree (bool free, int64_t pts) { mFree = free; }
 
   // sets
   //{{{
@@ -453,7 +455,7 @@ protected:
   uint32_t* mBuffer8888 = nullptr;
 
 private:
-  enum class eState { eFree, eAllocated, eLoaded };
+  bool mFree = false;
 
   int64_t mPts = 0;
   char mFrameType = '?';
@@ -1792,6 +1794,14 @@ public:
   virtual map <int64_t, iVideoFrame*>& getFramePool() { return mFramePool; }
 
   //{{{
+  virtual void flush (int64_t pts) {
+
+    for (auto frame : mFramePool)
+      frame.second->setFree (true, pts);
+    }
+  //}}}
+
+  //{{{
   virtual iVideoFrame* findFrame (int64_t pts) {
 
     unique_lock<shared_mutex> lock (mSharedMutex);
@@ -1833,10 +1843,12 @@ protected:
       unique_lock<shared_mutex> lock (mSharedMutex);
       // look at youngest frame in pool
       auto it = mFramePool.begin();
-      if ((*it).first < ((mSong->getPlayPts() / mPtsDuration) - (int)mFramePool.size()/2)) {
+      if ((*it).second->isFree() ||
+          ((*it).first < ((mSong->getPlayPts() / mPtsDuration) - (int)mFramePool.size()/2))) {
         // old enough to be reused, remove from map and reuse videoFrame,
         iVideoFrame* videoFrame = (*it).second;
         mFramePool.erase (it);
+        videoFrame->setFree (false, pts);
         return videoFrame;
         }
       } // end of lock

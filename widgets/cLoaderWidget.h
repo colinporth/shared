@@ -271,7 +271,7 @@ private:
     vg->beginPath();
 
     for (auto frame : videoPool->getFramePool()) {
-      if (frame.second->getFrameType() == 'B')  {
+      if (!frame.second->isFree() && (frame.second->getFrameType() == 'B'))  {
         float pix = floor ((frame.second->getPts() - playerPts) / ptsPerPix);
         float pes = frame.second->getPesSize() / kPesSizeScale;
         vg->rect (org + cPointF (pix, -pes), cPointF(1.f, pes));
@@ -285,7 +285,7 @@ private:
     vg->beginPath();
 
     for (auto frame : videoPool->getFramePool()) {
-      if (frame.second->getFrameType() == 'P')  {
+      if (!frame.second->isFree() && (frame.second->getFrameType() == 'P'))  {
         float pix = floor ((frame.second->getPts() - playerPts) / ptsPerPix);
         float pes = frame.second->getPesSize() / kPesSizeScale;
         vg->rect (org + cPointF (pix, -pes), cPointF(1.f, pes));
@@ -299,7 +299,7 @@ private:
     vg->beginPath();
 
     for (auto frame : videoPool->getFramePool()) {
-      if (frame.second->getFrameType() == 'I')  {
+      if (!frame.second->isFree() && (frame.second->getFrameType() == 'I'))  {
         float pix = floor ((frame.second->getPts() - playerPts) / ptsPerPix);
         float pes = frame.second->getPesSize() / kPesSizeScale;
         vg->rect (org + cPointF (pix, -pes), cPointF(1.f, pes));

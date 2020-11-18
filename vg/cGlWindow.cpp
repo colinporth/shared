@@ -25,10 +25,7 @@ cGlWindow::~cGlWindow() {
   }
 //}}}
 
-// iWindow
-cVg* cGlWindow::getVg() { return this; }
-cPointF cGlWindow::getSize() { return mRootContainer->getSize(); }
-
+// iClockTime
 //{{{
 int cGlWindow::getDayLightSeconds() {
   return mDayLightSeconds;
@@ -93,9 +90,13 @@ void cGlWindow::drawEllipseSolid (const sColourF& colour, const cPointF& point, 
   }
 //}}}
 
+// iWindow
+cVg* cGlWindow::getVg() { return this; }
+cPointF cGlWindow::getSize() { return mRootContainer->getSize(); }
+
 // protected
 //{{{
-cRootContainer* cGlWindow::initialise (const string& title, int width, int height, uint8_t* font, int fontSize) {
+cRootContainer* cGlWindow::initialiseGui (const string& title, int width, int height, uint8_t* font, int fontSize) {
 
   mGlWindow = this;
 
@@ -183,6 +184,7 @@ void cGlWindow::runGui (bool clear) {
   }
 //}}}
 
+// actions
 //{{{
 void cGlWindow::toggleFullScreen() {
 
@@ -217,7 +219,112 @@ void cGlWindow::togglePerf() {
   }
 //}}}
 
-// private
+// private static callbacks
+//{{{
+void cGlWindow::glfWindowPos (GLFWwindow* window, int xsize, int ysize) {
+
+  mGlWindow->draw (true);
+  }
+//}}}
+//{{{
+void cGlWindow::glfWindowSize (GLFWwindow* window, int xsize, int ysize) {
+
+  mGlWindow->updateWindowSize();
+  mGlWindow->draw (true);
+  }
+//}}}
+//{{{
+void cGlWindow::errorCallback (int error, const char* desc) {
+  cLog::log (LOGERROR, "GLFW error %d: %s\n", error, desc);
+  }
+//}}}
+//{{{
+void cGlWindow::glfwKey (GLFWwindow* window, int key, int scancode, int action, int mods) {
+
+  if ((key == GLFW_KEY_LEFT_SHIFT) && (action == GLFW_PRESS))
+    mShifted = true;
+  else if ((key == GLFW_KEY_LEFT_SHIFT) && (action == GLFW_RELEASE))
+    mShifted = false;
+  else if ((key == GLFW_KEY_RIGHT_SHIFT) && (action == GLFW_PRESS))
+    mShifted = true;
+  else if ((key == GLFW_KEY_RIGHT_SHIFT) && (action == GLFW_RELEASE))
+    mShifted = false;
+  else if ((key == GLFW_KEY_LEFT_CONTROL) && (action == GLFW_PRESS))
+    mControlled = true;
+  else if ((key == GLFW_KEY_LEFT_CONTROL) && (action == GLFW_RELEASE))
+    mControlled = false;
+  else if ((key == GLFW_KEY_RIGHT_CONTROL) && (action == GLFW_PRESS))
+    mControlled = true;
+  else if ((key == GLFW_KEY_RIGHT_CONTROL) && (action == GLFW_RELEASE))
+    mControlled = false;
+  else if ((key == GLFW_KEY_LEFT_ALT) && (action == GLFW_PRESS))
+    mAlted = true;
+  else if ((key == GLFW_KEY_LEFT_ALT) && (action == GLFW_RELEASE))
+    mAlted = false;
+  else if ((key == GLFW_KEY_RIGHT_ALT) && (action == GLFW_PRESS))
+    mAlted = true;
+  else if ((key == GLFW_KEY_RIGHT_ALT) && (action == GLFW_RELEASE))
+    mAlted = false;
+  else if ((key == GLFW_KEY_LEFT_SUPER) && (action == GLFW_PRESS))
+    mSupered = true;
+  else if ((key == GLFW_KEY_LEFT_SUPER) && (action == GLFW_RELEASE))
+    mSupered = false;
+  else if ((key == GLFW_KEY_RIGHT_SUPER) && (action == GLFW_PRESS))
+    mSupered = true;
+  else if ((key == GLFW_KEY_RIGHT_SUPER) && (action == GLFW_RELEASE))
+    mSupered = false;
+
+  mGlWindow->onKey (key, scancode, action, mods);
+  }
+//}}}
+//{{{
+void cGlWindow::glfwCharMods (GLFWwindow* window, unsigned int ch, int mods) {
+  mGlWindow->onChar (ch, mods);
+  }
+//}}}
+//{{{
+void cGlWindow::glfwMouseButton (GLFWwindow* window, int button, int action, int mods) {
+
+  if (action == GLFW_PRESS) {
+    mMouseDown = true;
+    mMouseMoved = false;
+    mMouseRightButton = button == GLFW_MOUSE_BUTTON_RIGHT;
+    mRootContainer->onDown (mMousePos);
+    mMouseLastPos = mMousePos;
+    }
+
+  else if (action == GLFW_RELEASE) {
+    mMouseRightButton = button == GLFW_MOUSE_BUTTON_RIGHT;
+    mRootContainer->onUp();
+    mMouseMoved = false;
+    mMouseDown = false;
+    }
+  }
+//}}}
+//{{{
+void cGlWindow::glfwCursorPos (GLFWwindow* window, double xpos, double ypos) {
+
+  mMousePos = { (float)xpos, (float)ypos };
+
+  if (mMouseDown) {
+    cPointF inc = mMousePos - mMouseLastPos;
+    if ((fabs(inc.x) > 0.5f) || (fabs(inc.y) > 0.5f)) {
+      mMouseMoved = true;
+      mRootContainer->onMove (mMousePos, inc);
+      mMouseLastPos = mMousePos;
+      }
+    }
+  else
+    mRootContainer->onProx (mMousePos);
+  }
+//}}}
+//{{{
+void cGlWindow::glfMouseScroll (GLFWwindow* window, double xoffset, double yoffset) {
+  mRootContainer->onWheel (float (yoffset));
+  }
+//}}}
+
+// private members
 //{{{
 void cGlWindow::updateWindowSize() {
 
@@ -234,7 +341,6 @@ void cGlWindow::updateWindowSize() {
   mAspectRatio = (float)frameBufferWidth / (float)mWinWidth;
   }
 //}}}
-
 //{{{
 void cGlWindow::draw (bool clear) {
 
@@ -279,6 +385,7 @@ void cGlWindow::draw (bool clear) {
   mFpsGraph->updateTime ((float)glfwGetTime());
   }
 //}}}
+
 //{{{
 void cGlWindow::drawSpinner (const cPointF& centre, float inner, float outer, float frac,
                              const sColourF& colour1, const sColourF& colour2) {
@@ -414,113 +521,5 @@ void cGlWindow::drawLines (const cPointF& point, const cPointF& size, float t) {
     }
 
   restoreState();
-  }
-//}}}
-
-//{{{
-void cGlWindow::glfWindowPos (GLFWwindow* window, int xsize, int ysize) {
-
-  mGlWindow->draw (true);
-  }
-//}}}
-//{{{
-void cGlWindow::glfWindowSize (GLFWwindow* window, int xsize, int ysize) {
-
-  mGlWindow->updateWindowSize();
-  mGlWindow->draw (true);
-  }
-//}}}
-//{{{
-void cGlWindow::errorCallback (int error, const char* desc) {
-  cLog::log (LOGERROR, "GLFW error %d: %s\n", error, desc);
-  }
-//}}}
-
-// static keyboard - route to mRootContainer
-//{{{
-void cGlWindow::glfwKey (GLFWwindow* window, int key, int scancode, int action, int mods) {
-
-  if ((key == GLFW_KEY_LEFT_SHIFT) && (action == GLFW_PRESS))
-    mShifted = true;
-  else if ((key == GLFW_KEY_LEFT_SHIFT) && (action == GLFW_RELEASE))
-    mShifted = false;
-  else if ((key == GLFW_KEY_RIGHT_SHIFT) && (action == GLFW_PRESS))
-    mShifted = true;
-  else if ((key == GLFW_KEY_RIGHT_SHIFT) && (action == GLFW_RELEASE))
-    mShifted = false;
-  else if ((key == GLFW_KEY_LEFT_CONTROL) && (action == GLFW_PRESS))
-    mControlled = true;
-  else if ((key == GLFW_KEY_LEFT_CONTROL) && (action == GLFW_RELEASE))
-    mControlled = false;
-  else if ((key == GLFW_KEY_RIGHT_CONTROL) && (action == GLFW_PRESS))
-    mControlled = true;
-  else if ((key == GLFW_KEY_RIGHT_CONTROL) && (action == GLFW_RELEASE))
-    mControlled = false;
-  else if ((key == GLFW_KEY_LEFT_ALT) && (action == GLFW_PRESS))
-    mAlted = true;
-  else if ((key == GLFW_KEY_LEFT_ALT) && (action == GLFW_RELEASE))
-    mAlted = false;
-  else if ((key == GLFW_KEY_RIGHT_ALT) && (action == GLFW_PRESS))
-    mAlted = true;
-  else if ((key == GLFW_KEY_RIGHT_ALT) && (action == GLFW_RELEASE))
-    mAlted = false;
-  else if ((key == GLFW_KEY_LEFT_SUPER) && (action == GLFW_PRESS))
-    mSupered = true;
-  else if ((key == GLFW_KEY_LEFT_SUPER) && (action == GLFW_RELEASE))
-    mSupered = false;
-  else if ((key == GLFW_KEY_RIGHT_SUPER) && (action == GLFW_PRESS))
-    mSupered = true;
-  else if ((key == GLFW_KEY_RIGHT_SUPER) && (action == GLFW_RELEASE))
-    mSupered = false;
-
-  mGlWindow->onKey (key, scancode, action, mods);
-  }
-//}}}
-//{{{
-void cGlWindow::glfwCharMods (GLFWwindow* window, unsigned int ch, int mods) {
-  mGlWindow->onChar (ch, mods);
-  }
-//}}}
-
-// static mouse - route to mRootContainer
-//{{{
-void cGlWindow::glfwMouseButton (GLFWwindow* window, int button, int action, int mods) {
-
-  if (action == GLFW_PRESS) {
-    mMouseDown = true;
-    mMouseMoved = false;
-    mMouseRightButton = button == GLFW_MOUSE_BUTTON_RIGHT;
-    mRootContainer->onDown (mMousePos);
-    mMouseLastPos = mMousePos;
-    }
-
-  else if (action == GLFW_RELEASE) {
-    mMouseRightButton = button == GLFW_MOUSE_BUTTON_RIGHT;
-    mRootContainer->onUp();
-    mMouseMoved = false;
-    mMouseDown = false;
-    }
-  }
-//}}}
-//{{{
-void cGlWindow::glfwCursorPos (GLFWwindow* window, double xpos, double ypos) {
-
-  mMousePos = { (float)xpos, (float)ypos };
-
-  if (mMouseDown) {
-    cPointF inc = mMousePos - mMouseLastPos;
-    if ((fabs(inc.x) > 0.5f) || (fabs(inc.y) > 0.5f)) {
-      mMouseMoved = true;
-      mRootContainer->onMove (mMousePos, inc);
-      mMouseLastPos = mMousePos;
-      }
-    }
-  else
-    mRootContainer->onProx (mMousePos);
-  }
-//}}}
-//{{{
-void cGlWindow::glfMouseScroll (GLFWwindow* window, double xoffset, double yoffset) {
-  mRootContainer->onWheel (float (yoffset));
   }
 //}}}

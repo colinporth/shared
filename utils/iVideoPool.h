@@ -15,10 +15,13 @@ public:
   virtual ~iVideoFrame() {}
 
   // gets
+  virtual bool isFree() = 0;
   virtual int64_t getPts() = 0;
   virtual int getPesSize() = 0;
   virtual char getFrameType() = 0;
   virtual uint32_t* getBuffer8888() = 0;
+
+  virtual void setFree (bool free, int64_t pts) = 0;
 
   // sets
   virtual void set (int64_t pts, int pesSize, int width, int height, char frameType) = 0;
@@ -36,6 +39,9 @@ public:
   virtual int getHeight() = 0;
   virtual std::string getInfoString() = 0;
   virtual std::map <int64_t,iVideoFrame*>& getFramePool() = 0;
+
+  //
+  virtual void flush (int64_t pts) = 0;
 
   // actions
   virtual iVideoFrame* findFrame (int64_t pts) = 0;
