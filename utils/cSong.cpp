@@ -188,11 +188,17 @@ cSong::~cSong() {
 //}}}
 
 //{{{
-string cSong::getTimeString (int64_t pts, int daylightSeconds) {
+bool cSong::getPlayFinished() {
+  return getPlayPts() > getLastFrameNum();
+  }
+//}}}
+//{{{
+string cSong::getFirstTimeString (int daylightSeconds) {
 // pts = frameNum
 
-  // scale pts as frameNum as seconds*100
-  int64_t value = (pts * mSamplesPerFrame) / (mSampleRate / 100);
+
+  // scale frameNum as seconds*100
+  int64_t value = (getFirstFrameNum() * mSamplesPerFrame * 100) / mSampleRate;
 
   int subSeconds = value % 100;
   value /= 100;
@@ -211,6 +217,53 @@ string cSong::getTimeString (int64_t pts, int daylightSeconds) {
              (dec(seconds) + ':' + dec(subSeconds, 2, '0')));
   }
 //}}}
+//{{{
+string cSong::getPlayTimeString (int daylightSeconds) {
+
+  // scale pts = frameNum as seconds*100
+  int64_t value = (getPlayPts() * mSamplesPerFrame * 100) / mSampleRate;
+
+  int subSeconds = value % 100;
+  value /= 100;
+
+  int seconds = value % 60;
+  value /= 60;
+
+  int minutes = value % 60;
+  value /= 60;
+
+  int hours = (int)value;
+
+  // !!! must be a formatter to do this !!!
+  return (hours > 0) ? (dec (hours) + ':' + dec (minutes, 2, '0') + ':' + dec(seconds, 2, '0')) :
+           ((minutes > 0) ? (dec (minutes) + ':' + dec(seconds, 2, '0') + ':' + dec(subSeconds, 2, '0')) :
+             (dec(seconds) + ':' + dec(subSeconds, 2, '0')));
+  }
+//}}}
+//{{{
+string cSong::getLastTimeString (int daylightSeconds) {
+
+  // scale frameNum as seconds*100
+  int64_t value = (getLastFrameNum() * mSamplesPerFrame * 100) / mSampleRate;
+
+  int subSeconds = value % 100;
+  value /= 100;
+
+  int seconds = value % 60;
+  value /= 60;
+
+  int minutes = value % 60;
+  value /= 60;
+
+  int hours = (int)value;
+
+  // !!! must be a formatter to do this !!!
+  return (hours > 0) ? (dec (hours) + ':' + dec (minutes, 2, '0') + ':' + dec(seconds, 2, '0')) :
+           ((minutes > 0) ? (dec (minutes) + ':' + dec(seconds, 2, '0') + ':' + dec(subSeconds, 2, '0')) :
+             (dec(seconds) + ':' + dec(subSeconds, 2, '0')));
+  }
+//}}}
+
 //{{{
 void cSong::addFrame (bool reuseFront, int64_t pts, float* samples, int64_t totalFrames) {
 
@@ -302,22 +355,10 @@ void cSong::addFrame (bool reuseFront, int64_t pts, float* samples, int64_t tota
   }
 //}}}
 
-// playFrame
-//{{{
-void cSong::setPlayPts (int64_t pts) {
-  mPlayPts = min (pts, getLastPts() + getFramePtsDuration());
-  }
-//}}}
-//{{{
-void cSong::setPlayFirstFrame() {
-  setPlayPts (mSelect.empty() ? getFirstPts() : getPtsFromFrameNum (mSelect.getFirstFrameNum()));
-  }
-//}}}
-//{{{
-void cSong::setPlayLastFrame() {
-  setPlayPts (mSelect.empty() ? getLastPts() : getPtsFromFrameNum (mSelect.getLastFrameNum()));
-  }
-//}}}
+// play
+void cSong::setPlayPts (int64_t pts) { mPlayPts = min (pts, getLastFrameNum() + 1); }
+void cSong::setPlayFirstFrame() { setPlayPts (mSelect.empty() ? 0 : mSelect.getFirstFrameNum()); }
+void cSong::setPlayLastFrame() { setPlayPts (mSelect.empty() ? getLastFrameNum() : mSelect.getLastFrameNum()); }
 //{{{
 void cSong::nextPlayFrame (bool constrainToRange) {
 
@@ -417,18 +458,19 @@ void cSong::checkSilenceWindow (int64_t pts) {
 
 // cPtsSong
 //{{{
-string cPtsSong::getTimeString (int64_t pts, int daylightSeconds) {
-// 90khz int64_t pts - display as time since midnight, daylightSaving adjusted
+bool cPtsSong::getPlayFinished() {
+  return getPlayPts() > getLastPts();
+  }
+//}}}
+//{{{
+string cPtsSong::getFirstTimeString (int daylightSeconds) {
 
   auto midnightBaseTimePoint = date::floor<date::days>(mBaseTimePoint);
   uint64_t msSinceMidnightBaseTimePoint = duration_cast<milliseconds>(mBaseTimePoint - midnightBaseTimePoint).count();
+  int64_t value = msSinceMidnightBaseTimePoint + ((getPlayPts() - mBasePts) / 90);
 
-  int64_t ms = msSinceMidnightBaseTimePoint + ((pts - mBasePts) / 90);
-
-  int64_t value = ms / 10;
-
-  int subSeconds = value % 100;
-  value /= 100;
+  int subSeconds = (value % 1000) / 10;
+  value /= 1000;
 
   int seconds = value % 60;
   value /= 60;
@@ -438,17 +480,77 @@ string cPtsSong::getTimeString (int64_t pts, int daylightSeconds) {
 
   int hours = (int)value;
 
-  // !!! use a better formatter !!!
+  // !!! must be a formatter to do this !!!
   return (hours > 0) ? (dec (hours) + ':' + dec (minutes, 2, '0') + ':' + dec(seconds, 2, '0')) :
            ((minutes > 0) ? (dec (minutes) + ':' + dec(seconds, 2, '0') + ':' + dec(subSeconds, 2, '0')) :
              (dec(seconds) + ':' + dec(subSeconds, 2, '0')));
   }
 //}}}
 //{{{
+string cPtsSong::getPlayTimeString (int daylightSeconds) {
+
+  auto midnightBaseTimePoint = date::floor<date::days>(mBaseTimePoint);
+  uint64_t msSinceMidnightBaseTimePoint = duration_cast<milliseconds>(mBaseTimePoint - midnightBaseTimePoint).count();
+  int64_t value = msSinceMidnightBaseTimePoint + ((getPlayPts() - mBasePts) / 90);
+
+  int subSeconds = (value % 1000) / 10;
+  value /= 1000;
+
+  int seconds = value % 60;
+  value /= 60;
+
+  int minutes = value % 60;
+  value /= 60;
+
+  int hours = (int)value;
+
+  // !!! must be a formatter to do this !!!
+  return (hours > 0) ? (dec (hours) + ':' + dec (minutes, 2, '0') + ':' + dec(seconds, 2, '0')) :
+           ((minutes > 0) ? (dec (minutes) + ':' + dec(seconds, 2, '0') + ':' + dec(subSeconds, 2, '0')) :
+             (dec(seconds) + ':' + dec(subSeconds, 2, '0')));
+  }
+//}}}
+//{{{
+string cPtsSong::getLastTimeString (int daylightSeconds) {
+
+  auto midnightBaseTimePoint = date::floor<date::days>(mBaseTimePoint);
+  uint64_t msSinceMidnightBaseTimePoint = duration_cast<milliseconds>(mBaseTimePoint - midnightBaseTimePoint).count();
+  int64_t value = msSinceMidnightBaseTimePoint + ((getLastPts() - mBasePts) / 90);
+
+  int subSeconds = (value % 1000) / 10;
+  value /= 1000;
+
+  int seconds = value % 60;
+  value /= 60;
+
+  int minutes = value % 60;
+  value /= 60;
+
+  int hours = (int)value;
+
+  // !!! must be a formatter to do this !!!
+  return (hours > 0) ? (dec (hours) + ':' + dec (minutes, 2, '0') + ':' + dec(seconds, 2, '0')) :
+           ((minutes > 0) ? (dec (minutes) + ':' + dec(seconds, 2, '0') + ':' + dec(subSeconds, 2, '0')) :
+             (dec(seconds) + ':' + dec(subSeconds, 2, '0')));
+  }
+//}}}
+
+//{{{
 void cPtsSong::setBasePts (int64_t pts) {
 
   mBasePts = pts;
   mPlayPts = pts;
+  }
+//}}}
+void cPtsSong::setPlayPts (int64_t pts) { mPlayPts = min (pts, getLastPts() + getFramePtsDuration()); }
+//{{{
+void cPtsSong::setPlayFirstFrame() {
+  setPlayPts (mSelect.empty() ? getFirstPts() : getPtsFromFrameNum (mSelect.getFirstFrameNum()));
+  }
+//}}}
+//{{{
+void cPtsSong::setPlayLastFrame() {
+  setPlayPts (mSelect.empty() ? getLastPts() : getPtsFromFrameNum (mSelect.getLastFrameNum()));
   }
 //}}}
 

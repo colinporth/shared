@@ -73,7 +73,7 @@ using namespace chrono;
               song->nextPlayFrame (true);
             });
 
-          if (!streaming && (song->getPlayPts() > song->getLastPts()))
+          if (!streaming && song->getPlayFinished())
             break;
           }
 

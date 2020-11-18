@@ -195,9 +195,9 @@ public:
           }
         }
 
-        drawTime (vg, song->getTimeString (song->getFirstPts(), mClockTime->getDayLightSeconds()),
-                      song->getTimeString (song->getPlayPts(), mClockTime->getDayLightSeconds()),
-                      song->getTimeString (song->getLastPts(), mClockTime->getDayLightSeconds()));
+        drawTime (vg, song->getFirstTimeString (mClockTime->getDayLightSeconds()),
+                      song->getPlayTimeString (mClockTime->getDayLightSeconds()),
+                      song->getLastTimeString (mClockTime->getDayLightSeconds()));
         }
 
       if (kVideoPoolDebug && videoPool && (playPts >= 0))

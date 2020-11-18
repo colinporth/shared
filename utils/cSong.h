@@ -136,24 +136,27 @@ public:
   virtual int64_t getFramePtsDuration() { return 1; }
   virtual int64_t getFrameNumFromPts (int64_t pts) { return pts; }
   virtual int64_t getPtsFromFrameNum (int64_t frameNum) { return frameNum; }
-
-  bool getPlaying() { return mPlaying; }
   //}}}
-  //{{{  get pts
   int64_t getPlayPts() { return mPlayPts; }
+  bool getPlaying() { return mPlaying; }
+  virtual bool getPlayFinished();
+  cSelect& getSelect() { return mSelect; }
 
-  virtual int64_t getFirstPts() { return mFrameMap.empty() ? 0 : mFrameMap.begin()->first; }
-  virtual int64_t getLastPts() { return mFrameMap.empty() ? 0 : mFrameMap.rbegin()->first;  }
-
-  virtual std::string getTimeString (int64_t frame, int daylightSeconds);
-  //}}}
-  //{{{  get frameNum - useful for graphics
+  // get frameNum
   int64_t getPlayFrameNum() { return getFrameNumFromPts (mPlayPts); }
   int64_t getFirstFrameNum() { return mFrameMap.empty() ? 0 : mFrameMap.begin()->first; }
   int64_t getLastFrameNum() { return mFrameMap.empty() ? 0 : mFrameMap.rbegin()->first;  }
-  int64_t getNumFrames() { return mFrameMap.empty() ? 0 : (mFrameMap.rbegin()->first - mFrameMap.begin()->first + 1); }
-  int64_t getTotalFrames() { return mTotalFrames; }
+  //{{{
+  int64_t getNumFrames() {
+    return mFrameMap.empty() ? 0 : (mFrameMap.rbegin()->first - mFrameMap.begin()->first+1);
+    }
   //}}}
+  int64_t getTotalFrames() { return mTotalFrames; }
+
+  virtual std::string getFirstTimeString (int daylightSeconds);
+  virtual std::string getPlayTimeString (int daylightSeconds);
+  virtual std::string getLastTimeString (int daylightSeconds);
+
   //{{{  get max nums for early allocations
   int getMaxNumSamplesPerFrame() { return kMaxNumSamplesPerFrame; }
   int getMaxNumSampleBytes() { return kMaxNumChannels * sizeof(float); }
@@ -165,7 +168,6 @@ public:
   float getMaxFreqValue() { return mMaxFreqValue; }
   int getNumFreqBytes() { return kMaxFreqBytes; }
   //}}}
-  cSelect& getSelect() { return mSelect; }
 
   //{{{
   cFrame* findFrameByFrameNum (int64_t frameNum) {
@@ -180,9 +182,11 @@ public:
 
   //{{{  play
   void togglePlaying() { mPlaying = !mPlaying; }
-  void setPlayPts (int64_t pts);
-  void setPlayFirstFrame();
-  void setPlayLastFrame();
+
+  virtual void setPlayPts (int64_t pts);
+  virtual void setPlayFirstFrame();
+  virtual void setPlayLastFrame();
+
   void nextPlayFrame (bool useSelectRange);
   void incPlaySec (int secs, bool useSelectRange);
   void prevSilencePlayFrame();
@@ -195,10 +199,13 @@ protected:
 
   const int mSampleRate = 0;
   const int mSamplesPerFrame = 0;
+
   int64_t mPlayPts = 0;
+  cSelect mSelect;
 
   std::map <int64_t, cFrame*> mFrameMap;
   //}}}
+
 private:
   //{{{  static constexpr
   static constexpr int kMaxNumChannels = 2;           // arbitrary chan max
@@ -220,8 +227,6 @@ private:
   int mMaxMapSize = 0;
   int64_t mTotalFrames = 0;
   bool mPlaying = false;
-
-  cSelect mSelect;
 
   // fft vars
   kiss_fftr_cfg mFftrConfig;
@@ -247,15 +252,23 @@ public:
   virtual int64_t getFramePtsDuration() { return mFramePtsDuration; }
   virtual int64_t getFrameNumFromPts (int64_t pts) { return pts / mFramePtsDuration; }
   virtual int64_t getPtsFromFrameNum (int64_t frameNum) { return frameNum * mFramePtsDuration; }
+  virtual bool getPlayFinished();
 
   virtual int64_t getFirstPts() { return mFrameMap.empty() ? 0 : mFrameMap.begin()->second->getPts(); }
   virtual int64_t getLastPts() { return mFrameMap.empty() ? 0 : mFrameMap.rbegin()->second->getPts();  }
-  virtual std::string getTimeString (int64_t frame, int daylightSeconds);
+
+  virtual std::string getFirstTimeString (int daylightSeconds);
+  virtual std::string getPlayTimeString (int daylightSeconds);
+  virtual std::string getLastTimeString (int daylightSeconds);
 
   virtual cFrame* findFrameByPts (int64_t pts) { return findFrameByFrameNum (getFrameNumFromPts(pts)); }
   virtual cFrame* findPlayFrame() { return findFrameByPts (mPlayPts); }
 
   void setBasePts (int64_t pts);
+
+  virtual void setPlayPts (int64_t pts);
+  virtual void setPlayFirstFrame();
+  virtual void setPlayLastFrame();
 
 protected:
   int64_t mFramePtsDuration = 1;
