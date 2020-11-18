@@ -197,6 +197,7 @@ public:
   void addFrame (bool reuseFront, int64_t pts, float* samples, int64_t totalFrames);
 
 protected:
+  std::string getTimeString (int64_t value, int daylightSeconds = 0);
   //{{{  vars
   std::shared_mutex mSharedMutex;
 

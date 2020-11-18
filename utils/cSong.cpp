@@ -2,9 +2,9 @@
 //{{{  includes
 #define _CRT_SECURE_NO_WARNINGS
 
-//#include <format>
 #include "cSong.h"
 
+#include "../fmt/format.h"
 #include "../date/date.h"
 #include "../utils/utils.h"
 #include "../utils/cLog.h"
@@ -200,70 +200,22 @@ string cSong::getFirstTimeString (int daylightSeconds) {
 
   // scale firstFrameNum as seconds*100
   int64_t value = getSecondsFromFrames (getFirstFrameNum() * 100);
-
-  if (value) {
-    // only show non zero firstFrameNum, may never happen
-    int subSeconds = value % 100;
-    value /= 100;
-
-    int seconds = value % 60;
-    value /= 60;
-
-    int minutes = value % 60;
-    value /= 60;
-
-    int hours = (int)value;
-
-    return (hours > 0) ? (dec (hours) + ':' + dec (minutes, 2, '0') + ':' + dec(seconds, 2, '0')) :
-             ((minutes > 0) ? (dec (minutes) + ':' + dec(seconds, 2, '0') + ':' + dec(subSeconds, 2, '0')) :
-               (dec(seconds) + ':' + dec(subSeconds, 2, '0')));
-    }
-  else
+  if (!value)
     return "";
+
+  return getTimeString (getSecondsFromFrames (value));
   }
 //}}}
 //{{{
 string cSong::getPlayTimeString (int daylightSeconds) {
-
-  // scale pts = frameNum as seconds*100
-  int64_t value = getSecondsFromFrames (getPlayPts() * 100);
-
-  int subSeconds = value % 100;
-  value /= 100;
-
-  int seconds = value % 60;
-  value /= 60;
-
-  int minutes = value % 60;
-  value /= 60;
-
-  int hours = (int)value;
-
-  return (hours > 0) ? (dec (hours) + ':' + dec (minutes, 2, '0') + ':' + dec(seconds, 2, '0')) :
-           ((minutes > 0) ? (dec (minutes) + ':' + dec(seconds, 2, '0') + ':' + dec(subSeconds, 2, '0')) :
-             (dec(seconds) + ':' + dec(subSeconds, 2, '0')));
+// scale pts = frameNum as seconds*100
+  return getTimeString (getSecondsFromFrames (getPlayPts() * 100), daylightSeconds);
   }
 //}}}
 //{{{
 string cSong::getLastTimeString (int daylightSeconds) {
-
-  // scale frameNum as seconds*100
-  int64_t value = getSecondsFromFrames (getLastFrameNum() * 100);
-
-  int subSeconds = value % 100;
-  value /= 100;
-
-  int seconds = value % 60;
-  value /= 60;
-
-  int minutes = value % 60;
-  value /= 60;
-
-  int hours = (int)value;
-
-  return (hours > 0) ? (dec (hours) + ':' + dec (minutes, 2, '0') + ':' + dec(seconds, 2, '0')) :
-           ((minutes > 0) ? (dec (minutes) + ':' + dec(seconds, 2, '0') + ':' + dec(subSeconds, 2, '0')) :
-             (dec(seconds) + ':' + dec(subSeconds, 2, '0')));
+// scale frameNum as seconds*100
+  return getTimeString (getSecondsFromFrames (getLastFrameNum() * 100));
   }
 //}}}
 
@@ -298,7 +250,7 @@ void cSong::nextPlayFrame (bool constrainToRange) {
 //{{{
 void cSong::incPlaySec (int seconds, bool useSelectRange) {
 
-  setPlayPts (max (0LL, mPlayPts + (getFramesFromSeconds (seconds) * getFramePtsDuration())));
+  setPlayPts (max (int64_t(0), mPlayPts + (getFramesFromSeconds (seconds) * getFramePtsDuration())));
   }
 //}}}
 //{{{
@@ -410,6 +362,31 @@ void cSong::addFrame (bool reuseFront, int64_t pts, float* samples, int64_t tota
   }
 //}}}
 
+// cSong - protected
+//{{{
+string cSong::getTimeString (int64_t value, int daylightSeconds) {
+
+  int64_t subSeconds = (value % 100);
+  value /= 100;
+
+  value += daylightSeconds;
+  int64_t seconds = value % 60;
+  value /= 60;
+
+  int64_t minutes = value % 60;
+  value /= 60;
+
+  int64_t hours = value;
+
+  if (hours > 0)
+    return fmt::format ("{}:{:02d}:{:02d}:{:02d}", hours, minutes, seconds, subSeconds);
+  else if (minutes > 0)
+    return fmt::format ("{}:{:02d}:{:02d}", minutes, seconds, subSeconds);
+  else
+    return fmt::format ("{}:{:02d}", seconds, subSeconds);
+  }
+//}}}
+
 // cSong - private
 //{{{
 int64_t cSong::skipPrev (int64_t fromPts, bool silence) {
@@ -480,65 +457,17 @@ bool cPtsSong::getPlayFinished() {
 //}}}
 //{{{
 string cPtsSong::getFirstTimeString (int daylightSeconds) {
-
-  int64_t value = (mBaseSinceMidnightMs + ((getFirstPts() - mBasePts) / 90)) / 10;
-
-  int subSeconds = (value % 100);
-  value /= 100;
-
-  int seconds = value % 60;
-  value /= 60;
-
-  int minutes = value % 60;
-  value /= 60;
-
-  int hours = (int)value;
-
-  return (hours > 0) ? (dec (hours) + ':' + dec (minutes, 2, '0') + ':' + dec(seconds, 2, '0')) :
-           ((minutes > 0) ? (dec (minutes) + ':' + dec(seconds, 2, '0') + ':' + dec(subSeconds, 2, '0')) :
-             (dec(seconds) + ':' + dec(subSeconds, 2, '0')));
+  return getTimeString ((mBaseSinceMidnightMs + ((getFirstPts() - mBasePts) / 90)) / 10, daylightSeconds);
   }
 //}}}
 //{{{
 string cPtsSong::getPlayTimeString (int daylightSeconds) {
-
-  int64_t value = (mBaseSinceMidnightMs + ((getPlayPts() - mBasePts) / 90)) / 10;
-
-  int subSeconds = (value % 100);
-  value /= 100;
-
-  int seconds = value % 60;
-  value /= 60;
-
-  int minutes = value % 60;
-  value /= 60;
-
-  int hours = (int)value;
-
-  return (hours > 0) ? (dec (hours) + ':' + dec (minutes, 2, '0') + ':' + dec(seconds, 2, '0')) :
-           ((minutes > 0) ? (dec (minutes) + ':' + dec(seconds, 2, '0') + ':' + dec(subSeconds, 2, '0')) :
-             (dec(seconds) + ':' + dec(subSeconds, 2, '0')));
+  return getTimeString ((mBaseSinceMidnightMs + ((getPlayPts() - mBasePts)) / 90) / 10, daylightSeconds);
   }
 //}}}
 //{{{
 string cPtsSong::getLastTimeString (int daylightSeconds) {
-
-  int64_t value = (mBaseSinceMidnightMs + ((getLastPts() - mBasePts) / 90)) / 10;
-
-  int subSeconds = (value % 100);
-  value /= 100;
-
-  int seconds = value % 60;
-  value /= 60;
-
-  int minutes = value % 60;
-  value /= 60;
-
-  int hours = (int)value;
-
-  return (hours > 0) ? (dec (hours) + ':' + dec (minutes, 2, '0') + ':' + dec(seconds, 2, '0')) :
-           ((minutes > 0) ? (dec (minutes) + ':' + dec(seconds, 2, '0') + ':' + dec(subSeconds, 2, '0')) :
-             (dec(seconds) + ':' + dec(subSeconds, 2, '0')));
+  return getTimeString ((mBaseSinceMidnightMs + ((getLastPts() - mBasePts)) / 90) / 10, daylightSeconds);
   }
 //}}}
 
