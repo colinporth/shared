@@ -1643,17 +1643,19 @@ public:
           }
 
         if (mTargetPts > -1) {
-          if (mTargetPts > mPtsSong->getPlayPts() + 100000) {
+          int64_t diffPts = mTargetPts - mPtsSong->getPlayPts();
+          cLog::log (LOGINFO, "diffPts:%d", (int)diffPts);
+          if (diffPts > 100000) {
             // skip forward
-            mStreamPos += 10000 * 188;
+            mStreamPos += (((diffPts * 50) / 9) / 188) * 188;
             _fseeki64 (file, mStreamPos, SEEK_SET);
             bytesLeft = 0;
             waitForPts = true;
             mVideoPool->flush (mTargetPts);
             }
-          else if (mTargetPts < mPtsSong->getPlayPts() - 100000) {
+          else if (diffPts < -100000) {
             // skip back
-            mStreamPos -= 10000 * 188;
+            mStreamPos += (((diffPts * 50) / 9) / 188) * 188;
             _fseeki64 (file, mStreamPos, SEEK_SET);
             bytesLeft = 0;
             waitForPts = true;
