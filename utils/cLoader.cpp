@@ -1632,7 +1632,7 @@ public:
         mStreamPos += 188;
         mLoadFrac = float(mStreamPos) / mFileSize;
 
-        // block load if loadPts > 25 audio frames ahead of playPts
+        // block load if loadPts > xx audio frames ahead of playPts
         while (!mExit && (mTargetPts == -1) && !waitForPts &&
                (loadPts > mPtsSong->getPlayPts() + (100 * mPtsSong->getFramePtsDuration()))) {
           //cLog::log (LOGINFO, "blocked loadPts:" + getPtsFramesString (loadPts, mPtsSong->getFramePtsDuration()) +
@@ -1644,7 +1644,7 @@ public:
           int64_t diffPts = mTargetPts - mPtsSong->getPlayPts();
           cLog::log (LOGINFO, "diffPts:%d", (int)diffPts);
           if (diffPts > 100000) {
-            // skip forward
+            //{{{  skip forward
             mStreamPos += (((diffPts * 50) / 9) / 188) * 188;
             //{{{  fseek
             #ifdef _WIN32
@@ -1657,8 +1657,9 @@ public:
             waitForPts = true;
             mVideoPool->flush (mTargetPts);
             }
+            //}}}
           else if (diffPts < -100000) {
-            // skip back
+            //{{{  skip back
             mStreamPos += (((diffPts * 50) / 9) / 188) * 188;
             //{{{  fseek
             #ifdef _WIN32
@@ -1671,6 +1672,7 @@ public:
             waitForPts = true;
             mVideoPool->flush (mTargetPts);
             }
+            //}}}
           else
             mPtsSong->setPlayPts (mTargetPts);
           mTargetPts = -1;

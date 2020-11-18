@@ -199,7 +199,7 @@ bool cSong::getPlayFinished() {
 string cSong::getFirstTimeString (int daylightSeconds) {
 
   // scale firstFrameNum as seconds*100
-  int64_t value = (getFirstFrameNum() * mSamplesPerFrame * 100) / mSampleRate;
+  int64_t value = getSecondsFromFrames (getFirstFrameNum() * 100);
 
   if (value) {
     // only show non zero firstFrameNum, may never happen
@@ -226,7 +226,7 @@ string cSong::getFirstTimeString (int daylightSeconds) {
 string cSong::getPlayTimeString (int daylightSeconds) {
 
   // scale pts = frameNum as seconds*100
-  int64_t value = (getPlayPts() * mSamplesPerFrame * 100) / mSampleRate;
+  int64_t value = getSecondsFromFrames (getPlayPts() * 100);
 
   int subSeconds = value % 100;
   value /= 100;
@@ -248,7 +248,7 @@ string cSong::getPlayTimeString (int daylightSeconds) {
 string cSong::getLastTimeString (int daylightSeconds) {
 
   // scale frameNum as seconds*100
-  int64_t value = (getLastFrameNum() * mSamplesPerFrame * 100) / mSampleRate;
+  int64_t value = getSecondsFromFrames (getLastFrameNum() * 100);
 
   int subSeconds = value % 100;
   value /= 100;
@@ -268,9 +268,21 @@ string cSong::getLastTimeString (int daylightSeconds) {
 //}}}
 
 // cSong - play
-void cSong::setPlayPts (int64_t pts) { mPlayPts = min (pts, getLastFrameNum() + 1); }
-void cSong::setPlayFirstFrame() { setPlayPts (mSelect.empty() ? 0 : mSelect.getFirstFrameNum()); }
-void cSong::setPlayLastFrame() { setPlayPts (mSelect.empty() ? getLastFrameNum() : mSelect.getLastFrameNum()); }
+//{{{
+void cSong::setPlayPts (int64_t pts) {
+  mPlayPts = min (pts, getLastFrameNum() + 1);
+  }
+//}}}
+//{{{
+void cSong::setPlayFirstFrame() {
+  setPlayPts (mSelect.empty() ? getFirstFrameNum() : mSelect.getFirstFrameNum());
+  }
+//}}}
+//{{{
+void cSong::setPlayLastFrame() {
+  setPlayPts (mSelect.empty() ? getLastFrameNum() : mSelect.getLastFrameNum());
+  }
+//}}}
 //{{{
 void cSong::nextPlayFrame (bool constrainToRange) {
 
@@ -284,10 +296,9 @@ void cSong::nextPlayFrame (bool constrainToRange) {
   }
 //}}}
 //{{{
-void cSong::incPlaySec (int secs, bool useSelectRange) {
+void cSong::incPlaySec (int seconds, bool useSelectRange) {
 
-  int64_t frames = (secs * mSampleRate) / mSamplesPerFrame;
-  mPlayPts += frames * getFramePtsDuration();
+  setPlayPts (max (0LL, mPlayPts + (getFramesFromSeconds (seconds) * getFramePtsDuration())));
   }
 //}}}
 //{{{

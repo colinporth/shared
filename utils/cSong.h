@@ -132,6 +132,8 @@ public:
   int getNumSampleBytes() { return mNumChannels * sizeof(float); }
   int getSampleRate() { return mSampleRate; }
   int getSamplesPerFrame() { return mSamplesPerFrame; }
+  int64_t getFramesFromSeconds (int64_t seconds) { return (seconds * mSampleRate) / mSamplesPerFrame; }
+  int64_t getSecondsFromFrames (int64_t frames) { return (frames * mSamplesPerFrame) / mSampleRate; }
 
   virtual int64_t getFramePtsDuration() { return 1; }
   virtual int64_t getFrameNumFromPts (int64_t pts) { return pts; }
@@ -187,7 +189,7 @@ public:
   virtual void setPlayLastFrame();
 
   void nextPlayFrame (bool useSelectRange);
-  void incPlaySec (int secs, bool useSelectRange);
+  void incPlaySec (int seconds, bool useSelectRange);
   void prevSilencePlayFrame();
   void nextSilencePlayFrame();
   //}}}
