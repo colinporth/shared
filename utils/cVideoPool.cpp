@@ -1795,6 +1795,7 @@ public:
 
   //{{{
   virtual void flush (int64_t pts) {
+  // mark free, !!!! could use proximity to pts to limit !!!!
 
     for (auto frame : mFramePool)
       frame.second->setFree (true, pts);
@@ -1809,7 +1810,8 @@ public:
     if (mPtsDuration > 0) {
       auto it = mFramePool.find (pts / mPtsDuration);
       if (it != mFramePool.end())
-        return (*it).second;
+        if (!(*it).second->isFree())
+          return (*it).second;
       }
 
     return nullptr;

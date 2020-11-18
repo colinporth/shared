@@ -1456,7 +1456,6 @@ public:
     if (mTargetPts == -1)
       mTargetPts = mPtsSong->getPlayPts();
 
-    //int64_t frames = (secs * mSong->getSampleRate()) / mSong->getSamplesPerFrame();
     int64_t secs = shift ? 300 : control ? 10 : 1;
     mTargetPts -= secs * 90000;
 
@@ -1469,7 +1468,6 @@ public:
     if (mTargetPts == -1)
       mTargetPts = mPtsSong->getPlayPts();
 
-    //int64_t frames = (secs * mSong->getSampleRate()) / mSong->getSamplesPerFrame();
     int64_t secs = shift ? 300 : control ? 10 : 1;
     mTargetPts += secs * 90000;
 
