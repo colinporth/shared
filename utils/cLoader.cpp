@@ -11,6 +11,7 @@
 #include "cSongPlayer.h"
 
 // utils
+#include "../fmt/core.h"
 #include "../date/date.h"
 #include "../utils/utils.h"
 #include "../utils/cLog.h"
@@ -36,6 +37,7 @@
 #include "readerWriterQueue.h"
 
 using namespace std;
+using namespace fmt;
 using namespace chrono;
 //}}}
 
@@ -865,9 +867,8 @@ public:
                           [&](const string& key, const string& value) noexcept {
                             //{{{  header callback lambda
                             if (key == "content-length")
-                              cLog::log (LOGINFO, "chunk:" + dec(chunkNum) +
-                                                  " pts:" + getPtsFramesString (loadPts, mHlsSong->getFramePtsDuration()) +
-                                                  " size:" + dec(http.getHeaderContentSize()/1000) + "k");
+                              cLog::log (LOGINFO, format ("chunk:{} pts:{} size:{}k",
+                                chunkNum, getPtsFramesString (loadPts, mHlsSong->getFramePtsDuration()), http.getHeaderContentSize()/1000));
                             },
                             //}}}
                           [&](const uint8_t* data, int length) noexcept {
@@ -1403,22 +1404,22 @@ public:
   virtual string getInfoString() {
   // return sizes
 
-    string str = dec(mStreamPos / 188) + "packets";
+    string str = format ("{}packets", mStreamPos/188);
 
     if (mCurSid > 0) {
       cService* service = mServices[mCurSid];
-      int audioPid = service->getAudioPid();
-      int videoPid = service->getVideoPid();
 
+      int audioPid = service->getAudioPid();
       auto audioIt = mPidParsers.find (audioPid);
       if (audioIt != mPidParsers.end())
-        str += " a:" + dec((*audioIt).second->getQueueSize());
+        str += format (" a:{}", (*audioIt).second->getQueueSize());
 
+      int videoPid = service->getVideoPid();
       auto videoIt = mPidParsers.find (videoPid);
       if (videoIt != mPidParsers.end())
-        str += " v:" + dec((*videoIt).second->getQueueSize());
+        str += format (" v:{}", (*videoIt).second->getQueueSize());
 
-      str += " sid:" + dec(mCurSid) + " a:"  + dec(audioPid) + " v:" + dec(videoPid);
+      str += format (" sid:{} a:{} v:{}", mCurSid, audioPid, videoPid);
       }
 
     return str;
