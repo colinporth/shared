@@ -837,10 +837,9 @@ public:
       cPlatformHttp http;
 
       // getHLS m3u8 file
-      string redirectedHostName = http.getRedirect (
-        getHlsHostName (mRadio), getHlsPathName (mRadio, mChannel, mAudioRate, mVideoRate) + getHlsM3u8Name());
+      mHost = http.getRedirect (getHost(), getM3u8Path());
       if (http.getContent()) {
-        //{{{  parse m3u8 file for #USP-X-TIMESTAMP-MAP:MPEGTS, #EXT-X-PROGRAM-DATE-TIME, #EXT-X-MEDIA-SEQUENCE tags
+        //{{{  parse m3u8 file 
         // get value for tag #USP-X-TIMESTAMP-MAP:MPEGTS=
         int64_t mpegTimestamp = stoll (getTagValue (http.getContent(), "#USP-X-TIMESTAMP-MAP:MPEGTS=", ','));
 
@@ -856,14 +855,14 @@ public:
         mHlsSong->setBaseHls (mpegTimestamp, extXProgramDateTimePoint, -37s, extXMediaSequence);
         http.freeContent();
         //}}}
+
         while (!mExit) {
           int64_t loadPts;
           bool reuseFromFront;
           int chunkNum = mHlsSong->getLoadChunkNum (loadPts, reuseFromFront);
           if (chunkNum > 0) {
             int contentParsed = 0;
-            if (http.get (redirectedHostName,
-                          getHlsPathName (mRadio, mChannel, mAudioRate, mVideoRate) + '-' + dec(chunkNum) + ".ts", "",
+            if (http.get (mHost, getTsPath (chunkNum), "",
                           [&](const string& key, const string& value) noexcept {
                             //{{{  header callback lambda
                             if (key == "content-length")
@@ -940,29 +939,38 @@ public:
 
 private:
   //{{{
-  static string getHlsHostName (bool radio) {
-    return radio ? "as-hls-uk-live.bbcfmt.s.llnwi.net" : "vs-hls-uk-live.akamaized.net";
+  string getHost() {
+    return mRadio ? "as-hls-uk-live.bbcfmt.s.llnwi.net" : "vs-hls-uk-live.akamaized.net";
     }
   //}}}
   //{{{
-  static string getHlsPathName (bool radio, const string& channel, int audioRate, int videoRate) {
+  string getM3u8Path() {
 
-    string pathName = (radio ? "pool_904/live/uk/" : "pool_902/live/uk/") +
-                      channel + "/" + channel + ".isml/" + channel;
-    if (radio)
-      pathName += "-audio=" + dec(audioRate);
-    else {
-      pathName += (audioRate < 128000) ? "-pa3=" : "-pa4=" + dec(audioRate);
-      if (videoRate)
-        pathName += "-video=" + dec(videoRate);
-      }
+    if (mRadio)
+      return format ("pool_904/live/uk/{0}/{0}.isml/{0}-audio={1}.norewind.m3u8",
+                     mChannel, mAudioRate, mVideoRate);
 
-    return pathName;
+    if (!mVideoRate) // tv, no video
+      return format ("pool_902/live/uk/{0}/{0}.isml/{0}-pa{1}={2}.norewind.m3u8",
+                     mChannel, mAudioRate < 128000 ? 3 : 4, mAudioRate, mVideoRate);
+
+    return format ("pool_902/live/uk/{0}/{0}.isml/{0}-pa{1}={2}-video={3}.norewind.m3u8",
+                   mChannel, mAudioRate < 128000 ? 3 : 4, mAudioRate, mVideoRate);
     }
   //}}}
   //{{{
-  static string getHlsM3u8Name() {
-    return ".norewind.m3u8";
+  string getTsPath (int chunkNum) {
+
+    if (mRadio)
+      return format ("pool_904/live/uk/{0}/{0}.isml/{0}-audio={1}-{3}.ts",
+                     mChannel, mAudioRate, mVideoRate, chunkNum);
+
+    if (!mVideoRate) // tv, no video
+      return format ("pool_902/live/uk/{0}/{0}.isml/{0}-pa{1}={2}-{4}.ts",
+                     mChannel, mAudioRate < 128000 ? 3 : 4, mAudioRate, mVideoRate, chunkNum);
+
+    return format ("pool_902/live/uk/{0}/{0}.isml/{0}-pa{1}={2}-video={3}-{4}.ts",
+                   mChannel, mAudioRate < 128000 ? 3 : 4, mAudioRate, mVideoRate, chunkNum);
     }
   //}}}
   //{{{
@@ -977,8 +985,9 @@ private:
     }
   //}}}
 
+  string mHost;
   string mChannel;
-  bool mRadio;
+  bool mRadio = false;
   int mAudioRate = 128000;
   int mVideoRate = 827008;
   bool mFfmpeg = true;

@@ -24,8 +24,7 @@ public:
 
   int getHeaderContentSize() { return mHeaderContentLength; }
 
-  int get (const std::string& host, const std::string& path,
-           const std::string& header = "",
+  int get (const std::string& host, const std::string& path, const std::string& header = "",
            const std::function<void (const std::string& key, const std::string& value)>& headerCallback = [](const std::string&, const std::string&) noexcept {},
            const std::function<bool (const uint8_t* data, int len)>& dataCallback = [](const uint8_t*, int) noexcept { return true; });
   std::string getRedirect (const std::string& host, const std::string& path);
