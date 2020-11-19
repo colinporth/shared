@@ -169,7 +169,7 @@ cWidget* cGlWindow::addTopLeft (cWidget* widget) { return mRootContainer->addTop
 cWidget* cGlWindow::add (cWidget* widget) { return mRootContainer->add (widget); }
 cWidget* cGlWindow::add (cWidget* widget, float offset) { return mRootContainer->add (widget, offset); }
 cWidget* cGlWindow::add (cWidget* widget, cPointF point) { return mRootContainer->add (widget, point); }
-cWidget* cGlWindow::addBelow (cWidget* widget) { return mRootContainer->addBelowLeft (widget); }
+cWidget* cGlWindow::addBelowLeft (cWidget* widget) { return mRootContainer->addBelowLeft (widget); }
 //{{{
 void cGlWindow::runGui (bool clear) {
 // usually runs in app main thread

@@ -155,7 +155,6 @@ public:
       draw->clear (kBlackF);
 
     if (mShowGraphics) {
-      drawInfo (vg, videoPool);
       //{{{  draw progress spinners
       float videoFrac;
       float audioFrac;
@@ -194,13 +193,12 @@ public:
           drawFreq (vg, song, playFrame);
           }
         }
-
+        //{{{  draw times
         // big playTime, white, centred
         vg->setFillColour (kWhiteF);
         vg->setFontSize (kBigFontHeight);
         vg->setTextAlign (cVg::eAlignCentre | cVg::eAlignBottom);
         vg->text (cPointF(mSize.x/2.f, mSize.y), song->getPlayTimeString (mClockTime->getDayLightSeconds()));
-
         // firstTime, left
         vg->setFontSize (kFontHeight);
         vg->setTextAlign (cVg::eAlignLeft | cVg::eAlignBottom);
@@ -209,8 +207,8 @@ public:
         // lastTime, right
         vg->setTextAlign (cVg::eAlignRight | cVg::eAlignBottom);
         vg->text (mSize, song->getLastTimeString (mClockTime->getDayLightSeconds()));
+        //}}}
         }
-
       if (kVideoPoolDebug && videoPool && (playPts >= 0))
         drawVideoPool (vg, song, videoPool, playPts);
       }
@@ -252,23 +250,6 @@ private:
                                                colourFrom, colourTo));
       vg->fill();
       }
-    }
-  //}}}
-  //{{{
-  void drawInfo (cVg* vg, iVideoPool* videoPool) {
-  // info text
-
-    std::string str;
-    if (videoPool)
-      str = videoPool->getInfoString() + " ";
-    str += mLoader->getInfoString();
-
-    vg->setFontSize (kFontHeight);
-    vg->setTextAlign (cVg::eAlignLeft | cVg::eAlignTop);
-    vg->setFillColour (kBlackF);
-    vg->text (mOrg + cPointF(2.f, 2.f), str);
-    vg->setFillColour (kWhiteF);
-    vg->text (mOrg, str);
     }
   //}}}
   //{{{

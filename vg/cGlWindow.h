@@ -59,7 +59,7 @@ protected:
   cWidget* add (cWidget* widget);
   cWidget* add (cWidget* widget, float offset);
   cWidget* add (cWidget* widget, cPointF point);
-  cWidget* addBelow (cWidget* widget);
+  cWidget* addBelowLeft (cWidget* widget);
   void runGui (bool clear);
 
   // keystroke dispatch
