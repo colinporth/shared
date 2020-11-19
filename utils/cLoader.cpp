@@ -774,7 +774,24 @@ public:
       else if (param == "a320") mAudioRate = 320000;
       }
 
-    return !mChannel.empty();
+    if (mChannel.empty())
+      return false;
+
+    string root = "/live/uk/{0}/{0}.isml/{0}-";
+    if (mRadio) {
+      mHost = "as-hls-uk-live.bbcfmt.s.llnwi.net";
+      root = "pool_904" + root + "audio={2}";
+      }
+    else {
+      mHost = "vs-hls-uk-live.akamaized.net";
+      root = "pool_902" + root + "pa{1}={2}";
+      if (mVideoRate)
+        root += "-video={3}";
+      }
+    mM3u8Format = root + ".norewind.m3u8";
+    mTsFormat = root + "-{4}.ts";
+
+    return true;
     }
   //}}}
   //{{{
@@ -837,9 +854,10 @@ public:
       cPlatformHttp http;
 
       // getHLS m3u8 file
-      mHost = http.getRedirect (getHost(), getM3u8Path());
+      string m3u8Path = format (mM3u8Format, mChannel, mAudioRate < 128000 ? 3 : 4, mAudioRate, mVideoRate);
+      mHost = http.getRedirect (mHost, m3u8Path);
       if (http.getContent()) {
-        //{{{  parse m3u8 file 
+        //{{{  parse m3u8 file
         // get value for tag #USP-X-TIMESTAMP-MAP:MPEGTS=
         int64_t mpegTimestamp = stoll (getTagValue (http.getContent(), "#USP-X-TIMESTAMP-MAP:MPEGTS=", ','));
 
@@ -862,7 +880,8 @@ public:
           int chunkNum = mHlsSong->getLoadChunkNum (loadPts, reuseFromFront);
           if (chunkNum > 0) {
             int contentParsed = 0;
-            if (http.get (mHost, getTsPath (chunkNum), "",
+            string tsPath = format (mTsFormat, mChannel, mAudioRate < 128000 ? 3 : 4, mAudioRate, mVideoRate, chunkNum);
+            if (http.get (mHost, tsPath, "",
                           [&](const string& key, const string& value) noexcept {
                             //{{{  header callback lambda
                             if (key == "content-length")
@@ -939,41 +958,6 @@ public:
 
 private:
   //{{{
-  string getHost() {
-    return mRadio ? "as-hls-uk-live.bbcfmt.s.llnwi.net" : "vs-hls-uk-live.akamaized.net";
-    }
-  //}}}
-  //{{{
-  string getM3u8Path() {
-
-    if (mRadio)
-      return format ("pool_904/live/uk/{0}/{0}.isml/{0}-audio={1}.norewind.m3u8",
-                     mChannel, mAudioRate, mVideoRate);
-
-    if (!mVideoRate) // tv, no video
-      return format ("pool_902/live/uk/{0}/{0}.isml/{0}-pa{1}={2}.norewind.m3u8",
-                     mChannel, mAudioRate < 128000 ? 3 : 4, mAudioRate, mVideoRate);
-
-    return format ("pool_902/live/uk/{0}/{0}.isml/{0}-pa{1}={2}-video={3}.norewind.m3u8",
-                   mChannel, mAudioRate < 128000 ? 3 : 4, mAudioRate, mVideoRate);
-    }
-  //}}}
-  //{{{
-  string getTsPath (int chunkNum) {
-
-    if (mRadio)
-      return format ("pool_904/live/uk/{0}/{0}.isml/{0}-audio={1}-{3}.ts",
-                     mChannel, mAudioRate, mVideoRate, chunkNum);
-
-    if (!mVideoRate) // tv, no video
-      return format ("pool_902/live/uk/{0}/{0}.isml/{0}-pa{1}={2}-{4}.ts",
-                     mChannel, mAudioRate < 128000 ? 3 : 4, mAudioRate, mVideoRate, chunkNum);
-
-    return format ("pool_902/live/uk/{0}/{0}.isml/{0}-pa{1}={2}-video={3}-{4}.ts",
-                   mChannel, mAudioRate < 128000 ? 3 : 4, mAudioRate, mVideoRate, chunkNum);
-    }
-  //}}}
-  //{{{
   static string getTagValue (uint8_t* buffer, const char* tag, char terminator) {
   // crappy get value from tag
 
@@ -986,8 +970,11 @@ private:
   //}}}
 
   string mHost;
-  string mChannel;
+  string mM3u8Format;
+  string mTsFormat;
+
   bool mRadio = false;
+  string mChannel;
   int mAudioRate = 128000;
   int mVideoRate = 827008;
   bool mFfmpeg = true;
