@@ -30,7 +30,7 @@ public:
   //}}}
 
   //{{{
-  virtual void onDown (const cPointF& point) {
+  virtual void onDown (cPointF point) {
 
     cWidget::onDown (point);
 
@@ -57,7 +57,7 @@ public:
     }
   //}}}
   //{{{
-  virtual void onMove (const cPointF& point, const cPointF& inc) {
+  virtual void onMove (cPointF point, cPointF inc) {
 
     cWidget::onMove (point, inc);
 
@@ -233,7 +233,7 @@ private:
 
   // draws
   //{{{
-  void drawSpinner (cVg* vg, const cPointF& centre, float outerRadius, float innerRadius,
+  void drawSpinner (cVg* vg, cPointF centre, float outerRadius, float innerRadius,
                     float fracFrom, float fracTo,
                     const sColourF& colourFrom, const sColourF& colourTo) {
 

@@ -27,10 +27,10 @@ public:
   std::chrono::system_clock::time_point getNowDayLight();
   //}}}
   //{{{  iDraw
-  void drawRect (const sColourF& colour, const cPointF& p, const cPointF& size);
-  void drawPixel (const sColourF& colour, const cPointF& p) {}
+  void drawRect (const sColourF& colour, cPointF p, cPointF size);
+  void drawPixel (const sColourF& colour, cPointF p) {}
   //{{{
-  void drawRectOutline (const sColourF& colour, const cPointF& p, const cPointF& size, float thickness) {
+  void drawRectOutline (const sColourF& colour, cPointF p, cPointF size, float thickness) {
     drawRect (colour, p, cPointF(size.x, thickness));
     drawRect (colour, cPointF(p.x + size.x -thickness, p.y), cPointF(thickness, size.y));
     drawRect (colour, cPointF(p.x, p.y + size.y -thickness), cPointF(size.x, thickness));
@@ -38,10 +38,10 @@ public:
     }
   //}}}
 
-  float drawText (const sColourF& colour, float fontHeight, std::string str, const cPointF& p,  const cPointF& size);
-  float drawTextRight (const sColourF& colour, float fontHeight, std::string str, const cPointF& p, const cPointF& size);
-  void drawEllipseSolid (const sColourF& colour, const cPointF& p, const cPointF& radius);
-  void drawStamp (const sColourF& colour, uint8_t* src, const cPointF& p, const cPointF& size) {}
+  float drawText (const sColourF& colour, float fontHeight, std::string str, cPointF p,  cPointF size);
+  float drawTextRight (const sColourF& colour, float fontHeight, std::string str, cPointF p, cPointF size);
+  void drawEllipseSolid (const sColourF& colour, cPointF p, cPointF radius);
+  void drawStamp (const sColourF& colour, uint8_t* src, cPointF p, cPointF size) {}
   //}}}
   //{{{  iWindow
   cVg* getVg();
@@ -55,9 +55,10 @@ public:
 
 protected:
   cRootContainer* initialiseGui (const std::string& title, int width, int height, uint8_t* font, int fontSize);
-  cWidget* add (cWidget* widget);
-  cWidget* addAt (cWidget* widget, const cPointF& point);
   cWidget* addTopLeft (cWidget* widget);
+  cWidget* add (cWidget* widget);
+  cWidget* add (cWidget* widget, float offset);
+  cWidget* add (cWidget* widget, cPointF point);
   cWidget* addBelow (cWidget* widget);
   void runGui (bool clear);
 
@@ -102,10 +103,10 @@ private:
 
   void updateWindowSize();
   void draw (bool clear);
-  void drawSpinner (const cPointF& centre, float inner, float outer, float frac,
+  void drawSpinner (cPointF centre, float inner, float outer, float frac,
                     const sColourF& colour1, const sColourF& colour2);
-  void drawEyes (const cPointF& point, const cPointF& size, const cPointF& mousePos, float t);
-  void drawLines (const cPointF& point, const cPointF& size, float t);
+  void drawEyes (cPointF point, cPointF size, cPointF mousePos, float t);
+  void drawLines (cPointF point, cPointF size, float t);
 
   //{{{  vars
   bool mVsync = true;

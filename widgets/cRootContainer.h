@@ -14,7 +14,7 @@ public:
   virtual ~cRootContainer() {}
 
   //{{{
-  virtual void onProx (const cPointF& point) {
+  virtual void onProx (cPointF point) {
 
     mProxWidget = isPicked (point);
 
@@ -25,7 +25,7 @@ public:
     }
   //}}}
   //{{{
-  virtual void onDown (const cPointF& point) {
+  virtual void onDown (cPointF point) {
 
     mPressedWidget = isPicked (point);
     if (mPressedWidget)
@@ -33,7 +33,7 @@ public:
     }
   //}}}
   //{{{
-  virtual void onMove (const cPointF& point, const cPointF& inc) {
+  virtual void onMove (cPointF point, cPointF inc) {
 
     if (mPressedWidget)
       mPressedWidget->onMove (point - mPressedWidget->getOrg(), inc);

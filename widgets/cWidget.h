@@ -55,9 +55,9 @@ public:
   virtual void toggleOn() { mOn = !mOn; }
   virtual void toggleVisible() { mVisible = !mVisible; }
 
-  virtual void onProx (const cPointF& point) {}
-  virtual void onDown (const cPointF& point) { mPressedCount++; }
-  virtual void onMove (const cPointF& point, const cPointF& inc) {}
+  virtual void onProx (cPointF point) {}
+  virtual void onDown (cPointF point) { mPressedCount++; }
+  virtual void onMove (cPointF point, const cPointF& inc) {}
   virtual void onUp() { mPressedCount = 0; }
   virtual void onWheel (float delta) {}
 
@@ -82,7 +82,7 @@ protected:
 
 private:
   //{{{
-  bool isInside (const cPointF& point) {
+  bool isInside (cPointF point) {
   // return true if point is inside widget, even if not visible
 
     return (point.x >= mOrg.x) && (point.x < getEndX()) &&
@@ -90,14 +90,14 @@ private:
     }
   //}}}
   //{{{
-  virtual cWidget* isPicked (const cPointF& point) {
+  virtual cWidget* isPicked (cPointF point) {
   // return this widget if point inside visible widget
 
     return (mVisible && isInside (point)) ? this : nullptr;
     }
   //}}}
   //{{{
-  virtual void layoutSize (const cPointF& parentSize) {
+  virtual void layoutSize (cPointF parentSize) {
   // -ve size are parentSize + the -ve size
 
     if (mLayoutSize.x <= 0.f)

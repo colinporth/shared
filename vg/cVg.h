@@ -276,8 +276,8 @@ public:
   void setTransform (float a, float b, float c, float d, float e, float f);
   //}}}
   //{{{  scissor
-  void scissor (const cPointF& p, const cPointF& size);
-  void intersectScissor (const cPointF& p, const cPointF& size);
+  void scissor (cPointF p, cPointF size);
+  void intersectScissor (cPointF p, cPointF size);
 
   void resetScissor();
   //}}}

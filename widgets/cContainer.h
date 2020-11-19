@@ -27,27 +27,27 @@ public:
   //{{{
   virtual ~cContainer() {
 
-    for (auto& widgetLayout : mWidgetLayouts)
-      delete widgetLayout.mWidget;
+    for (auto widgetLayout : mWidgetLayouts)
+      delete widgetLayout;
 
     mWidgetLayouts.clear();
     }
   //}}}
 
   //{{{
-  void setSize (const cPointF& size) {
+  void setSize (cPointF size) {
   // only used by rootContainer ??
 
     mSize = size;
 
     for (auto& widgetLayout : mWidgetLayouts)
-      widgetLayout.mWidget->layoutSize (mSize);
+      widgetLayout->getWidget()->layoutSize (mSize);
 
     layoutWidgets (mOrg);
     }
   //}}}
   //{{{
-  virtual cWidget* isPicked (const cPointF& point) {
+  virtual cWidget* isPicked (cPointF point) {
 
     if (cWidget::isPicked (point)) {
       if (mWidgetLayouts.empty())
@@ -55,7 +55,7 @@ public:
       else {
         // pick reverse of display order
         for (auto it = mWidgetLayouts.rbegin(); it != mWidgetLayouts.rend(); ++it) {
-          cWidget* pickedWidget = (*it).mWidget->isPicked (point); // - mOrg ??
+          cWidget* pickedWidget = (*it)->getWidget()->isPicked (point); // - mOrg ??
           if (pickedWidget)
             return pickedWidget;
           }
@@ -68,27 +68,71 @@ public:
   //}}}
 
   //{{{
-  cWidget* add (cWidget* widget, float offset = 0.f) {
-    addWidget (widget, cWidgetLayout::eLayout::eNext, cPointF (offset, offset));
-    return widget;
-    }
+  class cWidgetLayout {
+  public:
+    cWidgetLayout (cWidget* widget) : mWidget(widget) {}
+    virtual ~cWidgetLayout() { delete mWidget; }
+
+    cWidget* getWidget() { return mWidget; }
+    virtual cPointF layout (cWidget* prevWidget, cPointF org, cPointF size, cPointF maxEnd) = 0;
+
+  protected:
+     //{{{
+     cPointF calcMaxEnd (cPointF maxEnd) {
+      maxEnd.x = std::max (maxEnd.x, mWidget->getEndX());
+      maxEnd.y = std::max (maxEnd.y, mWidget->getEndY());
+      return maxEnd;
+      }
+     //}}}
+
+    cWidget* mWidget;
+    };
   //}}}
   //{{{
   cWidget* addTopLeft (cWidget* widget) {
-    addWidget (widget, cWidgetLayout::eLayout::eAt, cPointF());
+  // add topleft of container, useful for adding more than one overlaid topLeft widgets
+
+    addWidgetLayout (new cLayoutAt (widget, cPointF()));
     return widget;
     }
   //}}}
   //{{{
-  cWidget* addAt (cWidget* widget, const cPointF& offset) {
-    addWidget (widget, cWidgetLayout::eLayout::eAt, offset);
+  cWidget* add (cWidget* widget) {
+  // add next right until end of container, then start new row
+
+    addWidgetLayout (new cLayoutNext (widget, 0.f));
+    return widget;
+    }
+  //}}}
+  //{{{
+  cWidget* add (cWidget* widget, float offset) {
+  // add with offset next right until end of container, then start new row
+
+    addWidgetLayout (new cLayoutNext (widget, offset));
+    return widget;
+    }
+  //}}}
+  //{{{
+  cWidget* add (cWidget* widget, cPointF offset) {
+  // add at absolute offset into container
+
+    addWidgetLayout (new cLayoutAt (widget, offset));
     return widget;
     }
   //}}}
   //{{{
   cWidget* addBelowLeft (cWidget* widget, float offset = 0.f) {
-    addWidget (widget, cWidgetLayout::eLayout::eBelowLeft, cPointF(0.f, offset));
+  // add belowLeft of container widgets so far
+
+    addWidgetLayout (new cLayoutBelowLeft (widget, offset));
     return widget;
+    }
+  //}}}
+  //{{{
+  void addWidgetLayout (cWidgetLayout* widgetLayout) {
+
+    mWidgetLayouts.push_back (widgetLayout);
+    layoutSize (mSize);
     }
   //}}}
 
@@ -98,80 +142,86 @@ public:
     if (mDrawBgnd)
       draw->drawRect (mColour, mOrg, mSize);
 
-    for (auto& widgetLayout : mWidgetLayouts)
-      if (widgetLayout.mWidget->isVisible())
-        widgetLayout.mWidget->onDraw (draw);
+    for (auto widgetLayout : mWidgetLayouts)
+      if (widgetLayout->getWidget()->isVisible())
+        widgetLayout->getWidget()->onDraw (draw);
     }
   //}}}
 
 protected:
-  //{{{
-  class cWidgetLayout {
-  public:
-    enum class eLayout { eNext, eBelowLeft, eAt };
-    //{{{
-    cWidgetLayout (cWidget* widget, eLayout layout, cPointF offset)
-      : mWidget(widget), mLayout(layout), mOffset(offset) {}
-    //}}}
-    ~cWidgetLayout() {}
-
-    cWidget* mWidget;
-    eLayout mLayout;
-    cPointF mOffset;
-    };
-  //}}}
-
-  std::vector <cWidgetLayout> mWidgetLayouts;
+  std::vector <cWidgetLayout*> mWidgetLayouts;
 
 private:
   //{{{
-  void addWidget (cWidget* widget, cWidgetLayout::eLayout layout, const cPointF& offset) {
+  class cLayoutNext : public cWidgetLayout {
+  public:
+    cLayoutNext (cWidget* widget, float offset) : cWidgetLayout (widget), mOffset(offset) {}
+    virtual ~cLayoutNext() {}
 
-    mWidgetLayouts.push_back (cWidgetLayout(widget, layout, offset));
-    layoutSize (mSize);
-    }
+    virtual cPointF layout (cWidget* prevWidget, cPointF org, cPointF size, cPointF maxEnd) {
+      if (!prevWidget)
+        // topLeft
+        mWidget->mOrg = org;
+      else if (prevWidget->getEndX() + mWidget->mSize.x < size.x) {
+        // next right
+        mWidget->mOrg.x = prevWidget->mOrg.x + prevWidget->mSize.x + mOffset;
+        mWidget->mOrg.y = prevWidget->mOrg.y;
+        }
+      else {
+        // belowLeft
+        mWidget->mOrg.x = org.x;
+        mWidget->mOrg.y = maxEnd.y + mOffset;
+        }
+
+      return calcMaxEnd (maxEnd);
+      }
+
+  private:
+    float mOffset;
+    };
   //}}}
   //{{{
-  void layoutWidgets (const cPointF& org) {
-  // layout sub widgets in this container using layout rules
+  class cLayoutAt: public cWidgetLayout {
+  public:
+    cLayoutAt (cWidget* widget, cPointF offset) : cWidgetLayout (widget), mOffset(offset) {}
+    virtual ~cLayoutAt() {}
+
+    virtual cPointF layout (cWidget* prevWidget, cPointF org, cPointF size, cPointF maxEnd) {
+      mWidget->mOrg = org + mOffset;
+      return calcMaxEnd (maxEnd);
+      }
+
+  private:
+    cPointF mOffset;
+    };
+  //}}}
+  //{{{
+  class cLayoutBelowLeft: public cWidgetLayout {
+  public:
+    cLayoutBelowLeft (cWidget* widget, float offset) : cWidgetLayout (widget), mOffset(offset) {}
+    virtual ~cLayoutBelowLeft() {}
+
+    virtual cPointF layout (cWidget* prevWidget, cPointF org, cPointF size, cPointF maxEnd) {
+      mWidget->mOrg.x = org.x;
+      mWidget->mOrg.y = maxEnd.y + mOffset;
+      return calcMaxEnd (maxEnd);
+      }
+
+  private:
+    float mOffset;
+    };
+  //}}}
+
+  //{{{
+  void layoutWidgets (cPointF org) {
+  // layout sub widgets in this container using widgetLayout layout rule
 
     cPointF maxEnd = org;
     cWidget* prevWidget = nullptr;
 
-    for (auto& widgetLayout : mWidgetLayouts) {
-      switch (widgetLayout.mLayout) {
-        case cWidgetLayout::eLayout::eNext:
-          if (!prevWidget)
-            // topLeft
-            widgetLayout.mWidget->mOrg = org + widgetLayout.mOffset;
-          else if (prevWidget->getEndX() + widgetLayout.mWidget->mSize.x < mSize.x) {
-            // next right
-            widgetLayout.mWidget->mOrg.x = prevWidget->mOrg.x + prevWidget->mSize.x + widgetLayout.mOffset.x;
-            widgetLayout.mWidget->mOrg.y = prevWidget->mOrg.y;
-            }
-          else {
-            // belowLeft
-            widgetLayout.mWidget->mOrg.x = org.x;
-            widgetLayout.mWidget->mOrg.y = maxEnd.y + widgetLayout.mOffset.y;
-            }
-          break;
-
-        case cWidgetLayout::eLayout::eBelowLeft:
-          // belowLeft
-          widgetLayout.mWidget->mOrg.x = org.x;
-          widgetLayout.mWidget->mOrg.y = maxEnd.y + widgetLayout.mOffset.y;
-          break;
-
-        case cWidgetLayout::eLayout::eAt:
-          widgetLayout.mWidget->mOrg = org + widgetLayout.mOffset;
-          break;
-        }
-
-      // calc maxEnd
-      maxEnd.x = std::max (maxEnd.x, widgetLayout.mWidget->getEndX());
-      maxEnd.y = std::max (maxEnd.y, widgetLayout.mWidget->getEndY());
-
-      prevWidget = widgetLayout.mWidget;
+    for (auto widgetLayout : mWidgetLayouts) {
+      maxEnd = widgetLayout->layout (prevWidget, org, mSize, maxEnd);
+      prevWidget = widgetLayout->getWidget();
       }
 
     if (mSelfSize)
@@ -181,12 +231,12 @@ private:
     }
   //}}}
   //{{{
-  virtual void layoutSize (const cPointF& parentSize) {
+  virtual void layoutSize (cPointF parentSize) {
 
     cWidget::layoutSize (parentSize);
 
     for (auto& widgetLayout : mWidgetLayouts)
-      widgetLayout.mWidget->layoutSize (mSize);
+      widgetLayout->getWidget()->layoutSize (mSize);
 
     layoutWidgets (mOrg);
     }

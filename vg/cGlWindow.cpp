@@ -44,7 +44,7 @@ system_clock::time_point cGlWindow::getNowDayLight() {
 
 // iDraw
 //{{{
-void cGlWindow::drawRect (const sColourF& colour, const cPointF& point, const cPointF& size) {
+void cGlWindow::drawRect (const sColourF& colour, cPointF point, cPointF size) {
 
   setFillColour (colour);
 
@@ -54,7 +54,7 @@ void cGlWindow::drawRect (const sColourF& colour, const cPointF& point, const cP
   }
 //}}}
 //{{{
-float cGlWindow::drawText (const sColourF& colour, float fontHeight, string str, const cPointF& point, const cPointF& size) {
+float cGlWindow::drawText (const sColourF& colour, float fontHeight, string str, cPointF point, cPointF size) {
 
   setFontSize (fontHeight);
   setTextAlign (cVg::eAlignLeft | cVg::eAlignTop);
@@ -67,7 +67,7 @@ float cGlWindow::drawText (const sColourF& colour, float fontHeight, string str,
   }
 //}}}
 //{{{
-float cGlWindow::drawTextRight (const sColourF& colour, float fontHeight, string str, const cPointF& point, const cPointF& size) {
+float cGlWindow::drawTextRight (const sColourF& colour, float fontHeight, string str, cPointF point, cPointF size) {
 
   setFontSize (fontHeight);
   setTextAlign (cVg::eAlignRight | cVg::eAlignTop);
@@ -80,7 +80,7 @@ float cGlWindow::drawTextRight (const sColourF& colour, float fontHeight, string
   }
 //}}}
 //{{{
-void cGlWindow::drawEllipseSolid (const sColourF& colour, const cPointF& point, const cPointF& radius) {
+void cGlWindow::drawEllipseSolid (const sColourF& colour, cPointF point, cPointF radius) {
 
   setFillColour (sColourF(colour));
 
@@ -165,10 +165,10 @@ cRootContainer* cGlWindow::initialiseGui (const string& title, int width, int he
   return mRootContainer;
   }
 //}}}
-
-cWidget* cGlWindow::add (cWidget* widget) { return mRootContainer->add (widget); }
-cWidget* cGlWindow::addAt (cWidget* widget, const cPointF& point) { return mRootContainer->addAt (widget, point); }
 cWidget* cGlWindow::addTopLeft (cWidget* widget) { return mRootContainer->addTopLeft (widget); }
+cWidget* cGlWindow::add (cWidget* widget) { return mRootContainer->add (widget); }
+cWidget* cGlWindow::add (cWidget* widget, float offset) { return mRootContainer->add (widget, offset); }
+cWidget* cGlWindow::add (cWidget* widget, cPointF point) { return mRootContainer->add (widget, point); }
 cWidget* cGlWindow::addBelow (cWidget* widget) { return mRootContainer->addBelowLeft (widget); }
 //{{{
 void cGlWindow::runGui (bool clear) {
@@ -387,7 +387,7 @@ void cGlWindow::draw (bool clear) {
 //}}}
 
 //{{{
-void cGlWindow::drawSpinner (const cPointF& centre, float inner, float outer, float frac,
+void cGlWindow::drawSpinner (cPointF centre, float inner, float outer, float frac,
                              const sColourF& colour1, const sColourF& colour2) {
 
   saveState();
@@ -410,7 +410,7 @@ void cGlWindow::drawSpinner (const cPointF& centre, float inner, float outer, fl
   }
 //}}}
 //{{{
-void cGlWindow::drawEyes (const cPointF& point, const cPointF& size, const cPointF& mousePos, float t) {
+void cGlWindow::drawEyes (cPointF point, cPointF size, cPointF mousePos, float t) {
 
   cPointF eyeSize (size.x * 0.23f, size.y * 0.5f);
   cPointF left = point + eyeSize;
@@ -472,7 +472,7 @@ void cGlWindow::drawEyes (const cPointF& point, const cPointF& size, const cPoin
   }
 //}}}
 //{{{
-void cGlWindow::drawLines (const cPointF& point, const cPointF& size, float t) {
+void cGlWindow::drawLines (cPointF point, cPointF size, float t) {
 
   float pad = 5.0f;
   float s = size.x/9.0f - pad*2;

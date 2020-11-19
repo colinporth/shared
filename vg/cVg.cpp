@@ -548,7 +548,7 @@ void cVg::setTransform (float a, float b, float c, float d, float e, float f) {
 //}}}
 //{{{  scissor
 //{{{
-void cVg::scissor (const cPointF& p, const cPointF& size) {
+void cVg::scissor (cPointF p, cPointF size) {
 
   auto state = &mStates[mNumStates-1];
   float width = max (0.0f, size.x);
@@ -562,7 +562,7 @@ void cVg::scissor (const cPointF& p, const cPointF& size) {
   }
 //}}}
 //{{{
-void cVg::intersectScissor (const cPointF& p, const cPointF& size) {
+void cVg::intersectScissor (cPointF p, cPointF size) {
 
   // if no previous scissor has been set, set the scissor as current scissor.
   auto state = &mStates[mNumStates-1];

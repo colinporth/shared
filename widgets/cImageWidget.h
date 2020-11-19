@@ -28,7 +28,7 @@ public:
   //}}}
   virtual ~cImageWidget() {}
 
-  virtual void onDown (const cPointF& point) {
+  virtual void onDown (cPointF point) {
     cWidget::onDown (point);
     mHitCallback (this);
     }
