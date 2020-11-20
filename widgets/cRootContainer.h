@@ -88,6 +88,16 @@ public:
     }
   //}}}
 
+  //{{{
+  virtual void onDraw (iDraw* draw) {
+
+    if (mDebug)
+      cContainer::onDrawDebug (draw, mProxWidget);
+    else
+      cContainer::onDraw (draw);
+    }
+  //}}}
+
 private:
   cWidget* mProxWidget = nullptr;
   cWidget* mPressedWidget = nullptr;

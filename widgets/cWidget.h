@@ -86,6 +86,13 @@ public:
     draw->drawRect (mOn ? kLightRedF : mColour, mOrg + cPointF(1.f,1.f), mSize - cPointF(2.f,2.f));
     }
   //}}}
+  //{{{
+  virtual void onDrawDebug (iDraw* draw, cWidget* widget) {
+
+    onDraw (draw);
+    draw->drawRectOutline (widget == this ? kYellowF : kGreyF, mOrg, mSize, 1.f);
+    }
+  //}}}
 
 protected:
   inline static bool mDebug = false;
