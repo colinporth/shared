@@ -150,7 +150,7 @@ template <> struct fmt::formatter<cPointF> {
 
     // Parse the presentation format and store it in the formatter:
     auto it = context.begin(), end = context.end();
-    if (it != end && (*it == 'f' || *it == 'e'))
+    if (it != end && (*it == 'f' || *it == 'F'))
       presentation = *it++;
 
     // Check if reached the end of the range:
@@ -165,7 +165,7 @@ template <> struct fmt::formatter<cPointF> {
   template <typename tFormatContext> auto format (const cPointF& point, tFormatContext& context) {
 
     // ctx.out() is an output iterator to write to.
-    return format_to (context.out(), presentation == 'f' ? "{:f},{:f}" : "{:.1e},{:.1e}", point.x, point.y);
+    return format_to (context.out(), presentation == 'f' ? "{:.0f},{:.0f}" : "{:.1f},{:.1f}", point.x, point.y);
     }
   };
 //}}}
