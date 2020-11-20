@@ -90,7 +90,7 @@ public:
   virtual void onDrawDebug (iDraw* draw, cWidget* widget) {
 
     onDraw (draw);
-    draw->drawRectOutline (widget == this ? kYellowF : kGreyF, mOrg, mSize, 1.f);
+    draw->drawRectOutline (widget == this ? kYellowF : kGreyF, mOrg, mSize, widget == this ? 2.f : 1.f);
     }
   //}}}
 

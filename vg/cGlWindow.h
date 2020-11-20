@@ -7,8 +7,6 @@
 #include <array>
 #include "cPerfGraph.h"
 
-#include "../utils/iChange.h"
-
 #include "../widgets/iClockTime.h"
 #include "../widgets/iDraw.h"
 
@@ -54,8 +52,6 @@ public:
   //}}}
 
 protected:
-  cRootContainer* getRootContainer() { return mRootContainer; }
-
   cRootContainer* initialiseGui (const std::string& title, int width, int height, uint8_t* font, int fontSize);
   cWidget* addTopLeft (cWidget* widget);
   cWidget* add (cWidget* widget);
@@ -69,6 +65,7 @@ protected:
   virtual void onChar (char ch, int mods) = 0;
 
   // actions
+  void toggleDebug();
   void toggleFullScreen();
   void toggleVsync();
   void togglePerf();

@@ -184,6 +184,7 @@ void cGlWindow::runGui (bool clear) {
 //}}}
 
 // actions
+void cGlWindow::toggleDebug() { mRootContainer->toggleDebug(); }
 //{{{
 void cGlWindow::toggleFullScreen() {
 

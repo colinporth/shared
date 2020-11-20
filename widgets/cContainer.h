@@ -125,8 +125,7 @@ public:
   virtual void onDrawDebug (iDraw* draw, cWidget* widget) {
 
     for (auto& layout : mWidgetLayouts)
-      if (layout->getWidget()->isVisible())
-        layout->getWidget()->onDrawDebug (draw, widget);
+      if (layout->getWidget()->isVisible())        layout->getWidget()->onDrawDebug (draw, widget);
     }
   //}}}
 
