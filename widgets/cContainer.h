@@ -17,16 +17,12 @@ class cContainer : public cWidget {
 friend cRootContainer;
 public:
   //{{{
-  cContainer (float width, float height, const std::string& id = "cContainerUnsized")
+  cContainer (const std::string& id = "container")
+    : cWidget (id) {}
+  //}}}
+  //{{{
+  cContainer (float width, float height, const std::string& id = "container")
     : cWidget (kBlackF, width, height, id) {}
-  //}}}
-  //{{{
-  cContainer (const std::string& id = "cContainerUnsized")
-    : cWidget (kBlackF, 0.f, 0.f, id) {}
-  //}}}
-  //{{{
-  cContainer (const sColourF& colour, const std::string& id = "cContainerUnsizedBgnd")
-    : cWidget (colour, 0.f, 0.f, id) {}
   //}}}
   //{{{
   virtual ~cContainer() {

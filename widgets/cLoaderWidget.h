@@ -12,7 +12,7 @@ class cLoaderWidget : public cWidget {
 public:
   //{{{
   cLoaderWidget (cLoader* loader, iClockTime* clockTime, float width = 0.f, float height = 0.f,
-                 const std::string& id = "cLoaderWidget")
+                 const std::string& id = "loaderWidget")
     : cWidget (kBlackF, width, height, id), mLoader(loader), mClockTime(clockTime) {}
   //}}}
   virtual ~cLoaderWidget() {}

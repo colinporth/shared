@@ -160,7 +160,7 @@ cRootContainer* cGlWindow::initialiseGui (const string& title, int width, int he
   mCpuGraph = new cPerfGraph (cPerfGraph::eRenderMs, "cpu");
   mFpsGraph = new cPerfGraph (cPerfGraph::eRenderFps, "frame");
 
-  mRootContainer = new cRootContainer (float(width), float(height), "glWindow - rootContainer");
+  mRootContainer = new cRootContainer (float(width), float(height), "rootContainer:glWindow");
   return mRootContainer;
   }
 //}}}

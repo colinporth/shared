@@ -22,6 +22,10 @@ public:
   static constexpr float kBigFontHeight = 40.f;
 
   //{{{
+  cWidget (const std::string& id)
+    : mId(id), mColour(kLightGreyF), mLayoutSize(), mSize() {}
+  //}}}
+  //{{{
   cWidget (float width, float height, const std::string& id)
     : mId(id), mColour(kLightGreyF), mLayoutSize(width, height), mSize(width, height) {}
   //}}}

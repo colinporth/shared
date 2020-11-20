@@ -10,7 +10,7 @@
 class cLoaderInfoWidget : public cWidget {
 public:
   //{{{
-  cLoaderInfoWidget (cLoader* loader, const std::string& id = "cLoaderInfoWidget")
+  cLoaderInfoWidget (cLoader* loader, const std::string& id = "loaderInfoWidget")
     : cWidget (kBlackF, 0.f, kBox, id), mLoader(loader) {}
   //}}}
   virtual ~cLoaderInfoWidget() {}
@@ -20,7 +20,7 @@ public:
   virtual void onDraw (iDraw* draw) {
 
     cVg* vg = draw->getVg();
-    cSong* song = mLoader->getSong();
+    //cSong* song = mLoader->getSong();
     iVideoPool* videoPool = mLoader->getVideoPool();
 
     if (mShowGraphics) {

@@ -16,9 +16,8 @@ class cImageWidget : public cWidget {
 public:
   //{{{
   cImageWidget (const uint8_t* image, int imageSize, float width, float height,
-                std::function<void (cWidget* widget)> hitCallback = [](cWidget*) {},
-                const std::string& debugName = "cImageWidget")
-      : cWidget(width, height, debugName), mHitCallback(hitCallback) {
+                std::function<void (cWidget* widget)> hitCallback = [](cWidget*) {}, const std::string& id = "")
+      : cWidget(width, height, "imageWidget:" + id), mHitCallback(hitCallback) {
 
    stbi_set_flip_vertically_on_load (true);
    mPiccy = stbi_load_from_memory ((uint8_t* const*)image, imageSize, &mPicWidth, &mPicHeight, &mPicComponents, 4);

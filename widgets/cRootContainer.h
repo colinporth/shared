@@ -12,7 +12,7 @@
 class cRootContainer : public cContainer {
 public:
   //{{{
-  cRootContainer (float width, float height, const std::string& id = "cRootContainer")
+  cRootContainer (float width, float height, const std::string& id = "rootContainer")
     : cContainer(width, height, id) {}
   //}}}
   virtual ~cRootContainer() {}

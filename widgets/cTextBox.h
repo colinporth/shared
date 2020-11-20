@@ -8,16 +8,16 @@
 class cTextBox : public cWidget {
 public:
   //{{{
-  cTextBox (std::string& text, float width, const std::string id = "cTextBox")
+  cTextBox (std::string& text, float width, const std::string id = "textBox")
     : cWidget (width, kBox, id), mText(text) {}
   //}}}
   //{{{
-  cTextBox (std::string& text, const sColourF& colour, float width, float height, const std::string id = "cTextBox") :
+  cTextBox (std::string& text, const sColourF& colour, float width, float height, const std::string id = "textBox") :
     cWidget (colour, width, height, id), mText(text) {}
   //}}}
   virtual ~cTextBox() {}
 
-  virtual std::string getDebugName() { return mId + " - " + mText; }
+  virtual std::string getId() { return mId + ":" + mText; }
 
   virtual void setText (std::string& text) { mText = text; }
   virtual void setTextColour (const sColourF& colour) { mTextColour = colour; }
