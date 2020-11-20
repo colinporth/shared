@@ -3,7 +3,12 @@
 #pragma once
 
 #include <vector>
+
 #include "cWidget.h"
+
+#include "../fmt/core.h"
+#include "../utils/utils.h"
+#include "../utils/cLog.h"
 //}}}
 
 class cContainer : public cWidget {
@@ -23,7 +28,7 @@ public:
   //{{{
   virtual ~cContainer() {
 
-    for (auto layout : mWidgetLayouts)
+    for (auto& layout : mWidgetLayouts)
       delete layout;
 
     mWidgetLayouts.clear();
@@ -37,11 +42,31 @@ public:
 
     for (auto it = mWidgetLayouts.rbegin(); it != mWidgetLayouts.rend(); ++it) {
       cWidget* pickedWidget = (*it)->getWidget()->isPicked (point);
-      if (pickedWidget)
+      if (pickedWidget) {
+        if (mDebug)
+          cLog::log (LOGINFO, fmt::format ("pickedWidget - {} picked", pickedWidget->getId()));
         return pickedWidget;
+        }
       }
 
     return nullptr;
+    }
+  //}}}
+
+  //{{{
+  virtual void debug (int level) {
+
+    std::string str;
+    for (int i = 0; i < level; i++)
+      str += "  ";
+
+    str += fmt::format ("org:{},{} size:{},{} layout:{},{} - {}",
+                        mOrg.x, mOrg.y, mSize.x, mSize.y, mLayoutSize.x, mLayoutSize.y, getId());
+
+    cLog::log (LOGINFO, str);
+
+    for (auto& layout : mWidgetLayouts)
+      layout->getWidget()->debug (level+1);
     }
   //}}}
 
@@ -109,7 +134,7 @@ public:
   //{{{
   virtual void onDraw (iDraw* draw) {
 
-    for (auto layout : mWidgetLayouts)
+    for (auto& layout : mWidgetLayouts)
       if (layout->getWidget()->isVisible())
         layout->getWidget()->onDraw (draw);
     }
@@ -126,7 +151,19 @@ protected:
       prevWidget = layout->getWidget();
       }
 
-    //cLog::log (LOGINFO, "layoutWidgets " + getId() + " " + dec (boundingSize.x) + "," + dec(boundingSize.y));
+    cPointF end;
+    for (auto& layout : mWidgetLayouts) {
+      cWidget* widget = layout->getWidget();
+      end.x = std::max (end.x, widget->getEnd().x);
+      end.y = std::max (end.y, widget->getEnd().y);
+      }
+
+    cPointF boundingSize = end - parentOrg;
+    mSize = boundingSize;
+    cLog::log (LOGINFO, "layoutWidgets " + getId() +
+                          " pOrg" + dec (parentOrg.x) + "," + dec(parentOrg.y) +
+                          " pSize" + dec (parentSize.x) + "," + dec(parentSize.y) +
+                          " bound:" + dec (boundingSize.x) + "," + dec(boundingSize.y));
     }
   //}}}
   std::vector <cWidgetLayout*> mWidgetLayouts;

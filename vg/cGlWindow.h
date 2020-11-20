@@ -54,6 +54,8 @@ public:
   //}}}
 
 protected:
+  cRootContainer* getRootContainer() { return mRootContainer; }
+
   cRootContainer* initialiseGui (const std::string& title, int width, int height, uint8_t* font, int fontSize);
   cWidget* addTopLeft (cWidget* widget);
   cWidget* add (cWidget* widget);

@@ -2,6 +2,7 @@
 //{{{  includes
 #pragma once
 
+#include <functional>
 #include "cWidget.h"
 #include "../utils/cLog.h"
 

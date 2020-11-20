@@ -381,7 +381,7 @@ protected:
     if (mPesSize + tsLeft > mAllocSize) {
       mAllocSize *= 2;
       mPes = (uint8_t*)realloc (mPes, mAllocSize);
-      cLog::log (LOGINFO, mName + " pes allocSize doubled to " + dec(mAllocSize));
+      cLog::log (LOGINFO1, mName + " pes allocSize doubled to " + dec(mAllocSize));
       }
 
     memcpy (mPes + mPesSize, ts, tsLeft);
@@ -890,8 +890,10 @@ public:
                           [&](const string& key, const string& value) noexcept {
                             //{{{  header callback lambda
                             if (key == "content-length")
-                              cLog::log (LOGINFO, format ("chunk:{} pts:{} size:{}k",
-                                chunkNum, getPtsFramesString (loadPts, mHlsSong->getFramePtsDuration()), http.getHeaderContentSize()/1000));
+                              cLog::log (LOGINFO1, format ("chunk:{} pts:{} size:{}k",
+                                         chunkNum,
+                                         getPtsFramesString (loadPts, mHlsSong->getFramePtsDuration()),
+                                         http.getHeaderContentSize()/1000));
                             },
                             //}}}
                           [&](const uint8_t* data, int length) noexcept {

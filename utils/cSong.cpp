@@ -522,10 +522,10 @@ int cHlsSong::getLoadChunkNum (int64_t& loadPts, bool& reuseFromFront) {
   // check playPts chunkNum for firstFrame of chunk loaded
   if (!findFrameByPts (loadPts)) {
     reuseFromFront = loadPts >= mPlayPts;
-    cLog::log (LOGINFO, "getLoadChunk - load offset:" + dec(frameNumOffset) + ":" + dec(chunkNumOffset) +
-                        " chunkNum:" + dec(chunkNum) +
-                        " pts:" + getPtsFramesString (loadPts, getFramePtsDuration()) +
-                        (reuseFromFront ? " front" : " back"));
+    cLog::log (LOGINFO1, "getLoadChunk - load offset:" + dec(frameNumOffset) + ":" + dec(chunkNumOffset) +
+                         " chunkNum:" + dec(chunkNum) +
+                         " pts:" + getPtsFramesString (loadPts, getFramePtsDuration()) +
+                         (reuseFromFront ? " front" : " back"));
     return chunkNum;
     }
 
@@ -534,10 +534,10 @@ int cHlsSong::getLoadChunkNum (int64_t& loadPts, bool& reuseFromFront) {
   loadPts += mFramesPerChunk * mFramePtsDuration;
   if (!findFrameByPts (loadPts))  {
     reuseFromFront = loadPts >= mPlayPts;
-    cLog::log (LOGINFO, "getLoadChunk - preload+1 offset:" + dec(frameNumOffset) + ":" + dec(chunkNumOffset) +
-                        " chunkNum:" + dec(chunkNum) +
-                        " pts:" + getPtsFramesString (loadPts, getFramePtsDuration()) +
-                        (reuseFromFront ? " front" : " back"));
+    cLog::log (LOGINFO1, "getLoadChunk - preload+1 offset:" + dec(frameNumOffset) + ":" + dec(chunkNumOffset) +
+                         " chunkNum:" + dec(chunkNum) +
+                         " pts:" + getPtsFramesString (loadPts, getFramePtsDuration()) +
+                         (reuseFromFront ? " front" : " back"));
     return chunkNum;
     }
 

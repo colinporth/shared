@@ -2,8 +2,11 @@
 //{{{  includes
 #pragma once
 
+#include "../fmt/core.h"
+#include "../utils/utils.h"
+#include "../utils/cLog.h"
+
 #include "iDraw.h"
-#include <functional>
 
 class cContainer;
 class cRootContainer;
@@ -59,9 +62,20 @@ public:
 
   virtual void onProx (cPointF point) {}
   virtual void onDown (cPointF point) { mPressedCount++; }
-  virtual void onMove (cPointF point, const cPointF& inc) {}
+  virtual void onMove (cPointF point, cPointF inc) {}
   virtual void onUp() { mPressedCount = 0; }
   virtual void onWheel (float delta) {}
+
+  //{{{
+  virtual void debug (int level) {
+
+    std::string str;
+    for (int i = 0; i < level; i++)
+      str += "  ";
+    str += fmt::format ("org:{},{} size:{},{} - {}", mOrg.x, mOrg.y, mSize.x, mSize.y, getId());
+    cLog::log (LOGINFO, str);
+    }
+  //}}}
 
   //{{{
   virtual void onDraw (iDraw* draw) {
@@ -83,6 +97,7 @@ protected:
       mSize.y = parentSize.y + mLayoutSize.y;
     }
   //}}}
+  inline static bool mDebug = false;
 
   const std::string mId;
   const sColourF mColour;

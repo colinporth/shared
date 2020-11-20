@@ -155,13 +155,12 @@ cRootContainer* cGlWindow::initialiseGui (const string& title, int width, int he
   createFont ("sans", (unsigned char*)font, fontSize);
   setFontByName ("sans");
 
-  mRootContainer = new cRootContainer (float(width), float(height));
-
   // init timers
   glfwSetTime (0);
   mCpuGraph = new cPerfGraph (cPerfGraph::eRenderMs, "cpu");
   mFpsGraph = new cPerfGraph (cPerfGraph::eRenderFps, "frame");
 
+  mRootContainer = new cRootContainer (float(width), float(height), "glWindow - rootContainer");
   return mRootContainer;
   }
 //}}}

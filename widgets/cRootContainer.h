@@ -3,6 +3,10 @@
 #pragma once
 
 #include "cContainer.h"
+
+#include "../fmt/core.h"
+#include "../utils/utils.h"
+#include "../utils/cLog.h"
 //}}}
 
 class cRootContainer : public cContainer {
@@ -23,6 +27,21 @@ public:
       layout->getWidget()->updateSize (mSize);
 
     updateOrg (mOrg, mSize);
+    }
+  //}}}
+
+  //{{{
+  void toggleDebug() {
+
+    mDebug = !mDebug;
+
+    if (mDebug) {
+      cLog::log (LOGINFO, "--------------------- widgetDebug on ---------------------------");
+      debug (0);
+      cLog::log (LOGINFO, "----------------------------------------------------------------");
+      }
+    else
+      cLog::log (LOGINFO, "--------------------- widgetDebug off --------------------------");
     }
   //}}}
 
