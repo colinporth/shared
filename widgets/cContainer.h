@@ -9,9 +9,12 @@
 #include "../fmt/core.h"
 #include "../utils/utils.h"
 #include "../utils/cLog.h"
+
+class cRootContainer;
 //}}}
 
 class cContainer : public cWidget {
+friend cRootContainer;
 public:
   //{{{
   cContainer (float width, float height, const std::string& id = "cContainerUnsized")
@@ -50,23 +53,6 @@ public:
       }
 
     return nullptr;
-    }
-  //}}}
-
-  //{{{
-  virtual void debug (int level) {
-
-    std::string str;
-    for (int i = 0; i < level; i++)
-      str += "  ";
-
-    str += fmt::format ("org:{},{} size:{},{} layout:{},{} - {}",
-                        mOrg.x, mOrg.y, mSize.x, mSize.y, mLayoutSize.x, mLayoutSize.y, getId());
-
-    cLog::log (LOGINFO, str);
-
-    for (auto& layout : mWidgetLayouts)
-      layout->getWidget()->debug (level+1);
     }
   //}}}
 
@@ -140,31 +126,6 @@ public:
     }
   //}}}
 
-protected:
-  //{{{
-  void updateOrg (cPointF parentOrg, cPointF parentSize) {
-  // update org of our subWidgets using their layout rule
-
-    cWidget* prevWidget = nullptr;
-    for (auto& layout : mWidgetLayouts) {
-      layout->layout (prevWidget, parentOrg, parentSize);
-      prevWidget = layout->getWidget();
-      }
-
-    cPointF end;
-    for (auto& layout : mWidgetLayouts) 
-      end = end.max (layout->getWidget()->getEnd());
-
-    mSize = end - parentOrg;
-    if (mDebug)
-      cLog::log (LOGINFO, "updateOrg " + getId() +
-                          " parentOrg" + dec (parentOrg.x) + "," + dec(parentOrg.y) +
-                          " parentSize" + dec (parentSize.x) + "," + dec(parentSize.y) +
-                          " mSize:" + dec (mSize.x) + "," + dec(mSize.y));
-    }
-  //}}}
-  std::vector <cWidgetLayout*> mWidgetLayouts;
-
 private:
   //{{{
   class cLayoutNext : public cWidgetLayout {
@@ -223,9 +184,30 @@ private:
   //}}}
 
   //{{{
+  void updateOrg (cPointF parentOrg, cPointF parentSize) {
+  // update org of our subWidgets using their layout rule
+
+    cWidget* prevWidget = nullptr;
+    for (auto& layout : mWidgetLayouts) {
+      layout->layout (prevWidget, parentOrg, parentSize);
+      prevWidget = layout->getWidget();
+      }
+
+    cPointF end;
+    for (auto& layout : mWidgetLayouts)
+      end = end.max (layout->getWidget()->getEnd());
+
+    mSize = end - parentOrg;
+    if (mDebug)
+      cLog::log (LOGINFO, "updateOrg " + getId() +
+                          " parentOrg" + dec (parentOrg.x) + "," + dec(parentOrg.y) +
+                          " parentSize" + dec (parentSize.x) + "," + dec(parentSize.y) +
+                          " mSize:" + dec (mSize.x) + "," + dec(mSize.y));
+    }
+  //}}}
+  //{{{
   virtual void updateSize (cPointF parentSize) {
 
-    //mSize = parentSize;
     for (auto& layout : mWidgetLayouts)
       layout->getWidget()->updateSize (parentSize);
 
@@ -233,4 +215,22 @@ private:
     updateOrg (mOrg, parentSize);
     }
   //}}}
+  //{{{
+  virtual void debug (int level) {
+
+    std::string str;
+    for (int i = 0; i < level; i++)
+      str += "  ";
+
+    str += fmt::format ("org:{},{} size:{},{} layout:{},{} - {}",
+                        mOrg.x, mOrg.y, mSize.x, mSize.y, mLayoutSize.x, mLayoutSize.y, getId());
+
+    cLog::log (LOGINFO, str);
+
+    for (auto& layout : mWidgetLayouts)
+      layout->getWidget()->debug (level+1);
+    }
+  //}}}
+
+  std::vector <cWidgetLayout*> mWidgetLayouts;
   };

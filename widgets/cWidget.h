@@ -84,19 +84,6 @@ public:
   //}}}
 
 protected:
-  //{{{
-  virtual void updateSize (cPointF parentSize) {
-  // layoutSize x or y
-  //   +ve layoutSize -  use layoutSize
-  //    0  layoutSize -  use parentSize
-  //   -ve layoutSize -  use parentSize less than abs(layoutSize)
-
-    if (mLayoutSize.x <= 0.f)
-      mSize.x = parentSize.x + mLayoutSize.x;
-    if (mLayoutSize.y <= 0.f)
-      mSize.y = parentSize.y + mLayoutSize.y;
-    }
-  //}}}
   inline static bool mDebug = false;
 
   const std::string mId;
@@ -125,6 +112,20 @@ private:
   // return this widget if point inside visible widget
 
     return (mVisible && isInside (point)) ? this : nullptr;
+    }
+  //}}}
+
+  //{{{
+  virtual void updateSize (cPointF parentSize) {
+  // layoutSize x or y
+  //   +ve layoutSize -  use layoutSize
+  //    0  layoutSize -  use parentSize
+  //   -ve layoutSize -  use parentSize less than abs(layoutSize)
+
+    if (mLayoutSize.x <= 0.f)
+      mSize.x = parentSize.x + mLayoutSize.x;
+    if (mLayoutSize.y <= 0.f)
+      mSize.y = parentSize.y + mLayoutSize.y;
     }
   //}}}
   };
