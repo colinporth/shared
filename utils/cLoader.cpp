@@ -763,33 +763,39 @@ public:
       else if (param == "r6") { mRadio = true; mChannel = "bbc_6music"; }
 
       else if (param == "mfx") mFfmpeg = false;
+
       else if (param == "v0") mVideoRate = 0;
       else if (param == "v1") mVideoRate = 827008;
       else if (param == "v2") mVideoRate = 1604032;
       else if (param == "v3") mVideoRate = 2812032;
       else if (param == "v4") mVideoRate = 5070016;
+
       else if (param == "a48")  mAudioRate = 48000;
       else if (param == "a96")  mAudioRate = 96000;
       else if (param == "a128") mAudioRate = 128000;
       else if (param == "a320") mAudioRate = 320000;
       }
 
-    if (mChannel.empty())
+    if (mChannel.empty()) // no channel found
       return false;
 
-    string root = "/live/uk/{0}/{0}.isml/{0}-";
+    mLowAudioRate = mAudioRate < 128000;
+    mSamplesPerFrame = mLowAudioRate ? 2048 : 1024;
+    mPtsDurationPerFrame = mLowAudioRate ? 3840 : 1920;
+    mFramesPerChunk = mLowAudioRate ? (mRadio ? 150 : 180) : (mRadio ? 300 : 360);
+
+    string pathFormat;
     if (mRadio) {
       mHost = "as-hls-uk-live.bbcfmt.s.llnwi.net";
-      root = "pool_904" + root + "audio={2}";
+      pathFormat = "pool_904/live/uk/{0}/{0}.isml/{0}-audio={1}";
       }
     else {
       mHost = "vs-hls-uk-live.akamaized.net";
-      root = "pool_902" + root + "pa{1}={2}";
-      if (mVideoRate)
-        root += "-video={3}";
+      pathFormat = format ("pool_902/live/uk/{{0}}/{{0}}.isml/{{0}}-pa{0}={{1}}{1}",
+                           mLowAudioRate ? 3 : 4, mVideoRate ? "-video={2}" : "");
       }
-    mM3u8Format = root + ".norewind.m3u8";
-    mTsFormat = root + "-{4}.ts";
+    mM3u8PathFormat = pathFormat + ".norewind.m3u8";
+    mTsPathFormat = pathFormat + "-{3}.ts";
 
     return true;
     }
@@ -800,10 +806,8 @@ public:
     mExit = false;
     mRunning = true;
     mHlsSong = new cHlsSong (eAudioFrameType::eAacAdts, mNumChannels, mSampleRate,
-                             (mAudioRate < 128000) ? 2048 : 1024,
-                             (mAudioRate < 128000) ? 3840 : 1920,
-                             mRadio ? 0 : 1000,
-                             (mAudioRate < 128000) ? (mRadio ? 150 : 180) : (mRadio ? 300 : 360));
+                             mSamplesPerFrame, mPtsDurationPerFrame,
+                             mRadio ? 0 : 1000, mFramesPerChunk);
 
     iAudioDecoder* audioDecoder = nullptr;
     //{{{  add parsers, callbacks
@@ -853,8 +857,8 @@ public:
     while (!mExit) {
       cPlatformHttp http;
 
-      // getHLS m3u8 file
-      string m3u8Path = format (mM3u8Format, mChannel, mAudioRate < 128000 ? 3 : 4, mAudioRate, mVideoRate);
+      // get m3u8 file
+      string m3u8Path = format (mM3u8PathFormat, mChannel, mAudioRate, mVideoRate);
       mHost = http.getRedirect (mHost, m3u8Path);
       if (http.getContent()) {
         //{{{  parse m3u8 file
@@ -879,8 +883,9 @@ public:
           bool reuseFromFront;
           int chunkNum = mHlsSong->getLoadChunkNum (loadPts, reuseFromFront);
           if (chunkNum > 0) {
+            // get chunkNum ts file
             int contentParsed = 0;
-            string tsPath = format (mTsFormat, mChannel, mAudioRate < 128000 ? 3 : 4, mAudioRate, mVideoRate, chunkNum);
+            string tsPath = format (mTsPathFormat, mChannel, mAudioRate, mVideoRate, chunkNum);
             if (http.get (mHost, tsPath, "",
                           [&](const string& key, const string& value) noexcept {
                             //{{{  header callback lambda
@@ -917,13 +922,13 @@ public:
               http.freeContent();
               }
             else {
-              //{{{  failed to load expected to be available chunk, backoff for 250ms
+              //{{{  failed to load chunk, backoff for 250ms
               cLog::log (LOGERROR, "late " + dec(chunkNum));
               this_thread::sleep_for (250ms);
               }
               //}}}
             }
-          else // no chunk available, back off for 100ms
+          else // no chunk available yet, backoff for 100ms
             this_thread::sleep_for (100ms);
           }
         }
@@ -969,15 +974,23 @@ private:
     }
   //}}}
 
-  string mHost;
-  string mM3u8Format;
-  string mTsFormat;
-
+  // params
   bool mRadio = false;
   string mChannel;
-  int mAudioRate = 128000;
   int mVideoRate = 827008;
+  int mAudioRate = 128000;
   bool mFfmpeg = true;
+
+  // http
+  string mHost;
+  string mM3u8PathFormat;
+  string mTsPathFormat;
+
+  // song params
+  int mLowAudioRate = false;
+  int mFramesPerChunk = 0;
+  int mSamplesPerFrame = 0;
+  int64_t mPtsDurationPerFrame = 0;
 
   cHlsSong* mHlsSong = nullptr;
   iVideoPool* mVideoPool = nullptr;

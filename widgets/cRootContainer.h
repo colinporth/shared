@@ -14,6 +14,19 @@ public:
   virtual ~cRootContainer() {}
 
   //{{{
+  void setSize (cPointF size) {
+
+    mSize = size;
+
+    // update size of our subWidgets
+    for (auto& layout : mWidgetLayouts)
+      layout->getWidget()->updateSize (mSize);
+
+    updateOrg (mOrg, mSize);
+    }
+  //}}}
+
+  //{{{
   virtual void onProx (cPointF point) {
 
     mProxWidget = isPicked (point);
@@ -53,17 +66,6 @@ public:
 
     if (mProxWidget)
       mProxWidget->onWheel (delta);
-    }
-  //}}}
-
-  //{{{
-  virtual void onDraw (iDraw* draw) {
-
-    // turn green if we ever turn on
-    if (mOn)
-      draw->drawRect (kDarkGreenF, mOrg, mSize);
-
-    cContainer::onDraw  (draw);
     }
   //}}}
 

@@ -6,10 +6,12 @@
 #include <functional>
 
 class cContainer;
+class cRootContainer;
 //}}}
 
 class cWidget {
 friend cContainer;
+friend cRootContainer;
 public:
   static constexpr float kBox = 20.f;
   static constexpr float kSmallFontHeight = 16.f;
@@ -68,6 +70,20 @@ public:
   //}}}
 
 protected:
+  //{{{
+  virtual void updateSize (cPointF parentSize) {
+  // layoutSize x or y
+  //   +ve layoutSize -  use layoutSize
+  //    0  layoutSize -  use parentSize
+  //   -ve layoutSize -  use parentSize less than abs(layoutSize)
+
+    if (mLayoutSize.x <= 0.f)
+      mSize.x = parentSize.x + mLayoutSize.x;
+    if (mLayoutSize.y <= 0.f)
+      mSize.y = parentSize.y + mLayoutSize.y;
+    }
+  //}}}
+
   const std::string mId;
   const sColourF mColour;
 
@@ -94,16 +110,6 @@ private:
   // return this widget if point inside visible widget
 
     return (mVisible && isInside (point)) ? this : nullptr;
-    }
-  //}}}
-  //{{{
-  virtual void layoutSize (cPointF parentSize) {
-  // -ve size are parentSize + the -ve size
-
-    if (mLayoutSize.x <= 0.f)
-      mSize.x = parentSize.x + mLayoutSize.x;
-    if (mLayoutSize.y <= 0.f)
-      mSize.y = parentSize.y + mLayoutSize.y;
     }
   //}}}
   };
