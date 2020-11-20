@@ -2759,7 +2759,6 @@ void cVg::renderFill (cShape& shape, sPaint& paint, cScissor& scissor, float fri
 void cVg::renderText (int firstVertexIndex, int numVertices, sPaint& paint, cScissor& scissor) {
 
   //cLog::log (LOGINFO, "renderText " + dec(firstVertexIndex) + " " + dec(numVertices) + " " + dec(paint.id));
-
   auto draw = allocDraw();
   draw->set (sDraw::eText, paint.mImageId, 0, 0, allocFrags (1), firstVertexIndex, numVertices);
   mFrags[draw->mFirstFragIndex].setImage (paint, scissor, findTextureById (paint.mImageId));

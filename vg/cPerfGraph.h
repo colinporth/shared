@@ -27,6 +27,7 @@ public:
 
   //{{{
   void updateTime (float time) {
+
     mHead = (mHead+1) % kGraphHistorySize;
     mValues[mHead] = time - mStartTime;
     mNumValues++;
@@ -35,6 +36,7 @@ public:
   //}}}
   //{{{
   void updateValue (float value) {
+
     mHead = (mHead+1) % kGraphHistorySize;
     mValues[mHead] = value;
     mNumValues++;
@@ -42,26 +44,26 @@ public:
   //}}}
 
   //{{{
-  void render (cVg* vg, cPointF p, cPointF size) {
+  void render (cVg* vg, cPointF org, cPointF size) {
 
     // bgnd
     vg->beginPath();
-    vg->rect (p, size);
+    vg->rect (org, size);
     vg->setFillColour (kSemiOpaqueBlackF);
     vg->fill();
 
     // graph
     vg->beginPath();
-    vg->moveTo (p + cPointF(0.f, size.y));
+    vg->moveTo (org + cPointF(0.f, size.y));
     if (mStyle == eRenderFps) {
       //{{{  fps graph
       for (int i = 0; i < kGraphHistorySize; i++) {
-        float v =  mValues[(mHead+i) % kGraphHistorySize] ?
-                     1.f / (0.00001f + mValues[(mHead+i) % kGraphHistorySize]) : 0;
+        float v =  mValues[(mHead+i) % kGraphHistorySize] ? 
+          1.f / (0.00001f + mValues[(mHead+i) % kGraphHistorySize]) : 0;
         if (v > 100.f)
           v = 100.f;
 
-        vg->lineTo (cPointF (p.x + ((float)i/(kGraphHistorySize -1)) * size.x, p.y + size.y - ((v / 100.f) * size.y)));
+        vg->lineTo (org + cPointF (((float)i/(kGraphHistorySize -1)) * size.x, size.y - ((v / 100.f) * size.y)));
         }
       }
       //}}}
@@ -72,7 +74,7 @@ public:
         if (v > 100.f)
           v = 100.f;
 
-        vg->lineTo (cPointF (p.x + ((float)i / (kGraphHistorySize -1)) * size.x, p.y + size.y - ((v / 100.f) * size.y)));
+        vg->lineTo (org +cPointF (((float)i / (kGraphHistorySize -1)) * size.x, size.y - ((v / 100.f) * size.y)));
         }
       }
       //}}}
@@ -83,11 +85,11 @@ public:
         if (v > 20.f)
           v = 20.f;
 
-        vg->lineTo (cPointF (p.x + ((float)i / (kGraphHistorySize -1)) * size.x, p.y + size.y - ((v / 20.f) * size.y)));
+        vg->lineTo (org + cPointF (((float)i / (kGraphHistorySize -1)) * size.x, size.y - ((v / 20.f) * size.y)));
         }
       }
       //}}}
-    vg->lineTo (p + size);
+    vg->lineTo (org + size);
     vg->setFillColour (sColourF(1.f,0.75f,0.f,0.5f));
     vg->fill();
 
@@ -100,7 +102,7 @@ public:
       //{{{  name graph
       vg->setFontSize (14.f);
       vg->setTextAlign (cVg::eAlignLeft | cVg::eAlignTop);
-      vg->text (p + cPointF (3.f,1.f), mName);
+      vg->text (org + cPointF (3.f,1.f), mName);
       }
       //}}}
 
@@ -113,12 +115,12 @@ public:
 
       char str[64];
       sprintf (str, "%.2ffps", 1.f / avg);
-      vg->text (p + cPointF (size.x-3.f, 1.f), str);
+      vg->text (org + cPointF (size.x-3.f, 1.f), str);
 
       vg->setFontSize (15.f);
       vg->setTextAlign (cVg::eAlignRight | cVg::eAlignBottom);
       sprintf (str, "%.2fms", avg * 1000.f);
-      vg->text (p + size + cPointF (-3.f, -1.f), str);
+      vg->text (org + size + cPointF (-3.f, -1.f), str);
       }
       //}}}
     else if (mStyle == eRenderPercent) {
@@ -128,7 +130,7 @@ public:
 
       char str[64];
       sprintf (str, "%.1f%%", avg * 1.f);
-      vg->text (p + cPointF (size.x-3.f, 1.f), str);
+      vg->text (org + cPointF (size.x-3.f, 1.f), str);
       }
       //}}}
     else {
@@ -138,7 +140,7 @@ public:
 
       char str[64];
       sprintf (str, "%.2fms", avg * 1000.f);
-      vg->text (p+ cPointF(size.x-3.f, 1.f), str);
+      vg->text (org + cPointF(size.x-3.f, 1.f), str);
       }
       //}}}
     }
@@ -146,7 +148,6 @@ public:
 
 private:
   static constexpr int kGraphHistorySize = 100;
-
   //{{{
   float getGraphAverage() {
 

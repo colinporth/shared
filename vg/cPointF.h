@@ -1,6 +1,7 @@
 // cPointF.h
 #pragma once
 #include <math.h>
+#include "../fmt/format.h"
 
 class cPointF {
 public:
@@ -131,3 +132,40 @@ public:
   float x;
   float y;
   };
+
+//{{{
+template <> struct fmt::formatter<cPointF> {
+
+  char presentation = 'f';
+
+  // Parses format specifications of the form ['f' | 'e'].
+  constexpr auto parse (format_parse_context& context) {
+    // [context.begin(), context.end()) is a character range that contains a part of
+    // the format string starting from the format specifications to be parsed,
+    // e.g. in
+    //   fmt::format("{:f} - point of interest", point{1, 2});
+    // the range will contain "f} - point of interest".
+    // The formatter should parse specifiers until '}' or the end of the range.
+    // In this example the formatter should parse the 'f' specifier and return an iterator pointing to '}'.
+
+    // Parse the presentation format and store it in the formatter:
+    auto it = context.begin(), end = context.end();
+    if (it != end && (*it == 'f' || *it == 'e'))
+      presentation = *it++;
+
+    // Check if reached the end of the range:
+    if (it != end && *it != '}')
+      throw format_error ("invalid format");
+
+    // Return an iterator past the end of the parsed range:
+    return it;
+    }
+
+  // Formats point using parsed format specification(presentation) stored in this formatter.
+  template <typename tFormatContext> auto format (const cPointF& point, tFormatContext& context) {
+
+    // ctx.out() is an output iterator to write to.
+    return format_to (context.out(), presentation == 'f' ? "{:f},{:f}" : "{:.1e},{:.1e}", point.x, point.y);
+    }
+  };
+//}}}

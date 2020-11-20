@@ -71,13 +71,11 @@ public:
   virtual void onWheel (float delta) {}
 
   //{{{
-  virtual void debug (int level) {
+  virtual void debug (int indent) {
 
-    std::string str;
-    for (int i = 0; i < level; i++)
-      str += "  ";
-    str += fmt::format ("org:{},{} size:{},{} - {}", mOrg.x, mOrg.y, mSize.x, mSize.y, getId());
-    cLog::log (LOGINFO, str);
+    cLog::log (LOGINFO, fmt::format ("{:{}}org:{} size:{}{}{} - {}",
+                                     " ", indent, 
+                                     mOrg, mSize, mVisible ? "" : " invisble", mOn ? " on" : "", getId()));
     }
   //}}}
 

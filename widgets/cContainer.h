@@ -125,7 +125,8 @@ public:
   virtual void onDrawDebug (iDraw* draw, cWidget* widget) {
 
     for (auto& layout : mWidgetLayouts)
-      if (layout->getWidget()->isVisible())        layout->getWidget()->onDrawDebug (draw, widget);
+      if (layout->getWidget()->isVisible())
+        layout->getWidget()->onDrawDebug (draw, widget);
     }
   //}}}
 
@@ -218,20 +219,17 @@ private:
     updateOrg (mOrg, parentSize);
     }
   //}}}
+
   //{{{
-  virtual void debug (int level) {
+  virtual void debug (int indent) {
 
-    std::string str;
-    for (int i = 0; i < level; i++)
-      str += "  ";
+    cLog::log (LOGINFO, fmt::format ("{:{}}org:{}size:{} layout:{}{}{} - {}",
+                                     indent ? " ": "", indent, mOrg, 
+                                     mSize, mLayoutSize, mVisible ? "" : " invisble", mOn ? " on" : "", getId()));
 
-    str += fmt::format ("org:{},{} size:{},{} layout:{},{} - {}",
-                        mOrg.x, mOrg.y, mSize.x, mSize.y, mLayoutSize.x, mLayoutSize.y, getId());
-
-    cLog::log (LOGINFO, str);
-
+    indent += 2;
     for (auto& layout : mWidgetLayouts)
-      layout->getWidget()->debug (level+1);
+      layout->getWidget()->debug (indent);
     }
   //}}}
 
