@@ -152,18 +152,15 @@ protected:
       }
 
     cPointF end;
-    for (auto& layout : mWidgetLayouts) {
-      cWidget* widget = layout->getWidget();
-      end.x = std::max (end.x, widget->getEnd().x);
-      end.y = std::max (end.y, widget->getEnd().y);
-      }
+    for (auto& layout : mWidgetLayouts) 
+      end = end.max (layout->getWidget()->getEnd());
 
-    cPointF boundingSize = end - parentOrg;
-    mSize = boundingSize;
-    cLog::log (LOGINFO, "layoutWidgets " + getId() +
-                          " pOrg" + dec (parentOrg.x) + "," + dec(parentOrg.y) +
-                          " pSize" + dec (parentSize.x) + "," + dec(parentSize.y) +
-                          " bound:" + dec (boundingSize.x) + "," + dec(boundingSize.y));
+    mSize = end - parentOrg;
+    if (mDebug)
+      cLog::log (LOGINFO, "updateOrg " + getId() +
+                          " parentOrg" + dec (parentOrg.x) + "," + dec(parentOrg.y) +
+                          " parentSize" + dec (parentSize.x) + "," + dec(parentSize.y) +
+                          " mSize:" + dec (mSize.x) + "," + dec(mSize.y));
     }
   //}}}
   std::vector <cWidgetLayout*> mWidgetLayouts;

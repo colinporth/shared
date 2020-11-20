@@ -112,6 +112,22 @@ public:
     }
   //}}}
 
+  //{{{
+  cPointF min (cPointF point) {
+    return cPointF (std::min (x, point.x), std::max (y, point.y));
+    }
+  //}}}
+  //{{{
+  cPointF max (cPointF point) {
+    return cPointF (std::max (x, point.x), std::max (y, point.y));
+    }
+  //}}}
+  //{{{
+  cPointF max (cPointF point1, cPointF point2) {
+    return cPointF (std::max (point1.x, point2.x), std::max (point1.y, point2.y));
+    }
+  //}}}
+
   float x;
   float y;
   };
