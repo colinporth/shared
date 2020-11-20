@@ -136,17 +136,15 @@ public:
 //{{{
 template <> struct fmt::formatter<cPointF> {
 
-  char presentation = 'f';
-
-  // Parses format specifications of the form ['f' | 'e'].
   constexpr auto parse (format_parse_context& context) {
-    // [context.begin(), context.end()) is a character range that contains a part of
-    // the format string starting from the format specifications to be parsed,
-    // e.g. in
-    //   fmt::format("{:f} - point of interest", point{1, 2});
-    // the range will contain "f} - point of interest".
-    // The formatter should parse specifiers until '}' or the end of the range.
-    // In this example the formatter should parse the 'f' specifier and return an iterator pointing to '}'.
+  // Parses format specifications ['f' | 'F']
+  // [context.begin(), context.end()) is a character range that contains a part of
+  // the format string starting from the format specifications to be parsed,
+  // e.g. in
+  //   fmt::format("{:f} - point of interest", point{1, 2});
+  // the range will contain "f} - point of interest"
+  // The formatter should parse specifiers until '}' or the end of the range
+  // In this example the formatter should parse the 'f' specifier and return an iterator pointing to '}'
 
     // Parse the presentation format and store it in the formatter:
     auto it = context.begin(), end = context.end();
@@ -161,11 +159,11 @@ template <> struct fmt::formatter<cPointF> {
     return it;
     }
 
-  // Formats point using parsed format specification(presentation) stored in this formatter.
+  // Formats point using parsed format specification (presentation) stored in this formatter
   template <typename tFormatContext> auto format (const cPointF& point, tFormatContext& context) {
-
-    // ctx.out() is an output iterator to write to.
     return format_to (context.out(), presentation == 'f' ? "{:.0f},{:.0f}" : "{:.1f},{:.1f}", point.x, point.y);
     }
+
+  char presentation = 'f';
   };
 //}}}
