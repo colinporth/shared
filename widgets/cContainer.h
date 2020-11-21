@@ -16,13 +16,10 @@ class cRootContainer;
 class cContainer : public cWidget {
 friend cRootContainer;
 public:
-  //{{{
-  cContainer (const std::string& id = "container")
-    : cWidget (id) {}
-  //}}}
+  cContainer (const std::string& id = "container") : cWidget(id), mSelfSize(true) {}
   //{{{
   cContainer (float width, float height, const std::string& id = "container")
-    : cWidget (kBlackF, width, height, id) {}
+    : cWidget (kBlackF, width, height, id), mSelfSize(false) {}
   //}}}
   //{{{
   virtual ~cContainer() {
@@ -212,12 +209,12 @@ private:
       if (layout->getWidget()->isEnabled())
         end = end.max (layout->getWidget()->getEnd());
 
-    mSize = end - parentOrg;
+    if (mSelfSize)
+      mSize = end - parentOrg;
+
     if (mDebug)
-      cLog::log (LOGINFO, "updateOrg " + getId() +
-                          " parentOrg" + dec (parentOrg.x) + "," + dec(parentOrg.y) +
-                          " parentSize" + dec (parentSize.x) + "," + dec(parentSize.y) +
-                          " mSize:" + dec (mSize.x) + "," + dec(mSize.y));
+      cLog::log (LOGINFO, fmt::format ("updateOrg {} - parentOrg:{} parentSize:{}{} size:{}",
+                                       getId(), parentOrg, parentSize, mSelfSize ? " selfSize" : "", mSize));
     }
   //}}}
   //{{{
@@ -249,5 +246,6 @@ private:
     }
   //}}}
 
+  bool mSelfSize;
   std::vector <cWidgetLayout*> mWidgetLayouts;
   };
