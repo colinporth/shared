@@ -184,7 +184,10 @@ private:
 
     virtual void layout (cWidget* prevWidget, cPointF parentOrg, cPointF parentSize) {
       mWidget->mOrg.x = parentOrg.x;
-      mWidget->mOrg.y = prevWidget->mOrg.y + prevWidget->mSize.y + mOffset;
+      if (prevWidget)
+        mWidget->mOrg.y = prevWidget->mOrg.y + prevWidget->mSize.y + mOffset;
+      else
+        mWidget->mOrg.y = parentOrg.y + mOffset;
       }
 
   private:
