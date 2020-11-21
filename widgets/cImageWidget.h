@@ -34,6 +34,7 @@ public:
     }
 
   virtual void onDraw (iDraw* draw) {
+
     cVg* vg = draw->getVg();
 
     // createImage firstTime

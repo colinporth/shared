@@ -37,14 +37,17 @@ public:
   //{{{
   virtual cWidget* isPicked (cPointF point) {
   // pick subWidgets in reverse of display order
-  // - cannot pick the container
+  // widget enabled & visible only tested in container
 
     for (auto it = mWidgetLayouts.rbegin(); it != mWidgetLayouts.rend(); ++it) {
-      cWidget* pickedWidget = (*it)->getWidget()->isPicked (point);
-      if (pickedWidget) {
-        if (mDebug)
-          cLog::log (LOGINFO, fmt::format ("pickedWidget - {} picked", pickedWidget->getId()));
-        return pickedWidget;
+      cWidget* widget = (*it)->getWidget();
+      if (widget->isEnabled() && widget->isVisible()) {
+        cWidget* pickedWidget = widget->isPicked (point);
+        if (pickedWidget) {
+          if (mDebug)
+            cLog::log (LOGINFO, fmt::format ("pickedWidget - {} picked", pickedWidget->getId()));
+          return pickedWidget;
+          }
         }
       }
 
@@ -115,17 +118,19 @@ public:
 
   //{{{
   virtual void onDraw (iDraw* draw) {
+  // widget enabled & visible only tested in container
 
     for (auto& layout : mWidgetLayouts)
-      if (layout->getWidget()->isVisible())
+      if (layout->getWidget()->isEnabled() && layout->getWidget()->isVisible())
         layout->getWidget()->onDraw (draw);
     }
   //}}}
   //{{{
   virtual void onDrawDebug (iDraw* draw, cWidget* widget) {
+  // widget enabled & visible only tested in container
 
     for (auto& layout : mWidgetLayouts)
-      if (layout->getWidget()->isVisible())
+      if (layout->getWidget()->isEnabled() && layout->getWidget()->isVisible())
         layout->getWidget()->onDrawDebug (draw, widget);
     }
   //}}}
@@ -193,13 +198,16 @@ private:
 
     cWidget* prevWidget = nullptr;
     for (auto& layout : mWidgetLayouts) {
-      layout->layout (prevWidget, parentOrg, parentSize);
-      prevWidget = layout->getWidget();
+      if (layout->getWidget()->isEnabled()) {
+        layout->layout (prevWidget, parentOrg, parentSize);
+        prevWidget = layout->getWidget();
+        }
       }
 
     cPointF end;
     for (auto& layout : mWidgetLayouts)
-      end = end.max (layout->getWidget()->getEnd());
+      if (layout->getWidget()->isEnabled())
+        end = end.max (layout->getWidget()->getEnd());
 
     mSize = end - parentOrg;
     if (mDebug)
@@ -212,20 +220,25 @@ private:
   //{{{
   virtual void updateSize (cPointF parentSize) {
 
-    for (auto& layout : mWidgetLayouts)
-      layout->getWidget()->updateSize (parentSize);
+    if (isEnabled()) {
+      for (auto& layout : mWidgetLayouts)
+        layout->getWidget()->updateSize (parentSize);
 
-    // set org of subWidgets
-    updateOrg (mOrg, parentSize);
+      // set org of subWidgets
+      updateOrg (mOrg, parentSize);
+      }
     }
   //}}}
 
   //{{{
   virtual void debug (int indent) {
 
-    cLog::log (LOGINFO, fmt::format ("{:{}}org:{}size:{} layout:{}{}{} - {}",
-                                     indent ? " ": "", indent, mOrg, 
-                                     mSize, mLayoutSize, mVisible ? "" : " invisble", mOn ? " on" : "", getId()));
+    cLog::log (LOGINFO, fmt::format ("{:{}}org:{}size:{} layout:{}{}{}{} - {}",
+                                     indent ? " ": "", indent,
+                                     mOrg, mSize, mLayoutSize,
+                                     mEnabled ? "" : " disabled",
+                                     mVisible ? "" : " invisble",
+                                     mOn ? " on" : "", getId()));
 
     indent += 2;
     for (auto& layout : mWidgetLayouts)
