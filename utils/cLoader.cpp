@@ -701,25 +701,19 @@ public:
   //{{{
   virtual string getInfoString() {
 
-    string str = mChannel + " " + dec (mLoadSize / 1000) + "k";
-
+    int audioQueueSize = 0;
     auto audioIt = mPidParsers.find (mAudioPid);
-    if (audioIt != mPidParsers.end()) {
-      int queueSize = (*audioIt).second->getQueueSize();
-      if (queueSize)
-        str += " a:" + dec(queueSize);
-      }
+    if (audioIt != mPidParsers.end())
+       audioQueueSize = (*audioIt).second->getQueueSize();
 
-    if (!mRadio && (mVideoRate > 0)) {
+    int videoQueueSize = 0;
+    if (!mRadio && mVideoRate) {
       auto videoIt = mPidParsers.find (mVideoPid);
-      if (videoIt != mPidParsers.end()) {
-        int queueSize = (*videoIt).second->getQueueSize();
-        if (queueSize)
-          str += " v:" + dec(queueSize);
-        }
+      if (videoIt != mPidParsers.end())
+        videoQueueSize = (*videoIt).second->getQueueSize();
       }
 
-    return str;
+    return format ("{} {}k aq:{} vq:{}", mChannel, mLoadSize/1000, audioQueueSize, videoQueueSize);
     }
   //}}}
   //{{{
@@ -1014,7 +1008,7 @@ public:
   virtual iVideoPool* getVideoPool() { return mVideoPool; }
   //{{{
   virtual string getInfoString() {
-    return mUrl + " - " + mLastTitleString;
+    return format ("{} - {}", mUrl, mLastTitleString);
     }
   //}}}
 
@@ -1187,8 +1181,7 @@ public:
   virtual iVideoPool* getVideoPool() { return nullptr; }
   //{{{
   virtual string getInfoString() {
-    return mFilename +
-           " " + dec (mStreamPos / 1024) + "k";
+    return format ("{} {}k", mFilename, mStreamPos / 1024);
     }
   //}}}
   //{{{
@@ -1292,10 +1285,8 @@ public:
   virtual iVideoPool* getVideoPool() { return nullptr; }
   //{{{
   virtual string getInfoString() {
-    return mFilename +
-           " " + dec(mNumChannels) + "x" + dec(mSampleRate) + "hz " +
-           " " + dec (mStreamPos / 1024) + "k";
-   }
+    return format("{} {}x{}hz {}k", mFilename, mNumChannels, mSampleRate, mStreamPos/1024);
+    }
   //}}}
   //{{{
   virtual float getFracs (float& audioFrac, float& videoFrac) {
@@ -1415,25 +1406,23 @@ public:
   virtual string getInfoString() {
   // return sizes
 
-    string str = format ("{}packets", mStreamPos/188);
+    int audioQueueSize = 0;
+    int videoQueueSize = 0;
 
     if (mCurSid > 0) {
       cService* service = mServices[mCurSid];
+      if (service) {
+        auto audioIt = mPidParsers.find (service->getAudioPid());
+        if (audioIt != mPidParsers.end())
+          audioQueueSize = (*audioIt).second->getQueueSize();
 
-      int audioPid = service->getAudioPid();
-      auto audioIt = mPidParsers.find (audioPid);
-      if (audioIt != mPidParsers.end())
-        str += format (" a:{}", (*audioIt).second->getQueueSize());
-
-      int videoPid = service->getVideoPid();
-      auto videoIt = mPidParsers.find (videoPid);
-      if (videoIt != mPidParsers.end())
-        str += format (" v:{}", (*videoIt).second->getQueueSize());
-
-      str += format (" sid:{} a:{} v:{}", mCurSid, audioPid, videoPid);
+        auto videoIt = mPidParsers.find (service->getVideoPid());
+        if (videoIt != mPidParsers.end())
+          videoQueueSize = (*videoIt).second->getQueueSize();
+        }
       }
 
-    return str;
+    return format ("{}packets sid:{} aq:{} vq:{}", mStreamPos/188, mCurSid, audioQueueSize, videoQueueSize);
     }
   //}}}
   //{{{
