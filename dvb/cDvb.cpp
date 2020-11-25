@@ -661,6 +661,9 @@ namespace { // anonymous
   int mLastBlockSize = 0;
   int mMaxBlockSize = 0;
   cBipBuffer* mBipBuffer;
+
+  bool mSignalFailed = false;
+  bool mSnrFailed = false;
   //}}}
   //{{{
   void setTsFilter (uint16_t pid, dmx_pes_type_t pestype) {
@@ -683,8 +686,9 @@ namespace { // anonymous
     fe_status_t feStatus;
     if (ioctl (mFrontEnd, FE_READ_STATUS, &feStatus) < 0) {
       cLog::log (LOGERROR, "FE_READ_STATUS failed");
-      return "statuse failed";
+      return "status failed";
       }
+
     else {
       string str = "";
       if (feStatus & FE_TIMEDOUT)
@@ -700,17 +704,25 @@ namespace { // anonymous
       if (feStatus & FE_HAS_SYNC)
         str += "s";
 
-      uint32_t strength;
-      if (ioctl (mFrontEnd, FE_READ_SIGNAL_STRENGTH, &strength) < 0)
-        cLog::log (LOGERROR, "FE_READ_SIGNAL_STRENGTH failed");
-      else
-        str += " " + frac((strength & 0xFFFF) / 1000.f, 5, 2, ' ');
+      uint32_t strength = 0;
+      if (!mSignalFailed) {
+        if (ioctl (mFrontEnd, FE_READ_SIGNAL_STRENGTH, &strength) < 0) {
+          cLog::log (LOGERROR, "FE_READ_SIGNAL_STRENGTH failed");
+          mSignalFailed = true;
+          }
+        else
+          str += " " + frac((strength & 0xFFFF) / 1000.f, 5, 2, ' ');
+        }
 
-      uint32_t snr;
-      if (ioctl (mFrontEnd, FE_READ_SNR, &snr) < 0)
-        cLog::log (LOGERROR, "FE_READ_SNR failed");
-      else
-        str += " snr:" + dec((snr & 0xFFFF) / 1000.f,3);
+      uint32_t snr = 0;
+      if (!mSnrFailed) {
+        if (ioctl (mFrontEnd, FE_READ_SNR, &snr) < 0) {
+          cLog::log (LOGERROR, "FE_READ_SNR failed");
+          mSnrFailed = true;
+          }
+        else
+          str += " snr:" + dec((snr & 0xFFFF) / 1000.f,3);
+        }
 
       return str;
       }
