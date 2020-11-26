@@ -695,7 +695,7 @@ namespace { // anonymous
       uint32_t snr = 0;
       ioctl (mFrontEnd, FE_READ_SNR, &snr);
 
-      return format ("{}{}{}{}{}{} strength:{.1f} snr:{.1f}",
+      return format ("{}{}{}{}{}{} strength:{:.1f} snr:{:.1f}",
                      feStatus & FE_TIMEDOUT ? "timeout " : "",
                      feStatus & FE_HAS_LOCK ? "lock " : "",
                      feStatus & FE_HAS_SIGNAL ? "s" : "",
@@ -709,7 +709,7 @@ namespace { // anonymous
   //}}}
   //{{{
   string updateErrorStr (int errors) {
-    return format ("err:{d} max:{d}", errors, mMaxBlockSize);
+    return format ("err:{} max:{}", errors, mMaxBlockSize);
     }
   //}}}
   //{{{
