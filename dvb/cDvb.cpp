@@ -709,7 +709,7 @@ namespace { // anonymous
   //}}}
   //{{{
   string updateErrorStr (int errors) {
-    return format ("err:{} max:{}", errors, mMaxBlockSize);
+    return format ("err:{d} max:{d}", errors, mMaxBlockSize);
     }
   //}}}
   //{{{
