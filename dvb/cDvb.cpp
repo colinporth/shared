@@ -70,6 +70,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../fmt/core.h"
 #include "../date/date.h"
 #include "../utils/utils.h"
 #include "../utils/cLog.h"
@@ -81,6 +82,7 @@
 #include "cDvb.h"
 
 using namespace std;
+using namespace fmt;
 //}}}
 
 constexpr bool kDebug = false;
@@ -661,9 +663,6 @@ namespace { // anonymous
   int mLastBlockSize = 0;
   int mMaxBlockSize = 0;
   cBipBuffer* mBipBuffer;
-
-  bool mSignalFailed = false;
-  bool mSnrFailed = false;
   //}}}
   //{{{
   void setTsFilter (uint16_t pid, dmx_pes_type_t pestype) {
@@ -686,53 +685,31 @@ namespace { // anonymous
     fe_status_t feStatus;
     if (ioctl (mFrontEnd, FE_READ_STATUS, &feStatus) < 0) {
       cLog::log (LOGERROR, "FE_READ_STATUS failed");
-      return "status failed";
+      return "dvb readStatus failed";
       }
-
     else {
-      string str = "";
-      if (feStatus & FE_TIMEDOUT)
-        str += "timeout ";
-      if (feStatus & FE_HAS_LOCK)
-        str += "lock ";
-      if (feStatus & FE_HAS_SIGNAL)
-        str += "s";
-      if (feStatus & FE_HAS_CARRIER)
-        str += "c";
-      if (feStatus & FE_HAS_VITERBI)
-        str += "v";
-      if (feStatus & FE_HAS_SYNC)
-        str += "s";
-
+      // not sure why these fail, only a problem with xbox one usb tuner
       uint32_t strength = 0;
-      if (!mSignalFailed) {
-        if (ioctl (mFrontEnd, FE_READ_SIGNAL_STRENGTH, &strength) < 0) {
-          cLog::log (LOGERROR, "FE_READ_SIGNAL_STRENGTH failed");
-          mSignalFailed = true;
-          }
-        else
-          str += " " + frac((strength & 0xFFFF) / 1000.f, 5, 2, ' ');
-        }
+      ioctl (mFrontEnd, FE_READ_SIGNAL_STRENGTH, &strength);
 
       uint32_t snr = 0;
-      if (!mSnrFailed) {
-        if (ioctl (mFrontEnd, FE_READ_SNR, &snr) < 0) {
-          cLog::log (LOGERROR, "FE_READ_SNR failed");
-          mSnrFailed = true;
-          }
-        else
-          str += " snr:" + dec((snr & 0xFFFF) / 1000.f,3);
-        }
+      ioctl (mFrontEnd, FE_READ_SNR, &snr);
 
-      return str;
+      return format ("{}{}{}{}{}{} strength:{.1f} snr:{.1f}",
+                     feStatus & FE_TIMEDOUT ? "timeout " : "",
+                     feStatus & FE_HAS_LOCK ? "lock " : "",
+                     feStatus & FE_HAS_SIGNAL ? "s" : "",
+                     feStatus & FE_HAS_CARRIER ? "c": "",
+                     feStatus & FE_HAS_VITERBI ? "v": " ",
+                     feStatus & FE_HAS_SYNC ? "s" : "",
+                     (strength & 0xFFFF) / 1000.f,
+                     (snr & 0xFFFF) / 1000.f);
       }
     }
   //}}}
   //{{{
   string updateErrorStr (int errors) {
-
-    string str = "err:" + dec(errors) + " max:" + dec(mMaxBlockSize);
-    return str;
+    return format ("err:{} max:{}", errors, mMaxBlockSize);
     }
   //}}}
   //{{{
@@ -748,10 +725,12 @@ namespace { // anonymous
         { .cmd = DTV_STAT_ERROR_BLOCK_COUNT },
         { .cmd = DTV_STAT_TOTAL_BLOCK_COUNT },
       };
+
     struct dtv_properties cmdGet = {
       .num = sizeof(getProps) / sizeof (getProps[0]),
       .props = getProps
       };
+
     if ((ioctl (mFrontEnd, FE_GET_PROPERTY, &cmdGet)) < 0)
       cLog::log (LOGERROR, "FE_GET_PROPERTY failed");
     else
