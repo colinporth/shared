@@ -45,6 +45,7 @@ public:
 
   static void log (enum eLogLevel logLevel, const std::string& logStr);
   static void log (enum eLogLevel logLevel, const char* format, ... );
+  static void logDvb (void* unused, const char* format, ... );
 
   static bool getLine (cLine& line, unsigned lineNum, unsigned& lastLineIndex);
 

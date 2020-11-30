@@ -616,6 +616,27 @@ void cLog::log (enum eLogLevel logLevel, const char* format, ... ) {
   log (logLevel, string (buf.get(), buf.get() + size-1));
   }
 //}}}
+//{{{
+void cLog::logDvb (void* unused, const char* format, ... ) {
+
+  // form logStr
+  va_list args;
+  va_start (args, format);
+
+  // get size of str
+  size_t size = vsnprintf (nullptr, 0, format, args) + 1; // Extra space for '\0'
+
+  // allocate buffer
+  unique_ptr<char[]> buf (new char[size]);
+
+  // form buffer
+  vsnprintf (buf.get(), size, format, args);
+
+  va_end (args);
+
+  log (LOGINFO, string (buf.get(), buf.get() + size-1));
+  }
+//}}}
 
 //{{{
 bool cLog::getLine (cLine& line, unsigned lineNum, unsigned& lastLineIndex) {
