@@ -634,7 +634,7 @@ void cLog::logDvb (void* unused, const char* format, ... ) {
 
   va_end (args);
 
-  log (LOGINFO, string (buf.get(), buf.get() + size-1));
+  log (LOGINFO1, string (buf.get(), buf.get() + size-1));
   }
 //}}}
 
