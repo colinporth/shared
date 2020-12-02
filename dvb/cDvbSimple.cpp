@@ -656,8 +656,6 @@ namespace { // anonymous
   int mDemux = 0;
   int mDvr = 0 ;
 
-  uint64_t mLastErrors = 0;
-  int mLastBlockSize = 0;
   int mMaxBlockSize = 0;
   cBipBuffer* mBipBuffer;
   //}}}
@@ -702,11 +700,6 @@ namespace { // anonymous
                      (strength & 0xFFFF) / 1000.f,
                      (snr & 0xFFFF) / 1000.f);
       }
-    }
-  //}}}
-  //{{{
-  string updateErrorStr (int errors) {
-    return format ("err:{} max:{}", errors, mMaxBlockSize);
     }
   //}}}
   //{{{
@@ -1018,7 +1011,6 @@ void cDvbSimple::tune (int frequency) {
                    transmissionModeTab [getProps[7].u.buffer.data[0]]);
 
         mSignalStr = updateSignalStr();
-        mErrorStr = updateErrorStr (mDvbTransportStream->getErrors());
         readMonitorFe();
 
         mTuneStr = string(fe_info.name) + " " + dec(frequency/1000000) + "Mhz";
@@ -1072,13 +1064,8 @@ bool cDvbSimple::getTsBlock (uint8_t*& block, int& blockSize) {
         }
       else {
         mSignalStr = updateSignalStr();
-        if (show) {
-          mErrorStr = updateErrorStr (mDvbTransportStream->getErrors());
-          cLog::log (LOGINFO, mErrorStr + " " + mSignalStr);
-          }
-        }
-      else
         this_thread::sleep_for (1ms);
+        }
       }
   #endif
   }

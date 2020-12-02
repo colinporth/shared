@@ -697,18 +697,16 @@ public:
     mLoadFrac = 0.f;
 
     //{{{  wsa startup
-    WSADATA wsaData;
-    int result = WSAStartup (MAKEWORD(2, 2), &wsaData);
-    if (result != NO_ERROR) {
-      cLog::log (LOGERROR, "WSAStartup failed with error %d", result);
-      return;
-      }
+    #ifdef _WIN32
+      WSADATA wsaData;
+      WSAStartup (MAKEWORD(2, 2), &wsaData);
+    #endif
     //}}}
     // create socket to receive datagrams
-    SOCKET rtpReceiveSocket = socket (AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if (rtpReceiveSocket == INVALID_SOCKET) {
+    auto rtpReceiveSocket = socket (AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (rtpReceiveSocket != 0) {
       //{{{  error return
-      cLog::log (LOGERROR, "socket failed with error %d", WSAGetLastError());
+      cLog::log (LOGERROR, "socket failed");
       return;
       }
       //}}}
@@ -718,10 +716,10 @@ public:
     recvAddr.sin_family = AF_INET;
     recvAddr.sin_port = htons (5010);
     recvAddr.sin_addr.s_addr = htonl (INADDR_ANY);
-    result = ::bind (rtpReceiveSocket, (struct sockaddr*)&recvAddr, sizeof(recvAddr));
+    auto result = ::bind (rtpReceiveSocket, (struct sockaddr*)&recvAddr, sizeof(recvAddr));
     if (result != 0) {
       //{{{  error return
-      cLog::log (LOGERROR, "bind failed with error %d", WSAGetLastError());
+      cLog::log (LOGERROR, "bind failed");
       return;
       }
       //}}}
@@ -810,9 +808,9 @@ public:
     int bufferLen = 2048;
     do {
       struct sockaddr_in sendAddr;
-      int sendAddrSize = sizeof (sendAddr);
+      unsigned int sendAddrSize = sizeof (sendAddr);
       int bytesReceived = recvfrom (rtpReceiveSocket, buffer, bufferLen, 0, (struct sockaddr*)&sendAddr, &sendAddrSize);
-      if (bytesReceived != SOCKET_ERROR) {
+      if (bytesReceived != 0) {
         // process block of ts minus rtp header
         int bytesLeft = bytesReceived - 12;
         uint8_t* ts = (uint8_t*)buffer + 12;
@@ -825,17 +823,21 @@ public:
           }
         }
       else
-        cLog::log (LOGERROR, "recvfrom failed with error %d", WSAGetLastError());
+        cLog::log (LOGERROR, "recvfrom failed");
 
       } while (!mExit);
 
     //{{{  close socket and WSAcleanup
-    result = closesocket (rtpReceiveSocket);
-    if (result == SOCKET_ERROR) {
-      cLog::log (LOGERROR, "closesocket failed with error %d", WSAGetLastError());
-      return;
-      }
-    WSACleanup();
+    #ifdef _WIN32
+      result = closesocket (rtpReceiveSocket);
+      if (result != 0) {
+        cLog::log (LOGERROR, "closesocket failed");
+        return;
+        }
+      WSACleanup();
+    #else
+      close (rtpReceiveSocket);
+    #endif
     //}}}
     //{{{  delete resources
     if (mSongPlayer)
