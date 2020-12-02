@@ -704,7 +704,7 @@ public:
     //}}}
     // create socket to receive datagrams
     auto rtpReceiveSocket = socket (AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if (rtpReceiveSocket != 0) {
+    if (rtpReceiveSocket == 0) {
       //{{{  error return
       cLog::log (LOGERROR, "socket failed");
       return;
@@ -808,8 +808,14 @@ public:
     int bufferLen = 2048;
     do {
       struct sockaddr_in sendAddr;
-      unsigned int sendAddrSize = sizeof (sendAddr);
-      int bytesReceived = recvfrom (rtpReceiveSocket, buffer, bufferLen, 0, (struct sockaddr*)&sendAddr, &sendAddrSize);
+      #ifdef _WIN32
+        int sendAddrSize = sizeof (sendAddr);
+        int bytesReceived = recvfrom (rtpReceiveSocket, buffer, bufferLen, 0, (struct sockaddr*)&sendAddr, &sendAddrSize);
+      #else
+        unsigned int sendAddrSize = sizeof (sendAddr);
+        int bytesReceived = recvfrom (rtpReceiveSocket, buffer, bufferLen, 0, (struct sockaddr*)&sendAddr, &sendAddrSize);
+      #endif
+
       if (bytesReceived != 0) {
         // process block of ts minus rtp header
         int bytesLeft = bytesReceived - 12;
