@@ -45,6 +45,7 @@ using namespace fmt;
 using namespace chrono;
 //}}}
 
+// cPidParser
 //{{{
 class cPidParser {
 public:
@@ -499,10 +500,11 @@ private:
   };
 //}}}
 
+// cLoadSource
 //{{{
 class cLoadSource {
 public:
-  cLoadSource (string name) : mName(name) {}
+  cLoadSource (const string& name) : mName(name) {}
   virtual ~cLoadSource() {}
 
   virtual cSong* getSong() = 0;
@@ -625,246 +627,129 @@ public:
   };
 //}}}
 //{{{
-class cLoadRtp : public cLoadSource {
+class cLoadIcyCast : public cLoadSource {
 public:
-  //{{{
-  cLoadRtp() : cLoadSource("rtp") {
+  cLoadIcyCast() : cLoadSource("icyCast") {}
+  virtual ~cLoadIcyCast() {}
 
-    mNumChannels = 2;
-    mSampleRate = 48000;
-    }
-  //}}}
-  //{{{
-  virtual ~cLoadRtp() {
-    }
-  //}}}
-
-  virtual cSong* getSong() { return mPtsSong; }
+  virtual cSong* getSong() { return mSong; }
   virtual iVideoPool* getVideoPool() { return mVideoPool; }
-
   //{{{
   virtual string getInfoString() {
-
-    int audioQueueSize = 0;
-    auto audioIt = mPidParsers.find (mAudioPid);
-    if (audioIt != mPidParsers.end())
-       audioQueueSize = (*audioIt).second->getQueueSize();
-
-    int videoQueueSize = 0;
-    auto videoIt = mPidParsers.find (mVideoPid);
-    if (videoIt != mPidParsers.end())
-      videoQueueSize = (*videoIt).second->getQueueSize();
-
-    return format ("aq:{} vq:{}", audioQueueSize, videoQueueSize);
-    }
-  //}}}
-  //{{{
-  virtual float getFracs (float& audioFrac, float& videoFrac) {
-  // return fracs for spinner graphic, true if ok to display
-
-    audioFrac = 0.f;
-    videoFrac = 0.f;
-
-    auto audioIt = mPidParsers.find (mAudioPid);
-    if (audioIt != mPidParsers.end())
-      audioFrac = (*audioIt).second->getQueueFrac();
-
-    auto videoIt = mPidParsers.find (mVideoPid);
-    if (videoIt != mPidParsers.end())
-      videoFrac = (*videoIt).second->getQueueFrac();
-
-    return mLoadFrac;
+    return format ("{} - {}", mUrl, mLastTitleString);
     }
   //}}}
 
   //{{{
   virtual bool recognise (const vector<string>& params) {
 
-    if (params[0] != "rtp")
-      return false;
-
-    mNumChannels = 2;
-    mSampleRate = 48000;
-
-    return true;
+    mUrl = params[0];
+    mParsedUrl.parse (mUrl);
+    return mParsedUrl.getScheme() == "http";
     }
   //}}}
   //{{{
   virtual void load() {
 
-    mExit = false;
-    mRunning = true;
-    mLoadFrac = 0.f;
-
-    //{{{  wsa startup
-    #ifdef _WIN32
-      WSADATA wsaData;
-      WSAStartup (MAKEWORD(2, 2), &wsaData);
-    #endif
-    //}}}
-    // create socket to receive datagrams
-    auto rtpReceiveSocket = socket (AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if (rtpReceiveSocket == 0) {
-      //{{{  error return
-      cLog::log (LOGERROR, "socket failed");
-      return;
-      }
-      //}}}
-
-    // bind the socket to anyAddress:specifiedPort
-    struct sockaddr_in recvAddr;
-    recvAddr.sin_family = AF_INET;
-    recvAddr.sin_port = htons (5010);
-    recvAddr.sin_addr.s_addr = htonl (INADDR_ANY);
-    auto result = ::bind (rtpReceiveSocket, (struct sockaddr*)&recvAddr, sizeof(recvAddr));
-    if (result != 0) {
-      //{{{  error return
-      cLog::log (LOGERROR, "bind failed");
-      return;
-      }
-      //}}}
-
-    mPtsSong = new cPtsSong (eAudioFrameType::eAacAdts, mNumChannels, mSampleRate, 1024, 1920, 0);
     iAudioDecoder* audioDecoder = nullptr;
 
-    int64_t loadPts = -1;
-    //{{{  init parsers, callbacks
-    auto addAudioFrameCallback = [&](bool reuseFromFront, float* samples, int64_t pts) noexcept {
-      mPtsSong->addFrame (reuseFromFront, pts, samples, mPtsSong->getNumFrames()+1);
+    mExit = false;
+    mRunning = true;
+    while (!mExit) {
+      int icySkipCount = 0;
+      int icySkipLen = 0;
+      int icyInfoCount = 0;
+      int icyInfoLen = 0;
+      char icyInfo[255] = { 0 };
 
-      if (loadPts < 0)
-        // firstTime, setBasePts, sets playPts
-        mPtsSong->setBasePts (pts);
-      loadPts = pts;
+      uint8_t bufferFirst[4096];
+      uint8_t* bufferEnd = bufferFirst;
+      uint8_t* buffer = bufferFirst;
 
-      // maybe wait for several frames ???
-      if (!mSongPlayer)
-        mSongPlayer = new cSongPlayer (mPtsSong, true);
-      };
+      int64_t pts = 0;
 
-    auto addStreamCallback = [&](int sid, int pid, int type) noexcept {
-      if (mPidParsers.find (pid) == mPidParsers.end()) {
-        // new stream pid
-        switch (type) {
-          //{{{
-          case 17: // aacLatm
-            mAudioPid = pid;
+      cPlatformHttp http;
+      http.get (mParsedUrl.getHost(), mParsedUrl.getPath(), "Icy-MetaData: 1",
+        //{{{  headerCallback lambda
+        [&](const string& key, const string& value) noexcept {
+          if (key == "icy-metaint")
+            icySkipLen = stoi (value);
+          },
+        //}}}
+        // dataCallback lambda
+        [&] (const uint8_t* data, int length) noexcept {
+          if ((icyInfoCount >= icyInfoLen) && (icySkipCount + length <= icySkipLen)) {
+            //{{{  copy whole body, no metaInfo
+            memcpy (bufferEnd, data, length);
+            bufferEnd += length;
+            icySkipCount += length;
 
-            audioDecoder = createAudioDecoder (eAudioFrameType::eAacLatm);
-            mPidParsers.insert (map<int,cPidParser*>::value_type (pid,
-              new cAudioPesParser (pid, audioDecoder, true, addAudioFrameCallback)));
+            int sampleRate = 0;
+            int numChannels =  0;
+            auto frameType = cAudioParser::parseSomeFrames (bufferFirst, bufferEnd, numChannels, sampleRate);
+            audioDecoder = createAudioDecoder (frameType);
 
-            break;
-          //}}}
-          //{{{
-          case 27: // h264video
-            mVideoPid = pid;
+            int frameSize;
+            while (cAudioParser::parseFrame (buffer, bufferEnd, frameSize)) {
+              auto samples = audioDecoder->decodeFrame (buffer, frameSize, pts);
+              if (samples) {
+                if (!mSong)
+                  mSong = new cSong (frameType, audioDecoder->getNumChannels(), audioDecoder->getSampleRate(),
+                                     audioDecoder->getNumSamplesPerFrame(), 0);
 
-            mVideoPool = iVideoPool::create (true, 100, mPtsSong);
-            mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cVideoPesParser (pid, mVideoPool, true)));
+                mSong->addFrame (true, pts, samples,  mSong->getNumFrames()+1);
+                pts += mSong->getFramePtsDuration();
 
-            break;
-          //}}}
-          //{{{
-          case 6:  // do nothing - subtitle
-            //cLog::log (LOGINFO, "subtitle %d %d", pid, type);
-            break;
-          //}}}
-          //{{{
-          case 2:  // do nothing - ISO 13818-2 video
-            //cLog::log (LOGERROR, "mpeg2 video %d", pid, type);
-            break;
-          //}}}
-          //{{{
-          case 3:  // do nothing - ISO 11172-3 audio
-            //cLog::log (LOGINFO, "mp2 audio %d %d", pid, type);
-            break;
-          //}}}
-          //{{{
-          case 5:  // do nothing - private mpeg2 tabled data
-            break;
-          //}}}
-          //{{{
-          case 11: // do nothing - dsm cc u_n
-            break;
-          //}}}
-          default:
-            cLog::log (LOGERROR, "loadTs - unrecognised stream type %d %d", pid, type);
+                if (!mSongPlayer)
+                  mSongPlayer = new cSongPlayer (mSong, true);
+                }
+              buffer += frameSize;
+              }
+
+            if ((buffer > bufferFirst) && (buffer < bufferEnd)) {
+              // shuffle down last partial frame
+              auto bufferLeft = int(bufferEnd - buffer);
+              memcpy (bufferFirst, buffer, bufferLeft);
+              bufferEnd = bufferFirst + bufferLeft;
+              buffer = bufferFirst;
+              }
+            }
+            //}}}
+          else {
+            //{{{  copy for metaInfo straddling body
+            for (int i = 0; i < length; i++) {
+              if (icyInfoCount < icyInfoLen) {
+                icyInfo [icyInfoCount] = data[i];
+                icyInfoCount++;
+                if (icyInfoCount >= icyInfoLen)
+                  addIcyInfo (pts, icyInfo);
+                }
+              else if (icySkipCount >= icySkipLen) {
+                icyInfoLen = data[i] * 16;
+                icyInfoCount = 0;
+                icySkipCount = 0;
+                }
+              else {
+                icySkipCount++;
+                *bufferEnd = data[i];
+                bufferEnd++;
+                }
+              }
+            }
+            //}}}
+          return !mExit;
           }
-        }
-      };
+        );
+      }
 
-    auto addProgramCallback = [&](int pid, int sid) noexcept {
-      if ((sid > 0) && (mPidParsers.find (pid) == mPidParsers.end())) {
-        cLog::log (LOGINFO, "PAT adding pid:service %d::%d", pid, sid);
-        mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cPmtParser (pid, sid, addStreamCallback)));
-        }
-      };
-
-    mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
-    //}}}
-
-    char buffer[2048];
-    int bufferLen = 2048;
-    do {
-      struct sockaddr_in sendAddr;
-      #ifdef _WIN32
-        int sendAddrSize = sizeof (sendAddr);
-        int bytesReceived = recvfrom (rtpReceiveSocket, buffer, bufferLen, 0, (struct sockaddr*)&sendAddr, &sendAddrSize);
-      #else
-        unsigned int sendAddrSize = sizeof (sendAddr);
-        int bytesReceived = recvfrom (rtpReceiveSocket, buffer, bufferLen, 0, (struct sockaddr*)&sendAddr, &sendAddrSize);
-      #endif
-
-      if (bytesReceived != 0) {
-        // process block of ts minus rtp header
-        int bytesLeft = bytesReceived - 12;
-        uint8_t* ts = (uint8_t*)buffer + 12;
-        while (!mExit && (bytesLeft >= 188) && (ts[0] == 0x47)) {
-          auto it = mPidParsers.find (((ts[1] & 0x1F) << 8) | ts[2]);
-          if (it != mPidParsers.end())
-            it->second->parse (ts, true);
-          ts += 188;
-          bytesLeft -= 188;
-          }
-        }
-      else
-        cLog::log (LOGERROR, "recvfrom failed");
-
-      } while (!mExit);
-
-    //{{{  close socket and WSAcleanup
-    #ifdef _WIN32
-      result = closesocket (rtpReceiveSocket);
-      if (result != 0) {
-        cLog::log (LOGERROR, "closesocket failed");
-        return;
-        }
-      WSACleanup();
-    #else
-      close (rtpReceiveSocket);
-    #endif
-    //}}}
     //{{{  delete resources
     if (mSongPlayer)
       mSongPlayer->wait();
     delete mSongPlayer;
 
-    for (auto parser : mPidParsers) {
-      //{{{  stop and delete pidParsers
-      parser.second->exit();
-      delete parser.second;
-      }
-      //}}}
-    mPidParsers.clear();
-
-    auto tempSong =  mPtsSong;
-    mPtsSong = nullptr;
+    auto tempSong = mSong;
+    mSong = nullptr;
     delete tempSong;
-
-    auto tempVideoPool = mVideoPool;
-    mVideoPool = nullptr;
-    delete tempVideoPool;
 
     delete audioDecoder;
     //}}}
@@ -874,37 +759,44 @@ public:
 
 private:
   //{{{
-  class cService {
-  public:
-    cService (int sid, bool selected) : mSid(sid), mSelected(selected) {}
+  void addIcyInfo (int64_t pts, const string& icyInfo) {
 
-    bool isSelected() { return mSelected; }
-    int getAudioPid() { return mAudioPid; }
-    int getVideoPid() { return mVideoPid; }
-    int getSubtitlePid() { return mSubtitlePid; }
+    cLog::log (LOGINFO, "addIcyInfo " + icyInfo);
 
-    void setSelected (bool selected) { mSelected = selected; }
-    void setAudioPid (int pid) { mAudioPid = pid; }
-    void setVideoPid (int pid) { mVideoPid = pid; }
-    void setSubtitlePid (int pid) { mSubtitlePid = pid; }
+    string icysearchStr = "StreamTitle=\'";
+    string searchStr = "StreamTitle=\'";
+    auto searchStrPos = icyInfo.find (searchStr);
+    if (searchStrPos != string::npos) {
+      auto searchEndPos = icyInfo.find ("\';", searchStrPos + searchStr.size());
+      if (searchEndPos != string::npos) {
+        string titleStr = icyInfo.substr (searchStrPos + searchStr.size(), searchEndPos - searchStrPos - searchStr.size());
+        if (titleStr != mLastTitleString) {
+          cLog::log (LOGINFO1, "addIcyInfo found title = " + titleStr);
+          mSong->getSelect().addMark (pts, titleStr);
+          mLastTitleString = titleStr;
+          }
+        }
+      }
 
-  private:
-    const int mSid;
-
-    int mAudioPid = 0;
-    int mVideoPid = 0;
-    int mSubtitlePid = 0;
-
-    bool mSelected = false;
-    };
+    string urlStr = "no url";
+    searchStr = "StreamUrl=\'";
+    searchStrPos = icyInfo.find (searchStr);
+    if (searchStrPos != string::npos) {
+      auto searchEndPos = icyInfo.find ('\'', searchStrPos + searchStr.size());
+      if (searchEndPos != string::npos) {
+        urlStr = icyInfo.substr (searchStrPos + searchStr.size(), searchEndPos - searchStrPos - searchStr.size());
+        cLog::log (LOGINFO1, "addIcyInfo found url = " + urlStr);
+        }
+      }
+    }
   //}}}
 
-  cPtsSong* mPtsSong = nullptr;
-  iVideoPool* mVideoPool = nullptr;
+  string mUrl;
+  cUrl mParsedUrl;
+  string mLastTitleString;
 
-  int mAudioPid = -1;
-  int mVideoPid = -1;
-  map <int, cPidParser*> mPidParsers;
+  cSong* mSong = nullptr;
+  iVideoPool* mVideoPool = nullptr;
   };
 //}}}
 //{{{
@@ -1192,11 +1084,274 @@ private:
   string mServiceName;
   };
 //}}}
+
 //{{{
-class cLoadHls : public cLoadSource {
+class cLoadStream : public cLoadSource {
+public:
+  cLoadStream (const string& name) : cLoadSource(name) {}
+  virtual ~cLoadStream() {}
+
+  virtual cSong* getSong() { return mPtsSong; }
+  virtual iVideoPool* getVideoPool() { return mVideoPool; }
+
+  //{{{
+  virtual string getInfoString() {
+
+    int audioQueueSize = 0;
+    auto audioIt = mPidParsers.find (mAudioPid);
+    if (audioIt != mPidParsers.end())
+       audioQueueSize = (*audioIt).second->getQueueSize();
+
+    int videoQueueSize = 0;
+    auto videoIt = mPidParsers.find (mVideoPid);
+    if (videoIt != mPidParsers.end())
+      videoQueueSize = (*videoIt).second->getQueueSize();
+
+    return format ("aq:{} vq:{}", audioQueueSize, videoQueueSize);
+    }
+  //}}}
+  //{{{
+  virtual float getFracs (float& audioFrac, float& videoFrac) {
+  // return fracs for spinner graphic, true if ok to display
+
+    audioFrac = 0.f;
+    videoFrac = 0.f;
+
+    auto audioIt = mPidParsers.find (mAudioPid);
+    if (audioIt != mPidParsers.end())
+      audioFrac = (*audioIt).second->getQueueFrac();
+
+    auto videoIt = mPidParsers.find (mVideoPid);
+    if (videoIt != mPidParsers.end())
+      videoFrac = (*videoIt).second->getQueueFrac();
+
+    return mLoadFrac;
+    }
+  //}}}
+
+protected:
+  cPtsSong* mPtsSong = nullptr;
+  iVideoPool* mVideoPool = nullptr;
+
+  int mLoadSize = 0;
+  int mAudioPid = -1;
+  int mVideoPid = -1;
+  map <int, cPidParser*> mPidParsers;
+  };
+//}}}
+//{{{
+class cLoadRtp : public cLoadStream {
 public:
   //{{{
-  cLoadHls() : cLoadSource("hls") {
+  cLoadRtp() : cLoadStream("rtp") {
+
+    mNumChannels = 2;
+    mSampleRate = 48000;
+    }
+  //}}}
+  //{{{
+  virtual ~cLoadRtp() {
+    }
+  //}}}
+
+  //{{{
+  virtual bool recognise (const vector<string>& params) {
+
+    if (params[0] != "rtp")
+      return false;
+
+    mNumChannels = 2;
+    mSampleRate = 48000;
+
+    return true;
+    }
+  //}}}
+  //{{{
+  virtual void load() {
+
+    mExit = false;
+    mRunning = true;
+    mLoadFrac = 0.f;
+
+    //{{{  wsa startup
+    struct sockaddr_in sendAddr;
+
+    #ifdef _WIN32
+      WSADATA wsaData;
+      WSAStartup (MAKEWORD(2, 2), &wsaData);
+      int sendAddrSize = sizeof (sendAddr);
+    #else
+      unsigned int sendAddrSize = sizeof (sendAddr);
+    #endif
+    //}}}
+    // create socket to receive datagrams
+    auto rtpReceiveSocket = socket (AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (rtpReceiveSocket == 0) {
+      //{{{  error return
+      cLog::log (LOGERROR, "socket failed");
+      return;
+      }
+      //}}}
+
+    // bind the socket to anyAddress:specifiedPort
+    struct sockaddr_in recvAddr;
+    recvAddr.sin_family = AF_INET;
+    recvAddr.sin_port = htons (5010);
+    recvAddr.sin_addr.s_addr = htonl (INADDR_ANY);
+    auto result = ::bind (rtpReceiveSocket, (struct sockaddr*)&recvAddr, sizeof(recvAddr));
+    if (result != 0) {
+      //{{{  error return
+      cLog::log (LOGERROR, "bind failed");
+      return;
+      }
+      //}}}
+
+    mPtsSong = new cPtsSong (eAudioFrameType::eAacAdts, mNumChannels, mSampleRate, 1024, 1920, 0);
+    iAudioDecoder* audioDecoder = nullptr;
+
+    int64_t loadPts = -1;
+    //{{{  init parsers, callbacks
+    auto addAudioFrameCallback = [&](bool reuseFromFront, float* samples, int64_t pts) noexcept {
+      mPtsSong->addFrame (reuseFromFront, pts, samples, mPtsSong->getNumFrames()+1);
+
+      if (loadPts < 0)
+        // firstTime, setBasePts, sets playPts
+        mPtsSong->setBasePts (pts);
+      loadPts = pts;
+
+      // maybe wait for several frames ???
+      if (!mSongPlayer)
+        mSongPlayer = new cSongPlayer (mPtsSong, true);
+      };
+
+    auto addStreamCallback = [&](int sid, int pid, int type) noexcept {
+      if (mPidParsers.find (pid) == mPidParsers.end()) {
+        // new stream pid
+        switch (type) {
+          //{{{
+          case 17: // aacLatm
+            mAudioPid = pid;
+
+            audioDecoder = createAudioDecoder (eAudioFrameType::eAacLatm);
+            mPidParsers.insert (map<int,cPidParser*>::value_type (pid,
+              new cAudioPesParser (pid, audioDecoder, true, addAudioFrameCallback)));
+
+            break;
+          //}}}
+          //{{{
+          case 27: // h264video
+            mVideoPid = pid;
+
+            mVideoPool = iVideoPool::create (true, 100, mPtsSong);
+            mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cVideoPesParser (pid, mVideoPool, true)));
+
+            break;
+          //}}}
+          //{{{
+          case 6:  // do nothing - subtitle
+            //cLog::log (LOGINFO, "subtitle %d %d", pid, type);
+            break;
+          //}}}
+          //{{{
+          case 2:  // do nothing - ISO 13818-2 video
+            //cLog::log (LOGERROR, "mpeg2 video %d", pid, type);
+            break;
+          //}}}
+          //{{{
+          case 3:  // do nothing - ISO 11172-3 audio
+            //cLog::log (LOGINFO, "mp2 audio %d %d", pid, type);
+            break;
+          //}}}
+          //{{{
+          case 5:  // do nothing - private mpeg2 tabled data
+            break;
+          //}}}
+          //{{{
+          case 11: // do nothing - dsm cc u_n
+            break;
+          //}}}
+          default:
+            cLog::log (LOGERROR, "loadTs - unrecognised stream type %d %d", pid, type);
+          }
+        }
+      };
+
+    auto addProgramCallback = [&](int pid, int sid) noexcept {
+      if ((sid > 0) && (mPidParsers.find (pid) == mPidParsers.end())) {
+        cLog::log (LOGINFO, "PAT adding pid:service %d::%d", pid, sid);
+        mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cPmtParser (pid, sid, addStreamCallback)));
+        }
+      };
+
+    mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
+    //}}}
+
+    char buffer[2048];
+    int bufferLen = 2048;
+    do {
+      int bytesReceived = recvfrom (rtpReceiveSocket, buffer, bufferLen, 0, (struct sockaddr*)&sendAddr, &sendAddrSize);
+      if (bytesReceived != 0) {
+        // process block of ts minus rtp header
+        int bytesLeft = bytesReceived - 12;
+        uint8_t* ts = (uint8_t*)buffer + 12;
+        while (!mExit && (bytesLeft >= 188) && (ts[0] == 0x47)) {
+          auto it = mPidParsers.find (((ts[1] & 0x1F) << 8) | ts[2]);
+          if (it != mPidParsers.end())
+            it->second->parse (ts, true);
+          ts += 188;
+          bytesLeft -= 188;
+          }
+        }
+      else
+        cLog::log (LOGERROR, "recvfrom failed");
+
+      } while (!mExit);
+
+    //{{{  close socket and WSAcleanup
+    #ifdef _WIN32
+      result = closesocket (rtpReceiveSocket);
+      if (result != 0) {
+        cLog::log (LOGERROR, "closesocket failed");
+        return;
+        }
+      WSACleanup();
+    #else
+      close (rtpReceiveSocket);
+    #endif
+    //}}}
+    //{{{  delete resources
+    if (mSongPlayer)
+      mSongPlayer->wait();
+    delete mSongPlayer;
+
+    for (auto parser : mPidParsers) {
+      //{{{  stop and delete pidParsers
+      parser.second->exit();
+      delete parser.second;
+      }
+      //}}}
+    mPidParsers.clear();
+
+    auto tempSong =  mPtsSong;
+    mPtsSong = nullptr;
+    delete tempSong;
+
+    auto tempVideoPool = mVideoPool;
+    mVideoPool = nullptr;
+    delete tempVideoPool;
+
+    delete audioDecoder;
+    //}}}
+    mRunning = false;
+    }
+  //}}}
+  };
+//}}}
+//{{{
+class cLoadHls : public cLoadStream {
+public:
+  //{{{
+  cLoadHls() : cLoadStream("hls") {
     mAudioFrameType = eAudioFrameType::eAacAdts;
     mNumChannels = 2;
     mSampleRate = 48000;
@@ -1222,24 +1377,6 @@ public:
       }
 
     return format ("{} {}k aq:{} vq:{}", mChannel, mLoadSize/1000, audioQueueSize, videoQueueSize);
-    }
-  //}}}
-  //{{{
-  virtual float getFracs (float& audioFrac, float& videoFrac) {
-  // return fracs for spinner graphic, true if ok to display
-
-    audioFrac = 0.f;
-    videoFrac = 0.f;
-
-    auto audioIt = mPidParsers.find (mAudioPid);
-    if (audioIt != mPidParsers.end())
-      audioFrac = (*audioIt).second->getQueueFrac();
-
-    auto videoIt = mPidParsers.find (mVideoPid);
-    if (videoIt != mPidParsers.end())
-      videoFrac = (*videoIt).second->getQueueFrac();
-
-    return mLoadFrac;
     }
   //}}}
 
@@ -1497,188 +1634,9 @@ private:
   int64_t mPtsDurationPerFrame = 0;
 
   cHlsSong* mHlsSong = nullptr;
-  iVideoPool* mVideoPool = nullptr;
-
-  int mLoadSize = 0;
-
-  int mAudioPid = -1;
-  int mVideoPid = -1;
-  map <int, cPidParser*> mPidParsers;
   };
 //}}}
-//{{{
-class cLoadIcyCast : public cLoadSource {
-public:
-  cLoadIcyCast() : cLoadSource("icyCast") {}
-  virtual ~cLoadIcyCast() {}
 
-  virtual cSong* getSong() { return mSong; }
-  virtual iVideoPool* getVideoPool() { return mVideoPool; }
-  //{{{
-  virtual string getInfoString() {
-    return format ("{} - {}", mUrl, mLastTitleString);
-    }
-  //}}}
-
-  //{{{
-  virtual bool recognise (const vector<string>& params) {
-
-    mUrl = params[0];
-    mParsedUrl.parse (mUrl);
-    return mParsedUrl.getScheme() == "http";
-    }
-  //}}}
-  //{{{
-  virtual void load() {
-
-    iAudioDecoder* audioDecoder = nullptr;
-
-    mExit = false;
-    mRunning = true;
-    while (!mExit) {
-      int icySkipCount = 0;
-      int icySkipLen = 0;
-      int icyInfoCount = 0;
-      int icyInfoLen = 0;
-      char icyInfo[255] = { 0 };
-
-      uint8_t bufferFirst[4096];
-      uint8_t* bufferEnd = bufferFirst;
-      uint8_t* buffer = bufferFirst;
-
-      int64_t pts = 0;
-
-      cPlatformHttp http;
-      http.get (mParsedUrl.getHost(), mParsedUrl.getPath(), "Icy-MetaData: 1",
-        //{{{  headerCallback lambda
-        [&](const string& key, const string& value) noexcept {
-          if (key == "icy-metaint")
-            icySkipLen = stoi (value);
-          },
-        //}}}
-        // dataCallback lambda
-        [&] (const uint8_t* data, int length) noexcept {
-          if ((icyInfoCount >= icyInfoLen) && (icySkipCount + length <= icySkipLen)) {
-            //{{{  copy whole body, no metaInfo
-            memcpy (bufferEnd, data, length);
-            bufferEnd += length;
-            icySkipCount += length;
-
-            int sampleRate = 0;
-            int numChannels =  0;
-            auto frameType = cAudioParser::parseSomeFrames (bufferFirst, bufferEnd, numChannels, sampleRate);
-            audioDecoder = createAudioDecoder (frameType);
-
-            int frameSize;
-            while (cAudioParser::parseFrame (buffer, bufferEnd, frameSize)) {
-              auto samples = audioDecoder->decodeFrame (buffer, frameSize, pts);
-              if (samples) {
-                if (!mSong)
-                  mSong = new cSong (frameType, audioDecoder->getNumChannels(), audioDecoder->getSampleRate(),
-                                     audioDecoder->getNumSamplesPerFrame(), 0);
-
-                mSong->addFrame (true, pts, samples,  mSong->getNumFrames()+1);
-                pts += mSong->getFramePtsDuration();
-
-                if (!mSongPlayer)
-                  mSongPlayer = new cSongPlayer (mSong, true);
-                }
-              buffer += frameSize;
-              }
-
-            if ((buffer > bufferFirst) && (buffer < bufferEnd)) {
-              // shuffle down last partial frame
-              auto bufferLeft = int(bufferEnd - buffer);
-              memcpy (bufferFirst, buffer, bufferLeft);
-              bufferEnd = bufferFirst + bufferLeft;
-              buffer = bufferFirst;
-              }
-            }
-            //}}}
-          else {
-            //{{{  copy for metaInfo straddling body
-            for (int i = 0; i < length; i++) {
-              if (icyInfoCount < icyInfoLen) {
-                icyInfo [icyInfoCount] = data[i];
-                icyInfoCount++;
-                if (icyInfoCount >= icyInfoLen)
-                  addIcyInfo (pts, icyInfo);
-                }
-              else if (icySkipCount >= icySkipLen) {
-                icyInfoLen = data[i] * 16;
-                icyInfoCount = 0;
-                icySkipCount = 0;
-                }
-              else {
-                icySkipCount++;
-                *bufferEnd = data[i];
-                bufferEnd++;
-                }
-              }
-            }
-            //}}}
-          return !mExit;
-          }
-        );
-      }
-
-    //{{{  delete resources
-    if (mSongPlayer)
-      mSongPlayer->wait();
-    delete mSongPlayer;
-
-    auto tempSong = mSong;
-    mSong = nullptr;
-    delete tempSong;
-
-    delete audioDecoder;
-    //}}}
-    mRunning = false;
-    }
-  //}}}
-
-private:
-  //{{{
-  void addIcyInfo (int64_t pts, const string& icyInfo) {
-
-    cLog::log (LOGINFO, "addIcyInfo " + icyInfo);
-
-    string icysearchStr = "StreamTitle=\'";
-    string searchStr = "StreamTitle=\'";
-    auto searchStrPos = icyInfo.find (searchStr);
-    if (searchStrPos != string::npos) {
-      auto searchEndPos = icyInfo.find ("\';", searchStrPos + searchStr.size());
-      if (searchEndPos != string::npos) {
-        string titleStr = icyInfo.substr (searchStrPos + searchStr.size(), searchEndPos - searchStrPos - searchStr.size());
-        if (titleStr != mLastTitleString) {
-          cLog::log (LOGINFO1, "addIcyInfo found title = " + titleStr);
-          mSong->getSelect().addMark (pts, titleStr);
-          mLastTitleString = titleStr;
-          }
-        }
-      }
-
-    string urlStr = "no url";
-    searchStr = "StreamUrl=\'";
-    searchStrPos = icyInfo.find (searchStr);
-    if (searchStrPos != string::npos) {
-      auto searchEndPos = icyInfo.find ('\'', searchStrPos + searchStr.size());
-      if (searchEndPos != string::npos) {
-        urlStr = icyInfo.substr (searchStrPos + searchStr.size(), searchEndPos - searchStrPos - searchStr.size());
-        cLog::log (LOGINFO1, "addIcyInfo found url = " + urlStr);
-        }
-      }
-    }
-  //}}}
-
-  string mUrl;
-  cUrl mParsedUrl;
-  string mLastTitleString;
-
-  cSong* mSong = nullptr;
-  iVideoPool* mVideoPool = nullptr;
-  };
-//}}}
 //{{{
 class cLoadFile : public cLoadSource {
 public:
