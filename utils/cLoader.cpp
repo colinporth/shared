@@ -683,6 +683,9 @@ public:
     if (params[0] != "rtp")
       return false;
 
+    mNumChannels = 2;
+    mSampleRate = 48000;
+
     return true;
     }
   //}}}
@@ -701,7 +704,7 @@ public:
       return;
       }
     //}}}
-    // create a receiver socket to receive datagrams
+    // create socket to receive datagrams
     SOCKET rtpReceiveSocket = socket (AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (rtpReceiveSocket == INVALID_SOCKET) {
       //{{{  error return
@@ -710,10 +713,10 @@ public:
       }
       //}}}
 
-    // bind the socket to any address:specifiedPort
+    // bind the socket to anyAddress:specifiedPort
     struct sockaddr_in recvAddr;
     recvAddr.sin_family = AF_INET;
-    recvAddr.sin_port = htons (5006);
+    recvAddr.sin_port = htons (5010);
     recvAddr.sin_addr.s_addr = htonl (INADDR_ANY);
     result = ::bind (rtpReceiveSocket, (struct sockaddr*)&recvAddr, sizeof(recvAddr));
     if (result != 0) {
