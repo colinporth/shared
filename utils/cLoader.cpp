@@ -606,6 +606,7 @@ protected:
   cSongPlayer* mSongPlayer = nullptr;
   };
 //}}}
+
 //{{{
 class cLoadIdle : public cLoadSource {
 public:
@@ -624,179 +625,6 @@ public:
   virtual bool skipEnd() { return false; }
   virtual bool skipBack (bool shift, bool control) { return false; }
   virtual bool skipForward (bool shift, bool control) { return false; };
-  };
-//}}}
-//{{{
-class cLoadIcyCast : public cLoadSource {
-public:
-  cLoadIcyCast() : cLoadSource("icyCast") {}
-  virtual ~cLoadIcyCast() {}
-
-  virtual cSong* getSong() { return mSong; }
-  virtual iVideoPool* getVideoPool() { return mVideoPool; }
-  //{{{
-  virtual string getInfoString() {
-    return format ("{} - {}", mUrl, mLastTitleString);
-    }
-  //}}}
-
-  //{{{
-  virtual bool recognise (const vector<string>& params) {
-
-    mUrl = params[0];
-    mParsedUrl.parse (mUrl);
-    return mParsedUrl.getScheme() == "http";
-    }
-  //}}}
-  //{{{
-  virtual void load() {
-
-    iAudioDecoder* audioDecoder = nullptr;
-
-    mExit = false;
-    mRunning = true;
-    while (!mExit) {
-      int icySkipCount = 0;
-      int icySkipLen = 0;
-      int icyInfoCount = 0;
-      int icyInfoLen = 0;
-      char icyInfo[255] = { 0 };
-
-      uint8_t bufferFirst[4096];
-      uint8_t* bufferEnd = bufferFirst;
-      uint8_t* buffer = bufferFirst;
-
-      int64_t pts = 0;
-
-      cPlatformHttp http;
-      http.get (mParsedUrl.getHost(), mParsedUrl.getPath(), "Icy-MetaData: 1",
-        //{{{  headerCallback lambda
-        [&](const string& key, const string& value) noexcept {
-          if (key == "icy-metaint")
-            icySkipLen = stoi (value);
-          },
-        //}}}
-        // dataCallback lambda
-        [&] (const uint8_t* data, int length) noexcept {
-          if ((icyInfoCount >= icyInfoLen) && (icySkipCount + length <= icySkipLen)) {
-            //{{{  copy whole body, no metaInfo
-            memcpy (bufferEnd, data, length);
-            bufferEnd += length;
-            icySkipCount += length;
-
-            int sampleRate = 0;
-            int numChannels =  0;
-            auto frameType = cAudioParser::parseSomeFrames (bufferFirst, bufferEnd, numChannels, sampleRate);
-            audioDecoder = createAudioDecoder (frameType);
-
-            int frameSize;
-            while (cAudioParser::parseFrame (buffer, bufferEnd, frameSize)) {
-              auto samples = audioDecoder->decodeFrame (buffer, frameSize, pts);
-              if (samples) {
-                if (!mSong)
-                  mSong = new cSong (frameType, audioDecoder->getNumChannels(), audioDecoder->getSampleRate(),
-                                     audioDecoder->getNumSamplesPerFrame(), 0);
-
-                mSong->addFrame (true, pts, samples,  mSong->getNumFrames()+1);
-                pts += mSong->getFramePtsDuration();
-
-                if (!mSongPlayer)
-                  mSongPlayer = new cSongPlayer (mSong, true);
-                }
-              buffer += frameSize;
-              }
-
-            if ((buffer > bufferFirst) && (buffer < bufferEnd)) {
-              // shuffle down last partial frame
-              auto bufferLeft = int(bufferEnd - buffer);
-              memcpy (bufferFirst, buffer, bufferLeft);
-              bufferEnd = bufferFirst + bufferLeft;
-              buffer = bufferFirst;
-              }
-            }
-            //}}}
-          else {
-            //{{{  copy for metaInfo straddling body
-            for (int i = 0; i < length; i++) {
-              if (icyInfoCount < icyInfoLen) {
-                icyInfo [icyInfoCount] = data[i];
-                icyInfoCount++;
-                if (icyInfoCount >= icyInfoLen)
-                  addIcyInfo (pts, icyInfo);
-                }
-              else if (icySkipCount >= icySkipLen) {
-                icyInfoLen = data[i] * 16;
-                icyInfoCount = 0;
-                icySkipCount = 0;
-                }
-              else {
-                icySkipCount++;
-                *bufferEnd = data[i];
-                bufferEnd++;
-                }
-              }
-            }
-            //}}}
-          return !mExit;
-          }
-        );
-      }
-
-    //{{{  delete resources
-    if (mSongPlayer)
-      mSongPlayer->wait();
-    delete mSongPlayer;
-
-    auto tempSong = mSong;
-    mSong = nullptr;
-    delete tempSong;
-
-    delete audioDecoder;
-    //}}}
-    mRunning = false;
-    }
-  //}}}
-
-private:
-  //{{{
-  void addIcyInfo (int64_t pts, const string& icyInfo) {
-
-    cLog::log (LOGINFO, "addIcyInfo " + icyInfo);
-
-    string icysearchStr = "StreamTitle=\'";
-    string searchStr = "StreamTitle=\'";
-    auto searchStrPos = icyInfo.find (searchStr);
-    if (searchStrPos != string::npos) {
-      auto searchEndPos = icyInfo.find ("\';", searchStrPos + searchStr.size());
-      if (searchEndPos != string::npos) {
-        string titleStr = icyInfo.substr (searchStrPos + searchStr.size(), searchEndPos - searchStrPos - searchStr.size());
-        if (titleStr != mLastTitleString) {
-          cLog::log (LOGINFO1, "addIcyInfo found title = " + titleStr);
-          mSong->getSelect().addMark (pts, titleStr);
-          mLastTitleString = titleStr;
-          }
-        }
-      }
-
-    string urlStr = "no url";
-    searchStr = "StreamUrl=\'";
-    searchStrPos = icyInfo.find (searchStr);
-    if (searchStrPos != string::npos) {
-      auto searchEndPos = icyInfo.find ('\'', searchStrPos + searchStr.size());
-      if (searchEndPos != string::npos) {
-        urlStr = icyInfo.substr (searchStrPos + searchStr.size(), searchEndPos - searchStrPos - searchStr.size());
-        cLog::log (LOGINFO1, "addIcyInfo found url = " + urlStr);
-        }
-      }
-    }
-  //}}}
-
-  string mUrl;
-  cUrl mParsedUrl;
-  string mLastTitleString;
-
-  cSong* mSong = nullptr;
-  iVideoPool* mVideoPool = nullptr;
   };
 //}}}
 //{{{
@@ -1084,6 +912,179 @@ private:
   string mServiceName;
   };
 //}}}
+//{{{
+class cLoadIcyCast : public cLoadSource {
+public:
+  cLoadIcyCast() : cLoadSource("icyCast") {}
+  virtual ~cLoadIcyCast() {}
+
+  virtual cSong* getSong() { return mSong; }
+  virtual iVideoPool* getVideoPool() { return mVideoPool; }
+  //{{{
+  virtual string getInfoString() {
+    return format ("{} - {}", mUrl, mLastTitleString);
+    }
+  //}}}
+
+  //{{{
+  virtual bool recognise (const vector<string>& params) {
+
+    mUrl = params[0];
+    mParsedUrl.parse (mUrl);
+    return mParsedUrl.getScheme() == "http";
+    }
+  //}}}
+  //{{{
+  virtual void load() {
+
+    iAudioDecoder* audioDecoder = nullptr;
+
+    mExit = false;
+    mRunning = true;
+    while (!mExit) {
+      int icySkipCount = 0;
+      int icySkipLen = 0;
+      int icyInfoCount = 0;
+      int icyInfoLen = 0;
+      char icyInfo[255] = { 0 };
+
+      uint8_t bufferFirst[4096];
+      uint8_t* bufferEnd = bufferFirst;
+      uint8_t* buffer = bufferFirst;
+
+      int64_t pts = 0;
+
+      cPlatformHttp http;
+      http.get (mParsedUrl.getHost(), mParsedUrl.getPath(), "Icy-MetaData: 1",
+        //{{{  headerCallback lambda
+        [&](const string& key, const string& value) noexcept {
+          if (key == "icy-metaint")
+            icySkipLen = stoi (value);
+          },
+        //}}}
+        // dataCallback lambda
+        [&] (const uint8_t* data, int length) noexcept {
+          if ((icyInfoCount >= icyInfoLen) && (icySkipCount + length <= icySkipLen)) {
+            //{{{  copy whole body, no metaInfo
+            memcpy (bufferEnd, data, length);
+            bufferEnd += length;
+            icySkipCount += length;
+
+            int sampleRate = 0;
+            int numChannels =  0;
+            auto frameType = cAudioParser::parseSomeFrames (bufferFirst, bufferEnd, numChannels, sampleRate);
+            audioDecoder = createAudioDecoder (frameType);
+
+            int frameSize;
+            while (cAudioParser::parseFrame (buffer, bufferEnd, frameSize)) {
+              auto samples = audioDecoder->decodeFrame (buffer, frameSize, pts);
+              if (samples) {
+                if (!mSong)
+                  mSong = new cSong (frameType, audioDecoder->getNumChannels(), audioDecoder->getSampleRate(),
+                                     audioDecoder->getNumSamplesPerFrame(), 0);
+
+                mSong->addFrame (true, pts, samples,  mSong->getNumFrames()+1);
+                pts += mSong->getFramePtsDuration();
+
+                if (!mSongPlayer)
+                  mSongPlayer = new cSongPlayer (mSong, true);
+                }
+              buffer += frameSize;
+              }
+
+            if ((buffer > bufferFirst) && (buffer < bufferEnd)) {
+              // shuffle down last partial frame
+              auto bufferLeft = int(bufferEnd - buffer);
+              memcpy (bufferFirst, buffer, bufferLeft);
+              bufferEnd = bufferFirst + bufferLeft;
+              buffer = bufferFirst;
+              }
+            }
+            //}}}
+          else {
+            //{{{  copy for metaInfo straddling body
+            for (int i = 0; i < length; i++) {
+              if (icyInfoCount < icyInfoLen) {
+                icyInfo [icyInfoCount] = data[i];
+                icyInfoCount++;
+                if (icyInfoCount >= icyInfoLen)
+                  addIcyInfo (pts, icyInfo);
+                }
+              else if (icySkipCount >= icySkipLen) {
+                icyInfoLen = data[i] * 16;
+                icyInfoCount = 0;
+                icySkipCount = 0;
+                }
+              else {
+                icySkipCount++;
+                *bufferEnd = data[i];
+                bufferEnd++;
+                }
+              }
+            }
+            //}}}
+          return !mExit;
+          }
+        );
+      }
+
+    //{{{  delete resources
+    if (mSongPlayer)
+      mSongPlayer->wait();
+    delete mSongPlayer;
+
+    auto tempSong = mSong;
+    mSong = nullptr;
+    delete tempSong;
+
+    delete audioDecoder;
+    //}}}
+    mRunning = false;
+    }
+  //}}}
+
+private:
+  //{{{
+  void addIcyInfo (int64_t pts, const string& icyInfo) {
+
+    cLog::log (LOGINFO, "addIcyInfo " + icyInfo);
+
+    string icysearchStr = "StreamTitle=\'";
+    string searchStr = "StreamTitle=\'";
+    auto searchStrPos = icyInfo.find (searchStr);
+    if (searchStrPos != string::npos) {
+      auto searchEndPos = icyInfo.find ("\';", searchStrPos + searchStr.size());
+      if (searchEndPos != string::npos) {
+        string titleStr = icyInfo.substr (searchStrPos + searchStr.size(), searchEndPos - searchStrPos - searchStr.size());
+        if (titleStr != mLastTitleString) {
+          cLog::log (LOGINFO1, "addIcyInfo found title = " + titleStr);
+          mSong->getSelect().addMark (pts, titleStr);
+          mLastTitleString = titleStr;
+          }
+        }
+      }
+
+    string urlStr = "no url";
+    searchStr = "StreamUrl=\'";
+    searchStrPos = icyInfo.find (searchStr);
+    if (searchStrPos != string::npos) {
+      auto searchEndPos = icyInfo.find ('\'', searchStrPos + searchStr.size());
+      if (searchEndPos != string::npos) {
+        urlStr = icyInfo.substr (searchStrPos + searchStr.size(), searchEndPos - searchStrPos - searchStr.size());
+        cLog::log (LOGINFO1, "addIcyInfo found url = " + urlStr);
+        }
+      }
+    }
+  //}}}
+
+  string mUrl;
+  cUrl mParsedUrl;
+  string mLastTitleString;
+
+  cSong* mSong = nullptr;
+  iVideoPool* mVideoPool = nullptr;
+  };
+//}}}
 
 //{{{
 class cLoadStream : public cLoadSource {
@@ -1196,7 +1197,7 @@ public:
     // bind the socket to anyAddress:specifiedPort
     struct sockaddr_in recvAddr;
     recvAddr.sin_family = AF_INET;
-    recvAddr.sin_port = htons (5010);
+    recvAddr.sin_port = htons (5002);
     recvAddr.sin_addr.s_addr = htonl (INADDR_ANY);
     auto result = ::bind (rtpReceiveSocket, (struct sockaddr*)&recvAddr, sizeof(recvAddr));
     if (result != 0) {
