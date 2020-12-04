@@ -1197,7 +1197,7 @@ public:
     // bind the socket to anyAddress:specifiedPort
     struct sockaddr_in recvAddr;
     recvAddr.sin_family = AF_INET;
-    recvAddr.sin_port = htons (5002);
+    recvAddr.sin_port = htons (5006);
     recvAddr.sin_addr.s_addr = htonl (INADDR_ANY);
     auto result = ::bind (rtpReceiveSocket, (struct sockaddr*)&recvAddr, sizeof(recvAddr));
     if (result != 0) {
