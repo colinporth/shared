@@ -62,7 +62,7 @@ protected:
 
   // keystroke dispatch
   virtual void onKey (int key, int scancode, int action, int mods) = 0;
-  virtual void onChar (char ch, int mods) = 0;
+  virtual void onChar (char ch, int mods) {}
 
   // actions
   void toggleDebug();
