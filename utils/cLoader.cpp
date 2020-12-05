@@ -692,7 +692,7 @@ public:
   //{{{
   virtual bool recognise (const vector<string>& params) {
 
-    if (params[0] != "bbc1")
+    if (params[0] != "dvb")
       return false;
 
     mFrequency = 626000000;
@@ -708,6 +708,7 @@ public:
     mRunning = true;
     mLoadFrac = 0.f;
 
+    cLog::log (LOGINFO, "cDvbSource %d", mFrequency);
     auto dvb = new cDvbSimple (mFrequency);
 
     mPtsSong = new cPtsSong (eAudioFrameType::eAacAdts, mNumChannels, mSampleRate, 1024, 1920, 0);
@@ -2290,8 +2291,8 @@ private:
 cLoader::cLoader() {
 
   mLoadSources.push_back (new cLoadRtp());
-  mLoadSources.push_back (new cLoadHls());
   mLoadSources.push_back (new cLoadDvb());
+  mLoadSources.push_back (new cLoadHls());
   mLoadSources.push_back (new cLoadIcyCast());
   mLoadSources.push_back (new cLoadTsFile());
   mLoadSources.push_back (new cLoadMp3AacFile());

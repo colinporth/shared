@@ -1063,6 +1063,7 @@ bool cDvbSimple::getTsBlock (uint8_t*& block, int& blockSize) {
         return true;
         }
       else {
+        cLog:log (LOGINFO, "cDvbSimple::getTsBlock waiting");
         mSignalStr = updateSignalStr();
         this_thread::sleep_for (1ms);
         }
