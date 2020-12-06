@@ -714,13 +714,13 @@ public:
     auto dvb = new cDvbSimple (mFrequency);
 
     #ifdef __linux__
-      // set thread realtime priority
+      // set captureThread realtime priority
       auto captureThread = thread ([=]() { dvb->captureThread(); });
       struct sched_param param;
       param.sched_priority = sched_get_priority_max (SCHED_RR);
       int error = pthread_setschedparam (captureThread.native_handle(), SCHED_RR, &param);
       if (error)
-        cLog::log (LOGERROR, "couldn't set captureThread priority: %s", strerror (error));
+        cLog::log (LOGERROR, "set captureThread realtime priority failed - %s", strerror (error));
       captureThread.detach();
     #endif
 
