@@ -737,7 +737,6 @@ namespace { // anonymous
 #endif
   }
 
-
 // public:
 //{{{
 cDvbSimple::cDvbSimple (int frequency) {

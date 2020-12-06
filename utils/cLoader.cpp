@@ -32,7 +32,9 @@
   #include <winsock2.h>
   #include <WS2tcpip.h>
   #include "../net/cWinSockHttp.h"
-#else
+#endif
+
+#ifdef __linux__
   #include "../net/cLinuxHttp.h"
 #endif
 
@@ -711,6 +713,20 @@ public:
     cLog::log (LOGINFO, "cDvbSource %d", mFrequency);
     auto dvb = new cDvbSimple (mFrequency);
 
+    #ifdef __linux__
+      // set thread realtime priority
+      auto captureThread = thread ([=]() { dvb->captureThread(); });
+
+      struct sched_param param;
+      memset (&param, 0, sizeof(struct sched_param));
+      param.sched_priority = sched_get_priority_max (SCHED_RR);
+
+      int error = pthread_setschedparam (captureThread.native_handle(), SCHED_RR, &param);
+      if (error)
+        cLog::log (LOGERROR, "couldn't set captureThread priority: %s", strerror (error));
+      captureThread.detach();
+    #endif
+
     mPtsSong = new cPtsSong (eAudioFrameType::eAacAdts, mNumChannels, mSampleRate, 1024, 1920, 0);
     iAudioDecoder* audioDecoder = nullptr;
 
@@ -1182,7 +1198,9 @@ public:
       WSADATA wsaData;
       WSAStartup (MAKEWORD(2, 2), &wsaData);
       int sendAddrSize = sizeof (sendAddr);
-    #else
+    #endif
+
+    #ifdef __linux__
       unsigned int sendAddrSize = sizeof (sendAddr);
     #endif
     //}}}
@@ -1317,7 +1335,9 @@ public:
         return;
         }
       WSACleanup();
-    #else
+    #endif
+
+    #ifdef __linux__
       close (rtpReceiveSocket);
     #endif
     //}}}
@@ -1659,7 +1679,9 @@ protected:
         return 0;
       else
         mFileSize = st.st_size;
-    #else
+    #endif
+
+    #ifdef __linux__
       struct stat st;
       if (stat (filename.c_str(), &st) == -1)
         return 0;
@@ -1678,7 +1700,9 @@ protected:
       struct _stati64 st;
       if (_stat64 (filename.c_str(), &st) != -1)
         mFileSize = st.st_size;
-    #else
+    #endif
+
+    #ifdef __linux__
       struct stat st;
       if (stat (filename.c_str(), &st) != -1)
         mFileSize = st.st_size;
@@ -2182,7 +2206,9 @@ public:
             //{{{  fseek
             #ifdef _WIN32
               _fseeki64 (file, mStreamPos, SEEK_SET);
-            #else
+            #endif
+
+            #ifdef __linux__
               fseek (file, mStreamPos, SEEK_SET);
             #endif
             //}}}
@@ -2197,7 +2223,9 @@ public:
             //{{{  fseek
             #ifdef _WIN32
               _fseeki64 (file, mStreamPos, SEEK_SET);
-            #else
+            #endif
+
+            #ifdef __linux__
               fseek (file, mStreamPos, SEEK_SET);
             #endif
             //}}}

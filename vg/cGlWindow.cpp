@@ -206,6 +206,7 @@ void cGlWindow::toggleFullScreen() {
 //}}}
 //{{{
 void cGlWindow::toggleVsync() {
+
   mVsync = !mVsync;
   glfwSwapInterval (mVsync ? 1 : 0);
   }
