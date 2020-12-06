@@ -697,7 +697,7 @@ public:
     if (params[0] != "dvb")
       return false;
 
-    mFrequency = 626000000;
+    mFrequency = 626;
     mServiceName =  params[0];
 
     return true;
