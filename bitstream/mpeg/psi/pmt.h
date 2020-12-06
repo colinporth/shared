@@ -1,12 +1,10 @@
+// Normative references:  ISO/IEC 13818-1:2007(E) (MPEG-2 Systems)
 #pragma once
-/*
- * Normative references:
- *  - ISO/IEC 13818-1:2007(E) (MPEG-2 Systems)
- */
+//{{{  includes
 #include "../../common.h"
 #include "../../mpeg/psi/psi.h"
 #include "../../mpeg/psi/descriptors.h"
-
+//}}}
 //{{{
 #ifdef __cplusplus
 extern "C"
@@ -14,9 +12,7 @@ extern "C"
 #endif
 //}}}
 
-/*****************************************************************************
- * Program Map Table
- *****************************************************************************/
+// Program Map Table
 #define PMT_TABLE_ID            0x2
 #define PMT_HEADER_SIZE         (PSI_HEADER_SIZE_SYNTAX1 + 4)
 #define PMT_ES_SIZE             5
@@ -58,6 +54,7 @@ extern "C"
 #define PMT_STREAMTYPE_SCTE_35          0x86
 #define PMT_STREAMTYPE_ATSC_A52E        0x87
 
+//{{{
 static inline void pmt_init(uint8_t *p_pmt)
 {
     psi_init(p_pmt, true);
@@ -68,58 +65,73 @@ static inline void pmt_init(uint8_t *p_pmt)
     p_pmt[8] = 0xe0;
     p_pmt[10] = 0xf0;
 }
-
+//}}}
+//{{{
 static inline void pmt_set_length(uint8_t *p_pmt, uint16_t i_pmt_length)
 {
     psi_set_length(p_pmt, PMT_HEADER_SIZE + PSI_CRC_SIZE - PSI_HEADER_SIZE
                     + i_pmt_length);
 }
+//}}}
 
+//{{{
 static inline void pmt_set_pcrpid(uint8_t *p_pmt, uint16_t i_pcr_pid)
 {
     p_pmt[8] &= ~0x1f;
     p_pmt[8] |= i_pcr_pid >> 8;
     p_pmt[9] = i_pcr_pid & 0xff;
 }
-
+//}}}
+//{{{
 static inline uint16_t pmt_get_pcrpid(const uint8_t *p_pmt)
 {
     return ((p_pmt[8] & 0x1f) << 8) | p_pmt[9];
 }
+//}}}
 
+//{{{
 static inline void pmt_set_desclength(uint8_t *p_pmt, uint16_t i_length)
 {
     p_pmt[10] &= ~0xf;
     p_pmt[10] |= i_length >> 8;
     p_pmt[11] = i_length & 0xff;
 }
-
+//}}}
+//{{{
 static inline uint16_t pmt_get_desclength(const uint8_t *p_pmt)
 {
     return ((p_pmt[10] & 0xf) << 8) | p_pmt[11];
 }
+//}}}
 
+//{{{
 static inline uint8_t *pmt_get_descs(uint8_t *p_pmt)
 {
     return &p_pmt[10];
 }
+//}}}
 
+//{{{
 static inline void pmtn_init(uint8_t *p_pmt_n)
 {
     p_pmt_n[1] = 0xe0;
     p_pmt_n[3] = 0xf0;
 }
+//}}}
 
+//{{{
 static inline void pmtn_set_streamtype(uint8_t *p_pmt_n, uint8_t i_stream_type)
 {
     p_pmt_n[0] = i_stream_type;
 }
-
+//}}}
+//{{{
 static inline uint8_t pmtn_get_streamtype(const uint8_t *p_pmt_n)
 {
     return p_pmt_n[0];
 }
-
+//}}}
+//{{{
 static inline const char *pmt_get_streamtype_txt(uint8_t i_stream_type) {
     /* ISO/IEC 13818-1 | Table 2-36 - Stream type assignments */
     if (i_stream_type == 0)
@@ -161,36 +173,44 @@ static inline const char *pmt_get_streamtype_txt(uint8_t i_stream_type) {
         default  : return "Unknown";
     }
 }
+//}}}
 
+//{{{
 static inline void pmtn_set_pid(uint8_t *p_pmt_n, uint16_t i_pid)
 {
     p_pmt_n[1] &= ~0x1f;
     p_pmt_n[1] |= i_pid >> 8;
     p_pmt_n[2] = i_pid & 0xff;
 }
-
+//}}}
+//{{{
 static inline uint16_t pmtn_get_pid(const uint8_t *p_pmt_n)
 {
     return ((p_pmt_n[1] & 0x1f) << 8) | p_pmt_n[2];
 }
+//}}}
 
+//{{{
 static inline void pmtn_set_desclength(uint8_t *p_pmt_n, uint16_t i_length)
 {
     p_pmt_n[3] &= ~0xf;
     p_pmt_n[3] |= i_length >> 8;
     p_pmt_n[4] = i_length & 0xff;
 }
-
+//}}}
+//{{{
 static inline uint16_t pmtn_get_desclength(const uint8_t *p_pmt_n)
 {
     return ((p_pmt_n[3] & 0xf) << 8) | p_pmt_n[4];
 }
-
+//}}}
+//{{{
 static inline uint8_t *pmtn_get_descs(uint8_t *p_pmt_n)
 {
     return &p_pmt_n[3];
 }
-
+//}}}
+//{{{
 static inline uint8_t *pmt_get_es(uint8_t *p_pmt, uint8_t n)
 {
     uint16_t i_section_size = psi_get_length(p_pmt) + PSI_HEADER_SIZE
@@ -206,7 +226,9 @@ static inline uint8_t *pmt_get_es(uint8_t *p_pmt, uint8_t n)
     if (p_pmt_n - p_pmt >= i_section_size) return NULL;
     return p_pmt_n;
 }
+//}}}
 
+//{{{
 static inline bool pmt_validate_es(const uint8_t *p_pmt, const uint8_t *p_pmt_n,
                                    uint16_t i_desclength)
 {
@@ -215,7 +237,8 @@ static inline bool pmt_validate_es(const uint8_t *p_pmt, const uint8_t *p_pmt_n,
     return (p_pmt_n + PMT_ES_SIZE + i_desclength
              <= p_pmt + i_section_size);
 }
-
+//}}}
+//{{{
 static inline bool pmt_validate(const uint8_t *p_pmt)
 {
     uint16_t i_section_size = psi_get_length(p_pmt) + PSI_HEADER_SIZE
@@ -250,7 +273,9 @@ static inline bool pmt_validate(const uint8_t *p_pmt)
 
     return (p_pmt_n - p_pmt == i_section_size);
 }
+//}}}
 
+//{{{
 static inline uint8_t *pmt_find_es(uint8_t *p_pmt, uint16_t i_pid)
 {
     uint8_t *p_es;
@@ -264,6 +289,7 @@ static inline uint8_t *pmt_find_es(uint8_t *p_pmt, uint16_t i_pid)
 
     return NULL;
 }
+//}}}
 
 //{{{
 #ifdef __cplusplus

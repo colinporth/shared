@@ -3,10 +3,10 @@
  * Normative references:
  *  - ISO/IEC 13818-1:2007(E) (MPEG-2 Systems)
  */
-
+//{{{  includes
 #include "../../common.h"
 #include "../../mpeg/psi/descriptors.h"
-
+//}}}
 //{{{
 #ifdef __cplusplus
 extern "C"
