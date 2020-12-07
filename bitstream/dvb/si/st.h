@@ -1,13 +1,10 @@
 #pragma once
-/*
- * Normative references:
- *  - ETSI EN 300 468 V1.11.1 (2010-04) (SI in DVB systems)
- */
-
+// ETSI EN 300 468 V1.11.1 (2010-04) (SI in DVB systems)
+//{{{  includes
 #include "../../common.h"
 #include "../../mpeg/psi/psi.h"
 #include "../../mpeg/psi/descriptors.h"
-
+//}}}
 //{{{
 #ifdef __cplusplus
 extern "C"

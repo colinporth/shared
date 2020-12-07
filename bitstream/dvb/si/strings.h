@@ -1,12 +1,10 @@
 #pragma once
-/*
- * Normative references:
- *  - ETSI EN 300 468 V1.11.1 (2010-04) (SI in DVB systems)
- */
+// Normative references:
+//  - ETSI EN 300 468 V1.11.1 (2010-04) (SI in DVB systems)
+//{{{  includes
 #include <stdlib.h>   /* malloc, free */
-
 #include "../../common.h"
-
+//}}}
 //{{{
 #ifdef __cplusplus
 extern "C"
@@ -14,9 +12,7 @@ extern "C"
 #endif
 //}}}
 
-/*****************************************************************************
- * DVB string
- *****************************************************************************/
+//{{{
 static const char *ppsz_dvb_encodings[] = {
     /* 0x00 - 0x0f */
     "", "ISO-8859-5", "ISO-8859-6", "ISO-8859-7", "ISO-8859-8",
@@ -27,13 +23,17 @@ static const char *ppsz_dvb_encodings[] = {
     "", "UCS-2BE", "EUC-KR", "GB2312", "UCS-2BE", "UTF-8",
     "", "", "", "", "", "", "", "", "", "", NULL
 };
+//}}}
+//{{{
 static const char *ppsz_dvb_encodings10[] = {
     "", "ISO-8859-1", "ISO-8859-2", "ISO-8859-3", "ISO-8859-4",
     "ISO-8859-5", "ISO-8859-6", "ISO-8859-7", "ISO-8859-8", "ISO-8859-9",
     "ISO-8859-10", "ISO-8859-11", "", "ISO-8859-13", "ISO-8859-14",
     "ISO-8859-15", NULL
 };
+//}}}
 
+//{{{
 static inline const char *dvb_string_get_encoding(const uint8_t **pp_string,
         size_t *pi_length, const char *psz_default_encoding)
 {
@@ -70,7 +70,8 @@ static inline const char *dvb_string_get_encoding(const uint8_t **pp_string,
 
     return ppsz_dvb_encodings[i_first];
 }
-
+//}}}
+//{{{
 static inline uint8_t *dvb_string_set_inner(const uint8_t *p_string,
         size_t i_length, const char *psz_encoding, size_t *pi_out_length,
         const char *psz_default_encoding)
@@ -109,7 +110,8 @@ static inline uint8_t *dvb_string_set_inner(const uint8_t *p_string,
     *pi_out_length = 0;
     return NULL;
 }
-
+//}}}
+//{{{
 static inline uint8_t *dvb_string_set(const uint8_t *p_string, size_t i_length,
                                       const char *psz_encoding,
                                       size_t *pi_out_length)
@@ -117,7 +119,8 @@ static inline uint8_t *dvb_string_set(const uint8_t *p_string, size_t i_length,
     return dvb_string_set_inner(p_string, i_length, psz_encoding,
                                 pi_out_length, "ISO6937");
 }
-
+//}}}
+//{{{
 static inline uint8_t *dvb_string_set_quirks(const uint8_t *p_string,
         size_t i_length, const char *psz_encoding, size_t *pi_out_length,
         const char *psz_provider)
@@ -128,7 +131,8 @@ static inline uint8_t *dvb_string_set_quirks(const uint8_t *p_string,
     return dvb_string_set_inner(p_string, i_length, psz_encoding,
                                 pi_out_length, "ISO6937");
 }
-
+//}}}
+//{{{
 /* simpler API because this one doesn't output to multibyte charsets */
 static inline char *dvb_string_get_inner(const uint8_t *p_string,
         size_t i_length, f_iconv pf_iconv, void *iconv_opaque,
@@ -150,14 +154,16 @@ static inline char *dvb_string_get_inner(const uint8_t *p_string,
 
     return strdup("");
 }
-
+//}}}
+//{{{
 static inline char *dvb_string_get(const uint8_t *p_string, size_t i_length,
                                    f_iconv pf_iconv, void *iconv_opaque)
 {
     return dvb_string_get_inner(p_string, i_length, pf_iconv, iconv_opaque,
                                 "ISO6937");
 }
-
+//}}}
+//{{{
 static inline char *dvb_string_get_quirks(const uint8_t *p_string,
         size_t i_length, f_iconv pf_iconv, void *iconv_opaque,
         const char *psz_provider)
@@ -168,7 +174,8 @@ static inline char *dvb_string_get_quirks(const uint8_t *p_string,
     return dvb_string_get_inner(p_string, i_length, pf_iconv, iconv_opaque,
                                 "ISO6937");
 }
-
+//}}}
+//{{{
 static inline char *dvb_string_xml_escape(char *psz_input)
 {
     char *psz_output, *psz2;
@@ -228,6 +235,7 @@ static inline char *dvb_string_xml_escape(char *psz_input)
     free(psz_input);
     return psz_output;
 }
+//}}}
 
 //{{{
 #ifdef __cplusplus

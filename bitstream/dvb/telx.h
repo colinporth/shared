@@ -1,11 +1,10 @@
 #pragma once
-/*
- * Normative references:
- *  - ETSI EN 300 706 V1.2.1 (2003-04) (enhanced teletext)
- */
-
+// Normative references:
+//  - ETSI EN 300 706 V1.2.1 (2003-04) (enhanced teletext)
+//{{{  includes
 #include <stdint.h>
 #include <stdbool.h>
+//}}}
 
 //{{{
 #ifdef __cplusplus

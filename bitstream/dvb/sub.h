@@ -1,9 +1,6 @@
 #pragma once
-/*
- * Normative references:
- *  - ETSI EN 300 743 V1.5.1 (2014-01) (Subtitling Systems)
- */
-
+// Normative references:
+//  - ETSI EN 300 743 V1.5.1 (2014-01) (Subtitling Systems)
 #include <stdint.h>
 
 //{{{

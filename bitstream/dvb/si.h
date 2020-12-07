@@ -1,8 +1,6 @@
-/*
- * Normative references:
- *  - ISO/IEC 13818-1:2007(E) (MPEG-2 Systems)
- *  - ETSI EN 300 468 V1.11.1 (2010-04) (SI in DVB systems)
- */
+//Normative references:
+//  - ISO/IEC 13818-1:2007(E) (MPEG-2 Systems)
+//  - ETSI EN 300 468 V1.11.1 (2010-04) (SI in DVB systems)
 
 #include "../common.h"
 #include "../mpeg/psi/psi.h"

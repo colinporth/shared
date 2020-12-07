@@ -1,12 +1,10 @@
 #pragma once
-/*
- * Normative references:
- *  - ETSI EN 300 775 V1.2.1 (2003-05) (carriage of VBI in DVB)
- */
-
+// Normative references:
+//  - ETSI EN 300 775 V1.2.1 (2003-05) (carriage of VBI in DVB)
+//{{{  includes
 #include <stdint.h>
 #include <stdbool.h>
-
+//}}}
 //{{{
 #ifdef __cplusplus
 extern "C"

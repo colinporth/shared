@@ -1,12 +1,10 @@
 #pragma once
-/*
- * Normative references:
- *  - ETSI EN 300 468 V1.11.1 (2010-04) (SI in DVB systems)
- */
+// - ETSI EN 300 468 V1.11.1 (2010-04) (SI in DVB systems)
+//{{{  includes
 #include "../../common.h"
 #include "../../mpeg/psi/psi.h"
 #include "../../mpeg/psi/descriptors.h"
-
+//}}}
 //{{{
 #ifdef __cplusplus
 extern "C"
@@ -14,9 +12,7 @@ extern "C"
 #endif
 //}}}
 
-/*****************************************************************************
- * Service Description Table
- *****************************************************************************/
+// Service Description Table
 #define SDT_PID                 0x11
 #define SDT_TABLE_ID_ACTUAL     0x42
 #define SDT_TABLE_ID_OTHER      0x46
@@ -26,105 +22,135 @@ extern "C"
 #define sdt_set_tsid psi_set_tableidext
 #define sdt_get_tsid psi_get_tableidext
 
+//{{{
 static inline void sdt_init(uint8_t *p_sdt, bool b_actual)
 {
     psi_init(p_sdt, true);
     psi_set_tableid(p_sdt, b_actual ? SDT_TABLE_ID_ACTUAL : SDT_TABLE_ID_OTHER);
     p_sdt[10] = 0xff;
 }
+//}}}
 
+//{{{
 static inline void sdt_set_length(uint8_t *p_sdt, uint16_t i_sdt_length)
 {
     psi_set_length(p_sdt, SDT_HEADER_SIZE + PSI_CRC_SIZE - PSI_HEADER_SIZE
                     + i_sdt_length);
 }
+//}}}
 
+//{{{
 static inline void sdt_set_onid(uint8_t *p_sdt, uint16_t i_onid)
 {
     p_sdt[8] = i_onid >> 8;
     p_sdt[9] = i_onid & 0xff;
 }
-
+//}}}
+//{{{
 static inline uint16_t sdt_get_onid(const uint8_t *p_sdt)
 {
     return (p_sdt[8] << 8) | p_sdt[9];
 }
+//}}}
 
+//{{{
 static inline void sdtn_init(uint8_t *p_sdt_n)
 {
     p_sdt_n[2] = 0xfc;
     p_sdt_n[3] = 0;
 }
+//}}}
 
+//{{{
 static inline void sdtn_set_sid(uint8_t *p_sdt_n, uint16_t i_sid)
 {
     p_sdt_n[0] = i_sid >> 8;
     p_sdt_n[1] = i_sid & 0xff;
 }
-
+//}}}
+//{{{
 static inline uint16_t sdtn_get_sid(const uint8_t *p_sdt_n)
 {
     return (p_sdt_n[0] << 8) | p_sdt_n[1];
 }
+//}}}
 
+//{{{
 static inline void sdtn_set_eitschedule(uint8_t *p_sdt_n)
 {
     p_sdt_n[2] |= 0x2;
 }
-
+//}}}
+//{{{
 static inline bool sdtn_get_eitschedule(const uint8_t *p_sdt_n)
 {
     return !!(p_sdt_n[2] & 0x2);
 }
+//}}}
 
+//{{{
 static inline void sdtn_set_eitpresent(uint8_t *p_sdt_n)
 {
     p_sdt_n[2] |= 0x1;
 }
-
+//}}}
+//{{{
 static inline bool sdtn_get_eitpresent(const uint8_t *p_sdt_n)
 {
     return !!(p_sdt_n[2] & 0x1);
 }
+//}}}
 
+//{{{
 static inline void sdtn_set_running(uint8_t *p_sdt_n, uint8_t i_running)
 {
     p_sdt_n[3] &= 0x1f;
     p_sdt_n[3] |= i_running << 5;
 }
-
+//}}}
+//{{{
 static inline uint8_t sdtn_get_running(const uint8_t *p_sdt_n)
 {
     return p_sdt_n[3] >> 5;
 }
+//}}}
 
+//{{{
 static inline void sdtn_set_ca(uint8_t *p_sdt_n)
 {
     p_sdt_n[3] |= 0x10;
 }
-
+//}}}
+//{{{
 static inline bool sdtn_get_ca(const uint8_t *p_sdt_n)
 {
     return !!(p_sdt_n[3] & 0x10);
 }
+//}}}
 
+//{{{
 static inline void sdtn_set_desclength(uint8_t *p_sdt_n, uint16_t i_length)
 {
     p_sdt_n[3] &= ~0xf;
     p_sdt_n[3] |= (i_length >> 8) & 0xf;
     p_sdt_n[4] = i_length & 0xff;
 }
-
+//}}}
+//{{{
 static inline uint16_t sdtn_get_desclength(const uint8_t *p_sdt_n)
 {
     return ((p_sdt_n[3] & 0xf) << 8) | p_sdt_n[4];
 }
+//}}}
 
+//{{{
 static inline uint8_t *sdtn_get_descs(uint8_t *p_sdt_n)
 {
     return &p_sdt_n[3];
 }
+//}}}
 
+//{{{
 static inline uint8_t *sdt_get_service(uint8_t *p_sdt, uint8_t n)
 {
     uint16_t i_section_size = psi_get_length(p_sdt) + PSI_HEADER_SIZE
@@ -139,7 +165,8 @@ static inline uint8_t *sdt_get_service(uint8_t *p_sdt, uint8_t n)
     if (p_sdt_n - p_sdt >= i_section_size) return NULL;
     return p_sdt_n;
 }
-
+//}}}
+//{{{
 static inline bool sdt_validate_service(const uint8_t *p_sdt,
                                         const uint8_t *p_sdt_n,
                                         uint16_t i_desclength)
@@ -149,7 +176,9 @@ static inline bool sdt_validate_service(const uint8_t *p_sdt,
     return (p_sdt_n + SDT_SERVICE_SIZE + i_desclength
              <= p_sdt + i_section_size);
 }
+//}}}
 
+//{{{
 static inline bool sdt_validate(const uint8_t *p_sdt)
 {
     uint16_t i_section_size = psi_get_length(p_sdt) + PSI_HEADER_SIZE
@@ -174,9 +203,9 @@ static inline bool sdt_validate(const uint8_t *p_sdt)
 
     return (p_sdt_n - p_sdt == i_section_size);
 }
-
-static inline uint8_t *sdt_table_find_service(uint8_t **pp_sections,
-                                              uint16_t i_sid)
+//}}}
+//{{{
+static inline uint8_t *sdt_table_find_service(uint8_t **pp_sections, uint16_t i_sid)
 {
     uint8_t i_last_section = psi_table_get_lastsection(pp_sections);
     uint8_t i;
@@ -195,7 +224,8 @@ static inline uint8_t *sdt_table_find_service(uint8_t **pp_sections,
 
     return NULL;
 }
-
+//}}}
+//{{{
 static inline bool sdt_table_validate(uint8_t **pp_sections)
 {
     uint8_t i_last_section = psi_table_get_lastsection(pp_sections);
@@ -226,6 +256,7 @@ static inline bool sdt_table_validate(uint8_t **pp_sections)
 
     return true;
 }
+//}}}
 
 //{{{
 #ifdef __cplusplus

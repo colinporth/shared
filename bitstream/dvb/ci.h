@@ -1,12 +1,10 @@
 #pragma once
-/*
- * Normative references:
- *  - CENELEC EN 50 221 (1997) (Common Interface Specification)
- */
-
+// Normative references:
+//  - CENELEC EN 50 221 (1997) (Common Interface Specification)
+//{{{  includes
 #include <bitstream/mpeg/psi/psi.h>
 #include <bitstream/mpeg/psi/descriptors.h>
-
+//}}}
 //{{{
 #ifdef __cplusplus
 extern "C"

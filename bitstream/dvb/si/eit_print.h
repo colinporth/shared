@@ -1,47 +1,20 @@
-/*****************************************************************************
- * eit_print.h: ETSI EN 300 468 Event Information Table (EIT) (printing)
- *****************************************************************************
- * Copyright (C) 2011 Unix Solutions Ltd.
- *
- * Authors: Georgi Chorbadzhiyski <georgi@unixsol.org>
- *
- * Permission is hereby granted, free of charge, to any person obtaining
- * a copy of this software and associated documentation files (the
- * "Software"), to deal in the Software without restriction, including
- * without limitation the rights to use, copy, modify, merge, publish,
- * distribute, sublicense, and/or sell copies of the Software, and to
- * permit persons to whom the Software is furnished to do so, subject
- * to the following conditions:
- *
- * The above copyright notice and this permission notice shall be
- * included in all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
- * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
- * CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
- * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- *****************************************************************************/
-
-#ifndef __BITSTREAM_DVB_EIT_PRINT_H__
-#define __BITSTREAM_DVB_EIT_PRINT_H__
-
+#pragma once
+//{{{  includes
 #include <bitstream/common.h>
 #include <bitstream/mpeg/psi/psi.h>
 #include <bitstream/mpeg/psi/descs_print.h>
 #include <bitstream/dvb/si/datetime.h>
 #include <bitstream/dvb/si/eit.h>
+//}}}
 
+//{{{
 #ifdef __cplusplus
 extern "C"
 {
 #endif
+//}}}
 
-/*****************************************************************************
- * Event Information Table
- *****************************************************************************/
+// Event Information Table
 static inline void eit_print(uint8_t *p_eit,
                              f_print pf_print, void *print_opaque,
                              f_iconv pf_iconv, void *iconv_opaque,
@@ -149,8 +122,8 @@ static inline void eit_print(uint8_t *p_eit,
     }
 }
 
+//{{{
 #ifdef __cplusplus
 }
 #endif
-
-#endif
+//}}}

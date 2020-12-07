@@ -1,8 +1,6 @@
 #pragma once
-/*
- * Normative references:
- *  - ETSI EN 300 468 V1.11.1 (2010-04) (SI in DVB systems)
- */
+//Normative references:
+//  - ETSI EN 300 468 V1.11.1 (2010-04) (SI in DVB systems)
 //{{{  includes
 #include "../../common.h"
 #include "../../mpeg/psi/psi.h"
@@ -16,9 +14,6 @@ extern "C"
 #endif
 //}}}
 
-/*****************************************************************************
- * Bouquet Association Table
- *****************************************************************************/
 #define BAT_PID                 0x11
 #define BAT_TABLE_ID            0x4a
 #define BAT_HEADER_SIZE         (PSI_HEADER_SIZE_SYNTAX1 + 2)
@@ -28,12 +23,14 @@ extern "C"
 #define bat_set_bouquet_id psi_set_tableidext
 #define bat_get_bouquet_id psi_get_tableidext
 
+//{{{
 static inline void bat_init(uint8_t *p_bat)
 {
     psi_init(p_bat, true);
     psi_set_tableid(p_bat, BAT_TABLE_ID);
     p_bat[8] = 0xf0;
 }
+//}}}
 
 #define bat_set_length      nit_set_length
 #define bat_set_desclength  nit_set_desclength
