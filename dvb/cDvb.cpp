@@ -910,30 +910,27 @@ cDvb::cDvb (int frequency, const string& root,
         mTuneStr = "not tuned " + dec (frequency, 3) + "Mhz";
 
     #else
-      // frontend nonBlocking rw
+      // open frontend nonBlocking rw
       mFrontEnd = open ("/dev/dvb/adapter0/frontend0", O_RDWR | O_NONBLOCK);
       if (mFrontEnd < 0){
-        cLog::log (LOGERROR, "open frontend failed");
+        cLog::log (LOGERROR, "cDvb open frontend failed");
         return;
         }
       tune (frequency * 1000000);
 
-      // demux nonBlocking rw
+      // open demux nonBlocking rw
       mDemux = open ("/dev/dvb/adapter0/demux0", O_RDWR | O_NONBLOCK);
       if (mDemux < 0) {
-        cLog::log (LOGERROR, "open demux failed");
+        cLog::log (LOGERROR, "cDvb open demux failed");
         return;
         }
       setTsFilter (8192, DMX_PES_OTHER);
 
-      // dvr blocking reads
+      // open dvr blocking reads, big buffer 50m
       mDvr = open ("/dev/dvb/adapter0/dvr0", O_RDONLY);
-
       constexpr int kDvrBufferSize = 256 * 1024 * 188;
       if (ioctl (mDvr, DMX_SET_BUFFER_SIZE, kDvrBufferSize) < 0)
-
-      if (mDvr < 0)
-        cLog::log (LOGERROR, "open dvr failed");
+        cLog::log (LOGERROR, "cDvb dvr DMX_SET_BUFFER_SIZE failed");
 
     #endif
     }
