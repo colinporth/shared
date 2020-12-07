@@ -46,6 +46,7 @@
 #endif
 
 #ifdef __linux__
+  #include <unistd.h>
   #include <sys/poll.h>
 #endif
 //{{{  common includes
@@ -57,8 +58,6 @@
 #include <vector>
 #include <map>
 #include <thread>
-
-#include <unistd.h>
 
 #include "../fmt/core.h"
 #include "../utils/utils.h"
