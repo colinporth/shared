@@ -643,7 +643,7 @@ namespace { // anonymous
   //}}}
 
   //{{{
-  uint8_t* getBlock (int& len) {
+  uint8_t* getBlockBDA (int& len) {
 
     return mGrabberCB.getBlock (len);
     }
@@ -1222,7 +1222,7 @@ void cDvb::grabThread (const string& root, const string& multiplexName) {
       int64_t streamPos = 0;
       auto blockSize = 0;
       while (true) {
-        auto ptr = getBlock (blockSize);
+        auto ptr = getBlockBDA (blockSize);
         if (blockSize) {
           //{{{  read and demux block
           if (mFile)

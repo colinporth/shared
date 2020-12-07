@@ -34,7 +34,7 @@ public:
   int32_t getSampleRate() { return mSampleRate * (mSbrEnabled ? 2 : 1); }
   int32_t getNumSamplesPerFrame() { return mNumSamples; }
 
-  float* decodeFrame (const uint8_t* framePtr, int frameLen, int64_t pts frameNum);
+  float* decodeFrame (const uint8_t* framePtr, int frameLen, int64_t pts);
 
 private:
   //{{{  private members
