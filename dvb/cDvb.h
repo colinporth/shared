@@ -22,6 +22,8 @@ public:
 
   void tune (int frequency);
 
+  int getBlock (uint8_t*& block, int& blockSize);
+
   void grabThread (const std::string& root, const std::string& multiplexName);
   void readThread (const std::string& fileName);
 

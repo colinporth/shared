@@ -40,7 +40,7 @@
 
 #include "readerWriterQueue.h"
 
-#include "../dvb/cDvbSimple.h"
+#include "../dvb/cDvb.h"
 
 using namespace std;
 using namespace fmt;
@@ -711,18 +711,7 @@ public:
     mLoadFrac = 0.f;
 
     cLog::log (LOGINFO, "cDvbSource %d", mFrequency);
-    auto dvb = new cDvbSimple (mFrequency);
-
-    #ifdef __linux__
-      // set captureThread realtime priority
-      auto captureThread = thread ([=]() { dvb->captureThread(); });
-      struct sched_param param;
-      param.sched_priority = sched_get_priority_max (SCHED_RR);
-      int error = pthread_setschedparam (captureThread.native_handle(), SCHED_RR, &param);
-      if (error)
-        cLog::log (LOGERROR, "set captureThread realtime priority failed - %s", strerror (error));
-      captureThread.detach();
-    #endif
+    auto dvb = new cDvb (mFrequency, "", {"all"}, {"all"}, false);
 
     mPtsSong = new cPtsSong (eAudioFrameType::eAacAdts, mNumChannels, mSampleRate, 1024, 1920, 0);
     iAudioDecoder* audioDecoder = nullptr;
@@ -839,11 +828,10 @@ public:
     mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
     //}}}
 
+    uint8_t* buffer = (uint8_t*)malloc (1024 * 188);
     do {
-      uint8_t* buffer = nullptr;
-      int blockSize = 0;
-      dvb->getTsBlock (buffer, blockSize);
-      int bytesLeft = blockSize;
+      int blockSize = 1024 * 188;
+      int bytesLeft = dvb->getBlock (buffer, blockSize);
 
       // process tsBlock
       uint8_t* ts = buffer;
@@ -855,9 +843,9 @@ public:
         bytesLeft -= 188;
         }
 
-      dvb->releaseTsBlock (blockSize);
       } while (!mExit);
 
+    free (buffer);
     //{{{  delete resources
     if (mSongPlayer)
       mSongPlayer->wait();

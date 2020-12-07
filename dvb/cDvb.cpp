@@ -893,7 +893,6 @@ namespace { // anonymous
   cDvbTransportStream* mDvbTransportStream;
   }
 
-
 // public:
 //{{{
 cDvb::cDvb (int frequency, const string& root,
@@ -1196,6 +1195,18 @@ void cDvb::tune (int frequency) {
 
     cLog::log (LOGERROR, "tuning failed\n");
 
+  #endif
+  }
+//}}}
+
+//{{{
+int cDvb::getBlock (uint8_t*& block, int& blockSize) {
+
+  #ifdef __linux__
+    return read (mDvr, block, blockSize);
+  #else
+    cLog::log (LOGERROR, "cDvbSimple::getTsBlock not implemented");
+    return 0;
   #endif
   }
 //}}}
