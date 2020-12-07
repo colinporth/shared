@@ -662,7 +662,6 @@ namespace { // anonymous
   uint64_t mLastErrors = 0;
   int mLastBlockSize = 0;
   int mMaxBlockSize = 0;
-  cBipBuffer* mBipBuffer;
   //}}}
   //{{{
   void setTsFilter (uint16_t pid, dmx_pes_type_t pestype) {
@@ -912,10 +911,6 @@ cDvb::cDvb (int frequency, const string& root,
         mTuneStr = "not tuned " + dec (frequency, 3) + "Mhz";
 
     #else
-      // linux create and tune
-      mBipBuffer = new cBipBuffer();
-      mBipBuffer->allocateBuffer (2048 * 128 * 188); // 50m - T2 5m a second
-
       // frontend nonBlocking rw
       mFrontEnd = open ("/dev/dvb/adapter0/frontend0", O_RDWR | O_NONBLOCK);
       if (mFrontEnd < 0){
@@ -934,6 +929,10 @@ cDvb::cDvb (int frequency, const string& root,
 
       // dvr blocking reads
       mDvr = open ("/dev/dvb/adapter0/dvr0", O_RDONLY);
+
+      constexpr int kDvrBufferSize = 256 * 1024 * 188;
+      if (ioctl (mDvr, DMX_SET_BUFFER_SIZE, kDvrBufferSize) < 0)
+
       if (mDvr < 0)
         cLog::log (LOGERROR, "open dvr failed");
 
@@ -1202,30 +1201,6 @@ void cDvb::tune (int frequency) {
 //}}}
 
 //{{{
-void cDvb::captureThread() {
-
-  cLog::setThreadName ("capt");
-
-  #ifndef _WIN32
-    // linux
-    while (true) {
-      int bytesAllocated = 0;
-      auto ptr = mBipBuffer->reserve (128 * 188, bytesAllocated);
-      if (ptr) {
-        int bytesRead = read (mDvr, ptr, bytesAllocated);
-        mBipBuffer->commit (bytesRead);
-        if (bytesRead < bytesAllocated)
-          cLog::log (LOGERROR, "write bytesRead " + dec(bytesRead) + " < " + dec(bytesAllocated));
-        }
-      else
-        cLog::log (LOGERROR, "bipBuffer.reserve failed " + dec(bytesAllocated));
-      }
-  #endif
-
-  cLog::log (LOGERROR, "exit");
-  }
-//}}}
-//{{{
 void cDvb::grabThread (const string& root, const string& multiplexName) {
 
   cLog::setThreadName ("grab");
@@ -1272,22 +1247,23 @@ void cDvb::grabThread (const string& root, const string& multiplexName) {
       cLog::log (LOGERROR, "run graph failed " + dec(hr));
 
   #else // linux
+    constexpr int kDvrReadBufferSize = 1024 * 188;
+    auto buffer = (uint8_t*)malloc (kDvrReadBufferSize);
+
     uint64_t streamPos = 0;
     while (true) {
-      int blockSize = 0;
-      auto ptr = mBipBuffer->getContiguousBlock (blockSize);
-      if (blockSize > 0) {
-        streamPos += mDvbTransportStream->demux ({}, ptr, blockSize, 0, false);
+      int bytesRead = read (mDvr, buffer, kDvrReadBufferSize);
+      if (bytesRead > 0) {
+        streamPos += mDvbTransportStream->demux ({}, buffer, bytesRead, 0, false);
         if (mFile)
-          fwrite (ptr, 1, blockSize, mFile);
-        mBipBuffer->decommitBlock (blockSize);
+          fwrite (buffer, 1, bytesRead, mFile);
 
-        bool show = (mDvbTransportStream->getErrors() != mLastErrors) || (blockSize > mLastBlockSize);
+        bool show = (mDvbTransportStream->getErrors() != mLastErrors) || (bytesRead > mLastBlockSize);
         mLastErrors = mDvbTransportStream->getErrors();
-        if (blockSize > mLastBlockSize)
-          mLastBlockSize = blockSize;
-        if (blockSize > mMaxBlockSize)
-          mMaxBlockSize = blockSize;
+        if (bytesRead > mLastBlockSize)
+          mLastBlockSize = bytesRead;
+        if (bytesRead > mMaxBlockSize)
+          mMaxBlockSize = bytesRead;
 
         mSignalStr = updateSignalStr();
         if (show) {
@@ -1296,8 +1272,9 @@ void cDvb::grabThread (const string& root, const string& multiplexName) {
           }
         }
       else
-        this_thread::sleep_for (1ms);
+        cLog::log (LOGINFO, "cDvb grabThread no bytes read");
       }
+    free (buffer);
   #endif
 
   if (mFile)

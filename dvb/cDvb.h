@@ -22,7 +22,6 @@ public:
 
   void tune (int frequency);
 
-  void captureThread();
   void grabThread (const std::string& root, const std::string& multiplexName);
   void readThread (const std::string& fileName);
 
