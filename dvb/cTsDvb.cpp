@@ -43,11 +43,14 @@
 
   #pragma comment (lib,"strmiids")
   //}}}
-#else
-  //  linux includes
+#endif
+
+#ifdef __linux__
   #include <sys/poll.h>
 #endif
 //{{{  common includes
+#include "cTsDvb.h"
+
 #include <cstdlib>
 #include <cstring>
 #include <string>
@@ -55,20 +58,14 @@
 #include <map>
 #include <thread>
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <unistd.h>
 
 #include "../fmt/core.h"
-#include "../date/date.h"
 #include "../utils/utils.h"
 #include "../utils/cLog.h"
-#include "../utils/cBipBuffer.h"
 
 #include "cTransportStream.h"
 #include "cSubtitle.h"
-
-#include "cTsDvb.h"
 
 using namespace std;
 using namespace fmt;
@@ -269,7 +266,7 @@ void cTsDvb::grabThread (const string& root, const string& multiplexName) {
   string allName = root + "/all" + multiplexName + ".ts";
   FILE* mFile = root.empty() ? nullptr : fopen (allName.c_str(), "wb");
 
-  #ifdef _WIN32 // windows
+  #ifdef _WIN32
     auto hr = mMediaControl->Run();
     if (hr == S_OK) {
       int64_t streamPos = 0;
@@ -306,8 +303,9 @@ void cTsDvb::grabThread (const string& root, const string& multiplexName) {
       }
     else
       cLog::log (LOGERROR, "run graph failed " + dec(hr));
+  #endif
 
-  #else // linux
+  #ifdef __linux__
     constexpr int kDvrReadBufferSize = 1024 * 188;
     auto buffer = (uint8_t*)malloc (kDvrReadBufferSize);
 
