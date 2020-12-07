@@ -12,9 +12,7 @@ extern "C"
 #endif
 //}}}
 
-/*****************************************************************************
- * Stuffing Table
- *****************************************************************************/
+// Stuffing Table
 #define ST_TABLE_ID            0x72
 #define ST_HEADER_SIZE         PSI_HEADER_SIZE
 

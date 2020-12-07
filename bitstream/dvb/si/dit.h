@@ -1,12 +1,9 @@
 #pragma once
-/*
- * Normative references:
- *  - ETSI EN 300 468 V1.11.1 (2010-04) (SI in DVB systems)
- */
-
+// ETSI EN 300 468 V1.11.1 (2010-04) (SI in DVB systems)
+//{{{  includes
 #include "../../common.h"
 #include "../../mpeg/psi/descriptors.h"
-
+//}}}
 //{{{
 #ifdef __cplusplus
 extern "C"
@@ -14,9 +11,7 @@ extern "C"
 #endif
 //}}}
 
-/*****************************************************************************
- * Discontinuity Information Table
- *****************************************************************************/
+// Discontinuity Information Table
 #define DIT_PID                 0x1E
 #define DIT_TABLE_ID            0x7E
 #define DIT_HEADER_SIZE         PSI_HEADER_SIZE
