@@ -5,7 +5,7 @@
 #include <string>
 #include <algorithm>
 
-#include "../dvb/cDvb.h"
+#include "../dvb/cTsDvb.h"
 
 #include "../utils/utils.h"
 #include "../dvb/cTransportStream.h"
@@ -17,7 +17,7 @@
 class cDvbWidget: public cWidget {
 public:
   //{{{
-  cDvbWidget (cDvb* dvb, float width, float height, const std::string& id = "cDvbWidget") :
+  cDvbWidget (cTsDvb* dvb, float width, float height, const std::string& id = "cDvbWidget") :
     cWidget (width, height, id), mDvb(dvb) {}
   //}}}
   virtual ~cDvbWidget() {}
@@ -162,7 +162,7 @@ public:
   //}}}
 
 private:
-  cDvb* mDvb;
+  cTsDvb* mDvb;
   int mContDigits = 0;
   int mPacketDigits = 1;
   float mMaxPidPackets = 0;

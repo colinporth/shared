@@ -43,7 +43,9 @@
 
   #pragma comment (lib,"strmiids")
   //}}}
-#else
+#endif
+
+#ifdef __linux__
   //{{{  linux includes
   #include <unistd.h>
   #include <signal.h>
@@ -58,34 +60,25 @@
   #include <linux/dvb/frontend.h>
   //}}}
 #endif
+
 //{{{  common includes
 #include <cstdlib>
 #include <cstring>
 #include <string>
 #include <vector>
-#include <map>
 #include <thread>
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
 #include "../fmt/core.h"
 #include "../date/date.h"
-#include "../utils/utils.h"
+//#include "../utils/utils.h"
 #include "../utils/cLog.h"
 #include "../utils/cBipBuffer.h"
-
-#include "cTransportStream.h"
-#include "cSubtitle.h"
 
 #include "cDvb.h"
 
 using namespace std;
 using namespace fmt;
 //}}}
-
-constexpr bool kDebug = false;
 
 namespace { // anonymous
 #ifdef _WIN32
@@ -376,7 +369,6 @@ namespace { // anonymous
   Microsoft::WRL::ComPtr<IBaseFilter> mDvbCapture;
 
   Microsoft::WRL::ComPtr<IDVBTLocator> mDvbLocator;
-  Microsoft::WRL::ComPtr<IScanningTuner> mScanningTuner;
   Microsoft::WRL::ComPtr<ITuningSpace> mTuningSpace;
   Microsoft::WRL::ComPtr<IDVBTuningSpace2> mDvbTuningSpace2;
   Microsoft::WRL::ComPtr<ITuneRequest> mTuneRequest;
@@ -392,8 +384,6 @@ namespace { // anonymous
 
   Microsoft::WRL::ComPtr<IBaseFilter> mDumpFilter;
   Microsoft::WRL::ComPtr<IFileSinkFilter> mFileSinkFilter;
-
-  Microsoft::WRL::ComPtr<IMediaControl> mMediaControl;
   //}}}
   //{{{
   string wstrToStr (const wstring& wstr) {
@@ -547,10 +537,10 @@ namespace { // anonymous
       return false;
       }
       //}}}
-    mDvbNetworkProvider.As (&mScanningTuner);
+    mDvbNetworkProvider.As (&cDvb::mScanningTuner);
 
     //{{{  setup dvbTuningSpace2 interface
-    if (mScanningTuner->get_TuningSpace (mTuningSpace.GetAddressOf()) != S_OK)
+    if (cDvb::mScanningTuner->get_TuningSpace (mTuningSpace.GetAddressOf()) != S_OK)
       cLog::log (LOGERROR, "createGraphDvbT - get_TuningSpace failed");
 
     mTuningSpace.As (&mDvbTuningSpace2);
@@ -587,16 +577,16 @@ namespace { // anonymous
       cLog::log (LOGERROR, "createGraphDvbT - put_DefaultLocator failed");
     //}}}
     //{{{  tuneRequest from scanningTuner
-    if (mScanningTuner->get_TuneRequest (mTuneRequest.GetAddressOf()) != S_OK)
+    if (cDvb::mScanningTuner->get_TuneRequest (mTuneRequest.GetAddressOf()) != S_OK)
       mTuningSpace->CreateTuneRequest (mTuneRequest.GetAddressOf());
 
     if (mTuneRequest->put_Locator (mDvbLocator.Get()) != S_OK)
       cLog::log (LOGERROR, "createGraphDvbT - put_Locator failed");
 
-    if (mScanningTuner->Validate (mTuneRequest.Get()) != S_OK)
+    if (cDvb::mScanningTuner->Validate (mTuneRequest.Get()) != S_OK)
       cLog::log (LOGERROR, "createGraphDvbT - Validate failed");
 
-    if (mScanningTuner->put_TuneRequest (mTuneRequest.Get()) != S_OK)
+    if (cDvb::mScanningTuner->put_TuneRequest (mTuneRequest.Get()) != S_OK)
       cLog::log (LOGERROR, "createGraphDvbT - put_TuneRequest failed");
     //}}}
 
@@ -633,7 +623,7 @@ namespace { // anonymous
 
       createFilter (mMpeg2Demux, CLSID_MPEG2Demultiplexer, L"MPEG2demux", mGrabberFilter);
       createFilter (mBdaTif, CLSID_BDAtif, L"BDAtif", mMpeg2Demux);
-      mGraphBuilder.As (&mMediaControl);
+      mGraphBuilder.As (&cDvb::mMediaControl);
 
       return true;
       }
@@ -641,27 +631,12 @@ namespace { // anonymous
       return false;
     }
   //}}}
+#endif
 
-  //{{{
-  uint8_t* getBlockBDA (int& len) {
-
-    return mGrabberCB.getBlock (len);
-    }
-  //}}}
-  //{{{
-  void releaseBlock (int len) {
-    mGrabberCB.releaseBlock (len);
-    }
-  //}}}
-#else
+#ifdef __linux__
   //{{{  vars
   int mFrontEnd = 0;
   int mDemux = 0;
-  int mDvr = 0 ;
-
-  uint64_t mLastErrors = 0;
-  int mLastBlockSize = 0;
-  int mMaxBlockSize = 0;
   //}}}
   //{{{
   void setTsFilter (uint16_t pid, dmx_pes_type_t pestype) {
@@ -675,40 +650,7 @@ namespace { // anonymous
 
     auto error = ioctl (mDemux, DMX_SET_PES_FILTER, &pesFilterParams);
     if (error < 0)
-      cLog::log (LOGERROR, "Demux set filter pid " + dec(pid) + " " + dec(error));
-    }
-  //}}}
-  //{{{
-  string updateSignalStr() {
-
-    fe_status_t feStatus;
-    if (ioctl (mFrontEnd, FE_READ_STATUS, &feStatus) < 0) {
-      cLog::log (LOGERROR, "FE_READ_STATUS failed");
-      return "dvb readStatus failed";
-      }
-    else {
-      // not sure why these fail, only a problem with xbox one usb tuner
-      uint32_t strength = 0;
-      ioctl (mFrontEnd, FE_READ_SIGNAL_STRENGTH, &strength);
-
-      uint32_t snr = 0;
-      ioctl (mFrontEnd, FE_READ_SNR, &snr);
-
-      return format ("{}{}{}{}{}{} strength:{:.1f} snr:{:.1f}",
-                     feStatus & FE_TIMEDOUT ? "timeout " : "",
-                     feStatus & FE_HAS_LOCK ? "lock " : "",
-                     feStatus & FE_HAS_SIGNAL ? "s" : "",
-                     feStatus & FE_HAS_CARRIER ? "c": "",
-                     feStatus & FE_HAS_VITERBI ? "v": " ",
-                     feStatus & FE_HAS_SYNC ? "s" : "",
-                     (strength & 0xFFFF) / 1000.f,
-                     (snr & 0xFFFF) / 1000.f);
-      }
-    }
-  //}}}
-  //{{{
-  string updateErrorStr (int errors) {
-    return format ("err:{} max:{}", errors, mMaxBlockSize);
+      cLog::log (LOGERROR, format ("Demux set filter pid:{} {}", pid, error));
     }
   //}}}
   //{{{
@@ -730,184 +672,36 @@ namespace { // anonymous
       .props = getProps
       };
 
-    if ((ioctl (mFrontEnd, FE_GET_PROPERTY, &cmdGet)) < 0)
-      cLog::log (LOGERROR, "FE_GET_PROPERTY failed");
-    else
-      for (int i = 0; i < 8; i++) {
-        auto uvalue = getProps[i].u.st.stat[0].uvalue;
-        cLog::log (LOGINFO, "stats %d len:%d scale:%d uvalue:%d",
-                   i, getProps[i].u.st.len, getProps[i].u.st.stat[0].scale, int(uvalue));
-        }
+    if ((ioctl (mFrontEnd, FE_GET_PROPERTY, &cmdGet)) < 0) {
+      cLog::log (LOGERROR, "readMonitorFe FE_GET_PROPERTY failed");
+      return;
+      }
+
+    for (int i = 0; i < 8; i++)
+      cLog::log (LOGINFO, format ("stat index:{} len:{} scale:{} uvalue:{})",
+                 i,
+                 (int)getProps[i].u.st.len,
+                 (int)getProps[i].u.st.stat[0].scale,
+                 (int)getProps[i].u.st.stat[0].uvalue));
     //__s64 svalue;
 
     // need to decode further
     }
   //}}}
 #endif
-  //{{{
-  class cDvbTransportStream : public cTransportStream {
-  public:
-    //{{{
-    cDvbTransportStream (const string& rootName,
-                         const vector <string>& channelStrings, const vector <string>& saveStrings,
-                         bool decodeSubtitle)
-      : mRootName(rootName),
-        mChannelStrings(channelStrings), mSaveStrings(saveStrings),
-        mRecordAll ((channelStrings.size() == 1) && (channelStrings[0] == "all")),
-        mDecodeSubtitle(decodeSubtitle) {}
-    //}}}
-    //{{{
-    virtual ~cDvbTransportStream() {
-
-      for (auto& subtitle : mSubtitleMap)
-        delete (subtitle.second);
-
-      mSubtitleMap.clear();
-      }
-    //}}}
-
-    //{{{
-    cSubtitle* getSubtitleBySid (int sid) {
-
-      auto it = mSubtitleMap.find (sid);
-      return (it == mSubtitleMap.end()) ? nullptr : (*it).second;
-      }
-    //}}}
-
-  protected:
-    //{{{
-    virtual void start (cService* service, const string& name,
-                        chrono::system_clock::time_point time,
-                        chrono::system_clock::time_point starttime,
-                        bool selected) {
-
-      lock_guard<mutex> lockGuard (mFileMutex);
-
-      service->closeFile();
-
-      bool record = selected || mRecordAll;
-      string saveName;
-
-      if (!mRecordAll) {
-        // filter and rename channel prefix
-        size_t i = 0;
-        for (auto& channelString : mChannelStrings) {
-          if (channelString == service->getChannelString()) {
-            record = true;
-            if (i < mSaveStrings.size())
-              saveName = mSaveStrings[i] +  " ";
-            break;
-            }
-          i++;
-          }
-        }
-
-      saveName += date::format ("%d %b %y %a %H.%M.%S ", date::floor<chrono::seconds>(time));
-
-      if (record) {
-        if ((service->getVidPid() > 0) &&
-            (service->getAudPid() > 0) &&
-            (service->getSubPid() > 0)) {
-          auto validName = validFileString (name, "<>:/|?*\"\'\\");
-          auto fileNameStr = mRootName + "/" + saveName + validName + ".ts";
-          service->openFile (fileNameStr, 0x1234);
-          cLog::log (LOGINFO, fileNameStr);
-          }
-        }
-      }
-    //}}}
-    //{{{
-    virtual void pesPacket (int sid, int pid, uint8_t* ts) {
-    // look up service and write it
-
-      lock_guard<mutex> lockGuard (mFileMutex);
-
-      auto serviceIt = mServiceMap.find (sid);
-      if (serviceIt != mServiceMap.end())
-        serviceIt->second.writePacket (ts, pid);
-      }
-    //}}}
-    //{{{
-    virtual void stop (cService* service) {
-
-      lock_guard<mutex> lockGuard (mFileMutex);
-
-      service->closeFile();
-      }
-    //}}}
-
-    //{{{
-    virtual bool audDecodePes (cPidInfo* pidInfo, bool skip) {
-      //cLog::log (LOGINFO, getPtsString (pidInfo->mPts) + " a - " + dec(pidInfo->getBufUsed());
-      return false;
-      }
-    //}}}
-    //{{{
-    virtual bool vidDecodePes (cPidInfo* pidInfo, bool skip) {
-      //cLog::log (LOGINFO, getPtsString (pidInfo->mPts) + " v - " + dec(pidInfo->getBufUsed());
-      return false;
-      }
-    //}}}
-    //{{{
-    virtual bool subDecodePes (cPidInfo* pidInfo) {
-
-      if (kDebug)
-        cLog::log (LOGINFO1, "subtitle pid:" + dec(pidInfo->mPid,4) +
-                             " sid:" + dec(pidInfo->mSid,5) +
-                             " size:" + dec(pidInfo->getBufUsed(),4) +
-                             " " + getFullPtsString (pidInfo->mPts) +
-                             " " + getChannelStringBySid (pidInfo->mSid));
-
-      if (mDecodeSubtitle) {
-        // find or create sid service cSubtitleContext
-        auto it = mSubtitleMap.find (pidInfo->mSid);
-        if (it == mSubtitleMap.end()) {
-          auto insertPair = mSubtitleMap.insert (map <int, cSubtitle*>::value_type (pidInfo->mSid, new cSubtitle()));
-          it = insertPair.first;
-          cLog::log (LOGINFO1, "cDvb::subDecodePes - create serviceStuff sid:" + dec(pidInfo->mSid));
-          }
-        auto subtitle = it->second;
-
-        subtitle->decode (pidInfo->mBuffer, pidInfo->getBufUsed());
-        if (kDebug)
-          subtitle->debug ("- ");
-        }
-
-      return false;
-      }
-    //}}}
-
-  private:
-    string mRootName;
-
-    vector<string> mChannelStrings;
-    vector<string> mSaveStrings;
-    bool mRecordAll;
-    bool mDecodeSubtitle;
-
-    mutex mFileMutex;
-
-    map <int, cSubtitle*> mSubtitleMap; // indexed by sid
-    };
-  //}}}
-  cDvbTransportStream* mDvbTransportStream;
   }
 
 // public:
 //{{{
-cDvb::cDvb (int frequency, const string& root,
-            const vector <string>& channelNames, const vector <string>& recordNames,
-            bool decodeSubtitle) : mDecodeSubtitle(decodeSubtitle) {
-
-  mDvbTransportStream = new cDvbTransportStream (root, channelNames, recordNames, decodeSubtitle);
+cDvb::cDvb (int frequency) {
 
   if (frequency) {
     #ifdef _WIN32
       // windows create and tune
       if (createGraph (frequency * 1000))
-        mTuneStr = "tuned " + dec (frequency, 3) + "Mhz";
+        mTuneStr = format ("tuned {}Mhz", frequency);
       else
-        mTuneStr = "not tuned " + dec (frequency, 3) + "Mhz";
+        mTuneStr = format ("not tuned {}Mhz", frequency);
 
     #else
       // open frontend nonBlocking rw
@@ -939,8 +733,7 @@ cDvb::cDvb (int frequency, const string& root,
 //{{{
 cDvb::~cDvb() {
 
-  #ifndef _WIN32
-    // linux
+  #ifdef __linux__
     if (mDvr)
       close (mDvr);
     if (mDemux)
@@ -948,19 +741,6 @@ cDvb::~cDvb() {
     if (mFrontEnd)
       close (mFrontEnd);
   #endif
-
-  delete mDvbTransportStream;
-  }
-//}}}
-
-//{{{
-cSubtitle* cDvb::getSubtitleBySid (int sid) {
-  return mDvbTransportStream->getSubtitleBySid (sid);
-  }
-//}}}
-//{{{
-cTransportStream* cDvb::getTransportStream() {
-  return mDvbTransportStream;
   }
 //}}}
 
@@ -983,28 +763,25 @@ void cDvb::tune (int frequency) {
       cLog::log (LOGERROR, "tune - put_TuneRequest");
     if (mMediaControl->Run() != S_OK)
       cLog::log (LOGERROR, "tune - run");
+  #endif
 
-  #else
+  #ifdef __linux__
     // linux tune
     bool t2 = frequency == 626000000;
 
     struct dvb_frontend_info fe_info;
     if (ioctl (mFrontEnd, FE_GET_INFO, &fe_info) < 0) {
-      //{{{  error, exit
+      //{{{  error, return
       cLog::log (LOGERROR, "FE_GET_INFO failed");
       return;
       }
       //}}}
     cLog::log (LOGINFO, "tuning %s %s to %u ", fe_info.name, t2 ? "T2" : "T", frequency);
 
-    //{{{  discard stale events
+    // discard stale events
     struct dvb_frontend_event ev;
-    while (true)
-      if (ioctl (mFrontEnd, FE_GET_EVENT, &ev) < 0)
-        break;
-      else
-        cLog::log (LOGINFO, "discarding stale event");
-    //}}}
+    while (ioctl (mFrontEnd, FE_GET_EVENT, &ev) >= 0)
+      cLog::log (LOGINFO, "discarding stale event");
 
     //{{{
     struct dtv_property tuneProps[10];
@@ -1038,7 +815,6 @@ void cDvb::tune (int frequency) {
     tuneProps[9].cmd = DTV_TUNE;
     //}}}
     struct dtv_properties cmdTune = { .num = 10, .props = tuneProps };
-
     if ((ioctl (mFrontEnd, FE_SET_PROPERTY, &cmdTune)) < 0) {
       //{{{  error, exit
       cLog::log (LOGERROR, "FE_SET_PROPERTY TUNE failed");
@@ -1059,7 +835,6 @@ void cDvb::tune (int frequency) {
 
       if (ioctl (mFrontEnd, FE_GET_EVENT, &ev) < 0) // no answer, consider it as not locked situation
         ev.status = FE_NONE;
-
       if (ev.status & FE_HAS_LOCK) {
         //{{{  tuning locked
         struct dtv_property getProps[] = {
@@ -1072,8 +847,8 @@ void cDvb::tune (int frequency) {
             { .cmd = DTV_GUARD_INTERVAL },
             { .cmd = DTV_TRANSMISSION_MODE },
           };
-
         struct dtv_properties cmdGet = { .num = sizeof(getProps) / sizeof (getProps[0]), .props = getProps };
+
         if ((ioctl (mFrontEnd, FE_GET_PROPERTY, &cmdGet)) < 0) {
           //{{{  error, exit
           cLog::log (LOGERROR, "FE_GET_PROPERTY failed");
@@ -1179,22 +954,64 @@ void cDvb::tune (int frequency) {
                    transmissionModeTab [getProps[7].u.buffer.data[0]]);
 
         mSignalStr = updateSignalStr();
-        mErrorStr = updateErrorStr (mDvbTransportStream->getErrors());
+        //mErrorStr = updateErrorStr (mDvbTransportStream->getErrors());
         readMonitorFe();
 
-        mTuneStr = string(fe_info.name) + " " + dec(frequency/1000000) + "Mhz";
+        mTuneStr = format ("{} {}Mhz", frequency/1000000);
         return;
         }
         //}}}
       else
         cLog::log (LOGINFO, "waiting for lock");
       }
-
     cLog::log (LOGERROR, "tuning failed\n");
-
   #endif
   }
 //}}}
+
+#ifdef _WIN32
+  //{{{
+  uint8_t* cDvb::getBlockBDA (int& len) {
+
+    return mGrabberCB.getBlock (len);
+    }
+  //}}}
+  //{{{
+  void cDvb::releaseBlock (int len) {
+    mGrabberCB.releaseBlock (len);
+    }
+  //}}}
+#endif
+
+#ifdef __linux__
+  //{{{
+  string cDvb::updateSignalStr() {
+
+    fe_status_t feStatus;
+    if (ioctl (mFrontEnd, FE_READ_STATUS, &feStatus) < 0) {
+      cLog::log (LOGERROR, "FE_READ_STATUS failed");
+      return "dvb readStatus failed";
+      }
+
+    // not sure why these fail, only a problem with xbox one usb tuner
+    uint32_t strength = 0;
+    ioctl (mFrontEnd, FE_READ_SIGNAL_STRENGTH, &strength);
+
+    uint32_t snr = 0;
+    ioctl (mFrontEnd, FE_READ_SNR, &snr);
+
+    return format ("{}{}{}{}{}{} strength:{:.1f} snr:{:.1f}",
+                   feStatus & FE_TIMEDOUT ? "timeout " : "",
+                   feStatus & FE_HAS_LOCK ? "lock " : "",
+                   feStatus & FE_HAS_SIGNAL ? "s" : "",
+                   feStatus & FE_HAS_CARRIER ? "c": "",
+                   feStatus & FE_HAS_VITERBI ? "v": " ",
+                   feStatus & FE_HAS_SYNC ? "s" : "",
+                   (strength & 0xFFFF) / 1000.f,
+                   (snr & 0xFFFF) / 1000.f);
+    }
+  //}}}
+#endif
 
 //{{{
 int cDvb::getBlock (uint8_t*& block, int& blockSize) {
@@ -1205,127 +1022,5 @@ int cDvb::getBlock (uint8_t*& block, int& blockSize) {
     cLog::log (LOGERROR, "cDvbSimple::getTsBlock not implemented");
     return 0;
   #endif
-  }
-//}}}
-
-//{{{
-void cDvb::grabThread (const string& root, const string& multiplexName) {
-
-  cLog::setThreadName ("grab");
-
-  string allName = root + "/all" + multiplexName + ".ts";
-  FILE* mFile = root.empty() ? nullptr : fopen (allName.c_str(), "wb");
-
-  #ifdef _WIN32 // windows
-    auto hr = mMediaControl->Run();
-    if (hr == S_OK) {
-      int64_t streamPos = 0;
-      auto blockSize = 0;
-      while (true) {
-        auto ptr = getBlockBDA (blockSize);
-        if (blockSize) {
-          //{{{  read and demux block
-          if (mFile)
-            fwrite (ptr, 1, blockSize, mFile);
-
-          streamPos += mDvbTransportStream->demux ({}, ptr, blockSize, streamPos, false);
-          releaseBlock (blockSize);
-
-          mErrorStr.clear();
-          if (mDvbTransportStream->getErrors())
-            mErrorStr += dec(mDvbTransportStream->getErrors()) + " err:";
-          if (streamPos < 1000000)
-            mErrorStr = dec(streamPos/1000) + "k";
-          else
-            mErrorStr = dec(streamPos/1000000) + "m";
-          }
-          //}}}
-        else
-          this_thread::sleep_for (1ms);
-        if (mScanningTuner) {
-          //{{{  update mSignalStr
-          long signal = 0;
-          mScanningTuner->get_SignalStrength (&signal);
-          mSignalStr = "signal " + dec (signal / 0x10000);
-          }
-          //}}}
-        }
-      }
-    else
-      cLog::log (LOGERROR, "run graph failed " + dec(hr));
-
-  #else // linux
-    constexpr int kDvrReadBufferSize = 1024 * 188;
-    auto buffer = (uint8_t*)malloc (kDvrReadBufferSize);
-
-    uint64_t streamPos = 0;
-    while (true) {
-      int bytesRead = read (mDvr, buffer, kDvrReadBufferSize);
-      if (bytesRead > 0) {
-        streamPos += mDvbTransportStream->demux ({}, buffer, bytesRead, 0, false);
-        if (mFile)
-          fwrite (buffer, 1, bytesRead, mFile);
-
-        bool show = (mDvbTransportStream->getErrors() != mLastErrors) || (bytesRead > mLastBlockSize);
-        mLastErrors = mDvbTransportStream->getErrors();
-        if (bytesRead > mLastBlockSize)
-          mLastBlockSize = bytesRead;
-        if (bytesRead > mMaxBlockSize)
-          mMaxBlockSize = bytesRead;
-
-        mSignalStr = updateSignalStr();
-        if (show) {
-          mErrorStr = updateErrorStr (mDvbTransportStream->getErrors());
-          cLog::log (LOGINFO, mErrorStr + " " + mSignalStr);
-          }
-        }
-      else
-        cLog::log (LOGINFO, "cDvb grabThread no bytes read");
-      }
-    free (buffer);
-  #endif
-
-  if (mFile)
-    fclose (mFile);
-
-  cLog::log (LOGINFO, "exit");
-  }
-//}}}
-//{{{
-void cDvb::readThread (const string& fileName) {
-
-  cLog::setThreadName ("read");
-
-  auto file = fopen (fileName.c_str(), "rb");
-  if (!file) {
-    //{{{  error, return
-    cLog::log (LOGERROR, "no file " + fileName);
-    return;
-    }
-    //}}}
-
-  uint64_t streamPos = 0;
-  auto blockSize = 188 * 8;
-  auto buffer = (uint8_t*)malloc (blockSize);
-
-  int i = 0;
-  bool run = true;
-  while (run) {
-    i++;
-    if (!(i % 200)) // throttle read rate
-      this_thread::sleep_for (20ms);
-
-    size_t bytesRead = fread (buffer, 1, blockSize, file);
-    if (bytesRead > 0)
-      streamPos += mDvbTransportStream->demux ({}, buffer, bytesRead, streamPos, false);
-    else
-      break;
-    mErrorStr = dec(mDvbTransportStream->getErrors());
-    }
-
-  fclose (file);
-  free (buffer);
-
-  cLog::log (LOGERROR, "exit");
   }
 //}}}

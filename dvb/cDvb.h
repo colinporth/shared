@@ -1,34 +1,36 @@
 // cDvb.h
-//{{{  includes
 #pragma once
-
-#include <string>
-#include <vector>
-//}}}
-
-class cSubtitle;
-class cTransportStream;
+#ifdef _WIN32
+  #include <wrl.h>
+  #include <initguid.h>
+  #include <DShow.h>
+  #include <bdaiface.h>
+  #include <ks.h>
+  #include <ksmedia.h>
+  #include <bdatif.h>
+#endif
 
 class cDvb {
 public:
-  cDvb (int frequency, const std::string& root,
-        const std::vector<std::string>& channelNames, const std::vector<std::string>& recordNames,
-        bool decodeSubtitle);
-
+  cDvb (int frequency);
   virtual ~cDvb();
-
-  cTransportStream* getTransportStream();
-  cSubtitle* getSubtitleBySid (int sid);
 
   void tune (int frequency);
 
   int getBlock (uint8_t*& block, int& blockSize);
 
-  void grabThread (const std::string& root, const std::string& multiplexName);
-  void readThread (const std::string& fileName);
+  #ifdef _WIN32
+    uint8_t* getBlockBDA (int& len);
+    void releaseBlock (int len);
 
-  // public for widget observe
-  bool mDecodeSubtitle = false;
+    inline static Microsoft::WRL::ComPtr<IMediaControl> mMediaControl;
+    inline static Microsoft::WRL::ComPtr<IScanningTuner> mScanningTuner;
+  #endif
+
+  #ifdef __linux__
+    std::string updateSignalStr();
+    int mDvr = 0;
+  #endif
 
   std::string mErrorStr = "waiting";
   std::string mTuneStr = "untuned";
