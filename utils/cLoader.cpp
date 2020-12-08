@@ -513,17 +513,19 @@ public:
     if (payloadStart) {
       // start section
       int pointerField = ts[0];
+      ts++;
+      tsLeft--;
+
       if (pointerField == 0) {
-        ts++;
-        tsLeft--;
         mSectionLength = ((ts[1] & 0x0F) << 8) + ts[2] + 3;
-        cLog::log (LOGINFO, "EIT pointerField zero");
+        //cLog::log (LOGINFO, "EIT pointerField zero");
         }
       else {
         // set packet pointerField offset for start of next eit section
-        cLog::log (LOGINFO, "EIT pointerField %d", pointerField);
+        //cLog::log (LOGINFO, "EIT pointerField %d", pointerField);
         pointerFieldCopyFrom = ts + pointerField;
         pointerFieldCopyLength = tsLeft - pointerField;
+        tsLeft = pointerField;
         }
       }
 
@@ -549,8 +551,59 @@ public:
           return;
           }
           //}}}
-        uint8_t* sectionPtr = mSection;
-        cLog::log (LOGINFO, format ("EIT section{} {}", mSection[0], mSectionLength));
+
+        //{{{  sEit
+        typedef struct {
+          uint8_t table_id                    :8;
+
+          uint8_t section_length_hi           :4;
+          uint8_t                             :3;
+          uint8_t section_syntax_indicator    :1;
+          uint8_t section_length_lo           :8;
+
+          uint8_t service_id_hi               :8;
+          uint8_t service_id_lo               :8;
+          uint8_t current_next_indicator      :1;
+          uint8_t version_number              :5;
+          uint8_t                             :2;
+          uint8_t section_number              :8;
+          uint8_t last_section_number         :8;
+          uint8_t transport_stream_id_hi      :8;
+          uint8_t transport_stream_id_lo      :8;
+          uint8_t original_network_id_hi      :8;
+          uint8_t original_network_id_lo      :8;
+          uint8_t segment_last_section_number :8;
+          uint8_t segment_last_table_id       :8;
+          } sEit;
+        //}}}
+        //{{{  sEitEvent
+        typedef struct {
+          uint8_t event_id_hi                 :8;
+          uint8_t event_id_lo                 :8;
+          uint8_t mjd_hi                      :8;
+          uint8_t mjd_lo                      :8;
+          uint8_t start_time_h                :8;
+          uint8_t start_time_m                :8;
+          uint8_t start_time_s                :8;
+          uint8_t duration_h                  :8;
+          uint8_t duration_m                  :8;
+          uint8_t duration_s                  :8;
+          uint8_t descrs_loop_length_hi       :4;
+          uint8_t free_ca_mode                :1;
+          uint8_t running_status              :3;
+          uint8_t descrs_loop_length_lo       :8;
+          } sEitEvent;
+        //}}}
+        ts = mSection;
+        switch (mSection[0]) {
+          case 0x4E: cLog::log (LOGINFO, format ("EIT actual {} {}", mSection[0], mSectionLength)); break;
+          case 0x4F: cLog::log (LOGINFO, format ("EIT other {} {}", mSection[0], mSectionLength)); break;
+          case 0x50: cLog::log (LOGINFO, format ("EIT actual sch {} {}", mSection[0], mSectionLength)); break;
+          case 0x51: cLog::log (LOGINFO, format ("EIT actual sch {} {}", mSection[0], mSectionLength)); break;
+          case 0x60: cLog::log (LOGINFO, format ("EIT other sch {} {}", mSection[0], mSectionLength)); break;
+          case 0x61: cLog::log (LOGINFO, format ("EIT other sch {} {}", mSection[0], mSectionLength)); break;
+          default: break;
+          }
         mSectionSize = 0;
         }
       }
@@ -558,7 +611,7 @@ public:
     if (pointerFieldCopyFrom) {
       mSectionLength = ((pointerFieldCopyFrom[1] & 0x0F) << 8) + pointerFieldCopyFrom[2] + 3;
       memcpy (mSection, pointerFieldCopyFrom, pointerFieldCopyLength);
-      mSectionSize += pointerFieldCopyLength;
+      mSectionSize = pointerFieldCopyLength;
       }
 
     }
