@@ -416,7 +416,7 @@ public:
         ts = mSection;
         if (getCrc32 (ts, mSectionLength) != 0) {
           //{{{  error return
-          cLog::log (LOGERROR, format ("SDT crc error ectionSize:{} sectionLength:{}", mSectionSize, mSectionLength));
+          cLog::log (LOGERROR, format ("SDT crc error sectionSize:{} sectionLength:{}", mSectionSize, mSectionLength));
           return;
           }
           //}}}
@@ -449,11 +449,12 @@ public:
             // iterate sdt descriptors
             int descrTag = ts[0];
             if (descrTag == 0x48) {
-              // service descriptor
+              //{{{  service descriptor
               string name = getDescrString (ts + 5, ts[4]);
               mCallback (sid, name);
               //cLog::log (LOGINFO, format ("SDT - sid {} {}", sid, name));
               }
+              //}}}
             else if (descrTag == 95)
               cLog::log (LOGINFO1, "privateData descriptor tag:%x ", descrTag);
             else if (descrTag == 115)
