@@ -1342,6 +1342,13 @@ public:
   //}}}
 
   //{{{
+  virtual string getInfoString() {
+
+    return format ("{} sid:{} {}", mServiceName, mSid, cLoadStream::getInfoString());
+    }
+  //}}}
+
+  //{{{
   virtual bool recognise (const vector<string>& params) {
 
     if (params[0] != "rtp")
@@ -1471,6 +1478,8 @@ public:
     //{{{
     auto addSdtCallback = [&](int sid, string name) noexcept {
       cLog::log (LOGINFO, format ("SDT sid {} {}", sid, name));
+      mSid = sid;
+      mServiceName = name;
       };
     //}}}
     //{{{
@@ -1545,6 +1554,10 @@ public:
     mRunning = false;
     }
   //}}}
+
+private:
+  int mSid;
+  string mServiceName;
   };
 //}}}
 //{{{
