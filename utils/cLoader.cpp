@@ -260,10 +260,12 @@ public:
         }
         //}}}
 
+      //{{{  unused fields
       // transport stream id = ((ts[3] & 0xF) << 4) | ts[4]
       // currentNext,versionNumber = ts[5]
       // section number = ts[6]
       // last section number = ts[7]
+      //}}}
 
       // skip past pat header
       ts += 8;
@@ -318,10 +320,12 @@ public:
         //}}}
 
       int sid = (ts[3] << 8) + ts[4];
+      //{{{  unused fields
       //int versionNumber = ts[5];
       //int sectionNumber = ts[6];
       //int lastSectionNumber = ts[7];
       //int pcrPid = ((ts[8] & 0x1f) << 8) + ts[9];
+      //}}}
       int programInfoLength = ((ts[10] & 0x0f) << 8) + ts[11];
 
       // skip past pmt header
@@ -378,10 +382,10 @@ public:
     if (payloadStart) {
       //{{{  start section
       mSectionSize = 0;
+
       int pointerField = ts[0];
       if (pointerField)
         cLog::log (LOGINFO, "sdt pointerField:%d", pointerField);
-
       ts++;
       tsLeft--;
 
@@ -396,7 +400,7 @@ public:
       //}}}
 
     if (mSectionLength > 0) {
-      // sectionLength expected, add packet to mSection
+      // add packet to mSection
       if (mSectionSize + tsLeft > mAllocSectionSize) {
         //{{{  allocate double size of mSection buffer
         mAllocSectionSize *= 2;
@@ -408,7 +412,7 @@ public:
       mSectionSize += tsLeft;
 
       if (mSectionSize >= mSectionLength) {
-        // got whole section
+        // whole section from tid
         ts = mSection;
         if (getCrc32 (ts, mSectionLength) != 0) {
           //{{{  error return
@@ -422,6 +426,7 @@ public:
         //int sectionNumber = ts[6];
         //int lastSectionNumber = ts[7];
         //int onid = ((ts[8] & 0x1f) << 8) + ts[9];
+
         //cLog::log (LOGINFO, "SDT got len:%d - crc ok %d %x %x %x %d",
         //                    mSectionLength, tsid, versionNumber, sectionNumber, lastSectionNumber, onid);
         //}}}
@@ -433,7 +438,7 @@ public:
         // iterate sdt sections
         while (mSectionLength > 0) {
           int sid = (ts[0] << 8) + ts[1];
-          int flags = ts[2];
+          //int flags = ts[2];
           int loopLength = ((ts[3] & 0x0F) << 8) + ts[4];
           //cLog::log (LOGINFO, "- SDT sid %d flags %x loop%d", sid, flags, loopLength);
 
@@ -514,7 +519,11 @@ public:
       thread ([=](){ dequeThread(); }).detach();
     }
   //}}}
-  virtual ~cPesParser() {}
+  //{{{
+  virtual ~cPesParser() {
+    free (mPes);
+    }
+  //}}}
 
   virtual int getQueueSize() { return (int)mQueue.size_approx(); }
   virtual float getQueueFrac() { return (float)mQueue.size_approx() / mQueue.max_capacity(); }
@@ -855,7 +864,6 @@ public:
   //{{{
   virtual float getFracs (float& audioFrac, float& videoFrac) {
   // return fracs for spinner graphic, true if ok to display
-
 
     audioFrac = 0.f;
     videoFrac = 0.f;
@@ -1390,7 +1398,9 @@ public:
     iAudioDecoder* audioDecoder = nullptr;
 
     int64_t loadPts = -1;
-    //{{{  init parsers, callbacks
+
+    // init parsers, callbacks
+    //{{{
     auto addAudioFrameCallback = [&](bool reuseFromFront, float* samples, int64_t pts) noexcept {
       mPtsSong->addFrame (reuseFromFront, pts, samples, mPtsSong->getNumFrames()+1);
 
@@ -1403,7 +1413,8 @@ public:
       if (!mSongPlayer)
         mSongPlayer = new cSongPlayer (mPtsSong, true);
       };
-
+    //}}}
+    //{{{
     auto addStreamCallback = [&](int sid, int pid, int type) noexcept {
       if (mPidParsers.find (pid) == mPidParsers.end()) {
         // new stream pid
@@ -1455,16 +1466,22 @@ public:
           }
         }
       };
-
+    //}}}
+    //{{{
+    auto addSdtCallback = [&](int sid, string name) noexcept {
+      cLog::log (LOGINFO, format ("SDT sid {} {}", sid, name));
+      };
+    //}}}
+    //{{{
     auto addProgramCallback = [&](int pid, int sid) noexcept {
       if ((sid > 0) && (mPidParsers.find (pid) == mPidParsers.end())) {
         cLog::log (LOGINFO, "PAT adding pid:service %d::%d", pid, sid);
         mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cPmtParser (pid, sid, addStreamCallback)));
         }
       };
-
-    mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
     //}}}
+    mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
+    mPidParsers.insert (map<int,cSdtParser*>::value_type (0x11, new cSdtParser (addSdtCallback)));
 
     char buffer[2048];
     int bufferLen = 2048;
