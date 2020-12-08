@@ -47,6 +47,68 @@ using namespace fmt;
 using namespace chrono;
 //}}}
 
+//{{{
+string getDescrString (uint8_t* buf, int len) {
+// get dvb descriptor string, substitute unwanted chars
+
+  string str;
+
+  for (int i = 0; i < len; i++) {
+    if (*buf == 0)
+      break;
+
+    if (((*buf >= ' ') && (*buf <= '~')) ||
+        (*buf == '\n') ||
+        ((*buf >= 0xa0) && (*buf <= 0xff)))
+      str += *buf;
+
+    if (*buf == 0x8A)
+      str += '\n';
+
+    if ((*buf == 0x86 || (*buf == 0x87)))
+      str += ' ';
+
+    buf++;
+    }
+
+  return str;
+  }
+//}}}
+
+//{{{
+class cService {
+public:
+  cService (int sid, bool selected) : mSid(sid), mSelected(selected) {}
+
+  bool isSelected() { return mSelected; }
+  int getAudioPid() { return mAudioPid; }
+  int getVideoPid() { return mVideoPid; }
+  int getSubtitlePid() { return mSubtitlePid; }
+
+  void setSelected (bool selected) { mSelected = selected; }
+  void setAudioPid (int pid) { mAudioPid = pid; }
+  void setVideoPid (int pid) { mVideoPid = pid; }
+  void setSubtitlePid (int pid) { mSubtitlePid = pid; }
+  //{{{
+  bool setName (string name) {
+    bool named = mName.empty();
+    mName = name;
+    return named;
+    }
+  //}}}
+
+private:
+  const int mSid;
+
+  int mAudioPid = 0;
+  int mVideoPid = 0;
+  int mSubtitlePid = 0;
+
+  bool mSelected = false;
+  string mName;
+  };
+//}}}
+
 // cPidParser
 //{{{
 class cPidParser {
@@ -291,6 +353,131 @@ public:
 private:
   int mSid;
   function <void (int streamSid, int streamPid, int streamType)> mCallback;
+  };
+//}}}
+//{{{
+class cSdtParser : public cPidParser {
+public:
+  //{{{
+  cSdtParser (function<void (int sid, string name)> callback) : cPidParser (0x11, "sdt"), mCallback(callback) {
+
+    mAllocSectionSize = 1024;
+    mSection = (uint8_t*)malloc (mAllocSectionSize);
+    mSectionSize = 0;
+    }
+  //}}}
+  //{{{
+  virtual ~cSdtParser() {
+    free (mSection);
+    }
+  //}}}
+
+  //{{{
+  virtual void processPayload (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool reuseFromFront) {
+
+    if (payloadStart) {
+      //{{{  start section
+      mSectionSize = 0;
+      int pointerField = ts[0];
+      if (pointerField)
+        cLog::log (LOGINFO, "sdt pointerField:%d", pointerField);
+
+      ts++;
+      tsLeft--;
+
+      if (ts[0] == 0x42) {
+        // sdt for this multiplex
+        mSectionLength = ((ts[1] & 0x0F) << 8) + ts[2] + 3;
+        //cLog::log (LOGINFO, "sdt len:%d", mSectionLength);
+        }
+      else
+        mSectionLength = 0;
+      }
+      //}}}
+
+    if (mSectionLength > 0) {
+      // sectionLength expected, add packet to mSection
+      if (mSectionSize + tsLeft > mAllocSectionSize) {
+        //{{{  allocate double size of mSection buffer
+        mAllocSectionSize *= 2;
+        mSection = (uint8_t*)realloc (mSection, mAllocSectionSize);
+        cLog::log (LOGINFO1, mName + " sdt allocSize doubled to " + dec(mAllocSectionSize));
+        }
+        //}}}
+      memcpy (mSection + mSectionSize, ts, tsLeft);
+      mSectionSize += tsLeft;
+
+      if (mSectionSize >= mSectionLength) {
+        // got whole section
+        ts = mSection;
+        if (getCrc32 (ts, mSectionLength) != 0) {
+          //{{{  error return
+          cLog::log (LOGERROR, format ("SDT crc error ectionSize:{} sectionLength:{}", mSectionSize, mSectionLength));
+          return;
+          }
+          //}}}
+        //{{{  unused fields
+        //int tsid = (ts[3] << 8) + ts[4];
+        //int versionNumber = ts[5];
+        //int sectionNumber = ts[6];
+        //int lastSectionNumber = ts[7];
+        //int onid = ((ts[8] & 0x1f) << 8) + ts[9];
+        //cLog::log (LOGINFO, "SDT got len:%d - crc ok %d %x %x %x %d",
+        //                    mSectionLength, tsid, versionNumber, sectionNumber, lastSectionNumber, onid);
+        //}}}
+
+        // skip past sdt header
+        ts += 11;
+        mSectionLength -= 11 + 4;
+
+        // iterate sdt sections
+        while (mSectionLength > 0) {
+          int sid = (ts[0] << 8) + ts[1];
+          int flags = ts[2];
+          int loopLength = ((ts[3] & 0x0F) << 8) + ts[4];
+          //cLog::log (LOGINFO, "- SDT sid %d flags %x loop%d", sid, flags, loopLength);
+
+          ts += 5;
+          int i = 0;
+          int descrLength = ts[1] + 2;
+          while ((i < loopLength) && (descrLength > 0) && (descrLength <= loopLength - i)) {
+            // iterate sdt descriptors
+            int descrTag = ts[0];
+            if (descrTag == 0x48) {
+              // service descriptor
+              string name = getDescrString (ts + 5, ts[4]);
+              mCallback (sid, name);
+              //cLog::log (LOGINFO, format ("SDT - sid {} {}", sid, name));
+              }
+            else if (descrTag == 95)
+              cLog::log (LOGINFO1, "privateData descriptor tag:%x ", descrTag);
+            else if (descrTag == 115)
+              cLog::log (LOGINFO1, "defaultAuthority descriptor tag:%x ", descrTag);
+            else if (descrTag == 126)
+              cLog::log (LOGINFO1, "futureDescriptor tag:%x ", descrTag);
+            else if (descrTag == 0x48)
+              cLog::log (LOGERROR, "*** unknown descriptor tag:%x %d" + descrTag, descrLength);
+
+            i += descrLength;
+            ts += descrLength;
+            descrLength = ts[1] + 2;
+            }
+
+          mSectionLength -= loopLength + 5;
+          }
+        }
+      }
+    }
+  //}}}
+
+private:
+  int mSectionLength = 0;
+
+  uint8_t* mSection = nullptr;
+  int mAllocSectionSize = 0;
+  int mSectionSize = 0;
+
+  function <void (int sid, string name)> mCallback;
   };
 //}}}
 //{{{
@@ -718,7 +905,9 @@ public:
 
     bool waitForPts = false;
     int64_t loadPts = -1;
-    //{{{  init parsers, callbacks
+
+    // init parsers, callbacks
+    //{{{
     auto addAudioFrameCallback = [&](bool reuseFromFront, float* samples, int64_t pts) noexcept {
       mPtsSong->addFrame (reuseFromFront, pts, samples, mPtsSong->getNumFrames()+1);
 
@@ -738,7 +927,8 @@ public:
         }
       loadPts = pts;
       };
-
+    //}}}
+    //{{{
     auto addStreamCallback = [&](int sid, int pid, int type) noexcept {
       if (mPidParsers.find (pid) == mPidParsers.end()) {
         // new stream pid
@@ -812,7 +1002,18 @@ public:
           cLog::log (LOGERROR, "loadTs - PMT:%d for unrecognised sid:%d", pid, sid);
         }
       };
-
+    //}}}
+    //{{{
+    auto addSdtCallback = [&](int sid, string name) noexcept {
+      auto it = mServices.find (sid);
+      if (it != mServices.end()) {
+        cService* service = (*it).second;
+        if (service->setName (name))
+          cLog::log (LOGINFO, format ("SDT sid {} {}", sid, name));
+        };
+      };
+    //}}}
+    //{{{
     auto addProgramCallback = [&](int pid, int sid) noexcept {
       if ((sid > 0) && (mPidParsers.find (pid) == mPidParsers.end())) {
         cLog::log (LOGINFO, "PAT adding pid:service %d::%d", pid, sid);
@@ -824,9 +1025,9 @@ public:
           mCurSid = sid;
         }
       };
-
-    mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
     //}}}
+    mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
+    mPidParsers.insert (map<int,cSdtParser*>::value_type (0x11, new cSdtParser (addSdtCallback)));
 
     uint8_t* buffer = (uint8_t*)malloc (1024 * 188);
     do {
@@ -875,32 +1076,6 @@ public:
 
 private:
   static constexpr int kFileChunkSize = 16 * 188;
-
-  //{{{
-  class cService {
-  public:
-    cService (int sid, bool selected) : mSid(sid), mSelected(selected) {}
-
-    bool isSelected() { return mSelected; }
-    int getAudioPid() { return mAudioPid; }
-    int getVideoPid() { return mVideoPid; }
-    int getSubtitlePid() { return mSubtitlePid; }
-
-    void setSelected (bool selected) { mSelected = selected; }
-    void setAudioPid (int pid) { mAudioPid = pid; }
-    void setVideoPid (int pid) { mVideoPid = pid; }
-    void setSubtitlePid (int pid) { mSubtitlePid = pid; }
-
-  private:
-    const int mSid;
-
-    int mAudioPid = 0;
-    int mVideoPid = 0;
-    int mSubtitlePid = 0;
-
-    bool mSelected = false;
-    };
-  //}}}
 
   cPtsSong* mPtsSong = nullptr;
   iVideoPool* mVideoPool = nullptr;
@@ -2051,7 +2226,9 @@ public:
     mStreamPos = 0;
     int64_t loadPts = -1;
     bool waitForPts = false;
-    //{{{  init parsers, callbacks
+
+    // init parsers, callbacks
+    //{{{
     auto addAudioFrameCallback = [&](bool reuseFromFront, float* samples, int64_t pts) noexcept {
       mPtsSong->addFrame (reuseFromFront, pts, samples, mPtsSong->getNumFrames()+1);
 
@@ -2071,7 +2248,8 @@ public:
         }
       loadPts = pts;
       };
-
+    //}}}
+    //{{{
     auto addStreamCallback = [&](int sid, int pid, int type) noexcept {
       if (mPidParsers.find (pid) == mPidParsers.end()) {
         // new stream pid
@@ -2145,7 +2323,18 @@ public:
           cLog::log (LOGERROR, "loadTs - PMT:%d for unrecognised sid:%d", pid, sid);
         }
       };
-
+    //}}}
+    //{{{
+    auto addSdtCallback = [&](int sid, string name) noexcept {
+      auto it = mServices.find (sid);
+      if (it != mServices.end()) {
+        cService* service = (*it).second;
+        if (service->setName (name))
+          cLog::log (LOGINFO, format ("SDT sid {} {}", sid, name));
+        };
+      };
+    //}}}
+    //{{{
     auto addProgramCallback = [&](int pid, int sid) noexcept {
       if ((sid > 0) && (mPidParsers.find (pid) == mPidParsers.end())) {
         cLog::log (LOGINFO, "PAT adding pid:service %d::%d", pid, sid);
@@ -2157,9 +2346,9 @@ public:
           mCurSid = sid;
         }
       };
-
-    mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
     //}}}
+    mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
+    mPidParsers.insert (map<int,cSdtParser*>::value_type (0x11, new cSdtParser (addSdtCallback)));
 
     do {
       // process fileChunk
@@ -2261,31 +2450,6 @@ public:
 private:
   static constexpr int kFileChunkSize = 16 * 188;
 
-  //{{{
-  class cService {
-  public:
-    cService (int sid, bool selected) : mSid(sid), mSelected(selected) {}
-
-    bool isSelected() { return mSelected; }
-    int getAudioPid() { return mAudioPid; }
-    int getVideoPid() { return mVideoPid; }
-    int getSubtitlePid() { return mSubtitlePid; }
-
-    void setSelected (bool selected) { mSelected = selected; }
-    void setAudioPid (int pid) { mAudioPid = pid; }
-    void setVideoPid (int pid) { mVideoPid = pid; }
-    void setSubtitlePid (int pid) { mSubtitlePid = pid; }
-
-  private:
-    const int mSid;
-
-    int mAudioPid = 0;
-    int mVideoPid = 0;
-    int mSubtitlePid = 0;
-
-    bool mSelected = false;
-    };
-  //}}}
 
   cPtsSong* mPtsSong = nullptr;
   iVideoPool* mVideoPool = nullptr;
@@ -2299,7 +2463,7 @@ private:
   };
 //}}}
 
-// public
+// cLoader public
 //{{{
 cLoader::cLoader() {
 
@@ -2326,7 +2490,7 @@ cLoader::~cLoader() {
   }
 //}}}
 
-// gets
+// cLoader gets
 cSong* cLoader::getSong() { return mLoadSource->getSong(); }
 iVideoPool* cLoader::getVideoPool() { return mLoadSource->getVideoPool(); }
 string cLoader::getInfoString() { return mLoadSource->getInfoString(); }
@@ -2339,7 +2503,7 @@ float cLoader::getFracs (float& audioFrac, float& videoFrac) {
   }
 //}}}
 
-// load
+// cLoader load
 //{{{
 void cLoader::exit() {
   mLoadSource->exit();
@@ -2392,7 +2556,7 @@ void cLoader::load (const vector<string>& params) {
   }
 //}}}
 
-// actions
+// cLoader actions
 //{{{
 bool cLoader::togglePlaying() {
   return mLoadSource->togglePlaying();
