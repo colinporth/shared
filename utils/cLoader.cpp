@@ -417,6 +417,7 @@ public:
         if (getCrc32 (ts, mSectionLength) != 0) {
           //{{{  error return
           cLog::log (LOGERROR, format ("SDT crc error sectionSize:{} sectionLength:{}", mSectionSize, mSectionLength));
+          mSectionSize = 0;
           return;
           }
           //}}}
@@ -473,6 +474,93 @@ public:
           }
         }
       }
+    }
+  //}}}
+
+private:
+  int mSectionLength = 0;
+
+  uint8_t* mSection = nullptr;
+  int mAllocSectionSize = 0;
+  int mSectionSize = 0;
+
+  function <void (int sid, string name)> mCallback;
+  };
+//}}}
+//{{{
+class cEitParser : public cPidParser {
+public:
+  //{{{
+  cEitParser (function<void (int sid, string name)> callback) : cPidParser (0x12, "eit"), mCallback(callback) {
+
+    mAllocSectionSize = 1024;
+    mSection = (uint8_t*)malloc (mAllocSectionSize);
+    mSectionSize = 0;
+    }
+  //}}}
+  //{{{
+  virtual ~cEitParser() {
+    free (mSection);
+    }
+  //}}}
+
+  //{{{
+  virtual void processPayload (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool reuseFromFront) {
+
+    uint8_t* pointerFieldCopyFrom = nullptr;
+    int pointerFieldCopyLength = 0;
+
+    if (payloadStart) {
+      // start section
+      int pointerField = ts[0];
+      if (pointerField == 0) {
+        ts++;
+        tsLeft--;
+        mSectionLength = ((ts[1] & 0x0F) << 8) + ts[2] + 3;
+        cLog::log (LOGINFO, "EIT pointerField zero");
+        }
+      else {
+        // set packet pointerField offset for start of next eit section
+        cLog::log (LOGINFO, "EIT pointerField %d", pointerField);
+        pointerFieldCopyFrom = ts + pointerField;
+        pointerFieldCopyLength = tsLeft - pointerField;
+        }
+      }
+
+    if (mSectionLength > 0) {
+      // add packet to mSection
+      if (mSectionSize + tsLeft > mAllocSectionSize) {
+        //{{{  allocate double size of mSection buffer
+        mAllocSectionSize *= 2;
+        mSection = (uint8_t*)realloc (mSection, mAllocSectionSize);
+        cLog::log (LOGINFO1, mName + "EIT allocSize doubled to " + dec(mAllocSectionSize));
+        }
+        //}}}
+      memcpy (mSection + mSectionSize, ts, tsLeft);
+      mSectionSize += tsLeft;
+
+      if (mSectionSize >= mSectionLength) {
+        // whole section from tid
+        if (getCrc32 (mSection, mSectionLength) != 0) {
+          //{{{  error return
+          cLog::log (LOGERROR, format ("EIT crc error sectionSize:{} sectionLength:{}",
+                                       mSectionSize, mSectionLength));
+          mSectionSize = 0;
+          return;
+          }
+          //}}}
+        uint8_t* sectionPtr = mSection;
+        cLog::log (LOGINFO, format ("EIT section{} {}", mSection[0], mSectionLength));
+        mSectionSize = 0;
+        }
+      }
+
+    if (pointerFieldCopyFrom) {
+      mSectionLength = ((pointerFieldCopyFrom[1] & 0x0F) << 8) + pointerFieldCopyFrom[2] + 3;
+      memcpy (mSection, pointerFieldCopyFrom, pointerFieldCopyLength);
+      mSectionSize += pointerFieldCopyLength;
+      }
+
     }
   //}}}
 
@@ -1483,6 +1571,13 @@ public:
       };
     //}}}
     //{{{
+    auto addEitCallback = [&](int sid, string name) noexcept {
+      cLog::log (LOGINFO, format ("eit callback sid {} {}", sid, name));
+      //mSid = sid;
+      //mServiceName = name;
+      };
+    //}}}
+    //{{{
     auto addProgramCallback = [&](int pid, int sid) noexcept {
       if ((sid > 0) && (mPidParsers.find (pid) == mPidParsers.end())) {
         cLog::log (LOGINFO, "PAT adding pid:service %d::%d", pid, sid);
@@ -1492,6 +1587,7 @@ public:
     //}}}
     mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
     mPidParsers.insert (map<int,cSdtParser*>::value_type (0x11, new cSdtParser (addSdtCallback)));
+    mPidParsers.insert (map<int,cEitParser*>::value_type (0x12, new cEitParser (addEitCallback)));
 
     char buffer[2048];
     int bufferLen = 2048;
