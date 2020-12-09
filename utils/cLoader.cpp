@@ -246,6 +246,7 @@ public:
   virtual ~cPatParser() {}
 
   virtual void processPayload (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool reuseFromFront) {
+  // assumes section length fits in this packet, no need to buffer
 
     if (payloadStart) {
       //int pointerField = ts[0]
@@ -255,11 +256,10 @@ public:
       //int tid = ts[0]; // could check it
       int sectionLength = ((ts[1] & 0x0F) << 8) + ts[2] + 3;
       if (getCrc32 (ts, sectionLength) != 0) {
-        //{{{  error return
+        // error return
         cLog::log (LOGERROR, mName + " crc error");
         return;
         }
-        //}}}
 
       //{{{  unused fields
       // transport stream id = ((ts[3] & 0xF) << 4) | ts[4]
@@ -269,15 +269,15 @@ public:
       //}}}
 
       // skip past pat header
-      ts += 8;
-      tsLeft -= 8;
-      sectionLength -= 8 + 4;
+      constexpr int kPatHeaderLength = 8;
+      ts += kPatHeaderLength;
+      tsLeft -= kPatHeaderLength;
+      sectionLength -= kPatHeaderLength + 4;
       if (sectionLength > tsLeft) {
-        //{{{  error return
-        cLog::log (LOGERROR, mName + " sectionLength " + dec(sectionLength) + " tsLeft" + dec(tsLeft));
+        //  error return
+        cLog::log (LOGERROR, format ("{} sectionLength:{} tsLeft:{}", mName, sectionLength, tsLeft));
         return;
         }
-        //}}}
 
       // iterate pat programs
       while (sectionLength > 0) {
@@ -285,9 +285,10 @@ public:
         int programPid = ((ts[2] & 0x1F) << 8) + ts[3];
         mCallback (programPid, programSid);
 
-        ts += 4;
-        tsLeft -= 4;
-        sectionLength -= 4;
+        constexpr int kPatProgramLength = 4;
+        ts += kPatProgramLength;
+        tsLeft -= kPatProgramLength;
+        sectionLength -= kPatProgramLength;
         }
       }
     }
@@ -306,19 +307,21 @@ public:
   virtual ~cPmtParser() {}
 
   virtual void processPayload (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool reuseFromFront) {
+  // assumes section length fits in this packet, no need to buffer
+
     if (payloadStart) {
       //int pointerField = ts[0];
       ts++;
       tsLeft--;
 
       //int tid = ts[0];
+      // assumes section length fits in this packet, no need to buffer
       int sectionLength = ((ts[1] & 0x0F) << 8) + ts[2] + 3;
       if (getCrc32 (ts, sectionLength) != 0) {
-        //{{{  error return
+        // error return
         cLog::log (LOGERROR, mName + " crc error");
         return;
         }
-        //}}}
 
       int sid = (ts[3] << 8) + ts[4];
       //{{{  unused fields
@@ -330,16 +333,16 @@ public:
       int programInfoLength = ((ts[10] & 0x0f) << 8) + ts[11];
 
       // skip past pmt header
-      ts += 12 + programInfoLength;
-      tsLeft -= 12 - programInfoLength;
-      sectionLength -= 12 + 4 - programInfoLength;
+      constexpr int kPmtHeaderLength = 12;
+      ts += kPmtHeaderLength + programInfoLength;
+      tsLeft -= kPmtHeaderLength - programInfoLength;
+      sectionLength -= kPmtHeaderLength + 4 - programInfoLength;
 
       if (sectionLength > tsLeft) {
-        //{{{  error return
-        cLog::log (LOGERROR, mName + " sectionLength " + dec(sectionLength) + " tsLeft" + dec(tsLeft));
+        // error return
+        cLog::log (LOGERROR, format ("{} sectionLength:{} tsLeft:{}", mName, sectionLength, tsLeft));
         return;
         }
-        //}}}
 
       // iterate pmt streams
       while (sectionLength > 0) {
@@ -348,9 +351,10 @@ public:
         int streamInfoLength = ((ts[3] & 0x0F) << 8) + ts[4];
         mCallback (sid, streamPid, streamType);
 
-        ts += 5 + streamInfoLength;
-        tsLeft -= 5 + streamInfoLength;
-        sectionLength -= 5 + streamInfoLength;
+        constexpr int kPmtStreamLength = 5;
+        ts += kPmtStreamLength + streamInfoLength;
+        tsLeft -= kPmtStreamLength + streamInfoLength;
+        sectionLength -= kPmtStreamLength + streamInfoLength;
         }
       }
     }
@@ -462,8 +466,9 @@ public:
         //}}}
 
         // skip past sdt header
-        ts += 11;
-        mSectionLength -= 11 + 4;
+        constexpr int kSdtHeaderLength = 11;
+        ts += kSdtHeaderLength;
+        mSectionLength -= kSdtHeaderLength + 4;
 
         // iterate sdt sections
         while (mSectionLength > 0) {
@@ -475,8 +480,9 @@ public:
           int loopLength = ((ts[3] & 0x0F) << 8) + ts[4];
 
           // skip past sdt descriptor
-          ts += 5;
-          mSectionLength -= 5;
+          constexpr int kSdtDescriptorLength = 5;
+          ts += kSdtDescriptorLength;
+          mSectionLength -= kSdtDescriptorLength;
 
           int i = 0;
           int descrLength = ts[1] + 2;
@@ -593,8 +599,9 @@ public:
         //}}}
 
         // skip past eit header to first eitEvent
-        ts += 14;
-        mSectionLength -= 14 + 4;
+        constexpr int kEitHeaderLength = 14;
+        ts += kEitHeaderLength;
+        mSectionLength -= kEitHeaderLength + 4;
 
         while (mSectionLength > 0) {
           // iterate eitEvents
@@ -619,8 +626,9 @@ public:
           int loopLength = ((ts[10] & 0x0F) << 8) + ts[11];
 
           // skip past eitEvent
-          ts += 12;
-          mSectionLength -= 12;
+          constexpr int kEitEventLength = 12;
+          ts += kEitEventLength;
+          mSectionLength -= kEitEventLength;
 
           int i = 0;
           int descrLength = ts[1] + 2;
