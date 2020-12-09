@@ -50,6 +50,25 @@ using namespace chrono;
 //}}}
 
 //{{{
+class cEpgItem {
+public:
+  cEpgItem() {}
+  cEpgItem (const cEpgItem& epgItem) { *this = epgItem; }
+  cEpgItem (const string& programName, system_clock::time_point startTimePoint, seconds duration)
+    : mProgramName(programName), mStartTimePoint(startTimePoint), mDuration(duration) {}
+  ~cEpgItem() {}
+
+  string getProgramName() { return mProgramName; }
+  system_clock::time_point getStartTime() { return mStartTimePoint; }
+  seconds getDuration() { return mDuration; }
+
+private:
+  string mProgramName;
+  system_clock::time_point mStartTimePoint;
+  seconds mDuration;
+  };
+//}}}
+//{{{
 class cService {
 public:
   cService (int sid, bool selected) : mSid(sid), mSelected(selected) {}
@@ -80,23 +99,6 @@ private:
 
   bool mSelected = false;
   string mName;
-  };
-//}}}
-//{{{
-class cEpgItem {
-public:
-  cEpgItem (const string& programName, system_clock::time_point startTimePoint, seconds duration)
-    : mProgramName(programName), mStartTimePoint(startTimePoint), mDuration(duration) {}
-  ~cEpgItem() {}
-
-  string getProgrameName() { return mProgramName; }
-  system_clock::time_point getStartTime() { return mStartTimePoint; }
-  seconds getDuration() { return mDuration; }
-
-private:
-  string mProgramName;
-  system_clock::time_point mStartTimePoint;
-  seconds mDuration;
   };
 //}}}
 
@@ -553,22 +555,16 @@ private:
 //{{{
 class cEitParser : public cSectionParser {
 public:
-  //{{{
-  cEitParser (function<void (int sid, bool now, const string& programName,
-                             system_clock::time_point startTimePoint, seconds duration)> callback)
+  cEitParser (function<void (int sid, bool now, cEpgItem& epgItem)> callback)
     : cSectionParser (0x12, "eit"), mCallback(callback) {}
-  //}}}
   virtual ~cEitParser() {}
 
   //{{{
   virtual void processPayload (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool reuseFromFront) {
 
-    uint8_t* pointerFieldSectionStart = nullptr;
-    int pointerFieldTsLeft = 0;
-
+    int pointerField = 0;
     if (payloadStart) {
-      //{{{  start section
-      int pointerField = ts[0];
+      pointerField = ts[0];
       ts++;
       tsLeft--;
 
@@ -576,19 +572,8 @@ public:
         // start new section
         mSectionSize = 0;
         mSectionLength = ((ts[1] & 0x0F) << 8) + ts[2] + 3;
-        //cLog::log (LOGINFO, "EIT pointerField zero");
-        }
-      else {
-        // finish previous section up to pointerField
-        // - then start new section with from pointerField
-        //   - set packet pointerField offset for start of next eit section
-        //cLog::log (LOGINFO, "EIT pointerField %d", pointerField);
-        pointerFieldSectionStart = ts + pointerField;
-        pointerFieldTsLeft = tsLeft - pointerField;
-        tsLeft = pointerField;
         }
       }
-      //}}}
 
     if (mSectionLength > 0) {
       addToSection (ts, tsLeft);
@@ -655,16 +640,12 @@ public:
               //{{{
               case 0x4D: // shortEvent
                 {
-                string programName = isHuff (ts + 6) ? huffDecode (ts + 6, ts[5]) : getDescrString (ts + 6, ts[5]);
-                //string startTimeString = date::format ("%H:%M", floor<seconds>(startTimePoint));
-                //cLog::log (LOGINFO, format ("{} sid:{} eventId:{} run:{} {} {}",
-                //                            tidInfo, sid, eventId, running, startTimeString, programName));
-
+                cEpgItem epgItem (isHuff (ts + 6) ? huffDecode (ts + 6, ts[5]) : getDescrString (ts + 6, ts[5]),
+                                  startTimePoint, duration);
                 if ((tid == 0x4E) && (running == 0x04)) // now
-                  mCallback (sid, true, programName, startTimePoint, duration);
+                  mCallback (sid, true, epgItem);
                 else if ((tid == 0x50) || (tid == 0x51)) // epg
-                  mCallback (sid, false, programName, startTimePoint, duration);
-
+                  mCallback (sid, false, epgItem);
                 break;
                 }
               //}}}
@@ -706,19 +687,20 @@ public:
           mSectionLength -= loopLength;
           }
         mSectionSize = 0;
-        }
-      }
 
-    if (pointerFieldSectionStart) {
-      mSectionLength = ((pointerFieldSectionStart[1] & 0x0F) << 8) + pointerFieldSectionStart[2] + 3;
-      addToSection (pointerFieldSectionStart, pointerFieldTsLeft);
+        if (pointerField) {
+          // ripple down start of new section
+          mSectionLength = ((mSection[pointerField+1] & 0x0F) << 8) + mSection[pointerField+2] + 3;
+          memmove (mSection, mSection + pointerField, tsLeft - pointerField);
+          mSectionSize = tsLeft - pointerField;
+          }
+        }
       }
     }
   //}}}
 
 private:
-  function <void (int sid, bool now, const string& programName,
-                  system_clock::time_point start, seconds duration)> mCallback;
+  function <void (int sid, bool now, cEpgItem& epgItem)> mCallback;
   };
 //}}}
 
@@ -1874,8 +1856,8 @@ public:
   //{{{
   virtual string getInfoString() {
     return format ("sid:{} {} {} {} {}", mSid, mServiceName,
-                                         date::format ("%H:%M", floor<seconds>(mStartTimePoint)),
-                                         mProgramName, cLoadStream::getInfoString());
+                                         date::format ("%H:%M", floor<seconds>(mNowEpgItem.getStartTime())),
+                                         mNowEpgItem.getProgramName(), cLoadStream::getInfoString());
     }
   //}}}
 
@@ -1992,52 +1974,6 @@ public:
       };
     //}}}
     //{{{
-    auto addSdtCallback = [&](int sid, const string& name) noexcept {
-
-      cLog::log (LOGINFO, format ("SDT sid {} {}", sid, name));
-      mSid = sid;
-      mServiceName = name;
-      };
-    //}}}
-    //{{{
-    auto addEitCallback = [&](int sid, bool now, const string& programName,
-                              system_clock::time_point startTimePoint, seconds duration) noexcept {
-
-      //cLog::log (LOGINFO, format ("eit callback sid {} {}", sid, name));
-      //mSid = sid;
-      if (now) {
-        // now
-        mProgramName = programName;
-        mStartTimePoint = startTimePoint;
-        mDuration = duration;
-        }
-
-      else {
-        // epg
-        auto todayTime = system_clock::now();
-        auto todayDatePoint = date::floor<date::days>(todayTime);
-        auto todayYearMonthDay = date::year_month_day{todayDatePoint};
-        auto today = todayYearMonthDay.day();
-
-        auto datePoint = date::floor<date::days>(startTimePoint);
-        auto yearMonthDay = date::year_month_day{datePoint};
-        auto day = yearMonthDay.day();
-
-        if ((day == today) && (startTimePoint > todayTime)) {
-          // later today
-
-          auto epgItemIt = mEpgItemMap.find (startTimePoint);
-          if (epgItemIt == mEpgItemMap.end()) {
-            cLog::log (LOGINFO, format ("epg {} {}", date::format ("%H:%M", floor<seconds>(startTimePoint)), programName));
-            mEpgItemMap.insert (
-              map<system_clock::time_point, cEpgItem*>::value_type (
-                startTimePoint, new cEpgItem (programName, startTimePoint, duration)));
-            }
-          }
-        }
-      };
-    //}}}
-    //{{{
     auto addProgramCallback = [&](int pid, int sid) noexcept {
 
       if ((sid > 0) && (mPidParsers.find (pid) == mPidParsers.end())) {
@@ -2047,7 +1983,48 @@ public:
       };
     //}}}
     mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
+    //{{{
+    auto addSdtCallback = [&](int sid, const string& name) noexcept {
+
+      cLog::log (LOGINFO, format ("SDT sid {} {}", sid, name));
+      mSid = sid;
+      mServiceName = name;
+      };
+    //}}}
     mPidParsers.insert (map<int,cSdtParser*>::value_type (0x11, new cSdtParser (addSdtCallback)));
+    //{{{
+    auto addEitCallback = [&](int sid, bool now, cEpgItem& epgItem) noexcept {
+
+      //cLog::log (LOGINFO, format ("eit callback sid {} {}", sid, name));
+      //mSid = sid;
+      if (now) // copy to now
+        mNowEpgItem = epgItem;
+
+      else {
+        // add to epg if new, later than now today
+        auto todayTime = system_clock::now();
+        auto todayDatePoint = date::floor<date::days>(todayTime);
+        auto todayYearMonthDay = date::year_month_day{todayDatePoint};
+        auto today = todayYearMonthDay.day();
+
+        auto datePoint = date::floor<date::days>(epgItem.getStartTime());
+        auto yearMonthDay = date::year_month_day{datePoint};
+        auto day = yearMonthDay.day();
+
+        if ((day == today) && (epgItem.getStartTime() > todayTime)) {
+          // later today
+          auto epgItemIt = mEpgItemMap.find (epgItem.getStartTime());
+          if (epgItemIt == mEpgItemMap.end()) {
+            mEpgItemMap.insert (
+              map<system_clock::time_point, cEpgItem*>::value_type (epgItem.getStartTime(), new cEpgItem (epgItem)));
+            cLog::log (LOGINFO, format ("epg {} {}",
+                                date::format ("%H:%M", floor<seconds>(epgItem.getStartTime())),
+                                epgItem.getProgramName()));
+            }
+          }
+        }
+      };
+    //}}}
     mPidParsers.insert (map<int,cEitParser*>::value_type (0x12, new cEitParser (addEitCallback)));
 
     char buffer[2048];
@@ -2116,9 +2093,7 @@ private:
   string mServiceName;
 
   // now program
-  string mProgramName;
-  system_clock::time_point mStartTimePoint;
-  seconds mDuration;
+  cEpgItem mNowEpgItem;
 
   // epg today
   map <system_clock::time_point, cEpgItem*> mEpgItemMap;
