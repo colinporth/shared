@@ -63,7 +63,7 @@ public:
   void setVideoPid (int pid) { mVideoPid = pid; }
   void setSubtitlePid (int pid) { mSubtitlePid = pid; }
   //{{{
-  bool setName (string name) {
+  bool setName (const string& name) {
     bool named = mName.empty();
     mName = name;
     return named;
@@ -420,7 +420,7 @@ protected:
 //{{{
 class cSdtParser : public cSectionParser {
 public:
-  cSdtParser (function<void (int sid, string name)> callback) : cSectionParser (0x11, "sdt"), mCallback(callback) {}
+  cSdtParser (function<void (int sid, const string& name)> callback) : cSectionParser (0x11, "sdt"), mCallback(callback) {}
   virtual ~cSdtParser() {}
 
   //{{{
@@ -487,7 +487,7 @@ public:
             int serviceType = ts[2];
             switch (tag) {
               //{{{
-              case 0x48: // service 
+              case 0x48: // service
                 {
                 string name = getDescrString (ts + 5, ts[4]);
                 mCallback (sid, name);
@@ -529,13 +529,17 @@ public:
   //}}}
 
 private:
-  function <void (int sid, string name)> mCallback;
+  function <void (int sid, const string& name)> mCallback;
   };
 //}}}
 //{{{
 class cEitParser : public cSectionParser {
 public:
-  cEitParser (function<void (int sid, string name)> callback) : cSectionParser (0x12, "eit"), mCallback(callback) {}
+  //{{{
+  cEitParser (function<void (int sid, bool now, const string& programName,
+                             system_clock::time_point startTimePoint, seconds duration)> callback)
+    : cSectionParser (0x12, "eit"), mCallback(callback) {}
+  //}}}
   virtual ~cEitParser() {}
 
   //{{{
@@ -608,13 +612,12 @@ public:
           int startTime = (3600 * ((10 * ((ts[4] & 0xF0) >> 4)) + (ts[4] & 0xF))) +
                             (60 * ((10 * ((ts[5] & 0xF0) >> 4)) + (ts[5] & 0xF))) +
                                   ((10 * ((ts[6] & 0xF0) >> 4)) + (ts[6] & 0xF));
+          auto startTimePoint = system_clock::from_time_t (epochTime + startTime);
 
           int durationSeconds = (3600 * ((10 * ((ts[7] & 0xF0) >> 4)) + (ts[7] & 0xF))) +
                                   (60 * ((10 * ((ts[8] & 0xF0) >> 4)) + (ts[8] & 0xF))) +
                                         ((10 * ((ts[9] & 0xF0) >> 4)) + (ts[9] & 0xF));
-
-          auto startTimePoint = chrono::system_clock::from_time_t (epochTime + startTime);
-          chrono::seconds duration (durationSeconds);
+          seconds duration (durationSeconds);
 
           bool caMode = ts[10] & 0x10;
           int running = (ts[10] & 0xE0) >> 5;
@@ -634,12 +637,16 @@ public:
               //{{{
               case 0x4D: // shortEvent
                 {
-                string name = isHuff (ts + 6) ? huffDecode (ts + 6, ts[5]) : getDescrString (ts + 6, ts[5]);
-                cLog::log (LOGINFO, format ("{} sid:{} eventId:{} run:{} {}",
-                                            tidInfo, sid, eventId, running, name));
-                if (tid == 0x4E) // actual now
-                  if  (running == 0x04) // now
-                    mCallback (sid, name);
+                string programName = isHuff (ts + 6) ? huffDecode (ts + 6, ts[5]) : getDescrString (ts + 6, ts[5]);
+                //string startTimeString = date::format ("%H:%M", floor<seconds>(startTimePoint));
+                //cLog::log (LOGINFO, format ("{} sid:{} eventId:{} run:{} {} {}",
+                //                            tidInfo, sid, eventId, running, startTimeString, programName));
+
+                if ((tid == 0x4E) && (running == 0x04)) // now
+                  mCallback (sid, true, programName, startTimePoint, duration);
+                else if ((tid == 0x50) || (tid == 0x51)) // epg
+                  mCallback (sid, false, programName, startTimePoint, duration);
+
                 break;
                 }
               //}}}
@@ -692,7 +699,8 @@ public:
   //}}}
 
 private:
-  function <void (int sid, string name)> mCallback;
+  function <void (int sid, bool now, const string& programName,
+                  system_clock::time_point start, seconds duration)> mCallback;
   };
 //}}}
 
@@ -1223,7 +1231,7 @@ public:
       };
     //}}}
     //{{{
-    auto addSdtCallback = [&](int sid, string name) noexcept {
+    auto addSdtCallback = [&](int sid, const string& name) noexcept {
       auto it = mServices.find (sid);
       if (it != mServices.end()) {
         cService* service = (*it).second;
@@ -1537,235 +1545,6 @@ protected:
   };
 //}}}
 //{{{
-class cLoadRtp : public cLoadStream {
-public:
-  //{{{
-  cLoadRtp() : cLoadStream("rtp") {
-
-    mNumChannels = 2;
-    mSampleRate = 48000;
-    }
-  //}}}
-  //{{{
-  virtual ~cLoadRtp() {
-    }
-  //}}}
-
-  //{{{
-  virtual string getInfoString() {
-    return format ("sid:{} {} {} {}", mSid, mServiceName, mProgramName, cLoadStream::getInfoString());
-    }
-  //}}}
-
-  //{{{
-  virtual bool recognise (const vector<string>& params) {
-
-    if (params[0] != "rtp")
-      return false;
-
-    mNumChannels = 2;
-    mSampleRate = 48000;
-
-    return true;
-    }
-  //}}}
-  //{{{
-  virtual void load() {
-
-    mExit = false;
-    mRunning = true;
-    mLoadFrac = 0.f;
-
-    //{{{  wsa startup
-    struct sockaddr_in sendAddr;
-
-    #ifdef _WIN32
-      WSADATA wsaData;
-      WSAStartup (MAKEWORD(2, 2), &wsaData);
-      int sendAddrSize = sizeof (sendAddr);
-    #endif
-
-    #ifdef __linux__
-      unsigned int sendAddrSize = sizeof (sendAddr);
-    #endif
-    //}}}
-    // create socket to receive datagrams
-    auto rtpReceiveSocket = socket (AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if (rtpReceiveSocket == 0) {
-      //{{{  error return
-      cLog::log (LOGERROR, "socket failed");
-      return;
-      }
-      //}}}
-
-    // bind the socket to anyAddress:specifiedPort
-    struct sockaddr_in recvAddr;
-    recvAddr.sin_family = AF_INET;
-    recvAddr.sin_port = htons (5006);
-    recvAddr.sin_addr.s_addr = htonl (INADDR_ANY);
-    auto result = ::bind (rtpReceiveSocket, (struct sockaddr*)&recvAddr, sizeof(recvAddr));
-    if (result != 0) {
-      //{{{  error return
-      cLog::log (LOGERROR, "bind failed");
-      return;
-      }
-      //}}}
-
-    mPtsSong = new cPtsSong (eAudioFrameType::eAacAdts, mNumChannels, mSampleRate, 1024, 1920, 0);
-    iAudioDecoder* audioDecoder = nullptr;
-
-    int64_t loadPts = -1;
-
-    // init parsers, callbacks
-    //{{{
-    auto addAudioFrameCallback = [&](bool reuseFromFront, float* samples, int64_t pts) noexcept {
-
-      mPtsSong->addFrame (reuseFromFront, pts, samples, mPtsSong->getNumFrames()+1);
-
-      if (loadPts < 0)
-        // firstTime, setBasePts, sets playPts
-        mPtsSong->setBasePts (pts);
-      loadPts = pts;
-
-      // maybe wait for several frames ???
-      if (!mSongPlayer)
-        mSongPlayer = new cSongPlayer (mPtsSong, true);
-      };
-    //}}}
-    //{{{
-    auto addStreamCallback = [&](int sid, int pid, int type) noexcept {
-
-      if (mPidParsers.find (pid) == mPidParsers.end()) {
-        // new stream pid
-        switch (type) {
-          case  2: // ISO 13818-2 video
-          case  3: // ISO 11172-3 audio
-          case  5: // private mpeg2 tabled data
-          case  6: // subtitle
-          case 11: // dsm cc u_n
-            break;
-          //{{{
-          case 17: // aacLatm
-            mAudioPid = pid;
-
-            audioDecoder = createAudioDecoder (eAudioFrameType::eAacLatm);
-            mPidParsers.insert (map<int,cPidParser*>::value_type (pid,
-              new cAudioPesParser (pid, audioDecoder, true, addAudioFrameCallback)));
-
-            break;
-          //}}}
-          //{{{
-          case 27: // h264video
-            mVideoPid = pid;
-
-            mVideoPool = iVideoPool::create (true, 100, mPtsSong);
-            mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cVideoPesParser (pid, mVideoPool, true)));
-
-            break;
-          //}}}
-          default:
-            cLog::log (LOGERROR, "loadTs - unrecognised stream type %d %d", pid, type);
-          }
-        }
-      };
-    //}}}
-    //{{{
-    auto addSdtCallback = [&](int sid, string name) noexcept {
-
-      cLog::log (LOGINFO, format ("SDT sid {} {}", sid, name));
-      mSid = sid;
-      mServiceName = name;
-      };
-    //}}}
-    //{{{
-    auto addEitCallback = [&](int sid, string name) noexcept {
-
-      //cLog::log (LOGINFO, format ("eit callback sid {} {}", sid, name));
-      //mSid = sid;
-      mProgramName = name;
-      };
-    //}}}
-    //{{{
-    auto addProgramCallback = [&](int pid, int sid) noexcept {
-
-      if ((sid > 0) && (mPidParsers.find (pid) == mPidParsers.end())) {
-        cLog::log (LOGINFO, "PAT adding pid:service %d::%d", pid, sid);
-        mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cPmtParser (pid, sid, addStreamCallback)));
-        }
-      };
-    //}}}
-    mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
-    mPidParsers.insert (map<int,cSdtParser*>::value_type (0x11, new cSdtParser (addSdtCallback)));
-    mPidParsers.insert (map<int,cEitParser*>::value_type (0x12, new cEitParser (addEitCallback)));
-
-    char buffer[2048];
-    int bufferLen = 2048;
-    do {
-      int bytesReceived = recvfrom (rtpReceiveSocket, buffer, bufferLen, 0, (struct sockaddr*)&sendAddr, &sendAddrSize);
-      if (bytesReceived != 0) {
-        // process block of ts minus rtp header
-        int bytesLeft = bytesReceived - 12;
-        uint8_t* ts = (uint8_t*)buffer + 12;
-        while (!mExit && (bytesLeft >= 188) && (ts[0] == 0x47)) {
-          auto it = mPidParsers.find (((ts[1] & 0x1F) << 8) | ts[2]);
-          if (it != mPidParsers.end())
-            it->second->parse (ts, true);
-          ts += 188;
-          bytesLeft -= 188;
-          }
-        }
-      else
-        cLog::log (LOGERROR, "recvfrom failed");
-      } while (!mExit);
-
-    //{{{  close socket and WSAcleanup
-    #ifdef _WIN32
-      result = closesocket (rtpReceiveSocket);
-      if (result != 0) {
-        cLog::log (LOGERROR, "closesocket failed");
-        return;
-        }
-      WSACleanup();
-    #endif
-
-    #ifdef __linux__
-      close (rtpReceiveSocket);
-    #endif
-    //}}}
-    //{{{  delete resources
-    if (mSongPlayer)
-      mSongPlayer->wait();
-    delete mSongPlayer;
-
-    for (auto parser : mPidParsers) {
-      //{{{  stop and delete pidParsers
-      parser.second->exit();
-      delete parser.second;
-      }
-      //}}}
-    mPidParsers.clear();
-
-    auto tempSong =  mPtsSong;
-    mPtsSong = nullptr;
-    delete tempSong;
-
-    auto tempVideoPool = mVideoPool;
-    mVideoPool = nullptr;
-    delete tempVideoPool;
-
-    delete audioDecoder;
-    //}}}
-    mRunning = false;
-    }
-  //}}}
-
-private:
-  int mSid;
-  string mServiceName;
-  string mProgramName;
-  };
-//}}}
-//{{{
 class cLoadHls : public cLoadStream {
 public:
   //{{{
@@ -2054,11 +1833,254 @@ private:
   cHlsSong* mHlsSong = nullptr;
   };
 //}}}
+//{{{
+class cLoadRtp : public cLoadStream {
+public:
+  //{{{
+  cLoadRtp() : cLoadStream("rtp") {
+
+    mNumChannels = 2;
+    mSampleRate = 48000;
+    }
+  //}}}
+  //{{{
+  virtual ~cLoadRtp() {
+    }
+  //}}}
+
+  //{{{
+  virtual string getInfoString() {
+    return format ("sid:{} {} {} {} {}", mSid, mServiceName,
+                                         date::format ("%H:%M", floor<seconds>(mStartTimePoint)),
+                                         mProgramName, cLoadStream::getInfoString());
+    }
+  //}}}
+
+  //{{{
+  virtual bool recognise (const vector<string>& params) {
+
+    if (params[0] != "rtp")
+      return false;
+
+    mNumChannels = 2;
+    mSampleRate = 48000;
+
+    return true;
+    }
+  //}}}
+  //{{{
+  virtual void load() {
+
+    mExit = false;
+    mRunning = true;
+    mLoadFrac = 0.f;
+
+    //{{{  wsa startup
+    struct sockaddr_in sendAddr;
+
+    #ifdef _WIN32
+      WSADATA wsaData;
+      WSAStartup (MAKEWORD(2, 2), &wsaData);
+      int sendAddrSize = sizeof (sendAddr);
+    #endif
+
+    #ifdef __linux__
+      unsigned int sendAddrSize = sizeof (sendAddr);
+    #endif
+    //}}}
+    // create socket to receive datagrams
+    auto rtpReceiveSocket = socket (AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (rtpReceiveSocket == 0) {
+      //{{{  error return
+      cLog::log (LOGERROR, "socket failed");
+      return;
+      }
+      //}}}
+
+    // bind the socket to anyAddress:specifiedPort
+    struct sockaddr_in recvAddr;
+    recvAddr.sin_family = AF_INET;
+    recvAddr.sin_port = htons (5006);
+    recvAddr.sin_addr.s_addr = htonl (INADDR_ANY);
+    auto result = ::bind (rtpReceiveSocket, (struct sockaddr*)&recvAddr, sizeof(recvAddr));
+    if (result != 0) {
+      //{{{  error return
+      cLog::log (LOGERROR, "bind failed");
+      return;
+      }
+      //}}}
+
+    mPtsSong = new cPtsSong (eAudioFrameType::eAacAdts, mNumChannels, mSampleRate, 1024, 1920, 0);
+    iAudioDecoder* audioDecoder = nullptr;
+
+    int64_t loadPts = -1;
+
+    // init parsers, callbacks
+    //{{{
+    auto addAudioFrameCallback = [&](bool reuseFromFront, float* samples, int64_t pts) noexcept {
+
+      mPtsSong->addFrame (reuseFromFront, pts, samples, mPtsSong->getNumFrames()+1);
+
+      if (loadPts < 0)
+        // firstTime, setBasePts, sets playPts
+        mPtsSong->setBasePts (pts);
+      loadPts = pts;
+
+      // maybe wait for several frames ???
+      if (!mSongPlayer)
+        mSongPlayer = new cSongPlayer (mPtsSong, true);
+      };
+    //}}}
+    //{{{
+    auto addStreamCallback = [&](int sid, int pid, int type) noexcept {
+
+      if (mPidParsers.find (pid) == mPidParsers.end()) {
+        // new stream pid
+        switch (type) {
+          case  2: // ISO 13818-2 video
+          case  3: // ISO 11172-3 audio
+          case  5: // private mpeg2 tabled data
+          case  6: // subtitle
+          case 11: // dsm cc u_n
+            break;
+          //{{{
+          case 17: // aacLatm
+            mAudioPid = pid;
+
+            audioDecoder = createAudioDecoder (eAudioFrameType::eAacLatm);
+            mPidParsers.insert (map<int,cPidParser*>::value_type (pid,
+              new cAudioPesParser (pid, audioDecoder, true, addAudioFrameCallback)));
+
+            break;
+          //}}}
+          //{{{
+          case 27: // h264video
+            mVideoPid = pid;
+
+            mVideoPool = iVideoPool::create (true, 100, mPtsSong);
+            mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cVideoPesParser (pid, mVideoPool, true)));
+
+            break;
+          //}}}
+          default:
+            cLog::log (LOGERROR, "loadTs - unrecognised stream type %d %d", pid, type);
+          }
+        }
+      };
+    //}}}
+    //{{{
+    auto addSdtCallback = [&](int sid, const string& name) noexcept {
+
+      cLog::log (LOGINFO, format ("SDT sid {} {}", sid, name));
+      mSid = sid;
+      mServiceName = name;
+      };
+    //}}}
+    //{{{
+    auto addEitCallback = [&](int sid, bool now, const string& programName,
+                              system_clock::time_point startTimePoint, seconds duration) noexcept {
+
+      //cLog::log (LOGINFO, format ("eit callback sid {} {}", sid, name));
+      //mSid = sid;
+      if (now) {
+        // now
+        mProgramName = programName;
+        mStartTimePoint = startTimePoint;
+        mDuration = duration;
+        }
+      else {
+        // epg
+        cLog::log (LOGINFO, format ("epg {} {}", date::format ("%H:%M", floor<seconds>(startTimePoint)), programName));
+        }
+      };
+    //}}}
+    //{{{
+    auto addProgramCallback = [&](int pid, int sid) noexcept {
+
+      if ((sid > 0) && (mPidParsers.find (pid) == mPidParsers.end())) {
+        cLog::log (LOGINFO, "PAT adding pid:service %d::%d", pid, sid);
+        mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cPmtParser (pid, sid, addStreamCallback)));
+        }
+      };
+    //}}}
+    mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
+    mPidParsers.insert (map<int,cSdtParser*>::value_type (0x11, new cSdtParser (addSdtCallback)));
+    mPidParsers.insert (map<int,cEitParser*>::value_type (0x12, new cEitParser (addEitCallback)));
+
+    char buffer[2048];
+    int bufferLen = 2048;
+    do {
+      int bytesReceived = recvfrom (rtpReceiveSocket, buffer, bufferLen, 0, (struct sockaddr*)&sendAddr, &sendAddrSize);
+      if (bytesReceived != 0) {
+        // process block of ts minus rtp header
+        int bytesLeft = bytesReceived - 12;
+        uint8_t* ts = (uint8_t*)buffer + 12;
+        while (!mExit && (bytesLeft >= 188) && (ts[0] == 0x47)) {
+          auto it = mPidParsers.find (((ts[1] & 0x1F) << 8) | ts[2]);
+          if (it != mPidParsers.end())
+            it->second->parse (ts, true);
+          ts += 188;
+          bytesLeft -= 188;
+          }
+        }
+      else
+        cLog::log (LOGERROR, "recvfrom failed");
+      } while (!mExit);
+
+    //{{{  close socket and WSAcleanup
+    #ifdef _WIN32
+      result = closesocket (rtpReceiveSocket);
+      if (result != 0) {
+        cLog::log (LOGERROR, "closesocket failed");
+        return;
+        }
+      WSACleanup();
+    #endif
+
+    #ifdef __linux__
+      close (rtpReceiveSocket);
+    #endif
+    //}}}
+    //{{{  delete resources
+    if (mSongPlayer)
+      mSongPlayer->wait();
+    delete mSongPlayer;
+
+    for (auto parser : mPidParsers) {
+      //{{{  stop and delete pidParsers
+      parser.second->exit();
+      delete parser.second;
+      }
+      //}}}
+    mPidParsers.clear();
+
+    auto tempSong =  mPtsSong;
+    mPtsSong = nullptr;
+    delete tempSong;
+
+    auto tempVideoPool = mVideoPool;
+    mVideoPool = nullptr;
+    delete tempVideoPool;
+
+    delete audioDecoder;
+    //}}}
+    mRunning = false;
+    }
+  //}}}
+
+private:
+  int mSid;
+  string mServiceName;
+  string mProgramName;
+  system_clock::time_point mStartTimePoint;
+  seconds mDuration;
+  };
+//}}}
 
 //{{{
 class cLoadFile : public cLoadSource {
 public:
-  cLoadFile (string name) : cLoadSource(name) {}
+  cLoadFile (const string& name) : cLoadSource(name) {}
   virtual ~cLoadFile() {}
 
 protected:
@@ -2561,7 +2583,7 @@ public:
       };
     //}}}
     //{{{
-    auto addSdtCallback = [&](int sid, string name) noexcept {
+    auto addSdtCallback = [&](int sid, const string& name) noexcept {
       auto it = mServices.find (sid);
       if (it != mServices.end()) {
         cService* service = (*it).second;
