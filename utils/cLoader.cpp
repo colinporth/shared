@@ -360,11 +360,12 @@ private:
   function <void (int streamSid, int streamPid, int streamType)> mCallback;
   };
 //}}}
+
 //{{{
-class cSdtParser : public cPidParser {
+class cSectionParser : public cPidParser {
 public:
   //{{{
-  cSdtParser (function<void (int sid, string name)> callback) : cPidParser (0x11, "sdt"), mCallback(callback) {
+  cSectionParser (int pid, const string& name) : cPidParser (pid, name) {
 
     mAllocSectionSize = 1024;
     mSection = (uint8_t*)malloc (mAllocSectionSize);
@@ -372,10 +373,55 @@ public:
     }
   //}}}
   //{{{
-  virtual ~cSdtParser() {
+  virtual ~cSectionParser() {
     free (mSection);
     }
   //}}}
+
+protected:
+  //{{{
+  void addTsToSection (uint8_t* ts, int bytesToAdd) {
+
+    if (mSectionSize + bytesToAdd > mAllocSectionSize) {
+      // allocate double size of mSection buffer
+      mAllocSectionSize *= 2;
+      mSection = (uint8_t*)realloc (mSection, mAllocSectionSize);
+      cLog::log (LOGINFO1, mName + " sdt allocSize doubled to " + dec(mAllocSectionSize));
+      }
+
+    memcpy (mSection + mSectionSize, ts, bytesToAdd);
+    mSectionSize += bytesToAdd;
+    }
+  //}}}
+  //{{{
+  bool haveCompleteSection() {
+
+    if (mSectionSize < mSectionLength) // not enough section
+      return false;
+
+    if (getCrc32 (mSection, mSectionLength) != 0) {
+      // section crc error
+      cLog::log (LOGERROR, format ("{} crc sectionSize:{} sectionLength:{}", mName, mSectionSize, mSectionLength));
+      mSectionSize = 0;
+      return false;
+      }
+
+    return true;
+    }
+  //}}}
+
+  int mSectionLength = 0;
+
+  uint8_t* mSection = nullptr;
+  int mAllocSectionSize = 0;
+  int mSectionSize = 0;
+  };
+//}}}
+//{{{
+class cSdtParser : public cSectionParser {
+public:
+  cSdtParser (function<void (int sid, string name)> callback) : cSectionParser (0x11, "sdt"), mCallback(callback) {}
+  virtual ~cSdtParser() {}
 
   //{{{
   virtual void processPayload (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool reuseFromFront) {
@@ -387,41 +433,23 @@ public:
       int pointerField = ts[0];
       if (pointerField)
         cLog::log (LOGINFO, "sdt pointerField:%d", pointerField);
+
       ts++;
       tsLeft--;
 
-      if (ts[0] == 0x42) {
-        // sdt for this multiplex
+      if (ts[0] == 0x42) // our sdt
         mSectionLength = ((ts[1] & 0x0F) << 8) + ts[2] + 3;
-        //cLog::log (LOGINFO, "sdt len:%d", mSectionLength);
-        }
       else
         mSectionLength = 0;
       }
       //}}}
 
     if (mSectionLength > 0) {
-      // add packet to mSection
-      if (mSectionSize + tsLeft > mAllocSectionSize) {
-        //{{{  allocate double size of mSection buffer
-        mAllocSectionSize *= 2;
-        mSection = (uint8_t*)realloc (mSection, mAllocSectionSize);
-        cLog::log (LOGINFO1, mName + " sdt allocSize doubled to " + dec(mAllocSectionSize));
-        }
-        //}}}
-      memcpy (mSection + mSectionSize, ts, tsLeft);
-      mSectionSize += tsLeft;
+      // add ts packet to mSection
+      addTsToSection (ts, tsLeft);
 
-      if (mSectionSize >= mSectionLength) {
-        // whole section from tid
+      if (haveCompleteSection()) {
         ts = mSection;
-        if (getCrc32 (ts, mSectionLength) != 0) {
-          //{{{  error return
-          cLog::log (LOGERROR, format ("SDT crc error sectionSize:{} sectionLength:{}", mSectionSize, mSectionLength));
-          mSectionSize = 0;
-          return;
-          }
-          //}}}
         //{{{  unused fields
         //int tsid = (ts[3] << 8) + ts[4];
         //int versionNumber = ts[5];
@@ -492,36 +520,20 @@ public:
           mSectionLength -= loopLength;
           }
         }
+      mSectionSize = 0;
       }
     }
   //}}}
 
 private:
-  int mSectionLength = 0;
-
-  uint8_t* mSection = nullptr;
-  int mAllocSectionSize = 0;
-  int mSectionSize = 0;
-
   function <void (int sid, string name)> mCallback;
   };
 //}}}
 //{{{
-class cEitParser : public cPidParser {
+class cEitParser : public cSectionParser {
 public:
-  //{{{
-  cEitParser (function<void (int sid, string name)> callback) : cPidParser (0x12, "eit"), mCallback(callback) {
-
-    mAllocSectionSize = 1024;
-    mSection = (uint8_t*)malloc (mAllocSectionSize);
-    mSectionSize = 0;
-    }
-  //}}}
-  //{{{
-  virtual ~cEitParser() {
-    free (mSection);
-    }
-  //}}}
+  cEitParser (function<void (int sid, string name)> callback) : cSectionParser (0x12, "eit"), mCallback(callback) {}
+  virtual ~cEitParser() {}
 
   //{{{
   virtual void processPayload (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool reuseFromFront) {
@@ -536,11 +548,15 @@ public:
       tsLeft--;
 
       if (pointerField == 0) {
+        // start new section
+        mSectionSize = 0;
         mSectionLength = ((ts[1] & 0x0F) << 8) + ts[2] + 3;
         //cLog::log (LOGINFO, "EIT pointerField zero");
         }
       else {
-        // set packet pointerField offset for start of next eit section
+        // finish previous section up to pointerField
+        // - then start new section with from pointerField
+        //   - set packet pointerField offset for start of next eit section
         //cLog::log (LOGINFO, "EIT pointerField %d", pointerField);
         pointerFieldSectionStart = ts + pointerField;
         pointerFieldTsLeft = tsLeft - pointerField;
@@ -550,28 +566,9 @@ public:
       //}}}
 
     if (mSectionLength > 0) {
-      // add packet to mSection
-      if (mSectionSize + tsLeft > mAllocSectionSize) {
-        //{{{  allocate double size of mSection buffer
-        mAllocSectionSize *= 2;
-        mSection = (uint8_t*)realloc (mSection, mAllocSectionSize);
-        cLog::log (LOGINFO1, mName + "EIT allocSize doubled to " + dec(mAllocSectionSize));
-        }
-        //}}}
-      memcpy (mSection + mSectionSize, ts, tsLeft);
-      mSectionSize += tsLeft;
+      addTsToSection (ts, tsLeft);
 
-      if (mSectionSize >= mSectionLength) {
-        // whole section from tid
-        if (getCrc32 (mSection, mSectionLength) != 0) {
-          //{{{  error return
-          cLog::log (LOGERROR, format ("EIT crc error sectionSize:{} sectionLength:{}",
-                                       mSectionSize, mSectionLength));
-          mSectionSize = 0;
-          return;
-          }
-          //}}}
-
+      if (haveCompleteSection()) {
         ts = mSection;
         string tidInfo;
         int tid = mSection[0];
@@ -603,13 +600,16 @@ public:
           // iterate eitEvents
           //{{{  eitEvent fields
           int eventId = (ts[0] << 8) + ts[1];
+
           unsigned int epochTime = (unsigned int)((((ts[2] << 8) | ts[3]) - 40587) * 86400);
           int startTime = (3600 * ((10 * ((ts[4] & 0xF0) >> 4)) + (ts[4] & 0xF))) +
                             (60 * ((10 * ((ts[5] & 0xF0) >> 4)) + (ts[5] & 0xF))) +
                                   ((10 * ((ts[6] & 0xF0) >> 4)) + (ts[6] & 0xF));
-          int durationSeconds  = (3600 * ((10 * ((ts[7] & 0xF0) >> 4)) + (ts[7] & 0xF))) +
-                                   (60 * ((10 * ((ts[8] & 0xF0) >> 4)) + (ts[8] & 0xF))) +
-                                         ((10 * ((ts[9] & 0xF0) >> 4)) + (ts[9] & 0xF));
+
+          int durationSeconds = (3600 * ((10 * ((ts[7] & 0xF0) >> 4)) + (ts[7] & 0xF))) +
+                                  (60 * ((10 * ((ts[8] & 0xF0) >> 4)) + (ts[8] & 0xF))) +
+                                        ((10 * ((ts[9] & 0xF0) >> 4)) + (ts[9] & 0xF));
+
           auto startTimePoint = chrono::system_clock::from_time_t (epochTime + startTime);
           chrono::seconds duration (durationSeconds);
 
@@ -682,22 +682,16 @@ public:
 
     if (pointerFieldSectionStart) {
       mSectionLength = ((pointerFieldSectionStart[1] & 0x0F) << 8) + pointerFieldSectionStart[2] + 3;
-      memcpy (mSection, pointerFieldSectionStart, pointerFieldTsLeft);
-      mSectionSize = pointerFieldTsLeft;
+      addTsToSection (pointerFieldSectionStart, pointerFieldTsLeft);
       }
     }
   //}}}
 
 private:
-  int mSectionLength = 0;
-
-  uint8_t* mSection = nullptr;
-  int mAllocSectionSize = 0;
-  int mSectionSize = 0;
-
   function <void (int sid, string name)> mCallback;
   };
 //}}}
+
 //{{{
 class cPesParser : public cPidParser {
 //{{{
@@ -1718,7 +1712,6 @@ public:
         }
       else
         cLog::log (LOGERROR, "recvfrom failed");
-
       } while (!mExit);
 
     //{{{  close socket and WSAcleanup
