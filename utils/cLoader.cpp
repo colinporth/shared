@@ -41,6 +41,7 @@
 #include "readerWriterQueue.h"
 
 #include "../dvb/cDvb.h"
+#include "../dvb/huffmanTables.h"
 
 using namespace std;
 using namespace fmt;
@@ -438,39 +439,57 @@ public:
 
         // iterate sdt sections
         while (mSectionLength > 0) {
+          // sdt descriptor
           int sid = (ts[0] << 8) + ts[1];
-          //int flags = ts[2];
+          bool presentFollowing = ts[2] & 0x01;
+          bool scheduleFlag = ts[2] & 0x02;
+          int runningStatus = ts[3] >> 5;
           int loopLength = ((ts[3] & 0x0F) << 8) + ts[4];
-          //cLog::log (LOGINFO, "- SDT sid %d flags %x loop%d", sid, flags, loopLength);
 
+          // skip past sdt descriptor
           ts += 5;
+          mSectionLength -= 5;
+
           int i = 0;
           int descrLength = ts[1] + 2;
           while ((i < loopLength) && (descrLength > 0) && (descrLength <= loopLength - i)) {
-            // iterate sdt descriptors
-            int descrTag = ts[0];
-            if (descrTag == 0x48) {
-              //{{{  service descriptor
-              string name = getDescrString (ts + 5, ts[4]);
-              mCallback (sid, name);
-              //cLog::log (LOGINFO, format ("SDT - sid {} {}", sid, name));
-              }
+            int tag = ts[0];
+            int serviceType = ts[2];
+            switch (tag) {
+              //{{{
+              case 0x48: { // service descriptor
+                string name = getDescrString (ts + 5, ts[4]);
+                mCallback (sid, name);
+                //cLog::log (LOGINFO, format ("SDT - sid {} {}", sid, name));
+                break;
+                }
               //}}}
-            else if (descrTag == 95)
-              cLog::log (LOGINFO1, "privateData descriptor tag:%x ", descrTag);
-            else if (descrTag == 115)
-              cLog::log (LOGINFO1, "defaultAuthority descriptor tag:%x ", descrTag);
-            else if (descrTag == 126)
-              cLog::log (LOGINFO1, "futureDescriptor tag:%x ", descrTag);
-            else if (descrTag == 0x48)
-              cLog::log (LOGERROR, "*** unknown descriptor tag:%x %d" + descrTag, descrLength);
-
+              //{{{
+              case 95:
+                cLog::log (LOGINFO1, "privateData descriptor tag:%x ", tag);
+                break;
+              //}}}
+              //{{{
+              case 115:
+                cLog::log (LOGINFO1, "defaultAuthority descriptor tag:%x ", tag);
+                break;
+              //}}}
+              //{{{
+              case 126:
+                cLog::log (LOGINFO1, "futureDescriptor tag:%x ", tag);
+                break;
+              //}}}
+              //{{{
+              default:
+                cLog::log (LOGERROR, "*** unknown descriptor tag:%x %d" + tag, descrLength);
+                break;
+              //}}}
+              }
             i += descrLength;
             ts += descrLength;
             descrLength = ts[1] + 2;
             }
-
-          mSectionLength -= loopLength + 5;
+          mSectionLength -= loopLength;
           }
         }
       }
@@ -507,11 +526,11 @@ public:
   //{{{
   virtual void processPayload (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool reuseFromFront) {
 
-    uint8_t* pointerFieldCopyFrom = nullptr;
-    int pointerFieldCopyLength = 0;
+    uint8_t* pointerFieldSectionStart = nullptr;
+    int pointerFieldTsLeft = 0;
 
     if (payloadStart) {
-      // start section
+      //{{{  start section
       int pointerField = ts[0];
       ts++;
       tsLeft--;
@@ -523,11 +542,12 @@ public:
       else {
         // set packet pointerField offset for start of next eit section
         //cLog::log (LOGINFO, "EIT pointerField %d", pointerField);
-        pointerFieldCopyFrom = ts + pointerField;
-        pointerFieldCopyLength = tsLeft - pointerField;
+        pointerFieldSectionStart = ts + pointerField;
+        pointerFieldTsLeft = tsLeft - pointerField;
         tsLeft = pointerField;
         }
       }
+      //}}}
 
     if (mSectionLength > 0) {
       // add packet to mSection
@@ -552,68 +572,119 @@ public:
           }
           //}}}
 
-        //{{{  sEit
-        typedef struct {
-          uint8_t table_id                    :8;
-
-          uint8_t section_length_hi           :4;
-          uint8_t                             :3;
-          uint8_t section_syntax_indicator    :1;
-          uint8_t section_length_lo           :8;
-
-          uint8_t service_id_hi               :8;
-          uint8_t service_id_lo               :8;
-          uint8_t current_next_indicator      :1;
-          uint8_t version_number              :5;
-          uint8_t                             :2;
-          uint8_t section_number              :8;
-          uint8_t last_section_number         :8;
-          uint8_t transport_stream_id_hi      :8;
-          uint8_t transport_stream_id_lo      :8;
-          uint8_t original_network_id_hi      :8;
-          uint8_t original_network_id_lo      :8;
-          uint8_t segment_last_section_number :8;
-          uint8_t segment_last_table_id       :8;
-          } sEit;
-        //}}}
-        //{{{  sEitEvent
-        typedef struct {
-          uint8_t event_id_hi                 :8;
-          uint8_t event_id_lo                 :8;
-          uint8_t mjd_hi                      :8;
-          uint8_t mjd_lo                      :8;
-          uint8_t start_time_h                :8;
-          uint8_t start_time_m                :8;
-          uint8_t start_time_s                :8;
-          uint8_t duration_h                  :8;
-          uint8_t duration_m                  :8;
-          uint8_t duration_s                  :8;
-          uint8_t descrs_loop_length_hi       :4;
-          uint8_t free_ca_mode                :1;
-          uint8_t running_status              :3;
-          uint8_t descrs_loop_length_lo       :8;
-          } sEitEvent;
-        //}}}
         ts = mSection;
-        switch (mSection[0]) {
-          case 0x4E: cLog::log (LOGINFO, format ("EIT actual {} {}", mSection[0], mSectionLength)); break;
-          case 0x4F: cLog::log (LOGINFO, format ("EIT other {} {}", mSection[0], mSectionLength)); break;
-          case 0x50: cLog::log (LOGINFO, format ("EIT actual sch {} {}", mSection[0], mSectionLength)); break;
-          case 0x51: cLog::log (LOGINFO, format ("EIT actual sch {} {}", mSection[0], mSectionLength)); break;
-          case 0x60: cLog::log (LOGINFO, format ("EIT other sch {} {}", mSection[0], mSectionLength)); break;
-          case 0x61: cLog::log (LOGINFO, format ("EIT other sch {} {}", mSection[0], mSectionLength)); break;
-          default: break;
+        string tidInfo;
+        int tid = mSection[0];
+        //{{{  report EIT tid
+        switch (tid) {
+          case 0x4E: tidInfo = "Now"; break;
+          case 0x4F: tidInfo = "NowOther"; break;
+          case 0x50: tidInfo = "Schedule"; break;
+          case 0x51: tidInfo = "Schedule1"; break;
+          case 0x60: tidInfo = "ScheduleOther"; break;
+          case 0x61: tidInfo = "Schedule1Other"; break;
+          default: tidInfo = "unknown"; break;
+          }
+        //}}}
+        int sid = (ts[3] << 8) + ts[4];
+        //{{{  unused eit header fields
+        //int versionNumber = ts[5];
+        //int sectionNumber = ts[6];
+        //int lastSectionNumber = ts[7];
+        //int tsId = (ts[8] << 8) + ts[9];
+        //int onId = (ts[10]<< 8) + ts[11];
+        //}}}
+
+        // skip past eit header to first eitEvent
+        ts += 14;
+        mSectionLength -= 14 + 4;
+
+        while (mSectionLength > 0) {
+          // iterate eitEvents
+          //{{{  eitEvent fields
+          int eventId = (ts[0] << 8) + ts[1];
+          unsigned int epochTime = (unsigned int)((((ts[2] << 8) | ts[3]) - 40587) * 86400);
+          int startTime = (3600 * ((10 * ((ts[4] & 0xF0) >> 4)) + (ts[4] & 0xF))) +
+                            (60 * ((10 * ((ts[5] & 0xF0) >> 4)) + (ts[5] & 0xF))) +
+                                  ((10 * ((ts[6] & 0xF0) >> 4)) + (ts[6] & 0xF));
+          int durationSeconds  = (3600 * ((10 * ((ts[7] & 0xF0) >> 4)) + (ts[7] & 0xF))) +
+                                   (60 * ((10 * ((ts[8] & 0xF0) >> 4)) + (ts[8] & 0xF))) +
+                                         ((10 * ((ts[9] & 0xF0) >> 4)) + (ts[9] & 0xF));
+          auto startTimePoint = chrono::system_clock::from_time_t (epochTime + startTime);
+          chrono::seconds duration (durationSeconds);
+
+          bool caMode = ts[10] & 0x10;
+          int running = (ts[10] & 0xE0) >> 5;
+          //}}}
+          int loopLength = ((ts[10] & 0x0F) << 8) + ts[11];
+
+          // skip past eitEvent
+          ts += 12;
+          mSectionLength -= 12;
+
+          int i = 0;
+          int descrLength = ts[1] + 2;
+          while ((i < loopLength) && (descrLength > 0) && (descrLength <= loopLength - i)) {
+            int tag = ts[0];
+            switch (tag) {
+              //{{{
+              case 0x4D: // shortEvent
+                {
+                string name = isHuff (ts + 6) ? huffDecode (ts + 6, ts[5]) : getDescrString (ts + 6, ts[5]);
+                cLog::log (LOGINFO, format ("{} sid:{} eventId:{} run:{} {}",
+                                            tidInfo, sid, eventId, running, name));
+                if (tid == 0x4E) // actual now
+                  if  (running == 0x04) // now
+                    mCallback (sid, name);
+                break;
+                }
+              //}}}
+              //{{{
+              case 0x4E: // extendedEvent
+                cLog::log (LOGINFO,  format ("{} extendedEvent descriptor tag:{} len:{}", tidInfo, tag, descrLength));
+                break;
+              //}}}
+              //{{{
+              case 0x50: // component
+                cLog::log (LOGINFO1, format ("{} componentDescriptor tag:{} len:{}", tidInfo, tag, descrLength));
+                break;
+              //}}}
+              //{{{
+              case 0x54: // current
+                cLog::log (LOGINFO1,  format ("{} currentDescriptor tag:{} len:{}", tidInfo, tag, descrLength));
+                break;
+              //}}}
+              //{{{
+              case 0x5F: // defaultAuthority
+                cLog::log (LOGINFO1,  format ("{} defaultAuthority tag:{} len:{}", tidInfo, tag, descrLength));
+                break;
+              //}}}
+              //{{{
+              case 0x76: // contentId
+                cLog::log (LOGINFO1,  format ("{} contentId tag:{} len:{}", tidInfo, tag, descrLength));
+                break;
+              //}}}
+              //{{{
+              default:
+                cLog::log (LOGERROR, format ("{} unknown eitEvent descriptor tag:{} len:{}", tidInfo, tag, descrLength));
+                break;
+              //}}}
+              }
+            i += descrLength;
+            ts += descrLength;
+            descrLength = ts[1] + 2;
+            }
+          mSectionLength -= loopLength;
           }
         mSectionSize = 0;
         }
       }
 
-    if (pointerFieldCopyFrom) {
-      mSectionLength = ((pointerFieldCopyFrom[1] & 0x0F) << 8) + pointerFieldCopyFrom[2] + 3;
-      memcpy (mSection, pointerFieldCopyFrom, pointerFieldCopyLength);
-      mSectionSize = pointerFieldCopyLength;
+    if (pointerFieldSectionStart) {
+      mSectionLength = ((pointerFieldSectionStart[1] & 0x0F) << 8) + pointerFieldSectionStart[2] + 3;
+      memcpy (mSection, pointerFieldSectionStart, pointerFieldTsLeft);
+      mSectionSize = pointerFieldTsLeft;
       }
-
     }
   //}}}
 
@@ -1484,8 +1555,7 @@ public:
 
   //{{{
   virtual string getInfoString() {
-
-    return format ("{} sid:{} {}", mServiceName, mSid, cLoadStream::getInfoString());
+    return format ("sid:{} {} {} {}", mSid, mServiceName, mProgramName, cLoadStream::getInfoString());
     }
   //}}}
 
@@ -1551,6 +1621,7 @@ public:
     // init parsers, callbacks
     //{{{
     auto addAudioFrameCallback = [&](bool reuseFromFront, float* samples, int64_t pts) noexcept {
+
       mPtsSong->addFrame (reuseFromFront, pts, samples, mPtsSong->getNumFrames()+1);
 
       if (loadPts < 0)
@@ -1565,9 +1636,16 @@ public:
     //}}}
     //{{{
     auto addStreamCallback = [&](int sid, int pid, int type) noexcept {
+
       if (mPidParsers.find (pid) == mPidParsers.end()) {
         // new stream pid
         switch (type) {
+          case  2: // ISO 13818-2 video
+          case  3: // ISO 11172-3 audio
+          case  5: // private mpeg2 tabled data
+          case  6: // subtitle
+          case 11: // dsm cc u_n
+            break;
           //{{{
           case 17: // aacLatm
             mAudioPid = pid;
@@ -1587,29 +1665,6 @@ public:
 
             break;
           //}}}
-          //{{{
-          case 6:  // do nothing - subtitle
-            //cLog::log (LOGINFO, "subtitle %d %d", pid, type);
-            break;
-          //}}}
-          //{{{
-          case 2:  // do nothing - ISO 13818-2 video
-            //cLog::log (LOGERROR, "mpeg2 video %d", pid, type);
-            break;
-          //}}}
-          //{{{
-          case 3:  // do nothing - ISO 11172-3 audio
-            //cLog::log (LOGINFO, "mp2 audio %d %d", pid, type);
-            break;
-          //}}}
-          //{{{
-          case 5:  // do nothing - private mpeg2 tabled data
-            break;
-          //}}}
-          //{{{
-          case 11: // do nothing - dsm cc u_n
-            break;
-          //}}}
           default:
             cLog::log (LOGERROR, "loadTs - unrecognised stream type %d %d", pid, type);
           }
@@ -1618,6 +1673,7 @@ public:
     //}}}
     //{{{
     auto addSdtCallback = [&](int sid, string name) noexcept {
+
       cLog::log (LOGINFO, format ("SDT sid {} {}", sid, name));
       mSid = sid;
       mServiceName = name;
@@ -1625,13 +1681,15 @@ public:
     //}}}
     //{{{
     auto addEitCallback = [&](int sid, string name) noexcept {
-      cLog::log (LOGINFO, format ("eit callback sid {} {}", sid, name));
+
+      //cLog::log (LOGINFO, format ("eit callback sid {} {}", sid, name));
       //mSid = sid;
-      //mServiceName = name;
+      mProgramName = name;
       };
     //}}}
     //{{{
     auto addProgramCallback = [&](int pid, int sid) noexcept {
+
       if ((sid > 0) && (mPidParsers.find (pid) == mPidParsers.end())) {
         cLog::log (LOGINFO, "PAT adding pid:service %d::%d", pid, sid);
         mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cPmtParser (pid, sid, addStreamCallback)));
@@ -1707,6 +1765,7 @@ public:
 private:
   int mSid;
   string mServiceName;
+  string mProgramName;
   };
 //}}}
 //{{{
