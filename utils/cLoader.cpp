@@ -4,6 +4,7 @@
 #define WIN32_LEAN_AND_MEAN
 
 #include "sys/stat.h"
+#include <map>
 #include <thread>
 #include <functional>
 
@@ -79,6 +80,23 @@ private:
 
   bool mSelected = false;
   string mName;
+  };
+//}}}
+//{{{
+class cEpgItem {
+public:
+  cEpgItem (const string& programName, system_clock::time_point startTimePoint, seconds duration)
+    : mProgramName(programName), mStartTimePoint(startTimePoint), mDuration(duration) {}
+  ~cEpgItem() {}
+
+  string getProgrameName() { return mProgramName; }
+  system_clock::time_point getStartTime() { return mStartTimePoint; }
+  seconds getDuration() { return mDuration; }
+
+private:
+  string mProgramName;
+  system_clock::time_point mStartTimePoint;
+  seconds mDuration;
   };
 //}}}
 
@@ -1845,6 +1863,11 @@ public:
   //}}}
   //{{{
   virtual ~cLoadRtp() {
+
+    for (auto& epgItem : mEpgItemMap)
+      delete epgItem.second;
+
+    mEpgItemMap.clear();
     }
   //}}}
 
@@ -1988,9 +2011,29 @@ public:
         mStartTimePoint = startTimePoint;
         mDuration = duration;
         }
+
       else {
         // epg
-        cLog::log (LOGINFO, format ("epg {} {}", date::format ("%H:%M", floor<seconds>(startTimePoint)), programName));
+        auto todayTime = system_clock::now();
+        auto todayDatePoint = date::floor<date::days>(todayTime);
+        auto todayYearMonthDay = date::year_month_day{todayDatePoint};
+        auto today = todayYearMonthDay.day();
+
+        auto datePoint = date::floor<date::days>(startTimePoint);
+        auto yearMonthDay = date::year_month_day{datePoint};
+        auto day = yearMonthDay.day();
+
+        if ((day == today) && (startTimePoint > todayTime)) {
+          // later today
+
+          auto epgItemIt = mEpgItemMap.find (startTimePoint);
+          if (epgItemIt == mEpgItemMap.end()) {
+            cLog::log (LOGINFO, format ("epg {} {}", date::format ("%H:%M", floor<seconds>(startTimePoint)), programName));
+            mEpgItemMap.insert (
+              map<system_clock::time_point, cEpgItem*>::value_type (
+                startTimePoint, new cEpgItem (programName, startTimePoint, duration)));
+            }
+          }
         }
       };
     //}}}
@@ -2071,9 +2114,14 @@ public:
 private:
   int mSid;
   string mServiceName;
+
+  // now program
   string mProgramName;
   system_clock::time_point mStartTimePoint;
   seconds mDuration;
+
+  // epg today
+  map <system_clock::time_point, cEpgItem*> mEpgItemMap;
   };
 //}}}
 
