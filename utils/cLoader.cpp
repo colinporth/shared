@@ -260,7 +260,7 @@ public:
         return;
         }
 
-      //{{{  unused fields
+      //{{{  unused pat header fields
       // transport stream id = ((ts[3] & 0xF) << 4) | ts[4]
       // currentNext,versionNumber = ts[5]
       // section number = ts[6]
@@ -323,7 +323,7 @@ public:
         }
 
       int sid = (ts[3] << 8) + ts[4];
-      //{{{  unused fields
+      //{{{  unused pmt header fields
       //int versionNumber = ts[5];
       //int sectionNumber = ts[6];
       //int lastSectionNumber = ts[7];
@@ -450,7 +450,7 @@ public:
 
       if (haveCompleteSection()) {
         ts = mSection;
-        //{{{  unused fields
+        //{{{  unused sdt header fields
         //int tsid = (ts[3] << 8) + ts[4];
         //int versionNumber = ts[5];
         //int sectionNumber = ts[6];
@@ -487,7 +487,8 @@ public:
             int serviceType = ts[2];
             switch (tag) {
               //{{{
-              case 0x48: { // service descriptor
+              case 0x48: // service 
+                {
                 string name = getDescrString (ts + 5, ts[4]);
                 mCallback (sid, name);
                 //cLog::log (LOGINFO, format ("SDT - sid {} {}", sid, name));
@@ -495,23 +496,23 @@ public:
                 }
               //}}}
               //{{{
-              case 95:
-                cLog::log (LOGINFO1, "privateData descriptor tag:%x ", tag);
+              case 0x5F: // privateData
+                cLog::log (LOGINFO1, format ("privateData descriptor len:{}", descrLength));
                 break;
               //}}}
               //{{{
-              case 115:
-                cLog::log (LOGINFO1, "defaultAuthority descriptor tag:%x ", tag);
+              case 0x73: // defaultAuthority
+                cLog::log (LOGINFO1, format ("defaultAuthority descriptor len:{}", descrLength));
                 break;
               //}}}
               //{{{
-              case 126:
-                cLog::log (LOGINFO1, "futureDescriptor tag:%x ", tag);
+              case 0x7e: // futureUse
+                cLog::log (LOGINFO1, format ("futureDescriptor len:{}", descrLength));
                 break;
               //}}}
               //{{{
               default:
-                cLog::log (LOGERROR, "*** unknown descriptor tag:%x %d" + tag, descrLength);
+                cLog::log (LOGERROR, format ("unknown descriptor tag:{} len:{}", tag, descrLength));
                 break;
               //}}}
               }
@@ -600,7 +601,6 @@ public:
         mSectionLength -= kEitHeaderLength + 4;
 
         while (mSectionLength > 0) {
-          // iterate eitEvents
           //{{{  eitEvent fields
           int eventId = (ts[0] << 8) + ts[1];
 
