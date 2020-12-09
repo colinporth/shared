@@ -49,34 +49,6 @@ using namespace chrono;
 //}}}
 
 //{{{
-string getDescrString (uint8_t* buf, int len) {
-// get dvb descriptor string, substitute unwanted chars
-
-  string str;
-
-  for (int i = 0; i < len; i++) {
-    if (*buf == 0)
-      break;
-
-    if (((*buf >= ' ') && (*buf <= '~')) ||
-        (*buf == '\n') ||
-        ((*buf >= 0xa0) && (*buf <= 0xff)))
-      str += *buf;
-
-    if (*buf == 0x8A)
-      str += '\n';
-
-    if ((*buf == 0x86 || (*buf == 0x87)))
-      str += ' ';
-
-    buf++;
-    }
-
-  return str;
-  }
-//}}}
-
-//{{{
 class cService {
 public:
   cService (int sid, bool selected) : mSid(sid), mSelected(selected) {}
@@ -114,7 +86,7 @@ private:
 //{{{
 class cPidParser {
 public:
-  cPidParser (int pid, const string& name) : mPid(pid), mName(name) {}
+  cPidParser (int pid, const string& name) : mPid(pid), mPidName(name) {}
   virtual ~cPidParser() {}
 
   virtual int getQueueSize() { return 0; }
@@ -148,7 +120,7 @@ protected:
       info += hex (value, 2) + " ";
       }
 
-    cLog::log (LOGINFO, mName + " " + string(payloadStart ? "start ": "") + dec (tsLeft,3) + ":" + info);
+    cLog::log (LOGINFO, mPidName + " " + string(payloadStart ? "start ": "") + dec (tsLeft,3) + ":" + info);
     }
   //}}}
 
@@ -211,28 +183,55 @@ protected:
     }
   //}}}
   //{{{
-  static int64_t getPts (const uint8_t* ts) {
+  static int64_t getPts (const uint8_t* buf) {
   // return 33 bits of pts,dts
 
-    if ((ts[0] & 0x01) && (ts[2] & 0x01) && (ts[4] & 0x01)) {
+    if ((buf[0] & 0x01) && (buf[2] & 0x01) && (buf[4] & 0x01)) {
       // valid marker bits
-      int64_t pts = ts[0] & 0x0E;
-      pts = (pts << 7) |  ts[1];
-      pts = (pts << 8) | (ts[2] & 0xFE);
-      pts = (pts << 7) |  ts[3];
-      pts = (pts << 7) | (ts[4] >> 1);
+      int64_t pts = buf[0] & 0x0E;
+      pts = (pts << 7) |  buf[1];
+      pts = (pts << 8) | (buf[2] & 0xFE);
+      pts = (pts << 7) |  buf[3];
+      pts = (pts << 7) | (buf[4] >> 1);
       return pts;
       }
     else {
-      cLog::log (LOGERROR, "getPts marker bits - %02x %02x %02x %02x 0x02", ts[0], ts[1], ts[2], ts[3], ts[4]);
+      cLog::log (LOGERROR, "getPts marker bits - %02x %02x %02x %02x 0x02", buf[0], buf[1], buf[2], buf[3], buf[4]);
       return 0;
       }
+    }
+  //}}}
+  //{{{
+  static string getDescrString (uint8_t* buf, int len) {
+  // get dvb descriptor string, substitute unwanted chars
+
+    string str;
+
+    for (int i = 0; i < len; i++) {
+      if (*buf == 0)
+        break;
+
+      if (((*buf >= ' ') && (*buf <= '~')) ||
+          (*buf == '\n') ||
+          ((*buf >= 0xa0) && (*buf <= 0xff)))
+        str += *buf;
+
+      if (*buf == 0x8A)
+        str += '\n';
+
+      if ((*buf == 0x86 || (*buf == 0x87)))
+        str += ' ';
+
+      buf++;
+      }
+
+    return str;
     }
   //}}}
 
   // vars
   const int mPid;
-  const string mName;
+  const string mPidName;
   bool mGotPayloadStart = false;
   };
 //}}}
@@ -257,7 +256,7 @@ public:
       int sectionLength = ((ts[1] & 0x0F) << 8) + ts[2] + 3;
       if (getCrc32 (ts, sectionLength) != 0) {
         // error return
-        cLog::log (LOGERROR, mName + " crc error");
+        cLog::log (LOGERROR, mPidName + " crc error");
         return;
         }
 
@@ -275,7 +274,7 @@ public:
       sectionLength -= kPatHeaderLength + 4;
       if (sectionLength > tsLeft) {
         //  error return
-        cLog::log (LOGERROR, format ("{} sectionLength:{} tsLeft:{}", mName, sectionLength, tsLeft));
+        cLog::log (LOGERROR, format ("{} sectionLength:{} tsLeft:{}", mPidName, sectionLength, tsLeft));
         return;
         }
 
@@ -319,7 +318,7 @@ public:
       int sectionLength = ((ts[1] & 0x0F) << 8) + ts[2] + 3;
       if (getCrc32 (ts, sectionLength) != 0) {
         // error return
-        cLog::log (LOGERROR, mName + " crc error");
+        cLog::log (LOGERROR, mPidName + " crc error");
         return;
         }
 
@@ -340,7 +339,7 @@ public:
 
       if (sectionLength > tsLeft) {
         // error return
-        cLog::log (LOGERROR, format ("{} sectionLength:{} tsLeft:{}", mName, sectionLength, tsLeft));
+        cLog::log (LOGERROR, format ("{} sectionLength:{} tsLeft:{}", mPidName, sectionLength, tsLeft));
         return;
         }
 
@@ -369,11 +368,8 @@ private:
 class cSectionParser : public cPidParser {
 public:
   //{{{
-  cSectionParser (int pid, const string& name) : cPidParser (pid, name) {
-
-    mAllocSectionSize = 1024;
+  cSectionParser (int pid, const string& name) : cPidParser(pid, name), mAllocSectionSize(1024), mSectionSize(0) {
     mSection = (uint8_t*)malloc (mAllocSectionSize);
-    mSectionSize = 0;
     }
   //}}}
   //{{{
@@ -384,16 +380,16 @@ public:
 
 protected:
   //{{{
-  void addTsToSection (uint8_t* ts, int bytesToAdd) {
+  void addToSection (uint8_t* buf, int bytesToAdd) {
 
     if (mSectionSize + bytesToAdd > mAllocSectionSize) {
       // allocate double size of mSection buffer
       mAllocSectionSize *= 2;
       mSection = (uint8_t*)realloc (mSection, mAllocSectionSize);
-      cLog::log (LOGINFO1, mName + " sdt allocSize doubled to " + dec(mAllocSectionSize));
+      cLog::log (LOGINFO1, mPidName + " sdt allocSize doubled to " + dec(mAllocSectionSize));
       }
 
-    memcpy (mSection + mSectionSize, ts, bytesToAdd);
+    memcpy (mSection + mSectionSize, buf, bytesToAdd);
     mSectionSize += bytesToAdd;
     }
   //}}}
@@ -405,7 +401,7 @@ protected:
 
     if (getCrc32 (mSection, mSectionLength) != 0) {
       // section crc error
-      cLog::log (LOGERROR, format ("{} crc sectionSize:{} sectionLength:{}", mName, mSectionSize, mSectionLength));
+      cLog::log (LOGERROR, format ("{} crc sectionSize:{} sectionLength:{}", mPidName, mSectionSize, mSectionLength));
       mSectionSize = 0;
       return false;
       }
@@ -414,11 +410,11 @@ protected:
     }
   //}}}
 
-  int mSectionLength = 0;
-
-  uint8_t* mSection = nullptr;
   int mAllocSectionSize = 0;
   int mSectionSize = 0;
+  uint8_t* mSection = nullptr;
+
+  int mSectionLength = 0;
   };
 //}}}
 //{{{
@@ -450,7 +446,7 @@ public:
 
     if (mSectionLength > 0) {
       // add ts packet to mSection
-      addTsToSection (ts, tsLeft);
+      addToSection (ts, tsLeft);
 
       if (haveCompleteSection()) {
         ts = mSection;
@@ -572,7 +568,7 @@ public:
       //}}}
 
     if (mSectionLength > 0) {
-      addTsToSection (ts, tsLeft);
+      addToSection (ts, tsLeft);
 
       if (haveCompleteSection()) {
         ts = mSection;
@@ -690,7 +686,7 @@ public:
 
     if (pointerFieldSectionStart) {
       mSectionLength = ((pointerFieldSectionStart[1] & 0x0F) << 8) + pointerFieldSectionStart[2] + 3;
-      addTsToSection (pointerFieldSectionStart, pointerFieldTsLeft);
+      addToSection (pointerFieldSectionStart, pointerFieldTsLeft);
       }
     }
   //}}}
@@ -799,7 +795,7 @@ protected:
     if (mPesSize + tsLeft > mAllocSize) {
       mAllocSize *= 2;
       mPes = (uint8_t*)realloc (mPes, mAllocSize);
-      cLog::log (LOGINFO1, mName + " pes allocSize doubled to " + dec(mAllocSize));
+      cLog::log (LOGINFO1, mPidName + " pes allocSize doubled to " + dec(mAllocSize));
       }
 
     memcpy (mPes + mPesSize, ts, tsLeft);
@@ -820,7 +816,7 @@ protected:
   //{{{
   void dequeThread() {
 
-    cLog::setThreadName (mName + "Q");
+    cLog::setThreadName (mPidName + "Q");
 
     mQueueRunning = true;
 
