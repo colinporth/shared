@@ -53,18 +53,23 @@ using namespace chrono;
 class cEpgItem {
 public:
   cEpgItem() {}
-  cEpgItem (const cEpgItem& epgItem) { *this = epgItem; }
-  cEpgItem (const string& programName, system_clock::time_point startTimePoint, seconds duration)
-    : mProgramName(programName), mStartTimePoint(startTimePoint), mDuration(duration) {}
+
+  cEpgItem (const cEpgItem& epgItem)
+    : mProgramName (epgItem.mProgramName),  mStartTime (epgItem.mStartTime),  mDuration (epgItem.mDuration) {}
+
+  cEpgItem (const string& programName, system_clock::time_point startTime, seconds duration)
+    : mProgramName(programName), mStartTime(startTime), mDuration(duration) {}
+
   ~cEpgItem() {}
 
+  // gets
   string getProgramName() { return mProgramName; }
-  system_clock::time_point getStartTime() { return mStartTimePoint; }
+  system_clock::time_point getStartTime() { return mStartTime; }
   seconds getDuration() { return mDuration; }
 
 private:
   string mProgramName;
-  system_clock::time_point mStartTimePoint;
+  system_clock::time_point mStartTime;
   seconds mDuration;
   };
 //}}}
@@ -84,9 +89,13 @@ public:
   void setSubtitlePid (int pid) { mSubtitlePid = pid; }
   //{{{
   bool setName (const string& name) {
-    bool named = mName.empty();
+  // return true if name changed
+
+    if (mName == name)
+      return false;
+
     mName = name;
-    return named;
+    return true;
     }
   //}}}
 
@@ -279,8 +288,7 @@ public:
         cLog::log (LOGERROR, mPidName + " crc error");
         return;
         }
-
-      //{{{  unused pat header fields
+      //{{{  unused fields
       // transport stream id = ((ts[3] & 0xF) << 4) | ts[4]
       // currentNext,versionNumber = ts[5]
       // section number = ts[6]
@@ -343,13 +351,13 @@ public:
         }
 
       int sid = (ts[3] << 8) + ts[4];
-      //{{{  unused pmt header fields
+      int programInfoLength = ((ts[10] & 0x0f) << 8) + ts[11];
+      //{{{  unused fields
       //int versionNumber = ts[5];
       //int sectionNumber = ts[6];
       //int lastSectionNumber = ts[7];
       //int pcrPid = ((ts[8] & 0x1f) << 8) + ts[9];
       //}}}
-      int programInfoLength = ((ts[10] & 0x0f) << 8) + ts[11];
 
       // skip past pmt header
       constexpr int kPmtHeaderLength = 12;
@@ -440,7 +448,8 @@ protected:
 //{{{
 class cSdtParser : public cSectionParser {
 public:
-  cSdtParser (function<void (int sid, const string& name)> callback) : cSectionParser (0x11, "sdt"), mCallback(callback) {}
+  cSdtParser (function<void (int sid, const string& name)> callback)
+    : cSectionParser (0x11, "sdt"), mCallback(callback) {}
   virtual ~cSdtParser() {}
 
   //{{{
@@ -452,7 +461,7 @@ public:
 
       int pointerField = ts[0];
       if (pointerField)
-        cLog::log (LOGINFO, "sdt pointerField:%d", pointerField);
+        cLog::log (LOGINFO, format ("{} pointerField:{}", mPidName, pointerField));
 
       ts++;
       tsLeft--;
@@ -476,9 +485,6 @@ public:
         //int sectionNumber = ts[6];
         //int lastSectionNumber = ts[7];
         //int onid = ((ts[8] & 0x1f) << 8) + ts[9];
-
-        //cLog::log (LOGINFO, "SDT got len:%d - crc ok %d %x %x %x %d",
-        //                    mSectionLength, tsid, versionNumber, sectionNumber, lastSectionNumber, onid);
         //}}}
 
         // skip past sdt header
@@ -490,10 +496,12 @@ public:
         while (mSectionLength > 0) {
           // sdt descriptor
           int sid = (ts[0] << 8) + ts[1];
-          bool presentFollowing = ts[2] & 0x01;
-          bool scheduleFlag = ts[2] & 0x02;
-          int runningStatus = ts[3] >> 5;
           int loopLength = ((ts[3] & 0x0F) << 8) + ts[4];
+          //{{{  unused fields
+          //bool presentFollowing = ts[2] & 0x01;
+          //bool scheduleFlag = ts[2] & 0x02;
+          //int runningStatus = ts[3] >> 5;
+          //}}}
 
           // skip past sdt descriptor
           constexpr int kSdtDescriptorLength = 5;
@@ -504,16 +512,14 @@ public:
           int descrLength = ts[1] + 2;
           while ((i < loopLength) && (descrLength > 0) && (descrLength <= loopLength - i)) {
             int tag = ts[0];
-            int serviceType = ts[2];
+            //{{{  unused fields
+            //int serviceType = ts[2];
+            //}}}
             switch (tag) {
               //{{{
               case 0x48: // service
-                {
-                string name = getDescrString (ts + 5, ts[4]);
-                mCallback (sid, name);
-                //cLog::log (LOGINFO, format ("SDT - sid {} {}", sid, name));
+                mCallback (sid, getDescrString (ts + 5, ts[4]));
                 break;
-                }
               //}}}
               //{{{
               case 0x5F: // privateData
@@ -563,7 +569,11 @@ public:
   virtual void processPayload (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool reuseFromFront) {
 
     int pointerField = 0;
+    int tsOffsetBytes = 0;
+    uint8_t* tsOffset = nullptr;
+
     if (payloadStart) {
+      //{{{  section start, pointerField nonsense
       pointerField = ts[0];
       ts++;
       tsLeft--;
@@ -573,7 +583,14 @@ public:
         mSectionSize = 0;
         mSectionLength = ((ts[1] & 0x0F) << 8) + ts[2] + 3;
         }
+      else {
+        // pointerField - save packet offsets for newSection starting after finish of lastSection
+        tsOffset = ts + pointerField;
+        tsOffsetBytes = tsLeft - pointerField;
+        tsLeft = pointerField;
+        }
       }
+      //}}}
 
     if (mSectionLength > 0) {
       addToSection (ts, tsLeft);
@@ -608,24 +625,25 @@ public:
         mSectionLength -= kEitHeaderLength + 4;
 
         while (mSectionLength > 0) {
-          //{{{  eitEvent fields
-          int eventId = (ts[0] << 8) + ts[1];
+          //{{{  used fields
+          uint32_t epochTimeSeconds = (unsigned int)((((ts[2] << 8) | ts[3]) - 40587) * 86400);
+          uint32_t startTimeSeconds = (3600 * ((10 * ((ts[4] & 0xF0) >> 4)) + (ts[4] & 0xF))) +
+                                        (60 * ((10 * ((ts[5] & 0xF0) >> 4)) + (ts[5] & 0xF))) +
+                                              ((10 * ((ts[6] & 0xF0) >> 4)) + (ts[6] & 0xF));
+          system_clock::time_point startTime = system_clock::from_time_t (epochTimeSeconds + startTimeSeconds);
 
-          unsigned int epochTime = (unsigned int)((((ts[2] << 8) | ts[3]) - 40587) * 86400);
-          int startTime = (3600 * ((10 * ((ts[4] & 0xF0) >> 4)) + (ts[4] & 0xF))) +
-                            (60 * ((10 * ((ts[5] & 0xF0) >> 4)) + (ts[5] & 0xF))) +
-                                  ((10 * ((ts[6] & 0xF0) >> 4)) + (ts[6] & 0xF));
-          auto startTimePoint = system_clock::from_time_t (epochTime + startTime);
-
-          int durationSeconds = (3600 * ((10 * ((ts[7] & 0xF0) >> 4)) + (ts[7] & 0xF))) +
-                                  (60 * ((10 * ((ts[8] & 0xF0) >> 4)) + (ts[8] & 0xF))) +
-                                        ((10 * ((ts[9] & 0xF0) >> 4)) + (ts[9] & 0xF));
+          uint32_t durationSeconds = (3600 * ((10 * ((ts[7] & 0xF0) >> 4)) + (ts[7] & 0xF))) +
+                                       (60 * ((10 * ((ts[8] & 0xF0) >> 4)) + (ts[8] & 0xF))) +
+                                             ((10 * ((ts[9] & 0xF0) >> 4)) + (ts[9] & 0xF));
           seconds duration (durationSeconds);
 
-          bool caMode = ts[10] & 0x10;
           int running = (ts[10] & 0xE0) >> 5;
           //}}}
           int loopLength = ((ts[10] & 0x0F) << 8) + ts[11];
+          //{{{  unused fields
+          //int eventId = (ts[0] << 8) + ts[1];
+          //bool caMode = ts[10] & 0x10;
+          //}}}
 
           // skip past eitEvent
           constexpr int kEitEventLength = 12;
@@ -640,8 +658,7 @@ public:
               //{{{
               case 0x4D: // shortEvent
                 {
-                cEpgItem epgItem (isHuff (ts + 6) ? huffDecode (ts + 6, ts[5]) : getDescrString (ts + 6, ts[5]),
-                                  startTimePoint, duration);
+                cEpgItem epgItem (isHuff (ts+6) ? huffDecode (ts+6, ts[5]) : getDescrString (ts+6, ts[5]), startTime, duration);
                 if ((tid == 0x4E) && (running == 0x04)) // now
                   mCallback (sid, true, epgItem);
                 else if ((tid == 0x50) || (tid == 0x51)) // epg
@@ -687,15 +704,16 @@ public:
           mSectionLength -= loopLength;
           }
         mSectionSize = 0;
-
-        if (pointerField) {
-          // ripple down start of new section
-          mSectionLength = ((mSection[pointerField+1] & 0x0F) << 8) + mSection[pointerField+2] + 3;
-          memmove (mSection, mSection + pointerField, tsLeft - pointerField);
-          mSectionSize = tsLeft - pointerField;
-          }
         }
       }
+
+    if (payloadStart && pointerField) {
+      //{{{  start new section, copy rest of packet from pointerField offset
+      memcpy (mSection, tsOffset, tsOffsetBytes);
+      mSectionSize = tsOffsetBytes;
+      mSectionLength = ((mSection[1] & 0x0F) << 8) + mSection[2] + 3;
+      }
+      //}}}
     }
   //}}}
 
@@ -1236,7 +1254,7 @@ public:
       if (it != mServices.end()) {
         cService* service = (*it).second;
         if (service->setName (name))
-          cLog::log (LOGINFO, format ("SDT sid {} {}", sid, name));
+          cLog::log (LOGINFO, format ("SDT name changed sid {} {}", sid, name));
         };
       };
     //}}}
@@ -1647,13 +1665,15 @@ public:
 
     iAudioDecoder* audioDecoder = nullptr;
     //{{{  add parsers, callbacks
-    auto addAudioFrameCallback = [&](bool reuseFromFront, float* samples, int64_t pts) noexcept {
+    //{{{
+    auto audioFrameCallback = [&](bool reuseFromFront, float* samples, int64_t pts) noexcept {
       mHlsSong->addFrame (reuseFromFront, pts, samples, mHlsSong->getNumFrames()+1);
       if (!mSongPlayer)
         mSongPlayer = new cSongPlayer (mHlsSong, true);
       };
-
-    auto addStreamCallback = [&](int sid, int pid, int type) noexcept {
+    //}}}
+    //{{{
+    auto streamCallback = [&](int sid, int pid, int type) noexcept {
       if (mPidParsers.find (pid) == mPidParsers.end()) {
         // new stream, add stream parser
         switch (type) {
@@ -1662,7 +1682,7 @@ public:
             audioDecoder = createAudioDecoder (mAudioFrameType);
             mPidParsers.insert (
               map<int,cPidParser*>::value_type (pid,
-                new cAudioPesParser (pid, audioDecoder, true, addAudioFrameCallback)));
+                new cAudioPesParser (pid, audioDecoder, true, audioFrameCallback)));
             break;
 
           case 27: // h264video
@@ -1678,16 +1698,18 @@ public:
           }
         }
       };
-
-    auto addProgramCallback = [&](int pid, int sid) noexcept {
+    //}}}
+    //{{{
+    auto programCallback = [&](int pid, int sid) noexcept {
       if (mPidParsers.find (pid) == mPidParsers.end()) {
         // new PMT, add parser and new service
-        mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cPmtParser (pid, sid, addStreamCallback)));
+        mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cPmtParser (pid, sid, streamCallback)));
         }
       };
+    //}}}
 
     // add PAT parser
-    mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
+    mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (programCallback)));
     //}}}
 
     while (!mExit) {
@@ -1867,6 +1889,8 @@ public:
     if (params[0] != "rtp")
       return false;
 
+    mPort = 5006;
+
     mNumChannels = 2;
     mSampleRate = 48000;
 
@@ -1905,7 +1929,7 @@ public:
     // bind the socket to anyAddress:specifiedPort
     struct sockaddr_in recvAddr;
     recvAddr.sin_family = AF_INET;
-    recvAddr.sin_port = htons (5006);
+    recvAddr.sin_port = htons (mPort);
     recvAddr.sin_addr.s_addr = htonl (INADDR_ANY);
     auto result = ::bind (rtpReceiveSocket, (struct sockaddr*)&recvAddr, sizeof(recvAddr));
     if (result != 0) {
@@ -1922,7 +1946,7 @@ public:
 
     // init parsers, callbacks
     //{{{
-    auto addAudioFrameCallback = [&](bool reuseFromFront, float* samples, int64_t pts) noexcept {
+    auto audioFrameCallback = [&](bool reuseFromFront, float* samples, int64_t pts) noexcept {
 
       mPtsSong->addFrame (reuseFromFront, pts, samples, mPtsSong->getNumFrames()+1);
 
@@ -1937,7 +1961,7 @@ public:
       };
     //}}}
     //{{{
-    auto addStreamCallback = [&](int sid, int pid, int type) noexcept {
+    auto streamCallback = [&](int sid, int pid, int type) noexcept {
 
       if (mPidParsers.find (pid) == mPidParsers.end()) {
         // new stream pid
@@ -1954,7 +1978,7 @@ public:
 
             audioDecoder = createAudioDecoder (eAudioFrameType::eAacLatm);
             mPidParsers.insert (map<int,cPidParser*>::value_type (pid,
-              new cAudioPesParser (pid, audioDecoder, true, addAudioFrameCallback)));
+              new cAudioPesParser (pid, audioDecoder, true, audioFrameCallback)));
 
             break;
           //}}}
@@ -1974,26 +1998,22 @@ public:
       };
     //}}}
     //{{{
-    auto addProgramCallback = [&](int pid, int sid) noexcept {
+    auto programCallback = [&](int pid, int sid) noexcept {
 
       if ((sid > 0) && (mPidParsers.find (pid) == mPidParsers.end())) {
         cLog::log (LOGINFO, "PAT adding pid:service %d::%d", pid, sid);
-        mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cPmtParser (pid, sid, addStreamCallback)));
+        mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cPmtParser (pid, sid, streamCallback)));
         }
       };
     //}}}
-    mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
     //{{{
-    auto addSdtCallback = [&](int sid, const string& name) noexcept {
-
-      cLog::log (LOGINFO, format ("SDT sid {} {}", sid, name));
+    auto sdtCallback = [&](int sid, const string& name) noexcept {
       mSid = sid;
       mServiceName = name;
       };
     //}}}
-    mPidParsers.insert (map<int,cSdtParser*>::value_type (0x11, new cSdtParser (addSdtCallback)));
     //{{{
-    auto addEitCallback = [&](int sid, bool now, cEpgItem& epgItem) noexcept {
+    auto eitCallback = [&](int sid, bool now, cEpgItem& epgItem) noexcept {
 
       //cLog::log (LOGINFO, format ("eit callback sid {} {}", sid, name));
       //mSid = sid;
@@ -2025,7 +2045,9 @@ public:
         }
       };
     //}}}
-    mPidParsers.insert (map<int,cEitParser*>::value_type (0x12, new cEitParser (addEitCallback)));
+    mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (programCallback)));
+    mPidParsers.insert (map<int,cSdtParser*>::value_type (0x11, new cSdtParser (sdtCallback)));
+    mPidParsers.insert (map<int,cEitParser*>::value_type (0x12, new cEitParser (eitCallback)));
 
     char buffer[2048];
     int bufferLen = 2048;
@@ -2089,13 +2111,12 @@ public:
   //}}}
 
 private:
+  int mPort;
+
   int mSid;
   string mServiceName;
 
-  // now program
   cEpgItem mNowEpgItem;
-
-  // epg today
   map <system_clock::time_point, cEpgItem*> mEpgItemMap;
   };
 //}}}
@@ -2510,7 +2531,7 @@ public:
 
     // init parsers, callbacks
     //{{{
-    auto addAudioFrameCallback = [&](bool reuseFromFront, float* samples, int64_t pts) noexcept {
+    auto audioFrameCallback = [&](bool reuseFromFront, float* samples, int64_t pts) noexcept {
       mPtsSong->addFrame (reuseFromFront, pts, samples, mPtsSong->getNumFrames()+1);
 
       if (loadPts < 0)
@@ -2531,7 +2552,7 @@ public:
       };
     //}}}
     //{{{
-    auto addStreamCallback = [&](int sid, int pid, int type) noexcept {
+    auto streamCallback = [&](int sid, int pid, int type) noexcept {
       if (mPidParsers.find (pid) == mPidParsers.end()) {
         // new stream pid
         auto it = mServices.find (sid);
@@ -2545,7 +2566,7 @@ public:
               if (service->isSelected()) {
                 audioDecoder = createAudioDecoder (eAudioFrameType::eAacAdts);
                 mPidParsers.insert (map<int,cPidParser*>::value_type (pid,
-                  new cAudioPesParser (pid, audioDecoder, true, addAudioFrameCallback)));
+                  new cAudioPesParser (pid, audioDecoder, true, audioFrameCallback)));
                 }
 
               break;
@@ -2557,7 +2578,7 @@ public:
               if (service->isSelected()) {
                 audioDecoder = createAudioDecoder (eAudioFrameType::eAacLatm);
                 mPidParsers.insert (map<int,cPidParser*>::value_type (pid,
-                  new cAudioPesParser (pid, audioDecoder, true, addAudioFrameCallback)));
+                  new cAudioPesParser (pid, audioDecoder, true, audioFrameCallback)));
                 }
 
               break;
@@ -2606,7 +2627,7 @@ public:
       };
     //}}}
     //{{{
-    auto addSdtCallback = [&](int sid, const string& name) noexcept {
+    auto sdtCallback = [&](int sid, const string& name) noexcept {
       auto it = mServices.find (sid);
       if (it != mServices.end()) {
         cService* service = (*it).second;
@@ -2616,10 +2637,10 @@ public:
       };
     //}}}
     //{{{
-    auto addProgramCallback = [&](int pid, int sid) noexcept {
+    auto programCallback = [&](int pid, int sid) noexcept {
       if ((sid > 0) && (mPidParsers.find (pid) == mPidParsers.end())) {
         cLog::log (LOGINFO, "PAT adding pid:service %d::%d", pid, sid);
-        mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cPmtParser (pid, sid, addStreamCallback)));
+        mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cPmtParser (pid, sid, streamCallback)));
 
         // select first service in PAT
         mServices.insert (map<int,cService*>::value_type (sid, new cService (sid, mCurSid == -1)));
@@ -2628,8 +2649,8 @@ public:
         }
       };
     //}}}
-    mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
-    mPidParsers.insert (map<int,cSdtParser*>::value_type (0x11, new cSdtParser (addSdtCallback)));
+    mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (programCallback)));
+    mPidParsers.insert (map<int,cSdtParser*>::value_type (0x11, new cSdtParser (sdtCallback)));
 
     do {
       // process fileChunk
