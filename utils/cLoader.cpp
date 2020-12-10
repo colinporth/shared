@@ -108,6 +108,9 @@ private:
 
   bool mSelected = false;
   string mName;
+
+  cEpgItem mNowEpgItem;
+  map <system_clock::time_point, cEpgItem*> mEpgItemMap;
   };
 //}}}
 
@@ -266,6 +269,7 @@ protected:
 //}}}
 //{{{
 class cPatParser : public cPidParser {
+// assumes section length fits in this packet, no need to buffer
 public:
   //{{{
   cPatParser (function<void (int programPid, int programSid)> callback)
@@ -274,20 +278,25 @@ public:
   virtual ~cPatParser() {}
 
   virtual void processPayload (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool reuseFromFront) {
-  // assumes section length fits in this packet, no need to buffer
 
     if (payloadStart) {
-      //int pointerField = ts[0]
+      if (ts[0]) {
+        //{{{  pointerfield error return
+        cLog::log (LOGERROR, mPidName + " unexpected pointerField");
+        return;
+        }
+        //}}}
       ts++;
       tsLeft--;
 
       //int tid = ts[0]; // could check it
       int sectionLength = ((ts[1] & 0x0F) << 8) + ts[2] + 3;
       if (getCrc32 (ts, sectionLength) != 0) {
-        // error return
+        //{{{  crc error return
         cLog::log (LOGERROR, mPidName + " crc error");
         return;
         }
+        //}}}
       //{{{  unused fields
       // transport stream id = ((ts[3] & 0xF) << 4) | ts[4]
       // currentNext,versionNumber = ts[5]
@@ -301,10 +310,11 @@ public:
       tsLeft -= kPatHeaderLength;
       sectionLength -= kPatHeaderLength + 4;
       if (sectionLength > tsLeft) {
-        //  error return
+        //{{{  sectionLength error return
         cLog::log (LOGERROR, format ("{} sectionLength:{} tsLeft:{}", mPidName, sectionLength, tsLeft));
         return;
         }
+        //}}}
 
       // iterate pat programs
       while (sectionLength > 0) {
@@ -326,6 +336,7 @@ private:
 //}}}
 //{{{
 class cPmtParser : public cPidParser {
+// assumes section length fits in this packet, no need to buffer
 public:
   //{{{
   cPmtParser (int pid, int sid, function<void (int streamSid, int streamPid, int streamType)> callback)
@@ -334,10 +345,14 @@ public:
   virtual ~cPmtParser() {}
 
   virtual void processPayload (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool reuseFromFront) {
-  // assumes section length fits in this packet, no need to buffer
 
     if (payloadStart) {
-      //int pointerField = ts[0];
+      if (ts[0]) {
+        //{{{  pointerfield error return
+        cLog::log (LOGERROR, mPidName + " unexpected pointerField");
+        return;
+        }
+        //}}}
       ts++;
       tsLeft--;
 
@@ -345,10 +360,11 @@ public:
       // assumes section length fits in this packet, no need to buffer
       int sectionLength = ((ts[1] & 0x0F) << 8) + ts[2] + 3;
       if (getCrc32 (ts, sectionLength) != 0) {
-        // error return
+        //{{{  crc error return
         cLog::log (LOGERROR, mPidName + " crc error");
         return;
         }
+        //}}}
 
       int sid = (ts[3] << 8) + ts[4];
       int programInfoLength = ((ts[10] & 0x0f) << 8) + ts[11];
@@ -366,10 +382,11 @@ public:
       sectionLength -= kPmtHeaderLength + 4 - programInfoLength;
 
       if (sectionLength > tsLeft) {
-        // error return
+        //{{{  sectionLength error return
         cLog::log (LOGERROR, format ("{} sectionLength:{} tsLeft:{}", mPidName, sectionLength, tsLeft));
         return;
         }
+        //}}}
 
       // iterate pmt streams
       while (sectionLength > 0) {
@@ -394,6 +411,7 @@ private:
 
 //{{{
 class cSectionParser : public cPidParser {
+// multiPacket section base class
 public:
   //{{{
   cSectionParser (int pid, const string& name) : cPidParser(pid, name), mAllocSectionSize(1024), mSectionSize(0) {
@@ -1130,7 +1148,7 @@ public:
       return false;
 
     mFrequency = 626;
-    mServiceName =  params[0];
+    mMultiplexName =  params[0];
 
     return true;
     }
@@ -1153,7 +1171,17 @@ public:
 
     // init parsers, callbacks
     //{{{
-    auto addAudioFrameCallback = [&](bool reuseFromFront, float* samples, int64_t pts) noexcept {
+    auto sdtCallback = [&](int sid, const string& name) noexcept {
+      auto it = mServices.find (sid);
+      if (it != mServices.end()) {
+        cService* service = (*it).second;
+        if (service->setName (name))
+          cLog::log (LOGINFO, format ("SDT name changed sid {} {}", sid, name));
+        };
+      };
+    //}}}
+    //{{{
+    auto audioFrameCallback = [&](bool reuseFromFront, float* samples, int64_t pts) noexcept {
       mPtsSong->addFrame (reuseFromFront, pts, samples, mPtsSong->getNumFrames()+1);
 
       if (loadPts < 0)
@@ -1174,7 +1202,7 @@ public:
       };
     //}}}
     //{{{
-    auto addStreamCallback = [&](int sid, int pid, int type) noexcept {
+    auto streamCallback = [&](int sid, int pid, int type) noexcept {
       if (mPidParsers.find (pid) == mPidParsers.end()) {
         // new stream pid
         auto it = mServices.find (sid);
@@ -1188,7 +1216,7 @@ public:
               if (service->isSelected()) {
                 audioDecoder = createAudioDecoder (eAudioFrameType::eAacAdts);
                 mPidParsers.insert (map<int,cPidParser*>::value_type (pid,
-                  new cAudioPesParser (pid, audioDecoder, true, addAudioFrameCallback)));
+                  new cAudioPesParser (pid, audioDecoder, true, audioFrameCallback)));
                 }
 
               break;
@@ -1200,7 +1228,7 @@ public:
               if (service->isSelected()) {
                 audioDecoder = createAudioDecoder (eAudioFrameType::eAacLatm);
                 mPidParsers.insert (map<int,cPidParser*>::value_type (pid,
-                  new cAudioPesParser (pid, audioDecoder, true, addAudioFrameCallback)));
+                  new cAudioPesParser (pid, audioDecoder, true, audioFrameCallback)));
                 }
 
               break;
@@ -1249,20 +1277,10 @@ public:
       };
     //}}}
     //{{{
-    auto addSdtCallback = [&](int sid, const string& name) noexcept {
-      auto it = mServices.find (sid);
-      if (it != mServices.end()) {
-        cService* service = (*it).second;
-        if (service->setName (name))
-          cLog::log (LOGINFO, format ("SDT name changed sid {} {}", sid, name));
-        };
-      };
-    //}}}
-    //{{{
-    auto addProgramCallback = [&](int pid, int sid) noexcept {
+    auto programCallback = [&](int pid, int sid) noexcept {
       if ((sid > 0) && (mPidParsers.find (pid) == mPidParsers.end())) {
         cLog::log (LOGINFO, "PAT adding pid:service %d::%d", pid, sid);
-        mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cPmtParser (pid, sid, addStreamCallback)));
+        mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cPmtParser (pid, sid, streamCallback)));
 
         // select first service in PAT
         mServices.insert (map<int,cService*>::value_type (sid, new cService (sid, mCurSid == -1)));
@@ -1271,8 +1289,8 @@ public:
         }
       };
     //}}}
-    mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (addProgramCallback)));
-    mPidParsers.insert (map<int,cSdtParser*>::value_type (0x11, new cSdtParser (addSdtCallback)));
+    mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (programCallback)));
+    mPidParsers.insert (map<int,cSdtParser*>::value_type (0x11, new cSdtParser (sdtCallback)));
 
     uint8_t* buffer = (uint8_t*)malloc (1024 * 188);
     do {
@@ -1322,16 +1340,15 @@ public:
 private:
   static constexpr int kFileChunkSize = 16 * 188;
 
+  int mFrequency = 0;
+  string mMultiplexName;
+  map <int, cPidParser*> mPidParsers;
+
   cPtsSong* mPtsSong = nullptr;
   iVideoPool* mVideoPool = nullptr;
 
-  map <int, cPidParser*> mPidParsers;
-
   int mCurSid = -1;
   map <int, cService*> mServices;
-
-  int mFrequency = 0;
-  string mServiceName;
   };
 //}}}
 //{{{
@@ -1877,9 +1894,9 @@ public:
 
   //{{{
   virtual string getInfoString() {
-    return format ("sid:{} {} {} {} {}", mSid, mServiceName,
-                                         date::format ("%H:%M", floor<seconds>(mNowEpgItem.getStartTime())),
-                                         mNowEpgItem.getProgramName(), cLoadStream::getInfoString());
+    return format ("sid:{} {} {} {} {}", 
+                   mSid, mServiceName, date::format ("%H:%M", floor<seconds>(mNowEpgItem.getStartTime())),
+                   mNowEpgItem.getProgramName(), cLoadStream::getInfoString());
     }
   //}}}
 
