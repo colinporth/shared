@@ -54,11 +54,11 @@ class cEpgItem {
 public:
   cEpgItem() {}
 
-  cEpgItem (const cEpgItem& epgItem)
-    : mProgramName (epgItem.mProgramName),  mStartTime (epgItem.mStartTime),  mDuration (epgItem.mDuration) {}
-
   cEpgItem (const string& programName, system_clock::time_point startTime, seconds duration)
     : mProgramName(programName), mStartTime(startTime), mDuration(duration) {}
+
+  cEpgItem (const cEpgItem& epgItem)
+    : mProgramName (epgItem.mProgramName), mStartTime (epgItem.mStartTime), mDuration (epgItem.mDuration) {}
 
   ~cEpgItem() {}
 
@@ -1894,7 +1894,7 @@ public:
 
   //{{{
   virtual string getInfoString() {
-    return format ("sid:{} {} {} {} {}", 
+    return format ("sid:{} {} {} {} {}",
                    mSid, mServiceName, date::format ("%H:%M", floor<seconds>(mNowEpgItem.getStartTime())),
                    mNowEpgItem.getProgramName(), cLoadStream::getInfoString());
     }
