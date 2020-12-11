@@ -1,4 +1,5 @@
 // cLoader.cpp - audio,video loader, launches cSongPlayer
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
 //{{{  includes
 #define _CRT_SECURE_NO_WARNINGS
 #define WIN32_LEAN_AND_MEAN
@@ -1915,7 +1916,8 @@ public:
     if (params[0] != "rtp")
       return false;
 
-    mPort = 5006;
+    mMulticastAddress = "239.255.1.3";
+    mPort = 5002;
 
     mNumChannels = 2;
     mSampleRate = 48000;
@@ -1947,7 +1949,16 @@ public:
     auto rtpReceiveSocket = socket (AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (rtpReceiveSocket == 0) {
       //{{{  error return
-      cLog::log (LOGERROR, "socket failed");
+      cLog::log (LOGERROR, "socket create failed");
+      return;
+      }
+      //}}}
+
+    // allow multiple sockets to use the same PORT number
+    char yes = 1;
+    if (setsockopt (rtpReceiveSocket, SOL_SOCKET, SO_REUSEADDR, (char*)&yes, sizeof(yes)) < 0) {
+      //{{{  error return
+      cLog::log (LOGERROR, "socket setsockopt SO_REUSEADDR failed");
       return;
       }
       //}}}
@@ -1955,12 +1966,22 @@ public:
     // bind the socket to anyAddress:specifiedPort
     struct sockaddr_in recvAddr;
     recvAddr.sin_family = AF_INET;
-    recvAddr.sin_port = htons (mPort);
     recvAddr.sin_addr.s_addr = htonl (INADDR_ANY);
-    auto result = ::bind (rtpReceiveSocket, (struct sockaddr*)&recvAddr, sizeof(recvAddr));
-    if (result != 0) {
+    recvAddr.sin_port = htons (mPort);
+    if (::bind (rtpReceiveSocket, (struct sockaddr*)&recvAddr, sizeof(recvAddr)) != 0) {
       //{{{  error return
-      cLog::log (LOGERROR, "bind failed");
+      cLog::log (LOGERROR, "socket bind failed");
+      return;
+      }
+      //}}}
+
+    // request to join multicast group
+    struct ip_mreq mreq;
+    mreq.imr_multiaddr.s_addr = inet_addr (mMulticastAddress.c_str());
+    mreq.imr_interface.s_addr = htonl (INADDR_ANY);
+    if (setsockopt (rtpReceiveSocket, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char*)&mreq, sizeof(mreq)) < 0) {
+      //{{{  error return
+      cLog::log (LOGERROR, "socket setsockopt IP_ADD_MEMBERSHIP failed");
       return;
       }
       //}}}
@@ -2097,8 +2118,7 @@ public:
 
     //{{{  close socket and WSAcleanup
     #ifdef _WIN32
-      result = closesocket (rtpReceiveSocket);
-      if (result != 0) {
+      if (closesocket (rtpReceiveSocket) != 0) {
         cLog::log (LOGERROR, "closesocket failed");
         return;
         }
@@ -2137,6 +2157,7 @@ public:
   //}}}
 
 private:
+  string mMulticastAddress;
   int mPort;
 
   int mSid;
