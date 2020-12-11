@@ -3,10 +3,13 @@
 #define _CRT_SECURE_NO_WARNINGS
 #define WIN32_LEAN_AND_MEAN
 
-#include "sys/stat.h"
+// c++
 #include <map>
 #include <thread>
 #include <functional>
+
+// c
+#include "sys/stat.h"
 
 #include "cLoader.h"
 #include "cSongPlayer.h"
@@ -50,17 +53,17 @@ using namespace chrono;
 //}}}
 
 //{{{
-class cEpgItem {
+class cDvbEpgItem {
 public:
-  cEpgItem() {}
+  cDvbEpgItem() {}
 
-  cEpgItem (const string& programName, system_clock::time_point startTime, seconds duration)
+  cDvbEpgItem (const string& programName, system_clock::time_point startTime, seconds duration)
     : mProgramName(programName), mStartTime(startTime), mDuration(duration) {}
 
-  cEpgItem (const cEpgItem& epgItem)
+  cDvbEpgItem (const cDvbEpgItem& epgItem)
     : mProgramName (epgItem.mProgramName), mStartTime (epgItem.mStartTime), mDuration (epgItem.mDuration) {}
 
-  ~cEpgItem() {}
+  ~cDvbEpgItem() {}
 
   // gets
   string getProgramName() { return mProgramName; }
@@ -74,9 +77,9 @@ private:
   };
 //}}}
 //{{{
-class cService {
+class cDvbService {
 public:
-  cService (int sid, bool selected) : mSid(sid), mSelected(selected) {}
+  cDvbService (int sid, bool selected) : mSid(sid), mSelected(selected) {}
 
   bool isSelected() { return mSelected; }
   int getAudioPid() { return mAudioPid; }
@@ -109,8 +112,8 @@ private:
   bool mSelected = false;
   string mName;
 
-  cEpgItem mNowEpgItem;
-  map <system_clock::time_point, cEpgItem*> mEpgItemMap;
+  cDvbEpgItem mNowEpgItem;
+  map <system_clock::time_point, cDvbEpgItem*> mEpgItemMap;
   };
 //}}}
 
@@ -139,23 +142,12 @@ public:
       }
     }
   //}}}
-  virtual void processLast (bool reuseFromFront) {}
+
   virtual void exit() {}
+  virtual void processLast (bool reuseFromFront) {}
 
 protected:
-  //{{{
-  virtual void processPayload (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool reuseFromFront) {
-
-    string info;
-    for (int i = 0; i < tsLeft; i++) {
-      int value = ts[i];
-      info += hex (value, 2) + " ";
-      }
-
-    cLog::log (LOGINFO, mPidName + " " + string(payloadStart ? "start ": "") + dec (tsLeft,3) + ":" + info);
-    }
-  //}}}
-
+  // static utils
   //{{{
   // CRC32 lookup table for polynomial 0x04c11db7
   inline static const uint32_t kCrcTable[256] = {
@@ -215,25 +207,6 @@ protected:
     }
   //}}}
   //{{{
-  static int64_t getPts (const uint8_t* buf) {
-  // return 33 bits of pts,dts
-
-    if ((buf[0] & 0x01) && (buf[2] & 0x01) && (buf[4] & 0x01)) {
-      // valid marker bits
-      int64_t pts = buf[0] & 0x0E;
-      pts = (pts << 7) |  buf[1];
-      pts = (pts << 8) | (buf[2] & 0xFE);
-      pts = (pts << 7) |  buf[3];
-      pts = (pts << 7) | (buf[4] >> 1);
-      return pts;
-      }
-    else {
-      cLog::log (LOGERROR, "getPts marker bits - %02x %02x %02x %02x 0x02", buf[0], buf[1], buf[2], buf[3], buf[4]);
-      return 0;
-      }
-    }
-  //}}}
-  //{{{
   static string getDescrString (uint8_t* buf, int len) {
   // get dvb descriptor string, substitute unwanted chars
 
@@ -258,6 +231,39 @@ protected:
       }
 
     return str;
+    }
+  //}}}
+  //{{{
+  static int64_t getPts (const uint8_t* buf) {
+  // return 33 bits of pts,dts
+
+    if ((buf[0] & 0x01) && (buf[2] & 0x01) && (buf[4] & 0x01)) {
+      // valid marker bits
+      int64_t pts = buf[0] & 0x0E;
+      pts = (pts << 7) |  buf[1];
+      pts = (pts << 8) | (buf[2] & 0xFE);
+      pts = (pts << 7) |  buf[3];
+      pts = (pts << 7) | (buf[4] >> 1);
+      return pts;
+      }
+
+    // markerBits error
+    cLog::log (LOGERROR, format ("getPts markers {:x} {:x} {:x} {:x} {:x}", buf[0], buf[1], buf[2], buf[3], buf[4]));
+    return 0;
+    }
+  //}}}
+
+  // main override
+  //{{{
+  virtual void processPayload (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool reuseFromFront) {
+
+    string info;
+    for (int i = 0; i < tsLeft; i++) {
+      int value = ts[i];
+      info += hex (value, 2) + " ";
+      }
+
+    cLog::log (LOGINFO, mPidName + " " + string(payloadStart ? "start ": "") + dec (tsLeft,3) + ":" + info);
     }
   //}}}
 
@@ -526,6 +532,7 @@ public:
           ts += kSdtDescriptorLength;
           mSectionLength -= kSdtDescriptorLength;
 
+          // iterate descriptors
           int i = 0;
           int descrLength = ts[1] + 2;
           while ((i < loopLength) && (descrLength > 0) && (descrLength <= loopLength - i)) {
@@ -579,7 +586,7 @@ private:
 //{{{
 class cEitParser : public cSectionParser {
 public:
-  cEitParser (function<void (int sid, bool now, cEpgItem& epgItem)> callback)
+  cEitParser (function<void (int sid, bool now, cDvbEpgItem& epgItem)> callback)
     : cSectionParser (0x12, "eit"), mCallback(callback) {}
   virtual ~cEitParser() {}
 
@@ -668,6 +675,7 @@ public:
           ts += kEitEventLength;
           mSectionLength -= kEitEventLength;
 
+          // iterate descriptors
           int i = 0;
           int descrLength = ts[1] + 2;
           while ((i < loopLength) && (descrLength > 0) && (descrLength <= loopLength - i)) {
@@ -676,7 +684,7 @@ public:
               //{{{
               case 0x4D: // shortEvent
                 {
-                cEpgItem epgItem (isHuff (ts+6) ? huffDecode (ts+6, ts[5]) : getDescrString (ts+6, ts[5]), startTime, duration);
+                cDvbEpgItem epgItem (isHuff (ts+6) ? huffDecode (ts+6, ts[5]) : getDescrString (ts+6, ts[5]), startTime, duration);
                 if ((tid == 0x4E) && (running == 0x04)) // now
                   mCallback (sid, true, epgItem);
                 else if ((tid == 0x50) || (tid == 0x51)) // epg
@@ -736,7 +744,7 @@ public:
   //}}}
 
 private:
-  function <void (int sid, bool now, cEpgItem& epgItem)> mCallback;
+  function <void (int sid, bool now, cDvbEpgItem& epgItem)> mCallback;
   };
 //}}}
 
@@ -849,7 +857,7 @@ protected:
 
   virtual void decode (bool reuseFromFront, uint8_t* pes, int size, int64_t pts, int64_t dts) = 0;
   //{{{
-  virtual void dispatchDecode (bool reuseFromFront, uint8_t* pes, int size, int64_t pts, int64_t dts) {
+  void dispatchDecode (bool reuseFromFront, uint8_t* pes, int size, int64_t pts, int64_t dts) {
 
     if (mUseQueue)
       mQueue.enqueue (new cPesParser::cPesItem (reuseFromFront, pes, size, pts, dts));
@@ -955,11 +963,12 @@ private:
 
 // cLoadSource
 //{{{
-class cLoadSource {
+class cLoadSource : public iLoad {
 public:
   cLoadSource (const string& name) : mName(name) {}
   virtual ~cLoadSource() {}
 
+  // iLoad gets
   virtual cSong* getSong() = 0;
   virtual iVideoPool* getVideoPool() = 0;
   virtual string getInfoString() { return ""; }
@@ -973,7 +982,7 @@ public:
     }
   //}}}
 
-  // actions
+  // iLoad actions
   //{{{
   virtual bool togglePlaying() {
     getSong()->togglePlaying();
@@ -1004,8 +1013,6 @@ public:
     return true;
     };
   //}}}
-
-  // load
   //{{{
   virtual void exit() {
 
@@ -1019,6 +1026,8 @@ public:
       }
     }
   //}}}
+
+  // load
   virtual bool recognise (const vector<string>& params) = 0;
   virtual void load() = 0;
 
@@ -1101,7 +1110,7 @@ public:
     int videoQueueSize = 0;
 
     if (mCurSid > 0) {
-      cService* service = mServices[mCurSid];
+      cDvbService* service = mServices[mCurSid];
       if (service) {
         auto audioIt = mPidParsers.find (service->getAudioPid());
         if (audioIt != mPidParsers.end())
@@ -1124,7 +1133,7 @@ public:
     videoFrac = 0.f;
 
     if (mCurSid > 0) {
-      cService* service = mServices[mCurSid];
+      cDvbService* service = mServices[mCurSid];
       int audioPid = service->getAudioPid();
       int videoPid = service->getVideoPid();
 
@@ -1174,7 +1183,7 @@ public:
     auto sdtCallback = [&](int sid, const string& name) noexcept {
       auto it = mServices.find (sid);
       if (it != mServices.end()) {
-        cService* service = (*it).second;
+        cDvbService* service = (*it).second;
         if (service->setName (name))
           cLog::log (LOGINFO, format ("SDT name changed sid {} {}", sid, name));
         };
@@ -1207,7 +1216,7 @@ public:
         // new stream pid
         auto it = mServices.find (sid);
         if (it != mServices.end()) {
-          cService* service = (*it).second;
+          cDvbService* service = (*it).second;
           switch (type) {
             //{{{
             case 15: // aacAdts
@@ -1283,7 +1292,7 @@ public:
         mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cPmtParser (pid, sid, streamCallback)));
 
         // select first service in PAT
-        mServices.insert (map<int,cService*>::value_type (sid, new cService (sid, mCurSid == -1)));
+        mServices.insert (map<int,cDvbService*>::value_type (sid, new cDvbService (sid, mCurSid == -1)));
         if (mCurSid == -1)
           mCurSid = sid;
         }
@@ -1348,7 +1357,7 @@ private:
   iVideoPool* mVideoPool = nullptr;
 
   int mCurSid = -1;
-  map <int, cService*> mServices;
+  map <int, cDvbService*> mServices;
   };
 //}}}
 //{{{
@@ -2030,7 +2039,7 @@ public:
       };
     //}}}
     //{{{
-    auto eitCallback = [&](int sid, bool now, cEpgItem& epgItem) noexcept {
+    auto eitCallback = [&](int sid, bool now, cDvbEpgItem& epgItem) noexcept {
 
       //cLog::log (LOGINFO, format ("eit callback sid {} {}", sid, name));
       //mSid = sid;
@@ -2053,7 +2062,7 @@ public:
           auto epgItemIt = mEpgItemMap.find (epgItem.getStartTime());
           if (epgItemIt == mEpgItemMap.end()) {
             mEpgItemMap.insert (
-              map<system_clock::time_point, cEpgItem*>::value_type (epgItem.getStartTime(), new cEpgItem (epgItem)));
+              map<system_clock::time_point, cDvbEpgItem*>::value_type (epgItem.getStartTime(), new cDvbEpgItem (epgItem)));
             cLog::log (LOGINFO, format ("epg {} {}",
                                 date::format ("%H:%M", floor<seconds>(epgItem.getStartTime())),
                                 epgItem.getProgramName()));
@@ -2133,8 +2142,8 @@ private:
   int mSid;
   string mServiceName;
 
-  cEpgItem mNowEpgItem;
-  map <system_clock::time_point, cEpgItem*> mEpgItemMap;
+  cDvbEpgItem mNowEpgItem;
+  map <system_clock::time_point, cDvbEpgItem*> mEpgItemMap;
   };
 //}}}
 
@@ -2445,7 +2454,7 @@ public:
     int videoQueueSize = 0;
 
     if (mCurSid > 0) {
-      cService* service = mServices[mCurSid];
+      cDvbService* service = mServices[mCurSid];
       if (service) {
         auto audioIt = mPidParsers.find (service->getAudioPid());
         if (audioIt != mPidParsers.end())
@@ -2469,7 +2478,7 @@ public:
     videoFrac = 0.f;
 
     if (mCurSid > 0) {
-      cService* service = mServices[mCurSid];
+      cDvbService* service = mServices[mCurSid];
       int audioPid = service->getAudioPid();
       int videoPid = service->getVideoPid();
 
@@ -2574,7 +2583,7 @@ public:
         // new stream pid
         auto it = mServices.find (sid);
         if (it != mServices.end()) {
-          cService* service = (*it).second;
+          cDvbService* service = (*it).second;
           switch (type) {
             //{{{
             case 15: // aacAdts
@@ -2647,7 +2656,7 @@ public:
     auto sdtCallback = [&](int sid, const string& name) noexcept {
       auto it = mServices.find (sid);
       if (it != mServices.end()) {
-        cService* service = (*it).second;
+        cDvbService* service = (*it).second;
         if (service->setName (name))
           cLog::log (LOGINFO, format ("SDT sid {} {}", sid, name));
         };
@@ -2660,7 +2669,7 @@ public:
         mPidParsers.insert (map<int,cPidParser*>::value_type (pid, new cPmtParser (pid, sid, streamCallback)));
 
         // select first service in PAT
-        mServices.insert (map<int,cService*>::value_type (sid, new cService (sid, mCurSid == -1)));
+        mServices.insert (map<int,cDvbService*>::value_type (sid, new cDvbService (sid, mCurSid == -1)));
         if (mCurSid == -1)
           mCurSid = sid;
         }
@@ -2776,7 +2785,7 @@ private:
   map <int, cPidParser*> mPidParsers;
 
   int mCurSid = -1;
-  map <int, cService*> mServices;
+  map <int, cDvbService*> mServices;
 
   int64_t mTargetPts = -1;
   };
@@ -2809,27 +2818,24 @@ cLoader::~cLoader() {
   }
 //}}}
 
-// cLoader gets
+// cLoader iLoad gets
 cSong* cLoader::getSong() { return mLoadSource->getSong(); }
 iVideoPool* cLoader::getVideoPool() { return mLoadSource->getVideoPool(); }
 string cLoader::getInfoString() { return mLoadSource->getInfoString(); }
-//{{{
-float cLoader::getFracs (float& audioFrac, float& videoFrac) {
+float cLoader::getFracs (float& audioFrac, float& videoFrac) { return mLoadSource->getFracs (audioFrac, videoFrac); }
 
-  audioFrac = 0.f;
-  videoFrac = 0.f;
-  return mLoadSource->getFracs (audioFrac, videoFrac);
-  }
-//}}}
+// cLoader iLoad actions
+bool cLoader::togglePlaying() { return mLoadSource->togglePlaying(); }
+bool cLoader::skipBegin() { return  mLoadSource->skipBegin(); }
+bool cLoader::skipEnd() { return mLoadSource->skipEnd(); }
+bool cLoader::skipBack (bool shift, bool control) { return mLoadSource->skipBack (shift, control); }
+bool cLoader::skipForward (bool shift, bool control) { return mLoadSource->skipForward (shift, control); };
+void cLoader::exit() { mLoadSource->exit(); }
 
 // cLoader load
 //{{{
-void cLoader::exit() {
-  mLoadSource->exit();
-  }
-//}}}
-//{{{
 void cLoader::launchLoad (const vector<string>& params) {
+// launch rcognised load as thread
 
   mLoadSource->exit();
   mLoadSource = mLoadIdle;
@@ -2856,6 +2862,7 @@ void cLoader::launchLoad (const vector<string>& params) {
 //}}}
 //{{{
 void cLoader::load (const vector<string>& params) {
+// run recognised load
 
   mLoadSource->exit();
   mLoadSource = mLoadIdle;
@@ -2873,32 +2880,4 @@ void cLoader::load (const vector<string>& params) {
       }
     }
   }
-//}}}
-
-// cLoader actions
-//{{{
-bool cLoader::togglePlaying() {
-  return mLoadSource->togglePlaying();
-  }
-//}}}
-//{{{
-bool cLoader::skipBegin() {
-  return  mLoadSource->skipBegin();
-  }
-//}}}
-//{{{
-bool cLoader::skipEnd() {
-  return mLoadSource->skipEnd();
-  }
-//}}}
-//{{{
-bool cLoader::skipBack (bool shift, bool control) {
-  return mLoadSource->skipBack (shift, control);
-
-  }
-//}}}
-//{{{
-bool cLoader::skipForward (bool shift, bool control) {
-  return mLoadSource->skipForward (shift, control);
-  };
 //}}}
