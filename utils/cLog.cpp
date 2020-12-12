@@ -53,13 +53,15 @@ using namespace std;
 namespace { // anonymous
   //{{{
   const char kLevelColours[][13] = {
-    "\033[38;5;208m\000",   // note   orange
-    "\033[38;5;208m\000",   // title  orange
-    "\033[38;5;196m\000",   // error  light red
-    "\033[38;5;220m\000",   // info   yellow
-    "\033[38;5;112m\000",   // info1  green
-    "\033[38;5;144m\000",   // info2  nnn
-    "\033[38;5;147m\000",   // info3  bluish
+    "\033[38;5;255m\000", // 0 note  white
+    "\033[38;5;208m\000", // 1 title orange
+    "\033[38;5;196m\000", // 2 error light red
+    "\033[38;5;220m\000", // 3 info  yellow
+    "\033[38;5;112m\000", // 4 info1 green
+    "\033[38;5;144m\000", // 5 info2 greenis yellow
+    "\033[38;5;147m\000", // 6 info3 bluish
+    "\033[38;5;243m\000", // 7 mid grey
+    "\033[38;5;200m\000", // 8 magenta
     };
   //}}}
 
