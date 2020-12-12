@@ -719,6 +719,16 @@ public:
                 break;
               //}}}
               //{{{
+              case 0x7E: // ftaContentMangement
+                cLog::log (LOGINFO1,  format ("{} ftaContentMangement tag:{} len:{}", tidInfo, tag, descrLength));
+                break;
+              //}}}
+              //{{{
+              case 0x89: // guidance
+                cLog::log (LOGINFO1,  format ("{} guidance tag:{} len:{}", tidInfo, tag, descrLength));
+                break;
+              //}}}
+              //{{{
               default:
                 cLog::log (LOGERROR, format ("{} unknown eitEvent descriptor tag:{} len:{}", tidInfo, tag, descrLength));
                 break;
@@ -1916,9 +1926,6 @@ public:
     if (params[0] != "rtp")
       return false;
 
-    mMulticastAddress = "239.255.1.3";
-    mPort = 5002;
-
     mNumChannels = 2;
     mSampleRate = 48000;
 
@@ -1956,7 +1963,7 @@ public:
 
     // allow multiple sockets to use the same PORT number
     char yes = 1;
-    if (setsockopt (rtpReceiveSocket, SOL_SOCKET, SO_REUSEADDR, (char*)&yes, sizeof(yes)) < 0) {
+    if (setsockopt (rtpReceiveSocket, SOL_SOCKET, SO_REUSEADDR, (char*)&yes, sizeof(yes)) != 0) {
       //{{{  error return
       cLog::log (LOGERROR, "socket setsockopt SO_REUSEADDR failed");
       return;
@@ -1979,7 +1986,7 @@ public:
     struct ip_mreq mreq;
     mreq.imr_multiaddr.s_addr = inet_addr (mMulticastAddress.c_str());
     mreq.imr_interface.s_addr = htonl (INADDR_ANY);
-    if (setsockopt (rtpReceiveSocket, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char*)&mreq, sizeof(mreq)) < 0) {
+    if (setsockopt (rtpReceiveSocket, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char*)&mreq, sizeof(mreq)) != 0) {
       //{{{  error return
       cLog::log (LOGERROR, "socket setsockopt IP_ADD_MEMBERSHIP failed");
       return;
@@ -2157,10 +2164,10 @@ public:
   //}}}
 
 private:
-  string mMulticastAddress;
-  int mPort;
+  string mMulticastAddress = "239.255.1.3";
+  int mPort = 5002;
 
-  int mSid;
+  int mSid = 0;
   string mServiceName;
 
   cDvbEpgItem mNowEpgItem;
