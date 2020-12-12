@@ -640,15 +640,14 @@ void cLog::logDvb (void* unused, const char* format, ... ) {
 //}}}
 
 //{{{
-void cLog::status (const string& statusString, int row, bool clear, int colour) {
+void cLog::clearScreen() {
+  printf ("\033[J");
+  }
+//}}}
+//{{{
+void cLog::status (int row, int colour, const string& statusString) {
 
-  if (colour)
-    printf ("%s", levelColours[colour+1]);
-
-  printf ("\033[%d;%dH%s\033[K", row, 0, statusString.c_str());
-
-  if (clear)
-    printf ("\033[J");
+  printf ("%s\033[%d;%dH%s\033[K", levelColours[colour], row-1, 0, statusString.c_str());
   }
 //}}}
 
