@@ -641,16 +641,17 @@ void cLog::logDvb (void* unused, const char* format, ... ) {
 
 //{{{
 void cLog::clearScreen() {
-  printf ("\033[J");
+  printf ("\033[%d;%dH", 1, 1);  // cursorPos
+  printf ("\033[J");             // clear screen from cursor
   }
 //}}}
 //{{{
 void cLog::status (int row, int colour, const string& statusString) {
 
   printf ("%s", kLevelColours[colour]);  // colour
-  printf ("\033[%d;%dH", row, 0);        // cursorPos
+  printf ("\033[%d;%dH", row+1, 0);       // cursorPos
   printf ("%s", statusString.c_str());   // string
-  printf ("\033[K");                     // clear to end of line
+  printf ("\033[K");                     // clear to end of line from cursor
   }
 //}}}
 
