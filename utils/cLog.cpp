@@ -52,7 +52,7 @@ using namespace std;
 
 namespace { // anonymous
   //{{{
-  const char levelColours[][13] = {
+  const char kLevelColours[][13] = {
     "\033[38;5;208m\000",   // note   orange
     "\033[38;5;208m\000",   // title  orange
     "\033[38;5;196m\000",   // error  light red
@@ -572,7 +572,7 @@ void cLog::log (enum eLogLevel logLevel, const string& logStr) {
     // to stdout
     char buffer[40];
     const char* prefixFormat = "%02.2d:%02.2d:%02.2d.%06d %s";
-    sprintf (buffer, prefixFormat, h, m, s, subSec, levelColours[logLevel]);
+    sprintf (buffer, prefixFormat, h, m, s, subSec, kLevelColours[logLevel]);
     fputs (buffer, stdout);
     fputs (getThreadNameString (getThreadId()).c_str(), stdout);
     fputc (' ', stdout);
@@ -647,7 +647,8 @@ void cLog::clearScreen() {
 //{{{
 void cLog::status (int row, int colour, const string& statusString) {
 
-  printf ("%s\033[%d;%dH%s\033[K", levelColours[colour], row-1, 0, statusString.c_str());
+  printf ("%s", kLevelColours[colour]);
+  printf ("\033[%d;%dH%s\033[K", row-1, 0, statusString.c_str());
   }
 //}}}
 
