@@ -647,8 +647,10 @@ void cLog::clearScreen() {
 //{{{
 void cLog::status (int row, int colour, const string& statusString) {
 
-  printf ("%s", kLevelColours[colour]);
-  printf ("\033[%d;%dH%s\033[K", row-1, 0, statusString.c_str());
+  printf ("%s", kLevelColours[colour]);  // colour
+  printf ("\033[%d;%dH", row, 0);        // cursorPos
+  printf ("%s", statusString.c_str());   // string
+  printf ("\033[K");                     // clear to end of line
   }
 //}}}
 
