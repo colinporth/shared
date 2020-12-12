@@ -51,6 +51,18 @@ using namespace std;
 //}}}
 
 namespace { // anonymous
+  //{{{
+  const char levelColours[][13] = {
+    "\033[38;5;208m\000",   // note   orange
+    "\033[38;5;208m\000",   // title  orange
+    "\033[38;5;196m\000",   // error  light red
+    "\033[38;5;220m\000",   // info   yellow
+    "\033[38;5;112m\000",   // info1  green
+    "\033[38;5;144m\000",   // info2  nnn
+    "\033[38;5;147m\000",   // info3  bluish
+    };
+  //}}}
+
   const int kMaxBuffer = 10000;
   enum eLogLevel mLogLevel = LOGERROR;
 
@@ -559,17 +571,6 @@ void cLog::log (enum eLogLevel logLevel, const string& logStr) {
 
     // to stdout
     char buffer[40];
-    //{{{
-    const char levelColours[][13] = {
-      "\033[38;5;208m\000",   // note   orange
-      "\033[38;5;208m\000",   // title  orange
-      "\033[38;5;196m\000",   // error  light red
-      "\033[38;5;220m\000",   // info   yellow
-      "\033[38;5;112m\000",   // info1  green
-      "\033[38;5;144m\000",   // info2  nnn
-      "\033[38;5;147m\000",   // info3  bluish
-      };
-    //}}}
     const char* prefixFormat = "%02.2d:%02.2d:%02.2d.%06d %s";
     sprintf (buffer, prefixFormat, h, m, s, subSec, levelColours[logLevel]);
     fputs (buffer, stdout);
@@ -635,6 +636,19 @@ void cLog::logDvb (void* unused, const char* format, ... ) {
   va_end (args);
 
   log (LOGINFO1, string (buf.get(), buf.get() + size-1));
+  }
+//}}}
+
+//{{{
+void cLog::status (const string& statusString, int row, bool clear, int colour) {
+
+  if (colour)
+    printf ("%s", levelColours[colour+1]);
+
+  printf ("\033[%d;%dH%s\033[K", row, 0, statusString.c_str());
+
+  if (clear)
+    printf ("\033[J");
   }
 //}}}
 
