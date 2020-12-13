@@ -1,13 +1,13 @@
 // cLog.cpp - simple logging
 //{{{  includes
 #ifdef _WIN32
-
   #define _CRT_SECURE_NO_WARNINGS
   #define _SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING
   #define NOMINMAX
   #include "windows.h"
+#endif
 
-#else
+#ifdef __linux__
   #include <stdio.h>
   #include <stdlib.h>
   #include <stdint.h>
@@ -38,6 +38,7 @@
 #include <deque>
 #include <map>
 
+#include "../fmt/core.h"
 #include "../date/date.h"
 #include "utils.h"
 #include "cLog.h"
@@ -48,20 +49,22 @@
 #define stat64_utf8   stat64
 
 using namespace std;
+using namespace fmt;
+using namespace chrono;
 //}}}
 
 namespace { // anonymous
   //{{{
   const char kLevelColours[][13] = {
-    "\033[38;5;255m\000", // 0 note  white
-    "\033[38;5;208m\000", // 1 title orange
-    "\033[38;5;196m\000", // 2 error light red
-    "\033[38;5;220m\000", // 3 info  yellow
-    "\033[38;5;112m\000", // 4 info1 green
-    "\033[38;5;144m\000", // 5 info2 greenis yellow
-    "\033[38;5;147m\000", // 6 info3 bluish
-    "\033[38;5;243m\000", // 7 mid grey
-    "\033[38;5;200m\000", // 8 magenta
+    "\033[38;5;255m", // 0 notice white
+    "\033[38;5;208m", // 1 title  orange
+    "\033[38;5;196m", // 2 error  light red
+    "\033[38;5;220m", // 3 info   yellow
+    "\033[38;5;112m", // 4 info1  green
+    "\033[38;5;144m", // 5 info2  greenis yellow
+    "\033[38;5;147m", // 6 info3  bluish
+    "\033[38;5;243m", // 7 mid grey
+    "\033[38;5;200m", // 8 magenta
     };
   //}}}
 
@@ -71,17 +74,18 @@ namespace { // anonymous
   mutex mLinesMutex;
   deque<cLog::cLine> mLineDeque;
 
+  FILE* mFile = NULL;
   bool mBuffer = false;
   int mDaylightSecs = 0;
-  FILE* mFile = NULL;
 
   map<uint64_t,string> mThreadNameMap;
 
   #ifdef _WIN32
     HANDLE hStdOut = 0;
     uint64_t getThreadId() { return GetCurrentThreadId(); }
+  #endif
 
-  #else
+  #ifdef __linux__
     const int kMaxFrames = 16;
     const size_t kMemoryAlloc = 16384;
     char* memoryAlloc = NULL;
@@ -379,7 +383,7 @@ namespace { // anonymous
 cLog::~cLog() {
   close();
 
-  #ifndef _WIN32
+  #ifdef __linux__
     //{{{  Disable alternative signal handler stack
     stack_t altstack;
 
@@ -412,7 +416,6 @@ cLog::~cLog() {
 bool cLog::init (enum eLogLevel logLevel, bool buffer, string path, std::string title) {
 
   #ifdef _WIN32
-
     hStdOut = GetStdHandle (STD_OUTPUT_HANDLE);
     DWORD consoleMode = ENABLE_VIRTUAL_TERMINAL_PROCESSING | ENABLE_PROCESSED_OUTPUT | ENABLE_WRAP_AT_EOL_OUTPUT;
     SetConsoleMode (hStdOut, consoleMode);
@@ -420,9 +423,9 @@ bool cLog::init (enum eLogLevel logLevel, bool buffer, string path, std::string 
     TIME_ZONE_INFORMATION timeZoneInfo;
     if (GetTimeZoneInformation (&timeZoneInfo) == TIME_ZONE_ID_DAYLIGHT)
       mDaylightSecs = -timeZoneInfo.DaylightBias * 60;
+  #endif
 
-  #else
-
+  #ifdef __linux__
     if (memoryAlloc == NULL)
       memoryAlloc = new char[kMemoryAlloc];
 
@@ -433,13 +436,10 @@ bool cLog::init (enum eLogLevel logLevel, bool buffer, string path, std::string 
     sa.sa_flags = SA_RESTART | SA_SIGINFO;
     if (sigaction (SIGSEGV, &sa, NULL) < 0)
       perror ("cCrash - sigaction(SIGSEGV)");
-
     if (sigaction (SIGABRT, &sa, NULL) < 0)
       perror ("cCrash - sigaction(SIGABBRT)");
-
     if (sigaction (SIGFPE, &sa, NULL) < 0)
       perror ("cCrash - sigaction(SIGFPE)");
-
   #endif
 
   mBuffer = buffer;
@@ -565,31 +565,21 @@ void cLog::log (enum eLogLevel logLevel, const string& logStr) {
 
   else if (logLevel <= mLogLevel) {
     auto datePoint = date::floor<date::days>(timePoint);
-    auto timeOfDay = date::make_time (chrono::duration_cast<chrono::microseconds>(timePoint - datePoint));
-    int h = timeOfDay.hours().count();
-    int m = timeOfDay.minutes().count();
-    int s = (int)timeOfDay.seconds().count();
+    auto timeToday = timePoint - datePoint;
+    auto timeOfDay = date::make_time (chrono::duration_cast<chrono::microseconds>(timeToday));
     int subSec = (int)timeOfDay.subseconds().count();
 
-    // to stdout
-    char buffer[40];
-    const char* prefixFormat = "%02.2d:%02.2d:%02.2d.%06d %s";
-    sprintf (buffer, prefixFormat, h, m, s, subSec, kLevelColours[logLevel]);
-    fputs (buffer, stdout);
-    fputs (getThreadNameString (getThreadId()).c_str(), stdout);
-    fputc (' ', stdout);
-    fputs (logStr.c_str(), stdout);
-    const char* postfix = "\033[m\n";
-    fputs (postfix, stdout);
+    fputs (format ("{}:{:06d} {}{} {}{}\n\033[m",
+                   date::format ("%T", date::floor<seconds>(timeToday)), subSec,
+                   kLevelColours[7], getThreadNameString (getThreadId()),
+                   kLevelColours[logLevel], logStr).c_str(),
+           stdout);
 
     if (mFile) {
-      // to file
-      const char levelNames[][6] = { "Title", "Note-", "Err--", "Info-", "Info1", "Info2", "Info3", };
-      sprintf (buffer, prefixFormat, h, m, s, subSec, levelNames[logLevel]);
-      fputs (buffer, mFile);
-      fputc (' ', mFile);
-      fputs (logStr.c_str(), mFile);
-      fputc ('\n', mFile);
+      fputs (format ("{}:06d} {} {}\n",
+                     date::format("%T", date::floor<seconds>(timeToday)), subSec,
+                     getThreadNameString (getThreadId()), logStr).c_str(),
+             mFile);
       fflush (mFile);
       }
     }
@@ -643,17 +633,17 @@ void cLog::logDvb (void* unused, const char* format, ... ) {
 
 //{{{
 void cLog::clearScreen() {
-  printf ("\033[%d;%dH", 1, 1);  // cursorPos
-  printf ("\033[J");             // clear screen from cursor
+
+  string formatString (fmt::format ("\033[%d;%dH\033[J", 1, 1));  // cursorPos, clear to end of screen
+  fputs (formatString.c_str(), stdout);
   }
 //}}}
 //{{{
 void cLog::status (int row, int colour, const string& statusString) {
 
-  printf ("%s", kLevelColours[colour]);  // colour
-  printf ("\033[%d;%dH", row+1, 0);       // cursorPos
-  printf ("%s", statusString.c_str());   // string
-  printf ("\033[K");                     // clear to end of line from cursor
+  // colour, position to row column 1, clear from cursor to end of line
+  string formatString (fmt::format ("{}\033[{};{}H{}\033[K", kLevelColours[colour], row+1, 1, statusString));
+  fputs (formatString.c_str(), stdout);
   }
 //}}}
 
