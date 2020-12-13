@@ -7,27 +7,25 @@
 //}}}
 
 enum eLogLevel { LOGTITLE, LOGNOTICE, LOGERROR, LOGINFO, LOGINFO1, LOGINFO2, LOGINFO3 };
-const int kBst = 1;
 
 class cLog {
 public:
   //{{{
   class cLine {
   public:
-    cLine() {}
     cLine (eLogLevel logLevel, uint64_t threadId,
-           std::chrono::time_point<std::chrono::system_clock> timePoint, const std::string& str) :
-      mLogLevel(logLevel), mThreadId(threadId), mTimePoint(timePoint), mStr(str) {}
+           std::chrono::time_point<std::chrono::system_clock> timePoint, const std::string& lineString)
+      : mLogLevel(logLevel), mThreadId(threadId), mTimePoint(timePoint), mString(lineString) {}
 
-    eLogLevel mLogLevel = LOGNOTICE;
-    uint64_t mThreadId = 0;
+    eLogLevel mLogLevel;
+    uint64_t mThreadId;
     std::chrono::time_point<std::chrono::system_clock> mTimePoint;
-    std::string mStr;
+    std::string mString;
     };
   //}}}
   ~cLog();
 
-  static bool init (enum eLogLevel logLevel = LOGINFO,
+  static bool init (eLogLevel logLevel = LOGINFO,
                     bool buffer = false,
                     const std::string& logFilePath = "",
                     const std::string& title = "");
@@ -40,11 +38,11 @@ public:
   static std::wstring getThreadNameWstring (uint64_t threadId);
 
   static void cycleLogLevel();
-  static void setLogLevel (enum eLogLevel logLevel);
+  static void setLogLevel (eLogLevel logLevel);
   static void setThreadName (const std::string& name);
 
-  static void log (enum eLogLevel logLevel, const std::string& logStr);
-  static void log (enum eLogLevel logLevel, const char* format, ... );
+  static void log (eLogLevel logLevel, const std::string& logStr);
+  static void log (eLogLevel logLevel, const char* format, ... );
   static void logDvb (void* unused, const char* format, ... );
 
   static void clearScreen();
