@@ -198,11 +198,6 @@ protected:
     };
   //}}}
   //{{{
-  static int getSectionLength (uint8_t* buf) {
-    return ((buf[0] & 0x0F) << 8) + buf[1] + 3;
-    }
-  //}}}
-  //{{{
   static uint32_t getCrc32 (uint8_t* buf, uint32_t len) {
 
     uint32_t crc = 0xffffffff;
@@ -210,6 +205,11 @@ protected:
       crc = (crc << 8) ^ kCrcTable[((crc >> 24) ^ *buf++) & 0xff];
 
     return crc;
+    }
+  //}}}
+  //{{{
+  static int getSectionLength (uint8_t* buf) {
+    return ((buf[0] & 0x0F) << 8) + buf[1] + 3;
     }
   //}}}
   //{{{

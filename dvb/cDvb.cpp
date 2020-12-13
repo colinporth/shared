@@ -957,7 +957,7 @@ void cDvb::tune (int frequency) {
         //mErrorStr = updateErrorStr (mDvbTransportStream->getErrors());
         readMonitorFe();
 
-        mTuneStr = format ("{} {}Mhz", frequency/1000000);
+        mTuneStr = format ("{}Mhz", frequency/1000000);
         return;
         }
         //}}}
