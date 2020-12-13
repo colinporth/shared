@@ -727,15 +727,14 @@ public:
             int tag = ts[0];
             switch (tag) {
               //{{{
-              case 0x4D: // shortEvent
-                {
-                cDvbEpgItem epgItem (isHuff (ts+6) ? huffDecode (ts+6, ts[5]) : getDescrString (ts+6, ts[5]), startTime, duration);
-                if ((tid == 0x4E) && (running == 0x04)) // now
-                  mCallback (sid, true, epgItem);
-                else if ((tid == 0x50) || (tid == 0x51)) // epg
-                  mCallback (sid, false, epgItem);
-                break;
+              case 0x4D: { // shortEvent
+                bool now = (tid == 0x4E) && (running == 0x04);
+                bool epg = (tid == 0x50) || (tid == 0x51);
+                if (now || epg)
+                  mCallback (sid, now, cDvbEpgItem (isHuff (ts+6) ? huffDecode (ts+6, ts[5]) : getDescrString (ts+6, ts[5]), 
+                                                    startTime, duration));
                 }
+                break;
               //}}}
               //{{{
               case 0x4E: // extendedEvent
