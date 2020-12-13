@@ -627,8 +627,9 @@ void cLog::logDvb (void* unused, const char* format, ... ) {
 //{{{
 void cLog::clearScreen() {
 
-  string formatString (fmt::format ("\033[%d;%dH\033[J", 1, 1));  // cursorPos, clear to end of screen
+  string formatString (fmt::format ("\033[{};{}H\033[J\n", 1, 1));  // cursorPos, clear to end of screen
   fputs (formatString.c_str(), stdout);
+  fflush (stdout);
   }
 //}}}
 //{{{
@@ -637,6 +638,7 @@ void cLog::status (int row, int colour, const string& statusString) {
   // colour, pos row column 1, clear from cursor to end of line
   string formatString (fmt::format ("{}\033[{};{}H{}\033[K", kLevelColours[colour], row+1, 1, statusString));
   fputs (formatString.c_str(), stdout);
+  fflush (stdout);
   }
 //}}}
 
