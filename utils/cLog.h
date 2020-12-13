@@ -29,8 +29,8 @@ public:
 
   static bool init (enum eLogLevel logLevel = LOGINFO,
                     bool buffer = false,
-                    std::string path = "",
-                    std::string title = "");
+                    const std::string& logFilePath = "",
+                    const std::string& title = "");
 
   static void setDaylightOffset (int offset);
   static void close();
@@ -48,7 +48,7 @@ public:
   static void logDvb (void* unused, const char* format, ... );
 
   static void clearScreen();
-  static void status (int row, int colour, const std::string& statusString);
+  static void status (int row, int colourIndex, const std::string& statusString);
 
   static bool getLine (cLine& line, unsigned lineNum, unsigned& lastLineIndex);
 
