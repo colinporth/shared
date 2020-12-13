@@ -208,6 +208,18 @@ protected:
     }
   //}}}
   //{{{
+  static uint32_t getEpochTime (uint8_t* buf) {
+    return (((buf[0] << 8) | buf[1]) - 40587) * 86400;
+    }
+  //}}}
+  //{{{
+  static uint32_t getBcdTime (uint8_t* buf)  {
+    return (3600 * ((10 * ((buf[0] & 0xF0) >> 4)) + (buf[0] & 0xF))) +
+             (60 * ((10 * ((buf[1] & 0xF0) >> 4)) + (buf[1] & 0xF))) +
+                   ((10 * ((buf[2] & 0xF0) >> 4)) + (buf[2] & 0xF));
+    }
+  //}}}
+  //{{{
   static string getDescrString (uint8_t* buf, int len) {
   // get dvb descriptor string, substitute unwanted chars
 
@@ -440,12 +452,7 @@ public:
       if (tid == 0x70) {
         int sectionLength = ((ts[1] & 0x0F) << 8) + ts[2] + 3;
         if (sectionLength >= 8) {
-          uint32_t epochTime = (((ts[3] << 8) | ts[4]) - 40587) * 86400;
-          uint32_t time = (3600 * ((10 * ((ts[5] & 0xF0) >> 4)) + (ts[5] & 0xF))) +
-                            (60 * ((10 * ((ts[6] & 0xF0) >> 4)) + (ts[6] & 0xF))) +
-                                  ((10 * ((ts[7] & 0xF0) >> 4)) + (ts[7] & 0xF));
-
-          auto timePoint = system_clock::from_time_t (epochTime + time);
+          auto timePoint = system_clock::from_time_t (getEpochTime (ts+3) + getBcdTime (ts+5));
           string timeString = date::format ("%T", date::floor<seconds>(timePoint));
           mCallback (timeString);
           }
@@ -694,16 +701,8 @@ public:
 
         while (mSectionLength > 0) {
           //{{{  used fields
-          uint32_t epochTimeSeconds = (unsigned int)((((ts[2] << 8) | ts[3]) - 40587) * 86400);
-          uint32_t startTimeSeconds = (3600 * ((10 * ((ts[4] & 0xF0) >> 4)) + (ts[4] & 0xF))) +
-                                        (60 * ((10 * ((ts[5] & 0xF0) >> 4)) + (ts[5] & 0xF))) +
-                                              ((10 * ((ts[6] & 0xF0) >> 4)) + (ts[6] & 0xF));
-          system_clock::time_point startTime = system_clock::from_time_t (epochTimeSeconds + startTimeSeconds);
-
-          uint32_t durationSeconds = (3600 * ((10 * ((ts[7] & 0xF0) >> 4)) + (ts[7] & 0xF))) +
-                                       (60 * ((10 * ((ts[8] & 0xF0) >> 4)) + (ts[8] & 0xF))) +
-                                             ((10 * ((ts[9] & 0xF0) >> 4)) + (ts[9] & 0xF));
-          seconds duration (durationSeconds);
+          system_clock::time_point startTime = system_clock::from_time_t (getEpochTime (ts+2) + getBcdTime (ts+4));
+          seconds duration (getBcdTime (ts+7));
 
           int running = (ts[10] & 0xE0) >> 5;
           //}}}
@@ -1351,8 +1350,14 @@ public:
         }
       };
     //}}}
+    //{{{
+    auto tdtCallback = [&](const string& timeString) noexcept {
+      mTimeString = timeString;
+      };
+    //}}}
     mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (programCallback)));
     mPidParsers.insert (map<int,cPidParser*>::value_type (0x11, new cSdtParser (sdtCallback)));
+    mPidParsers.insert (map<int,cPidParser*>::value_type (0x14, new cTdtParser (tdtCallback)));
 
     uint8_t* buffer = (uint8_t*)malloc (1024 * 188);
     do {
@@ -1401,6 +1406,8 @@ public:
 
 private:
   static constexpr int kFileChunkSize = 16 * 188;
+
+  string mTimeString;
 
   int mFrequency = 0;
   string mMultiplexName;
@@ -1957,7 +1964,7 @@ public:
   //{{{
   virtual string getInfoString() {
     return format ("sid:{} {} {} {} {} {}",
-                   mSid, mServiceName, 
+                   mSid, mServiceName,
                    mTimeString,
                    date::format ("%H:%M", floor<seconds>(mNowEpgItem.getStartTime())),
                    mNowEpgItem.getProgramName(), cLoadStream::getInfoString());
