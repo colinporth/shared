@@ -5816,10 +5816,22 @@ namespace { // anonymous
     return decodedString;
     }
   //}}}
-  //{{{
-  string getDescStringSimple (uint8_t* buf) {
-  // get dvb descriptor string, substitute unwanted chars
+  }
 
+//{{{
+bool cDvbString::isHuff (uint8_t* buf) {
+
+  return (buf[0] == 0x1F) && (buf[1] == 1 || buf[1] == 2);
+  }
+//}}}
+//{{{
+string cDvbString::getString (uint8_t* buf) {
+
+  if (isHuff (buf+1))
+    return huffDecode (buf+1, buf[0]);
+
+  else {
+    // simple string length, followed by null terminated char array
     int len = *buf++;
 
     string str;
@@ -5843,21 +5855,5 @@ namespace { // anonymous
 
     return str;
     }
-  //}}}
-  }
-
-//{{{
-bool cDvbString::isHuff (uint8_t* buf) {
-
-  return (buf[0] == 0x1F) && (buf[1] == 1 || buf[1] == 2);
-  }
-//}}}
-//{{{
-string cDvbString::getString (uint8_t* buf) {
-
-  if (isHuff (buf+1))
-    return huffDecode (buf+1, buf[0]);
-  else
-    return getDescStringSimple (buf);
   };
 //}}}
