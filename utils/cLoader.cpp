@@ -699,13 +699,11 @@ public:
         ts += kEitHeaderLength;
         mSectionLength -= kEitHeaderLength + 4;
 
+        // iterate eit events
         while (mSectionLength > 0) {
-          //{{{  used fields
           system_clock::time_point startTime = system_clock::from_time_t (getEpochTime (ts+2) + getBcdTime (ts+4));
           seconds duration (getBcdTime (ts+7));
-
           int running = (ts[10] & 0xE0) >> 5;
-          //}}}
           int loopLength = ((ts[10] & 0x0F) << 8) + ts[11];
           //{{{  unused fields
           //int eventId = (ts[0] << 8) + ts[1];
@@ -717,7 +715,7 @@ public:
           ts += kEitEventLength;
           mSectionLength -= kEitEventLength;
 
-          // iterate descriptors
+          // iterate eit event descriptors
           int i = 0;
           int descrLength = ts[1] + 2;
           while ((i < loopLength) && (descrLength > 0) && (descrLength <= loopLength - i)) {
