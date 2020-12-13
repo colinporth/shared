@@ -415,6 +415,48 @@ private:
   function <void (int streamSid, int streamPid, int streamType)> mCallback;
   };
 //}}}
+//{{{
+class cTdtParser : public cPidParser {
+public:
+  //{{{
+  cTdtParser (function<void (const string& timeString)> callback)
+    : cPidParser (0x14, "tdt"), mCallback(callback) {}
+  //}}}
+  virtual ~cTdtParser() {}
+
+  virtual void processPayload (uint8_t* ts, int tsLeft, bool payloadStart, int continuityCount, bool reuseFromFront) {
+
+    if (payloadStart) {
+      if (ts[0]) {
+        //{{{  pointerfield error return
+        cLog::log (LOGERROR, mPidName + " unexpected pointerField");
+        return;
+        }
+        //}}}
+      ts++;
+      tsLeft--;
+
+      int tid = ts[0];
+      if (tid == 0x70) {
+        int sectionLength = ((ts[1] & 0x0F) << 8) + ts[2] + 3;
+        if (sectionLength >= 8) {
+          uint32_t epochTime = (((ts[3] << 8) | ts[4]) - 40587) * 86400;
+          uint32_t time = (3600 * ((10 * ((ts[5] & 0xF0) >> 4)) + (ts[5] & 0xF))) +
+                            (60 * ((10 * ((ts[6] & 0xF0) >> 4)) + (ts[6] & 0xF))) +
+                                  ((10 * ((ts[7] & 0xF0) >> 4)) + (ts[7] & 0xF));
+
+          auto timePoint = system_clock::from_time_t (epochTime + time);
+          string timeString = date::format ("%T", date::floor<seconds>(timePoint));
+          mCallback (timeString);
+          }
+        }
+      }
+    }
+
+private:
+  function <void (const string& timeString)> mCallback;
+  };
+//}}}
 
 //{{{
 class cSectionParser : public cPidParser {
@@ -1310,7 +1352,7 @@ public:
       };
     //}}}
     mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (programCallback)));
-    mPidParsers.insert (map<int,cSdtParser*>::value_type (0x11, new cSdtParser (sdtCallback)));
+    mPidParsers.insert (map<int,cPidParser*>::value_type (0x11, new cSdtParser (sdtCallback)));
 
     uint8_t* buffer = (uint8_t*)malloc (1024 * 188);
     do {
@@ -1701,7 +1743,8 @@ public:
                              mRadio ? 0 : 1000, mFramesPerChunk);
 
     iAudioDecoder* audioDecoder = nullptr;
-    //{{{  add parsers, callbacks
+
+    // add parsers, callbacks
     //{{{
     auto audioFrameCallback = [&](bool reuseFromFront, float* samples, int64_t pts) noexcept {
       mHlsSong->addFrame (reuseFromFront, pts, samples, mHlsSong->getNumFrames()+1);
@@ -1747,7 +1790,6 @@ public:
 
     // add PAT parser
     mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (programCallback)));
-    //}}}
 
     while (!mExit) {
       cPlatformHttp http;
@@ -1914,8 +1956,10 @@ public:
 
   //{{{
   virtual string getInfoString() {
-    return format ("sid:{} {} {} {} {}",
-                   mSid, mServiceName, date::format ("%H:%M", floor<seconds>(mNowEpgItem.getStartTime())),
+    return format ("sid:{} {} {} {} {} {}",
+                   mSid, mServiceName, 
+                   mTimeString,
+                   date::format ("%H:%M", floor<seconds>(mNowEpgItem.getStartTime())),
                    mNowEpgItem.getProgramName(), cLoadStream::getInfoString());
     }
   //}}}
@@ -2099,9 +2143,15 @@ public:
         }
       };
     //}}}
+    //{{{
+    auto tdtCallback = [&](const string& timeString) noexcept {
+      mTimeString = timeString;
+      };
+    //}}}
     mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (programCallback)));
-    mPidParsers.insert (map<int,cSdtParser*>::value_type (0x11, new cSdtParser (sdtCallback)));
-    mPidParsers.insert (map<int,cEitParser*>::value_type (0x12, new cEitParser (eitCallback)));
+    mPidParsers.insert (map<int,cPidParser*>::value_type (0x11, new cSdtParser (sdtCallback)));
+    mPidParsers.insert (map<int,cPidParser*>::value_type (0x12, new cEitParser (eitCallback)));
+    mPidParsers.insert (map<int,cPidParser*>::value_type (0x14, new cTdtParser (tdtCallback)));
 
     char buffer[2048];
     int bufferLen = 2048;
@@ -2169,6 +2219,8 @@ private:
 
   int mSid = 0;
   string mServiceName;
+
+  string mTimeString;
 
   cDvbEpgItem mNowEpgItem;
   map <system_clock::time_point, cDvbEpgItem*> mEpgItemMap;
@@ -2704,7 +2756,7 @@ public:
       };
     //}}}
     mPidParsers.insert (map<int,cPidParser*>::value_type (0x00, new cPatParser (programCallback)));
-    mPidParsers.insert (map<int,cSdtParser*>::value_type (0x11, new cSdtParser (sdtCallback)));
+    mPidParsers.insert (map<int,cPidParser*>::value_type (0x11, new cSdtParser (sdtCallback)));
 
     do {
       // process fileChunk
