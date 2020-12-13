@@ -225,33 +225,6 @@ protected:
     }
   //}}}
   //{{{
-  static string getDescrString (uint8_t* buf, int len) {
-  // get dvb descriptor string, substitute unwanted chars
-
-    string str;
-
-    for (int i = 0; i < len; i++) {
-      if (*buf == 0)
-        break;
-
-      if (((*buf >= ' ') && (*buf <= '~')) ||
-          (*buf == '\n') ||
-          ((*buf >= 0xa0) && (*buf <= 0xff)))
-        str += *buf;
-
-      if (*buf == 0x8A)
-        str += '\n';
-
-      if ((*buf == 0x86 || (*buf == 0x87)))
-        str += ' ';
-
-      buf++;
-      }
-
-    return str;
-    }
-  //}}}
-  //{{{
   static int64_t getPts (const uint8_t* buf) {
   // return 33 bits of pts,dts
 
@@ -598,7 +571,7 @@ public:
             switch (tag) {
               //{{{
               case 0x48: // service
-                mCallback (sid, getDescrString (ts + 5, ts[4]));
+                mCallback (sid, getDescString (ts+4));
                 break;
               //}}}
               //{{{
@@ -727,12 +700,14 @@ public:
             int tag = ts[0];
             switch (tag) {
               //{{{
-              case 0x4D: { // shortEvent
+              case 0x4D: // shortEvent
+                {
                 bool now = (tid == 0x4E) && (running == 0x04);
                 bool epg = (tid == 0x50) || (tid == 0x51);
-                if (now || epg)
-                  mCallback (sid, now, cDvbEpgItem (isHuff (ts+6) ? huffDecode (ts+6, ts[5]) : getDescrString (ts+6, ts[5]), 
-                                                    startTime, duration));
+                if (now || epg) {
+                  cDvbEpgItem dvbEpgItem (getDescString (ts+5), startTime, duration);
+                  mCallback (sid, now, dvbEpgItem);
+                  }
                 }
                 break;
               //}}}

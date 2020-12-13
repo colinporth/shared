@@ -1,6 +1,6 @@
 // DVB-T2 epg huffman tables
 
-namespace {
+namespace { // anonymous
   // const
   #define START   '\0'
   #define STOP    '\0'
@@ -5731,86 +5731,122 @@ namespace {
           3160  /* 128 */
   };
   //}}}
-  }
 
-//{{{
-bool isHuff (const unsigned char* src) {
+  //{{{
+  bool isHuff (const unsigned char* src) {
 
-  return (src[0] == 0x1F) && (src[1] == 1 || src[1] == 2);
-  }
-//}}}
-//{{{
-std::string huffDecode (const unsigned char* src, size_t size) {
-
-  std::string decodedString;
-
-  const struct tHuffTable* hufftable = (src[1] == 1) ? huffTable1 : huffTable2;
-  const unsigned int* huffindex = (src[1] == 1) ? huffIndex1 : huffIndex2;
-
-  unsigned value = 0;
-  unsigned byte = 2;
-  unsigned bit = 0;
-  while (byte < 6 && byte < size) {
-    value |= src[byte] << ((5-byte) * 8);
-    byte++;
+    return (src[0] == 0x1F) && (src[1] == 1 || src[1] == 2);
     }
+  //}}}
+  //{{{
+  std::string huffDecode (const unsigned char* src, size_t size) {
 
-  char lastch = START;
-  do {
-    bool found = false;
-    unsigned bitShift = 0;
-    char nextCh = STOP;
-    if (lastch == ESCAPE) {
-      found = true;
+    std::string decodedString;
 
-      // Encoded in the next 8 bits Terminated by the first ASCII character.
-      nextCh = (value >> 24) & 0xff;
-      bitShift = 8;
-      if ((nextCh & 0x80) == 0) {
-        if (nextCh < ' ')
-          nextCh = STOP;
-        lastch = nextCh;
-        }
+    const struct tHuffTable* hufftable = (src[1] == 1) ? huffTable1 : huffTable2;
+    const unsigned int* huffindex = (src[1] == 1) ? huffIndex1 : huffIndex2;
+
+    unsigned value = 0;
+    unsigned byte = 2;
+    unsigned bit = 0;
+    while (byte < 6 && byte < size) {
+      value |= src[byte] << ((5-byte) * 8);
+      byte++;
       }
-    else {
-      unsigned indx = (unsigned)lastch;
-      for (unsigned j = huffindex[indx]; j < huffindex[indx+1]; j++) {
-        unsigned mask = 0, maskbit = 0x80000000;
-        for (short kk = 0; kk < hufftable[j].bits; kk++) {
-          mask |= maskbit;
-          maskbit >>= 1;
-          }
-        if ((value & mask) == hufftable[j].value) {
-          nextCh = hufftable[j].next;
-          bitShift = hufftable[j].bits;
-          found = true;
+
+    char lastch = START;
+    do {
+      bool found = false;
+      unsigned bitShift = 0;
+      char nextCh = STOP;
+      if (lastch == ESCAPE) {
+        found = true;
+
+        // Encoded in the next 8 bits Terminated by the first ASCII character.
+        nextCh = (value >> 24) & 0xff;
+        bitShift = 8;
+        if ((nextCh & 0x80) == 0) {
+          if (nextCh < ' ')
+            nextCh = STOP;
           lastch = nextCh;
-          break;
           }
         }
-      }
-
-    if (found) {
-      if (nextCh != STOP && nextCh != ESCAPE)
-        decodedString += nextCh;
-
-      // Shift up by the number of bits.
-      for (unsigned b = 0; b < bitShift; b++) {
-        value = (value << 1) & 0xfffffffe;
-        if (byte < size)
-          value |= (src[byte] >> (7-bit)) & 1;
-        if (bit == 7) {
-          bit = 0;
-          byte++;
+      else {
+        unsigned indx = (unsigned)lastch;
+        for (unsigned j = huffindex[indx]; j < huffindex[indx+1]; j++) {
+          unsigned mask = 0, maskbit = 0x80000000;
+          for (short kk = 0; kk < hufftable[j].bits; kk++) {
+            mask |= maskbit;
+            maskbit >>= 1;
+            }
+          if ((value & mask) == hufftable[j].value) {
+            nextCh = hufftable[j].next;
+            bitShift = hufftable[j].bits;
+            found = true;
+            lastch = nextCh;
+            break;
+            }
           }
-        else
-          bit++;
         }
-      }
-    else
-      return "huff error";
-    } while (lastch != STOP && byte < size+4);
 
-  return decodedString;
+      if (found) {
+        if (nextCh != STOP && nextCh != ESCAPE)
+          decodedString += nextCh;
+
+        // Shift up by the number of bits.
+        for (unsigned b = 0; b < bitShift; b++) {
+          value = (value << 1) & 0xfffffffe;
+          if (byte < size)
+            value |= (src[byte] >> (7-bit)) & 1;
+          if (bit == 7) {
+            bit = 0;
+            byte++;
+            }
+          else
+            bit++;
+          }
+        }
+      else
+        return "huff error";
+      } while (lastch != STOP && byte < size+4);
+
+    return decodedString;
+    }
+  //}}}
+
+  //{{{
+  std::string getDescStringSimple (uint8_t* buf) {
+  // get dvb descriptor string, substitute unwanted chars
+
+    int len = *buf++;
+
+    std::string str;
+    for (int i = 0; i < len; i++) {
+      if (*buf == 0)
+        break;
+
+      if (((*buf >= ' ') && (*buf <= '~')) ||
+          (*buf == '\n') ||
+          ((*buf >= 0xa0) && (*buf <= 0xff)))
+        str += *buf;
+
+      if (*buf == 0x8A)
+        str += '\n';
+
+      if ((*buf == 0x86 || (*buf == 0x87)))
+        str += ' ';
+
+      buf++;
+      }
+
+    return str;
+    }
+  //}}}
   }
-//}}}
+
+std::string getDescString (uint8_t* buf) {
+  if (isHuff (buf+1))
+    return huffDecode (buf+1, buf[0]);
+  else
+    return getDescStringSimple (buf);
+  };
