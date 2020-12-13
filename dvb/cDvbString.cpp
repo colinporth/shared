@@ -1,24 +1,29 @@
 // cDvbString.cpp - DVB-T2 epg huffman tables
+//{{{  includes
 #include <cstdint>
 #include <string>
 
+#include "cDvbString.h"
+
 using namespace std;
+//}}}
 
 namespace { // anonymous
-  // const
+  //{{{  const
   #define START   '\0'
   #define STOP    '\0'
   #define ESCAPE  '\1'
-
-  // type
+  //}}}
+  //{{{
   struct tHuffTable {
     unsigned int value;
     short bits;
     char next;
     };
+  //}}}
 
   //{{{
-  static const struct tHuffTable huffTable1[] = {
+  const struct tHuffTable huffTable1[] = {
       /*   51                             */
       { 0x00000000,  2,  84}, /*    0 'T' */
       { 0x40000000,  3,  66}, /*    1 'B' */
@@ -2178,7 +2183,7 @@ namespace { // anonymous
 
   //}}}
   //{{{
-  static const unsigned huffIndex1[] = {
+  const unsigned huffIndex1[] = {
              0, /*   0 */
             51, /*   1 */
             53, /*   2 */
@@ -2311,7 +2316,7 @@ namespace { // anonymous
   };
   //}}}
   //{{{
-  static const struct tHuffTable huffTable2[] = {
+  const struct tHuffTable huffTable2[] = {
       /*   51                             */
       { 0x40000000,  3,  65}, /*    0 'A' */
       { 0x80000000,  3,  67}, /*    1 'C' */
@@ -5603,7 +5608,7 @@ namespace { // anonymous
   };
   //}}}
   //{{{
-  static const unsigned huffIndex2[] = {
+  const unsigned huffIndex2[] = {
              0, /*   0 */
             51, /*   1 */
             53, /*   2 */
@@ -5737,15 +5742,9 @@ namespace { // anonymous
   //}}}
 
   //{{{
-  bool isHuff (const unsigned char* src) {
-
-    return (src[0] == 0x1F) && (src[1] == 1 || src[1] == 2);
-    }
-  //}}}
-  //{{{
   string huffDecode (const unsigned char* src, size_t size) {
 
-    std::string decodedString;
+    string decodedString;
 
     const struct tHuffTable* hufftable = (src[1] == 1) ? huffTable1 : huffTable2;
     const unsigned int* huffindex = (src[1] == 1) ? huffIndex1 : huffIndex2;
@@ -5817,14 +5816,13 @@ namespace { // anonymous
     return decodedString;
     }
   //}}}
-
   //{{{
   string getDescStringSimple (uint8_t* buf) {
   // get dvb descriptor string, substitute unwanted chars
 
     int len = *buf++;
 
-    std::string str;
+    string str;
     for (int i = 0; i < len; i++) {
       if (*buf == 0)
         break;
@@ -5849,7 +5847,14 @@ namespace { // anonymous
   }
 
 //{{{
-string getDescString (uint8_t* buf) {
+bool cDvbString::isHuff (uint8_t* buf) {
+
+  return (buf[0] == 0x1F) && (buf[1] == 1 || buf[1] == 2);
+  }
+//}}}
+//{{{
+string cDvbString::getString (uint8_t* buf) {
+
   if (isHuff (buf+1))
     return huffDecode (buf+1, buf[0]);
   else

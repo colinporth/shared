@@ -1360,30 +1360,6 @@ cPidInfo* cTransportStream::getPidInfo (int pid, bool createPsiOnly) {
   return &pidInfoIt->second;
   }
 //}}}
-//{{{
-string cTransportStream::getDescrString (uint8_t* buf, int len) {
-
-  string str;
-
-  for (auto i = 0; i < len; i++) {
-    if (*buf == 0)
-      break;
-
-    if ((*buf >= ' ' && *buf <= '~') || (*buf == '\n') || (*buf >= 0xa0 && *buf <= 0xff))
-      str += *buf;
-
-    if (*buf == 0x8A)
-      str += '\n';
-
-    if ((*buf == 0x86 || *buf == 0x87))
-      str += ' ';
-
-    buf++;
-    }
-
-  return str;
-  }
-//}}}
 
 //{{{
 void cTransportStream::parsePat (cPidInfo* pidInfo, uint8_t* buf) {
@@ -1494,9 +1470,8 @@ void cTransportStream::parseSdt (cPidInfo* pidInfo, uint8_t* buf) {
         switch (getDescrTag (buf)) {
           case DESCR_SERVICE: {
             //{{{  service
-            auto name = getDescrString (
-              buf + sizeof(descr_service_t) + ((descr_service_t*)buf)->provider_name_length + 1,
-              *((uint8_t*)(buf + sizeof (descr_service_t) + ((descr_service_t*)buf)->provider_name_length)));
+            auto name = cDvbString::getString (
+              buf + sizeof(descr_service_t) + ((descr_service_t*)buf)->provider_name_length);
 
             auto it = mServiceMap.find (sid);
             if (it != mServiceMap.end()) {
@@ -1579,13 +1554,13 @@ void cTransportStream::parseEit (cPidInfo* pidInfo, uint8_t* buf) {
             // get title
             auto bufPtr = buf + sizeof(descr_short_event_struct);
             auto bufLen = ((descr_short_event_t*)buf)->event_name_length;
-            auto titleString = getDescString (bufPtr-1);
+            auto titleString = cDvbString::getString (bufPtr-1);
 
             // get info
             bufPtr += ((descr_short_event_t*)buf)->event_name_length + 1;
             bufLen = *((uint8_t*)(buf + sizeof(descr_short_event_struct) +
                      ((descr_short_event_t*)buf)->event_name_length));
-            auto infoString = getDescString (bufPtr - 1);
+            auto infoString = cDvbString::getString (bufPtr - 1);
 
             if (now) {
               // now event

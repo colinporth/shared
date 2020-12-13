@@ -226,7 +226,6 @@ protected:
 private:
   int64_t getPts (uint8_t* tsPtr);
   cPidInfo* getPidInfo (int pid, bool createPsiOnly);
-  std::string getDescrString (uint8_t* buf, int len);
 
   void parsePat (cPidInfo* pidInfo, uint8_t* buf);
   void parseNit (cPidInfo* pidInfo, uint8_t* buf);
