@@ -571,7 +571,7 @@ void cLog::log (enum eLogLevel logLevel, const string& logStr) {
                                        kLevelColours[logLevel], logStr).c_str(),
            stdout);
 
-    if (mFile) { 
+    if (mFile) {
       fputs (format ("{}{} {}{} {}{}\n", timeString, getThreadNameString (getThreadId()), logStr).c_str(), mFile);
       fflush (mFile);
       }
@@ -634,7 +634,7 @@ void cLog::clearScreen() {
 //{{{
 void cLog::status (int row, int colour, const string& statusString) {
 
-  // colour, position to row column 1, clear from cursor to end of line
+  // colour, pos row column 1, clear from cursor to end of line
   string formatString (fmt::format ("{}\033[{};{}H{}\033[K", kLevelColours[colour], row+1, 1, statusString));
   fputs (formatString.c_str(), stdout);
   }
