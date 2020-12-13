@@ -54,6 +54,9 @@ using namespace chrono;
 //}}}
 
 namespace { // anonymous
+  const char kConsoleMidGrey[] =   "\033[38;5;243m";
+  const char kConsoleLightGrey[] = "\033[38;5;249m";
+  const char kConsoleWhite[] =     "\033[38;5;255m";
   //{{{
   const char kLevelColours[][13] = {
     "\033[38;5;255m", // 0 notice white
@@ -61,10 +64,8 @@ namespace { // anonymous
     "\033[38;5;196m", // 2 error  light red
     "\033[38;5;220m", // 3 info   yellow
     "\033[38;5;112m", // 4 info1  green
-    "\033[38;5;144m", // 5 info2  greenis yellow
+    "\033[38;5;144m", // 5 info2  greenish yellow
     "\033[38;5;147m", // 6 info3  bluish
-    "\033[38;5;243m", // 7 mid grey
-    "\033[38;5;200m", // 8 magenta
     };
   //}}}
 
@@ -554,32 +555,24 @@ void cLog::log (enum eLogLevel logLevel, const string& logStr) {
 
   lock_guard<mutex> lockGuard (mLinesMutex);
 
-  auto timePoint = chrono::system_clock::now() + chrono::seconds (mDaylightSecs);
+  time_point<system_clock> now = system_clock::now() + chrono::seconds (mDaylightSecs);
 
   if (mBuffer) {
-    // to buffer for widget access
-    mLineDeque.push_front (cLine (logLevel, getThreadId(), timePoint, logStr));
+    // buffer for widget display
+    mLineDeque.push_front (cLine (logLevel, getThreadId(), now, logStr));
     if (mLineDeque.size() > kMaxBuffer)
       mLineDeque.pop_back();
     }
 
   else if (logLevel <= mLogLevel) {
-    auto datePoint = date::floor<date::days>(timePoint);
-    auto timeToday = timePoint - datePoint;
-    auto timeOfDay = date::make_time (chrono::duration_cast<chrono::microseconds>(timeToday));
-    int subSec = (int)timeOfDay.subseconds().count();
-
-    fputs (format ("{}:{:06d} {}{} {}{}\n\033[m",
-                   date::format ("%T", date::floor<seconds>(timeToday)), subSec,
-                   kLevelColours[7], getThreadNameString (getThreadId()),
-                   kLevelColours[logLevel], logStr).c_str(),
+    string timeString = date::format ("%T", date::floor<microseconds>(now - date::floor<date::days>(now)));
+    fputs (format ("{}{} {}{} {}{}\n", kConsoleWhite, timeString,
+                                       kConsoleLightGrey, getThreadNameString (getThreadId()),
+                                       kLevelColours[logLevel], logStr).c_str(),
            stdout);
 
-    if (mFile) {
-      fputs (format ("{}:06d} {} {}\n",
-                     date::format("%T", date::floor<seconds>(timeToday)), subSec,
-                     getThreadNameString (getThreadId()), logStr).c_str(),
-             mFile);
+    if (mFile) { 
+      fputs (format ("{}{} {}{} {}{}\n", timeString, getThreadNameString (getThreadId()), logStr).c_str(), mFile);
       fflush (mFile);
       }
     }
