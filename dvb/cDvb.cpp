@@ -830,7 +830,7 @@ void cDvb::tune (int frequency) {
     //}}}
 
     // wait for tuning
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 20; i++) {
       this_thread::sleep_for (100ms);
 
       if (ioctl (mFrontEnd, FE_GET_EVENT, &ev) < 0) // no answer, consider it as not locked situation
@@ -964,7 +964,7 @@ void cDvb::tune (int frequency) {
       else
         cLog::log (LOGINFO, "waiting for lock");
       }
-    cLog::log (LOGERROR, "tuning failed\n");
+    cLog::log (LOGERROR, "tuning failed");
   #endif
   }
 //}}}
