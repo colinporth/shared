@@ -11,7 +11,7 @@
 #include "../utils/utils.h"
 #include "../utils/cLog.h"
 
-#include "huffmanTables.h"
+#include "cDvbString.h"
 
 using namespace std;
 //}}}
@@ -1579,13 +1579,13 @@ void cTransportStream::parseEit (cPidInfo* pidInfo, uint8_t* buf) {
             // get title
             auto bufPtr = buf + sizeof(descr_short_event_struct);
             auto bufLen = ((descr_short_event_t*)buf)->event_name_length;
-            auto titleString = isHuff (bufPtr) ? huffDecode (bufPtr, bufLen) : getDescrString (bufPtr, bufLen);
+            auto titleString = getDescString (bufPtr-1);
 
             // get info
             bufPtr += ((descr_short_event_t*)buf)->event_name_length + 1;
             bufLen = *((uint8_t*)(buf + sizeof(descr_short_event_struct) +
                      ((descr_short_event_t*)buf)->event_name_length));
-            auto infoString = isHuff (bufPtr) ? huffDecode (bufPtr, bufLen) : getDescrString (bufPtr, bufLen);
+            auto infoString = getDescString (bufPtr - 1);
 
             if (now) {
               // now event

@@ -46,7 +46,7 @@
 #include "readerWriterQueue.h"
 
 #include "../dvb/cDvb.h"
-#include "../dvb/huffmanTables.h"
+#include "../dvb/cDvbString.h"
 
 using namespace std;
 using namespace fmt;

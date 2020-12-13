@@ -1,4 +1,8 @@
-// DVB-T2 epg huffman tables
+// cDvbString.cpp - DVB-T2 epg huffman tables
+#include <cstdint>
+#include <string>
+
+using namespace std;
 
 namespace { // anonymous
   // const
@@ -5739,7 +5743,7 @@ namespace { // anonymous
     }
   //}}}
   //{{{
-  std::string huffDecode (const unsigned char* src, size_t size) {
+  string huffDecode (const unsigned char* src, size_t size) {
 
     std::string decodedString;
 
@@ -5815,7 +5819,7 @@ namespace { // anonymous
   //}}}
 
   //{{{
-  std::string getDescStringSimple (uint8_t* buf) {
+  string getDescStringSimple (uint8_t* buf) {
   // get dvb descriptor string, substitute unwanted chars
 
     int len = *buf++;
@@ -5844,9 +5848,11 @@ namespace { // anonymous
   //}}}
   }
 
-std::string getDescString (uint8_t* buf) {
+//{{{
+string getDescString (uint8_t* buf) {
   if (isHuff (buf+1))
     return huffDecode (buf+1, buf[0]);
   else
     return getDescStringSimple (buf);
   };
+//}}}
