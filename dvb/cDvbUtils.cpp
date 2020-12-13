@@ -29,7 +29,6 @@ namespace { // anonymous
     char next;
     };
   //}}}
-
   //{{{
   const struct tHuffTable huffTable1[] = {
       /*   51                             */
@@ -5875,6 +5874,55 @@ namespace { // anonymous
   }
 
 //{{{
+int cDvbUtils::getSectionLength (uint8_t* buf) {
+  return ((buf[0] & 0x0F) << 8) + buf[1] + 3;
+  }
+//}}}
+
+//{{{
+uint32_t cDvbUtils::getCrc32 (uint8_t* buf, uint32_t len) {
+
+  uint32_t crc = 0xffffffff;
+  for (uint32_t i = 0; i < len; i++)
+    crc = (crc << 8) ^ kCrcTable[((crc >> 24) ^ *buf++) & 0xff];
+
+  return crc;
+  }
+//}}}
+
+//{{{
+uint32_t cDvbUtils::getEpochTime (uint8_t* buf) {
+  return (((buf[0] << 8) | buf[1]) - 40587) * 86400;
+  }
+//}}}
+//{{{
+uint32_t cDvbUtils::getBcdTime (uint8_t* buf)  {
+  return (3600 * ((10 * ((buf[0] & 0xF0) >> 4)) + (buf[0] & 0xF))) +
+           (60 * ((10 * ((buf[1] & 0xF0) >> 4)) + (buf[1] & 0xF))) +
+                 ((10 * ((buf[2] & 0xF0) >> 4)) + (buf[2] & 0xF));
+  }
+//}}}
+//{{{
+int64_t cDvbUtils::getPts (const uint8_t* buf) {
+// return 33 bits of pts,dts
+
+  if ((buf[0] & 0x01) && (buf[2] & 0x01) && (buf[4] & 0x01)) {
+    // valid marker bits
+    int64_t pts = buf[0] & 0x0E;
+    pts = (pts << 7) |  buf[1];
+    pts = (pts << 8) | (buf[2] & 0xFE);
+    pts = (pts << 7) |  buf[3];
+    pts = (pts << 7) | (buf[4] >> 1);
+    return pts;
+    }
+
+  // markerBits error
+  cLog::log (LOGERROR, format ("getPts markers {:x} {:x} {:x} {:x} {:x}", buf[0], buf[1], buf[2], buf[3], buf[4]));
+  return 0;
+  }
+//}}}
+
+//{{{
 bool cDvbUtils::isHuff (uint8_t* buf) {
 
   return (buf[0] == 0x1F) && (buf[1] == 1 || buf[1] == 2);
@@ -5912,60 +5960,4 @@ string cDvbUtils::getString (uint8_t* buf) {
     return str;
     }
   };
-//}}}
-//{{{
-uint32_t cDvbUtils::getCrc32len (uint32_t crc, uint8_t* buf, unsigned int len) {
-
-  for (auto i = 0u; i < len; i++)
-    crc = (crc << 8) ^ kCrcTable[((crc >> 24) ^ *buf++) & 0xff];
-
-  return crc;
-  }
-//}}}
-
-//{{{
-uint32_t cDvbUtils::getCrc32 (uint8_t* buf, uint32_t len) {
-
-  uint32_t crc = 0xffffffff;
-  for (uint32_t i = 0; i < len; i++)
-    crc = (crc << 8) ^ kCrcTable[((crc >> 24) ^ *buf++) & 0xff];
-
-  return crc;
-  }
-//}}}
-//{{{
-int cDvbUtils::getSectionLength (uint8_t* buf) {
-  return ((buf[0] & 0x0F) << 8) + buf[1] + 3;
-  }
-//}}}
-//{{{
-uint32_t cDvbUtils::getEpochTime (uint8_t* buf) {
-  return (((buf[0] << 8) | buf[1]) - 40587) * 86400;
-  }
-//}}}
-//{{{
-uint32_t cDvbUtils::getBcdTime (uint8_t* buf)  {
-  return (3600 * ((10 * ((buf[0] & 0xF0) >> 4)) + (buf[0] & 0xF))) +
-           (60 * ((10 * ((buf[1] & 0xF0) >> 4)) + (buf[1] & 0xF))) +
-                 ((10 * ((buf[2] & 0xF0) >> 4)) + (buf[2] & 0xF));
-  }
-//}}}
-//{{{
-int64_t cDvbUtils::getPts (const uint8_t* buf) {
-// return 33 bits of pts,dts
-
-  if ((buf[0] & 0x01) && (buf[2] & 0x01) && (buf[4] & 0x01)) {
-    // valid marker bits
-    int64_t pts = buf[0] & 0x0E;
-    pts = (pts << 7) |  buf[1];
-    pts = (pts << 8) | (buf[2] & 0xFE);
-    pts = (pts << 7) |  buf[3];
-    pts = (pts << 7) | (buf[4] >> 1);
-    return pts;
-    }
-
-  // markerBits error
-  cLog::log (LOGERROR, format ("getPts markers {:x} {:x} {:x} {:x} {:x}", buf[0], buf[1], buf[2], buf[3], buf[4]));
-  return 0;
-  }
 //}}}

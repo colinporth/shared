@@ -654,7 +654,7 @@ void cService::writePmt() {
 void cService::writeSection (uint8_t* ts, uint8_t* tsSectionStart, uint8_t* tsPtr) {
 
   // tsSection crc, calc from tsSection start to here
-  auto crc = cDvbUtils::getCrc32len (0xffffffff, tsSectionStart, int(tsPtr - tsSectionStart));
+  auto crc = cDvbUtils::getCrc32 (tsSectionStart, int(tsPtr - tsSectionStart));
   *tsPtr++ = (crc & 0xff000000) >> 24;
   *tsPtr++ = (crc & 0x00ff0000) >> 16;
   *tsPtr++ = (crc & 0x0000ff00) >>  8;
@@ -1308,7 +1308,7 @@ void cTransportStream::parsePat (cPidInfo* pidInfo, uint8_t* buf) {
 
   auto pat = (sPat*)buf;
   auto sectionLength = HILO(pat->section_length) + 3;
-  if (cDvbUtils::getCrc32len (0xffffffff, buf, sectionLength) != 0) {
+  if (cDvbUtils::getCrc32(buf, sectionLength) != 0) {
     //{{{  bad crc error, return
     cLog::log (LOGERROR, "parsePAT - bad crc - sectionLength:" + dec(sectionLength));
     return;
@@ -1336,7 +1336,7 @@ void cTransportStream::parseNit (cPidInfo* pidInfo, uint8_t* buf) {
 
   auto nit = (sNit*)buf;
   auto sectionLength = HILO(nit->section_length) + 3;
-  if (cDvbUtils::getCrc32len(0xffffffff, buf, sectionLength) != 0) {
+  if (cDvbUtils::getCrc32 (buf, sectionLength) != 0) {
     //{{{  bad crc, error, return
     cLog::log (LOGERROR, "parseNIT - bad crc " + dec(sectionLength));
     return;
@@ -1386,7 +1386,7 @@ void cTransportStream::parseSdt (cPidInfo* pidInfo, uint8_t* buf) {
 
   auto sdt = (sSdt*)buf;
   auto sectionLength = HILO(sdt->section_length) + 3;
-  if (cDvbUtils::getCrc32len(0xffffffff, buf, sectionLength) != 0) {
+  if (cDvbUtils::getCrc32 (buf, sectionLength) != 0) {
     //{{{  wrong crc, error, return
     cLog::log (LOGERROR, "parseSDT - bad crc " + dec(sectionLength));
     return;
@@ -1457,7 +1457,7 @@ void cTransportStream::parseEit (cPidInfo* pidInfo, uint8_t* buf) {
 
   auto eit = (sEit*)buf;
   auto sectionLength = HILO(eit->section_length) + 3;
-  if (cDvbUtils::getCrc32len(0xffffffff, buf, sectionLength) != 0) {
+  if (cDvbUtils::getCrc32 (buf, sectionLength) != 0) {
     //{{{  bad crc, error, return
     cLog::log (LOGERROR, "parseEit - bad CRC " + dec(sectionLength));
     return;
@@ -1563,7 +1563,7 @@ void cTransportStream::parsePmt (cPidInfo* pidInfo, uint8_t* buf) {
 
   auto pmt = (sPmt*)buf;
   auto sectionLength = HILO(pmt->section_length) + 3;
-  if (cDvbUtils::getCrc32len(0xffffffff, buf, sectionLength) != 0) {
+  if (cDvbUtils::getCrc32 (buf, sectionLength) != 0) {
     //{{{  bad crc, error, return
     cLog::log (LOGERROR, "parsePMT - pid:%d bad crc %d", pidInfo->mPid, sectionLength);
     return;
