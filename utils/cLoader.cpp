@@ -1,6 +1,6 @@
 // cLoader.cpp - audio,video loader, launches cSongPlayer
-#define _WINSOCK_DEPRECATED_NO_WARNINGS
 //{{{  includes
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS
 #define WIN32_LEAN_AND_MEAN
 
@@ -182,7 +182,7 @@ public:
 
     if (payloadStart) {
       if (ts[0]) {
-        //{{{  pointerfield error return
+        //{{{  pointerfield error, return
         cLog::log (LOGERROR, mPidName + " unexpected pointerField");
         return;
         }
@@ -193,7 +193,7 @@ public:
       //int tid = ts[0]; // could check it
       int sectionLength = cDvbUtils::getSectionLength (ts+1);
       if (cDvbUtils::getCrc32 (ts, sectionLength) != 0) {
-        //{{{  crc error return
+        //{{{  crc error, return
         cLog::log (LOGERROR, mPidName + " crc error");
         return;
         }
@@ -211,7 +211,7 @@ public:
       tsLeft -= kPatHeaderLength;
       sectionLength -= kPatHeaderLength + 4;
       if (sectionLength > tsLeft) {
-        //{{{  sectionLength error return
+        //{{{  sectionLength error, return
         cLog::log (LOGERROR, format ("{} sectionLength:{} tsLeft:{}", mPidName, sectionLength, tsLeft));
         return;
         }
@@ -2041,8 +2041,9 @@ public:
     mPidParsers.insert (map<int,cPidParser*>::value_type (0x12, new cEitParser (eitCallback)));
     mPidParsers.insert (map<int,cPidParser*>::value_type (0x14, new cTdtParser (tdtCallback)));
 
-    char buffer[2048];
-    int bufferLen = 2048;
+    constexpr int kUdpBufferSize = 2048;
+    char buffer[kUdpBufferSize];
+    int bufferLen = kUdpBufferSize;
     do {
       int bytesReceived = recvfrom (rtpReceiveSocket, buffer, bufferLen, 0, (struct sockaddr*)&sendAddr, &sendAddrSize);
       if (bytesReceived != 0) {
