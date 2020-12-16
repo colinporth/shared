@@ -215,6 +215,14 @@ cTsBlock* cDvb::read (cTsBlockPool* blockPool) {
 //{{{
 string cDvb::getStatusString() {
 
+  // old api style signal strength
+  uint32_t strength = 0;
+  ioctl (mFrontEnd, FE_READ_SIGNAL_STRENGTH, &strength);
+
+  // old api style signal snr
+  uint32_t snr = 0;
+  ioctl (mFrontEnd, FE_READ_SNR, &snr);
+
   struct dtv_property props[] = {
     { .cmd = DTV_STAT_SIGNAL_STRENGTH },   // max 0xFFFF percentage
     { .cmd = DTV_STAT_CNR },               // 0.001db
@@ -234,9 +242,9 @@ string cDvb::getStatusString() {
   if ((ioctl (mFrontEnd, FE_GET_PROPERTY, &cmdProperty)) < 0)
     return "status failed";
 
-  return format ("strength {:5.2f}% snr {:5.2f}db {} {} {} {} {} {}",
-                 (props[0].u.st.stat[0].uvalue * 100.f) / 0xFFFF,
-                 props[1].u.st.stat[0].uvalue / 1000.f,
+  return format ("strength {:5.2f}% snr {} {:5.2f}db {} - {} {} {} {} {} {}",
+                 (props[0].u.st.stat[0].uvalue * 100.f) / 0xFFFF, strength,
+                 props[1].u.st.stat[0].uvalue / 1000.f, snr,
                  (int)props[2].u.st.stat[0].uvalue,
                  (int)props[3].u.st.stat[0].uvalue,
                  (int)props[4].u.st.stat[0].uvalue,
