@@ -1103,7 +1103,7 @@ public:
     mLoadFrac = 0.f;
 
     cLog::log (LOGINFO, "cDvbSource %d", mFrequency);
-    auto dvb = new cDvb (mFrequency);
+    auto dvb = new cDvb (mFrequency, 0);
 
     mPtsSong = new cPtsSong (eAudioFrameType::eAacAdts, mNumChannels, mSampleRate, 1024, 1920, 0);
     iAudioDecoder* audioDecoder = nullptr;

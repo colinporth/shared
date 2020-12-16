@@ -235,7 +235,7 @@ namespace { // anonymous
 //{{{
 cTsDvb::cTsDvb (int frequency, const string& root,
                 const vector <string>& channelNames, const vector <string>& recordNames, bool decodeSubtitle)
-    : cDvb (frequency), mDecodeSubtitle(decodeSubtitle) {
+    : cDvb (frequency, 0), mDecodeSubtitle(decodeSubtitle) {
 
   mDvbTransportStream = new cDvbTransportStream (root, channelNames, recordNames, decodeSubtitle);
   };
