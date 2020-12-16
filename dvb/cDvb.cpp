@@ -392,7 +392,6 @@ namespace { // anonymous
       return converter.to_bytes (wstr);
       }
     //}}}
-
     //{{{
     bool connectPins (Microsoft::WRL::ComPtr<IBaseFilter> fromFilter,
                       Microsoft::WRL::ComPtr<IBaseFilter> toFilter,
@@ -500,7 +499,6 @@ namespace { // anonymous
         }
       }
     //}}}
-
     //{{{
     void createFilter (Microsoft::WRL::ComPtr<IBaseFilter>& filter,
                        const CLSID& clsid, const wchar_t* title,
@@ -1106,45 +1104,6 @@ int cDvb::getBlock (uint8_t*& block, int& blockSize) {
   #endif
   }
 //}}}
-//{{{
-cTsBlock* cDvb::getBlocks (cTsBlockPool* blockPool) {
-
-  constexpr int kMaxRead = 50;
-  struct iovec iovecs[kMaxRead];
-
-  cTsBlock* block = mBlockFreeList;
-  cTsBlock** current = &block;
-
-  for (int i = 0; i < kMaxRead; i++) {
-    if (!(*current))
-      *current = blockPool->newBlock();
-    iovecs[i].iov_base = (*current)->mTs;
-    iovecs[i].iov_len = 188;
-    current = &(*current)->mNextBlock;
-    }
-
-  while (poll (fds, 1, -1) <= 0)
-    cLog::log (LOGINFO, "poll waiting");
-
-  int size = readv (fds[0].fd, iovecs, kMaxRead);
-  if (size < 0) {
-    cLog::log (LOGERROR, format ("readv DVR failed {}", strerror(errno)));
-    size = 0;
-    }
-  size /= 188;
-
-  current = &block;
-  while (size && *current) {
-    current = &(*current)->mNextBlock;
-    size--;
-    }
-
-  mBlockFreeList = *current;
-  *current = NULL;
-
-  return block;
-  }
-//}}}
 
 #ifdef _WIN32
   //{{{
@@ -1162,13 +1121,50 @@ cTsBlock* cDvb::getBlocks (cTsBlockPool* blockPool) {
 
 #ifdef __linux__
   //{{{
+  cTsBlock* cDvb::getBlocks (cTsBlockPool* blockPool) {
+
+    constexpr int kMaxRead = 50;
+    struct iovec iovecs[kMaxRead];
+
+    cTsBlock* block = mBlockFreeList;
+    cTsBlock** current = &block;
+
+    for (int i = 0; i < kMaxRead; i++) {
+      if (!(*current))
+        *current = blockPool->newBlock();
+      iovecs[i].iov_base = (*current)->mTs;
+      iovecs[i].iov_len = 188;
+      current = &(*current)->mNextBlock;
+      }
+
+    while (poll (fds, 1, -1) <= 0)
+      cLog::log (LOGINFO, "poll waiting");
+
+    int size = readv (fds[0].fd, iovecs, kMaxRead);
+    if (size < 0) {
+      cLog::log (LOGERROR, format ("readv DVR failed {}", strerror(errno)));
+      size = 0;
+      }
+    size /= 188;
+
+    current = &block;
+    while (size && *current) {
+      current = &(*current)->mNextBlock;
+      size--;
+      }
+
+    mBlockFreeList = *current;
+    *current = NULL;
+
+    return block;
+    }
+  //}}}
+  //{{{
   string cDvb::updateSignalStr() {
 
     fe_status_t feStatus;
-    if (ioctl (mFrontEnd, FE_READ_STATUS, &feStatus) < 0) {
-      cLog::log (LOGERROR, "FE_READ_STATUS failed");
-      return "dvb readStatus failed";
-      }
+    if (ioctl (mFrontEnd, FE_READ_STATUS, &feStatus) < 0)
+      return "no read status";
 
     return format ("{}{}{}{}{}{} {}",
                    feStatus & FE_TIMEDOUT ? "timeout " : "",
