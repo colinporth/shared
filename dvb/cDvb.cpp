@@ -651,30 +651,19 @@ namespace { // anonymous
     #define HIERARCHY 9
     #define PLP_ID 10
     //}}}
-    //{{{  vars
-    //}}}
     //{{{  dtv_properties
-    //{{{
     struct dtv_property info_cmdargs[] = { DTV_API_VERSION, 0,0,0, 0,0 };
-    //}}}
-    //{{{
     struct dtv_properties info_cmdseq = {
       .num = sizeof(info_cmdargs)/sizeof(struct dtv_property),
       .props = info_cmdargs
       };
-    //}}}
 
-    //{{{
     struct dtv_property enum_cmdargs[] = { DTV_ENUM_DELSYS, 0,0,0, 0,0 };
-    //}}}
-    //{{{
     struct dtv_properties enum_cmdseq = {
       .num = sizeof(enum_cmdargs)/sizeof(struct dtv_property),
       .props = enum_cmdargs
       };
-    //}}}
 
-    //{{{
     struct dtv_property dvbt_cmdargs[] = {
       { DTV_DELIVERY_SYSTEM,   0,0,0, SYS_DVBT,0 },
       { DTV_FREQUENCY,         0,0,0, 0,0 },
@@ -688,15 +677,11 @@ namespace { // anonymous
       { DTV_HIERARCHY,         0,0,0, HIERARCHY_AUTO,0 },
       { DTV_TUNE,              0,0,0, 0,0 }
       };
-    //}}}
-    //{{{
     struct dtv_properties dvbt_cmdseq = {
       .num = sizeof(dvbt_cmdargs)/sizeof(struct dtv_property),
       .props = dvbt_cmdargs
       };
-    //}}}
 
-    //{{{
     struct dtv_property dvbt2_cmdargs[] = {
       { DTV_DELIVERY_SYSTEM,   0,0,0, SYS_DVBT2,0 },
       { DTV_FREQUENCY,         0,0,0, 0,0 },
@@ -710,25 +695,17 @@ namespace { // anonymous
       { DTV_HIERARCHY,         0,0,0, HIERARCHY_AUTO,0 },
       { DTV_TUNE,              0,0,0, 0,0 }
       };
-    //}}}
-    //{{{
     struct dtv_properties dvbt2_cmdseq = {
       .num = sizeof(dvbt2_cmdargs)/sizeof(struct dtv_property),
       .props = dvbt2_cmdargs
       };
-    //}}}
 
-    //{{{
     struct dtv_property pclear[] = { DTV_CLEAR, 0,0,0, 0,0 };
-    //}}}
-    //{{{
     struct dtv_properties cmdclear = {
       .num = 1,
       .props = pclear
       };
-    //}}}
-    //}}}
-    //{{{  macros
+
     #define GET_FEC_INNER(fec, val)                         \
       if ((fe_caps & FE_CAN_##fec) && (fecValue == val)) \
         return fec;
@@ -757,6 +734,7 @@ cDvb::cDvb (int frequency, int adapter) : mFrequency(frequency), mAdapter(adapte
         cLog::log (LOGERROR, "cDvb open frontend failed");
         return;
         }
+
       tune (frequency * 1000000);
 
       // open demux nonBlocking rw
@@ -766,6 +744,7 @@ cDvb::cDvb (int frequency, int adapter) : mFrequency(frequency), mAdapter(adapte
         cLog::log (LOGERROR, "cDvb open demux failed");
         return;
         }
+
       setFilter (8192);
 
       // open dvr blocking reads, big buffer 50m
@@ -799,6 +778,7 @@ cDvb::~cDvb() {
 
 //{{{
 string cDvb::getStatusString() {
+
   #ifdef _WIN32
     return "";
   #endif
@@ -821,7 +801,7 @@ string cDvb::getStatusString() {
       };
 
     if ((ioctl (mFrontEnd, FE_GET_PROPERTY, &cmdProperty)) < 0)
-      return "status failed";
+      return "no status";
 
     return format ("strength:{:5.2f}% snr:{:5.2f}db block:{:x},{:x}, pre:{:x},{:x} post:{:x},{:x}",
                    100.f * ((props[0].u.st.stat[0].uvalue & 0xFFFF) / float(0xFFFF)),
@@ -1127,7 +1107,7 @@ int cDvb::getBlock (uint8_t*& block, int& blockSize) {
   }
 //}}}
 //{{{
-cTsBlock* cDvb::read (cTsBlockPool* blockPool) {
+cTsBlock* cDvb::getBlocks (cTsBlockPool* blockPool) {
 
   constexpr int kMaxRead = 50;
   struct iovec iovecs[kMaxRead];

@@ -33,7 +33,7 @@ public:
   void unsetFilter (int fd, uint16_t pid);
 
   int getBlock (uint8_t*& block, int& blockSize);
-  cTsBlock* read (cTsBlockPool* blockPool);
+  cTsBlock* getBlocks (cTsBlockPool* blockPool);
 
   std::string mErrorStr = "waiting";
   std::string mTuneStr = "untuned";
