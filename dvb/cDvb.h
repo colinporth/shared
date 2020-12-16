@@ -10,7 +10,7 @@
   #include <bdatif.h>
 #endif
 
-  #include "cTsBlockPool.h"
+  #include "cDvbUtils.h"
 
 class cDvb {
 public:

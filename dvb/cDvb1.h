@@ -8,7 +8,8 @@
 #include <poll.h>
 #include <linux/dvb/frontend.h>
 
-struct cTsBlock;
+class cTsBlock;
+class cTsBlockPool;
 //}}}
 
 class cDvb {

@@ -1,4 +1,4 @@
-// cDvbUtils.cpp - DVB-T2 epg huffman tables
+// cDvbUtils.cpp
 //{{{  includes
 #define _CRT_SECURE_NO_WARNINGS
 
@@ -5873,6 +5873,7 @@ namespace { // anonymous
   //}}}
   }
 
+// cDvbUtils static members
 //{{{
 int cDvbUtils::getSectionLength (uint8_t* buf) {
   return ((buf[0] & 0x0F) << 8) + buf[1] + 3;
@@ -5960,4 +5961,64 @@ string cDvbUtils::getString (uint8_t* buf) {
     return str;
     }
   };
+//}}}
+
+// cTsBlockPool members
+//{{{
+cTsBlock* cTsBlockPool::newBlock() {
+
+  cTsBlock* block;
+  if (mFreeBlockCount) {
+    block = mBlockPool;
+    mBlockPool = block->mNextBlock;
+    mFreeBlockCount--;
+    }
+  else {
+    block = new cTsBlock();
+    mAllocatedBlockCount++;
+    mMaxBlockCount = max (mMaxBlockCount, mAllocatedBlockCount);
+    }
+
+  block->mNextBlock = NULL;
+  block->mRefCount = 1;
+
+  return block;
+  }
+//}}}
+//{{{
+cTsBlockPool::~cTsBlockPool() {
+
+  // free blocks
+  while (mFreeBlockCount) {
+    cTsBlock* block = mBlockPool;
+    mBlockPool = block->mNextBlock;
+    delete block;
+    mAllocatedBlockCount--;
+    mFreeBlockCount--;
+    }
+  }
+//}}}
+
+//{{{
+void cTsBlockPool::freeBlock (cTsBlock* block) {
+// delte if too many blocks allocated else return to pool
+
+  if (mFreeBlockCount >= mMaxBlocks) {
+    delete block;
+    mAllocatedBlockCount--;
+    return;
+    }
+
+  block->mNextBlock = mBlockPool;
+  mBlockPool = block;
+  mFreeBlockCount++;
+  }
+//}}}
+//{{{
+void cTsBlockPool::unRefBlock (cTsBlock* block) {
+
+  block->mRefCount--;
+  if (!block->mRefCount)
+    cTsBlockPool::freeBlock (block);
+  }
 //}}}

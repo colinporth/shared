@@ -5,7 +5,8 @@
 #include <cstdint>
 #include <string>
 
-struct cTsBlock;
+class cTsBlock;
+class cTsBlockPool;
 class cDvb;
 //}}}
 
