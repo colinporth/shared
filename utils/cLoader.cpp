@@ -1893,15 +1893,9 @@ public:
       }
       //}}}
 
-    //{{{  allow multiple sockets to use the same PORT number
-    //char yes = 1;
-    //if (setsockopt (rtpReceiveSocket, SOL_SOCKET, SO_REUSEADDR, (char*)&yes, sizeof(yes)) != 0) {
-      //{{{  error return
-      //cLog::log (LOGERROR, "socket setsockopt SO_REUSEADDR failed");
-      //return;
-      //}
-      //}}}
-    //}}}
+    // allow multiple sockets to use the same PORT number, no error check?
+    char yes = 1;
+    setsockopt (rtpReceiveSocket, SOL_SOCKET, SO_REUSEADDR, (char*)&yes, sizeof(yes));
 
     // bind the socket to anyAddress:specifiedPort
     struct sockaddr_in recvAddr;
