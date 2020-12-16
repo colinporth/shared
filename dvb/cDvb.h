@@ -65,7 +65,6 @@ private:
     void frontendInfo (struct dvb_frontend_info& info, uint32_t version,
                        fe_delivery_system_t* systems, int numSystems);
     void frontendSetup();
-    bool frontendStatus();
 
     int mFrontEnd = 0;
     int mDemux = 0;

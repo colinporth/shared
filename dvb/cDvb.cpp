@@ -733,7 +733,7 @@ cDvb::cDvb (int frequency, int adapter) : mFrequency(frequency), mAdapter(adapte
         return;
         }
 
-      tune (frequency * 1000000);
+      frontendSetup();
 
       // open demux nonBlocking rw
       string demux = format ("/dev/dvb/adapter{}/demux{}", mAdapter, 0);
@@ -817,6 +817,8 @@ string cDvb::getStatusString() {
 //{{{
 void cDvb::tune (int frequency) {
 
+  mFrequency = frequency;
+
   #ifdef _WIN32
     // windows tune
     if (mDvbLocator->put_CarrierFrequency (frequency) != S_OK)
@@ -836,203 +838,7 @@ void cDvb::tune (int frequency) {
   #endif
 
   #ifdef __linux__
-    // linux tune
-    bool t2 = frequency == 626000000;
-
-    struct dvb_frontend_info fe_info;
-    if (ioctl (mFrontEnd, FE_GET_INFO, &fe_info) < 0) {
-      //{{{  error, return
-      cLog::log (LOGERROR, "FE_GET_INFO failed");
-      return;
-      }
-      //}}}
-    cLog::log (LOGINFO, "tuning %s %s to %u ", fe_info.name, t2 ? "T2" : "T", frequency);
-
-    // discard stale events
-    struct dvb_frontend_event ev;
-    while (ioctl (mFrontEnd, FE_GET_EVENT, &ev) >= 0)
-      cLog::log (LOGINFO, "discarding stale event");
-
-    //{{{
-    struct dtv_property tuneProps[10];
-
-    tuneProps[0].cmd = DTV_CLEAR;
-
-    tuneProps[1].cmd = DTV_DELIVERY_SYSTEM;
-    tuneProps[1].u.data = t2 ? SYS_DVBT2 : SYS_DVBT;
-
-    tuneProps[2].cmd = DTV_FREQUENCY;
-    tuneProps[2].u.data = frequency;
-
-    tuneProps[3].cmd = DTV_MODULATION;
-    tuneProps[3].u.data = QAM_AUTO;
-
-    tuneProps[4].cmd = DTV_CODE_RATE_HP;
-    tuneProps[4].u.data = FEC_AUTO;
-
-    tuneProps[5].cmd = DTV_CODE_RATE_LP;
-    tuneProps[5].u.data = 0;
-
-    tuneProps[6].cmd = DTV_INVERSION;
-    tuneProps[6].u.data = INVERSION_AUTO;
-
-    tuneProps[7].cmd = DTV_TRANSMISSION_MODE;
-    tuneProps[7].u.data = TRANSMISSION_MODE_AUTO;
-
-    tuneProps[8].cmd = DTV_BANDWIDTH_HZ;
-    tuneProps[8].u.data = 8000000;
-
-    tuneProps[9].cmd = DTV_TUNE;
-    //}}}
-    struct dtv_properties cmdTune = { .num = 10, .props = tuneProps };
-    if ((ioctl (mFrontEnd, FE_SET_PROPERTY, &cmdTune)) < 0) {
-      //{{{  error, exit
-      cLog::log (LOGERROR, "FE_SET_PROPERTY TUNE failed");
-      return;
-      }
-      //}}}
-
-    //{{{  wait for zero status indicating start of tuning
-    do {
-      ioctl (mFrontEnd, FE_GET_EVENT, &ev);
-      cLog::log (LOGINFO, "waiting to tune");
-      } while (ev.status != 0);
-    //}}}
-
-    // wait for tuning
-    for (int i = 0; i < 20; i++) {
-      this_thread::sleep_for (100ms);
-      if (ioctl (mFrontEnd, FE_GET_EVENT, &ev) < 0) // no answer, consider it as not locked situation
-        ev.status = FE_NONE;
-      if (ev.status & FE_HAS_LOCK) {
-        //{{{  tuning locked
-        struct dtv_property getProps[] = {
-            { .cmd = DTV_DELIVERY_SYSTEM },
-            { .cmd = DTV_MODULATION },
-            { .cmd = DTV_INNER_FEC },
-            { .cmd = DTV_CODE_RATE_HP },
-            { .cmd = DTV_CODE_RATE_LP },
-            { .cmd = DTV_INVERSION },
-            { .cmd = DTV_GUARD_INTERVAL },
-            { .cmd = DTV_TRANSMISSION_MODE },
-          };
-        struct dtv_properties cmdGet = { .num = sizeof(getProps) / sizeof (getProps[0]), .props = getProps };
-
-        if ((ioctl (mFrontEnd, FE_GET_PROPERTY, &cmdGet)) < 0) {
-          //{{{  error, exit
-          cLog::log (LOGERROR, "FE_GET_PROPERTY failed");
-          return;
-          }
-          //}}}
-
-        //{{{
-        const char* deliveryTab[] = {
-          "UNDEFINED",
-          "DVBC_ANNEX_A",
-          "DVBC_ANNEX_B",
-          "DVBT",
-          "DSS",
-          "DVBS",
-          "DVBS2",
-          "DVBH",
-          "ISDBT",
-          "ISDBS",
-          "ISDBC",
-          "ATSC",
-          "ATSCMH",
-          "DTMB",
-          "CMMB",
-          "DAB",
-          "DVBT2",
-          "TURBO",
-          "DVBC_ANNEX_C"
-          };
-        //}}}
-        //{{{
-        const char* modulationTab[] =  {
-          "QPSK",
-          "QAM_16",
-          "QAM_32",
-          "QAM_64",
-          "QAM_128",
-          "QAM_256",
-          "QAM_AUTO",
-          "VSB_8",
-          "VSB_16",
-          "PSK_8",
-          "APSK_16",
-          "APSK_32",
-          "DQPSK"
-        };
-        //}}}
-        //{{{
-        const char* inversionTab[] = {
-          "INV_OFF",
-          "INV_ON",
-          "INV_AUTO"
-          };
-        //}}}
-        //{{{
-        const char* codeRateTab[] = {
-          "FEC_NONE",
-          "FEC_1_2",
-          "FEC_2_3",
-          "FEC_3_4",
-          "FEC_4_5",
-          "FEC_5_6",
-          "FEC_6_7",
-          "FEC_7_8",
-          "FEC_8_9",
-          "FEC_AUTO",
-          "FEC_3_5",
-          "FEC_9_10",
-          };
-        //}}}
-        //{{{
-        const char* transmissionModeTab[] = {
-          "TM_2K",
-          "TM_8K",
-          "TM_AUTO",
-          "TM_4K",
-          "TM_1K",
-          "TM_16K",
-          "TM_32K"
-          };
-        //}}}
-        //{{{
-        const char* guardTab[] = {
-          "GUARD_1_32",
-          "GUARD_1_16",
-          "GUARD_1_8",
-          "GUARD_1_4",
-          "GUARD_AUTO",
-          "GUARD_1_128",
-          "GUARD_19_128",
-          "GUARD_19_256"
-          };
-        //}}}
-
-        cLog::log (LOGINFO, "locked using %s %s %s %s %s %s %s ",
-                   deliveryTab [getProps[0].u.buffer.data[0]],
-                   modulationTab [getProps[1].u.buffer.data[0]],
-                   codeRateTab [getProps[2].u.buffer.data[0]],
-                   codeRateTab [getProps[3].u.buffer.data[0]],
-                   codeRateTab [getProps[4].u.buffer.data[0]],
-                   inversionTab [getProps[5].u.buffer.data[0]],
-                   guardTab [getProps[6].u.buffer.data[0]],
-                   transmissionModeTab [getProps[7].u.buffer.data[0]]);
-
-        mSignalStr = updateSignalStr();
-        //mErrorStr = updateErrorStr (mDvbTransportStream->getErrors());
-
-        mTuneStr = format ("{}Mhz", frequency/1000000);
-        return;
-        }
-        //}}}
-      else
-        cLog::log (LOGINFO, "waiting for lock");
-      }
-    cLog::log (LOGERROR, "tuning failed");
+    frontendSetup();
   #endif
   }
 //}}}
@@ -1398,14 +1204,14 @@ void cDvb::frontendSetup() {
   if (ioctl (mFrontEnd, FE_GET_INFO, &info) < 0) {
     //{{{  error exit
     cLog::log (LOGERROR, "frontend FE_GET_INFO failed %s", strerror(errno));
-    exit (1);
+    return;
     }
     //}}}
 
   if (ioctl (mFrontEnd, FE_GET_PROPERTY, &info_cmdseq) < 0) {
     //{{{  error exit
     cLog::log (LOGERROR, "frontend FE_GET_PROPERTY api version failed");
-    exit (1);
+    return;
     }
     //}}}
   int version = info_cmdargs[0].u.data;
@@ -1413,7 +1219,7 @@ void cDvb::frontendSetup() {
   if (ioctl (mFrontEnd, FE_GET_PROPERTY, &enum_cmdseq) < 0) {
     //{{{  error exit
     cLog::log (LOGERROR, "frontend FE_GET_PROPERTY failed");
-    exit (1);
+    return;
     }
     //}}}
 
@@ -1422,7 +1228,7 @@ void cDvb::frontendSetup() {
   if (numSystems < 1) {
     //{{{  error exit
     cLog::log (LOGERROR, "no available delivery system");
-    exit(1);
+    return;
     }
     //}}}
   for (int i = 0; i < numSystems; i++)
@@ -1434,7 +1240,7 @@ void cDvb::frontendSetup() {
   if (ioctl (mFrontEnd, FE_SET_PROPERTY, &cmdclear) < 0) {
     //{{{  error exit
     cLog::log (LOGERROR, "Unable to clear frontend");
-    exit (1);
+    return;
     }
     //}}}
 
@@ -1500,85 +1306,6 @@ void cDvb::frontendSetup() {
     //}}}
 
   mLastStatus = (fe_status)0;
-  }
-//}}}
-//{{{
-bool cDvb::frontendStatus() {
-
-  bool result = false;
-
-  struct dvb_frontend_event event;
-  if (ioctl (mFrontEnd, FE_GET_EVENT, &event) < 0) {
-    if (errno == EWOULDBLOCK)
-      return false;
-    cLog::log (LOGERROR, "cDvb read FE_GET_EVENT failed");
-    return false;
-    }
-
-  // report status change
-  fe_status_t status = event.status;
-  fe_status_t diff = (fe_status_t)(status ^ mLastStatus);
-  if (diff) {
-    string statusString = "status - ";
-
-    if (diff & FE_HAS_SIGNAL) {
-      //{{{  signal
-      if (status & FE_HAS_SIGNAL)
-        statusString += "signal ";
-      else
-        statusString += "lostSignal ";
-      }
-      //}}}
-    if (diff & FE_HAS_CARRIER) {
-      //{{{  carrier
-      if (status & FE_HAS_CARRIER)
-        statusString += "carrier ";
-      else
-        statusString += "lostCarrier ";
-      }
-      //}}}
-    if (diff & FE_HAS_VITERBI) {
-      //{{{  fec
-      if (status & FE_HAS_VITERBI)
-        statusString += "stableFec ";
-      else
-        statusString += "lostFec ";
-      }
-      //}}}
-    if (diff & FE_HAS_SYNC) {
-      //{{{  sync
-      if (status & FE_HAS_SYNC)
-        statusString += "sync ";
-      else
-        statusString += "lostSync ";
-      }
-      //}}}
-    if (diff & FE_HAS_LOCK) {
-      //{{{  lock
-      if (status & FE_HAS_LOCK) {
-
-        statusString += "lock ";
-
-        int32_t value = 0;
-        if (ioctl (mFrontEnd, FE_READ_BER, &value) >= 0)
-          statusString += format ("ber:{} ", value);
-        if (ioctl (mFrontEnd, FE_READ_SIGNAL_STRENGTH, &value) >= 0)
-          statusString += format ("strength:{} ", value);
-        if (ioctl (mFrontEnd, FE_READ_SNR, &value) >= 0)
-          statusString += format ("snr:{} ", value);
-        result = true;
-        }
-      else
-        statusString += "lostLock ";
-      }
-      //}}}
-
-    cLog::log (LOGINFO, statusString);
-    }
-
-  mLastStatus = status;
-
-  return result;
   }
 //}}}
 #endif
