@@ -652,10 +652,6 @@ namespace { // anonymous
     #define PLP_ID 10
     //}}}
     //{{{  vars
-    int mFrontEnd = 0;
-    int mDemux = 0;
-    struct pollfd fds[1];
-    cTsBlock* mBlockFreeList = NULL;
     //}}}
     //{{{  dtv_properties
     //{{{
@@ -737,21 +733,6 @@ namespace { // anonymous
       if ((fe_caps & FE_CAN_##fec) && (fecValue == val)) \
         return fec;
     //}}}
-    //{{{
-    void setTsFilter (uint16_t pid, dmx_pes_type_t pestype) {
-
-      struct dmx_pes_filter_params pesFilterParams;
-      pesFilterParams.pid = pid;
-      pesFilterParams.input = DMX_IN_FRONTEND;
-      pesFilterParams.output = DMX_OUT_TS_TAP;
-      pesFilterParams.pes_type = pestype;
-      pesFilterParams.flags = DMX_IMMEDIATE_START;
-
-      auto error = ioctl (mDemux, DMX_SET_PES_FILTER, &pesFilterParams);
-      if (error < 0)
-        cLog::log (LOGERROR, format ("Demux set filter pid:{} {}", pid, error));
-      }
-    //}}}
   #endif
   }
 
@@ -785,7 +766,7 @@ cDvb::cDvb (int frequency, int adapter) : mFrequency(frequency), mAdapter(adapte
         cLog::log (LOGERROR, "cDvb open demux failed");
         return;
         }
-      setTsFilter (8192, DMX_PES_OTHER);
+      setFilter (8192);
 
       // open dvr blocking reads, big buffer 50m
       string dvr = format ("/dev/dvb/adapter{}/dvr{}", mAdapter, 0);
@@ -793,6 +774,7 @@ cDvb::cDvb (int frequency, int adapter) : mFrequency(frequency), mAdapter(adapte
       fds[0].fd = mDvr;
       fds[0].events = POLLIN;
 
+      // set dvr to big 50m buffer
       constexpr int kDvrBufferSize = 256 * 1024 * 188;
       if (ioctl (mDvr, DMX_SET_BUFFER_SIZE, kDvrBufferSize) < 0)
         cLog::log (LOGERROR, "cDvb dvr DMX_SET_BUFFER_SIZE failed");
@@ -942,7 +924,6 @@ void cDvb::tune (int frequency) {
     // wait for tuning
     for (int i = 0; i < 20; i++) {
       this_thread::sleep_for (100ms);
-
       if (ioctl (mFrontEnd, FE_GET_EVENT, &ev) < 0) // no answer, consider it as not locked situation
         ev.status = FE_NONE;
       if (ev.status & FE_HAS_LOCK) {
@@ -1077,7 +1058,11 @@ void cDvb::tune (int frequency) {
   #endif
   }
 //}}}
-void cDvb::reset() {}
+//{{{
+void cDvb::reset() {
+  cLog::log (LOGERROR, "cDvb reset not implemneted");
+  }
+//}}}
 //{{{
 int cDvb::setFilter (uint16_t pid) {
 
@@ -1217,7 +1202,7 @@ cTsBlock* cDvb::read (cTsBlockPool* blockPool) {
     }
   //}}}
 
-// private
+// private - dvblast style
 //{{{
 fe_hierarchy_t cDvb::getHierarchy() {
 

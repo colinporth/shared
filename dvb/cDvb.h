@@ -67,6 +67,10 @@ private:
     void frontendSetup();
     bool frontendStatus();
 
+    int mFrontEnd = 0;
+    int mDemux = 0;
+    struct pollfd fds[1];
+
     int mBandwidth = 8;
     int mFeNum = 0;
     int mInversion = -1;
@@ -78,8 +82,7 @@ private:
 
     fe_status_t mLastStatus;
 
-    //int mFrontEnd = -1;
-    //struct pollfd fds[1];
+    cTsBlock* mBlockFreeList = NULL;
 
   #endif
   };
