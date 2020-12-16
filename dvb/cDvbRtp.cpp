@@ -4,6 +4,8 @@
 #include "cDvbUtils.h"
 #include "cDvb.h"
 
+#include <vector>
+
 #include <string.h>
 #include <sys/uio.h>
 #include <sys/time.h>
@@ -18,8 +20,6 @@
 #include "../../shared/fmt/core.h"
 #include "../../shared/date/date.h"
 #include "../../shared/utils/cLog.h"
-
-#include "../../shared/dvb/cDvbUtils.h"
 
 using namespace std;
 using namespace fmt;
