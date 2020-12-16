@@ -158,7 +158,7 @@ protected:
       info += hex (value, 2) + " ";
       }
 
-    cLog::log (LOGINFO, mPidName + " " + string(payloadStart ? "start ": "") + dec (tsLeft,3) + ":" + info);
+    cLog::log (LOGINFO, format ("{} {} {}", mPidName, payloadStart ? "start ": "", info));
     }
   //}}}
 
@@ -370,7 +370,7 @@ protected:
       // allocate double size of mSection buffer
       mAllocSectionSize *= 2;
       mSection = (uint8_t*)realloc (mSection, mAllocSectionSize);
-      cLog::log (LOGINFO1, mPidName + " sdt allocSize doubled to " + dec(mAllocSectionSize));
+      cLog::log (LOGINFO1, format ("{} sdt allocSize doubled to {}", mPidName, mAllocSectionSize));
       }
 
     memcpy (mSection + mSectionSize, buf, bytesToAdd);
@@ -1089,7 +1089,7 @@ public:
     if (params[0] != "dvb")
       return false;
 
-    mFrequency = 626;
+    mFrequency = 626000000;
     mMultiplexName =  params[0];
 
     return true;
@@ -1102,7 +1102,7 @@ public:
     mRunning = true;
     mLoadFrac = 0.f;
 
-    cLog::log (LOGINFO, "cDvbSource %d", mFrequency);
+    cLog::log (LOGINFO, format ("cDvbSource {}", mFrequency));
     auto dvb = new cDvb (mFrequency, 0);
 
     mPtsSong = new cPtsSong (eAudioFrameType::eAacAdts, mNumChannels, mSampleRate, 1024, 1920, 0);
