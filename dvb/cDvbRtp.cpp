@@ -2,7 +2,7 @@
 //{{{  includes
 #include "cDvbRtp.h"
 #include "cDvbUtils.h"
-#include "cDvb1.h"
+#include "cDvb.h"
 
 #include <string.h>
 #include <sys/uio.h>
