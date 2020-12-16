@@ -46,6 +46,7 @@ public:
   #endif
 
   #ifdef __linux__
+    int mDvr = 0;
     cTsBlock* getBlocks (cTsBlockPool* blockPool);
     std::string updateSignalStr();
   #endif
@@ -67,7 +68,6 @@ private:
 
     int mFrontEnd = 0;
     int mDemux = 0;
-    int mDvr = 0;
     struct pollfd fds[1];
 
     int mBandwidth = 8;
