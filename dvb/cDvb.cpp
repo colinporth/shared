@@ -719,14 +719,6 @@ string cDvb::getStatusString() {
   #endif
 
   #ifdef __linux__
-    // old api style signal strength
-    //uint32_t strength = 0;
-    //ioctl (mFrontEnd, FE_READ_SIGNAL_STRENGTH, &strength);
-
-    // old api style signal snr
-    //uint32_t snr = 0;
-    //ioctl (mFrontEnd, FE_READ_SNR, &snr);
-
     struct dtv_property props[] = {
       { .cmd = DTV_STAT_SIGNAL_STRENGTH },   // max 0xFFFF percentage
       { .cmd = DTV_STAT_CNR },               // 0.001db
@@ -746,7 +738,7 @@ string cDvb::getStatusString() {
     if ((ioctl (mFrontEnd, FE_GET_PROPERTY, &cmdProperty)) < 0)
       return "status failed";
 
-    return format ("strength:{:5.2f}% snr:{:5.2f}db block:{:x},{:x}, pre:{:x},{:x}, post:{:x},{:x}",
+    return format ("strength:{:5.2f}% snr:{:5.2f}db block:{:x},{:x}, pre:{:x},{:x} post:{:x},{:x}",
                    100.f * ((props[0].u.st.stat[0].uvalue & 0xFFFF) / float(0xFFFF)),
                    props[1].u.st.stat[0].svalue / 1000.f,
                    (__u64)props[2].u.st.stat[0].uvalue,
