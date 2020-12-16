@@ -38,6 +38,7 @@ private:
 
   int mFrequency = 626000000;
   int mAdapter = 0;
+
   int mBandwidth = 8;
   int mFeNum = 0;
   int mInversion = -1;

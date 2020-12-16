@@ -657,7 +657,7 @@ namespace { // anonymous
 
 // public:
 //{{{
-cDvb::cDvb (int frequency) {
+cDvb::cDvb (int frequency, int adapter) : mFrequency(frequency), mAdapter(adapter) {
 
   if (frequency) {
     #ifdef _WIN32
@@ -670,7 +670,8 @@ cDvb::cDvb (int frequency) {
 
     #ifdef __linux__
       // open frontend nonBlocking rw
-      mFrontEnd = open ("/dev/dvb/adapter0/frontend0", O_RDWR | O_NONBLOCK);
+      string frontend = format ("/dev/dvb/adapter{}/frontend{}", mAdapter, 0);
+      mFrontEnd = open (frontend.c_str(), O_RDWR | O_NONBLOCK);
       if (mFrontEnd < 0){
         cLog::log (LOGERROR, "cDvb open frontend failed");
         return;
@@ -678,7 +679,8 @@ cDvb::cDvb (int frequency) {
       tune (frequency * 1000000);
 
       // open demux nonBlocking rw
-      mDemux = open ("/dev/dvb/adapter0/demux0", O_RDWR | O_NONBLOCK);
+      string demux = format ("/dev/dvb/adapter{}/demux{}", mAdapter, 0);
+      mDemux = open (demux.c_str(), O_RDWR | O_NONBLOCK);
       if (mDemux < 0) {
         cLog::log (LOGERROR, "cDvb open demux failed");
         return;
@@ -686,7 +688,8 @@ cDvb::cDvb (int frequency) {
       setTsFilter (8192, DMX_PES_OTHER);
 
       // open dvr blocking reads, big buffer 50m
-      mDvr = open ("/dev/dvb/adapter0/dvr0", O_RDONLY);
+      string dvr = format ("/dev/dvb/adapter{}/dvr{}", mAdapter, 0);
+      mDvr = open (dvr.c_str(), O_RDONLY);
       fds[0].fd = mDvr;
       fds[0].events = POLLIN;
 

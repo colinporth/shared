@@ -14,7 +14,7 @@
 
 class cDvb {
 public:
-  cDvb (int frequency);
+  cDvb (int frequency, int adapter);
   virtual ~cDvb();
 
   std::string getStatusString();
@@ -43,4 +43,8 @@ public:
   std::string mErrorStr = "waiting";
   std::string mTuneStr = "untuned";
   std::string mSignalStr = "no signal";
+
+private:
+  int mFrequency;
+  int mAdapter;
   };
