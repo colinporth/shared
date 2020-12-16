@@ -54,6 +54,18 @@
   #include <sys/ioctl.h>
   #include <sys/time.h>
   #include <sys/poll.h>
+  #include <signal.h>
+
+  #include <sys/time.h>
+  #include <sys/poll.h>
+  #include <fcntl.h>
+  #include <sys/ioctl.h>
+  #include <sys/types.h>
+  #include <sys/uio.h>
+  #include <sys/types.h>
+  #include <sys/uio.h>
+  #include <unistd.h>
+
 
   #include <linux/dvb/version.h>
   #include <linux/dvb/dmx.h>
@@ -637,6 +649,8 @@ namespace { // anonymous
   //{{{  vars
   int mFrontEnd = 0;
   int mDemux = 0;
+  struct pollfd fds[1];
+  cTsBlock* mBlockFreeList = NULL;
   //}}}
   //{{{
   void setTsFilter (uint16_t pid, dmx_pes_type_t pestype) {
@@ -653,41 +667,6 @@ namespace { // anonymous
       cLog::log (LOGERROR, format ("Demux set filter pid:{} {}", pid, error));
     }
   //}}}
-  //{{{
-  void readMonitorFe() {
-
-    struct dtv_property getProps[] = {
-        { .cmd = DTV_STAT_SIGNAL_STRENGTH },
-        { .cmd = DTV_STAT_CNR },
-        { .cmd = DTV_STAT_PRE_ERROR_BIT_COUNT },
-        { .cmd = DTV_STAT_PRE_TOTAL_BIT_COUNT },
-        { .cmd = DTV_STAT_POST_ERROR_BIT_COUNT },
-        { .cmd = DTV_STAT_POST_TOTAL_BIT_COUNT },
-        { .cmd = DTV_STAT_ERROR_BLOCK_COUNT },
-        { .cmd = DTV_STAT_TOTAL_BLOCK_COUNT },
-      };
-
-    struct dtv_properties cmdGet = {
-      .num = sizeof(getProps) / sizeof (getProps[0]),
-      .props = getProps
-      };
-
-    if ((ioctl (mFrontEnd, FE_GET_PROPERTY, &cmdGet)) < 0) {
-      cLog::log (LOGERROR, "readMonitorFe FE_GET_PROPERTY failed");
-      return;
-      }
-
-    for (int i = 0; i < 8; i++)
-      cLog::log (LOGINFO, format ("stat index:{} len:{} scale:{} uvalue:{})",
-                 i,
-                 (int)getProps[i].u.st.len,
-                 (int)getProps[i].u.st.stat[0].scale,
-                 (int)getProps[i].u.st.stat[0].uvalue));
-    //__s64 svalue;
-
-    // need to decode further
-    }
-  //}}}
 #endif
   }
 
@@ -702,8 +681,9 @@ cDvb::cDvb (int frequency) {
         mTuneStr = format ("tuned {}Mhz", frequency);
       else
         mTuneStr = format ("not tuned {}Mhz", frequency);
+    #endif
 
-    #else
+    #ifdef __linux__
       // open frontend nonBlocking rw
       mFrontEnd = open ("/dev/dvb/adapter0/frontend0", O_RDWR | O_NONBLOCK);
       if (mFrontEnd < 0){
@@ -722,6 +702,9 @@ cDvb::cDvb (int frequency) {
 
       // open dvr blocking reads, big buffer 50m
       mDvr = open ("/dev/dvb/adapter0/dvr0", O_RDONLY);
+      fds[0].fd = mDvr;
+      fds[0].events = POLLIN;
+
       constexpr int kDvrBufferSize = 256 * 1024 * 188;
       if (ioctl (mDvr, DMX_SET_BUFFER_SIZE, kDvrBufferSize) < 0)
         cLog::log (LOGERROR, "cDvb dvr DMX_SET_BUFFER_SIZE failed");
@@ -740,6 +723,53 @@ cDvb::~cDvb() {
       close (mDemux);
     if (mFrontEnd)
       close (mFrontEnd);
+  #endif
+  }
+//}}}
+
+//{{{
+string cDvb::getStatusString() {
+  #ifdef _WIN32
+    return "";
+  #endif
+
+  #ifdef __linux__
+    // old api style signal strength
+    //uint32_t strength = 0;
+    //ioctl (mFrontEnd, FE_READ_SIGNAL_STRENGTH, &strength);
+
+    // old api style signal snr
+    //uint32_t snr = 0;
+    //ioctl (mFrontEnd, FE_READ_SNR, &snr);
+
+    struct dtv_property props[] = {
+      { .cmd = DTV_STAT_SIGNAL_STRENGTH },   // max 0xFFFF percentage
+      { .cmd = DTV_STAT_CNR },               // 0.001db
+      { .cmd = DTV_STAT_ERROR_BLOCK_COUNT },
+      { .cmd = DTV_STAT_TOTAL_BLOCK_COUNT }, // count
+      { .cmd = DTV_STAT_PRE_ERROR_BIT_COUNT },
+      { .cmd = DTV_STAT_PRE_TOTAL_BIT_COUNT },
+      { .cmd = DTV_STAT_POST_ERROR_BIT_COUNT },
+      { .cmd = DTV_STAT_POST_TOTAL_BIT_COUNT },
+      };
+
+    struct dtv_properties cmdProperty = {
+      .num = 8,
+      .props = props
+      };
+
+    if ((ioctl (mFrontEnd, FE_GET_PROPERTY, &cmdProperty)) < 0)
+      return "status failed";
+
+    return format ("strength:{:5.2f}% snr:{:5.2f}db block:{:x},{:x}, pre:{:x},{:x}, post:{:x},{:x}",
+                   100.f * ((props[0].u.st.stat[0].uvalue & 0xFFFF) / float(0xFFFF)),
+                   props[1].u.st.stat[0].svalue / 1000.f,
+                   (__u64)props[2].u.st.stat[0].uvalue,
+                   (__u64)props[3].u.st.stat[0].uvalue,
+                   (__u64)props[4].u.st.stat[0].uvalue,
+                   (__u64)props[5].u.st.stat[0].uvalue,
+                   (__u64)props[6].u.st.stat[0].uvalue,
+                   (__u64)props[7].u.st.stat[0].uvalue);
   #endif
   }
 //}}}
@@ -955,7 +985,6 @@ void cDvb::tune (int frequency) {
 
         mSignalStr = updateSignalStr();
         //mErrorStr = updateErrorStr (mDvbTransportStream->getErrors());
-        readMonitorFe();
 
         mTuneStr = format ("{}Mhz", frequency/1000000);
         return;
@@ -966,6 +995,56 @@ void cDvb::tune (int frequency) {
       }
     cLog::log (LOGERROR, "tuning failed");
   #endif
+  }
+//}}}
+void cDvb::reset() {}
+//{{{
+int cDvb::setFilter (uint16_t pid) {
+
+#ifdef _WIN32
+  return 0;
+#endif
+
+#ifdef __linux__
+  int mAdapter = 0;
+  int mFeNum = 0;
+  string filter = format ("/dev/dvb/adapter{}/demux{}", mAdapter, mFeNum);
+
+  int fd = open (filter.c_str(), O_RDWR);
+  if (fd < 0) {
+    // error return
+    cLog::log (LOGERROR, format ("dvbSetFilter - open failed pid:{}", pid));
+    return -1;
+    }
+
+  struct dmx_pes_filter_params s_filter_params;
+  s_filter_params.pid = pid;
+  s_filter_params.input = DMX_IN_FRONTEND;
+  s_filter_params.output = DMX_OUT_TS_TAP;
+  s_filter_params.flags = DMX_IMMEDIATE_START;
+  s_filter_params.pes_type = DMX_PES_OTHER;
+  if (ioctl (fd, DMX_SET_PES_FILTER, &s_filter_params) < 0) {
+    // error return
+    cLog::log (LOGERROR, format ("dvbSetFilter - set_pesFilter failed pid:{} {}", pid, strerror (errno)));
+    close (fd);
+    return -1;
+    }
+
+  cLog::log (LOGINFO1, format ("dvbSetFilter pid:{}", pid));
+  return fd;
+#endif
+  }
+//}}}
+//{{{
+void cDvb::unsetFilter (int fd, uint16_t pid) {
+
+#ifdef __linux__
+  if (ioctl (fd, DMX_STOP) < 0)
+    cLog::log (LOGERROR, format("dvbUnsetFilter - stop failed {}", strerror (errno)));
+  else
+    cLog::log (LOGINFO1, format ("dvbUnsetFilter - unsetting pid:{}", pid));
+  close (fd);
+#endif
   }
 //}}}
 
@@ -993,22 +1072,15 @@ void cDvb::tune (int frequency) {
       return "dvb readStatus failed";
       }
 
-    // not sure why these fail, only a problem with xbox one usb tuner
-    uint32_t strength = 0;
-    ioctl (mFrontEnd, FE_READ_SIGNAL_STRENGTH, &strength);
-
-    uint32_t snr = 0;
-    ioctl (mFrontEnd, FE_READ_SNR, &snr);
-
-    return format ("{}{}{}{}{}{} strength:{:.1f} snr:{:.1f}",
+    return format ("{}{}{}{}{}{} {}",
                    feStatus & FE_TIMEDOUT ? "timeout " : "",
                    feStatus & FE_HAS_LOCK ? "lock " : "",
                    feStatus & FE_HAS_SIGNAL ? "s" : "",
                    feStatus & FE_HAS_CARRIER ? "c": "",
                    feStatus & FE_HAS_VITERBI ? "v": " ",
                    feStatus & FE_HAS_SYNC ? "s" : "",
-                   (strength & 0xFFFF) / 1000.f,
-                   (snr & 0xFFFF) / 1000.f);
+                   getStatusString());
+
     }
   //}}}
 #endif
@@ -1016,11 +1088,52 @@ void cDvb::tune (int frequency) {
 //{{{
 int cDvb::getBlock (uint8_t*& block, int& blockSize) {
 
-  #ifdef __linux__
-    return read (mDvr, block, blockSize);
-  #else
+  #ifdef _WIN32
     cLog::log (LOGERROR, "cDvbSimple::getTsBlock not implemented");
     return 0;
   #endif
+
+  #ifdef __linux__
+    return ::read (mDvr, block, blockSize);
+  #endif
+  }
+//}}}
+//{{{
+cTsBlock* cDvb::read (cTsBlockPool* blockPool) {
+
+  constexpr int kMaxRead = 50;
+  struct iovec iovecs[kMaxRead];
+
+  cTsBlock* block = mBlockFreeList;
+  cTsBlock** current = &block;
+
+  for (int i = 0; i < kMaxRead; i++) {
+    if (!(*current))
+      *current = blockPool->newBlock();
+    iovecs[i].iov_base = (*current)->mTs;
+    iovecs[i].iov_len = 188;
+    current = &(*current)->mNextBlock;
+    }
+
+  while (poll (fds, 1, -1) <= 0)
+    cLog::log (LOGINFO, "poll waiting");
+
+  int size = readv (fds[0].fd, iovecs, kMaxRead);
+  if (size < 0) {
+    cLog::log (LOGERROR, format ("readv DVR failed {}", strerror(errno)));
+    size = 0;
+    }
+  size /= 188;
+
+  current = &block;
+  while (size && *current) {
+    current = &(*current)->mNextBlock;
+    size--;
+    }
+
+  mBlockFreeList = *current;
+  *current = NULL;
+
+  return block;
   }
 //}}}

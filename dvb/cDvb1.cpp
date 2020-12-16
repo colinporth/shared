@@ -216,18 +216,18 @@ cTsBlock* cDvb::read (cTsBlockPool* blockPool) {
 string cDvb::getStatusString() {
 
   // old api style signal strength
-  uint32_t strength = 0;
-  ioctl (mFrontEnd, FE_READ_SIGNAL_STRENGTH, &strength);
+  //uint32_t strength = 0;
+  //ioctl (mFrontEnd, FE_READ_SIGNAL_STRENGTH, &strength);
 
   // old api style signal snr
-  uint32_t snr = 0;
-  ioctl (mFrontEnd, FE_READ_SNR, &snr);
+  //uint32_t snr = 0;
+  //ioctl (mFrontEnd, FE_READ_SNR, &snr);
 
   struct dtv_property props[] = {
     { .cmd = DTV_STAT_SIGNAL_STRENGTH },   // max 0xFFFF percentage
     { .cmd = DTV_STAT_CNR },               // 0.001db
-    { .cmd = DTV_STAT_TOTAL_BLOCK_COUNT }, // count
     { .cmd = DTV_STAT_ERROR_BLOCK_COUNT },
+    { .cmd = DTV_STAT_TOTAL_BLOCK_COUNT }, // count
     { .cmd = DTV_STAT_PRE_ERROR_BIT_COUNT },
     { .cmd = DTV_STAT_PRE_TOTAL_BIT_COUNT },
     { .cmd = DTV_STAT_POST_ERROR_BIT_COUNT },
@@ -242,15 +242,15 @@ string cDvb::getStatusString() {
   if ((ioctl (mFrontEnd, FE_GET_PROPERTY, &cmdProperty)) < 0)
     return "status failed";
 
-  return format ("strength {:5.2f}% snr {} {:5.2f}db {} - {} {} {} {} {} {}",
-                 (props[0].u.st.stat[0].uvalue * 100.f) / 0xFFFF, strength,
-                 props[1].u.st.stat[0].uvalue / 1000.f, snr,
-                 (int)props[2].u.st.stat[0].uvalue,
-                 (int)props[3].u.st.stat[0].uvalue,
-                 (int)props[4].u.st.stat[0].uvalue,
-                 (int)props[5].u.st.stat[0].uvalue,
-                 (int)props[6].u.st.stat[0].uvalue,
-                 (int)props[7].u.st.stat[0].uvalue);
+  return format ("strength:{:5.2f}% snr:{:5.2f}db block:{:x},{:x}, pre:{:x},{:x}, post:{:x},{:x}",
+                 100.f * ((props[0].u.st.stat[0].uvalue & 0xFFFF) / float(0xFFFF)),
+                 props[1].u.st.stat[0].svalue / 1000.f,
+                 (__u64)props[2].u.st.stat[0].uvalue,
+                 (__u64)props[3].u.st.stat[0].uvalue,
+                 (__u64)props[4].u.st.stat[0].uvalue,
+                 (__u64)props[5].u.st.stat[0].uvalue,
+                 (__u64)props[6].u.st.stat[0].uvalue,
+                 (__u64)props[7].u.st.stat[0].uvalue);
   }
 //}}}
 

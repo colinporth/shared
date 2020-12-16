@@ -10,14 +10,22 @@
   #include <bdatif.h>
 #endif
 
+  #include "cTsBlockPool.h"
+
 class cDvb {
 public:
   cDvb (int frequency);
   virtual ~cDvb();
 
+  std::string getStatusString();
+
   void tune (int frequency);
+  void reset();
+  int setFilter (uint16_t pid);
+  void unsetFilter (int fd, uint16_t pid);
 
   int getBlock (uint8_t*& block, int& blockSize);
+  cTsBlock* read (cTsBlockPool* blockPool);
 
   #ifdef _WIN32
     uint8_t* getBlockBDA (int& len);
