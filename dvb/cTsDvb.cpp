@@ -74,8 +74,6 @@ constexpr bool kDebug = false;
 
 namespace { // anonymous
   uint64_t mLastErrors = 0;
-  int mLastBlockSize = 0;
-  int mMaxBlockSize = 0;
   //{{{
   string updateErrorStr (int errors) {
     return format ("err:{} max:{}", errors, mMaxBlockSize);
@@ -305,7 +303,7 @@ void cTsDvb::grabThread (const string& root, const string& multiplexName) {
   #endif
 
   #ifdef __linux__
-    constexpr int kDvrReadBufferSize = 1024 * 188;
+    constexpr int kDvrReadBufferSize = 50 * 188;
     auto buffer = (uint8_t*)malloc (kDvrReadBufferSize);
 
     uint64_t streamPos = 0;
@@ -316,12 +314,8 @@ void cTsDvb::grabThread (const string& root, const string& multiplexName) {
         if (mFile)
           fwrite (buffer, 1, bytesRead, mFile);
 
-        bool show = (mDvbTransportStream->getErrors() != mLastErrors) || (bytesRead > mLastBlockSize);
+        bool show = mDvbTransportStream->getErrors() != mLastErrors;
         mLastErrors = mDvbTransportStream->getErrors();
-        if (bytesRead > mLastBlockSize)
-          mLastBlockSize = bytesRead;
-        if (bytesRead > mMaxBlockSize)
-          mMaxBlockSize = bytesRead;
 
         mSignalStr = getStatusString();
         if (show) {
