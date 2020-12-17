@@ -801,7 +801,7 @@ string cDvb::getStatusString() {
     if ((ioctl (mFrontEnd, FE_GET_PROPERTY, &cmdProperty)) < 0)
       return "no status";
 
-    return format ("strength:{:5.2f}% snr:{:5.2f}db block:{:x},{:x}, pre:{:x},{:x} post:{:x},{:x}",
+    return format ("{:5.2f}% {:5.2f}db b:{:x},{:x}, pre:{:x},{:x} post:{:x},{:x}",
                    100.f * ((props[0].u.st.stat[0].uvalue & 0xFFFF) / float(0xFFFF)),
                    props[1].u.st.stat[0].svalue / 1000.f,
                    (__u64)props[2].u.st.stat[0].uvalue,
@@ -971,355 +971,353 @@ int cDvb::getBlock (uint8_t*& block, int& blockSize) {
     return firstBlock;
     }
   //}}}
+
+  // private - dvblast frontend
   //{{{
-  string cDvb::updateSignalStr() {
+  fe_hierarchy_t cDvb::getHierarchy() {
 
-    fe_status_t feStatus;
-    if (ioctl (mFrontEnd, FE_READ_STATUS, &feStatus) < 0)
-      return "unknown status";
+    switch (mHierarchy) {
+      case -1: return HIERARCHY_AUTO;
+      case 0: return HIERARCHY_NONE;
+      case 1: return HIERARCHY_1;
+      case 2: return HIERARCHY_2;
+      case 4: return HIERARCHY_4;
+      default:
+        cLog::log (LOGERROR, "invalid intramission mode %d", mTransmission);
+        return HIERARCHY_AUTO;
+      }
+    }
+  //}}}
+  //{{{
+  fe_guard_interval_t cDvb::getGuard() {
 
-    return format ("{}{}{}{}{}{} {}",
-                   feStatus & FE_TIMEDOUT ? "timeout " : "",
-                   feStatus & FE_HAS_LOCK ? "lock " : "",
-                   feStatus & FE_HAS_SIGNAL ? "s" : "",
-                   feStatus & FE_HAS_CARRIER ? "c": "",
-                   feStatus & FE_HAS_VITERBI ? "v": " ",
-                   feStatus & FE_HAS_SYNC ? "s" : "",
-                   getStatusString());
+    switch (mGuard) {
+      case -1:
+      case  0: return GUARD_INTERVAL_AUTO;
+      case  4: return GUARD_INTERVAL_1_4;
+      case  8: return GUARD_INTERVAL_1_8;
+      case 16: return GUARD_INTERVAL_1_16;
+      case 32: return GUARD_INTERVAL_1_32;
+      default:
+        cLog::log (LOGERROR, "invalid guard interval %d", mGuard);
+        return GUARD_INTERVAL_AUTO;
+      }
+    }
+  //}}}
+  //{{{
+  fe_transmit_mode_t cDvb::getTransmission() {
+
+    switch (mTransmission) {
+      case -1:
+      case 0: return TRANSMISSION_MODE_AUTO;
+      case 2: return TRANSMISSION_MODE_2K;
+
+    #ifdef TRANSMISSION_MODE_4K
+      case 4: return TRANSMISSION_MODE_4K;
+    #endif
+
+      case 8: return TRANSMISSION_MODE_8K;
+
+      default:
+        cLog::log (LOGERROR, "invalid tranmission mode %d", mTransmission);
+        return TRANSMISSION_MODE_AUTO;
+      }
+    }
+  //}}}
+  //{{{
+  fe_spectral_inversion_t cDvb::getInversion() {
+
+    switch (mInversion) {
+      case -1: return INVERSION_AUTO;
+      case 0:  return INVERSION_OFF;
+      case 1:  return INVERSION_ON;
+      default:
+        cLog::log (LOGERROR, "invalid inversion %d", mInversion);
+        return INVERSION_AUTO;
+      }
+    }
+  //}}}
+  //{{{
+  fe_code_rate_t cDvb::getFEC (fe_caps_t fe_caps, int fecValue) {
+
+    GET_FEC_INNER(FEC_AUTO, 999);
+    GET_FEC_INNER(FEC_AUTO, -1);
+    if (fecValue == 0)
+      return FEC_NONE;
+
+    GET_FEC_INNER(FEC_1_2, 12);
+    GET_FEC_INNER(FEC_2_3, 23);
+    GET_FEC_INNER(FEC_3_4, 34);
+    if (fecValue == 35)
+      return FEC_3_5;
+
+    GET_FEC_INNER(FEC_4_5, 45);
+    GET_FEC_INNER(FEC_5_6, 56);
+    GET_FEC_INNER(FEC_6_7, 67);
+    GET_FEC_INNER(FEC_7_8, 78);
+    GET_FEC_INNER(FEC_8_9, 89);
+    if (fecValue == 910)
+      return FEC_9_10;
+
+    cLog::log (LOGERROR, "invalid FEC %d", fecValue);
+    return FEC_AUTO;
     }
   //}}}
 
-// private - dvblast frontend
-//{{{
-fe_hierarchy_t cDvb::getHierarchy() {
+  //{{{
+  void cDvb::frontendInfo (struct dvb_frontend_info& info, uint32_t version,
+                           fe_delivery_system_t* systems, int numSystems) {
 
-  switch (mHierarchy) {
-    case -1: return HIERARCHY_AUTO;
-    case 0: return HIERARCHY_NONE;
-    case 1: return HIERARCHY_1;
-    case 2: return HIERARCHY_2;
-    case 4: return HIERARCHY_4;
-    default:
-      cLog::log (LOGERROR, "invalid intramission mode %d", mTransmission);
-      return HIERARCHY_AUTO;
+    cLog::log (LOGINFO, format ("frontend - version {} min {} max {} stepSize {} tolerance {}",
+                                version, info.frequency_min, info.frequency_max,
+                                info.frequency_stepsize, info.frequency_tolerance));
+
+    // info
+    string infoString = "has - ";
+    //{{{  report fec
+    if (info.caps & FE_IS_STUPID)
+      infoString += "stupid ";
+
+    if (info.caps & FE_CAN_INVERSION_AUTO)
+      infoString += "inversionAuto ";
+
+    if (info.caps & FE_CAN_FEC_AUTO)
+      infoString += "fecAuto ";
+
+    if (info.caps & FE_CAN_FEC_1_2)
+      infoString += "fec12 ";
+
+    if (info.caps & FE_CAN_FEC_2_3)
+      infoString += "fec23 ";
+
+    if (info.caps & FE_CAN_FEC_3_4)
+      infoString += "fec34 ";
+
+    if (info.caps & FE_CAN_FEC_4_5)
+      infoString += "fec45 ";
+
+    if (info.caps & FE_CAN_FEC_5_6)
+      infoString += "fec56 ";
+
+    if (info.caps & FE_CAN_FEC_6_7)
+      infoString += "fec67 ";
+
+    if (info.caps & FE_CAN_FEC_7_8)
+      infoString += "fec78 ";
+
+    if (info.caps & FE_CAN_FEC_8_9)
+      infoString += "fec89 ";
+
+    cLog::log (LOGINFO, infoString);
+    //}}}
+    //{{{  report qam
+    infoString = "has - ";
+
+    if (info.caps & FE_CAN_QPSK)
+      infoString += "qpsk ";
+
+    if (info.caps & FE_CAN_QAM_AUTO)
+      infoString += "qamAuto ";
+
+    if (info.caps & FE_CAN_QAM_16)
+      infoString += "qam16 ";
+
+    if (info.caps & FE_CAN_QAM_32)
+      infoString += "qam32 ";
+
+    if (info.caps & FE_IS_STUPID)
+      infoString += "qam64 ";
+
+    if (info.caps & FE_CAN_QAM_128)
+      infoString += "qam128 ";
+
+    if (info.caps & FE_CAN_QAM_256)
+      infoString += "qam256 ";
+
+    cLog::log (LOGINFO, infoString);
+    //}}}
+    //{{{  report other
+    infoString = "has - ";
+
+    if (info.caps & FE_CAN_TRANSMISSION_MODE_AUTO)
+      infoString += "transmissionAuto ";
+
+    if (info.caps & FE_CAN_BANDWIDTH_AUTO)
+      infoString += "bandwidthAuto ";
+
+    if (info.caps & FE_CAN_GUARD_INTERVAL_AUTO)
+      infoString += "guardAuto ";
+
+    if (info.caps & FE_CAN_HIERARCHY_AUTO)
+      infoString += "hierachyAuto ";
+
+    if (info.caps & FE_CAN_8VSB)
+      infoString += "8vsb ";
+
+    if (info.caps & FE_CAN_16VSB)
+      infoString += "16vsb ";
+
+    if (info.caps & FE_HAS_EXTENDED_CAPS)
+      infoString += "extendedinfo.caps ";
+
+    if (info.caps & FE_CAN_2G_MODULATION)
+      infoString += "2G ";
+
+    if (info.caps & FE_CAN_MULTISTREAM)
+      infoString += "multistream ";
+
+    if (info.caps & FE_CAN_TURBO_FEC)
+      infoString += "turboFec ";
+
+    if (info.caps & FE_IS_STUPID)
+      infoString += "needsBending ";
+
+    if (info.caps & FE_CAN_RECOVER)
+      infoString += "canRecover ";
+
+    if (info.caps & FE_CAN_MUTE_TS)
+      infoString += "canMute ";
+
+    cLog::log (LOGINFO, infoString);
+    //}}}
+    //{{{  report delivery systems
+    infoString = "has - ";
+
+    for (int i = 0; i < numSystems; i++)
+      switch (systems[i]) {
+        case SYS_DVBT:  infoString += "DVBT "; break;
+        case SYS_DVBT2: infoString += "DVBT2 "; break;
+        default: break;
+        }
+
+    cLog::log (LOGINFO, infoString);
+    //}}}
     }
-  }
-//}}}
-//{{{
-fe_guard_interval_t cDvb::getGuard() {
-
-  switch (mGuard) {
-    case -1:
-    case  0: return GUARD_INTERVAL_AUTO;
-    case  4: return GUARD_INTERVAL_1_4;
-    case  8: return GUARD_INTERVAL_1_8;
-    case 16: return GUARD_INTERVAL_1_16;
-    case 32: return GUARD_INTERVAL_1_32;
-    default:
-      cLog::log (LOGERROR, "invalid guard interval %d", mGuard);
-      return GUARD_INTERVAL_AUTO;
-    }
-  }
-//}}}
-//{{{
-fe_transmit_mode_t cDvb::getTransmission() {
-
-  switch (mTransmission) {
-    case -1:
-    case 0: return TRANSMISSION_MODE_AUTO;
-    case 2: return TRANSMISSION_MODE_2K;
-
-  #ifdef TRANSMISSION_MODE_4K
-    case 4: return TRANSMISSION_MODE_4K;
-  #endif
-
-    case 8: return TRANSMISSION_MODE_8K;
-
-    default:
-      cLog::log (LOGERROR, "invalid tranmission mode %d", mTransmission);
-      return TRANSMISSION_MODE_AUTO;
-    }
-  }
-//}}}
-//{{{
-fe_spectral_inversion_t cDvb::getInversion() {
-
-  switch (mInversion) {
-    case -1: return INVERSION_AUTO;
-    case 0:  return INVERSION_OFF;
-    case 1:  return INVERSION_ON;
-    default:
-      cLog::log (LOGERROR, "invalid inversion %d", mInversion);
-      return INVERSION_AUTO;
-    }
-  }
-//}}}
-//{{{
-fe_code_rate_t cDvb::getFEC (fe_caps_t fe_caps, int fecValue) {
-
-  GET_FEC_INNER(FEC_AUTO, 999);
-  GET_FEC_INNER(FEC_AUTO, -1);
-  if (fecValue == 0)
-    return FEC_NONE;
-
-  GET_FEC_INNER(FEC_1_2, 12);
-  GET_FEC_INNER(FEC_2_3, 23);
-  GET_FEC_INNER(FEC_3_4, 34);
-  if (fecValue == 35)
-    return FEC_3_5;
-
-  GET_FEC_INNER(FEC_4_5, 45);
-  GET_FEC_INNER(FEC_5_6, 56);
-  GET_FEC_INNER(FEC_6_7, 67);
-  GET_FEC_INNER(FEC_7_8, 78);
-  GET_FEC_INNER(FEC_8_9, 89);
-  if (fecValue == 910)
-    return FEC_9_10;
-
-  cLog::log (LOGERROR, "invalid FEC %d", fecValue);
-  return FEC_AUTO;
-  }
-//}}}
-
-//{{{
-void cDvb::frontendInfo (struct dvb_frontend_info& info, uint32_t version,
-                         fe_delivery_system_t* systems, int numSystems) {
-
-  cLog::log (LOGINFO, format ("frontend - version {} min {} max {} stepSize {} tolerance {}",
-                              version, info.frequency_min, info.frequency_max,
-                              info.frequency_stepsize, info.frequency_tolerance));
-
-  // info
-  string infoString = "has - ";
-  //{{{  report fec
-  if (info.caps & FE_IS_STUPID)
-    infoString += "stupid ";
-
-  if (info.caps & FE_CAN_INVERSION_AUTO)
-    infoString += "inversionAuto ";
-
-  if (info.caps & FE_CAN_FEC_AUTO)
-    infoString += "fecAuto ";
-
-  if (info.caps & FE_CAN_FEC_1_2)
-    infoString += "fec12 ";
-
-  if (info.caps & FE_CAN_FEC_2_3)
-    infoString += "fec23 ";
-
-  if (info.caps & FE_CAN_FEC_3_4)
-    infoString += "fec34 ";
-
-  if (info.caps & FE_CAN_FEC_4_5)
-    infoString += "fec45 ";
-
-  if (info.caps & FE_CAN_FEC_5_6)
-    infoString += "fec56 ";
-
-  if (info.caps & FE_CAN_FEC_6_7)
-    infoString += "fec67 ";
-
-  if (info.caps & FE_CAN_FEC_7_8)
-    infoString += "fec78 ";
-
-  if (info.caps & FE_CAN_FEC_8_9)
-    infoString += "fec89 ";
-
-  cLog::log (LOGINFO, infoString);
   //}}}
-  //{{{  report qam
-  infoString = "has - ";
+  //{{{
+  void cDvb::frontendSetup() {
 
-  if (info.caps & FE_CAN_QPSK)
-    infoString += "qpsk ";
+    struct dvb_frontend_info info;
+    if (ioctl (mFrontEnd, FE_GET_INFO, &info) < 0) {
+      //{{{  error return
+      cLog::log (LOGERROR, "frontend FE_GET_INFO failed %s", strerror(errno));
+      return;
+      }
+      //}}}
 
-  if (info.caps & FE_CAN_QAM_AUTO)
-    infoString += "qamAuto ";
+    if (ioctl (mFrontEnd, FE_GET_PROPERTY, &info_cmdseq) < 0) {
+      //{{{  error return
+      cLog::log (LOGERROR, "frontend FE_GET_PROPERTY api version failed");
+      return;
+      }
+      //}}}
+    int version = info_cmdargs[0].u.data;
 
-  if (info.caps & FE_CAN_QAM_16)
-    infoString += "qam16 ";
+    if (ioctl (mFrontEnd, FE_GET_PROPERTY, &enum_cmdseq) < 0) {
+      //{{{  error return
+      cLog::log (LOGERROR, "frontend FE_GET_PROPERTY failed");
+      return;
+      }
+      //}}}
 
-  if (info.caps & FE_CAN_QAM_32)
-    infoString += "qam32 ";
+    fe_delivery_system_t systems[MAX_DELIVERY_SYSTEMS] = {SYS_UNDEFINED, SYS_UNDEFINED};
+    int numSystems = enum_cmdargs[0].u.buffer.len;
+    if (numSystems < 1) {
+      //{{{  error return
+      cLog::log (LOGERROR, "no available delivery system");
+      return;
+      }
+      //}}}
+    for (int i = 0; i < numSystems; i++)
+      systems[i] = (fe_delivery_system_t)enum_cmdargs[0].u.buffer.data[i];
 
-  if (info.caps & FE_IS_STUPID)
-    infoString += "qam64 ";
+    frontendInfo (info, version, systems, numSystems);
 
-  if (info.caps & FE_CAN_QAM_128)
-    infoString += "qam128 ";
+    // clear frontend commands
+    if (ioctl (mFrontEnd, FE_SET_PROPERTY, &cmdclear) < 0) {
+      //{{{  error return
+      cLog::log (LOGERROR, "Unable to clear frontend");
+      return;
+      }
+      //}}}
 
-  if (info.caps & FE_CAN_QAM_256)
-    infoString += "qam256 ";
+    struct dtv_properties* p;
+    fe_delivery_system_t system = mFrequency == 626000000 ? SYS_DVBT2 : SYS_DVBT;
+    switch (system) {
+      //{{{
+      case SYS_DVBT:
+        p = &dvbt_cmdseq;
+        p->props[DELSYS].u.data = system;
+        p->props[FREQUENCY].u.data = mFrequency;
+        p->props[INVERSION].u.data = getInversion();
+        p->props[BANDWIDTH].u.data = mBandwidth * 1000000;
+        p->props[FEC_INNER].u.data = getFEC (info.caps, mFec);
+        p->props[FEC_LP].u.data = getFEC (info.caps, mFecLp);
+        p->props[GUARD].u.data = getGuard();
+        p->props[TRANSMISSION].u.data = getTransmission();
+        p->props[HIERARCHY].u.data = getHierarchy();
 
-  cLog::log (LOGINFO, infoString);
-  //}}}
-  //{{{  report other
-  infoString = "has - ";
+        cLog::log (LOGINFO, "DVB-T %d band:%d inv:%d fec:%d fecLp:%d hier:%d guard:%d trans:%d",
+                   mFrequency, mBandwidth, mInversion, mFec, mFecLp, mHierarchy, mGuard, mTransmission);
+        break;
+      //}}}
+      //{{{
+      case SYS_DVBT2:
+        p = &dvbt2_cmdseq;
+        p->props[DELSYS].u.data = system;
+        p->props[FREQUENCY].u.data = mFrequency;
+        p->props[INVERSION].u.data = getInversion();
+        p->props[BANDWIDTH].u.data = mBandwidth * 1000000;
+        p->props[FEC_INNER].u.data = getFEC (info.caps, mFec);
+        p->props[FEC_LP].u.data = getFEC (info.caps, mFecLp);
+        p->props[GUARD].u.data = getGuard();
+        p->props[TRANSMISSION].u.data = getTransmission();
+        p->props[HIERARCHY].u.data = getHierarchy();
+        p->props[PLP_ID].u.data = 0; //dvb_plp_id;
 
-  if (info.caps & FE_CAN_TRANSMISSION_MODE_AUTO)
-    infoString += "transmissionAuto ";
-
-  if (info.caps & FE_CAN_BANDWIDTH_AUTO)
-    infoString += "bandwidthAuto ";
-
-  if (info.caps & FE_CAN_GUARD_INTERVAL_AUTO)
-    infoString += "guardAuto ";
-
-  if (info.caps & FE_CAN_HIERARCHY_AUTO)
-    infoString += "hierachyAuto ";
-
-  if (info.caps & FE_CAN_8VSB)
-    infoString += "8vsb ";
-
-  if (info.caps & FE_CAN_16VSB)
-    infoString += "16vsb ";
-
-  if (info.caps & FE_HAS_EXTENDED_CAPS)
-    infoString += "extendedinfo.caps ";
-
-  if (info.caps & FE_CAN_2G_MODULATION)
-    infoString += "2G ";
-
-  if (info.caps & FE_CAN_MULTISTREAM)
-    infoString += "multistream ";
-
-  if (info.caps & FE_CAN_TURBO_FEC)
-    infoString += "turboFec ";
-
-  if (info.caps & FE_IS_STUPID)
-    infoString += "needsBending ";
-
-  if (info.caps & FE_CAN_RECOVER)
-    infoString += "canRecover ";
-
-  if (info.caps & FE_CAN_MUTE_TS)
-    infoString += "canMute ";
-
-  cLog::log (LOGINFO, infoString);
-  //}}}
-  //{{{  report delivery systems
-  infoString = "has - ";
-
-  for (int i = 0; i < numSystems; i++)
-    switch (systems[i]) {
-      case SYS_DVBT:  infoString += "DVBT "; break;
-      case SYS_DVBT2: infoString += "DVBT2 "; break;
-      default: break;
+        cLog::log (LOGINFO, "DVB-T2 %d band:%d inv:%d fec:%d fecLp:%d hier:%d mod:%s guard:%d trans:%d plpId:%d",
+                   mFrequency, mBandwidth, mInversion, mFec, mFecLp,
+                   mHierarchy, "qam_auto", mGuard, mTransmission, p->props[PLP_ID].u.data);
+        break;
+      //}}}
+      //{{{
+      default:
+        cLog::log (LOGERROR, "unknown frontend type %d", info.type);
+        exit(1);
+      //}}}
       }
 
-  cLog::log (LOGINFO, infoString);
+    // empty the event queue
+    while (true) {
+      struct dvb_frontend_event event;
+      if ((ioctl (mFrontEnd, FE_GET_EVENT, &event) < 0) && (errno == EWOULDBLOCK))
+        break;
+      }
+
+    // send properties to frontend device
+    if (ioctl (mFrontEnd, FE_SET_PROPERTY, p) < 0) {
+      //{{{  error return
+      cLog::log (LOGERROR, "setting frontend failed %s", strerror(errno));
+      return;
+      }
+      //}}}
+
+    // wait for lock
+    while (true) {
+      fe_status_t feStatus;
+      if (ioctl (mFrontEnd, FE_READ_STATUS, &feStatus) < 0)
+        cLog::log (LOGERROR, "FE_READ_STATUS status failed");
+      if (feStatus & FE_HAS_LOCK)
+        break;
+      cLog::log (LOGINFO, format ("waiting for lock {}{}{}{}{} {}",
+                                  feStatus & FE_TIMEDOUT ? "timeout " : "",
+                                  feStatus & FE_HAS_SIGNAL ? "s" : "",
+                                  feStatus & FE_HAS_CARRIER ? "c": "",
+                                  feStatus & FE_HAS_VITERBI ? "v": " ",
+                                  feStatus & FE_HAS_SYNC ? "s" : "",
+                                  getStatusString()));
+      this_thread::sleep_for (200ms);
+      }
+    }
   //}}}
-  }
-//}}}
-//{{{
-void cDvb::frontendSetup() {
-
-  struct dvb_frontend_info info;
-  if (ioctl (mFrontEnd, FE_GET_INFO, &info) < 0) {
-    //{{{  error return
-    cLog::log (LOGERROR, "frontend FE_GET_INFO failed %s", strerror(errno));
-    return;
-    }
-    //}}}
-
-  if (ioctl (mFrontEnd, FE_GET_PROPERTY, &info_cmdseq) < 0) {
-    //{{{  error return
-    cLog::log (LOGERROR, "frontend FE_GET_PROPERTY api version failed");
-    return;
-    }
-    //}}}
-  int version = info_cmdargs[0].u.data;
-
-  if (ioctl (mFrontEnd, FE_GET_PROPERTY, &enum_cmdseq) < 0) {
-    //{{{  error return
-    cLog::log (LOGERROR, "frontend FE_GET_PROPERTY failed");
-    return;
-    }
-    //}}}
-
-  fe_delivery_system_t systems[MAX_DELIVERY_SYSTEMS] = {SYS_UNDEFINED, SYS_UNDEFINED};
-  int numSystems = enum_cmdargs[0].u.buffer.len;
-  if (numSystems < 1) {
-    //{{{  error return
-    cLog::log (LOGERROR, "no available delivery system");
-    return;
-    }
-    //}}}
-  for (int i = 0; i < numSystems; i++)
-    systems[i] = (fe_delivery_system_t)enum_cmdargs[0].u.buffer.data[i];
-
-  frontendInfo (info, version, systems, numSystems);
-
-  // clear frontend commands
-  if (ioctl (mFrontEnd, FE_SET_PROPERTY, &cmdclear) < 0) {
-    //{{{  error return
-    cLog::log (LOGERROR, "Unable to clear frontend");
-    return;
-    }
-    //}}}
-
-  struct dtv_properties* p;
-  fe_delivery_system_t system = mFrequency == 626000000 ? SYS_DVBT2 : SYS_DVBT;
-  switch (system) {
-    //{{{
-    case SYS_DVBT:
-      p = &dvbt_cmdseq;
-      p->props[DELSYS].u.data = system;
-      p->props[FREQUENCY].u.data = mFrequency;
-      p->props[INVERSION].u.data = getInversion();
-      p->props[BANDWIDTH].u.data = mBandwidth * 1000000;
-      p->props[FEC_INNER].u.data = getFEC (info.caps, mFec);
-      p->props[FEC_LP].u.data = getFEC (info.caps, mFecLp);
-      p->props[GUARD].u.data = getGuard();
-      p->props[TRANSMISSION].u.data = getTransmission();
-      p->props[HIERARCHY].u.data = getHierarchy();
-
-      cLog::log (LOGINFO, "DVB-T %d band:%d inv:%d fec:%d fecLp:%d hier:%d guard:%d trans:%d",
-                 mFrequency, mBandwidth, mInversion, mFec, mFecLp, mHierarchy, mGuard, mTransmission);
-      break;
-    //}}}
-    //{{{
-    case SYS_DVBT2:
-      p = &dvbt2_cmdseq;
-      p->props[DELSYS].u.data = system;
-      p->props[FREQUENCY].u.data = mFrequency;
-      p->props[INVERSION].u.data = getInversion();
-      p->props[BANDWIDTH].u.data = mBandwidth * 1000000;
-      p->props[FEC_INNER].u.data = getFEC (info.caps, mFec);
-      p->props[FEC_LP].u.data = getFEC (info.caps, mFecLp);
-      p->props[GUARD].u.data = getGuard();
-      p->props[TRANSMISSION].u.data = getTransmission();
-      p->props[HIERARCHY].u.data = getHierarchy();
-      p->props[PLP_ID].u.data = 0; //dvb_plp_id;
-
-      cLog::log (LOGINFO, "DVB-T2 %d band:%d inv:%d fec:%d fecLp:%d hier:%d mod:%s guard:%d trans:%d plpId:%d",
-                 mFrequency, mBandwidth, mInversion, mFec, mFecLp,
-                 mHierarchy, "qam_auto", mGuard, mTransmission, p->props[PLP_ID].u.data);
-      break;
-    //}}}
-    //{{{
-    default:
-      cLog::log (LOGERROR, "unknown frontend type %d", info.type);
-      exit(1);
-    //}}}
-    }
-
-  // empty the event queue
-  while (true) {
-    struct dvb_frontend_event event;
-    if ((ioctl (mFrontEnd, FE_GET_EVENT, &event) < 0) && (errno == EWOULDBLOCK))
-      break;
-    }
-
-  // send properties to frontend device
-  if (ioctl (mFrontEnd, FE_SET_PROPERTY, p) < 0) {
-    //{{{  error return
-    cLog::log (LOGERROR, "setting frontend failed %s", strerror(errno));
-    exit (1);
-    }
-    //}}}
-
-  mLastStatus = (fe_status)0;
-  }
-//}}}
 #endif

@@ -310,7 +310,7 @@ void cTsDvb::grabThread (const string& root, const string& multiplexName) {
 
     uint64_t streamPos = 0;
     while (true) {
-      int bytesRead = ::read (mDvr, buffer, kDvrReadBufferSize);
+      int bytesRead = read (mDvr, buffer, kDvrReadBufferSize);
       if (bytesRead > 0) {
         streamPos += mDvbTransportStream->demux ({}, buffer, bytesRead, 0, false);
         if (mFile)
@@ -323,7 +323,7 @@ void cTsDvb::grabThread (const string& root, const string& multiplexName) {
         if (bytesRead > mMaxBlockSize)
           mMaxBlockSize = bytesRead;
 
-        mSignalStr = updateSignalStr();
+        mSignalStr = getStatusString();
         if (show) {
           mErrorStr = updateErrorStr (mDvbTransportStream->getErrors());
           cLog::log (LOGINFO, mErrorStr + " " + mSignalStr);

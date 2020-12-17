@@ -48,7 +48,6 @@ public:
   #ifdef __linux__
     int mDvr = 0;
     cTsBlock* getBlocks (cTsBlockPool* blockPool);
-    std::string updateSignalStr();
   #endif
 
 private:
@@ -78,7 +77,5 @@ private:
     int mGuard = -1;
     int mTransmission = -1;
     int mHierarchy = -1;
-
-    fe_status_t mLastStatus;
   #endif
   };
