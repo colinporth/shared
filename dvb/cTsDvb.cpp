@@ -76,7 +76,7 @@ namespace { // anonymous
   uint64_t mLastErrors = 0;
   //{{{
   string updateErrorStr (int errors) {
-    return format ("err:{} max:{}", errors, mMaxBlockSize);
+    return format ("err:{}", errors);
     }
   //}}}
 
