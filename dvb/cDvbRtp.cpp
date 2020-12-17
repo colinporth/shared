@@ -1708,7 +1708,6 @@ namespace {
   cTsBlockPool* mBlockPool;
 
   // time
-  int64_t mWallclock = 0;
   int64_t mLastDts = -1;
 
   // tuner
@@ -2791,7 +2790,7 @@ namespace {
         output->mSeqnum++;
 
         // timestamp based only on local time when sent 90 kHz clock = 90000 counts per second
-        uint32_t timestamp = mWallclock * 9/100;
+        uint32_t timestamp = mdate() * 9/100;
         rtpHeader[4] = (timestamp >> 24) & 0xff;
         rtpHeader[5] = (timestamp >> 16) & 0xff;
         rtpHeader[6] = (timestamp >> 8) & 0xff;
@@ -2824,9 +2823,6 @@ namespace {
         // send rtp packet iovecs
         if (writev (output->mSocket, iovecs, numIov) < 0)
           cLog::log (LOGERROR, "outputPut writev failed " + output->mConfig.mDisplayName);
-
-        // update the wallclock because writev() can take some time
-        mWallclock = mdate();
 
         // release packets
         for (blockNum = 0; blockNum < packet->mDepth; blockNum++)
@@ -3679,7 +3675,7 @@ namespace {
     }
   //}}}
   //{{{
-  void demux (cTsBlock* block) {
+  void demuxBlock (cTsBlock* block) {
   // demux single ts block
 
     uint16_t pidNum = ts_get_pid (block->mTs);
@@ -3905,12 +3901,10 @@ bool cDvbRtp::selectOutput (const string& addressString, int sid) {
   }
 //}}}
 //{{{
-void cDvbRtp::processBlockList (cTsBlock* blockList) {
-// process block list
+void cDvbRtp::demuxBlockList (cTsBlock* blockList) {
+// demux transport stream block list
 
-  mWallclock = mdate();
-
-  // set blockList DTS
+  // count blocks
   int numTs = 0;
   cTsBlock* block = blockList;
   while (block) {
@@ -3919,23 +3913,58 @@ void cDvbRtp::processBlockList (cTsBlock* blockList) {
     }
 
   // assume CBR, at least between two consecutive read(), especially true in budget mode
-  int64_t duration = (mLastDts == -1)  ? 0 : mWallclock - mLastDts;
+  int64_t wallclock = mdate();
+  int64_t duration = (mLastDts == -1)  ? 0 : wallclock - mLastDts;
+
+  // set blockList DTS
   block = blockList;
   int i = numTs - 1;
   while (block) {
-    block->mDts = mWallclock - duration * i / numTs;
-    i--;
-    block = block->mNextBlock;
-    }
-  mLastDts = mWallclock;
-
-  // demux block list
-  block = blockList;
-  while (block) {
+    block->mDts = wallclock - duration * i / numTs;
     cTsBlock* nextBlock = block->mNextBlock;
     block->mNextBlock = NULL;
-    demux (block);
+    demuxBlock (block);
+    i--;
     block = nextBlock;
     }
+
+  mLastDts = wallclock;
   }
+//}}}
+//{{{
+//void cDvbRtp::demuxBlockList (cTsBlock* blockList) {
+//// demux transport stream block list
+
+  //mWallclock = mdate();
+
+  //// count blocks
+  //int numTs = 0;
+  //cTsBlock* block = blockList;
+  //while (block) {
+    //numTs++;
+    //block = block->mNextBlock;
+    //}
+
+  //// assume CBR, at least between two consecutive read(), especially true in budget mode
+  //int64_t duration = (mLastDts == -1)  ? 0 : mWallclock - mLastDts;
+
+  //// set blockList DTS
+  //block = blockList;
+  //int i = numTs - 1;
+  //while (block) {
+    //block->mDts = mWallclock - duration * i / numTs;
+    //i--;
+    //block = block->mNextBlock;
+    //}
+  //mLastDts = mWallclock;
+
+  //// demux block list
+  //block = blockList;
+  //while (block) {
+    //cTsBlock* nextBlock = block->mNextBlock;
+    //block->mNextBlock = NULL;
+    //demuxBlock (block);
+    //block = nextBlock;
+    //}
+  //}
 //}}}

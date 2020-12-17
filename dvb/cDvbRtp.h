@@ -25,5 +25,5 @@ public:
   std::string getOutputInfoString (int outputNum);
 
   static bool selectOutput (const std::string& addressString, int sid);
-  static void processBlockList (cTsBlock* blockList);
+  static void demuxBlockList (cTsBlock* blockList);
   };

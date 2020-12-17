@@ -1,13 +1,12 @@
-// cDvbUtils.h - dvb get utils
+// cDvbUtils.h 
 #pragma once
 //{{{  includes
 #include <cstdlib>
 #include <cstdint>
 #include <string>
-
-class cTsBlockPool;
 //}}}
 
+class cTsBlockPool;
 //{{{
 class cTsBlock {
 friend cTsBlockPool;
@@ -45,7 +44,7 @@ private:
 
 class cDvbUtils {
 public:
-  static int getSectionLength (uint8_t* buf);
+  static int getSectionLength (uint8_t* buf) { return ((buf[0] & 0x0F) << 8) + buf[1] + 3; }
 
   static uint32_t getCrc32 (uint8_t* buf, uint32_t len);
 

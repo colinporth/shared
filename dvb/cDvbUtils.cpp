@@ -5875,12 +5875,6 @@ namespace { // anonymous
 
 // cDvbUtils static members
 //{{{
-int cDvbUtils::getSectionLength (uint8_t* buf) {
-  return ((buf[0] & 0x0F) << 8) + buf[1] + 3;
-  }
-//}}}
-
-//{{{
 uint32_t cDvbUtils::getCrc32 (uint8_t* buf, uint32_t len) {
 
   uint32_t crc = 0xffffffff;
@@ -5993,6 +5987,7 @@ cTsBlockPool::~cTsBlockPool() {
     cTsBlock* block = mBlockPool;
     mBlockPool = block->mNextBlock;
     delete block;
+
     mAllocatedBlockCount--;
     mFreeBlockCount--;
     }
@@ -6005,6 +6000,7 @@ void cTsBlockPool::freeBlock (cTsBlock* block) {
 
   if (mFreeBlockCount >= mMaxBlocks) {
     delete block;
+
     mAllocatedBlockCount--;
     return;
     }

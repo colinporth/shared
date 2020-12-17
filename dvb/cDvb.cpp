@@ -906,7 +906,7 @@ int cDvb::getBlock (uint8_t*& block, int& blockSize) {
   #endif
 
   #ifdef __linux__
-    return ::read (mDvr, block, blockSize);
+    return read (mDvr, block, blockSize);
   #endif
   }
 //}}}
