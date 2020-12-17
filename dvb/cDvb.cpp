@@ -71,11 +71,11 @@
 #include <vector>
 #include <thread>
 
+#include "cDvb.h"
+
 #include "../fmt/core.h"
 #include "../date/date.h"
 #include "../utils/cLog.h"
-
-#include "cDvb.h"
 
 using namespace std;
 using namespace fmt;
@@ -652,13 +652,13 @@ namespace { // anonymous
     //{{{  dtv_properties
     struct dtv_property info_cmdargs[] = { DTV_API_VERSION, 0,0,0, 0,0 };
     struct dtv_properties info_cmdseq = {
-      .num = sizeof(info_cmdargs)/sizeof(struct dtv_property),
+      .num = 1,
       .props = info_cmdargs
       };
 
     struct dtv_property enum_cmdargs[] = { DTV_ENUM_DELSYS, 0,0,0, 0,0 };
     struct dtv_properties enum_cmdseq = {
-      .num = sizeof(enum_cmdargs)/sizeof(struct dtv_property),
+      .num = 1,
       .props = enum_cmdargs
       };
 
@@ -676,7 +676,7 @@ namespace { // anonymous
       { DTV_TUNE,              0,0,0, 0,0 }
       };
     struct dtv_properties dvbt_cmdseq = {
-      .num = sizeof(dvbt_cmdargs)/sizeof(struct dtv_property),
+      .num = 11,
       .props = dvbt_cmdargs
       };
 
@@ -694,7 +694,7 @@ namespace { // anonymous
       { DTV_TUNE,              0,0,0, 0,0 }
       };
     struct dtv_properties dvbt2_cmdseq = {
-      .num = sizeof(dvbt2_cmdargs)/sizeof(struct dtv_property),
+      .num = 11,
       .props = dvbt2_cmdargs
       };
 
@@ -850,38 +850,38 @@ void cDvb::reset() {
 //{{{
 int cDvb::setFilter (uint16_t pid) {
 
-#ifdef _WIN32
-  return 0;
-#endif
+  #ifdef _WIN32
+    return 0;
+  #endif
 
-#ifdef __linux__
-  int mAdapter = 0;
-  int mFeNum = 0;
-  string filter = format ("/dev/dvb/adapter{}/demux{}", mAdapter, mFeNum);
+  #ifdef __linux__
+    int mAdapter = 0;
+    int mFeNum = 0;
+    string filter = format ("/dev/dvb/adapter{}/demux{}", mAdapter, mFeNum);
 
-  int fd = open (filter.c_str(), O_RDWR);
-  if (fd < 0) {
-    // error return
-    cLog::log (LOGERROR, format ("dvbSetFilter - open failed pid:{}", pid));
-    return -1;
-    }
+    int fd = open (filter.c_str(), O_RDWR);
+    if (fd < 0) {
+      // error return
+      cLog::log (LOGERROR, format ("dvbSetFilter - open failed pid:{}", pid));
+      return -1;
+      }
 
-  struct dmx_pes_filter_params s_filter_params;
-  s_filter_params.pid = pid;
-  s_filter_params.input = DMX_IN_FRONTEND;
-  s_filter_params.output = DMX_OUT_TS_TAP;
-  s_filter_params.flags = DMX_IMMEDIATE_START;
-  s_filter_params.pes_type = DMX_PES_OTHER;
-  if (ioctl (fd, DMX_SET_PES_FILTER, &s_filter_params) < 0) {
-    // error return
-    cLog::log (LOGERROR, format ("dvbSetFilter - set_pesFilter failed pid:{} {}", pid, strerror (errno)));
-    close (fd);
-    return -1;
-    }
+    struct dmx_pes_filter_params s_filter_params;
+    s_filter_params.pid = pid;
+    s_filter_params.input = DMX_IN_FRONTEND;
+    s_filter_params.output = DMX_OUT_TS_TAP;
+    s_filter_params.flags = DMX_IMMEDIATE_START;
+    s_filter_params.pes_type = DMX_PES_OTHER;
+    if (ioctl (fd, DMX_SET_PES_FILTER, &s_filter_params) < 0) {
+      // error return
+      cLog::log (LOGERROR, format ("dvbSetFilter - set_pesFilter failed pid:{} {}", pid, strerror (errno)));
+      close (fd);
+      return -1;
+      }
 
-  cLog::log (LOGINFO1, format ("dvbSetFilter pid:{}", pid));
-  return fd;
-#endif
+    cLog::log (LOGINFO1, format ("dvbSetFilter pid:{}", pid));
+    return fd;
+  #endif
   }
 //}}}
 //{{{
@@ -897,11 +897,12 @@ void cDvb::unsetFilter (int fd, uint16_t pid) {
   }
 //}}}
 
+// get block
 //{{{
 int cDvb::getBlock (uint8_t*& block, int& blockSize) {
 
   #ifdef _WIN32
-    cLog::log (LOGERROR, "cDvbSimple::getTsBlock not implemented");
+    cLog::log (LOGERROR, "getBlock not implemented");
     return 0;
   #endif
 
@@ -910,7 +911,6 @@ int cDvb::getBlock (uint8_t*& block, int& blockSize) {
   #endif
   }
 //}}}
-
 #ifdef _WIN32
   //{{{
   uint8_t* cDvb::getBlockBDA (int& len) {
@@ -929,23 +929,35 @@ int cDvb::getBlock (uint8_t*& block, int& blockSize) {
   //{{{
   cTsBlock* cDvb::getBlocks (cTsBlockPool* blockPool) {
 
+    cTsBlock* firstBlock = NULL;
+    cTsBlock* lastBlock = NULL;
+
     constexpr int kMaxRead = 50;
     struct iovec iovecs[kMaxRead];
 
-    cTsBlock* block = mBlockFreeList;
-    cTsBlock** current = &block;
-
+    // allocate blocks
     for (int i = 0; i < kMaxRead; i++) {
-      if (!(*current))
-        *current = blockPool->newBlock();
-      iovecs[i].iov_base = (*current)->mTs;
+      // allocate block
+      cTsBlock* block = blockPool->newBlock();
+
+      // form forward linked list
+      if (!firstBlock)
+        firstBlock = block;
+      if (lastBlock)
+        lastBlock->mNextBlock = block;
+      block->mNextBlock = NULL;
+      lastBlock = block;
+
+      // set iovec
+      iovecs[i].iov_base = block->mTs;
       iovecs[i].iov_len = 188;
-      current = &(*current)->mNextBlock;
       }
 
+    // wait for iovecs ready to read
     while (poll (fds, 1, -1) <= 0)
       cLog::log (LOGINFO, "poll waiting");
 
+    // read iovecs
     int size = readv (fds[0].fd, iovecs, kMaxRead);
     if (size < 0) {
       cLog::log (LOGERROR, format ("readv DVR failed {}", strerror(errno)));
@@ -953,16 +965,10 @@ int cDvb::getBlock (uint8_t*& block, int& blockSize) {
       }
     size /= 188;
 
-    current = &block;
-    while (size && *current) {
-      current = &(*current)->mNextBlock;
-      size--;
-      }
+    if (size != kMaxRead)
+      cLog::log (LOGERROR, format ("size {}", size));
 
-    mBlockFreeList = *current;
-    *current = NULL;
-
-    return block;
+    return firstBlock;
     }
   //}}}
   //{{{
@@ -970,7 +976,7 @@ int cDvb::getBlock (uint8_t*& block, int& blockSize) {
 
     fe_status_t feStatus;
     if (ioctl (mFrontEnd, FE_READ_STATUS, &feStatus) < 0)
-      return "no read status";
+      return "unknown status";
 
     return format ("{}{}{}{}{}{} {}",
                    feStatus & FE_TIMEDOUT ? "timeout " : "",
@@ -980,22 +986,22 @@ int cDvb::getBlock (uint8_t*& block, int& blockSize) {
                    feStatus & FE_HAS_VITERBI ? "v": " ",
                    feStatus & FE_HAS_SYNC ? "s" : "",
                    getStatusString());
-
     }
   //}}}
 
-// private - dvblast style
+// private - dvblast frontend
 //{{{
 fe_hierarchy_t cDvb::getHierarchy() {
 
   switch (mHierarchy) {
+    case -1: return HIERARCHY_AUTO;
     case 0: return HIERARCHY_NONE;
     case 1: return HIERARCHY_1;
     case 2: return HIERARCHY_2;
     case 4: return HIERARCHY_4;
     default:
       cLog::log (LOGERROR, "invalid intramission mode %d", mTransmission);
-    case -1: return HIERARCHY_AUTO;
+      return HIERARCHY_AUTO;
     }
   }
 //}}}
@@ -1003,14 +1009,15 @@ fe_hierarchy_t cDvb::getHierarchy() {
 fe_guard_interval_t cDvb::getGuard() {
 
   switch (mGuard) {
-    case 32: return GUARD_INTERVAL_1_32;
-    case 16: return GUARD_INTERVAL_1_16;
-    case  8: return GUARD_INTERVAL_1_8;
-    case  4: return GUARD_INTERVAL_1_4;
-
-    default: cLog::log (LOGERROR, "invalid guard interval %d", mGuard);
     case -1:
     case  0: return GUARD_INTERVAL_AUTO;
+    case  4: return GUARD_INTERVAL_1_4;
+    case  8: return GUARD_INTERVAL_1_8;
+    case 16: return GUARD_INTERVAL_1_16;
+    case 32: return GUARD_INTERVAL_1_32;
+    default:
+      cLog::log (LOGERROR, "invalid guard interval %d", mGuard);
+      return GUARD_INTERVAL_AUTO;
     }
   }
 //}}}
@@ -1018,14 +1025,19 @@ fe_guard_interval_t cDvb::getGuard() {
 fe_transmit_mode_t cDvb::getTransmission() {
 
   switch (mTransmission) {
+    case -1:
+    case 0: return TRANSMISSION_MODE_AUTO;
     case 2: return TRANSMISSION_MODE_2K;
-    case 8: return TRANSMISSION_MODE_8K;
+
   #ifdef TRANSMISSION_MODE_4K
     case 4: return TRANSMISSION_MODE_4K;
   #endif
-    default: cLog::log (LOGERROR, "invalid tranmission mode %d", mTransmission);
-    case -1:
-    case 0: return TRANSMISSION_MODE_AUTO;
+
+    case 8: return TRANSMISSION_MODE_8K;
+
+    default:
+      cLog::log (LOGERROR, "invalid tranmission mode %d", mTransmission);
+      return TRANSMISSION_MODE_AUTO;
     }
   }
 //}}}
@@ -1033,10 +1045,12 @@ fe_transmit_mode_t cDvb::getTransmission() {
 fe_spectral_inversion_t cDvb::getInversion() {
 
   switch (mInversion) {
+    case -1: return INVERSION_AUTO;
     case 0:  return INVERSION_OFF;
     case 1:  return INVERSION_ON;
-    case -1: return INVERSION_AUTO;
-    default: cLog::log (LOGERROR, "invalid inversion %d", mInversion); return INVERSION_AUTO;
+    default:
+      cLog::log (LOGERROR, "invalid inversion %d", mInversion);
+      return INVERSION_AUTO;
     }
   }
 //}}}
@@ -1202,14 +1216,14 @@ void cDvb::frontendSetup() {
 
   struct dvb_frontend_info info;
   if (ioctl (mFrontEnd, FE_GET_INFO, &info) < 0) {
-    //{{{  error exit
+    //{{{  error return
     cLog::log (LOGERROR, "frontend FE_GET_INFO failed %s", strerror(errno));
     return;
     }
     //}}}
 
   if (ioctl (mFrontEnd, FE_GET_PROPERTY, &info_cmdseq) < 0) {
-    //{{{  error exit
+    //{{{  error return
     cLog::log (LOGERROR, "frontend FE_GET_PROPERTY api version failed");
     return;
     }
@@ -1217,7 +1231,7 @@ void cDvb::frontendSetup() {
   int version = info_cmdargs[0].u.data;
 
   if (ioctl (mFrontEnd, FE_GET_PROPERTY, &enum_cmdseq) < 0) {
-    //{{{  error exit
+    //{{{  error return
     cLog::log (LOGERROR, "frontend FE_GET_PROPERTY failed");
     return;
     }
@@ -1226,7 +1240,7 @@ void cDvb::frontendSetup() {
   fe_delivery_system_t systems[MAX_DELIVERY_SYSTEMS] = {SYS_UNDEFINED, SYS_UNDEFINED};
   int numSystems = enum_cmdargs[0].u.buffer.len;
   if (numSystems < 1) {
-    //{{{  error exit
+    //{{{  error return
     cLog::log (LOGERROR, "no available delivery system");
     return;
     }
@@ -1238,7 +1252,7 @@ void cDvb::frontendSetup() {
 
   // clear frontend commands
   if (ioctl (mFrontEnd, FE_SET_PROPERTY, &cmdclear) < 0) {
-    //{{{  error exit
+    //{{{  error return
     cLog::log (LOGERROR, "Unable to clear frontend");
     return;
     }
@@ -1299,7 +1313,7 @@ void cDvb::frontendSetup() {
 
   // send properties to frontend device
   if (ioctl (mFrontEnd, FE_SET_PROPERTY, p) < 0) {
-    //{{{  error exit
+    //{{{  error return
     cLog::log (LOGERROR, "setting frontend failed %s", strerror(errno));
     exit (1);
     }

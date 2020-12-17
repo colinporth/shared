@@ -1,4 +1,4 @@
-// cDvbUtils.h 
+// cDvbUtils.h
 #pragma once
 //{{{  includes
 #include <cstdlib>
@@ -28,6 +28,11 @@ public:
   cTsBlockPool (int maxBlocks) : mMaxBlocks(maxBlocks) {}
   ~cTsBlockPool();
 
+  int getNumAllocatedBlocks() { return mAllocatedBlockCount; }
+  int getNumFreeBlocks() { return mFreeBlockCount; }
+  int getNumMaxBlocks() { return mMaxBlockCount; }
+  std::string getInfoString();
+
   cTsBlock* newBlock();
   void freeBlock (cTsBlock* block);
   void unRefBlock (cTsBlock* block);
@@ -35,9 +40,10 @@ public:
 private:
   const int mMaxBlocks = 0;
 
-  int mFreeBlockCount = 0;
   int mAllocatedBlockCount = 0;
+  int mFreeBlockCount = 0;
   int mMaxBlockCount = 0;
+
   cTsBlock* mBlockPool = NULL;
   };
 //}}}

@@ -80,8 +80,5 @@ private:
     int mHierarchy = -1;
 
     fe_status_t mLastStatus;
-
-    cTsBlock* mBlockFreeList = NULL;
-
   #endif
   };

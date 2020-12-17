@@ -5995,6 +5995,12 @@ cTsBlockPool::~cTsBlockPool() {
 //}}}
 
 //{{{
+string cTsBlockPool::getInfoString() {
+  return format ("a:{} f:{} m:{}", mAllocatedBlockCount, mFreeBlockCount, mMaxBlockCount);
+  }
+//}}}
+
+//{{{
 void cTsBlockPool::freeBlock (cTsBlock* block) {
 // delte if too many blocks allocated else return to pool
 
