@@ -1861,6 +1861,14 @@ public:
     mNumChannels = 2;
     mSampleRate = 48000;
 
+    if (params.size() > 1) {
+      int channel = stoi (params[1]);
+      mMulticastAddress = format ("239.255.1.{}", channel);
+      }
+    else
+      mMulticastAddress = "239.255.1.3";
+
+
     return true;
     }
   //}}}
@@ -2098,7 +2106,7 @@ public:
   //}}}
 
 private:
-  string mMulticastAddress = "239.255.1.3";
+  string mMulticastAddress;
   int mPort = 5002;
 
   int mSid = 0;
